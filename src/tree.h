@@ -9,7 +9,7 @@ typedef enum tree_kind {
 
 typedef struct tree *tree_t;
 
-tree_t make_tree(tree_kind_t kind);
+tree_t tree_new(tree_kind_t kind);
 
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);

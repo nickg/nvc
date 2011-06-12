@@ -5,7 +5,7 @@
 
 START_TEST(test_make_lib)
 {
-   lib_t l = make_lib("test");
+   lib_t l = lib_new("test");
    fail_if(l == NULL);
 }
 END_TEST
