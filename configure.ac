@@ -5,6 +5,10 @@ AM_INIT_AUTOMAKE([-Wall color-tests])
 
 AC_PROG_CC
 AC_PROG_INSTALL
-    
+AC_PROG_MKDIR_P
+      
+AC_CHECK_FUNCS([strdup])
+AC_CHECK_HEADERS([limits.h stdlib.h])
+
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile test/Makefile])

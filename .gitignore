@@ -7,4 +7,7 @@ configure
 depcomp
 install-sh
 missing
+configure.scan
+autoscan.log
 *.o
+*~
