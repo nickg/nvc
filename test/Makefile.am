@@ -1,6 +1,9 @@
 check_PROGRAMS = test_lib
 TESTS = $(check_PROGRAMS)
 
-AM_CFLAGS = -I $(top_srcdir)/src
+src = $(top_srcdir)/src
 
-test_lib_SOURCES = test_lib.c
+AM_CFLAGS = -I $(src)
+LDADD = -lcheck
+
+test_lib_SOURCES = test_lib.c $(src)/lib.c
