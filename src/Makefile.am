@@ -1,7 +1,7 @@
 bin_PROGRAMS = nhdl
 
 AM_CFLAGS = -Wall
-AM_YFLAGS = -d
+AM_YFLAGS = -d --locations
 
 BUILT_SOURCES = parse.h
 

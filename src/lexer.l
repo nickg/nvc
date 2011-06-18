@@ -49,6 +49,7 @@ F       [fF]
 G       [gG]
 H       [hH]
 I       [iI]
+K       [kK]
 L       [lL]
 N       [nN]
 M       [mM]
@@ -90,6 +91,8 @@ SIGNAL        {S}{I}{G}{N}{A}{L}
 PROCESS       {P}{R}{O}{C}{E}{S}{S}
 WAIT          {W}{A}{I}{T}
 REPORT        {R}{E}{P}{O}{R}{T}
+INOUT         {I}{N}{O}{U}{T}
+LINKAGE       {L}{I}{N}{K}{A}{G}{E}
 
 %%
 
@@ -123,6 +126,8 @@ REPORT        {R}{E}{P}{O}{R}{T}
 {PROCESS}       { begin_token(yytext); return tPROCESS; }
 {WAIT}          { begin_token(yytext); return tWAIT; }
 {REPORT}        { begin_token(yytext); return tREPORT; }
+{INOUT}         { begin_token(yytext); return tINOUT; }
+{LINKAGE}       { begin_token(yytext); return tLINKAGE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

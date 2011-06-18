@@ -25,6 +25,14 @@ START_TEST(test_entity)
    fail_if(t == NULL);
    fail_unless(tree_kind(t) == T_ENTITY);
    fail_unless(tree_ident(t) == ident_new("three"));
+
+   t = parse();
+   fail_if(t == NULL);
+   fail_unless(tree_kind(t) == T_ENTITY);
+   fail_unless(tree_ident(t) == ident_new("four"));
+
+   t = parse();
+   fail_unless(t == NULL);
    
    fail_unless(parse_errors() == 0);
 }

@@ -23,6 +23,7 @@
    #include <sys/stat.h>
    #include <fcntl.h>
    #include <unistd.h>
+   #include <string.h>
 }
 
 %code requires {
@@ -32,13 +33,33 @@
    
    #define YYLTYPE YYLTYPE
    typedef struct YYLTYPE {
-      int  first_line;
-      int  first_column;
-      int  last_line;
-      int  last_column;
-      char *filename;
+      int        first_line;
+      int        first_column;
+      int        last_line;
+      int        last_column;
+      const char *file;
+      const char *linebuf;
    } YYLTYPE;
 
+   #define YYLLOC_DEFAULT(Current, Rhs, N) {                         \
+         if (N) {                                                    \
+            (Current).first_line   = YYRHSLOC(Rhs, 1).first_line;    \
+            (Current).first_column = YYRHSLOC(Rhs, 1).first_column;  \
+            (Current).last_line    = YYRHSLOC(Rhs, N).last_line;     \
+            (Current).last_column  = YYRHSLOC(Rhs, N).last_column;   \
+            (Current).file         = YYRHSLOC(Rhs, N).file;          \
+            (Current).linebuf      = YYRHSLOC(Rhs, 1).linebuf;       \
+         }                                                           \
+         else {                                                      \
+            (Current).first_line   = (Current).last_line   =         \
+               YYRHSLOC(Rhs, 0).last_line;                           \
+            (Current).first_column = (Current).last_column =         \
+               YYRHSLOC(Rhs, 0).last_column;                         \
+            (Current).file = YYRHSLOC(Rhs, 0).file;                  \
+            (Current).linebuf = YYRHSLOC(Rhs, 0).linebuf;            \
+         }                                                           \
+      }
+   
    typedef struct {
       int  ival;
       char *sval;
@@ -56,12 +77,14 @@
 
 %code {
    extern lvals_t lvals;
+   extern YYLTYPE yylloc;
    
    static int        n_errors = 0;
    static const char *read_ptr;
    static const char *file_start;
    static size_t     file_sz;
    static const char *perm_linebuf = NULL;
+   static const char *perm_file_name = NULL;
    static int        n_chars_this_line = 0;
    static int        n_token_next_start = 0;
    static int        n_row = 0;
@@ -77,14 +100,14 @@
    ident_t i;
 }
 
-%type <t> entity
+%type <t> entity_decl
 %type <i> id opt_id
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
 %token tNAND tABS tNOT tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tPOWER tCOMMA tLE tINT tSTRING tCHAR tERROR
+%token tPOWER tCOMMA tLE tINT tSTRING tCHAR tERROR tINOUT tLINKAGE
 
 %error-verbose
 %expect 0
@@ -92,20 +115,9 @@
 %%
 
 root
-: entity { root = $1; YYACCEPT; }
+: entity_decl { root = $1; YYACCEPT; }
 | /* empty */ {} 
 ;
-
-entity
-: tENTITY id tIS /* entity_header entity_declaritive_part */ tEND
-  opt_entity_token opt_id tSEMI
-  {
-     $$ = tree_new(T_ENTITY);
-     tree_set_ident($$, $2);
-  }
-;
-
-opt_entity_token : tENTITY {} | {} ;
 
 id
 : tID
@@ -115,19 +127,135 @@ id
   }
 ;
 
+id_list
+: tID
+| tID tCOMMA id_list
+;
+
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
+
+entity_decl
+: tENTITY id tIS entity_header /* entity_decl_part */ tEND
+  opt_entity_token opt_id tSEMI
+  {
+     $$ = tree_new(T_ENTITY);
+     tree_set_ident($$, $2);
+  }
+;
+
+opt_entity_token : tENTITY {} | {} ;
+
+entity_header
+: /* generic_clause | */ port_clause
+| /* empty */ {}
+;
+
+port_clause
+: tPORT tLPAREN interface_list tRPAREN tSEMI 
+;
+
+interface_list
+: interface_decl
+| interface_decl tSEMI interface_list
+;
+
+interface_decl
+: interface_object_decl
+  /* | interface_type_declaration
+     | interface_subprogram_declaration
+     | interface_package_declaration */
+;
+
+interface_object_decl
+: interface_signal_decl
+  /* | interface_constant_declaration
+     | interface_variable_declaration
+     | interface_file_declaration */
+;
+
+interface_signal_decl
+: opt_signal_token id_list tCOLON opt_mode subtype_indication
+  /* opt_bus_token [ := static_expression ] */
+;
+
+opt_signal_token : tSIGNAL | /* empty */ ;
+
+opt_mode : tIN | tOUT | tINOUT | tBUFFER | tLINKAGE | /* empty */ ;
+
+subtype_indication : /* resolution_indication */ type_mark /* constraint */ ;
+
+type_mark : name ;
+
+name
+: simple_name
+  /* | operator_symbol
+     | character_literal
+     | selected_name
+     | indexed_name
+     | slice_name
+     | attribute_name
+     | external_name */
+;
+
+simple_name : id ;
 
 %%
 
 static void yyerror(const char *s)
 {
-   fprintf(stderr, "%s\n", s);
+   fprintf(stderr, "%s:%d: %s\n", yylloc.file, yylloc.first_line, s);
+
+   const char *lb = yylloc.linebuf;
+   char buf[80];
+   size_t i = 0;
+   while (i < sizeof(buf) - 4 && *lb != '\0' && *lb != '\n') {
+      // TODO: expand tabs?
+      buf[i++] = *lb++;
+   }
+
+   if (i == sizeof(buf) - 4) {
+      buf[i++] = '.';
+      buf[i++] = '.';
+      buf[i++] = '.';
+   }
+
+   buf[i] = '\0';
+
+   // Print ... if error location spans multiple lines
+   bool many_lines = (yylloc.first_line != yylloc.last_line);
+   int last_col = many_lines ? strlen(buf) + 4 : yylloc.last_column;
+
+   fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
+   for (int i = 0; i < yylloc.first_column + 4; i++)
+      fprintf(stderr, " ");
+   for (int i = 0; i < last_col - yylloc.first_column + 1; i++)
+      fprintf(stderr, "^");
+   fprintf(stderr, "\n");
+   
    n_errors++;
 }
 
 void begin_token(char *tok)
 {
-
+   const char *newline = strchr(tok, '\n');
+   int n_token_start, n_token_length;
+   if (newline != NULL) {
+      n_token_start = 0;
+      n_token_length = strlen(tok) - (newline - tok);
+      n_token_next_start = n_token_length - 1;
+   }
+   else {
+      n_token_start = n_token_next_start;
+      n_token_length = strlen(tok);
+      n_token_next_start = n_chars_this_line;
+   }
+   
+   yylloc.first_line   = n_row;
+   yylloc.first_column = n_token_start;
+   yylloc.last_line    = n_row;
+   yylloc.last_column  = n_token_start + n_token_length - 1;
+   yylloc.file         = perm_file_name;
+   yylloc.linebuf      = perm_linebuf;
 }
 
 int get_next_char(char *b, int max_buffer)
@@ -181,8 +309,9 @@ bool input_from_file(const char *file)
       return false;
    }
 
-   read_ptr = file_start;
+   read_ptr         = file_start;
    last_was_newline = true;
+   perm_file_name   = strdup(file);
    
    return true;
 }
