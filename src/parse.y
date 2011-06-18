@@ -73,10 +73,12 @@
 }
 
 %union {
-   tree_t t;
+   tree_t  t;
+   ident_t i;
 }
 
 %type <t> entity
+%type <i> id opt_id
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
@@ -90,13 +92,30 @@
 %%
 
 root
-: entity { root = $1; }
+: entity { root = $1; YYACCEPT; }
 | /* empty */ {} 
 ;
 
 entity
-: tENTITY { $$ = tree_new(T_ENTITY); }
+: tENTITY id tIS /* entity_header entity_declaritive_part */ tEND
+  opt_entity_token opt_id tSEMI
+  {
+     $$ = tree_new(T_ENTITY);
+     tree_set_ident($$, $2);
+  }
 ;
+
+opt_entity_token : tENTITY {} | {} ;
+
+id
+: tID
+  {
+     $$ = ident_new(lvals.sval);
+     free(lvals.sval);
+  }
+;
+
+opt_id : id { $$ = $1; } | { $$ = NULL; } ;
 
 %%
 

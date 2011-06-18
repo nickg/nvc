@@ -7,11 +7,25 @@
 
 START_TEST(test_entity)
 {
+   tree_t t;
+   
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
    
-   tree_t t = parse();
+   t = parse();
    fail_if(t == NULL);
+   fail_unless(tree_kind(t) == T_ENTITY);
+   fail_unless(tree_ident(t) == ident_new("one"));
 
+   t = parse();
+   fail_if(t == NULL);
+   fail_unless(tree_kind(t) == T_ENTITY);
+   fail_unless(tree_ident(t) == ident_new("two"));
+   
+   t = parse();
+   fail_if(t == NULL);
+   fail_unless(tree_kind(t) == T_ENTITY);
+   fail_unless(tree_ident(t) == ident_new("three"));
+   
    fail_unless(parse_errors() == 0);
 }
 END_TEST

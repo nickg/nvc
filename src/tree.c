@@ -18,9 +18,15 @@
 #include "tree.h"
 #include "util.h"
 
+#include <assert.h>
+
 struct tree {
    tree_kind_t kind;
+   ident_t     ident;
 };
+
+#define IS(t, k) ((t)->kind == (k))
+#define HAS_IDENT(t) IS(t, T_ENTITY)
 
 tree_t tree_new(tree_kind_t kind)
 {
@@ -30,3 +36,26 @@ tree_t tree_new(tree_kind_t kind)
    return t;
 }
 
+ident_t tree_ident(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_IDENT(t));
+   assert(t->ident != NULL);
+
+   return t->ident;
+}
+
+void tree_set_ident(tree_t t, ident_t i)
+{
+   assert(t != NULL);
+   assert(i != NULL);
+   assert(HAS_IDENT(t));
+
+   t->ident = i;
+}
+
+tree_kind_t tree_kind(tree_t t)
+{
+   assert(t != NULL);
+   return t->kind;
+}

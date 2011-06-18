@@ -4,5 +4,5 @@ end entity;
 entity two is
 end two;
 
-entity three;
+entity three is
 end entity three;
