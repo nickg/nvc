@@ -13,6 +13,14 @@ struct lib {
    char path[PATH_MAX];
 };
 
+static lib_t lib_init(const char *rpath)
+{
+   struct lib *l = xmalloc(sizeof(struct lib));
+   realpath(rpath, l->path);
+
+   return l;
+}
+
 lib_t lib_new(const char *name)
 {
    if (access(name, F_OK) == 0) {
@@ -25,10 +33,26 @@ lib_t lib_new(const char *name)
       return NULL;
    }
 
-   struct lib *l = xmalloc(sizeof(struct lib));
-   realpath(name, l->path);
-   
+   lib_t l = lib_init(name);
+
+   FILE *tag = lib_fopen(l, "_NHDL_LIB", "w");
+   fprintf(tag, "%s\n", PACKAGE_STRING);
+   fclose(tag);
+
    return l;
+}
+
+lib_t lib_find(const char *name)
+{
+   if (access(name, F_OK) < 0)
+      return NULL;
+
+   char buf[PATH_MAX];
+   snprintf(buf, sizeof(buf), "%s/_NHDL_LIB", name);
+   if (access(buf, F_OK) < 0)
+      return NULL;
+
+   return lib_init(name);
 }
 
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)

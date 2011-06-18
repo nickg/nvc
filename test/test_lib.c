@@ -35,7 +35,10 @@ START_TEST(test_lib_fopen)
    fprintf(f, "hello world");
    fclose(f);
 
-   // TODO: lib_free, lib_find
+   lib_free(work);
+
+   work = lib_find("work");
+   fail_if(work == NULL);   
 
    f = lib_fopen(work, "test", "r");
    char buf[12];
@@ -52,7 +55,7 @@ int main(void)
    Suite *s = suite_create("lib");
 
    TCase *tc_core = tcase_create("Core");
-   tcase_add_checked_fixture(tc_core, setup, teardown);
+   tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_lib_new);
    tcase_add_test(tc_core, test_lib_fopen);
    suite_add_tcase(s, tc_core);
