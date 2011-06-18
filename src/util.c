@@ -34,20 +34,6 @@ void errorf(const char *fmt, ...)
    va_end(ap);
 }
 
-void perrorf(const char *fmt, ...)
-{
-   int saved = errno;
-   
-   va_list ap;
-   va_start(ap, fmt);
-
-   fprintf(stderr, "error: ");
-   vfprintf(stderr, fmt, ap);
-   fprintf(stderr, ": %s\n", strerror(saved));
-   
-   va_end(ap);
-}
-
 void fatal(const char *fmt, ...)
 {
    va_list ap;

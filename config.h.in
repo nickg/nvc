@@ -92,6 +92,10 @@
 /* Version number of package */
 #undef VERSION
 
+/* Define to 1 if `lex' declares `yytext' as a `char *' by default, not a
+   `char[]'. */
+#undef YYTEXT_POINTER
+
 /* Define to rpl_malloc if the replacement function should be used. */
 #undef malloc
 

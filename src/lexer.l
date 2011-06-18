@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
 
 /*
- *  Copyright (C) 2008, 2010-2011  Nick Gasson
+ *  Copyright (C) 2011  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -17,8 +17,11 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+
+%option noyywrap
+
 %{
-#include "tokens.h"
+#include "parse.h"
    
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
@@ -26,7 +29,7 @@
          result = YY_NULL;                   \
    }
   
-Lvals lvals;
+lvals_t lvals;
 %}
 
 /* TODO: look at string_literal and character_literal */
@@ -137,4 +140,3 @@ REPORT        {R}{E}{P}{O}{R}{T}
 <<EOF>>    { begin_token(yytext); return 0; }
 .          { begin_token(yytext); return tERROR; }
 %%
-

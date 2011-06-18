@@ -12,8 +12,6 @@ void *xrealloc(void *ptr, size_t size);
 
 void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
-void perrorf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 

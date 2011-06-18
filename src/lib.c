@@ -29,7 +29,7 @@ lib_t lib_new(const char *name)
    }
 
    if (mkdir(name, 0777) != 0) {
-      perrorf("mkdir");
+      perror("mkdir");
       return NULL;
    }
 
@@ -80,7 +80,7 @@ void lib_destroy(lib_t lib)
 
    DIR *d = opendir(lib->path);
    if (d == NULL) {
-      perrorf("opendir");
+      perror("opendir");
       return;
    }
 
@@ -90,13 +90,13 @@ void lib_destroy(lib_t lib)
       if (e->d_name[0] != '.') {
          snprintf(buf, sizeof(buf), "%s/%s", lib->path, e->d_name);
          if (unlink(buf) < 0)
-            perrorf("unlink");
+            perror("unlink");
       }
    }
 
    closedir(d);
 
    if (rmdir(lib->path) < 0)
-      perrorf("rmdir");
+      perror("rmdir");
 }
 

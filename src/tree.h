@@ -2,6 +2,7 @@
 #define _TREE_H
 
 #include "lib.h"
+#include "ident.h"
 
 typedef enum tree_kind {
    T_ENTITY

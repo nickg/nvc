@@ -1,5 +1,8 @@
 bin_PROGRAMS = nhdl
 
 AM_CFLAGS = -Wall
+AM_YFLAGS = -d
 
-nhdl_SOURCES = nhdl.c lib.c util.c ident.c
+BUILT_SOURCES = parse.h
+
+nhdl_SOURCES = nhdl.c lib.c util.c ident.c parse.y lexer.l tree.c
