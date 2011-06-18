@@ -4,19 +4,74 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
-START_TEST(test_lib_new)
+START_TEST(test_make_ident)
 {
+   ident_t i1 = make_ident("foo");
+   fail_if(i1 == NULL);
+}
+END_TEST
+
+START_TEST(test_compare)
+{
+   ident_t i1, i2, i3, i4;
+
+   i1 = make_ident("foo");
+   i2 = make_ident("FOO");
+   i3 = make_ident("foobar");
+   i4 = make_ident("poo");
+
+   fail_unless(i1 == i2);
+   fail_if(i2 == i3);
+   fail_if(i1 == i4);
+   fail_if(i3 == i4);
+}
+END_TEST
+
+START_TEST(test_istr)
+{
+   ident_t i1, i2;
+
+   i1 = make_ident("frob");
+   fail_unless(strcasecmp(istr(i1), "frob") == 0);
+
+   i2 = make_ident("FrOB");
+   fail_unless(strcasecmp(istr(i1), "frob") == 0);
    
+   i1 = make_ident("pingu");
+   fail_unless(strcasecmp(istr(i1), "PINGU") == 0);
+}
+END_TEST
+
+START_TEST(test_rand)
+{
+   for (int i = 0; i < 10000; i++) {
+      char buf[16];
+      size_t len = (random() % (sizeof(buf) - 3)) + 2;
+
+      for (size_t j = 0; j < len; j++)
+         buf[j] = '0' + (random() % 80);
+      buf[len - 1] = '\0';
+      
+      ident_t i1 = make_ident(buf);
+      fail_if(i1 == NULL);
+      fail_unless(strcasecmp(istr(i1), buf) == 0);
+   }
 }
 END_TEST
 
 int main(void)
 {
+   srandom((unsigned)time(NULL));
+   
    Suite *s = suite_create("ident");
 
    TCase *tc_core = tcase_create("Core");
-   tcase_add_test(tc_core, test_lib_new);
+   tcase_add_test(tc_core, test_make_ident);
+   tcase_add_test(tc_core, test_compare);
+   tcase_add_test(tc_core, test_istr);
+   tcase_add_test(tc_core, test_rand);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

@@ -4,6 +4,7 @@ AC_INIT([nhdl], [0.1],
 AM_INIT_AUTOMAKE([-Wall color-tests])
 
 AC_PROG_CC
+AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
      

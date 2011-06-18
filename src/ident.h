@@ -3,7 +3,7 @@
 
 #include "lib.h"
 
-typedef struct ident *ident_t;
+typedef struct trie *ident_t;
 
 /**
  * Intern a string as an identifier.
@@ -11,13 +11,17 @@ typedef struct ident *ident_t;
  * \param str NULL-terminated string to intern. Conformity to VHDL
  *            identifier rules is not checked.
  * \return Opaque reference for this identifier. Every string equal
- *         under strncmp will return the same value when interned.
+ *         under strcasecmp will return the same value when interned.
  *         Note this is not case sensitive.
  */
 ident_t make_ident(const char *str);
 
 /**
  * Convert an identifier reference to a NULL-terminated string.
+ *
+ * This function is quite slow so its use should be avoid except
+ * for printing. The pointer returned is only valid until the
+ * next call to istr.
  *
  * \param ident Identifier reference.
  * \return Printable representation of identifier. You shouldn't
@@ -26,33 +30,19 @@ ident_t make_ident(const char *str);
 const char *istr(ident_t ident);
 
 /**
- * Freeze the identifier table so that it can be serialised.
+ * Serialise and identifier to a file.
  *
- * After calling this no more identifiers can be interned.
- * \see ident_key
+ * \param ident Identifier to store.
+ * \param f File to write into.
  */
-void ident_freeze(void);
+void ident_write(ident_t ident, FILE *f);
 
 /**
- * Write the frozen identifier table into a library.
+ * Read a serialised identifier from a file.
  *
- * \param lib Library to store identifiers in.
- * \see ident_freeze
+ * \param f File to read from.
+ * \return De-serialised identifier.
  */
-void ident_store(lib_t lib);
-
-/**
- * Read an identifier table from a library and merge it with the
- * existing identifier table.
- *
- * \param lib Library to load identifiers from.
- * \see ident_store
- */
-void ident_load(lib_t lib);
-
-/**
- * ???
- */
-size_t ident_key(ident_t ident);
+ident_t ident_read(FILE *f);
 
 #endif // _IDENT_H

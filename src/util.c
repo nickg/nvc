@@ -14,6 +14,14 @@ void *xmalloc(size_t size)
    return p;
 }
 
+void *xrealloc(void *ptr, size_t size)
+{
+   ptr = realloc(ptr, size);
+   if (ptr == NULL)
+      abort();
+   return ptr;
+}
+
 void errorf(const char *fmt, ...)
 {
    va_list ap;
