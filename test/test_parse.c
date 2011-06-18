@@ -7,7 +7,7 @@
 
 START_TEST(test_entity)
 {
-   tree_t t;
+   tree_t t, p;
    
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
    
@@ -31,6 +31,11 @@ START_TEST(test_entity)
    fail_unless(tree_kind(t) == T_ENTITY);
    fail_unless(tree_ident(t) == ident_new("four"));
 
+   fail_unless(tree_ports(t) == 4);
+   p = tree_port(t, 0);
+   fail_unless(tree_kind(p) == T_PORT_DECL);
+   fail_unless(tree_ident(p) == ident_new("a"));
+   
    t = parse();
    fail_unless(t == NULL);
    

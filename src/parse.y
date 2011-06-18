@@ -17,6 +17,7 @@
 
 %code top {
    #include "util.h"
+   #include "ident.h"
    
    #include <sys/types.h>
    #include <sys/mman.h>
@@ -64,6 +65,11 @@
       int  ival;
       char *sval;
    } lvals_t;
+   
+   typedef struct id_list {
+      struct id_list *next;
+      ident_t        id;
+   } id_list_t;
 }
 
 %code provides {
@@ -93,15 +99,31 @@
 
    int yylex(void);
    static void yyerror(const char *s);
+
+   static void copy_trees(tree_list_t *from,
+                          void (*copy_fn)(tree_t t, tree_t d),
+                          tree_t to);
+   static id_list_t *id_list_add(id_list_t *list, ident_t id);
+   static void id_list_free(id_list_t *list);
 }
 
 %union {
-   tree_t  t;
-   ident_t i;
+   tree_t      t;
+   ident_t     i;
+   tree_list_t *l;
+   struct {
+      tree_list_t *left;
+      tree_list_t *right;
+   } p;
+   id_list_t   *s;
 }
 
-%type <t> entity_decl
+%type <t> entity_decl 
 %type <i> id opt_id
+%type <l> interface_signal_decl interface_object_decl interface_list
+%type <l> port_clause interface_decl
+%type <p> entity_header
+%type <s> id_list;
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
@@ -128,8 +150,14 @@ id
 ;
 
 id_list
-: tID
-| tID tCOMMA id_list
+: id
+  {
+     $$ = id_list_add(NULL, $1);
+  }
+| id tCOMMA id_list
+  {
+     $$ = id_list_add($3, $1);
+  }
 ;
 
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
@@ -140,6 +168,8 @@ entity_decl
   {
      $$ = tree_new(T_ENTITY);
      tree_set_ident($$, $2);
+     copy_trees($4.right, tree_add_port, $$);
+     
   }
 ;
 
@@ -147,16 +177,27 @@ opt_entity_token : tENTITY {} | {} ;
 
 entity_header
 : /* generic_clause | */ port_clause
+  {
+     $$.left  = NULL;
+     $$.right = $1;
+  }
 | /* empty */ {}
 ;
 
 port_clause
-: tPORT tLPAREN interface_list tRPAREN tSEMI 
+: tPORT tLPAREN interface_list tRPAREN tSEMI { $$ = $3; }
 ;
 
 interface_list
 : interface_decl
+  {
+     $$ = $1;
+  }
 | interface_decl tSEMI interface_list
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $3);
+  }
 ;
 
 interface_decl
@@ -176,6 +217,17 @@ interface_object_decl
 interface_signal_decl
 : opt_signal_token id_list tCOLON opt_mode subtype_indication
   /* opt_bus_token [ := static_expression ] */
+  {
+     $$ = NULL;
+     for (id_list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_PORT_DECL);
+        tree_set_ident(t, it->id);
+
+        tree_list_prepend(&$$, t);
+     }
+
+     id_list_free($2);
+  }
 ;
 
 opt_signal_token : tSIGNAL | /* empty */ ;
@@ -200,6 +252,31 @@ name
 simple_name : id ;
 
 %%
+
+static void copy_trees(tree_list_t *from,
+                       void (*copy_fn)(tree_t t, tree_t d),
+                       tree_t to)
+{
+   for (; from != NULL; from = from->next)
+      (*copy_fn)(to, from->value);
+}
+
+static id_list_t *id_list_add(id_list_t *list, ident_t id)
+{
+   id_list_t *new = xmalloc(sizeof(id_list_t));
+   new->next = list;
+   new->id   = id;
+   return new;
+}
+
+static void id_list_free(id_list_t *list)
+{
+   while (list != NULL) {
+      id_list_t *next = list->next;
+      free(list);
+      list = next;
+   }      
+}      
 
 static void yyerror(const char *s)
 {
