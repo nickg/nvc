@@ -14,7 +14,7 @@ typedef struct trie *ident_t;
  *         under strcasecmp will return the same value when interned.
  *         Note this is not case sensitive.
  */
-ident_t make_ident(const char *str);
+ident_t ident_new(const char *str);
 
 /**
  * Convert an identifier reference to a NULL-terminated string.

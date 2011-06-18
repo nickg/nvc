@@ -79,7 +79,7 @@ static bool search_trie(const char **str, struct trie *t, struct trie **end)
    }
 }
 
-ident_t make_ident(const char *str)
+ident_t ident_new(const char *str)
 {
    assert(str != NULL);
    assert(*str != '\0');
@@ -141,7 +141,7 @@ ident_t ident_read(FILE *f)
    char *buf = xmalloc(len);
    if (fread(buf, len, 1, f) != 1)
       fatal("failed to read identifier data from file");
-   ident_t i = make_ident(buf);
+   ident_t i = ident_new(buf);
    assert(i->depth == len);
    free(buf);
 
