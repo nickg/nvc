@@ -7,10 +7,14 @@ AC_PROG_CC
 AC_PROG_CC_C99
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
+
+AC_TYPE_SIZE_T
      
 AC_FUNC_MALLOC
-AC_TYPE_SIZE_T
-AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror])
+AC_FUNC_REALLOC
+AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp])
+
+AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stdlib.h stddef.h])
 
 DX_HTML_FEATURE(ON)
