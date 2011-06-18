@@ -1,6 +1,6 @@
 AC_INIT([nhdl], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
-        [xcowsay])
+        [nhdl])
 AM_INIT_AUTOMAKE([-Wall color-tests])
 
 AC_PROG_CC
