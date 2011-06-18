@@ -10,14 +10,25 @@ AC_PROG_MKDIR_P
 AC_PROG_YACC
 AM_PROG_LEX
 
+AC_C_INLINE
+
 AC_TYPE_SIZE_T
-     
+AC_TYPE_INT16_T
+AC_TYPE_INT32_T
+AC_TYPE_INT8_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT8_T
+
+AC_FUNC_MMAP   
+AC_FUNC_ALLOCA 
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
-AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp])
+AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
+                memset strchr])
 
 AC_HEADER_STDBOOL
-AC_CHECK_HEADERS([limits.h stdlib.h stddef.h])
+AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
 DX_HTML_FEATURE(ON)
 DX_CHM_FEATURE(OFF)
