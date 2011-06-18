@@ -20,10 +20,16 @@
 
 #include <assert.h>
 
+struct tree_array {
+   size_t count;
+   size_t max;
+   tree_t *items;
+};
+
 struct tree {
-   tree_kind_t kind;
-   ident_t     ident;
-   tree_list_t *ports;
+   tree_kind_t       kind;
+   ident_t           ident;
+   struct tree_array ports;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -31,54 +37,33 @@ struct tree {
 #define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 
-unsigned tree_list_len(struct tree_list *l)
+#define TREE_ARRAY_BASE_SZ  16
+
+static void tree_array_init(struct tree_array *a)
 {
-   unsigned len = 0;
-   while (l != NULL) {
-      l = l->next;
-      len++;
+   a->count = 0;
+   a->max   = 0;
+   a->items = NULL;
+}
+
+static void tree_array_add(struct tree_array *a, tree_t t)
+{
+   if (a->max == 0) {
+      a->items = xmalloc(sizeof(tree_t) * TREE_ARRAY_BASE_SZ);
+      a->max   = TREE_ARRAY_BASE_SZ;
    }
-   return len;
-}
-
-tree_t tree_list_nth(struct tree_list *l, unsigned n)
-{
-   while (n-- > 0) {
-      assert(l != NULL);
-      l = l->next;
+   else if (a->count == a->max) {
+      a->max *= 2;
+      a->items = xrealloc(a->items, sizeof(tree_t) * a->max);
    }
-   assert(l != NULL);
-   return l->value;
+
+   a->items[a->count++] = t;
 }
 
-void tree_list_append(struct tree_list **l, tree_t t)
+static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
 {
-   struct tree_list *new = xmalloc(sizeof(struct tree_list));
-   new->next  = NULL;
-   new->value = t;
-
-   tree_list_concat(l, new);
-}
-
-void tree_list_prepend(struct tree_list **l, tree_t t)
-{
-   struct tree_list *new = xmalloc(sizeof(struct tree_list));
-   new->next  = *l;
-   new->value = t;
-   
-   *l = new;
-}
-
-void tree_list_concat(struct tree_list **a, struct tree_list *b)
-{
-   if (*a == NULL)
-      *a = b;
-   else {
-      struct tree_list *it;
-      for (it = *a; it->next != NULL; it = it->next)
-         ;
-      it->next = b;
-   }
+   assert(n < a->count);
+   return a->items[n];
 }
 
 tree_t tree_new(tree_kind_t kind)
@@ -86,7 +71,7 @@ tree_t tree_new(tree_kind_t kind)
    tree_t t = xmalloc(sizeof(struct tree));
    t->kind  = kind;
    t->ident = NULL;
-   t->ports = NULL;
+   tree_array_init(&t->ports);
    
    return t;
 }
@@ -120,7 +105,7 @@ unsigned tree_ports(tree_t t)
    assert(t != NULL);
    assert(HAS_PORTS(t));
 
-   return tree_list_len(t->ports);
+   return t->ports.count;
 }
 
 tree_t tree_port(tree_t t, unsigned n)
@@ -128,7 +113,7 @@ tree_t tree_port(tree_t t, unsigned n)
    assert(t != NULL);
    assert(HAS_PORTS(t));
 
-   return tree_list_nth(t->ports, n);
+   return tree_array_nth(&t->ports, n);
 }
 
 void tree_add_port(tree_t t, tree_t d)
@@ -138,5 +123,5 @@ void tree_add_port(tree_t t, tree_t d)
    assert(HAS_PORTS(t));
    assert(IS_DECL(d));
 
-   tree_list_append(&t->ports, d);
+   tree_array_add(&t->ports, d);
 }

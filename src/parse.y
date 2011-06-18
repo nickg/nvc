@@ -70,6 +70,11 @@
       struct id_list *next;
       ident_t        id;
    } id_list_t;
+   
+   typedef struct tree_list {
+      struct tree_list *next;
+      tree_t           value;
+   } tree_list_t;
 }
 
 %code provides {
@@ -105,6 +110,10 @@
                           tree_t to);
    static id_list_t *id_list_add(id_list_t *list, ident_t id);
    static void id_list_free(id_list_t *list);
+   static void tree_list_append(tree_list_t **l, tree_t t);
+   static void tree_list_prepend(tree_list_t **l, tree_t t);
+   static void tree_list_concat(tree_list_t **a, tree_list_t *b);
+   static void tree_list_free(tree_list_t *l);
 }
 
 %union {
@@ -169,7 +178,6 @@ entity_decl
      $$ = tree_new(T_ENTITY);
      tree_set_ident($$, $2);
      copy_trees($4.right, tree_add_port, $$);
-     
   }
 ;
 
@@ -253,12 +261,52 @@ simple_name : id ;
 
 %%
 
+static void tree_list_append(struct tree_list **l, tree_t t)
+{
+   struct tree_list *new = xmalloc(sizeof(struct tree_list));
+   new->next  = NULL;
+   new->value = t;
+
+   tree_list_concat(l, new);
+}
+
+static void tree_list_prepend(struct tree_list **l, tree_t t)
+{
+   struct tree_list *new = xmalloc(sizeof(struct tree_list));
+   new->next  = *l;
+   new->value = t;
+   
+   *l = new;
+}
+
+static void tree_list_concat(struct tree_list **a, struct tree_list *b)
+{
+   if (*a == NULL)
+      *a = b;
+   else {
+      struct tree_list *it;
+      for (it = *a; it->next != NULL; it = it->next)
+         ;
+      it->next = b;
+   }
+}
+
+static void tree_list_free(struct tree_list *l)
+{
+   while (l != NULL) {
+      struct tree_list *next = l->next;
+      free(l);
+      l = next;
+   }
+}
+
 static void copy_trees(tree_list_t *from,
                        void (*copy_fn)(tree_t t, tree_t d),
                        tree_t to)
 {
    for (; from != NULL; from = from->next)
       (*copy_fn)(to, from->value);
+   tree_list_free(from);
 }
 
 static id_list_t *id_list_add(id_list_t *list, ident_t id)

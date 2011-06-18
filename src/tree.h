@@ -12,38 +12,6 @@ typedef enum tree_kind {
 typedef struct tree *tree_t;
 
 /**
- * Stores a list of tree nodes.
- */
-struct tree_list {
-   struct tree_list *next;
-   tree_t           value;
-};
-
-typedef struct tree_list tree_list_t;
-
-/**
- * Calculate the length of a tree list.
- */
-unsigned tree_list_len(tree_list_t *l);
-
-/**
- * Return the Nth item of a tree list.
- */
-tree_t tree_list_nth(tree_list_t *l, unsigned n);
-
-/**
- * Append a tree to a tree list.
- */
-void tree_list_append(tree_list_t **l, tree_t t);
-
-/**
- * Add a tree to the front of a tree list.
- */
-void tree_list_prepend(tree_list_t **l, tree_t t);
-
-void tree_list_concat(tree_list_t **a, tree_list_t *b);
-
-/**
  * Allocate a new tree node.
  *
  * \param kind Type of tree node.
