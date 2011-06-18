@@ -4,6 +4,9 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdlib.h>
+
+#define IDENT_MAX_LEN (1 << 16)
 
 struct clist {
    char         value;
@@ -117,3 +120,31 @@ const char *istr(ident_t ident)
 
    return buf;
 }
+
+void ident_write(ident_t ident, FILE *f)
+{
+   assert(ident != NULL);
+
+   fwrite(&ident->depth, sizeof(unsigned), 1, f);
+   fwrite(istr(ident), ident->depth, 1, f);
+}
+
+ident_t ident_read(FILE *f)
+{
+   unsigned len;
+   if (fread(&len, sizeof(unsigned), 1, f) != 1)
+      fatal("failed to read identifier length from file");
+
+   if (len > IDENT_MAX_LEN)
+      fatal("identifier too long %u", len);
+
+   char *buf = xmalloc(len);
+   if (fread(buf, len, 1, f) != 1)
+      fatal("failed to read identifier data from file");
+   ident_t i = make_ident(buf);
+   assert(i->depth == len);
+   free(buf);
+
+   return i;
+}
+

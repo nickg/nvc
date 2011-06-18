@@ -61,6 +61,37 @@ START_TEST(test_rand)
 }
 END_TEST
 
+START_TEST(test_read_write)
+{
+   ident_t i1, i2, i3;
+   i1 = make_ident("goobar");
+   i2 = make_ident("foo");
+   i3 = make_ident("FOO");
+
+   FILE *f = tmpfile();
+   fail_if(f == NULL);
+   
+   ident_write(i1, f);
+   ident_write(i2, f);
+   ident_write(i3, f);
+
+   rewind(f);
+
+   ident_t j1, j2, j3;
+   j1 = ident_read(f);
+   j2 = ident_read(f);
+   j3 = ident_read(f);
+
+   fail_unless(i1 == j1);
+   fail_unless(i2 == j2);
+   fail_unless(i3 == j3);
+   
+   fail_unless(j2 == j3);
+
+   fclose(f);
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -72,6 +103,7 @@ int main(void)
    tcase_add_test(tc_core, test_compare);
    tcase_add_test(tc_core, test_istr);
    tcase_add_test(tc_core, test_rand);
+   tcase_add_test(tc_core, test_read_write);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);
