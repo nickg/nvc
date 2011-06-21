@@ -30,6 +30,7 @@ struct tree {
    tree_kind_t       kind;
    ident_t           ident;
    struct tree_array ports;
+   struct tree_array generics;
    port_mode_t       port_mode;
 };
 
@@ -37,6 +38,7 @@ struct tree {
 #define IS_DECL(t) (IS(t, T_PORT_DECL))
 #define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
+#define HAS_GENERICS(t) (IS(t, T_ENTITY))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -74,6 +76,7 @@ tree_t tree_new(tree_kind_t kind)
    t->ident     = NULL;
    t->port_mode = PORT_INVALID;
    tree_array_init(&t->ports);
+   tree_array_init(&t->generics);
    
    return t;
 }
@@ -144,3 +147,30 @@ void tree_set_port_mode(tree_t t, port_mode_t mode)
 
    t->port_mode = mode;
 }
+
+unsigned tree_generics(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_GENERICS(t));
+
+   return t->generics.count;
+}
+
+tree_t tree_generic(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_GENERICS(t));
+
+   return tree_array_nth(&t->generics, n);   
+}
+
+void tree_add_generic(tree_t t, tree_t d)
+{
+   assert(t != NULL);
+   assert(d != NULL);
+   assert(HAS_GENERICS(t));
+   assert(IS_DECL(d));
+
+   tree_array_add(&t->generics, d);
+}
+

@@ -14,3 +14,11 @@ entity four is
         c : inout integer;
         d : buffer bit );
 end entity;
+
+entity five is
+    generic (
+        X : boolean;
+        Y : integer );
+    port (
+        p : out bit );
+end entity;

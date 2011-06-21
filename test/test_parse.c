@@ -7,7 +7,7 @@
 
 START_TEST(test_entity)
 {
-   tree_t t, p;
+   tree_t t, p, g;
    
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
    
@@ -52,7 +52,29 @@ START_TEST(test_entity)
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("d"));
    fail_unless(tree_port_mode(p) == PORT_BUFFER);
-      
+
+   t = parse();
+   fail_if(t == NULL);
+   fail_unless(tree_kind(t) == T_ENTITY);
+   fail_unless(tree_ident(t) == ident_new("five"));
+
+   fail_unless(tree_generics(t) == 2);
+
+   g = tree_generic(t, 0);
+   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_ident(g) == ident_new("x"));
+
+   g = tree_generic(t, 1);
+   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_ident(g) == ident_new("y"));
+   
+   fail_unless(tree_ports(t) == 1);
+
+   p = tree_port(t, 0);
+   fail_unless(tree_kind(p) == T_PORT_DECL);
+   fail_unless(tree_ident(p) == ident_new("p"));
+   fail_unless(tree_port_mode(p) == PORT_OUT);
+   
    t = parse();
    fail_unless(t == NULL);
    

@@ -93,6 +93,30 @@ port_mode_t tree_port_mode(tree_t t);
  */
 void tree_set_port_mode(tree_t t, port_mode_t mode);
 
+/**
+ * Count the number of generics in a entity or component.
+ *
+ * \param t One of T_ENTITY.
+ * \return Number of generics.
+ */
+unsigned tree_generics(tree_t t);
+
+/**
+ * Get the Nth entity generic.
+ *
+ * \param n Number of generic to get.
+ * \return Nth generic declaration.
+ */
+tree_t tree_generic(tree_t t, unsigned n);
+
+/**
+ * Add a declaration to the generics list.
+ *
+ * \param t One of T_ENTITY.
+ * \param d One of T_PORT_DECL.
+ */
+void tree_add_generic(tree_t t, tree_t d);
+
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);
 tree_t tree_load(lib_t lib, ident_t ident);

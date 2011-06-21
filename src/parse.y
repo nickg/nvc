@@ -131,7 +131,7 @@
 %type <t> entity_decl 
 %type <i> id opt_id
 %type <l> interface_signal_decl interface_object_decl interface_list
-%type <l> port_clause interface_decl
+%type <l> port_clause generic_clause interface_decl
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -179,6 +179,7 @@ entity_decl
   {
      $$ = tree_new(T_ENTITY);
      tree_set_ident($$, $2);
+     copy_trees($4.left, tree_add_generic, $$);
      copy_trees($4.right, tree_add_port, $$);
   }
 ;
@@ -186,16 +187,21 @@ entity_decl
 opt_entity_token : tENTITY {} | {} ;
 
 entity_header
-: /* generic_clause | */ port_clause
+: generic_clause port_clause
   {
-     $$.left  = NULL;
-     $$.right = $1;
+     $$.left  = $1;
+     $$.right = $2;
   }
-| /* empty */ {}
+;
+
+generic_clause
+: tGENERIC tLPAREN interface_list tRPAREN tSEMI { $$ = $3; }
+| /* empty */ { $$ = NULL; }
 ;
 
 port_clause
 : tPORT tLPAREN interface_list tRPAREN tSEMI { $$ = $3; }
+| /* empty */ { $$ = NULL; }
 ;
 
 interface_list
