@@ -4,6 +4,14 @@
 #include "lib.h"
 #include "ident.h"
 
+typedef enum port_mode {
+   PORT_INVALID,
+   PORT_IN,
+   PORT_OUT,
+   PORT_INOUT,
+   PORT_BUFFER
+} port_mode_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_PORT_DECL
@@ -69,6 +77,21 @@ tree_t tree_port(tree_t t, unsigned n);
  * \param d One of T_PORT_DECL.
  */
 void tree_add_port(tree_t t, tree_t d);
+
+/**
+ * The direction of the port or parameter.
+ *
+ * \param t One of T_PORT_DECL.
+ * \return Direction of port.
+ */
+port_mode_t tree_port_mode(tree_t t);
+
+/**
+ * Set the direction of a port or parameter declaration.
+ *
+ * \param t One of T_PORT_DECL.
+ */
+void tree_set_port_mode(tree_t t, port_mode_t mode);
 
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);

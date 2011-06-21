@@ -125,6 +125,7 @@
       tree_list_t *right;
    } p;
    id_list_t   *s;
+   port_mode_t m;
 }
 
 %type <t> entity_decl 
@@ -133,6 +134,7 @@
 %type <l> port_clause interface_decl
 %type <p> entity_header
 %type <s> id_list;
+%type <m> opt_mode
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
@@ -230,6 +232,7 @@ interface_signal_decl
      for (id_list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_PORT_DECL);
         tree_set_ident(t, it->id);
+        tree_set_port_mode(t, $4);
 
         tree_list_prepend(&$$, t);
      }
@@ -240,7 +243,13 @@ interface_signal_decl
 
 opt_signal_token : tSIGNAL | /* empty */ ;
 
-opt_mode : tIN | tOUT | tINOUT | tBUFFER | tLINKAGE | /* empty */ ;
+opt_mode
+: tIN { $$ = PORT_IN; }
+| tOUT { $$ = PORT_OUT; }
+| tINOUT { $$ = PORT_INOUT; }
+| tBUFFER { $$ = PORT_BUFFER; }
+| /* empty */ { $$ = PORT_IN; }
+;
 
 subtype_indication : /* resolution_indication */ type_mark /* constraint */ ;
 

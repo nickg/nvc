@@ -32,10 +32,27 @@ START_TEST(test_entity)
    fail_unless(tree_ident(t) == ident_new("four"));
 
    fail_unless(tree_ports(t) == 4);
+
    p = tree_port(t, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("a"));
-   
+   fail_unless(tree_port_mode(p) == PORT_IN);
+
+   p = tree_port(t, 1);
+   fail_unless(tree_kind(p) == T_PORT_DECL);
+   fail_unless(tree_ident(p) == ident_new("b"));
+   fail_unless(tree_port_mode(p) == PORT_OUT);
+
+   p = tree_port(t, 2);
+   fail_unless(tree_kind(p) == T_PORT_DECL);
+   fail_unless(tree_ident(p) == ident_new("c"));
+   fail_unless(tree_port_mode(p) == PORT_INOUT);
+
+   p = tree_port(t, 3);
+   fail_unless(tree_kind(p) == T_PORT_DECL);
+   fail_unless(tree_ident(p) == ident_new("d"));
+   fail_unless(tree_port_mode(p) == PORT_BUFFER);
+      
    t = parse();
    fail_unless(t == NULL);
    

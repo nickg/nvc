@@ -30,6 +30,7 @@ struct tree {
    tree_kind_t       kind;
    ident_t           ident;
    struct tree_array ports;
+   port_mode_t       port_mode;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -69,8 +70,9 @@ static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
 tree_t tree_new(tree_kind_t kind)
 {
    tree_t t = xmalloc(sizeof(struct tree));
-   t->kind  = kind;
-   t->ident = NULL;
+   t->kind      = kind;
+   t->ident     = NULL;
+   t->port_mode = PORT_INVALID;
    tree_array_init(&t->ports);
    
    return t;
@@ -124,4 +126,21 @@ void tree_add_port(tree_t t, tree_t d)
    assert(IS_DECL(d));
 
    tree_array_add(&t->ports, d);
+}
+
+port_mode_t tree_port_mode(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_PORT_DECL));
+   assert(t->port_mode != PORT_INVALID);
+
+   return t->port_mode;
+}
+
+void tree_set_port_mode(tree_t t, port_mode_t mode)
+{
+   assert(t != NULL);
+   assert(IS(t, T_PORT_DECL));
+
+   t->port_mode = mode;
 }
