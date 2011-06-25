@@ -1,8 +1,13 @@
 bin_PROGRAMS = nhdl
+lib_LIBRARIES = libnhdl.a
 
 AM_CFLAGS = -Wall
 AM_YFLAGS = -d --locations
 
 BUILT_SOURCES = parse.h
 
-nhdl_SOURCES = nhdl.c lib.c util.c ident.c parse.y lexer.l tree.c type.c
+libnhdl_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c
+
+nhdl_SOURCES = nhdl.c
+
+nhdl_LDADD = libnhdl.a
