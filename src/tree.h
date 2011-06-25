@@ -3,6 +3,7 @@
 
 #include "lib.h"
 #include "ident.h"
+#include "type.h"
 
 typedef enum port_mode {
    PORT_INVALID,
@@ -17,6 +18,9 @@ typedef enum tree_kind {
    T_PORT_DECL
 } tree_kind_t;
 
+/**
+ * TODO describe
+ */
 typedef struct tree *tree_t;
 
 /**
@@ -34,6 +38,20 @@ tree_t tree_new(tree_kind_t kind);
  * \return Kind of the tree.
  */
 tree_kind_t tree_kind(tree_t t);
+
+/**
+ * Return the VHDL type associated with a tree node.
+ *
+ * \param t One of T_PORT_DECL.
+ */
+type_t tree_type(tree_t t);
+
+/**
+ * Change the VHDL type of a tree node.
+ *
+ * \param t One of T_PORT_DECL.
+ */
+void tree_set_type(tree_t t, type_t ty);
 
 /**
  * Get the identifier associated with the tree.

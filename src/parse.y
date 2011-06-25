@@ -126,15 +126,17 @@
    } p;
    id_list_t   *s;
    port_mode_t m;
+   type_t      y;
 }
 
 %type <t> entity_decl 
-%type <i> id opt_id
+%type <i> id opt_id name simple_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
+%type <y> subtype_indication type_mark
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
@@ -239,6 +241,7 @@ interface_signal_decl
         tree_t t = tree_new(T_PORT_DECL);
         tree_set_ident(t, it->id);
         tree_set_port_mode(t, $4);
+        tree_set_type(t, $5);
 
         tree_list_prepend(&$$, t);
      }
@@ -257,9 +260,18 @@ opt_mode
 | /* empty */ { $$ = PORT_IN; }
 ;
 
-subtype_indication : /* resolution_indication */ type_mark /* constraint */ ;
+subtype_indication
+: /* resolution_indication */ type_mark /* constraint */
+  { $$ = $1; }
+;
 
-type_mark : name ;
+type_mark
+: name
+  {
+     $$ = type_new(T_UNRESOLVED);
+     type_set_ident($$, $1);
+  }
+;
 
 name
 : simple_name

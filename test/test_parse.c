@@ -1,4 +1,5 @@
 #include "parse.h"
+#include "type.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -7,76 +8,95 @@
 
 START_TEST(test_entity)
 {
-   tree_t t, p, g;
+   tree_t e, p, g;
+   type_t t;
    
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
    
-   t = parse();
-   fail_if(t == NULL);
-   fail_unless(tree_kind(t) == T_ENTITY);
-   fail_unless(tree_ident(t) == ident_new("one"));
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("one"));
 
-   t = parse();
-   fail_if(t == NULL);
-   fail_unless(tree_kind(t) == T_ENTITY);
-   fail_unless(tree_ident(t) == ident_new("two"));
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("two"));
    
-   t = parse();
-   fail_if(t == NULL);
-   fail_unless(tree_kind(t) == T_ENTITY);
-   fail_unless(tree_ident(t) == ident_new("three"));
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("three"));
 
-   t = parse();
-   fail_if(t == NULL);
-   fail_unless(tree_kind(t) == T_ENTITY);
-   fail_unless(tree_ident(t) == ident_new("four"));
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("four"));
 
-   fail_unless(tree_ports(t) == 4);
+   fail_unless(tree_ports(e) == 4);
 
-   p = tree_port(t, 0);
+   p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("a"));
    fail_unless(tree_port_mode(p) == PORT_IN);
+   t = tree_type(p);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("integer"));
 
-   p = tree_port(t, 1);
+   p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("b"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
+   t = tree_type(p);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("bit"));
 
-   p = tree_port(t, 2);
+   p = tree_port(e, 2);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("c"));
    fail_unless(tree_port_mode(p) == PORT_INOUT);
+   t = tree_type(p);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("integer"));
 
-   p = tree_port(t, 3);
+   p = tree_port(e, 3);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("d"));
    fail_unless(tree_port_mode(p) == PORT_BUFFER);
+   t = tree_type(p);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("bit"));
 
-   t = parse();
-   fail_if(t == NULL);
-   fail_unless(tree_kind(t) == T_ENTITY);
-   fail_unless(tree_ident(t) == ident_new("five"));
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("five"));
 
-   fail_unless(tree_generics(t) == 2);
+   fail_unless(tree_generics(e) == 2);
 
-   g = tree_generic(t, 0);
+   g = tree_generic(e, 0);
    fail_unless(tree_kind(g) == T_PORT_DECL);
    fail_unless(tree_ident(g) == ident_new("x"));
+   t = tree_type(g);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("boolean"));
 
-   g = tree_generic(t, 1);
+   g = tree_generic(e, 1);
    fail_unless(tree_kind(g) == T_PORT_DECL);
    fail_unless(tree_ident(g) == ident_new("y"));
+   t = tree_type(g);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("integer"));
    
-   fail_unless(tree_ports(t) == 1);
+   fail_unless(tree_ports(e) == 1);
 
-   p = tree_port(t, 0);
+   p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("p"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
    
-   t = parse();
-   fail_unless(t == NULL);
+   e = parse();
+   fail_unless(e == NULL);
    
    fail_unless(parse_errors() == 0);
 }
