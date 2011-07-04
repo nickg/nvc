@@ -31,15 +31,5 @@ AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
-DX_HTML_FEATURE(ON)
-DX_CHM_FEATURE(OFF)
-DX_CHI_FEATURE(OFF)
-DX_MAN_FEATURE(OFF)
-DX_RTF_FEATURE(OFF)
-DX_XML_FEATURE(OFF)
-DX_PDF_FEATURE(OFF)
-DX_PS_FEATURE(OFF)
-DX_INIT_DOXYGEN(nhdl, doxygen.cfg, doc)
-
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile test/Makefile])

@@ -11,3 +11,4 @@ configure.scan
 autoscan.log
 *.o
 *~
+TAGS

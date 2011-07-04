@@ -1,3 +1,3 @@
-aclocal -I m4
+aclocal
 autoconf
 automake -a
