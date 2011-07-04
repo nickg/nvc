@@ -132,7 +132,7 @@
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
-%type <t> numeric_literal
+%type <t> numeric_literal library_unit arch_body
 %type <i> id opt_id name simple_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl
@@ -160,10 +160,12 @@
 
 %%
 
-root
-: entity_decl { root = $1; YYACCEPT; }
+design_unit
+: /* context_clause */ library_unit { root = $1; YYACCEPT; }
 | /* empty */ {} 
 ;
+
+library_unit : entity_decl | arch_body ;
 
 id
 : tID
@@ -197,7 +199,7 @@ entity_decl
   }
 ;
 
-opt_entity_token : tENTITY {} | {} ;
+opt_entity_token : tENTITY | /* empty */ ;
 
 entity_header
 : generic_clause port_clause
@@ -216,6 +218,21 @@ port_clause
 : tPORT tLPAREN interface_list tRPAREN tSEMI { $$ = $3; }
 | /* empty */ { $$ = NULL; }
 ;
+
+arch_body
+: tARCHITECTURE id tOF id tIS arch_decl_part tBEGIN arch_stmt_part
+  tEND opt_arch_token opt_id tSEMI
+  {
+     $$ = tree_new(T_ARCH);
+     tree_set_ident($$, $2);
+  }
+;
+
+arch_decl_part : /* { block_declarative_item } */ ;
+
+arch_stmt_part : /* { concurrent_statement } */ ;
+
+opt_arch_token : tARCHITECTURE | /* empty */ ;
 
 interface_list
 : interface_decl

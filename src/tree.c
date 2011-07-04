@@ -41,7 +41,8 @@ struct tree {
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) (IS(t, T_PORT_DECL))
 #define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL))
-#define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL))
+#define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) \
+                      || IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) (IS(t, T_PORT_DECL))

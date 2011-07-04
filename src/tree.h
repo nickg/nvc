@@ -15,6 +15,7 @@ typedef enum port_mode {
 
 typedef enum tree_kind {
    T_ENTITY,
+   T_ARCH,
    T_PORT_DECL,
    T_FCALL,
    T_LITERAL
@@ -38,7 +39,7 @@ tree_kind_t tree_kind(tree_t t);
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 
-// T_ENTITY, T_PORT_DECL, T_FCALL
+// T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 
