@@ -15,8 +15,19 @@ typedef enum port_mode {
 
 typedef enum tree_kind {
    T_ENTITY,
-   T_PORT_DECL
+   T_PORT_DECL,
+   T_FCALL,
+   T_LITERAL
 } tree_kind_t;
+
+typedef struct literal {
+   union {
+      int   i;
+      char  c;
+      float f;
+   } u;
+   enum { L_INT, L_CHAR, L_FLOAT } kind;
+} literal_t;
 
 /**
  * TODO describe
@@ -69,6 +80,7 @@ ident_t tree_ident(tree_t t);
  * \param t One of T_ENTITY, T_PORT_DECL.
  * \param i New identifier.
  */
+// T_ENTITY, T_PORT_DECL, T_FCALL
 void tree_set_ident(tree_t t, ident_t i);
 
 /**
@@ -134,6 +146,42 @@ tree_t tree_generic(tree_t t, unsigned n);
  * \param d One of T_PORT_DECL.
  */
 void tree_add_generic(tree_t t, tree_t d);
+
+/**
+ * Count the number of parameters in an instantiation or function call.
+ *
+ * \param t One of T_FCALL.
+ * \return Number of parameters.
+ */
+unsigned tree_params(tree_t t);
+
+/**
+ * Get the Nth parameter.
+ *
+ * \param t One of T_FCALL.
+ * \param n Number of parameter to get.
+ * \return Nth parameter.
+ */
+tree_t tree_param(tree_t t, unsigned n);
+
+/**
+ * Add an expression to the parameter list.
+ *
+ * TODO: what about named association? Add an ident parameter.
+ *
+ * \param t One of T_FCALL.
+ * \param e One of T_LITERAL, T_FCALL.
+ */
+void tree_add_param(tree_t t, tree_t e);
+
+// T_LITERAL
+literal_t tree_literal(tree_t t);
+void tree_set_literal(tree_t t, literal_t lit);
+
+// T_PORT_DECL
+bool tree_has_value(tree_t t);
+tree_t tree_value(tree_t t);
+void tree_set_value(tree_t t, tree_t v);
 
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);

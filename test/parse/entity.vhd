@@ -9,7 +9,7 @@ end entity three;
 
 entity four is
     port (
-        a : in integer;
+        a : in integer := 4;
         b : out bit;
         c : inout integer;
         d : buffer bit );
@@ -18,7 +18,7 @@ end entity;
 entity five is
     generic (
         X : boolean;
-        Y : integer );
+        Y : integer := 2 * 5);
     port (
         p : out bit );
 end entity;

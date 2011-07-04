@@ -31,16 +31,21 @@ struct tree {
    ident_t           ident;
    struct tree_array ports;
    struct tree_array generics;
+   struct tree_array params;
    port_mode_t       port_mode;
    type_t            type;
+   literal_t         literal;
+   tree_t            value;
 };
 
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) (IS(t, T_PORT_DECL))
-#define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL))
+#define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL))
+#define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) (IS(t, T_PORT_DECL))
+#define HAS_PARAMS(t) (IS(t, T_FCALL))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -77,8 +82,14 @@ tree_t tree_new(tree_kind_t kind)
    t->kind      = kind;
    t->ident     = NULL;
    t->port_mode = PORT_INVALID;
+   t->value     = NULL;
+   
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
+   tree_array_init(&t->params);
+   
+   t->literal.kind = L_INT;
+   t->literal.u.i  = 0;
    
    return t;
 }
@@ -191,4 +202,72 @@ void tree_set_type(tree_t t, type_t ty)
    assert(HAS_TYPE(t));
 
    t->type = ty;
+}
+
+unsigned tree_params(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_PARAMS(t));
+
+   return t->params.count;
+}
+
+tree_t tree_param(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_PARAMS(t));
+   
+   return tree_array_nth(&t->params, n);
+}
+
+void tree_add_param(tree_t t, tree_t e)
+{
+   assert(t != NULL);
+   assert(e != NULL);
+   assert(HAS_PARAMS(t));
+   assert(IS_EXPR(e));
+
+   tree_array_add(&t->params, e);
+}
+
+void tree_set_literal(tree_t t, literal_t lit)
+{
+   assert(t != NULL);
+   assert(IS(t, T_LITERAL));
+
+   t->literal = lit;
+}
+
+literal_t tree_literal(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_LITERAL));
+
+   return t->literal;
+}
+
+bool tree_has_value(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS_DECL(t));
+
+   return t->value != NULL;
+}
+
+tree_t tree_value(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS_DECL(t));
+   assert(t->value != NULL);
+
+   return t->value;
+}
+
+void tree_set_value(tree_t t, tree_t v)
+{
+   assert(t != NULL);
+   assert(IS_DECL(t));
+   assert(v == NULL || IS_EXPR(v));
+
+   t->value = v;
 }

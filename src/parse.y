@@ -114,6 +114,8 @@
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
    static void tree_list_free(tree_list_t *l);
+   static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
+                             const struct YYLTYPE *loc);
 }
 
 %union {
@@ -129,7 +131,8 @@
    type_t      y;
 }
 
-%type <t> entity_decl 
+%type <t> entity_decl opt_static_expr expr abstract_literal literal
+%type <t> numeric_literal
 %type <i> id opt_id name simple_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl
@@ -139,10 +142,18 @@
 %type <y> subtype_indication type_mark
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
-%token tCONFIGURATION tARCHITECTURE tOF tBEGIN tAND tOR tXOR tXNOR
-%token tNAND tABS tNOT tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
+%token tCONFIGURATION tARCHITECTURE tOF tBEGIN
+%token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tPOWER tCOMMA tLE tINT tSTRING tCHAR tERROR tINOUT tLINKAGE
+%token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE
+
+%left tAND tOR tNAND tNOR tXOR tXNOR
+%left tEQ tNEQ tLT tLE tGT tGE
+%left tSLL tSRL tSLA tSRA tROL tROR
+%left tPLUS tMINUS tAMP
+%left tTIMES tOVER tMOD tREM
+%left tPOWER
+%nonassoc tABS tNOT
 
 %error-verbose
 %expect 0
@@ -234,7 +245,7 @@ interface_object_decl
 
 interface_signal_decl
 : opt_signal_token id_list tCOLON opt_mode subtype_indication
-  /* opt_bus_token [ := static_expression ] */
+  /* opt_bus_token */ opt_static_expr
   {
      $$ = NULL;
      for (id_list_t *it = $2; it != NULL; it = it->next) {
@@ -242,12 +253,22 @@ interface_signal_decl
         tree_set_ident(t, it->id);
         tree_set_port_mode(t, $4);
         tree_set_type(t, $5);
+        tree_set_value(t, $6);
 
         tree_list_prepend(&$$, t);
      }
 
      id_list_free($2);
   }
+;
+
+opt_static_expr
+: tASSIGN expr
+  {
+     $$ = $2;
+  }
+| /* empty */
+  { $$ = NULL; }
 ;
 
 opt_signal_token : tSIGNAL | /* empty */ ;
@@ -263,6 +284,69 @@ opt_mode
 subtype_indication
 : /* resolution_indication */ type_mark /* constraint */
   { $$ = $1; }
+;
+
+expr
+: expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }
+| expr tOR expr { $$ = NULL; }
+| expr tNAND expr { $$ = NULL; }
+| expr tNOR expr { $$ = NULL; }
+| expr tXOR expr { $$ = NULL; }
+| expr tXNOR expr { $$ = NULL; }
+| expr tEQ expr { $$ = NULL; }
+| expr tNEQ expr { $$ = NULL; }
+| expr tLT expr { $$ = NULL; }
+| expr tLE expr { $$ = NULL; }
+| expr tGT expr { $$ = NULL; }
+| expr tGE expr { $$ = NULL; }
+| expr tSLL expr { $$ = NULL; }
+| expr tSRL expr { $$ = NULL; }
+| expr tSLA expr { $$ = NULL; }
+| expr tSRA expr { $$ = NULL; }
+| expr tROL expr { $$ = NULL; }
+| expr tROR expr { $$ = NULL; }
+| expr tPLUS expr { $$ = NULL; }
+| expr tMINUS expr { $$ = NULL; }
+| expr tAMP expr { $$ = NULL; }
+| expr tTIMES expr { $$ = build_expr2("*", $1, $3, &@$); }
+| expr tOVER expr { $$ = NULL; }
+| expr tMOD expr { $$ = NULL; }
+| expr tREM expr { $$ = NULL; }
+| expr tPOWER expr { $$ = NULL; }
+| tNOT expr { $$ = NULL; }
+| tABS expr { $$ = NULL; }
+| name { $$ = NULL; }
+| literal
+/*
+  | aggregate
+  | function_call
+  | qualified_expression
+  | type_conversion
+  | allocator
+  | ( expression )
+*/
+;
+
+literal : numeric_literal
+/*
+  | enumeration_literal
+  | string_literal
+  | bit_string_literal
+  | null
+*/
+;
+
+numeric_literal : abstract_literal /* physical_literal */ ;
+
+abstract_literal
+: tINT
+  {
+     $$ = tree_new(T_LITERAL);
+     literal_t l = { .u.i = lvals.ival, .kind = L_INT };
+     tree_set_literal($$, l);
+  }
+/*
+  | tFLOAT */
 ;
 
 type_mark
@@ -352,6 +436,17 @@ static void id_list_free(id_list_t *list)
       list = next;
    }      
 }      
+
+static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
+                          const struct YYLTYPE *loc)
+{
+   tree_t t = tree_new(T_FCALL);
+   tree_set_ident(t, ident_new(fn));
+   tree_add_param(t, left);
+   tree_add_param(t, right);
+
+   return t;
+}
 
 static void yyerror(const char *s)
 {

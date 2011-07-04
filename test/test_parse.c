@@ -8,8 +8,9 @@
 
 START_TEST(test_entity)
 {
-   tree_t e, p, g;
+   tree_t e, p, g, v, x, y;
    type_t t;
+   literal_t l;
    
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
    
@@ -42,6 +43,12 @@ START_TEST(test_entity)
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("integer"));
+   fail_unless(tree_has_value(p));
+   v = tree_value(p);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   l = tree_literal(v);
+   fail_unless(l.kind == L_INT);
+   fail_unless(l.u.i == 4);
 
    p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
@@ -50,6 +57,7 @@ START_TEST(test_entity)
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("bit"));
+   fail_if(tree_has_value(p));
 
    p = tree_port(e, 2);
    fail_unless(tree_kind(p) == T_PORT_DECL);
@@ -58,6 +66,7 @@ START_TEST(test_entity)
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("integer"));
+   fail_if(tree_has_value(p));
 
    p = tree_port(e, 3);
    fail_unless(tree_kind(p) == T_PORT_DECL);
@@ -66,6 +75,7 @@ START_TEST(test_entity)
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("bit"));
+   fail_if(tree_has_value(p));
 
    e = parse();
    fail_if(e == NULL);
@@ -80,6 +90,7 @@ START_TEST(test_entity)
    t = tree_type(g);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("boolean"));
+   fail_if(tree_has_value(p));
 
    g = tree_generic(e, 1);
    fail_unless(tree_kind(g) == T_PORT_DECL);
@@ -87,6 +98,21 @@ START_TEST(test_entity)
    t = tree_type(g);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("integer"));
+   fail_unless(tree_has_value(g));
+   v = tree_value(g);
+   fail_unless(tree_kind(v) == T_FCALL);
+   fail_unless(tree_ident(v) == ident_new("*"));
+   fail_unless(tree_params(v) == 2);
+   x = tree_param(v, 0);
+   fail_unless(tree_kind(x) == T_LITERAL);
+   l = tree_literal(x);
+   fail_unless(l.kind == L_INT);
+   fail_unless(l.u.i == 2);
+   y = tree_param(v, 1);
+   fail_unless(tree_kind(y) == T_LITERAL);
+   l = tree_literal(y);
+   fail_unless(l.kind == L_INT);
+   fail_unless(l.u.i == 5);
    
    fail_unless(tree_ports(e) == 1);
 
@@ -94,6 +120,7 @@ START_TEST(test_entity)
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("p"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
+   fail_if(tree_has_value(p));
    
    e = parse();
    fail_unless(e == NULL);

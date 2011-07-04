@@ -136,8 +136,15 @@ LINKAGE       {L}{I}{N}{K}{A}{G}{E}
 ":"        { begin_token(yytext); return tCOLON; }
 "**"       { begin_token(yytext); return tPOWER; }
 ","        { begin_token(yytext); return tCOMMA; }
+"<"        { begin_token(yytext); return tLT; }
 "<="       { begin_token(yytext); return tLE; }
-{INT}      { begin_token(yytext); return tINT; }
+">"        { begin_token(yytext); return tGT; }
+">="       { begin_token(yytext); return tGE; }
+"+"        { begin_token(yytext); return tPLUS; }
+"-"        { begin_token(yytext); return tMINUS; }
+"*"        { begin_token(yytext); return tTIMES; }
+"/"        { begin_token(yytext); return tOVER; }
+{INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); return tCHAR; }
 {ID}       { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
