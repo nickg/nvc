@@ -29,6 +29,7 @@ struct tree_array {
 struct tree {
    tree_kind_t       kind;
    ident_t           ident;
+   ident_t           ident2;
    struct tree_array ports;
    struct tree_array generics;
    struct tree_array params;
@@ -43,6 +44,7 @@ struct tree {
 #define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL))
 #define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) \
                       || IS(t, T_ARCH))
+#define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) (IS(t, T_PORT_DECL))
@@ -82,6 +84,7 @@ tree_t tree_new(tree_kind_t kind)
    tree_t t = xmalloc(sizeof(struct tree));
    t->kind      = kind;
    t->ident     = NULL;
+   t->ident2    = NULL;
    t->port_mode = PORT_INVALID;
    t->value     = NULL;
    
@@ -111,6 +114,24 @@ void tree_set_ident(tree_t t, ident_t i)
    assert(HAS_IDENT(t));
 
    t->ident = i;
+}
+
+ident_t tree_ident2(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_IDENT2(t));
+   assert(t->ident2 != NULL);
+
+   return t->ident2;
+}
+
+void tree_set_ident2(tree_t t, ident_t i)
+{
+   assert(t != NULL);
+   assert(i != NULL);
+   assert(HAS_IDENT2(t));
+
+   t->ident2 = i;
 }
 
 tree_kind_t tree_kind(tree_t t)

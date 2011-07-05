@@ -43,6 +43,10 @@ void tree_set_type(tree_t t, type_t ty);
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 
+// T_ARCH
+ident_t tree_ident2(tree_t t);
+void tree_set_ident2(tree_t t, ident_t i);
+
 // T_ENTITY
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);

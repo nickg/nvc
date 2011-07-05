@@ -225,6 +225,7 @@ arch_body
   {
      $$ = tree_new(T_ARCH);
      tree_set_ident($$, $2);
+     tree_set_ident2($$, $4);
   }
 ;
 

@@ -139,6 +139,19 @@ START_TEST(test_arch)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_ident(a) == ident_new("a"));
+   fail_unless(tree_ident2(a) == ident_new("one"));
+   
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_ident(a) == ident_new("b"));
+   fail_unless(tree_ident2(a) == ident_new("one"));
+   
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_ident(a) == ident_new("c"));
+   fail_unless(tree_ident2(a) == ident_new("one"));
    
    a = parse();
    fail_unless(a == NULL);
