@@ -135,7 +135,8 @@
 %type <t> numeric_literal library_unit arch_body
 %type <i> id opt_id name simple_name
 %type <l> interface_signal_decl interface_object_decl interface_list
-%type <l> port_clause generic_clause interface_decl
+%type <l> port_clause generic_clause interface_decl signal_decl
+%type <l> block_decl_item arch_decl_part
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -226,10 +227,59 @@ arch_body
      $$ = tree_new(T_ARCH);
      tree_set_ident($$, $2);
      tree_set_ident2($$, $4);
+     copy_trees($6, tree_add_decl, $$);
   }
 ;
 
-arch_decl_part : /* { block_declarative_item } */ ;
+arch_decl_part
+: block_decl_item arch_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */
+  {
+     $$ = NULL;
+  }
+;
+
+block_decl_item
+: signal_decl
+/* | subprogram_declaration
+   | subprogram_body
+   | type_declaration
+   | subtype_declaration
+   | constant_declaration
+   | shared_variable_declaration
+   | file_declaration
+   | alias_declaration
+   | component_declaration
+   | attribute_declaration
+   | attribute_specification
+   | configuration_specification
+   | disconnection_specification
+   | use_clause
+   | group_template_declaration
+   | group_declaration */
+;
+
+signal_decl
+: tSIGNAL id_list tCOLON subtype_indication
+  /* signal_kind */ opt_static_expr tSEMI
+  {
+     $$ = NULL;
+     for (id_list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_SIGNAL_DECL);
+        tree_set_ident(t, it->id);
+        tree_set_type(t, $4);
+        tree_set_value(t, $5);
+
+        tree_list_append(&$$, t);
+     }
+
+     id_list_free($2);
+  }
+;
 
 arch_stmt_part : /* { concurrent_statement } */ ;
 
@@ -273,7 +323,7 @@ interface_signal_decl
         tree_set_type(t, $5);
         tree_set_value(t, $6);
 
-        tree_list_prepend(&$$, t);
+        tree_list_append(&$$, t);
      }
 
      id_list_free($2);

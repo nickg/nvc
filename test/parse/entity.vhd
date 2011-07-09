@@ -9,10 +9,10 @@ end entity three;
 
 entity four is
     port (
-        a : in integer := 4;
-        b : out bit;
-        c : inout integer;
-        d : buffer bit );
+        a      : in integer := 4;
+        b, bee : out bit;
+        c      : inout integer;
+        d      : buffer bit );
 end entity;
 
 entity five is
