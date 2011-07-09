@@ -136,7 +136,8 @@
 %type <i> id opt_id name simple_name opt_label
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
-%type <l> block_decl_item arch_decl_part arch_stmt_part
+%type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
+%type <l> variable_decl process_decl_item
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -146,7 +147,7 @@
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE
+%token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -380,15 +381,62 @@ conc_stmt
 
 process_stmt
 : opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_list ) ] */
-  opt_is /* process_decl_part */ tBEGIN /* process_stmt_part */ tEND
+  opt_is process_decl_part tBEGIN /* process_stmt_part */ tEND
   /* [ postponed ] */ tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
      tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
+     copy_trees($4, tree_add_decl, $$);
   }
 ;
 
 opt_is : tIS | /* empty */ ;
+
+process_decl_part
+: process_decl_item process_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */
+  {
+     $$ = NULL;
+  }
+;
+
+process_decl_item
+: variable_decl
+  /* | subprogram_declaration
+     | subprogram_body
+     | type_declaration
+     | subtype_declaration
+     | constant_declaration
+     | file_declaration
+     | alias_declaration
+     | attribute_declaration
+     | attribute_specification
+     | use_clause
+     | group_template_declaration
+     | group_declaration
+  */
+;
+
+variable_decl
+: /* [ shared ] */ tVARIABLE id_list tCOLON subtype_indication
+  opt_static_expr tSEMI
+  {
+     $$ = NULL;
+     for (id_list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_VAR_DECL);
+        tree_set_ident(t, it->id);
+        tree_set_type(t, $4);
+        tree_set_value(t, $5);
+
+        tree_list_append(&$$, t);
+     }
+
+     id_list_free($2);
+  }
 
 expr
 : expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }

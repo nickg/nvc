@@ -5,5 +5,10 @@ begin
     p: process is
     begin
     end process;
-    
+
+    process
+        variable y : integer := 5;
+    begin
+    end process;
+
 end architecture;

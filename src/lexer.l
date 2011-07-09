@@ -59,6 +59,7 @@ R       [rR]
 S       [sS]
 T       [tT]
 U       [uU]
+V       [vV]
 W       [wW]
 Y       [yY]
 X       [xX]
@@ -93,6 +94,7 @@ WAIT          {W}{A}{I}{T}
 REPORT        {R}{E}{P}{O}{R}{T}
 INOUT         {I}{N}{O}{U}{T}
 LINKAGE       {L}{I}{N}{K}{A}{G}{E}
+VARIABLE      {V}{A}{R}{I}{A}{B}{L}{E}
 
 %%
 
@@ -128,6 +130,7 @@ LINKAGE       {L}{I}{N}{K}{A}{G}{E}
 {REPORT}        { begin_token(yytext); return tREPORT; }
 {INOUT}         { begin_token(yytext); return tINOUT; }
 {LINKAGE}       { begin_token(yytext); return tLINKAGE; }
+{VARIABLE}      { begin_token(yytext); return tVARIABLE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
