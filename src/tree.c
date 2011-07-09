@@ -39,16 +39,18 @@ struct tree {
    type_t            type;
    literal_t         literal;
    tree_t            value;
+   tree_t            delay;
 };
 
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL))
-#define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL))
-#define IS_STMT(t) (IS(t, T_PROCESS))
+#define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF))
+#define IS_STMT(t) (IS(t, T_PROCESS) || IS(t, T_WAIT))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
-    || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL))
+    || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL) \
+    || IS(t, T_REF))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
@@ -57,6 +59,7 @@ struct tree {
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
+#define HAS_DELAY(t) (IS(t, T_WAIT))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -353,4 +356,31 @@ void tree_add_stmt(tree_t t, tree_t s)
    assert(IS_STMT(s));
    
    tree_array_add(&t->stmts, s);
+}
+
+bool tree_has_delay(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_DELAY(t));
+
+   return t->delay != NULL;
+}
+
+tree_t tree_delay(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_DELAY(t));
+   assert(t->delay != NULL);
+
+   return t->delay;
+}
+
+void tree_set_delay(tree_t t, tree_t d)
+{
+   assert(t != NULL);
+   assert(d != NULL);
+   assert(HAS_DELAY(t));
+   assert(IS_EXPR(d));
+
+   t->delay = d;
 }

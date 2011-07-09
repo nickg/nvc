@@ -95,6 +95,7 @@ REPORT        {R}{E}{P}{O}{R}{T}
 INOUT         {I}{N}{O}{U}{T}
 LINKAGE       {L}{I}{N}{K}{A}{G}{E}
 VARIABLE      {V}{A}{R}{I}{A}{B}{L}{E}
+FOR           {F}{O}{R}
 
 %%
 
@@ -131,6 +132,7 @@ VARIABLE      {V}{A}{R}{I}{A}{B}{L}{E}
 {INOUT}         { begin_token(yytext); return tINOUT; }
 {LINKAGE}       { begin_token(yytext); return tLINKAGE; }
 {VARIABLE}      { begin_token(yytext); return tVARIABLE; }
+{FOR}           { begin_token(yytext); return tFOR; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

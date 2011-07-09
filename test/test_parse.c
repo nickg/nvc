@@ -228,6 +228,38 @@ START_TEST(test_process)
 }
 END_TEST
 
+START_TEST(test_seq)
+{
+   tree_t a, p, s, e;
+
+   fail_unless(input_from_file(TESTDIR "/parse/seq.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 1);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_unless(tree_has_delay(s));
+   e = tree_delay(s);
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("*"));
+   fail_unless(tree_params(e) == 2);
+   fail_unless(tree_kind(tree_param(e, 0)) == T_LITERAL);
+   fail_unless(tree_kind(tree_param(e, 1)) == T_REF);
+   fail_unless(tree_ident(tree_param(e, 1)) == ident_new("ns"));
+   
+   a = parse();
+   fail_unless(a == NULL);
+   
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -236,6 +268,7 @@ int main(void)
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_arch);
    tcase_add_test(tc_core, test_process);
+   tcase_add_test(tc_core, test_seq);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

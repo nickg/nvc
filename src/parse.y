@@ -133,18 +133,19 @@
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
+%type <t> seq_stmt wait_stmt timeout_clause physical_literal
 %type <i> id opt_id name simple_name opt_label
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
-%type <l> variable_decl process_decl_item
+%type <l> variable_decl process_decl_item process_stmt_part
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
 %type <y> subtype_indication type_mark
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
-%token tCONFIGURATION tARCHITECTURE tOF tBEGIN
+%token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
@@ -381,12 +382,13 @@ conc_stmt
 
 process_stmt
 : opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_list ) ] */
-  opt_is process_decl_part tBEGIN /* process_stmt_part */ tEND
+  opt_is process_decl_part tBEGIN process_stmt_part tEND
   /* [ postponed ] */ tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
      tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
      copy_trees($4, tree_add_decl, $$);
+     copy_trees($6, tree_add_stmt, $$);
   }
 ;
 
@@ -438,6 +440,45 @@ variable_decl
      id_list_free($2);
   }
 
+process_stmt_part
+: seq_stmt process_stmt_part
+  {
+     $$ = $2;
+     tree_list_prepend(&$$, $1);
+  }
+| /* empty */
+  {
+     $$ = NULL;
+  }
+;
+
+seq_stmt
+: wait_stmt
+/* | assertion_statement
+   | report_statement
+   | signal_assignment_statement
+   | variable_assignment_statement
+   | procedure_call_statement
+   | if_statement
+   | case_statement
+   | loop_statement
+   | next_statement
+   | exit_statement
+   | return_statement
+   | null_statement */
+; 
+
+wait_stmt
+: opt_label tWAIT /* [ sensitivity_clause ] [ condition_clause ] */
+  timeout_clause tSEMI
+  {
+     $$ = tree_new(T_WAIT);
+     tree_set_delay($$, $3);
+  }
+;
+
+timeout_clause : tFOR expr { $$ = $2; } ;
+
 expr
 : expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }
 | expr tOR expr { $$ = NULL; }
@@ -488,7 +529,7 @@ literal : numeric_literal
 */
 ;
 
-numeric_literal : abstract_literal /* physical_literal */ ;
+numeric_literal : abstract_literal | physical_literal ;
 
 abstract_literal
 : tINT
@@ -497,8 +538,20 @@ abstract_literal
      literal_t l = { .u.i = lvals.ival, .kind = L_INT };
      tree_set_literal($$, l);
   }
-/*
-  | tFLOAT */
+/* | tFLOAT */
+;
+
+physical_literal
+: abstract_literal id
+  {
+     tree_t unit = tree_new(T_REF);
+     tree_set_ident(unit, $2);
+     
+     $$ = tree_new(T_FCALL);
+     tree_set_ident($$, ident_new("*"));
+     tree_add_param($$, $1);
+     tree_add_param($$, unit);
+  }
 ;
 
 type_mark
