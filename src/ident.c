@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define IDENT_MAX_LEN (1 << 16)
 
@@ -148,3 +149,13 @@ ident_t ident_read(FILE *f)
    return i;
 }
 
+ident_t ident_uniq(const char *prefix)
+{
+   static int counter = 0;
+
+   const size_t len = strlen(prefix) + 16;
+   char buf[len];
+   snprintf(buf, len, "%s%d", prefix, counter++);
+
+   return ident_new(buf);
+}

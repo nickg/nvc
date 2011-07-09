@@ -8,6 +8,9 @@ typedef struct trie *ident_t;
 // Intern a string as an identifier.
 ident_t ident_new(const char *str);
 
+// Generate a unique identifier with the given prefix
+ident_t ident_uniq(const char *prefix);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoid except
 // for printing. The pointer returned is only valid until the

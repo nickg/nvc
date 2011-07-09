@@ -199,6 +199,28 @@ START_TEST(test_arch)
 }
 END_TEST
 
+START_TEST(test_process)
+{
+   tree_t a, p;
+
+   fail_unless(input_from_file(TESTDIR "/parse/process.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 1);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_ident(p) == ident_new("p"));
+   
+   a = parse();
+   fail_unless(a == NULL);
+   
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -206,6 +228,7 @@ int main(void)
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_arch);
+   tcase_add_test(tc_core, test_process);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

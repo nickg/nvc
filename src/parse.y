@@ -132,11 +132,11 @@
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
-%type <t> numeric_literal library_unit arch_body
-%type <i> id opt_id name simple_name
+%type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
+%type <i> id opt_id name simple_name opt_label
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
-%type <l> block_decl_item arch_decl_part
+%type <l> block_decl_item arch_decl_part arch_stmt_part
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -189,6 +189,8 @@ id_list
 
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
 
+opt_label : id tCOLON { $$ = $1; } | { $$ = NULL; } ;
+
 entity_decl
 : tENTITY id tIS entity_header /* entity_decl_part */ tEND
   opt_entity_token opt_id tSEMI
@@ -228,6 +230,7 @@ arch_body
      tree_set_ident($$, $2);
      tree_set_ident2($$, $4);
      copy_trees($6, tree_add_decl, $$);
+     copy_trees($8, tree_add_stmt, $$);
   }
 ;
 
@@ -281,7 +284,17 @@ signal_decl
   }
 ;
 
-arch_stmt_part : /* { concurrent_statement } */ ;
+arch_stmt_part
+: conc_stmt arch_stmt_part
+  {
+     $$ = $2;
+     tree_list_prepend(&$$, $1);
+  }
+| /* empty */
+  {
+     $$ = NULL;
+  }
+;
 
 opt_arch_token : tARCHITECTURE | /* empty */ ;
 
@@ -353,6 +366,29 @@ subtype_indication
 : /* resolution_indication */ type_mark /* constraint */
   { $$ = $1; }
 ;
+
+conc_stmt
+: process_stmt
+  /* | block_statement
+     | process_statement
+     | concurrent_procedure_call_statement
+     | concurrent_assertion_statement
+     | concurrent_signal_assignment_statement
+     | component_instantiation_statement
+     | generate_statement */
+;
+
+process_stmt
+: opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_list ) ] */
+  opt_is /* process_decl_part */ tBEGIN /* process_stmt_part */ tEND
+  /* [ postponed ] */ tPROCESS opt_id tSEMI
+  {
+     $$ = tree_new(T_PROCESS);
+     tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
+  }
+;
+
+opt_is : tIS | /* empty */ ;
 
 expr
 : expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }

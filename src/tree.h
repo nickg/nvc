@@ -19,7 +19,8 @@ typedef enum tree_kind {
    T_PORT_DECL,
    T_FCALL,
    T_LITERAL,
-   T_SIGNAL_DECL
+   T_SIGNAL_DECL,
+   T_PROCESS
 } tree_kind_t;
 
 typedef struct literal {
@@ -40,7 +41,7 @@ tree_kind_t tree_kind(tree_t t);
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 
-// T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL
+// T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 
@@ -81,6 +82,11 @@ void tree_set_value(tree_t t, tree_t v);
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
+
+// T_ARCH, T_PROCESS
+unsigned tree_stmts(tree_t t);
+tree_t tree_stmt(tree_t t, unsigned n);
+void tree_add_stmt(tree_t t, tree_t d);
 
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);

@@ -34,6 +34,7 @@ struct tree {
    struct tree_array generics;
    struct tree_array params;
    struct tree_array decls;
+   struct tree_array stmts;
    port_mode_t       port_mode;
    type_t            type;
    literal_t         literal;
@@ -43,14 +44,17 @@ struct tree {
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL))
 #define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL))
-#define HAS_IDENT(t) (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) \
-                      || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL))
+#define IS_STMT(t) (IS(t, T_PROCESS))
+#define HAS_IDENT(t) \
+   (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
+    || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
-#define HAS_DECLS(d) (IS(t, T_ARCH))
+#define HAS_DECLS(t) (IS(t, T_ARCH))
+#define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -321,4 +325,30 @@ void tree_add_decl(tree_t t, tree_t d)
    assert(IS_DECL(d));
    
    tree_array_add(&t->decls, d);
+}
+
+unsigned tree_stmts(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_STMTS(t));
+
+   return t->stmts.count;
+}
+
+tree_t tree_stmt(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_STMTS(t));
+
+   return tree_array_nth(&t->stmts, n);
+}
+
+void tree_add_stmt(tree_t t, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(HAS_STMTS(t));
+   assert(IS_STMT(s));
+   
+   tree_array_add(&t->stmts, s);
 }
