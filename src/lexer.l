@@ -96,6 +96,10 @@ INOUT         {I}{N}{O}{U}{T}
 LINKAGE       {L}{I}{N}{K}{A}{G}{E}
 VARIABLE      {V}{A}{R}{I}{A}{B}{L}{E}
 FOR           {F}{O}{R}
+TYPE          {T}{Y}{P}{E}
+RANGE         {R}{A}{N}{G}{E}
+TO            {T}{O}
+DOWNTO        {D}{O}{W}{N}{T}{O}
 
 %%
 
@@ -133,6 +137,10 @@ FOR           {F}{O}{R}
 {LINKAGE}       { begin_token(yytext); return tLINKAGE; }
 {VARIABLE}      { begin_token(yytext); return tVARIABLE; }
 {FOR}           { begin_token(yytext); return tFOR; }
+{TYPE}          { begin_token(yytext); return tTYPE; }
+{RANGE}         { begin_token(yytext); return tRANGE; }
+{TO}            { begin_token(yytext); return tTO; }
+{DOWNTO}        { begin_token(yytext); return tDOWNTO; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

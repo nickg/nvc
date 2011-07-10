@@ -45,8 +45,9 @@ typedef struct enum_lit {
 } enum_lit_t;
 
 typedef struct range {
-   int low;
-   int high;
+   struct tree *left;
+   struct tree *right;
+   enum { RANGE_TO, RANGE_DOWNTO } kind;
 } range_t;
 
 /**
@@ -66,46 +67,18 @@ type_kind_t type_kind(type_t t);
  */
 bool type_eq(type_t a, type_t b);
 
-/**
- * Get the identifier of an unresovled type.
- *
- * \param t Must be T_UNRESOLVED.
- */
+// T_UNRESOLVED
 ident_t type_ident(type_t t);
-
-/**
- * Set the identifier for an unresolved type.
- *
- * Should only be called by the parser.
- * \param t Must be T_UNRESOLVED.
- */
 void type_set_ident(type_t t, ident_t id);
 
+// T_INTEGER
 unsigned type_dims(type_t t);
-
 range_t type_dim(type_t t, unsigned n);
-
 void type_add_dim(type_t t, range_t r);
 
-/**
- * Count the number of literals in an enumeration.
- *
- * \param t Must be T_ENUM.
- */
+// T_ENUM
 unsigned type_enum_literals(type_t t);
-
-/**
- * Get the Nth literal in an enumeration.
- *
- * \param t Must be T_ENUM.
- */
 enum_lit_t type_enum_literal(type_t t, unsigned n);
-
-/**
- * Add a literal to an enumeration.
- *
- * \param t Must be T_ENUM.
- */
 void type_enum_add_literal(type_t t, enum_lit_t lit);
 
 #endif  // _TYPE_H

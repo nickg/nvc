@@ -44,18 +44,20 @@ struct tree {
 
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) \
-   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL))
+   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
+    || IS(t, T_TYPE_DECL))
 #define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF))
 #define IS_STMT(t) (IS(t, T_PROCESS) || IS(t, T_WAIT))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL) \
-    || IS(t, T_REF))
+    || IS(t, T_REF) || IS(t, T_TYPE_DECL))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) \
-   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL))
+   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
+    || IS(t, T_TYPE_DECL))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))

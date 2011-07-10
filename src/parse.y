@@ -129,6 +129,7 @@
    id_list_t   *s;
    port_mode_t m;
    type_t      y;
+   range_t     r;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -138,17 +139,20 @@
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
-%type <l> variable_decl process_decl_item process_stmt_part
+%type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
-%type <y> subtype_indication type_mark
+%type <y> subtype_indication type_mark type_def scalar_type_def
+%type <y> integer_type_def
+%type <r> range range_constraint
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
-%token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR
-%token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL
+%token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
+%token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
+%token tRANGE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -250,9 +254,9 @@ arch_decl_part
 
 block_decl_item
 : signal_decl
+| type_decl
 /* | subprogram_declaration
    | subprogram_body
-   | type_declaration
    | subtype_declaration
    | constant_declaration
    | shared_variable_declaration
@@ -408,9 +412,9 @@ process_decl_part
 
 process_decl_item
 : variable_decl
+| type_decl
   /* | subprogram_declaration
      | subprogram_body
-     | type_declaration
      | subtype_declaration
      | constant_declaration
      | file_declaration
@@ -478,6 +482,59 @@ wait_stmt
 ;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
+
+type_decl
+: tTYPE id tIS type_def tSEMI
+  {
+     tree_t t = tree_new(T_TYPE_DECL);
+     tree_set_ident(t, $2);
+     tree_set_type(t, $4);
+     
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+  /* | incomplete_type_decl */
+;
+
+type_def
+: scalar_type_def
+  /* | composite_type_definition
+     | access_type_definition
+     | file_type_definition */
+;
+
+scalar_type_def
+: integer_type_def
+  /* | enumeration_type_definition
+     | floating_type_definition
+     | physical_type_definition */
+;                       
+
+integer_type_def
+: range_constraint
+  {
+     $$ = type_new(T_INTEGER);
+     type_add_dim($$, $1);
+  }
+;
+
+range_constraint : tRANGE range { $$ = $2; } ;
+
+range
+: expr tTO expr
+  {
+     $$.left  = $1;
+     $$.right = $3;
+     $$.kind  = RANGE_TO;
+  }
+| expr tDOWNTO expr
+  {
+     $$.left  = $1;
+     $$.right = $3;
+     $$.kind  = RANGE_DOWNTO;
+  }
+  /* | attribute_name */
+;
 
 expr
 : expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }

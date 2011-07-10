@@ -260,6 +260,37 @@ START_TEST(test_seq)
 }
 END_TEST
 
+START_TEST(test_types)
+{
+   tree_t a, d;
+   type_t t;
+   range_t r;
+
+   fail_unless(input_from_file(TESTDIR "/parse/types.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_decls(a) == 2);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("my_int"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_INTEGER);
+   fail_unless(type_dims(t) == 1);
+   r = type_dim(t, 0);
+   fail_unless(r.kind == RANGE_TO);
+   fail_unless(tree_kind(r.left) == T_LITERAL);
+   fail_unless(tree_kind(r.right) == T_LITERAL);
+   
+   a = parse();
+   fail_unless(a == NULL);
+   
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -269,6 +300,7 @@ int main(void)
    tcase_add_test(tc_core, test_arch);
    tcase_add_test(tc_core, test_process);
    tcase_add_test(tc_core, test_seq);
+   tcase_add_test(tc_core, test_types);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);
