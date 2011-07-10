@@ -12,6 +12,7 @@ begin
         variable a : integer;
     begin
         a := 2;
+        a := a + (a * 3);
     end process;
     
 end architecture;

@@ -582,7 +582,7 @@ expr
 | expr tSRA expr { $$ = NULL; }
 | expr tROL expr { $$ = NULL; }
 | expr tROR expr { $$ = NULL; }
-| expr tPLUS expr { $$ = NULL; }
+| expr tPLUS expr { $$ = build_expr2("+", $1, $3, &@$); }
 | expr tMINUS expr { $$ = NULL; }
 | expr tAMP expr { $$ = NULL; }
 | expr tTIMES expr { $$ = build_expr2("*", $1, $3, &@$); }
@@ -593,15 +593,15 @@ expr
 | tNOT expr { $$ = NULL; }
 | tABS expr { $$ = NULL; }
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
-| name { $$ = NULL; }
+| name { $$ = tree_new(T_REF); tree_set_ident($$, $1); }
 | literal
+| tLPAREN expr tRPAREN { $$ = $2; }
 /*
   | aggregate
   | function_call
   | qualified_expression
   | type_conversion
   | allocator
-  | ( expression )
 */
 ;
 

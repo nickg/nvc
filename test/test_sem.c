@@ -25,7 +25,7 @@ START_TEST(test_integer)
    sem_check(a);
    fail_unless(sem_errors() == 0);
 
-   d = tree_decl(a, 1);
+   d = tree_decl(a, 2);
    fail_unless(tree_ident(d) == ident_new("x"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
