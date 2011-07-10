@@ -6,7 +6,8 @@ AM_YFLAGS = -d --locations
 
 BUILT_SOURCES = parse.h
 
-libnhdl_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c
+libnhdl_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c \
+	sem.c
 
 nhdl_SOURCES = nhdl.c
 
