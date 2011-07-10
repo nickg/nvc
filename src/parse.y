@@ -114,6 +114,8 @@
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
    static void tree_list_free(tree_list_t *l);
+   static tree_t build_expr1(const char *fn, tree_t left,
+                             const struct YYLTYPE *loc);
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
 }
@@ -565,6 +567,7 @@ expr
 | expr tPOWER expr { $$ = NULL; }
 | tNOT expr { $$ = NULL; }
 | tABS expr { $$ = NULL; }
+| tMINUS expr { $$ = build_expr1("-", $2, &@$); }
 | name { $$ = NULL; }
 | literal
 /*
@@ -698,6 +701,16 @@ static void id_list_free(id_list_t *list)
       list = next;
    }      
 }      
+
+static tree_t build_expr1(const char *fn, tree_t arg,
+                          const struct YYLTYPE *loc)
+{
+   tree_t t = tree_new(T_FCALL);
+   tree_set_ident(t, ident_new(fn));
+   tree_add_param(t, arg);
+
+   return t;
+}
 
 static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                           const struct YYLTYPE *loc)

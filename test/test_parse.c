@@ -291,6 +291,43 @@ START_TEST(test_types)
 }
 END_TEST
 
+START_TEST(test_literal)
+{
+   tree_t a, d, v;
+   literal_t l;
+
+   fail_unless(input_from_file(TESTDIR "/parse/literal.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_decls(a) == 2);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_ident(d) == ident_new("pos"));
+   v = tree_value(d);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   l = tree_literal(v);
+   fail_unless(l.kind == L_INT);
+   fail_unless(l.u.i == 64);
+
+   d = tree_decl(a, 1);
+   fail_unless(tree_ident(d) == ident_new("neg"));
+   v = tree_value(d);
+   fail_unless(tree_kind(v) == T_FCALL);
+   fail_unless(tree_ident(v) == ident_new("-"));
+   fail_unless(tree_params(v) == 1);
+   l = tree_literal(tree_param(v, 0));
+   fail_unless(l.kind == L_INT);
+   fail_unless(l.u.i == 265);
+   
+   a = parse();
+   fail_unless(a == NULL);
+   
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -301,6 +338,7 @@ int main(void)
    tcase_add_test(tc_core, test_process);
    tcase_add_test(tc_core, test_seq);
    tcase_add_test(tc_core, test_types);
+   tcase_add_test(tc_core, test_literal);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);
