@@ -7,8 +7,8 @@ begin
     foo: process is
         variable y : my_int2;
     begin
-        my_int2 := my_int1;
-        my_int2 := my_int2 + (2 * my_int1);
+        y := x;
+        --y := y + (2 * x);
     end process;
     
 end architecture;

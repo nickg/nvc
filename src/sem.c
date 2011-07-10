@@ -90,7 +90,7 @@ static void sem_check_type_decl(tree_t t)
    scope_insert(t);
 }
 
-static void sem_check_signal_decl(tree_t t)
+static void sem_check_decl(tree_t t)
 {
    type_t type_name = tree_type(t);
    assert(type_kind(type_name) == T_UNRESOLVED);
@@ -101,7 +101,23 @@ static void sem_check_signal_decl(tree_t t)
 
    tree_set_type(t, tree_type(type_decl));
 
+   if (tree_has_value(t))
+      sem_check(tree_value(t));
+
    scope_insert(t);
+}
+
+static void sem_check_process(tree_t t)
+{
+   scope_push();
+
+   for (unsigned n = 0; n < tree_decls(t); n++)
+      sem_check(tree_decl(t, n));
+   
+   for (unsigned n = 0; n < tree_stmts(t); n++)
+      sem_check(tree_stmt(t, n));
+   
+   scope_pop();
 }
 
 static void sem_check_arch(tree_t t)
@@ -112,8 +128,45 @@ static void sem_check_arch(tree_t t)
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       sem_check(tree_decl(t, n));
-
+   
+   for (unsigned n = 0; n < tree_stmts(t); n++)
+      sem_check(tree_stmt(t, n));
+   
    scope_pop();
+}
+
+static void sem_check_var_assign(tree_t t)
+{
+   sem_check(tree_target(t));
+   sem_check(tree_value(t));
+   
+   // TODO: check target is variable
+
+   // TODO: check types compatible
+}
+
+static void sem_check_literal(tree_t t)
+{
+   literal_t l = tree_literal(t);
+   
+   switch (l.kind) {
+   case L_INT:
+      tree_set_type(t, type_universal_int());
+      break;
+   default:
+      assert(false);
+   }
+}
+
+static void sem_check_ref(tree_t t)
+{
+   tree_t decl = scope_find(tree_ident(t));
+   assert(decl != NULL);  // TODO: error message
+
+   assert(tree_kind(decl) == T_VAR_DECL
+          || tree_kind(decl) == T_SIGNAL_DECL); // TODO: ...
+
+   tree_set_type(t, tree_type(decl));
 }
 
 void sem_check(tree_t t)
@@ -126,7 +179,20 @@ void sem_check(tree_t t)
       sem_check_type_decl(t);
       break;
    case T_SIGNAL_DECL:
-      sem_check_signal_decl(t);
+   case T_VAR_DECL:
+      sem_check_decl(t);
+      break;
+   case T_PROCESS:
+      sem_check_process(t);
+      break;
+   case T_VAR_ASSIGN:
+      sem_check_var_assign(t);
+      break;
+   case T_LITERAL:
+      sem_check_literal(t);
+      break;
+   case T_REF:
+      sem_check_ref(t);
       break;
    default:
       assert(false);

@@ -9,7 +9,7 @@
 
 START_TEST(test_integer)
 {
-   tree_t a, d;
+   tree_t a, d, p, s, e;
    type_t t;
    range_t r;
 
@@ -29,6 +29,21 @@ START_TEST(test_integer)
    fail_unless(tree_ident(d) == ident_new("x"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
+   e = tree_value(d);
+   fail_unless(tree_kind(e) == T_LITERAL);
+   t = tree_type(e);
+   fail_unless(type_kind(t) == T_INTEGER);
+
+   fail_unless(tree_stmts(a) == 1);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+
+   fail_unless(tree_decls(p) == 1);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_ident(d) == ident_new("y"));
+   fail_unless(type_kind(tree_type(d)) == T_INTEGER);
 }
 END_TEST
 

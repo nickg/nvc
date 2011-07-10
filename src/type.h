@@ -55,6 +55,9 @@ typedef struct range {
  */
 type_t type_new(type_kind_t kind);
 
+// Predefined types
+type_t type_universal_int(void);
+
 /**
  * Return the kind of the type node.
  */
