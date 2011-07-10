@@ -22,13 +22,13 @@
 
 %{
 #include "parse.h"
-   
+
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
       if (result <= 0)                       \
          result = YY_NULL;                   \
    }
-  
+
 lvals_t lvals;
 %}
 
@@ -103,7 +103,7 @@ DOWNTO        {D}{O}{W}{N}{T}{O}
 
 %%
 
-{COMMENT}   { begin_token(yytext); }
+{COMMENT}       { begin_token(yytext); }
 
 {ENTITY}        { begin_token(yytext); return tENTITY; }
 {IS}            { begin_token(yytext); return tIS; }

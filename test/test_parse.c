@@ -237,7 +237,10 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 2);
 
+   // Wait statements
+   
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 1);
@@ -252,7 +255,21 @@ START_TEST(test_seq)
    fail_unless(tree_kind(tree_param(e, 0)) == T_LITERAL);
    fail_unless(tree_kind(tree_param(e, 1)) == T_REF);
    fail_unless(tree_ident(tree_param(e, 1)) == ident_new("ns"));
+
+   // Variable assignment
    
+   p = tree_stmt(a, 1);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 1);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   e = tree_target(s);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("a"));
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_LITERAL);
+
    a = parse();
    fail_unless(a == NULL);
    

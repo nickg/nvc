@@ -40,6 +40,7 @@ struct tree {
    literal_t         literal;
    tree_t            value;
    tree_t            delay;
+   tree_t            target;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -47,7 +48,7 @@ struct tree {
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL))
 #define IS_EXPR(t) (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF))
-#define IS_STMT(t) (IS(t, T_PROCESS) || IS(t, T_WAIT))
+#define IS_STMT(t) (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL) \
@@ -62,6 +63,8 @@ struct tree {
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
+#define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN))
+#define HAS_VALUE(t) (IS_DECL(t) || IS(t, T_VAR_ASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -100,11 +103,13 @@ tree_t tree_new(tree_kind_t kind)
    t->ident2    = NULL;
    t->port_mode = PORT_INVALID;
    t->value     = NULL;
+   t->target    = NULL;
    
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
    tree_array_init(&t->params);
    tree_array_init(&t->decls);
+   tree_array_init(&t->stmts);
    
    t->literal.kind = L_INT;
    t->literal.u.i  = 0;
@@ -285,7 +290,7 @@ literal_t tree_literal(tree_t t)
 bool tree_has_value(tree_t t)
 {
    assert(t != NULL);
-   assert(IS_DECL(t));
+   assert(HAS_VALUE(t));
 
    return t->value != NULL;
 }
@@ -293,7 +298,7 @@ bool tree_has_value(tree_t t)
 tree_t tree_value(tree_t t)
 {
    assert(t != NULL);
-   assert(IS_DECL(t));
+   assert(HAS_VALUE(t));
    assert(t->value != NULL);
 
    return t->value;
@@ -302,7 +307,7 @@ tree_t tree_value(tree_t t)
 void tree_set_value(tree_t t, tree_t v)
 {
    assert(t != NULL);
-   assert(IS_DECL(t));
+   assert(HAS_VALUE(t));
    assert(v == NULL || IS_EXPR(v));
 
    t->value = v;
@@ -385,4 +390,21 @@ void tree_set_delay(tree_t t, tree_t d)
    assert(IS_EXPR(d));
 
    t->delay = d;
+}
+
+tree_t tree_target(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_TARGET(t));
+   assert(t->target != NULL);
+
+   return t->target;
+}
+
+void tree_set_target(tree_t t, tree_t lhs)
+{
+   assert(t != NULL);
+   assert(HAS_TARGET(t));
+
+   t->target = lhs;
 }

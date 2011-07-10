@@ -136,7 +136,8 @@
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
-%type <t> seq_stmt wait_stmt timeout_clause physical_literal
+%type <t> seq_stmt wait_stmt timeout_clause physical_literal target
+%type <t> var_assign_stmt
 %type <i> id opt_id name simple_name opt_label
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -197,7 +198,7 @@ id_list
 
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
 
-opt_label : id tCOLON { $$ = $1; } | { $$ = NULL; } ;
+opt_label : id tCOLON { $$ = $1; } | /* empty */ { $$ = NULL; } ;
 
 entity_decl
 : tENTITY id tIS entity_header /* entity_decl_part */ tEND
@@ -460,10 +461,10 @@ process_stmt_part
 
 seq_stmt
 : wait_stmt
+| var_assign_stmt
 /* | assertion_statement
    | report_statement
    | signal_assignment_statement
-   | variable_assignment_statement
    | procedure_call_statement
    | if_statement
    | case_statement
@@ -481,6 +482,30 @@ wait_stmt
      $$ = tree_new(T_WAIT);
      tree_set_delay($$, $3);
   }
+;
+
+var_assign_stmt
+: id tCOLON target tASSIGN expr tSEMI
+  {
+     $$ = tree_new(T_VAR_ASSIGN);
+     tree_set_target($$, $3);
+     tree_set_value($$, $5);
+  }
+| target tASSIGN expr tSEMI
+  {
+     $$ = tree_new(T_VAR_ASSIGN);
+     tree_set_target($$, $1);
+     tree_set_value($$, $3);
+  }
+;
+
+target
+: name
+  {
+     $$ = tree_new(T_REF);
+     tree_set_ident($$, $1);
+  }
+/* | aggregate */
 ;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
