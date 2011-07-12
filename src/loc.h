@@ -15,19 +15,18 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _SEM_H
-#define _SEM_H
+#ifndef _LOC_H
+#define _LOC_H
 
-#include "tree.h"
+typedef struct loc {
+   int        first_line;
+   int        first_column;
+   int        last_line;
+   int        last_column;
+   const char *file;
+   const char *linebuf;
+} loc_t;
 
-// Annotate types and perform other semantics checks on a tree.
-void sem_check(tree_t t);
+static const loc_t LOC_INVALID = { -1, -1, -1, -1, NULL, NULL };
 
-// The number of errors found during the semantic check phase.
-int sem_errors(void);
-
-// Error callback for use in unit tests.
-typedef void (*sem_error_fn_t)(const char *msg, const loc_t *loc);
-void sem_set_error_fn(sem_error_fn_t fn);
-
-#endif  // _SEM_H
+#endif  // _LOC_H

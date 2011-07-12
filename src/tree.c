@@ -28,6 +28,7 @@ struct tree_array {
 
 struct tree {
    tree_kind_t       kind;
+   loc_t             loc;
    ident_t           ident;
    ident_t           ident2;
    struct tree_array ports;
@@ -104,6 +105,7 @@ tree_t tree_new(tree_kind_t kind)
    t->port_mode = PORT_INVALID;
    t->value     = NULL;
    t->target    = NULL;
+   t->loc       = LOC_INVALID;
    
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -115,6 +117,21 @@ tree_t tree_new(tree_kind_t kind)
    t->literal.u.i  = 0;
    
    return t;
+}
+
+const loc_t *tree_loc(tree_t t)
+{
+   assert(t != NULL);
+
+   return &t->loc;
+}
+
+void tree_set_loc(tree_t t, const loc_t *loc)
+{
+   assert(t != NULL);
+   assert(loc != NULL);
+
+   t->loc = *loc;
 }
 
 ident_t tree_ident(tree_t t)

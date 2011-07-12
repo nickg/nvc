@@ -6,6 +6,9 @@
 #endif
 
 #include <stddef.h>
+#include <stdio.h>
+
+#include "loc.h"
 
 void *xmalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
@@ -14,5 +17,7 @@ void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
+
+void fmt_loc(FILE *f, const loc_t *loc);
 
 #endif // _UTIL_H

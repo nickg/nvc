@@ -4,6 +4,7 @@
 #include "lib.h"
 #include "ident.h"
 #include "type.h"
+#include "loc.h"
 
 typedef enum port_mode {
    PORT_INVALID,
@@ -41,6 +42,9 @@ typedef struct tree *tree_t;
 
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
+
+const loc_t *tree_loc(tree_t t);
+void tree_set_loc(tree_t t, const loc_t *loc);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL
 type_t tree_type(tree_t t);

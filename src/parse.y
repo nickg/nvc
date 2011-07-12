@@ -32,15 +32,8 @@
    
    #include <stdbool.h>
    
-   #define YYLTYPE YYLTYPE
-   typedef struct YYLTYPE {
-      int        first_line;
-      int        first_column;
-      int        last_line;
-      int        last_column;
-      const char *file;
-      const char *linebuf;
-   } YYLTYPE;
+   #define YYLTYPE loc
+   typedef struct loc loc;
 
    #define YYLLOC_DEFAULT(Current, Rhs, N) {                         \
          if (N) {                                                    \
@@ -285,6 +278,7 @@ signal_decl
         tree_set_ident(t, it->id);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
+        tree_set_loc(t, &@$);
 
         tree_list_append(&$$, t);
      }
@@ -344,6 +338,7 @@ interface_signal_decl
         tree_set_port_mode(t, $4);
         tree_set_type(t, $5);
         tree_set_value(t, $6);
+        tree_set_loc(t, &@$);
 
         tree_list_append(&$$, t);
      }
@@ -440,6 +435,7 @@ variable_decl
         tree_set_ident(t, it->id);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
+        tree_set_loc(t, &@$);
 
         tree_list_append(&$$, t);
      }
@@ -516,6 +512,7 @@ type_decl
      tree_t t = tree_new(T_TYPE_DECL);
      tree_set_ident(t, $2);
      tree_set_type(t, $4);
+     tree_set_loc(t, &@$);
      
      $$ = NULL;
      tree_list_append(&$$, t);
@@ -733,6 +730,7 @@ static tree_t build_expr1(const char *fn, tree_t arg,
    tree_t t = tree_new(T_FCALL);
    tree_set_ident(t, ident_new(fn));
    tree_add_param(t, arg);
+   tree_set_loc(t, loc);
 
    return t;
 }
@@ -744,6 +742,7 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    tree_set_ident(t, ident_new(fn));
    tree_add_param(t, left);
    tree_add_param(t, right);
+   tree_set_loc(t, loc);
 
    return t;
 }
@@ -751,33 +750,7 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
 static void yyerror(const char *s)
 {
    fprintf(stderr, "%s:%d: %s\n", yylloc.file, yylloc.first_line, s);
-
-   const char *lb = yylloc.linebuf;
-   char buf[80];
-   size_t i = 0;
-   while (i < sizeof(buf) - 4 && *lb != '\0' && *lb != '\n') {
-      // TODO: expand tabs?
-      buf[i++] = *lb++;
-   }
-
-   if (i == sizeof(buf) - 4) {
-      buf[i++] = '.';
-      buf[i++] = '.';
-      buf[i++] = '.';
-   }
-
-   buf[i] = '\0';
-
-   // Print ... if error location spans multiple lines
-   bool many_lines = (yylloc.first_line != yylloc.last_line);
-   int last_col = many_lines ? strlen(buf) + 4 : yylloc.last_column;
-
-   fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
-   for (int i = 0; i < yylloc.first_column + 4; i++)
-      fprintf(stderr, " ");
-   for (int i = 0; i < last_col - yylloc.first_column + 1; i++)
-      fprintf(stderr, "^");
-   fprintf(stderr, "\n");
+   fmt_loc(stderr, &yylloc);
    
    n_errors++;
 }

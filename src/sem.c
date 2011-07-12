@@ -20,8 +20,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
-
-static int errors = 0;
+#include <stdarg.h>
 
 // TODO: replace with B-tree sorted by ident
 #define MAX_VARS 16
@@ -31,7 +30,34 @@ struct scope {
    struct scope *down;
 };
 
-static struct scope *top_scope = NULL;
+#define SEM_ERROR_SZ  1024
+
+static void sem_def_error_fn(const char *msg, const loc_t *loc);
+
+static struct scope   *top_scope = NULL;
+static int            errors = 0;
+static sem_error_fn_t error_fn = sem_def_error_fn;
+
+static void sem_def_error_fn(const char *msg, const loc_t *loc)
+{
+   fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
+   fmt_loc(stderr, loc);
+}
+
+static void sem_error(tree_t t, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   char buf[SEM_ERROR_SZ];
+   vsnprintf(buf, SEM_ERROR_SZ, fmt, ap);
+   error_fn(buf, tree_loc(t));
+   va_end(ap);
+
+   errors++;
+
+   exit(EXIT_FAILURE);  // TODO
+}
 
 static void scope_push(void)
 {
@@ -96,8 +122,8 @@ static void sem_check_decl(tree_t t)
    assert(type_kind(type_name) == T_UNRESOLVED);
       
    tree_t type_decl = scope_find(type_ident(type_name));
-   assert(type_decl != NULL);
-   // TODO: proper error message
+   if (type_decl == NULL)
+      sem_error(t, "type '%s' not defined", istr(type_ident(type_name)));
 
    tree_set_type(t, tree_type(type_decl));
 
@@ -161,7 +187,8 @@ static void sem_check_literal(tree_t t)
 static void sem_check_ref(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
-   assert(decl != NULL);  // TODO: error message
+   if (decl == NULL)
+      sem_error(t, "undefined identifier '%s'", istr(tree_ident(t)));
 
    assert(tree_kind(decl) == T_VAR_DECL
           || tree_kind(decl) == T_SIGNAL_DECL); // TODO: ...
@@ -202,4 +229,9 @@ void sem_check(tree_t t)
 int sem_errors(void)
 {
    return errors;
+}
+
+void sem_set_error_fn(sem_error_fn_t fn)
+{
+   error_fn = fn;
 }
