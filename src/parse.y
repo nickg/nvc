@@ -562,33 +562,33 @@ range
 
 expr
 : expr tAND expr { $$ = build_expr2("and", $1, $3, &@$); }
-| expr tOR expr { $$ = NULL; }
-| expr tNAND expr { $$ = NULL; }
-| expr tNOR expr { $$ = NULL; }
-| expr tXOR expr { $$ = NULL; }
-| expr tXNOR expr { $$ = NULL; }
-| expr tEQ expr { $$ = NULL; }
-| expr tNEQ expr { $$ = NULL; }
-| expr tLT expr { $$ = NULL; }
-| expr tLE expr { $$ = NULL; }
-| expr tGT expr { $$ = NULL; }
-| expr tGE expr { $$ = NULL; }
-| expr tSLL expr { $$ = NULL; }
-| expr tSRL expr { $$ = NULL; }
-| expr tSLA expr { $$ = NULL; }
-| expr tSRA expr { $$ = NULL; }
-| expr tROL expr { $$ = NULL; }
-| expr tROR expr { $$ = NULL; }
+| expr tOR expr { $$ = build_expr2("or", $1, $3, &@$); }
+| expr tNAND expr { $$ = build_expr2("nand", $1, $3, &@$); }
+| expr tNOR expr { $$ = build_expr2("nor", $1, $3, &@$); }
+| expr tXOR expr { $$ = build_expr2("xor", $1, $3, &@$); }
+| expr tXNOR expr { $$ = build_expr2("xnor", $1, $3, &@$); }
+| expr tEQ expr { $$ = build_expr2("=", $1, $3, &@$); }
+| expr tNEQ expr { $$ = build_expr2("/=", $1, $3, &@$); }
+| expr tLT expr { $$ = build_expr2("<", $1, $3, &@$); }
+| expr tLE expr { $$ = build_expr2("<=", $1, $3, &@$); }
+| expr tGT expr { $$ = build_expr2(">", $1, $3, &@$); }
+| expr tGE expr { $$ = build_expr2(">=", $1, $3, &@$); }
+| expr tSLL expr { $$ = build_expr2("sll", $1, $3, &@$); }
+| expr tSRL expr { $$ = build_expr2("srl", $1, $3, &@$); }
+| expr tSLA expr { $$ = build_expr2("sla", $1, $3, &@$); }
+| expr tSRA expr { $$ = build_expr2("sra", $1, $3, &@$); }
+| expr tROL expr { $$ = build_expr2("rol", $1, $3, &@$); }
+| expr tROR expr { $$ = build_expr2("ror", $1, $3, &@$); }
 | expr tPLUS expr { $$ = build_expr2("+", $1, $3, &@$); }
-| expr tMINUS expr { $$ = NULL; }
-| expr tAMP expr { $$ = NULL; }
+| expr tMINUS expr { $$ = build_expr2("-", $1, $3, &@$); }
+| expr tAMP expr { $$ = build_expr2("&", $1, $3, &@$); }
 | expr tTIMES expr { $$ = build_expr2("*", $1, $3, &@$); }
-| expr tOVER expr { $$ = NULL; }
-| expr tMOD expr { $$ = NULL; }
-| expr tREM expr { $$ = NULL; }
-| expr tPOWER expr { $$ = NULL; }
-| tNOT expr { $$ = NULL; }
-| tABS expr { $$ = NULL; }
+| expr tOVER expr { $$ = build_expr2("/", $1, $3, &@$); }
+| expr tMOD expr { $$ = build_expr2("mod", $1, $3, &@$); }
+| expr tREM expr { $$ = build_expr2("rem", $1, $3, &@$); }
+| expr tPOWER expr { $$ = build_expr2("**", $1, $3, &@$); }
+| tNOT expr { $$ = build_expr1("not", $2, &@$); }
+| tABS expr { $$ = build_expr1("abs", $2, &@$); }
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
 | name { $$ = tree_new(T_REF); tree_set_ident($$, $1); }
 | literal
