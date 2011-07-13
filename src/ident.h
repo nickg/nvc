@@ -13,8 +13,9 @@ ident_t ident_uniq(const char *prefix);
 
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoid except
-// for printing. The pointer returned is only valid until the
-// next call to istr.
+// for printing. The pointer returned is only valid for the next
+// ISTR_MAX_BUFS calls to istr.
+#define ISTR_MAX_BUFS 8
 const char *istr(ident_t ident);
 
 void ident_write(ident_t ident, FILE *f);

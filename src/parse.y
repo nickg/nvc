@@ -111,6 +111,7 @@
                              const struct YYLTYPE *loc);
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
+   static void parse_error(const loc_t *loc, const char *fmt, ...);
 }
 
 %union {
@@ -201,6 +202,11 @@ entity_decl
      tree_set_ident($$, $2);
      copy_trees($4.left, tree_add_generic, $$);
      copy_trees($4.right, tree_add_port, $$);
+
+     if ($7 != NULL && $7 != $2) {
+        parse_error(&@7, "'%s' does not match entity name '%s'",
+                    istr($7), istr($2));
+     }
   }
 ;
 
@@ -233,6 +239,11 @@ arch_body
      tree_set_ident2($$, $4);
      copy_trees($6, tree_add_decl, $$);
      copy_trees($8, tree_add_stmt, $$);
+
+     if ($11 != NULL && $11 != $2) {
+        parse_error(&@11, "'%s' does not match architecture name '%s'",
+                    istr($11), istr($2));
+     }
   }
 ;
 
@@ -391,6 +402,14 @@ process_stmt
      tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
      copy_trees($4, tree_add_decl, $$);
      copy_trees($6, tree_add_stmt, $$);
+
+     if ($1 != NULL && $9 != NULL && $1 != $9) {
+        parse_error(&@9, "'%s' does not match architecture name '%s'",
+                    istr($9), istr($1));
+     }
+     else if ($1 == NULL && $9 != NULL) {
+        parse_error(&@9, "process does not have a label");
+     }
   }
 ;
 
@@ -747,12 +766,22 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    return t;
 }
 
-static void yyerror(const char *s)
+static void parse_error(const loc_t *loc, const char *fmt, ...)
 {
-   fprintf(stderr, "%s:%d: %s\n", yylloc.file, yylloc.first_line, s);
-   fmt_loc(stderr, &yylloc);
+   va_list ap;
+   va_start(ap, fmt);
+   fprintf(stderr, "%s:%d: ",  loc->file, loc->first_line);
+   vfprintf(stderr, fmt, ap);
+   fprintf(stderr, "\n");
+   fmt_loc(stderr, loc);
+   va_end(ap);
    
    n_errors++;
+}
+
+static void yyerror(const char *s)
+{
+   parse_error(&yylloc, "%s", s);
 }
 
 void begin_token(char *tok)

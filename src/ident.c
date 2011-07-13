@@ -96,17 +96,24 @@ const char *istr(ident_t ident)
 {
    assert(ident != NULL);
 
-   static char *buf = NULL;
-   static size_t buflen = 0;
+   // This is a bit of a kludge but keeping a sufficient number
+   // of static buffers allows us to use istr multiple times in printf
+   static char   *buf_set[ISTR_MAX_BUFS];
+   static size_t buflen[ISTR_MAX_BUFS];
+   static int    next_buf = 0;   
+
+   char *buf = buf_set[next_buf];
+   size_t *blenp = &buflen[next_buf];
+   next_buf = (next_buf + 1) % ISTR_MAX_BUFS;
 
    if (buf == NULL) {
       buf = xmalloc(ident->depth);
-      buflen = ident->depth;
+      *blenp = ident->depth;
    }
    
-   while (ident->depth > buflen) {
-      buflen *= 2;
-      buf = xrealloc(buf, buflen);
+   while (ident->depth > *blenp) {
+      *blenp *= 2;
+      buf = xrealloc(buf, *blenp);
    }
 
    char *p = buf + ident->depth - 1;
