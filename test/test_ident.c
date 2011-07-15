@@ -18,7 +18,7 @@ START_TEST(test_compare)
    ident_t i1, i2, i3, i4;
 
    i1 = ident_new("foo");
-   i2 = ident_new("FOO");
+   i2 = ident_new("foo");
    i3 = ident_new("foobar");
    i4 = ident_new("poo");
 
@@ -37,7 +37,7 @@ START_TEST(test_istr)
    fail_unless(strcasecmp(istr(i1), "frob") == 0);
 
    i2 = ident_new("FrOB");
-   fail_unless(strcasecmp(istr(i1), "frob") == 0);
+   fail_unless(strcasecmp(istr(i2), "FrOB") == 0);
    
    i1 = ident_new("pingu");
    fail_unless(strcasecmp(istr(i1), "PINGU") == 0);
@@ -56,7 +56,7 @@ START_TEST(test_rand)
       
       ident_t i1 = ident_new(buf);
       fail_if(i1 == NULL);
-      fail_unless(strcasecmp(istr(i1), buf) == 0);
+      fail_unless(strcmp(istr(i1), buf) == 0);
    }
 }
 END_TEST
@@ -66,7 +66,7 @@ START_TEST(test_read_write)
    ident_t i1, i2, i3;
    i1 = ident_new("goobar");
    i2 = ident_new("foo");
-   i3 = ident_new("FOO");
+   i3 = ident_new("foo");
 
    FILE *f = tmpfile();
    fail_if(f == NULL);

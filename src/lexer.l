@@ -22,6 +22,9 @@
 
 %{
 #include "parse.h"
+#include "util.h"
+
+#include <ctype.h>
 
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
@@ -29,12 +32,16 @@
          result = YY_NULL;                   \
    }
 
+static int parse_id(const char *str);
+static int parse_ex_id(const char *str);
+ 
 lvals_t lvals;
 %}
 
 /* TODO: look at string_literal and character_literal */
 
 ID      [a-zA-Z][a-zA-Z_0-9]*
+EXID    \\.*\\
 STRING  \".*\"
 CHAR    '.'
 COMMENT --.*\n
@@ -160,8 +167,38 @@ DOWNTO        {D}{O}{W}{N}{T}{O}
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); return tCHAR; }
-{ID}       { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
+{ID}       { begin_token(yytext); return parse_id(yytext); }
+{EXID}     { begin_token(yytext); return parse_ex_id(yytext); }
 [ \t\r\n]  { begin_token(yytext); }
 <<EOF>>    { begin_token(yytext); return 0; }
 .          { begin_token(yytext); return tERROR; }
 %%
+
+static int parse_id(const char *str)
+{
+   char *p = (lvals.sval = xmalloc(strlen(str) + 1));
+   while (*str)
+      *p++ = toupper(*str++);
+   *p = '\0';
+
+   return tID;
+}
+
+static int parse_ex_id(const char *str)
+{  
+   char *p = (lvals.sval = xmalloc(strlen(str) + 1));
+   while (*str) {
+      switch (*str) {
+      case '\\':
+         if (*(str + 1) == '\\') {
+            str++;
+            break;
+         }
+      default:
+         *p++ = *str++;
+      }
+   }
+   *p = '\0';
+
+   return tID;
+}

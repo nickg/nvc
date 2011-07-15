@@ -204,7 +204,7 @@ entity_decl
      copy_trees($4.right, tree_add_port, $$);
 
      if ($7 != NULL && $7 != $2) {
-        parse_error(&@7, "'%s' does not match entity name '%s'",
+        parse_error(&@7, "%s does not match entity name %s",
                     istr($7), istr($2));
      }
   }
@@ -241,7 +241,7 @@ arch_body
      copy_trees($8, tree_add_stmt, $$);
 
      if ($11 != NULL && $11 != $2) {
-        parse_error(&@11, "'%s' does not match architecture name '%s'",
+        parse_error(&@11, "%s does not match architecture name %s",
                     istr($11), istr($2));
      }
   }
@@ -404,7 +404,7 @@ process_stmt
      copy_trees($6, tree_add_stmt, $$);
 
      if ($1 != NULL && $9 != NULL && $1 != $9) {
-        parse_error(&@9, "'%s' does not match architecture name '%s'",
+        parse_error(&@9, "%s does not match architecture name %s",
                     istr($9), istr($1));
      }
      else if ($1 == NULL && $9 != NULL) {

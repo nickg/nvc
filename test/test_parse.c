@@ -17,32 +17,32 @@ START_TEST(test_entity)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("one"));
+   fail_unless(tree_ident(e) == ident_new("ONE"));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("two"));
+   fail_unless(tree_ident(e) == ident_new("TWO"));
    
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("three"));
+   fail_unless(tree_ident(e) == ident_new("THREE"));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("four"));
+   fail_unless(tree_ident(e) == ident_new("FOUR"));
 
    fail_unless(tree_ports(e) == 5);
 
    p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("a"));
+   fail_unless(tree_ident(p) == ident_new("A"));
    fail_unless(tree_port_mode(p) == PORT_IN);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("integer"));
+   fail_unless(type_ident(t) == ident_new("INTEGER"));
    fail_unless(tree_has_value(p));
    v = tree_value(p);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -52,61 +52,61 @@ START_TEST(test_entity)
 
    p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("b"));
+   fail_unless(tree_ident(p) == ident_new("B"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("bit"));
+   fail_unless(type_ident(t) == ident_new("BIT"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 2);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("bee"));
+   fail_unless(tree_ident(p) == ident_new("BEE"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("bit"));
+   fail_unless(type_ident(t) == ident_new("BIT"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 3);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("c"));
+   fail_unless(tree_ident(p) == ident_new("C"));
    fail_unless(tree_port_mode(p) == PORT_INOUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("integer"));
+   fail_unless(type_ident(t) == ident_new("INTEGER"));
    fail_if(tree_has_value(p));
 
    p = tree_port(e, 4);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("d"));
+   fail_unless(tree_ident(p) == ident_new("D"));
    fail_unless(tree_port_mode(p) == PORT_BUFFER);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("bit"));
+   fail_unless(type_ident(t) == ident_new("BIT"));
    fail_if(tree_has_value(p));
 
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_ident(e) == ident_new("five"));
+   fail_unless(tree_ident(e) == ident_new("FIVE"));
 
    fail_unless(tree_generics(e) == 2);
 
    g = tree_generic(e, 0);
    fail_unless(tree_kind(g) == T_PORT_DECL);
-   fail_unless(tree_ident(g) == ident_new("x"));
+   fail_unless(tree_ident(g) == ident_new("X"));
    t = tree_type(g);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("boolean"));
+   fail_unless(type_ident(t) == ident_new("BOOLEAN"));
    fail_if(tree_has_value(p));
 
    g = tree_generic(e, 1);
    fail_unless(tree_kind(g) == T_PORT_DECL);
-   fail_unless(tree_ident(g) == ident_new("y"));
+   fail_unless(tree_ident(g) == ident_new("Y"));
    t = tree_type(g);
    fail_unless(type_kind(t) == T_UNRESOLVED);
-   fail_unless(type_ident(t) == ident_new("integer"));
+   fail_unless(type_ident(t) == ident_new("INTEGER"));
    fail_unless(tree_has_value(g));
    v = tree_value(g);
    fail_unless(tree_kind(v) == T_FCALL);
@@ -127,7 +127,7 @@ START_TEST(test_entity)
 
    p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
-   fail_unless(tree_ident(p) == ident_new("p"));
+   fail_unless(tree_ident(p) == ident_new("P"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
    fail_if(tree_has_value(p));
    
@@ -148,20 +148,20 @@ START_TEST(test_arch)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("a"));
-   fail_unless(tree_ident2(a) == ident_new("one"));
+   fail_unless(tree_ident(a) == ident_new("A"));
+   fail_unless(tree_ident2(a) == ident_new("ONE"));
    fail_unless(tree_decls(a) == 3);
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(d) == ident_new("x"));
+   fail_unless(tree_ident(d) == ident_new("X"));
    fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("integer"));
+   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
    fail_if(tree_has_value(d));
    d = tree_decl(a, 1);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(d) == ident_new("y"));
+   fail_unless(tree_ident(d) == ident_new("Y"));
    fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("integer"));
+   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -170,9 +170,9 @@ START_TEST(test_arch)
    fail_unless(l.u.i == 7);
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
-   fail_unless(tree_ident(d) == ident_new("z"));
+   fail_unless(tree_ident(d) == ident_new("Z"));
    fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
-   fail_unless(type_ident(tree_type(d)) == ident_new("integer"));
+   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
@@ -183,14 +183,14 @@ START_TEST(test_arch)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("b"));
-   fail_unless(tree_ident2(a) == ident_new("one"));
+   fail_unless(tree_ident(a) == ident_new("B"));
+   fail_unless(tree_ident2(a) == ident_new("ONE"));
    
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_ident(a) == ident_new("c"));
-   fail_unless(tree_ident2(a) == ident_new("one"));
+   fail_unless(tree_ident(a) == ident_new("C"));
+   fail_unless(tree_ident2(a) == ident_new("ONE"));
    
    a = parse();
    fail_unless(a == NULL);
@@ -212,7 +212,7 @@ START_TEST(test_process)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_ident(p) == ident_new("p"));
+   fail_unless(tree_ident(p) == ident_new("P"));
 
    p = tree_stmt(a, 1);
    fail_unless(tree_kind(p) == T_PROCESS);
@@ -254,7 +254,7 @@ START_TEST(test_seq)
    fail_unless(tree_params(e) == 2);
    fail_unless(tree_kind(tree_param(e, 0)) == T_LITERAL);
    fail_unless(tree_kind(tree_param(e, 1)) == T_REF);
-   fail_unless(tree_ident(tree_param(e, 1)) == ident_new("ns"));
+   fail_unless(tree_ident(tree_param(e, 1)) == ident_new("NS"));
 
    // Variable assignment
    
@@ -266,7 +266,7 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_VAR_ASSIGN);
    e = tree_target(s);
    fail_unless(tree_kind(e) == T_REF);
-   fail_unless(tree_ident(e) == ident_new("a"));
+   fail_unless(tree_ident(e) == ident_new("A"));
    e = tree_value(s);
    fail_unless(tree_kind(e) == T_LITERAL);
 
@@ -306,7 +306,7 @@ START_TEST(test_types)
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
-   fail_unless(tree_ident(d) == ident_new("my_int"));
+   fail_unless(tree_ident(d) == ident_new("MY_INT"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
    fail_unless(type_dims(t) == 1);
@@ -335,7 +335,7 @@ START_TEST(test_literal)
    fail_unless(tree_decls(a) == 2);
 
    d = tree_decl(a, 0);
-   fail_unless(tree_ident(d) == ident_new("pos"));
+   fail_unless(tree_ident(d) == ident_new("POS"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
    l = tree_literal(v);
@@ -343,7 +343,7 @@ START_TEST(test_literal)
    fail_unless(l.u.i == 64);
 
    d = tree_decl(a, 1);
-   fail_unless(tree_ident(d) == ident_new("neg"));
+   fail_unless(tree_ident(d) == ident_new("NEG"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_FCALL);
    fail_unless(tree_ident(v) == ident_new("-"));
@@ -351,6 +351,36 @@ START_TEST(test_literal)
    l = tree_literal(tree_param(v, 0));
    fail_unless(l.kind == L_INT);
    fail_unless(l.u.i == 265);
+   
+   a = parse();
+   fail_unless(a == NULL);
+   
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
+START_TEST(test_extended)
+{
+   tree_t a, d, n;
+
+   fail_unless(input_from_file(TESTDIR "/parse/extended.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_decls(a) == 5);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_ident(d) == ident_new("\\foo bar\\"));
+   d = tree_decl(a, 1);
+   fail_unless(tree_ident(d) == ident_new("\\a\\b\\"));
+   d = tree_decl(a, 2);
+   fail_unless(tree_ident(d) == ident_new("\\Thing!!!  \\"));
+   d = tree_decl(a, 3);
+   fail_unless(tree_ident(d) == ident_new("\\name\\"));
+   n = tree_decl(a, 4);
+   // LRM states extended identifiers distinct from regular
+   fail_if(d == n);
    
    a = parse();
    fail_unless(a == NULL);
@@ -370,6 +400,7 @@ int main(void)
    tcase_add_test(tc_core, test_seq);
    tcase_add_test(tc_core, test_types);
    tcase_add_test(tc_core, test_literal);
+   tcase_add_test(tc_core, test_extended);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

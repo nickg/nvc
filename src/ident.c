@@ -3,7 +3,6 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,7 +59,7 @@ static bool search_trie(const char **str, struct trie *t, struct trie **end)
 
    struct clist *it;
    for (it = t->children;
-        it != NULL && toupper(it->value) != toupper(**str);
+        it != NULL && it->value != **str;
         it = it->next)
       ;
 

@@ -26,7 +26,7 @@ START_TEST(test_integer)
    fail_unless(sem_errors() == 0);
 
    d = tree_decl(a, 2);
-   fail_unless(tree_ident(d) == ident_new("x"));
+   fail_unless(tree_ident(d) == ident_new("X"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_INTEGER);
    e = tree_value(d);
@@ -42,7 +42,7 @@ START_TEST(test_integer)
    fail_unless(tree_decls(p) == 1);
 
    d = tree_decl(p, 0);
-   fail_unless(tree_ident(d) == ident_new("y"));
+   fail_unless(tree_ident(d) == ident_new("Y"));
    fail_unless(type_kind(tree_type(d)) == T_INTEGER);
 }
 END_TEST

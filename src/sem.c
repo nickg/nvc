@@ -123,7 +123,7 @@ static void sem_check_decl(tree_t t)
       
    tree_t type_decl = scope_find(type_ident(type_name));
    if (type_decl == NULL)
-      sem_error(t, "type '%s' not defined", istr(type_ident(type_name)));
+      sem_error(t, "type %s not defined", istr(type_ident(type_name)));
 
    tree_set_type(t, tree_type(type_decl));
 
@@ -188,7 +188,7 @@ static void sem_check_ref(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
    if (decl == NULL)
-      sem_error(t, "undefined identifier '%s'", istr(tree_ident(t)));
+      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
 
    assert(tree_kind(decl) == T_VAR_DECL
           || tree_kind(decl) == T_SIGNAL_DECL); // TODO: ...
