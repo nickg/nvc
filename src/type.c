@@ -43,7 +43,6 @@ bool type_eq(type_t a, type_t b)
 ident_t type_ident(type_t t)
 {
    assert(t != NULL);
-   assert(IS(t, T_UNRESOLVED));
 
    return t->ident;
 }

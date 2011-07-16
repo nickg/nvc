@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 
 // TODO: replace with B-tree sorted by ident
 #define MAX_VARS 16
@@ -38,13 +39,15 @@ static struct scope   *top_scope = NULL;
 static int            errors = 0;
 static sem_error_fn_t error_fn = sem_def_error_fn;
 
+#define sem_error(t, ...) { _sem_error(t, __VA_ARGS__); return false; }
+
 static void sem_def_error_fn(const char *msg, const loc_t *loc)
 {
    fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
    fmt_loc(stderr, loc);
 }
 
-static void sem_error(tree_t t, const char *fmt, ...)
+static void _sem_error(tree_t t, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
@@ -55,8 +58,6 @@ static void sem_error(tree_t t, const char *fmt, ...)
    va_end(ap);
 
    errors++;
-
-   exit(EXIT_FAILURE);  // TODO
 }
 
 static void scope_push(void)
@@ -64,7 +65,7 @@ static void scope_push(void)
    struct scope *s = xmalloc(sizeof(struct scope));
    s->n_decls = 0;
    s->down    = top_scope;
-
+   
    top_scope = s;
 }
 
@@ -109,14 +110,16 @@ static tree_t scope_find(ident_t i)
    return scope_find_in(i, top_scope);
 }
 
-static void sem_check_type_decl(tree_t t)
+static bool sem_check_type_decl(tree_t t)
 {
    // TODO: various checks from the LRM...
 
    scope_insert(t);
+
+   return true;
 }
 
-static void sem_check_decl(tree_t t)
+static bool sem_check_decl(tree_t t)
 {
    type_t type_name = tree_type(t);
    assert(type_kind(type_name) == T_UNRESOLVED);
@@ -131,47 +134,70 @@ static void sem_check_decl(tree_t t)
       sem_check(tree_value(t));
 
    scope_insert(t);
+
+   return true;
 }
 
-static void sem_check_process(tree_t t)
+static bool sem_check_process(tree_t t)
 {
+   bool ok = true;
+   
    scope_push();
 
    for (unsigned n = 0; n < tree_decls(t); n++)
-      sem_check(tree_decl(t, n));
-   
-   for (unsigned n = 0; n < tree_stmts(t); n++)
-      sem_check(tree_stmt(t, n));
+      ok = ok && sem_check(tree_decl(t, n));
+
+   if (ok) {
+      for (unsigned n = 0; n < tree_stmts(t); n++)
+         ok = ok && sem_check(tree_stmt(t, n));
+   }
    
    scope_pop();
+
+   return ok;
 }
 
-static void sem_check_arch(tree_t t)
+static bool sem_check_arch(tree_t t)
 {
+   bool ok = true;
+   
    // TODO: need to find entity and push its scope
 
    scope_push();
 
    for (unsigned n = 0; n < tree_decls(t); n++)
-      sem_check(tree_decl(t, n));
-   
-   for (unsigned n = 0; n < tree_stmts(t); n++)
-      sem_check(tree_stmt(t, n));
+      ok = ok && sem_check(tree_decl(t, n));
+
+   if (ok) {
+      for (unsigned n = 0; n < tree_stmts(t); n++)
+         ok = ok && sem_check(tree_stmt(t, n));
+   }
    
    scope_pop();
+
+   return ok;
 }
 
-static void sem_check_var_assign(tree_t t)
+static bool sem_check_var_assign(tree_t t)
 {
-   sem_check(tree_target(t));
-   sem_check(tree_value(t));
+   tree_t target = tree_target(t);
+   tree_t value = tree_value(t);
    
-   // TODO: check target is variable
+   bool ok = sem_check(target) && sem_check(value);
+   if (!ok)
+      return false;
 
-   // TODO: check types compatible
+   tree_t decl = tree_ref(target);
+   if (tree_kind(decl) != T_VAR_DECL)
+      sem_error(target, "invalid target of variable assignment");
+
+   if (!type_eq(tree_type(target), tree_type(value)))
+      sem_error(t, "type of value does not match type of target");
+
+   return true;
 }
 
-static void sem_check_literal(tree_t t)
+static bool sem_check_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
    
@@ -182,9 +208,11 @@ static void sem_check_literal(tree_t t)
    default:
       assert(false);
    }
+
+   return true;
 }
 
-static void sem_check_ref(tree_t t)
+static bool sem_check_ref(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
    if (decl == NULL)
@@ -194,33 +222,29 @@ static void sem_check_ref(tree_t t)
           || tree_kind(decl) == T_SIGNAL_DECL); // TODO: ...
 
    tree_set_type(t, tree_type(decl));
+   tree_set_ref(t, decl);
+
+   return true;
 }
 
-void sem_check(tree_t t)
+bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_ARCH:
-      sem_check_arch(t);
-      break;
+      return sem_check_arch(t);
    case T_TYPE_DECL:
-      sem_check_type_decl(t);
-      break;
+      return sem_check_type_decl(t);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
-      sem_check_decl(t);
-      break;
+      return sem_check_decl(t);
    case T_PROCESS:
-      sem_check_process(t);
-      break;
+      return sem_check_process(t);
    case T_VAR_ASSIGN:
-      sem_check_var_assign(t);
-      break;
+      return sem_check_var_assign(t);
    case T_LITERAL:
-      sem_check_literal(t);
-      break;
+      return sem_check_literal(t);
    case T_REF:
-      sem_check_ref(t);
-      break;
+      return sem_check_ref(t);
    default:
       assert(false);
    }

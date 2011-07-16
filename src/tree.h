@@ -107,6 +107,10 @@ void tree_set_delay(tree_t t, tree_t d);
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
+// T_REF
+tree_t tree_ref(tree_t t);
+void tree_set_ref(tree_t t, tree_t decl);
+
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);
 tree_t tree_load(lib_t lib, ident_t ident);

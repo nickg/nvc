@@ -42,6 +42,7 @@ struct tree {
    tree_t            value;
    tree_t            delay;
    tree_t            target;
+   tree_t            ref;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -106,6 +107,7 @@ tree_t tree_new(tree_kind_t kind)
    t->value     = NULL;
    t->target    = NULL;
    t->loc       = LOC_INVALID;
+   t->ref    = NULL;
    
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -424,4 +426,22 @@ void tree_set_target(tree_t t, tree_t lhs)
    assert(HAS_TARGET(t));
 
    t->target = lhs;
+}
+
+tree_t tree_ref(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_REF));
+   assert(t->ref != NULL);
+
+   return t->ref;
+}
+
+void tree_set_ref(tree_t t, tree_t decl)
+{
+   assert(t != NULL);
+   assert(IS(t, T_REF));
+   assert(IS_DECL(decl));
+
+   t->ref = decl;
 }

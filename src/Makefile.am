@@ -3,6 +3,7 @@ lib_LIBRARIES = libnhdl.a
 
 AM_CFLAGS = -Wall
 AM_YFLAGS = -d --locations
+AM_LDFLAGS = -rdynamic
 
 BUILT_SOURCES = parse.h
 

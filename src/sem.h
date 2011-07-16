@@ -21,7 +21,8 @@
 #include "tree.h"
 
 // Annotate types and perform other semantics checks on a tree.
-void sem_check(tree_t t);
+// Returns false on error.
+bool sem_check(tree_t t);
 
 // The number of errors found during the semantic check phase.
 int sem_errors(void);

@@ -1,5 +1,6 @@
 #include "parse.h"
 #include "type.h"
+#include "util.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -391,7 +392,9 @@ END_TEST
 
 int main(void)
 {
-   Suite *s = suite_create("parse");
+   register_trace_signal_handlers();
+   
+   Suite *s = suite_create("parse");  
 
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_entity);

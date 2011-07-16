@@ -1,6 +1,7 @@
 #include "parse.h"
 #include "type.h"
 #include "sem.h"
+#include "util.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -14,6 +15,10 @@ START_TEST(test_integer)
    range_t r;
 
    fail_unless(input_from_file(TESTDIR "/sem/integer.vhd"));
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
 
    a = parse();
    fail_if(a == NULL);
@@ -49,7 +54,9 @@ END_TEST
 
 int main(void)
 {
-   Suite *s = suite_create("parse");
+   register_trace_signal_handlers();
+   
+   Suite *s = suite_create("sem");
 
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_integer);

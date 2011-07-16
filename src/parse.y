@@ -25,6 +25,7 @@
    #include <fcntl.h>
    #include <unistd.h>
    #include <string.h>
+   #include <stdarg.h>
 }
 
 %code requires {
@@ -505,12 +506,14 @@ var_assign_stmt
      $$ = tree_new(T_VAR_ASSIGN);
      tree_set_target($$, $3);
      tree_set_value($$, $5);
+     tree_set_loc($$, &@$);
   }
 | target tASSIGN expr tSEMI
   {
      $$ = tree_new(T_VAR_ASSIGN);
      tree_set_target($$, $1);
      tree_set_value($$, $3);
+     tree_set_loc($$, &@$);
   }
 ;
 
@@ -519,6 +522,7 @@ target
   {
      $$ = tree_new(T_REF);
      tree_set_ident($$, $1);
+     tree_set_loc($$, &@$);
   }
 /* | aggregate */
 ;
