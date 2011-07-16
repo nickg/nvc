@@ -20,4 +20,7 @@ void fatal(const char *fmt, ...)
 
 void fmt_loc(FILE *f, const loc_t *loc);
 
+void show_stacktrace(void);
+void register_trace_signal_handlers(void);
+
 #endif // _UTIL_H
