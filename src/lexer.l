@@ -46,6 +46,7 @@ STRING  \".*\"
 CHAR    '.'
 COMMENT --.*\n
 INT     [0-9]+
+SPACE   [ \t\r\n]+
 
 A       [aA]
 B       [bB]
@@ -169,7 +170,7 @@ DOWNTO        {D}{O}{W}{N}{T}{O}
 {CHAR}     { begin_token(yytext); return tCHAR; }
 {ID}       { begin_token(yytext); return parse_id(yytext); }
 {EXID}     { begin_token(yytext); return parse_ex_id(yytext); }
-[ \t\r\n]  { begin_token(yytext); }
+{SPACE}    { begin_token(yytext); }
 <<EOF>>    { begin_token(yytext); return 0; }
 .          { begin_token(yytext); return tERROR; }
 %%

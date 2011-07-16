@@ -90,7 +90,6 @@
    static size_t     file_sz;
    static const char *perm_linebuf = NULL;
    static const char *perm_file_name = NULL;
-   static int        n_chars_this_line = 0;
    static int        n_token_next_start = 0;
    static int        n_row = 0;
    static bool       last_was_newline = true;
@@ -790,7 +789,7 @@ static void yyerror(const char *s)
 
 void begin_token(char *tok)
 {
-   const char *newline = strchr(tok, '\n');
+   const char *newline = strrchr(tok, '\n');
    int n_token_start, n_token_length;
    if (newline != NULL) {
       n_token_start = 0;
@@ -800,7 +799,7 @@ void begin_token(char *tok)
    else {
       n_token_start = n_token_next_start;
       n_token_length = strlen(tok);
-      n_token_next_start = n_chars_this_line;
+      n_token_next_start += n_token_length;
    }
    
    yylloc.first_line   = n_row;
@@ -814,8 +813,6 @@ void begin_token(char *tok)
 int get_next_char(char *b, int max_buffer)
 {
    if (last_was_newline) {
-      n_token_next_start = 0;
-      n_chars_this_line = 0;
       n_row += 1;
 
       perm_linebuf = read_ptr;
@@ -832,8 +829,6 @@ int get_next_char(char *b, int max_buffer)
    if (perm_linebuf == NULL)
       perm_linebuf = read_ptr;
 
-   n_chars_this_line++;
-   
    if (*b == '\n') 
       last_was_newline = true;
    
