@@ -57,6 +57,8 @@ START_TEST(test_integer)
 
    const error_t expect[] = {
       { 20, "MY_INT1 does not match type of target MY_INT2" },
+      { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
+      { 35, "type NOTHING is not defined" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -73,7 +75,7 @@ START_TEST(test_integer)
    t = tree_type(e);
    fail_unless(type_kind(t) == T_INTEGER);
 
-   fail_unless(tree_stmts(a) == 2);
+   fail_unless(tree_stmts(a) == 5);
 
    // Process 1
    

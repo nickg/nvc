@@ -137,6 +137,7 @@
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
+%type <l> subtype_decl
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -149,7 +150,7 @@
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
-%token tRANGE
+%token tRANGE tSUBTYPE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -262,9 +263,9 @@ arch_decl_part
 block_decl_item
 : signal_decl
 | type_decl
+| subtype_decl
 /* | subprogram_declaration
    | subprogram_body
-   | subtype_declaration
    | constant_declaration
    | shared_variable_declaration
    | file_declaration
@@ -378,8 +379,14 @@ opt_mode
 ;
 
 subtype_indication
-: /* resolution_indication */ type_mark /* constraint */
+: /* resolution_indication */ type_mark
   { $$ = $1; }
+| /* resolution_indication */ type_mark range_constraint
+  {
+     $$ = type_new(T_SUBTYPE);
+     type_set_base($$, $1);
+     type_add_dim($$, $2);
+  }
 ;
 
 conc_stmt
@@ -430,9 +437,9 @@ process_decl_part
 process_decl_item
 : variable_decl
 | type_decl
+| subtype_decl
   /* | subprogram_declaration
      | subprogram_body
-     | subtype_declaration
      | constant_declaration
      | file_declaration
      | alias_declaration
@@ -527,6 +534,28 @@ target
 ;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
+ 
+subtype_decl
+: tSUBTYPE id tIS subtype_indication tSEMI
+  {
+     type_t sub = $4;
+     if (type_kind(sub) != T_SUBTYPE) {
+        // Case where subtype_indication did not impose any
+        // constraint so we must create the subtype object here
+        sub = type_new(T_SUBTYPE);
+        type_set_base(sub, $4);
+     }
+     type_set_ident(sub, $2);
+        
+     tree_t t = tree_new(T_TYPE_DECL);
+     tree_set_ident(t, $2);
+     tree_set_type(t, sub);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+;
 
 type_decl
 : tTYPE id tIS type_def tSEMI

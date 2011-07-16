@@ -108,6 +108,7 @@ TYPE          {T}{Y}{P}{E}
 RANGE         {R}{A}{N}{G}{E}
 TO            {T}{O}
 DOWNTO        {D}{O}{W}{N}{T}{O}
+SUBTYPE       {S}{U}{B}{T}{Y}{P}{E}
 
 %%
 
@@ -149,6 +150,7 @@ DOWNTO        {D}{O}{W}{N}{T}{O}
 {RANGE}         { begin_token(yytext); return tRANGE; }
 {TO}            { begin_token(yytext); return tTO; }
 {DOWNTO}        { begin_token(yytext); return tDOWNTO; }
+{SUBTYPE}       { begin_token(yytext); return tSUBTYPE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

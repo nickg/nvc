@@ -92,7 +92,6 @@ static void scope_insert(tree_t t)
 
 static tree_t scope_find_in(ident_t i, struct scope *s)
 {
-   printf("scope_find_in: %s %p\n", istr(i), s);
    if (s == NULL)
       return NULL;
    else {
@@ -110,10 +109,28 @@ static tree_t scope_find(ident_t i)
    return scope_find_in(i, top_scope);
 }
 
+static bool sem_check_subtype(tree_t t, type_t type)
+{
+   while (type_kind(type) == T_SUBTYPE) {
+      type_t base = type_base(type);
+      tree_t base_decl = scope_find(type_ident(base));
+      if (base_decl == NULL)
+         sem_error(t, "type %s is not defined", istr(type_ident(base)));
+
+      printf("resolve %s to %s\n", istr(type_ident(type)),
+             istr(type_ident(tree_type(base_decl))));
+      type_set_base(type, tree_type(base_decl));
+      
+      type = tree_type(base_decl);
+   }
+
+   return true;
+}
+
 static bool sem_check_type_decl(tree_t t)
 {
-   // TODO: various checks from the LRM...
-
+   sem_check_subtype(t, tree_type(t));   
+   
    scope_insert(t);
 
    return true;
@@ -121,14 +138,25 @@ static bool sem_check_type_decl(tree_t t)
 
 static bool sem_check_decl(tree_t t)
 {
-   type_t type_name = tree_type(t);
-   assert(type_kind(type_name) == T_UNRESOLVED);
-      
-   tree_t type_decl = scope_find(type_ident(type_name));
-   if (type_decl == NULL)
-      sem_error(t, "type %s not defined", istr(type_ident(type_name)));
+   type_t type = tree_type(t);
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      sem_check_subtype(t, type);
+      break;
 
-   tree_set_type(t, tree_type(type_decl));
+   case T_UNRESOLVED:
+      {
+         tree_t type_decl = scope_find(type_ident(type));
+         if (type_decl == NULL)
+            sem_error(t, "type %s is not defined", istr(type_ident(type)));
+         
+         tree_set_type(t, tree_type(type_decl));
+      }
+      break;
+
+   default:
+      assert(false);
+   }
 
    if (tree_has_value(t))
       sem_check(tree_value(t));
@@ -169,8 +197,14 @@ static bool sem_check_arch(tree_t t)
       ok = ok && sem_check(tree_decl(t, n));
 
    if (ok) {
-      for (unsigned n = 0; n < tree_stmts(t); n++)
-         ok = ok && sem_check(tree_stmt(t, n));
+      // Keep going after failure in single statement
+      int failures = 0;
+      for (unsigned n = 0; n < tree_stmts(t); n++) {
+         if (!sem_check(tree_stmt(t, n)))
+            failures++;
+      }
+
+      ok = (failures == 0);
    }
    
    scope_pop();

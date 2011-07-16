@@ -26,6 +26,7 @@ typedef struct type *type_t;
 
 typedef enum type_kind {
    T_UNRESOLVED,
+   T_SUBTYPE,
    T_INTEGER,
    T_FLOAT,
    T_ENUM,
@@ -74,7 +75,11 @@ bool type_eq(type_t a, type_t b);
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
-// T_INTEGER
+// T_SUBTYPE
+type_t type_base(type_t t);
+void type_set_base(type_t t, type_t b);
+
+// T_INTEGER, T_SUBTYPE
 unsigned type_dims(type_t t);
 range_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, range_t r);
