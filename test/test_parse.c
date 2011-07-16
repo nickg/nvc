@@ -297,13 +297,14 @@ START_TEST(test_types)
    tree_t a, d;
    type_t t;
    range_t r;
+   unit_t u;
 
    fail_unless(input_from_file(TESTDIR "/parse/types.vhd"));
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 2);
+   fail_unless(tree_decls(a) == 4);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -315,6 +316,27 @@ START_TEST(test_types)
    fail_unless(r.kind == RANGE_TO);
    fail_unless(tree_kind(r.left) == T_LITERAL);
    fail_unless(tree_kind(r.right) == T_LITERAL);
+
+   d = tree_decl(a, 2);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("RESISTANCE"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_PHYSICAL);
+   fail_unless(type_dims(t) == 1);
+   r = type_dim(t, 0);
+   fail_unless(r.kind == RANGE_TO);
+   fail_unless(tree_kind(r.left) == T_LITERAL);
+   fail_unless(tree_kind(r.right) == T_LITERAL);
+   fail_unless(type_units(t) == 3);
+   u = type_unit(t, 0);
+   fail_unless(u.name == ident_new("OHM"));
+   fail_unless(tree_kind(u.multiplier) == T_LITERAL);
+   u = type_unit(t, 1);
+   fail_unless(u.name == ident_new("KOHM"));
+   fail_unless(tree_kind(u.multiplier) == T_FCALL);
+   u = type_unit(t, 2);
+   fail_unless(u.name == ident_new("MOHM"));
+   fail_unless(tree_kind(u.multiplier) == T_FCALL);
    
    a = parse();
    fail_unless(a == NULL);

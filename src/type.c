@@ -6,6 +6,7 @@
 #include <limits.h>
 
 #define MAX_DIMS   4
+#define MAX_UNITS  16
 
 struct type {
    type_kind_t kind;
@@ -13,18 +14,23 @@ struct type {
    range_t     dims[MAX_DIMS];
    unsigned    n_dims;
    type_t      base;
+   unit_t      *units;
+   unsigned    n_units;
 };
 
 #define IS(t, k) ((t)->kind == (k))
-#define HAS_DIMS(t) (IS(t, T_INTEGER) || IS(t, T_SUBTYPE))
+#define HAS_DIMS(t) \
+   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL))
 
 type_t type_new(type_kind_t kind)
 {
    struct type *t = xmalloc(sizeof(struct type));
-   t->kind   = kind;
-   t->ident  = NULL;
-   t->n_dims = 0;
-   t->base   = NULL;
+   t->kind    = kind;
+   t->ident   = NULL;
+   t->n_dims  = 0;
+   t->base    = NULL;
+   t->units   = NULL;
+   t->n_units = 0;
    
    return t;
 }
@@ -168,3 +174,33 @@ type_t type_universal_int(void)
 
    return t;
 }
+
+unsigned type_units(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_PHYSICAL));
+
+   return t->n_units;
+}
+
+unit_t type_unit(type_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_PHYSICAL));
+   assert(n < t->n_units);
+
+   return t->units[n];
+}
+
+void type_add_unit(type_t t, unit_t u)
+{
+   assert(t != NULL);
+   assert(IS(t, T_PHYSICAL));
+   assert(t->n_units < MAX_UNITS);
+
+   if (t->n_units == 0)
+      t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
+
+   t->units[t->n_units++] = u;
+}
+

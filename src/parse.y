@@ -64,6 +64,11 @@
       struct id_list *next;
       ident_t        id;
    } id_list_t;
+
+   typedef struct unit_list {
+      struct unit_list *next;
+      unit_t           unit;
+   } unit_list_t;
    
    typedef struct tree_list {
       struct tree_list *next;
@@ -103,6 +108,8 @@
                           tree_t to);
    static id_list_t *id_list_add(id_list_t *list, ident_t id);
    static void id_list_free(id_list_t *list);
+   static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
+   static void unit_list_free(unit_list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
@@ -126,6 +133,8 @@
    port_mode_t m;
    type_t      y;
    range_t     r;
+   unit_t      u;
+   unit_list_t *v;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -142,15 +151,17 @@
 %type <s> id_list;
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
-%type <y> integer_type_def
+%type <y> integer_type_def physical_type_def
 %type <r> range range_constraint
+%type <u> base_unit_decl
+%type <v> secondary_unit_decls    
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
-%token tRANGE tSUBTYPE
+%token tRANGE tSUBTYPE tUNITS
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -582,9 +593,9 @@ type_def
 
 scalar_type_def
 : integer_type_def
+| physical_type_def
   /* | enumeration_type_definition
-     | floating_type_definition
-     | physical_type_definition */
+     | floating_type_definition */
 ;                       
 
 integer_type_def
@@ -592,6 +603,46 @@ integer_type_def
   {
      $$ = type_new(T_INTEGER);
      type_add_dim($$, $1);
+  }
+;
+
+physical_type_def
+: range_constraint tUNITS base_unit_decl secondary_unit_decls tEND
+  tUNITS opt_id
+  {
+     $3.multiplier = tree_new(T_LITERAL);
+     literal_t l = { .u.i = 1, .kind = L_INT };
+     tree_set_literal($3.multiplier, l);     
+     
+     $$ = type_new(T_PHYSICAL);
+     type_add_dim($$, $1);
+     type_add_unit($$, $3);
+
+     for (unit_list_t *it = $4; it != NULL; it = it->next)
+        type_add_unit($$, it->unit);
+     
+     unit_list_free($4);
+  }
+;
+
+base_unit_decl
+: id tSEMI
+  {
+     $$.multiplier = NULL;
+     $$.name = $1;
+  }
+;
+
+secondary_unit_decls
+: /* empty */ { $$ = NULL; }
+| id tEQ physical_literal tSEMI secondary_unit_decls
+  {
+     unit_t u = {
+        .name       = $1,
+        .multiplier = $3
+     };
+     
+     $$ = unit_list_add($5, u);
   }
 ;
 
@@ -776,6 +827,23 @@ static void id_list_free(id_list_t *list)
       list = next;
    }      
 }      
+
+static unit_list_t *unit_list_add(unit_list_t *list, unit_t u)
+{
+   unit_list_t *new = xmalloc(sizeof(unit_list_t));
+   new->next = list;
+   new->unit = u;
+   return new;
+}
+
+static void unit_list_free(unit_list_t *list)
+{
+   while (list != NULL) {
+      unit_list_t *next = list->next;
+      free(list);
+      list = next;
+   }
+}
 
 static tree_t build_expr1(const char *fn, tree_t arg,
                           const struct YYLTYPE *loc)

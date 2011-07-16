@@ -51,24 +51,14 @@ typedef struct range {
    enum { RANGE_TO, RANGE_DOWNTO } kind;
 } range_t;
 
-/**
- * Allocate a new type node.
- */
+typedef struct unit {
+   struct tree *multiplier;
+   ident_t     name;
+} unit_t;
+
 type_t type_new(type_kind_t kind);
 
-// Predefined types
-type_t type_universal_int(void);
-
-/**
- * Return the kind of the type node.
- */
 type_kind_t type_kind(type_t t);
-
-/**
- * Compare two types for equality.
- *
- * TODO: describe rules
- */
 bool type_eq(type_t a, type_t b);
 
 // T_UNRESOLVED
@@ -79,7 +69,7 @@ void type_set_ident(type_t t, ident_t id);
 type_t type_base(type_t t);
 void type_set_base(type_t t, type_t b);
 
-// T_INTEGER, T_SUBTYPE
+// T_INTEGER, T_SUBTYPE, T_PHYSICAL
 unsigned type_dims(type_t t);
 range_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, range_t r);
@@ -88,5 +78,13 @@ void type_add_dim(type_t t, range_t r);
 unsigned type_enum_literals(type_t t);
 enum_lit_t type_enum_literal(type_t t, unsigned n);
 void type_enum_add_literal(type_t t, enum_lit_t lit);
+
+// T_PHYSICAL
+unsigned type_units(type_t t);
+unit_t type_unit(type_t t, unsigned n);
+void type_add_unit(type_t t, unit_t u);
+
+// Predefined types
+type_t type_universal_int(void);
 
 #endif  // _TYPE_H

@@ -18,7 +18,7 @@ static sem_error_fn_t orig_error_fn;
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
-#if 1
+#if 0
    orig_error_fn(msg, loc);
 #endif
    

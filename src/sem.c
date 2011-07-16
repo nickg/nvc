@@ -85,8 +85,6 @@ static void scope_insert(tree_t t)
 
    // TODO: check this name not in this scope already
 
-   printf("scope_insert: %s\n", istr(tree_ident(t)));
-
    top_scope->decls[top_scope->n_decls++] = t;
 }
 

@@ -109,6 +109,7 @@ RANGE         {R}{A}{N}{G}{E}
 TO            {T}{O}
 DOWNTO        {D}{O}{W}{N}{T}{O}
 SUBTYPE       {S}{U}{B}{T}{Y}{P}{E}
+UNITS         {U}{N}{I}{T}{S}
 
 %%
 
@@ -151,6 +152,7 @@ SUBTYPE       {S}{U}{B}{T}{Y}{P}{E}
 {TO}            { begin_token(yytext); return tTO; }
 {DOWNTO}        { begin_token(yytext); return tDOWNTO; }
 {SUBTYPE}       { begin_token(yytext); return tSUBTYPE; }
+{UNITS}         { begin_token(yytext); return tUNITS; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -166,6 +168,8 @@ SUBTYPE       {S}{U}{B}{T}{Y}{P}{E}
 "+"        { begin_token(yytext); return tPLUS; }
 "-"        { begin_token(yytext); return tMINUS; }
 "*"        { begin_token(yytext); return tTIMES; }
+"/="       { begin_token(yytext); return tNEQ; }
+"="        { begin_token(yytext); return tEQ; }
 "/"        { begin_token(yytext); return tOVER; }
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
