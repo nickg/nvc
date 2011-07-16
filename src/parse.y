@@ -535,6 +535,8 @@ type_decl
      tree_set_ident(t, $2);
      tree_set_type(t, $4);
      tree_set_loc(t, &@$);
+
+     type_set_ident($4, $2);
      
      $$ = NULL;
      tree_list_append(&$$, t);

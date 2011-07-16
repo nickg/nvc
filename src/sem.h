@@ -29,6 +29,6 @@ int sem_errors(void);
 
 // Error callback for use in unit tests.
 typedef void (*sem_error_fn_t)(const char *msg, const loc_t *loc);
-void sem_set_error_fn(sem_error_fn_t fn);
+sem_error_fn_t sem_set_error_fn(sem_error_fn_t fn);
 
 #endif  // _SEM_H

@@ -192,7 +192,9 @@ static bool sem_check_var_assign(tree_t t)
       sem_error(target, "invalid target of variable assignment");
 
    if (!type_eq(tree_type(target), tree_type(value)))
-      sem_error(t, "type of value does not match type of target");
+      sem_error(t, "type of value %s does not match type of target %s",
+                istr(type_ident(tree_type(value))),
+                istr(type_ident(tree_type(target))));
 
    return true;
 }
@@ -255,7 +257,9 @@ int sem_errors(void)
    return errors;
 }
 
-void sem_set_error_fn(sem_error_fn_t fn)
+sem_error_fn_t sem_set_error_fn(sem_error_fn_t fn)
 {
+   sem_error_fn_t old = error_fn;
    error_fn = fn;
+   return old;
 }

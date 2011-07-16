@@ -36,13 +36,34 @@ type_kind_t type_kind(type_t t)
 
 bool type_eq(type_t a, type_t b)
 {
-   // TODO
-   return false;
+   assert(a != NULL);
+   assert(b != NULL);
+   
+   if (a == b)
+      return true;
+
+   if (type_ident(a) != type_ident(b))
+      return false;
+
+   // This is not quite right as structurally equivalent types may
+   // be declared in different scopes with the same name but shouldn't
+   // compare equal
+
+   if (type_kind(a) != type_kind(b))
+      return false;
+
+   if (type_dims(a) != type_dims(b))
+      return false;
+
+   // TODO: compare dimensions
+   
+   return true;
 }
 
 ident_t type_ident(type_t t)
 {
    assert(t != NULL);
+   assert(t->ident != NULL);
 
    return t->ident;
 }
@@ -50,7 +71,6 @@ ident_t type_ident(type_t t)
 void type_set_ident(type_t t, ident_t id)
 {
    assert(t != NULL);
-   assert(t->kind == T_UNRESOLVED);
 
    t->ident = id;
 }
@@ -87,6 +107,7 @@ type_t type_universal_int(void)
 
    if (t == NULL) {
       t = type_new(T_INTEGER);
+      type_set_ident(t, ident_new("INTEGER"));
 
       tree_t left = tree_new(T_LITERAL);
       literal_t l_min = { .kind = L_INT, .u.i = INT_MIN };
