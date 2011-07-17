@@ -108,16 +108,6 @@ static void scope_add_context(ident_t prefix)
    top_scope->context = c;
 }
 
-static void scope_insert(tree_t t)
-{
-   assert(top_scope != NULL);
-   assert(top_scope->n_decls < MAX_VARS);
-
-   // TODO: check this name not in this scope already
-
-   top_scope->decls[top_scope->n_decls++] = t;
-}
-
 static void scope_apply_prefix(tree_t t)
 {
    if (top_scope->prefix)
@@ -125,7 +115,7 @@ static void scope_apply_prefix(tree_t t)
                                      tree_ident(t)));
 }
 
-static tree_t scope_find_in(ident_t i, struct scope *s)
+static tree_t scope_find_in(ident_t i, struct scope *s, bool recur)
 {
    if (s == NULL)
       return NULL;
@@ -148,20 +138,33 @@ static tree_t scope_find_in(ident_t i, struct scope *s)
          }
       }
 
-      return scope_find_in(i, s->down);
+      return (recur ? scope_find_in(i, s->down, true) : NULL);
    }
 }
 
 static tree_t scope_find(ident_t i)
 {
-   return scope_find_in(i, top_scope);
+   return scope_find_in(i, top_scope, true);
+}
+
+static bool scope_insert(tree_t t)
+{
+   assert(top_scope != NULL);
+   assert(top_scope->n_decls < MAX_VARS);
+
+   if (scope_find_in(tree_ident(t), top_scope, false))
+      sem_error(t, "%s already declared in this scope",
+                istr(tree_ident(t)));   
+
+   top_scope->decls[top_scope->n_decls++] = t;
+   return true;
 }
 
 static bool sem_check_context(tree_t t)
 {
    // The work library should always be searched
    scope_add_context(lib_name(lib_work()));
-   
+
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       ident_t c = tree_context(t, n);
       ident_t all = ident_strip(c, ident_new(".all"));
@@ -229,9 +232,7 @@ static bool sem_check_type_decl(tree_t t)
                                         type_ident(type)));
    
    scope_apply_prefix(t);
-   scope_insert(t);
-
-   return true;
+   return scope_insert(t);
 }
 
 static bool sem_check_decl(tree_t t)
@@ -260,9 +261,7 @@ static bool sem_check_decl(tree_t t)
       sem_check(tree_value(t));
 
    scope_apply_prefix(t);
-   scope_insert(t);
-
-   return true;
+   return scope_insert(t);
 }
 
 static bool sem_check_process(tree_t t)
@@ -425,6 +424,13 @@ static bool sem_check_signal_assign(tree_t t)
    return true;
 }
 
+static bool sem_check_wait(tree_t t)
+{
+   // TODO: need to check argument is time
+   
+   return true;
+}
+
 static bool sem_check_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
@@ -486,6 +492,8 @@ bool sem_check(tree_t t)
       return sem_check_literal(t);
    case T_REF:
       return sem_check_ref(t);
+   case T_WAIT:
+      return sem_check_wait(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

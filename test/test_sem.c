@@ -34,9 +34,12 @@ static void test_error_fn(const char *msg, const loc_t *loc)
       || error_lines->snippet == NULL
       || error_lines->line != loc->first_line
       || strstr(msg, error_lines->snippet) == NULL;
-
-   if (unexpected)
-      orig_error_fn(msg, loc);   
+   
+   if (unexpected) {
+      orig_error_fn(msg, loc);
+      printf("expected line %d '%s'\n",
+             error_lines->line, error_lines->snippet);
+   }
       
    fail_if(unexpected);
 
@@ -153,6 +156,8 @@ START_TEST(test_scope)
       { 31, "WORK.PACK1.MY_INT1 does not match type"
         " of target WORK.PACK2.MY_INT1" },
       { 44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
+      { 63, "G already declared in this scope" },
+      { 71, "P already declared in this scope" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -176,6 +181,18 @@ START_TEST(test_scope)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   for (int i = 0; i < 3; i++) {
+      a = parse();
+      fail_if(a == NULL);
+      fail_unless(tree_kind(a) == T_ARCH);
+      sem_check(a);
+   }
       
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
