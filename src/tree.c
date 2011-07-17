@@ -54,7 +54,7 @@ struct tree {
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL) \
-    || IS(t, T_REF) || IS(t, T_TYPE_DECL))
+    || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
@@ -62,7 +62,7 @@ struct tree {
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS_EXPR(t))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
-#define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
+#define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN))

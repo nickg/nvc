@@ -110,6 +110,9 @@ TO            {T}{O}
 DOWNTO        {D}{O}{W}{N}{T}{O}
 SUBTYPE       {S}{U}{B}{T}{Y}{P}{E}
 UNITS         {U}{N}{I}{T}{S}
+PACKAGE       {P}{A}{C}{K}{A}{G}{E}
+LIBRARY       {L}{I}{B}{R}{A}{R}{Y}
+USE           {U}{S}{E}
 
 %%
 
@@ -153,6 +156,9 @@ UNITS         {U}{N}{I}{T}{S}
 {DOWNTO}        { begin_token(yytext); return tDOWNTO; }
 {SUBTYPE}       { begin_token(yytext); return tSUBTYPE; }
 {UNITS}         { begin_token(yytext); return tUNITS; }
+{PACKAGE}       { begin_token(yytext); return tPACKAGE; }
+{LIBRARY}       { begin_token(yytext); return tLIBRARY; }
+{USE}           { begin_token(yytext); return tUSE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -171,6 +177,7 @@ UNITS         {U}{N}{I}{T}{S}
 "/="       { begin_token(yytext); return tNEQ; }
 "="        { begin_token(yytext); return tEQ; }
 "/"        { begin_token(yytext); return tOVER; }
+"."        { begin_token(yytext); return tDOT; }
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); return tCHAR; }

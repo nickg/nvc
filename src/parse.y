@@ -140,13 +140,13 @@
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt wait_stmt timeout_clause physical_literal target
-%type <t> var_assign_stmt
+%type <t> var_assign_stmt package_decl
 %type <i> id opt_id name simple_name opt_label
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
-%type <l> subtype_decl
+%type <l> subtype_decl package_decl_part package_decl_item
 %type <p> entity_header
 %type <s> id_list;
 %type <m> opt_mode
@@ -161,7 +161,7 @@
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
-%token tRANGE tSUBTYPE tUNITS
+%token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -177,11 +177,19 @@
 %%
 
 design_unit
-: /* context_clause */ library_unit { root = $1; YYACCEPT; }
+: context_clause library_unit { root = $2; YYACCEPT; }
 | /* empty */ {} 
 ;
 
-library_unit : entity_decl | arch_body ;
+context_clause : context_item context_clause | /* empty */ ;
+
+context_item : library_clause | use_clause ;
+
+library_clause : tLIBRARY id_list tSEMI ;
+
+use_clause : tUSE selected_name /* { , selected_name } */ tSEMI ;
+
+library_unit : entity_decl | arch_body | package_decl ;
 
 id
 : tID
@@ -235,6 +243,52 @@ entity_header
 generic_clause
 : tGENERIC tLPAREN interface_list tRPAREN tSEMI { $$ = $3; }
 | /* empty */ { $$ = NULL; }
+;
+
+package_decl
+: tPACKAGE id tIS package_decl_part tEND opt_package_token opt_id tSEMI
+  { 
+     $$ = tree_new(T_PACKAGE);
+     tree_set_ident($$, $2);
+     copy_trees($4, tree_add_decl, $$);
+
+     if ($7 != NULL && $7 != $2) {
+        parse_error(&@7, "%s does not match package name %s",
+                    istr($7), istr($2));        
+     }
+  }
+;
+
+opt_package_token : tPACKAGE | /* empty */ ;
+
+package_decl_part
+: package_decl_item package_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */
+  {
+     $$ = NULL;
+  }
+;
+
+package_decl_item
+: type_decl
+| subtype_decl
+/* | subprogram_declaration
+   | constant_declaration
+   | signal_declaration
+   | shared_variable_declaration
+   | file_declaration
+   | alias_declaration
+   | component_declaration
+   | attribute_declaration
+   | attribute_specification
+   | disconnection_specification
+   | use_clause
+   | group_template_declaration
+   | group_declaration */
 ;
 
 port_clause
@@ -750,9 +804,9 @@ type_mark
 
 name
 : simple_name
+| selected_name
   /* | operator_symbol
      | character_literal
-     | selected_name
      | indexed_name
      | slice_name
      | attribute_name
@@ -760,6 +814,16 @@ name
 ;
 
 simple_name : id ;
+
+selected_name : prefix tDOT suffix ;
+
+prefix : id /* | function_call */ ;
+
+suffix
+: name | tALL
+/* | character_literal
+   | operator_symbol*/
+;
 
 %%
 

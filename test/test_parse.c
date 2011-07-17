@@ -412,6 +412,29 @@ START_TEST(test_extended)
 }
 END_TEST
 
+START_TEST(test_package)
+{
+   tree_t p, d;
+
+   fail_unless(input_from_file(TESTDIR "/parse/package.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 1);
+   
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 1);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -426,6 +449,7 @@ int main(void)
    tcase_add_test(tc_core, test_types);
    tcase_add_test(tc_core, test_literal);
    tcase_add_test(tc_core, test_extended);
+   tcase_add_test(tc_core, test_package);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);
