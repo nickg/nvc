@@ -140,8 +140,8 @@
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt wait_stmt timeout_clause physical_literal target
-%type <t> var_assign_stmt package_decl
-%type <i> id opt_id name simple_name opt_label
+%type <t> var_assign_stmt package_decl name simple_name selected_name
+%type <i> id opt_id opt_label prefix
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
@@ -187,7 +187,12 @@ context_item : library_clause | use_clause ;
 
 library_clause : tLIBRARY id_list tSEMI ;
 
-use_clause : tUSE selected_name /* { , selected_name } */ tSEMI ;
+use_clause : tUSE use_selected_name /* { , use_selected_name } */ tSEMI ;
+
+use_selected_name
+: id tDOT tALL
+| id tDOT use_selected_name
+;
 
 library_unit : entity_decl | arch_body | package_decl ;
 
@@ -588,15 +593,7 @@ var_assign_stmt
   }
 ;
 
-target
-: name
-  {
-     $$ = tree_new(T_REF);
-     tree_set_ident($$, $1);
-     tree_set_loc($$, &@$);
-  }
-/* | aggregate */
-;
+target : name /* | aggregate */ ;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
  
@@ -748,7 +745,7 @@ expr
 | tNOT expr { $$ = build_expr1("not", $2, &@$); }
 | tABS expr { $$ = build_expr1("abs", $2, &@$); }
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
-| name { $$ = tree_new(T_REF); tree_set_ident($$, $1); }
+| name
 | literal
 | tLPAREN expr tRPAREN { $$ = $2; }
 /*
@@ -795,7 +792,7 @@ physical_literal
 ;
 
 type_mark
-: name
+: id
   {
      $$ = type_new(T_UNRESOLVED);
      type_set_ident($$, $1);
@@ -813,9 +810,22 @@ name
      | external_name */
 ;
 
-simple_name : id ;
+simple_name
+: id
+  {
+     $$ = tree_new(T_REF);
+     tree_set_ident($$, $1);
+     tree_set_loc($$, &@$);
+  }
 
-selected_name : prefix tDOT suffix ;
+selected_name
+: prefix tDOT suffix
+  {
+     $$ = tree_new(T_REF);
+     tree_set_ident($$, $1);
+     tree_set_loc($$, &@$);
+  }
+;
 
 prefix : id /* | function_call */ ;
 
