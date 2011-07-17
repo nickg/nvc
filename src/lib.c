@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <ctype.h>
+#include <string.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
@@ -14,6 +16,7 @@
 
 struct lib {
    char     path[PATH_MAX];
+   ident_t  name;
    unsigned n_units;
    tree_t   *units;
 };
@@ -25,6 +28,13 @@ static lib_t lib_init(const char *rpath)
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
    l->units   = NULL;
+
+   char *name_up = strdup(rpath);
+   for (char *p = name_up; *p != '\0'; p++)
+      *p = toupper(*p);
+   
+   l->name = ident_new(name_up);
+   free(name_up);
    
    realpath(rpath, l->path);
 
@@ -55,7 +65,7 @@ lib_t lib_new(const char *name)
 lib_t lib_tmp(void)
 {
    // For unit tests, avoids creating files
-   return lib_init("/tmp");
+   return lib_init("work");
 }
 
 lib_t lib_find(const char *name)
@@ -151,3 +161,8 @@ tree_t lib_get(lib_t lib, ident_t ident)
    return NULL;
 }
 
+ident_t lib_name(lib_t lib)
+{
+   assert(lib != NULL);
+   return lib->name;
+}

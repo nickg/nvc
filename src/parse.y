@@ -184,7 +184,7 @@ design_unit
      for (id_list_t *it = $1; it != NULL; it = it->next)
         tree_add_context($2, it->id);
      id_list_free($1);
-     
+
      root = $2;
      YYACCEPT;
   }
@@ -266,6 +266,7 @@ entity_decl
   {
      $$ = tree_new(T_ENTITY);
      tree_set_ident($$, $2);
+     tree_set_loc($$, &@$);
      copy_trees($4.left, tree_add_generic, $$);
      copy_trees($4.right, tree_add_port, $$);
 
@@ -349,6 +350,7 @@ arch_body
      $$ = tree_new(T_ARCH);
      tree_set_ident($$, $2);
      tree_set_ident2($$, $4);
+     tree_set_loc($$, &@$);
      copy_trees($6, tree_add_decl, $$);
      copy_trees($8, tree_add_stmt, $$);
 
@@ -461,7 +463,7 @@ interface_signal_decl
         tree_set_port_mode(t, $4);
         tree_set_type(t, $5);
         tree_set_value(t, $6);
-        tree_set_loc(t, &@$);
+        tree_set_loc(t, &@2);
 
         tree_list_append(&$$, t);
      }

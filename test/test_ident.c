@@ -111,6 +111,25 @@ START_TEST(test_prefix)
 }
 END_TEST
 
+START_TEST(test_strip)
+{
+   ident_t a, b, c;
+
+   a = ident_new("something");
+   b = ident_new("thing");
+   c = ident_strip(a, b);
+   
+   fail_if(c == NULL);
+   fail_unless(c == ident_new("some"));
+
+   a = ident_new("g");
+   b = ident_new("cake");
+   c = ident_strip(a, b);
+
+   fail_unless(c == NULL);
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -124,6 +143,7 @@ int main(void)
    tcase_add_test(tc_core, test_rand);
    tcase_add_test(tc_core, test_read_write);
    tcase_add_test(tc_core, test_prefix);
+   tcase_add_test(tc_core, test_strip);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

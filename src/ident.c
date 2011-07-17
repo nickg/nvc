@@ -185,3 +185,16 @@ ident_t ident_prefix(ident_t a, ident_t b)
 
    return result;
 }
+
+ident_t ident_strip(ident_t a, ident_t b)
+{
+   assert(a != NULL);
+   assert(b != NULL);
+
+   while (a->value == b->value && b->value != '\0') {
+      a = a->up;
+      b = b->up;
+   }
+
+   return (b->value == '\0' ? a : NULL);
+}

@@ -1,5 +1,6 @@
 package foo_pkg is
     type my_int is range 0 to 100;
+    subtype my_int_sub is my_int range 10 to 20;
 end package;
 
 -------------------------------------------------------------------------------
@@ -20,8 +21,19 @@ begin
     process is
         variable x : my_int;
     begin
+        x := i;                         -- OK
+    end process;
+    
+    process is
+        variable x : my_int;
+    begin
         -- Cannot read output
         x := o;
+    end process;
+
+    process is
+    begin
+        o <= 24;                        -- OK
     end process;
 
     process is

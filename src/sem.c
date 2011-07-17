@@ -23,12 +23,22 @@
 #include <stdarg.h>
 #include <string.h>
 
+struct context {
+   ident_t        prefix;
+   struct context *next;
+};
+
 // TODO: replace with B-tree sorted by ident
 #define MAX_VARS 16
 struct scope {
-   tree_t       decls[MAX_VARS];
-   unsigned     n_decls;
-   struct scope *down;
+   tree_t         decls[MAX_VARS];
+   unsigned       n_decls;
+
+   // For design unit scopes
+   ident_t        prefix;
+   struct context *context;
+   
+   struct scope   *down;
 };
 
 #define SEM_ERROR_SZ  1024
@@ -60,10 +70,12 @@ static void _sem_error(tree_t t, const char *fmt, ...)
    errors++;
 }
 
-static void scope_push(void)
+static void scope_push(ident_t prefix)
 {
    struct scope *s = xmalloc(sizeof(struct scope));
    s->n_decls = 0;
+   s->prefix  = prefix;
+   s->context = NULL;
    s->down    = top_scope;
    
    top_scope = s;
@@ -73,9 +85,29 @@ static void scope_pop(void)
 {
    assert(top_scope != NULL);
 
+   struct context *it = top_scope->context;
+   while (it != NULL) {
+      struct context *next = it->next;
+      free(it);
+      it = next;
+   }
+   
    struct scope *s = top_scope;
    top_scope = s->down;
    free(s);
+}
+
+static void scope_add_context(ident_t prefix)
+{
+   assert(top_scope != NULL);
+
+   printf("%s: %s\n", __func__, istr(prefix));
+
+   struct context *c = xmalloc(sizeof(struct context));
+   c->prefix = prefix;
+   c->next   = top_scope->context;
+
+   top_scope->context = c;
 }
 
 static void scope_insert(tree_t t)
@@ -85,17 +117,42 @@ static void scope_insert(tree_t t)
 
    // TODO: check this name not in this scope already
 
+   printf("%s: %s\n", __func__, istr(tree_ident(t)));
+
    top_scope->decls[top_scope->n_decls++] = t;
+}
+
+static void scope_apply_prefix(tree_t t)
+{
+   if (top_scope->prefix)
+      tree_set_ident(t, ident_prefix(top_scope->prefix,
+                                     tree_ident(t)));
 }
 
 static tree_t scope_find_in(ident_t i, struct scope *s)
 {
+   printf("%s: i=%s s=%p\n", __func__, istr(i), s);
+   
    if (s == NULL)
       return NULL;
    else {
       for (unsigned n = 0; n < s->n_decls; n++) {
-         if (tree_ident(s->decls[n]) == i)
-            return s->decls[n];
+         tree_t d = s->decls[n];
+         ident_t this = tree_ident(d);
+         
+         if (this == i)
+            return d;
+         else if (s->prefix != NULL
+                  && this == ident_prefix(s->prefix, i))
+            return d;
+         else {
+            struct context *it;
+            for (it = s->context; it != NULL; it = it->next) {
+               printf("search context %s\n", istr(it->prefix));
+               if (this == ident_prefix(it->prefix, i))
+                  return d;
+            }
+         }
       }
 
       return scope_find_in(i, s->down);
@@ -107,6 +164,47 @@ static tree_t scope_find(ident_t i)
    return scope_find_in(i, top_scope);
 }
 
+static bool sem_check_context(tree_t t)
+{
+   for (unsigned n = 0; n < tree_contexts(t); n++) {
+      ident_t c = tree_context(t, n);
+      ident_t all = ident_strip(c, ident_new(".all"));
+      if (all) {
+         scope_add_context(all);
+         c = all;
+      }
+
+      tree_t unit = lib_get(lib_work(), c);
+      if (unit == NULL)
+         sem_error(t, "unit %s not found in library WORK", istr(c));
+
+      // Import all declarations from t into the current scope
+      
+      for (unsigned n = 0; n < tree_decls(unit); n++)
+         scope_insert(tree_decl(unit, n));
+   }
+
+   return true;
+}
+
+static bool sem_readable(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_kind(decl) == T_PORT_DECL
+             && tree_port_mode(decl) == PORT_OUT)
+            sem_error(t, "cannot read output port %s",
+                      istr(tree_ident(t)));
+            
+         return true;
+      }
+   default:
+      return true;
+   }
+}
+   
 static bool sem_check_subtype(tree_t t, type_t type)
 {
    while (type_kind(type) == T_SUBTYPE) {
@@ -127,8 +225,16 @@ static bool sem_check_subtype(tree_t t, type_t type)
 
 static bool sem_check_type_decl(tree_t t)
 {
-   sem_check_subtype(t, tree_type(t));   
+   type_t type = tree_type(t);
    
+   sem_check_subtype(t, type);   
+
+   // Prefix the package name to the type name
+   if (top_scope->prefix)
+      type_set_ident(type, ident_prefix(top_scope->prefix,
+                                        type_ident(type)));
+   
+   scope_apply_prefix(t);
    scope_insert(t);
 
    return true;
@@ -159,6 +265,7 @@ static bool sem_check_decl(tree_t t)
    if (tree_has_value(t))
       sem_check(tree_value(t));
 
+   scope_apply_prefix(t);
    scope_insert(t);
 
    return true;
@@ -168,7 +275,7 @@ static bool sem_check_process(tree_t t)
 {
    bool ok = true;
    
-   scope_push();
+   scope_push(NULL);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = ok && sem_check(tree_decl(t, n));
@@ -183,13 +290,72 @@ static bool sem_check_process(tree_t t)
    return ok;
 }
 
+static bool sem_check_package(tree_t t)
+{
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
+
+   scope_push(qual);
+ 
+   bool ok = sem_check_context(t);
+  
+   for (unsigned n = 0; n < tree_decls(t); n++)
+      ok = ok && sem_check(tree_decl(t, n));
+
+   scope_pop();
+
+   tree_set_ident(t, qual);
+   lib_put(lib_work(), t);
+   
+   return ok;
+}
+
+static bool sem_check_entity(tree_t t)
+{
+   scope_push(NULL);
+   
+   bool ok = sem_check_context(t);
+ 
+   for (unsigned n = 0; n < tree_generics(t); n++)
+      ok = ok && sem_check(tree_generic(t, n));
+   
+   for (unsigned n = 0; n < tree_ports(t); n++)
+      ok = ok && sem_check(tree_port(t, n));
+   
+   scope_pop();
+
+   // Prefix the entity with the current library name
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
+   tree_set_ident(t, qual);
+   lib_put(lib_work(), t);
+   
+   return ok;
+}
+
 static bool sem_check_arch(tree_t t)
 {
-   bool ok = true;
+   // Find the corresponding entity
+   tree_t e = lib_get(lib_work(),
+                      ident_prefix(lib_name(lib_work()),
+                                   tree_ident2(t)));
+   if (e == NULL)
+      sem_error(t, "missing declaration for entity %s",
+                istr(tree_ident2(t)));
    
-   // TODO: need to find entity and push its scope
+   scope_push(NULL);
 
-   scope_push();
+   // Make all port and generic declarations available in this scope
+
+   bool ok = sem_check_context(e);
+   
+   for (unsigned n = 0; n < tree_ports(e); n++)
+      scope_insert(tree_port(e, n));
+
+   for (unsigned n = 0; n < tree_generics(e); n++)
+      scope_insert(tree_generic(e, n));
+
+   // Now check the architecture itself
+   
+   ok = ok && sem_check_context(t);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = ok && sem_check(tree_decl(t, n));
@@ -215,13 +381,47 @@ static bool sem_check_var_assign(tree_t t)
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
    
+   bool ok = sem_check(target)
+      && sem_check(value)
+      && sem_readable(value);
+   if (!ok)
+      return false;
+   
+   tree_t decl = tree_ref(target);
+   if (tree_kind(decl) != T_VAR_DECL)
+      sem_error(target, "invalid target of variable assignment");
+
+   if (!type_eq(tree_type(target), tree_type(value)))
+      sem_error(t, "type of value %s does not match type of target %s",
+                istr(type_ident(tree_type(value))),
+                istr(type_ident(tree_type(target))));
+
+   return true;
+}
+
+static bool sem_check_signal_assign(tree_t t)
+{
+   tree_t target = tree_target(t);
+   tree_t value = tree_value(t);
+   
    bool ok = sem_check(target) && sem_check(value);
    if (!ok)
       return false;
 
    tree_t decl = tree_ref(target);
-   if (tree_kind(decl) != T_VAR_DECL)
-      sem_error(target, "invalid target of variable assignment");
+   switch (tree_kind(decl)) {
+   case T_SIGNAL_DECL:
+      break;
+
+   case T_PORT_DECL:
+      if (tree_port_mode(decl) == PORT_IN)
+         sem_error(target, "cannot assign to input port %s",
+                   istr(tree_ident(target)));
+      break;
+      
+   default:
+      sem_error(target, "invalid target of signal assignment");
+   }
 
    if (!type_eq(tree_type(target), tree_type(value)))
       sem_error(t, "type of value %s does not match type of target %s",
@@ -252,9 +452,15 @@ static bool sem_check_ref(tree_t t)
    if (decl == NULL)
       sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
 
-   assert(tree_kind(decl) == T_VAR_DECL
-          || tree_kind(decl) == T_SIGNAL_DECL); // TODO: ...
-
+   switch (tree_kind(decl)) {
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+      break;
+   default:
+      sem_error(t, "invalid use of %s", istr(tree_ident(t)));
+   }
+   
    tree_set_type(t, tree_type(decl));
    tree_set_ref(t, decl);
 
@@ -266,21 +472,28 @@ bool sem_check(tree_t t)
    switch (tree_kind(t)) {
    case T_ARCH:
       return sem_check_arch(t);
+   case T_PACKAGE:
+      return sem_check_package(t);
+   case T_ENTITY:
+      return sem_check_entity(t);
    case T_TYPE_DECL:
       return sem_check_type_decl(t);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
+   case T_PORT_DECL:
       return sem_check_decl(t);
    case T_PROCESS:
       return sem_check_process(t);
    case T_VAR_ASSIGN:
       return sem_check_var_assign(t);
+   case T_SIGNAL_ASSIGN:
+      return sem_check_signal_assign(t);
    case T_LITERAL:
       return sem_check_literal(t);
    case T_REF:
       return sem_check_ref(t);
    default:
-      assert(false);
+      sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
 }
 

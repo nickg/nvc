@@ -14,7 +14,7 @@ typedef struct error {
 } error_t;
 
 static const error_t  *error_lines = NULL;
-static sem_error_fn_t orig_error_fn;
+static sem_error_fn_t orig_error_fn = NULL;
 
 static void setup(void)
 {
@@ -28,20 +28,24 @@ static void teardown(void)
 
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
-#if 0
-   orig_error_fn(msg, loc);
-#endif
-   
    fail_if(error_lines == NULL);
-   fail_if(error_lines->line == -1 || error_lines->snippet == NULL);
-   fail_unless(error_lines->line == loc->first_line);
-   fail_if(strstr(msg, error_lines->snippet) == NULL);
+
+   bool unexpected = error_lines->line == -1
+      || error_lines->snippet == NULL
+      || error_lines->line != loc->first_line
+      || strstr(msg, error_lines->snippet) == NULL;
+
+   if (unexpected)
+      orig_error_fn(msg, loc);   
+      
+   fail_if(unexpected);
 
    error_lines++;
 }
 
 static void expect_errors(const error_t *lines)
 {
+   fail_unless(orig_error_fn == NULL);
    orig_error_fn = sem_set_error_fn(test_error_fn);
    error_lines = lines; 
 }
@@ -57,6 +61,7 @@ START_TEST(test_integer)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
 
    a = parse();
    fail_if(a == NULL);
@@ -109,20 +114,32 @@ START_TEST(test_ports)
 
    fail_unless(input_from_file(TESTDIR "/sem/ports.vhd"));
 
+   const error_t expect[] = {
+      { 31, "cannot read output port O" },
+      { 42, "cannot assign to input port I" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
 
-   lib_put(lib_work(), p);
-   
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
 
-   lib_put(lib_work(), e);
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
    
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
+   
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
 

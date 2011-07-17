@@ -15,6 +15,10 @@ ident_t ident_uniq(const char *prefix);
 // by a dot.
 ident_t ident_prefix(ident_t a, ident_t b);
 
+// Strips a suffix from an identifier or returns NULL if this
+// is not possible.
+ident_t ident_strip(ident_t a, ident_t b);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoid except
 // for printing. The pointer returned is only valid for the next
