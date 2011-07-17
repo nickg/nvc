@@ -202,7 +202,7 @@ END_TEST
 
 START_TEST(test_process)
 {
-   tree_t a, p, d;
+   tree_t a, p, d, s;
 
    fail_unless(input_from_file(TESTDIR "/parse/process.vhd"));
 
@@ -221,6 +221,9 @@ START_TEST(test_process)
    fail_unless(tree_decls(p) == 1);
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_VAR_DECL);
+   fail_unless(tree_stmts(p) == 1);
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    
    a = parse();
    fail_unless(a == NULL);

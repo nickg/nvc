@@ -113,6 +113,7 @@ UNITS         {U}{N}{I}{T}{S}
 PACKAGE       {P}{A}{C}{K}{A}{G}{E}
 LIBRARY       {L}{I}{B}{R}{A}{R}{Y}
 USE           {U}{S}{E}
+NULL          {N}{U}{L}{L}
 
 %%
 
@@ -159,6 +160,7 @@ USE           {U}{S}{E}
 {PACKAGE}       { begin_token(yytext); return tPACKAGE; }
 {LIBRARY}       { begin_token(yytext); return tLIBRARY; }
 {USE}           { begin_token(yytext); return tUSE; }
+{NULL}          { begin_token(yytext); return tNULL; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

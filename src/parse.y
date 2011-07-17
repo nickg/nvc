@@ -140,8 +140,9 @@
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
-%type <t> seq_stmt wait_stmt timeout_clause physical_literal target
-%type <t> var_assign_stmt package_decl name simple_name selected_name
+%type <t> seq_stmt timeout_clause physical_literal target
+%type <t> package_decl name simple_name selected_name
+%type <t> waveform waveform_element seq_stmt_without_label
 %type <i> id opt_id opt_label prefix selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -162,7 +163,7 @@
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
-%token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT
+%token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -592,11 +593,33 @@ process_stmt_part
 ;
 
 seq_stmt
-: wait_stmt
-| var_assign_stmt
+: id tCOLON seq_stmt_without_label { $$ = $3; }
+| seq_stmt_without_label
+;
+
+seq_stmt_without_label
+: tWAIT /* [ sensitivity_clause ] [ condition_clause ] */
+  timeout_clause tSEMI
+  {
+     $$ = tree_new(T_WAIT);
+     tree_set_delay($$, $2);
+  }
+| target tASSIGN expr tSEMI
+  {
+     $$ = tree_new(T_VAR_ASSIGN);
+     tree_set_target($$, $1);
+     tree_set_value($$, $3);
+     tree_set_loc($$, &@$);
+  }
+| target tLE /* [ delay_mechanism ] */ waveform tSEMI
+  {
+     $$ = tree_new(T_SIGNAL_ASSIGN);
+     tree_set_target($$, $1);
+     tree_set_value($$, $3);
+     tree_set_loc($$, &@$);
+  }
 /* | assertion_statement
    | report_statement
-   | signal_assignment_statement
    | procedure_call_statement
    | if_statement
    | case_statement
@@ -607,33 +630,18 @@ seq_stmt
    | null_statement */
 ; 
 
-wait_stmt
-: opt_label tWAIT /* [ sensitivity_clause ] [ condition_clause ] */
-  timeout_clause tSEMI
-  {
-     $$ = tree_new(T_WAIT);
-     tree_set_delay($$, $3);
-  }
-;
-
-var_assign_stmt
-: id tCOLON target tASSIGN expr tSEMI
-  {
-     $$ = tree_new(T_VAR_ASSIGN);
-     tree_set_target($$, $3);
-     tree_set_value($$, $5);
-     tree_set_loc($$, &@$);
-  }
-| target tASSIGN expr tSEMI
-  {
-     $$ = tree_new(T_VAR_ASSIGN);
-     tree_set_target($$, $1);
-     tree_set_value($$, $3);
-     tree_set_loc($$, &@$);
-  }
-;
-
 target : name /* | aggregate */ ;
+
+waveform
+: waveform_element
+| waveform_element tCOMMA waveform
+| tUNAFFECTED { $$ = NULL; }
+;
+
+waveform_element
+: expr /* [ after time_expression ] */
+| tNULL /* [ after time_expression ] */ { $$ = NULL; }
+;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
  

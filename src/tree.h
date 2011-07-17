@@ -27,7 +27,8 @@ typedef enum tree_kind {
    T_WAIT,
    T_TYPE_DECL,
    T_VAR_ASSIGN,
-   T_PACKAGE
+   T_PACKAGE,
+   T_SIGNAL_ASSIGN
 } tree_kind_t;
 
 typedef struct literal {
@@ -84,7 +85,8 @@ void tree_add_param(tree_t t, tree_t e);
 literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);
 
-// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN
+// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
+// T_SIGNAL_ASSIGN
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
@@ -104,7 +106,7 @@ bool tree_has_delay(tree_t t);
 tree_t tree_delay(tree_t t);
 void tree_set_delay(tree_t t, tree_t d);
 
-// T_VAR_ASSIGN
+// T_VAR_ASSIGN, T_SIGNAL_ASSIGN
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
