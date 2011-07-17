@@ -16,6 +16,16 @@ typedef struct error {
 static const error_t  *error_lines = NULL;
 static sem_error_fn_t orig_error_fn;
 
+static void setup(void)
+{
+   lib_set_work(lib_tmp());
+}
+
+static void teardown(void)
+{
+   lib_free(lib_work());
+}
+
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
 #if 0
@@ -93,6 +103,29 @@ START_TEST(test_integer)
 }
 END_TEST
 
+START_TEST(test_ports)
+{
+   tree_t a, e, p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/ports.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   lib_put(lib_work(), p);
+   
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   lib_put(lib_work(), e);
+   
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -100,7 +133,9 @@ int main(void)
    Suite *s = suite_create("sem");
 
    TCase *tc_core = tcase_create("Core");
+   tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_integer);
+   tcase_add_test(tc_core, test_ports);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

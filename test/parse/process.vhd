@@ -9,6 +9,7 @@ begin
     process
         variable y : integer := 5;
     begin
+        x <= y;
     end process;
 
 end architecture;

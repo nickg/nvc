@@ -1,5 +1,6 @@
 #include "util.h"
 #include "lib.h"
+#include "tree.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -9,13 +10,22 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#define MAX_UNITS 16
+
 struct lib {
-   char path[PATH_MAX];
+   char     path[PATH_MAX];
+   unsigned n_units;
+   tree_t   *units;
 };
+
+static lib_t work = NULL;
 
 static lib_t lib_init(const char *rpath)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
+   l->n_units = 0;
+   l->units   = NULL;
+   
    realpath(rpath, l->path);
 
    return l;
@@ -40,6 +50,12 @@ lib_t lib_new(const char *name)
    fclose(tag);
 
    return l;
+}
+
+lib_t lib_tmp(void)
+{
+   // For unit tests, avoids creating files
+   return lib_init("/tmp");
 }
 
 lib_t lib_find(const char *name)
@@ -98,5 +114,40 @@ void lib_destroy(lib_t lib)
 
    if (rmdir(lib->path) < 0)
       perror("rmdir");
+}
+
+lib_t lib_work(void)
+{
+   assert(work != NULL);
+   return work;
+}
+
+void lib_set_work(lib_t lib)
+{
+   work = lib;
+}
+
+void lib_put(lib_t lib, tree_t unit)
+{
+   assert(lib != NULL);
+   assert(unit != NULL);
+   assert(lib->n_units < MAX_UNITS);
+
+   if (lib->n_units == 0)
+      lib->units = xmalloc(sizeof(tree_t) * MAX_UNITS);
+
+   lib->units[lib->n_units++] = unit;
+}
+
+tree_t lib_get(lib_t lib, ident_t ident)
+{
+   assert(lib != NULL);
+
+   for (unsigned n = 0; n < lib->n_units; n++) {
+      if (tree_ident(lib->units[n]) == ident)
+         return lib->units[n];
+   }
+
+   return NULL;
 }
 
