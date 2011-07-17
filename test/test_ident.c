@@ -92,6 +92,25 @@ START_TEST(test_read_write)
 }
 END_TEST
 
+START_TEST(test_prefix)
+{
+   ident_t a, b, c, d;
+
+   a = ident_new("foo");
+   b = ident_new("bar");
+   c = ident_prefix(a, b);
+
+   fail_unless(c == ident_new("foo.bar"));
+   fail_if(c == a);
+   fail_if(c == b);   
+
+   d = ident_prefix(ident_prefix(c, c), ident_new("carrot"));   
+   
+   fail_unless(d == ident_new("foo.bar.foo.bar.carrot"));
+   fail_if(d == c);
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -104,6 +123,7 @@ int main(void)
    tcase_add_test(tc_core, test_istr);
    tcase_add_test(tc_core, test_rand);
    tcase_add_test(tc_core, test_read_write);
+   tcase_add_test(tc_core, test_prefix);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

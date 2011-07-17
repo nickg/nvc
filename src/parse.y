@@ -141,7 +141,7 @@
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt wait_stmt timeout_clause physical_literal target
 %type <t> var_assign_stmt package_decl name simple_name selected_name
-%type <i> id opt_id opt_label prefix
+%type <i> id opt_id opt_label prefix selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
@@ -187,12 +187,7 @@ context_item : library_clause | use_clause ;
 
 library_clause : tLIBRARY id_list tSEMI ;
 
-use_clause : tUSE use_selected_name /* { , use_selected_name } */ tSEMI ;
-
-use_selected_name
-: id tDOT tALL
-| id tDOT use_selected_name
-;
+use_clause : tUSE selected_id /* { , selected_id } */ tSEMI ;
 
 library_unit : entity_decl | arch_body | package_decl ;
 
@@ -202,6 +197,15 @@ id
      $$ = ident_new(lvals.sval);
      free(lvals.sval);
   }
+;
+
+selected_id
+: id tDOT selected_id
+  {
+     $$ = ident_prefix($1, $3);
+  }
+| id
+| tALL { $$ = ident_new("all"); }
 ;
 
 id_list
@@ -792,7 +796,7 @@ physical_literal
 ;
 
 type_mark
-: id
+: selected_id
   {
      $$ = type_new(T_UNRESOLVED);
      type_set_ident($$, $1);

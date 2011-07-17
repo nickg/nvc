@@ -165,3 +165,23 @@ ident_t ident_uniq(const char *prefix)
 
    return ident_new(buf);
 }
+
+ident_t ident_prefix(ident_t a, ident_t b)
+{
+   assert(a != NULL);
+   assert(b != NULL);
+   
+   struct trie *result;
+
+   // Append dot
+   const char *dot = ".";
+   if (!search_trie(&dot, a, &result))
+      build_trie(dot, result, &result);
+
+   // Append b
+   const char *bstr = istr(b);
+   if (!search_trie(&bstr, result, &result))
+      build_trie(bstr, result, &result);
+
+   return result;
+}

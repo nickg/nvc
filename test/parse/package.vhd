@@ -7,5 +7,5 @@ end package;
 use work.one.all;
 
 package two is
-    subtype my_int2 is my_int1 range 10 to 50;
+    subtype my_int2 is work.one.my_int range 10 to 50;
 end package two;
