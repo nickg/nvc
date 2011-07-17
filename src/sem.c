@@ -166,6 +166,9 @@ static tree_t scope_find(ident_t i)
 
 static bool sem_check_context(tree_t t)
 {
+   // The work library should always be searched
+   scope_add_context(lib_name(lib_work()));
+   
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       ident_t c = tree_context(t, n);
       ident_t all = ident_strip(c, ident_new(".all"));

@@ -143,6 +143,47 @@ START_TEST(test_ports)
 }
 END_TEST
 
+START_TEST(test_scope)
+{
+   tree_t a, e, p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/scope.vhd"));
+
+   const error_t expect[] = {
+      { 31, "WORK.PACK1.MY_INT1 does not match type"
+        " of target WORK.PACK2.MY_INT1" },
+      { 44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+      
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -153,6 +194,7 @@ int main(void)
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_integer);
    tcase_add_test(tc_core, test_ports);
+   tcase_add_test(tc_core, test_scope);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);
