@@ -101,8 +101,6 @@ static void scope_add_context(ident_t prefix)
 {
    assert(top_scope != NULL);
 
-   printf("%s: %s\n", __func__, istr(prefix));
-
    struct context *c = xmalloc(sizeof(struct context));
    c->prefix = prefix;
    c->next   = top_scope->context;
@@ -117,8 +115,6 @@ static void scope_insert(tree_t t)
 
    // TODO: check this name not in this scope already
 
-   printf("%s: %s\n", __func__, istr(tree_ident(t)));
-
    top_scope->decls[top_scope->n_decls++] = t;
 }
 
@@ -131,8 +127,6 @@ static void scope_apply_prefix(tree_t t)
 
 static tree_t scope_find_in(ident_t i, struct scope *s)
 {
-   printf("%s: i=%s s=%p\n", __func__, istr(i), s);
-   
    if (s == NULL)
       return NULL;
    else {
@@ -148,7 +142,6 @@ static tree_t scope_find_in(ident_t i, struct scope *s)
          else {
             struct context *it;
             for (it = s->context; it != NULL; it = it->next) {
-               printf("search context %s\n", istr(it->prefix));
                if (this == ident_prefix(it->prefix, i))
                   return d;
             }
@@ -216,8 +209,6 @@ static bool sem_check_subtype(tree_t t, type_t type)
       if (base_decl == NULL)
          sem_error(t, "type %s is not defined", istr(type_ident(base)));
 
-      printf("resolve %s to %s\n", istr(type_ident(type)),
-             istr(type_ident(tree_type(base_decl))));
       type_set_base(type, tree_type(base_decl));
       
       type = tree_type(base_decl);
