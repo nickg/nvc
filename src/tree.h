@@ -112,6 +112,11 @@ void tree_set_target(tree_t t, tree_t lhs);
 tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
+// T_ENTITY, T_ARCH, T_PACKAGE
+unsigned tree_contexts(tree_t t);
+ident_t tree_context(tree_t t, unsigned n);
+void tree_add_context(tree_t t, ident_t ctx);
+
 void tree_freeze(void);
 void tree_store(lib_t lib, tree_t tree);
 tree_t tree_load(lib_t lib, ident_t ident);

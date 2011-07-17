@@ -20,6 +20,8 @@
 
 #include <assert.h>
 
+#define MAX_CONTEXTS 16
+
 struct tree_array {
    size_t count;
    size_t max;
@@ -43,6 +45,8 @@ struct tree {
    tree_t            delay;
    tree_t            target;
    tree_t            ref;
+   ident_t           *context;
+   unsigned          n_contexts;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -67,6 +71,7 @@ struct tree {
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN))
 #define HAS_VALUE(t) (IS_DECL(t) || IS(t, T_VAR_ASSIGN))
+#define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -100,14 +105,16 @@ static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
 tree_t tree_new(tree_kind_t kind)
 {
    tree_t t = xmalloc(sizeof(struct tree));
-   t->kind      = kind;
-   t->ident     = NULL;
-   t->ident2    = NULL;
-   t->port_mode = PORT_INVALID;
-   t->value     = NULL;
-   t->target    = NULL;
-   t->loc       = LOC_INVALID;
-   t->ref    = NULL;
+   t->kind       = kind;
+   t->ident      = NULL;
+   t->ident2     = NULL;
+   t->port_mode  = PORT_INVALID;
+   t->value      = NULL;
+   t->target     = NULL;
+   t->loc        = LOC_INVALID;
+   t->ref        = NULL;
+   t->context    = NULL;
+   t->n_contexts = 0;
    
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -444,4 +451,33 @@ void tree_set_ref(tree_t t, tree_t decl)
    assert(IS_DECL(decl));
 
    t->ref = decl;
+}
+
+unsigned tree_contexts(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_CONTEXT(t));
+
+   return t->n_contexts;
+}
+
+ident_t tree_context(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_CONTEXT(t));
+   assert(n < t->n_contexts);
+
+   return t->context[n];
+}
+
+void tree_add_context(tree_t t, ident_t ctx)
+{
+   assert(t != NULL);
+   assert(HAS_CONTEXT(t));
+   assert(t->n_contexts < MAX_CONTEXTS);
+
+   if (t->n_contexts == 0)
+      t->context = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
+
+   t->context[t->n_contexts++] = ctx;
 }

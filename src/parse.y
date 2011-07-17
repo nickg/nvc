@@ -107,6 +107,7 @@
                           void (*copy_fn)(tree_t t, tree_t d),
                           tree_t to);
    static id_list_t *id_list_add(id_list_t *list, ident_t id);
+   static id_list_t *id_list_append(id_list_t *a, id_list_t *b);
    static void id_list_free(id_list_t *list);
    static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
    static void unit_list_free(unit_list_t *list);
@@ -148,7 +149,7 @@
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <l> subtype_decl package_decl_part package_decl_item
 %type <p> entity_header
-%type <s> id_list;
+%type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
 %type <y> integer_type_def physical_type_def
@@ -177,17 +178,41 @@
 %%
 
 design_unit
-: context_clause library_unit { root = $2; YYACCEPT; }
+: context_clause library_unit
+  {
+     for (id_list_t *it = $1; it != NULL; it = it->next)
+        tree_add_context($2, it->id);
+     id_list_free($1);
+     
+     root = $2;
+     YYACCEPT;
+  }
 | /* empty */ {} 
 ;
 
-context_clause : context_item context_clause | /* empty */ ;
+context_clause
+: context_item context_clause
+  {
+     $$ = id_list_append($2, $1);
+  }
+| /* empty */ { $$ = NULL; }
+;
 
-context_item : library_clause | use_clause ;
+context_item : library_clause { $$ = NULL; } | use_clause ;
 
-library_clause : tLIBRARY id_list tSEMI ;
+library_clause
+: tLIBRARY id_list tSEMI
+  {
+     // TODO: foreach(id_list) { load_library(..); }
+  }
+;
 
-use_clause : tUSE selected_id /* { , selected_id } */ tSEMI ;
+use_clause
+: tUSE selected_id_list tSEMI
+  {
+     $$ = $2;
+  }
+;
 
 library_unit : entity_decl | arch_body | package_decl ;
 
@@ -214,6 +239,17 @@ id_list
      $$ = id_list_add(NULL, $1);
   }
 | id tCOMMA id_list
+  {
+     $$ = id_list_add($3, $1);
+  }
+;
+
+selected_id_list
+: selected_id
+  {
+     $$ = id_list_add(NULL, $1);
+  }
+| selected_id tCOMMA selected_id_list
   {
      $$ = id_list_add($3, $1);
   }
@@ -895,6 +931,18 @@ static id_list_t *id_list_add(id_list_t *list, ident_t id)
    new->next = list;
    new->id   = id;
    return new;
+}
+
+static id_list_t *id_list_append(id_list_t *a, id_list_t *b)
+{
+   if (a == NULL)
+      return b;
+   
+   while (a->next)
+      a = a->next;
+   a->next = b;
+   
+   return a;
 }
 
 static void id_list_free(id_list_t *list)
