@@ -182,7 +182,7 @@ NULL          {N}{U}{L}{L}
 "."        { begin_token(yytext); return tDOT; }
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
-{CHAR}     { begin_token(yytext); return tCHAR; }
+{CHAR}     { begin_token(yytext); lvals.cval = yytext[1]; return tCHAR; }
 {ID}       { begin_token(yytext); return parse_id(yytext); }
 {EXID}     { begin_token(yytext); return parse_ex_id(yytext); }
 {SPACE}    { begin_token(yytext); }

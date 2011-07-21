@@ -58,8 +58,9 @@
    typedef struct {
       int  ival;
       char *sval;
+      char cval;
    } lvals_t;
-   
+
    typedef struct id_list {
       struct id_list *next;
       ident_t        id;
@@ -69,6 +70,11 @@
       struct unit_list *next;
       unit_t           unit;
    } unit_list_t;
+   
+   typedef struct enum_list {
+      struct enum_list *next;
+      enum_lit_t        lit;
+   } enum_list_t;
    
    typedef struct tree_list {
       struct tree_list *next;
@@ -111,6 +117,8 @@
    static void id_list_free(id_list_t *list);
    static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
    static void unit_list_free(unit_list_t *list);
+   static enum_list_t *enum_list_add(enum_list_t *list, enum_lit_t lit);
+   static void enum_list_free(enum_list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
@@ -136,6 +144,8 @@
    range_t     r;
    unit_t      u;
    unit_list_t *v;
+   enum_list_t *e;
+   enum_lit_t  f;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -153,10 +163,12 @@
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
-%type <y> integer_type_def physical_type_def
+%type <y> integer_type_def physical_type_def enum_type_def
 %type <r> range range_constraint
 %type <u> base_unit_decl
-%type <v> secondary_unit_decls    
+%type <v> secondary_unit_decls
+%type <e> enum_literal_list
+%type <f> enum_literal
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -695,8 +707,8 @@ type_def
 scalar_type_def
 : integer_type_def
 | physical_type_def
-  /* | enumeration_type_definition
-     | floating_type_definition */
+| enum_type_def
+  /* | floating_type_definition */
 ;                       
 
 integer_type_def
@@ -704,6 +716,41 @@ integer_type_def
   {
      $$ = type_new(T_INTEGER);
      type_add_dim($$, $1);
+  }
+;
+
+enum_type_def
+: tLPAREN enum_literal_list tRPAREN
+  {
+     $$ = type_new(T_ENUM);
+
+     for (enum_list_t *it = $2; it != NULL; it = it->next)
+        type_enum_add_literal($$, it->lit);
+     enum_list_free($2);
+  }
+;
+
+enum_literal_list
+: enum_literal
+  {
+     $$ = enum_list_add(NULL, $1);
+  }
+| enum_literal tCOMMA enum_literal_list
+  {
+     $$ = enum_list_add($3, $1);
+  }
+;
+
+enum_literal
+: id
+  {
+     $$.kind = ENUM_IDENT;
+     $$.id   = $1;
+  }
+| tCHAR
+  {
+     $$.kind = ENUM_CHAR;
+     $$.ch   = lvals.cval;
   }
 ;
 
@@ -963,6 +1010,23 @@ static void id_list_free(id_list_t *list)
       list = next;
    }      
 }      
+
+static enum_list_t *enum_list_add(enum_list_t *list, enum_lit_t lit)
+{
+   enum_list_t *new = xmalloc(sizeof(enum_list_t));
+   new->next = list;
+   new->lit  = lit;
+   return new;
+}
+
+static void enum_list_free(enum_list_t *list)
+{
+   while (list != NULL) {
+      enum_list_t *next = list->next;
+      free(list);
+      list = next;
+   }
+}
 
 static unit_list_t *unit_list_add(unit_list_t *list, unit_t u)
 {

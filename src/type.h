@@ -41,7 +41,7 @@ typedef struct enum_lit {
    union {
       ident_t id;
       char    ch;
-   } u;
+   };
    enum { ENUM_IDENT, ENUM_CHAR } kind;
 } enum_lit_t;
 

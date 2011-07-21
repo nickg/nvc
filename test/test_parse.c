@@ -426,6 +426,7 @@ START_TEST(test_package)
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_contexts(p) == 0);
+   fail_unless(tree_ident(p) == ident_new("ONE"));
    
    p = parse();
    fail_if(p == NULL);
@@ -433,11 +434,74 @@ START_TEST(test_package)
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_contexts(p) == 1);
    fail_unless(tree_context(p, 0) == ident_new("WORK.ONE.all"));
+   fail_unless(tree_ident(p) == ident_new("TWO"));
 
    p = parse();
    fail_unless(p == NULL);
 
    fail_unless(parse_errors() == 0);
+}
+END_TEST
+
+START_TEST(test_enum)
+{
+   tree_t p, d;
+   type_t t;
+   enum_lit_t l;
+
+   fail_unless(input_from_file(TESTDIR "/parse/enum.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 3);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("A"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_enum_literals(t) == 3);
+   l = type_enum_literal(t, 0);
+   fail_unless(l.kind == ENUM_IDENT);
+   fail_unless(l.id == ident_new("X"));
+   l = type_enum_literal(t, 1);
+   fail_unless(l.kind == ENUM_IDENT);
+   fail_unless(l.id == ident_new("Y"));
+   l = type_enum_literal(t, 2);
+   fail_unless(l.kind == ENUM_IDENT);
+   fail_unless(l.id == ident_new("Z"));
+
+   d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("B"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_enum_literals(t) == 3);
+   l = type_enum_literal(t, 0);
+   fail_unless(l.kind == ENUM_CHAR);
+   fail_unless(l.ch == 'x');
+   l = type_enum_literal(t, 1);
+   fail_unless(l.kind == ENUM_CHAR);
+   fail_unless(l.ch == 'y');
+   l = type_enum_literal(t, 2);
+   fail_unless(l.kind == ENUM_IDENT);
+   fail_unless(l.id == ident_new("Z"));
+
+   d = tree_decl(p, 2);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("C"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_ENUM);
+   fail_unless(type_enum_literals(t) == 1);
+   l = type_enum_literal(t, 0);
+   fail_unless(l.kind == ENUM_IDENT);
+   fail_unless(l.id == ident_new("FOO"));
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);   
 }
 END_TEST
 
@@ -456,6 +520,7 @@ int main(void)
    tcase_add_test(tc_core, test_literal);
    tcase_add_test(tc_core, test_extended);
    tcase_add_test(tc_core, test_package);
+   tcase_add_test(tc_core, test_enum);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

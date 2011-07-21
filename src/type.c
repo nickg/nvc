@@ -5,8 +5,9 @@
 #include <assert.h>
 #include <limits.h>
 
-#define MAX_DIMS   4
-#define MAX_UNITS  16
+#define MAX_DIMS     4
+#define MAX_UNITS    16
+#define MAX_LITERALS 16
 
 struct type {
    type_kind_t kind;
@@ -16,6 +17,8 @@ struct type {
    type_t      base;
    unit_t      *units;
    unsigned    n_units;
+   enum_lit_t  *literals;
+   unsigned    n_literals;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -25,12 +28,14 @@ struct type {
 type_t type_new(type_kind_t kind)
 {
    struct type *t = xmalloc(sizeof(struct type));
-   t->kind    = kind;
-   t->ident   = NULL;
-   t->n_dims  = 0;
-   t->base    = NULL;
-   t->units   = NULL;
-   t->n_units = 0;
+   t->kind       = kind;
+   t->ident      = NULL;
+   t->n_dims     = 0;
+   t->base       = NULL;
+   t->units      = NULL;
+   t->n_units    = 0;
+   t->literals   = NULL;
+   t->n_literals = 0;
    
    return t;
 }
@@ -202,5 +207,34 @@ void type_add_unit(type_t t, unit_t u)
       t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
 
    t->units[t->n_units++] = u;
+}
+
+unsigned type_enum_literals(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ENUM));
+
+   return t->n_literals;
+}
+
+enum_lit_t type_enum_literal(type_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ENUM));
+   assert(n < t->n_literals);
+
+   return t->literals[n];
+}
+
+void type_enum_add_literal(type_t t, enum_lit_t lit)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ENUM));
+   assert(t->n_literals < MAX_LITERALS);
+
+   if (t->n_literals == 0)
+      t->literals = xmalloc(MAX_LITERALS * sizeof(enum_lit_t));
+
+   t->literals[t->n_literals++] = lit;
 }
 
