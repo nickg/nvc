@@ -129,7 +129,7 @@ tree_t tree_new(tree_kind_t kind)
    tree_array_init(&t->stmts);
    
    t->literal.kind = L_INT;
-   t->literal.u.i  = 0;
+   t->literal.i    = 0;
    
    return t;
 }

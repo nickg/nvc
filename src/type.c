@@ -164,11 +164,11 @@ type_t type_universal_int(void)
       type_set_ident(t, ident_new("universal integer"));
 
       tree_t left = tree_new(T_LITERAL);
-      literal_t l_min = { .kind = L_INT, .u.i = INT_MIN };
+      literal_t l_min = { .kind = L_INT, .i = INT_MIN };
       tree_set_literal(left, l_min);
 
       tree_t right = tree_new(T_LITERAL);      
-      literal_t l_max = { .kind = L_INT, .u.i = INT_MAX };
+      literal_t l_max = { .kind = L_INT, .i = INT_MAX };
       tree_set_literal(right, l_max);
       
       range_t r = { .kind  = RANGE_TO,

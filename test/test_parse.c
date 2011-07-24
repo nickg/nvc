@@ -49,7 +49,7 @@ START_TEST(test_entity)
    fail_unless(tree_kind(v) == T_LITERAL);
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 4);
+   fail_unless(l.i == 4);
 
    p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
@@ -117,12 +117,12 @@ START_TEST(test_entity)
    fail_unless(tree_kind(x) == T_LITERAL);
    l = tree_literal(x);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 2);
+   fail_unless(l.i == 2);
    y = tree_param(v, 1);
    fail_unless(tree_kind(y) == T_LITERAL);
    l = tree_literal(y);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 5);
+   fail_unless(l.i == 5);
    
    fail_unless(tree_ports(e) == 1);
 
@@ -168,7 +168,7 @@ START_TEST(test_arch)
    fail_unless(tree_kind(v) == T_LITERAL);
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 7);
+   fail_unless(l.i == 7);
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    fail_unless(tree_ident(d) == ident_new("Z"));
@@ -179,7 +179,7 @@ START_TEST(test_arch)
    fail_unless(tree_kind(v) == T_LITERAL);
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 7);
+   fail_unless(l.i == 7);
    
    a = parse();
    fail_if(a == NULL);
@@ -366,7 +366,7 @@ START_TEST(test_literal)
    fail_unless(tree_kind(v) == T_LITERAL);
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 64);
+   fail_unless(l.i == 64);
 
    d = tree_decl(a, 1);
    fail_unless(tree_ident(d) == ident_new("NEG"));
@@ -376,7 +376,7 @@ START_TEST(test_literal)
    fail_unless(tree_params(v) == 1);
    l = tree_literal(tree_param(v, 0));
    fail_unless(l.kind == L_INT);
-   fail_unless(l.u.i == 265);
+   fail_unless(l.i == 265);
    
    a = parse();
    fail_unless(a == NULL);
@@ -538,7 +538,7 @@ START_TEST(test_qual)
    fail_unless(tree_kind(e) == T_LITERAL);
    l = tree_literal(e);
    fail_unless(l.kind == L_CHAR);
-   fail_unless(l.u.c == 'c');
+   fail_unless(l.c == 'c');
    
    a = parse();
    fail_unless(a == NULL);

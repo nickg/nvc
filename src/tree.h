@@ -37,7 +37,7 @@ typedef struct literal {
       int   i;
       char  c;
       float f;
-   } u;
+   };
    enum { L_INT, L_CHAR, L_FLOAT } kind;
 } literal_t;
 
