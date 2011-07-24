@@ -128,6 +128,7 @@
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
+   static ident_t ref_ident(tree_t t);
 }
 
 %union {
@@ -176,6 +177,7 @@
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
+%token tTICK
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -845,18 +847,31 @@ expr
 | name
 | literal
 | tLPAREN expr tRPAREN { $$ = $2; }
+| name tTICK tLPAREN expr tRPAREN
+  {
+     $$ = tree_new(T_QUALIFIED);
+     tree_set_ident($$, ref_ident($1));
+     tree_set_value($$, $4);
+     tree_set_loc($$, &@$);
+  }
 /*
   | aggregate
   | function_call
-  | qualified_expression
   | type_conversion
   | allocator
 */
 ;
 
-literal : numeric_literal
+literal
+: numeric_literal
+| tCHAR
+  {
+     literal_t l = { .u.c = lvals.cval, .kind = L_CHAR };
+     $$ = tree_new(T_LITERAL);
+     tree_set_literal($$, l);
+     tree_set_loc($$, &@$);
+  }
 /*
-  | enumeration_literal
   | string_literal
   | bit_string_literal
   | null
@@ -1068,6 +1083,20 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    return t;
 }
 
+static ident_t ref_ident(tree_t t)
+{
+   // This is a kludge to handle cases where we want to use both
+   // name and selected_id but can't because it causes a shift/reduce
+   // conflict
+
+   if (tree_kind(t) != T_REF) {
+      parse_error(&yylloc, "must be reference");
+      return ident_new("error");
+   }
+   else
+      return tree_ident(t);
+}
+      
 static void parse_error(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;

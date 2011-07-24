@@ -505,6 +505,48 @@ START_TEST(test_enum)
 }
 END_TEST
 
+START_TEST(test_qual)
+{
+   tree_t a, p, s, q, e;
+   literal_t l;
+
+   fail_unless(input_from_file(TESTDIR "/parse/qual.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 1);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_stmts(p) == 2);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   q = tree_value(s);
+   fail_unless(tree_kind(q) == T_QUALIFIED);
+   fail_unless(tree_ident(q) == ident_new("FOO"));
+   e = tree_value(q);
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("B"));
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   q = tree_value(s);
+   fail_unless(tree_kind(q) == T_QUALIFIED);
+   fail_unless(tree_ident(q) == ident_new("FOO"));
+   e = tree_value(q);
+   fail_unless(tree_kind(e) == T_LITERAL);
+   l = tree_literal(e);
+   fail_unless(l.kind == L_CHAR);
+   fail_unless(l.u.c == 'c');
+   
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -521,6 +563,7 @@ int main(void)
    tcase_add_test(tc_core, test_extended);
    tcase_add_test(tc_core, test_package);
    tcase_add_test(tc_core, test_enum);
+   tcase_add_test(tc_core, test_qual);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

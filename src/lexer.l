@@ -47,6 +47,7 @@ CHAR    '.'
 COMMENT --.*\n
 INT     [0-9]+
 SPACE   [ \t\r\n]+
+TICK    \'
 
 A       [aA]
 B       [bB]
@@ -183,6 +184,7 @@ NULL          {N}{U}{L}{L}
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
 {STRING}   { begin_token(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); lvals.cval = yytext[1]; return tCHAR; }
+{TICK}     { begin_token(yytext); return tTICK; }
 {ID}       { begin_token(yytext); return parse_id(yytext); }
 {EXID}     { begin_token(yytext); return parse_ex_id(yytext); }
 {SPACE}    { begin_token(yytext); }
