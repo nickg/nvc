@@ -37,14 +37,6 @@ typedef enum type_kind {
    T_ACCESS
 } type_kind_t;
 
-typedef struct enum_lit {
-   union {
-      ident_t id;
-      char    ch;
-   };
-   enum { ENUM_IDENT, ENUM_CHAR } kind;
-} enum_lit_t;
-
 typedef struct range {
    struct tree *left;
    struct tree *right;
@@ -76,8 +68,8 @@ void type_add_dim(type_t t, range_t r);
 
 // T_ENUM
 unsigned type_enum_literals(type_t t);
-enum_lit_t type_enum_literal(type_t t, unsigned n);
-void type_enum_add_literal(type_t t, enum_lit_t lit);
+ident_t type_enum_literal(type_t t, unsigned n);
+void type_enum_add_literal(type_t t, ident_t lit);
 
 // T_PHYSICAL
 unsigned type_units(type_t t);

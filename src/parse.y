@@ -71,11 +71,6 @@
       unit_t           unit;
    } unit_list_t;
    
-   typedef struct enum_list {
-      struct enum_list *next;
-      enum_lit_t        lit;
-   } enum_list_t;
-   
    typedef struct tree_list {
       struct tree_list *next;
       tree_t           value;
@@ -117,8 +112,6 @@
    static void id_list_free(id_list_t *list);
    static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
    static void unit_list_free(unit_list_t *list);
-   static enum_list_t *enum_list_add(enum_list_t *list, enum_lit_t lit);
-   static void enum_list_free(enum_list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
@@ -145,8 +138,6 @@
    range_t     r;
    unit_t      u;
    unit_list_t *v;
-   enum_list_t *e;
-   enum_lit_t  f;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -168,14 +159,12 @@
 %type <r> range range_constraint
 %type <u> base_unit_decl
 %type <v> secondary_unit_decls
-%type <e> enum_literal_list
-%type <f> enum_literal
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tCOMMA tINT tSTRING tCHAR tERROR tINOUT tLINKAGE tVARIABLE
+%token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK
 
@@ -722,37 +711,13 @@ integer_type_def
 ;
 
 enum_type_def
-: tLPAREN enum_literal_list tRPAREN
+: tLPAREN id_list tRPAREN
   {
      $$ = type_new(T_ENUM);
 
-     for (enum_list_t *it = $2; it != NULL; it = it->next)
-        type_enum_add_literal($$, it->lit);
-     enum_list_free($2);
-  }
-;
-
-enum_literal_list
-: enum_literal
-  {
-     $$ = enum_list_add(NULL, $1);
-  }
-| enum_literal tCOMMA enum_literal_list
-  {
-     $$ = enum_list_add($3, $1);
-  }
-;
-
-enum_literal
-: id
-  {
-     $$.kind = ENUM_IDENT;
-     $$.id   = $1;
-  }
-| tCHAR
-  {
-     $$.kind = ENUM_CHAR;
-     $$.ch   = lvals.cval;
+     for (id_list_t *it = $2; it != NULL; it = it->next)
+        type_enum_add_literal($$, it->id);
+     id_list_free($2);
   }
 ;
 
@@ -864,13 +829,6 @@ expr
 
 literal
 : numeric_literal
-| tCHAR
-  {
-     literal_t l = { .c = lvals.cval, .kind = L_CHAR };
-     $$ = tree_new(T_LITERAL);
-     tree_set_literal($$, l);
-     tree_set_loc($$, &@$);
-  }
 /*
   | string_literal
   | bit_string_literal
@@ -1025,23 +983,6 @@ static void id_list_free(id_list_t *list)
       list = next;
    }      
 }      
-
-static enum_list_t *enum_list_add(enum_list_t *list, enum_lit_t lit)
-{
-   enum_list_t *new = xmalloc(sizeof(enum_list_t));
-   new->next = list;
-   new->lit  = lit;
-   return new;
-}
-
-static void enum_list_free(enum_list_t *list)
-{
-   while (list != NULL) {
-      enum_list_t *next = list->next;
-      free(list);
-      list = next;
-   }
-}
 
 static unit_list_t *unit_list_add(unit_list_t *list, unit_t u)
 {

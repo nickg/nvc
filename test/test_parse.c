@@ -447,7 +447,7 @@ START_TEST(test_enum)
 {
    tree_t p, d;
    type_t t;
-   enum_lit_t l;
+   ident_t i;
 
    fail_unless(input_from_file(TESTDIR "/parse/enum.vhd"));
 
@@ -462,15 +462,12 @@ START_TEST(test_enum)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 3);
-   l = type_enum_literal(t, 0);
-   fail_unless(l.kind == ENUM_IDENT);
-   fail_unless(l.id == ident_new("X"));
-   l = type_enum_literal(t, 1);
-   fail_unless(l.kind == ENUM_IDENT);
-   fail_unless(l.id == ident_new("Y"));
-   l = type_enum_literal(t, 2);
-   fail_unless(l.kind == ENUM_IDENT);
-   fail_unless(l.id == ident_new("Z"));
+   i = type_enum_literal(t, 0);
+   fail_unless(i == ident_new("X"));
+   i = type_enum_literal(t, 1);
+   fail_unless(i == ident_new("Y"));
+   i = type_enum_literal(t, 2);
+   fail_unless(i == ident_new("Z"));
 
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -478,15 +475,12 @@ START_TEST(test_enum)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 3);
-   l = type_enum_literal(t, 0);
-   fail_unless(l.kind == ENUM_CHAR);
-   fail_unless(l.ch == 'x');
-   l = type_enum_literal(t, 1);
-   fail_unless(l.kind == ENUM_CHAR);
-   fail_unless(l.ch == 'y');
-   l = type_enum_literal(t, 2);
-   fail_unless(l.kind == ENUM_IDENT);
-   fail_unless(l.id == ident_new("Z"));
+   i = type_enum_literal(t, 0);
+   fail_unless(i == ident_new("'x'"));
+   i = type_enum_literal(t, 1);
+   fail_unless(i == ident_new("'y'"));
+   i = type_enum_literal(t, 2);
+   fail_unless(i == ident_new("Z"));
 
    d = tree_decl(p, 2);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -494,9 +488,8 @@ START_TEST(test_enum)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 1);
-   l = type_enum_literal(t, 0);
-   fail_unless(l.kind == ENUM_IDENT);
-   fail_unless(l.id == ident_new("FOO"));
+   i = type_enum_literal(t, 0);
+   fail_unless(i == ident_new("FOO"));
 
    p = parse();
    fail_unless(p == NULL);
@@ -508,7 +501,6 @@ END_TEST
 START_TEST(test_qual)
 {
    tree_t a, p, s, q, e;
-   literal_t l;
 
    fail_unless(input_from_file(TESTDIR "/parse/qual.vhd"));
 
@@ -535,10 +527,8 @@ START_TEST(test_qual)
    fail_unless(tree_kind(q) == T_QUALIFIED);
    fail_unless(tree_ident(q) == ident_new("FOO"));
    e = tree_value(q);
-   fail_unless(tree_kind(e) == T_LITERAL);
-   l = tree_literal(e);
-   fail_unless(l.kind == L_CHAR);
-   fail_unless(l.c == 'c');
+   fail_unless(tree_kind(e) == T_REF);
+   fail_unless(tree_ident(e) == ident_new("'c'"));
    
    a = parse();
    fail_unless(a == NULL);

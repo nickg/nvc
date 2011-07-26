@@ -35,10 +35,9 @@ typedef enum tree_kind {
 typedef struct literal {
    union {
       int   i;
-      char  c;
       float f;
    };
-   enum { L_INT, L_CHAR, L_FLOAT } kind;
+   enum { L_INT, L_FLOAT } kind;
 } literal_t;
 
 typedef struct tree *tree_t;
