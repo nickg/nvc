@@ -68,8 +68,8 @@ void type_add_dim(type_t t, range_t r);
 
 // T_ENUM
 unsigned type_enum_literals(type_t t);
-ident_t type_enum_literal(type_t t, unsigned n);
-void type_enum_add_literal(type_t t, ident_t lit);
+struct tree *type_enum_literal(type_t t, unsigned n);
+void type_enum_add_literal(type_t t, struct tree *lit);
 
 // T_PHYSICAL
 unsigned type_units(type_t t);

@@ -17,7 +17,7 @@ struct type {
    type_t      base;
    unit_t      *units;
    unsigned    n_units;
-   ident_t     *literals;
+   tree_t      *literals;
    unsigned    n_literals;
 };
 
@@ -51,6 +51,9 @@ bool type_eq(type_t a, type_t b)
 {
    assert(a != NULL);
    assert(b != NULL);
+   
+   assert(type_kind(a) != T_UNRESOLVED);
+   assert(type_kind(b) != T_UNRESOLVED);
    
    if (a == b)
       return true;
@@ -217,7 +220,7 @@ unsigned type_enum_literals(type_t t)
    return t->n_literals;
 }
 
-ident_t type_enum_literal(type_t t, unsigned n)
+tree_t type_enum_literal(type_t t, unsigned n)
 {
    assert(t != NULL);
    assert(IS(t, T_ENUM));
@@ -226,14 +229,15 @@ ident_t type_enum_literal(type_t t, unsigned n)
    return t->literals[n];
 }
 
-void type_enum_add_literal(type_t t, ident_t lit)
+void type_enum_add_literal(type_t t, tree_t lit)
 {
    assert(t != NULL);
    assert(IS(t, T_ENUM));
    assert(t->n_literals < MAX_LITERALS);
+   assert(tree_kind(lit) == T_ENUM_LIT);
 
    if (t->n_literals == 0)
-      t->literals = xmalloc(MAX_LITERALS * sizeof(ident_t));
+      t->literals = xmalloc(MAX_LITERALS * sizeof(tree_t));
 
    t->literals[t->n_literals++] = lit;
 }

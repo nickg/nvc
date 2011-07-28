@@ -445,10 +445,9 @@ END_TEST
 
 START_TEST(test_enum)
 {
-   tree_t p, d;
+   tree_t p, d, i;
    type_t t;
-   ident_t i;
-
+   
    fail_unless(input_from_file(TESTDIR "/parse/enum.vhd"));
 
    p = parse();
@@ -463,11 +462,14 @@ START_TEST(test_enum)
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 3);
    i = type_enum_literal(t, 0);
-   fail_unless(i == ident_new("X"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("X"));
    i = type_enum_literal(t, 1);
-   fail_unless(i == ident_new("Y"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("Y"));
    i = type_enum_literal(t, 2);
-   fail_unless(i == ident_new("Z"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("Z"));
 
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -476,11 +478,14 @@ START_TEST(test_enum)
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 3);
    i = type_enum_literal(t, 0);
-   fail_unless(i == ident_new("'x'"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("'x'"));
    i = type_enum_literal(t, 1);
-   fail_unless(i == ident_new("'y'"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("'y'"));
    i = type_enum_literal(t, 2);
-   fail_unless(i == ident_new("Z"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("Z"));
 
    d = tree_decl(p, 2);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -489,7 +494,8 @@ START_TEST(test_enum)
    fail_unless(type_kind(t) == T_ENUM);
    fail_unless(type_enum_literals(t) == 1);
    i = type_enum_literal(t, 0);
-   fail_unless(i == ident_new("FOO"));
+   fail_unless(tree_kind(i) == T_ENUM_LIT);
+   fail_unless(tree_ident(i) == ident_new("FOO"));
 
    p = parse();
    fail_unless(p == NULL);

@@ -41,13 +41,22 @@ struct scope {
    struct scope   *down;
 };
 
+#define MAX_TS_MEMBERS 16
+struct type_set {
+   type_t          members[MAX_TS_MEMBERS];
+   unsigned        n_members;
+
+   struct type_set *down;
+};
+
 #define SEM_ERROR_SZ  1024
 
 static void sem_def_error_fn(const char *msg, const loc_t *loc);
 
-static struct scope   *top_scope = NULL;
-static int            errors = 0;
-static sem_error_fn_t error_fn = sem_def_error_fn;
+static struct scope    *top_scope = NULL;
+static int             errors = 0;
+static sem_error_fn_t  error_fn = sem_def_error_fn;
+static struct type_set *top_type_set = NULL;
 
 #define sem_error(t, ...) { _sem_error(t, __VA_ARGS__); return false; }
 
@@ -115,7 +124,7 @@ static void scope_apply_prefix(tree_t t)
                                      tree_ident(t)));
 }
 
-static tree_t scope_find_in(ident_t i, struct scope *s, bool recur)
+static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
 {
    if (s == NULL)
       return NULL;
@@ -123,28 +132,45 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur)
       for (unsigned n = 0; n < s->n_decls; n++) {
          tree_t d = s->decls[n];
          ident_t this = tree_ident(d);
-         
-         if (this == i)
-            return d;
-         else if (s->prefix != NULL
-                  && this == ident_prefix(s->prefix, i))
-            return d;
+
+         if (this == i
+             || (s->prefix != NULL
+                 && this == ident_prefix(s->prefix, i))) {
+            if (k == 0)
+               return d;
+            else
+               --k;
+         }
          else {
             struct context *it;
             for (it = s->context; it != NULL; it = it->next) {
-               if (this == ident_prefix(it->prefix, i))
-                  return d;
+               if (this == ident_prefix(it->prefix, i)) {
+                  if (k == 0)
+                     return d;
+                  else
+                     --k;
+               }
             }
          }
       }
 
-      return (recur ? scope_find_in(i, s->down, true) : NULL);
+      return (recur ? scope_find_in(i, s->down, true, k) : NULL);
    }
 }
 
 static tree_t scope_find(ident_t i)
 {
-   return scope_find_in(i, top_scope, true);
+   return scope_find_in(i, top_scope, true, 0);
+}
+
+static tree_t scope_find_nth(ident_t i, int n)
+{
+   return scope_find_in(i, top_scope, true, n);
+}
+
+static bool can_overload(tree_t t)
+{
+   return tree_kind(t) == T_ENUM_LIT;
 }
 
 static bool scope_insert(tree_t t)
@@ -152,12 +178,64 @@ static bool scope_insert(tree_t t)
    assert(top_scope != NULL);
    assert(top_scope->n_decls < MAX_VARS);
 
-   if (scope_find_in(tree_ident(t), top_scope, false))
+   if (!can_overload(t)
+       && scope_find_in(tree_ident(t), top_scope, false, 0))
       sem_error(t, "%s already declared in this scope",
                 istr(tree_ident(t)));   
 
    top_scope->decls[top_scope->n_decls++] = t;
    return true;
+}
+
+static void type_set_push(void)
+{
+   struct type_set *t = xmalloc(sizeof(struct type_set));
+   t->n_members = 0;
+   t->down      = top_type_set;
+
+   top_type_set = t;
+}
+
+static void type_set_pop(void)
+{
+   assert(top_type_set != NULL);
+
+   struct type_set *old = top_type_set;
+   top_type_set = old->down;
+   free(old);
+}
+
+static void type_set_add(type_t t)
+{
+   assert(top_type_set != NULL);
+   assert(top_type_set->n_members < MAX_TS_MEMBERS);
+   assert(t != NULL);
+   assert(type_kind(t) != T_UNRESOLVED);
+
+   top_type_set->members[top_type_set->n_members++] = t;
+}
+
+static void type_set_force(type_t t)
+{
+   assert(top_type_set != NULL);
+   assert(t != NULL);
+   assert(type_kind(t) != T_UNRESOLVED);
+
+   top_type_set->members[0] = t;
+   top_type_set->n_members  = 1;
+}
+
+static bool type_set_member(type_t t)
+{
+   if (top_type_set == NULL)
+      return true;
+
+   for (unsigned n = 0; n < top_type_set->n_members; n++) {
+      if (type_eq(top_type_set->members[n], t))
+         return true;
+   }
+   
+   return false;
 }
 
 static bool sem_check_context(tree_t t)
@@ -184,6 +262,15 @@ static bool sem_check_context(tree_t t)
    }
 
    return true;
+}
+
+static bool sem_check_constrained(tree_t t, type_t type)
+{
+   type_set_push();
+   type_set_add(type);
+   bool ok = sem_check(t);
+   type_set_pop();
+   return ok;
 }
 
 static bool sem_readable(tree_t t)
@@ -232,7 +319,15 @@ static bool sem_check_type_decl(tree_t t)
                                         type_ident(type)));
    
    scope_apply_prefix(t);
-   return scope_insert(t);
+
+   bool ok = scope_insert(t);
+   if (ok && type_kind(type) == T_ENUM) {
+      // Need to add each literal to the scope
+      for (unsigned n = 0; n < type_enum_literals(type); n++)
+         scope_insert(type_enum_literal(type, n));
+   }
+
+   return ok;
 }
 
 static bool sem_check_decl(tree_t t)
@@ -258,7 +353,7 @@ static bool sem_check_decl(tree_t t)
    }
 
    if (tree_has_value(t))
-      sem_check(tree_value(t));
+      sem_check_constrained(tree_value(t), tree_type(t));
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -374,9 +469,15 @@ static bool sem_check_var_assign(tree_t t)
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
    
-   bool ok = sem_check(target)
-      && sem_check(value)
-      && sem_readable(value);
+   bool ok = sem_check(target);
+   if (!ok)
+      return false;
+
+   ok = sem_check_constrained(value, tree_type(target));
+   if (!ok)
+      return false;
+
+   ok = sem_readable(value);
    if (!ok)
       return false;
    
@@ -397,10 +498,18 @@ static bool sem_check_signal_assign(tree_t t)
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
    
-   bool ok = sem_check(target) && sem_check(value);
+   bool ok = sem_check(target);
    if (!ok)
       return false;
 
+   ok = sem_check_constrained(value, tree_type(target));
+   if (!ok)
+      return false;
+
+   ok = sem_readable(value);
+   if (!ok)
+      return false;
+   
    tree_t decl = tree_ref(target);
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
@@ -448,14 +557,27 @@ static bool sem_check_literal(tree_t t)
 
 static bool sem_check_ref(tree_t t)
 {
-   tree_t decl = scope_find(tree_ident(t));
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         if (type_set_member(tree_type(decl)))
+            break;
+         else if (!can_overload(decl))
+            break;
+      }
+   } while (decl != NULL);
+   
    if (decl == NULL)
-      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+      sem_error(t, (n == 1 ? "undefined identifier %s"
+                    : "no suitable overload for identifier %s"),
+                istr(tree_ident(t)));
 
    switch (tree_kind(decl)) {
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
+   case T_ENUM_LIT:
       break;
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
@@ -465,6 +587,17 @@ static bool sem_check_ref(tree_t t)
    tree_set_ref(t, decl);
 
    return true;
+}
+
+static bool sem_check_qualified(tree_t t)
+{
+   tree_t decl = scope_find(tree_ident(t));
+   if (tree_kind(decl) != T_TYPE_DECL)
+      sem_error(t, "%s is not a type name", istr(tree_ident(t)));
+
+   type_set_force(tree_type(decl));
+   tree_set_type(t, tree_type(decl));
+   return sem_check(tree_value(t));
 }
 
 bool sem_check(tree_t t)
@@ -494,6 +627,8 @@ bool sem_check(tree_t t)
       return sem_check_ref(t);
    case T_WAIT:
       return sem_check_wait(t);
+   case T_QUALIFIED:
+      return sem_check_qualified(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

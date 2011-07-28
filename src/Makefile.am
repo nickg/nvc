@@ -1,7 +1,7 @@
 bin_PROGRAMS = nhdl
 lib_LIBRARIES = libnhdl.a
 
-AM_CFLAGS = -Wall
+AM_CFLAGS = -Wall -Werror
 AM_YFLAGS = -d --locations
 AM_LDFLAGS = -rdynamic
 

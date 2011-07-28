@@ -30,6 +30,7 @@ typedef enum tree_kind {
    T_PACKAGE,
    T_SIGNAL_ASSIGN,
    T_QUALIFIED,
+   T_ENUM_LIT
 } tree_kind_t;
 
 typedef struct literal {
@@ -53,7 +54,7 @@ type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
-// T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED
+// T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 

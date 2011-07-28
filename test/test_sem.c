@@ -201,6 +201,81 @@ START_TEST(test_scope)
 }
 END_TEST
 
+START_TEST(test_ambiguous)
+{
+   tree_t a, e, p, s;
+   type_t lhs, rhs;
+
+   fail_unless(input_from_file(TESTDIR "/sem/ambiguous.vhd"));
+   
+   const error_t expect[] = {
+      { 35, "type of value BAR does not match type of target FOO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+   
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 4);
+   sem_check(a);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_stmts(p) == 2);
+   s = tree_stmt(p, 0);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("FOO"));
+   fail_unless(type_ident(rhs) == ident_new("FOO"));
+   s = tree_stmt(p, 1);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("BAR"));
+   fail_unless(type_ident(rhs) == ident_new("BAR"));
+      
+   p = tree_stmt(a, 1);
+   fail_unless(tree_stmts(p) == 2);
+   s = tree_stmt(p, 0);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("FOO"));
+   fail_unless(type_ident(rhs) == ident_new("FOO"));
+   s = tree_stmt(p, 1);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("BAR"));
+   fail_unless(type_ident(rhs) == ident_new("BAR"));
+
+   p = tree_stmt(a, 2);
+   fail_unless(tree_stmts(p) == 3);
+   s = tree_stmt(p, 0);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("BAZ"));
+   s = tree_stmt(p, 1);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("BAZ"));
+   fail_unless(type_ident(rhs) == ident_new("BAZ"));
+   s = tree_stmt(p, 2);
+   lhs = tree_type(tree_target(s));
+   rhs = tree_type(tree_value(s));
+   fail_unless(type_ident(lhs) == ident_new("FOO"));
+   fail_unless(type_ident(rhs) == ident_new("FOO"));   
+   
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST    
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -212,6 +287,7 @@ int main(void)
    tcase_add_test(tc_core, test_integer);
    tcase_add_test(tc_core, test_ports);
    tcase_add_test(tc_core, test_scope);
+   tcase_add_test(tc_core, test_ambiguous);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

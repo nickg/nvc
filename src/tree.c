@@ -62,13 +62,13 @@ struct tree {
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL)    \
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
-    || IS(t, T_QUALIFIED))
+    || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
-    || IS(t, T_TYPE_DECL) || IS_EXPR(t))
+    || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
@@ -454,7 +454,7 @@ void tree_set_ref(tree_t t, tree_t decl)
 {
    assert(t != NULL);
    assert(IS(t, T_REF));
-   assert(IS_DECL(decl));
+   assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT));
 
    t->ref = decl;
 }

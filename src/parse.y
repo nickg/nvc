@@ -150,7 +150,7 @@
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
-%type <l> subtype_decl package_decl_part package_decl_item
+%type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -711,13 +711,36 @@ integer_type_def
 ;
 
 enum_type_def
-: tLPAREN id_list tRPAREN
+: tLPAREN enum_lit_list tRPAREN
   {
      $$ = type_new(T_ENUM);
 
-     for (id_list_t *it = $2; it != NULL; it = it->next)
-        type_enum_add_literal($$, it->id);
-     id_list_free($2);
+     for (tree_list_t *it = $2; it != NULL; it = it->next) {
+        tree_set_type(it->value, $$);
+        type_enum_add_literal($$, it->value);
+     }
+     tree_list_free($2);
+  }
+;
+
+enum_lit_list
+: id
+  {
+     tree_t t = tree_new(T_ENUM_LIT);
+     tree_set_ident(t, $1);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+| id tCOMMA enum_lit_list
+  {
+     tree_t t = tree_new(T_ENUM_LIT);
+     tree_set_ident(t, $1);
+     tree_set_loc(t, &@1);
+
+     $$ = $3;
+     tree_list_prepend(&$$, t);
   }
 ;
 
