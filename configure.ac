@@ -26,10 +26,11 @@ AC_FUNC_ALLOCA
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
-                memset strchr])
+                memset strchr strrchr strstr])
 
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
 AC_CONFIG_HEADERS([config.h])
-AC_OUTPUT([Makefile src/Makefile test/Makefile])
+AC_OUTPUT([Makefile src/Makefile test/Makefile lib/Makefile \
+           lib/std/Makefile])
