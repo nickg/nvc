@@ -28,12 +28,15 @@ struct context {
    struct context *next;
 };
 
-// TODO: replace with B-tree sorted by ident
-#define MAX_VARS 256
-struct scope {
-   tree_t         decls[MAX_VARS];
-   unsigned       n_decls;
+struct btree {
+   tree_t       tree;
+   struct btree *left;
+   struct btree *right;
+};
 
+struct scope {
+   struct btree   *decls;
+   
    // For design unit scopes
    ident_t        prefix;
    struct context *context;
@@ -82,12 +85,21 @@ static void _sem_error(tree_t t, const char *fmt, ...)
 static void scope_push(ident_t prefix)
 {
    struct scope *s = xmalloc(sizeof(struct scope));
-   s->n_decls = 0;
+   s->decls   = NULL;
    s->prefix  = prefix;
    s->context = NULL;
    s->down    = top_scope;
    
    top_scope = s;
+}
+
+static void scope_btree_free(struct btree *b)
+{
+   if (b != NULL) {
+      scope_btree_free(b->left);
+      scope_btree_free(b->right);
+      free(b);
+   }
 }
 
 static void scope_pop(void)
@@ -100,6 +112,8 @@ static void scope_pop(void)
       free(it);
       it = next;
    }
+
+   scope_btree_free(top_scope->decls);
    
    struct scope *s = top_scope;
    top_scope = s->down;
@@ -129,15 +143,16 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
    if (s == NULL)
       return NULL;
    else {
-      for (unsigned n = 0; n < s->n_decls; n++) {
-         tree_t d = s->decls[n];
-         ident_t this = tree_ident(d);
+      struct btree *search = s->decls;
+
+      while (search != NULL) {
+         ident_t this = tree_ident(search->tree);
 
          if (this == i
              || (s->prefix != NULL
                  && this == ident_prefix(s->prefix, i))) {
             if (k == 0)
-               return d;
+               return search->tree;
             else
                --k;
          }
@@ -146,12 +161,15 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
             for (it = s->context; it != NULL; it = it->next) {
                if (this == ident_prefix(it->prefix, i)) {
                   if (k == 0)
-                     return d;
+                     return search->tree;
                   else
                      --k;
                }
             }
          }
+         
+         bool left = ident_char(i, 0) < ident_char(this, 0);
+         search = (left ? search->left : search->right);
       }
 
       return (recur ? scope_find_in(i, s->down, true, k) : NULL);
@@ -173,17 +191,44 @@ static bool can_overload(tree_t t)
    return tree_kind(t) == T_ENUM_LIT;
 }
 
+static struct btree *scope_btree_new(tree_t t)
+{
+   struct btree *b = xmalloc(sizeof(struct btree));
+   b->tree  = t;
+   b->left  = NULL;
+   b->right = NULL;
+
+   return b;   
+}
+
+static void scope_insert_at(tree_t t, struct btree *where)
+{
+   char ord_t = ident_char(tree_ident(t), 0);
+   char ord_w = ident_char(tree_ident(where->tree), 0);
+   
+   bool left = ord_t < ord_w;
+
+   struct btree **nextp = (left ? &where->left : &where->right);
+   
+   if (*nextp == NULL)
+      *nextp = scope_btree_new(t);
+   else
+      scope_insert_at(t, *nextp);
+}
+
 static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
-   assert(top_scope->n_decls < MAX_VARS);
-
+ 
    if (!can_overload(t)
        && scope_find_in(tree_ident(t), top_scope, false, 0))
       sem_error(t, "%s already declared in this scope",
                 istr(tree_ident(t)));   
 
-   top_scope->decls[top_scope->n_decls++] = t;
+   if (top_scope->decls == NULL)
+      top_scope->decls = scope_btree_new(t);
+   else
+      scope_insert_at(t, top_scope->decls);
    return true;
 }
 

@@ -130,6 +130,17 @@ START_TEST(test_strip)
 }
 END_TEST
 
+START_TEST(test_char)
+{
+   ident_t i;
+
+   i = ident_new("foobar");
+   fail_unless(ident_char(i, 0) == 'r');
+   fail_unless(ident_char(i, 5) == 'f');
+   fail_unless(ident_char(i, 3) == 'o');   
+}
+END_TEST     
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -144,6 +155,7 @@ int main(void)
    tcase_add_test(tc_core, test_read_write);
    tcase_add_test(tc_core, test_prefix);
    tcase_add_test(tc_core, test_strip);
+   tcase_add_test(tc_core, test_char);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

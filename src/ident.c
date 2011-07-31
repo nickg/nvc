@@ -198,3 +198,13 @@ ident_t ident_strip(ident_t a, ident_t b)
 
    return (b->value == '\0' ? a : NULL);
 }
+
+char ident_char(ident_t i, unsigned n)
+{
+   assert(i != NULL);
+
+   if (n == 0)
+      return i->value;
+   else
+      return ident_char(i->up, n - 1);
+}
