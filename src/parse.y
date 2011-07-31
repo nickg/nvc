@@ -208,6 +208,7 @@ library_clause
 : tLIBRARY id_list tSEMI
   {
      // TODO: foreach(id_list) { load_library(..); }
+     id_list_free($2);
   }
 ;
 
