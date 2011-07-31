@@ -101,21 +101,21 @@ const char *istr(ident_t ident)
    static size_t buflen[ISTR_MAX_BUFS];
    static int    next_buf = 0;   
 
-   char *buf = buf_set[next_buf];
+   char **bufp = &buf_set[next_buf];
    size_t *blenp = &buflen[next_buf];
    next_buf = (next_buf + 1) % ISTR_MAX_BUFS;
 
-   if (buf == NULL) {
-      buf = xmalloc(ident->depth);
+   if (*bufp == NULL) {
+      *bufp = xmalloc(ident->depth);
       *blenp = ident->depth;
    }
    
    while (ident->depth > *blenp) {
       *blenp *= 2;
-      buf = xrealloc(buf, *blenp);
+      *bufp = xrealloc(*bufp, *blenp);
    }
 
-   char *p = buf + ident->depth - 1;
+   char *p = *bufp + ident->depth - 1;
    *p = '\0';
 
    struct trie *it;
@@ -123,9 +123,9 @@ const char *istr(ident_t ident)
       assert(it != NULL);
       *(--p) = it->value;
    }
-   assert(p == buf);
+   assert(p == *bufp);
 
-   return buf;
+   return *bufp;
 }
 
 void ident_write(ident_t ident, FILE *f)
