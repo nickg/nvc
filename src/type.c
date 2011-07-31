@@ -7,7 +7,6 @@
 
 #define MAX_DIMS     4
 #define MAX_UNITS    16
-#define MAX_LITERALS 16
 
 struct type {
    type_kind_t kind;
@@ -19,6 +18,7 @@ struct type {
    unsigned    n_units;
    tree_t      *literals;
    unsigned    n_literals;
+   size_t      lit_alloc;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -36,6 +36,7 @@ type_t type_new(type_kind_t kind)
    t->n_units    = 0;
    t->literals   = NULL;
    t->n_literals = 0;
+   t->lit_alloc  = 0;
    
    return t;
 }
@@ -233,11 +234,16 @@ void type_enum_add_literal(type_t t, tree_t lit)
 {
    assert(t != NULL);
    assert(IS(t, T_ENUM));
-   assert(t->n_literals < MAX_LITERALS);
    assert(tree_kind(lit) == T_ENUM_LIT);
 
-   if (t->n_literals == 0)
-      t->literals = xmalloc(MAX_LITERALS * sizeof(tree_t));
+   if (t->n_literals == 0) {
+      t->lit_alloc = 16;
+      t->literals = xmalloc(t->lit_alloc * sizeof(tree_t));
+   }
+   else if (t->n_literals == t->lit_alloc) {
+      t->lit_alloc *= 2;
+      t->literals = xrealloc(t->literals, t->lit_alloc * sizeof(tree_t));
+   }
 
    t->literals[t->n_literals++] = lit;
 }

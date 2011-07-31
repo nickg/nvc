@@ -29,7 +29,7 @@ struct context {
 };
 
 // TODO: replace with B-tree sorted by ident
-#define MAX_VARS 16
+#define MAX_VARS 256
 struct scope {
    tree_t         decls[MAX_VARS];
    unsigned       n_decls;
