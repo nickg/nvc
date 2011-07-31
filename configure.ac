@@ -31,6 +31,8 @@ AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
+#AX_LLVM([])
+
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile test/Makefile lib/Makefile \
            lib/std/Makefile])
