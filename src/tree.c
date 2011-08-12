@@ -47,6 +47,10 @@ struct tree {
    tree_t            ref;
    ident_t           *context;
    unsigned          n_contexts;
+
+   // Serialisation bookkeeping
+   unsigned          generation;
+   unsigned          index;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -80,6 +84,9 @@ struct tree {
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 
 #define TREE_ARRAY_BASE_SZ  16
+
+static void tree_number(tree_t t, unsigned *n_tree,
+                        unsigned *n_type, unsigned generation);
 
 static void tree_array_init(struct tree_array *a)
 {
@@ -121,6 +128,8 @@ tree_t tree_new(tree_kind_t kind)
    t->ref        = NULL;
    t->context    = NULL;
    t->n_contexts = 0;
+   t->generation = 0;
+   t->index      = 0;
    
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -486,4 +495,152 @@ void tree_add_context(tree_t t, ident_t ctx)
       t->context = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
 
    t->context[t->n_contexts++] = ctx;
+}
+
+static void write_loc(loc_t *l, FILE *f)
+{
+   write_s(l->first_line, f);
+   write_s(l->first_column, f);
+   write_s(l->last_line, f);
+   write_s(l->last_column, f);
+}
+
+static loc_t read_loc(FILE *f)
+{
+   loc_t l = { .file = "none", .linebuf = NULL };
+   l.first_line   = read_s(f);
+   l.first_column = read_s(f);
+   l.last_line    = read_s(f);
+   l.last_column  = read_s(f);
+   return l;
+}
+
+static void write_a(struct tree_array *a, FILE *f)
+{
+   write_u(a->count, f);
+   for (unsigned i = 0; i < a->count; i++)
+      tree_write(a->items[i], f);
+}
+
+static void read_a(struct tree_array *a, FILE *f)
+{
+   a->count = a->max = read_u(f);
+   a->items = xmalloc(a->count * sizeof(tree_t));
+   for (unsigned i = 0; i < a->count; i++)
+      a->items[i] = tree_read(f);
+}
+
+static void array_number(struct tree_array *a, unsigned *n_tree,
+                         unsigned *n_type, unsigned generation)
+{
+   for (unsigned n = 0; n < a->count; n++)
+      tree_number(a->items[n], n_tree, n_type, generation);
+}
+
+static void tree_number(tree_t t, unsigned *n_tree, unsigned *n_type,
+                        unsigned generation)
+{
+   if (t == NULL)
+      return;
+   
+   if (t->generation == generation) {
+      printf("already visited %p\n", t);
+      return;    // Already visited this tree
+   }
+
+   t->generation = generation;
+   t->index      = (*n_tree)++;
+
+   if (HAS_PORTS(t))
+      array_number(&t->ports, n_tree, n_type, generation);
+   if (HAS_GENERICS(t))
+      array_number(&t->generics, n_tree, n_type, generation);
+   if (HAS_PARAMS(t))
+      array_number(&t->params, n_tree, n_type, generation);
+   if (HAS_DECLS(t))
+      array_number(&t->decls, n_tree, n_type, generation);
+   if (HAS_STMTS(t))
+      array_number(&t->stmts, n_tree, n_type, generation);
+   if (HAS_VALUE(t))
+      tree_number(t->value, n_tree, n_type, generation);
+   if (HAS_DELAY(t))
+      tree_number(t->delay, n_tree, n_type, generation);
+   if (HAS_TARGET(t))
+      tree_number(t->target, n_tree, n_type, generation);
+   if (IS(t, T_REF))
+      tree_number(t->ref, n_tree, n_type, generation);
+}
+
+void tree_write(tree_t t, FILE *f)
+{
+   static unsigned next_generation = 1;
+   unsigned n_trees = 0;
+   unsigned n_types = 0;
+   tree_number(t, &n_trees, &n_types, next_generation++);
+
+   printf("%d trees\n", n_trees);
+   
+#if 0
+   assert(t != NULL);
+
+   write_s(t->kind, f);
+   write_loc(&t->loc, f);
+   if (HAS_IDENT(t))
+      ident_write(t->ident, f);
+   if (HAS_IDENT2(t))
+      ident_write(t->ident2, f);
+   if (HAS_PORTS(t))
+      write_a(&t->ports, f);
+   if (HAS_GENERICS(t))
+      write_a(&t->generics, f);
+   if (HAS_PARAMS(t))
+      write_a(&t->params, f);
+   if (HAS_DECLS(t))
+      write_a(&t->decls, f);
+   if (HAS_STMTS(t))
+      write_a(&t->stmts, f);
+   if (IS(t, T_PORT_DECL))
+      write_s(t->port_mode, f);
+   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
+      type_write(t->type, f);
+   if (IS(t, T_LITERAL))
+      fwrite(&t->literal, sizeof(literal_t), 1, f);
+   if (HAS_VALUE(t) && t->value != NULL)
+      tree_write(t->value, f);
+   if (HAS_DELAY(t))
+      tree_write(t->delay, f);
+   if (HAS_TARGET(t))
+      tree_write(t->target, f);
+   if (IS(t, T_REF))
+      tree_write(t->ref, f);
+   if (HAS_CONTEXT(t)) {
+      write_s(t->n_contexts, f);
+      for (unsigned i = 0; i < t->n_contexts; i++)
+         ident_write(t->context[i], f);
+   }
+#endif
+}
+
+tree_t tree_read(FILE *f)
+{
+   tree_t t = tree_new(read_s(f));
+   t->loc = read_loc(f);
+   if (HAS_IDENT(t))
+      tree_set_ident(t, ident_read(f));
+   if (HAS_IDENT2(t))
+      tree_set_ident2(t, ident_read(f));
+   if (HAS_PORTS(t))
+      read_a(&t->ports, f);
+   if (HAS_GENERICS(t))
+      read_a(&t->generics, f);
+   if (HAS_PARAMS(t))
+      read_a(&t->params, f);
+   if (HAS_DECLS(t))
+      read_a(&t->decls, f);
+   if (HAS_STMTS(t))
+      read_a(&t->stmts, f);
+   if (IS(t, T_PORT_DECL))
+      t->port_mode = read_s(f);
+   
+   return t;
 }

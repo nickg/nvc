@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #define IDENT_MAX_LEN (1 << 16)
 
@@ -132,14 +133,15 @@ void ident_write(ident_t ident, FILE *f)
 {
    assert(ident != NULL);
 
-   fwrite(&ident->depth, sizeof(unsigned), 1, f);
+   uint16_t len = ident->depth;
+   fwrite(&len, sizeof(uint16_t), 1, f);
    fwrite(istr(ident), ident->depth, 1, f);
 }
 
 ident_t ident_read(FILE *f)
 {
    unsigned len;
-   if (fread(&len, sizeof(unsigned), 1, f) != 1)
+   if (fread(&len, sizeof(uint16_t), 1, f) != 1)
       fatal("failed to read identifier length from file");
 
    if (len > IDENT_MAX_LEN)

@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <execinfo.h>
 #include <signal.h>
+#include <stdint.h>
 
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported 
@@ -193,4 +194,45 @@ void register_trace_signal_handlers(void)
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
 #endif  // NO_STACK_TRACE
+}
+
+void write_u(unsigned u, FILE *f)
+{
+   fwrite(&u, sizeof(unsigned), 1, f);
+}
+
+void write_s(unsigned short s, FILE *f)
+{
+   fwrite(&s, sizeof(unsigned short), 1, f);
+}
+
+bool write_b(bool b, FILE *f)
+{
+   uint8_t c = b;
+   fwrite(&c, 1, 1, f);
+   return b;
+}
+
+unsigned read_u(FILE *f)
+{
+   unsigned u;
+   if (fread(&u, sizeof(unsigned), 1, f) != 1)
+      fatal("premature end of file");
+   return u;
+}
+
+unsigned short read_s(FILE *f)
+{
+   unsigned short u;
+   if (fread(&u, sizeof(unsigned short), 1, f) != 1)
+      fatal("premature end of file");
+   return u;
+}
+
+bool read_b(FILE *f)
+{
+   uint8_t u;
+   if (fread(&u, sizeof(uint8_t), 1, f) != 1)
+      fatal("premature end of file");
+   return u;
 }

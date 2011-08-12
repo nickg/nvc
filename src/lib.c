@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -23,7 +24,7 @@ struct lib {
 
 static lib_t work = NULL;
 
-static lib_t lib_init(const char *rpath)
+static lib_t lib_init(const char *rpath, bool scan)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
@@ -37,6 +38,26 @@ static lib_t lib_init(const char *rpath)
    free(name_up);
    
    realpath(rpath, l->path);
+
+   // TODO: we probably want to lazy-load units
+   if (scan) {
+      DIR *d = opendir(l->path);
+      if (d == NULL)
+         fatal("%s: %s", l->path, strerror(errno));
+      
+      struct dirent *e;
+      while ((e = readdir(d))) {
+         if (e->d_name[0] != '.' && e->d_name[0] != '_') {
+            printf("loading unit from %s\n", e->d_name);
+            
+            FILE *f = lib_fopen(l, e->d_name, "r");
+            lib_put(l, tree_read(f));
+            fclose(f);
+         }
+      }
+      
+      closedir(d);
+   }
 
    return l;
 }
@@ -53,7 +74,7 @@ lib_t lib_new(const char *name)
       return NULL;
    }
 
-   lib_t l = lib_init(name);
+   lib_t l = lib_init(name, false);
 
    FILE *tag = lib_fopen(l, "_NHDL_LIB", "w");
    fprintf(tag, "%s\n", PACKAGE_STRING);
@@ -65,7 +86,7 @@ lib_t lib_new(const char *name)
 lib_t lib_tmp(void)
 {
    // For unit tests, avoids creating files
-   return lib_init("work");
+   return lib_init("work", false);
 }
 
 lib_t lib_find(const char *name)
@@ -78,7 +99,7 @@ lib_t lib_find(const char *name)
    if (access(buf, F_OK) < 0)
       return NULL;
 
-   return lib_init(name);
+   return lib_init(name, true);
 }
 
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
@@ -165,4 +186,15 @@ ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);
    return lib->name;
+}
+
+void lib_save(lib_t lib)
+{
+   assert(lib != NULL);
+
+   for (unsigned n = 0; n < lib->n_units; n++) {
+      FILE *f = lib_fopen(lib, istr(tree_ident(lib->units[n])), "w");
+      tree_write(lib->units[n], f);
+      fclose(f);
+   }
 }

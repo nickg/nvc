@@ -52,7 +52,8 @@ static int analyse(int argc, char **argv)
 
    if (parse_errors() > 0 || sem_errors() > 0)
       return EXIT_FAILURE;
-   
+
+   lib_save(lib_work());   
    return EXIT_SUCCESS;
 }
 

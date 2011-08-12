@@ -15,6 +15,7 @@ void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
 void lib_destroy(lib_t lib);
 struct trie *lib_name(lib_t lib);
+void lib_save(lib_t lib);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);

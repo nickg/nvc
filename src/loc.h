@@ -19,12 +19,12 @@
 #define _LOC_H
 
 typedef struct loc {
-   int        first_line;
-   int        first_column;
-   int        last_line;
-   int        last_column;
-   const char *file;
-   const char *linebuf;
+   unsigned short first_line;
+   unsigned short first_column;
+   unsigned short last_line;
+   unsigned short last_column;
+   const char     *file;
+   const char     *linebuf;
 } loc_t;
 
 static const loc_t LOC_INVALID = { -1, -1, -1, -1, NULL, NULL };

@@ -120,8 +120,7 @@ unsigned tree_contexts(tree_t t);
 ident_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, ident_t ctx);
 
-void tree_freeze(void);
-void tree_store(lib_t lib, tree_t tree);
-tree_t tree_load(lib_t lib, ident_t ident);
+void tree_write(tree_t t, FILE *f);
+tree_t tree_read(FILE *f);
 
 #endif  // _TREE_H

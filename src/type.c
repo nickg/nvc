@@ -248,3 +248,30 @@ void type_enum_add_literal(type_t t, tree_t lit)
    t->literals[t->n_literals++] = lit;
 }
 
+void type_write(type_t t, FILE *f)
+{
+   assert(t != NULL);
+
+   write_s(t->kind, f);
+   ident_write(t->ident, f);
+   if (HAS_DIMS(t)) {
+      write_s(t->n_dims, f);
+      fwrite(t->dims, sizeof(range_t), t->n_dims, f);
+   }
+   if (write_b(t->base != NULL, f))
+      type_write(t->base, f);
+   if (IS(t, T_PHYSICAL)) {
+      write_s(t->n_units, f);
+      fwrite(t->units, sizeof(unit_t), t->n_units, f);
+   }
+   if (IS(t, T_ENUM)) {
+      write_s(t->n_literals, f);
+      for (unsigned i = 0; i < t->n_literals; i++)
+         tree_write(t->literals[i], f);
+   }
+}
+
+type_t type_read(FILE *f)
+{
+   return NULL;
+}

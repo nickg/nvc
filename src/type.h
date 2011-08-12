@@ -76,6 +76,9 @@ unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
 
+void type_write(type_t t, FILE *f);
+type_t type_read(FILE *f);
+
 // Predefined types
 type_t type_universal_int(void);
 
