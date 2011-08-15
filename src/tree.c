@@ -19,6 +19,7 @@
 #include "util.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 #define MAX_CONTEXTS 16
 
@@ -53,6 +54,16 @@ struct tree {
    unsigned          index;
 };
 
+struct tree_wr_ctx {
+   FILE     *file;
+   unsigned generation;
+   unsigned n_trees;
+};
+
+struct tree_rd_ctx {
+   FILE *file;
+};
+
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
@@ -84,9 +95,6 @@ struct tree {
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 
 #define TREE_ARRAY_BASE_SZ  16
-
-static void tree_number(tree_t t, unsigned *n_tree,
-                        unsigned *n_type, unsigned generation);
 
 static void tree_array_init(struct tree_array *a)
 {
@@ -497,88 +505,94 @@ void tree_add_context(tree_t t, ident_t ctx)
    t->context[t->n_contexts++] = ctx;
 }
 
-static void write_loc(loc_t *l, FILE *f)
+static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
-   write_s(l->first_line, f);
-   write_s(l->first_column, f);
-   write_s(l->last_line, f);
-   write_s(l->last_column, f);
+   write_s(l->first_line, ctx->file);
+   write_s(l->first_column, ctx->file);
+   write_s(l->last_line, ctx->file);
+   write_s(l->last_column, ctx->file);
 }
 
-static loc_t read_loc(FILE *f)
+static loc_t read_loc(tree_rd_ctx_t ctx)
 {
    loc_t l = { .file = "none", .linebuf = NULL };
-   l.first_line   = read_s(f);
-   l.first_column = read_s(f);
-   l.last_line    = read_s(f);
-   l.last_column  = read_s(f);
+   l.first_line   = read_s(ctx->file);
+   l.first_column = read_s(ctx->file);
+   l.last_line    = read_s(ctx->file);
+   l.last_column  = read_s(ctx->file);
    return l;
 }
 
-static void write_a(struct tree_array *a, FILE *f)
+static void write_a(struct tree_array *a, tree_wr_ctx_t ctx)
 {
-   write_u(a->count, f);
+   write_u(a->count, ctx->file);
    for (unsigned i = 0; i < a->count; i++)
-      tree_write(a->items[i], f);
+      tree_write(a->items[i], ctx);
 }
 
-static void read_a(struct tree_array *a, FILE *f)
+static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
 {
-   a->count = a->max = read_u(f);
+   a->count = a->max = read_u(ctx->file);
    a->items = xmalloc(a->count * sizeof(tree_t));
    for (unsigned i = 0; i < a->count; i++)
-      a->items[i] = tree_read(f);
+      a->items[i] = tree_read(ctx);
 }
 
-static void array_number(struct tree_array *a, unsigned *n_tree,
-                         unsigned *n_type, unsigned generation)
+tree_wr_ctx_t tree_write_begin(FILE *f)
 {
-   for (unsigned n = 0; n < a->count; n++)
-      tree_number(a->items[n], n_tree, n_type, generation);
+   static unsigned next_generation = 1;
+
+   struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
+   ctx->file       = f;
+   ctx->generation = next_generation++;
+   ctx->n_trees    = 0;
+   
+   return ctx;
 }
 
-static void tree_number(tree_t t, unsigned *n_tree, unsigned *n_type,
-                        unsigned generation)
+void tree_write_end(tree_wr_ctx_t ctx)
+{
+   printf("%d trees\n", ctx->n_trees);
+   free(ctx);
+}
+
+FILE *tree_write_file(tree_wr_ctx_t ctx)
+{
+   return ctx->file;
+}
+
+void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
    if (t == NULL)
       return;
    
-   if (t->generation == generation) {
+   if (t->generation == ctx->generation) {
       printf("already visited %p\n", t);
       return;    // Already visited this tree
    }
 
-   t->generation = generation;
-   t->index      = (*n_tree)++;
+   t->generation = ctx->generation;
+   t->index      = (ctx->n_trees)++;
 
+   write_loc(&t->loc, ctx);
    if (HAS_PORTS(t))
-      array_number(&t->ports, n_tree, n_type, generation);
+      write_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
-      array_number(&t->generics, n_tree, n_type, generation);
+      write_a(&t->generics, ctx);
    if (HAS_PARAMS(t))
-      array_number(&t->params, n_tree, n_type, generation);
+      write_a(&t->params, ctx);
    if (HAS_DECLS(t))
-      array_number(&t->decls, n_tree, n_type, generation);
+      write_a(&t->decls, ctx);
    if (HAS_STMTS(t))
-      array_number(&t->stmts, n_tree, n_type, generation);
+      write_a(&t->stmts, ctx);
    if (HAS_VALUE(t))
-      tree_number(t->value, n_tree, n_type, generation);
+      tree_write(t->value, ctx);
    if (HAS_DELAY(t))
-      tree_number(t->delay, n_tree, n_type, generation);
+      tree_write(t->delay, ctx);
    if (HAS_TARGET(t))
-      tree_number(t->target, n_tree, n_type, generation);
+      tree_write(t->target, ctx);
    if (IS(t, T_REF))
-      tree_number(t->ref, n_tree, n_type, generation);
-}
-
-void tree_write(tree_t t, FILE *f)
-{
-   static unsigned next_generation = 1;
-   unsigned n_trees = 0;
-   unsigned n_types = 0;
-   tree_number(t, &n_trees, &n_types, next_generation++);
-
-   printf("%d trees\n", n_trees);
+      tree_write(t->ref, ctx);
    
 #if 0
    assert(t != NULL);
@@ -621,26 +635,44 @@ void tree_write(tree_t t, FILE *f)
 #endif
 }
 
-tree_t tree_read(FILE *f)
+tree_t tree_read(tree_rd_ctx_t ctx)
 {
-   tree_t t = tree_new(read_s(f));
-   t->loc = read_loc(f);
+   tree_t t = tree_new(read_s(ctx->file));
+   t->loc = read_loc(ctx);
    if (HAS_IDENT(t))
-      tree_set_ident(t, ident_read(f));
+      tree_set_ident(t, ident_read(ctx->file));
    if (HAS_IDENT2(t))
-      tree_set_ident2(t, ident_read(f));
+      tree_set_ident2(t, ident_read(ctx->file));
    if (HAS_PORTS(t))
-      read_a(&t->ports, f);
+      read_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
-      read_a(&t->generics, f);
+      read_a(&t->generics, ctx);
    if (HAS_PARAMS(t))
-      read_a(&t->params, f);
+      read_a(&t->params, ctx);
    if (HAS_DECLS(t))
-      read_a(&t->decls, f);
+      read_a(&t->decls, ctx);
    if (HAS_STMTS(t))
-      read_a(&t->stmts, f);
+      read_a(&t->stmts, ctx);
    if (IS(t, T_PORT_DECL))
-      t->port_mode = read_s(f);
+      t->port_mode = read_s(ctx->file);
    
    return t;
+}
+
+tree_rd_ctx_t tree_read_begin(FILE *f)
+{
+   struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
+   ctx->file = f;
+   
+   return ctx;
+}
+
+void tree_read_end(tree_rd_ctx_t ctx)
+{
+   free(ctx);
+}
+
+FILE *tree_read_file(tree_rd_ctx_t ctx)
+{
+   return ctx->file;
 }

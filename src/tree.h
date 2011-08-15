@@ -43,6 +43,9 @@ typedef struct literal {
 
 typedef struct tree *tree_t;
 
+typedef struct tree_wr_ctx *tree_wr_ctx_t;
+typedef struct tree_rd_ctx *tree_rd_ctx_t;
+
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 
@@ -120,7 +123,14 @@ unsigned tree_contexts(tree_t t);
 ident_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, ident_t ctx);
 
-void tree_write(tree_t t, FILE *f);
-tree_t tree_read(FILE *f);
+tree_wr_ctx_t tree_write_begin(FILE *f);
+void tree_write(tree_t t, tree_wr_ctx_t ctx);
+void tree_write_end(tree_wr_ctx_t ctx);
+FILE *tree_write_file(tree_wr_ctx_t ctx);
+
+tree_rd_ctx_t tree_read_begin(FILE *f);
+tree_t tree_read(tree_rd_ctx_t ctx);
+void tree_read_end(tree_rd_ctx_t ctx);
+FILE *tree_read_file(tree_rd_ctx_t ctx);
 
 #endif  // _TREE_H

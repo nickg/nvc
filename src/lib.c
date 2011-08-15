@@ -51,7 +51,9 @@ static lib_t lib_init(const char *rpath, bool scan)
             printf("loading unit from %s\n", e->d_name);
             
             FILE *f = lib_fopen(l, e->d_name, "r");
-            lib_put(l, tree_read(f));
+            tree_rd_ctx_t ctx = tree_read_begin(f);
+            lib_put(l, tree_read(ctx));
+            tree_read_end(ctx);
             fclose(f);
          }
       }
@@ -194,7 +196,9 @@ void lib_save(lib_t lib)
 
    for (unsigned n = 0; n < lib->n_units; n++) {
       FILE *f = lib_fopen(lib, istr(tree_ident(lib->units[n])), "w");
-      tree_write(lib->units[n], f);
+      tree_wr_ctx_t ctx = tree_write_begin(f);
+      tree_write(lib->units[n], ctx);
+      tree_write_end(ctx);
       fclose(f);
    }
 }

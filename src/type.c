@@ -168,11 +168,11 @@ type_t type_universal_int(void)
       type_set_ident(t, ident_new("universal integer"));
 
       tree_t left = tree_new(T_LITERAL);
-      literal_t l_min = { .kind = L_INT, .i = INT_MIN };
+      literal_t l_min = { { .i = INT_MIN }, .kind = L_INT };
       tree_set_literal(left, l_min);
 
       tree_t right = tree_new(T_LITERAL);      
-      literal_t l_max = { .kind = L_INT, .i = INT_MAX };
+      literal_t l_max = { { .i = INT_MAX }, .kind = L_INT };
       tree_set_literal(right, l_max);
       
       range_t r = { .kind  = RANGE_TO,
@@ -248,10 +248,11 @@ void type_enum_add_literal(type_t t, tree_t lit)
    t->literals[t->n_literals++] = lit;
 }
 
-void type_write(type_t t, FILE *f)
+void type_write(type_t t, tree_wr_ctx_t ctx)
 {
    assert(t != NULL);
 
+   FILE *f = tree_write_file(ctx);
    write_s(t->kind, f);
    ident_write(t->ident, f);
    if (HAS_DIMS(t)) {
@@ -259,7 +260,7 @@ void type_write(type_t t, FILE *f)
       fwrite(t->dims, sizeof(range_t), t->n_dims, f);
    }
    if (write_b(t->base != NULL, f))
-      type_write(t->base, f);
+      type_write(t->base, ctx);
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
       fwrite(t->units, sizeof(unit_t), t->n_units, f);
@@ -267,11 +268,11 @@ void type_write(type_t t, FILE *f)
    if (IS(t, T_ENUM)) {
       write_s(t->n_literals, f);
       for (unsigned i = 0; i < t->n_literals; i++)
-         tree_write(t->literals[i], f);
+         tree_write(t->literals[i], ctx);
    }
 }
 
-type_t type_read(FILE *f)
+type_t type_read(tree_rd_ctx_t ctx)
 {
    return NULL;
 }

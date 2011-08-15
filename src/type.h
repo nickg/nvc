@@ -76,8 +76,11 @@ unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
 
-void type_write(type_t t, FILE *f);
-type_t type_read(FILE *f);
+struct tree_wr_ctx;
+struct tree_rd_ctx;
+
+void type_write(type_t t, struct tree_wr_ctx *ctx);
+type_t type_read(struct tree_rd_ctx *ctx);
 
 // Predefined types
 type_t type_universal_int(void);
