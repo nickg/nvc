@@ -19,6 +19,8 @@
 
 
 %option noyywrap
+%option nounput
+%option noinput
 
 %{
 #include "parse.h"

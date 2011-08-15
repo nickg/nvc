@@ -750,7 +750,7 @@ physical_type_def
   tUNITS opt_id
   {
      $3.multiplier = tree_new(T_LITERAL);
-     literal_t l = { .i = 1, .kind = L_INT };
+     literal_t l = { { .i = 1 }, .kind = L_INT };
      tree_set_literal($3.multiplier, l);     
      
      $$ = type_new(T_PHYSICAL);
@@ -866,7 +866,7 @@ abstract_literal
 : tINT
   {
      $$ = tree_new(T_LITERAL);
-     literal_t l = { .i = lvals.ival, .kind = L_INT };
+     literal_t l = { { .i = lvals.ival }, .kind = L_INT };
      tree_set_literal($$, l);
   }
 /* | tFLOAT */
