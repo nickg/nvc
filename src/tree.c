@@ -574,7 +574,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    t->generation = ctx->generation;
    t->index      = (ctx->n_trees)++;
 
+   write_s(t->kind, ctx->file);
    write_loc(&t->loc, ctx);
+   if (HAS_IDENT(t))
+      ident_write(t->ident, ctx->file);
+   if (HAS_IDENT2(t))
+      ident_write(t->ident2, ctx->file);
    if (HAS_PORTS(t))
       write_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
@@ -585,6 +590,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->decls, ctx);
    if (HAS_STMTS(t))
       write_a(&t->stmts, ctx);
+   if (IS(t, T_PORT_DECL))
+      write_s(t->port_mode, ctx->file);
+   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
+      type_write(t->type, ctx);
    if (HAS_VALUE(t))
       tree_write(t->value, ctx);
    if (HAS_DELAY(t))
@@ -593,46 +602,11 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->target, ctx);
    if (IS(t, T_REF))
       tree_write(t->ref, ctx);
-   
-#if 0
-   assert(t != NULL);
-
-   write_s(t->kind, f);
-   write_loc(&t->loc, f);
-   if (HAS_IDENT(t))
-      ident_write(t->ident, f);
-   if (HAS_IDENT2(t))
-      ident_write(t->ident2, f);
-   if (HAS_PORTS(t))
-      write_a(&t->ports, f);
-   if (HAS_GENERICS(t))
-      write_a(&t->generics, f);
-   if (HAS_PARAMS(t))
-      write_a(&t->params, f);
-   if (HAS_DECLS(t))
-      write_a(&t->decls, f);
-   if (HAS_STMTS(t))
-      write_a(&t->stmts, f);
-   if (IS(t, T_PORT_DECL))
-      write_s(t->port_mode, f);
-   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
-      type_write(t->type, f);
-   if (IS(t, T_LITERAL))
-      fwrite(&t->literal, sizeof(literal_t), 1, f);
-   if (HAS_VALUE(t) && t->value != NULL)
-      tree_write(t->value, f);
-   if (HAS_DELAY(t))
-      tree_write(t->delay, f);
-   if (HAS_TARGET(t))
-      tree_write(t->target, f);
-   if (IS(t, T_REF))
-      tree_write(t->ref, f);
    if (HAS_CONTEXT(t)) {
-      write_s(t->n_contexts, f);
+      write_s(t->n_contexts, ctx->file);
       for (unsigned i = 0; i < t->n_contexts; i++)
-         ident_write(t->context[i], f);
+         ident_write(t->context[i], ctx->file);
    }
-#endif
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
