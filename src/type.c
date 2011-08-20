@@ -250,20 +250,31 @@ void type_enum_add_literal(type_t t, tree_t lit)
 
 void type_write(type_t t, tree_wr_ctx_t ctx)
 {
-   assert(t != NULL);
-
    FILE *f = tree_write_file(ctx);
+   
+   if (t == NULL) {
+      write_s(0xffff, f);   // Null marker
+      return;
+   }
+
    write_s(t->kind, f);
    ident_write(t->ident, f);
    if (HAS_DIMS(t)) {
       write_s(t->n_dims, f);
-      fwrite(t->dims, sizeof(range_t), t->n_dims, f);
+      for (unsigned i = 0; i < t->n_dims; i++) {
+         write_s(t->dims[i].kind, f);
+         tree_write(t->dims[i].left, ctx);
+         tree_write(t->dims[i].right, ctx);
+      }
    }
    if (write_b(t->base != NULL, f))
       type_write(t->base, ctx);
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
-      fwrite(t->units, sizeof(unit_t), t->n_units, f);
+      for (unsigned i = 0; i < t->n_units; i++) {
+         tree_write(t->units[i].multiplier, ctx);
+         ident_write(t->units[i].name, f);
+      }
    }
    if (IS(t, T_ENUM)) {
       write_s(t->n_literals, f);
@@ -274,5 +285,48 @@ void type_write(type_t t, tree_wr_ctx_t ctx)
 
 type_t type_read(tree_rd_ctx_t ctx)
 {
-   return NULL;
+   FILE *f = tree_read_file(ctx);
+
+   unsigned short marker = read_s(f);
+   if (marker == 0xffff)
+      return NULL;   // Null marker
+   
+   type_t t = type_new((type_kind_t)marker);
+   t->ident = ident_read(f);
+   if (HAS_DIMS(t)) {
+      unsigned short ndims = read_s(f);
+      assert(ndims < MAX_DIMS);
+
+      for (unsigned i = 0; i < ndims; i++) {
+         t->dims[i].kind  = read_s(f);
+         t->dims[i].left  = tree_read(ctx);
+         t->dims[i].right = tree_read(ctx);
+      }
+      t->n_dims = ndims;
+   }
+   if (read_b(f))
+      t->base = type_read(ctx);
+   if (IS(t, T_PHYSICAL)) {
+      unsigned short nunits = read_s(f);
+      assert(nunits < MAX_UNITS);
+
+      for (unsigned i = 0; i < nunits; i++) {
+         t->units[i].multiplier = tree_read(ctx);
+         t->units[i].name = ident_read(f);
+      }
+      t->n_units = nunits;
+   }
+   if (IS(t, T_ENUM)) {
+      unsigned short nlits = read_s(f);
+
+      t->literals = xmalloc(nlits * sizeof(tree_t));
+      t->lit_alloc = nlits;
+
+      for (unsigned i = 0; i < nlits; i++) {
+         t->literals[i] = tree_read(ctx);
+      }
+      t->n_literals = nlits;      
+   }
+
+   return t;
 }

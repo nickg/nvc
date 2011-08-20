@@ -55,7 +55,7 @@ START_TEST(test_lib_save)
 {
    tree_t ent = tree_new(T_ENTITY);
    tree_set_ident(ent, ident_new("name"));
-   
+
    tree_t p1 = tree_new(T_PORT_DECL);
    tree_set_ident(p1, ident_new("foo"));
    tree_set_port_mode(p1, PORT_OUT);
@@ -67,6 +67,8 @@ START_TEST(test_lib_save)
    lib_save(work);
    lib_free(work);
 
+   system("cp -r work /tmp");
+   
    work = lib_find("work");
    fail_if(work == NULL);
 
@@ -74,8 +76,6 @@ START_TEST(test_lib_save)
    fail_if(ent == NULL);
    fail_unless(tree_ident(ent) == ident_new("name"));
    fail_unless(tree_ports(ent) == 1);
-
-   system("cp -r work /tmp");
 }
 END_TEST
 

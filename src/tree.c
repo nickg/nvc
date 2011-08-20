@@ -47,10 +47,10 @@ struct tree {
    tree_t            target;
    tree_t            ref;
    ident_t           *context;
-   unsigned          n_contexts;
+   unsigned short    n_contexts;
 
    // Serialisation bookkeeping
-   unsigned          generation;
+   unsigned short    generation;
    unsigned          index;
 };
 
@@ -563,12 +563,16 @@ FILE *tree_write_file(tree_wr_ctx_t ctx)
 
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
-   if (t == NULL)
+   if (t == NULL) {
+      write_s(0xffff, ctx->file);  // Null marker
       return;
+   }
    
    if (t->generation == ctx->generation) {
+      // Already visited this tree
       printf("already visited %p\n", t);
-      return;    // Already visited this tree
+      write_s(0xfffe, ctx->file);   // Back reference marker
+      return;
    }
 
    t->generation = ctx->generation;
@@ -611,7 +615,15 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
 tree_t tree_read(tree_rd_ctx_t ctx)
 {
-   tree_t t = tree_new(read_s(ctx->file));
+   unsigned short marker = read_s(ctx->file);
+   if (marker == 0xffff)
+      return NULL;    // Null marker
+   else if (marker == 0xfffe) {
+      // Back reference marker
+      assert(false);
+   }
+   
+   tree_t t = tree_new((tree_kind_t)marker);
    t->loc = read_loc(ctx);
    if (HAS_IDENT(t))
       tree_set_ident(t, ident_read(ctx->file));
@@ -629,6 +641,23 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->stmts, ctx);
    if (IS(t, T_PORT_DECL))
       t->port_mode = read_s(ctx->file);
+   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
+      t->type = type_read(ctx);
+   if (HAS_VALUE(t))
+      t->value = tree_read(ctx);
+   if (HAS_DELAY(t))
+      t->delay = tree_read(ctx);
+   if (HAS_TARGET(t))
+      t->target = tree_read(ctx);
+   if (IS(t, T_REF))
+      t->ref = tree_read(ctx);
+   if (HAS_CONTEXT(t)) {
+      t->n_contexts = read_s(ctx->file);
+      t->context    = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
+
+      for (unsigned i = 0; i < t->n_contexts; i++)
+         t->context[i] = ident_read(ctx->file);
+   }
    
    return t;
 }
