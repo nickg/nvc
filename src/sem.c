@@ -275,8 +275,17 @@ static bool scope_import_unit(lib_t lib, ident_t name)
       sem_error(NULL, "unit %s not found in library %s",
                 istr(name), istr(lib_name(lib)));
       
-   for (unsigned n = 0; n < tree_decls(unit); n++)
-      scope_insert(tree_decl(unit, n));
+   for (unsigned n = 0; n < tree_decls(unit); n++) {
+      tree_t t = tree_decl(unit, n);
+      scope_insert(t);
+
+      type_t type = tree_type(t);
+      if (type_kind(type) == T_ENUM) {
+         // Need to add each literal to the scope
+         for (unsigned n = 0; n < type_enum_literals(type); n++)
+            scope_insert(type_enum_literal(type, n));
+      }
+   }
 
    scope_ident_list_add(&top_scope->imported, name);
 
