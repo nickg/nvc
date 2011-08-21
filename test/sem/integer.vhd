@@ -43,6 +43,9 @@ begin
         variable foo : my_int2 range 0 to 10;
     begin
         yyy := foo;                     -- OK
+        yyy := foo * 2;                 -- OK
+        yyy := 5 * (2 + 4) / 2;         -- OK
+        yyy := (yyy + 5) * x + 2;       -- Cannot convert my_int1 to my_int2
     end process;
     
 end architecture;

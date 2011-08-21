@@ -34,7 +34,7 @@ typedef enum type_kind {
    T_UNRESOLVED,
    T_SUBTYPE,
    T_INTEGER,
-   T_FLOAT,
+   T_REAL,
    T_ENUM,
    T_PHYSICAL,
    T_ARRAY,

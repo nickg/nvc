@@ -2,9 +2,9 @@
 -- STANDARD package as defined by IEEE 1076-1993
 --
 package STANDARD is
-
-    type BOOLEAN is (FALSE, TRUE);
     
+    type BOOLEAN is (FALSE, TRUE);
+
     type BIT is ('0', '1');
 
     type CHARACTER is (

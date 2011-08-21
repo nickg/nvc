@@ -77,6 +77,7 @@ START_TEST(test_integer)
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "type NOTHING is not defined" },
+      { 48, "no suitable overload for operator \"*\"(MY_INT2, MY_INT1)" },
       { -1, NULL }
    };
    expect_errors(expect);

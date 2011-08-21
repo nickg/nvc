@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 
 struct ident_list {
    ident_t           ident;
@@ -389,10 +390,6 @@ static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
    tree_set_type(d, f);
 
    scope_insert(d);
-   
-   printf("declared %s: (%s, %s) -> %s\n", istr(name),
-          istr(type_ident(lhs)), istr(type_ident(rhs)),
-          istr(type_ident(result)));
 }
 
 static void sem_declare_predefined_ops(type_t t)
@@ -400,14 +397,52 @@ static void sem_declare_predefined_ops(type_t t)
    // Prefined operators are defined in LRM 93 section 7.2
 
    ident_t mult = ident_new("*");
+   ident_t div = ident_new("/");
+
+   type_t uint = type_universal_int();
+   //type_t ureal = type_universal_real();
 
    switch (type_kind(t)) {
-   case T_PHYSICAL:
-      sem_declare_binary(mult, t, type_universal_int(), t);
-      //sem_declare_binary(mult, t, type_universal_real(), t);
-      sem_declare_binary(mult, type_universal_int(), t, t);
-      //sem_declare_binary(mult, type_universal_real(), t, t);
+   case T_PHYSICAL:      
+      // Multiplication
+      sem_declare_binary(mult, t, uint, t);
+      //sem_declare_binary(mult, t, ureal, t);
+      sem_declare_binary(mult, uint, t, t);
+      //sem_declare_binary(mult, ureal, t, t);
+
+      // Division
+      sem_declare_binary(div, t, uint, t);
+      //sem_declare_binary(div, t, ureal, t);
+      sem_declare_binary(div, t, t, uint);
+            
+      // Fall-through
+   case T_INTEGER:
+      // Modulus
+      sem_declare_binary(ident_new("MOD"), uint, t, t);
+
+      // Remainder
+      sem_declare_binary(ident_new("REM"), uint, t, t);      
+      
+      // Fall-through
+   case T_REAL:
+      // Addition
+      sem_declare_binary(ident_new("+"), uint, t, t);
+      //sem_declare_binary(ident_new("+"), ureal, t, t);
+      
+      // Subtraction
+      sem_declare_binary(ident_new("-"), uint, t, t);
+      //sem_declare_binary(ident_new("-"), ureal, t, t);
+      
+      // Multiplication
+      sem_declare_binary(mult, uint, t, t);
+      //sem_declare_binary(mult, ureal, t, t);
+
+      // Division
+      sem_declare_binary(div, uint, t, t);
+      //sem_declare_binary(div, ureal, t, t);      
+      
       break;
+     
       
    default:
       break;
@@ -753,10 +788,26 @@ static bool sem_check_fcall(tree_t t)
       }
    } while (decl != NULL);
    
-   if (decl == NULL)
-      sem_error(t, (n == 1 ? "undefined function %s"
-                    : "no suitable overload for function %s"),
-                istr(tree_ident(t)));
+   if (decl == NULL) {
+      char fn[256];
+      char *p = fn;
+      const char *end = fn + sizeof(fn);
+      const char *fname = istr(tree_ident(t));
+      const bool operator = !isalpha(fname[0]);
+      const char *quote = operator ? "\"" : "";
+      
+      p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
+      for (unsigned i = 0; i < tree_params(t); i++)
+         p += snprintf(p, end - p, "%s%s",
+                       (i == 0 ? "" : ", "),
+                       istr(type_ident(tree_type(tree_param(t, i)))));
+      p += snprintf(p, end - p, ")");
+
+      sem_error(t, (n == 1 ? "undefined %s %s"
+                    : "no suitable overload for %s %s"),
+                operator ? "operator" : "function",
+                fn);
+   }
 
    tree_set_type(t, type_result(tree_type(decl)));
    return true;
