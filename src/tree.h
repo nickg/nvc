@@ -30,7 +30,8 @@ typedef enum tree_kind {
    T_PACKAGE,
    T_SIGNAL_ASSIGN,
    T_QUALIFIED,
-   T_ENUM_LIT
+   T_ENUM_LIT,
+   T_CONST_DECL
 } tree_kind_t;
 
 typedef struct literal {
@@ -52,12 +53,14 @@ tree_kind_t tree_kind(tree_t t);
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
 
-// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL
+// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL,
+// T_CONST_DECL
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
-// T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT
+// T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
+// T_CONST_DECL
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 
@@ -90,7 +93,7 @@ literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
-// T_SIGNAL_ASSIGN, T_QUALIFIED
+// T_SIGNAL_ASSIGN, T_QUALIFIED, T_CONST_DECL
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);

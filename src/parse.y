@@ -151,6 +151,7 @@
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
+%type <l> constant_decl
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -327,8 +328,8 @@ package_decl_part
 package_decl_item
 : type_decl
 | subtype_decl
+| constant_decl
 /* | subprogram_declaration
-   | constant_declaration
    | signal_declaration
    | shared_variable_declaration
    | file_declaration
@@ -381,9 +382,9 @@ block_decl_item
 : signal_decl
 | type_decl
 | subtype_decl
+| constant_decl
 /* | subprogram_declaration
    | subprogram_body
-   | constant_declaration
    | shared_variable_declaration
    | file_declaration
    | alias_declaration
@@ -404,6 +405,24 @@ signal_decl
      $$ = NULL;
      for (id_list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_SIGNAL_DECL);
+        tree_set_ident(t, it->id);
+        tree_set_type(t, $4);
+        tree_set_value(t, $5);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     id_list_free($2);
+  }
+;
+
+constant_decl
+: tCONSTANT id_list tCOLON subtype_indication opt_static_expr tSEMI
+  {
+     $$ = NULL;
+     for (id_list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_CONST_DECL);
         tree_set_ident(t, it->id);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
@@ -555,9 +574,9 @@ process_decl_item
 : variable_decl
 | type_decl
 | subtype_decl
+| constant_decl
   /* | subprogram_declaration
      | subprogram_body
-     | constant_declaration
      | file_declaration
      | alias_declaration
      | attribute_declaration

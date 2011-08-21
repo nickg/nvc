@@ -72,7 +72,7 @@ struct tree_rd_ctx {
 #define IS(t, k) ((t)->kind == (k))
 #define IS_DECL(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
-    || IS(t, T_TYPE_DECL))
+    || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL))
 #define IS_EXPR(t) \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED))
 #define IS_STMT(t) \
@@ -82,13 +82,14 @@ struct tree_rd_ctx {
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL)    \
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
-    || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT))
+    || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
-    || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT))
+    || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT) \
+    || IS(t, T_CONST_DECL))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
@@ -96,7 +97,7 @@ struct tree_rd_ctx {
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 #define HAS_VALUE(t) \
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) \
-    || IS(t, T_QUALIFIED))
+    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 
 #define TREE_ARRAY_BASE_SZ  16
