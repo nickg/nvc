@@ -20,11 +20,13 @@ AC_TYPE_INT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
+AC_TYPE_PID_T
 
 AC_FUNC_MMAP   
 AC_FUNC_ALLOCA 
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
+AC_FUNC_FORK
 AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
                 memset strchr strrchr strstr])
 

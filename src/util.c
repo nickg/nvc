@@ -13,6 +13,11 @@
 #include <execinfo.h>
 #include <signal.h>
 #include <stdint.h>
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/ptrace.h>
 
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported 
@@ -178,11 +183,46 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       exit(EXIT_FAILURE);
 }
 
+static bool is_debugger_running(void)
+{
+   pid_t pid = fork();
+
+   if (pid == -1)
+      fatal("fork");
+   else if (pid == 0) {
+      int ppid = getppid();
+
+      // Try to trace the parent: if we can then GDB is not running
+      if (ptrace(PTRACE_ATTACH, ppid, NULL, NULL) == 0) {
+         // Wait for the parent to stop and continue it
+         waitpid(ppid, NULL, 0);
+         ptrace(PTRACE_CONT, NULL, NULL);
+
+         // Detach
+         ptrace(PTRACE_DETACH, getppid(), NULL, NULL);
+
+         // Able to trace so debugger not present
+         exit(0);
+      }
+      else {
+         // Trace failed so debugger is present
+         exit(1);
+      }
+   }
+   else {
+      int status;
+      waitpid(pid, &status, 0);
+      return WEXITSTATUS(status);
+   }
+}
+
 void register_trace_signal_handlers(void)
 {
 #ifndef NO_STACK_TRACE
+   if (is_debugger_running())
+      return;
+   
    struct sigaction sa;
-
    sa.sa_sigaction = (void*)bt_sighandler;
    sigemptyset(&sa.sa_mask);
    sa.sa_flags = SA_RESTART | SA_SIGINFO;
