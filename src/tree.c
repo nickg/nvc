@@ -134,6 +134,7 @@ tree_t tree_new(tree_kind_t kind)
    t->kind       = kind;
    t->ident      = NULL;
    t->ident2     = NULL;
+   t->type       = NULL;
    t->port_mode  = PORT_INVALID;
    t->value      = NULL;
    t->target     = NULL;
