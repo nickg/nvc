@@ -311,7 +311,7 @@ int main(void)
    tcase_add_test(tc_core, test_ports);
    tcase_add_test(tc_core, test_scope);
    tcase_add_test(tc_core, test_ambiguous);
-   //tcase_add_test(tc_core, test_std);
+   tcase_add_test(tc_core, test_std);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

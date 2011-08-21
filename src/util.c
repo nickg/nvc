@@ -76,7 +76,7 @@ void fatal(const char *fmt, ...)
 
 void fmt_loc(FILE *f, const struct loc *loc)
 {
-   if (loc->first_line == -1)
+   if (loc->first_line == (unsigned short)-1 || loc->linebuf == NULL)
       return;
    
    const char *lb = loc->linebuf;

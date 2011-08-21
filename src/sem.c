@@ -23,9 +23,9 @@
 #include <stdarg.h>
 #include <string.h>
 
-struct context {
-   ident_t        prefix;
-   struct context *next;
+struct ident_list {
+   ident_t           ident;
+   struct ident_list *next;
 };
 
 struct btree {
@@ -35,13 +35,14 @@ struct btree {
 };
 
 struct scope {
-   struct btree   *decls;
+   struct btree      *decls;
    
    // For design unit scopes
-   ident_t        prefix;
-   struct context *context;
+   ident_t           prefix;
+   struct ident_list *context;
+   struct ident_list *imported;
    
-   struct scope   *down;
+   struct scope      *down;
 };
 
 #define MAX_TS_MEMBERS 16
@@ -65,8 +66,12 @@ static struct type_set *top_type_set = NULL;
 
 static void sem_def_error_fn(const char *msg, const loc_t *loc)
 {
-   fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
-   fmt_loc(stderr, loc);
+   if (loc->first_line != (unsigned short)-1) {
+      fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
+      fmt_loc(stderr, loc);
+   }
+   else
+      fprintf(stderr, "(none): %s\n", msg);         
 }
 
 static void _sem_error(tree_t t, const char *fmt, ...)
@@ -76,7 +81,7 @@ static void _sem_error(tree_t t, const char *fmt, ...)
 
    char buf[SEM_ERROR_SZ];
    vsnprintf(buf, SEM_ERROR_SZ, fmt, ap);
-   error_fn(buf, tree_loc(t));
+   error_fn(buf, t != NULL ? tree_loc(t) : &LOC_INVALID);
    va_end(ap);
 
    errors++;
@@ -85,10 +90,11 @@ static void _sem_error(tree_t t, const char *fmt, ...)
 static void scope_push(ident_t prefix)
 {
    struct scope *s = xmalloc(sizeof(struct scope));
-   s->decls   = NULL;
-   s->prefix  = prefix;
-   s->context = NULL;
-   s->down    = top_scope;
+   s->decls    = NULL;
+   s->prefix   = prefix;
+   s->context  = NULL;
+   s->imported = NULL;
+   s->down     = top_scope;
    
    top_scope = s;
 }
@@ -102,17 +108,22 @@ static void scope_btree_free(struct btree *b)
    }
 }
 
+static void scope_ident_list_free(struct ident_list *list)
+{
+   struct ident_list *it = list;
+   while (it != NULL) {
+      struct ident_list *next = it->next;
+      free(it);
+      it = next;
+   }
+}
+
 static void scope_pop(void)
 {
    assert(top_scope != NULL);
 
-   struct context *it = top_scope->context;
-   while (it != NULL) {
-      struct context *next = it->next;
-      free(it);
-      it = next;
-   }
-
+   scope_ident_list_free(top_scope->context);
+   scope_ident_list_free(top_scope->imported);
    scope_btree_free(top_scope->decls);
    
    struct scope *s = top_scope;
@@ -120,15 +131,20 @@ static void scope_pop(void)
    free(s);
 }
 
+static void scope_ident_list_add(struct ident_list **list, ident_t i)
+{
+   struct ident_list *c = xmalloc(sizeof(struct ident_list));
+   c->ident = i;
+   c->next  = *list;
+
+   *list = c;   
+}
+
 static void scope_add_context(ident_t prefix)
 {
    assert(top_scope != NULL);
 
-   struct context *c = xmalloc(sizeof(struct context));
-   c->prefix = prefix;
-   c->next   = top_scope->context;
-
-   top_scope->context = c;
+   scope_ident_list_add(&top_scope->context, prefix);
 }
 
 static void scope_apply_prefix(tree_t t)
@@ -173,9 +189,9 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
                --k;
          }
          else {
-            struct context *it;
+            struct ident_list *it;
             for (it = s->context; it != NULL; it = it->next) {
-               if (this == ident_prefix(it->prefix, i)) {
+               if (this == ident_prefix(it->ident, i)) {
                   if (k == 0)
                      return search->tree;
                   else
@@ -245,6 +261,28 @@ static bool scope_insert(tree_t t)
    return true;
 }
 
+static bool scope_import_unit(lib_t lib, ident_t name)
+{
+   // Check we haven't already imported this
+   struct ident_list *it;
+   for (it = top_scope->imported; it != NULL; it = it->next) {
+      if (it->ident == name)
+         return true;
+   }
+   
+   tree_t unit = lib_get(lib, name);
+   if (unit == NULL)
+      sem_error(NULL, "unit %s not found in library %s",
+                istr(name), istr(lib_name(lib)));
+      
+   for (unsigned n = 0; n < tree_decls(unit); n++)
+      scope_insert(tree_decl(unit, n));
+
+   scope_ident_list_add(&top_scope->imported, name);
+
+   return true;
+}
+
 static void type_set_push(void)
 {
    struct type_set *t = xmalloc(sizeof(struct type_set));
@@ -298,8 +336,25 @@ static bool type_set_member(type_t t)
 
 static bool sem_check_context(tree_t t)
 {
+   ident_t work_name = lib_name(lib_work());
+   
    // The work library should always be searched
-   scope_add_context(lib_name(lib_work()));
+   scope_add_context(work_name);
+
+   // The std.standard package is also implicit unless we are
+   // bootstrapping
+   ident_t std_name = ident_new("STD");
+   if (work_name != std_name) {
+      lib_t std = lib_find("std", true);
+      if (std == NULL)
+         fatal("failed to find std library");
+
+      ident_t std_standard_name = ident_new("STD.STANDARD");
+      scope_add_context(std_standard_name);
+      scope_import_unit(std, std_standard_name);
+      
+      lib_free(std);
+   }
 
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       ident_t c = tree_context(t, n);
@@ -309,14 +364,8 @@ static bool sem_check_context(tree_t t)
          c = all;
       }
 
-      tree_t unit = lib_get(lib_work(), c);
-      if (unit == NULL)
-         sem_error(t, "unit %s not found in library WORK", istr(c));
-
-      // Import all declarations from t into the current scope
-      
-      for (unsigned n = 0; n < tree_decls(unit); n++)
-         scope_insert(tree_decl(unit, n));
+      if (!scope_import_unit(lib_work(), c))
+          return false;
    }
 
    return true;

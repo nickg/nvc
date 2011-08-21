@@ -39,7 +39,7 @@ START_TEST(test_lib_fopen)
 
    lib_free(work);
 
-   work = lib_find("work");
+   work = lib_find("work", false);
    fail_if(work == NULL);
 
    f = lib_fopen(work, "_test", "r");
@@ -109,9 +109,7 @@ START_TEST(test_lib_save)
    lib_save(work);
    lib_free(work);
 
-   system("cp -r work /tmp");
-   
-   work = lib_find("work");
+   work = lib_find("work", false);
    fail_if(work == NULL);
 
    {

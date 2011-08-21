@@ -35,6 +35,8 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
 #AX_LLVM([])
 
+AX_DEFINE_DIR([DATADIR], [datadir/nhdl], [Installation data directory])
+
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile test/Makefile lib/Makefile \
            lib/std/Makefile])

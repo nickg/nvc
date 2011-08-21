@@ -24,13 +24,13 @@ struct lib {
 
 static lib_t work = NULL;
 
-static lib_t lib_init(const char *rpath, bool scan)
+static lib_t lib_init(const char *name, const char *rpath, bool scan)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
    l->units   = NULL;
 
-   char *name_up = strdup(rpath);
+   char *name_up = strdup(name);
    for (char *p = name_up; *p != '\0'; p++)
       *p = toupper(*p);
    
@@ -48,8 +48,6 @@ static lib_t lib_init(const char *rpath, bool scan)
       struct dirent *e;
       while ((e = readdir(d))) {
          if (e->d_name[0] != '.' && e->d_name[0] != '_') {
-            printf("loading unit from %s\n", e->d_name);
-            
             FILE *f = lib_fopen(l, e->d_name, "r");
             tree_rd_ctx_t ctx = tree_read_begin(f);
             lib_put(l, tree_read(ctx));
@@ -64,6 +62,22 @@ static lib_t lib_init(const char *rpath, bool scan)
    return l;
 }
 
+static lib_t lib_find_at(const char *name, const char *path)
+{
+   char dir[PATH_MAX];
+   snprintf(dir, sizeof(dir), "%s/%s", path, name);
+
+   if (access(dir, F_OK) < 0)
+      return NULL;
+
+   char marker[PATH_MAX];
+   snprintf(marker, sizeof(marker), "%s/_NHDL_LIB", dir);
+   if (access(marker, F_OK) < 0)
+      return NULL;
+
+   return lib_init(name, dir, true);
+}
+
 lib_t lib_new(const char *name)
 {
    if (access(name, F_OK) == 0) {
@@ -76,7 +90,7 @@ lib_t lib_new(const char *name)
       return NULL;
    }
 
-   lib_t l = lib_init(name, false);
+   lib_t l = lib_init(name, name, false);
 
    FILE *tag = lib_fopen(l, "_NHDL_LIB", "w");
    fprintf(tag, "%s\n", PACKAGE_STRING);
@@ -88,20 +102,32 @@ lib_t lib_new(const char *name)
 lib_t lib_tmp(void)
 {
    // For unit tests, avoids creating files
-   return lib_init("work", false);
+   return lib_init("work", "", false);
 }
 
-lib_t lib_find(const char *name)
+lib_t lib_find(const char *name, bool verbose)
 {
-   if (access(name, F_OK) < 0)
-      return NULL;
+   const char *paths[] = {
+      ".",
+      "../lib/std",  // For unit tests (XXX: add NHDL_LIBPATH)
+      DATADIR,
+      NULL
+   };
 
-   char buf[PATH_MAX];
-   snprintf(buf, sizeof(buf), "%s/_NHDL_LIB", name);
-   if (access(buf, F_OK) < 0)
-      return NULL;
+   lib_t lib;
+   for (const char **p = paths; *p != NULL; p++) {
+      if ((lib = lib_find_at(name, *p)))
+         return lib;
+   }
 
-   return lib_init(name, true);
+   if (verbose) {
+      fprintf(stderr, "library %s not found in:\n", name);
+      for (const char **p = paths; *p != NULL; p++) {
+         fprintf(stderr, "  %s\n", *p);
+      }
+   }
+
+   return NULL;
 }
 
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
