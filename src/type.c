@@ -351,7 +351,7 @@ type_t type_read(type_rd_ctx_t ctx)
    // reference upwards
    if (ctx->n_types == ctx->store_sz) {
       ctx->store_sz *= 2;
-      ctx->store = xrealloc(ctx->store, ctx->store_sz);
+      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(type_t));
    }
    ctx->store[ctx->n_types++] = t;
    
@@ -371,6 +371,8 @@ type_t type_read(type_rd_ctx_t ctx)
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_s(f);
       assert(nunits < MAX_UNITS);
+
+      t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
 
       for (unsigned i = 0; i < nunits; i++) {
          t->units[i].multiplier = tree_read(ctx->tree_ctx);

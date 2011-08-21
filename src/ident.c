@@ -140,7 +140,7 @@ void ident_write(ident_t ident, FILE *f)
 
 ident_t ident_read(FILE *f)
 {
-   unsigned len;
+   uint16_t len;
    if (fread(&len, sizeof(uint16_t), 1, f) != 1)
       fatal("failed to read identifier length from file");
 

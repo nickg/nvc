@@ -640,7 +640,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    // reference upwards
    if (ctx->n_trees == ctx->store_sz) {
       ctx->store_sz *= 2;
-      ctx->store = xrealloc(ctx->store, ctx->store_sz);
+      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
    }
    ctx->store[ctx->n_trees++] = t;
    
@@ -696,6 +696,7 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
 void tree_read_end(tree_rd_ctx_t ctx)
 {
    type_read_end(ctx->type_ctx);
+   free(ctx->store);
    free(ctx);
 }
 
