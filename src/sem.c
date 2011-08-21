@@ -707,6 +707,7 @@ static bool sem_check_ref(tree_t t)
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
    case T_PORT_DECL:
+   case T_CONST_DECL:
    case T_ENUM_LIT:
       break;
    default:
@@ -744,6 +745,7 @@ bool sem_check(tree_t t)
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_PORT_DECL:
+   case T_CONST_DECL:
       return sem_check_decl(t);
    case T_PROCESS:
       return sem_check_process(t);

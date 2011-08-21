@@ -274,7 +274,36 @@ START_TEST(test_ambiguous)
    
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
-END_TEST    
+END_TEST
+
+START_TEST(test_const)
+{
+   tree_t a, e;
+
+   fail_unless(input_from_file(TESTDIR "/sem/const.vhd"));
+
+   const error_t expect[] = {
+      { 12, "invalid target of variable assignment" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+   
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
 
 START_TEST(test_std)
 {
@@ -311,6 +340,7 @@ int main(void)
    tcase_add_test(tc_core, test_ports);
    tcase_add_test(tc_core, test_scope);
    tcase_add_test(tc_core, test_ambiguous);
+   tcase_add_test(tc_core, test_const);
    tcase_add_test(tc_core, test_std);
    suite_add_tcase(s, tc_core);
    
