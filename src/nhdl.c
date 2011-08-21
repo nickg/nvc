@@ -66,7 +66,9 @@ static void usage(void)
           " -e UNIT\t\tElaborate and generate code for UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " --work=NAME\tUse NAME as the work library\n"
+          " -v, --version\t\tDisplay version and copyright information\n"
+          " -h, --help\t\tDisplay this message and exit\n"
+          "     --work=NAME\tUse NAME as the work library\n"
           "\n"
           "Report bugs to %s\n",
           PACKAGE, PACKAGE_BUGREPORT);
@@ -89,6 +91,8 @@ static void version(void)
 
 int main(int argc, char **argv)
 {
+   register_trace_signal_handlers();
+   
    static struct option long_options[] = {
       {"help",    no_argument,       0, 'h'},
       {"version", no_argument,       0, 'v'},
