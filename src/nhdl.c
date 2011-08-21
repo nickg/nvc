@@ -57,6 +57,21 @@ static int analyse(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static int elaborate(int argc, char **argv)
+{
+   set_work_lib();
+
+   if (argc != 1)
+      abort();   // XXX: add another getopt here for elab options
+
+   tree_t unit = lib_get(lib_work(), ident_new(argv[0]));
+   if (unit == NULL)
+      fatal("cannot find unit %s in library %s",
+            argv[0], istr(lib_name(lib_work())));
+
+   return EXIT_SUCCESS;
+}
+
 static void usage(void)
 {
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
@@ -101,7 +116,7 @@ int main(int argc, char **argv)
    };
 
    int c, index = 0;
-   const char *spec = "ah";
+   const char *spec = "aeh";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -117,6 +132,7 @@ int main(int argc, char **argv)
          work_name = optarg;
          break;
       case 'a':
+      case 'e':
          // Subcommand options are parsed later
          argc -= optind;
          argv += optind;
@@ -133,6 +149,8 @@ int main(int argc, char **argv)
    switch (c) {
    case 'a':
       return analyse(argc, argv);
+   case 'e':
+      return elaborate(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;
