@@ -675,6 +675,11 @@ static bool sem_check_arch(tree_t t)
    
    scope_pop();
 
+   // Prefix the architecture with the current library name
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
+   tree_set_ident(t, qual);
+   lib_put(lib_work(), t);
+   
    return ok;
 }
 
