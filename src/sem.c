@@ -282,8 +282,8 @@ static bool scope_import_unit(lib_t lib, ident_t name)
       type_t type = tree_type(t);
       if (type_kind(type) == T_ENUM) {
          // Need to add each literal to the scope
-         for (unsigned n = 0; n < type_enum_literals(type); n++)
-            scope_insert(type_enum_literal(type, n));
+         for (unsigned i = 0; i < type_enum_literals(type); i++)
+            scope_insert(type_enum_literal(type, i));
       }
    }
 
@@ -649,6 +649,20 @@ static bool sem_check_signal_assign(tree_t t)
    return true;
 }
 
+static bool sem_check_fcall(tree_t t)
+{
+   int fails = 0;
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      if (!sem_check(tree_param(t, i)))
+         fails++;
+   }
+
+   if (fails > 0)
+      return false;
+   
+   sem_error(t, "cannot");
+}
+
 static bool sem_check_wait(tree_t t)
 {
    // TODO: need to check argument is time
@@ -737,6 +751,8 @@ bool sem_check(tree_t t)
       return sem_check_var_assign(t);
    case T_SIGNAL_ASSIGN:
       return sem_check_signal_assign(t);
+   case T_FCALL:
+      return sem_check_fcall(t);
    case T_LITERAL:
       return sem_check_literal(t);
    case T_REF:

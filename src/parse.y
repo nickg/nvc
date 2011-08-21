@@ -877,8 +877,10 @@ physical_literal
   {
      tree_t unit = tree_new(T_REF);
      tree_set_ident(unit, $2);
+     tree_set_loc(unit, &@2);
      
      $$ = tree_new(T_FCALL);
+     tree_set_loc($$, &@$);
      tree_set_ident($$, ident_new("*"));
      tree_add_param($$, $1);
      tree_add_param($$, unit);
