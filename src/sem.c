@@ -56,6 +56,7 @@ struct type_set {
 #define SEM_ERROR_SZ  1024
 
 static void sem_def_error_fn(const char *msg, const loc_t *loc);
+static void sem_declare_predefined_ops(type_t t);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
@@ -220,7 +221,8 @@ static tree_t scope_find_nth(ident_t i, int n)
 
 static bool can_overload(tree_t t)
 {
-   return tree_kind(t) == T_ENUM_LIT;
+   return tree_kind(t) == T_ENUM_LIT
+      || tree_kind(t) == T_FUNC_DECL;
 }
 
 static struct btree *scope_btree_new(tree_t t)
@@ -264,7 +266,7 @@ static bool scope_insert(tree_t t)
 static bool scope_insert_special(tree_t t)
 {
    // Handle special cases of scope insertion such as enumeration
-   // literals and physical unit names
+   // literals, physical unit names, and predefined types
 
    bool ok = scope_insert(t);
 
@@ -293,6 +295,9 @@ static bool scope_insert_special(tree_t t)
    default:
       break;
    }
+
+   if (tree_kind(t) == T_TYPE_DECL)
+      sem_declare_predefined_ops(tree_type(t));
 
    return ok;
 }
@@ -368,6 +373,45 @@ static bool type_set_member(type_t t)
    }
    
    return false;
+}
+
+static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
+                               type_t result)
+{
+   type_t f = type_new(T_FUNC);
+   type_set_ident(f, name);
+   type_add_param(f, lhs);
+   type_add_param(f, rhs);
+   type_set_result(f, result);
+
+   tree_t d = tree_new(T_FUNC_DECL);
+   tree_set_ident(d, name);
+   tree_set_type(d, f);
+
+   scope_insert(d);
+   
+   printf("declared %s: (%s, %s) -> %s\n", istr(name),
+          istr(type_ident(lhs)), istr(type_ident(rhs)),
+          istr(type_ident(result)));
+}
+
+static void sem_declare_predefined_ops(type_t t)
+{
+   // Prefined operators are defined in LRM 93 section 7.2
+
+   ident_t mult = ident_new("*");
+
+   switch (type_kind(t)) {
+   case T_PHYSICAL:
+      sem_declare_binary(mult, t, type_universal_int(), t);
+      //sem_declare_binary(mult, t, type_universal_real(), t);
+      sem_declare_binary(mult, type_universal_int(), t, t);
+      //sem_declare_binary(mult, type_universal_real(), t, t);
+      break;
+      
+   default:
+      break;
+   }
 }
 
 static bool sem_check_context(tree_t t)
@@ -679,7 +723,43 @@ static bool sem_check_fcall(tree_t t)
    if (fails > 0)
       return false;
    
-   sem_error(t, "cannot");
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         if (tree_kind(decl) != T_FUNC_DECL)
+            continue;
+
+         type_t func_type = tree_type(decl);
+         if (type_set_member(type_result(func_type))) {
+            // Number of arguments must match
+            if (type_params(func_type) != tree_params(t))
+               continue;
+
+            // Type of arguments must match
+            bool match = true;
+            for (unsigned i = 0; i < tree_params(t); i++) {
+               match = match && type_eq(tree_type(tree_param(t, i)),
+                                        type_param(func_type, i));
+            }
+            
+            if (!match)
+               continue;
+
+            // Found a matching function definition
+            // XXX: need to keep searching as may be ambiguous
+            break;
+         }
+      }
+   } while (decl != NULL);
+   
+   if (decl == NULL)
+      sem_error(t, (n == 1 ? "undefined function %s"
+                    : "no suitable overload for function %s"),
+                istr(tree_ident(t)));
+
+   tree_set_type(t, type_result(tree_type(decl)));
+   return true;
 }
 
 static bool sem_check_wait(tree_t t)

@@ -40,7 +40,8 @@ typedef enum type_kind {
    T_ARRAY,
    T_RECORD,
    T_FILE,
-   T_ACCESS
+   T_ACCESS,
+   T_FUNC
 } type_kind_t;
 
 typedef struct range {
@@ -59,7 +60,7 @@ type_t type_new(type_kind_t kind);
 type_kind_t type_kind(type_t t);
 bool type_eq(type_t a, type_t b);
 
-// T_UNRESOLVED
+// T_UNRESOLVED, T_FUNC
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
@@ -81,6 +82,15 @@ void type_enum_add_literal(type_t t, struct tree *lit);
 unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
+
+// T_FUNC
+unsigned type_params(type_t t);
+type_t type_param(type_t t, unsigned n);
+void type_add_param(type_t t, type_t p);
+
+// T_FUNC
+type_t type_result(type_t t);
+void type_set_result(type_t t, type_t r);
 
 type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx);
 void type_write(type_t t, type_wr_ctx_t ctx);

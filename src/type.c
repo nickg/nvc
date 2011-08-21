@@ -37,6 +37,10 @@ struct type {
    tree_t      *literals;
    unsigned    n_literals;
    size_t      lit_alloc;
+   type_t      *params;
+   unsigned    n_params;
+   size_t      params_alloc;
+   type_t      result;
 
    // Serialisation accounting
    unsigned    generation;
@@ -73,6 +77,9 @@ type_t type_new(type_kind_t kind)
    t->n_literals = 0;
    t->lit_alloc  = 0;
    t->generation = 0;
+   t->params     = NULL;
+   t->n_params   = 0;
+   t->result     = NULL;
    
    return t;
 }
@@ -284,6 +291,58 @@ void type_enum_add_literal(type_t t, tree_t lit)
    t->literals[t->n_literals++] = lit;
 }
 
+unsigned type_params(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_FUNC));
+
+   return t->n_params;
+}
+
+type_t type_param(type_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_FUNC));
+   assert(n < t->n_params);
+
+   return t->params[n];
+}
+
+void type_add_param(type_t t, type_t p)
+{
+   assert(t != NULL);
+   assert(p != NULL);
+   assert(IS(t, T_FUNC));
+
+   if (t->params == NULL) {
+      t->params_alloc = 4;
+      t->params = xmalloc(t->params_alloc * sizeof(type_t));
+   }
+   else if (t->n_params == t->params_alloc) {
+      t->params_alloc *= 2;
+      t->params = xrealloc(t->params, t->params_alloc * sizeof(type_t));
+   }
+
+   t->params[t->n_params++] = p;
+}
+
+type_t type_result(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_FUNC));
+   assert(t->result != NULL);
+
+   return t->result;
+}
+
+void type_set_result(type_t t, type_t r)
+{
+   assert(t != NULL);
+   assert(IS(t, T_FUNC));
+
+   t->result = r;
+}
+
 void type_write(type_t t, type_wr_ctx_t ctx)
 {
    FILE *f = tree_write_file(ctx->tree_ctx);
@@ -315,6 +374,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    }
    if (write_b(t->base != NULL, f))
       type_write(t->base, ctx);
+   
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
       for (unsigned i = 0; i < t->n_units; i++) {
@@ -322,10 +382,16 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          ident_write(t->units[i].name, f);
       }
    }
-   if (IS(t, T_ENUM)) {
+   else if (IS(t, T_ENUM)) {
       write_s(t->n_literals, f);
       for (unsigned i = 0; i < t->n_literals; i++)
          tree_write(t->literals[i], ctx->tree_ctx);
+   }
+   else if (IS(t, T_FUNC)) {
+      write_s(t->n_params, f);
+      for (unsigned i = 0; i < t->n_params; i++)
+         type_write(t->params[i], ctx);
+      type_write(t->result, ctx);
    }
 }
 
@@ -368,6 +434,7 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    if (read_b(f))
       t->base = type_read(ctx);
+
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_s(f);
       assert(nunits < MAX_UNITS);
@@ -380,7 +447,7 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_units = nunits;
    }
-   if (IS(t, T_ENUM)) {
+   else if (IS(t, T_ENUM)) {
       unsigned short nlits = read_s(f);
 
       t->literals = xmalloc(nlits * sizeof(tree_t));
@@ -389,7 +456,20 @@ type_t type_read(type_rd_ctx_t ctx)
       for (unsigned i = 0; i < nlits; i++) {
          t->literals[i] = tree_read(ctx->tree_ctx);
       }
-      t->n_literals = nlits;      
+      t->n_literals = nlits;
+   }
+   else if (IS(t, T_FUNC)) {
+      unsigned short nparams = read_s(f);
+
+      t->params = xmalloc(nparams * sizeof(type_t));
+      t->params_alloc = nparams;
+
+      for (unsigned i = 0; i < nparams; i++) {
+         t->params[i] = type_read(ctx);
+      }
+      t->n_params = nparams;
+
+      t->result = type_read(ctx);
    }
 
    return t;
