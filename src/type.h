@@ -24,6 +24,12 @@
 
 typedef struct type *type_t;
 
+typedef struct type_wr_ctx *type_wr_ctx_t;
+typedef struct type_rd_ctx *type_rd_ctx_t;
+
+struct tree_wr_ctx;
+struct tree_rd_ctx;
+
 typedef enum type_kind {
    T_UNRESOLVED,
    T_SUBTYPE,
@@ -76,11 +82,13 @@ unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
 
-struct tree_wr_ctx;
-struct tree_rd_ctx;
+type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx);
+void type_write(type_t t, type_wr_ctx_t ctx);
+void type_write_end(type_wr_ctx_t ctx);
 
-void type_write(type_t t, struct tree_wr_ctx *ctx);
-type_t type_read(struct tree_rd_ctx *ctx);
+type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx);
+type_t type_read(type_rd_ctx_t ctx);
+void type_read_end(type_rd_ctx_t ctx);
 
 // Predefined types
 type_t type_universal_int(void);

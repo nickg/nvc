@@ -55,13 +55,18 @@ struct tree {
 };
 
 struct tree_wr_ctx {
-   FILE     *file;
-   unsigned generation;
-   unsigned n_trees;
+   FILE          *file;
+   type_wr_ctx_t type_ctx;
+   unsigned      generation;
+   unsigned      n_trees;
 };
 
 struct tree_rd_ctx {
-   FILE *file;
+   FILE          *file;
+   type_rd_ctx_t type_ctx;
+   unsigned      n_trees;
+   tree_t        *store;
+   unsigned      store_sz;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -546,13 +551,14 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->file       = f;
    ctx->generation = next_generation++;
    ctx->n_trees    = 0;
+   ctx->type_ctx   = type_write_begin(ctx);
    
    return ctx;
 }
 
 void tree_write_end(tree_wr_ctx_t ctx)
 {
-   printf("%d trees\n", ctx->n_trees);
+   type_write_end(ctx->type_ctx);
    free(ctx);
 }
 
@@ -570,8 +576,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    
    if (t->generation == ctx->generation) {
       // Already visited this tree
-      printf("already visited %p\n", t);
       write_s(0xfffe, ctx->file);   // Back reference marker
+      write_u(t->index, ctx->file);
       return;
    }
 
@@ -596,8 +602,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->stmts, ctx);
    if (IS(t, T_PORT_DECL))
       write_s(t->port_mode, ctx->file);
-   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
-      type_write(t->type, ctx);
+   if (HAS_TYPE(t))
+      type_write(t->type, ctx->type_ctx);
    if (HAS_VALUE(t))
       tree_write(t->value, ctx);
    if (HAS_DELAY(t))
@@ -620,11 +626,23 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       return NULL;    // Null marker
    else if (marker == 0xfffe) {
       // Back reference marker
-      assert(false);
+      unsigned index = read_u(ctx->file);
+      assert(index < ctx->n_trees);
+      return ctx->store[index];
    }
-   
+
    tree_t t = tree_new((tree_kind_t)marker);
    t->loc = read_loc(ctx);
+
+   // Stash pointer for later back references
+   // This must be done early as a child node of this type may
+   // reference upwards
+   if (ctx->n_trees == ctx->store_sz) {
+      ctx->store_sz *= 2;
+      ctx->store = xrealloc(ctx->store, ctx->store_sz);
+   }
+   ctx->store[ctx->n_trees++] = t;
+   
    if (HAS_IDENT(t))
       tree_set_ident(t, ident_read(ctx->file));
    if (HAS_IDENT2(t))
@@ -641,8 +659,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->stmts, ctx);
    if (IS(t, T_PORT_DECL))
       t->port_mode = read_s(ctx->file);
-   if (HAS_TYPE(t) && !IS(t, T_ENUM_LIT))
-      t->type = type_read(ctx);
+   if (HAS_TYPE(t))
+      t->type = type_read(ctx->type_ctx);
    if (HAS_VALUE(t))
       t->value = tree_read(ctx);
    if (HAS_DELAY(t))
@@ -665,13 +683,18 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 tree_rd_ctx_t tree_read_begin(FILE *f)
 {
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
-   ctx->file = f;
+   ctx->file     = f;
+   ctx->type_ctx = type_read_begin(ctx);
+   ctx->store_sz = 128;
+   ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
+   ctx->n_trees  = 0;
    
    return ctx;
 }
 
 void tree_read_end(tree_rd_ctx_t ctx)
 {
+   type_read_end(ctx->type_ctx);
    free(ctx);
 }
 

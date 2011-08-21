@@ -1,9 +1,27 @@
+//
+//  Copyright (C) 2011  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
 #include "type.h"
 #include "tree.h"
 #include "util.h"
 
 #include <assert.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #define MAX_DIMS     4
 #define MAX_UNITS    16
@@ -19,6 +37,23 @@ struct type {
    tree_t      *literals;
    unsigned    n_literals;
    size_t      lit_alloc;
+
+   // Serialisation accounting
+   unsigned    generation;
+   unsigned    index;
+};
+
+struct type_wr_ctx {
+   tree_wr_ctx_t tree_ctx;
+   unsigned      generation;
+   unsigned      n_types;
+};
+
+struct type_rd_ctx {
+   tree_rd_ctx_t tree_ctx;
+   unsigned      n_types;
+   type_t        *store;
+   unsigned      store_sz;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -37,6 +72,7 @@ type_t type_new(type_kind_t kind)
    t->literals   = NULL;
    t->n_literals = 0;
    t->lit_alloc  = 0;
+   t->generation = 0;
    
    return t;
 }
@@ -81,7 +117,7 @@ bool type_eq(type_t a, type_t b)
    if (type_ident(a) != type_ident(b))
       return false;
 
-   if (type_dims(a) != type_dims(b))
+   if (HAS_DIMS(a) && type_dims(a) != type_dims(b))
       return false;
 
    // TODO: compare dimensions
@@ -248,14 +284,24 @@ void type_enum_add_literal(type_t t, tree_t lit)
    t->literals[t->n_literals++] = lit;
 }
 
-void type_write(type_t t, tree_wr_ctx_t ctx)
+void type_write(type_t t, type_wr_ctx_t ctx)
 {
-   FILE *f = tree_write_file(ctx);
+   FILE *f = tree_write_file(ctx->tree_ctx);
    
    if (t == NULL) {
       write_s(0xffff, f);   // Null marker
       return;
    }
+
+   if (t->generation == ctx->generation) {
+      // Already visited this type
+      write_s(0xfffe, f);   // Back reference marker
+      write_u(t->index, f);
+      return;
+   }
+
+   t->generation = ctx->generation;
+   t->index      = (ctx->n_types)++;
 
    write_s(t->kind, f);
    ident_write(t->ident, f);
@@ -263,8 +309,8 @@ void type_write(type_t t, tree_wr_ctx_t ctx)
       write_s(t->n_dims, f);
       for (unsigned i = 0; i < t->n_dims; i++) {
          write_s(t->dims[i].kind, f);
-         tree_write(t->dims[i].left, ctx);
-         tree_write(t->dims[i].right, ctx);
+         tree_write(t->dims[i].left, ctx->tree_ctx);
+         tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
    if (write_b(t->base != NULL, f))
@@ -272,35 +318,51 @@ void type_write(type_t t, tree_wr_ctx_t ctx)
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
       for (unsigned i = 0; i < t->n_units; i++) {
-         tree_write(t->units[i].multiplier, ctx);
+         tree_write(t->units[i].multiplier, ctx->tree_ctx);
          ident_write(t->units[i].name, f);
       }
    }
    if (IS(t, T_ENUM)) {
       write_s(t->n_literals, f);
       for (unsigned i = 0; i < t->n_literals; i++)
-         tree_write(t->literals[i], ctx);
+         tree_write(t->literals[i], ctx->tree_ctx);
    }
 }
 
-type_t type_read(tree_rd_ctx_t ctx)
+type_t type_read(type_rd_ctx_t ctx)
 {
-   FILE *f = tree_read_file(ctx);
+   FILE *f = tree_read_file(ctx->tree_ctx);
 
    unsigned short marker = read_s(f);
    if (marker == 0xffff)
       return NULL;   // Null marker
+   else if (marker == 0xfffe) {
+      // Back reference marker
+      unsigned index = read_u(f);
+      assert(index < ctx->n_types);
+      return ctx->store[index];
+   }
    
    type_t t = type_new((type_kind_t)marker);
    t->ident = ident_read(f);
+   
+   // Stash pointer for later back references
+   // This must be done early as a child node of this type may
+   // reference upwards
+   if (ctx->n_types == ctx->store_sz) {
+      ctx->store_sz *= 2;
+      ctx->store = xrealloc(ctx->store, ctx->store_sz);
+   }
+   ctx->store[ctx->n_types++] = t;
+   
    if (HAS_DIMS(t)) {
       unsigned short ndims = read_s(f);
       assert(ndims < MAX_DIMS);
 
       for (unsigned i = 0; i < ndims; i++) {
          t->dims[i].kind  = read_s(f);
-         t->dims[i].left  = tree_read(ctx);
-         t->dims[i].right = tree_read(ctx);
+         t->dims[i].left  = tree_read(ctx->tree_ctx);
+         t->dims[i].right = tree_read(ctx->tree_ctx);
       }
       t->n_dims = ndims;
    }
@@ -311,7 +373,7 @@ type_t type_read(tree_rd_ctx_t ctx)
       assert(nunits < MAX_UNITS);
 
       for (unsigned i = 0; i < nunits; i++) {
-         t->units[i].multiplier = tree_read(ctx);
+         t->units[i].multiplier = tree_read(ctx->tree_ctx);
          t->units[i].name = ident_read(f);
       }
       t->n_units = nunits;
@@ -323,10 +385,44 @@ type_t type_read(tree_rd_ctx_t ctx)
       t->lit_alloc = nlits;
 
       for (unsigned i = 0; i < nlits; i++) {
-         t->literals[i] = tree_read(ctx);
+         t->literals[i] = tree_read(ctx->tree_ctx);
       }
       t->n_literals = nlits;      
    }
 
    return t;
+}
+
+type_wr_ctx_t type_write_begin(tree_wr_ctx_t tree_ctx)
+{
+   static unsigned next_generation = 1;
+
+   struct type_wr_ctx *ctx = xmalloc(sizeof(struct type_wr_ctx));
+   ctx->tree_ctx   = tree_ctx;
+   ctx->generation = next_generation++;
+   ctx->n_types    = 0;
+
+   return ctx;
+}
+
+void type_write_end(type_wr_ctx_t ctx)
+{
+   free(ctx);
+}
+
+type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx)
+{
+   struct type_rd_ctx *ctx = xmalloc(sizeof(struct type_rd_ctx));
+   ctx->tree_ctx = tree_ctx;
+   ctx->store_sz = 32;
+   ctx->store    = xmalloc(ctx->store_sz * sizeof(type_t));
+   ctx->n_types  = 0;
+
+   return ctx;
+}
+
+void type_read_end(type_rd_ctx_t ctx)
+{
+   free(ctx->store);
+   free(ctx);
 }
