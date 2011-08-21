@@ -143,6 +143,9 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
+
+   if (lib->units != NULL)
+      free(lib->units);
    free(lib);
 }
 
