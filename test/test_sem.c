@@ -329,6 +329,53 @@ START_TEST(test_std)
 }
 END_TEST
 
+START_TEST(test_wait)
+{
+   tree_t a, e, p, w;
+
+   fail_unless(input_from_file(TESTDIR "/sem/wait.vhd"));
+
+   const error_t expect[] = {
+      { 13, "type of delay must be TIME" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+   
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 4);
+
+   ident_t time = ident_new("STD.STANDARD.TIME");
+   
+   w = tree_stmt(p, 0);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(type_ident(tree_type(tree_delay(w))) == time);
+   
+   w = tree_stmt(p, 1);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(type_ident(tree_type(tree_delay(w))) == time);
+   
+   w = tree_stmt(p, 2);
+   fail_unless(tree_kind(w) == T_WAIT);
+   fail_unless(type_ident(tree_type(tree_delay(w))) == time);   
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -343,6 +390,7 @@ int main(void)
    tcase_add_test(tc_core, test_ambiguous);
    tcase_add_test(tc_core, test_const);
    tcase_add_test(tc_core, test_std);
+   tcase_add_test(tc_core, test_wait);
    suite_add_tcase(s, tc_core);
    
    SRunner *sr = srunner_create(s);

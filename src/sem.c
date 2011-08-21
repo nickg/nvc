@@ -815,7 +815,14 @@ static bool sem_check_fcall(tree_t t)
 
 static bool sem_check_wait(tree_t t)
 {
-   // TODO: need to check argument is time
+   if (tree_has_delay(t)) {
+      tree_t delay = tree_delay(t);
+      sem_check(delay);
+
+      ident_t time_name = ident_new("STD.STANDARD.TIME");
+      if (type_ident(tree_type(delay)) != time_name)
+         sem_error(delay, "type of delay must be TIME");
+   }
    
    return true;
 }

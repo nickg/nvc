@@ -627,6 +627,7 @@ seq_stmt_without_label
   timeout_clause tSEMI
   {
      $$ = tree_new(T_WAIT);
+     tree_set_loc($$, &@$);
      tree_set_delay($$, $2);
   }
 | target tASSIGN expr tSEMI
@@ -885,6 +886,7 @@ abstract_literal
 : tINT
   {
      $$ = tree_new(T_LITERAL);
+     tree_set_loc($$, &@$);
      literal_t l = { { .i = lvals.ival }, .kind = L_INT };
      tree_set_literal($$, l);
   }
