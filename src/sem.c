@@ -261,6 +261,42 @@ static bool scope_insert(tree_t t)
    return true;
 }
 
+static bool scope_insert_special(tree_t t)
+{
+   // Handle special cases of scope insertion such as enumeration
+   // literals and physical unit names
+
+   bool ok = scope_insert(t);
+
+   type_t type = tree_type(t);
+   switch (type_kind(type)) {
+   case T_ENUM:
+      // Need to add each literal to the scope
+      for (unsigned i = 0; i < type_enum_literals(type); i++)
+         ok = ok && scope_insert(type_enum_literal(type, i));
+      break;
+
+   case T_PHYSICAL:
+      // Create constant declarations for each unit
+      for (unsigned i = 0; i < type_units(type); i++) {
+         unit_t u = type_unit(type, i);
+         
+         tree_t c = tree_new(T_CONST_DECL);
+         tree_set_loc(c, tree_loc(u.multiplier));
+         tree_set_ident(c, u.name);
+         tree_set_type(c, type);
+         tree_set_value(c, u.multiplier);
+         
+         ok = ok && scope_insert(c);
+      }
+
+   default:
+      break;
+   }
+
+   return ok;
+}
+
 static bool scope_import_unit(lib_t lib, ident_t name)
 {
    // Check we haven't already imported this
@@ -275,17 +311,8 @@ static bool scope_import_unit(lib_t lib, ident_t name)
       sem_error(NULL, "unit %s not found in library %s",
                 istr(name), istr(lib_name(lib)));
       
-   for (unsigned n = 0; n < tree_decls(unit); n++) {
-      tree_t t = tree_decl(unit, n);
-      scope_insert(t);
-
-      type_t type = tree_type(t);
-      if (type_kind(type) == T_ENUM) {
-         // Need to add each literal to the scope
-         for (unsigned i = 0; i < type_enum_literals(type); i++)
-            scope_insert(type_enum_literal(type, i));
-      }
-   }
+   for (unsigned n = 0; n < tree_decls(unit); n++)
+      scope_insert_special(tree_decl(unit, n));
 
    scope_ident_list_add(&top_scope->imported, name);
 
@@ -435,15 +462,7 @@ static bool sem_check_type_decl(tree_t t)
                                         type_ident(type)));
    
    scope_apply_prefix(t);
-
-   bool ok = scope_insert(t);
-   if (ok && type_kind(type) == T_ENUM) {
-      // Need to add each literal to the scope
-      for (unsigned n = 0; n < type_enum_literals(type); n++)
-         scope_insert(type_enum_literal(type, n));
-   }
-
-   return ok;
+   return scope_insert_special(t);
 }
 
 static bool sem_check_decl(tree_t t)
