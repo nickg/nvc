@@ -50,6 +50,8 @@ static int analyse(int argc, char **argv)
       }
    }
 
+   tree_gc();
+
    if (parse_errors() > 0 || sem_errors() > 0)
       return EXIT_FAILURE;
 

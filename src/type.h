@@ -100,6 +100,10 @@ type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx);
 type_t type_read(type_rd_ctx_t ctx);
 void type_read_end(type_rd_ctx_t ctx);
 
+// Reference counting
+void type_ref(type_t t);
+void type_unref(type_t t);
+
 // Predefined types
 type_t type_universal_int(void);
 

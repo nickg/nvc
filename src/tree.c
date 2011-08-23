@@ -49,7 +49,7 @@ struct tree {
    ident_t           *context;
    unsigned short    n_contexts;
 
-   // Serialisation bookkeeping
+   // Serialisation and GC bookkeeping
    unsigned short    generation;
    unsigned          index;
 };
@@ -70,6 +70,7 @@ struct tree_rd_ctx {
 };
 
 #define IS(t, k) ((t)->kind == (k))
+#define IS_TOP_LEVEL(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define IS_DECL(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
@@ -102,6 +103,15 @@ struct tree_rd_ctx {
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 
 #define TREE_ARRAY_BASE_SZ  16
+
+// Garbage collection
+static tree_t   *all_trees = NULL;
+static size_t   max_trees = 128;   // Grows at runtime
+static size_t   n_trees_alloc = 0;
+static unsigned next_generation = 1;
+
+static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
+                               unsigned generation);
 
 static void tree_array_init(struct tree_array *a)
 {
@@ -155,8 +165,69 @@ tree_t tree_new(tree_kind_t kind)
    
    t->literal.kind = L_INT;
    t->literal.i    = 0;
+
+   if (all_trees == NULL)
+      all_trees = xmalloc(sizeof(tree_t) * max_trees);
+   else if (n_trees_alloc == max_trees) {
+      max_trees *= 2;
+      all_trees = xrealloc(all_trees, sizeof(tree_t) * max_trees);
+   }
+   all_trees[n_trees_alloc++] = t;      
    
    return t;
+}
+
+void tree_gc(void)
+{
+   // Generation will be updated by tree_visit
+   const unsigned base_gen = next_generation;
+
+   // Mark
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      assert(all_trees[i] != NULL);
+      
+      if (IS_TOP_LEVEL(all_trees[i]))
+         tree_visit(all_trees[i], NULL, NULL);
+   }
+
+   // Sweep
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      tree_t t = all_trees[i];
+      if (t->generation < base_gen) {
+         if (HAS_TYPE(t) && t->type != NULL)
+            type_unref(t->type);
+
+         if (HAS_PORTS(t) && t->ports.items != NULL)
+            free(t->ports.items);
+         if (HAS_GENERICS(t) && t->generics.items != NULL)
+            free(t->generics.items);
+         if (HAS_PARAMS(t) && t->params.items != NULL)
+            free(t->params.items);
+         if (HAS_DECLS(t) && t->decls.items != NULL)
+            free(t->decls.items);
+         if (HAS_STMTS(t) && t->stmts.items != NULL)
+            free(t->stmts.items);
+
+         if (HAS_CONTEXT(t) && t->context != NULL)
+            free(t->context);
+         
+         free(t);
+
+         all_trees[i] = NULL;
+      }
+   }
+
+   // Compact
+   size_t p = 0;
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      if (all_trees[i] != NULL)
+         all_trees[p++] = all_trees[i];
+   }
+
+   printf("[gc: freed %lu trees; %lu allocated]\n",
+          n_trees_alloc - p, p);
+
+   n_trees_alloc = p;
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -299,6 +370,7 @@ void tree_set_type(tree_t t, type_t ty)
    assert(t != NULL);
    assert(HAS_TYPE(t));
 
+   type_ref(ty);
    t->type = ty;
 }
 
@@ -513,6 +585,118 @@ void tree_add_context(tree_t t, ident_t ctx)
    t->context[t->n_contexts++] = ctx;
 }
 
+static unsigned tree_visit_a(struct tree_array *a,
+                             tree_visit_fn_t fn, void *context,
+                             unsigned generation)
+{
+   unsigned n = 0;
+   for (unsigned i = 0; i < a->count; i++)
+      n += tree_visit_aux(a->items[i], fn, context, generation);
+   
+   return n;
+}
+
+static unsigned tree_visit_type(type_t type,
+                                tree_visit_fn_t fn, void *context,
+                                unsigned generation)
+{
+   if (type == NULL)
+      return 0;
+   
+   unsigned n = 0;
+
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+   case T_INTEGER:
+   case T_PHYSICAL:
+      for (unsigned i = 0; i < type_dims(type); i++) {
+         range_t r = type_dim(type, i);
+         n += tree_visit_aux(r.left, fn, context, generation);
+         n += tree_visit_aux(r.right, fn, context, generation);
+      }
+      break;
+      
+   default:
+      break;
+   }
+      
+   switch (type_kind(type)) {
+   case T_UNRESOLVED:
+      break;
+
+   case T_SUBTYPE:
+      n += tree_visit_type(type_base(type), fn, context, generation);
+      break;
+      
+   case T_PHYSICAL:
+      for (unsigned i = 0; i < type_units(type); i++)
+         n += tree_visit_aux(type_unit(type, i).multiplier, fn, context,
+                             generation);
+      break;
+
+   case T_FUNC:
+      for (unsigned i = 0; i < type_params(type); i++)
+         n += tree_visit_type(type_param(type, i), fn, context, generation);
+      tree_visit_type(type_result(type), fn, context, generation);
+      break;
+
+   case T_ENUM:
+      for (unsigned i = 0; i < type_enum_literals(type); i++)
+         n += tree_visit_aux(type_enum_literal(type, i), fn, context,
+                             generation);
+      break;
+
+   default:
+      break;
+   }
+
+   return n;
+}
+
+static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
+                               unsigned generation)
+{
+   if (t == NULL || t->generation == generation)
+      return 0;
+
+   t->generation = generation;
+   
+   unsigned n = 1;
+
+   if (HAS_PORTS(t))
+      n += tree_visit_a(&t->ports, fn, context, generation);
+   if (HAS_GENERICS(t))
+      n += tree_visit_a(&t->generics, fn, context, generation);
+   if (HAS_PARAMS(t))
+      n += tree_visit_a(&t->params, fn, context, generation);
+   if (HAS_DECLS(t))
+      n += tree_visit_a(&t->decls, fn, context, generation);
+   if (HAS_STMTS(t))
+      n += tree_visit_a(&t->stmts, fn, context, generation);
+   if (HAS_VALUE(t))
+      n += tree_visit_aux(t->value, fn, context, generation);
+   if (HAS_DELAY(t))
+      n += tree_visit_aux(t->delay, fn, context, generation);
+   if (HAS_TARGET(t))
+      n += tree_visit_aux(t->target, fn, context, generation);
+   if (IS(t, T_REF))
+      n += tree_visit_aux(t->ref, fn, context, generation);
+   if (HAS_TYPE(t))
+      n += tree_visit_type(t->type, fn, context, generation);
+
+   if (fn)
+      (*fn)(t, context);
+   
+   return n;
+}
+
+unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
+{
+   assert(t != NULL);
+
+   return tree_visit_aux(t, fn, context, next_generation++);   
+}
+
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
    write_s(l->first_line, ctx->file);
@@ -548,8 +732,6 @@ static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
 
 tree_wr_ctx_t tree_write_begin(FILE *f)
 {
-   static unsigned next_generation = 1;
-
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
    ctx->file       = f;
    ctx->generation = next_generation++;
@@ -662,8 +844,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->stmts, ctx);
    if (IS(t, T_PORT_DECL))
       t->port_mode = read_s(ctx->file);
-   if (HAS_TYPE(t))
-      t->type = type_read(ctx->type_ctx);
+   if (HAS_TYPE(t)) {
+      if ((t->type = type_read(ctx->type_ctx)))
+         type_ref(t->type);
+   }
    if (HAS_VALUE(t))
       t->value = tree_read(ctx);
    if (HAS_DELAY(t))

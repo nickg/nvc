@@ -127,6 +127,11 @@ unsigned tree_contexts(tree_t t);
 ident_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, ident_t ctx);
 
+typedef void (*tree_visit_fn_t)(tree_t t, void *context);
+unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);
+
+void tree_gc(void);
+
 tree_wr_ctx_t tree_write_begin(FILE *f);
 void tree_write(tree_t t, tree_wr_ctx_t ctx);
 void tree_write_end(tree_wr_ctx_t ctx);

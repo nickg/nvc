@@ -42,6 +42,9 @@ struct type {
    size_t      params_alloc;
    type_t      result;
 
+   // Reference counting
+   unsigned    refcount;
+   
    // Serialisation accounting
    unsigned    generation;
    unsigned    index;
@@ -80,6 +83,7 @@ type_t type_new(type_kind_t kind)
    t->params     = NULL;
    t->n_params   = 0;
    t->result     = NULL;
+   t->refcount   = 0;   // Counts links to trees
    
    return t;
 }
@@ -199,6 +203,7 @@ void type_set_base(type_t t, type_t b)
    assert(IS(t, T_SUBTYPE));
    assert(b != NULL);
 
+   type_ref(b);
    t->base = b;
 }
 
@@ -222,6 +227,8 @@ type_t type_universal_int(void)
                     .left  = left,
                     .right = right };
       type_add_dim(t, r);
+
+      type_ref(t);
    }
 
    return t;
@@ -323,6 +330,7 @@ void type_add_param(type_t t, type_t p)
       t->params = xrealloc(t->params, t->params_alloc * sizeof(type_t));
    }
 
+   type_ref(p);
    t->params[t->n_params++] = p;
 }
 
@@ -340,7 +348,38 @@ void type_set_result(type_t t, type_t r)
    assert(t != NULL);
    assert(IS(t, T_FUNC));
 
+   type_ref(r);
    t->result = r;
+}
+
+void type_unref(type_t t)
+{
+   assert(t != NULL);
+   assert(t->refcount > 0);
+
+   if (--(t->refcount) == 0) {
+
+      if (IS(t, T_PHYSICAL) && t->units != NULL)
+         free(t->units);
+      else if (IS(t, T_ENUM) && t->literals != NULL)
+         free(t->literals);
+      else if (IS(t, T_FUNC) && t->params != NULL) {
+         for (unsigned i = 0; i < t->n_params; i++)
+            type_unref(t->params[i]);
+         free(t->params);
+         type_unref(t->result);
+      }
+   
+      free(t);
+   }
+}
+
+void type_ref(type_t t)
+{
+   assert(t != NULL);
+   assert(t->refcount >= 0);
+
+   (t->refcount)++;
 }
 
 void type_write(type_t t, type_wr_ctx_t ctx)
@@ -351,6 +390,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       write_s(0xffff, f);   // Null marker
       return;
    }
+
+   assert(t->refcount > 0);
 
    if (t->generation == ctx->generation) {
       // Already visited this type
@@ -432,8 +473,10 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_dims = ndims;
    }
-   if (read_b(f))
-      t->base = type_read(ctx);
+   if (read_b(f)) {
+      if ((t->base = type_read(ctx)))
+         type_ref(t->base);
+   }
 
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_s(f);
@@ -465,11 +508,13 @@ type_t type_read(type_rd_ctx_t ctx)
       t->params_alloc = nparams;
 
       for (unsigned i = 0; i < nparams; i++) {
-         t->params[i] = type_read(ctx);
+         if ((t->params[i] = type_read(ctx)))
+            type_ref(t->params[i]);
       }
       t->n_params = nparams;
 
-      t->result = type_read(ctx);
+      if ((t->result = type_read(ctx)))
+         type_ref(t->result);
    }
 
    return t;
