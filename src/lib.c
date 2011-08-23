@@ -22,20 +22,31 @@ struct lib {
    tree_t   *units;
 };
 
-static lib_t work = NULL;
+struct lib_list {
+   lib_t           item;
+   struct lib_list *next;
+};
+
+static lib_t           work = NULL;
+static struct lib_list *loaded = NULL;
+
+static ident_t upcase_name(const char *name)
+{
+   char *name_up = strdup(name);
+   for (char *p = name_up; *p != '\0'; p++)
+      *p = toupper(*p);
+   
+   ident_t i = ident_new(name_up);
+   free(name_up);
+   return i;
+}
 
 static lib_t lib_init(const char *name, const char *rpath, bool scan)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
    l->units   = NULL;
-
-   char *name_up = strdup(name);
-   for (char *p = name_up; *p != '\0'; p++)
-      *p = toupper(*p);
-   
-   l->name = ident_new(name_up);
-   free(name_up);
+   l->name    = upcase_name(name);
    
    realpath(rpath, l->path);
 
@@ -49,6 +60,7 @@ static lib_t lib_init(const char *name, const char *rpath, bool scan)
       while ((e = readdir(d))) {
          if (e->d_name[0] != '.' && e->d_name[0] != '_') {
             FILE *f = lib_fopen(l, e->d_name, "r");
+            printf("load from %s/%s\n", l->path, e->d_name);
             tree_rd_ctx_t ctx = tree_read_begin(f);
             lib_put(l, tree_read(ctx));
             tree_read_end(ctx);
@@ -58,6 +70,11 @@ static lib_t lib_init(const char *name, const char *rpath, bool scan)
       
       closedir(d);
    }
+
+   struct lib_list *el = xmalloc(sizeof(struct lib_list));
+   el->item = l;
+   el->next = loaded;
+   loaded = el;    
 
    return l;
 }
@@ -107,6 +124,13 @@ lib_t lib_tmp(void)
 
 lib_t lib_find(const char *name, bool verbose)
 {
+   // Search in already loaded libraries
+   ident_t name_i = upcase_name(name);
+   for (struct lib_list *it = loaded; it != NULL; it = it->next) {
+      if (lib_name(it->item) == name_i)
+         return it->item;
+   }
+   
    const char *paths[] = {
       ".",
       "../lib/std",  // For unit tests (XXX: add NHDL_LIBPATH)
@@ -143,6 +167,19 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
+   
+   for (struct lib_list *it = loaded, *prev = NULL;
+        it != NULL; loaded = it, it = it->next) {
+      
+      if (it->item == lib) {
+         if (prev)
+            prev->next = it->next;
+         else
+            loaded = it->next;
+         free(it);         
+         break;
+      }
+   }
 
    if (lib->units != NULL)
       free(lib->units);

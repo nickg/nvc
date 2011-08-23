@@ -467,8 +467,6 @@ static bool sem_check_context(tree_t t)
       ident_t std_standard_name = ident_new("STD.STANDARD");
       scope_add_context(std_standard_name);
       scope_import_unit(std, std_standard_name);
-      
-      lib_free(std);
    }
 
    for (unsigned n = 0; n < tree_contexts(t); n++) {
