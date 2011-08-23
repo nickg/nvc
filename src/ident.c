@@ -46,7 +46,7 @@ static void build_trie(const char *str, struct trie *prev, struct trie **end)
    c->next     = prev->children;
 
    prev->children = c;
-   
+
    if (*(++str) == '\0')
       *end = t;
    else
@@ -84,9 +84,9 @@ ident_t ident_new(const char *str)
 {
    assert(str != NULL);
    assert(*str != '\0');
-   
+
    struct trie *result;
-   if (!search_trie(&str, &root, &result))  
+   if (!search_trie(&str, &root, &result))
       build_trie(str, result, &result);
 
    return result;
@@ -100,7 +100,7 @@ const char *istr(ident_t ident)
    // of static buffers allows us to use istr multiple times in printf
    static char   *buf_set[ISTR_MAX_BUFS];
    static size_t buflen[ISTR_MAX_BUFS];
-   static int    next_buf = 0;   
+   static int    next_buf = 0;
 
    char **bufp = &buf_set[next_buf];
    size_t *blenp = &buflen[next_buf];
@@ -110,7 +110,7 @@ const char *istr(ident_t ident)
       *bufp = xmalloc(ident->depth);
       *blenp = ident->depth;
    }
-   
+
    while (ident->depth > *blenp) {
       *blenp *= 2;
       *bufp = xrealloc(*bufp, *blenp);
@@ -172,7 +172,7 @@ ident_t ident_prefix(ident_t a, ident_t b)
 {
    assert(a != NULL);
    assert(b != NULL);
-   
+
    struct trie *result;
 
    // Append dot

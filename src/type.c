@@ -44,7 +44,7 @@ struct type {
 
    // Reference counting
    unsigned    refcount;
-   
+
    // Serialisation accounting
    unsigned    generation;
    unsigned    index;
@@ -84,7 +84,7 @@ type_t type_new(type_kind_t kind)
    t->n_params   = 0;
    t->result     = NULL;
    t->refcount   = 0;   // Counts links to trees
-   
+
    return t;
 }
 
@@ -99,10 +99,10 @@ bool type_eq(type_t a, type_t b)
 {
    assert(a != NULL);
    assert(b != NULL);
-   
+
    assert(type_kind(a) != T_UNRESOLVED);
    assert(type_kind(b) != T_UNRESOLVED);
-   
+
    if (a == b)
       return true;
 
@@ -132,7 +132,7 @@ bool type_eq(type_t a, type_t b)
       return false;
 
    // TODO: compare dimensions
-   
+
    return true;
 }
 
@@ -140,7 +140,7 @@ ident_t type_ident(type_t t)
 {
    assert(t != NULL);
 
-   if (t->ident == NULL && t->kind == T_SUBTYPE) {      
+   if (t->ident == NULL && t->kind == T_SUBTYPE) {
       char buf[128];
       snprintf(buf, sizeof(buf), "anonymous subtype of %s",
                istr(type_ident(type_base(t))));
@@ -219,10 +219,10 @@ type_t type_universal_int(void)
       literal_t l_min = { { .i = INT_MIN }, .kind = L_INT };
       tree_set_literal(left, l_min);
 
-      tree_t right = tree_new(T_LITERAL);      
+      tree_t right = tree_new(T_LITERAL);
       literal_t l_max = { { .i = INT_MAX }, .kind = L_INT };
       tree_set_literal(right, l_max);
-      
+
       range_t r = { .kind  = RANGE_TO,
                     .left  = left,
                     .right = right };
@@ -369,7 +369,7 @@ void type_unref(type_t t)
          free(t->params);
          type_unref(t->result);
       }
-   
+
       free(t);
    }
 }
@@ -385,7 +385,7 @@ void type_ref(type_t t)
 void type_write(type_t t, type_wr_ctx_t ctx)
 {
    FILE *f = tree_write_file(ctx->tree_ctx);
-   
+
    if (t == NULL) {
       write_s(0xffff, f);   // Null marker
       return;
@@ -415,7 +415,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    }
    if (write_b(t->base != NULL, f))
       type_write(t->base, ctx);
-   
+
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
       for (unsigned i = 0; i < t->n_units; i++) {
@@ -449,10 +449,10 @@ type_t type_read(type_rd_ctx_t ctx)
       assert(index < ctx->n_types);
       return ctx->store[index];
    }
-   
+
    type_t t = type_new((type_kind_t)marker);
    t->ident = ident_read(f);
-   
+
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
    // reference upwards
@@ -461,7 +461,7 @@ type_t type_read(type_rd_ctx_t ctx)
       ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(type_t));
    }
    ctx->store[ctx->n_types++] = t;
-   
+
    if (HAS_DIMS(t)) {
       unsigned short ndims = read_s(f);
       assert(ndims < MAX_DIMS);

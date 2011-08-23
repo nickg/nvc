@@ -18,7 +18,7 @@
 %code top {
    #include "util.h"
    #include "ident.h"
-   
+
    #include <sys/types.h>
    #include <sys/mman.h>
    #include <sys/stat.h>
@@ -30,9 +30,9 @@
 
 %code requires {
    #include "tree.h"
-   
+
    #include <stdbool.h>
-   
+
    #define YYLTYPE loc
    typedef struct loc loc;
 
@@ -54,7 +54,7 @@
             (Current).linebuf = YYRHSLOC(Rhs, 0).linebuf;            \
          }                                                           \
       }
-   
+
    typedef struct {
       int  ival;
       char *sval;
@@ -70,7 +70,7 @@
       struct unit_list *next;
       unit_t           unit;
    } unit_list_t;
-   
+
    typedef struct tree_list {
       struct tree_list *next;
       tree_t           value;
@@ -79,7 +79,7 @@
 
 %code provides {
    bool input_from_file(const char *file);
-   
+
    tree_t parse(void);
    void begin_token(char *tok);
    int get_next_char(char *b, int max_buffer);
@@ -89,7 +89,7 @@
 %code {
    extern lvals_t lvals;
    extern YYLTYPE yylloc;
-   
+
    static int        n_errors = 0;
    static const char *read_ptr;
    static const char *file_start;
@@ -192,7 +192,7 @@ design_unit
      root = $2;
      YYACCEPT;
   }
-| /* empty */ {} 
+| /* empty */ {}
 ;
 
 context_clause
@@ -299,14 +299,14 @@ generic_clause
 
 package_decl
 : tPACKAGE id tIS package_decl_part tEND opt_package_token opt_id tSEMI
-  { 
+  {
      $$ = tree_new(T_PACKAGE);
      tree_set_ident($$, $2);
      copy_trees($4, tree_add_decl, $$);
 
      if ($7 != NULL && $7 != $2) {
         parse_error(&@7, "%s does not match package name %s",
-                    istr($7), istr($2));        
+                    istr($7), istr($2));
      }
   }
 ;
@@ -654,7 +654,7 @@ seq_stmt_without_label
    | exit_statement
    | return_statement
    | null_statement */
-; 
+;
 
 target : name /* | aggregate */ ;
 
@@ -670,7 +670,7 @@ waveform_element
 ;
 
 timeout_clause : tFOR expr { $$ = $2; } ;
- 
+
 subtype_decl
 : tSUBTYPE id tIS subtype_indication tSEMI
   {
@@ -682,7 +682,7 @@ subtype_decl
         type_set_base(sub, $4);
      }
      type_set_ident(sub, $2);
-        
+
      tree_t t = tree_new(T_TYPE_DECL);
      tree_set_ident(t, $2);
      tree_set_type(t, sub);
@@ -702,7 +702,7 @@ type_decl
      tree_set_loc(t, &@$);
 
      type_set_ident($4, $2);
-     
+
      $$ = NULL;
      tree_list_append(&$$, t);
   }
@@ -721,7 +721,7 @@ scalar_type_def
 | physical_type_def
 | enum_type_def
   /* | floating_type_definition */
-;                       
+;
 
 integer_type_def
 : range_constraint
@@ -771,15 +771,15 @@ physical_type_def
   {
      $3.multiplier = tree_new(T_LITERAL);
      literal_t l = { { .i = 1 }, .kind = L_INT };
-     tree_set_literal($3.multiplier, l);     
-     
+     tree_set_literal($3.multiplier, l);
+
      $$ = type_new(T_PHYSICAL);
      type_add_dim($$, $1);
      type_add_unit($$, $3);
 
      for (unit_list_t *it = $4; it != NULL; it = it->next)
         type_add_unit($$, it->unit);
-     
+
      unit_list_free($4);
   }
 ;
@@ -800,7 +800,7 @@ secondary_unit_decls
         .name       = $1,
         .multiplier = $3
      };
-     
+
      $$ = unit_list_add($5, u);
   }
 ;
@@ -899,7 +899,7 @@ physical_literal
      tree_t unit = tree_new(T_REF);
      tree_set_ident(unit, $2);
      tree_set_loc(unit, &@2);
-     
+
      $$ = tree_new(T_FCALL);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_new("*"));
@@ -968,7 +968,7 @@ static void tree_list_prepend(struct tree_list **l, tree_t t)
    struct tree_list *new = xmalloc(sizeof(struct tree_list));
    new->next  = *l;
    new->value = t;
-   
+
    *l = new;
 }
 
@@ -1014,11 +1014,11 @@ static id_list_t *id_list_append(id_list_t *a, id_list_t *b)
 {
    if (a == NULL)
       return b;
-   
+
    while (a->next)
       a = a->next;
    a->next = b;
-   
+
    return a;
 }
 
@@ -1028,8 +1028,8 @@ static void id_list_free(id_list_t *list)
       id_list_t *next = list->next;
       free(list);
       list = next;
-   }      
-}      
+   }
+}
 
 static unit_list_t *unit_list_add(unit_list_t *list, unit_t u)
 {
@@ -1084,7 +1084,7 @@ static ident_t ref_ident(tree_t t)
    else
       return tree_ident(t);
 }
-      
+
 static void parse_error(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
@@ -1094,7 +1094,7 @@ static void parse_error(const loc_t *loc, const char *fmt, ...)
    fprintf(stderr, "\n");
    fmt_loc(stderr, loc);
    va_end(ap);
-   
+
    n_errors++;
 }
 
@@ -1117,7 +1117,7 @@ void begin_token(char *tok)
       n_token_length = strlen(tok);
       n_token_next_start += n_token_length;
    }
-   
+
    yylloc.first_line   = n_row;
    yylloc.first_column = n_token_start;
    yylloc.last_line    = n_row;
@@ -1141,13 +1141,13 @@ int get_next_char(char *b, int max_buffer)
       return 0;
    else
       *b = *read_ptr++;
-   
+
    if (perm_linebuf == NULL)
       perm_linebuf = read_ptr;
 
-   if (*b == '\n') 
+   if (*b == '\n')
       last_was_newline = true;
-   
+
    return *b == 0 ? 0 : 1;
 }
 
@@ -1176,14 +1176,14 @@ bool input_from_file(const char *file)
    read_ptr         = file_start;
    last_was_newline = true;
    perm_file_name   = strdup(file);
-   
+
    return true;
 }
 
 tree_t parse(void)
 {
    root = NULL;
-   
+
    if (yyparse())
       return NULL;
    else

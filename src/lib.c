@@ -35,7 +35,7 @@ static ident_t upcase_name(const char *name)
    char *name_up = strdup(name);
    for (char *p = name_up; *p != '\0'; p++)
       *p = toupper(*p);
-   
+
    ident_t i = ident_new(name_up);
    free(name_up);
    return i;
@@ -47,13 +47,13 @@ static lib_t lib_init(const char *name, const char *rpath)
    l->n_units = 0;
    l->units   = NULL;
    l->name    = upcase_name(name);
-   
+
    realpath(rpath, l->path);
 
    struct lib_list *el = xmalloc(sizeof(struct lib_list));
    el->item = l;
    el->next = loaded;
-   loaded = el;    
+   loaded = el;
 
    return l;
 }
@@ -109,7 +109,7 @@ lib_t lib_find(const char *name, bool verbose)
       if (lib_name(it->item) == name_i)
          return it->item;
    }
-   
+
    const char *paths[] = {
       ".",
       "../lib/std",  // For unit tests (XXX: add NHDL_LIBPATH)
@@ -136,7 +136,7 @@ lib_t lib_find(const char *name, bool verbose)
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 {
    assert(lib != NULL);
-   
+
    char buf[PATH_MAX];
    snprintf(buf, sizeof(buf), "%s/%s", lib->path, name);
 
@@ -146,16 +146,16 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
-   
+
    for (struct lib_list *it = loaded, *prev = NULL;
         it != NULL; loaded = it, it = it->next) {
-      
+
       if (it->item == lib) {
          if (prev)
             prev->next = it->next;
          else
             loaded = it->next;
-         free(it);         
+         free(it);
          break;
       }
    }
@@ -169,7 +169,7 @@ void lib_destroy(lib_t lib)
 {
    // This is convenience function for testing: remove all
    // files associated with a library
-   
+
    assert(lib != NULL);
 
    DIR *d = opendir(lib->path);
@@ -226,7 +226,7 @@ tree_t lib_get(lib_t lib, ident_t ident)
       if (tree_ident(lib->units[n]) == ident)
          return lib->units[n];
    }
-   
+
    // Otherwise search in the filesystem
    DIR *d = opendir(lib->path);
    if (d == NULL)
@@ -246,7 +246,7 @@ tree_t lib_get(lib_t lib, ident_t ident)
          break;
       }
    }
-   
+
    closedir(d);
 
    return unit;

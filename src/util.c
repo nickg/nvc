@@ -20,7 +20,7 @@
 #include <sys/ptrace.h>
 
 // The IP register is different depending on the CPU arch
-// Try x86-64 first then regular x86: nothing else is supported 
+// Try x86-64 first then regular x86: nothing else is supported
 #if defined REG_RIP
 #define ARCH_IP_REG REG_RIP
 #elif defined REG_EIP
@@ -56,7 +56,7 @@ void errorf(const char *fmt, ...)
    fprintf(stderr, "error: ");
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
-   
+
    va_end(ap);
 }
 
@@ -68,7 +68,7 @@ void fatal(const char *fmt, ...)
    fprintf(stderr, "fatal: ");
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
-   
+
    va_end(ap);
 
    exit(EXIT_FAILURE);
@@ -78,7 +78,7 @@ void fmt_loc(FILE *f, const struct loc *loc)
 {
    if (loc->first_line == (unsigned short)-1 || loc->linebuf == NULL)
       return;
-   
+
    const char *lb = loc->linebuf;
    char buf[80];
    size_t i = 0;
@@ -111,7 +111,7 @@ void fmt_loc(FILE *f, const struct loc *loc)
 static void print_trace(char **messages, int trace_size)
 {
    int i;
-   
+
    fputs("\n-------- STACK TRACE --------\n", stderr);
    for (i = 0; i < trace_size; i++) {
       fprintf(stderr, "%s\n", messages[i]);
@@ -129,7 +129,7 @@ void show_stacktrace(void)
    messages = backtrace_symbols(trace, trace_size);
 
    print_trace(messages, trace_size);
-   
+
    free(messages);
 }
 
@@ -221,7 +221,7 @@ void register_trace_signal_handlers(void)
 #ifndef NO_STACK_TRACE
    if (is_debugger_running())
       return;
-   
+
    struct sigaction sa;
    sa.sa_sigaction = (void*)bt_sighandler;
    sigemptyset(&sa.sa_mask);

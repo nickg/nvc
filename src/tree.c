@@ -156,13 +156,13 @@ tree_t tree_new(tree_kind_t kind)
    t->n_contexts = 0;
    t->generation = 0;
    t->index      = 0;
-   
+
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
    tree_array_init(&t->params);
    tree_array_init(&t->decls);
    tree_array_init(&t->stmts);
-   
+
    t->literal.kind = L_INT;
    t->literal.i    = 0;
 
@@ -172,8 +172,8 @@ tree_t tree_new(tree_kind_t kind)
       max_trees *= 2;
       all_trees = xrealloc(all_trees, sizeof(tree_t) * max_trees);
    }
-   all_trees[n_trees_alloc++] = t;      
-   
+   all_trees[n_trees_alloc++] = t;
+
    return t;
 }
 
@@ -185,7 +185,7 @@ void tree_gc(void)
    // Mark
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       assert(all_trees[i] != NULL);
-      
+
       if (IS_TOP_LEVEL(all_trees[i]))
          tree_visit(all_trees[i], NULL, NULL);
    }
@@ -210,7 +210,7 @@ void tree_gc(void)
 
          if (HAS_CONTEXT(t) && t->context != NULL)
             free(t->context);
-         
+
          free(t);
 
          all_trees[i] = NULL;
@@ -343,7 +343,7 @@ tree_t tree_generic(tree_t t, unsigned n)
    assert(t != NULL);
    assert(HAS_GENERICS(t));
 
-   return tree_array_nth(&t->generics, n);   
+   return tree_array_nth(&t->generics, n);
 }
 
 void tree_add_generic(tree_t t, tree_t d)
@@ -386,7 +386,7 @@ tree_t tree_param(tree_t t, unsigned n)
 {
    assert(t != NULL);
    assert(HAS_PARAMS(t));
-   
+
    return tree_array_nth(&t->params, n);
 }
 
@@ -455,7 +455,7 @@ tree_t tree_decl(tree_t t, unsigned n)
    assert(t != NULL);
    assert(HAS_DECLS(t));
 
-   return tree_array_nth(&t->decls, n);   
+   return tree_array_nth(&t->decls, n);
 }
 
 void tree_add_decl(tree_t t, tree_t d)
@@ -464,7 +464,7 @@ void tree_add_decl(tree_t t, tree_t d)
    assert(d != NULL);
    assert(HAS_DECLS(t));
    assert(IS_DECL(d));
-   
+
    tree_array_add(&t->decls, d);
 }
 
@@ -490,7 +490,7 @@ void tree_add_stmt(tree_t t, tree_t s)
    assert(s != NULL);
    assert(HAS_STMTS(t));
    assert(IS_STMT(s));
-   
+
    tree_array_add(&t->stmts, s);
 }
 
@@ -592,7 +592,7 @@ static unsigned tree_visit_a(struct tree_array *a,
    unsigned n = 0;
    for (unsigned i = 0; i < a->count; i++)
       n += tree_visit_aux(a->items[i], fn, context, generation);
-   
+
    return n;
 }
 
@@ -602,7 +602,7 @@ static unsigned tree_visit_type(type_t type,
 {
    if (type == NULL)
       return 0;
-   
+
    unsigned n = 0;
 
    switch (type_kind(type)) {
@@ -615,11 +615,11 @@ static unsigned tree_visit_type(type_t type,
          n += tree_visit_aux(r.right, fn, context, generation);
       }
       break;
-      
+
    default:
       break;
    }
-      
+
    switch (type_kind(type)) {
    case T_UNRESOLVED:
       break;
@@ -627,7 +627,7 @@ static unsigned tree_visit_type(type_t type,
    case T_SUBTYPE:
       n += tree_visit_type(type_base(type), fn, context, generation);
       break;
-      
+
    case T_PHYSICAL:
       for (unsigned i = 0; i < type_units(type); i++)
          n += tree_visit_aux(type_unit(type, i).multiplier, fn, context,
@@ -660,7 +660,7 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       return 0;
 
    t->generation = generation;
-   
+
    unsigned n = 1;
 
    if (HAS_PORTS(t))
@@ -686,7 +686,7 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    if (fn)
       (*fn)(t, context);
-   
+
    return n;
 }
 
@@ -694,7 +694,7 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
    assert(t != NULL);
 
-   return tree_visit_aux(t, fn, context, next_generation++);   
+   return tree_visit_aux(t, fn, context, next_generation++);
 }
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
@@ -737,7 +737,7 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->generation = next_generation++;
    ctx->n_trees    = 0;
    ctx->type_ctx   = type_write_begin(ctx);
-   
+
    return ctx;
 }
 
@@ -758,7 +758,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_s(0xffff, ctx->file);  // Null marker
       return;
    }
-   
+
    if (t->generation == ctx->generation) {
       // Already visited this tree
       write_s(0xfffe, ctx->file);   // Back reference marker
@@ -827,7 +827,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
    }
    ctx->store[ctx->n_trees++] = t;
-   
+
    if (HAS_IDENT(t))
       tree_set_ident(t, ident_read(ctx->file));
    if (HAS_IDENT2(t))
@@ -863,7 +863,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          t->context[i] = ident_read(ctx->file);
    }
-   
+
    return t;
 }
 
@@ -875,7 +875,7 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
    ctx->store_sz = 128;
    ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
    ctx->n_trees  = 0;
-   
+
    return ctx;
 }
 

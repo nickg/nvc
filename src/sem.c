@@ -37,12 +37,12 @@ struct btree {
 
 struct scope {
    struct btree      *decls;
-   
+
    // For design unit scopes
    ident_t           prefix;
    struct ident_list *context;
    struct ident_list *imported;
-   
+
    struct scope      *down;
 };
 
@@ -73,7 +73,7 @@ static void sem_def_error_fn(const char *msg, const loc_t *loc)
       fmt_loc(stderr, loc);
    }
    else
-      fprintf(stderr, "(none): %s\n", msg);         
+      fprintf(stderr, "(none): %s\n", msg);
 }
 
 static void _sem_error(tree_t t, const char *fmt, ...)
@@ -97,7 +97,7 @@ static void scope_push(ident_t prefix)
    s->context  = NULL;
    s->imported = NULL;
    s->down     = top_scope;
-   
+
    top_scope = s;
 }
 
@@ -127,7 +127,7 @@ static void scope_pop(void)
    scope_ident_list_free(top_scope->context);
    scope_ident_list_free(top_scope->imported);
    scope_btree_free(top_scope->decls);
-   
+
    struct scope *s = top_scope;
    top_scope = s->down;
    free(s);
@@ -139,7 +139,7 @@ static void scope_ident_list_add(struct ident_list **list, ident_t i)
    c->ident = i;
    c->next  = *list;
 
-   *list = c;   
+   *list = c;
 }
 
 static void scope_add_context(ident_t prefix)
@@ -161,7 +161,7 @@ static bool scope_btree_cmp(ident_t a, ident_t b)
    // We can't compare identifier pointers directly as these may be
    // prefixed during a search so we compare the final character with
    // a hack to make character identifiers behave better
-   
+
    char a_final = ident_char(a, 0);
    char b_final = ident_char(b, 0);
    if (a_final == '\'' && b_final == '\'') {
@@ -201,7 +201,7 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
                }
             }
          }
-         
+
          bool left = scope_btree_cmp(i, this);
          search = (left ? search->left : search->right);
       }
@@ -233,7 +233,7 @@ static struct btree *scope_btree_new(tree_t t)
    b->left  = NULL;
    b->right = NULL;
 
-   return b;   
+   return b;
 }
 
 static void scope_insert_at(tree_t t, struct btree *where)
@@ -241,7 +241,7 @@ static void scope_insert_at(tree_t t, struct btree *where)
    bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
 
    struct btree **nextp = (left ? &where->left : &where->right);
-   
+
    if (*nextp == NULL)
       *nextp = scope_btree_new(t);
    else
@@ -251,11 +251,11 @@ static void scope_insert_at(tree_t t, struct btree *where)
 static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
- 
+
    if (!can_overload(t)
        && scope_find_in(tree_ident(t), top_scope, false, 0))
       sem_error(t, "%s already declared in this scope",
-                istr(tree_ident(t)));   
+                istr(tree_ident(t)));
 
    if (top_scope->decls == NULL)
       top_scope->decls = scope_btree_new(t);
@@ -283,13 +283,13 @@ static bool scope_insert_special(tree_t t)
       // Create constant declarations for each unit
       for (unsigned i = 0; i < type_units(type); i++) {
          unit_t u = type_unit(type, i);
-         
+
          tree_t c = tree_new(T_CONST_DECL);
          tree_set_loc(c, tree_loc(u.multiplier));
          tree_set_ident(c, u.name);
          tree_set_type(c, type);
          tree_set_value(c, u.multiplier);
-         
+
          ok = ok && scope_insert(c);
       }
 
@@ -311,12 +311,12 @@ static bool scope_import_unit(lib_t lib, ident_t name)
       if (it->ident == name)
          return true;
    }
-   
+
    tree_t unit = lib_get(lib, name);
    if (unit == NULL)
       sem_error(NULL, "unit %s not found in library %s",
                 istr(name), istr(lib_name(lib)));
-      
+
    for (unsigned n = 0; n < tree_decls(unit); n++)
       scope_insert_special(tree_decl(unit, n));
 
@@ -372,7 +372,7 @@ static bool type_set_member(type_t t)
       if (type_eq(top_type_set->members[n], t))
          return true;
    }
-   
+
    return false;
 }
 
@@ -403,7 +403,7 @@ static void sem_declare_predefined_ops(type_t t)
    //type_t ureal = type_universal_real();
 
    switch (type_kind(t)) {
-   case T_PHYSICAL:      
+   case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, uint, t);
       //sem_declare_binary(mult, t, ureal, t);
@@ -414,36 +414,36 @@ static void sem_declare_predefined_ops(type_t t)
       sem_declare_binary(div, t, uint, t);
       //sem_declare_binary(div, t, ureal, t);
       sem_declare_binary(div, t, t, uint);
-            
+
       // Fall-through
    case T_INTEGER:
       // Modulus
       sem_declare_binary(ident_new("MOD"), uint, t, t);
 
       // Remainder
-      sem_declare_binary(ident_new("REM"), uint, t, t);      
-      
+      sem_declare_binary(ident_new("REM"), uint, t, t);
+
       // Fall-through
    case T_REAL:
       // Addition
       sem_declare_binary(ident_new("+"), uint, t, t);
       //sem_declare_binary(ident_new("+"), ureal, t, t);
-      
+
       // Subtraction
       sem_declare_binary(ident_new("-"), uint, t, t);
       //sem_declare_binary(ident_new("-"), ureal, t, t);
-      
+
       // Multiplication
       sem_declare_binary(mult, uint, t, t);
       //sem_declare_binary(mult, ureal, t, t);
 
       // Division
       sem_declare_binary(div, uint, t, t);
-      //sem_declare_binary(div, ureal, t, t);      
-      
+      //sem_declare_binary(div, ureal, t, t);
+
       break;
-     
-      
+
+
    default:
       break;
    }
@@ -452,7 +452,7 @@ static void sem_declare_predefined_ops(type_t t)
 static bool sem_check_context(tree_t t)
 {
    ident_t work_name = lib_name(lib_work());
-   
+
    // The work library should always be searched
    scope_add_context(work_name);
 
@@ -503,14 +503,14 @@ static bool sem_readable(tree_t t)
              && tree_port_mode(decl) == PORT_OUT)
             sem_error(t, "cannot read output port %s",
                       istr(tree_ident(t)));
-            
+
          return true;
       }
    default:
       return true;
    }
 }
-   
+
 static bool sem_check_subtype(tree_t t, type_t type)
 {
    while (type_kind(type) == T_SUBTYPE) {
@@ -520,7 +520,7 @@ static bool sem_check_subtype(tree_t t, type_t type)
          sem_error(t, "type %s is not defined", istr(type_ident(base)));
 
       type_set_base(type, tree_type(base_decl));
-      
+
       type = tree_type(base_decl);
    }
 
@@ -530,14 +530,14 @@ static bool sem_check_subtype(tree_t t, type_t type)
 static bool sem_check_type_decl(tree_t t)
 {
    type_t type = tree_type(t);
-   
-   sem_check_subtype(t, type);   
+
+   sem_check_subtype(t, type);
 
    // Prefix the package name to the type name
    if (top_scope->prefix)
       type_set_ident(type, ident_prefix(top_scope->prefix,
                                         type_ident(type)));
-   
+
    scope_apply_prefix(t);
    return scope_insert_special(t);
 }
@@ -555,7 +555,7 @@ static bool sem_check_decl(tree_t t)
          tree_t type_decl = scope_find(type_ident(type));
          if (type_decl == NULL)
             sem_error(t, "type %s is not defined", istr(type_ident(type)));
-         
+
          tree_set_type(t, tree_type(type_decl));
       }
       break;
@@ -574,7 +574,7 @@ static bool sem_check_decl(tree_t t)
 static bool sem_check_process(tree_t t)
 {
    bool ok = true;
-   
+
    scope_push(NULL);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
@@ -584,7 +584,7 @@ static bool sem_check_process(tree_t t)
       for (unsigned n = 0; n < tree_stmts(t); n++)
          ok = ok && sem_check(tree_stmt(t, n));
    }
-   
+
    scope_pop();
 
    return ok;
@@ -595,9 +595,9 @@ static bool sem_check_package(tree_t t)
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
 
    scope_push(qual);
- 
+
    bool ok = sem_check_context(t);
-  
+
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = ok && sem_check(tree_decl(t, n));
 
@@ -605,29 +605,29 @@ static bool sem_check_package(tree_t t)
 
    tree_set_ident(t, qual);
    lib_put(lib_work(), t);
-   
+
    return ok;
 }
 
 static bool sem_check_entity(tree_t t)
 {
    scope_push(NULL);
-   
+
    bool ok = sem_check_context(t);
- 
+
    for (unsigned n = 0; n < tree_generics(t); n++)
       ok = ok && sem_check(tree_generic(t, n));
-   
+
    for (unsigned n = 0; n < tree_ports(t); n++)
       ok = ok && sem_check(tree_port(t, n));
-   
+
    scope_pop();
 
    // Prefix the entity with the current library name
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
    tree_set_ident(t, qual);
    lib_put(lib_work(), t);
-   
+
    return ok;
 }
 
@@ -640,13 +640,13 @@ static bool sem_check_arch(tree_t t)
    if (e == NULL)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
-   
+
    scope_push(NULL);
 
    // Make all port and generic declarations available in this scope
 
    bool ok = sem_check_context(e);
-   
+
    for (unsigned n = 0; n < tree_ports(e); n++)
       scope_insert(tree_port(e, n));
 
@@ -654,7 +654,7 @@ static bool sem_check_arch(tree_t t)
       scope_insert(tree_generic(e, n));
 
    // Now check the architecture itself
-   
+
    ok = ok && sem_check_context(t);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
@@ -670,14 +670,14 @@ static bool sem_check_arch(tree_t t)
 
       ok = (failures == 0);
    }
-   
+
    scope_pop();
 
    // Prefix the architecture with the current library name
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
    tree_set_ident(t, qual);
    lib_put(lib_work(), t);
-   
+
    return ok;
 }
 
@@ -685,7 +685,7 @@ static bool sem_check_var_assign(tree_t t)
 {
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
-   
+
    bool ok = sem_check(target);
    if (!ok)
       return false;
@@ -697,7 +697,7 @@ static bool sem_check_var_assign(tree_t t)
    ok = sem_readable(value);
    if (!ok)
       return false;
-   
+
    tree_t decl = tree_ref(target);
    if (tree_kind(decl) != T_VAR_DECL)
       sem_error(target, "invalid target of variable assignment");
@@ -714,7 +714,7 @@ static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
    tree_t value = tree_value(t);
-   
+
    bool ok = sem_check(target);
    if (!ok)
       return false;
@@ -726,7 +726,7 @@ static bool sem_check_signal_assign(tree_t t)
    ok = sem_readable(value);
    if (!ok)
       return false;
-   
+
    tree_t decl = tree_ref(target);
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
@@ -737,7 +737,7 @@ static bool sem_check_signal_assign(tree_t t)
          sem_error(target, "cannot assign to input port %s",
                    istr(tree_ident(target)));
       break;
-      
+
    default:
       sem_error(target, "invalid target of signal assignment");
    }
@@ -760,7 +760,7 @@ static bool sem_check_fcall(tree_t t)
 
    if (fails > 0)
       return false;
-   
+
    tree_t decl;
    int n = 0;
    do {
@@ -780,7 +780,7 @@ static bool sem_check_fcall(tree_t t)
                match = match && type_eq(tree_type(tree_param(t, i)),
                                         type_param(func_type, i));
             }
-            
+
             if (!match)
                continue;
 
@@ -790,7 +790,7 @@ static bool sem_check_fcall(tree_t t)
          }
       }
    } while (decl != NULL);
-   
+
    if (decl == NULL) {
       char fn[256];
       char *p = fn;
@@ -798,7 +798,7 @@ static bool sem_check_fcall(tree_t t)
       const char *fname = istr(tree_ident(t));
       const bool operator = !isalpha(fname[0]);
       const char *quote = operator ? "\"" : "";
-      
+
       p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
       for (unsigned i = 0; i < tree_params(t); i++)
          p += snprintf(p, end - p, "%s%s",
@@ -826,14 +826,14 @@ static bool sem_check_wait(tree_t t)
       if (type_ident(tree_type(delay)) != time_name)
          sem_error(delay, "type of delay must be TIME");
    }
-   
+
    return true;
 }
 
 static bool sem_check_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
-   
+
    switch (l.kind) {
    case L_INT:
       tree_set_type(t, type_universal_int());
@@ -857,7 +857,7 @@ static bool sem_check_ref(tree_t t)
             break;
       }
    } while (decl != NULL);
-   
+
    if (decl == NULL)
       sem_error(t, (n == 1 ? "undefined identifier %s"
                     : "no suitable overload for identifier %s"),
@@ -873,7 +873,7 @@ static bool sem_check_ref(tree_t t)
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
    }
-   
+
    tree_set_type(t, tree_type(decl));
    tree_set_ref(t, decl);
 
