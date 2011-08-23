@@ -41,7 +41,7 @@ static ident_t upcase_name(const char *name)
    return i;
 }
 
-static lib_t lib_init(const char *name, const char *rpath, bool scan)
+static lib_t lib_init(const char *name, const char *rpath)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
@@ -49,27 +49,6 @@ static lib_t lib_init(const char *name, const char *rpath, bool scan)
    l->name    = upcase_name(name);
    
    realpath(rpath, l->path);
-
-   // TODO: we probably want to lazy-load units
-   if (scan) {
-      DIR *d = opendir(l->path);
-      if (d == NULL)
-         fatal("%s: %s", l->path, strerror(errno));
-      
-      struct dirent *e;
-      while ((e = readdir(d))) {
-         if (e->d_name[0] != '.' && e->d_name[0] != '_') {
-            FILE *f = lib_fopen(l, e->d_name, "r");
-            printf("load from %s/%s\n", l->path, e->d_name);
-            tree_rd_ctx_t ctx = tree_read_begin(f);
-            lib_put(l, tree_read(ctx));
-            tree_read_end(ctx);
-            fclose(f);
-         }
-      }
-      
-      closedir(d);
-   }
 
    struct lib_list *el = xmalloc(sizeof(struct lib_list));
    el->item = l;
@@ -92,7 +71,7 @@ static lib_t lib_find_at(const char *name, const char *path)
    if (access(marker, F_OK) < 0)
       return NULL;
 
-   return lib_init(name, dir, true);
+   return lib_init(name, dir);
 }
 
 lib_t lib_new(const char *name)
@@ -107,7 +86,7 @@ lib_t lib_new(const char *name)
       return NULL;
    }
 
-   lib_t l = lib_init(name, name, false);
+   lib_t l = lib_init(name, name);
 
    FILE *tag = lib_fopen(l, "_NHDL_LIB", "w");
    fprintf(tag, "%s\n", PACKAGE_STRING);
@@ -119,7 +98,7 @@ lib_t lib_new(const char *name)
 lib_t lib_tmp(void)
 {
    // For unit tests, avoids creating files
-   return lib_init("work", "", false);
+   return lib_init("work", "");
 }
 
 lib_t lib_find(const char *name, bool verbose)
@@ -242,12 +221,35 @@ tree_t lib_get(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
+   // Search in the list of already loaded libraries
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (tree_ident(lib->units[n]) == ident)
          return lib->units[n];
    }
+   
+   // Otherwise search in the filesystem
+   DIR *d = opendir(lib->path);
+   if (d == NULL)
+      fatal("%s: %s", lib->path, strerror(errno));
 
-   return NULL;
+   tree_t unit = NULL;
+   const char *search = istr(ident);
+   struct dirent *e;
+   while ((e = readdir(d))) {
+      if (strcmp(e->d_name, search) == 0) {
+         FILE *f = lib_fopen(lib, e->d_name, "r");
+         tree_rd_ctx_t ctx = tree_read_begin(f);
+         unit = tree_read(ctx);
+         lib_put(lib, unit);
+         tree_read_end(ctx);
+         fclose(f);
+         break;
+      }
+   }
+   
+   closedir(d);
+
+   return unit;
 }
 
 ident_t lib_name(lib_t lib)
