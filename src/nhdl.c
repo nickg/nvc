@@ -18,10 +18,13 @@
 #include "util.h"
 #include "parse.h"
 #include "sem.h"
+#include "phase.h"
 
 #include <unistd.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
 static const char *work_name = "work";
 
@@ -36,11 +39,22 @@ static void set_work_lib(void)
    lib_set_work(work);
 }
 
+static ident_t to_unit_name(const char *str)
+{
+   char *name = strdup(str);
+   for (char *p = name; *p; p++)
+      *p = toupper(*p);
+
+   ident_t i = ident_prefix(lib_name(lib_work()), ident_new(name));
+   free(name);
+   return i;
+}
+
 static int analyse(int argc, char **argv)
 {
    set_work_lib();
-   
-   for (int i = 0; i < argc; i++) {
+
+   for (int i = 1; i < argc; i++) {
       if (!input_from_file(argv[i]))
          return EXIT_FAILURE;
 
@@ -55,7 +69,7 @@ static int analyse(int argc, char **argv)
    if (parse_errors() > 0 || sem_errors() > 0)
       return EXIT_FAILURE;
 
-   lib_save(lib_work());   
+   lib_save(lib_work());
    return EXIT_SUCCESS;
 }
 
@@ -63,13 +77,36 @@ static int elaborate(int argc, char **argv)
 {
    set_work_lib();
 
-   if (argc != 1)
-      abort();   // XXX: add another getopt here for elab options
+   static struct option long_options[] = {
+      {0, 0, 0, 0}
+   };
 
-   tree_t unit = lib_get(lib_work(), ident_new(argv[0]));
+   int c, index = 0;
+   const char *spec = "";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      default:
+         abort();
+      }
+   }
+
+   if (optind == argc)
+      fatal("missing top-level unit name");
+
+   ident_t unit_i = to_unit_name(argv[optind]);
+   tree_t unit = lib_get(lib_work(), unit_i);
    if (unit == NULL)
       fatal("cannot find unit %s in library %s",
-            argv[0], istr(lib_name(lib_work())));
+            istr(unit_i), istr(lib_name(lib_work())));
+
+   (void)elab(unit);
 
    return EXIT_SUCCESS;
 }
@@ -109,7 +146,7 @@ static void version(void)
 int main(int argc, char **argv)
 {
    register_trace_signal_handlers();
-   
+
    static struct option long_options[] = {
       {"help",    no_argument,       0, 'h'},
       {"version", no_argument,       0, 'v'},
@@ -136,8 +173,8 @@ int main(int argc, char **argv)
       case 'a':
       case 'e':
          // Subcommand options are parsed later
-         argc -= optind;
-         argv += optind;
+         argc -= (optind - 1);
+         argv += (optind - 1) ;
          goto getopt_out;
       case '?':
          // getopt_long already printed an error message
