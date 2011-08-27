@@ -149,6 +149,8 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);
 
 void tree_gc(void);
 
+void tree_dump(tree_t t);
+
 tree_wr_ctx_t tree_write_begin(FILE *f);
 void tree_write(tree_t t, tree_wr_ctx_t ctx);
 void tree_write_end(tree_wr_ctx_t ctx);

@@ -111,6 +111,23 @@ static int elaborate(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static int dump(int argc, char **argv)
+{
+   set_work_lib();
+
+   for (int i = 1; i < argc; i++) {
+      ident_t unit_i = to_unit_name(argv[i]);
+      tree_t unit = lib_get(lib_work(), unit_i);
+      if (unit == NULL)
+         fatal("cannot find unit %s in library %s",
+               istr(unit_i), istr(lib_name(lib_work())));
+
+      tree_dump(unit);
+   }
+
+   return EXIT_SUCCESS;
+}
+
 static void usage(void)
 {
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
@@ -151,6 +168,7 @@ int main(int argc, char **argv)
       {"help",    no_argument,       0, 'h'},
       {"version", no_argument,       0, 'v'},
       {"work",    required_argument, 0, 'w'},
+      {"dump",    no_argument,       0, 'd'},
       {0, 0, 0, 0}
    };
 
@@ -172,9 +190,10 @@ int main(int argc, char **argv)
          break;
       case 'a':
       case 'e':
+      case 'd':
          // Subcommand options are parsed later
          argc -= (optind - 1);
-         argv += (optind - 1) ;
+         argv += (optind - 1);
          goto getopt_out;
       case '?':
          // getopt_long already printed an error message
@@ -190,6 +209,8 @@ int main(int argc, char **argv)
       return analyse(argc, argv);
    case 'e':
       return elaborate(argc, argv);
+   case 'd':
+      return dump(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;

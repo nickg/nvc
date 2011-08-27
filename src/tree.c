@@ -890,3 +890,63 @@ FILE *tree_read_file(tree_rd_ctx_t ctx)
 {
    return ctx->file;
 }
+
+static void tree_dump_aux(tree_t t, int indent);
+
+static void dump_a(const char *name, struct tree_array *a, int indent)
+{
+   if (a->count > 0) {
+      putchar('\n');
+      for (int i = 0; i < indent; i++)
+         putchar(' ');
+
+      printf("  %s:\n", name);
+      for (unsigned i = 0; i < a->count; i++)
+         tree_dump_aux(a->items[i], indent + 4);
+   }
+}
+
+static void tree_dump_aux(tree_t t, int indent)
+{
+   for (int i = 0; i < indent; i++)
+      putchar(' ');
+
+   if (t == NULL) {
+      printf("(null)\n");
+      return;
+   }
+
+   const char *kind_names[] = {
+      "entity", "arch", "port_decl", "fcall", "literal", "signal_decl",
+      "var_decl", "process", "ref", "wait", "type_decl", "var_assign",
+      "package", "signal_assign", "qualified", "enum_lit", "const_decl",
+      "func_decl"
+   };
+
+   printf(kind_names[t->kind]);
+
+   if (HAS_IDENT(t))
+      printf(" %s", istr(t->ident));
+   if (HAS_IDENT2(t))
+      printf(" ident2:%s", istr(t->ident2));
+   if (HAS_TYPE(t))
+      printf(" [%s]", istr(type_ident(t->type)));
+   if (HAS_GENERICS(t))
+      dump_a("generics", &t->generics, indent);
+   if (HAS_PORTS(t))
+      dump_a("ports", &t->ports, indent);
+   if (HAS_PARAMS(t))
+      dump_a("params", &t->params, indent);
+   if (HAS_DECLS(t))
+      dump_a("decls", &t->decls, indent);
+   if (HAS_STMTS(t))
+      dump_a("stmts", &t->stmts, indent);
+
+
+   printf("\n");
+}
+
+void tree_dump(tree_t t)
+{
+   tree_dump_aux(t, 0);
+}
