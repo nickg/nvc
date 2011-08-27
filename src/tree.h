@@ -49,7 +49,8 @@ typedef enum tree_kind {
    T_QUALIFIED,
    T_ENUM_LIT,
    T_CONST_DECL,
-   T_FUNC_DECL
+   T_FUNC_DECL,
+   T_ELAB
 } tree_kind_t;
 
 typedef struct literal {

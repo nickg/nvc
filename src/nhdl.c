@@ -106,7 +106,8 @@ static int elaborate(int argc, char **argv)
       fatal("cannot find unit %s in library %s",
             istr(unit_i), istr(lib_name(lib_work())));
 
-   (void)elab(unit);
+   tree_t e = elab(unit);
+   cgen(e);
 
    return EXIT_SUCCESS;
 }

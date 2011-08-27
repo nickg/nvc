@@ -269,6 +269,24 @@ tree_t lib_get(lib_t lib, ident_t ident)
    return unit;
 }
 
+void lib_load_all(lib_t lib)
+{
+   assert(lib != NULL);
+
+   DIR *d = opendir(lib->path);
+   if (d == NULL)
+      fatal("%s: %s", lib->path, strerror(errno));
+
+   struct dirent *e;
+   while ((e = readdir(d))) {
+      if (e->d_name[0] != '.' && e->d_name[0] != '_')
+         (void)lib_get(lib, ident_new(e->d_name));
+   }
+
+   closedir(d);
+
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);
@@ -286,4 +304,12 @@ void lib_save(lib_t lib)
       tree_write_end(ctx);
       fclose(f);
    }
+}
+
+void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context)
+{
+   assert(lib != NULL);
+
+   for (unsigned i = 0; i < lib->n_units; i++)
+      (*fn)(lib->units[i], context);
 }

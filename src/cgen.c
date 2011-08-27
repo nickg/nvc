@@ -15,12 +15,20 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _PHASE_H
-#define _PHASE_H
+#include "phase.h"
+#include "util.h"
 
-#include "tree.h"
+#include <llvm-c/Core.h>
+#include <llvm-c/BitWriter.h>
 
-tree_t elab(tree_t top);
-void cgen(tree_t top);
+static LLVMModuleRef module = NULL;
 
-#endif  // _PHASE_H
+void cgen(tree_t top)
+{
+   if (tree_kind(top) != T_ELAB)
+      fatal("cannot generate code for tree kind %d", tree_kind(top));
+
+   LLVMModuleCreateWithName("nhdl");
+
+   LLVMDisposeModule(module);
+}

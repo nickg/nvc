@@ -84,7 +84,7 @@ struct tree_rd_ctx {
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL)    \
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
     || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL)   \
-    || IS(t, T_FUNC_DECL))
+    || IS(t, T_FUNC_DECL) || IS(t, T_ELAB))
 #define HAS_IDENT2(t) (IS(t, T_ARCH))
 #define HAS_PORTS(t) (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
@@ -94,7 +94,7 @@ struct tree_rd_ctx {
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
 #define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE))
-#define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS))
+#define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 #define HAS_VALUE(t) \
@@ -920,7 +920,7 @@ static void tree_dump_aux(tree_t t, int indent)
       "entity", "arch", "port_decl", "fcall", "literal", "signal_decl",
       "var_decl", "process", "ref", "wait", "type_decl", "var_assign",
       "package", "signal_assign", "qualified", "enum_lit", "const_decl",
-      "func_decl"
+      "func_decl", "elab"
    };
 
    printf(kind_names[t->kind]);

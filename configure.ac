@@ -5,6 +5,8 @@ AM_INIT_AUTOMAKE([color-tests])
 
 AC_PROG_CC
 AC_PROG_CC_C99
+AM_PROG_CC_C_O
+AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
 AC_PROG_YACC
@@ -33,7 +35,7 @@ AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
-#AX_LLVM([])
+AX_LLVM_C([core bitwriter])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nhdl], [Installation data directory])
 
