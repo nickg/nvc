@@ -16,8 +16,16 @@
 //
 
 #include "phase.h"
+#include "util.h"
 
 tree_t elab(tree_t top)
 {
+   switch (tree_kind(top)) {
+   case T_ENTITY:
+      break;
+   default:
+      fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
+   }
+
    return NULL;
 }
