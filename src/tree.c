@@ -70,7 +70,8 @@ struct tree_rd_ctx {
 };
 
 #define IS(t, k) ((t)->kind == (k))
-#define IS_TOP_LEVEL(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
+#define IS_TOP_LEVEL(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) \
+                         || IS(t, T_PACKAGE) || IS(t, T_ELAB))
 #define IS_DECL(t) \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))

@@ -17,18 +17,89 @@
 
 #include "phase.h"
 #include "util.h"
+#include "lib.h"
+
+#include <assert.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
 
 static LLVMModuleRef module = NULL;
 
+static void cgen_wait(tree_t t, LLVMBuilderRef builder)
+{
+   // TODO: need to know if we're a function or co-routine here
+
+   if (tree_has_delay(t)) {
+      LLVMValueRef sched_process_fn =
+         LLVMGetNamedFunction(module, "_sched_process");
+      assert(sched_process_fn != NULL);
+
+      LLVMBuildCall(builder, sched_process_fn, NULL, 0, "");
+   }
+   LLVMBuildRetVoid(builder);
+}
+
+static void cgen_stmt(tree_t t, LLVMBuilderRef builder)
+{
+   switch (tree_kind(t)) {
+   case T_WAIT:
+      cgen_wait(t, builder);
+      break;
+   default:
+      assert(false);
+   }
+}
+
+static void cgen_process(tree_t t)
+{
+   assert(tree_kind(t) == T_PROCESS);
+
+   // TODO: if simple then func else co-routine
+
+   printf("cgen_process %s\n", istr(tree_ident(t)));
+
+   LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+
+   LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
+   LLVMBasicBlockRef bb = LLVMAppendBasicBlock(fn, "entry");
+
+   LLVMBuilderRef builder = LLVMCreateBuilder();
+   LLVMPositionBuilderAtEnd(builder, bb);
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_stmt(tree_stmt(t, i), builder);
+
+   LLVMDisposeBuilder(builder);
+}
+
+static void cgen_top(tree_t t)
+{
+   assert(tree_kind(t) == T_ELAB);
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_process(tree_stmt(t, i));
+}
+
 void cgen(tree_t top)
 {
    if (tree_kind(top) != T_ELAB)
       fatal("cannot generate code for tree kind %d", tree_kind(top));
 
-   LLVMModuleCreateWithName("nhdl");
+   module = LLVMModuleCreateWithName(istr(tree_ident(top)));
+
+   LLVMAddFunction(module, "_sched_process",
+                   LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
+
+   cgen_top(top);
+
+   char fname[256];
+   snprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
+
+   FILE *f = lib_fopen(lib_work(), fname, "w");
+   if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+      fatal("error writing LLVM bitcode");
+   fclose(f);
 
    LLVMDisposeModule(module);
 }

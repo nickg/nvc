@@ -12,7 +12,7 @@ libnhdl_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c \
 	sem.c elab.c
 
 libcgen_a_SOURCES = cgen.c
-libcgen_a_CFLAGS = $(LLVM_CFLAGS)
+libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 nhdl_SOURCES = nhdl.c
 
