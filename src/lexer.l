@@ -36,7 +36,7 @@
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
- 
+
 lvals_t lvals;
 %}
 
@@ -117,6 +117,10 @@ PACKAGE       {P}{A}{C}{K}{A}{G}{E}
 LIBRARY       {L}{I}{B}{R}{A}{R}{Y}
 USE           {U}{S}{E}
 NULL          {N}{U}{L}{L}
+FUNCTION      {F}{U}{N}{C}{T}{I}{O}{N}
+IMPURE        {I}{M}{P}{U}{R}{E}
+PURE          {P}{U}{R}{E}
+RETURN        {R}{E}{T}{U}{R}{N}
 
 %%
 
@@ -164,6 +168,10 @@ NULL          {N}{U}{L}{L}
 {LIBRARY}       { begin_token(yytext); return tLIBRARY; }
 {USE}           { begin_token(yytext); return tUSE; }
 {NULL}          { begin_token(yytext); return tNULL; }
+{FUNCTION}      { begin_token(yytext); return tFUNCTION; }
+{IMPURE}        { begin_token(yytext); return tIMPURE; }
+{PURE}          { begin_token(yytext); return tPURE; }
+{RETURN}        { begin_token(yytext); return tRETURN; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -205,7 +213,7 @@ static int parse_id(const char *str)
 }
 
 static int parse_ex_id(const char *str)
-{  
+{
    char *p = (lvals.sval = xmalloc(strlen(str) + 1));
    while (*str) {
       switch (*str) {

@@ -151,7 +151,7 @@
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
-%type <l> constant_decl
+%type <l> constant_decl formal_param_list subprogram_decl
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -167,7 +167,7 @@
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
-%token tTICK
+%token tTICK tFUNCTION tIMPURE tRETURN tPURE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -329,8 +329,8 @@ package_decl_item
 : type_decl
 | subtype_decl
 | constant_decl
-/* | subprogram_declaration
-   | signal_declaration
+| subprogram_decl
+/* | signal_declaration
    | shared_variable_declaration
    | file_declaration
    | alias_declaration
@@ -383,8 +383,8 @@ block_decl_item
 | type_decl
 | subtype_decl
 | constant_decl
-/* | subprogram_declaration
-   | subprogram_body
+| subprogram_decl
+/* | subprogram_body
    | shared_variable_declaration
    | file_declaration
    | alias_declaration
@@ -575,8 +575,8 @@ process_decl_item
 | type_decl
 | subtype_decl
 | constant_decl
-  /* | subprogram_declaration
-     | subprogram_body
+| subprogram_decl
+  /* | subprogram_body
      | file_declaration
      | alias_declaration
      | attribute_declaration
@@ -585,6 +585,39 @@ process_decl_item
      | group_template_declaration
      | group_declaration
   */
+;
+
+subprogram_decl
+: /* procedure designator [ ( formal_parameter_list ) ]  | */
+  pure_impure tFUNCTION id formal_param_list tRETURN type_mark tSEMI
+  {
+     type_t t = type_new(T_FUNC);
+     type_set_ident(t, $3);
+     type_set_result(t, $6);
+
+     for (tree_list_t *it = $4; it != NULL; it = it->next)
+        type_add_param(t, tree_type(it->value));
+
+     tree_t f = tree_new(T_FUNC_DECL);
+     tree_set_loc(f, &@$);
+     tree_set_ident(f, $3);
+     tree_set_type(f, t);
+
+     for (tree_list_t *it = $4; it != NULL; it = it->next)
+        tree_add_port(f, it->value);
+
+     tree_list_free($4);
+
+     $$ = NULL;
+     tree_list_append(&$$, f);
+  }
+;
+
+pure_impure : tPURE | tIMPURE | /* empty */ ;
+
+formal_param_list
+: tLPAREN interface_list tRPAREN { $$ = $2; }
+| /* empty */ { $$ = NULL; }
 ;
 
 variable_decl

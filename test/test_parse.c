@@ -12,9 +12,9 @@ START_TEST(test_entity)
    tree_t e, p, g, v, x, y;
    type_t t;
    literal_t l;
-   
+
    fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
-   
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -24,7 +24,7 @@ START_TEST(test_entity)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    fail_unless(tree_ident(e) == ident_new("TWO"));
-   
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -123,7 +123,7 @@ START_TEST(test_entity)
    l = tree_literal(y);
    fail_unless(l.kind == L_INT);
    fail_unless(l.i == 5);
-   
+
    fail_unless(tree_ports(e) == 1);
 
    p = tree_port(e, 0);
@@ -131,10 +131,10 @@ START_TEST(test_entity)
    fail_unless(tree_ident(p) == ident_new("P"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
    fail_if(tree_has_value(p));
-   
+
    e = parse();
    fail_unless(e == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -143,7 +143,7 @@ START_TEST(test_arch)
 {
    tree_t a, d, v;
    literal_t l;
-   
+
    fail_unless(input_from_file(TESTDIR "/parse/arch.vhd"));
 
    a = parse();
@@ -180,22 +180,22 @@ START_TEST(test_arch)
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
    fail_unless(l.i == 7);
-   
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_ident(a) == ident_new("B"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
-   
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_ident(a) == ident_new("C"));
    fail_unless(tree_ident2(a) == ident_new("ONE"));
-   
+
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -224,10 +224,10 @@ START_TEST(test_process)
    fail_unless(tree_stmts(p) == 1);
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
-   
+
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -244,7 +244,7 @@ START_TEST(test_seq)
    fail_unless(tree_stmts(a) == 2);
 
    // Wait statements
-   
+
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 1);
@@ -261,7 +261,7 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_param(e, 1)) == ident_new("NS"));
 
    // Variable assignment
-   
+
    p = tree_stmt(a, 1);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 2);
@@ -290,7 +290,7 @@ START_TEST(test_seq)
 
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -340,10 +340,10 @@ START_TEST(test_types)
    u = type_unit(t, 2);
    fail_unless(u.name == ident_new("MOHM"));
    fail_unless(tree_kind(u.multiplier) == T_FCALL);
-   
+
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -386,10 +386,10 @@ START_TEST(test_literal)
    l = tree_literal(v);
    fail_unless(l.kind == L_INT);
    fail_unless(l.i == 523);
-   
+
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -416,10 +416,10 @@ START_TEST(test_extended)
    n = tree_decl(a, 4);
    // LRM states extended identifiers distinct from regular
    fail_if(d == n);
-   
+
    a = parse();
    fail_unless(a == NULL);
-   
+
    fail_unless(parse_errors() == 0);
 }
 END_TEST
@@ -436,7 +436,7 @@ START_TEST(test_package)
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_contexts(p) == 0);
    fail_unless(tree_ident(p) == ident_new("ONE"));
-   
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -456,7 +456,7 @@ START_TEST(test_enum)
 {
    tree_t p, d, i;
    type_t t;
-   
+
    fail_unless(input_from_file(TESTDIR "/parse/enum.vhd"));
 
    p = parse();
@@ -509,7 +509,7 @@ START_TEST(test_enum)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);   
+   fail_unless(parse_errors() == 0);
 }
 END_TEST
 
@@ -544,9 +544,45 @@ START_TEST(test_qual)
    e = tree_value(q);
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("'c'"));
-   
+
    a = parse();
    fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
+START_TEST(test_func)
+{
+   tree_t p, f, a;
+   type_t t;
+
+   fail_unless(input_from_file(TESTDIR "/parse/func.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 2);
+
+   f = tree_decl(p, 0);
+   fail_unless(tree_kind(f) == T_FUNC_DECL);
+   fail_unless(tree_ident(f) == ident_new("ADD"));
+   fail_unless(tree_ports(f) == 3);
+   a = tree_port(f, 0);
+   fail_unless(tree_kind(a) == T_PORT_DECL);
+   fail_unless(tree_ident(a) == ident_new("X"));
+   fail_unless(tree_port_mode(a) == PORT_IN);
+   t = tree_type(f);
+   fail_unless(type_kind(t) == T_FUNC);
+   fail_unless(type_params(t) == 3);
+
+   f = tree_decl(p, 1);
+   fail_unless(tree_kind(f) == T_FUNC_DECL);
+   fail_unless(tree_ident(f) == ident_new("NAUGHTY"));
+   fail_unless(tree_ports(f) == 0);
+
+   p = parse();
+   fail_unless(p == NULL);
 
    fail_unless(parse_errors() == 0);
 }
@@ -555,8 +591,8 @@ END_TEST
 int main(void)
 {
    register_trace_signal_handlers();
-   
-   Suite *s = suite_create("parse");  
+
+   Suite *s = suite_create("parse");
 
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_entity);
@@ -569,14 +605,15 @@ int main(void)
    tcase_add_test(tc_core, test_package);
    tcase_add_test(tc_core, test_enum);
    tcase_add_test(tc_core, test_qual);
+   tcase_add_test(tc_core, test_func);
    suite_add_tcase(s, tc_core);
-   
+
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);
 
    int nfail = srunner_ntests_failed(sr);
 
    srunner_free(sr);
-   
+
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
