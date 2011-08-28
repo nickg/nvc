@@ -48,7 +48,7 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
-static void _sched_process(uint64_t delay)
+void _sched_process(uint64_t delay)
 {
    printf("_sched_process delay=%u!!\n", (unsigned)delay);
    deltaq_insert(delay, active_proc);
@@ -82,8 +82,6 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
 
 static void rt_setup(tree_t top)
 {
-   jit_bind_fn("_sched_process", _sched_process);
-
    n_procs = tree_stmts(top);
    procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
 
