@@ -57,7 +57,8 @@ package STANDARD is
 
     --subtype DELAY_LENGTH is TIME range 0 fs to TIME'HIGH;
 
-    --impure function NOW return DELAY_LENGTH;
+    -- XXX impure function NOW return DELAY_LENGTH;
+    impure function NOW return TIME;
 
     --subtype NATURAL is INTEGER range 0 to INTEGER'HIGH;
 

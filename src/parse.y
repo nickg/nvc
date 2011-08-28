@@ -595,9 +595,6 @@ subprogram_decl
      type_set_ident(t, $2);
      type_set_result(t, $5);
 
-     for (tree_list_t *it = $3; it != NULL; it = it->next)
-        type_add_param(t, tree_type(it->value));
-
      tree_t f = tree_new(T_FUNC_DECL);
      tree_set_loc(f, &@$);
      tree_set_ident(f, $2);

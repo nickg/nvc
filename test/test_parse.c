@@ -574,7 +574,6 @@ START_TEST(test_func)
    fail_unless(tree_port_mode(a) == PORT_IN);
    t = tree_type(f);
    fail_unless(type_kind(t) == T_FUNC);
-   fail_unless(type_params(t) == 3);
 
    f = tree_decl(p, 1);
    fail_unless(tree_kind(f) == T_FUNC_DECL);

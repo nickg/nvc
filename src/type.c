@@ -349,6 +349,8 @@ void type_set_result(type_t t, type_t r)
    assert(IS(t, T_FUNC));
 
    type_ref(r);
+   if (t->result)
+      type_unref(t->result);
    t->result = r;
 }
 

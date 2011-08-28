@@ -544,27 +544,34 @@ static bool sem_check_type_decl(tree_t t)
    return scope_insert_special(t);
 }
 
-static bool sem_check_decl(tree_t t)
+static bool sem_check_type(tree_t t, type_t *ptype)
 {
-   type_t type = tree_type(t);
-   switch (type_kind(type)) {
+   switch (type_kind(*ptype)) {
    case T_SUBTYPE:
-      sem_check_subtype(t, type);
-      break;
+      return sem_check_subtype(t, *ptype);
 
    case T_UNRESOLVED:
       {
-         tree_t type_decl = scope_find(type_ident(type));
+         tree_t type_decl = scope_find(type_ident(*ptype));
          if (type_decl == NULL)
-            sem_error(t, "type %s is not defined", istr(type_ident(type)));
+            sem_error(t, "type %s is not defined", istr(type_ident(*ptype)));
 
-         tree_set_type(t, tree_type(type_decl));
+         *ptype = tree_type(type_decl);
       }
-      break;
+      return true;
 
    default:
-      assert(false);
+      abort();
    }
+}
+
+static bool sem_check_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (!sem_check_type(t, &type))
+      return false;
+
+   tree_set_type(t, type);
 
    if (tree_has_value(t))
       sem_check_constrained(tree_value(t), tree_type(t));
@@ -575,11 +582,26 @@ static bool sem_check_decl(tree_t t)
 
 static bool sem_check_func_decl(tree_t t)
 {
+   type_t ftype = tree_type(t);
+
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
       if (tree_port_mode(p) != PORT_IN)
          sem_error(p, "function arguments must have mode IN");
+
+      type_t param_type = tree_type(p);
+      if (!sem_check_type(p, &param_type))
+         return false;
+
+      type_add_param(ftype, param_type);
+      tree_set_type(p, param_type);
    }
+
+   type_t rtype = type_result(ftype);
+   if (!sem_check_type(t, &rtype))
+      return false;
+
+   type_set_result(ftype, rtype);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -870,7 +892,13 @@ static bool sem_check_ref(tree_t t)
    int n = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         if (type_set_member(tree_type(decl)))
+         type_t type = tree_type(decl);
+         if (type_set_member(type))
+            break;
+         else if (type_kind(type) == T_FUNC
+                  && type_params(type) == 0
+                  && type_set_member(type_result(type)))
+            // Zero-argument function of correct type
             break;
          else if (!can_overload(decl))
             break;
@@ -888,12 +916,17 @@ static bool sem_check_ref(tree_t t)
    case T_PORT_DECL:
    case T_CONST_DECL:
    case T_ENUM_LIT:
+      tree_set_type(t, tree_type(decl));
       break;
+
+   case T_FUNC_DECL:
+      tree_set_type(t, type_result(tree_type(decl)));
+      break;
+
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
    }
 
-   tree_set_type(t, tree_type(decl));
    tree_set_ref(t, decl);
 
    return true;

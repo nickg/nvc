@@ -45,6 +45,28 @@ static LLVMTypeRef llvm_type(type_t t)
    }
 }
 
+static LLVMValueRef cgen_fdecl(tree_t t)
+{
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(tree_ident(t)));
+   if (fn != NULL)
+      return fn;
+   else {
+      type_t ftype = tree_type(t);
+
+      LLVMTypeRef atypes[type_params(ftype)];
+      for (unsigned i = 0; i < type_params(ftype); i++)
+         atypes[i] = llvm_type(type_param(ftype, i));
+
+      return LLVMAddFunction(
+         module,
+         istr(tree_ident(t)),
+         LLVMFunctionType(llvm_type(type_result(ftype)),
+                          atypes,
+                          type_params(ftype),
+                          false));
+   }
+}
+
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
@@ -87,6 +109,9 @@ static LLVMValueRef cgen_ref(tree_t t)
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
       return cgen_expr(tree_value(decl));
+
+   case T_FUNC_DECL:
+      return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
    default:
       abort();
