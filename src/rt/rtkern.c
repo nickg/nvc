@@ -31,12 +31,53 @@ struct rt_proc {
    simple_proc_fn_t simple_proc_fn;
 };
 
+struct deltaq {
+   uint64_t       delta;
+   struct rt_proc *wake_proc;
+   struct deltaq  *next;
+};
+
 static struct rt_proc *procs = NULL;
+static struct rt_proc *active_proc = NULL;
+static struct deltaq  *eventq = NULL;
 static size_t         n_procs = 0;
+static uint64_t       now = 0;
+
+static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
+
+////////////////////////////////////////////////////////////////////////////////
+// Runtime support functions
 
 static void _sched_process(uint64_t delay)
 {
    printf("_sched_process delay=%u!!\n", (unsigned)delay);
+   deltaq_insert(delay, active_proc);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Simulation kernel
+
+static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
+{
+   struct deltaq *q = xmalloc(sizeof(struct deltaq));
+   q->wake_proc = wake;
+   q->next      = NULL;
+
+   if (eventq == NULL)
+      eventq = q;
+   else {
+      struct deltaq *it = eventq;
+      uint64_t sum = 0;
+      while (sum + it->delta < delta && it->next != NULL) {
+         sum += it->delta;
+         delta -= it->delta;
+      }
+
+      q->next = it->next;   // XXX: need to change it->next delta
+      it->next = q;
+   }
+
+   q->delta = delta;
 }
 
 static void rt_setup(tree_t top)
@@ -57,15 +98,35 @@ static void rt_setup(tree_t top)
    }
 }
 
+static void rt_run(struct rt_proc *proc)
+{
+   printf("run process %s\n", istr(tree_ident(proc->source)));
+
+   active_proc = proc;
+   (*proc->simple_proc_fn)();
+}
+
 static void rt_initial(void)
 {
    // Initialisation is described in LRM 93 section 12.6.4
 
-   for (size_t i = 0; i < n_procs; i++) {
-      printf("run process %s\n", istr(tree_ident(procs[i].source)));
+   now = 0;
 
-      (*procs[i].simple_proc_fn)();
-   }
+   for (size_t i = 0; i < n_procs; i++)
+      rt_run(&procs[i]);
+}
+
+static void rt_cycle(void)
+{
+   // Simulation cycle is described in LRM 93 section 12.6.4
+
+   now += eventq->delta;
+
+   printf("now is %llu\n", (unsigned long long)now);
+
+   rt_run(eventq->wake_proc);
+
+   eventq = eventq->next;
 }
 
 void rt_exec(ident_t top)
@@ -81,6 +142,8 @@ void rt_exec(ident_t top)
 
    rt_setup(e);
    rt_initial();
+   while (eventq != NULL)
+      rt_cycle();
 
    jit_shutdown();
 }

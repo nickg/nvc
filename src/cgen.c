@@ -33,13 +33,25 @@ static LLVMBuilderRef builder = NULL;
 
 static LLVMValueRef cgen_expr(tree_t t);
 
+static LLVMTypeRef llvm_type(type_t t)
+{
+   switch (type_kind(t)) {
+   case T_INTEGER:
+      // XXX: hack
+      return LLVMInt32Type();
+
+   default:
+      abort();
+   }
+}
+
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
    printf("cgen_literal %d\n", l.i);
    switch (l.kind) {
    case L_INT:
-      return LLVMConstInt(LLVMInt64Type(), l.i, false);
+      return LLVMConstInt(llvm_type(tree_type(t)), l.i, false);
    default:
       abort();
    }
