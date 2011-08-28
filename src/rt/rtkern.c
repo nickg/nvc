@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 typedef void (*simple_proc_fn_t)(void);
 
@@ -97,6 +98,13 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
    q->delta = delta;
 }
 
+static void deltaq_pop(void)
+{
+   struct deltaq *next = eventq->next;
+   free(eventq);
+   eventq = next;
+}
+
 static void rt_setup(tree_t top)
 {
    n_procs = tree_stmts(top);
@@ -139,7 +147,7 @@ static void rt_cycle(void)
 
    rt_run(eventq->wake_proc);
 
-   eventq = eventq->next;
+   deltaq_pop();
 }
 
 void rt_trace_en(bool en)
