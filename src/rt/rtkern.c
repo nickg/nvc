@@ -60,6 +60,11 @@ void _sched_process(uint64_t delay)
    deltaq_insert(delay, active_proc);
 }
 
+uint64_t _std_standard_now(void)
+{
+   return now;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 
@@ -109,6 +114,8 @@ static void rt_setup(tree_t top)
 {
    n_procs = tree_stmts(top);
    procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
+
+   jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
 
    for (unsigned i = 0; i < tree_stmts(top); i++) {
       tree_t p = tree_stmt(top, i);

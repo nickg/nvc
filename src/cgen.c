@@ -35,10 +35,19 @@ static LLVMValueRef cgen_expr(tree_t t);
 
 static LLVMTypeRef llvm_type(type_t t)
 {
+   printf("llvm_type kind=%d\n", type_kind(t));
+
    switch (type_kind(t)) {
    case T_INTEGER:
       // XXX: hack
       return LLVMInt32Type();
+
+   case T_PHYSICAL:
+      // XXX: hack
+      return LLVMInt64Type();
+
+   case T_SUBTYPE:
+      return llvm_type(type_base(t));
 
    default:
       abort();
@@ -64,6 +73,21 @@ static LLVMValueRef cgen_fdecl(tree_t t)
                           atypes,
                           type_params(ftype),
                           false));
+   }
+}
+
+static LLVMValueRef cgen_var_decl(tree_t t)
+{
+   LLVMValueRef var = LLVMGetNamedGlobal(module, istr(tree_ident(t)));
+   if (var != NULL)
+      return var;
+   else {
+      var = LLVMAddGlobal(module,
+                          llvm_type(tree_type(t)),
+                          istr(tree_ident(t)));
+      LLVMSetLinkage(var, LLVMInternalLinkage);
+      LLVMSetInitializer(var, cgen_expr(tree_value(t)));
+      return var;
    }
 }
 
@@ -149,11 +173,32 @@ static void cgen_wait(tree_t t)
    LLVMBuildRetVoid(builder);
 }
 
+static void cgen_var_assign(tree_t t)
+{
+   LLVMValueRef rhs = cgen_expr(tree_value(t));
+
+   tree_t target = tree_target(t);
+   switch (tree_kind(target)) {
+   case T_REF:
+      {
+         LLVMValueRef lhs = cgen_var_decl(tree_ref(target));
+         LLVMBuildStore(builder, rhs, lhs);
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 static void cgen_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_WAIT:
       cgen_wait(t);
+      break;
+   case T_VAR_ASSIGN:
+      cgen_var_assign(t);
       break;
    default:
       assert(false);
@@ -177,6 +222,8 @@ static void cgen_process(tree_t t)
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i));
+
+   //LLVMBuildBr(builder, bb);
 }
 
 static void cgen_top(tree_t t)
