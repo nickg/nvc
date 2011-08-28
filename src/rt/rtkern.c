@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <inttypes.h>
 
 typedef void (*simple_proc_fn_t)(void);
@@ -42,20 +43,36 @@ static struct rt_proc *active_proc = NULL;
 static struct deltaq  *eventq = NULL;
 static size_t         n_procs = 0;
 static uint64_t       now = 0;
+static bool           trace_on = false;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
+static void _tracef(const char *fmt, ...);
+
+#define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
 void _sched_process(uint64_t delay)
 {
-   printf("_sched_process delay=%u!!\n", (unsigned)delay);
+   TRACE("_sched_process delay=%u!!", (unsigned)delay);
    deltaq_insert(delay, active_proc);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
+
+static void _tracef(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   fprintf(stderr, "TRACE %llufs: ", (unsigned long long)now);
+   vfprintf(stderr, fmt, ap);
+   fprintf(stderr, "\n");
+
+   va_end(ap);
+}
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
 {
@@ -92,13 +109,13 @@ static void rt_setup(tree_t top)
       procs[i].source         = p;
       procs[i].simple_proc_fn = jit_fun_ptr(istr(tree_ident(p)));
 
-      printf("%s fun at %p\n", istr(tree_ident(p)), procs[i].simple_proc_fn);
+      TRACE("%s fun at %p", istr(tree_ident(p)), procs[i].simple_proc_fn);
    }
 }
 
 static void rt_run(struct rt_proc *proc)
 {
-   printf("run process %s\n", istr(tree_ident(proc->source)));
+   TRACE("run process %s", istr(tree_ident(proc->source)));
 
    active_proc = proc;
    (*proc->simple_proc_fn)();
@@ -120,11 +137,14 @@ static void rt_cycle(void)
 
    now += eventq->delta;
 
-   printf("now is %llu\n", (unsigned long long)now);
-
    rt_run(eventq->wake_proc);
 
    eventq = eventq->next;
+}
+
+void rt_trace_en(bool en)
+{
+   trace_on = en;
 }
 
 void rt_exec(ident_t top)

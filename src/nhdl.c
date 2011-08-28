@@ -119,6 +119,7 @@ static int run(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
+      {"trace", no_argument, 0, 't'},
       {0, 0, 0, 0}
    };
 
@@ -133,6 +134,9 @@ static int run(int argc, char **argv)
       case '?':
          // getopt_long already printed an error message
          exit(EXIT_FAILURE);
+      case 't':
+         rt_trace_en(true);
+         break;
       default:
          abort();
       }
@@ -176,6 +180,9 @@ static void usage(void)
           " -v, --version\t\tDisplay version and copyright information\n"
           " -h, --help\t\tDisplay this message and exit\n"
           "     --work=NAME\tUse NAME as the work library\n"
+          "\n"
+          "Run options:\n"
+          "     --trace\t\tTrace simulation events\n"
           "\n"
           "Report bugs to %s\n",
           PACKAGE, PACKAGE_BUGREPORT);

@@ -21,6 +21,7 @@
 #include "ident.h"
 
 void rt_exec(ident_t top);
+void rt_trace_en(bool en);
 
 void jit_init(ident_t top);
 void jit_shutdown(void);
