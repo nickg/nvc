@@ -20,7 +20,7 @@ static void teardown(void)
    if (work) {
       lib_destroy(work);
       lib_free(work);
-      
+
       work = NULL;
    }
 }
@@ -58,6 +58,8 @@ START_TEST(test_lib_save)
       tree_t ent = tree_new(T_ENTITY);
       tree_set_ident(ent, ident_new("name"));
 
+      tree_add_attr_str(ent, ident_new("attr"), "test string");
+
       type_t e = type_new(T_ENUM);
       type_set_ident(e, ident_new("myenum"));
       tree_t a = tree_new(T_ENUM_LIT);
@@ -68,13 +70,13 @@ START_TEST(test_lib_save)
       tree_set_ident(b, ident_new("b"));
       tree_set_type(b, e);
       type_enum_add_literal(e, b);
-   
+
       tree_t p1 = tree_new(T_PORT_DECL);
       tree_set_ident(p1, ident_new("foo"));
       tree_set_port_mode(p1, PORT_OUT);
       tree_set_type(p1, type_universal_int());
       tree_add_port(ent, p1);
-      
+
       tree_t p2 = tree_new(T_PORT_DECL);
       tree_set_ident(p2, ident_new("bar"));
       tree_set_port_mode(p2, PORT_IN);
@@ -96,7 +98,7 @@ START_TEST(test_lib_save)
       tree_t r = tree_new(T_REF);
       tree_set_ident(r, ident_new("v1"));
       tree_set_ref(r, v1);
-      
+
       tree_t s = tree_new(T_VAR_ASSIGN);
       tree_set_target(s, r);
       tree_set_value(s, r);
@@ -119,6 +121,10 @@ START_TEST(test_lib_save)
       fail_unless(tree_ident(ent) == ident_new("name"));
       fail_unless(tree_ports(ent) == 2);
 
+      const char *attr = tree_attr_str(ent, ident_new("attr"));
+      fail_if(attr == NULL);
+      fail_unless(strcmp(attr, "test string") == 0);
+
       tree_t p1 = tree_port(ent, 0);
       fail_unless(tree_kind(p1) == T_PORT_DECL);
       fail_unless(tree_port_mode(p1) == PORT_OUT);
@@ -127,7 +133,7 @@ START_TEST(test_lib_save)
       tree_t p2 = tree_port(ent, 1);
       fail_unless(tree_kind(p2) == T_PORT_DECL);
       fail_unless(tree_port_mode(p2) == PORT_IN);
-      
+
       type_t e = tree_type(p2);
       fail_unless(type_kind(e) == T_ENUM);
       fail_unless(type_enum_literals(e) == 2);
@@ -159,7 +165,7 @@ START_TEST(test_lib_save)
       // Type declaration and reference written to different units
       // so two copies of the type declaration will be read back
       // hence can't check for pointer equality here
-      fail_unless(type_eq(tree_type(tree_ref(r)), e));      
+      fail_unless(type_eq(tree_type(tree_ref(r)), e));
    }
 }
 END_TEST
@@ -176,14 +182,14 @@ int main(void)
    tcase_add_test(tc_core, test_lib_fopen);
    tcase_add_test(tc_core, test_lib_save);
    suite_add_tcase(s, tc_core);
-   
+
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);
 
    int nfail = srunner_ntests_failed(sr);
 
    srunner_free(sr);
-   
+
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

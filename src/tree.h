@@ -145,6 +145,9 @@ unsigned tree_contexts(tree_t t);
 ident_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, ident_t ctx);
 
+void tree_add_attr_str(tree_t t, ident_t name, const char *str);
+const char *tree_attr_str(tree_t t, ident_t name);
+
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);
 

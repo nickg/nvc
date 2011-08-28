@@ -20,13 +20,25 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MAX_CONTEXTS 16
+#define MAX_ATTRS    16
 
 struct tree_array {
    size_t count;
    size_t max;
    tree_t *items;
+};
+
+typedef enum { A_STRING } attr_kind_t;
+
+struct attr {
+   attr_kind_t kind;
+   ident_t     name;
+   union {
+      char *sval;
+   };
 };
 
 struct tree {
@@ -46,6 +58,8 @@ struct tree {
    tree_t            delay;
    tree_t            target;
    tree_t            ref;
+   struct attr       *attrs;
+   unsigned          n_attrs;
    ident_t           *context;
    unsigned short    n_contexts;
 
@@ -157,6 +171,8 @@ tree_t tree_new(tree_kind_t kind)
    t->n_contexts = 0;
    t->generation = 0;
    t->index      = 0;
+   t->attrs      = NULL;
+   t->n_attrs    = 0;
 
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -211,6 +227,14 @@ void tree_gc(void)
 
          if (HAS_CONTEXT(t) && t->context != NULL)
             free(t->context);
+
+         if (t->attrs != NULL) {
+            for (unsigned i = 0; i < t->n_attrs; i++) {
+               if (t->attrs[i].kind == A_STRING)
+                  free(t->attrs[i].sval);
+            }
+            free(t->attrs);
+         }
 
          free(t);
 
@@ -803,6 +827,17 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          ident_write(t->context[i], ctx->file);
    }
+   write_s(t->n_attrs, ctx->file);
+   for (unsigned i = 0; i < t->n_attrs; i++) {
+      write_s(t->attrs[i].kind, ctx->file);
+      ident_write(t->attrs[i].name, ctx->file);
+
+      switch (t->attrs[i].kind) {
+      case A_STRING:
+         write_s(strlen(t->attrs[i].sval), ctx->file);
+         fputs(t->attrs[i].sval, ctx->file);
+      }
+   }
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
@@ -863,6 +898,29 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
       for (unsigned i = 0; i < t->n_contexts; i++)
          t->context[i] = ident_read(ctx->file);
+   }
+
+   t->n_attrs = read_s(ctx->file);
+   assert(t->n_attrs <= MAX_ATTRS);
+   t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
+
+   for (unsigned i = 0; i < t->n_attrs; i++) {
+      t->attrs[i].kind = read_s(ctx->file);
+      t->attrs[i].name = ident_read(ctx->file);
+
+      switch (t->attrs[i].kind) {
+      case A_STRING:
+         {
+            size_t len = read_s(ctx->file);
+            t->attrs[i].sval = xmalloc(len + 1);
+            fread(t->attrs[i].sval, len, 1, ctx->file);
+            t->attrs[i].sval[len] = '\0';
+         }
+         break;
+
+      default:
+         abort();
+      }
    }
 
    return t;
@@ -951,3 +1009,30 @@ void tree_dump(tree_t t)
 {
    tree_dump_aux(t, 0);
 }
+
+void tree_add_attr_str(tree_t t, ident_t name, const char *str)
+{
+   assert(t != NULL);
+   assert(t->n_attrs < MAX_ATTRS);
+
+   if (t->attrs == NULL)
+      t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
+
+   unsigned i = t->n_attrs++;
+   t->attrs[i].kind = A_STRING;
+   t->attrs[i].name = name;
+   t->attrs[i].sval = strdup(str);
+}
+
+const char *tree_attr_str(tree_t t, ident_t name)
+{
+   assert(t != NULL);
+
+   for (unsigned i = 0; i < t->n_attrs; i++) {
+      if (t->attrs[i].kind == A_STRING && t->attrs[i].name == name)
+         return t->attrs[i].sval;
+   }
+
+   return NULL;
+}
+

@@ -28,6 +28,8 @@
 
 #include "loc.h"
 
+#define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
+
 void *xmalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 

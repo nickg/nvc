@@ -20,11 +20,36 @@
 #include "lib.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
 
 static LLVMModuleRef module = NULL;
+
+static LLVMValueRef cgen_literal(tree_t t)
+{
+   printf("cgen_literal\n");
+   return NULL;
+}
+
+static LLVMValueRef cgen_fcall(tree_t t)
+{
+   printf("cgen_fcall\n");
+   return NULL;
+}
+
+static LLVMValueRef cgen_expr(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+      return cgen_literal(t);
+   case T_FCALL:
+      return cgen_fcall(t);
+   default:
+      abort();
+   }
+}
 
 static void cgen_wait(tree_t t, LLVMBuilderRef builder)
 {
@@ -34,6 +59,8 @@ static void cgen_wait(tree_t t, LLVMBuilderRef builder)
       LLVMValueRef sched_process_fn =
          LLVMGetNamedFunction(module, "_sched_process");
       assert(sched_process_fn != NULL);
+
+      (void)cgen_expr(tree_delay(t));
 
       LLVMBuildCall(builder, sched_process_fn, NULL, 0, "");
    }
@@ -88,8 +115,12 @@ void cgen(tree_t top)
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
 
+   LLVMTypeRef _sched_process_args[] = { LLVMInt64Type() };
    LLVMAddFunction(module, "_sched_process",
-                   LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _sched_process_args,
+                                    ARRAY_LEN(_sched_process_args),
+                                    false));
 
    cgen_top(top);
 

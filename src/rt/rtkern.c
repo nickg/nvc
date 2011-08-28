@@ -21,6 +21,8 @@
 #include "util.h"
 
 #include <assert.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 typedef void (*simple_proc_fn_t)(void);
 
@@ -32,9 +34,9 @@ struct rt_proc {
 static struct rt_proc *procs = NULL;
 static size_t         n_procs = 0;
 
-static void _sched_process(void)
+static void _sched_process(uint64_t delay)
 {
-   printf("_sched_process!!\n");
+   printf("_sched_process delay=%u!!\n", (unsigned)delay);
 }
 
 static void rt_setup(tree_t top)
