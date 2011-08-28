@@ -104,6 +104,15 @@ START_TEST(test_lib_save)
       tree_set_value(s, r);
       tree_add_stmt(pr, s);
 
+      tree_t c = tree_new(T_LITERAL);
+      literal_t l = { .kind = L_INT, .i = 53 };
+      tree_set_literal(c, l);
+
+      tree_t s2 = tree_new(T_VAR_ASSIGN);
+      tree_set_target(s2, r);
+      tree_set_value(s2, c);
+      tree_add_stmt(pr, s2);
+
       lib_put(work, ent);
       lib_put(work, ar);
    }
@@ -161,6 +170,16 @@ START_TEST(test_lib_save)
       tree_t r = tree_target(s);
       fail_unless(tree_kind(r) == T_REF);
       fail_unless(tree_value(s) == r);
+
+      tree_t s2 = tree_stmt(pr, 1);
+      fail_unless(tree_kind(s2) == T_VAR_ASSIGN);
+      fail_unless(tree_target(s2) == r);
+
+      tree_t c = tree_value(s2);
+      fail_unless(tree_kind(c) == T_LITERAL);
+      literal_t l = tree_literal(c);
+      fail_unless(l.kind == L_INT);
+      fail_unless(l.i == 53);
 
       // Type declaration and reference written to different units
       // so two copies of the type declaration will be read back

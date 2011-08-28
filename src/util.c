@@ -258,6 +258,11 @@ void write_u(unsigned u, FILE *f)
    fwrite(&u, sizeof(unsigned), 1, f);
 }
 
+void write_i(int i, FILE *f)
+{
+   fwrite(&i, sizeof(int), 1, f);
+}
+
 void write_s(unsigned short s, FILE *f)
 {
    fwrite(&s, sizeof(unsigned short), 1, f);
@@ -292,4 +297,12 @@ bool read_b(FILE *f)
    if (fread(&u, sizeof(uint8_t), 1, f) != 1)
       fatal("premature end of file");
    return u;
+}
+
+int read_i(FILE *f)
+{
+   int i;
+   if (fread(&i, sizeof(int), 1, f) != 1)
+      fatal("premature end of file");
+   return i;
 }

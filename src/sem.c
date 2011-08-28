@@ -271,6 +271,9 @@ static bool scope_insert_special(tree_t t)
 
    bool ok = scope_insert(t);
 
+   if (tree_kind(t) == T_TYPE_DECL)
+      sem_declare_predefined_ops(tree_type(t));
+
    type_t type = tree_type(t);
    switch (type_kind(type)) {
    case T_ENUM:
@@ -283,6 +286,7 @@ static bool scope_insert_special(tree_t t)
       // Create constant declarations for each unit
       for (unsigned i = 0; i < type_units(type); i++) {
          unit_t u = type_unit(type, i);
+         ok = ok && sem_check(u.multiplier);
 
          tree_t c = tree_new(T_CONST_DECL);
          tree_set_loc(c, tree_loc(u.multiplier));
@@ -296,9 +300,6 @@ static bool scope_insert_special(tree_t t)
    default:
       break;
    }
-
-   if (tree_kind(t) == T_TYPE_DECL)
-      sem_declare_predefined_ops(tree_type(t));
 
    return ok;
 }
@@ -377,7 +378,7 @@ static bool type_set_member(type_t t)
 }
 
 static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
-                               type_t result)
+                               type_t result, const char *builtin)
 {
    type_t f = type_new(T_FUNC);
    type_set_ident(f, name);
@@ -388,6 +389,7 @@ static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
+   tree_add_attr_str(d, ident_new("builtin"), builtin);
 
    scope_insert(d);
 }
@@ -405,41 +407,41 @@ static void sem_declare_predefined_ops(type_t t)
    switch (type_kind(t)) {
    case T_PHYSICAL:
       // Multiplication
-      sem_declare_binary(mult, t, uint, t);
-      //sem_declare_binary(mult, t, ureal, t);
-      sem_declare_binary(mult, uint, t, t);
-      //sem_declare_binary(mult, ureal, t, t);
+      sem_declare_binary(mult, t, uint, t, "mul");
+      //sem_declare_binary(mult, t, ureal, t, "mul");
+      sem_declare_binary(mult, uint, t, t, "mul");
+      //sem_declare_binary(mult, ureal, t, t, "mul");
 
       // Division
-      sem_declare_binary(div, t, uint, t);
-      //sem_declare_binary(div, t, ureal, t);
-      sem_declare_binary(div, t, t, uint);
+      sem_declare_binary(div, t, uint, t, "div");
+      //sem_declare_binary(div, t, ureal, t, "div");
+      sem_declare_binary(div, t, t, uint, "div");
 
       // Fall-through
    case T_INTEGER:
       // Modulus
-      sem_declare_binary(ident_new("MOD"), uint, t, t);
+      sem_declare_binary(ident_new("MOD"), uint, t, t, "mod");
 
       // Remainder
-      sem_declare_binary(ident_new("REM"), uint, t, t);
+      sem_declare_binary(ident_new("REM"), uint, t, t, "rem");
 
       // Fall-through
    case T_REAL:
       // Addition
-      sem_declare_binary(ident_new("+"), uint, t, t);
-      //sem_declare_binary(ident_new("+"), ureal, t, t);
+      sem_declare_binary(ident_new("+"), uint, t, t, "add");
+      //sem_declare_binary(ident_new("+"), ureal, t, t, "add");
 
       // Subtraction
-      sem_declare_binary(ident_new("-"), uint, t, t);
-      //sem_declare_binary(ident_new("-"), ureal, t, t);
+      sem_declare_binary(ident_new("-"), uint, t, t, "sub");
+      //sem_declare_binary(ident_new("-"), ureal, t, t, "sub");
 
       // Multiplication
-      sem_declare_binary(mult, uint, t, t);
-      //sem_declare_binary(mult, ureal, t, t);
+      sem_declare_binary(mult, uint, t, t, "mul");
+      //sem_declare_binary(mult, ureal, t, t, "mul");
 
       // Division
-      sem_declare_binary(div, uint, t, t);
-      //sem_declare_binary(div, ureal, t, t);
+      sem_declare_binary(div, uint, t, t, "mul");
+      //sem_declare_binary(div, ureal, t, t, "mul");
 
       break;
 
@@ -816,6 +818,7 @@ static bool sem_check_fcall(tree_t t)
                 fn);
    }
 
+   tree_set_ref(t, decl);
    tree_set_type(t, type_result(tree_type(decl)));
    return true;
 }

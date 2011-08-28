@@ -116,6 +116,7 @@ struct tree_rd_ctx {
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
+#define HAS_REF(t) (IS(t, T_REF) || IS(t, T_FCALL))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -566,7 +567,7 @@ void tree_set_target(tree_t t, tree_t lhs)
 tree_t tree_ref(tree_t t)
 {
    assert(t != NULL);
-   assert(IS(t, T_REF));
+   assert(HAS_REF(t));
    assert(t->ref != NULL);
 
    return t->ref;
@@ -575,7 +576,7 @@ tree_t tree_ref(tree_t t)
 void tree_set_ref(tree_t t, tree_t decl)
 {
    assert(t != NULL);
-   assert(IS(t, T_REF));
+   assert(HAS_REF(t));
    assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT));
 
    t->ref = decl;
@@ -704,7 +705,7 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->delay, fn, context, generation);
    if (HAS_TARGET(t))
       n += tree_visit_aux(t->target, fn, context, generation);
-   if (IS(t, T_REF))
+   if (HAS_REF(t))
       n += tree_visit_aux(t->ref, fn, context, generation);
    if (HAS_TYPE(t))
       n += tree_visit_type(t->type, fn, context, generation);
@@ -820,13 +821,24 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->delay, ctx);
    if (HAS_TARGET(t))
       tree_write(t->target, ctx);
-   if (IS(t, T_REF))
+   if (HAS_REF(t))
       tree_write(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
       write_s(t->n_contexts, ctx->file);
       for (unsigned i = 0; i < t->n_contexts; i++)
          ident_write(t->context[i], ctx->file);
    }
+   if (IS(t, T_LITERAL)) {
+      write_s(t->literal.kind, ctx->file);
+      switch (t->literal.kind) {
+      case L_INT:
+         write_i(t->literal.i, ctx->file);
+         break;
+      default:
+         abort();
+      }
+   }
+
    write_s(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
       write_s(t->attrs[i].kind, ctx->file);
@@ -890,7 +902,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->delay = tree_read(ctx);
    if (HAS_TARGET(t))
       t->target = tree_read(ctx);
-   if (IS(t, T_REF))
+   if (HAS_REF(t))
       t->ref = tree_read(ctx);
    if (HAS_CONTEXT(t)) {
       t->n_contexts = read_s(ctx->file);
@@ -898,6 +910,16 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
       for (unsigned i = 0; i < t->n_contexts; i++)
          t->context[i] = ident_read(ctx->file);
+   }
+   if (IS(t, T_LITERAL)) {
+      t->literal.kind = read_s(ctx->file);
+      switch (t->literal.kind) {
+      case L_INT:
+         t->literal.i = read_i(ctx->file);
+         break;
+      default:
+         abort();
+      }
    }
 
    t->n_attrs = read_s(ctx->file);

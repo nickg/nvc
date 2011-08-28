@@ -769,10 +769,6 @@ physical_type_def
 : range_constraint tUNITS base_unit_decl secondary_unit_decls tEND
   tUNITS opt_id
   {
-     $3.multiplier = tree_new(T_LITERAL);
-     literal_t l = { { .i = 1 }, .kind = L_INT };
-     tree_set_literal($3.multiplier, l);
-
      $$ = type_new(T_PHYSICAL);
      type_add_dim($$, $1);
      type_add_unit($$, $3);
@@ -787,7 +783,9 @@ physical_type_def
 base_unit_decl
 : id tSEMI
   {
-     $$.multiplier = NULL;
+     $$.multiplier = tree_new(T_LITERAL);
+     literal_t l = { { .i = 1 }, .kind = L_INT };
+     tree_set_literal($$.multiplier, l);
      $$.name = $1;
   }
 ;

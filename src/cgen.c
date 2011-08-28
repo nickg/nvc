@@ -19,23 +19,67 @@
 #include "util.h"
 #include "lib.h"
 
-#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
 
-static LLVMModuleRef module = NULL;
+#undef NDEBUG
+#include <assert.h>
+
+static LLVMModuleRef  module = NULL;
+static LLVMBuilderRef builder = NULL;
+
+static LLVMValueRef cgen_expr(tree_t t);
 
 static LLVMValueRef cgen_literal(tree_t t)
 {
-   printf("cgen_literal\n");
-   return NULL;
+   literal_t l = tree_literal(t);
+   printf("cgen_literal %d\n", l.i);
+   switch (l.kind) {
+   case L_INT:
+      return LLVMConstInt(LLVMInt64Type(), l.i, false);
+   default:
+      abort();
+   }
 }
 
 static LLVMValueRef cgen_fcall(tree_t t)
 {
-   printf("cgen_fcall\n");
+   printf("cgen_fcall: %s\n", istr(tree_ident(t)));
+
+   tree_t decl = tree_ref(t);
+   assert(tree_kind(decl) == T_FUNC_DECL);
+
+   LLVMValueRef args[tree_params(t)];
+   for (unsigned i = 0; i < tree_params(t); i++)
+      args[i] = cgen_expr(tree_param(t, i));
+
+   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+   if (builtin) {
+      if (strcmp(builtin, "mul") == 0)
+         return LLVMBuildMul(builder, args[0], args[1], "");
+      else
+         fatal("cannot generate code for builtin %s", builtin);
+   }
+   else
+      fatal("non-builtin functions not yet supported");
+}
+
+static LLVMValueRef cgen_ref(tree_t t)
+{
+   printf("cgen_ref: %s\n", istr(tree_ident(t)));
+   tree_t decl = tree_ref(t);
+
+   switch (tree_kind(decl)) {
+   case T_CONST_DECL:
+      return cgen_expr(tree_value(decl));
+
+   default:
+      abort();
+   }
+
    return NULL;
 }
 
@@ -46,12 +90,14 @@ static LLVMValueRef cgen_expr(tree_t t)
       return cgen_literal(t);
    case T_FCALL:
       return cgen_fcall(t);
+   case T_REF:
+      return cgen_ref(t);
    default:
       abort();
    }
 }
 
-static void cgen_wait(tree_t t, LLVMBuilderRef builder)
+static void cgen_wait(tree_t t)
 {
    // TODO: need to know if we're a function or co-routine here
 
@@ -60,18 +106,17 @@ static void cgen_wait(tree_t t, LLVMBuilderRef builder)
          LLVMGetNamedFunction(module, "_sched_process");
       assert(sched_process_fn != NULL);
 
-      (void)cgen_expr(tree_delay(t));
-
-      LLVMBuildCall(builder, sched_process_fn, NULL, 0, "");
+      LLVMValueRef args[] = { cgen_expr(tree_delay(t)) };
+      LLVMBuildCall(builder, sched_process_fn, args, 1, "");
    }
    LLVMBuildRetVoid(builder);
 }
 
-static void cgen_stmt(tree_t t, LLVMBuilderRef builder)
+static void cgen_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_WAIT:
-      cgen_wait(t, builder);
+      cgen_wait(t);
       break;
    default:
       assert(false);
@@ -91,13 +136,10 @@ static void cgen_process(tree_t t)
    LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
    LLVMBasicBlockRef bb = LLVMAppendBasicBlock(fn, "entry");
 
-   LLVMBuilderRef builder = LLVMCreateBuilder();
    LLVMPositionBuilderAtEnd(builder, bb);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
-      cgen_stmt(tree_stmt(t, i), builder);
-
-   LLVMDisposeBuilder(builder);
+      cgen_stmt(tree_stmt(t, i));
 }
 
 static void cgen_top(tree_t t)
@@ -114,6 +156,7 @@ void cgen(tree_t top)
       fatal("cannot generate code for tree kind %d", tree_kind(top));
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
+   builder = LLVMCreateBuilder();
 
    LLVMTypeRef _sched_process_args[] = { LLVMInt64Type() };
    LLVMAddFunction(module, "_sched_process",
@@ -134,5 +177,6 @@ void cgen(tree_t top)
 
    LLVMDumpModule(module);
 
+   LLVMDisposeBuilder(builder);
    LLVMDisposeModule(module);
 }
