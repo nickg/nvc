@@ -110,6 +110,7 @@ static int elaborate(int argc, char **argv)
    tree_t e = elab(unit);
    cgen(e);
 
+   lib_save(lib_work());
    return EXIT_SUCCESS;
 }
 
@@ -140,11 +141,7 @@ static int run(int argc, char **argv)
    if (optind == argc)
       fatal("missing top-level unit name");
 
-   ident_t unit_i = to_unit_name(argv[optind]);
-
-   jit_init(unit_i);
-
-   jit_shutdown();
+   rt_exec(to_unit_name(argv[optind]));
 
    return EXIT_SUCCESS;
 }

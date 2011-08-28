@@ -29,6 +29,24 @@
 static LLVMModuleRef          module = NULL;
 static LLVMExecutionEngineRef exec_engine = NULL;
 
+void *jit_fun_ptr(const char *name)
+{
+   LLVMValueRef fn;
+   if (LLVMFindFunction(exec_engine, name, &fn))
+      fatal("cannot find function %s", name);
+
+   return LLVMGetPointerToGlobal(exec_engine, fn);
+}
+
+void jit_bind_fn(const char *name, void *ptr)
+{
+   LLVMValueRef fn;
+   if (LLVMFindFunction(exec_engine, name, &fn))
+      fatal("cannot find function %s", name);
+
+   LLVMAddGlobalMapping(exec_engine, fn, ptr);
+}
+
 void jit_init(ident_t top)
 {
    char fname[128];

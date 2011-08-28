@@ -59,7 +59,7 @@ tree_t elab(tree_t top)
    lib_load_all(lib_work());
 
    tree_t e = tree_new(T_ELAB);
-   tree_set_ident(e, tree_ident(top));
+   tree_set_ident(e, ident_prefix(tree_ident(top), ident_new("elab")));
 
    switch (tree_kind(top)) {
    case T_ENTITY:
@@ -69,5 +69,6 @@ tree_t elab(tree_t top)
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
+   lib_put(lib_work(), e);
    return e;
 }

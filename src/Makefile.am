@@ -20,5 +20,5 @@ nhdl_SOURCES = nhdl.c
 # Force C++ linking
 nodist_EXTRA_nhdl_SOURCES = dummy.cxx
 
-nhdl_LDADD = libnhdl.a libcgen.a rt/libjit.a $(LLVM_LIBS)
+nhdl_LDADD = libnhdl.a libcgen.a rt/libnhdl-rt.a rt/libjit.a $(LLVM_LIBS)
 
