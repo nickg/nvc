@@ -573,6 +573,18 @@ static bool sem_check_decl(tree_t t)
    return scope_insert(t);
 }
 
+static bool sem_check_func_decl(tree_t t)
+{
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+      if (tree_port_mode(p) != PORT_IN)
+         sem_error(p, "function arguments must have mode IN");
+   }
+
+   scope_apply_prefix(t);
+   return scope_insert(t);
+}
+
 static bool sem_check_process(tree_t t)
 {
    bool ok = true;
@@ -930,6 +942,8 @@ bool sem_check(tree_t t)
       return sem_check_wait(t);
    case T_QUALIFIED:
       return sem_check_qualified(t);
+   case T_FUNC_DECL:
+      return sem_check_func_decl(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

@@ -34,13 +34,13 @@ static void test_error_fn(const char *msg, const loc_t *loc)
       || error_lines->snippet == NULL
       || error_lines->line != loc->first_line
       || strstr(msg, error_lines->snippet) == NULL;
-   
+
    if (unexpected) {
       orig_error_fn(msg, loc);
       printf("expected line %d '%s'\n",
              error_lines->line, error_lines->snippet);
    }
-      
+
    fail_if(unexpected);
 
    error_lines++;
@@ -50,7 +50,7 @@ static void expect_errors(const error_t *lines)
 {
    fail_unless(orig_error_fn == NULL);
    orig_error_fn = sem_set_error_fn(test_error_fn);
-   error_lines = lines; 
+   error_lines = lines;
 }
 
 START_TEST(test_integer)
@@ -69,7 +69,7 @@ START_TEST(test_integer)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
@@ -97,7 +97,7 @@ START_TEST(test_integer)
    fail_unless(tree_stmts(a) == 5);
 
    // Process 1
-   
+
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
 
@@ -108,7 +108,7 @@ START_TEST(test_integer)
    fail_unless(type_kind(tree_type(d)) == T_INTEGER);
 
    s = tree_stmt(p, 0);
-   fail_unless(tree_ref(tree_target(s)) == d);   
+   fail_unless(tree_ref(tree_target(s)) == d);
 }
 END_TEST
 
@@ -139,10 +139,10 @@ START_TEST(test_ports)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
-   
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
@@ -194,10 +194,10 @@ START_TEST(test_scope)
       fail_unless(tree_kind(a) == T_ARCH);
       sem_check(a);
    }
-      
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
@@ -208,13 +208,13 @@ START_TEST(test_ambiguous)
    type_t lhs, rhs;
 
    fail_unless(input_from_file(TESTDIR "/sem/ambiguous.vhd"));
-   
+
    const error_t expect[] = {
       { 35, "type of value BAR does not match type of target FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
-   
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -238,7 +238,7 @@ START_TEST(test_ambiguous)
    rhs = tree_type(tree_value(s));
    fail_unless(type_ident(lhs) == ident_new("BAR"));
    fail_unless(type_ident(rhs) == ident_new("BAR"));
-      
+
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 2);
    s = tree_stmt(p, 0);
@@ -268,11 +268,11 @@ START_TEST(test_ambiguous)
    lhs = tree_type(tree_target(s));
    rhs = tree_type(tree_value(s));
    fail_unless(type_ident(lhs) == ident_new("FOO"));
-   fail_unless(type_ident(rhs) == ident_new("FOO"));   
-   
+   fail_unless(type_ident(rhs) == ident_new("FOO"));
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
@@ -288,7 +288,7 @@ START_TEST(test_const)
       { -1, NULL }
    };
    expect_errors(expect);
-   
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -301,7 +301,7 @@ START_TEST(test_const)
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
@@ -340,7 +340,7 @@ START_TEST(test_wait)
       { -1, NULL }
    };
    expect_errors(expect);
-   
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -356,22 +356,46 @@ START_TEST(test_wait)
    fail_unless(tree_stmts(p) == 4);
 
    ident_t time = ident_new("STD.STANDARD.TIME");
-   
+
    w = tree_stmt(p, 0);
    fail_unless(tree_kind(w) == T_WAIT);
    fail_unless(type_ident(tree_type(tree_delay(w))) == time);
-   
+
    w = tree_stmt(p, 1);
    fail_unless(tree_kind(w) == T_WAIT);
    fail_unless(type_ident(tree_type(tree_delay(w))) == time);
-   
+
    w = tree_stmt(p, 2);
    fail_unless(tree_kind(w) == T_WAIT);
-   fail_unless(type_ident(tree_type(tree_delay(w))) == time);   
+   fail_unless(type_ident(tree_type(tree_delay(w))) == time);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
+START_TEST(test_func)
+{
+   tree_t p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/func.vhd"));
+
+   const error_t expect[] = {
+      { 5, "function arguments must have mode IN" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
@@ -379,7 +403,7 @@ END_TEST
 int main(void)
 {
    register_trace_signal_handlers();
-   
+
    Suite *s = suite_create("sem");
 
    TCase *tc_core = tcase_create("Core");
@@ -391,14 +415,15 @@ int main(void)
    tcase_add_test(tc_core, test_const);
    tcase_add_test(tc_core, test_std);
    tcase_add_test(tc_core, test_wait);
+   tcase_add_test(tc_core, test_func);
    suite_add_tcase(s, tc_core);
-   
+
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);
 
    int nfail = srunner_ntests_failed(sr);
 
    srunner_free(sr);
-   
+
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -589,31 +589,31 @@ process_decl_item
 
 subprogram_decl
 : /* procedure designator [ ( formal_parameter_list ) ]  | */
-  pure_impure tFUNCTION id formal_param_list tRETURN type_mark tSEMI
+  func_type id formal_param_list tRETURN type_mark tSEMI
   {
      type_t t = type_new(T_FUNC);
-     type_set_ident(t, $3);
-     type_set_result(t, $6);
+     type_set_ident(t, $2);
+     type_set_result(t, $5);
 
-     for (tree_list_t *it = $4; it != NULL; it = it->next)
+     for (tree_list_t *it = $3; it != NULL; it = it->next)
         type_add_param(t, tree_type(it->value));
 
      tree_t f = tree_new(T_FUNC_DECL);
      tree_set_loc(f, &@$);
-     tree_set_ident(f, $3);
+     tree_set_ident(f, $2);
      tree_set_type(f, t);
 
-     for (tree_list_t *it = $4; it != NULL; it = it->next)
+     for (tree_list_t *it = $3; it != NULL; it = it->next)
         tree_add_port(f, it->value);
 
-     tree_list_free($4);
+     tree_list_free($3);
 
      $$ = NULL;
      tree_list_append(&$$, f);
   }
 ;
 
-pure_impure : tPURE | tIMPURE | /* empty */ ;
+func_type : tPURE tFUNCTION | tIMPURE tFUNCTION | tFUNCTION ;
 
 formal_param_list
 : tLPAREN interface_list tRPAREN { $$ = $2; }
