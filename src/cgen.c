@@ -101,5 +101,7 @@ void cgen(tree_t top)
       fatal("error writing LLVM bitcode");
    fclose(f);
 
+   LLVMDumpModule(module);
+
    LLVMDisposeModule(module);
 }

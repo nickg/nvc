@@ -1,6 +1,7 @@
+SUBDIRS = rt
+
 bin_PROGRAMS = nhdl
-lib_LIBRARIES = libnhdl.a
-noinst_LIBRARIES = libcgen.a
+noinst_LIBRARIES = libcgen.a libnhdl.a
 
 AM_CFLAGS = -Wall -Werror
 AM_YFLAGS = -d --locations
@@ -19,5 +20,5 @@ nhdl_SOURCES = nhdl.c
 # Force C++ linking
 nodist_EXTRA_nhdl_SOURCES = dummy.cxx
 
-nhdl_LDADD = libnhdl.a libcgen.a $(LLVM_LIBS)
+nhdl_LDADD = libnhdl.a libcgen.a rt/libjit.a $(LLVM_LIBS)
 

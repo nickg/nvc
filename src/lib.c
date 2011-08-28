@@ -130,6 +130,7 @@ lib_t lib_find(const char *name, bool verbose)
    const char *paths[] = {
       ".",
       "../lib/std",  // For unit tests (XXX: add NHDL_LIBPATH)
+      "lib/std",     //     debugging
       DATADIR,
       NULL
    };
@@ -312,4 +313,11 @@ void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context)
 
    for (unsigned i = 0; i < lib->n_units; i++)
       (*fn)(lib->units[i], context);
+}
+
+void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
+{
+   assert(lib != NULL);
+
+   snprintf(buf, buflen, "%s/%s", lib->path, name);
 }

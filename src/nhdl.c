@@ -19,6 +19,7 @@
 #include "parse.h"
 #include "sem.h"
 #include "phase.h"
+#include "rt/rt.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -112,6 +113,42 @@ static int elaborate(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static int run(int argc, char **argv)
+{
+   set_work_lib();
+
+   static struct option long_options[] = {
+      {0, 0, 0, 0}
+   };
+
+   int c, index = 0;
+   const char *spec = "";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      default:
+         abort();
+      }
+   }
+
+   if (optind == argc)
+      fatal("missing top-level unit name");
+
+   ident_t unit_i = to_unit_name(argv[optind]);
+
+   jit_init(unit_i);
+
+   jit_shutdown();
+
+   return EXIT_SUCCESS;
+}
+
 static int dump(int argc, char **argv)
 {
    set_work_lib();
@@ -136,6 +173,7 @@ static void usage(void)
           "COMMAND is one of:\n"
           " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
           " -e UNIT\t\tElaborate and generate code for UNIT\n"
+          " -r UNIT\t\tExecute previously elaborated UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -v, --version\t\tDisplay version and copyright information\n"
@@ -174,7 +212,7 @@ int main(int argc, char **argv)
    };
 
    int c, index = 0;
-   const char *spec = "aeh";
+   const char *spec = "aehr";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -192,6 +230,7 @@ int main(int argc, char **argv)
       case 'a':
       case 'e':
       case 'd':
+      case 'r':
          // Subcommand options are parsed later
          argc -= (optind - 1);
          argv += (optind - 1);
@@ -212,6 +251,8 @@ int main(int argc, char **argv)
       return elaborate(argc, argv);
    case 'd':
       return dump(argc, argv);
+   case 'r':
+      return run(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;

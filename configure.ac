@@ -3,6 +3,8 @@ AC_INIT([nhdl], [0.1],
         [nhdl])
 AM_INIT_AUTOMAKE([color-tests])
 
+AC_CONFIG_MACRO_DIR([m4])
+
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
@@ -35,10 +37,10 @@ AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
-AX_LLVM_C([core bitwriter])
+AX_LLVM_C([engine bitreader bitwriter])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nhdl], [Installation data directory])
 
 AC_CONFIG_HEADERS([config.h])
-AC_OUTPUT([Makefile src/Makefile test/Makefile lib/Makefile \
-           lib/std/Makefile])
+AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
+           lib/Makefile lib/std/Makefile])

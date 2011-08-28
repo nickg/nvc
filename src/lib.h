@@ -31,6 +31,7 @@ lib_t lib_new(const char *name);
 lib_t lib_tmp(void);
 void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
+void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen);
 void lib_destroy(lib_t lib);
 struct trie *lib_name(lib_t lib);
 void lib_save(lib_t lib);
