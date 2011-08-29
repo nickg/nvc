@@ -105,7 +105,9 @@ START_TEST(test_lib_save)
       tree_add_stmt(pr, s);
 
       tree_t c = tree_new(T_LITERAL);
-      literal_t l = { .kind = L_INT, .i = 53 };
+      literal_t l;
+      l.kind = L_INT;
+      l.i = 53;
       tree_set_literal(c, l);
 
       tree_t s2 = tree_new(T_VAR_ASSIGN);
