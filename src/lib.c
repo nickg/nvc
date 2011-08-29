@@ -32,11 +32,16 @@
 
 #define MAX_UNITS 16
 
+struct lib_unit {
+   tree_t top;
+   bool   dirty;
+};
+
 struct lib {
-   char     path[PATH_MAX];
-   ident_t  name;
-   unsigned n_units;
-   tree_t   *units;
+   char            path[PATH_MAX];
+   ident_t         name;
+   unsigned        n_units;
+   struct lib_unit *units;
 };
 
 struct lib_list {
@@ -73,6 +78,20 @@ static lib_t lib_init(const char *name, const char *rpath)
    loaded = el;
 
    return l;
+}
+
+static void lib_put_aux(lib_t lib, tree_t unit, bool dirty)
+{
+   assert(lib != NULL);
+   assert(unit != NULL);
+   assert(lib->n_units < MAX_UNITS);
+
+   if (lib->n_units == 0)
+      lib->units = xmalloc(sizeof(struct lib_unit) * MAX_UNITS);
+
+   unsigned n = lib->n_units++;
+   lib->units[n].top   = unit;
+   lib->units[n].dirty = dirty;
 }
 
 static lib_t lib_find_at(const char *name, const char *path)
@@ -225,14 +244,7 @@ void lib_set_work(lib_t lib)
 
 void lib_put(lib_t lib, tree_t unit)
 {
-   assert(lib != NULL);
-   assert(unit != NULL);
-   assert(lib->n_units < MAX_UNITS);
-
-   if (lib->n_units == 0)
-      lib->units = xmalloc(sizeof(tree_t) * MAX_UNITS);
-
-   lib->units[lib->n_units++] = unit;
+   lib_put_aux(lib, unit, true);
 }
 
 tree_t lib_get(lib_t lib, ident_t ident)
@@ -241,8 +253,8 @@ tree_t lib_get(lib_t lib, ident_t ident)
 
    // Search in the list of already loaded libraries
    for (unsigned n = 0; n < lib->n_units; n++) {
-      if (tree_ident(lib->units[n]) == ident)
-         return lib->units[n];
+      if (tree_ident(lib->units[n].top) == ident)
+         return lib->units[n].top;
    }
 
    // Otherwise search in the filesystem
@@ -258,7 +270,7 @@ tree_t lib_get(lib_t lib, ident_t ident)
          FILE *f = lib_fopen(lib, e->d_name, "r");
          tree_rd_ctx_t ctx = tree_read_begin(f);
          unit = tree_read(ctx);
-         lib_put(lib, unit);
+         lib_put_aux(lib, unit, false);
          tree_read_end(ctx);
          fclose(f);
          break;
@@ -299,11 +311,16 @@ void lib_save(lib_t lib)
    assert(lib != NULL);
 
    for (unsigned n = 0; n < lib->n_units; n++) {
-      FILE *f = lib_fopen(lib, istr(tree_ident(lib->units[n])), "w");
-      tree_wr_ctx_t ctx = tree_write_begin(f);
-      tree_write(lib->units[n], ctx);
-      tree_write_end(ctx);
-      fclose(f);
+      if (lib->units[n].dirty) {
+         const char *name = istr(tree_ident(lib->units[n].top));
+         FILE *f = lib_fopen(lib, name, "w");
+         tree_wr_ctx_t ctx = tree_write_begin(f);
+         tree_write(lib->units[n].top, ctx);
+         tree_write_end(ctx);
+         fclose(f);
+
+         lib->units[n].dirty = false;
+      }
    }
 }
 
@@ -312,7 +329,7 @@ void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context)
    assert(lib != NULL);
 
    for (unsigned i = 0; i < lib->n_units; i++)
-      (*fn)(lib->units[i], context);
+      (*fn)(lib->units[i].top, context);
 }
 
 void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
