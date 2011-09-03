@@ -37,7 +37,8 @@ typedef enum type_kind {
    T_REAL,
    T_ENUM,
    T_PHYSICAL,
-   T_ARRAY,
+   T_CARRAY,
+   T_UARRAY,
    T_RECORD,
    T_FILE,
    T_ACCESS,
@@ -64,11 +65,11 @@ bool type_eq(type_t a, type_t b);
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
-// T_SUBTYPE
+// T_SUBTYPE, T_UARRAY, T_CARRAY
 type_t type_base(type_t t);
 void type_set_base(type_t t, type_t b);
 
-// T_INTEGER, T_SUBTYPE, T_PHYSICAL
+// T_INTEGER, T_SUBTYPE, T_PHYSICAL, T_CARRAY
 unsigned type_dims(type_t t);
 range_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, range_t r);
@@ -91,6 +92,11 @@ void type_add_param(type_t t, type_t p);
 // T_FUNC
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
+
+// T_UARRAY
+unsigned type_index_constrs(type_t t);
+void type_add_index_constr(type_t t, type_t c);
+type_t type_index_constr(type_t t, unsigned n);
 
 type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx);
 void type_write(type_t t, type_wr_ctx_t ctx);

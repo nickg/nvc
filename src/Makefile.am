@@ -4,7 +4,7 @@ bin_PROGRAMS = nhdl
 noinst_LIBRARIES = libcgen.a libnhdl.a
 
 AM_CFLAGS = -Wall -Werror
-AM_YFLAGS = -d --locations
+AM_YFLAGS = -d --locations --report=all
 AM_LDFLAGS = -rdynamic $(LLVM_LDFLAGS)
 
 BUILT_SOURCES = parse.h

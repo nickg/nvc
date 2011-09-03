@@ -121,7 +121,6 @@
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
-   static ident_t ref_ident(tree_t t);
 }
 
 %union {
@@ -143,9 +142,9 @@
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt timeout_clause physical_literal target
-%type <t> package_decl name simple_name selected_name
+%type <t> package_decl name
 %type <t> waveform waveform_element seq_stmt_without_label
-%type <i> id opt_id opt_label prefix selected_id
+%type <i> id opt_id opt_label selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
@@ -156,8 +155,10 @@
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
-%type <y> integer_type_def physical_type_def enum_type_def
-%type <r> range range_constraint
+%type <y> integer_type_def physical_type_def enum_type_def array_type_def
+%type <y> index_subtype_def
+%type <y> unconstrained_array_def constrained_array_def
+%type <r> range range_constraint discrete_range index_constraint
 %type <u> base_unit_decl
 %type <v> secondary_unit_decls
 
@@ -167,7 +168,7 @@
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
-%token tTICK tFUNCTION tIMPURE tRETURN tPURE
+%token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -229,6 +230,7 @@ id
      free(lvals.sval);
   }
 ;
+
 
 selected_id
 : id tDOT selected_id
@@ -741,9 +743,45 @@ type_decl
 
 type_def
 : scalar_type_def
-  /* | composite_type_definition
+| array_type_def
+  /* | record_type_def
      | access_type_definition
      | file_type_definition */
+;
+
+array_type_def
+: unconstrained_array_def
+| constrained_array_def
+;
+
+constrained_array_def
+: tARRAY index_constraint tOF subtype_indication
+  {
+     $$ = type_new(T_CARRAY);
+     type_set_base($$, $4);
+     type_add_dim($$, $2);
+  }
+;
+
+index_constraint
+: tLPAREN discrete_range /* { , discrete_range } */ tRPAREN { $$ = $2; }
+;
+
+unconstrained_array_def
+: tARRAY tLPAREN index_subtype_def /* { , index_subtype_def } */
+  tRPAREN tOF subtype_indication
+  {
+     $$ = type_new(T_UARRAY);
+     type_set_base($$, $6);
+     type_add_index_constr($$, $3);
+  }
+;
+
+index_subtype_def : type_mark tRANGE tBOX { $$ = $1; } ;
+
+discrete_range
+: subtype_indication { $$ = type_dim($1, 0); }
+| range
 ;
 
 scalar_type_def
@@ -884,10 +922,10 @@ expr
 | name
 | literal
 | tLPAREN expr tRPAREN { $$ = $2; }
-| name tTICK tLPAREN expr tRPAREN
+| selected_id tTICK tLPAREN expr tRPAREN
   {
      $$ = tree_new(T_QUALIFIED);
-     tree_set_ident($$, ref_ident($1));
+     tree_set_ident($$, $1);
      tree_set_value($$, $4);
      tree_set_loc($$, &@$);
   }
@@ -945,39 +983,18 @@ type_mark
 ;
 
 name
-: simple_name
-| selected_name
+: selected_id
+  {
+     $$ = tree_new(T_REF);
+     tree_set_ident($$, $1);
+     tree_set_loc($$, &@$);
+  }
   /* | operator_symbol
      | character_literal
      | indexed_name
      | slice_name
      | attribute_name
      | external_name */
-;
-
-simple_name
-: id
-  {
-     $$ = tree_new(T_REF);
-     tree_set_ident($$, $1);
-     tree_set_loc($$, &@$);
-  }
-
-selected_name
-: prefix tDOT suffix
-  {
-     $$ = tree_new(T_REF);
-     tree_set_ident($$, $1);
-     tree_set_loc($$, &@$);
-  }
-;
-
-prefix : id /* | function_call */ ;
-
-suffix
-: name | tALL
-/* | character_literal
-   | operator_symbol*/
 ;
 
 %%
@@ -1097,20 +1114,6 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    tree_set_loc(t, loc);
 
    return t;
-}
-
-static ident_t ref_ident(tree_t t)
-{
-   // This is a kludge to handle cases where we want to use both
-   // name and selected_id but can't because it causes a shift/reduce
-   // conflict
-
-   if (tree_kind(t) != T_REF) {
-      parse_error(&yylloc, "must be reference");
-      return ident_new("error");
-   }
-   else
-      return tree_ident(t);
 }
 
 static void parse_error(const loc_t *loc, const char *fmt, ...)

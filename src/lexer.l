@@ -121,6 +121,7 @@ FUNCTION      {F}{U}{N}{C}{T}{I}{O}{N}
 IMPURE        {I}{M}{P}{U}{R}{E}
 PURE          {P}{U}{R}{E}
 RETURN        {R}{E}{T}{U}{R}{N}
+ARRAY         {A}{R}{R}{A}{Y}
 
 %%
 
@@ -172,6 +173,7 @@ RETURN        {R}{E}{T}{U}{R}{N}
 {IMPURE}        { begin_token(yytext); return tIMPURE; }
 {PURE}          { begin_token(yytext); return tPURE; }
 {RETURN}        { begin_token(yytext); return tRETURN; }
+{ARRAY}         { begin_token(yytext); return tARRAY; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -180,6 +182,7 @@ RETURN        {R}{E}{T}{U}{R}{N}
 ":"        { begin_token(yytext); return tCOLON; }
 "**"       { begin_token(yytext); return tPOWER; }
 ","        { begin_token(yytext); return tCOMMA; }
+"<>"       { begin_token(yytext); return tBOX; }
 "<"        { begin_token(yytext); return tLT; }
 "<="       { begin_token(yytext); return tLE; }
 ">"        { begin_token(yytext); return tGT; }

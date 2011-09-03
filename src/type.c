@@ -41,6 +41,8 @@ struct type {
    unsigned    n_params;
    size_t      params_alloc;
    type_t      result;
+   unsigned    n_index_constr;
+   type_t      index_constr[MAX_DIMS];
 
    // Reference counting
    unsigned    refcount;
@@ -65,25 +67,29 @@ struct type_rd_ctx {
 
 #define IS(t, k) ((t)->kind == (k))
 #define HAS_DIMS(t) \
-   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL))
+   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL) \
+    || IS(t, T_CARRAY))
+#define HAS_BASE(t) \
+   (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 
 type_t type_new(type_kind_t kind)
 {
    struct type *t = xmalloc(sizeof(struct type));
-   t->kind       = kind;
-   t->ident      = NULL;
-   t->n_dims     = 0;
-   t->base       = NULL;
-   t->units      = NULL;
-   t->n_units    = 0;
-   t->literals   = NULL;
-   t->n_literals = 0;
-   t->lit_alloc  = 0;
-   t->generation = 0;
-   t->params     = NULL;
-   t->n_params   = 0;
-   t->result     = NULL;
-   t->refcount   = 0;   // Counts links to trees
+   t->kind           = kind;
+   t->ident          = NULL;
+   t->n_dims         = 0;
+   t->base           = NULL;
+   t->units          = NULL;
+   t->n_units        = 0;
+   t->literals       = NULL;
+   t->n_literals     = 0;
+   t->lit_alloc      = 0;
+   t->generation     = 0;
+   t->params         = NULL;
+   t->n_params       = 0;
+   t->result         = NULL;
+   t->n_index_constr = 0;
+   t->refcount       = 0;   // Counts links to trees
 
    return t;
 }
@@ -191,7 +197,7 @@ void type_add_dim(type_t t, range_t r)
 type_t type_base(type_t t)
 {
    assert(t != NULL);
-   assert(IS(t, T_SUBTYPE));
+   assert(HAS_BASE(t));
    assert(t->base != NULL);
 
    return t->base;
@@ -200,7 +206,7 @@ type_t type_base(type_t t)
 void type_set_base(type_t t, type_t b)
 {
    assert(t != NULL);
-   assert(IS(t, T_SUBTYPE));
+   assert(HAS_BASE(t));
    assert(b != NULL);
 
    type_ref(b);
@@ -354,6 +360,33 @@ void type_set_result(type_t t, type_t r)
    t->result = r;
 }
 
+unsigned type_index_constrs(type_t t)
+{
+   assert(t != NULL);
+   assert(type_kind(t) == T_UARRAY);
+
+   return t->n_index_constr;
+}
+
+void type_add_index_constr(type_t t, type_t c)
+{
+   assert(t != NULL);
+   assert(c != NULL);
+   assert(type_kind(t) == T_UARRAY);
+   assert(t->n_index_constr < MAX_DIMS);
+
+   type_ref(c);
+   t->index_constr[t->n_index_constr++] = c;
+}
+
+type_t type_index_constr(type_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(n < t->n_index_constr);
+
+   return t->index_constr[n];
+}
+
 void type_unref(type_t t)
 {
    assert(t != NULL);
@@ -436,6 +469,11 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          type_write(t->params[i], ctx);
       type_write(t->result, ctx);
    }
+   else if (IS(t, T_UARRAY)) {
+      write_s(t->n_index_constr, f);
+      for (unsigned i = 0; i < t->n_index_constr; i++)
+         type_write(t->index_constr[i], ctx);
+   }
 }
 
 type_t type_read(type_rd_ctx_t ctx)
@@ -517,6 +555,14 @@ type_t type_read(type_rd_ctx_t ctx)
 
       if ((t->result = type_read(ctx)))
          type_ref(t->result);
+   }
+   else if (IS(t, T_UARRAY)) {
+      unsigned short nconstr = read_s(f);
+      assert(nconstr < MAX_DIMS);
+
+      for (unsigned i = 0; i < nconstr; i++)
+         type_ref((t->index_constr[i] = type_read(ctx)));
+      t->n_index_constr = nconstr;
    }
 
    return t;

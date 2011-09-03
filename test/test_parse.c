@@ -587,6 +587,47 @@ START_TEST(test_func)
 }
 END_TEST
 
+START_TEST(test_array)
+{
+   tree_t p, d;
+   type_t t, i, b;
+   range_t r;
+
+   fail_unless(input_from_file(TESTDIR "/parse/array.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 2);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("INT_ARRAY"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_UARRAY);
+   fail_unless(type_index_constrs(t) == 1);
+   i = type_index_constr(t, 0);
+   fail_unless(type_kind(i) == T_UNRESOLVED);
+   fail_unless(type_ident(i) == ident_new("INTEGER"));
+   b = type_base(t);
+   fail_unless(type_kind(b) == T_UNRESOLVED);
+   fail_unless(type_ident(b) == ident_new("INTEGER"));
+
+   d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("TEN_INTS"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_CARRAY);
+   fail_unless(type_dims(t) == 1);
+   r = type_dim(t, 0);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -605,6 +646,7 @@ int main(void)
    tcase_add_test(tc_core, test_enum);
    tcase_add_test(tc_core, test_qual);
    tcase_add_test(tc_core, test_func);
+   tcase_add_test(tc_core, test_array);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
