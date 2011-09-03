@@ -58,6 +58,7 @@ AC_ARG_WITH([llvm],
 			LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
 			LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
                         LLVM_LIBS="$($ac_llvm_config_path --libs $1)"
+                        LLVM_VERSION="$(llvm-config --version | sed s/\\.//)"
 
 			AC_REQUIRE([AC_PROG_CXX])
 
@@ -106,6 +107,7 @@ AC_ARG_WITH([llvm],
 			AC_SUBST(LLVM_CFLAGS)
 			AC_SUBST(LLVM_LDFLAGS)
                         AC_SUBST(LLVM_LIBS)
-			AC_DEFINE(HAVE_LLVM,,[define if the llvm library is available])
+			AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
+                        AC_DEFINE_UNQUOTED(LLVM_VERSION,[$LLVM_VERSION],[Version of LLVM installed])
 		fi
 ])

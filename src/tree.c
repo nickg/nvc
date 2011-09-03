@@ -250,7 +250,7 @@ void tree_gc(void)
          all_trees[p++] = all_trees[i];
    }
 
-   printf("[gc: freed %lu trees; %lu allocated]\n",
+   printf("[gc: freed %zu trees; %zu allocated]\n",
           n_trees_alloc - p, p);
 
    n_trees_alloc = p;
