@@ -257,6 +257,9 @@ tree_t lib_get(lib_t lib, ident_t ident)
          return lib->units[n].top;
    }
 
+   if (*(lib->path) == '\0')   // Temporary library
+      return NULL;
+
    // Otherwise search in the filesystem
    DIR *d = opendir(lib->path);
    if (d == NULL)

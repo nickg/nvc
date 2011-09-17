@@ -400,6 +400,43 @@ START_TEST(test_func)
 }
 END_TEST
 
+START_TEST(test_array)
+{
+   tree_t p, a, e;
+
+   fail_unless(input_from_file(TESTDIR "/sem/array.vhd"));
+
+   const error_t expect[] = {
+      { 26, "positional associations must appear first in aggregate" },
+      { 32, "named association must not follow others" },
+      { 38, "only a single others association allowed" },
+      { 45, "ype of initial value universal integer does not match" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -416,6 +453,7 @@ int main(void)
    tcase_add_test(tc_core, test_std);
    tcase_add_test(tc_core, test_wait);
    tcase_add_test(tc_core, test_func);
+   tcase_add_test(tc_core, test_array);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

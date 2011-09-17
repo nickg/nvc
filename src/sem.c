@@ -364,6 +364,18 @@ static void type_set_force(type_t t)
    top_type_set->n_members  = 1;
 }
 
+static bool type_set_uniq(type_t *pt)
+{
+   assert(top_type_set != NULL);
+
+   if (top_type_set->n_members == 1) {
+      *pt = top_type_set->members[0];
+      return true;
+   }
+   else
+      return false;
+}
+
 static bool type_set_member(type_t t)
 {
    if (top_type_set == NULL)
@@ -513,7 +525,7 @@ static bool sem_readable(tree_t t)
    }
 }
 
-static bool sem_check_subtype(tree_t t, type_t type)
+static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 {
    while (type_kind(type) == T_SUBTYPE) {
       type_t base = type_base(type);
@@ -526,29 +538,49 @@ static bool sem_check_subtype(tree_t t, type_t type)
       type = tree_type(base_decl);
    }
 
+   if (pbase)
+      *pbase = type;
+
    return true;
-}
-
-static bool sem_check_type_decl(tree_t t)
-{
-   type_t type = tree_type(t);
-
-   sem_check_subtype(t, type);
-
-   // Prefix the package name to the type name
-   if (top_scope->prefix)
-      type_set_ident(type, ident_prefix(top_scope->prefix,
-                                        type_ident(type)));
-
-   scope_apply_prefix(t);
-   return scope_insert_special(t);
 }
 
 static bool sem_check_type(tree_t t, type_t *ptype)
 {
    switch (type_kind(*ptype)) {
    case T_SUBTYPE:
-      return sem_check_subtype(t, *ptype);
+      {
+         type_t base;
+         if (!sem_check_subtype(t, *ptype, &base))
+            return false;
+
+         switch (type_kind(base)) {
+         case T_UARRAY:
+            {
+               // Create a new constrained array type for this instance
+
+               if (type_dims(*ptype) != type_index_constrs(base))
+                  sem_error(t, "expected %d array dimensions but %d given",
+                            type_index_constrs(base), type_dims(*ptype));
+
+               // TODO: check index constraints here
+
+               type_t collapse = type_new(T_CARRAY);
+               type_set_ident(collapse, type_ident(*ptype));
+               type_set_base(collapse, type_base(base));  // Element type
+
+               for (unsigned i = 0; i < type_dims(*ptype); i++)
+                  type_add_dim(collapse, type_dim(*ptype, i));
+
+               *ptype = collapse;
+            }
+            break;
+
+         default:
+            break;
+         }
+
+         return true;
+      }
 
    case T_UNRESOLVED:
       {
@@ -565,6 +597,38 @@ static bool sem_check_type(tree_t t, type_t *ptype)
    }
 }
 
+static bool sem_check_type_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+
+   type_t base;
+   if (!sem_check_subtype(t, type, &base))
+      return false;
+
+   switch (type_kind(base)) {
+   case T_UARRAY:
+      {
+         type_t elem_type = type_base(base);
+         if (!sem_check_type(t, &elem_type))
+            return false;
+
+         type_set_base(base, elem_type);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   // Prefix the package name to the type name
+   if (top_scope->prefix)
+      type_set_ident(type, ident_prefix(top_scope->prefix,
+                                        type_ident(type)));
+
+   scope_apply_prefix(t);
+   return scope_insert_special(t);
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -573,8 +637,16 @@ static bool sem_check_decl(tree_t t)
 
    tree_set_type(t, type);
 
-   if (tree_has_value(t))
-      sem_check_constrained(tree_value(t), tree_type(t));
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check_constrained(value, type))
+         return false;
+
+      if (!type_eq(tree_type(value), type))
+         sem_error(value, "type of initial value %s does not match type "
+                   "of declaration %s", istr(type_ident(tree_type(value))),
+                   istr(type_ident(type)));
+   }
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -886,6 +958,82 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
+static bool sem_check_aggregate(tree_t t)
+{
+   // Rules for aggregates are in LRM 93 section 7.3.2
+
+   // The type of an aggregate must be determinable solely from the
+   // context in which the aggregate appears
+
+   type_t composite_type;
+   if (!type_set_uniq(&composite_type))
+      sem_error(t, "type of aggregate is ambiguous");
+
+   // Aggregates are only valid for composite types
+
+   switch (type_kind(composite_type)) {
+   case T_CARRAY:
+      break;
+   case T_UARRAY:
+      sem_error(t, "dimensions of aggregate are not known");
+   default:
+      sem_error(t, "aggregates must have a composite type");
+   }
+
+   // All positional associations must appear before named associations
+   // and those must appear before any others association
+
+   enum { POS, NAMED, OTHERS } state = POS;
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      switch (a.kind) {
+      case A_POS:
+         if (state > POS)
+            sem_error(a.value, "positional associations must appear "
+                      "first in aggregate");
+         break;
+
+      case A_NAMED:
+      case A_RANGE:
+         if (state > NAMED)
+            sem_error(a.name, "named association must not follow "
+                      "others association in aggregate");
+         state = NAMED;
+         break;
+
+      case A_OTHERS:
+         if (state == OTHERS)
+            sem_error(a.value, "only a single others association "
+                      "allowed in aggregate");
+         state = OTHERS;
+         break;
+      }
+   }
+
+   // All elements must be of the composite base type
+
+   type_t base = type_base(composite_type);
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      if (!sem_check(a.value))
+         return false;
+
+      if (!type_eq(tree_type(a.value), base))
+         sem_error(a.value, "type of element %s does not match base "
+                   "type of aggregate %s",
+                   istr(type_ident(tree_type(a.value))),
+                   istr(type_ident(base)));
+
+   }
+
+   tree_set_type(t, composite_type);
+   return true;
+}
+
 static bool sem_check_ref(tree_t t)
 {
    tree_t decl;
@@ -977,6 +1125,8 @@ bool sem_check(tree_t t)
       return sem_check_qualified(t);
    case T_FUNC_DECL:
       return sem_check_func_decl(t);
+   case T_AGGREGATE:
+      return sem_check_aggregate(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
