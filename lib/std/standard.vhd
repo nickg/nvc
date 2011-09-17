@@ -64,9 +64,9 @@ package STANDARD is
 
     --subtype POSITIVE is INTEGER range 1 to INTEGER'HIGH;
 
-    --type STRING is array (POSITIVE range <>) of CHARACTER;
+    type STRING is array (POSITIVE range <>) of CHARACTER;
 
-    --type BIT_VECTOR is array (NATURAL range <>) of BIT;
+    type BIT_VECTOR is array (NATURAL range <>) of BIT;
 
     type FILE_OPEN_KIND is (READ_MODE,WRITE_MODE, APPEND_MODE);
 

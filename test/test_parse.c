@@ -307,7 +307,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 4);
+   fail_unless(tree_decls(a) == 6);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -340,6 +340,22 @@ START_TEST(test_types)
    u = type_unit(t, 2);
    fail_unless(u.name == ident_new("MOHM"));
    fail_unless(tree_kind(u.multiplier) == T_FCALL);
+
+   d = tree_decl(a, 4);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("BIG_R"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
+   fail_unless(type_ident(type_base(t)) == ident_new("RESISTANCE"));
+
+   d = tree_decl(a, 5);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("MY_SMALL_INT"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
+   fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
 
    a = parse();
    fail_unless(a == NULL);
