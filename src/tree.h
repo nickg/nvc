@@ -50,8 +50,11 @@ typedef enum tree_kind {
    T_ENUM_LIT,
    T_CONST_DECL,
    T_FUNC_DECL,
-   T_ELAB
+   T_ELAB,
+   T_AGGREGATE
 } tree_kind_t;
+
+typedef struct tree *tree_t;
 
 typedef struct literal {
    union {
@@ -61,7 +64,15 @@ typedef struct literal {
    enum { L_INT, L_FLOAT } kind;
 } literal_t;
 
-typedef struct tree *tree_t;
+typedef struct assoc {
+   union {
+      unsigned pos;
+      tree_t   name;
+      range_t  range;
+   };
+   tree_t value;
+   enum { A_POS, A_NAMED, A_RANGE, A_OTHERS } kind;
+} assoc_t;
 
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
@@ -144,6 +155,11 @@ void tree_set_ref(tree_t t, tree_t decl);
 unsigned tree_contexts(tree_t t);
 ident_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, ident_t ctx);
+
+// T_AGGREGATE
+unsigned tree_assocs(tree_t t);
+assoc_t tree_assoc(tree_t t, unsigned n);
+void tree_add_assoc(tree_t t, assoc_t a);
 
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);

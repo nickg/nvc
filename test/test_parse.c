@@ -589,9 +589,10 @@ END_TEST
 
 START_TEST(test_array)
 {
-   tree_t p, d;
+   tree_t p, d, a, g;
    type_t t, i, b;
    range_t r;
+   assoc_t x;
 
    fail_unless(input_from_file(TESTDIR "/parse/array.vhd"));
 
@@ -620,6 +621,84 @@ START_TEST(test_array)
    fail_unless(type_kind(t) == T_CARRAY);
    fail_unless(type_dims(t) == 1);
    r = type_dim(t, 0);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_decls(a) == 5);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_ident(d) == ident_new("X"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_dims(t) == 1);
+   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
+   fail_unless(tree_literal(type_dim(t, 0).right).i == 5);
+
+   d = tree_decl(a, 1);
+   fail_unless(tree_ident(d) == ident_new("Y"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_UNRESOLVED);
+   fail_unless(type_ident(t) == ident_new("TEN_INTS"));
+
+   d = tree_decl(a, 2);
+   fail_unless(tree_ident(d) == ident_new("Z"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_dims(t) == 1);
+   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
+   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_has_value(d));
+   g = tree_value(d);
+   fail_unless(tree_kind(g) == T_AGGREGATE);
+   fail_unless(tree_assocs(g) == 3);
+   for (int i = 0; i < 3; i++) {
+      x = tree_assoc(g, i);
+      fail_unless(x.kind == A_POS);
+      fail_unless(x.pos == i);
+      fail_unless(tree_literal(x.value).i == i);
+   }
+
+   d = tree_decl(a, 3);
+   fail_unless(tree_ident(d) == ident_new("N"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_dims(t) == 1);
+   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
+   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_has_value(d));
+   g = tree_value(d);
+   fail_unless(tree_kind(g) == T_AGGREGATE);
+   fail_unless(tree_assocs(g) == 3);
+   x = tree_assoc(g, 0);
+   fail_unless(x.kind == A_POS);
+   fail_unless(x.pos == 0);
+   fail_unless(tree_literal(x.value).i == 0);
+   x = tree_assoc(g, 1);
+   fail_unless(x.kind == A_NAMED);
+   fail_unless(tree_kind(x.name) == T_LITERAL);
+   fail_unless(tree_literal(x.name).i == 1);
+   fail_unless(tree_literal(x.value).i == 1);
+   x = tree_assoc(g, 2);
+   fail_unless(x.kind == A_OTHERS);
+   fail_unless(tree_literal(x.value).i == 2);
+
+   d = tree_decl(a, 4);
+   fail_unless(tree_ident(d) == ident_new("M"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_dims(t) == 1);
+   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
+   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_has_value(d));
+   g = tree_value(d);
+   fail_unless(tree_kind(g) == T_AGGREGATE);
+   fail_unless(tree_assocs(g) == 1);
+   x = tree_assoc(g, 0);
+   fail_unless(x.kind == A_RANGE);
+   fail_unless(tree_literal(x.range.left).i == 1);
+   fail_unless(tree_literal(x.range.right).i == 3);
+   fail_unless(tree_literal(x.value).i == 0);
 
    p = parse();
    fail_unless(p == NULL);

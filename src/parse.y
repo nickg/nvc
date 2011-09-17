@@ -71,6 +71,11 @@
       unit_t           unit;
    } unit_list_t;
 
+   typedef struct assoc_list {
+      struct assoc_list *next;
+      assoc_t           assoc;
+   } assoc_list_t;
+
    typedef struct tree_list {
       struct tree_list *next;
       tree_t           value;
@@ -110,6 +115,8 @@
    static id_list_t *id_list_add(id_list_t *list, ident_t id);
    static id_list_t *id_list_append(id_list_t *a, id_list_t *b);
    static void id_list_free(id_list_t *list);
+   static assoc_list_t *assoc_list_add(assoc_list_t *list, assoc_t a);
+   static void assoc_list_free(assoc_list_t *list);
    static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
    static void unit_list_free(unit_list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
@@ -124,25 +131,27 @@
 }
 
 %union {
-   tree_t      t;
-   ident_t     i;
-   tree_list_t *l;
+   tree_t       t;
+   ident_t      i;
+   tree_list_t  *l;
    struct {
       tree_list_t *left;
       tree_list_t *right;
    } p;
-   id_list_t   *s;
-   port_mode_t m;
-   type_t      y;
-   range_t     r;
-   unit_t      u;
-   unit_list_t *v;
+   id_list_t    *s;
+   assoc_list_t *a;
+   assoc_t      b;
+   port_mode_t  m;
+   type_t       y;
+   range_t      r;
+   unit_t       u;
+   unit_list_t  *v;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt timeout_clause physical_literal target
-%type <t> package_decl name
+%type <t> package_decl name aggregate
 %type <t> waveform waveform_element seq_stmt_without_label
 %type <i> id opt_id opt_label selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
@@ -158,9 +167,11 @@
 %type <y> integer_type_def physical_type_def enum_type_def array_type_def
 %type <y> index_subtype_def
 %type <y> unconstrained_array_def constrained_array_def
-%type <r> range range_constraint discrete_range index_constraint
+%type <r> range range_constraint discrete_range index_constraint constraint
 %type <u> base_unit_decl
 %type <v> secondary_unit_decls
+%type <a> element_assoc_list
+%type <b> element_assoc
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -168,7 +179,8 @@
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
-%token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX
+%token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
+%token tOTHERS
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -519,13 +531,15 @@ opt_mode
 subtype_indication
 : /* resolution_indication */ type_mark
   { $$ = $1; }
-| /* resolution_indication */ type_mark range_constraint
+| /* resolution_indication */ type_mark constraint
   {
      $$ = type_new(T_SUBTYPE);
      type_set_base($$, $1);
      type_add_dim($$, $2);
   }
 ;
+
+constraint : range_constraint | index_constraint ;
 
 conc_stmt
 : process_stmt
@@ -921,7 +935,6 @@ expr
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
 | name
 | literal
-| tLPAREN expr tRPAREN { $$ = $2; }
 | selected_id tTICK tLPAREN expr tRPAREN
   {
      $$ = tree_new(T_QUALIFIED);
@@ -929,12 +942,68 @@ expr
      tree_set_value($$, $4);
      tree_set_loc($$, &@$);
   }
+| aggregate
 /*
-  | aggregate
   | function_call
   | type_conversion
   | allocator
 */
+;
+
+aggregate
+: tLPAREN element_assoc_list tRPAREN
+  {
+     // The grammar is ambiguous between an aggregate with a
+     // single positional element and a parenthesised expression
+     if ($2->next == NULL && $2->assoc.kind == A_POS) {
+        $$ = $2->assoc.value;
+     }
+     else {
+        $$ = tree_new(T_AGGREGATE);
+        tree_set_loc($$, &@$);
+
+        for (assoc_list_t *it = $2; it != NULL; it = it->next)
+           tree_add_assoc($$, it->assoc);
+     }
+
+     assoc_list_free($2);
+  }
+;
+
+element_assoc_list
+: element_assoc
+  {
+     $$ = assoc_list_add(NULL, $1);
+  }
+| element_assoc tCOMMA element_assoc_list
+  {
+     $$ = assoc_list_add($3, $1);
+  }
+;
+
+element_assoc
+: expr
+  {
+     $$.kind  = A_POS;
+     $$.value = $1;
+  }
+| expr tASSOC expr
+  {
+     $$.kind  = A_NAMED;
+     $$.name  = $1;
+     $$.value = $3;
+  }
+| range tASSOC expr
+  {
+     $$.kind  = A_RANGE;
+     $$.range = $1;
+     $$.value = $3;
+  }
+| tOTHERS tASSOC expr
+  {
+     $$.kind  = A_OTHERS;
+     $$.value = $3;
+  }
 ;
 
 literal
@@ -1088,6 +1157,23 @@ static void unit_list_free(unit_list_t *list)
 {
    while (list != NULL) {
       unit_list_t *next = list->next;
+      free(list);
+      list = next;
+   }
+}
+
+static assoc_list_t *assoc_list_add(assoc_list_t *list, assoc_t a)
+{
+   assoc_list_t *new = xmalloc(sizeof(assoc_list_t));
+   new->next  = list;
+   new->assoc = a;
+   return new;
+}
+
+static void assoc_list_free(assoc_list_t *list)
+{
+   while (list != NULL) {
+      assoc_list_t *next = list->next;
       free(list);
       list = next;
    }

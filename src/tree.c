@@ -60,6 +60,9 @@ struct tree {
    tree_t            ref;
    struct attr       *attrs;
    unsigned          n_attrs;
+   assoc_t           *assocs;
+   unsigned          n_assocs;
+   unsigned          n_assocs_alloc;
    ident_t           *context;
    unsigned short    n_contexts;
 
@@ -90,7 +93,8 @@ struct tree_rd_ctx {
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define IS_EXPR(t) \
-   (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED))
+   (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED) \
+    || IS(t, T_AGGREGATE))
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN) \
     || IS(t, T_SIGNAL_ASSIGN))
@@ -174,6 +178,8 @@ tree_t tree_new(tree_kind_t kind)
    t->index      = 0;
    t->attrs      = NULL;
    t->n_attrs    = 0;
+   t->assocs     = NULL;
+   t->n_assocs   = 0;
 
    tree_array_init(&t->ports);
    tree_array_init(&t->generics);
@@ -611,6 +617,50 @@ void tree_add_context(tree_t t, ident_t ctx)
    t->context[t->n_contexts++] = ctx;
 }
 
+unsigned tree_assocs(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_AGGREGATE));
+
+   return t->n_assocs;
+}
+
+assoc_t tree_assoc(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_AGGREGATE));
+   assert(n < t->n_assocs);
+
+   return t->assocs[n];
+}
+
+void tree_add_assoc(tree_t t, assoc_t a)
+{
+   assert(t != NULL);
+   assert(IS(t, T_AGGREGATE));
+
+   if (t->assocs == NULL) {
+      t->n_assocs_alloc = 16;
+      t->assocs = xmalloc(sizeof(assoc_t) * t->n_assocs_alloc);
+   }
+   else if (t->n_assocs == t->n_assocs_alloc) {
+      t->n_assocs_alloc *= 2;
+      t->assocs = xrealloc(t->assocs, sizeof(assoc_t) * t->n_assocs_alloc);
+   }
+
+   if (a.kind == A_POS) {
+      unsigned pos = 0;
+      for (unsigned i = 0; i < t->n_assocs; i++) {
+         if (t->assocs[i].kind == A_POS)
+            pos++;
+      }
+
+      a.pos = pos;
+   }
+
+   t->assocs[t->n_assocs++] = a;
+}
+
 static unsigned tree_visit_a(struct tree_array *a,
                              tree_visit_fn_t fn, void *context,
                              unsigned generation)
@@ -709,6 +759,23 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->ref, fn, context, generation);
    if (HAS_TYPE(t))
       n += tree_visit_type(t->type, fn, context, generation);
+   if (IS(t, T_AGGREGATE)) {
+      for (unsigned n = 0; n < t->n_assocs; n++) {
+         switch (t->assocs[n].kind) {
+         case A_NAMED:
+            tree_visit_aux(t->assocs[n].name, fn, context, generation);
+            break;
+         case A_RANGE:
+            tree_visit_aux(t->assocs[n].range.left, fn, context, generation);
+            tree_visit_aux(t->assocs[n].range.right, fn, context, generation);
+            break;
+         default:
+            break;
+         }
+
+         tree_visit_aux(t->assocs[n].value, fn, context, generation);
+      }
+   }
 
    if (fn)
       (*fn)(t, context);
@@ -828,6 +895,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          ident_write(t->context[i], ctx->file);
    }
+
    if (IS(t, T_LITERAL)) {
       write_s(t->literal.kind, ctx->file);
       switch (t->literal.kind) {
@@ -836,6 +904,31 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          break;
       default:
          abort();
+      }
+   }
+   else if (IS(t, T_AGGREGATE)) {
+      write_s(t->n_assocs, ctx->file);
+
+      for (unsigned i = 0; i < t->n_assocs; i++) {
+         write_s(t->assocs[i].kind, ctx->file);
+         tree_write(t->assocs[i].value, ctx);
+
+         switch (t->assocs[i].kind) {
+         case A_POS:
+            write_s(t->assocs[i].pos, ctx->file);
+            break;
+         case A_NAMED:
+            tree_write(t->assocs[i].name, ctx);
+            break;
+         case A_RANGE:
+            tree_write(t->assocs[i].range.left, ctx);
+            tree_write(t->assocs[i].range.right, ctx);
+            break;
+         case A_OTHERS:
+            break;
+         default:
+            abort();
+         }
       }
    }
 
@@ -911,6 +1004,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          t->context[i] = ident_read(ctx->file);
    }
+
    if (IS(t, T_LITERAL)) {
       t->literal.kind = read_s(ctx->file);
       switch (t->literal.kind) {
@@ -919,6 +1013,32 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          break;
       default:
          abort();
+      }
+   }
+   else if (IS(t, T_AGGREGATE)) {
+      t->n_assocs_alloc = t->n_assocs = read_s(ctx->file);
+      t->assocs = xmalloc(sizeof(assoc_t) * t->n_assocs);
+
+      for (unsigned i = 0; i < t->n_assocs; i++) {
+         t->assocs[i].kind  = read_s(ctx->file);
+         t->assocs[i].value = tree_read(ctx);
+
+         switch (t->assocs[i].kind) {
+         case A_POS:
+            t->assocs[i].pos = read_s(ctx->file);
+            break;
+         case A_NAMED:
+            t->assocs[i].name = tree_read(ctx);
+            break;
+         case A_RANGE:
+            t->assocs[i].range.left  = tree_read(ctx);
+            t->assocs[i].range.right = tree_read(ctx);
+            break;
+         case A_OTHERS:
+            break;
+         default:
+            abort();
+         }
       }
    }
 

@@ -122,6 +122,7 @@ IMPURE        {I}{M}{P}{U}{R}{E}
 PURE          {P}{U}{R}{E}
 RETURN        {R}{E}{T}{U}{R}{N}
 ARRAY         {A}{R}{R}{A}{Y}
+OTHERS        {O}{T}{H}{E}{R}{S}
 
 %%
 
@@ -174,6 +175,7 @@ ARRAY         {A}{R}{R}{A}{Y}
 {PURE}          { begin_token(yytext); return tPURE; }
 {RETURN}        { begin_token(yytext); return tRETURN; }
 {ARRAY}         { begin_token(yytext); return tARRAY; }
+{OTHERS}        { begin_token(yytext); return tOTHERS; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -187,6 +189,7 @@ ARRAY         {A}{R}{R}{A}{Y}
 "<="       { begin_token(yytext); return tLE; }
 ">"        { begin_token(yytext); return tGT; }
 ">="       { begin_token(yytext); return tGE; }
+"=>"       { begin_token(yytext); return tASSOC; }
 "+"        { begin_token(yytext); return tPLUS; }
 "-"        { begin_token(yytext); return tMINUS; }
 "*"        { begin_token(yytext); return tTIMES; }
