@@ -62,6 +62,7 @@ struct tree {
       literal_t   literal;        // T_LITERAL
       port_mode_t port_mode;      // T_PORT_MODE
       ident_t     ident2;         // T_ARCH
+      tree_t      message;        // T_ASSERT
    };
    union {
       tree_t value;               // many
@@ -70,6 +71,7 @@ struct tree {
    union {
       tree_t target;              // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
       tree_t ref;                 // T_REF, T_FCALL
+      tree_t severity;            // T_ASSERT
    };
    union {
       struct {                    // T_AGGREGATE
@@ -680,6 +682,40 @@ void tree_add_assoc(tree_t t, assoc_t a)
    t->assocs[t->n_assocs++] = a;
 }
 
+tree_t tree_severity(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ASSERT));
+   assert(t->severity != NULL);
+
+   return t->severity;
+}
+
+void tree_set_severity(tree_t t, tree_t s)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ASSERT));
+
+   t->severity = s;
+}
+
+tree_t tree_message(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ASSERT));
+   assert(t->message != NULL);
+
+   return t->message;
+}
+
+void tree_set_message(tree_t t, tree_t m)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ASSERT));
+
+   t->message = m;
+}
+
 static unsigned tree_visit_a(struct tree_array *a,
                              tree_visit_fn_t fn, void *context,
                              unsigned generation)
@@ -778,7 +814,12 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->ref, fn, context, generation);
    if (HAS_TYPE(t))
       n += tree_visit_type(t->type, fn, context, generation);
-   if (IS(t, T_AGGREGATE)) {
+
+   if (IS(t, T_ASSERT)) {
+      n += tree_visit_aux(t->severity, fn, context, generation);
+      n += tree_visit_aux(t->message, fn, context, generation);
+   }
+   else if (IS(t, T_AGGREGATE)) {
       for (unsigned n = 0; n < t->n_assocs; n++) {
          switch (t->assocs[n].kind) {
          case A_NAMED:
@@ -950,6 +991,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          }
       }
    }
+   else if (IS(t, T_ASSERT)) {
+      tree_write(t->severity, ctx);
+      tree_write(t->message, ctx);
+   }
 
    write_s(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1059,6 +1104,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             abort();
          }
       }
+   }
+   else if (IS(t, T_ASSERT)) {
+      t->severity = tree_read(ctx);
+      t->message  = tree_read(ctx);
    }
 
    t->n_attrs = read_s(ctx->file);

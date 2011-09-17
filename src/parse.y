@@ -127,6 +127,7 @@
                              const struct YYLTYPE *loc);
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
+   static tree_t str_to_agg(const char *p, const char *end);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
 }
 
@@ -150,8 +151,8 @@
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
-%type <t> seq_stmt timeout_clause physical_literal target
-%type <t> package_decl name aggregate string_literal
+%type <t> seq_stmt timeout_clause physical_literal target severity
+%type <t> package_decl name aggregate string_literal report
 %type <t> waveform waveform_element seq_stmt_without_label
 %type <i> id opt_id opt_label selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
@@ -695,6 +696,8 @@ seq_stmt_without_label
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
+     tree_set_severity($$, $4);
+     tree_set_message($$, $3);
   }
 | tREPORT expr severity tSEMI
   {
@@ -704,6 +707,8 @@ seq_stmt_without_label
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, false_ref);
+     tree_set_severity($$, $3);
+     tree_set_message($$, $2);
   }
 /* | procedure_call_statement
    | if_statement
@@ -715,9 +720,22 @@ seq_stmt_without_label
    | null_statement */
 ;
 
-report : /* empty */ | tREPORT expr ;
+report
+: /* empty */
+  {
+     $$ = str_to_agg("Assertion violation.", NULL);
+  }
+| tREPORT expr { $$ = $2; }
+;
 
-severity : /* empty */ | tSEVERITY expr ;
+severity
+: /* empty */
+  {
+     $$ = tree_new(T_REF);
+     tree_set_ident($$, ident_new("ERROR"));
+  }
+| tSEVERITY expr { $$ = $2; }
+;
 
 target : name /* | aggregate */ ;
 
@@ -1034,23 +1052,10 @@ literal
 string_literal
 : tSTRING
   {
-     $$ = tree_new(T_AGGREGATE);
+     size_t len = strlen(lvals.sval);
+     $$ = str_to_agg(lvals.sval, lvals.sval + len - 1);
      tree_set_loc($$, &@$);
 
-     size_t len = strlen(lvals.sval);
-     for (size_t i = 1; i < len - 1; i++) {
-        const char ch[] = { '\'', lvals.sval[i], '\'', '\0' };
-
-        tree_t ref = tree_new(T_REF);
-        tree_set_loc(ref, &@$);
-        tree_set_ident(ref, ident_new(ch));
-
-        assoc_t a;
-        a.kind  = A_POS;
-        a.value = ref;
-
-        tree_add_assoc($$, a);
-     }
      free(lvals.sval);
   }
 ;
@@ -1238,6 +1243,26 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    tree_add_param(t, left);
    tree_add_param(t, right);
    tree_set_loc(t, loc);
+
+   return t;
+}
+
+static tree_t str_to_agg(const char *p, const char *end)
+{
+   tree_t t = tree_new(T_AGGREGATE);
+
+   while (*p != '\0' && p != end) {
+      const char ch[] = { '\'', *p++, '\'', '\0' };
+
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, ident_new(ch));
+
+      assoc_t a;
+      a.kind  = A_POS;
+      a.value = ref;
+
+      tree_add_assoc(t, a);
+   }
 
    return t;
 }

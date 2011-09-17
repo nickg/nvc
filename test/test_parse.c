@@ -294,6 +294,14 @@ START_TEST(test_seq)
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 5);
 
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
+   fail_unless(tree_kind(tree_value(s)) == T_REF);
+   fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
+   fail_unless(tree_kind(tree_severity(s)) == T_REF);
+   fail_unless(tree_ident(tree_severity(s)) == ident_new("ERROR"));
+   fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
+
    a = parse();
    fail_unless(a == NULL);
 

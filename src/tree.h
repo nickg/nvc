@@ -162,6 +162,14 @@ unsigned tree_assocs(tree_t t);
 assoc_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, assoc_t a);
 
+// T_ASSERT
+tree_t tree_severity(tree_t t);
+void tree_set_severity(tree_t t, tree_t s);
+
+// T_ASSERT
+tree_t tree_message(tree_t t);
+void tree_set_message(tree_t t, tree_t m);
+
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);
 
