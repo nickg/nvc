@@ -420,6 +420,8 @@ void tree_set_type(tree_t t, type_t ty)
    assert(HAS_TYPE(t));
 
    type_ref(ty);
+   if (t->type)
+      type_unref(t->type);
    t->type = ty;
 }
 
