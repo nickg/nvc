@@ -123,6 +123,8 @@ PURE          {P}{U}{R}{E}
 RETURN        {R}{E}{T}{U}{R}{N}
 ARRAY         {A}{R}{R}{A}{Y}
 OTHERS        {O}{T}{H}{E}{R}{S}
+ASSERT        {A}{S}{S}{E}{R}{T}
+SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 
 %%
 
@@ -176,6 +178,8 @@ OTHERS        {O}{T}{H}{E}{R}{S}
 {RETURN}        { begin_token(yytext); return tRETURN; }
 {ARRAY}         { begin_token(yytext); return tARRAY; }
 {OTHERS}        { begin_token(yytext); return tOTHERS; }
+{ASSERT}        { begin_token(yytext); return tASSERT; }
+{SEVERITY}      { begin_token(yytext); return tSEVERITY; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -198,7 +202,7 @@ OTHERS        {O}{T}{H}{E}{R}{S}
 "/"        { begin_token(yytext); return tOVER; }
 "."        { begin_token(yytext); return tDOT; }
 {INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
-{STRING}   { begin_token(yytext); return tSTRING; }
+{STRING}   { begin_token(yytext); lvals.sval = strdup(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
 {TICK}     { begin_token(yytext); return tTICK; }
 {ID}       { begin_token(yytext); return parse_id(yytext); }

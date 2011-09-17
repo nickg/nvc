@@ -151,7 +151,7 @@
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt timeout_clause physical_literal target
-%type <t> package_decl name aggregate
+%type <t> package_decl name aggregate string_literal
 %type <t> waveform waveform_element seq_stmt_without_label
 %type <i> id opt_id opt_label selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
@@ -180,7 +180,7 @@
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS
+%token tOTHERS tASSERT tSEVERITY
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -690,9 +690,22 @@ seq_stmt_without_label
      tree_set_value($$, $3);
      tree_set_loc($$, &@$);
   }
-/* | assertion_statement
-   | report_statement
-   | procedure_call_statement
+| tASSERT expr report severity tSEMI
+  {
+     $$ = tree_new(T_ASSERT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+  }
+| tREPORT expr severity tSEMI
+  {
+     tree_t false_ref = tree_new(T_REF);
+     tree_set_ident(false_ref, ident_new("FALSE"));
+
+     $$ = tree_new(T_ASSERT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, false_ref);
+  }
+/* | procedure_call_statement
    | if_statement
    | case_statement
    | loop_statement
@@ -701,6 +714,10 @@ seq_stmt_without_label
    | return_statement
    | null_statement */
 ;
+
+report : /* empty */ | tREPORT expr ;
+
+severity : /* empty */ | tSEVERITY expr ;
 
 target : name /* | aggregate */ ;
 
@@ -1008,11 +1025,34 @@ element_assoc
 
 literal
 : numeric_literal
-/*
-  | string_literal
-  | bit_string_literal
-  | null
+| string_literal
+/* | bit_string_literal
+   | null
 */
+;
+
+string_literal
+: tSTRING
+  {
+     $$ = tree_new(T_AGGREGATE);
+     tree_set_loc($$, &@$);
+
+     size_t len = strlen(lvals.sval);
+     for (size_t i = 1; i < len - 1; i++) {
+        const char ch[] = { '\'', lvals.sval[i], '\'', '\0' };
+
+        tree_t ref = tree_new(T_REF);
+        tree_set_loc(ref, &@$);
+        tree_set_ident(ref, ident_new(ch));
+
+        assoc_t a;
+        a.kind  = A_POS;
+        a.value = ref;
+
+        tree_add_assoc($$, a);
+     }
+     free(lvals.sval);
+  }
 ;
 
 numeric_literal : abstract_literal | physical_literal ;

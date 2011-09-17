@@ -97,7 +97,7 @@ struct tree_rd_ctx {
     || IS(t, T_AGGREGATE))
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN) \
-    || IS(t, T_SIGNAL_ASSIGN))
+    || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS(t, T_PROCESS) || IS(t, T_VAR_DECL)    \
@@ -118,7 +118,7 @@ struct tree_rd_ctx {
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 #define HAS_VALUE(t) \
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) \
-    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL))
+    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define HAS_REF(t) (IS(t, T_REF) || IS(t, T_FCALL))
 
