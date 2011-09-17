@@ -42,33 +42,50 @@ struct attr {
 };
 
 struct tree {
-   tree_kind_t       kind;
-   loc_t             loc;
-   ident_t           ident;
-   ident_t           ident2;
-   struct tree_array ports;
-   struct tree_array generics;
-   struct tree_array params;
-   struct tree_array decls;
-   struct tree_array stmts;
-   port_mode_t       port_mode;
-   type_t            type;
-   literal_t         literal;
-   tree_t            value;
-   tree_t            delay;
-   tree_t            target;
-   tree_t            ref;
-   struct attr       *attrs;
-   unsigned          n_attrs;
-   assoc_t           *assocs;
-   unsigned          n_assocs;
-   unsigned          n_assocs_alloc;
-   ident_t           *context;
-   unsigned short    n_contexts;
+   tree_kind_t kind;
+   loc_t       loc;
+   ident_t     ident;
+   struct attr *attrs;
+   unsigned    n_attrs;
+
+   union {
+      struct tree_array ports;    // T_ENTITY, T_FUNC_DECL
+      struct tree_array params;   // T_FCALL
+      struct tree_array decls;    // T_ARCH, T_PROCESS, T_PACKAGE
+   };
+   union {
+      struct tree_array generics; // T_ENTITY
+      struct tree_array stmts;    // T_ARCH, T_PROCESS, T_PACKAGE
+      type_t            type;     // many
+   };
+   union {
+      literal_t   literal;        // T_LITERAL
+      port_mode_t port_mode;      // T_PORT_MODE
+      ident_t     ident2;         // T_ARCH
+   };
+   union {
+      tree_t value;               // many
+      tree_t delay;               // T_WAIT
+   };
+   union {
+      tree_t target;              // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
+      tree_t ref;                 // T_REF, T_FCALL
+   };
+   union {
+      struct {                    // T_AGGREGATE
+         assoc_t  *assocs;
+         unsigned n_assocs;
+         unsigned n_assocs_alloc;
+      };
+      struct {                    // T_ARCH, T_ENTITY, T_PACKAGE
+         ident_t  *context;
+         unsigned n_contexts;
+      };
+   };
 
    // Serialisation and GC bookkeeping
-   unsigned short    generation;
-   unsigned          index;
+   unsigned short generation;
+   unsigned       index;
 };
 
 struct tree_wr_ctx {

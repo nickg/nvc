@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define MAX_DIMS     4
 #define MAX_UNITS    16
@@ -29,27 +30,40 @@
 struct type {
    type_kind_t kind;
    ident_t     ident;
-   range_t     dims[MAX_DIMS];
+   range_t     *dims;
    unsigned    n_dims;
-   type_t      base;
-   unit_t      *units;
-   unsigned    n_units;
-   tree_t      *literals;
-   unsigned    n_literals;
-   size_t      lit_alloc;
-   type_t      *params;
-   unsigned    n_params;
-   size_t      params_alloc;
-   type_t      result;
-   unsigned    n_index_constr;
-   type_t      index_constr[MAX_DIMS];
+
+   union {
+      type_t base;    // T_SUBTYPE, T_CARRAY, T_UARRAY
+      type_t result;  // T_FUNC
+   };
+   union {
+      struct {   // T_ENUM
+         tree_t   *literals;
+         unsigned n_literals;
+         size_t   lit_alloc;
+      };
+      struct {   // T_UARRAY
+         unsigned n_index_constr;
+         type_t   index_constr[MAX_DIMS];
+      };
+      struct {   // T_PHYSICAL
+         unit_t   *units;
+         unsigned n_units;
+      };
+      struct {   // T_FUNC
+         type_t   *params;
+         unsigned n_params;
+         unsigned params_alloc;
+      };
+   };
 
    // Reference counting
-   unsigned    refcount;
+   unsigned short refcount;
 
    // Serialisation accounting
-   unsigned    generation;
-   unsigned    index;
+   unsigned short generation;
+   unsigned       index;
 };
 
 struct type_wr_ctx {
@@ -75,21 +89,8 @@ struct type_rd_ctx {
 type_t type_new(type_kind_t kind)
 {
    struct type *t = xmalloc(sizeof(struct type));
-   t->kind           = kind;
-   t->ident          = NULL;
-   t->n_dims         = 0;
-   t->base           = NULL;
-   t->units          = NULL;
-   t->n_units        = 0;
-   t->literals       = NULL;
-   t->n_literals     = 0;
-   t->lit_alloc      = 0;
-   t->generation     = 0;
-   t->params         = NULL;
-   t->n_params       = 0;
-   t->result         = NULL;
-   t->n_index_constr = 0;
-   t->refcount       = 0;   // Counts links to trees
+   memset(t, '\0', sizeof(struct type));
+   t->kind = kind;
 
    return t;
 }
@@ -190,6 +191,9 @@ void type_add_dim(type_t t, range_t r)
    assert(t != NULL);
    assert(HAS_DIMS(t));
    assert(t->n_dims < MAX_DIMS);
+
+   if (t->dims == NULL)
+      t->dims = xmalloc(MAX_DIMS * sizeof(range_t));
 
    t->dims[t->n_dims++] = r;
 }
@@ -404,6 +408,8 @@ void type_unref(type_t t)
          free(t->params);
          type_unref(t->result);
       }
+      if (HAS_DIMS(t) && t->dims != NULL)
+         free(t->dims);
 
       free(t);
    }
@@ -505,6 +511,7 @@ type_t type_read(type_rd_ctx_t ctx)
    if (HAS_DIMS(t)) {
       unsigned short ndims = read_s(f);
       assert(ndims < MAX_DIMS);
+      t->dims = xmalloc(sizeof(range_t) * MAX_DIMS);
 
       for (unsigned i = 0; i < ndims; i++) {
          t->dims[i].kind  = read_s(f);
