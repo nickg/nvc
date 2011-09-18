@@ -206,6 +206,15 @@ void type_add_dim(type_t t, range_t r)
    t->dims[t->n_dims++] = r;
 }
 
+void type_change_dim(type_t t, unsigned n, range_t r)
+{
+   assert(t != NULL);
+   assert(HAS_DIMS(t));
+   assert(n < t->n_dims);
+
+   t->dims[n] = r;
+}
+
 type_t type_base(type_t t)
 {
    assert(t != NULL);

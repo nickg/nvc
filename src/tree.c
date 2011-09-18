@@ -457,6 +457,17 @@ void tree_add_param(tree_t t, tree_t e)
    tree_array_add(&t->params, e);
 }
 
+void tree_change_param(tree_t t, unsigned n, tree_t e)
+{
+   assert(t != NULL);
+   assert(e != NULL);
+   assert(HAS_PARAMS(t));
+   assert(IS_EXPR(e));
+   assert(n < t->params.count);
+
+   t->params.items[n] = e;
+}
+
 void tree_set_literal(tree_t t, literal_t lit)
 {
    assert(t != NULL);

@@ -75,6 +75,7 @@ void type_set_base(type_t t, type_t b);
 unsigned type_dims(type_t t);
 range_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, range_t r);
+void type_change_dim(type_t t, unsigned n, range_t r);
 
 // T_ENUM
 unsigned type_enum_literals(type_t t);

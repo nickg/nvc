@@ -1,4 +1,4 @@
-check_PROGRAMS = test_lib test_ident test_parse test_sem
+check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp
 TESTS = $(check_PROGRAMS)
 
 src = $(top_srcdir)/src
@@ -13,3 +13,4 @@ test_lib_SOURCES = test_lib.c
 test_ident_SOURCES = test_ident.c
 test_parse_SOURCES = test_parse.c
 test_sem_SOURCES = test_sem.c
+test_simp_SOURCES = test_simp.c

@@ -20,6 +20,7 @@
 
 #include "tree.h"
 
+void simplify(tree_t top);
 tree_t elab(tree_t top);
 void cgen(tree_t top);
 

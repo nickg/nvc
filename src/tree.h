@@ -122,6 +122,7 @@ unsigned tree_params(tree_t t);
 tree_t tree_param(tree_t t, unsigned n);
 // TODO: what about named association? Add an ident parameter.
 void tree_add_param(tree_t t, tree_t e);
+void tree_change_param(tree_t t, unsigned n, tree_t e);
 
 // T_LITERAL
 literal_t tree_literal(tree_t t);
