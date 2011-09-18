@@ -708,6 +708,15 @@ void tree_add_assoc(tree_t t, assoc_t a)
    t->assocs[t->n_assocs++] = a;
 }
 
+void tree_change_assoc(tree_t t, unsigned n, assoc_t a)
+{
+   assert(t != NULL);
+   assert(IS(t, T_AGGREGATE));
+   assert(n < t->n_assocs);
+
+   t->assocs[n] = a;
+}
+
 tree_t tree_severity(tree_t t)
 {
    assert(t != NULL);

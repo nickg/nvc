@@ -98,6 +98,7 @@ static tree_t simp_fcall(tree_t t)
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
    tree_set_literal(f, l);
+   tree_set_type(f, type_result(tree_type(decl)));
 
    return f;
 }
@@ -108,8 +109,7 @@ static tree_t simp_ref(tree_t t)
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      return tree_value(decl);
-
+      return simp_expr(tree_value(decl));
    default:
       return t;
    }
@@ -126,6 +126,30 @@ static tree_t simp_expr(tree_t t)
 
    case T_REF:
       return simp_ref(t);
+
+   case T_AGGREGATE:
+      {
+         for (unsigned i = 0; i < tree_assocs(t); i++) {
+            assoc_t a = tree_assoc(t, i);
+            a.value = simp_expr(a.value);
+
+            switch (a.kind) {
+            case A_POS:
+            case A_OTHERS:
+               break;
+            case A_NAMED:
+               a.name = simp_expr(a.name);
+               break;
+            case A_RANGE:
+               a.range.left  = simp_expr(a.range.left);
+               a.range.right = simp_expr(a.range.right);
+               break;
+            }
+
+            tree_change_assoc(t, i, a);
+         }
+         return t;
+      }
 
    default:
       assert(false);
@@ -195,6 +219,17 @@ static tree_t simp_stmt(tree_t t)
    case T_SIGNAL_ASSIGN:
       tree_set_target(t, simp_expr(tree_target(t)));
       tree_set_value(t, simp_expr(tree_value(t)));
+      return t;
+
+   case T_ASSERT:
+      tree_set_value(t, simp_expr(tree_value(t)));
+      tree_set_severity(t, simp_expr(tree_severity(t)));
+      tree_set_message(t, simp_expr(tree_message(t)));
+      return t;
+
+   case T_WAIT:
+      if (tree_has_delay(t))
+         tree_set_delay(t, simp_expr(tree_delay(t)));
       return t;
 
    default:

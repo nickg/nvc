@@ -60,6 +60,7 @@ struct type_set {
 
 static void sem_def_error_fn(const char *msg, const loc_t *loc);
 static void sem_declare_predefined_ops(type_t t);
+static bool sem_check_constrained(tree_t t, type_t type);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
@@ -313,7 +314,9 @@ static bool scope_insert_special(tree_t t)
       // Create constant declarations for each unit
       for (unsigned i = 0; i < type_units(type); i++) {
          unit_t u = type_unit(type, i);
-         ok = ok && sem_check(u.multiplier);
+         ok = ok && sem_check_constrained(u.multiplier, type);
+
+         tree_set_type(u.multiplier, type);
 
          tree_t c = tree_new(T_CONST_DECL);
          tree_set_loc(c, tree_loc(u.multiplier));

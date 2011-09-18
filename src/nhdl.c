@@ -85,8 +85,8 @@ static int analyse(int argc, char **argv)
 
       tree_t unit;
       while ((unit = parse())) {
-         sem_check(unit);
-         simplify(unit);
+         if (sem_check(unit))
+            simplify(unit);
       }
    }
 

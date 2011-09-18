@@ -46,24 +46,21 @@ static int64_t literal_int(tree_t t)
 
 static LLVMTypeRef llvm_type(type_t t)
 {
-   printf("llvm_type kind=%d\n", type_kind(t));
-
    switch (type_kind(t)) {
    case T_INTEGER:
-      // XXX: hack
-      {
-         range_t r = type_dim(t, 0);
-         printf("min=%ld max=%ld\n", literal_int(r.left), literal_int(r.right));
-         return LLVMInt32Type();
-      }
-
    case T_PHYSICAL:
-      // XXX: hack
       {
          range_t r = type_dim(t, 0);
-         printf("left kind=%d\n", tree_kind(r.left));
-         printf("min=%ld max=%ld\n", literal_int(r.left), literal_int(r.right));
-         return LLVMInt64Type();
+         uint64_t elements = literal_int(r.right) - literal_int(r.left);
+
+         if (elements <= 0xffull)
+            return LLVMInt8Type();
+         else if (elements <= 0xffffull)
+            return LLVMInt16Type();
+         else if (elements <= 0xffffffffull)
+            return LLVMInt32Type();
+         else
+            return LLVMInt64Type();
       }
 
    case T_SUBTYPE:
@@ -125,7 +122,6 @@ static LLVMValueRef cgen_var_decl(tree_t t)
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
-   printf("cgen_literal %ld\n", l.i);
    switch (l.kind) {
    case L_INT:
       return LLVMConstInt(llvm_type(tree_type(t)), l.i, false);
@@ -136,8 +132,6 @@ static LLVMValueRef cgen_literal(tree_t t)
 
 static LLVMValueRef cgen_fcall(tree_t t)
 {
-   printf("cgen_fcall: %s\n", istr(tree_ident(t)));
-
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL);
 
@@ -160,7 +154,6 @@ static LLVMValueRef cgen_fcall(tree_t t)
 
 static LLVMValueRef cgen_ref(tree_t t)
 {
-   printf("cgen_ref: %s\n", istr(tree_ident(t)));
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {

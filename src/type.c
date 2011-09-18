@@ -129,8 +129,9 @@ bool type_eq(type_t a, type_t b)
 
    // Universal integer type is equal to any other integer type
    type_t universal_int = type_universal_int();
+   ident_t uint_i = type_ident(universal_int);
    if (type_kind(a) == T_INTEGER
-       && (a == universal_int || b == universal_int))
+       && (type_ident(a) == uint_i || type_ident(b) == uint_i))
       return true;
 
    // XXX: this is not quite right as structurally equivalent types
