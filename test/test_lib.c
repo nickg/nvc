@@ -25,6 +25,44 @@ static void teardown(void)
    }
 }
 
+static tree_t str_to_agg(const char *p, const char *end)
+{
+   tree_t t = tree_new(T_AGGREGATE);
+
+   unsigned len = 0;
+   while (*p != '\0' && p != end) {
+      const char ch[] = { '\'', *p++, '\'', '\0' };
+
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, ident_new(ch));
+
+      assoc_t a;
+      a.kind  = A_POS;
+      a.value = ref;
+
+      tree_add_assoc(t, a);
+
+      ++len;
+   }
+
+   tree_t left = tree_new(T_LITERAL);
+   literal_t li = { { .i = 0 }, .kind = L_INT };
+   tree_set_literal(left, li);
+
+   tree_t right = tree_new(T_LITERAL);
+   literal_t ri = { { .i = len - 1 }, .kind = L_INT };
+   tree_set_literal(right, ri);
+
+   type_t type = type_new(T_CARRAY);
+   type_set_ident(type, ident_new("string"));
+   range_t r = { .kind = RANGE_DOWNTO, .left = left, .right = right };
+   type_add_dim(type, r);
+
+   tree_set_type(t, type);
+
+   return t;
+}
+
 START_TEST(test_lib_new)
 {
    fail_if(work == NULL);
@@ -115,9 +153,22 @@ START_TEST(test_lib_save)
       tree_set_value(s2, c);
       tree_add_stmt(pr, s2);
 
+      tree_t s3 = tree_new(T_VAR_ASSIGN);
+      tree_set_target(s3, r);
+      tree_set_value(s3, str_to_agg("foobar", NULL));
+      tree_add_stmt(pr, s3);
+
+      tree_t s4 = tree_new(T_ASSERT);
+      tree_set_value(s4, c);
+      tree_set_severity(s4, c);
+      tree_set_message(s4, str_to_agg("message", NULL));
+      tree_add_stmt(pr, s4);
+
       lib_put(work, ent);
       lib_put(work, ar);
    }
+
+   tree_gc();
 
    lib_save(work);
    lib_free(work);
@@ -176,6 +227,14 @@ START_TEST(test_lib_save)
       tree_t s2 = tree_stmt(pr, 1);
       fail_unless(tree_kind(s2) == T_VAR_ASSIGN);
       fail_unless(tree_target(s2) == r);
+
+      tree_t s3 = tree_stmt(pr, 2);
+      fail_unless(tree_kind(s3) == T_VAR_ASSIGN);
+      fail_unless(tree_target(s3) == r);
+      fail_unless(tree_kind(tree_value(s3)) == T_AGGREGATE);
+
+      tree_t s4 = tree_stmt(pr, 3);
+      fail_unless(tree_kind(s4) == T_ASSERT);
 
       tree_t c = tree_value(s2);
       fail_unless(tree_kind(c) == T_LITERAL);

@@ -52,7 +52,9 @@ typedef enum tree_kind {
    T_FUNC_DECL,
    T_ELAB,
    T_AGGREGATE,
-   T_ASSERT
+   T_ASSERT,
+
+   T_LAST_TREE_KIND
 } tree_kind_t;
 
 typedef struct tree *tree_t;

@@ -25,6 +25,8 @@
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
 
+//#define EXTRA_READ_CHECKS
+
 struct tree_array {
    size_t count;
    size_t max;
@@ -181,6 +183,8 @@ static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
 
 tree_t tree_new(tree_kind_t kind)
 {
+   assert(kind < T_LAST_TREE_KIND);
+
    tree_t t = xmalloc(sizeof(struct tree));
    t->kind       = kind;
    t->ident      = NULL;
@@ -695,6 +699,7 @@ void tree_set_severity(tree_t t, tree_t s)
 {
    assert(t != NULL);
    assert(IS(t, T_ASSERT));
+   assert(IS_EXPR(s));
 
    t->severity = s;
 }
@@ -712,6 +717,7 @@ void tree_set_message(tree_t t, tree_t m)
 {
    assert(t != NULL);
    assert(IS(t, T_ASSERT));
+   assert(IS_EXPR(m));
 
    t->message = m;
 }
@@ -740,6 +746,7 @@ static unsigned tree_visit_type(type_t type,
    case T_SUBTYPE:
    case T_INTEGER:
    case T_PHYSICAL:
+   case T_CARRAY:
       for (unsigned i = 0; i < type_dims(type); i++) {
          range_t r = type_dim(type, i);
          n += tree_visit_aux(r.left, fn, context, generation);
@@ -768,13 +775,19 @@ static unsigned tree_visit_type(type_t type,
    case T_FUNC:
       for (unsigned i = 0; i < type_params(type); i++)
          n += tree_visit_type(type_param(type, i), fn, context, generation);
-      tree_visit_type(type_result(type), fn, context, generation);
+      n += tree_visit_type(type_result(type), fn, context, generation);
       break;
 
    case T_ENUM:
       for (unsigned i = 0; i < type_enum_literals(type); i++)
          n += tree_visit_aux(type_enum_literal(type, i), fn, context,
                              generation);
+      break;
+
+   case T_UARRAY:
+      for (unsigned i = 0; i < type_index_constrs(type); i++)
+         n += tree_visit_type(type_index_constr(type, i),
+                              fn, context, generation);
       break;
 
    default:
@@ -1007,6 +1020,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          fputs(t->attrs[i].sval, ctx->file);
       }
    }
+
+#ifdef EXTRA_READ_CHECKS
+   write_s(0xdead, ctx->file);
+#endif  // EXTRA_READ_CHECKS
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
@@ -1020,6 +1037,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       assert(index < ctx->n_trees);
       return ctx->store[index];
    }
+
+   assert(marker < T_LAST_TREE_KIND);
 
    tree_t t = tree_new((tree_kind_t)marker);
    t->loc = read_loc(ctx);
@@ -1132,6 +1151,13 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          abort();
       }
    }
+
+#ifdef EXTRA_READ_CHECKS
+   unsigned short term = read_s(ctx->file);
+   if (term != 0xdead)
+      fatal("bad tree termination marker %x kind=%d",
+            term, t->kind);
+#endif  // EXTRA_READ_CHECKS
 
    return t;
 }

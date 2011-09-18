@@ -42,7 +42,9 @@ typedef enum type_kind {
    T_RECORD,
    T_FILE,
    T_ACCESS,
-   T_FUNC
+   T_FUNC,
+
+   T_LAST_TYPE_KIND
 } type_kind_t;
 
 typedef struct range {

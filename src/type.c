@@ -504,6 +504,8 @@ type_t type_read(type_rd_ctx_t ctx)
       return ctx->store[index];
    }
 
+   assert(marker < T_LAST_TYPE_KIND);
+
    type_t t = type_new((type_kind_t)marker);
    t->ident = ident_read(f);
 
