@@ -55,7 +55,31 @@ static int analyse(int argc, char **argv)
 {
    set_work_lib();
 
-   for (int i = 1; i < argc; i++) {
+   static struct option long_options[] = {
+      {"bootstrap", no_argument, 0, 'b'},
+      {0, 0, 0, 0}
+   };
+
+   int c, index = 0;
+   const char *spec = "";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      case 'b':
+         sem_bootstrap_en(true);
+         break;
+      default:
+         abort();
+      }
+   }
+
+   for (int i = optind; i < argc; i++) {
       if (!input_from_file(argv[i]))
          return EXIT_FAILURE;
 
@@ -180,6 +204,9 @@ static void usage(void)
           " -v, --version\t\tDisplay version and copyright information\n"
           " -h, --help\t\tDisplay this message and exit\n"
           "     --work=NAME\tUse NAME as the work library\n"
+          "\n"
+          "Analyse options:\n"
+          "     --bootstrap\tAllow compilation of STANDARD package\n"
           "\n"
           "Run options:\n"
           "     --trace\t\tTrace simulation events\n"

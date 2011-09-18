@@ -31,4 +31,7 @@ int sem_errors(void);
 typedef void (*sem_error_fn_t)(const char *msg, const loc_t *loc);
 sem_error_fn_t sem_set_error_fn(sem_error_fn_t fn);
 
+// Enable special mode for analysing STANDARD package
+void sem_bootstrap_en(bool en);
+
 #endif  // _SEM_H

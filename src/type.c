@@ -23,6 +23,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_DIMS     4
 #define MAX_UNITS    16
@@ -119,7 +120,11 @@ bool type_eq(type_t a, type_t b)
    while (type_kind(b) == T_SUBTYPE)
       b = type_base(b);
 
-   if (type_kind(a) != type_kind(b))
+   const bool compare_c_u_arrays =
+      (type_kind(a) == T_CARRAY && type_kind(b) == T_UARRAY)
+      || (type_kind(a) == T_UARRAY && type_kind(b) == T_CARRAY);
+
+   if ((type_kind(a) != type_kind(b)) && !compare_c_u_arrays)
       return false;
 
    // Universal integer type is equal to any other integer type
@@ -134,6 +139,9 @@ bool type_eq(type_t a, type_t b)
 
    if (type_ident(a) != type_ident(b))
       return false;
+
+   if (compare_c_u_arrays)
+      return type_eq(type_base(a), type_base(b));
 
    if (HAS_DIMS(a) && type_dims(a) != type_dims(b))
       return false;
@@ -607,4 +615,33 @@ void type_read_end(type_rd_ctx_t ctx)
 {
    free(ctx->store);
    free(ctx);
+}
+
+const char *type_pp(type_t t)
+{
+   assert(t != NULL);
+
+   switch (type_kind(t)) {
+   case T_FUNC:
+      {
+         static char fn[256];
+         char *p = fn;
+         const char *end = fn + sizeof(fn);
+         const char *fname = istr(type_ident(t));
+         const bool operator = !isalpha(fname[0]);
+         const char *quote = operator ? "\"" : "";
+
+         p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
+         for (unsigned i = 0; i < type_params(t); i++)
+            p += snprintf(p, end - p, "%s%s",
+                          (i == 0 ? "" : ", "),
+                          istr(type_ident(type_param(t, i))));
+         p += snprintf(p, end - p, ") -> %s", istr(type_ident(type_result(t))));
+
+         return fn;
+      }
+
+   default:
+      return istr(type_ident(t));
+   }
 }
