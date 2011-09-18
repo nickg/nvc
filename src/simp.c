@@ -78,6 +78,9 @@ static tree_t simp_fcall(tree_t t)
    if (strcmp(builtin, "mul") == 0) {
       FOLD_BINARY(args, l, *);
    }
+   else if (strcmp(builtin, "div") == 0) {
+      FOLD_BINARY(args, l, /);
+   }
    else if (strcmp(builtin, "add") == 0) {
       FOLD_BINARY(args, l, +);
    }
@@ -87,6 +90,8 @@ static tree_t simp_fcall(tree_t t)
    else if (strcmp(builtin, "neg") == 0) {
       FOLD_UNARY(args, l, -);
    }
+   else if (strcmp(builtin, "identity") == 0)
+      l = args[0];
    else
       fatal("cannot fold builtin %s", builtin);
 
@@ -97,6 +102,19 @@ static tree_t simp_fcall(tree_t t)
    return f;
 }
 
+static tree_t simp_ref(tree_t t)
+{
+   tree_t decl = tree_ref(t);
+
+   switch (tree_kind(decl)) {
+   case T_CONST_DECL:
+      return tree_value(decl);
+
+   default:
+      return t;
+   }
+}
+
 static tree_t simp_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -105,6 +123,9 @@ static tree_t simp_expr(tree_t t)
 
    case T_FCALL:
       return simp_fcall(t);
+
+   case T_REF:
+      return simp_ref(t);
 
    default:
       assert(false);
@@ -139,6 +160,7 @@ static void simp_decl(tree_t t)
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
+   case T_CONST_DECL:
       if (tree_has_value(t))
          tree_set_value(t, simp_expr(tree_value(t)));
       break;
@@ -149,6 +171,31 @@ static void simp_decl(tree_t t)
 
    case T_FUNC_DECL:
       break;
+
+   default:
+      assert(false);
+   }
+}
+
+static tree_t simp_stmt(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_PROCESS:
+      {
+         for (unsigned i = 0; i < tree_decls(t); i++)
+            simp_decl(tree_decl(t, i));
+
+         for (unsigned i = 0; i < tree_stmts(t); i++)
+            tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
+
+         return t;
+      }
+
+   case T_VAR_ASSIGN:
+   case T_SIGNAL_ASSIGN:
+      tree_set_target(t, simp_expr(tree_target(t)));
+      tree_set_value(t, simp_expr(tree_value(t)));
+      return t;
 
    default:
       assert(false);
@@ -168,6 +215,9 @@ static void simp_arch(tree_t t)
 {
    for (unsigned i = 0; i < tree_decls(t); i++)
       simp_decl(tree_decl(t, i));
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
 }
 
 static void simp_package(tree_t t)

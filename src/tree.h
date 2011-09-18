@@ -143,6 +143,7 @@ void tree_add_decl(tree_t t, tree_t d);
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);
+void tree_change_stmt(tree_t t, unsigned n, tree_t d);
 
 // T_WAIT
 bool tree_has_delay(tree_t t);

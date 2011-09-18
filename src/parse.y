@@ -968,6 +968,7 @@ expr
 | tNOT expr { $$ = build_expr1("not", $2, &@$); }
 | tABS expr { $$ = build_expr1("abs", $2, &@$); }
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
+| tPLUS expr { $$ = build_expr1("+", $2, &@$); }
 | name
 | literal
 | selected_id tTICK tLPAREN expr tRPAREN

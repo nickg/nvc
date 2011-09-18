@@ -562,6 +562,17 @@ void tree_add_stmt(tree_t t, tree_t s)
    tree_array_add(&t->stmts, s);
 }
 
+void tree_change_stmt(tree_t t, unsigned n, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(HAS_STMTS(t));
+   assert(IS_STMT(s));
+   assert(n < t->stmts.count);
+
+   t->stmts.items[n] = s;
+}
+
 bool tree_has_delay(tree_t t)
 {
    assert(t != NULL);
