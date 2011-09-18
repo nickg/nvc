@@ -25,6 +25,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "loc.h"
 
@@ -47,10 +48,12 @@ void write_u(unsigned u, FILE *f);
 void write_s(unsigned short s, FILE *f);
 bool write_b(bool b, FILE *f);
 void write_i(int i, FILE *f);
+void write_i64(int64_t i, FILE *f);
 
 unsigned read_u(FILE *f);
 unsigned short read_s(FILE *f);
 bool read_b(FILE *f);
 int read_i(FILE *f);
+int64_t read_i64(FILE *f);
 
 #endif // _UTIL_H

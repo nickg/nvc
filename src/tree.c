@@ -973,7 +973,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_s(t->literal.kind, ctx->file);
       switch (t->literal.kind) {
       case L_INT:
-         write_i(t->literal.i, ctx->file);
+         write_i64(t->literal.i, ctx->file);
          break;
       default:
          abort();
@@ -1092,7 +1092,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->literal.kind = read_s(ctx->file);
       switch (t->literal.kind) {
       case L_INT:
-         t->literal.i = read_i(ctx->file);
+         t->literal.i = read_i64(ctx->file);
          break;
       default:
          abort();

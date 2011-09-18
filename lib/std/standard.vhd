@@ -42,8 +42,7 @@ package STANDARD is
     
     --type REAL is range -1.0E307 to 1.0E307; 
 
-    -- TODO: this needs to be 64 bit!
-    type TIME is range -2147483648 to 2147483647
+    type TIME is range -9223372036854775808 to 9223372036854775807
         units
             fs;
             ps  = 1000 fs;

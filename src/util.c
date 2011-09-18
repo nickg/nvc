@@ -263,6 +263,11 @@ void write_i(int i, FILE *f)
    fwrite(&i, sizeof(int), 1, f);
 }
 
+void write_i64(int64_t i, FILE *f)
+{
+   fwrite(&i, sizeof(int64_t), 1, f);
+}
+
 void write_s(unsigned short s, FILE *f)
 {
    fwrite(&s, sizeof(unsigned short), 1, f);
@@ -303,6 +308,14 @@ int read_i(FILE *f)
 {
    int i;
    if (fread(&i, sizeof(int), 1, f) != 1)
+      fatal("premature end of file");
+   return i;
+}
+
+int64_t read_i64(FILE *f)
+{
+   int64_t i;
+   if (fread(&i, sizeof(int64_t), 1, f) != 1)
       fatal("premature end of file");
    return i;
 }

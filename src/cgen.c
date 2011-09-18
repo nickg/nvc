@@ -24,14 +24,25 @@
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitWriter.h>
+#include <llvm-c/ExecutionEngine.h>
+#include <llvm-c/Analysis.h>
+#include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Transforms/IPO.h>
 
 #undef NDEBUG
 #include <assert.h>
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
+static bool           run_optimiser = false;
 
 static LLVMValueRef cgen_expr(tree_t t);
+
+static int64_t literal_int(tree_t t)
+{
+   assert(tree_kind(t) == T_LITERAL);
+   return tree_literal(t).i;
+}
 
 static LLVMTypeRef llvm_type(type_t t)
 {
@@ -40,14 +51,34 @@ static LLVMTypeRef llvm_type(type_t t)
    switch (type_kind(t)) {
    case T_INTEGER:
       // XXX: hack
-      return LLVMInt32Type();
+      {
+         range_t r = type_dim(t, 0);
+         printf("min=%ld max=%ld\n", literal_int(r.left), literal_int(r.right));
+         return LLVMInt32Type();
+      }
 
    case T_PHYSICAL:
       // XXX: hack
-      return LLVMInt64Type();
+      {
+         range_t r = type_dim(t, 0);
+         printf("left kind=%d\n", tree_kind(r.left));
+         printf("min=%ld max=%ld\n", literal_int(r.left), literal_int(r.right));
+         return LLVMInt64Type();
+      }
 
    case T_SUBTYPE:
       return llvm_type(type_base(t));
+
+   case T_CARRAY:
+      {
+         assert(type_dims(t) == 1);
+         range_t r = type_dim(t, 0);
+         unsigned n = literal_int(r.right) - literal_int(r.left) + 1;
+         return LLVMArrayType(llvm_type(type_base(t)), n);
+      };
+
+   case T_ENUM:
+      return LLVMInt8Type();
 
    default:
       abort();
@@ -94,7 +125,7 @@ static LLVMValueRef cgen_var_decl(tree_t t)
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
-   printf("cgen_literal %d\n", l.i);
+   printf("cgen_literal %ld\n", l.i);
    switch (l.kind) {
    case L_INT:
       return LLVMConstInt(llvm_type(tree_type(t)), l.i, false);
@@ -118,6 +149,8 @@ static LLVMValueRef cgen_fcall(tree_t t)
    if (builtin) {
       if (strcmp(builtin, "mul") == 0)
          return LLVMBuildMul(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "eq") == 0)
+         return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
@@ -137,11 +170,35 @@ static LLVMValueRef cgen_ref(tree_t t)
    case T_FUNC_DECL:
       return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
+   case T_ENUM_LIT:
+      return LLVMConstInt(LLVMInt8Type(), 'A', false);
+
    default:
       abort();
    }
 
    return NULL;
+}
+
+static LLVMValueRef cgen_aggregate(tree_t t)
+{
+   LLVMValueRef vals[tree_assocs(t)];
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      switch (a.kind) {
+      case A_POS:
+         vals[i] = cgen_expr(a.value);
+         break;
+
+      default:
+         fatal("only positional associations supported");
+      }
+   }
+
+   return LLVMConstArray(llvm_type(type_base(tree_type(t))),
+                         vals, tree_assocs(t));
 }
 
 static LLVMValueRef cgen_expr(tree_t t)
@@ -153,6 +210,8 @@ static LLVMValueRef cgen_expr(tree_t t)
       return cgen_fcall(t);
    case T_REF:
       return cgen_ref(t);
+   case T_AGGREGATE:
+      return cgen_aggregate(t);
    default:
       abort();
    }
@@ -191,6 +250,41 @@ static void cgen_var_assign(tree_t t)
    }
 }
 
+static void cgen_assert(tree_t t)
+{
+   LLVMValueRef test     = cgen_expr(tree_value(t));
+   LLVMValueRef message  = cgen_expr(tree_message(t));
+   //LLVMValueRef severity = cgen_expr(tree_severity(t));
+
+   //LLVMValueRef message_ptr = LLVMBuildGEP(builder, message, NULL, 0, "");
+
+   LLVMValueRef failed = LLVMBuildNot(builder, test, "");
+
+   LLVMValueRef fn = LLVMGetBasicBlockParent(LLVMGetInsertBlock(builder));
+   LLVMBasicBlockRef thenbb = LLVMAppendBasicBlock(fn, "assert_fail");
+   LLVMBasicBlockRef elsebb = LLVMAppendBasicBlock(fn, "assert_pass");
+
+   LLVMBuildCondBr(builder, failed, thenbb, elsebb);
+
+   LLVMPositionBuilderAtEnd(builder, thenbb);
+   LLVMValueRef assert_fail_fn =
+      LLVMGetNamedFunction(module, "_assert_fail");
+   assert(assert_fail_fn != NULL);
+
+   LLVMValueRef args[] = {
+      LLVMConstInt(LLVMInt8Type(), 0, false),
+      message,
+      LLVMConstInt(LLVMInt32Type(),
+                   LLVMGetArrayLength(LLVMTypeOf(message)),
+                   false)
+   };
+   LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
+
+   LLVMBuildBr(builder, elsebb);
+
+   LLVMPositionBuilderAtEnd(builder, elsebb);
+}
+
 static void cgen_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -199,6 +293,9 @@ static void cgen_stmt(tree_t t)
       break;
    case T_VAR_ASSIGN:
       cgen_var_assign(t);
+      break;
+   case T_ASSERT:
+      cgen_assert(t);
       break;
    default:
       assert(false);
@@ -234,6 +331,22 @@ static void cgen_top(tree_t t)
       cgen_process(tree_stmt(t, i));
 }
 
+static void optimise(void)
+{
+   LLVMPassManagerRef pass_mgr = LLVMCreatePassManager();
+
+   LLVMAddPromoteMemoryToRegisterPass(pass_mgr);
+   LLVMAddInstructionCombiningPass(pass_mgr);
+   LLVMAddReassociatePass(pass_mgr);
+   LLVMAddGVNPass(pass_mgr);
+   LLVMAddCFGSimplificationPass(pass_mgr);
+
+   if (LLVMRunPassManager(pass_mgr, module))
+      fatal("LLVM pass manager failed");
+
+   LLVMDisposePassManager(pass_mgr);
+}
+
 void cgen(tree_t top)
 {
    if (tree_kind(top) != T_ELAB)
@@ -249,7 +362,25 @@ void cgen(tree_t top)
                                     ARRAY_LEN(_sched_process_args),
                                     false));
 
+   LLVMTypeRef _assert_fail_args[] = {
+      LLVMInt8Type(),
+      LLVMPointerType(LLVMInt8Type(), 0),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_assert_fail",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _assert_fail_args,
+                                    ARRAY_LEN(_assert_fail_args),
+                                    false));
+
    cgen_top(top);
+
+   LLVMDumpModule(module);
+   if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
+      fatal("LLVM verification failed");
+
+   if (run_optimiser)
+      optimise();
 
    char fname[256];
    snprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
@@ -263,8 +394,6 @@ void cgen(tree_t top)
       fatal("error writing LLVM bitcode");
 #endif
    fclose(f);
-
-   LLVMDumpModule(module);
 
    LLVMDisposeBuilder(builder);
    LLVMDisposeModule(module);

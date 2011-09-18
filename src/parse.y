@@ -56,9 +56,9 @@
       }
 
    typedef struct {
-      int  ival;
-      char *sval;
-      char cval;
+      int64_t ival;
+      char    *sval;
+      char    cval;
    } lvals_t;
 
    typedef struct id_list {

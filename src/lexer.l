@@ -201,7 +201,7 @@ SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 "="        { begin_token(yytext); return tEQ; }
 "/"        { begin_token(yytext); return tOVER; }
 "."        { begin_token(yytext); return tDOT; }
-{INT}      { begin_token(yytext); lvals.ival = atoi(yytext); return tINT; }
+{INT}      { begin_token(yytext); lvals.ival = atoll(yytext); return tINT; }
 {STRING}   { begin_token(yytext); lvals.sval = strdup(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
 {TICK}     { begin_token(yytext); return tTICK; }

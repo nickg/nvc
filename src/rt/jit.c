@@ -42,7 +42,7 @@ void jit_bind_fn(const char *name, void *ptr)
 {
    LLVMValueRef fn;
    if (LLVMFindFunction(exec_engine, name, &fn))
-      fatal("cannot find function %s", name);
+      return;
 
    LLVMAddGlobalMapping(exec_engine, fn, ptr);
 }

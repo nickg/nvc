@@ -23,6 +23,8 @@
 #include "type.h"
 #include "loc.h"
 
+#include <stdint.h>
+
 typedef enum port_mode {
    PORT_INVALID,
    PORT_IN,
@@ -61,10 +63,10 @@ typedef struct tree *tree_t;
 
 typedef struct literal {
    union {
-      int   i;
-      float f;
+      int64_t i;
+      double  r;
    };
-   enum { L_INT, L_FLOAT } kind;
+   enum { L_INT, L_REAL } kind;
 } literal_t;
 
 typedef struct assoc {
