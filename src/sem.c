@@ -537,7 +537,7 @@ static void sem_declare_predefined_ops(type_t t)
       // Fall-through
    default:
       sem_declare_binary(ident_new("="), t, t, std_bool, "eq");
-      sem_declare_binary(ident_new("="), t, t, std_bool, "neq");
+      sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");
 
       break;
    }
@@ -1017,6 +1017,7 @@ static bool sem_check_fcall(tree_t t)
          char buf[1024];
          char *p = buf;
          const char *end = buf + sizeof(buf);
+         const bool operator = !isalpha(*istr(tree_ident(t)));
 
          for (int n = 0; n < n_overloads; n++) {
             if (overloads[n] != NULL)
@@ -1025,7 +1026,8 @@ static bool sem_check_fcall(tree_t t)
          }
 
          type_set_member(type_universal_int());
-         sem_error(t, "ambiguous call to function %s\n%s",
+         sem_error(t, "ambiguous %s %s\n%s",
+                   operator ? "use of operator" : "call to function",
                    istr(tree_ident(t)), buf);
       }
    }
