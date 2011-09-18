@@ -352,7 +352,6 @@ static bool scope_import_unit(lib_t lib, ident_t name)
    }
 
    scope_ident_list_add(&top_scope->imported, name);
-
    return true;
 }
 
@@ -462,12 +461,30 @@ static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
    scope_insert(d);
 }
 
+static void sem_declare_unary(ident_t name, type_t operand,
+                              type_t result, const char *builtin)
+{
+   type_t f = type_new(T_FUNC);
+   type_set_ident(f, name);
+   type_add_param(f, operand);
+   type_set_result(f, result);
+
+   tree_t d = tree_new(T_FUNC_DECL);
+   tree_set_ident(d, name);
+   tree_set_type(d, f);
+   tree_add_attr_str(d, ident_new("builtin"), builtin);
+
+   scope_insert(d);
+}
+
 static void sem_declare_predefined_ops(type_t t)
 {
    // Prefined operators are defined in LRM 93 section 7.2
 
-   ident_t mult = ident_new("*");
-   ident_t div = ident_new("/");
+   ident_t mult  = ident_new("*");
+   ident_t div   = ident_new("/");
+   ident_t plus  = ident_new("+");
+   ident_t minus = ident_new("-");
 
    type_t std_int = NULL;
    type_t std_bool = NULL;
@@ -512,12 +529,12 @@ static void sem_declare_predefined_ops(type_t t)
       // Fall-through
    case T_REAL:
       // Addition
-      sem_declare_binary(ident_new("+"), t, t, t, "add");
-      //sem_declare_binary(ident_new("+"), t, t, t, "add");
+      sem_declare_binary(plus, t, t, t, "add");
+      //sem_declare_binary(plus, t, t, "add");
 
       // Subtraction
-      sem_declare_binary(ident_new("-"), t, t, t, "sub");
-      //sem_declare_binary(ident_new("-"), t, t, t, "sub");
+      sem_declare_binary(minus, t, t, t, "sub");
+      //sem_declare_binary(minus, t, t, t, "sub");
 
       // Multiplication
       sem_declare_binary(mult, t, t, t, "mul");
@@ -526,6 +543,10 @@ static void sem_declare_predefined_ops(type_t t)
       // Division
       sem_declare_binary(div, t, t, t, "div");
       //sem_declare_binary(div, t, t, t, "div");
+
+      // Sign operators
+      sem_declare_unary(plus, t, t, "identity");
+      sem_declare_unary(minus, t, t, "neg");
 
       // Fall-through
    case T_ENUM:
@@ -619,6 +640,8 @@ static bool sem_readable(tree_t t)
 
 static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 {
+   // Resolve a subtype to its base type
+
    while (type_kind(type) == T_SUBTYPE) {
       type_t base = type_base(type);
       tree_t base_decl = scope_find(type_ident(base));
@@ -638,6 +661,8 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 
 static bool sem_check_type(tree_t t, type_t *ptype)
 {
+   // Check a type at the point where it is used not declared
+
    switch (type_kind(*ptype)) {
    case T_SUBTYPE:
       {
@@ -693,11 +718,25 @@ static bool sem_check_type_decl(tree_t t)
 {
    type_t type = tree_type(t);
 
+   // Prefix the package name to the type name
+   if (top_scope->prefix)
+      type_set_ident(type, ident_prefix(top_scope->prefix,
+                                        type_ident(type)));
+
+   // We need to insert the type into the scope before performing
+   // further checks as when bootstrapping we need INTEGER defined
+   // before we can check any ranges. Adding a type with errors to
+   // the symbol table should also avoid spurious type-not-defined
+   // errors later on
+   scope_apply_prefix(t);
+   if (!scope_insert_special(t))
+      return false;
+
    type_t base;
    if (!sem_check_subtype(t, type, &base))
       return false;
 
-   switch (type_kind(base)) {
+   switch (type_kind(type)) {
    case T_UARRAY:
       {
          type_t elem_type = type_base(base);
@@ -705,20 +744,26 @@ static bool sem_check_type_decl(tree_t t)
             return false;
 
          type_set_base(base, elem_type);
+
+         return true;
       }
-      break;
+
+   case T_INTEGER:
+   case T_PHYSICAL:
+      {
+         range_t r = type_dim(base, 0);
+
+         type_set_push();
+         type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
+         bool ok = sem_check(r.left) && sem_check(r.right);
+         type_set_pop();
+
+         return ok;
+      }
 
    default:
-      break;
+      return true;
    }
-
-   // Prefix the package name to the type name
-   if (top_scope->prefix)
-      type_set_ident(type, ident_prefix(top_scope->prefix,
-                                        type_ident(type)));
-
-   scope_apply_prefix(t);
-   return scope_insert_special(t);
 }
 
 static bool sem_check_decl(tree_t t)
@@ -978,58 +1023,55 @@ static bool sem_check_fcall(tree_t t)
       }
    } while (decl != NULL);
 
-   if (n_overloads > 0) {
-      int fails = 0;
+   int fails = 0;
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      type_set_push();
+
+      for (int j = 0; j < n_overloads; j++)
+         type_set_add(type_param(tree_type(overloads[j]), i));
+
+      if (!sem_check(tree_param(t, i)))
+         fails++;
+
+      type_set_pop();
+   }
+
+   if (fails > 0)
+      return false;
+
+   int matches = 0;
+   for (int n = 0; n < n_overloads; n++) {
+      // Did argument types match for this overload?
+      bool match = true;
+      type_t func_type = tree_type(overloads[n]);
       for (unsigned i = 0; i < tree_params(t); i++) {
-         type_set_push();
-
-         for (int j = 0; j < n_overloads; j++)
-            type_set_add(type_param(tree_type(overloads[j]), i));
-
-         if (!sem_check(tree_param(t, i)))
-            fails++;
-
-         type_set_pop();
+         match = match && type_eq(type_param(func_type, i),
+                                  tree_type(tree_param(t, i)));
       }
 
-      if (fails > 0)
-         return false;
+      if (match) {
+         decl = overloads[n];
+         matches++;
+      }
+      else
+         overloads[n] = NULL;
+   }
 
-      int matches = 0;
+   if (matches > 1) {
+      char buf[1024];
+      char *p = buf;
+      const char *end = buf + sizeof(buf);
+      const bool operator = !isalpha(*istr(tree_ident(t)));
+
       for (int n = 0; n < n_overloads; n++) {
-         // Did argument types match for this overload?
-         bool match = true;
-         type_t func_type = tree_type(overloads[n]);
-         for (unsigned i = 0; i < tree_params(t); i++) {
-            match = match && type_eq(type_param(func_type, i),
-                                     tree_type(tree_param(t, i)));
-         }
-
-         if (match) {
-            decl = overloads[n];
-            matches++;
-         }
-         else
-            overloads[n] = NULL;
-      }
-
-      if (matches > 1) {
-         char buf[1024];
-         char *p = buf;
-         const char *end = buf + sizeof(buf);
-         const bool operator = !isalpha(*istr(tree_ident(t)));
-
-         for (int n = 0; n < n_overloads; n++) {
-            if (overloads[n] != NULL)
+         if (overloads[n] != NULL)
                p += snprintf(p, end - p, "    %s\n",
                              type_pp(tree_type(overloads[n])));
-         }
-
-         type_set_member(type_universal_int());
-         sem_error(t, "ambiguous %s %s\n%s",
-                   operator ? "use of operator" : "call to function",
-                   istr(tree_ident(t)), buf);
       }
+
+      sem_error(t, "ambiguous %s %s\n%s",
+                operator ? "use of operator" : "call to function",
+                istr(tree_ident(t)), buf);
    }
 
    if (decl == NULL) {
