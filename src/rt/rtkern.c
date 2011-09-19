@@ -69,7 +69,7 @@ void _assert_fail(int8_t report, const uint8_t *msg, int32_t msg_len)
    // c) The value of the message string
    // d) The name of the design unit containing the assertion
 
-   fprintf(stderr, "Assertion %s: %d", "Error", msg_len);
+   fprintf(stderr, "Assertion %s: ", "Error");
    fwrite(msg, 1, msg_len, stderr);
    fprintf(stderr, "\n");
 }

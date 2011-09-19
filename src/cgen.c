@@ -34,7 +34,7 @@
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
-static bool           run_optimiser = false;
+static bool           run_optimiser = true;
 
 static LLVMValueRef cgen_expr(tree_t t);
 
@@ -42,6 +42,12 @@ static int64_t literal_int(tree_t t)
 {
    assert(tree_kind(t) == T_LITERAL);
    return tree_literal(t).i;
+}
+
+static size_t vhdl_array_len(type_t t)
+{
+   range_t r = type_dim(t, 0);
+   return literal_int(r.right) - literal_int(r.left) + 1;
 }
 
 static LLVMTypeRef llvm_type(type_t t)
@@ -69,9 +75,8 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_CARRAY:
       {
          assert(type_dims(t) == 1);
-         range_t r = type_dim(t, 0);
-         unsigned n = literal_int(r.right) - literal_int(r.left) + 1;
-         return LLVMArrayType(llvm_type(type_base(t)), n);
+         return LLVMArrayType(llvm_type(type_base(t)),
+                              vhdl_array_len(t));
       };
 
    case T_ENUM:
@@ -190,8 +195,15 @@ static LLVMValueRef cgen_aggregate(tree_t t)
       }
    }
 
-   return LLVMConstArray(llvm_type(type_base(tree_type(t))),
-                         vals, tree_assocs(t));
+   LLVMTypeRef arr_ty = llvm_type(tree_type(t));
+   LLVMTypeRef elm_ty = llvm_type(type_base(tree_type(t)));
+
+   LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "");
+   LLVMSetGlobalConstant(g, true);
+   LLVMSetLinkage(g, LLVMInternalLinkage);
+   LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, tree_assocs(t)));
+
+   return g;
 }
 
 static LLVMValueRef cgen_expr(tree_t t)
@@ -243,6 +255,16 @@ static void cgen_var_assign(tree_t t)
    }
 }
 
+static LLVMValueRef cgen_array_to_c_string(LLVMValueRef a)
+{
+   LLVMValueRef indices[] = {
+      LLVMConstInt(LLVMInt32Type(), 0, false),
+      LLVMConstInt(LLVMInt32Type(), 0, false)
+   };
+
+   return LLVMBuildGEP(builder, a, indices, ARRAY_LEN(indices), "");
+}
+
 static void cgen_assert(tree_t t)
 {
    LLVMValueRef test     = cgen_expr(tree_value(t));
@@ -266,9 +288,9 @@ static void cgen_assert(tree_t t)
 
    LLVMValueRef args[] = {
       LLVMConstInt(LLVMInt8Type(), 0, false),
-      message,
+      cgen_array_to_c_string(message),
       LLVMConstInt(LLVMInt32Type(),
-                   LLVMGetArrayLength(LLVMTypeOf(message)),
+                   vhdl_array_len(tree_type(tree_message(t))),
                    false)
    };
    LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
