@@ -999,8 +999,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->decls, ctx);
    if (HAS_STMTS(t))
       write_a(&t->stmts, ctx);
-   if (IS(t, T_PORT_DECL))
-      write_s(t->port_mode, ctx->file);
    if (HAS_TYPE(t))
       type_write(t->type, ctx->type_ctx);
    if (HAS_VALUE(t))
@@ -1017,47 +1015,64 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          ident_write(t->context[i], ctx->file);
    }
 
-   if (IS(t, T_LITERAL)) {
-      write_s(t->literal.kind, ctx->file);
-      switch (t->literal.kind) {
-      case L_INT:
-         write_i64(t->literal.i, ctx->file);
-         break;
-      default:
-         abort();
-      }
-   }
-   else if (IS(t, T_AGGREGATE)) {
-      write_s(t->n_assocs, ctx->file);
+   switch (t->kind) {
+   case T_PORT_DECL:
+      write_s(t->port_mode, ctx->file);
+      break;
 
-      for (unsigned i = 0; i < t->n_assocs; i++) {
-         write_s(t->assocs[i].kind, ctx->file);
-         tree_write(t->assocs[i].value, ctx);
-
-         switch (t->assocs[i].kind) {
-         case A_POS:
-            write_s(t->assocs[i].pos, ctx->file);
-            break;
-         case A_NAMED:
-            tree_write(t->assocs[i].name, ctx);
-            break;
-         case A_RANGE:
-            tree_write(t->assocs[i].range.left, ctx);
-            tree_write(t->assocs[i].range.right, ctx);
-            break;
-         case A_OTHERS:
+   case T_LITERAL:
+      {
+         write_s(t->literal.kind, ctx->file);
+         switch (t->literal.kind) {
+         case L_INT:
+            write_i64(t->literal.i, ctx->file);
             break;
          default:
             abort();
          }
       }
-   }
-   else if (IS(t, T_ASSERT)) {
+      break;
+
+   case T_AGGREGATE:
+      {
+         write_s(t->n_assocs, ctx->file);
+
+         for (unsigned i = 0; i < t->n_assocs; i++) {
+            write_s(t->assocs[i].kind, ctx->file);
+            tree_write(t->assocs[i].value, ctx);
+
+            switch (t->assocs[i].kind) {
+            case A_POS:
+               write_s(t->assocs[i].pos, ctx->file);
+               break;
+            case A_NAMED:
+               tree_write(t->assocs[i].name, ctx);
+               break;
+            case A_RANGE:
+               tree_write(t->assocs[i].range.left, ctx);
+               tree_write(t->assocs[i].range.right, ctx);
+               break;
+            case A_OTHERS:
+               break;
+            default:
+               abort();
+            }
+         }
+      }
+      break;
+
+   case T_ASSERT:
       tree_write(t->severity, ctx);
       tree_write(t->message, ctx);
-   }
-   else if (IS(t, T_ENUM_LIT))
+      break;
+
+   case T_ENUM_LIT:
       write_u(t->pos, ctx->file);
+      break;
+
+   default:
+      break;
+   }
 
    write_s(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1116,8 +1131,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->decls, ctx);
    if (HAS_STMTS(t))
       read_a(&t->stmts, ctx);
-   if (IS(t, T_PORT_DECL))
-      t->port_mode = read_s(ctx->file);
    if (HAS_TYPE(t)) {
       if ((t->type = type_read(ctx->type_ctx)))
          type_ref(t->type);
@@ -1138,48 +1151,65 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          t->context[i] = ident_read(ctx->file);
    }
 
-   if (IS(t, T_LITERAL)) {
-      t->literal.kind = read_s(ctx->file);
-      switch (t->literal.kind) {
-      case L_INT:
-         t->literal.i = read_i64(ctx->file);
-         break;
-      default:
-         abort();
-      }
-   }
-   else if (IS(t, T_AGGREGATE)) {
-      t->n_assocs_alloc = t->n_assocs = read_s(ctx->file);
-      t->assocs = xmalloc(sizeof(assoc_t) * t->n_assocs);
+   switch (t->kind) {
+   case T_PORT_DECL:
+      t->port_mode = read_s(ctx->file);
+      break;
 
-      for (unsigned i = 0; i < t->n_assocs; i++) {
-         t->assocs[i].kind  = read_s(ctx->file);
-         t->assocs[i].value = tree_read(ctx);
-
-         switch (t->assocs[i].kind) {
-         case A_POS:
-            t->assocs[i].pos = read_s(ctx->file);
-            break;
-         case A_NAMED:
-            t->assocs[i].name = tree_read(ctx);
-            break;
-         case A_RANGE:
-            t->assocs[i].range.left  = tree_read(ctx);
-            t->assocs[i].range.right = tree_read(ctx);
-            break;
-         case A_OTHERS:
+   case T_LITERAL:
+      {
+         t->literal.kind = read_s(ctx->file);
+         switch (t->literal.kind) {
+         case L_INT:
+            t->literal.i = read_i64(ctx->file);
             break;
          default:
             abort();
          }
       }
-   }
-   else if (IS(t, T_ASSERT)) {
+      break;
+
+   case T_AGGREGATE:
+      {
+         t->n_assocs_alloc = t->n_assocs = read_s(ctx->file);
+         t->assocs = xmalloc(sizeof(assoc_t) * t->n_assocs);
+
+         for (unsigned i = 0; i < t->n_assocs; i++) {
+            t->assocs[i].kind  = read_s(ctx->file);
+            t->assocs[i].value = tree_read(ctx);
+
+            switch (t->assocs[i].kind) {
+            case A_POS:
+               t->assocs[i].pos = read_s(ctx->file);
+               break;
+            case A_NAMED:
+               t->assocs[i].name = tree_read(ctx);
+               break;
+            case A_RANGE:
+               t->assocs[i].range.left  = tree_read(ctx);
+               t->assocs[i].range.right = tree_read(ctx);
+               break;
+            case A_OTHERS:
+               break;
+            default:
+               abort();
+            }
+         }
+      }
+      break;
+
+   case T_ASSERT:
       t->severity = tree_read(ctx);
       t->message  = tree_read(ctx);
-   }
-   else if (IS(t, T_ENUM_LIT))
+      break;
+
+   case T_ENUM_LIT:
       t->pos = read_u(ctx->file);
+      break;
+
+   default:
+      break;
+   }
 
    t->n_attrs = read_s(ctx->file);
    assert(t->n_attrs <= MAX_ATTRS);
