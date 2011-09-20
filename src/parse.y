@@ -675,7 +675,8 @@ seq_stmt_without_label
   {
      $$ = tree_new(T_WAIT);
      tree_set_loc($$, &@$);
-     tree_set_delay($$, $2);
+     if ($2 != NULL)
+        tree_set_delay($$, $2);
   }
 | target tASSIGN expr tSEMI
   {
@@ -750,7 +751,10 @@ waveform_element
 | tNULL /* [ after time_expression ] */ { $$ = NULL; }
 ;
 
-timeout_clause : tFOR expr { $$ = $2; } ;
+timeout_clause
+: tFOR expr { $$ = $2; }
+| /* empty */ { $$ = NULL; }
+;
 
 subtype_decl
 : tSUBTYPE id tIS subtype_indication tSEMI

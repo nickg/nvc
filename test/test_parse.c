@@ -247,7 +247,7 @@ START_TEST(test_seq)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_stmts(p) == 2);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -259,6 +259,10 @@ START_TEST(test_seq)
    fail_unless(tree_kind(tree_param(e, 0)) == T_LITERAL);
    fail_unless(tree_kind(tree_param(e, 1)) == T_REF);
    fail_unless(tree_ident(tree_param(e, 1)) == ident_new("NS"));
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_if(tree_has_delay(s));
 
    // Variable assignment
 
