@@ -169,7 +169,7 @@ static LLVMValueRef cgen_ref(tree_t t)
       return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
    case T_ENUM_LIT:
-      return LLVMConstInt(LLVMInt8Type(), 'A', false);
+      return LLVMConstInt(LLVMInt8Type(), tree_pos(decl), false);
 
    default:
       abort();
@@ -269,7 +269,7 @@ static void cgen_assert(tree_t t)
 {
    LLVMValueRef test     = cgen_expr(tree_value(t));
    LLVMValueRef message  = cgen_expr(tree_message(t));
-   //LLVMValueRef severity = cgen_expr(tree_severity(t));
+   LLVMValueRef severity = cgen_expr(tree_severity(t));
 
    LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
@@ -289,7 +289,8 @@ static void cgen_assert(tree_t t)
       cgen_array_to_c_string(message),
       LLVMConstInt(LLVMInt32Type(),
                    vhdl_array_len(tree_type(tree_message(t))),
-                   false)
+                   false),
+      severity
    };
    LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
 
@@ -378,7 +379,8 @@ void cgen(tree_t top)
    LLVMTypeRef _assert_fail_args[] = {
       LLVMInt8Type(),
       LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMInt32Type()
+      LLVMInt32Type(),
+      LLVMInt8Type()
    };
    LLVMAddFunction(module, "_assert_fail",
                    LLVMFunctionType(LLVMVoidType(),

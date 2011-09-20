@@ -44,6 +44,7 @@ static struct rt_proc *active_proc = NULL;
 static struct deltaq  *eventq = NULL;
 static size_t         n_procs = 0;
 static uint64_t       now = 0;
+static int            delta_cycle = 0;
 static bool           trace_on = false;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
@@ -52,15 +53,49 @@ static void _tracef(const char *fmt, ...);
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
+// Utilities
+
+static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
+{
+   struct {
+      uint64_t time;
+      const char *unit;
+   } units[] = {
+      { 1ull, "fs" },
+      { 1000ull, "ps" },
+      { 1000000ull, "ns" },
+      { 1000000000ull, "us" },
+      { 1000000000000ull, "ms" },
+      { 0, NULL }
+   };
+
+   int u = 0;
+   while (units[u + 1].unit && (t % units[u + 1].time == 0))
+      ++u;
+
+   snprintf(buf, len, "%"PRIu64"%s",
+            t / units[u].time, units[u].unit);
+
+   return buf;
+}
+
+static const char *fmt_time(uint64_t t)
+{
+   static char buf[64];
+   return fmt_time_r(buf, sizeof(buf), t);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
-void _sched_process(uint64_t delay)
+void _sched_process(int64_t delay)
 {
-   TRACE("_sched_process delay=%u!!", (unsigned)delay);
+   TRACE("_sched_process delay=%s", fmt_time(delay));
    deltaq_insert(delay, active_proc);
 }
 
-void _assert_fail(int8_t report, const uint8_t *msg, int32_t msg_len)
+void _assert_fail(int8_t report, const uint8_t *msg,
+                  int32_t msg_len, int8_t severity)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -69,9 +104,19 @@ void _assert_fail(int8_t report, const uint8_t *msg, int32_t msg_len)
    // c) The value of the message string
    // d) The name of the design unit containing the assertion
 
-   fprintf(stderr, "Assertion %s: ", "Error");
+   assert(severity < 4);
+
+   const char *levels[] = {
+      "Note", "Warning", "Error", "Failure"
+   };
+
+   fprintf(stderr, "%s+%d Assertion %s: ",
+           fmt_time(now), delta_cycle, levels[severity]);
    fwrite(msg, 1, msg_len, stderr);
    fprintf(stderr, "\n");
+
+   if (severity >= 2)
+      exit(EXIT_FAILURE);
 }
 
 uint64_t _std_standard_now(void)
@@ -87,7 +132,9 @@ static void _tracef(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   fprintf(stderr, "TRACE %llufs: ", (unsigned long long)now);
+   char buf[64];
+   fprintf(stderr, "TRACE %s+%d: ",
+           fmt_time_r(buf, sizeof(buf), now), delta_cycle);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
 
@@ -164,7 +211,13 @@ static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   now += eventq->delta;
+   if (eventq->delta > 0) {
+      now += eventq->delta;
+      delta_cycle = 0;
+   }
+   else
+      delta_cycle++;  // XXX: not correct - need to process all previously
+                      // scheduled events at this time first
 
    rt_run(eventq->wake_proc);
 
