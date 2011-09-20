@@ -36,6 +36,19 @@ static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static bool           run_optimiser = true;
 
+// Linked list of entry points to a process
+// These correspond to wait statements
+struct proc_entry {
+   int               state_num;
+   tree_t            wait;
+   LLVMBasicBlockRef bb;
+   struct proc_entry *next;
+};
+
+struct proc_entry_list {
+   struct proc_entry *head;
+};
+
 static LLVMValueRef cgen_expr(tree_t t);
 
 static int64_t literal_int(tree_t t)
@@ -222,10 +235,8 @@ static LLVMValueRef cgen_expr(tree_t t)
    }
 }
 
-static void cgen_wait(tree_t t)
+static void cgen_wait(tree_t t, struct proc_entry_list *resume_list)
 {
-   // TODO: need to know if we're a function or co-routine here
-
    if (tree_has_delay(t)) {
       LLVMValueRef sched_process_fn =
          LLVMGetNamedFunction(module, "_sched_process");
@@ -235,6 +246,14 @@ static void cgen_wait(tree_t t)
       LLVMBuildCall(builder, sched_process_fn, args, 1, "");
    }
    LLVMBuildRetVoid(builder);
+
+   // Find the basic block to jump to when the process is next scheduled
+   struct proc_entry *it;
+   for (it = resume_list->head; it && it->wait != t; it = it->next)
+      ;
+   assert(it != NULL);
+
+   LLVMPositionBuilderAtEnd(builder, it->bb);
 }
 
 static void cgen_var_assign(tree_t t)
@@ -299,11 +318,11 @@ static void cgen_assert(tree_t t)
    LLVMPositionBuilderAtEnd(builder, elsebb);
 }
 
-static void cgen_stmt(tree_t t)
+static void cgen_stmt(tree_t t, struct proc_entry_list *resume_list)
 {
    switch (tree_kind(t)) {
    case T_WAIT:
-      cgen_wait(t);
+      cgen_wait(t, resume_list);
       break;
    case T_VAR_ASSIGN:
       cgen_var_assign(t);
@@ -316,25 +335,66 @@ static void cgen_stmt(tree_t t)
    }
 }
 
+static void cgen_jump_table_fn(tree_t t, void *arg)
+{
+   if (tree_kind(t) == T_WAIT) {
+      struct proc_entry_list *list = arg;
+
+      struct proc_entry *p = xmalloc(sizeof(struct proc_entry));
+      p->next = NULL;
+      p->wait = t;
+      p->bb   = NULL;
+
+      if (list->head == NULL) {
+         p->state_num = 0;
+         list->head = p;
+      }
+      else {
+         struct proc_entry *it;
+         for (it = list->head; it->next != NULL; it = it->next)
+            ;
+         p->state_num = it->state_num + 1;
+         it->next = p;
+      }
+   }
+}
+
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
 
-   // TODO: if simple then func else co-routine
-
-   printf("cgen_process %s\n", istr(tree_ident(t)));
-
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
 
    LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
-   LLVMBasicBlockRef bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMBasicBlockRef jtbb = LLVMAppendBasicBlock(fn, "jump_table");
 
-   LLVMPositionBuilderAtEnd(builder, bb);
+   LLVMPositionBuilderAtEnd(builder, jtbb);
+
+   // Generate the jump table at the start of a process to handle
+   // resuming from a wait statement
+
+   struct proc_entry_list list = { .head = NULL };
+   tree_visit(t, cgen_jump_table_fn, &list);
+
+   if (list.head == NULL) {
+      const loc_t *loc = tree_loc(t);
+      fprintf(stderr, "%s:%d: no wait statement in process\n",
+              loc->file, loc->first_line);
+   }
+
+   struct proc_entry *it;
+   for (it = list.head; it != NULL; it = it->next) {
+      it->bb = LLVMAppendBasicBlock(fn, istr(tree_ident(it->wait)));
+   }
+
+   LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
+   LLVMBuildBr(builder, start_bb);
+   LLVMPositionBuilderAtEnd(builder, start_bb);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
-      cgen_stmt(tree_stmt(t, i));
+      cgen_stmt(tree_stmt(t, i), &list);
 
-   //LLVMBuildBr(builder, bb);
+   LLVMBuildBr(builder, start_bb);
 }
 
 static void cgen_top(tree_t t)

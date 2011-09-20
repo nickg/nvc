@@ -5,7 +5,7 @@ begin
     process is
     begin
         wait for 1 ns;
-        wait;
+        block_forever: wait;
     end process;
 
     -- Blocking assignment

@@ -665,8 +665,16 @@ process_stmt_part
 ;
 
 seq_stmt
-: id tCOLON seq_stmt_without_label { $$ = $3; }
+: id tCOLON seq_stmt_without_label
+  {
+     $$ = $3;
+     tree_set_ident($$, $1);
+  }
 | seq_stmt_without_label
+  {
+     $$ = $1;
+     tree_set_ident($$, ident_uniq("s"));
+  }
 ;
 
 seq_stmt_without_label

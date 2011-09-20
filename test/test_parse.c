@@ -263,6 +263,7 @@ START_TEST(test_seq)
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_WAIT);
    fail_if(tree_has_delay(s));
+   fail_unless(tree_ident(s) == ident_new("BLOCK_FOREVER"));
 
    // Variable assignment
 

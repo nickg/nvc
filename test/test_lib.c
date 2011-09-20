@@ -139,6 +139,7 @@ START_TEST(test_lib_save)
       tree_set_ref(r, v1);
 
       tree_t s = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(s, ident_new("var_assign"));
       tree_set_target(s, r);
       tree_set_value(s, r);
       tree_add_stmt(pr, s);
@@ -150,16 +151,19 @@ START_TEST(test_lib_save)
       tree_set_literal(c, l);
 
       tree_t s2 = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(s2, ident_new("var_assign"));
       tree_set_target(s2, r);
       tree_set_value(s2, c);
       tree_add_stmt(pr, s2);
 
       tree_t s3 = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(s3, ident_new("var_assign"));
       tree_set_target(s3, r);
       tree_set_value(s3, str_to_agg("foobar", NULL));
       tree_add_stmt(pr, s3);
 
       tree_t s4 = tree_new(T_ASSERT);
+      tree_set_ident(s4, ident_new("assert"));
       tree_set_value(s4, c);
       tree_set_severity(s4, c);
       tree_set_message(s4, str_to_agg("message", NULL));
@@ -237,6 +241,7 @@ START_TEST(test_lib_save)
 
       tree_t s4 = tree_stmt(pr, 3);
       fail_unless(tree_kind(s4) == T_ASSERT);
+      fail_unless(tree_ident(s4) == ident_new("assert"));
 
       tree_t c = tree_value(s2);
       fail_unless(tree_kind(c) == T_LITERAL);
