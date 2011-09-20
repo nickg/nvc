@@ -271,8 +271,6 @@ static void cgen_assert(tree_t t)
    LLVMValueRef message  = cgen_expr(tree_message(t));
    //LLVMValueRef severity = cgen_expr(tree_severity(t));
 
-   //LLVMValueRef message_ptr = LLVMBuildGEP(builder, message, NULL, 0, "");
-
    LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
    LLVMValueRef fn = LLVMGetBasicBlockParent(LLVMGetInsertBlock(builder));

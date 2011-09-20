@@ -853,8 +853,10 @@ enum_type_def
   {
      $$ = type_new(T_ENUM);
 
+     unsigned pos = 0;
      for (tree_list_t *it = $2; it != NULL; it = it->next) {
         tree_set_type(it->value, $$);
+        tree_set_pos(it->value, pos++);
         type_enum_add_literal($$, it->value);
      }
      tree_list_free($2);

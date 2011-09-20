@@ -103,6 +103,7 @@ START_TEST(test_lib_save)
       tree_t a = tree_new(T_ENUM_LIT);
       tree_set_ident(a, ident_new("a"));
       tree_set_type(a, e);
+      tree_set_pos(a, 55);
       type_enum_add_literal(e, a);
       tree_t b = tree_new(T_ENUM_LIT);
       tree_set_ident(b, ident_new("b"));
@@ -203,6 +204,7 @@ START_TEST(test_lib_save)
       fail_unless(tree_kind(a) == T_ENUM_LIT);
       fail_unless(tree_ident(a) == ident_new("a"));
       fail_unless(tree_type(a) == e);
+      fail_unless(tree_pos(a) == 55);
       tree_t b = type_enum_literal(e, 1);
       fail_unless(tree_kind(b) == T_ENUM_LIT);
       fail_unless(tree_ident(b) == ident_new("b"));

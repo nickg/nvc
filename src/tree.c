@@ -71,9 +71,10 @@ struct tree {
       tree_t delay;               // T_WAIT
    };
    union {
-      tree_t target;              // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
-      tree_t ref;                 // T_REF, T_FCALL
-      tree_t severity;            // T_ASSERT
+      tree_t   target;            // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
+      tree_t   ref;               // T_REF, T_FCALL
+      tree_t   severity;          // T_ASSERT
+      unsigned pos;               // T_ENUM_LIT;
    };
    union {
       struct {                    // T_AGGREGATE
@@ -753,6 +754,22 @@ void tree_set_message(tree_t t, tree_t m)
    t->message = m;
 }
 
+unsigned tree_pos(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ENUM_LIT));
+
+   return t->pos;
+}
+
+void tree_set_pos(tree_t t, unsigned pos)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ENUM_LIT));
+
+   t->pos = pos;
+}
+
 static unsigned tree_visit_a(struct tree_array *a,
                              tree_visit_fn_t fn, void *context,
                              unsigned generation)
@@ -1039,6 +1056,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->severity, ctx);
       tree_write(t->message, ctx);
    }
+   else if (IS(t, T_ENUM_LIT))
+      write_u(t->pos, ctx->file);
 
    write_s(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1159,6 +1178,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->severity = tree_read(ctx);
       t->message  = tree_read(ctx);
    }
+   else if (IS(t, T_ENUM_LIT))
+      t->pos = read_u(ctx->file);
 
    t->n_attrs = read_s(ctx->file);
    assert(t->n_attrs <= MAX_ATTRS);

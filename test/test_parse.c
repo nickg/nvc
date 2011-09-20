@@ -503,12 +503,15 @@ START_TEST(test_enum)
    i = type_enum_literal(t, 0);
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("X"));
+   fail_unless(tree_pos(i) == 0);
    i = type_enum_literal(t, 1);
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("Y"));
+   fail_unless(tree_pos(i) == 1);
    i = type_enum_literal(t, 2);
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("Z"));
+   fail_unless(tree_pos(i) == 2);
 
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -535,6 +538,7 @@ START_TEST(test_enum)
    i = type_enum_literal(t, 0);
    fail_unless(tree_kind(i) == T_ENUM_LIT);
    fail_unless(tree_ident(i) == ident_new("FOO"));
+   fail_unless(tree_pos(i) == 0);
 
    p = parse();
    fail_unless(p == NULL);

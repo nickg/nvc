@@ -177,6 +177,10 @@ void tree_set_severity(tree_t t, tree_t s);
 tree_t tree_message(tree_t t);
 void tree_set_message(tree_t t, tree_t m);
 
+// T_ENUM_LIT
+unsigned tree_pos(tree_t t);
+void tree_set_pos(tree_t t, unsigned pos);
+
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);
 
