@@ -45,8 +45,10 @@ struct proc_entry {
    struct proc_entry *next;
 };
 
-struct proc_entry_list {
-   struct proc_entry *head;
+// Code generation context for a process
+struct proc_ctx {
+   struct proc_entry *entry_list;
+   LLVMValueRef      state;
 };
 
 static LLVMValueRef cgen_expr(tree_t t);
@@ -61,6 +63,11 @@ static size_t vhdl_array_len(type_t t)
 {
    range_t r = type_dim(t, 0);
    return literal_int(r.right) - literal_int(r.left) + 1;
+}
+
+static LLVMValueRef llvm_int32(int32_t i)
+{
+   return LLVMConstInt(LLVMInt32Type(), i, false);
 }
 
 static LLVMTypeRef llvm_type(type_t t)
@@ -235,7 +242,7 @@ static LLVMValueRef cgen_expr(tree_t t)
    }
 }
 
-static void cgen_wait(tree_t t, struct proc_entry_list *resume_list)
+static void cgen_wait(tree_t t, struct proc_ctx *ctx)
 {
    if (tree_has_delay(t)) {
       LLVMValueRef sched_process_fn =
@@ -245,13 +252,16 @@ static void cgen_wait(tree_t t, struct proc_entry_list *resume_list)
       LLVMValueRef args[] = { cgen_expr(tree_delay(t)) };
       LLVMBuildCall(builder, sched_process_fn, args, 1, "");
    }
-   LLVMBuildRetVoid(builder);
 
    // Find the basic block to jump to when the process is next scheduled
    struct proc_entry *it;
-   for (it = resume_list->head; it && it->wait != t; it = it->next)
+   for (it = ctx->entry_list; it && it->wait != t; it = it->next)
       ;
    assert(it != NULL);
+
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
+   LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
+   LLVMBuildRetVoid(builder);
 
    LLVMPositionBuilderAtEnd(builder, it->bb);
 }
@@ -277,8 +287,7 @@ static void cgen_var_assign(tree_t t)
 static LLVMValueRef cgen_array_to_c_string(LLVMValueRef a)
 {
    LLVMValueRef indices[] = {
-      LLVMConstInt(LLVMInt32Type(), 0, false),
-      LLVMConstInt(LLVMInt32Type(), 0, false)
+      llvm_int32(0), llvm_int32(0)
    };
 
    return LLVMBuildGEP(builder, a, indices, ARRAY_LEN(indices), "");
@@ -318,11 +327,11 @@ static void cgen_assert(tree_t t)
    LLVMPositionBuilderAtEnd(builder, elsebb);
 }
 
-static void cgen_stmt(tree_t t, struct proc_entry_list *resume_list)
+static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
 {
    switch (tree_kind(t)) {
    case T_WAIT:
-      cgen_wait(t, resume_list);
+      cgen_wait(t, ctx);
       break;
    case T_VAR_ASSIGN:
       cgen_var_assign(t);
@@ -338,20 +347,20 @@ static void cgen_stmt(tree_t t, struct proc_entry_list *resume_list)
 static void cgen_jump_table_fn(tree_t t, void *arg)
 {
    if (tree_kind(t) == T_WAIT) {
-      struct proc_entry_list *list = arg;
+      struct proc_ctx *ctx = arg;
 
       struct proc_entry *p = xmalloc(sizeof(struct proc_entry));
       p->next = NULL;
       p->wait = t;
       p->bb   = NULL;
 
-      if (list->head == NULL) {
-         p->state_num = 0;
-         list->head = p;
+      if (ctx->entry_list == NULL) {
+         p->state_num = 1;
+         ctx->entry_list = p;
       }
       else {
          struct proc_entry *it;
-         for (it = list->head; it->next != NULL; it = it->next)
+         for (it = ctx->entry_list; it->next != NULL; it = it->next)
             ;
          p->state_num = it->state_num + 1;
          it->next = p;
@@ -359,40 +368,88 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
    }
 }
 
+LLVMTypeRef cgen_process_state_type(tree_t t)
+{
+   LLVMTypeRef fields[] = {
+      LLVMInt32Type()
+   };
+
+   LLVMTypeRef ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
+
+   char name[64];
+   snprintf(name, sizeof(name), "%s_state_s", istr(tree_ident(t)));
+   if (LLVMAddTypeName(module, name, ty))
+      fatal("failed to add type name %s", name);
+
+   return ty;
+}
+
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
 
+   struct proc_ctx ctx = {
+      .entry_list = NULL
+   };
+
+   // Create a global structure to hold process state
+   char state_name[64];
+   snprintf(state_name, sizeof(state_name), "%s_state", istr(tree_ident(t)));
+   ctx.state = LLVMAddGlobal(module,
+                             cgen_process_state_type(t),
+                             state_name);
+   LLVMSetLinkage(ctx.state, LLVMInternalLinkage);
+
+   LLVMValueRef state_init[] = {
+      llvm_int32(0)
+   };
+   LLVMSetInitializer(ctx.state,
+                      LLVMConstStruct(state_init,
+                                      ARRAY_LEN(state_init),
+                                      false));
+
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
-
    LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
-   LLVMBasicBlockRef jtbb = LLVMAppendBasicBlock(fn, "jump_table");
 
+   LLVMBasicBlockRef jtbb = LLVMAppendBasicBlock(fn, "jump_table");
    LLVMPositionBuilderAtEnd(builder, jtbb);
 
    // Generate the jump table at the start of a process to handle
    // resuming from a wait statement
 
-   struct proc_entry_list list = { .head = NULL };
-   tree_visit(t, cgen_jump_table_fn, &list);
+   tree_visit(t, cgen_jump_table_fn, &ctx);
 
-   if (list.head == NULL) {
+   if (ctx.entry_list == NULL) {
       const loc_t *loc = tree_loc(t);
       fprintf(stderr, "%s:%d: no wait statement in process\n",
               loc->file, loc->first_line);
    }
 
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
+
+   LLVMBasicBlockRef init_bb = LLVMAppendBasicBlock(fn, "init");
+   LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget, init_bb, 10);
+
    struct proc_entry *it;
-   for (it = list.head; it != NULL; it = it->next) {
+   for (it = ctx.entry_list; it != NULL; it = it->next) {
       it->bb = LLVMAppendBasicBlock(fn, istr(tree_ident(it->wait)));
+
+      LLVMAddCase(jswitch, llvm_int32(it->state_num), it->bb);
    }
+
+   LLVMPositionBuilderAtEnd(builder, init_bb);
+
+   // TODO: add variable initialisation here as this the section
+   // between jump table and start will only be run the first time
+   // the proess is scheduled
 
    LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
    LLVMBuildBr(builder, start_bb);
    LLVMPositionBuilderAtEnd(builder, start_bb);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
-      cgen_stmt(tree_stmt(t, i), &list);
+      cgen_stmt(tree_stmt(t, i), &ctx);
 
    LLVMBuildBr(builder, start_bb);
 }
