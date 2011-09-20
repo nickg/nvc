@@ -104,6 +104,7 @@ static int elaborate(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
+      {"disable-opt", no_argument, 0, 'o'},
       {0, 0, 0, 0}
    };
 
@@ -112,6 +113,9 @@ static int elaborate(int argc, char **argv)
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
+      case 'o':
+         cgen_optimise_en(false);
+         break;
       case 0:
          // Set a flag
          break;
@@ -208,6 +212,9 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          "\n"
+          "Elaborate options:\n"
+          "     --disable-opt\tDisable LLVM optimisations\n"
           "\n"
           "Run options:\n"
           "     --trace\t\tTrace simulation events\n"

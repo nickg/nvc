@@ -413,3 +413,8 @@ void cgen(tree_t top)
    LLVMDisposeBuilder(builder);
    LLVMDisposeModule(module);
 }
+
+void cgen_optimise_en(bool en)
+{
+   run_optimiser = en;
+}
