@@ -32,6 +32,8 @@
 
 #define MAX_UNITS 16
 
+#define MAX_SEARCH_PATHS 64
+
 struct lib_unit {
    tree_t top;
    bool   dirty;
@@ -137,6 +139,14 @@ lib_t lib_tmp(void)
    return lib_init("work", "");
 }
 
+static void push_path(const char **base, size_t *pidx, const char *path)
+{
+   if (*pidx < MAX_SEARCH_PATHS - 1) {
+      base[(*pidx)++] = path;
+      base[*pidx] = NULL;
+   }
+}
+
 lib_t lib_find(const char *name, bool verbose)
 {
    // Search in already loaded libraries
@@ -146,18 +156,30 @@ lib_t lib_find(const char *name, bool verbose)
          return it->item;
    }
 
-   const char *paths[] = {
-      ".",
-      "../lib/std",  // For unit tests (XXX: add NHDL_LIBPATH)
-      "lib/std",     //     debugging
-      DATADIR,
-      NULL
-   };
+   const char *paths[MAX_SEARCH_PATHS];
+   size_t idx = 0;
+
+   push_path(paths, &idx, ".");
+
+   const char *libpath_env = getenv("NVC_LIBPATH");
+   char *env_copy = NULL;
+   if (libpath_env) {
+      env_copy = strdup(libpath_env);
+
+      const char *path_tok = strtok(env_copy, ":");
+      do {
+         push_path(paths, &idx, path_tok);
+      } while ((path_tok = strtok(NULL, ":")));
+   }
+
+   push_path(paths, &idx, DATADIR);
 
    lib_t lib;
    for (const char **p = paths; *p != NULL; p++) {
-      if ((lib = lib_find_at(name, *p)))
+      if ((lib = lib_find_at(name, *p))) {
+         free(env_copy);
          return lib;
+      }
    }
 
    if (verbose) {
@@ -167,6 +189,7 @@ lib_t lib_find(const char *name, bool verbose)
       }
    }
 
+   free(env_copy);
    return NULL;
 }
 

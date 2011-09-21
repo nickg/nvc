@@ -472,6 +472,8 @@ int main(void)
 {
    register_trace_signal_handlers();
 
+   setenv("NVC_LIBPATH", "../lib/std", 1);
+
    Suite *s = suite_create("sem");
 
    TCase *tc_core = tcase_create("Core");
