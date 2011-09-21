@@ -14,3 +14,4 @@ Makefile.in
 *.o
 *~
 TAGS
+logs
