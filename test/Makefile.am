@@ -6,7 +6,7 @@ build = $(top_builddir)/src
 shared = $(src)/util.c
 
 AM_CFLAGS = -I $(src) -I $(build) -DTESTDIR=\"$(top_srcdir)/test\"
-LDADD = -lcheck $(build)/libnhdl.a
+LDADD = -lcheck $(build)/libnvc.a
 AM_LDFLAGS = -rdynamic
 
 test_lib_SOURCES = test_lib.c

@@ -1,6 +1,6 @@
-AC_INIT([nhdl], [0.1],
+AC_INIT([nvc], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
-        [nhdl])
+        [nvc])
 AM_INIT_AUTOMAKE([color-tests])
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -39,7 +39,7 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
 AX_LLVM_C([engine bitreader bitwriter])
 
-AX_DEFINE_DIR([DATADIR], [datadir/nhdl], [Installation data directory])
+AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \

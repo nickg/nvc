@@ -1,8 +1,8 @@
-nhdl = $(top_builddir)/src/nhdl
+nvc = $(top_builddir)/src/nvc
 
-bootstrap: $(nhdl)
+bootstrap: $(nvc)
 	$(RM) -r std
-	$(nhdl) --work=std -a --bootstrap $(srcdir)/standard.vhd
+	$(nvc) --work=std -a --bootstrap $(srcdir)/standard.vhd
 
 clean-local:
 	-test -d std && $(RM) -r std
