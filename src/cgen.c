@@ -139,7 +139,8 @@ static LLVMValueRef cgen_var_decl(tree_t t)
                           llvm_type(tree_type(t)),
                           istr(tree_ident(t)));
       LLVMSetLinkage(var, LLVMInternalLinkage);
-      LLVMSetInitializer(var, cgen_expr(tree_value(t)));
+      if (tree_has_value(t))
+         LLVMSetInitializer(var, cgen_expr(tree_value(t)));
       return var;
    }
 }
