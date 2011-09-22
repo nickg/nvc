@@ -58,7 +58,7 @@ AC_ARG_WITH([llvm],
 			LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
 			LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
                         LLVM_LIBS="$($ac_llvm_config_path --libs $1)"
-                        LLVM_VERSION="$(llvm-config --version | sed s/\\.//)"
+                        LLVM_VERSION="$(llvm-config --version | sed s/\\.// | sed s/svn//g)"
 
 			AC_REQUIRE([AC_PROG_CXX])
 
