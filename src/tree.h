@@ -183,6 +183,8 @@ void tree_set_pos(tree_t t, unsigned pos);
 
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);
+void tree_add_attr_int(tree_t t, ident_t name, int n);
+int tree_attr_int(tree_t t, ident_t name, int def);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);

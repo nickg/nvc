@@ -33,13 +33,14 @@ struct tree_array {
    tree_t *items;
 };
 
-typedef enum { A_STRING } attr_kind_t;
+typedef enum { A_STRING, A_INT } attr_kind_t;
 
 struct attr {
    attr_kind_t kind;
    ident_t     name;
    union {
       char *sval;
+      int  ival;
    };
 };
 
@@ -1083,6 +1084,11 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       case A_STRING:
          write_s(strlen(t->attrs[i].sval), ctx->file);
          fputs(t->attrs[i].sval, ctx->file);
+         break;
+
+      case A_INT:
+         write_i(t->attrs[i].ival, ctx->file);
+         break;
       }
    }
 
@@ -1229,6 +1235,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          }
          break;
 
+      case A_INT:
+         t->attrs[i].ival = read_i(ctx->file);
+         break;
+
       default:
          abort();
       }
@@ -1354,3 +1364,29 @@ const char *tree_attr_str(tree_t t, ident_t name)
    return NULL;
 }
 
+void tree_add_attr_int(tree_t t, ident_t name, int n)
+{
+   assert(t != NULL);
+   assert(t->n_attrs < MAX_ATTRS);
+
+   if (t->attrs == NULL)
+      t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
+
+   unsigned i = t->n_attrs++;
+   t->attrs[i].kind = A_INT;
+   t->attrs[i].name = name;
+   t->attrs[i].ival = n;
+
+}
+
+int tree_attr_int(tree_t t, ident_t name, int def)
+{
+   assert(t != NULL);
+
+   for (unsigned i = 0; i < t->n_attrs; i++) {
+      if (t->attrs[i].kind == A_INT && t->attrs[i].name == name)
+         return t->attrs[i].ival;
+   }
+
+   return def;
+}

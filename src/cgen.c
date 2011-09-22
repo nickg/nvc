@@ -79,6 +79,8 @@ static LLVMTypeRef llvm_type(type_t t)
          range_t r = type_dim(t, 0);
          uint64_t elements = literal_int(r.right) - literal_int(r.left);
 
+         if (elements <= 2)
+            return LLVMInt1Type();
          if (elements <= 0xffull)
             return LLVMInt8Type();
          else if (elements <= 0xffffull)
@@ -97,10 +99,21 @@ static LLVMTypeRef llvm_type(type_t t)
          assert(type_dims(t) == 1);
          return LLVMArrayType(llvm_type(type_base(t)),
                               vhdl_array_len(t));
-      };
+      }
 
    case T_ENUM:
-      return LLVMInt8Type();
+      {
+         unsigned lits = type_enum_literals(t);
+
+         if (lits <= 2)
+            return LLVMInt1Type();
+         if (lits <= 256)
+            return LLVMInt8Type();
+         else if (lits <= 65356)
+            return LLVMInt16Type();
+         else
+            return LLVMInt32Type();
+      }
 
    default:
       abort();
@@ -190,7 +203,7 @@ static LLVMValueRef cgen_ref(tree_t t)
       return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
    case T_ENUM_LIT:
-      return LLVMConstInt(LLVMInt8Type(), tree_pos(decl), false);
+      return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
 
    default:
       abort();
@@ -314,7 +327,9 @@ static void cgen_assert(tree_t t)
    assert(assert_fail_fn != NULL);
 
    LLVMValueRef args[] = {
-      LLVMConstInt(LLVMInt8Type(), 0, false),
+      LLVMConstInt(LLVMInt8Type(),
+                   tree_attr_int(t, ident_new("is_report"), 0),
+                   false),
       cgen_array_to_c_string(message),
       LLVMConstInt(LLVMInt32Type(),
                    vhdl_array_len(tree_type(tree_message(t))),

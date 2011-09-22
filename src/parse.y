@@ -702,6 +702,11 @@ seq_stmt_without_label
   }
 | tASSERT expr report severity tSEMI
   {
+     if ($4 == NULL) {
+        $4 = tree_new(T_REF);
+        tree_set_ident($4, ident_new("ERROR"));
+     }
+
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
@@ -713,11 +718,17 @@ seq_stmt_without_label
      tree_t false_ref = tree_new(T_REF);
      tree_set_ident(false_ref, ident_new("FALSE"));
 
+     if ($3 == NULL) {
+        $3 = tree_new(T_REF);
+        tree_set_ident($3, ident_new("NOTE"));
+     }
+
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, false_ref);
      tree_set_severity($$, $3);
      tree_set_message($$, $2);
+     tree_add_attr_int($$, ident_new("is_report"), 1);
   }
 /* | procedure_call_statement
    | if_statement
@@ -738,11 +749,7 @@ report
 ;
 
 severity
-: /* empty */
-  {
-     $$ = tree_new(T_REF);
-     tree_set_ident($$, ident_new("ERROR"));
-  }
+: /* empty */ { $$ = NULL; }
 | tSEVERITY expr { $$ = $2; }
 ;
 
@@ -1068,7 +1075,7 @@ string_literal
 : tSTRING
   {
      size_t len = strlen(lvals.sval);
-     $$ = str_to_agg(lvals.sval, lvals.sval + len - 1);
+     $$ = str_to_agg(lvals.sval + 1, lvals.sval + len - 1);
      tree_set_loc($$, &@$);
 
      free(lvals.sval);

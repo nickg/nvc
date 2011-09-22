@@ -110,8 +110,10 @@ void _assert_fail(int8_t report, const uint8_t *msg,
       "Note", "Warning", "Error", "Failure"
    };
 
-   fprintf(stderr, "%s+%d Assertion %s: ",
-           fmt_time(now), delta_cycle, levels[severity]);
+   fprintf(stderr, "%s+%d: %s %s: ",
+           fmt_time(now), delta_cycle,
+           report ? "Report" : "Assertion",
+           levels[severity]);
    fwrite(msg, 1, msg_len, stderr);
    fprintf(stderr, "\n");
 

@@ -307,6 +307,15 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_severity(s)) == ident_new("ERROR"));
    fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
 
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(s) == T_ASSERT);
+   fail_unless(tree_kind(tree_value(s)) == T_REF);
+   fail_unless(tree_ident(tree_value(s)) == ident_new("FALSE"));
+   fail_unless(tree_kind(tree_severity(s)) == T_REF);
+   fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
+   fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
+   fail_unless(tree_attr_int(s, ident_new("is_report"), 0) == 1);
+
    a = parse();
    fail_unless(a == NULL);
 

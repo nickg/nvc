@@ -22,11 +22,13 @@ def nvc
   "#{BuildDir}/src/nvc"
 end
 
-def run_cmd(c)
+def run_cmd(c, invert=false)
   File.open('out', 'a') do |f|
     f.puts c
   end
-  fail unless system("#{c} >>out 2>&1")
+  status = system("#{c} >>out 2>&1")
+  status = !status if invert
+  fail unless status
 end
 
 def analyse(t)
@@ -38,10 +40,24 @@ def elaborate(t)
 end
 
 def run(t)
-  run_cmd "#{nvc} -r #{t[:name]}"
+  run_cmd "#{nvc} -r #{t[:name]}", t[:flags].member?('fail')
 end
 
 def check(t)
+  if t[:flags].member? 'gold' then
+    fname = TestDir + "regress/gold/#{t[:name]}.txt"
+    out_lines = File.open('out').lines
+    File.open(fname).each_line do |match_line|
+      unless out_lines.any? do |output_line|
+          output_line.include? match_line.chomp
+        end
+      then
+        puts "failed (no match)".red
+        print match_line.chomp
+        return
+      end
+    end
+  end
   print "ok".green
 end
 
