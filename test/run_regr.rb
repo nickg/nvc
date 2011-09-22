@@ -3,6 +3,7 @@
 require 'rubygems'
 require 'pathname'
 require 'colorize'
+require 'timeout'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Dir.pwd
@@ -26,9 +27,18 @@ def run_cmd(c, invert=false)
   File.open('out', 'a') do |f|
     f.puts c
   end
-  status = system("#{c} >>out 2>&1")
-  status = !status if invert
-  fail unless status
+  
+  pid = fork
+  exec("#{c} >>out 2>&1") if pid.nil?
+  begin
+    timeout(1) do
+      Process.wait
+      fail unless $?.exitstatus == (invert ? 1 : 0)
+    end
+  rescue Timeout::Error
+    Process.kill 'TERM', pid
+    raise
+  end
 end
 
 def analyse(t)
@@ -92,6 +102,9 @@ read_tests.each do |t|
       File.open('out').each_line do |l|
         puts l
       end
+      failed += 1
+    rescue Timeout::Error
+      puts "failed (timeout)".red
       failed += 1
     end
     puts

@@ -49,9 +49,10 @@ struct proc_entry {
 struct proc_ctx {
    struct proc_entry *entry_list;
    LLVMValueRef      state;
+   tree_t            proc;
 };
 
-static LLVMValueRef cgen_expr(tree_t t);
+static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx);
 
 static int64_t literal_int(tree_t t)
 {
@@ -120,6 +121,40 @@ static LLVMTypeRef llvm_type(type_t t)
    }
 }
 
+static unsigned proc_nvars(tree_t p)
+{
+   assert(tree_kind(p) == T_PROCESS);
+
+   unsigned nvars = 0;
+   for (unsigned i = 0; i < tree_decls(p); i++) {
+      if (tree_kind(tree_decl(p, i)) == T_VAR_DECL)
+         nvars++;
+   }
+
+   return nvars;
+}
+
+static LLVMValueRef cgen_proc_var(tree_t decl, struct proc_ctx *ctx)
+{
+   assert(tree_kind(decl) == T_VAR_DECL);
+
+   unsigned v = 0;
+   for (unsigned i = 0; i < tree_decls(ctx->proc); i++) {
+      tree_t di = tree_decl(ctx->proc, i);
+      if (di == decl)
+         return LLVMBuildStructGEP(builder, ctx->state, v + 1, "");
+      else if (tree_kind(di) == T_VAR_DECL)
+         ++v;
+   }
+
+   assert(false);
+}
+
+static LLVMValueRef cgen_default_value(type_t ty)
+{
+   return LLVMConstInt(llvm_type(ty), 0, false);
+}
+
 static LLVMValueRef cgen_fdecl(tree_t t)
 {
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(tree_ident(t)));
@@ -142,22 +177,6 @@ static LLVMValueRef cgen_fdecl(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_var_decl(tree_t t)
-{
-   LLVMValueRef var = LLVMGetNamedGlobal(module, istr(tree_ident(t)));
-   if (var != NULL)
-      return var;
-   else {
-      var = LLVMAddGlobal(module,
-                          llvm_type(tree_type(t)),
-                          istr(tree_ident(t)));
-      LLVMSetLinkage(var, LLVMInternalLinkage);
-      if (tree_has_value(t))
-         LLVMSetInitializer(var, cgen_expr(tree_value(t)));
-      return var;
-   }
-}
-
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
@@ -169,19 +188,21 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_fcall(tree_t t)
+static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL);
 
    LLVMValueRef args[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++)
-      args[i] = cgen_expr(tree_param(t, i));
+      args[i] = cgen_expr(tree_param(t, i), ctx);
 
    const char *builtin = tree_attr_str(decl, ident_new("builtin"));
    if (builtin) {
       if (strcmp(builtin, "mul") == 0)
          return LLVMBuildMul(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "add") == 0)
+         return LLVMBuildAdd(builder, args[0], args[1], "");
       else if (strcmp(builtin, "eq") == 0)
          return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
       else
@@ -191,19 +212,22 @@ static LLVMValueRef cgen_fcall(tree_t t)
       fatal("non-builtin functions not yet supported");
 }
 
-static LLVMValueRef cgen_ref(tree_t t)
+static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      return cgen_expr(tree_value(decl));
+      return cgen_expr(tree_value(decl), ctx);
 
    case T_FUNC_DECL:
       return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
    case T_ENUM_LIT:
       return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
+
+   case T_VAR_DECL:
+      return LLVMBuildLoad(builder, cgen_proc_var(decl, ctx), "");
 
    default:
       abort();
@@ -212,7 +236,7 @@ static LLVMValueRef cgen_ref(tree_t t)
    return NULL;
 }
 
-static LLVMValueRef cgen_aggregate(tree_t t)
+static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 {
    LLVMValueRef vals[tree_assocs(t)];
 
@@ -221,7 +245,7 @@ static LLVMValueRef cgen_aggregate(tree_t t)
 
       switch (a.kind) {
       case A_POS:
-         vals[i] = cgen_expr(a.value);
+         vals[i] = cgen_expr(a.value, ctx);
          break;
 
       default:
@@ -240,19 +264,19 @@ static LLVMValueRef cgen_aggregate(tree_t t)
    return g;
 }
 
-static LLVMValueRef cgen_expr(tree_t t)
+static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
       return cgen_literal(t);
    case T_FCALL:
-      return cgen_fcall(t);
+      return cgen_fcall(t, ctx);
    case T_REF:
-      return cgen_ref(t);
+      return cgen_ref(t, ctx);
    case T_AGGREGATE:
-      return cgen_aggregate(t);
+      return cgen_aggregate(t, ctx);
    default:
-      abort();
+      fatal("missing cgen_expr for kind %d\n", tree_kind(t));
    }
 }
 
@@ -263,7 +287,7 @@ static void cgen_wait(tree_t t, struct proc_ctx *ctx)
          LLVMGetNamedFunction(module, "_sched_process");
       assert(sched_process_fn != NULL);
 
-      LLVMValueRef args[] = { cgen_expr(tree_delay(t)) };
+      LLVMValueRef args[] = { cgen_expr(tree_delay(t), ctx) };
       LLVMBuildCall(builder, sched_process_fn, args, 1, "");
    }
 
@@ -280,15 +304,15 @@ static void cgen_wait(tree_t t, struct proc_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, it->bb);
 }
 
-static void cgen_var_assign(tree_t t)
+static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
 {
-   LLVMValueRef rhs = cgen_expr(tree_value(t));
+   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
 
    tree_t target = tree_target(t);
    switch (tree_kind(target)) {
    case T_REF:
       {
-         LLVMValueRef lhs = cgen_var_decl(tree_ref(target));
+         LLVMValueRef lhs = cgen_proc_var(tree_ref(target), ctx);
          LLVMBuildStore(builder, rhs, lhs);
       }
       break;
@@ -307,11 +331,11 @@ static LLVMValueRef cgen_array_to_c_string(LLVMValueRef a)
    return LLVMBuildGEP(builder, a, indices, ARRAY_LEN(indices), "");
 }
 
-static void cgen_assert(tree_t t)
+static void cgen_assert(tree_t t, struct proc_ctx *ctx)
 {
-   LLVMValueRef test     = cgen_expr(tree_value(t));
-   LLVMValueRef message  = cgen_expr(tree_message(t));
-   LLVMValueRef severity = cgen_expr(tree_severity(t));
+   LLVMValueRef test     = cgen_expr(tree_value(t), ctx);
+   LLVMValueRef message  = cgen_expr(tree_message(t), ctx);
+   LLVMValueRef severity = cgen_expr(tree_severity(t), ctx);
 
    LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
@@ -350,10 +374,10 @@ static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
       cgen_wait(t, ctx);
       break;
    case T_VAR_ASSIGN:
-      cgen_var_assign(t);
+      cgen_var_assign(t, ctx);
       break;
    case T_ASSERT:
-      cgen_assert(t);
+      cgen_assert(t, ctx);
       break;
    default:
       assert(false);
@@ -386,9 +410,15 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
 
 LLVMTypeRef cgen_process_state_type(tree_t t)
 {
-   LLVMTypeRef fields[] = {
-      LLVMInt32Type()
-   };
+   LLVMTypeRef fields[proc_nvars(t) + 1];
+   fields[0] = LLVMInt32Type();   // State
+
+   unsigned v = 1;
+   for (unsigned i = 0; i < tree_decls(t); i++) {
+      tree_t decl = tree_decl(t, i);
+      if (tree_kind(decl) == T_VAR_DECL)
+         fields[v++] = llvm_type(tree_type(decl));
+   }
 
    LLVMTypeRef ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
@@ -405,7 +435,8 @@ static void cgen_process(tree_t t)
    assert(tree_kind(t) == T_PROCESS);
 
    struct proc_ctx ctx = {
-      .entry_list = NULL
+      .entry_list = NULL,
+      .proc       = t
    };
 
    // Create a global structure to hold process state
@@ -416,9 +447,12 @@ static void cgen_process(tree_t t)
                              state_name);
    LLVMSetLinkage(ctx.state, LLVMInternalLinkage);
 
-   LLVMValueRef state_init[] = {
-      llvm_int32(0)
-   };
+   // TODO: init all to undef
+   const unsigned nvars = proc_nvars(t);
+   LLVMValueRef state_init[nvars + 1];
+   state_init[0] = llvm_int32(0);     // State
+   for (unsigned i = 0; i < nvars; i++)
+      state_init[i + 1] = LLVMGetUndef(LLVMInt32Type());
    LLVMSetInitializer(ctx.state,
                       LLVMConstStruct(state_init,
                                       ARRAY_LEN(state_init),
@@ -456,9 +490,18 @@ static void cgen_process(tree_t t)
 
    LLVMPositionBuilderAtEnd(builder, init_bb);
 
-   // TODO: add variable initialisation here as this the section
-   // between jump table and start will only be run the first time
-   // the proess is scheduled
+   // Variable initialisation
+
+   for (unsigned i = 0; i < tree_decls(t); i++) {
+      tree_t v = tree_decl(t, i);
+      if (tree_kind(v) == T_VAR_DECL) {
+         LLVMValueRef val =
+            tree_has_value(v)
+            ? cgen_expr(tree_value(v), &ctx)
+            : cgen_default_value(tree_type(v));
+         LLVMBuildStore(builder, val, cgen_proc_var(v, &ctx));
+      }
+   }
 
    LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
    LLVMBuildBr(builder, start_bb);
