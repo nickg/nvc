@@ -1338,55 +1338,55 @@ void tree_dump(tree_t t)
    tree_dump_aux(t, 0);
 }
 
-void tree_add_attr_str(tree_t t, ident_t name, const char *str)
-{
-   assert(t != NULL);
-   assert(t->n_attrs < MAX_ATTRS);
-
-   if (t->attrs == NULL)
-      t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
-
-   unsigned i = t->n_attrs++;
-   t->attrs[i].kind = A_STRING;
-   t->attrs[i].name = name;
-   t->attrs[i].sval = strdup(str);
-}
-
-const char *tree_attr_str(tree_t t, ident_t name)
+static struct attr *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
 
    for (unsigned i = 0; i < t->n_attrs; i++) {
-      if (t->attrs[i].kind == A_STRING && t->attrs[i].name == name)
-         return t->attrs[i].sval;
+      if (t->attrs[i].kind == kind && t->attrs[i].name == name)
+         return &t->attrs[i];
    }
 
    return NULL;
 }
 
-void tree_add_attr_int(tree_t t, ident_t name, int n)
+static struct attr *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
    assert(t->n_attrs < MAX_ATTRS);
+
+   struct attr *a = tree_find_attr(t, name, kind);
+   if (a != NULL)
+      return a;
 
    if (t->attrs == NULL)
       t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
 
    unsigned i = t->n_attrs++;
-   t->attrs[i].kind = A_INT;
+   t->attrs[i].kind = kind;
    t->attrs[i].name = name;
-   t->attrs[i].ival = n;
 
+   return &t->attrs[i];
+}
+
+void tree_add_attr_str(tree_t t, ident_t name, const char *str)
+{
+   tree_add_attr(t, name, A_STRING)->sval = strdup(str);
+}
+
+const char *tree_attr_str(tree_t t, ident_t name)
+{
+   struct attr *a = tree_find_attr(t, name, A_STRING);
+   return a ? a->sval : NULL;
+}
+
+void tree_add_attr_int(tree_t t, ident_t name, int n)
+{
+   tree_add_attr(t, name, A_INT)->ival = n;
 }
 
 int tree_attr_int(tree_t t, ident_t name, int def)
 {
-   assert(t != NULL);
-
-   for (unsigned i = 0; i < t->n_attrs; i++) {
-      if (t->attrs[i].kind == A_INT && t->attrs[i].name == name)
-         return t->attrs[i].ival;
-   }
-
-   return def;
+   struct attr *a = tree_find_attr(t, name, A_INT);
+   return a ? a->ival : def;
 }
