@@ -6,7 +6,7 @@ require 'colorize'
 require 'timeout'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
-BuildDir = Dir.pwd
+BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std"
 
 def read_tests
