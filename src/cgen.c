@@ -203,8 +203,24 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildMul(builder, args[0], args[1], "");
       else if (strcmp(builtin, "add") == 0)
          return LLVMBuildAdd(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "sub") == 0)
+         return LLVMBuildSub(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "div") == 0)
+         return LLVMBuildSDiv(builder, args[0], args[1], "");
       else if (strcmp(builtin, "eq") == 0)
          return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
+      else if (strcmp(builtin, "neq") == 0)
+         return LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
+      else if (strcmp(builtin, "lt") == 0)
+         return LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
+      else if (strcmp(builtin, "gt") == 0)
+         return LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
+      else if (strcmp(builtin, "leq") == 0)
+         return LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
+      else if (strcmp(builtin, "geq") == 0)
+         return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+      else if (strcmp(builtin, "neg") == 0)
+         return LLVMBuildNeg(builder, args[0], "");
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
