@@ -35,6 +35,7 @@ struct rt_proc {
 
 struct deltaq {
    uint64_t       delta;
+   int            iteration;
    struct rt_proc *wake_proc;
    struct deltaq  *next;
 };
@@ -44,7 +45,7 @@ static struct rt_proc *active_proc = NULL;
 static struct deltaq  *eventq = NULL;
 static size_t         n_procs = 0;
 static uint64_t       now = 0;
-static int            delta_cycle = 0;
+static int            iteration = 0;
 static bool           trace_on = false;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
@@ -111,7 +112,7 @@ void _assert_fail(int8_t report, const uint8_t *msg,
    };
 
    fprintf(stderr, "%s+%d: %s %s: ",
-           fmt_time(now), delta_cycle,
+           fmt_time(now), iteration,
            report ? "Report" : "Assertion",
            levels[severity]);
    fwrite(msg, 1, msg_len, stderr);
@@ -136,7 +137,7 @@ static void _tracef(const char *fmt, ...)
 
    char buf[64];
    fprintf(stderr, "TRACE %s+%d: ",
-           fmt_time_r(buf, sizeof(buf), now), delta_cycle);
+           fmt_time_r(buf, sizeof(buf), now), iteration);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
 
@@ -148,19 +149,32 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
    struct deltaq *q = xmalloc(sizeof(struct deltaq));
    q->wake_proc = wake;
    q->next      = NULL;
+   q->iteration = (delta == 0 ? iteration + 1 : 0);
 
    if (eventq == NULL)
       eventq = q;
    else {
-      struct deltaq *it = eventq;
+      struct deltaq *it = eventq, *last = NULL;
       uint64_t sum = 0;
-      while (sum + it->delta < delta && it->next != NULL) {
+      while (it != NULL && sum + it->delta <= delta) {
          sum += it->delta;
          delta -= it->delta;
+
+         last = it;
+         it = it->next;
       }
 
-      q->next = it->next;   // XXX: need to change it->next delta
-      it->next = q;
+      if (it != NULL) {
+         q->next = it;
+         if (last != NULL)
+            last->next = q;
+         else
+            eventq = q;
+
+         it->delta -= delta;
+      }
+      else
+         last->next = q;
    }
 
    q->delta = delta;
@@ -172,6 +186,16 @@ static void deltaq_pop(void)
    free(eventq);
    eventq = next;
 }
+
+#if 1
+static void deltaq_dump(void)
+{
+   struct deltaq *it;
+   for (it = eventq; it != NULL; it = it->next) {
+      printf("%s\t%p\n", fmt_time(it->delta), it->wake_proc);
+   }
+}
+#endif
 
 static void rt_setup(tree_t top)
 {
@@ -213,13 +237,17 @@ static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
+   if (trace_on)
+      deltaq_dump();
+
    if (eventq->delta > 0) {
       now += eventq->delta;
-      delta_cycle = 0;
+      eventq->delta = 0;
+      assert(eventq->iteration == 0);
+      iteration = 0;
    }
    else
-      delta_cycle++;  // XXX: not correct - need to process all previously
-                      // scheduled events at this time first
+      iteration = eventq->iteration;
 
    rt_run(eventq->wake_proc);
 

@@ -1,0 +1,2 @@
+3ns+1: Report Note: done proc2
+3ns+2: Report Note: done proc1
