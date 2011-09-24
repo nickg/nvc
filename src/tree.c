@@ -1310,7 +1310,7 @@ static void tree_dump_aux(tree_t t, int indent)
       "func_decl", "elab"
    };
 
-   printf(kind_names[t->kind]);
+   printf("%s", kind_names[t->kind]);
 
    if (HAS_IDENT(t))
       printf(" %s", istr(t->ident));
