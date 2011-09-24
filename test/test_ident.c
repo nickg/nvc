@@ -38,7 +38,7 @@ START_TEST(test_istr)
 
    i2 = ident_new("FrOB");
    fail_unless(strcasecmp(istr(i2), "FrOB") == 0);
-   
+
    i1 = ident_new("pingu");
    fail_unless(strcasecmp(istr(i1), "PINGU") == 0);
 }
@@ -53,7 +53,7 @@ START_TEST(test_rand)
       for (size_t j = 0; j < len; j++)
          buf[j] = '0' + (random() % 80);
       buf[len - 1] = '\0';
-      
+
       ident_t i1 = ident_new(buf);
       fail_if(i1 == NULL);
       fail_unless(strcmp(istr(i1), buf) == 0);
@@ -70,7 +70,7 @@ START_TEST(test_read_write)
 
    FILE *f = tmpfile();
    fail_if(f == NULL);
-   
+
    ident_write(i1, f);
    ident_write(i2, f);
    ident_write(i3, f);
@@ -85,7 +85,7 @@ START_TEST(test_read_write)
    fail_unless(i1 == j1);
    fail_unless(i2 == j2);
    fail_unless(i3 == j3);
-   
+
    fail_unless(j2 == j3);
 
    fclose(f);
@@ -94,20 +94,24 @@ END_TEST
 
 START_TEST(test_prefix)
 {
-   ident_t a, b, c, d;
+   ident_t a, b, c, d, e;
 
    a = ident_new("foo");
    b = ident_new("bar");
-   c = ident_prefix(a, b);
+   c = ident_prefix(a, b, '.');
 
    fail_unless(c == ident_new("foo.bar"));
    fail_if(c == a);
-   fail_if(c == b);   
+   fail_if(c == b);
 
-   d = ident_prefix(ident_prefix(c, c), ident_new("carrot"));   
-   
-   fail_unless(d == ident_new("foo.bar.foo.bar.carrot"));
+   d = ident_prefix(ident_prefix(c, c, '.'),
+                    ident_new("carrot"), '/');
+
+   fail_unless(d == ident_new("foo.bar.foo.bar/carrot"));
    fail_if(d == c);
+
+   e = ident_prefix(NULL, a, '?');
+   fail_unless(e == a);
 }
 END_TEST
 
@@ -118,7 +122,7 @@ START_TEST(test_strip)
    a = ident_new("something");
    b = ident_new("thing");
    c = ident_strip(a, b);
-   
+
    fail_if(c == NULL);
    fail_unless(c == ident_new("some"));
 
@@ -137,14 +141,14 @@ START_TEST(test_char)
    i = ident_new("foobar");
    fail_unless(ident_char(i, 0) == 'r');
    fail_unless(ident_char(i, 5) == 'f');
-   fail_unless(ident_char(i, 3) == 'o');   
+   fail_unless(ident_char(i, 3) == 'o');
 }
-END_TEST     
+END_TEST
 
 int main(void)
 {
    srandom((unsigned)time(NULL));
-   
+
    Suite *s = suite_create("ident");
 
    TCase *tc_core = tcase_create("Core");
@@ -157,14 +161,14 @@ int main(void)
    tcase_add_test(tc_core, test_strip);
    tcase_add_test(tc_core, test_char);
    suite_add_tcase(s, tc_core);
-   
+
    SRunner *sr = srunner_create(s);
    srunner_run_all(sr, CK_NORMAL);
 
    int nfail = srunner_ntests_failed(sr);
 
    srunner_free(sr);
-   
+
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

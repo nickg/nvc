@@ -157,7 +157,7 @@ static void scope_apply_prefix(tree_t t)
 {
    if (top_scope->prefix)
       tree_set_ident(t, ident_prefix(top_scope->prefix,
-                                     tree_ident(t)));
+                                     tree_ident(t), '.'));
 }
 
 #if 0
@@ -212,7 +212,7 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
 
          if (this == i
              || (s->prefix != NULL
-                 && this == ident_prefix(s->prefix, i))) {
+                 && this == ident_prefix(s->prefix, i, '.'))) {
             if (k == 0)
                return search->tree;
             else
@@ -221,7 +221,7 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
          else {
             struct ident_list *it;
             for (it = s->context; it != NULL; it = it->next) {
-               if (this == ident_prefix(it->ident, i)) {
+               if (this == ident_prefix(it->ident, i, '.')) {
                   if (k == 0)
                      return search->tree;
                   else
@@ -724,7 +724,7 @@ static bool sem_check_type_decl(tree_t t)
    // Prefix the package name to the type name
    if (top_scope->prefix)
       type_set_ident(type, ident_prefix(top_scope->prefix,
-                                        type_ident(type)));
+                                        type_ident(type), '.'));
 
    // We need to insert the type into the scope before performing
    // further checks as when bootstrapping we need INTEGER defined
@@ -840,7 +840,7 @@ static bool sem_check_process(tree_t t)
 
 static bool sem_check_package(tree_t t)
 {
-   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
    scope_push(qual);
 
@@ -872,7 +872,7 @@ static bool sem_check_entity(tree_t t)
    scope_pop();
 
    // Prefix the entity with the current library name
-   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t));
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
    tree_set_ident(t, qual);
    lib_put(lib_work(), t);
 
@@ -884,7 +884,7 @@ static bool sem_check_arch(tree_t t)
    // Find the corresponding entity
    tree_t e = lib_get(lib_work(),
                       ident_prefix(lib_name(lib_work()),
-                                   tree_ident2(t)));
+                                   tree_ident2(t), '.'));
    if (e == NULL)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
@@ -923,9 +923,9 @@ static bool sem_check_arch(tree_t t)
 
    // Prefix the architecture with the current library name
    ident_t lname = lib_name(lib_work());
-   ident_t qual = ident_prefix(lname, tree_ident(t));
+   ident_t qual = ident_prefix(lname, tree_ident(t), '.');
    tree_set_ident(t, qual);
-   ident_t ent_qual = ident_prefix(lname, tree_ident2(t));
+   ident_t ent_qual = ident_prefix(lname, tree_ident2(t), '.');
    tree_set_ident2(t, ent_qual);
 
    lib_put(lib_work(), t);

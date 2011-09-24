@@ -248,7 +248,7 @@ id
 selected_id
 : id tDOT selected_id
   {
-     $$ = ident_prefix($1, $3);
+     $$ = ident_prefix($1, $3, '.');
   }
 | id
 | tALL { $$ = ident_new("all"); }

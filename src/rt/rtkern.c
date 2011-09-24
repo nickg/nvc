@@ -261,7 +261,7 @@ void rt_trace_en(bool en)
 
 void rt_exec(ident_t top)
 {
-   ident_t ename = ident_prefix(top, ident_new("elab"));
+   ident_t ename = ident_prefix(top, ident_new("elab"), '.');
    tree_t e = lib_get(lib_work(), ename);
    if (e == NULL)
       fatal("%s not elaborated", istr(top));

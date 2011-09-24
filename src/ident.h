@@ -13,7 +13,7 @@ ident_t ident_uniq(const char *prefix);
 
 // Create a new identifier which is a prepended to b separated
 // by a dot.
-ident_t ident_prefix(ident_t a, ident_t b);
+ident_t ident_prefix(ident_t a, ident_t b, char sep);
 
 // Strips a suffix from an identifier or returns NULL if this
 // is not possible.

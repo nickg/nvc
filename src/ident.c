@@ -168,17 +168,20 @@ ident_t ident_uniq(const char *prefix)
    return ident_new(buf);
 }
 
-ident_t ident_prefix(ident_t a, ident_t b)
+ident_t ident_prefix(ident_t a, ident_t b, char sep)
 {
-   assert(a != NULL);
-   assert(b != NULL);
+   if (a == NULL)
+      return b;
+   else if (b == NULL)
+      return a;
 
    struct trie *result;
 
-   // Append dot
-   const char *dot = ".";
-   if (!search_trie(&dot, a, &result))
-      build_trie(dot, result, &result);
+   // Append separator
+   const char sep_str[] = { sep, '\0' };
+   const char *p_sep_str = sep_str;
+   if (!search_trie(&p_sep_str, a, &result))
+      build_trie(p_sep_str, result, &result);
 
    // Append b
    const char *bstr = istr(b);

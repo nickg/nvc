@@ -46,7 +46,8 @@ static ident_t to_unit_name(const char *str)
    for (char *p = name; *p; p++)
       *p = toupper(*p);
 
-   ident_t i = ident_prefix(lib_name(lib_work()), ident_new(name));
+   ident_t i = ident_prefix(lib_name(lib_work()),
+                            ident_new(name), '.');
    free(name);
    return i;
 }

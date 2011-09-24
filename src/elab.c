@@ -18,10 +18,51 @@
 #include "phase.h"
 #include "util.h"
 
-static void elab_arch(tree_t t, tree_t out)
+#include <ctype.h>
+#include <assert.h>
+#include <string.h>
+#include <stdarg.h>
+
+static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      tree_add_stmt(out, tree_stmt(t, i));
+   va_list ap;
+   char buf[256];
+   va_start(ap, fmt);
+   vsnprintf(buf, sizeof(buf), fmt, ap);
+   va_end(ap);
+
+   // LRM specifies instance path is lowercase
+   char *p = buf;
+   while (*p != '\0') {
+      *p = tolower(*p);
+      ++p;
+   }
+
+   return ident_prefix(path, ident_new(buf), sep);
+}
+
+static const char *simple_name(const char *full)
+{
+   // Strip off any library prefix from the parameter
+   const char *start = full;
+   for (const char *p = full; *p != '\0'; p++) {
+      if (*p == '.')
+         start = p + 1;
+   }
+
+   return start;
+}
+
+static void elab_arch(tree_t t, tree_t out, ident_t path)
+{
+   for (unsigned i = 0; i < tree_stmts(t); i++) {
+      tree_t s = tree_stmt(t, i);
+      assert(tree_kind(s) == T_PROCESS);  // TODO: elab_stmt
+
+      tree_set_ident(s, hpathf(path, ':', "%s", istr(tree_ident(s))));
+
+      tree_add_stmt(out, s);
+   }
 }
 
 struct arch_search_params {
@@ -37,7 +78,7 @@ static void find_arch(tree_t t, void *context)
       *(params->arch) = t;
 }
 
-static void elab_entity(tree_t t, tree_t out)
+static void elab_entity(tree_t t, tree_t out, ident_t path)
 {
    // XXX: LRM rules for selecting architecture?
 
@@ -51,7 +92,11 @@ static void elab_entity(tree_t t, tree_t out)
    printf("selected architecture %s of %s\n", istr(tree_ident(t)),
           istr(tree_ident(arch)));
 
-   elab_arch(arch, out);
+   ident_t new_path = hpathf(path, '@', "%s(%s)",
+                             istr(tree_ident(t)),
+                             simple_name(istr(tree_ident(arch))));
+
+   elab_arch(arch, out, new_path);
 }
 
 tree_t elab(tree_t top)
@@ -59,11 +104,12 @@ tree_t elab(tree_t top)
    lib_load_all(lib_work());
 
    tree_t e = tree_new(T_ELAB);
-   tree_set_ident(e, ident_prefix(tree_ident(top), ident_new("elab")));
+   tree_set_ident(e, ident_prefix(tree_ident(top),
+                                  ident_new("elab"), '.'));
 
    switch (tree_kind(top)) {
    case T_ENTITY:
-      elab_entity(top, e);
+      elab_entity(top, e, NULL);
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
