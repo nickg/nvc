@@ -17,7 +17,6 @@
 
 #include "util.h"
 #include "parse.h"
-#include "sem.h"
 #include "phase.h"
 #include "rt/rt.h"
 
@@ -138,6 +137,11 @@ static int elaborate(int argc, char **argv)
             istr(unit_i), istr(lib_name(lib_work())));
 
    tree_t e = elab(unit);
+
+   driver_extract(e);
+   if (driver_errors() > 0)
+      return EXIT_FAILURE;
+
    cgen(e);
 
    lib_save(lib_work());

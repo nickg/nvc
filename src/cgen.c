@@ -402,25 +402,25 @@ static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
 
 static void cgen_jump_table_fn(tree_t t, void *arg)
 {
-   if (tree_kind(t) == T_WAIT) {
-      struct proc_ctx *ctx = arg;
+   assert(tree_kind(t) == T_WAIT);
 
-      struct proc_entry *p = xmalloc(sizeof(struct proc_entry));
-      p->next = NULL;
-      p->wait = t;
-      p->bb   = NULL;
+   struct proc_ctx *ctx = arg;
 
-      if (ctx->entry_list == NULL) {
-         p->state_num = 1;
-         ctx->entry_list = p;
-      }
-      else {
-         struct proc_entry *it;
-         for (it = ctx->entry_list; it->next != NULL; it = it->next)
-            ;
-         p->state_num = it->state_num + 1;
-         it->next = p;
-      }
+   struct proc_entry *p = xmalloc(sizeof(struct proc_entry));
+   p->next = NULL;
+   p->wait = t;
+   p->bb   = NULL;
+
+   if (ctx->entry_list == NULL) {
+      p->state_num = 1;
+      ctx->entry_list = p;
+   }
+   else {
+      struct proc_entry *it;
+      for (it = ctx->entry_list; it->next != NULL; it = it->next)
+         ;
+      p->state_num = it->state_num + 1;
+      it->next = p;
    }
 }
 
@@ -483,7 +483,7 @@ static void cgen_process(tree_t t)
    // Generate the jump table at the start of a process to handle
    // resuming from a wait statement
 
-   tree_visit(t, cgen_jump_table_fn, &ctx);
+   tree_visit_only(t, cgen_jump_table_fn, &ctx, T_WAIT);
 
    if (ctx.entry_list == NULL) {
       const loc_t *loc = tree_loc(t);

@@ -1,7 +1,6 @@
 #include "parse.h"
 #include "type.h"
 #include "util.h"
-#include "sem.h"
 #include "phase.h"
 
 #include <check.h>

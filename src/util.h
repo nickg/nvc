@@ -39,6 +39,13 @@ void errorf(const char *fmt, ...)
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
 
+// Error callback for use in unit tests.
+typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
+error_fn_t set_error_fn(error_fn_t fn);
+
+void error_at(const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+
 void fmt_loc(FILE *f, const loc_t *loc);
 
 void show_stacktrace(void);

@@ -1,4 +1,5 @@
-check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp
+check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp \
+	test_elab
 TESTS_ENVIRONMENT = BUILD_DIR=$(top_builddir)
 TESTS = $(check_PROGRAMS) run_regr.rb
 
@@ -15,3 +16,6 @@ test_ident_SOURCES = test_ident.c
 test_parse_SOURCES = test_parse.c
 test_sem_SOURCES = test_sem.c
 test_simp_SOURCES = test_simp.c
+
+clean-local:
+	-test -d logs && $(RM) -r logs

@@ -48,6 +48,11 @@
 #endif
 
 #define N_TRACE_DEPTH  16
+#define ERROR_SZ  1024
+
+static void def_error_fn(const char *msg, const loc_t *loc);
+
+static error_fn_t  error_fn = def_error_fn;
 
 void *xmalloc(size_t size)
 {
@@ -75,6 +80,34 @@ void errorf(const char *fmt, ...)
    fprintf(stderr, "\n");
 
    va_end(ap);
+}
+
+static void def_error_fn(const char *msg, const loc_t *loc)
+{
+   if (loc->first_line != (unsigned short)-1) {
+      fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
+      fmt_loc(stderr, loc);
+   }
+   else
+      fprintf(stderr, "(none): %s\n", msg);
+}
+
+void error_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   char buf[ERROR_SZ];
+   vsnprintf(buf, ERROR_SZ, fmt, ap);
+   error_fn(buf, loc != NULL ? loc : &LOC_INVALID);
+   va_end(ap);
+}
+
+error_fn_t set_error_fn(error_fn_t fn)
+{
+   error_fn_t old = error_fn;
+   error_fn = fn;
+   return old;
 }
 
 void fatal(const char *fmt, ...)

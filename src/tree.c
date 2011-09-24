@@ -55,6 +55,7 @@ struct tree {
       struct tree_array ports;    // T_ENTITY, T_FUNC_DECL
       struct tree_array params;   // T_FCALL
       struct tree_array decls;    // T_ARCH, T_PROCESS, T_PACKAGE
+      struct tree_array drivers;  // T_SIGNAL_DECL
    };
    union {
       struct tree_array generics; // T_ENTITY
@@ -154,7 +155,8 @@ static size_t   n_trees_alloc = 0;
 static unsigned next_generation = 1;
 
 static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
-                               unsigned generation);
+                               tree_kind_t kind, unsigned generation,
+                               bool deep);
 
 static void tree_array_init(struct tree_array *a)
 {
@@ -236,7 +238,10 @@ void tree_gc(void)
       assert(all_trees[i] != NULL);
 
       if (IS_TOP_LEVEL(all_trees[i]))
-         tree_visit(all_trees[i], NULL, NULL);
+         tree_visit_aux(all_trees[i], NULL, NULL,
+                        (tree_kind_t)T_LAST_TREE_KIND,
+                        next_generation++,
+                        true);
    }
 
    // Sweep
@@ -575,6 +580,32 @@ void tree_change_stmt(tree_t t, unsigned n, tree_t s)
    t->stmts.items[n] = s;
 }
 
+unsigned tree_drivers(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_SIGNAL_DECL));
+
+   return t->drivers.count;
+}
+
+tree_t tree_driver(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_SIGNAL_DECL));
+
+   return tree_array_nth(&t->drivers, n);
+}
+
+void tree_add_driver(tree_t t, tree_t d)
+{
+   assert(t != NULL);
+   assert(d != NULL);
+   assert(IS(t, T_SIGNAL_DECL));
+   assert(IS(d, T_PROCESS));
+
+   tree_array_add(&t->drivers, d);
+}
+
 bool tree_has_delay(tree_t t)
 {
    assert(t != NULL);
@@ -773,18 +804,21 @@ void tree_set_pos(tree_t t, unsigned pos)
 
 static unsigned tree_visit_a(struct tree_array *a,
                              tree_visit_fn_t fn, void *context,
-                             unsigned generation)
+                             tree_kind_t kind, unsigned generation,
+                             bool deep)
 {
    unsigned n = 0;
    for (unsigned i = 0; i < a->count; i++)
-      n += tree_visit_aux(a->items[i], fn, context, generation);
+      n += tree_visit_aux(a->items[i], fn, context, kind,
+                          generation, deep);
 
    return n;
 }
 
 static unsigned tree_visit_type(type_t type,
                                 tree_visit_fn_t fn, void *context,
-                                unsigned generation)
+                                tree_kind_t kind, unsigned generation,
+                                bool deep)
 {
    if (type == NULL)
       return 0;
@@ -798,8 +832,10 @@ static unsigned tree_visit_type(type_t type,
    case T_CARRAY:
       for (unsigned i = 0; i < type_dims(type); i++) {
          range_t r = type_dim(type, i);
-         n += tree_visit_aux(r.left, fn, context, generation);
-         n += tree_visit_aux(r.right, fn, context, generation);
+         n += tree_visit_aux(r.left, fn, context, kind,
+                             generation, deep);
+         n += tree_visit_aux(r.right, fn, context, kind,
+                             generation, deep);
       }
       break;
 
@@ -812,31 +848,34 @@ static unsigned tree_visit_type(type_t type,
       break;
 
    case T_SUBTYPE:
-      n += tree_visit_type(type_base(type), fn, context, generation);
+      n += tree_visit_type(type_base(type), fn, context, kind,
+                           generation, deep);
       break;
 
    case T_PHYSICAL:
       for (unsigned i = 0; i < type_units(type); i++)
          n += tree_visit_aux(type_unit(type, i).multiplier, fn, context,
-                             generation);
+                             kind, generation, deep);
       break;
 
    case T_FUNC:
       for (unsigned i = 0; i < type_params(type); i++)
-         n += tree_visit_type(type_param(type, i), fn, context, generation);
-      n += tree_visit_type(type_result(type), fn, context, generation);
+         n += tree_visit_type(type_param(type, i), fn, context,
+                              kind, generation, deep);
+      n += tree_visit_type(type_result(type), fn, context,
+                           kind, generation, deep);
       break;
 
    case T_ENUM:
       for (unsigned i = 0; i < type_enum_literals(type); i++)
          n += tree_visit_aux(type_enum_literal(type, i), fn, context,
-                             generation);
+                             kind, generation, deep);
       break;
 
    case T_UARRAY:
       for (unsigned i = 0; i < type_index_constrs(type); i++)
          n += tree_visit_type(type_index_constr(type, i),
-                              fn, context, generation);
+                              fn, context, kind, generation, deep);
       break;
 
    default:
@@ -847,60 +886,76 @@ static unsigned tree_visit_type(type_t type,
 }
 
 static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
-                               unsigned generation)
+                               tree_kind_t kind, unsigned generation,
+                               bool deep)
 {
+   // If `deep' then will follow links above the tree originally passed
+   // to tree_visit - e.g. following references back to their declarations
+   // Outside the garbage collector this is usually not what is required
+
    if (t == NULL || t->generation == generation)
       return 0;
 
    t->generation = generation;
 
-   unsigned n = 1;
+   unsigned n = 0;
 
    if (HAS_PORTS(t))
-      n += tree_visit_a(&t->ports, fn, context, generation);
+      n += tree_visit_a(&t->ports, fn, context, kind, generation, deep);
    if (HAS_GENERICS(t))
-      n += tree_visit_a(&t->generics, fn, context, generation);
+      n += tree_visit_a(&t->generics, fn, context, kind, generation, deep);
    if (HAS_PARAMS(t))
-      n += tree_visit_a(&t->params, fn, context, generation);
+      n += tree_visit_a(&t->params, fn, context, kind, generation, deep);
    if (HAS_DECLS(t))
-      n += tree_visit_a(&t->decls, fn, context, generation);
+      n += tree_visit_a(&t->decls, fn, context, kind, generation, deep);
    if (HAS_STMTS(t))
-      n += tree_visit_a(&t->stmts, fn, context, generation);
+      n += tree_visit_a(&t->stmts, fn, context, kind, generation, deep);
    if (HAS_VALUE(t))
-      n += tree_visit_aux(t->value, fn, context, generation);
+      n += tree_visit_aux(t->value, fn, context, kind, generation, deep);
    if (HAS_DELAY(t))
-      n += tree_visit_aux(t->delay, fn, context, generation);
+      n += tree_visit_aux(t->delay, fn, context, kind, generation, deep);
    if (HAS_TARGET(t))
-      n += tree_visit_aux(t->target, fn, context, generation);
-   if (HAS_REF(t))
-      n += tree_visit_aux(t->ref, fn, context, generation);
-   if (HAS_TYPE(t))
-      n += tree_visit_type(t->type, fn, context, generation);
+      n += tree_visit_aux(t->target, fn, context, kind, generation, deep);
+   if (HAS_REF(t) && deep)
+      n += tree_visit_aux(t->ref, fn, context, kind, generation, deep);
+   if (HAS_TYPE(t) && deep)
+      n += tree_visit_type(t->type, fn, context, kind, generation, deep);
 
    if (IS(t, T_ASSERT)) {
-      n += tree_visit_aux(t->severity, fn, context, generation);
-      n += tree_visit_aux(t->message, fn, context, generation);
+      n += tree_visit_aux(t->severity, fn, context,
+                          kind, generation, deep);
+      n += tree_visit_aux(t->message, fn, context,
+                          kind, generation, deep);
    }
    else if (IS(t, T_AGGREGATE)) {
       for (unsigned n = 0; n < t->n_assocs; n++) {
          switch (t->assocs[n].kind) {
          case A_NAMED:
-            tree_visit_aux(t->assocs[n].name, fn, context, generation);
+            tree_visit_aux(t->assocs[n].name, fn, context,
+                           kind, generation, deep);
             break;
          case A_RANGE:
-            tree_visit_aux(t->assocs[n].range.left, fn, context, generation);
-            tree_visit_aux(t->assocs[n].range.right, fn, context, generation);
+            tree_visit_aux(t->assocs[n].range.left, fn, context,
+                           kind, generation, deep);
+            tree_visit_aux(t->assocs[n].range.right, fn, context,
+                           kind, generation, deep);
             break;
          default:
             break;
          }
 
-         tree_visit_aux(t->assocs[n].value, fn, context, generation);
+         tree_visit_aux(t->assocs[n].value, fn, context,
+                        kind, generation, deep);
       }
    }
+   else if (IS(t, T_SIGNAL_DECL) && deep)
+      n += tree_visit_a(&t->drivers, fn, context, kind, generation, deep);
 
-   if (fn)
-      (*fn)(t, context);
+   if (t->kind == kind || kind == T_LAST_TREE_KIND) {
+      if (fn)
+         (*fn)(t, context);
+      ++n;
+   }
 
    return n;
 }
@@ -909,7 +964,19 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
    assert(t != NULL);
 
-   return tree_visit_aux(t, fn, context, next_generation++);
+   return tree_visit_aux(t, fn, context,
+                         (tree_kind_t)T_LAST_TREE_KIND,
+                         next_generation++,
+                         false);
+}
+
+unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
+                         void *context, tree_kind_t kind)
+{
+   assert(t != NULL);
+
+   return tree_visit_aux(t, fn, context, kind,
+                         next_generation++, false);
 }
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
@@ -1071,6 +1138,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_u(t->pos, ctx->file);
       break;
 
+   case T_SIGNAL_DECL:
+      write_a(&t->drivers, ctx);
+      break;
+
    default:
       break;
    }
@@ -1211,6 +1282,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    case T_ENUM_LIT:
       t->pos = read_u(ctx->file);
+      break;
+
+   case T_SIGNAL_DECL:
+      read_a(&t->drivers, ctx);
       break;
 
    default:

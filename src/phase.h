@@ -20,10 +20,32 @@
 
 #include "tree.h"
 
+// Annotate types and perform other semantics checks on a tree.
+// Returns false on error.
+bool sem_check(tree_t t);
+
+// The number of errors found during the semantic check phase.
+int sem_errors(void);
+
+// Enable special mode for analysing STANDARD package
+void sem_bootstrap_en(bool en);
+
+// Fold all constant expressions
 void simplify(tree_t top);
+
+// Find all drivers associated with signals
+void driver_extract(tree_t top);
+
+// Number of errors found during driver extraction
+int driver_errors(void);
+
+// Elaborate a top level entity
 tree_t elab(tree_t top);
+
+// Generate LLVM bitcode for an elaborated design
 void cgen(tree_t top);
 
+// Toggle LLVM optimisations on and off
 void cgen_optimise_en(bool en);
 
 #endif  // _PHASE_H

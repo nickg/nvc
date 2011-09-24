@@ -15,7 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "sem.h"
+#include "phase.h"
 #include "util.h"
 
 #include <assert.h>
@@ -56,41 +56,18 @@ struct type_set {
    struct type_set *down;
 };
 
-#define SEM_ERROR_SZ  1024
-
-static void sem_def_error_fn(const char *msg, const loc_t *loc);
 static void sem_declare_predefined_ops(type_t t);
 static bool sem_check_constrained(tree_t t, type_t type);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
-static sem_error_fn_t  error_fn = sem_def_error_fn;
 static struct type_set *top_type_set = NULL;
 static bool            bootstrap = false;
 
-#define sem_error(t, ...) { _sem_error(t, __VA_ARGS__); return false; }
-
-static void sem_def_error_fn(const char *msg, const loc_t *loc)
-{
-   if (loc->first_line != (unsigned short)-1) {
-      fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
-      fmt_loc(stderr, loc);
-   }
-   else
-      fprintf(stderr, "(none): %s\n", msg);
-}
-
-static void _sem_error(tree_t t, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-
-   char buf[SEM_ERROR_SZ];
-   vsnprintf(buf, SEM_ERROR_SZ, fmt, ap);
-   error_fn(buf, t != NULL ? tree_loc(t) : &LOC_INVALID);
-   va_end(ap);
-
-   errors++;
+#define sem_error(t, ...) {               \
+   error_at(tree_loc(t), __VA_ARGS__);    \
+   errors++;                              \
+   return false;                          \
 }
 
 static void scope_push(ident_t prefix)
@@ -1371,13 +1348,6 @@ bool sem_check(tree_t t)
 int sem_errors(void)
 {
    return errors;
-}
-
-sem_error_fn_t sem_set_error_fn(sem_error_fn_t fn)
-{
-   sem_error_fn_t old = error_fn;
-   error_fn = fn;
-   return old;
 }
 
 void sem_bootstrap_en(bool en)

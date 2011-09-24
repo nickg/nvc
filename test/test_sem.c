@@ -1,6 +1,6 @@
 #include "parse.h"
 #include "type.h"
-#include "sem.h"
+#include "phase.h"
 #include "util.h"
 
 #include <check.h>
@@ -14,7 +14,7 @@ typedef struct error {
 } error_t;
 
 static const error_t  *error_lines = NULL;
-static sem_error_fn_t orig_error_fn = NULL;
+static error_fn_t orig_error_fn = NULL;
 
 static void setup(void)
 {
@@ -49,7 +49,7 @@ static void test_error_fn(const char *msg, const loc_t *loc)
 static void expect_errors(const error_t *lines)
 {
    fail_unless(orig_error_fn == NULL);
-   orig_error_fn = sem_set_error_fn(test_error_fn);
+   orig_error_fn = set_error_fn(test_error_fn);
    error_lines = lines;
 }
 

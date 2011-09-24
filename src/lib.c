@@ -312,6 +312,9 @@ void lib_load_all(lib_t lib)
 {
    assert(lib != NULL);
 
+   if (*(lib->path) == '\0')   // Temporary library
+      return;
+
    DIR *d = opendir(lib->path);
    if (d == NULL)
       fatal("%s: %s", lib->path, strerror(errno));
