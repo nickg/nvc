@@ -237,9 +237,6 @@ static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   if (trace_on)
-      deltaq_dump();
-
    if (eventq->delta > 0) {
       now += eventq->delta;
       eventq->delta = 0;
@@ -249,9 +246,17 @@ static void rt_cycle(void)
    else
       iteration = eventq->iteration;
 
-   rt_run(eventq->wake_proc);
+   TRACE("begin cycle");
 
-   deltaq_pop();
+   if (trace_on)
+      deltaq_dump();
+
+   do {
+      rt_run(eventq->wake_proc);
+
+      deltaq_pop();
+   } while (eventq != NULL
+            && (eventq->delta == 0 && eventq->iteration == iteration));
 }
 
 void rt_trace_en(bool en)
