@@ -142,9 +142,12 @@ static int elaborate(int argc, char **argv)
    if (driver_errors() > 0)
       return EXIT_FAILURE;
 
+   // Save the library now so the code generator can attach
+   // temporary meta data to trees
+   lib_save(lib_work());
+
    cgen(e);
 
-   lib_save(lib_work());
    return EXIT_SUCCESS;
 }
 

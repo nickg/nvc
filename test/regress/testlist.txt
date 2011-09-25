@@ -3,3 +3,4 @@ assert1         gold,fail
 assign1         normal
 wait2           gold,normal
 arith1          normal
+signal1         normal

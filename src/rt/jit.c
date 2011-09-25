@@ -38,6 +38,15 @@ void *jit_fun_ptr(const char *name)
    return LLVMGetPointerToGlobal(exec_engine, fn);
 }
 
+void *jit_var_ptr(const char *name)
+{
+   LLVMValueRef var = LLVMGetNamedGlobal(module, name);
+   if (var == NULL)
+      fatal("cannot find global %s", name);
+
+   return LLVMGetPointerToGlobal(exec_engine, var);
+}
+
 void jit_bind_fn(const char *name, void *ptr)
 {
    LLVMValueRef fn;

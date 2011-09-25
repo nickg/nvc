@@ -33,7 +33,7 @@ struct tree_array {
    tree_t *items;
 };
 
-typedef enum { A_STRING, A_INT } attr_kind_t;
+typedef enum { A_STRING, A_INT, A_PTR } attr_kind_t;
 
 struct attr {
    attr_kind_t kind;
@@ -41,6 +41,7 @@ struct attr {
    union {
       char *sval;
       int  ival;
+      void *pval;
    };
 };
 
@@ -136,7 +137,8 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT) \
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define HAS_PARAMS(t) (IS(t, T_FCALL))
-#define HAS_DECLS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE))
+#define HAS_DECLS(t) \
+   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
@@ -1160,6 +1162,9 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       case A_INT:
          write_i(t->attrs[i].ival, ctx->file);
          break;
+
+      case A_PTR:
+         fatal("pointer attributes cannot be saved");
       }
    }
 
@@ -1464,4 +1469,15 @@ int tree_attr_int(tree_t t, ident_t name, int def)
 {
    struct attr *a = tree_find_attr(t, name, A_INT);
    return a ? a->ival : def;
+}
+
+void tree_add_attr_ptr(tree_t t, ident_t name, void *ptr)
+{
+   tree_add_attr(t, name, A_PTR)->pval = ptr;
+}
+
+void *tree_attr_ptr(tree_t t, ident_t name)
+{
+   struct attr *a = tree_find_attr(t, name, A_PTR);
+   return a ? a->pval : NULL;
 }

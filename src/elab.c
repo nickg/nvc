@@ -55,6 +55,15 @@ static const char *simple_name(const char *full)
 
 static void elab_arch(tree_t t, tree_t out, ident_t path)
 {
+   for (unsigned i = 0; i < tree_decls(t); i++) {
+      tree_t d = tree_decl(t, i);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         tree_set_ident(d, hpathf(path, ':', "%s",
+                                  istr(tree_ident(d))));
+         tree_add_decl(out, d);
+      }
+   }
+
    for (unsigned i = 0; i < tree_stmts(t); i++) {
       tree_t s = tree_stmt(t, i);
       assert(tree_kind(s) == T_PROCESS);  // TODO: elab_stmt

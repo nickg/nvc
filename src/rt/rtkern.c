@@ -26,29 +26,56 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
-typedef void (*simple_proc_fn_t)(void);
+#define TRACE_DELTAQ 1
+
+typedef void (*proc_fn_t)(int32_t reset);
 
 struct rt_proc {
-   tree_t           source;
-   simple_proc_fn_t simple_proc_fn;
+   tree_t    source;
+   proc_fn_t proc_fn;
 };
+
+typedef enum { E_PROCESS, E_DRIVER } event_kind_t;
 
 struct deltaq {
    uint64_t       delta;
    int            iteration;
-   struct rt_proc *wake_proc;
+   event_kind_t   kind;
+   union {
+      struct rt_proc *wake_proc;
+      struct signal  *signal;
+   };
    struct deltaq  *next;
 };
 
-static struct rt_proc *procs = NULL;
-static struct rt_proc *active_proc = NULL;
-static struct deltaq  *eventq = NULL;
-static size_t         n_procs = 0;
-static uint64_t       now = 0;
-static int            iteration = 0;
-static bool           trace_on = false;
+union sigval {
+   uint64_t val;
+   void     *ptr;
+};
 
-static void deltaq_insert(uint64_t delta, struct rt_proc *wake);
+struct waveform {
+   union sigval    value;
+   uint64_t        when;
+   struct waveform *next;
+};
+
+struct signal {
+   union sigval    resolved;
+   tree_t          decl;
+   struct waveform *sources[0];
+};
+
+static struct rt_proc    *procs = NULL;
+static struct rt_proc    *active_proc = NULL;
+static struct deltaq     *eventq = NULL;
+
+static size_t   n_procs = 0;
+static uint64_t now = 0;
+static int      iteration = -1;
+static bool     trace_on = false;
+
+static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
+                          struct signal *signal);
 static void _tracef(const char *fmt, ...);
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
@@ -92,7 +119,49 @@ static const char *fmt_time(uint64_t t)
 void _sched_process(int64_t delay)
 {
    TRACE("_sched_process delay=%s", fmt_time(delay));
-   deltaq_insert(delay, active_proc);
+   deltaq_insert(delay, active_proc, NULL);
+}
+
+void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
+         istr(tree_ident(sig->decl)), source, value, fmt_time(after));
+
+   struct waveform *w = xmalloc(sizeof(struct waveform));
+   w->value.val = value;
+   w->when      = now + after;
+   w->next      = NULL;
+
+   // TODO: transport vs. inertial
+
+   struct waveform *it = sig->sources[source], *last = NULL;
+   while (it != NULL && it->when <= w->when) {
+      last = it;
+      it = it->next;
+   }
+
+   w->next = it;
+   if (last == NULL) {
+      // Assigning the initial value of a driver
+      // Generate a dummy transaction so the real one will be propagated
+      // at time zero (since the first element on the transaction queue
+      // is assumed to have already occured)
+      assert(now == 0);
+      assert(after == 0);
+
+      struct waveform *dummy = xmalloc(sizeof(struct waveform));
+      dummy->value.val = value;
+      dummy->when      = 0;
+      dummy->next      = w;
+
+      sig->sources[source] = dummy;
+   }
+   else
+      last->next = w;
+
+   deltaq_insert(after, NULL, sig);
 }
 
 void _assert_fail(int8_t report, const uint8_t *msg,
@@ -136,20 +205,34 @@ static void _tracef(const char *fmt, ...)
    va_start(ap, fmt);
 
    char buf[64];
-   fprintf(stderr, "TRACE %s+%d: ",
-           fmt_time_r(buf, sizeof(buf), now), iteration);
+   if (iteration < 0)
+      fprintf(stderr, "TRACE (init): ");
+   else
+      fprintf(stderr, "TRACE %s+%d: ",
+              fmt_time_r(buf, sizeof(buf), now), iteration);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
 
    va_end(ap);
 }
 
-static void deltaq_insert(uint64_t delta, struct rt_proc *wake)
+static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
+                          struct signal *signal)
 {
+   assert(!(wake != NULL && signal != NULL));
+
    struct deltaq *q = xmalloc(sizeof(struct deltaq));
-   q->wake_proc = wake;
    q->next      = NULL;
    q->iteration = (delta == 0 ? iteration + 1 : 0);
+
+   if (wake != NULL) {
+      q->kind      = E_PROCESS;
+      q->wake_proc = wake;
+   }
+   else {
+      q->kind   = E_DRIVER;
+      q->signal = signal;
+   }
 
    if (eventq == NULL)
       eventq = q;
@@ -187,12 +270,16 @@ static void deltaq_pop(void)
    eventq = next;
 }
 
-#if 1
+#if TRACE_DELTAQ > 0
 static void deltaq_dump(void)
 {
    struct deltaq *it;
    for (it = eventq; it != NULL; it = it->next) {
-      printf("%s\t%p\n", fmt_time(it->delta), it->wake_proc);
+      printf("%s\t", fmt_time(it->delta));
+      if (it->kind == E_DRIVER)
+         printf("driver\t %s\n", istr(tree_ident(it->signal->decl)));
+      else
+         printf("process\t %p\n", it->wake_proc);
    }
 }
 #endif
@@ -204,23 +291,35 @@ static void rt_setup(tree_t top)
 
    jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
 
+   for (unsigned i = 0; i < tree_decls(top); i++) {
+      tree_t d = tree_decl(top, i);
+      assert(tree_kind(d) == T_SIGNAL_DECL);
+
+      struct signal *s = jit_var_ptr(istr(tree_ident(d)));
+      s->decl = d;
+      tree_add_attr_ptr(d, ident_new("signal"), s);
+
+      TRACE("signal %s at %p", istr(tree_ident(d)), s);
+   }
+
    for (unsigned i = 0; i < tree_stmts(top); i++) {
       tree_t p = tree_stmt(top, i);
       assert(tree_kind(p) == T_PROCESS);
 
-      procs[i].source         = p;
-      procs[i].simple_proc_fn = jit_fun_ptr(istr(tree_ident(p)));
+      procs[i].source  = p;
+      procs[i].proc_fn = jit_fun_ptr(istr(tree_ident(p)));
 
-      TRACE("%s fun at %p", istr(tree_ident(p)), procs[i].simple_proc_fn);
+      TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
 }
 
-static void rt_run(struct rt_proc *proc)
+static void rt_run(struct rt_proc *proc, bool reset)
 {
-   TRACE("run process %s", istr(tree_ident(proc->source)));
+   TRACE("%s process %s", reset ? "reset" : "run",
+         istr(tree_ident(proc->source)));
 
    active_proc = proc;
-   (*proc->simple_proc_fn)();
+   (*proc->proc_fn)(reset ? 1 : 0);
 }
 
 static void rt_initial(void)
@@ -230,7 +329,30 @@ static void rt_initial(void)
    now = 0;
 
    for (size_t i = 0; i < n_procs; i++)
-      rt_run(&procs[i]);
+      rt_run(&procs[i], true /* reset */);
+}
+
+static void rt_update_driver(struct signal *s)
+{
+   // TODO: store source index in struct waveform
+
+   const unsigned n_drivers = tree_drivers(s->decl);
+   for (unsigned i = 0; i < n_drivers; i++) {
+      struct waveform *w_now = s->sources[i];
+      struct waveform *w_next = w_now->next;
+
+      if (w_next != NULL && w_next->when == now) {
+         TRACE("update signal %s value %"PRIu64,
+               istr(tree_ident(s->decl)), w_next->value);
+
+         s->resolved   = w_next->value;
+         s->sources[i] = w_next;
+
+         free(w_now);
+      }
+      else
+         assert(w_now != NULL);
+   }
 }
 
 static void rt_cycle(void)
@@ -248,11 +370,20 @@ static void rt_cycle(void)
 
    TRACE("begin cycle");
 
+#if TRACE_DELTAQ > 0
    if (trace_on)
       deltaq_dump();
+#endif
 
    do {
-      rt_run(eventq->wake_proc);
+      switch (eventq->kind) {
+      case E_PROCESS:
+         rt_run(eventq->wake_proc, false /* reset */);
+         break;
+      case E_DRIVER:
+         rt_update_driver(eventq->signal);
+         break;
+      }
 
       deltaq_pop();
    } while (eventq != NULL

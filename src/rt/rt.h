@@ -26,6 +26,7 @@ void rt_trace_en(bool en);
 void jit_init(ident_t top);
 void jit_shutdown(void);
 void *jit_fun_ptr(const char *name);
+void *jit_var_ptr(const char *name);
 void jit_bind_fn(const char *name, void *ptr);
 
 #endif  // _RT_H

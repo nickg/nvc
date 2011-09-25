@@ -71,6 +71,11 @@ static LLVMValueRef llvm_int32(int32_t i)
    return LLVMConstInt(LLVMInt32Type(), i, false);
 }
 
+static LLVMValueRef llvm_int64(int64_t i)
+{
+   return LLVMConstInt(LLVMInt64Type(), i, false);
+}
+
 static LLVMTypeRef llvm_type(type_t t)
 {
    switch (type_kind(t)) {
@@ -245,6 +250,19 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
    case T_VAR_DECL:
       return LLVMBuildLoad(builder, cgen_proc_var(decl, ctx), "");
 
+   case T_SIGNAL_DECL:
+      {
+         LLVMValueRef signal =
+            LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+         assert(signal != NULL);
+
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, signal, 0, "");
+         LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+         return LLVMBuildIntCast(builder, deref,
+                                 llvm_type(tree_type(t)), "");
+      }
+      break;
+
    default:
       abort();
    }
@@ -296,16 +314,20 @@ static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx)
    }
 }
 
+static void cgen_sched_process(LLVMValueRef after)
+{
+   LLVMValueRef sched_process_fn =
+      LLVMGetNamedFunction(module, "_sched_process");
+   assert(sched_process_fn != NULL);
+
+   LLVMValueRef args[] = { after };
+   LLVMBuildCall(builder, sched_process_fn, args, 1, "");
+}
+
 static void cgen_wait(tree_t t, struct proc_ctx *ctx)
 {
-   if (tree_has_delay(t)) {
-      LLVMValueRef sched_process_fn =
-         LLVMGetNamedFunction(module, "_sched_process");
-      assert(sched_process_fn != NULL);
-
-      LLVMValueRef args[] = { cgen_expr(tree_delay(t), ctx) };
-      LLVMBuildCall(builder, sched_process_fn, args, 1, "");
-   }
+   if (tree_has_delay(t))
+      cgen_sched_process(cgen_expr(tree_delay(t), ctx));
 
    // Find the basic block to jump to when the process is next scheduled
    struct proc_entry *it;
@@ -331,6 +353,43 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
          LLVMValueRef lhs = cgen_proc_var(tree_ref(target), ctx);
          LLVMBuildStore(builder, rhs, lhs);
       }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
+static void cgen_sched_waveform(tree_t decl, LLVMValueRef value,
+                                struct proc_ctx *ctx)
+{
+   LLVMValueRef signal =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal != NULL);
+
+   LLVMValueRef sched_waveform_fn =
+      LLVMGetNamedFunction(module, "_sched_waveform");
+   assert(sched_waveform_fn != NULL);
+
+   LLVMValueRef args[] = {
+      LLVMBuildPointerCast(builder, signal,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      llvm_int32(0 /* source, TODO */),
+      LLVMBuildIntCast(builder, value, LLVMInt64Type(), ""),
+      llvm_int64(0)
+   };
+   LLVMBuildCall(builder, sched_waveform_fn,
+                 args, ARRAY_LEN(args), "");
+}
+
+static void cgen_signal_assign(tree_t t, struct proc_ctx *ctx)
+{
+   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
+
+   tree_t target = tree_target(t);
+   switch (tree_kind(target)) {
+   case T_REF:
+      cgen_sched_waveform(tree_ref(target), rhs, ctx);
       break;
 
    default:
@@ -392,6 +451,9 @@ static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
    case T_VAR_ASSIGN:
       cgen_var_assign(t, ctx);
       break;
+   case T_SIGNAL_ASSIGN:
+      cgen_signal_assign(t, ctx);
+      break;
    case T_ASSERT:
       cgen_assert(t, ctx);
       break;
@@ -424,6 +486,30 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
    }
 }
 
+static void cgen_driver_init_fn(tree_t t, void *arg)
+{
+   assert(tree_kind(t) == T_SIGNAL_ASSIGN);
+
+   struct proc_ctx *ctx = arg;
+
+   tree_t target = tree_target(t);
+   assert(tree_kind(target) == T_REF);
+
+   tree_t decl = tree_ref(target);
+
+   ident_t tag_i = ident_new("driver_tag");
+   if (tree_attr_ptr(decl, tag_i) == ctx->proc)
+      return;   // Already initialised this signal
+
+   LLVMValueRef val =
+      tree_has_value(decl)
+      ? cgen_expr(tree_value(decl), ctx)
+      : cgen_default_value(tree_type(decl));
+   cgen_sched_waveform(decl, val, ctx);
+
+   tree_add_attr_ptr(decl, tag_i, ctx->proc);
+}
+
 LLVMTypeRef cgen_process_state_type(tree_t t)
 {
    LLVMTypeRef fields[proc_nvars(t) + 1];
@@ -439,7 +525,7 @@ LLVMTypeRef cgen_process_state_type(tree_t t)
    LLVMTypeRef ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
    char name[64];
-   snprintf(name, sizeof(name), "%s_state_s", istr(tree_ident(t)));
+   snprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
    if (LLVMAddTypeName(module, name, ty))
       fatal("failed to add type name %s", name);
 
@@ -457,31 +543,39 @@ static void cgen_process(tree_t t)
 
    // Create a global structure to hold process state
    char state_name[64];
-   snprintf(state_name, sizeof(state_name), "%s_state", istr(tree_ident(t)));
-   ctx.state = LLVMAddGlobal(module,
-                             cgen_process_state_type(t),
-                             state_name);
+   snprintf(state_name, sizeof(state_name),
+            "%s__state", istr(tree_ident(t)));
+   LLVMTypeRef state_ty = cgen_process_state_type(t);
+   ctx.state = LLVMAddGlobal(module, state_ty, state_name);
    LLVMSetLinkage(ctx.state, LLVMInternalLinkage);
 
-   // TODO: init all to undef
-   const unsigned nvars = proc_nvars(t);
-   LLVMValueRef state_init[nvars + 1];
-   state_init[0] = llvm_int32(0);     // State
-   for (unsigned i = 0; i < nvars; i++)
-      state_init[i + 1] = LLVMGetUndef(LLVMInt32Type());
-   LLVMSetInitializer(ctx.state,
-                      LLVMConstStruct(state_init,
-                                      ARRAY_LEN(state_init),
-                                      false));
+   // Process state is initially undefined: call process function
+   // with non-zero argument to initialise
+   LLVMSetInitializer(ctx.state, LLVMGetUndef(state_ty));
 
-   LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), NULL, 0, false);
+   LLVMTypeRef pargs[] = { LLVMInt32Type() };
+   LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
    LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
 
-   LLVMBasicBlockRef jtbb = LLVMAppendBasicBlock(fn, "jump_table");
-   LLVMPositionBuilderAtEnd(builder, jtbb);
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMBasicBlockRef jt_bb    = LLVMAppendBasicBlock(fn, "jump_table");
+   LLVMBasicBlockRef init_bb  = LLVMAppendBasicBlock(fn, "init");
+   LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
+
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   // If the parameter is non-zero jump to the init block
+
+   LLVMValueRef param = LLVMGetParam(fn, 0);
+   LLVMValueRef reset =
+      LLVMBuildICmp(builder, LLVMIntNE, param, llvm_int32(0), "");
+   LLVMBuildCondBr(builder, reset, init_bb, jt_bb);
+
 
    // Generate the jump table at the start of a process to handle
    // resuming from a wait statement
+
+   LLVMPositionBuilderAtEnd(builder, jt_bb);
 
    tree_visit_only(t, cgen_jump_table_fn, &ctx, T_WAIT);
 
@@ -494,8 +588,11 @@ static void cgen_process(tree_t t)
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
 
-   LLVMBasicBlockRef init_bb = LLVMAppendBasicBlock(fn, "init");
+   // TODO: if none of the cases match should jump to unreachable
+   // block rather than init
    LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget, init_bb, 10);
+
+   LLVMAddCase(jswitch, llvm_int32(0), start_bb);
 
    struct proc_entry *it;
    for (it = ctx.entry_list; it != NULL; it = it->next) {
@@ -519,8 +616,18 @@ static void cgen_process(tree_t t)
       }
    }
 
-   LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
-   LLVMBuildBr(builder, start_bb);
+   // Signal driver initialisation
+
+   tree_visit_only(t, cgen_driver_init_fn, &ctx, T_SIGNAL_ASSIGN);
+
+   // Return to simulation kernel after initialisation
+
+   cgen_sched_process(llvm_int64(0));
+   LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
+   LLVMBuildRetVoid(builder);
+
+   // Sequential statements
+
    LLVMPositionBuilderAtEnd(builder, start_bb);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -529,9 +636,46 @@ static void cgen_process(tree_t t)
    LLVMBuildBr(builder, start_bb);
 }
 
+static void cgen_signal(tree_t t)
+{
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   char name[64];
+   snprintf(name, sizeof(name), "signal_%d_source_s", tree_drivers(t));
+
+   LLVMTypeRef void_ptr = LLVMPointerType(LLVMInt8Type(), 0);
+   LLVMTypeRef ty = LLVMGetTypeByName(module, name);
+   if (ty == NULL) {
+      LLVMTypeRef fields[tree_drivers(t) + 2];
+      fields[0] = LLVMInt64Type();    // Value union
+      fields[1] = void_ptr;           // Declaration
+
+      for (unsigned i = 0; i < tree_drivers(t); i++)
+         fields[i + 2] = void_ptr;    // Driver waveform queue
+
+      ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
+
+      if (LLVMAddTypeName(module, name, ty))
+         fatal("failed to add type name %s", name);
+   }
+
+   LLVMValueRef v = LLVMAddGlobal(module, ty, istr(tree_ident(t)));
+
+   LLVMValueRef init[tree_drivers(t) + 2];
+   init[0] = llvm_int64(0);
+   init[1] = LLVMConstNull(void_ptr);
+   for (unsigned i = 0; i < tree_drivers(t); i++)
+      init[i + 2] = LLVMConstNull(void_ptr);
+
+   LLVMSetInitializer(v, LLVMConstStruct(init, ARRAY_LEN(init), false));
+}
+
 static void cgen_top(tree_t t)
 {
    assert(tree_kind(t) == T_ELAB);
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      cgen_signal(tree_decl(t, i));
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_process(tree_stmt(t, i));
@@ -553,19 +697,25 @@ static void optimise(void)
    LLVMDisposePassManager(pass_mgr);
 }
 
-void cgen(tree_t top)
+static void cgen_support_fns(void)
 {
-   if (tree_kind(top) != T_ELAB)
-      fatal("cannot generate code for tree kind %d", tree_kind(top));
-
-   module = LLVMModuleCreateWithName(istr(tree_ident(top)));
-   builder = LLVMCreateBuilder();
-
    LLVMTypeRef _sched_process_args[] = { LLVMInt64Type() };
    LLVMAddFunction(module, "_sched_process",
                    LLVMFunctionType(LLVMVoidType(),
                                     _sched_process_args,
                                     ARRAY_LEN(_sched_process_args),
+                                    false));
+
+   LLVMTypeRef _sched_waveform_args[] = {
+      LLVMPointerType(LLVMInt8Type(), 0),
+      LLVMInt32Type(),
+      LLVMInt64Type(),
+      LLVMInt64Type()
+   };
+   LLVMAddFunction(module, "_sched_waveform",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _sched_waveform_args,
+                                    ARRAY_LEN(_sched_waveform_args),
                                     false));
 
    LLVMTypeRef _assert_fail_args[] = {
@@ -579,6 +729,17 @@ void cgen(tree_t top)
                                     _assert_fail_args,
                                     ARRAY_LEN(_assert_fail_args),
                                     false));
+}
+
+void cgen(tree_t top)
+{
+   if (tree_kind(top) != T_ELAB)
+      fatal("cannot generate code for tree kind %d", tree_kind(top));
+
+   module = LLVMModuleCreateWithName(istr(tree_ident(top)));
+   builder = LLVMCreateBuilder();
+
+   cgen_support_fns();
 
    cgen_top(top);
 
