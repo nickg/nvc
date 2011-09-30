@@ -1125,11 +1125,17 @@ name
      tree_set_ident($$, $1);
      tree_set_loc($$, &@$);
   }
+| selected_id tTICK id /* [ ( expr ) ] */
+  {
+     $$ = tree_new(T_ATTR_REF);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $3);
+     tree_set_loc($$, &@$);
+  }
   /* | operator_symbol
      | character_literal
      | indexed_name
      | slice_name
-     | attribute_name
      | external_name */
 ;
 

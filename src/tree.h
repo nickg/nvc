@@ -55,6 +55,7 @@ typedef enum tree_kind {
    T_ELAB,
    T_AGGREGATE,
    T_ASSERT,
+   T_ATTR_REF,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -95,11 +96,11 @@ void tree_set_type(tree_t t, type_t ty);
 
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
 // T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
-// T_CONST_DECL, T_FUNC_DECL
+// T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 
-// T_ARCH
+// T_ARCH, T_ATTR_REF
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 

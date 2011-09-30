@@ -66,7 +66,7 @@ struct tree {
    union {
       literal_t   literal;        // T_LITERAL
       port_mode_t port_mode;      // T_PORT_MODE
-      ident_t     ident2;         // T_ARCH
+      ident_t     ident2;         // T_ARCH, T_ATTR_REF
       tree_t      message;        // T_ASSERT
    };
    union {
@@ -128,8 +128,8 @@ struct tree_rd_ctx {
     || IS(t, T_SIGNAL_DECL) || IS_STMT(t) || IS(t, T_VAR_DECL)    \
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
     || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL)   \
-    || IS(t, T_FUNC_DECL) || IS(t, T_ELAB))
-#define HAS_IDENT2(t) (IS(t, T_ARCH))
+    || IS(t, T_FUNC_DECL) || IS(t, T_ELAB) || IS(t, T_ATTR_REF))
+#define HAS_IDENT2(t) (IS(t, T_ARCH) || IS(t, T_ATTR_REF))
 #define HAS_PORTS(t) (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) \

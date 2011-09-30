@@ -335,7 +335,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 6);
+   fail_unless(tree_decls(a) == 7);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -384,6 +384,19 @@ START_TEST(test_types)
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
    fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
+
+   d = tree_decl(a, 6);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_kind(type_base(t)) == T_UNRESOLVED);
+   fail_unless(type_ident(type_base(t)) == ident_new("MY_INT"));
+   r = type_dim(t, 0);
+   fail_unless(tree_kind(r.left) == T_LITERAL);
+   fail_unless(tree_kind(r.right) == T_ATTR_REF);
+   fail_unless(tree_ident(r.right) == ident_new("MY_INT"));
+   fail_unless(tree_ident2(r.right) == ident_new("HIGH"));
 
    a = parse();
    fail_unless(a == NULL);

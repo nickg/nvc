@@ -13,6 +13,8 @@ architecture a of b is
     subtype big_r is resistance range 1000 to 2000;
 
     subtype my_small_int is my_int range 0 to 5;
+
+    subtype foo is my_int range 2 to my_int'high;
 begin
 
 end architecture;
