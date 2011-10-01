@@ -47,5 +47,14 @@ begin
         yyy := 5 * (2 + 4) / 2;         -- OK
         yyy := (yyy + 5) * x + 2;       -- Cannot convert my_int1 to my_int2
     end process;
+
+    process is
+        variable b : my_int2 := my_int2'left;
+    begin
+        b := my_int2'low;
+        b := my_int2'high;
+        b := my_int2'right;
+        b := my_int2'cake;              -- Error
+    end process;
     
 end architecture;

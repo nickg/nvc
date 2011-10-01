@@ -78,6 +78,7 @@ START_TEST(test_integer)
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "type NOTHING is not defined" },
       { 48, "no suitable overload for operator \"*\"(MY_INT2, MY_INT1)" },
+      { 57, "MY_INT2 has no attribute CAKE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -94,7 +95,7 @@ START_TEST(test_integer)
    t = tree_type(e);
    fail_unless(type_kind(t) == T_INTEGER);
 
-   fail_unless(tree_stmts(a) == 5);
+   fail_unless(tree_stmts(a) == 6);
 
    // Process 1
 
@@ -109,6 +110,26 @@ START_TEST(test_integer)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_ref(tree_target(s)) == d);
+
+   // Process 6
+
+   p = tree_stmt(a, 5);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_decls(p) == 1);
+
+   d = tree_decl(p, 0);
+   r = type_dim(tree_type(d), 0);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
+   fail_unless(tree_value(tree_value(s)) == r.left);
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
+   fail_unless(tree_value(tree_value(s)) == r.right);
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
+   fail_unless(tree_value(tree_value(s)) == r.right);
+
 }
 END_TEST
 

@@ -56,7 +56,7 @@ struct type_set {
    struct type_set *down;
 };
 
-static void sem_declare_predefined_ops(type_t t);
+static void sem_declare_predefined_ops(tree_t decl);
 static bool sem_check_constrained(tree_t t, type_t type);
 
 static struct scope    *top_scope = NULL;
@@ -277,7 +277,7 @@ static bool scope_insert_special(tree_t t)
    bool ok = scope_insert(t);
 
    if (tree_kind(t) == T_TYPE_DECL)
-      sem_declare_predefined_ops(tree_type(t));
+      sem_declare_predefined_ops(t);
 
    type_t type = tree_type(t);
    switch (type_kind(type)) {
@@ -457,9 +457,11 @@ static void sem_declare_unary(ident_t name, type_t operand,
    scope_insert(d);
 }
 
-static void sem_declare_predefined_ops(type_t t)
+static void sem_declare_predefined_ops(tree_t decl)
 {
    // Prefined operators are defined in LRM 93 section 7.2
+
+   type_t t = tree_type(decl);
 
    ident_t mult  = ident_new("*");
    ident_t div   = ident_new("/");
@@ -468,6 +470,8 @@ static void sem_declare_predefined_ops(type_t t)
 
    type_t std_int = NULL;
    type_t std_bool = NULL;
+
+   // Predefined operators
 
    switch (type_kind(t)) {
    case T_PHYSICAL:
@@ -480,7 +484,7 @@ static void sem_declare_predefined_ops(type_t t)
       // Unfortunately BOOLEAN is required for its own predefined types
       // so we have to be careful when bootstrapping
       if (bootstrap && type_ident(t) == ident_new("BOOLEAN"))
-          std_bool = t;
+         std_bool = t;
       else
          std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
    }
@@ -540,6 +544,32 @@ static void sem_declare_predefined_ops(type_t t)
       sem_declare_binary(ident_new("="), t, t, std_bool, "eq");
       sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");
 
+      break;
+   }
+
+   // Predefined attributes
+
+   switch (type_kind(t)) {
+   case T_INTEGER:
+   case T_REAL:
+      {
+         range_t r = type_dim(t, 0);
+
+         tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
+         tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
+
+         if (r.kind == RANGE_TO) {
+            tree_add_attr_tree(decl, ident_new("LOW"), r.left);
+            tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
+         }
+         else {
+            tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
+            tree_add_attr_tree(decl, ident_new("LOW"), r.right);
+         }
+      }
+      break;
+
+   default:
       break;
    }
 }
@@ -734,7 +764,7 @@ static bool sem_check_type_decl(tree_t t)
          range_t r = type_dim(base, 0);
 
          type_set_push();
-         type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
+         type_set_add(type);
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 
@@ -1291,6 +1321,25 @@ static bool sem_check_ref(tree_t t)
    return true;
 }
 
+static bool sem_check_attr_ref(tree_t t)
+{
+   tree_t decl = scope_find(tree_ident(t));
+
+   if (decl == NULL)
+      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+
+   tree_t a = tree_attr_tree(decl, tree_ident2(t));
+   if (a == NULL)
+      sem_error(t, "%s has no attribute %s",
+                istr(tree_ident(t)), istr(tree_ident2(t)));
+
+   tree_set_value(t, a);
+   tree_set_type(t, tree_type(a));
+   tree_set_ref(t, decl);
+
+   return true;
+}
+
 static bool sem_check_qualified(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
@@ -1340,6 +1389,8 @@ bool sem_check(tree_t t)
       return sem_check_func_decl(t);
    case T_AGGREGATE:
       return sem_check_aggregate(t);
+   case T_ATTR_REF:
+      return sem_check_attr_ref(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

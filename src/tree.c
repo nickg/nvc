@@ -33,15 +33,18 @@ struct tree_array {
    tree_t *items;
 };
 
-typedef enum { A_STRING, A_INT, A_PTR } attr_kind_t;
+typedef enum {
+   A_STRING, A_INT, A_PTR, A_TREE
+} attr_kind_t;
 
 struct attr {
    attr_kind_t kind;
    ident_t     name;
    union {
-      char *sval;
-      int  ival;
-      void *pval;
+      char   *sval;
+      int    ival;
+      void   *pval;
+      tree_t tval;
    };
 };
 
@@ -119,7 +122,7 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define IS_EXPR(t) \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED) \
-    || IS(t, T_AGGREGATE))
+    || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF))
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN) \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT))
@@ -143,10 +146,11 @@ struct tree_rd_ctx {
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 #define HAS_VALUE(t) \
-   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) \
-    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT))
+   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)     \
+    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT) \
+    || IS(t, T_ATTR_REF))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
-#define HAS_REF(t) (IS(t, T_REF) || IS(t, T_FCALL))
+#define HAS_REF(t) (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -953,6 +957,20 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
    else if (IS(t, T_SIGNAL_DECL) && deep)
       n += tree_visit_a(&t->drivers, fn, context, kind, generation, deep);
 
+   if (deep) {
+      for (unsigned i = 0; i < t->n_attrs; i++) {
+         switch (t->attrs[i].kind) {
+         case A_TREE:
+            tree_visit_aux(t->attrs[i].tval, fn, context,
+                           kind, generation, deep);
+            break;
+
+         default:
+            break;
+         }
+      }
+   }
+
    if (t->kind == kind || kind == T_LAST_TREE_KIND) {
       if (fn)
          (*fn)(t, context);
@@ -1163,6 +1181,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          write_i(t->attrs[i].ival, ctx->file);
          break;
 
+      case A_TREE:
+         tree_write(t->attrs[i].tval, ctx);
+         break;
+
       case A_PTR:
          fatal("pointer attributes cannot be saved");
       }
@@ -1317,6 +1339,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
       case A_INT:
          t->attrs[i].ival = read_i(ctx->file);
+         break;
+
+      case A_TREE:
+         t->attrs[i].tval = tree_read(ctx);
          break;
 
       default:
@@ -1480,4 +1506,15 @@ void *tree_attr_ptr(tree_t t, ident_t name)
 {
    struct attr *a = tree_find_attr(t, name, A_PTR);
    return a ? a->pval : NULL;
+}
+
+tree_t tree_attr_tree(tree_t t, ident_t name)
+{
+   struct attr *a = tree_find_attr(t, name, A_TREE);
+   return a ? a->tval : NULL;
+}
+
+void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
+{
+   tree_add_attr(t, name, A_TREE)->tval = val;
 }
