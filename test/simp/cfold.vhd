@@ -9,10 +9,14 @@ architecture a of e is
 begin
 
     process is
+        variable b : boolean;
     begin
         x <= c / 2;
         y <= t'high;
         y <= t'left;
+        b := t'right = 8;
+        b := (t'right - t'left) = 2;
+        b := t'high /= 2;
     end process;
 
 end architecture;

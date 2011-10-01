@@ -51,6 +51,27 @@ static bool folded(tree_t t, literal_t *l)
       return false;
 }
 
+static tree_t get_bool_lit(tree_t t, bool v)
+{
+   tree_t fdecl = tree_ref(t);
+   assert(tree_kind(fdecl) == T_FUNC_DECL);
+
+   type_t std_bool = type_result(tree_type(fdecl));
+
+   assert(type_ident(std_bool) == ident_new("STD.STANDARD.BOOLEAN"));
+   assert(type_enum_literals(std_bool) == 2);
+
+   tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
+
+   tree_t b = tree_new(T_REF);
+   tree_set_loc(b, tree_loc(t));
+   tree_set_ref(b, lit);
+   tree_set_type(b, std_bool);
+   tree_set_ident(b, tree_ident(lit));
+
+   return b;
+}
+
 static tree_t simp_fcall(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -74,33 +95,57 @@ static tree_t simp_fcall(tree_t t)
    if (!can_fold)
       return t;
 
+   bool folded_lit = false;
+
    literal_t l;
    if (strcmp(builtin, "mul") == 0) {
       FOLD_BINARY(args, l, *);
+      folded_lit = true;
    }
    else if (strcmp(builtin, "div") == 0) {
       FOLD_BINARY(args, l, /);
+      folded_lit = true;
    }
    else if (strcmp(builtin, "add") == 0) {
       FOLD_BINARY(args, l, +);
+      folded_lit = true;
    }
    else if (strcmp(builtin, "sub") == 0) {
       FOLD_BINARY(args, l, -);
+      folded_lit = true;
    }
    else if (strcmp(builtin, "neg") == 0) {
       FOLD_UNARY(args, l, -);
+      folded_lit = true;
    }
-   else if (strcmp(builtin, "identity") == 0)
+   else if (strcmp(builtin, "identity") == 0) {
       l = args[0];
-   else
-      fatal("cannot fold builtin %s", builtin);
+      folded_lit = true;
+   }
 
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, type_result(tree_type(decl)));
+   if (folded_lit) {
+      tree_t f = tree_new(T_LITERAL);
+      tree_set_loc(f, tree_loc(t));
+      tree_set_literal(f, l);
+      tree_set_type(f, type_result(tree_type(decl)));
 
-   return f;
+      return f;
+   }
+
+   if (strcmp(builtin, "eq") == 0) {
+      if (args[0].kind == L_INT && args[1].kind == L_INT)
+         return get_bool_lit(t, args[0].i == args[1].i);
+      else
+         assert(false);
+   }
+   else if (strcmp(builtin, "neq") == 0) {
+      if (args[0].kind == L_INT && args[1].kind == L_INT)
+         return get_bool_lit(t, args[0].i != args[1].i);
+      else
+         assert(false);
+   }
+
+   fatal("cannot fold builtin %s", builtin);
 }
 
 static tree_t simp_ref(tree_t t)

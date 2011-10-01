@@ -463,9 +463,6 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    type_t t = tree_type(decl);
 
-   if (type_kind(t) == T_SUBTYPE)
-      return;
-
    ident_t mult  = ident_new("*");
    ident_t div   = ident_new("/");
    ident_t plus  = ident_new("+");
@@ -493,6 +490,10 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    switch (type_kind(t)) {
+   case T_SUBTYPE:
+      // Use operators of base type
+      break;
+
    case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, std_int, t, "mul");
@@ -555,6 +556,8 @@ static void sem_declare_predefined_ops(tree_t decl)
    switch (type_kind(t)) {
    case T_INTEGER:
    case T_REAL:
+   case T_PHYSICAL:
+   case T_SUBTYPE:
       {
          range_t r = type_dim(t, 0);
 
@@ -657,13 +660,25 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 
    while (type_kind(type) == T_SUBTYPE) {
       type_t base = type_base(type);
-      tree_t base_decl = scope_find(type_ident(base));
-      if (base_decl == NULL)
-         sem_error(t, "type %s is not defined", istr(type_ident(base)));
+      if (type_kind(base) == T_UNRESOLVED) {
+         tree_t base_decl = scope_find(type_ident(base));
+         if (base_decl == NULL)
+            sem_error(t, "type %s is not defined", istr(type_ident(base)));
 
-      type_set_base(type, tree_type(base_decl));
+         type_t base_type = tree_type(base_decl);
+         type_set_base(type, base_type);
 
-      type = tree_type(base_decl);
+         // If the subtype is not constrained then give it the same
+         // range as its base type
+         if (type_dims(type) == 0) {
+            for (unsigned i = 0; i < type_dims(base_type); i++)
+               type_add_dim(type, type_dim(base_type, i));
+         }
+
+         base = tree_type(base_decl);
+      }
+
+      type = base;
    }
 
    if (pbase)
@@ -736,6 +751,10 @@ static bool sem_check_type_decl(tree_t t)
       type_set_ident(type, ident_prefix(top_scope->prefix,
                                         type_ident(type), '.'));
 
+   type_t base;
+   if (!sem_check_subtype(t, type, &base))
+      return false;
+
    // We need to insert the type into the scope before performing
    // further checks as when bootstrapping we need INTEGER defined
    // before we can check any ranges. Adding a type with errors to
@@ -743,10 +762,6 @@ static bool sem_check_type_decl(tree_t t)
    // errors later on
    scope_apply_prefix(t);
    if (!scope_insert_special(t))
-      return false;
-
-   type_t base;
-   if (!sem_check_subtype(t, type, &base))
       return false;
 
    switch (type_kind(type)) {
@@ -763,12 +778,16 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_INTEGER:
    case T_PHYSICAL:
+   case T_SUBTYPE:
       {
-         range_t r = type_dim(base, 0);
+         range_t r = type_dim(type, 0);
 
          // Check the range expressions as if they were INTEGERs
+         // when there is no base type
          type_set_push();
-         type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
+         type_set_add(type_kind(type) == T_SUBTYPE
+                      ? base
+                      : sem_std_type("STD.STANDARD.INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 

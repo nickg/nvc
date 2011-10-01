@@ -30,6 +30,21 @@ static bool folded_i(tree_t t, int64_t i)
    return l.i == i;
 }
 
+static bool folded_b(tree_t t, bool b)
+{
+   if (tree_kind(t) != T_REF)
+      return false;
+
+   if (type_ident(tree_type(t)) != ident_new("STD.STANDARD.BOOLEAN"))
+      return false;
+
+   tree_t lit = tree_ref(t);
+   if (tree_kind(lit) != T_ENUM_LIT)
+      return false;
+
+   return tree_pos(lit) == (b ? 1 : 0);
+}
+
 START_TEST(test_cfold)
 {
    tree_t e, a, p, s;
@@ -67,6 +82,12 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(s), 8));
    s = tree_stmt(p, 2);
    fail_unless(folded_i(tree_value(s), -5));
+   s = tree_stmt(p, 3);
+   fail_unless(folded_b(tree_value(s), true));
+   s = tree_stmt(p, 4);
+   fail_unless(folded_b(tree_value(s), false));
+   s = tree_stmt(p, 5);
+   fail_unless(folded_b(tree_value(s), true));
 }
 END_TEST
 

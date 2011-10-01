@@ -4,3 +4,4 @@ assign1         normal
 wait2           gold,normal
 arith1          normal
 signal1         normal
+attr1           normal
