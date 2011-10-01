@@ -23,22 +23,6 @@
 
 #define MAX_BUILTIN_ARGS 2
 
-#define FOLD_BINARY(args, l, op)                          \
-   if (args[0].kind == L_INT && args[1].kind == L_INT) {  \
-      l.i = args[0].i op args[1].i;                       \
-      l.kind = L_INT;                                     \
-   }                                                      \
-   else                                                   \
-      assert(false);                                      \
-
-#define FOLD_UNARY(args, l, op)                           \
-   if (args[0].kind == L_INT) {                           \
-      l.i = op args[0].i;                                 \
-      l.kind = L_INT;                                     \
-   }                                                      \
-   else                                                   \
-      assert(false);                                      \
-
 static tree_t simp_expr(tree_t t);
 
 static bool folded(tree_t t, literal_t *l)
@@ -49,6 +33,21 @@ static bool folded(tree_t t, literal_t *l)
    }
    else
       return false;
+}
+
+static tree_t get_int_lit(tree_t t, int64_t i)
+{
+   tree_t fdecl = tree_ref(t);
+   assert(tree_kind(fdecl) == T_FUNC_DECL);
+
+   literal_t l = { .kind = L_INT, .i = i };
+
+   tree_t f = tree_new(T_LITERAL);
+   tree_set_loc(f, tree_loc(t));
+   tree_set_literal(f, l);
+   tree_set_type(f, type_result(tree_type(fdecl)));
+
+   return f;
 }
 
 static tree_t get_bool_lit(tree_t t, bool v)
@@ -95,44 +94,28 @@ static tree_t simp_fcall(tree_t t)
    if (!can_fold)
       return t;
 
-   bool folded_lit = false;
+   const int lkind = args[0].kind;  // Assume all types checked same
+   assert(lkind == L_INT);
 
-   literal_t l;
    if (strcmp(builtin, "mul") == 0) {
-      FOLD_BINARY(args, l, *);
-      folded_lit = true;
+      return get_int_lit(t, args[0].i * args[1].i);
    }
    else if (strcmp(builtin, "div") == 0) {
-      FOLD_BINARY(args, l, /);
-      folded_lit = true;
+      return get_int_lit(t, args[0].i / args[1].i);
    }
    else if (strcmp(builtin, "add") == 0) {
-      FOLD_BINARY(args, l, +);
-      folded_lit = true;
+      return get_int_lit(t, args[0].i + args[1].i);
    }
    else if (strcmp(builtin, "sub") == 0) {
-      FOLD_BINARY(args, l, -);
-      folded_lit = true;
+      return get_int_lit(t, args[0].i - args[1].i);
    }
    else if (strcmp(builtin, "neg") == 0) {
-      FOLD_UNARY(args, l, -);
-      folded_lit = true;
+      return get_int_lit(t, -args[0].i);
    }
    else if (strcmp(builtin, "identity") == 0) {
-      l = args[0];
-      folded_lit = true;
+      return get_int_lit(t, args[0].i);
    }
-
-   if (folded_lit) {
-      tree_t f = tree_new(T_LITERAL);
-      tree_set_loc(f, tree_loc(t));
-      tree_set_literal(f, l);
-      tree_set_type(f, type_result(tree_type(decl)));
-
-      return f;
-   }
-
-   if (strcmp(builtin, "eq") == 0) {
+   else if (strcmp(builtin, "eq") == 0) {
       if (args[0].kind == L_INT && args[1].kind == L_INT)
          return get_bool_lit(t, args[0].i == args[1].i);
       else
