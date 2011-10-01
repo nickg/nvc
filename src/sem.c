@@ -457,6 +457,18 @@ static void sem_declare_unary(ident_t name, type_t operand,
    scope_insert(d);
 }
 
+static tree_t sem_bool_lit(type_t std_bool, bool v)
+{
+   tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
+
+   tree_t b = tree_new(T_REF);
+   tree_set_ref(b, lit);
+   tree_set_type(b, std_bool);
+   tree_set_ident(b, tree_ident(lit));
+
+   return b;
+}
+
 static void sem_declare_predefined_ops(tree_t decl)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -563,6 +575,8 @@ static void sem_declare_predefined_ops(tree_t decl)
 
          tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
          tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
+         tree_add_attr_tree(decl, ident_new("ASCENDING"),
+                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
 
          if (r.kind == RANGE_TO) {
             tree_add_attr_tree(decl, ident_new("LOW"), r.left);
