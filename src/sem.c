@@ -463,6 +463,9 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    type_t t = tree_type(decl);
 
+   if (type_kind(t) == T_SUBTYPE)
+      return;
+
    ident_t mult  = ident_new("*");
    ident_t div   = ident_new("/");
    ident_t plus  = ident_new("+");
@@ -763,10 +766,18 @@ static bool sem_check_type_decl(tree_t t)
       {
          range_t r = type_dim(base, 0);
 
+         // Check the range expressions as if they were INTEGERs
          type_set_push();
-         type_set_add(type);
+         type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
+
+         if (ok) {
+            // Standard specifies type of 'LEFT and 'RIGHT are same
+            // as the declared type
+            tree_set_type(r.left, type);
+            tree_set_type(r.right, type);
+         }
 
          return ok;
       }

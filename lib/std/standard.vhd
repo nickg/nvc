@@ -54,14 +54,13 @@ package STANDARD is
             hr  = 60 min;
         end units;
 
-    --subtype DELAY_LENGTH is TIME range 0 fs to TIME'HIGH;
+    subtype DELAY_LENGTH is TIME range 0 fs to TIME'HIGH;
 
-    -- XXX impure function NOW return DELAY_LENGTH;
-    impure function NOW return TIME;
+    impure function NOW return DELAY_LENGTH;
+    
+    subtype NATURAL is INTEGER range 0 to INTEGER'HIGH;
 
-    --subtype NATURAL is INTEGER range 0 to INTEGER'HIGH;
-
-    --subtype POSITIVE is INTEGER range 1 to INTEGER'HIGH;
+    subtype POSITIVE is INTEGER range 1 to INTEGER'HIGH;
 
     type STRING is array (POSITIVE range <>) of CHARACTER;
 
