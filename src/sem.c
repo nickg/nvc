@@ -424,19 +424,27 @@ static type_t sem_std_type(const char *name)
    return tree_type(decl);
 }
 
-static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
-                               type_t result, const char *builtin)
+static tree_t sem_builtin_fn(ident_t name, type_t result,
+                             const char *builtin)
 {
    type_t f = type_new(T_FUNC);
    type_set_ident(f, name);
-   type_add_param(f, lhs);
-   type_add_param(f, rhs);
    type_set_result(f, result);
 
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
    tree_add_attr_str(d, ident_new("builtin"), builtin);
+
+   return d;
+}
+
+static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
+                               type_t result, const char *builtin)
+{
+   tree_t d = sem_builtin_fn(name, result, builtin);
+   type_add_param(tree_type(d), lhs);
+   type_add_param(tree_type(d), rhs);
 
    scope_insert(d);
 }
@@ -444,15 +452,8 @@ static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
 static void sem_declare_unary(ident_t name, type_t operand,
                               type_t result, const char *builtin)
 {
-   type_t f = type_new(T_FUNC);
-   type_set_ident(f, name);
-   type_add_param(f, operand);
-   type_set_result(f, result);
-
-   tree_t d = tree_new(T_FUNC_DECL);
-   tree_set_ident(d, name);
-   tree_set_type(d, f);
-   tree_add_attr_str(d, ident_new("builtin"), builtin);
+   tree_t d = sem_builtin_fn(name, result, builtin);
+   type_add_param(tree_type(d), operand);
 
    scope_insert(d);
 }
@@ -850,6 +851,16 @@ static bool sem_check_decl(tree_t t)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", istr(type_ident(tree_type(value))),
                    istr(type_ident(type)));
+   }
+
+   if (tree_kind(t) == T_SIGNAL_DECL) {
+      ident_t event_i = ident_new("EVENT");
+      ident_t active_i = ident_new("ACTIVE");
+      type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+      tree_add_attr_tree(t, event_i,
+                         sem_builtin_fn(event_i, std_bool, "event"));
+      tree_add_attr_tree(t, active_i,
+                         sem_builtin_fn(active_i, std_bool, "active"));
    }
 
    scope_apply_prefix(t);
@@ -1410,9 +1421,23 @@ static bool sem_check_attr_ref(tree_t t)
       sem_error(t, "%s has no attribute %s",
                 istr(tree_ident(t)), istr(tree_ident2(t)));
 
-   tree_set_value(t, a);
-   tree_set_type(t, tree_type(a));
-   tree_set_ref(t, decl);
+   if (tree_kind(a) == T_FUNC_DECL) {
+      tree_set_type(t, type_result(tree_type(a)));
+
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, tree_ident(t));
+      tree_set_loc(ref, tree_loc(t));
+      tree_set_type(ref, tree_type(decl));
+      tree_set_ref(ref, decl);
+
+      tree_add_param(t, ref);
+      tree_set_ref(t, a);
+   }
+   else {
+      tree_set_value(t, a);
+      tree_set_type(t, tree_type(a));
+      tree_set_ref(t, decl);
+   }
 
    return true;
 }

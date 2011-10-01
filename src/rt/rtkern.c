@@ -19,6 +19,7 @@
 #include "tree.h"
 #include "lib.h"
 #include "util.h"
+#include "signal.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -62,17 +63,22 @@ struct waveform {
 struct signal {
    union sigval    resolved;
    tree_t          decl;
+   int32_t         flags;
    struct waveform *sources[0];
 };
 
-static struct rt_proc    *procs = NULL;
-static struct rt_proc    *active_proc = NULL;
-static struct deltaq     *eventq = NULL;
+static struct rt_proc *procs = NULL;
+static struct rt_proc *active_proc = NULL;
+static struct deltaq  *eventq = NULL;
 
 static size_t   n_procs = 0;
 static uint64_t now = 0;
 static int      iteration = -1;
 static bool     trace_on = false;
+
+#define MAX_ACTIVE_SIGS 128
+static struct signal *active_signals[MAX_ACTIVE_SIGS];
+static unsigned      n_active_signals = 0;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
                           struct signal *signal);
@@ -345,7 +351,19 @@ static void rt_update_driver(struct signal *s)
          TRACE("update signal %s value %"PRIu64,
                istr(tree_ident(s->decl)), w_next->value);
 
+         int32_t new_flags = 0;
+         const bool first_cycle = (iteration == 0 && now == 0);
+         if (!first_cycle) {
+            new_flags = SIGNAL_F_ACTIVE;
+            if (s->resolved.val != w_next->value.val)
+               new_flags |= SIGNAL_F_EVENT;
+
+            assert(n_active_signals < MAX_ACTIVE_SIGS);
+            active_signals[n_active_signals++] = s;
+         }
+
          s->resolved   = w_next->value;
+         s->flags     |= new_flags;
          s->sources[i] = w_next;
 
          free(w_now);
@@ -388,6 +406,10 @@ static void rt_cycle(void)
       deltaq_pop();
    } while (eventq != NULL
             && (eventq->delta == 0 && eventq->iteration == iteration));
+
+   for (unsigned i = 0; i < n_active_signals; i++)
+      active_signals[i]->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
+   n_active_signals = 0;
 }
 
 void rt_trace_en(bool en)

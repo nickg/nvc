@@ -202,6 +202,28 @@ static tree_t simp_ref(tree_t t)
    }
 }
 
+static tree_t simp_attr_ref(tree_t t)
+{
+   if (tree_has_value(t))
+      return simp_expr(tree_value(t));
+   else {
+      tree_t decl = tree_ref(t);
+      assert(tree_kind(decl) == T_FUNC_DECL);
+
+      // Convert attributes like 'EVENT to function calls
+      tree_t fcall = tree_new(T_FCALL);
+      tree_set_loc(fcall, tree_loc(t));
+      tree_set_type(fcall, tree_type(t));
+      tree_set_ident(fcall, tree_ident2(t));
+      tree_set_ref(fcall, decl);
+
+      for (unsigned i = 0; i < tree_params(t); i++)
+         tree_add_param(fcall, tree_param(t, i));
+
+      return fcall;
+   }
+}
+
 static tree_t simp_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -239,7 +261,7 @@ static tree_t simp_expr(tree_t t)
       }
 
    case T_ATTR_REF:
-      return simp_expr(tree_value(t));
+      return simp_attr_ref(t);
 
    default:
       assert(false);

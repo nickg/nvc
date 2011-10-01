@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "lib.h"
+#include "rt/signal.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -193,16 +194,43 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
+static LLVMValueRef cgen_signal_flag(tree_t signal, int flag)
+{
+   tree_t sig_decl = tree_ref(signal);
+
+   LLVMValueRef signal_struct =
+      LLVMGetNamedGlobal(module, istr(tree_ident(sig_decl)));
+   assert(signal_struct != NULL);
+
+   LLVMValueRef bit = llvm_int32(flag);
+
+   LLVMValueRef ptr =
+      LLVMBuildStructGEP(builder, signal_struct, SIGNAL_FLAGS, "");
+   LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+   LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
+   return LLVMBuildICmp(builder, LLVMIntEQ, masked, bit, "");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL);
 
+   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+
+   // Special attributes
+   if (builtin) {
+      if (strcmp(builtin, "event") == 0)
+         return cgen_signal_flag(tree_param(t, 0), SIGNAL_F_EVENT);
+      else if (strcmp(builtin, "active") == 0)
+         return cgen_signal_flag(tree_param(t, 0), SIGNAL_F_ACTIVE);
+   }
+
    LLVMValueRef args[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++)
       args[i] = cgen_expr(tree_param(t, i), ctx);
 
-   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+   // Regular builtin functions
    if (builtin) {
       if (strcmp(builtin, "mul") == 0)
          return LLVMBuildMul(builder, args[0], args[1], "");
@@ -226,6 +254,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
       else if (strcmp(builtin, "neg") == 0)
          return LLVMBuildNeg(builder, args[0], "");
+      else if (strcmp(builtin, "not") == 0)
+         return LLVMBuildNot(builder, args[0], "");
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
@@ -256,7 +286,8 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
             LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
          assert(signal != NULL);
 
-         LLVMValueRef ptr = LLVMBuildStructGEP(builder, signal, 0, "");
+         LLVMValueRef ptr =
+            LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
          LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
          return LLVMBuildIntCast(builder, deref,
                                  llvm_type(tree_type(t)), "");
@@ -646,12 +677,13 @@ static void cgen_signal(tree_t t)
    LLVMTypeRef void_ptr = LLVMPointerType(LLVMInt8Type(), 0);
    LLVMTypeRef ty = LLVMGetTypeByName(module, name);
    if (ty == NULL) {
-      LLVMTypeRef fields[tree_drivers(t) + 2];
-      fields[0] = LLVMInt64Type();    // Value union
-      fields[1] = void_ptr;           // Declaration
+      LLVMTypeRef fields[tree_drivers(t) + SIGNAL_N_FIELDS];
+      fields[SIGNAL_RESOLVED] = LLVMInt64Type();
+      fields[SIGNAL_DECL]     = void_ptr;
+      fields[SIGNAL_FLAGS]    = LLVMInt32Type();
 
       for (unsigned i = 0; i < tree_drivers(t); i++)
-         fields[i + 2] = void_ptr;    // Driver waveform queue
+         fields[i + SIGNAL_N_FIELDS] = void_ptr;  // Driver waveform queue
 
       ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
@@ -661,11 +693,12 @@ static void cgen_signal(tree_t t)
 
    LLVMValueRef v = LLVMAddGlobal(module, ty, istr(tree_ident(t)));
 
-   LLVMValueRef init[tree_drivers(t) + 2];
-   init[0] = llvm_int64(0);
-   init[1] = LLVMConstNull(void_ptr);
+   LLVMValueRef init[tree_drivers(t) + SIGNAL_N_FIELDS];
+   init[SIGNAL_RESOLVED] = llvm_int64(0);
+   init[SIGNAL_DECL]     = LLVMConstNull(void_ptr);
+   init[SIGNAL_FLAGS]    = llvm_int32(0);
    for (unsigned i = 0; i < tree_drivers(t); i++)
-      init[i + 2] = LLVMConstNull(void_ptr);
+      init[i + SIGNAL_N_FIELDS] = LLVMConstNull(void_ptr);
 
    LLVMSetInitializer(v, LLVMConstStruct(init, ARRAY_LEN(init), false));
 }

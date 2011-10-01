@@ -57,7 +57,7 @@ struct tree {
 
    union {
       struct tree_array ports;    // T_ENTITY, T_FUNC_DECL
-      struct tree_array params;   // T_FCALL
+      struct tree_array params;   // T_FCALL, T_ATTR_REF
       struct tree_array decls;    // T_ARCH, T_PROCESS, T_PACKAGE
       struct tree_array drivers;  // T_SIGNAL_DECL
    };
@@ -139,7 +139,7 @@ struct tree_rd_ctx {
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT) \
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
-#define HAS_PARAMS(t) (IS(t, T_FCALL))
+#define HAS_PARAMS(t) (IS(t, T_FCALL) || IS(t, T_ATTR_REF))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
