@@ -25,7 +25,10 @@
 
 static tree_t simp_expr(tree_t t);
 
-static bool folded(tree_t t, literal_t *l)
+static ident_t std_bool_i = NULL;
+static ident_t builtin_i  = NULL;
+
+static bool folded_num(tree_t t, literal_t *l)
 {
    if (tree_kind(t) == T_LITERAL) {
       *l = tree_literal(t);
@@ -33,6 +36,20 @@ static bool folded(tree_t t, literal_t *l)
    }
    else
       return false;
+}
+
+static bool folded_bool(tree_t t, bool *b)
+{
+   if (tree_kind(t) == T_REF) {
+      tree_t decl = tree_ref(t);
+      if (tree_kind(decl) == T_ENUM_LIT
+          && type_ident(tree_type(decl)) == std_bool_i) {
+         *b = (tree_pos(decl) == 1);
+         return true;
+      }
+   }
+
+   return false;
 }
 
 static tree_t get_int_lit(tree_t t, int64_t i)
@@ -57,7 +74,7 @@ static tree_t get_bool_lit(tree_t t, bool v)
 
    type_t std_bool = type_result(tree_type(fdecl));
 
-   assert(type_ident(std_bool) == ident_new("STD.STANDARD.BOOLEAN"));
+   assert(type_ident(std_bool) == std_bool_i);
    assert(type_enum_literals(std_bool) == 2);
 
    tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
@@ -71,29 +88,28 @@ static tree_t get_bool_lit(tree_t t, bool v)
    return b;
 }
 
-static tree_t simp_fcall(tree_t t)
+static tree_t simp_fcall_log(tree_t t, const char *builtin, bool *args)
 {
-   tree_t decl = tree_ref(t);
-   assert(tree_kind(decl) == T_FUNC_DECL);
+   if (strcmp(builtin, "not") == 0)
+      return get_bool_lit(t, !args[0]);
+   else if (strcmp(builtin, "and") == 0)
+      return get_bool_lit(t, args[0] && args[1]);
+   else if (strcmp(builtin, "nand") == 0)
+      return get_bool_lit(t, !(args[0] && args[1]));
+   else if (strcmp(builtin, "or") == 0)
+      return get_bool_lit(t, args[0] || args[1]);
+   else if (strcmp(builtin, "nor") == 0)
+      return get_bool_lit(t, !(args[0] || args[1]));
+   else if (strcmp(builtin, "xor") == 0)
+      return get_bool_lit(t, args[0] ^ args[1]);
+   else if (strcmp(builtin, "xnor") == 0)
+      return get_bool_lit(t, !(args[0] ^ args[1]));
 
-   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
-   if (builtin == NULL)
-      return t;     // TODO: expand pure function calls
+   fatal("cannot fold builtin %s", builtin);
+}
 
-   if (tree_params(t) > MAX_BUILTIN_ARGS)
-      return t;
-
-   bool can_fold = true;
-   literal_t args[MAX_BUILTIN_ARGS];
-   for (unsigned i = 0; i < tree_params(t); i++) {
-      tree_t p = simp_expr(tree_param(t, i));
-      tree_change_param(t, i, p);
-      can_fold = can_fold && folded(p, &args[i]);
-   }
-
-   if (!can_fold)
-      return t;
-
+static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
+{
    const int lkind = args[0].kind;  // Assume all types checked same
    assert(lkind == L_INT);
 
@@ -127,8 +143,51 @@ static tree_t simp_fcall(tree_t t)
       else
          assert(false);
    }
+   else if (strcmp(builtin, "gt") == 0) {
+      if (args[0].kind == L_INT && args[1].kind == L_INT)
+         return get_bool_lit(t, args[0].i > args[1].i);
+      else
+         assert(false);
+   }
+   else if (strcmp(builtin, "lt") == 0) {
+      if (args[0].kind == L_INT && args[1].kind == L_INT)
+         return get_bool_lit(t, args[0].i < args[1].i);
+      else
+         assert(false);
+   }
 
    fatal("cannot fold builtin %s", builtin);
+}
+
+static tree_t simp_fcall(tree_t t)
+{
+   tree_t decl = tree_ref(t);
+   assert(tree_kind(decl) == T_FUNC_DECL);
+
+   const char *builtin = tree_attr_str(decl, builtin_i);
+   if (builtin == NULL)
+      return t;     // TODO: expand pure function calls
+
+   if (tree_params(t) > MAX_BUILTIN_ARGS)
+      return t;
+
+   bool can_fold_num = true;
+   bool can_fold_log = true;
+   literal_t largs[MAX_BUILTIN_ARGS];
+   bool bargs[MAX_BUILTIN_ARGS];
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      tree_t p = simp_expr(tree_param(t, i));
+      tree_change_param(t, i, p);
+      can_fold_num = can_fold_num && folded_num(p, &largs[i]);
+      can_fold_log = can_fold_log && folded_bool(p, &bargs[i]);
+   }
+
+   if (can_fold_num)
+      return simp_fcall_num(t, builtin, largs);
+   else if (can_fold_log)
+      return simp_fcall_log(t, builtin, bargs);
+   else
+      return t;
 }
 
 static tree_t simp_ref(tree_t t)
@@ -292,8 +351,22 @@ static void simp_package(tree_t t)
       simp_decl(tree_decl(t, i));
 }
 
+static void simp_intern_strings(void)
+{
+   // Intern some commponly used strings
+
+   std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
+   builtin_i  = ident_new("builtin");
+}
+
 void simplify(tree_t top)
 {
+   static bool have_interned = false;
+   if (!have_interned) {
+      simp_intern_strings();
+      have_interned = true;
+   }
+
    switch (tree_kind(top)) {
    case T_ENTITY:
       simp_entity(top);

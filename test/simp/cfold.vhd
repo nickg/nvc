@@ -17,6 +17,16 @@ begin
         b := t'right = 8;
         b := (t'right - t'left) = 2;
         b := t'high /= 2;
+        b := true and true;
+        b := true and false;
+        b := true or false;
+        b := true xor true;
+        b := not true;
+        b := not false;
+        b := true xnor false;
+        b := false nand false;
+        b := false nor true;
+        b := 7 > 5 and 6 < 2;
     end process;
 
 end architecture;

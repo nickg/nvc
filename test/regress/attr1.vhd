@@ -2,7 +2,7 @@ entity attr1 is
 end entity;
 
 architecture test of attr1 is
-    --type my_int is range 10 downto 0;
+    type my_int is range 10 downto 0;
 begin
 
     process is
@@ -14,7 +14,7 @@ begin
         assert positive'left = 1;
         assert natural'high = integer'high;
         assert integer'ascending;
-        --assert not my_int'ascending;
+        assert not my_int'ascending;
         wait;
     end process;
     

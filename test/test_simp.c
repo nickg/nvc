@@ -88,6 +88,16 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(s), false));
    s = tree_stmt(p, 5);
    fail_unless(folded_b(tree_value(s), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 6)), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 7)), false));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 8)), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 9)), false));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 10)), false));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 11)), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 12)), false));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 13)), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 14)), false));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 15)), false));
 }
 END_TEST
 

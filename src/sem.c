@@ -493,12 +493,7 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Fall-through
    default:
       // These types require BOOLEAN to be declared
-      // Unfortunately BOOLEAN is required for its own predefined types
-      // so we have to be careful when bootstrapping
-      if (bootstrap && type_ident(t) == ident_new("BOOLEAN"))
-         std_bool = t;
-      else
-         std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+      std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
    }
 
    switch (type_kind(t)) {
@@ -561,6 +556,24 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");
 
       break;
+   }
+
+   // Logical operators
+
+   bool logical =
+      (type_ident(t) == ident_new("STD.STANDARD.BOOLEAN")
+       || type_ident(t) == ident_new("STD.STANDARD.BIT"));
+   // TODO: also any one-dimensional array type whose element type
+   // is BIT or BOOLEAN
+
+   if (logical) {
+      sem_declare_binary(ident_new("and"), t, t, t, "and");
+      sem_declare_binary(ident_new("or"), t, t, t, "or");
+      sem_declare_binary(ident_new("xor"), t, t, t, "xor");
+      sem_declare_binary(ident_new("nand"), t, t, t, "nand");
+      sem_declare_binary(ident_new("nor"), t, t, t, "nor");
+      sem_declare_binary(ident_new("xnor"), t, t, t, "xnor");
+      sem_declare_unary(ident_new("not"), t, t, "not");
    }
 
    // Predefined attributes

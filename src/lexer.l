@@ -90,6 +90,7 @@ AND           {A}{N}{D}
 OR            {O}{R}
 XOR           {X}{O}{R}
 XNOR          {X}{N}{O}{R}
+NOR           {N}{O}{R}
 NAND          {N}{A}{N}{D}
 ABS           {A}{B}{S}
 NOT           {N}{O}{T}
@@ -146,6 +147,7 @@ SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 {XOR}           { begin_token(yytext); return tXOR; }
 {XNOR}          { begin_token(yytext); return tXNOR; }
 {NAND}          { begin_token(yytext); return tNAND; }
+{NOR}           { begin_token(yytext); return tNOR; }
 {ABS}           { begin_token(yytext); return tABS; }
 {NOT}           { begin_token(yytext); return tNOT; }
 {ALL}           { begin_token(yytext); return tALL; }
