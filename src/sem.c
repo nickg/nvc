@@ -1097,15 +1097,35 @@ static bool sem_check_fcall(tree_t t)
    for (int n = 0; n < n_overloads; n++) {
       // Did argument types match for this overload?
       bool match = true;
+      bool all_universal = true;
       type_t func_type = tree_type(overloads[n]);
       for (unsigned i = 0; i < tree_params(t); i++) {
-         match = match && type_eq(type_param(func_type, i),
-                                  tree_type(tree_param(t, i)));
+         type_t ptype = tree_type(tree_param(t, i));
+         match = match && type_eq(type_param(func_type, i), ptype);
+         all_universal = all_universal && type_is_universal(ptype);
       }
 
       if (match) {
-         decl = overloads[n];
-         matches++;
+         bool builtin = tree_attr_str(overloads[n], ident_new("builtin"));
+         if (all_universal && builtin) {
+            // If all the arguments are universal integer or real and
+            // this is a builtin function then it doesn't matter which
+            // overload we pick as it will be constant-folded later
+            type_t f_result = type_result(func_type);
+            switch (type_kind(f_result)) {
+            case T_INTEGER:
+               tree_set_type(t, type_universal_int());
+               break;
+            default:
+               tree_set_type(t, f_result);
+            }
+            tree_set_ref(t, overloads[n]);
+            return true;
+         }
+         else {
+            decl = overloads[n];
+            matches++;
+         }
       }
       else
          overloads[n] = NULL;

@@ -34,5 +34,14 @@ begin
     begin
         x <= bar'(c);                   -- Error!
     end process;
+
+    process is
+        type small is range 10 downto -5;
+        variable z : small := -5;
+        variable a : boolean;
+    begin
+        a := z = -5;
+        a := -5 = z;
+    end process;
     
 end architecture;

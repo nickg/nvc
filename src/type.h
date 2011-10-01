@@ -118,5 +118,6 @@ void type_unref(type_t t);
 
 // Predefined types
 type_t type_universal_int(void);
+bool type_is_universal(type_t t);
 
 #endif  // _TYPE_H

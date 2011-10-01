@@ -262,6 +262,16 @@ type_t type_universal_int(void)
    return t;
 }
 
+bool type_is_universal(type_t t)
+{
+   assert(t != NULL);
+
+   if (t->kind == T_INTEGER)
+      return t->ident == type_universal_int()->ident;
+   else
+      return false;
+}
+
 unsigned type_units(type_t t)
 {
    assert(t != NULL);
