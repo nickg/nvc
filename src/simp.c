@@ -151,6 +151,9 @@ static tree_t simp_expr(tree_t t)
          return t;
       }
 
+   case T_ATTR_REF:
+      return simp_expr(tree_value(t));
+
    default:
       assert(false);
    }

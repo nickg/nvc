@@ -63,6 +63,10 @@ START_TEST(test_cfold)
 
    s = tree_stmt(p, 0);
    fail_unless(folded_i(tree_value(s), 2));
+   s = tree_stmt(p, 1);
+   fail_unless(folded_i(tree_value(s), 8));
+   s = tree_stmt(p, 2);
+   fail_unless(folded_i(tree_value(s), -5));
 }
 END_TEST
 
