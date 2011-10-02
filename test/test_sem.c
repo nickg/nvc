@@ -431,7 +431,9 @@ START_TEST(test_array)
       { 26, "positional associations must appear first in aggregate" },
       { 32, "named association must not follow others" },
       { 38, "only a single others association allowed" },
-      { 45, "ype of initial value universal integer does not match" },
+      { 45, "type of initial value universal integer does not match" },
+      { 54, "type of value universal integer does not match type of" },
+      { 56, "type of value anonymous subtype of WORK.P.INT_ARRAY" },
       { -1, NULL }
    };
    expect_errors(expect);

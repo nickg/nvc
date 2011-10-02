@@ -58,6 +58,7 @@ struct type_set {
 
 static void sem_declare_predefined_ops(tree_t decl);
 static bool sem_check_constrained(tree_t t, type_t type);
+static bool sem_check_array_ref(tree_t t);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
@@ -901,11 +902,11 @@ static bool sem_check_process(tree_t t)
    scope_push(NULL);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
-      ok = ok && sem_check(tree_decl(t, n));
+      ok = sem_check(tree_decl(t, n)) && ok;
 
    if (ok) {
       for (unsigned n = 0; n < tree_stmts(t); n++)
-         ok = ok && sem_check(tree_stmt(t, n));
+         ok = sem_check(tree_stmt(t, n)) && ok;
    }
 
    scope_pop();
@@ -922,7 +923,7 @@ static bool sem_check_package(tree_t t)
    bool ok = sem_check_context(t);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
-      ok = ok && sem_check(tree_decl(t, n));
+      ok = sem_check(tree_decl(t, n)) && ok;
 
    scope_pop();
 
@@ -939,10 +940,10 @@ static bool sem_check_entity(tree_t t)
    bool ok = sem_check_context(t);
 
    for (unsigned n = 0; n < tree_generics(t); n++)
-      ok = ok && sem_check(tree_generic(t, n));
+      ok = sem_check(tree_generic(t, n)) && ok;
 
    for (unsigned n = 0; n < tree_ports(t); n++)
-      ok = ok && sem_check(tree_port(t, n));
+      ok = sem_check(tree_port(t, n)) && ok;
 
    scope_pop();
 
@@ -981,17 +982,11 @@ static bool sem_check_arch(tree_t t)
    ok = ok && sem_check_context(t);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
-      ok = ok && sem_check(tree_decl(t, n));
+      ok = sem_check(tree_decl(t, n)) && ok;
 
    if (ok) {
-      // Keep going after failure in single statement
-      int failures = 0;
-      for (unsigned n = 0; n < tree_stmts(t); n++) {
-         if (!sem_check(tree_stmt(t, n)))
-            failures++;
-      }
-
-      ok = (failures == 0);
+      for (unsigned n = 0; n < tree_stmts(t); n++)
+         ok = sem_check(tree_stmt(t, n)) && ok;
    }
 
    scope_pop();
@@ -1086,8 +1081,12 @@ static bool sem_check_fcall(tree_t t)
    int n = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         if (tree_kind(decl) != T_FUNC_DECL)
-            continue;
+         if (tree_kind(decl) != T_FUNC_DECL) {
+            // The grammar is ambiguous between function calls and
+            // array references so must be an array reference
+            tree_change_kind(t, T_ARRAY_REF);
+            return sem_check_array_ref(t);
+         }
 
          type_t func_type = tree_type(decl);
          if (type_set_member(type_result(func_type))) {
@@ -1414,6 +1413,21 @@ static bool sem_check_ref(tree_t t)
    return true;
 }
 
+static bool sem_check_array_ref(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (!sem_check(value))
+      return false;
+
+   type_t type = tree_type(value);
+   if (type_kind(type) != T_CARRAY)
+      sem_error(t, "invalid array reference");
+
+   tree_set_type(t, type_base(type));
+   tree_set_ref(t, tree_ref(value));
+   return true;
+}
+
 static bool sem_check_attr_ref(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
@@ -1499,6 +1513,8 @@ bool sem_check(tree_t t)
       return sem_check_aggregate(t);
    case T_ATTR_REF:
       return sem_check_attr_ref(t);
+   case T_ARRAY_REF:
+      return sem_check_array_ref(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

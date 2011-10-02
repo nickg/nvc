@@ -46,4 +46,14 @@ begin
     begin
     end process;
 
+    process is
+        variable a : integer;
+    begin
+        x(0) <= 1;                      -- OK
+        x <= ( others => 2 );           -- OK
+        x <= 1;                         -- RHS not array
+        a := x(0);                      -- OK
+        a := x;                         -- LHS not array
+    end process;
+
 end architecture;

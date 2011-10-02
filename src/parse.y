@@ -1163,17 +1163,17 @@ name
      // This is ambiguous between an array reference and a function
      // call: in the case where $1 is a simple reference assume it
      // is a function call for now and the semantic checker will
-     // fix things up later
+     // fix things up later. We stash the value $1 in the tree
+     // anyway to make changing the kind easier.
+
+     $$ = tree_new(T_ARRAY_REF);
+     tree_set_value($$, $1);
+     tree_set_loc($$, &@$);
 
      if (tree_kind($1) == T_REF) {
-        $$ = tree_new(T_FCALL);
+        tree_change_kind($$, T_FCALL);
         tree_set_ident($$, tree_ident($1));
      }
-     else {
-        $$ = tree_new(T_ARRAY_REF);
-        tree_set_value($$, $1);
-     }
-     tree_set_loc($$, &@$);
 
      for (param_list_t *it = $3; it != NULL; it = it->next)
         tree_add_param($$, it->param);
