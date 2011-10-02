@@ -18,6 +18,7 @@ begin
     begin
         x(0) <= 1;
         y(2) <= n(2);
+        y(3)(5) <= n(2)(1);
     end process;
 
 end architecture;

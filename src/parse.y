@@ -764,15 +764,11 @@ severity
 
 target
 : name
-| target tLPAREN param_list tRPAREN
   {
-     $$ = tree_new(T_ARRAY_REF);
-     tree_set_value($$, $1);
-     tree_set_loc($$, &@$);
-
-     for (param_list_t *it = $3; it != NULL; it = it->next)
-        tree_add_param($$, it->param);
-     param_list_free($3);
+     // A target cannot be a function call so resolve ambiguity here
+     if (tree_kind($1) == T_FCALL)
+        tree_change_kind($1, T_ARRAY_REF);
+     $$ = $1;
   }
 ;
 
@@ -1016,16 +1012,6 @@ expr
      tree_set_loc($$, &@$);
   }
 | aggregate
-| selected_id tLPAREN param_list tRPAREN
-  {
-     $$ = tree_new(T_FCALL);
-     tree_set_ident($$, $1);
-     tree_set_loc($$, &@$);
-
-     for (param_list_t *it = $3; it != NULL; it = it->next)
-        tree_add_param($$, it->param);
-     param_list_free($3);
-  }
 /*
   | type_conversion
   | allocator
@@ -1171,6 +1157,27 @@ name
      tree_set_ident($$, $1);
      tree_set_ident2($$, $3);
      tree_set_loc($$, &@$);
+  }
+| name tLPAREN param_list tRPAREN
+  {
+     // This is ambiguous between an array reference and a function
+     // call: in the case where $1 is a simple reference assume it
+     // is a function call for now and the semantic checker will
+     // fix things up later
+
+     if (tree_kind($1) == T_REF) {
+        $$ = tree_new(T_FCALL);
+        tree_set_ident($$, tree_ident($1));
+     }
+     else {
+        $$ = tree_new(T_ARRAY_REF);
+        tree_set_value($$, $1);
+     }
+     tree_set_loc($$, &@$);
+
+     for (param_list_t *it = $3; it != NULL; it = it->next)
+        tree_add_param($$, it->param);
+     param_list_free($3);
   }
   /* | operator_symbol
      | character_literal
