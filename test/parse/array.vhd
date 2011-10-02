@@ -14,4 +14,10 @@ architecture a of e is
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
 begin
 
+    process is
+    begin
+--        x(0) <= 1;
+--        y(2) <= n(2);
+    end process;
+
 end architecture;

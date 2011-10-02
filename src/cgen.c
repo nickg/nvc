@@ -221,14 +221,14 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
    // Special attributes
    if (builtin) {
       if (strcmp(builtin, "event") == 0)
-         return cgen_signal_flag(tree_param(t, 0), SIGNAL_F_EVENT);
+         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_EVENT);
       else if (strcmp(builtin, "active") == 0)
-         return cgen_signal_flag(tree_param(t, 0), SIGNAL_F_ACTIVE);
+         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
    }
 
    LLVMValueRef args[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++)
-      args[i] = cgen_expr(tree_param(t, i), ctx);
+      args[i] = cgen_expr(tree_param(t, i).value, ctx);
 
    // Regular builtin functions
    if (builtin) {

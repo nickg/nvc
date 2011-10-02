@@ -1105,8 +1105,10 @@ physical_literal
      $$ = tree_new(T_FCALL);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_new("*"));
-     tree_add_param($$, $1);
-     tree_add_param($$, unit);
+     param_t left = { .kind = P_POS, .value = $1 };
+     tree_add_param($$, left);
+     param_t right = { .kind = P_POS, .value = unit };
+     tree_add_param($$, right);
   }
 ;
 
@@ -1257,7 +1259,8 @@ static tree_t build_expr1(const char *fn, tree_t arg,
 {
    tree_t t = tree_new(T_FCALL);
    tree_set_ident(t, ident_new(fn));
-   tree_add_param(t, arg);
+   param_t parg = { .kind = P_POS, .value = arg };
+   tree_add_param(t, parg);
    tree_set_loc(t, loc);
 
    return t;
@@ -1268,8 +1271,10 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
 {
    tree_t t = tree_new(T_FCALL);
    tree_set_ident(t, ident_new(fn));
-   tree_add_param(t, left);
-   tree_add_param(t, right);
+   param_t pleft = { .kind = P_POS, .value = left };
+   tree_add_param(t, pleft);
+   param_t pright = { .kind = P_POS, .value = right };
+   tree_add_param(t, pright);
    tree_set_loc(t, loc);
 
    return t;

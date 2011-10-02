@@ -176,10 +176,12 @@ static tree_t simp_fcall(tree_t t)
    literal_t largs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
-      tree_t p = simp_expr(tree_param(t, i));
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+      p.value = simp_expr(p.value);
       tree_change_param(t, i, p);
-      can_fold_num = can_fold_num && folded_num(p, &largs[i]);
-      can_fold_log = can_fold_log && folded_bool(p, &bargs[i]);
+      can_fold_num = can_fold_num && folded_num(p.value, &largs[i]);
+      can_fold_log = can_fold_log && folded_bool(p.value, &bargs[i]);
    }
 
    if (can_fold_num)

@@ -1108,7 +1108,11 @@ static bool sem_check_fcall(tree_t t)
       for (int j = 0; j < n_overloads; j++)
          type_set_add(type_param(tree_type(overloads[j]), i));
 
-      if (!sem_check(tree_param(t, i)))
+      param_t p = tree_param(t, i);
+      if (p.kind != P_POS)
+         sem_error(t, "only positional function arguments supported");
+
+      if (!sem_check(p.value))
          fails++;
 
       type_set_pop();
@@ -1124,7 +1128,7 @@ static bool sem_check_fcall(tree_t t)
       bool all_universal = true;
       type_t func_type = tree_type(overloads[n]);
       for (unsigned i = 0; i < tree_params(t); i++) {
-         type_t ptype = tree_type(tree_param(t, i));
+         type_t ptype = tree_type(tree_param(t, i).value);
          match = match && type_eq(type_param(func_type, i), ptype);
          all_universal = all_universal && type_is_universal(ptype);
       }
@@ -1184,7 +1188,7 @@ static bool sem_check_fcall(tree_t t)
       for (unsigned i = 0; i < tree_params(t); i++)
          p += snprintf(p, end - p, "%s%s",
                        (i == 0 ? "" : ", "),
-                       istr(type_ident(tree_type(tree_param(t, i)))));
+                       istr(type_ident(tree_type(tree_param(t, i).value))));
       p += snprintf(p, end - p, ")");
 
       sem_error(t, (n == 1 ? "undefined %s %s"
@@ -1431,7 +1435,8 @@ static bool sem_check_attr_ref(tree_t t)
       tree_set_type(ref, tree_type(decl));
       tree_set_ref(ref, decl);
 
-      tree_add_param(t, ref);
+      param_t p = { .kind = P_POS, .value = ref };
+      tree_add_param(t, p);
       tree_set_ref(t, a);
    }
    else {

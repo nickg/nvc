@@ -80,6 +80,16 @@ typedef struct assoc {
    enum { A_POS, A_NAMED, A_RANGE, A_OTHERS } kind;
 } assoc_t;
 
+typedef struct param {
+   tree_t value;
+   union {
+      range_t  range;   // P_RANGE
+      ident_t  name;    // P_NAME
+      unsigned pos;     // P_POS
+   };
+   enum { P_POS, P_NAMED, P_RANGE } kind;
+} param_t;
+
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
@@ -121,10 +131,9 @@ void tree_add_generic(tree_t t, tree_t d);
 
 // T_FCALL
 unsigned tree_params(tree_t t);
-tree_t tree_param(tree_t t, unsigned n);
-// TODO: what about named association? Add an ident parameter.
-void tree_add_param(tree_t t, tree_t e);
-void tree_change_param(tree_t t, unsigned n, tree_t e);
+param_t tree_param(tree_t t, unsigned n);
+void tree_add_param(tree_t t, param_t e);
+void tree_change_param(tree_t t, unsigned n, param_t e);
 
 // T_LITERAL
 literal_t tree_literal(tree_t t);

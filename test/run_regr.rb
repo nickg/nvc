@@ -4,10 +4,12 @@ require 'rubygems'
 require 'pathname'
 require 'colorize'
 require 'timeout'
+require 'getopt/std'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std"
+Opts = Getopt::Std.getopts('v')
 
 def read_tests
   tests = []
@@ -19,8 +21,16 @@ def read_tests
   tests
 end
 
+def valgrind
+  if Opts['v'] then
+    'valgrind '
+  else
+    ''
+  end
+end
+
 def nvc
-  "#{BuildDir}/src/nvc"
+  "#{valgrind}#{BuildDir}/src/nvc"
 end
 
 def run_cmd(c, invert=false)
@@ -31,7 +41,7 @@ def run_cmd(c, invert=false)
   pid = fork
   exec("#{c} >>out 2>&1") if pid.nil?
   begin
-    timeout(1) do
+    timeout(Opts['v'] ? 10 : 1) do
       Process.wait
       fail unless $?.exitstatus == (invert ? 1 : 0)
     end
