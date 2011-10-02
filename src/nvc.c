@@ -92,7 +92,7 @@ static int analyse(int argc, char **argv)
 
    tree_gc();
 
-   if (parse_errors() > 0 || sem_errors() > 0)
+   if (parse_errors() + sem_errors() + simplify_errors() > 0)
       return EXIT_FAILURE;
 
    lib_save(lib_work());

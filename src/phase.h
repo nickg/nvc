@@ -33,6 +33,9 @@ void sem_bootstrap_en(bool en);
 // Fold all constant expressions
 void simplify(tree_t top);
 
+// Number of errors found during simplification
+int simplify_errors(void);
+
 // Find all drivers associated with signals
 void driver_extract(tree_t top);
 

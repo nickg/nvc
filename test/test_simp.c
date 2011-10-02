@@ -8,6 +8,14 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef struct error {
+   int        line;
+   const char *snippet;
+} error_t;
+
+static const error_t  *error_lines = NULL;
+static error_fn_t orig_error_fn = NULL;
+
 static void setup(void)
 {
    lib_set_work(lib_tmp());
@@ -16,6 +24,33 @@ static void setup(void)
 static void teardown(void)
 {
    lib_free(lib_work());
+}
+
+static void test_error_fn(const char *msg, const loc_t *loc)
+{
+   fail_if(error_lines == NULL);
+
+   bool unexpected = error_lines->line == -1
+      || error_lines->snippet == NULL
+      || error_lines->line != loc->first_line
+      || strstr(msg, error_lines->snippet) == NULL;
+
+   if (unexpected) {
+      orig_error_fn(msg, loc);
+      printf("expected line %d '%s'\n",
+             error_lines->line, error_lines->snippet);
+   }
+
+   fail_if(unexpected);
+
+   error_lines++;
+}
+
+static void expect_errors(const error_t *lines)
+{
+   fail_unless(orig_error_fn == NULL);
+   orig_error_fn = set_error_fn(test_error_fn);
+   error_lines = lines;
 }
 
 static bool folded_i(tree_t t, int64_t i)
@@ -49,6 +84,13 @@ START_TEST(test_cfold)
 {
    tree_t e, a, p, s;
    range_t r;
+
+   const error_t expect[] = {
+      { 38, "array reference out of bounds" },
+      { 39, "array reference out of bounds" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
 
    fail_unless(input_from_file(TESTDIR "/simp/cfold.vhd"));
 
@@ -98,6 +140,12 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 13)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 14)), false));
    fail_unless(folded_b(tree_value(tree_stmt(p, 15)), false));
+   fail_unless(folded_i(tree_value(tree_stmt(p, 16)), 2));
+   fail_unless(folded_i(tree_value(tree_stmt(p, 17)), 5));
+   fail_unless(folded_i(tree_value(tree_stmt(p, 18)), 6));
+   fail_unless(folded_i(tree_value(tree_stmt(p, 19)), 24));
+
+   fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
 

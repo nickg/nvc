@@ -14,9 +14,11 @@ Opts = Getopt::Std.getopts('v')
 def read_tests
   tests = []
   File.open(TestDir + "regress/testlist.txt").each_line do |l|
-    parts = l.split /\s+/
-    flags = parts[1].split /,/
-    tests << { :name => parts[0], :flags => flags }
+    parts = l.gsub(/\#.*$/, '').strip.split(/\s+/)
+    if parts.length > 0 then
+      flags = parts[1].split /,/
+      tests << { :name => parts[0], :flags => flags }
+    end
   end
   tests
 end

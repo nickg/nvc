@@ -28,6 +28,11 @@ static tree_t simp_expr(tree_t t);
 static ident_t std_bool_i = NULL;
 static ident_t builtin_i  = NULL;
 
+static int errors = 0;
+
+#define simp_error(t, __VA_ARGS__) \
+   { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
+
 static bool folded_num(tree_t t, literal_t *l)
 {
    if (tree_kind(t) == T_LITERAL) {
@@ -50,6 +55,14 @@ static bool folded_bool(tree_t t, bool *b)
    }
 
    return false;
+}
+
+static int64_t assume_int(tree_t t)
+{
+   assert(tree_kind(t) == T_LITERAL);
+   literal_t l = tree_literal(t);
+   assert(l.kind == L_INT);
+   return l.i;
 }
 
 static tree_t get_int_lit(tree_t t, int64_t i)
@@ -228,6 +241,73 @@ static tree_t simp_attr_ref(tree_t t)
    }
 }
 
+static tree_t simp_array_ref(tree_t t)
+{
+   tree_set_value(t, simp_expr(tree_value(t)));
+
+   literal_t indexes[tree_params(t)];
+   bool can_fold = true;
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+      p.value = simp_expr(p.value);
+      tree_change_param(t, i, p);
+      can_fold = can_fold && folded_num(p.value, &indexes[i]);
+   }
+
+   if (!can_fold)
+      return t;
+
+   assert(tree_params(t) == 1);
+
+   tree_t decl = tree_ref(t);
+   // XXX: may not be decl e.g. nested array ref
+
+   switch (tree_kind(decl)) {
+   case T_CONST_DECL:
+      {
+         tree_t v = tree_value(decl);
+         assert(tree_kind(v) == T_AGGREGATE);
+         assert(indexes[0].kind == L_INT);
+
+         range_t bounds = type_dim(tree_type(decl), 0);
+         int64_t left = assume_int(bounds.left);
+         int64_t right = assume_int(bounds.right);
+
+         if (indexes[0].i < left || indexes[0].i > right)
+            simp_error(t, "array reference out of bounds");
+
+         for (unsigned i = 0; i < tree_assocs(v); i++) {
+            assoc_t a = tree_assoc(v, i);
+            switch (a.kind) {
+            case A_POS:
+               if (a.pos + left == indexes[0].i)
+                  return a.value;
+               break;
+
+            case A_OTHERS:
+               return a.value;
+
+            case A_RANGE:
+               if ((indexes[0].i >= assume_int(a.range.left))
+                   && (indexes[0].i <= assume_int(a.range.right)))
+                  return a.value;
+               break;
+
+            case A_NAMED:
+               if (assume_int(a.name) == indexes[0].i)
+                  return a.value;
+               break;
+            }
+         }
+
+         assert(false);
+      }
+   default:
+      return t;
+   }
+}
+
 static tree_t simp_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -266,6 +346,9 @@ static tree_t simp_expr(tree_t t)
 
    case T_ATTR_REF:
       return simp_attr_ref(t);
+
+   case T_ARRAY_REF:
+      return simp_array_ref(t);
 
    default:
       assert(false);
@@ -406,4 +489,9 @@ void simplify(tree_t top)
    default:
       assert(false);
    }
+}
+
+int simplify_errors(void)
+{
+   return errors;
 }

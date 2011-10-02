@@ -1423,6 +1423,16 @@ static bool sem_check_array_ref(tree_t t)
    if (type_kind(type) != T_CARRAY)
       sem_error(t, "invalid array reference");
 
+   bool ok = true;
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      param_t p = tree_param(t, i);
+      if (p.kind != P_POS)
+         sem_error(t, "only scalar references supported");
+
+      // TODO: push type set containing index type of array
+      ok = sem_check(p.value) && ok;
+   }
+
    tree_set_type(t, type_base(type));
    tree_set_ref(t, tree_ref(value));
    return true;
