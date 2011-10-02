@@ -30,7 +30,7 @@ static ident_t builtin_i  = NULL;
 
 static int errors = 0;
 
-#define simp_error(t, __VA_ARGS__) \
+#define simp_error(t, ...) \
    { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
 
 static bool folded_num(tree_t t, literal_t *l)
