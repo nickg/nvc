@@ -71,6 +71,13 @@ static void part_signal_driver(tree_t ref, tree_t proc)
 
    printf("low=%ld high=%ld elem=%ld\n", low, high, elem);
 
+   for (int i = 0; i < high - low + 1; i++) {
+      for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
+         if (tree_sub_driver(decl, i, j) == proc)
+            return;
+      }
+   }
+
    if (tree_sub_drivers(decl, elem - low) > 0 || tree_drivers(decl) > 0) {
       // TODO: check for resolution function
       error_at(tree_loc(decl),
