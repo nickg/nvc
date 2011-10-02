@@ -676,7 +676,7 @@ END_TEST
 
 START_TEST(test_array)
 {
-   tree_t p, d, a, g;
+   tree_t p, d, a, g, s, e;
    type_t t, i, b;
    range_t r;
    assoc_t x;
@@ -786,6 +786,19 @@ START_TEST(test_array)
    fail_unless(tree_literal(x.range.left).i == 1);
    fail_unless(tree_literal(x.range.right).i == 3);
    fail_unless(tree_literal(x.value).i == 0);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   s = tree_stmt(p, 0);
+   e = tree_target(s);
+   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_params(e) == 1);
+   fail_unless(tree_param(e, 0).kind == P_POS);
+   fail_unless(tree_param(e, 0).pos == 0);
+   fail_unless(tree_literal(tree_param(e, 0).value).i == 0);
+   s = tree_stmt(p, 1);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_FCALL);
 
    p = parse();
    fail_unless(p == NULL);

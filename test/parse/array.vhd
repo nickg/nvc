@@ -16,8 +16,8 @@ begin
 
     process is
     begin
---        x(0) <= 1;
---        y(2) <= n(2);
+        x(0) <= 1;
+        y(2) <= n(2);
     end process;
 
 end architecture;

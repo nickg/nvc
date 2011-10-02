@@ -762,7 +762,19 @@ severity
 | tSEVERITY expr { $$ = $2; }
 ;
 
-target : name /* | aggregate */ ;
+target
+: name
+| target tLPAREN param_list tRPAREN
+  {
+     $$ = tree_new(T_ARRAY_REF);
+     tree_set_value($$, $1);
+     tree_set_loc($$, &@$);
+
+     for (param_list_t *it = $3; it != NULL; it = it->next)
+        tree_add_param($$, it->param);
+     param_list_free($3);
+  }
+;
 
 waveform
 : waveform_element

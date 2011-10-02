@@ -145,7 +145,8 @@ struct tree_rd_ctx {
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT) \
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
-#define HAS_PARAMS(t) (IS(t, T_FCALL) || IS(t, T_ATTR_REF))
+#define HAS_PARAMS(t) \
+   (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
@@ -154,7 +155,7 @@ struct tree_rd_ctx {
 #define HAS_VALUE(t) \
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)     \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT) \
-    || IS(t, T_ATTR_REF))
+    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define HAS_REF(t) (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF))
 
