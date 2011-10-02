@@ -85,6 +85,7 @@ typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
+void tree_change_kind(tree_t t, tree_kind_t kind);
 
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
@@ -155,7 +156,7 @@ void tree_set_delay(tree_t t, tree_t d);
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
-// T_REF
+// T_REF, T_FCALL
 tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 

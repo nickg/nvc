@@ -355,6 +355,12 @@ tree_kind_t tree_kind(tree_t t)
    return t->kind;
 }
 
+void tree_change_kind(tree_t t, tree_kind_t kind)
+{
+   assert(t != NULL);
+   t->kind = kind;
+}
+
 unsigned tree_ports(tree_t t)
 {
    assert(t != NULL);

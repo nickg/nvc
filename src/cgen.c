@@ -259,8 +259,9 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
-   else
-      fatal("non-builtin functions not yet supported");
+   else {
+      return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
+   }
 }
 
 static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
@@ -270,9 +271,6 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
       return cgen_expr(tree_value(decl), ctx);
-
-   case T_FUNC_DECL:
-      return LLVMBuildCall(builder, cgen_fdecl(decl), NULL, 0, "");
 
    case T_ENUM_LIT:
       return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
