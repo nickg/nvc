@@ -57,7 +57,9 @@ static tree_t get_int_lit(tree_t t, int64_t i)
    tree_t fdecl = tree_ref(t);
    assert(tree_kind(fdecl) == T_FUNC_DECL);
 
-   literal_t l = { .kind = L_INT, .i = i };
+   literal_t l;
+   l.kind = L_INT;
+   l.i = i;
 
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
