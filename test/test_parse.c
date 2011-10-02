@@ -246,7 +246,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 3);
+   fail_unless(tree_stmts(a) == 4);
 
    // Wait statements
 
@@ -320,6 +320,27 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
    fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
    fail_unless(tree_attr_int(s, ident_new("is_report"), 0) == 1);
+
+   // Function calls
+
+   p = tree_stmt(a, 3);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 1);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_params(e) == 3);
+   fail_unless(tree_param(e, 0).kind == P_POS);
+   fail_unless(tree_param(e, 0).pos == 0);
+   fail_unless(tree_literal(tree_param(e, 0).value).i == 1);
+   fail_unless(tree_param(e, 1).kind == P_POS);
+   fail_unless(tree_param(e, 1).pos == 1);
+   fail_unless(tree_literal(tree_param(e, 1).value).i == 2);
+   fail_unless(tree_param(e, 2).kind == P_POS);
+   fail_unless(tree_param(e, 2).pos == 2);
+   fail_unless(tree_literal(tree_param(e, 2).value).i == 3);
 
    a = parse();
    fail_unless(a == NULL);

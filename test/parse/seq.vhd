@@ -25,5 +25,11 @@ begin
         report "hello";
         report "boo" severity error;
     end process;
+
+    -- Function calls
+    process is
+    begin
+        x := foo(1, 2, 3);
+    end process;
     
 end architecture;

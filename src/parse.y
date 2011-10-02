@@ -76,6 +76,11 @@
       assoc_t           assoc;
    } assoc_list_t;
 
+   typedef struct param_list {
+      struct param_list *next;
+      param_t           param;
+   } param_list_t;
+
    typedef struct tree_list {
       struct tree_list *next;
       tree_t           value;
@@ -117,6 +122,8 @@
    static void id_list_free(id_list_t *list);
    static assoc_list_t *assoc_list_add(assoc_list_t *list, assoc_t a);
    static void assoc_list_free(assoc_list_t *list);
+   static param_list_t *param_list_add(param_list_t *list, param_t a);
+   static void param_list_free(param_list_t *list);
    static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
    static void unit_list_free(unit_list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
@@ -141,6 +148,7 @@
    } p;
    id_list_t    *s;
    assoc_list_t *a;
+   param_list_t *c;
    assoc_t      b;
    port_mode_t  m;
    type_t       y;
@@ -168,11 +176,12 @@
 %type <y> integer_type_def physical_type_def enum_type_def array_type_def
 %type <y> index_subtype_def
 %type <y> unconstrained_array_def constrained_array_def
-%type <r> range range_constraint discrete_range index_constraint constraint
+%type <r> range range_constraint index_constraint constraint
 %type <u> base_unit_decl
 %type <v> secondary_unit_decls
 %type <a> element_assoc_list
 %type <b> element_assoc
+%type <c> param_list
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -832,7 +841,7 @@ constrained_array_def
 ;
 
 index_constraint
-: tLPAREN discrete_range /* { , discrete_range } */ tRPAREN { $$ = $2; }
+: tLPAREN range /* { , range } */ tRPAREN { $$ = $2; }
 ;
 
 unconstrained_array_def
@@ -846,11 +855,6 @@ unconstrained_array_def
 ;
 
 index_subtype_def : type_mark tRANGE tBOX { $$ = $1; } ;
-
-discrete_range
-: subtype_indication { $$ = type_dim($1, 0); }
-| range
-;
 
 scalar_type_def
 : integer_type_def
@@ -1000,11 +1004,33 @@ expr
      tree_set_loc($$, &@$);
   }
 | aggregate
+| selected_id tLPAREN param_list tRPAREN
+  {
+     $$ = tree_new(T_FCALL);
+     tree_set_ident($$, $1);
+     tree_set_loc($$, &@$);
+
+     for (param_list_t *it = $3; it != NULL; it = it->next)
+        tree_add_param($$, it->param);
+     param_list_free($3);
+  }
 /*
-  | function_call
   | type_conversion
   | allocator
 */
+;
+
+param_list
+: expr
+  {
+     param_t p = { .kind = P_POS, .value = $1 };
+     $$ = param_list_add(NULL, p);
+  }
+| expr tCOMMA param_list
+  {
+     param_t p = { .kind = P_POS, .value = $1 };
+     $$ = param_list_add($3, p);
+  }
 ;
 
 aggregate
@@ -1232,6 +1258,23 @@ static void unit_list_free(unit_list_t *list)
 {
    while (list != NULL) {
       unit_list_t *next = list->next;
+      free(list);
+      list = next;
+   }
+}
+
+static param_list_t *param_list_add(param_list_t *list, param_t a)
+{
+   param_list_t *new = xmalloc(sizeof(param_list_t));
+   new->next  = list;
+   new->param = a;
+   return new;
+}
+
+static void param_list_free(param_list_t *list)
+{
+   while (list != NULL) {
+      param_list_t *next = list->next;
       free(list);
       list = next;
    }
