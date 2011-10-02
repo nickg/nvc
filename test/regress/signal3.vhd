@@ -7,12 +7,12 @@ begin
 
     process is
     begin
-        --assert not v'active;
---        assert not v'event;
---        wait for 1 ns;
+        assert not v'active;
+        assert not v'event;
+        wait for 1 ns;
         v(2) <= '1';
---        wait for 0 ns;
---        assert v'event and v'active;
+        wait for 0 ns;
+        assert v'event and v'active;
         wait;
     end process;
     

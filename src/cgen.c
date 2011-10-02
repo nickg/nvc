@@ -223,21 +223,47 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_signal_flag(tree_t signal, int flag)
+static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
 {
-   tree_t sig_decl = tree_ref(signal);
-
-   LLVMValueRef signal_struct =
-      LLVMGetNamedGlobal(module, istr(tree_ident(sig_decl)));
-   assert(signal_struct != NULL);
-
+   LLVMValueRef signal_struct = cgen_scalar_signal_ptr(signal);
    LLVMValueRef bit = llvm_int32(flag);
-
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal_struct, SIGNAL_FLAGS, "");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
    LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
    return LLVMBuildICmp(builder, LLVMIntEQ, masked, bit, "");
+}
+
+static LLVMValueRef cgen_array_signal_flag(tree_t signal, int flag)
+{
+   // Need to OR the flag for each sub-element
+
+   LLVMValueRef bit = llvm_int32(flag);
+
+   int64_t low, high;
+   range_bounds(type_dim(tree_type(signal), 0), &low, &high);
+
+   LLVMValueRef result = llvm_int32(0);
+   for (int i = 0; i < high - low + 1; i++) {
+      LLVMValueRef struct_ptr =
+         cgen_array_signal_ptr(signal, llvm_int32(i));
+      LLVMValueRef flags_ptr =
+         LLVMBuildStructGEP(builder, struct_ptr, SIGNAL_FLAGS, "");
+      LLVMValueRef deref = LLVMBuildLoad(builder, flags_ptr, "");
+      LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
+      result = LLVMBuildOr(builder, result, masked, "");
+   }
+
+   return LLVMBuildICmp(builder, LLVMIntEQ, result, bit, "");
+}
+
+static LLVMValueRef cgen_signal_flag(tree_t ref, int flag)
+{
+   tree_t sig_decl = tree_ref(ref);
+   if (type_kind(tree_type(sig_decl)) == T_CARRAY)
+      return cgen_array_signal_flag(sig_decl, flag);
+   else
+      return cgen_scalar_signal_flag(sig_decl, flag);
 }
 
 static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
