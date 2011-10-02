@@ -77,6 +77,11 @@ static LLVMValueRef llvm_int64(int64_t i)
    return LLVMConstInt(LLVMInt64Type(), i, false);
 }
 
+static LLVMTypeRef llvm_void_ptr(void)
+{
+   return LLVMPointerType(LLVMInt8Type(), 0);
+}
+
 static LLVMTypeRef llvm_type(type_t t)
 {
    switch (type_kind(t)) {
@@ -125,6 +130,30 @@ static LLVMTypeRef llvm_type(type_t t)
    default:
       abort();
    }
+}
+
+static LLVMValueRef cgen_scalar_signal_ptr(tree_t decl)
+{
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   LLVMValueRef signal =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal != NULL);
+
+   return signal;
+}
+
+static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
+{
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   LLVMValueRef signal_array =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal_array != NULL);
+
+   LLVMValueRef indexes[] = { llvm_int32(0), elem };
+   return LLVMBuildGEP(builder, signal_array,
+                       indexes, ARRAY_LEN(indexes), "");
 }
 
 static unsigned proc_nvars(tree_t p)
@@ -256,6 +285,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildNeg(builder, args[0], "");
       else if (strcmp(builtin, "not") == 0)
          return LLVMBuildNot(builder, args[0], "");
+      else if (strcmp(builtin, "and") == 0)
+         return LLVMBuildAnd(builder, args[0], args[1], "");
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
@@ -389,13 +420,8 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
    }
 }
 
-static void cgen_sched_waveform(tree_t decl, LLVMValueRef value,
-                                struct proc_ctx *ctx)
+static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
 {
-   LLVMValueRef signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(signal != NULL);
-
    LLVMValueRef sched_waveform_fn =
       LLVMGetNamedFunction(module, "_sched_waveform");
    assert(sched_waveform_fn != NULL);
@@ -411,14 +437,39 @@ static void cgen_sched_waveform(tree_t decl, LLVMValueRef value,
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_scalar_signal_assign(tree_t t, LLVMValueRef rhs,
+                                      struct proc_ctx *ctx)
+{
+   tree_t decl = tree_ref(tree_target(t));
+   cgen_sched_waveform(cgen_scalar_signal_ptr(decl), rhs);
+}
+
+static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
+                                     struct proc_ctx *ctx)
+{
+   tree_t target = tree_target(t);
+
+   tree_t decl = tree_ref(target);
+   assert(type_kind(tree_type(decl)) == T_CARRAY);
+
+   param_t p = tree_param(target, 0);
+   assert(p.kind == P_POS);
+
+   LLVMValueRef elem = cgen_expr(p.value, ctx);
+   cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs);
+}
+
 static void cgen_signal_assign(tree_t t, struct proc_ctx *ctx)
 {
    LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
 
-   tree_t target = tree_target(t);
-   switch (tree_kind(target)) {
+   switch (tree_kind(tree_target(t))) {
    case T_REF:
-      cgen_sched_waveform(tree_ref(target), rhs, ctx);
+      cgen_scalar_signal_assign(t, rhs, ctx);
+      break;
+
+   case T_ARRAY_REF:
+      cgen_array_signal_assign(t, rhs, ctx);
       break;
 
    default:
@@ -522,9 +573,11 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
    struct proc_ctx *ctx = arg;
 
    tree_t target = tree_target(t);
-   assert(tree_kind(target) == T_REF);
+   assert(tree_kind(target) == T_REF
+          || tree_kind(target) == T_ARRAY_REF);
 
    tree_t decl = tree_ref(target);
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
 
    ident_t tag_i = ident_new("driver_tag");
    if (tree_attr_ptr(decl, tag_i) == ctx->proc)
@@ -534,7 +587,26 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
       tree_has_value(decl)
       ? cgen_expr(tree_value(decl), ctx)
       : cgen_default_value(tree_type(decl));
-   cgen_sched_waveform(decl, val, ctx);
+
+   type_t type = tree_type(decl);
+   if (type_kind(type) == T_CARRAY) {
+      // Initialise only those sub-elements for which this
+      // process is a driver
+
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+
+      for (unsigned i = 0; i < high - low + 1; i++) {
+         for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
+            if (tree_sub_driver(decl, i, j) == ctx->proc) {
+               LLVMValueRef ptr = cgen_array_signal_ptr(decl, llvm_int32(i));
+               cgen_sched_waveform(ptr, val);
+            }
+         }
+      }
+   }
+   else
+      cgen_sched_waveform(cgen_scalar_signal_ptr(decl), val);
 
    tree_add_attr_ptr(decl, tag_i, ctx->proc);
 }
@@ -665,40 +737,76 @@ static void cgen_process(tree_t t)
    LLVMBuildBr(builder, start_bb);
 }
 
+static LLVMTypeRef cgen_signal_type(void)
+{
+   LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
+   if (ty == NULL) {
+      LLVMTypeRef fields[SIGNAL_N_FIELDS];
+      fields[SIGNAL_RESOLVED] = LLVMInt64Type();
+      fields[SIGNAL_DECL]     = llvm_void_ptr();
+      fields[SIGNAL_FLAGS]    = LLVMInt32Type();
+      fields[SIGNAL_SOURCES]  = llvm_void_ptr();
+
+      ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
+
+      if (LLVMAddTypeName(module, "signal_s", ty))
+         fatal("failed to add type name signal_s");
+   }
+
+   return ty;
+}
+
+static LLVMValueRef cgen_signal_init(void)
+{
+   LLVMValueRef init[SIGNAL_N_FIELDS];
+   init[SIGNAL_RESOLVED] = llvm_int64(0);
+   init[SIGNAL_DECL]     = LLVMConstNull(llvm_void_ptr());
+   init[SIGNAL_FLAGS]    = llvm_int32(0);
+   init[SIGNAL_SOURCES]  = LLVMConstNull(llvm_void_ptr());
+
+   return LLVMConstStruct(init, ARRAY_LEN(init), false);
+}
+
+static void cgen_scalar_signal(tree_t t)
+{
+   LLVMTypeRef ty = cgen_signal_type();
+   LLVMValueRef v = LLVMAddGlobal(module, ty, istr(tree_ident(t)));
+   LLVMSetInitializer(v, cgen_signal_init());
+}
+
+static void cgen_array_signal(tree_t t)
+{
+   assert(tree_drivers(t) == 0);
+
+   range_t r = type_dim(tree_type(t), 0);
+   int64_t low, high;
+   range_bounds(r, &low, &high);
+
+   for (unsigned i = low; i <= high; i++) {
+      unsigned n_drivers = tree_sub_drivers(t, i - low);
+      printf("element %d has %d drivers\n", i, n_drivers);
+   }
+
+   const unsigned n_elems = high - low + 1;
+
+   LLVMTypeRef base_ty = cgen_signal_type();
+   LLVMTypeRef array_ty = LLVMArrayType(base_ty, n_elems);
+   LLVMValueRef v = LLVMAddGlobal(module, array_ty, istr(tree_ident(t)));
+
+   LLVMValueRef array_init[n_elems];
+   for (unsigned i = 0; i < n_elems; i++)
+      array_init[i] = cgen_signal_init();
+   LLVMSetInitializer(v, LLVMConstArray(base_ty, array_init, n_elems));
+}
+
 static void cgen_signal(tree_t t)
 {
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   char name[64];
-   snprintf(name, sizeof(name), "signal_%d_source_s", tree_drivers(t));
-
-   LLVMTypeRef void_ptr = LLVMPointerType(LLVMInt8Type(), 0);
-   LLVMTypeRef ty = LLVMGetTypeByName(module, name);
-   if (ty == NULL) {
-      LLVMTypeRef fields[tree_drivers(t) + SIGNAL_N_FIELDS];
-      fields[SIGNAL_RESOLVED] = LLVMInt64Type();
-      fields[SIGNAL_DECL]     = void_ptr;
-      fields[SIGNAL_FLAGS]    = LLVMInt32Type();
-
-      for (unsigned i = 0; i < tree_drivers(t); i++)
-         fields[i + SIGNAL_N_FIELDS] = void_ptr;  // Driver waveform queue
-
-      ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
-
-      if (LLVMAddTypeName(module, name, ty))
-         fatal("failed to add type name %s", name);
-   }
-
-   LLVMValueRef v = LLVMAddGlobal(module, ty, istr(tree_ident(t)));
-
-   LLVMValueRef init[tree_drivers(t) + SIGNAL_N_FIELDS];
-   init[SIGNAL_RESOLVED] = llvm_int64(0);
-   init[SIGNAL_DECL]     = LLVMConstNull(void_ptr);
-   init[SIGNAL_FLAGS]    = llvm_int32(0);
-   for (unsigned i = 0; i < tree_drivers(t); i++)
-      init[i + SIGNAL_N_FIELDS] = LLVMConstNull(void_ptr);
-
-   LLVMSetInitializer(v, LLVMConstStruct(init, ARRAY_LEN(init), false));
+   if (type_kind(tree_type(t)) == T_CARRAY)
+      cgen_array_signal(t);
+   else
+      cgen_scalar_signal(t);
 }
 
 static void cgen_top(tree_t t)

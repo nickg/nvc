@@ -199,6 +199,11 @@ unsigned tree_drivers(tree_t t);
 tree_t tree_driver(tree_t t, unsigned n);
 void tree_add_driver(tree_t t, tree_t d);
 
+// T_SIGNAL_DECL
+unsigned tree_sub_drivers(tree_t t, unsigned elem);
+tree_t tree_sub_driver(tree_t t, unsigned elem, unsigned n);
+void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p);
+
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);
 void tree_add_attr_int(tree_t t, ident_t name, int n);
@@ -208,6 +213,9 @@ void *tree_attr_ptr(tree_t t, ident_t name);
 tree_t tree_attr_tree(tree_t t, ident_t name);
 void tree_add_attr_tree(tree_t t, ident_t name, tree_t val);
 
+// Utility functions
+int64_t assume_int(tree_t t);
+void range_bounds(range_t r, int64_t *low, int64_t *high);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);

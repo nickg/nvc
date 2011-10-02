@@ -57,14 +57,6 @@ static bool folded_bool(tree_t t, bool *b)
    return false;
 }
 
-static int64_t assume_int(tree_t t)
-{
-   assert(tree_kind(t) == T_LITERAL);
-   literal_t l = tree_literal(t);
-   assert(l.kind == L_INT);
-   return l.i;
-}
-
 static tree_t get_int_lit(tree_t t, int64_t i)
 {
    tree_t fdecl = tree_ref(t);

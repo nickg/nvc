@@ -19,22 +19,22 @@
 #include "util.h"
 
 #include <assert.h>
+#include <inttypes.h>
 
 static int errors = 0;
 
-static void proc_visit_cb(tree_t t, void *context)
+static void whole_signal_driver(tree_t ref, tree_t proc)
 {
-   assert(tree_kind(t) == T_SIGNAL_ASSIGN);
+   tree_t decl = tree_ref(ref);
 
-   tree_t decl = tree_ref(tree_target(t));
-
-   tree_t proc = (tree_t)context;
+   // TODO: check for array
 
    for (unsigned i = 0; i < tree_drivers(decl); i++) {
       if (tree_driver(decl, i) == proc)
          return;
    }
 
+   // TODO: check for sub-drivers here as well
    if (tree_drivers(decl) > 0) {
       // TODO: check for resolution function
       error_at(tree_loc(decl),
@@ -44,6 +44,61 @@ static void proc_visit_cb(tree_t t, void *context)
    }
 
    tree_add_driver(decl, proc);
+}
+
+static void part_signal_driver(tree_t ref, tree_t proc)
+{
+   tree_t decl = tree_ref(ref);
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   type_t type = tree_type(decl);
+   assert(type_kind(type) == T_CARRAY);
+
+   int64_t low, high;
+   range_bounds(type_dim(type, 0), &low, &high);
+
+   param_t p = tree_param(ref, 0);
+   assert(p.kind == P_POS);
+
+   if (tree_kind(p.value) != T_LITERAL) {
+      // Longest static prefix is whole signal
+      whole_signal_driver(ref, proc);
+      return;
+   }
+
+   int64_t elem = assume_int(p.value);
+   assert(elem >= low && elem <= high);
+
+   printf("low=%ld high=%ld elem=%ld\n", low, high, elem);
+
+   if (tree_sub_drivers(decl, elem - low) > 0 || tree_drivers(decl) > 0) {
+      // TODO: check for resolution function
+      error_at(tree_loc(decl),
+               "element %"PRIu64" of signal %s has multiple drivers"
+               " (not supported)", elem, istr(tree_ident(decl)));
+      errors++;
+   }
+
+   tree_add_sub_driver(decl, elem - low, proc);
+}
+
+static void proc_visit_cb(tree_t t, void *context)
+{
+   assert(tree_kind(t) == T_SIGNAL_ASSIGN);
+
+   tree_t proc = (tree_t)context;
+
+   tree_t target = tree_target(t);
+   switch (tree_kind(target)) {
+   case T_REF:
+      whole_signal_driver(target, proc);
+      break;
+   case T_ARRAY_REF:
+      part_signal_driver(target, proc);
+      break;
+   default:
+      assert(false);
+   }
 }
 
 static void drivers_from_process(tree_t t)

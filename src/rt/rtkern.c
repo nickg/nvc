@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define TRACE_DELTAQ 1
 
@@ -44,7 +45,10 @@ struct deltaq {
    event_kind_t   kind;
    union {
       struct rt_proc *wake_proc;
-      struct signal  *signal;
+      struct {
+         struct signal *signal;
+         unsigned      source;
+      };
    };
    struct deltaq  *next;
 };
@@ -64,7 +68,8 @@ struct signal {
    union sigval    resolved;
    tree_t          decl;
    int32_t         flags;
-   struct waveform *sources[0];
+   int16_t         n_sources;
+   struct waveform **sources;
 };
 
 static struct rt_proc *procs = NULL;
@@ -81,7 +86,7 @@ static struct signal *active_signals[MAX_ACTIVE_SIGS];
 static unsigned      n_active_signals = 0;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
-                          struct signal *signal);
+                          struct signal *signal, unsigned source);
 static void _tracef(const char *fmt, ...);
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
@@ -125,15 +130,30 @@ static const char *fmt_time(uint64_t t)
 void _sched_process(int64_t delay)
 {
    TRACE("_sched_process delay=%s", fmt_time(delay));
-   deltaq_insert(delay, active_proc, NULL);
+   deltaq_insert(delay, active_proc, NULL, 0);
 }
 
 void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
+   TRACE("_sched_waveform %p source=%d value=%"PRIx64" after=%s",
          istr(tree_ident(sig->decl)), source, value, fmt_time(after));
+
+   // Allocate memory for drivers on demand
+   const size_t ptr_sz = sizeof(struct waveform *);
+   if (sig->sources == NULL) {
+      sig->n_sources = source + 1;
+      sig->sources = xmalloc(sig->n_sources * ptr_sz);
+      memset(sig->sources, '\0', sig->n_sources * ptr_sz);
+   }
+   else if (source >= sig->n_sources) {
+      // TODO: scale size more aggressively here?
+      sig->sources = xrealloc(sig->sources, (source + 1) * ptr_sz);
+      memset(&sig->sources[sig->n_sources], '\0',
+             (source + 1 - sig->n_sources) * ptr_sz);
+      sig->n_sources = source + 1;
+   }
 
    struct waveform *w = xmalloc(sizeof(struct waveform));
    w->value.val = value;
@@ -167,7 +187,7 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    else
       last->next = w;
 
-   deltaq_insert(after, NULL, sig);
+   deltaq_insert(after, NULL, sig, source);
 }
 
 void _assert_fail(int8_t report, const uint8_t *msg,
@@ -223,7 +243,7 @@ static void _tracef(const char *fmt, ...)
 }
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
-                          struct signal *signal)
+                          struct signal *signal, unsigned source)
 {
    assert(!(wake != NULL && signal != NULL));
 
@@ -238,6 +258,7 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
    else {
       q->kind   = E_DRIVER;
       q->signal = signal;
+      q->source = source;
    }
 
    if (eventq == NULL)
@@ -302,10 +323,23 @@ static void rt_setup(tree_t top)
       assert(tree_kind(d) == T_SIGNAL_DECL);
 
       struct signal *s = jit_var_ptr(istr(tree_ident(d)));
-      s->decl = d;
-      tree_add_attr_ptr(d, ident_new("signal"), s);
 
-      TRACE("signal %s at %p", istr(tree_ident(d)), s);
+      type_t type = tree_type(d);
+      if (type_kind(type) == T_CARRAY) {
+         int64_t low, high;
+         range_bounds(type_dim(type, 0), &low, &high);
+
+         for (unsigned i = 0; i < high - low + 1; i++) {
+            TRACE("signal %s[%d] at %p", istr(tree_ident(d)), i, &s[i]);
+            s[i].decl = d;
+         }
+      }
+      else {
+         TRACE("signal %s at %p", istr(tree_ident(d)), s);
+         s->decl = d;
+      }
+
+      tree_add_attr_ptr(d, ident_new("signal"), s);
    }
 
    for (unsigned i = 0; i < tree_stmts(top); i++) {
@@ -338,39 +372,34 @@ static void rt_initial(void)
       rt_run(&procs[i], true /* reset */);
 }
 
-static void rt_update_driver(struct signal *s)
+static void rt_update_driver(struct signal *s, unsigned source)
 {
-   // TODO: store source index in struct waveform
+   struct waveform *w_now  = s->sources[source];
+   struct waveform *w_next = w_now->next;
 
-   const unsigned n_drivers = tree_drivers(s->decl);
-   for (unsigned i = 0; i < n_drivers; i++) {
-      struct waveform *w_now = s->sources[i];
-      struct waveform *w_next = w_now->next;
+   if (w_next != NULL && w_next->when == now) {
+      TRACE("update signal %s value %"PRIu64,
+            istr(tree_ident(s->decl)), w_next->value);
 
-      if (w_next != NULL && w_next->when == now) {
-         TRACE("update signal %s value %"PRIu64,
-               istr(tree_ident(s->decl)), w_next->value);
+      int32_t new_flags = 0;
+      const bool first_cycle = (iteration == 0 && now == 0);
+      if (!first_cycle) {
+         new_flags = SIGNAL_F_ACTIVE;
+         if (s->resolved.val != w_next->value.val)
+            new_flags |= SIGNAL_F_EVENT;
 
-         int32_t new_flags = 0;
-         const bool first_cycle = (iteration == 0 && now == 0);
-         if (!first_cycle) {
-            new_flags = SIGNAL_F_ACTIVE;
-            if (s->resolved.val != w_next->value.val)
-               new_flags |= SIGNAL_F_EVENT;
-
-            assert(n_active_signals < MAX_ACTIVE_SIGS);
-            active_signals[n_active_signals++] = s;
-         }
-
-         s->resolved   = w_next->value;
-         s->flags     |= new_flags;
-         s->sources[i] = w_next;
-
-         free(w_now);
+         assert(n_active_signals < MAX_ACTIVE_SIGS);
+         active_signals[n_active_signals++] = s;
       }
-      else
-         assert(w_now != NULL);
+
+      s->resolved        = w_next->value;
+      s->flags          |= new_flags;
+      s->sources[source] = w_next;
+
+      free(w_now);
    }
+   else
+      assert(w_now != NULL);
 }
 
 static void rt_cycle(void)
@@ -399,7 +428,7 @@ static void rt_cycle(void)
          rt_run(eventq->wake_proc, false /* reset */);
          break;
       case E_DRIVER:
-         rt_update_driver(eventq->signal);
+         rt_update_driver(eventq->signal, eventq->source);
          break;
       }
 
