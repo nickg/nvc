@@ -55,18 +55,6 @@ struct proc_ctx {
 
 static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx);
 
-static int64_t literal_int(tree_t t)
-{
-   assert(tree_kind(t) == T_LITERAL);
-   return tree_literal(t).i;
-}
-
-static size_t vhdl_array_len(type_t t)
-{
-   range_t r = type_dim(t, 0);
-   return literal_int(r.right) - literal_int(r.left) + 1;
-}
-
 static LLVMValueRef llvm_int32(int32_t i)
 {
    return LLVMConstInt(LLVMInt32Type(), i, false);
@@ -82,53 +70,76 @@ static LLVMTypeRef llvm_void_ptr(void)
    return LLVMPointerType(LLVMInt8Type(), 0);
 }
 
-static LLVMTypeRef llvm_type(type_t t)
+static LLVMValueRef llvm_void_cast(LLVMValueRef ptr)
+{
+   return LLVMBuildPointerCast(builder, ptr,
+                               LLVMPointerType(LLVMInt8Type(), 0), "");
+}
+
+static int bit_width(type_t t)
 {
    switch (type_kind(t)) {
    case T_INTEGER:
    case T_PHYSICAL:
       {
          range_t r = type_dim(t, 0);
-         uint64_t elements = literal_int(r.right) - literal_int(r.left);
+         uint64_t elements = assume_int(r.right) - assume_int(r.left);
 
          if (elements <= 2)
-            return LLVMInt1Type();
+            return 1;
          if (elements <= 0xffull)
-            return LLVMInt8Type();
+            return 8;
          else if (elements <= 0xffffull)
-            return LLVMInt16Type();
+            return 16;
          else if (elements <= 0xffffffffull)
-            return LLVMInt32Type();
+            return 32;
          else
-            return LLVMInt64Type();
+            return 64;
       }
 
    case T_SUBTYPE:
-      return llvm_type(type_base(t));
-
-   case T_CARRAY:
-      {
-         assert(type_dims(t) == 1);
-         return LLVMArrayType(llvm_type(type_base(t)),
-                              vhdl_array_len(t));
-      }
+      return bit_width(type_base(t));
 
    case T_ENUM:
       {
          unsigned lits = type_enum_literals(t);
 
          if (lits <= 2)
-            return LLVMInt1Type();
+            return 1;
          if (lits <= 256)
-            return LLVMInt8Type();
+            return 8;
          else if (lits <= 65356)
-            return LLVMInt16Type();
+            return 16;
          else
-            return LLVMInt32Type();
+            return 32;
       }
 
    default:
-      abort();
+      assert(false);
+   }
+}
+
+static LLVMTypeRef llvm_type(type_t t)
+{
+   switch (type_kind(t)) {
+   case T_INTEGER:
+   case T_PHYSICAL:
+   case T_ENUM:
+      return LLVMIntType(bit_width(t));
+
+   case T_SUBTYPE:
+      return llvm_type(type_base(t));
+
+   case T_CARRAY:
+      {
+         int64_t low, high;
+         range_bounds(type_dim(t, 0), &low, &high);
+
+         return LLVMArrayType(llvm_type(type_base(t)), high - low + 1);
+      }
+
+   default:
+      assert(false);
    }
 }
 
@@ -356,20 +367,67 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
    return NULL;
 }
 
+static LLVMValueRef cgen_array_ref(tree_t t, struct proc_ctx *ctx)
+{
+   tree_t decl = tree_ref(t);
+
+   param_t p = tree_param(t, 0);
+   assert(p.kind == P_POS);
+   LLVMValueRef idx = cgen_expr(p.value, ctx);
+
+   switch (tree_kind(decl)) {
+   case T_VAR_DECL:
+      {
+         LLVMValueRef array_ptr = cgen_proc_var(decl, ctx);
+         LLVMValueRef indexes[] = { llvm_int32(0), idx };
+         LLVMValueRef ptr = LLVMBuildGEP(builder, array_ptr,
+                                         indexes, ARRAY_LEN(indexes), "");
+         return LLVMBuildLoad(builder, ptr, "");
+      }
+
+   case T_SIGNAL_DECL:
+      assert(false);
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 {
-   LLVMValueRef vals[tree_assocs(t)];
+   int64_t low, high;
+   range_bounds(type_dim(tree_type(t), 0), &low, &high);
+
+   const size_t n_elems = high - low + 1;
+   LLVMValueRef *vals = xmalloc(n_elems * sizeof(LLVMValueRef));
+
+   for (unsigned i = 0; i < n_elems; i++)
+      vals[i] = NULL;
 
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
 
+      LLVMValueRef v = cgen_expr(a.value, ctx);
+
       switch (a.kind) {
       case A_POS:
-         vals[i] = cgen_expr(a.value, ctx);
+         vals[i] = v;
          break;
 
-      default:
-         fatal("only positional associations supported");
+      case A_NAMED:
+         vals[assume_int(a.name) - low] = v;
+         break;
+
+      case A_OTHERS:
+         for (unsigned j = 0; j < n_elems; j++) {
+            if (vals[j] == NULL)
+               vals[j] = v;
+         }
+         break;
+
+      case A_RANGE:
+         assert(false);
       }
    }
 
@@ -379,8 +437,9 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
    LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "");
    LLVMSetGlobalConstant(g, true);
    LLVMSetLinkage(g, LLVMInternalLinkage);
-   LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, tree_assocs(t)));
+   LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, n_elems));
 
+   free(vals);
    return g;
 }
 
@@ -393,6 +452,8 @@ static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx)
       return cgen_fcall(t, ctx);
    case T_REF:
       return cgen_ref(t, ctx);
+   case T_ARRAY_REF:
+      return cgen_array_ref(t, ctx);
    case T_AGGREGATE:
       return cgen_aggregate(t, ctx);
    default:
@@ -453,8 +514,7 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
    assert(sched_waveform_fn != NULL);
 
    LLVMValueRef args[] = {
-      LLVMBuildPointerCast(builder, signal,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      llvm_void_cast(signal),
       llvm_int32(0 /* source, TODO */),
       LLVMBuildIntCast(builder, value, LLVMInt64Type(), ""),
       llvm_int64(0)
@@ -531,14 +591,15 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
       LLVMGetNamedFunction(module, "_assert_fail");
    assert(assert_fail_fn != NULL);
 
+   int64_t slow, shigh;
+   range_bounds(type_dim(tree_type(tree_message(t)), 0), &slow, &shigh);
+
    LLVMValueRef args[] = {
       LLVMConstInt(LLVMInt8Type(),
                    tree_attr_int(t, ident_new("is_report"), 0),
                    false),
       cgen_array_to_c_string(message),
-      LLVMConstInt(LLVMInt32Type(),
-                   vhdl_array_len(tree_type(tree_message(t))),
-                   false),
+      LLVMConstInt(LLVMInt32Type(), shigh - slow + 1, false),
       severity
    };
    LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
@@ -698,7 +759,6 @@ static void cgen_process(tree_t t)
       LLVMBuildICmp(builder, LLVMIntNE, param, llvm_int32(0), "");
    LLVMBuildCondBr(builder, reset, init_bb, jt_bb);
 
-
    // Generate the jump table at the start of a process to handle
    // resuming from a wait statement
 
@@ -732,6 +792,10 @@ static void cgen_process(tree_t t)
 
    // Variable initialisation
 
+   LLVMValueRef array_copy_fn =
+      LLVMGetNamedFunction(module, "_array_copy");
+   assert(array_copy_fn != NULL);
+
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t v = tree_decl(t, i);
       if (tree_kind(v) == T_VAR_DECL) {
@@ -739,7 +803,25 @@ static void cgen_process(tree_t t)
             tree_has_value(v)
             ? cgen_expr(tree_value(v), &ctx)
             : cgen_default_value(tree_type(v));
-         LLVMBuildStore(builder, val, cgen_proc_var(v, &ctx));
+
+         LLVMValueRef var_ptr = cgen_proc_var(v, &ctx);
+
+         type_t ty = tree_type(v);
+         if (type_kind(ty) == T_CARRAY) {
+            int64_t low, high;
+            range_bounds(type_dim(ty, 0), &low, &high);
+
+            LLVMValueRef args[] = {
+               llvm_void_cast(var_ptr),     // Destination
+               llvm_void_cast(val),         // Source
+               llvm_int32(high - low + 1),  // Number of elements
+               llvm_int32(bit_width(type_base(ty)))
+            };
+            LLVMBuildCall(builder, array_copy_fn,
+                          args, ARRAY_LEN(args), "");
+         }
+         else
+            LLVMBuildStore(builder, val, var_ptr);
       }
    }
 
@@ -893,6 +975,18 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _assert_fail_args,
                                     ARRAY_LEN(_assert_fail_args),
+                                    false));
+
+   LLVMTypeRef _array_copy_args[] = {
+      llvm_void_ptr(),
+      llvm_void_ptr(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_array_copy",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _array_copy_args,
+                                    ARRAY_LEN(_array_copy_args),
                                     false));
 }
 

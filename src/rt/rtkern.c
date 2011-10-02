@@ -222,6 +222,12 @@ uint64_t _std_standard_now(void)
    return now;
 }
 
+void _array_copy(void *dst, const void *src, int32_t n, int32_t sz)
+{
+   TRACE("_array_copy dst=%p src=%p %dx%d", dst, src, n, sz);
+   memcpy(dst, src, n * sz);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 
