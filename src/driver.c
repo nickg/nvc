@@ -69,7 +69,7 @@ static void part_signal_driver(tree_t ref, tree_t proc)
    int64_t elem = assume_int(p.value);
    assert(elem >= low && elem <= high);
 
-   printf("low=%ld high=%ld elem=%ld\n", low, high, elem);
+   printf("low=%"PRIu64" high=%"PRIu64" elem=%"PRIu64"\n", low, high, elem);
 
    for (int i = 0; i < high - low + 1; i++) {
       for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
