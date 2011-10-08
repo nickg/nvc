@@ -849,6 +849,14 @@ static void cgen_process(tree_t t)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
    LLVMBuildBr(builder, start_bb);
+
+   // Free context memory
+
+   while (ctx.entry_list != NULL) {
+      struct proc_entry *next = ctx.entry_list->next;
+      free(ctx.entry_list);
+      ctx.entry_list = next;
+   }
 }
 
 static LLVMTypeRef cgen_signal_type(void)
