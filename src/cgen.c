@@ -204,7 +204,32 @@ static LLVMValueRef cgen_proc_var(tree_t decl, struct proc_ctx *ctx)
 
 static LLVMValueRef cgen_default_value(type_t ty)
 {
-   return LLVMConstInt(llvm_type(ty), 0, false);
+   if (type_kind(ty) == T_CARRAY) {
+      int64_t low, high;
+      range_bounds(type_dim(ty, 0), &low, &high);
+
+      const size_t n_elems = high - low + 1;
+      LLVMValueRef *vals = xmalloc(n_elems * sizeof(LLVMValueRef));
+
+      LLVMValueRef def = cgen_default_value(type_base(ty));
+      for (size_t i = 0; i < n_elems; i++)
+         vals[i] = def;
+
+      LLVMTypeRef arr_ty = llvm_type(ty);
+      LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "");
+      LLVMSetGlobalConstant(g, true);
+      LLVMSetLinkage(g, LLVMInternalLinkage);
+
+      LLVMTypeRef elm_ty = llvm_type(type_base(ty));
+      LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, n_elems));
+
+      free(vals);
+      return g;
+   }
+   else {
+      // XXX: need to use ty'left
+      return LLVMConstInt(llvm_type(ty), 0, false);
+   }
 }
 
 static LLVMValueRef cgen_fdecl(tree_t t)

@@ -8,3 +8,4 @@ attr1           normal
 signal2         normal
 signal3         normal
 assign2         normal
+assign3         normal
