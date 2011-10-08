@@ -508,6 +508,27 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
       }
       break;
 
+   case T_ARRAY_REF:
+      {
+         tree_t target = tree_target(t);
+
+         tree_t decl = tree_ref(target);
+         assert(type_kind(tree_type(decl)) == T_CARRAY);
+
+         param_t p = tree_param(target, 0);
+         assert(p.kind == P_POS);
+
+         LLVMValueRef idx = cgen_expr(p.value, ctx);
+
+         LLVMValueRef array_ptr = cgen_proc_var(decl, ctx);
+         LLVMValueRef indexes[] = { llvm_int32(0), idx };
+         LLVMValueRef ptr = LLVMBuildGEP(builder, array_ptr,
+                                         indexes, ARRAY_LEN(indexes), "");
+
+         LLVMBuildStore(builder, rhs, ptr);
+      }
+      break;
+
    default:
       assert(false);
    }

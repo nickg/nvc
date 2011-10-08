@@ -10,6 +10,8 @@ begin
         assert x(0) = '0';
         assert x(1) = '1';
         assert x(4) = x(5);
+        x(2) := '1';
+        assert x(2) = '1';
         wait;
     end process;
     
