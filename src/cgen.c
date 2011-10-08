@@ -76,6 +76,12 @@ static LLVMValueRef llvm_void_cast(LLVMValueRef ptr)
                                LLVMPointerType(LLVMInt8Type(), 0), "");
 }
 
+static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
+{
+   return LLVMBuildIntCast(builder, LLVMSizeOf(type),
+                           LLVMInt32Type(), "");
+}
+
 static int bit_width(type_t t)
 {
    switch (type_kind(t)) {
@@ -815,7 +821,7 @@ static void cgen_process(tree_t t)
                llvm_void_cast(var_ptr),     // Destination
                llvm_void_cast(val),         // Source
                llvm_int32(high - low + 1),  // Number of elements
-               llvm_int32(bit_width(type_base(ty)))
+               llvm_sizeof(llvm_type(type_base(ty)))
             };
             LLVMBuildCall(builder, array_copy_fn,
                           args, ARRAY_LEN(args), "");
