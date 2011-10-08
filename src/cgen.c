@@ -953,10 +953,11 @@ static LLVMTypeRef cgen_signal_type(void)
    LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
    if (ty == NULL) {
       LLVMTypeRef fields[SIGNAL_N_FIELDS];
-      fields[SIGNAL_RESOLVED] = LLVMInt64Type();
-      fields[SIGNAL_DECL]     = llvm_void_ptr();
-      fields[SIGNAL_FLAGS]    = LLVMInt32Type();
-      fields[SIGNAL_SOURCES]  = llvm_void_ptr();
+      fields[SIGNAL_RESOLVED]  = LLVMInt64Type();
+      fields[SIGNAL_DECL]      = llvm_void_ptr();
+      fields[SIGNAL_FLAGS]     = LLVMInt32Type();
+      fields[SIGNAL_N_SOURCES] = LLVMInt32Type();
+      fields[SIGNAL_SOURCES]   = llvm_void_ptr();
 
       ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
@@ -970,10 +971,11 @@ static LLVMTypeRef cgen_signal_type(void)
 static LLVMValueRef cgen_signal_init(void)
 {
    LLVMValueRef init[SIGNAL_N_FIELDS];
-   init[SIGNAL_RESOLVED] = llvm_int64(0);
-   init[SIGNAL_DECL]     = LLVMConstNull(llvm_void_ptr());
-   init[SIGNAL_FLAGS]    = llvm_int32(0);
-   init[SIGNAL_SOURCES]  = LLVMConstNull(llvm_void_ptr());
+   init[SIGNAL_RESOLVED]  = llvm_int64(0);
+   init[SIGNAL_DECL]      = LLVMConstNull(llvm_void_ptr());
+   init[SIGNAL_FLAGS]     = llvm_int32(0);
+   init[SIGNAL_N_SOURCES] = llvm_int32(0);
+   init[SIGNAL_SOURCES]   = LLVMConstNull(llvm_void_ptr());
 
    return LLVMConstStruct(init, ARRAY_LEN(init), false);
 }
