@@ -202,6 +202,27 @@ static LLVMValueRef cgen_proc_var(tree_t decl, struct proc_ctx *ctx)
    assert(false);
 }
 
+static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
+{
+   assert(type_kind(ty) == T_CARRAY);
+
+   LLVMValueRef array_copy_fn =
+      LLVMGetNamedFunction(module, "_array_copy");
+   assert(array_copy_fn != NULL);
+
+   int64_t low, high;
+   range_bounds(type_dim(ty, 0), &low, &high);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(dst),         // Destination
+      llvm_void_cast(src),         // Source
+      llvm_int32(high - low + 1),  // Number of elements
+      llvm_sizeof(llvm_type(type_base(ty)))
+   };
+   LLVMBuildCall(builder, array_copy_fn,
+                 args, ARRAY_LEN(args), "");
+}
+
 static LLVMValueRef cgen_default_value(type_t ty)
 {
    if (type_kind(ty) == T_CARRAY) {
@@ -536,23 +557,8 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
          LLVMValueRef lhs = cgen_proc_var(tree_ref(target), ctx);
 
          type_t ty = tree_type(target);
-         if (type_kind(ty) == T_CARRAY) {
-            LLVMValueRef array_copy_fn =
-               LLVMGetNamedFunction(module, "_array_copy");
-            assert(array_copy_fn != NULL);
-
-            int64_t low, high;
-            range_bounds(type_dim(ty, 0), &low, &high);
-
-            LLVMValueRef args[] = {
-               llvm_void_cast(lhs),         // Destination
-               llvm_void_cast(rhs),         // Source
-               llvm_int32(high - low + 1),  // Number of elements
-               llvm_sizeof(llvm_type(type_base(ty)))
-            };
-            LLVMBuildCall(builder, array_copy_fn,
-                          args, ARRAY_LEN(args), "");
-         }
+         if (type_kind(ty) == T_CARRAY)
+            cgen_array_copy(ty, rhs, lhs);
          else
             LLVMBuildStore(builder, rhs, lhs);
       }
@@ -869,10 +875,6 @@ static void cgen_process(tree_t t)
 
    // Variable initialisation
 
-   LLVMValueRef array_copy_fn =
-      LLVMGetNamedFunction(module, "_array_copy");
-   assert(array_copy_fn != NULL);
-
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t v = tree_decl(t, i);
       if (tree_kind(v) == T_VAR_DECL) {
@@ -884,19 +886,8 @@ static void cgen_process(tree_t t)
          LLVMValueRef var_ptr = cgen_proc_var(v, &ctx);
 
          type_t ty = tree_type(v);
-         if (type_kind(ty) == T_CARRAY) {
-            int64_t low, high;
-            range_bounds(type_dim(ty, 0), &low, &high);
-
-            LLVMValueRef args[] = {
-               llvm_void_cast(var_ptr),     // Destination
-               llvm_void_cast(val),         // Source
-               llvm_int32(high - low + 1),  // Number of elements
-               llvm_sizeof(llvm_type(type_base(ty)))
-            };
-            LLVMBuildCall(builder, array_copy_fn,
-                          args, ARRAY_LEN(args), "");
-         }
+         if (type_kind(ty) == T_CARRAY)
+            cgen_array_copy(ty, val, var_ptr);
          else
             LLVMBuildStore(builder, val, var_ptr);
       }
