@@ -503,6 +503,13 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Use operators of base type
       break;
 
+   case T_CARRAY:
+   case T_UARRAY:
+      // Operators on arrays
+      sem_declare_binary(ident_new("="), t, t, std_bool, "aeq");
+      sem_declare_binary(ident_new("/="), t, t, std_bool, "aneq");
+      break;
+
    case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, std_int, t, "mul");
@@ -553,8 +560,6 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new(">="), t, t, std_bool, "geq");
 
       // Fall-through
-   case T_CARRAY:
-   case T_UARRAY:
    default:
       sem_declare_binary(ident_new("="), t, t, std_bool, "eq");
       sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");

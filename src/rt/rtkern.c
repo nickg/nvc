@@ -228,6 +228,12 @@ void _array_copy(void *dst, const void *src, int32_t n, int32_t sz)
    memcpy(dst, src, n * sz);
 }
 
+int8_t _array_eq(const void *lhs, const void *rhs, int32_t n, int32_t sz)
+{
+   TRACE("_array_eq lhs=%p rhs=%p %dx%d", lhs, rhs, n, sz);
+   return memcmp(lhs, rhs, n * sz) == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 

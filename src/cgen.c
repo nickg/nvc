@@ -329,6 +329,26 @@ static LLVMValueRef cgen_signal_flag(tree_t ref, int flag)
       return cgen_scalar_signal_flag(sig_decl, flag);
 }
 
+static LLVMValueRef cgen_array_eq(type_t ty, LLVMValueRef lhs, LLVMValueRef rhs)
+{
+   assert(type_kind(ty) == T_CARRAY);
+
+   LLVMValueRef array_eq_fn =
+      LLVMGetNamedFunction(module, "_array_eq");
+   assert(array_eq_fn != NULL);
+
+   int64_t low, high;
+   range_bounds(type_dim(ty, 0), &low, &high);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(lhs),
+      llvm_void_cast(rhs),
+      llvm_int32(high - low + 1),  // Number of elements
+      llvm_sizeof(llvm_type(type_base(ty)))
+   };
+   return LLVMBuildCall(builder, array_eq_fn, args, ARRAY_LEN(args), "");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -350,6 +370,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
 
    // Regular builtin functions
    if (builtin) {
+      type_t arg_type = tree_type(tree_param(t, 0).value);
+
       if (strcmp(builtin, "mul") == 0)
          return LLVMBuildMul(builder, args[0], args[1], "");
       else if (strcmp(builtin, "add") == 0)
@@ -376,6 +398,11 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildNot(builder, args[0], "");
       else if (strcmp(builtin, "and") == 0)
          return LLVMBuildAnd(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "aeq") == 0)
+         return cgen_array_eq(arg_type, args[0], args[1]);
+      else if (strcmp(builtin, "aneq") == 0)
+         return LLVMBuildNot(
+            builder, cgen_array_eq(arg_type, args[0], args[1]), "");
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
@@ -1062,6 +1089,18 @@ static void cgen_support_fns(void)
    LLVMAddFunction(module, "_array_copy",
                    LLVMFunctionType(LLVMVoidType(),
                                     _array_copy_args,
+                                    ARRAY_LEN(_array_copy_args),
+                                    false));
+
+   LLVMTypeRef _array_eq_args[] = {
+      llvm_void_ptr(),
+      llvm_void_ptr(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_array_eq",
+                   LLVMFunctionType(LLVMInt1Type(),
+                                    _array_eq_args,
                                     ARRAY_LEN(_array_copy_args),
                                     false));
 }

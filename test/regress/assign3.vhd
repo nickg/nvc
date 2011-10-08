@@ -20,6 +20,8 @@ begin
         assert x(6) = '1';
         assert x(7) = '0';
         assert x = y;
+        y(4) := '0';
+        assert x /= y;
         wait;
     end process;
 
