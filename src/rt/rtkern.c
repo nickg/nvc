@@ -68,7 +68,7 @@ struct signal {
    union sigval    resolved;
    tree_t          decl;
    int32_t         flags;
-   int16_t         n_sources;
+   int32_t         n_sources;
    struct waveform **sources;
 };
 
