@@ -19,6 +19,7 @@ begin
         assert x(5) = '0';
         assert x(6) = '1';
         assert x(7) = '0';
+        assert x = y;
         wait;
     end process;
 

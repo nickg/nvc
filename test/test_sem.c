@@ -433,7 +433,8 @@ START_TEST(test_array)
       { 38, "only a single others association allowed" },
       { 45, "type of initial value universal integer does not match" },
       { 54, "type of value universal integer does not match type of" },
-      { 56, "type of value anonymous subtype of WORK.P.INT_ARRAY" },
+      { 56, "type of value WORK.P.INT_ARRAY does not match type" },
+      { 64, "for operator \"=\"(WORK.P.INT_ARRAY, WORK.P.TEN_INTS)" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -56,4 +56,12 @@ begin
         a := x;                         -- LHS not array
     end process;
 
+    process is
+        variable b : boolean;
+    begin
+        b := z = n;                     -- OK
+        b := z /= m;                    -- OK
+        b := z = y;                     -- Different types
+    end process;
+
 end architecture;

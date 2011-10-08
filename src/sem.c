@@ -553,6 +553,8 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new(">="), t, t, std_bool, "geq");
 
       // Fall-through
+   case T_CARRAY:
+   case T_UARRAY:
    default:
       sem_declare_binary(ident_new("="), t, t, std_bool, "eq");
       sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");
@@ -739,7 +741,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
                // TODO: check index constraints here
 
                type_t collapse = type_new(T_CARRAY);
-               type_set_ident(collapse, type_ident(*ptype));
+               type_set_ident(collapse, type_ident(base));
                type_set_base(collapse, type_base(base));  // Element type
 
                for (unsigned i = 0; i < type_dims(*ptype); i++)
@@ -795,6 +797,7 @@ static bool sem_check_type_decl(tree_t t)
 
    switch (type_kind(type)) {
    case T_UARRAY:
+   case T_CARRAY:
       {
          type_t elem_type = type_base(base);
          if (!sem_check_type(t, &elem_type))
