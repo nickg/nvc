@@ -375,7 +375,13 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
       return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
 
    case T_VAR_DECL:
-      return LLVMBuildLoad(builder, cgen_proc_var(decl, ctx), "");
+      {
+         LLVMValueRef ptr = cgen_proc_var(decl, ctx);
+         if (type_kind(tree_type(decl)) == T_CARRAY)
+            return ptr;
+         else
+            return LLVMBuildLoad(builder, ptr, "");
+      }
 
    case T_SIGNAL_DECL:
       {
@@ -389,7 +395,6 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildIntCast(builder, deref,
                                  llvm_type(tree_type(t)), "");
       }
-      break;
 
    default:
       abort();
@@ -529,7 +534,27 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
    case T_REF:
       {
          LLVMValueRef lhs = cgen_proc_var(tree_ref(target), ctx);
-         LLVMBuildStore(builder, rhs, lhs);
+
+         type_t ty = tree_type(target);
+         if (type_kind(ty) == T_CARRAY) {
+            LLVMValueRef array_copy_fn =
+               LLVMGetNamedFunction(module, "_array_copy");
+            assert(array_copy_fn != NULL);
+
+            int64_t low, high;
+            range_bounds(type_dim(ty, 0), &low, &high);
+
+            LLVMValueRef args[] = {
+               llvm_void_cast(lhs),         // Destination
+               llvm_void_cast(rhs),         // Source
+               llvm_int32(high - low + 1),  // Number of elements
+               llvm_sizeof(llvm_type(type_base(ty)))
+            };
+            LLVMBuildCall(builder, array_copy_fn,
+                          args, ARRAY_LEN(args), "");
+         }
+         else
+            LLVMBuildStore(builder, rhs, lhs);
       }
       break;
 
