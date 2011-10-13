@@ -300,6 +300,12 @@ static tree_t simp_array_ref(tree_t t)
    }
 }
 
+static tree_t simp_qualified(tree_t t)
+{
+   tree_set_value(t, simp_expr(tree_value(t)));
+   return t;
+}
+
 static tree_t simp_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -341,6 +347,9 @@ static tree_t simp_expr(tree_t t)
 
    case T_ARRAY_REF:
       return simp_array_ref(t);
+
+   case T_QUALIFIED:
+      return simp_qualified(t);
 
    default:
       assert(false);

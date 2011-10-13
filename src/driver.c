@@ -23,18 +23,39 @@
 
 static int errors = 0;
 
+static void whole_array_driver(tree_t decl, tree_t proc)
+{
+   type_t type = tree_type(decl);
+
+   int64_t low, high;
+   range_bounds(type_dim(type, 0), &low, &high);
+
+   for (int i = 0; i < high - low + 1; i++) {
+      for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
+         if (tree_sub_driver(decl, i, j) == proc)
+            continue;
+
+         tree_add_sub_driver(decl, i, proc);
+      }
+   }
+}
+
 static void whole_signal_driver(tree_t ref, tree_t proc)
 {
    tree_t decl = tree_ref(ref);
 
-   // TODO: check for array
+   type_t type = tree_type(decl);
+   if (type_kind(type) == T_CARRAY || type_kind(type) == T_UARRAY) {
+      // Break an array driver into a driver for each sub-element
+      whole_array_driver(decl, proc);
+      return;
+   }
 
    for (unsigned i = 0; i < tree_drivers(decl); i++) {
       if (tree_driver(decl, i) == proc)
          return;
    }
 
-   // TODO: check for sub-drivers here as well
    if (tree_drivers(decl) > 0) {
       // TODO: check for resolution function
       error_at(tree_loc(decl),
@@ -71,11 +92,9 @@ static void part_signal_driver(tree_t ref, tree_t proc)
 
    printf("low=%"PRIu64" high=%"PRIu64" elem=%"PRIu64"\n", low, high, elem);
 
-   for (int i = 0; i < high - low + 1; i++) {
-      for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
-         if (tree_sub_driver(decl, i, j) == proc)
-            return;
-      }
+   for (unsigned j = 0; j < tree_sub_drivers(decl, elem - low); j++) {
+      if (tree_sub_driver(decl, elem - low, j) == proc)
+         return;
    }
 
    if (tree_sub_drivers(decl, elem - low) > 0 || tree_drivers(decl) > 0) {

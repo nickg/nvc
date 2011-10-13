@@ -9,3 +9,4 @@ signal2         normal
 signal3         normal
 assign2         normal
 assign3         normal
+signal4         normal

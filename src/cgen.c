@@ -411,6 +411,55 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
    }
 }
 
+static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, struct proc_ctx *ctx)
+{
+   LLVMValueRef signal =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal != NULL);
+
+   LLVMValueRef ptr =
+      LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
+   LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+   return LLVMBuildIntCast(builder, deref,
+                           llvm_type(tree_type(decl)), "");
+}
+
+static LLVMValueRef cgen_array_signal_ref(tree_t decl, struct proc_ctx *ctx)
+{
+   type_t type = tree_type(decl);
+   type_t elem_type = type_base(type);
+
+   // Copy the resolved signal into a temporary array
+   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(elem_type),
+                                      istr(tree_ident(decl)));
+
+   LLVMValueRef signal_array =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal_array != NULL);
+
+   // TODO: re-roll this loop
+
+   int64_t low, high;
+   range_bounds(type_dim(type, 0), &low, &high);
+
+   for (int64_t i = 0; i < high - low + 1; i++) {
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(i) };
+      LLVMValueRef signal = LLVMBuildGEP(builder, signal_array,
+                                         indexes, ARRAY_LEN(indexes), "");
+      LLVMValueRef ptr =
+         LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
+      LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+      LLVMValueRef val = LLVMBuildIntCast(builder, deref,
+                                          llvm_type(elem_type), "");
+      LLVMValueRef indexes2[] = { llvm_int32(i) };
+      LLVMValueRef dst = LLVMBuildGEP(builder, tmp,
+                                      indexes2, ARRAY_LEN(indexes2), "");
+      LLVMBuildStore(builder, val, dst);
+   }
+
+   return tmp;
+}
+
 static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -432,17 +481,10 @@ static LLVMValueRef cgen_ref(tree_t t, struct proc_ctx *ctx)
       }
 
    case T_SIGNAL_DECL:
-      {
-         LLVMValueRef signal =
-            LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-         assert(signal != NULL);
-
-         LLVMValueRef ptr =
-            LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
-         LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
-         return LLVMBuildIntCast(builder, deref,
-                                 llvm_type(tree_type(t)), "");
-      }
+      if (type_kind(tree_type(decl)) == T_CARRAY)
+         return cgen_array_signal_ref(decl, ctx);
+      else
+         return cgen_scalar_signal_ref(decl, ctx);
 
    default:
       abort();
@@ -470,8 +512,20 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct proc_ctx *ctx)
       }
 
    case T_SIGNAL_DECL:
-      assert(false);
-      break;
+      {
+         LLVMValueRef signal_array =
+            LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+         assert(signal_array != NULL);
+
+         LLVMValueRef indexes[] = { llvm_int32(0), idx };
+         LLVMValueRef signal = LLVMBuildGEP(builder, signal_array,
+                                            indexes, ARRAY_LEN(indexes), "");
+         LLVMValueRef ptr =
+            LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
+         LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+         return LLVMBuildIntCast(builder, deref,
+                                 llvm_type(tree_type(t)), "");
+      }
 
    default:
       assert(false);
@@ -540,6 +594,8 @@ static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx)
       return cgen_array_ref(t, ctx);
    case T_AGGREGATE:
       return cgen_aggregate(t, ctx);
+   case T_QUALIFIED:
+      return cgen_expr(tree_value(t), ctx);
    default:
       fatal("missing cgen_expr for kind %d\n", tree_kind(t));
    }

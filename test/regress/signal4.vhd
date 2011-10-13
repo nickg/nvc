@@ -1,0 +1,24 @@
+entity signal4 is
+end entity;
+
+architecture test of signal4 is
+    signal s : bit_vector(3 downto 0);
+begin
+
+    process is
+        variable v : bit_vector(3 downto 0) := (others => '1');
+    begin
+        assert s(0) = '0';
+        assert v(1) = '1';
+        v(2) := s(3);
+        assert v(2) = '0';
+        s(0) <= v(3);
+        assert s(0) = '0';
+        wait for 1 ns;
+        assert s(0) = v(3);
+        s <= v;
+        assert s = bit_vector'(( '1', '0', '0', '0' ));
+        wait;
+    end process;
+    
+end architecture;
