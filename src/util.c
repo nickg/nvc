@@ -19,8 +19,7 @@
 
 // Get REG_EIP from ucontext.h
 #define __USE_GNU
-#define _XOPEN_SOURCE
-#include <ucontext.h>
+#include <sys/ucontext.h>
 
 #include <stdlib.h>
 #include <stdio.h>
