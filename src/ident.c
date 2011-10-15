@@ -7,7 +7,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define IDENT_MAX_LEN (1 << 16)
+#define IDENT_MAX_LEN (1 << 12)
 
 struct clist {
    char         value;

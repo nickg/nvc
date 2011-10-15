@@ -53,19 +53,19 @@ struct deltaq {
    struct deltaq  *next;
 };
 
-union sigval {
+union sigvalue {
    uint64_t val;
    void     *ptr;
 };
 
 struct waveform {
-   union sigval    value;
+   union sigvalue  value;
    uint64_t        when;
    struct waveform *next;
 };
 
 struct signal {
-   union sigval    resolved;
+   union sigvalue  resolved;
    tree_t          decl;
    int32_t         flags;
    int32_t         n_sources;

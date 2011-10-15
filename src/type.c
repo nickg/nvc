@@ -446,7 +446,6 @@ void type_unref(type_t t)
 void type_ref(type_t t)
 {
    assert(t != NULL);
-   assert(t->refcount >= 0);
 
    (t->refcount)++;
 }

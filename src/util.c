@@ -19,6 +19,7 @@
 
 // Get REG_EIP from ucontext.h
 #define __USE_GNU
+#define _XOPEN_SOURCE
 #include <ucontext.h>
 
 #include <stdlib.h>
@@ -35,6 +36,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/ptrace.h>
+#include <sys/sysctl.h>
 
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported
@@ -42,6 +44,12 @@
 #define ARCH_IP_REG REG_RIP
 #elif defined REG_EIP
 #define ARCH_IP_REG REG_EIP
+#elif defined __APPLE__
+#ifdef __LP64__
+#define ARCH_IP_REG __rip
+#else
+#define ARCH_IP_REG __eip
+#endif
 #else
 #warning "Don't know the IP register name for your architecture!"
 #define NO_STACK_TRACE
@@ -203,6 +211,12 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    int trace_size = 0;
    ucontext_t *uc = (ucontext_t*)secret;
 
+#ifdef __APPLE__
+   uintptr_t ip = uc->uc_mcontext->__ss.ARCH_IP_REG;
+#else
+   uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG]);
+#endif
+
    fprintf(stderr, "\n*** Caught signal %d (%s)", sig, signame(sig));
 
    switch (sig) {
@@ -210,8 +224,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    case SIGILL:
    case SIGFPE:
    case SIGBUS:
-      fprintf(stderr, " [address=%p, ip=%p]",
-              info->si_addr, (void*)uc->uc_mcontext.gregs[ARCH_IP_REG]);
+      fprintf(stderr, " [address=%p, ip=%p]", info->si_addr, (void*)ip);
       break;
    }
 
@@ -220,7 +233,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    trace_size = backtrace(trace, N_TRACE_DEPTH);
 
    // Overwrite sigaction with caller's address
-   trace[1] = (void*)uc->uc_mcontext.gregs[ARCH_IP_REG];
+   trace[1] = (void*)ip;
 
    messages = backtrace_symbols(trace, trace_size);
 
@@ -235,6 +248,23 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 static bool is_debugger_running(void)
 {
+#ifdef __APPLE__
+    struct kinfo_proc info;
+    info.kp_proc.p_flag = 0;
+
+    int mib[4];
+    mib[0] = CTL_KERN;
+    mib[1] = KERN_PROC;
+    mib[2] = KERN_PROC_PID;
+    mib[3] = getpid();
+
+    size_t size = sizeof(info);
+    int rc = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
+    if (rc != 0)
+        fatal("sysctl");
+
+    return (info.kp_proc.p_flag & P_TRACED) != 0;
+#else  // __APPLE__
    pid_t pid = fork();
 
    if (pid == -1)
@@ -264,6 +294,7 @@ static bool is_debugger_running(void)
       waitpid(pid, &status, 0);
       return WEXITSTATUS(status);
    }
+#endif  // __APPLE__
 }
 
 void register_trace_signal_handlers(void)
