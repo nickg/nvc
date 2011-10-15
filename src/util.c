@@ -214,7 +214,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 #ifdef __APPLE__
    uintptr_t ip = uc->uc_mcontext->__ss.ARCH_IP_REG;
 #else
-   uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG]);
+   uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG];
 #endif
 
    fprintf(stderr, "\n*** Caught signal %d (%s)", sig, signame(sig));
