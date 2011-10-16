@@ -164,7 +164,8 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define HAS_REF(t) \
-   (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
+   (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
+    || IS(t, T_ARRAY_SLICE))
 
 #define TREE_ARRAY_BASE_SZ  16
 

@@ -64,4 +64,10 @@ begin
         b := z = y;                     -- Different types
     end process;
 
+    process is
+    begin
+        x(1 to 3) <= z;
+        x(1 to 2) <= z(1 to 2);
+    end process;
+
 end architecture;

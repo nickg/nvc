@@ -1511,6 +1511,32 @@ static bool sem_check_array_ref(tree_t t)
    return true;
 }
 
+static bool sem_check_array_slice(tree_t t)
+{
+   if (!sem_check(tree_value(t)))
+      return false;
+
+   type_t array_type = tree_type(tree_value(t));
+   range_t r = type_dim(array_type, 0);
+
+   type_set_push();
+   type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
+   bool ok = sem_check(r.left) && sem_check(r.right);
+   type_set_pop();
+
+   if (!ok)
+      return false;
+
+   type_t slice_type = type_new(T_CARRAY);
+   type_set_ident(slice_type, type_ident(array_type));
+   type_set_base(slice_type, type_base(array_type));
+   type_add_dim(slice_type, r);
+
+   tree_set_ref(t, tree_ref(tree_value(t)));
+   tree_set_type(t, slice_type);
+   return true;
+}
+
 static bool sem_check_attr_ref(tree_t t)
 {
    tree_t decl = scope_find(tree_ident(t));
@@ -1598,6 +1624,8 @@ bool sem_check(tree_t t)
       return sem_check_attr_ref(t);
    case T_ARRAY_REF:
       return sem_check_array_ref(t);
+   case T_ARRAY_SLICE:
+      return sem_check_array_slice(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
