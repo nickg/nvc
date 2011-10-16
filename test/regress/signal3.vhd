@@ -22,13 +22,13 @@ begin
         wait for 0 ns;
         assert v'event and v'active;
         wait for 1 ns;
-        v(0) <= '0';
+        v(0) <= '1';
         assert not v'event;
         wait for 0 ns;
         assert v'event and v'active;
         wait for 1 ns;
         assert not v'event;
-        v(0) <= '0';
+        v(0) <= '1';
         wait for 0 ns;
         assert not v'event and v'active;
         wait;

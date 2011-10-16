@@ -31,12 +31,14 @@ static void whole_array_driver(tree_t decl, tree_t proc)
    range_bounds(type_dim(type, 0), &low, &high);
 
    for (int i = 0; i < high - low + 1; i++) {
+      bool already = false;
       for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
          if (tree_sub_driver(decl, i, j) == proc)
-            continue;
-
-         tree_add_sub_driver(decl, i, proc);
+            already = true;
       }
+
+      if (!already)
+         tree_add_sub_driver(decl, i, proc);
    }
 }
 

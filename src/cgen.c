@@ -680,11 +680,29 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_array_signal_store(tree_t decl, LLVMValueRef rhs)
+{
+   char name[256];
+   snprintf(name, sizeof(name), "%s_store", istr(tree_ident(decl)));
+
+   LLVMValueRef array_store_fn = LLVMGetNamedFunction(module, name);
+   assert(array_store_fn != NULL);
+
+   LLVMValueRef args[] = {
+      LLVMBuildPointerCast(builder, rhs, LLVMTypeOf(rhs), "")
+   };
+
+   LLVMBuildCall(builder, array_store_fn, args, ARRAY_LEN(args), "");
+}
+
 static void cgen_scalar_signal_assign(tree_t t, LLVMValueRef rhs,
                                       struct proc_ctx *ctx)
 {
    tree_t decl = tree_ref(tree_target(t));
-   cgen_sched_waveform(cgen_scalar_signal_ptr(decl), rhs);
+   if (type_kind(tree_type(decl)) == T_CARRAY)
+      cgen_array_signal_store(decl, rhs);
+   else
+      cgen_sched_waveform(cgen_scalar_signal_ptr(decl), rhs);
 }
 
 static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
@@ -844,7 +862,11 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
          for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
             if (tree_sub_driver(decl, i, j) == ctx->proc) {
                LLVMValueRef ptr = cgen_array_signal_ptr(decl, llvm_int32(i));
-               cgen_sched_waveform(ptr, val);
+               LLVMValueRef indices[] = { llvm_int32(0), llvm_int32(i) };
+               LLVMValueRef ith = LLVMBuildGEP(builder, val, indices,
+                                               ARRAY_LEN(indices), "");
+               LLVMValueRef deref = LLVMBuildLoad(builder, ith, "");
+               cgen_sched_waveform(ptr, deref);
             }
          }
       }
@@ -1034,33 +1056,19 @@ static void cgen_scalar_signal(tree_t t)
    LLVMSetInitializer(v, cgen_signal_init());
 }
 
-static void cgen_array_signal(tree_t t)
+static void cgen_array_signal_load_fn(tree_t t, LLVMValueRef v)
 {
-   assert(tree_drivers(t) == 0);
+   // Build a function to load the array into a temporary
+
+   type_t elem_type = type_base(tree_type(t));
 
    range_t r = type_dim(tree_type(t), 0);
    int64_t low, high;
    range_bounds(r, &low, &high);
 
-   for (unsigned i = low; i <= high; i++) {
-      unsigned n_drivers = tree_sub_drivers(t, i - low);
-      printf("element %d has %d drivers\n", i, n_drivers);
-   }
-
    const unsigned n_elems = high - low + 1;
 
-   type_t elem_type = type_base(tree_type(t));
-
-   LLVMTypeRef base_ty = cgen_signal_type();
-   LLVMTypeRef array_ty = LLVMArrayType(base_ty, n_elems);
-   LLVMValueRef v = LLVMAddGlobal(module, array_ty, istr(tree_ident(t)));
-
-   LLVMValueRef array_init[n_elems];
-   for (unsigned i = 0; i < n_elems; i++)
-      array_init[i] = cgen_signal_init();
-   LLVMSetInitializer(v, LLVMConstArray(base_ty, array_init, n_elems));
-
-   // Build a function to load the array into a temporary
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
 
    LLVMTypeRef args[] = {
       LLVMPointerType(LLVMArrayType(llvm_type(elem_type), n_elems), 0)
@@ -1072,7 +1080,6 @@ static void cgen_array_signal(tree_t t)
    LLVMValueRef fn = LLVMAddFunction(module, name, ftype);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
    for (int64_t i = 0; i < high - low + 1; i++) {
@@ -1092,6 +1099,76 @@ static void cgen_array_signal(tree_t t)
    LLVMBuildRetVoid(builder);
 
    LLVMPositionBuilderAtEnd(builder, saved_bb);
+}
+
+static void cgen_array_signal_store_fn(tree_t t, LLVMValueRef v)
+{
+   // Build a function to schedule an array assignment
+
+   type_t elem_type = type_base(tree_type(t));
+
+   range_t r = type_dim(tree_type(t), 0);
+   int64_t low, high;
+   range_bounds(r, &low, &high);
+
+   const unsigned n_elems = high - low + 1;
+
+   LLVMTypeRef args[] = {
+      LLVMPointerType(LLVMArrayType(llvm_type(elem_type), n_elems), 0)
+      // XXX: const
+   };
+   LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), args, 1, false);
+
+   char name[256];
+   snprintf(name, sizeof(name), "%s_store", istr(tree_ident(t)));
+   LLVMValueRef fn = LLVMAddFunction(module, name, ftype);
+
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   for (int64_t i = 0; i < high - low + 1; i++) {
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(i) };
+      LLVMValueRef ptr = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
+                                      indexes, ARRAY_LEN(indexes), "");
+      LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
+
+      LLVMValueRef signal = LLVMBuildGEP(builder, v,
+                                         indexes, ARRAY_LEN(indexes), "");
+      cgen_sched_waveform(signal, deref);
+   }
+   LLVMBuildRetVoid(builder);
+
+   LLVMPositionBuilderAtEnd(builder, saved_bb);
+}
+
+static void cgen_array_signal(tree_t t)
+{
+   assert(tree_drivers(t) == 0);
+
+   range_t r = type_dim(tree_type(t), 0);
+   int64_t low, high;
+   range_bounds(r, &low, &high);
+
+   for (unsigned i = low; i <= high; i++) {
+      unsigned n_drivers = tree_sub_drivers(t, i - low);
+      printf("element %d has %d drivers\n", i, n_drivers);
+   }
+
+   const unsigned n_elems = high - low + 1;
+
+   LLVMTypeRef base_ty = cgen_signal_type();
+   LLVMTypeRef array_ty = LLVMArrayType(base_ty, n_elems);
+   LLVMValueRef v = LLVMAddGlobal(module, array_ty, istr(tree_ident(t)));
+
+   LLVMValueRef array_init[n_elems];
+   for (unsigned i = 0; i < n_elems; i++)
+      array_init[i] = cgen_signal_init();
+   LLVMSetInitializer(v, LLVMConstArray(base_ty, array_init, n_elems));
+
+   cgen_array_signal_load_fn(t, v);
+   cgen_array_signal_store_fn(t, v);
 }
 
 static void cgen_signal(tree_t t)

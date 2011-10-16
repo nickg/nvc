@@ -124,6 +124,19 @@ static const char *fmt_time(uint64_t t)
    return fmt_time_r(buf, sizeof(buf), t);
 }
 
+static const char *fmt_sig(struct signal *sig)
+{
+   static char buf[256];
+   char *p = buf;
+   const char *end = buf + sizeof(buf);
+   p += snprintf(buf, end - p, "%s", istr(tree_ident(sig->decl)));
+   if (type_kind(tree_type(sig->decl)) == T_CARRAY) {
+      struct signal *first = tree_attr_ptr(sig->decl, ident_new("signal"));
+      p += snprintf(p, end - p, "[%zd]", sig - first);
+   }
+   return buf;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
@@ -137,8 +150,8 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform %p source=%d value=%"PRIx64" after=%s",
-         istr(tree_ident(sig->decl)), source, value, fmt_time(after));
+   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
+         fmt_sig(sig), source, value, fmt_time(after));
 
    // Allocate memory for drivers on demand
    const size_t ptr_sz = sizeof(struct waveform *);
@@ -316,7 +329,7 @@ static void deltaq_dump(void)
    for (it = eventq; it != NULL; it = it->next) {
       printf("%s\t", fmt_time(it->delta));
       if (it->kind == E_DRIVER)
-         printf("driver\t %s\n", istr(tree_ident(it->signal->decl)));
+         printf("driver\t %s\n", fmt_sig(it->signal));
       else
          printf("process\t %p\n", it->wake_proc);
    }
@@ -390,8 +403,8 @@ static void rt_update_driver(struct signal *s, unsigned source)
    struct waveform *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      TRACE("update signal %s value %"PRIu64,
-            istr(tree_ident(s->decl)), w_next->value);
+      TRACE("update signal %s value %"PRIx64,
+            fmt_sig(s), w_next->value);
 
       int32_t new_flags = 0;
       const bool first_cycle = (iteration == 0 && now == 0);
