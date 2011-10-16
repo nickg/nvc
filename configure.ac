@@ -39,6 +39,8 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
 
 AX_LLVM_C([engine bitreader bitwriter])
 
+PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
+
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 
 AC_CONFIG_HEADERS([config.h])
