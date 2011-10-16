@@ -7,8 +7,9 @@ src = $(top_srcdir)/src
 build = $(top_builddir)/src
 shared = $(src)/util.c
 
-AM_CFLAGS = -I $(src) -I $(build) -DTESTDIR=\"$(top_srcdir)/test\"
-LDADD = -lcheck $(build)/libnvc.a
+AM_CFLAGS = -I $(src) -I $(build) -DTESTDIR=\"$(top_srcdir)/test\" \
+	$(CHECK_CFLAGS)
+LDADD = -lcheck $(build)/libnvc.a $(CHECK_LIBS)
 AM_LDFLAGS = -rdynamic
 
 test_lib_SOURCES = test_lib.c
