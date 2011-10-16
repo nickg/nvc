@@ -57,6 +57,7 @@ typedef enum tree_kind {
    T_ASSERT,
    T_ATTR_REF,
    T_ARRAY_REF,
+   T_ARRAY_SLICE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -203,6 +204,10 @@ void tree_add_driver(tree_t t, tree_t d);
 unsigned tree_sub_drivers(tree_t t, unsigned elem);
 tree_t tree_sub_driver(tree_t t, unsigned elem, unsigned n);
 void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p);
+
+// T_ARRAY_SLICE
+range_t tree_range(tree_t t);
+void tree_set_range(tree_t t, range_t r);
 
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);

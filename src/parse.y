@@ -1179,10 +1179,16 @@ name
         tree_add_param($$, it->param);
      param_list_free($3);
   }
+| name tLPAREN range tRPAREN
+  {
+     $$ = tree_new(T_ARRAY_SLICE);
+     tree_set_value($$, $1);
+     tree_set_range($$, $3);
+     tree_set_loc($$, &@$);
+  }
   /* | operator_symbol
      | character_literal
      | indexed_name
-     | slice_name
      | external_name */
 ;
 

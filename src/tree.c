@@ -102,6 +102,7 @@ struct tree {
          struct tree_array *sub_drivers;
          unsigned          n_elems;
       };
+      range_t range;              // T_ARRAY_SLICE
    };
 
    // Serialisation and GC bookkeeping
@@ -132,7 +133,8 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define IS_EXPR(t) \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED) \
-    || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
+    || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)  \
+    || IS(t, T_ARRAY_SLICE))
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN) \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT))
@@ -159,7 +161,7 @@ struct tree_rd_ctx {
 #define HAS_VALUE(t) \
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)     \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT) \
-    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
+    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE))
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define HAS_REF(t) \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
@@ -833,6 +835,22 @@ void tree_set_message(tree_t t, tree_t m)
    t->message = m;
 }
 
+range_t tree_range(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ARRAY_SLICE));
+
+   return t->range;
+}
+
+void tree_set_range(tree_t t, range_t r)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ARRAY_SLICE));
+
+   t->range = r;
+}
+
 unsigned tree_pos(tree_t t)
 {
    assert(t != NULL);
@@ -1017,6 +1035,12 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       for (unsigned i = 0; i < t->n_elems; i++)
          n += tree_visit_a(&t->sub_drivers[i], fn, context,
                            kind, generation, deep);
+   }
+   else if (IS(t, T_ARRAY_SLICE)) {
+      n += tree_visit_aux(t->range.left, fn, context, kind,
+                          generation, deep);
+      n += tree_visit_aux(t->range.right, fn, context, kind,
+                          generation, deep);
    }
 
    if (deep) {
@@ -1238,6 +1262,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_u(t->pos, ctx->file);
       break;
 
+   case T_ARRAY_SLICE:
+      write_s(t->range.kind, ctx->file);
+      tree_write(t->range.left, ctx);
+      tree_write(t->range.right, ctx);
+      break;
+
    default:
       break;
    }
@@ -1404,6 +1434,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    case T_ENUM_LIT:
       t->pos = read_u(ctx->file);
+      break;
+
+   case T_ARRAY_SLICE:
+      t->range.kind  = read_s(ctx->file);
+      t->range.left  = tree_read(ctx);
+      t->range.right = tree_read(ctx);
       break;
 
    default:

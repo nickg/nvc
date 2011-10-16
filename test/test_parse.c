@@ -799,6 +799,12 @@ START_TEST(test_array)
    s = tree_stmt(p, 1);
    e = tree_value(s);
    fail_unless(tree_kind(e) == T_FCALL);
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   e = tree_target(s);
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
 
    p = parse();
    fail_unless(p == NULL);
