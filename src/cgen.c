@@ -538,7 +538,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 
       switch (a.kind) {
       case A_POS:
-         if (r.kind == RANGE_TO)
+         if (r.kind == RANGE_DOWNTO)
             vals[i] = v;
          else
             vals[n_elems - i - 1] = v;

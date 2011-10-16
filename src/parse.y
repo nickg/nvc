@@ -134,7 +134,7 @@
                              const struct YYLTYPE *loc);
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
-   static tree_t str_to_agg(const char *p, const char *end);
+   static tree_t str_to_agg(const char *start, const char *end);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
 }
 
@@ -1342,12 +1342,16 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    return t;
 }
 
-static tree_t str_to_agg(const char *p, const char *end)
+static tree_t str_to_agg(const char *start, const char *end)
 {
    tree_t t = tree_new(T_AGGREGATE);
 
-   while (*p != '\0' && p != end) {
-      const char ch[] = { '\'', *p++, '\'', '\0' };
+   const char *p = start;
+   while (*p != '\0' && p != end)
+      ++p;
+
+   do {
+      const char ch[] = { '\'', *(--p), '\'', '\0' };
 
       tree_t ref = tree_new(T_REF);
       tree_set_ident(ref, ident_new(ch));
@@ -1357,7 +1361,7 @@ static tree_t str_to_agg(const char *p, const char *end)
       a.value = ref;
 
       tree_add_assoc(t, a);
-   }
+   } while (p != start);
 
    return t;
 }
