@@ -520,8 +520,10 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct proc_ctx *ctx)
 
 static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 {
+   range_t r = type_dim(tree_type(t), 0);
+
    int64_t low, high;
-   range_bounds(type_dim(tree_type(t), 0), &low, &high);
+   range_bounds(r, &low, &high);
 
    const size_t n_elems = high - low + 1;
    LLVMValueRef *vals = xmalloc(n_elems * sizeof(LLVMValueRef));
@@ -536,7 +538,10 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 
       switch (a.kind) {
       case A_POS:
-         vals[i] = v;
+         if (r.kind == RANGE_TO)
+            vals[i] = v;
+         else
+            vals[n_elems - i - 1] = v;
          break;
 
       case A_NAMED:
