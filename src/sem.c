@@ -1080,6 +1080,23 @@ static bool sem_check_signal_assign(tree_t t)
    return true;
 }
 
+static void sem_maybe_ambiguous(tree_t t, void *_ambiguous)
+{
+   bool *ambiguous = _ambiguous;
+
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         tree_t decl = scope_find(tree_ident(t));
+         if (decl != NULL && tree_kind(decl) == T_ENUM_LIT)
+            *ambiguous = true;
+      }
+      break;
+   default:
+      break;
+   }
+}
+
 static bool sem_check_fcall(tree_t t)
 {
    tree_t overloads[MAX_OVERLOADS];
@@ -1108,28 +1125,76 @@ static bool sem_check_fcall(tree_t t)
       }
    } while (decl != NULL);
 
-   int fails = 0;
+   // Work out which parameters have ambiguous interpretations
+   bool ambiguous[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++) {
-      type_set_push();
-
-      for (int j = 0; j < n_overloads; j++)
-         type_set_add(type_param(tree_type(overloads[j]), i));
-
       param_t p = tree_param(t, i);
-      if (p.kind != P_POS)
-         sem_error(t, "only positional function arguments supported");
-
-      if (!sem_check(p.value))
-         fails++;
-
-      type_set_pop();
+      assert(p.kind == P_POS);
+      ambiguous[i] = false;
+      tree_visit(p.value, sem_maybe_ambiguous, &ambiguous[i]);
    }
 
-   if (fails > 0)
-      return false;
+   // First pass: only check those parameters which are unambiguous
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      if (ambiguous[i])
+         continue;
+
+      type_set_push();
+
+      for (int j = 0; j < n_overloads; j++) {
+         if (overloads[j] != NULL)
+            type_set_add(type_param(tree_type(overloads[j]), i));
+      }
+
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+      bool ok = sem_check(p.value);
+
+      type_set_pop();
+
+      if (ok) {
+         // Delete all overloads which don't match this parameter type
+         type_t ptype = tree_type(p.value);
+         for (int j = 0; j < n_overloads; j++) {
+            if (overloads[j] != NULL) {
+               if (!type_eq(type_param(tree_type(overloads[j]), i),
+                            ptype))
+                  overloads[j] = NULL;
+            }
+         }
+      }
+      else
+         return false;
+   }
+
+   // Second pass: now the set of overloads has been constrained check
+   // those parameters which might be ambiguous
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      if (!ambiguous[i])
+         continue;
+
+      type_set_push();
+
+      for (int j = 0; j < n_overloads; j++) {
+         if (overloads[j] != NULL)
+            type_set_add(type_param(tree_type(overloads[j]), i));
+      }
+
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+      bool ok = sem_check(p.value);
+
+      type_set_pop();
+
+      if (!ok)
+         return false;
+   }
 
    int matches = 0;
    for (int n = 0; n < n_overloads; n++) {
+      if (overloads[n] == NULL)
+         continue;
+
       // Did argument types match for this overload?
       bool match = true;
       bool all_universal = true;

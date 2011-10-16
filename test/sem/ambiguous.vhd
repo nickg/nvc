@@ -43,5 +43,17 @@ begin
         a := z = -5;
         a := -5 = z;
     end process;
+
+    process is
+        variable a : bit_vector(3 downto 0);
+        variable x : character;
+        variable b : boolean;
+    begin
+        b := x = '1';                   -- OK
+        b := '1' = x;                   -- OK
+        b := a = ('0', '1', '0', '1');  -- OK
+        b := ('0', '1', '0', '1') = a;  -- OK
+        b := ('0', '1') = ('0', '1');   -- Error
+    end process;
     
 end architecture;
