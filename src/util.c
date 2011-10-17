@@ -164,6 +164,7 @@ void fmt_loc(FILE *f, const struct loc *loc)
    fprintf(stderr, "\n");
 }
 
+#ifndef NO_STACK_TRACE
 
 static void print_trace(char **messages, int trace_size)
 {
@@ -295,6 +296,8 @@ static bool is_debugger_running(void)
    }
 #endif  // __APPLE__
 }
+
+#endif  // NO_STACK_TRACE
 
 void register_trace_signal_handlers(void)
 {

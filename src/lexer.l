@@ -126,6 +126,7 @@ ARRAY         {A}{R}{R}{A}{Y}
 OTHERS        {O}{T}{H}{E}{R}{S}
 ASSERT        {A}{S}{S}{E}{R}{T}
 SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
+ON            {O}{N}
 
 %%
 
@@ -182,6 +183,7 @@ SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 {OTHERS}        { begin_token(yytext); return tOTHERS; }
 {ASSERT}        { begin_token(yytext); return tASSERT; }
 {SEVERITY}      { begin_token(yytext); return tSEVERITY; }
+{ON}            { begin_token(yytext); return tON; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

@@ -6,6 +6,9 @@ begin
     begin
         wait for 1 ns;
         block_forever: wait;
+        wait on x;
+        wait on x, y, z(1 downto 0);
+        wait on w(1) for 2 ns;
     end process;
 
     -- Blocking assignment

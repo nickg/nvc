@@ -168,7 +168,8 @@
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
-%type <l> constant_decl formal_param_list subprogram_decl
+%type <l> constant_decl formal_param_list subprogram_decl name_list
+%type <l> sensitivity_clause
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -190,7 +191,7 @@
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS tASSERT tSEVERITY
+%token tOTHERS tASSERT tSEVERITY tON
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -563,7 +564,7 @@ conc_stmt
 ;
 
 process_stmt
-: opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_list ) ] */
+: opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_clause ) ] */
   opt_is process_decl_part tBEGIN process_stmt_part tEND
   /* [ postponed ] */ tPROCESS opt_id tSEMI
   {
@@ -687,13 +688,17 @@ seq_stmt
 ;
 
 seq_stmt_without_label
-: tWAIT /* [ sensitivity_clause ] [ condition_clause ] */
+: tWAIT sensitivity_clause /* [ condition_clause ] */
   timeout_clause tSEMI
   {
      $$ = tree_new(T_WAIT);
      tree_set_loc($$, &@$);
-     if ($2 != NULL)
-        tree_set_delay($$, $2);
+     if ($3 != NULL)
+        tree_set_delay($$, $3);
+
+     for (tree_list_t *it = $2; it != NULL; it = it->next)
+        tree_add_trigger($$, it->value);
+     tree_list_free($2);
   }
 | target tASSIGN expr tSEMI
   {
@@ -785,6 +790,11 @@ waveform_element
 
 timeout_clause
 : tFOR expr { $$ = $2; }
+| /* empty */ { $$ = NULL; }
+;
+
+sensitivity_clause
+: tON name_list { $$ = $2; }
 | /* empty */ { $$ = NULL; }
 ;
 
@@ -1190,6 +1200,19 @@ name
      | character_literal
      | indexed_name
      | external_name */
+;
+
+name_list
+: name
+  {
+     $$ = NULL;
+     tree_list_append(&$$, $1);
+  }
+| name tCOMMA name_list
+  {
+     $$ = $3;
+     tree_list_prepend(&$$, $1);
+  }
 ;
 
 %%

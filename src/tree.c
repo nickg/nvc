@@ -62,47 +62,48 @@ struct tree {
    unsigned    n_attrs;
 
    union {
-      struct tree_array  ports;   // T_ENTITY, T_FUNC_DECL
-      struct param_array params;  // T_FCALL, T_ATTR_REF
-      struct tree_array  decls;   // T_ARCH, T_PROCESS, T_PACKAGE
-      struct tree_array  drivers; // T_SIGNAL_DECL
+      struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL
+      struct param_array params;   // T_FCALL, T_ATTR_REF
+      struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE
+      struct tree_array  drivers;  // T_SIGNAL_DECL
+      struct tree_array  triggers; // T_WAIT
    };
    union {
-      struct tree_array generics; // T_ENTITY
-      struct tree_array stmts;    // T_ARCH, T_PROCESS, T_PACKAGE
-      type_t            type;     // many
+      struct tree_array generics;  // T_ENTITY
+      struct tree_array stmts;     // T_ARCH, T_PROCESS, T_PACKAGE
+      type_t            type;      // many
    };
    union {
-      literal_t   literal;        // T_LITERAL
-      port_mode_t port_mode;      // T_PORT_MODE
-      ident_t     ident2;         // T_ARCH, T_ATTR_REF
-      tree_t      message;        // T_ASSERT
+      literal_t   literal;         // T_LITERAL
+      port_mode_t port_mode;       // T_PORT_MODE
+      ident_t     ident2;          // T_ARCH, T_ATTR_REF
+      tree_t      message;         // T_ASSERT
    };
    union {
-      tree_t value;               // many
-      tree_t delay;               // T_WAIT
+      tree_t value;                // many
+      tree_t delay;                // T_WAIT
    };
    union {
-      tree_t   target;            // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
-      tree_t   ref;               // T_REF, T_FCALL, T_ARRAY_REF
-      tree_t   severity;          // T_ASSERT
-      unsigned pos;               // T_ENUM_LIT;
+      tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
+      tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF
+      tree_t   severity;           // T_ASSERT
+      unsigned pos;                // T_ENUM_LIT;
    };
    union {
-      struct {                    // T_AGGREGATE
+      struct {                     // T_AGGREGATE
          assoc_t  *assocs;
          unsigned n_assocs;
          unsigned n_assocs_alloc;
       };
-      struct {                    // T_ARCH, T_ENTITY, T_PACKAGE
+      struct {                     // T_ARCH, T_ENTITY, T_PACKAGE
          ident_t  *context;
          unsigned n_contexts;
       };
-      struct {                    // T_SIGNAL_DECL
+      struct {                     // T_SIGNAL_DECL
          struct tree_array *sub_drivers;
          unsigned          n_elems;
       };
-      range_t range;              // T_ARRAY_SLICE
+      range_t range;               // T_ARRAY_SLICE
    };
 
    // Serialisation and GC bookkeeping
@@ -155,6 +156,7 @@ struct tree_rd_ctx {
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
+#define HAS_TRIGGERS(t) (IS(t, T_WAIT))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
@@ -683,6 +685,32 @@ void tree_set_delay(tree_t t, tree_t d)
    t->delay = d;
 }
 
+unsigned tree_triggers(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_TRIGGERS(t));
+
+   return t->triggers.count;
+}
+
+tree_t tree_trigger(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_TRIGGERS(t));
+
+   return tree_array_nth(&t->triggers, n);
+}
+
+void tree_add_trigger(tree_t t, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(HAS_TRIGGERS(t));
+   assert(IS_EXPR(s));
+
+   tree_array_add(&t->triggers, s);
+}
+
 tree_t tree_target(tree_t t)
 {
    assert(t != NULL);
@@ -972,6 +1000,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->generics, fn, context, kind, generation, deep);
    if (HAS_DECLS(t))
       n += tree_visit_a(&t->decls, fn, context, kind, generation, deep);
+   if (HAS_TRIGGERS(t))
+      n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
    if (HAS_STMTS(t))
       n += tree_visit_a(&t->stmts, fn, context, kind, generation, deep);
    if (HAS_VALUE(t))
@@ -1170,6 +1200,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->generics, ctx);
    if (HAS_DECLS(t))
       write_a(&t->decls, ctx);
+   if (HAS_TRIGGERS(t))
+      write_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
       write_a(&t->stmts, ctx);
    if (HAS_TYPE(t))
@@ -1338,6 +1370,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->generics, ctx);
    if (HAS_DECLS(t))
       read_a(&t->decls, ctx);
+   if (HAS_TRIGGERS(t))
+      read_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
       read_a(&t->stmts, ctx);
    if (HAS_TYPE(t)) {

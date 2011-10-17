@@ -252,7 +252,7 @@ START_TEST(test_seq)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 2);
+   fail_unless(tree_stmts(p) == 5);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_WAIT);
@@ -269,6 +269,24 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_WAIT);
    fail_if(tree_has_delay(s));
    fail_unless(tree_ident(s) == ident_new("BLOCK_FOREVER"));
+
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_if(tree_has_delay(s));
+   fail_unless(tree_triggers(s) == 1);
+   e = tree_trigger(s, 0);
+   fail_unless(tree_kind(e) == T_REF);
+
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_if(tree_has_delay(s));
+   fail_unless(tree_triggers(s) == 3);
+   e = tree_trigger(s, 2);
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+
+   s = tree_stmt(p, 4);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_unless(tree_has_delay(s));
 
    // Variable assignment
 
