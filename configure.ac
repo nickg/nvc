@@ -18,12 +18,15 @@ AC_PROG_RANLIB
 AC_C_INLINE
 
 AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_TYPE_INT8_T
 AC_TYPE_INT16_T
 AC_TYPE_INT32_T
-AC_TYPE_INT8_T
+AC_TYPE_INT64_T
+AC_TYPE_UINT8_T
 AC_TYPE_UINT16_T
 AC_TYPE_UINT32_T
-AC_TYPE_UINT8_T
+AC_TYPE_UINT64_T
 AC_TYPE_PID_T
 
 AC_FUNC_MMAP   
@@ -32,10 +35,11 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_FORK
 AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
-                memset strchr strrchr strstr])
+                memset strchr strrchr strstr setenv])
 
 AC_HEADER_STDBOOL
-AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h])
+AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
+                  sys/socket.h])
 
 AX_LLVM_C([engine bitreader bitwriter])
 
