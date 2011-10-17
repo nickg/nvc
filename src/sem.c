@@ -1290,7 +1290,21 @@ static bool sem_check_wait(tree_t t)
          sem_error(delay, "type of delay must be TIME");
    }
 
-   return true;
+   bool ok = true;
+   for (unsigned i = 0; i < tree_triggers(t); i++) {
+      tree_t r = tree_trigger(t, i);
+      ok = sem_check(r) && ok;
+
+      if (ok) {
+         // Can only reference signals in sensitivity list
+         tree_t decl = tree_ref(r);
+         if (tree_kind(decl) != T_SIGNAL_DECL)
+            sem_error(r, "name %s in sensitivity list is not a signal",
+                      istr(tree_ident(decl)));
+      }
+   }
+   
+   return ok;
 }
 
 static bool sem_check_assert(tree_t t)

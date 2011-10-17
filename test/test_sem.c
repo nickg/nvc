@@ -358,7 +358,8 @@ START_TEST(test_wait)
    fail_unless(input_from_file(TESTDIR "/sem/wait.vhd"));
 
    const error_t expect[] = {
-      { 13, "type of delay must be TIME" },
+      { 14, "type of delay must be TIME" },
+      { 23, "name V in sensitivity list is not a signal" },
       { -1, NULL }
    };
    expect_errors(expect);
