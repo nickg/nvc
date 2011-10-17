@@ -602,10 +602,31 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, sched_process_fn, args, 1, "");
 }
 
+static void cgen_sched_event(tree_t on)
+{
+   LLVMValueRef sched_event_fn =
+      LLVMGetNamedFunction(module, "_sched_event");
+   assert(sched_event_fn != NULL);
+
+   assert(tree_kind(on) == T_REF);
+   tree_t decl = tree_ref(on);
+
+   LLVMValueRef signal =
+      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   assert(signal != NULL);
+
+   LLVMValueRef args[] = { llvm_void_cast(signal) };
+   LLVMBuildCall(builder, sched_event_fn,
+                 args, ARRAY_LEN(args), "");
+}
+
 static void cgen_wait(tree_t t, struct proc_ctx *ctx)
 {
    if (tree_has_delay(t))
       cgen_sched_process(cgen_expr(tree_delay(t), ctx));
+
+   for (unsigned i = 0; i < tree_triggers(t); i++)
+      cgen_sched_event(tree_trigger(t, i));
 
    // Find the basic block to jump to when the process is next scheduled
    struct proc_entry *it;
@@ -1027,6 +1048,7 @@ static LLVMTypeRef cgen_signal_type(void)
       fields[SIGNAL_FLAGS]     = LLVMInt32Type();
       fields[SIGNAL_N_SOURCES] = LLVMInt32Type();
       fields[SIGNAL_SOURCES]   = llvm_void_ptr();
+      fields[SIGNAL_SENSITIVE] = llvm_void_ptr();
 
       ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
@@ -1045,6 +1067,7 @@ static LLVMValueRef cgen_signal_init(void)
    init[SIGNAL_FLAGS]     = llvm_int32(0);
    init[SIGNAL_N_SOURCES] = llvm_int32(0);
    init[SIGNAL_SOURCES]   = LLVMConstNull(llvm_void_ptr());
+   init[SIGNAL_SENSITIVE] = LLVMConstNull(llvm_void_ptr());
 
    return LLVMConstStruct(init, ARRAY_LEN(init), false);
 }
@@ -1218,7 +1241,7 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _sched_waveform_args[] = {
-      LLVMPointerType(LLVMInt8Type(), 0),
+      llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt64Type(),
       LLVMInt64Type()
@@ -1227,6 +1250,15 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _sched_waveform_args,
                                     ARRAY_LEN(_sched_waveform_args),
+                                    false));
+
+   LLVMTypeRef _sched_event_args[] = {
+      llvm_void_ptr()
+   };
+   LLVMAddFunction(module, "_sched_event",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _sched_event_args,
+                                    ARRAY_LEN(_sched_event_args),
                                     false));
 
    LLVMTypeRef _assert_fail_args[] = {

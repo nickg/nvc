@@ -64,12 +64,18 @@ struct waveform {
    struct waveform *next;
 };
 
+struct sens_list {
+   struct rt_proc   *proc;
+   struct sens_list *next;
+};
+
 struct signal {
-   union sigvalue  resolved;
-   tree_t          decl;
-   int32_t         flags;
-   int32_t         n_sources;
-   struct waveform **sources;
+   union sigvalue   resolved;
+   tree_t           decl;
+   int32_t          flags;
+   int32_t          n_sources;
+   struct waveform  **sources;
+   struct sens_list *sensitive;
 };
 
 static struct rt_proc *procs = NULL;
@@ -203,6 +209,20 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    deltaq_insert(after, NULL, sig, source);
 }
 
+void _sched_event(void *_sig)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_sched_event %s proc %s", fmt_sig(sig),
+         istr(tree_ident(active_proc->source)));
+
+   struct sens_list *node = xmalloc(sizeof(struct sens_list));
+   node->proc = active_proc;
+   node->next = sig->sensitive;
+
+   sig->sensitive = node;
+}
+
 void _assert_fail(int8_t report, const uint8_t *msg,
                   int32_t msg_len, int8_t severity)
 {
@@ -331,7 +351,7 @@ static void deltaq_dump(void)
       if (it->kind == E_DRIVER)
          printf("driver\t %s\n", fmt_sig(it->signal));
       else
-         printf("process\t %p\n", it->wake_proc);
+         printf("process\t %s\n", istr(tree_ident(it->wake_proc->source)));
    }
 }
 #endif
@@ -356,12 +376,14 @@ static void rt_setup(tree_t top)
 
          for (unsigned i = 0; i < high - low + 1; i++) {
             TRACE("signal %s[%d] at %p", istr(tree_ident(d)), i, &s[i]);
-            s[i].decl = d;
+            s[i].decl      = d;
+            s[i].sensitive = NULL;
          }
       }
       else {
          TRACE("signal %s at %p", istr(tree_ident(d)), s);
-         s->decl = d;
+         s->decl      = d;
+         s->sensitive = NULL;
       }
 
       tree_add_attr_ptr(d, ident_new("signal"), s);
@@ -410,8 +432,17 @@ static void rt_update_driver(struct signal *s, unsigned source)
       const bool first_cycle = (iteration == 0 && now == 0);
       if (!first_cycle) {
          new_flags = SIGNAL_F_ACTIVE;
-         if (s->resolved.val != w_next->value.val)
+         if (s->resolved.val != w_next->value.val) {
             new_flags |= SIGNAL_F_EVENT;
+
+            struct sens_list *it, *next;
+            for (it = s->sensitive; it != NULL; it = next) {
+               TRACE("wakeup process %s", istr(tree_ident(it->proc->source)));
+               next = it->next;
+               deltaq_insert(0, it->proc, NULL, 0);
+               free(it);
+            }
+         }
 
          assert(n_active_signals < MAX_ACTIVE_SIGS);
          active_signals[n_active_signals++] = s;
