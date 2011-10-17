@@ -39,18 +39,16 @@ void slave_post_msg(slave_msg_t msg, const void *args, size_t len)
 
    ssize_t rc = writev(slave_fd, iov, 2);
    if (rc < 0)
-      fatal("writev");
+      fatal_errno("writev");
 }
 
 void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
 {
    ssize_t nr = read(slave_fd, msg, sizeof(slave_msg_t));
    if (nr < 0)
-      fatal("read");
-   else if (nr == 0) {
-      fprintf(stderr, "slave connection terminated\n");
-      exit(EXIT_FAILURE);
-   }
+      fatal_errno("read");
+   else if (nr == 0)
+      fatal("slave connection terminated\n");
 
    size_t body_len = 0;
    switch (*msg) {
@@ -68,7 +66,7 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
       assert(body_len <= *len);
       nr = read(slave_fd, buf, body_len);
       if (nr < 0)
-         fatal("read");
+         fatal_errno("read");
    }
 }
 

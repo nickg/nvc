@@ -131,6 +131,20 @@ void fatal(const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
+void fatal_errno(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   fprintf(stderr, "fatal: ");
+   vfprintf(stderr, fmt, ap);
+   fprintf(stderr, ": %s\n", strerror(errno));
+
+   va_end(ap);
+
+   exit(EXIT_FAILURE);
+}
+
 void fmt_loc(FILE *f, const struct loc *loc)
 {
    if (loc->first_line == (unsigned short)-1 || loc->linebuf == NULL)
@@ -249,26 +263,26 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 static bool is_debugger_running(void)
 {
 #ifdef __APPLE__
-    struct kinfo_proc info;
-    info.kp_proc.p_flag = 0;
+   struct kinfo_proc info;
+   info.kp_proc.p_flag = 0;
 
-    int mib[4];
-    mib[0] = CTL_KERN;
-    mib[1] = KERN_PROC;
-    mib[2] = KERN_PROC_PID;
-    mib[3] = getpid();
+   int mib[4];
+   mib[0] = CTL_KERN;
+   mib[1] = KERN_PROC;
+   mib[2] = KERN_PROC_PID;
+   mib[3] = getpid();
 
-    size_t size = sizeof(info);
-    int rc = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
-    if (rc != 0)
-        fatal("sysctl");
+   size_t size = sizeof(info);
+   int rc = sysctl(mib, sizeof(mib) / sizeof(*mib), &info, &size, NULL, 0);
+   if (rc != 0)
+      fatal_errno("sysctl");
 
-    return (info.kp_proc.p_flag & P_TRACED) != 0;
+   return (info.kp_proc.p_flag & P_TRACED) != 0;
 #else  // __APPLE__
    pid_t pid = fork();
 
    if (pid == -1)
-      fatal("fork");
+      fatal_errno("fork");
    else if (pid == 0) {
       int ppid = getppid();
 

@@ -38,6 +38,8 @@ void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
+void fatal_errno(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2), noreturn));
 
 // Error callback for use in unit tests.
 typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
