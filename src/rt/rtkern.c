@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "util.h"
 #include "signal.h"
+#include "slave.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -502,16 +503,9 @@ void rt_trace_en(bool en)
    trace_on = en;
 }
 
-void rt_exec(ident_t top)
+void rt_batch_exec(tree_t e)
 {
-   ident_t ename = ident_prefix(top, ident_new("elab"), '.');
-   tree_t e = lib_get(lib_work(), ename);
-   if (e == NULL)
-      fatal("%s not elaborated", istr(top));
-   else if (tree_kind(e) != T_ELAB)
-      fatal("%s not suitable top level", istr(top));
-
-   jit_init(ename);
+   jit_init(tree_ident(e));
 
    rt_setup(e);
    rt_initial();
@@ -519,4 +513,38 @@ void rt_exec(ident_t top)
       rt_cycle();
 
    jit_shutdown();
+}
+
+static void rt_slave_run(slave_run_msg_t *msg)
+{
+   const uint64_t end = (msg->time == 0 ? ~0 : now + msg->time);
+   while (now < end && eventq != NULL)
+      rt_cycle();
+}
+
+void rt_slave_exec(tree_t e)
+{
+   jit_init(tree_ident(e));
+
+   for (;;) {
+      char buf[256];
+      slave_msg_t msg;
+      size_t len = sizeof(buf);
+      slave_get_msg(&msg, buf, &len);
+
+      switch (msg) {
+      case SLAVE_QUIT:
+         jit_shutdown();
+         return;
+
+      case SLAVE_RESTART:
+         rt_setup(e);
+         rt_initial();
+         break;
+
+      case SLAVE_RUN:
+         rt_slave_run((slave_run_msg_t*)buf);
+         break;
+      }
+   }
 }

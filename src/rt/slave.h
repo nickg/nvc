@@ -15,23 +15,31 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_H
-#define _RT_H
+#ifndef _SLAVE_H
+#define _SLAVE_H
 
-#include "ident.h"
+// Control channel for slave simulation kernel
 
-struct tree;
+#include <stddef.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-void rt_batch_exec(struct tree *e);
-void rt_slave_exec(struct tree *e);
-void rt_trace_en(bool en);
+typedef enum {
+   // Messages from master to slave
+   SLAVE_QUIT,
+   SLAVE_RESTART,
+   SLAVE_RUN
+} slave_msg_t;
 
-void jit_init(ident_t top);
-void jit_shutdown(void);
-void *jit_fun_ptr(const char *name);
-void *jit_var_ptr(const char *name);
-void jit_bind_fn(const char *name, void *ptr);
+typedef struct {
+   uint64_t time;
+} slave_run_msg_t;
 
-void shell_run(struct tree *e);
+void slave_post_msg(slave_msg_t msg, const void *args, size_t len);
+void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len);
+bool slave_msg_ready(void);
+bool slave_fork(void);
+void slave_kill(int sig);
+int slave_wait(void);
 
-#endif  // _RT_H
+#endif

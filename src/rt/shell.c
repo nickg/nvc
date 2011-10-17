@@ -15,23 +15,33 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _RT_H
-#define _RT_H
+#include "util.h"
+#include "slave.h"
+#include "rt.h"
+#include "tree.h"
 
-#include "ident.h"
+static void shell_cmd_quit(void)
+{
+   slave_post_msg(SLAVE_QUIT, NULL, 0);
+}
 
-struct tree;
+static void shell_cmd_restart(void)
+{
+   slave_post_msg(SLAVE_RESTART, NULL, 0);
+}
 
-void rt_batch_exec(struct tree *e);
-void rt_slave_exec(struct tree *e);
-void rt_trace_en(bool en);
+static void shell_cmd_run(uint64_t time)
+{
+   slave_run_msg_t msg = {
+      .time = time
+   };
+   slave_post_msg(SLAVE_RUN, &msg, sizeof(msg));
+}
 
-void jit_init(ident_t top);
-void jit_shutdown(void);
-void *jit_fun_ptr(const char *name);
-void *jit_var_ptr(const char *name);
-void jit_bind_fn(const char *name, void *ptr);
-
-void shell_run(struct tree *e);
-
-#endif  // _RT_H
+void shell_run(tree_t e)
+{
+   shell_cmd_restart();
+   shell_cmd_run(0);
+   shell_cmd_quit();
+   slave_wait();
+}

@@ -19,6 +19,7 @@
 #include "parse.h"
 #include "phase.h"
 #include "rt/rt.h"
+#include "rt/slave.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -158,11 +159,15 @@ static int run(int argc, char **argv)
 
    static struct option long_options[] = {
       {"trace", no_argument, 0, 't'},
+      {"batch", no_argument, 0, 'b'},
+      {"command", no_argument, 0, 'c'},
       {0, 0, 0, 0}
    };
 
+   enum { BATCH, COMMAND } mode = BATCH;
+
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = "bc";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -175,6 +180,12 @@ static int run(int argc, char **argv)
       case 't':
          rt_trace_en(true);
          break;
+      case 'b':
+         mode = BATCH;
+         break;
+      case 'c':
+         mode = COMMAND;
+         break;
       default:
          abort();
       }
@@ -183,7 +194,23 @@ static int run(int argc, char **argv)
    if (optind == argc)
       fatal("missing top-level unit name");
 
-   rt_exec(to_unit_name(argv[optind]));
+   ident_t top = to_unit_name(argv[optind]);
+   ident_t ename = ident_prefix(top, ident_new("elab"), '.');
+   tree_t e = lib_get(lib_work(), ename);
+   if (e == NULL)
+      fatal("%s not elaborated", istr(top));
+   else if (tree_kind(e) != T_ELAB)
+      fatal("%s not suitable top level", istr(top));
+
+   if (mode == BATCH)
+      rt_batch_exec(e);
+   else {
+      bool master = slave_fork();
+      if (master)
+         shell_run(e);
+      else
+         rt_slave_exec(e);
+   }
 
    return EXIT_SUCCESS;
 }
@@ -209,6 +236,8 @@ static void usage(void)
           "     --disable-opt\tDisable LLVM optimisations\n"
           "\n"
           "Run options:\n"
+          " -b, --batch\t\tRun in batch mode (default)\n"
+          " -c, --command\t\tRun in TCL command line mode\n"
           "     --trace\t\tTrace simulation events\n"
           "\n"
           "Report bugs to %s\n",
