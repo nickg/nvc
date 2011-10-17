@@ -18,6 +18,7 @@
 #include "slave.h"
 #include "util.h"
 
+#include <stdlib.h>
 #include <assert.h>
 #include <unistd.h>
 #include <poll.h>
@@ -46,6 +47,10 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    ssize_t nr = read(slave_fd, msg, sizeof(slave_msg_t));
    if (nr < 0)
       fatal("read");
+   else if (nr == 0) {
+      fprintf(stderr, "slave connection terminated\n");
+      exit(EXIT_FAILURE);
+   }
 
    size_t body_len = 0;
    switch (*msg) {
