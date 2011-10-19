@@ -41,6 +41,8 @@ AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
                   sys/socket.h])
 
+VL_LIB_READLINE
+
 AX_LLVM_C([engine bitreader bitwriter])
 
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])

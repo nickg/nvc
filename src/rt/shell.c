@@ -21,7 +21,20 @@
 #include "tree.h"
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <tcl.h>
+
+#ifdef HAVE_LIBREADLINE
+#include <readline/readline.h>
+#endif
+
+#ifdef HAVE_READLINE_HISTORY
+#include <readline/history.h>
+#endif
+
+#define LINE_BUF_LEN 256
 
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
@@ -49,6 +62,22 @@ static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static char *shell_get_line(void)
+{
+#ifdef HAVE_LIBREADLINE
+   if (isatty(fileno(stdin)))
+      return readline("% ");
+#endif  // HAVE_LIBREADLINE
+
+   char *buf = xmalloc(LINE_BUF_LEN);
+   if (fgets(buf, LINE_BUF_LEN, stdin))
+      return buf;
+   else {
+      free(buf);
+      return NULL;
+   }
+}
+
 void shell_run(tree_t e)
 {
    Tcl_Interp *interp = Tcl_CreateInterp();
@@ -61,8 +90,8 @@ void shell_run(tree_t e)
 
    slave_post_msg(SLAVE_RESTART, NULL, 0);
 
-   char line[256];
-   while (!have_quit && fgets(line, sizeof(line), stdin)) {
+   char *line;
+   while (!have_quit && (line = shell_get_line())) {
       switch (Tcl_Eval(interp, line)) {
       case TCL_OK:
          break;
@@ -72,6 +101,8 @@ void shell_run(tree_t e)
       default:
          assert(false);
       }
+
+      free(line);
    }
 
    if (!have_quit)
