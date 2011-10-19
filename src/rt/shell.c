@@ -34,8 +34,6 @@
 #include <readline/history.h>
 #endif
 
-#define LINE_BUF_LEN 256
-
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
@@ -69,12 +67,29 @@ static char *shell_get_line(void)
       return readline("% ");
 #endif  // HAVE_LIBREADLINE
 
-   char *buf = xmalloc(LINE_BUF_LEN);
-   if (fgets(buf, LINE_BUF_LEN, stdin))
-      return buf;
-   else {
-      free(buf);
-      return NULL;
+   size_t buflen = 256;
+   char *buf = xmalloc(buflen);
+
+   size_t off = 0;
+   for (;;) {
+      if (off == buflen) {
+         buflen *= 2;
+         buf = xrealloc(buf, buflen);
+      }
+
+      int ch = fgetc(stdin);
+      switch (ch) {
+      case EOF:
+         buf[off] = '\0';
+         return (off > 0 ? buf : NULL);
+
+      case '\n':
+         buf[off] = '\0';
+         return buf;
+
+      default:
+         buf[off++] = ch;
+      }
    }
 }
 
