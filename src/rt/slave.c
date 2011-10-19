@@ -79,7 +79,7 @@ bool slave_msg_ready(void)
 
    int rc = poll(&pfd, 1, 0);
    if (rc < 0)
-      fatal("poll");
+      fatal_errno("poll");
    else
       return rc == 1;
 }
@@ -88,11 +88,11 @@ bool slave_fork(void)
 {
    int socks[2];
    if (socketpair(PF_LOCAL, SOCK_STREAM, 0, socks) < 0)
-      fatal("socketpair");
+      fatal_errno("socketpair");
 
    slave_pid = fork();
    if (slave_pid < 0)
-      fatal("fork");
+      fatal_errno("fork");
    else if (slave_pid == 0) {
       // Slave
       close(socks[0]);

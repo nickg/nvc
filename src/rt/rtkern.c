@@ -164,7 +164,7 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    const size_t ptr_sz = sizeof(struct waveform *);
    if (sig->sources == NULL) {
       sig->n_sources = source + 1;
-      sig->sources = xmalloc(sig->n_sources * ptr_sz);
+      sig->sources  = xmalloc(sig->n_sources * ptr_sz);
       memset(sig->sources, '\0', sig->n_sources * ptr_sz);
    }
    else if (source >= sig->n_sources) {
@@ -357,12 +357,25 @@ static void deltaq_dump(void)
 }
 #endif
 
+static void rt_reset_signal(struct signal *s, tree_t decl)
+{
+   if (s->sources != NULL)
+      free(s->sources);
+
+   s->decl      = decl;
+   s->sensitive = NULL;
+   s->sources   = NULL;
+}
+
 static void rt_setup(tree_t top)
 {
-   n_procs = tree_stmts(top);
-   procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
+   while (eventq != NULL)
+      deltaq_pop();
 
-   jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
+   if (procs == NULL) {
+      n_procs = tree_stmts(top);
+      procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
+   }
 
    for (unsigned i = 0; i < tree_decls(top); i++) {
       tree_t d = tree_decl(top, i);
@@ -377,14 +390,12 @@ static void rt_setup(tree_t top)
 
          for (unsigned i = 0; i < high - low + 1; i++) {
             TRACE("signal %s[%d] at %p", istr(tree_ident(d)), i, &s[i]);
-            s[i].decl      = d;
-            s[i].sensitive = NULL;
+            rt_reset_signal(&s[i], d);
          }
       }
       else {
          TRACE("signal %s at %p", istr(tree_ident(d)), s);
-         s->decl      = d;
-         s->sensitive = NULL;
+         rt_reset_signal(s, d);
       }
 
       tree_add_attr_ptr(d, ident_new("signal"), s);
@@ -498,6 +509,11 @@ static void rt_cycle(void)
    n_active_signals = 0;
 }
 
+static void rt_one_time_init(void)
+{
+   jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
+}
+
 void rt_trace_en(bool en)
 {
    trace_on = en;
@@ -507,6 +523,7 @@ void rt_batch_exec(tree_t e)
 {
    jit_init(tree_ident(e));
 
+   rt_one_time_init();
    rt_setup(e);
    rt_initial();
    while (eventq != NULL)
@@ -525,6 +542,7 @@ static void rt_slave_run(slave_run_msg_t *msg)
 void rt_slave_exec(tree_t e)
 {
    jit_init(tree_ident(e));
+   rt_one_time_init();
 
    for (;;) {
       char buf[256];
