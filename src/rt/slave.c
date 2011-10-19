@@ -74,7 +74,7 @@ bool slave_msg_ready(void)
 {
    struct pollfd pfd = {
       .fd     = slave_fd,
-      .events = POLLRDNORM
+      .events = POLLIN
    };
 
    int rc = poll(&pfd, 1, 0);
