@@ -164,7 +164,7 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    const size_t ptr_sz = sizeof(struct waveform *);
    if (sig->sources == NULL) {
       sig->n_sources = source + 1;
-      sig->sources  = xmalloc(sig->n_sources * ptr_sz);
+      sig->sources = xmalloc(sig->n_sources * ptr_sz);
       memset(sig->sources, '\0', sig->n_sources * ptr_sz);
    }
    else if (source >= sig->n_sources) {
@@ -359,8 +359,18 @@ static void deltaq_dump(void)
 
 static void rt_reset_signal(struct signal *s, tree_t decl)
 {
-   if (s->sources != NULL)
+   if (s->sources != NULL) {
+      for (int i = 0; i < s->n_sources; i++) {
+         struct waveform *w, *wnext;
+         w = s->sources[i];
+         do {
+            wnext = w->next;
+            free(w);
+         } while ((w = wnext) != NULL);
+      }
+
       free(s->sources);
+   }
 
    s->decl      = decl;
    s->sensitive = NULL;
@@ -565,4 +575,6 @@ void rt_slave_exec(tree_t e)
          break;
       }
    }
+
+   jit_shutdown();
 }
