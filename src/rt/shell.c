@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <tcl.h>
+#include <tcl/tcl.h>
 
 #ifdef HAVE_LIBREADLINE
 #include <readline/readline.h>

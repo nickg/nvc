@@ -41,7 +41,7 @@ AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
                   sys/socket.h])
 
-AC_CHECK_HEADER([tcl.h], [],
+AC_CHECK_HEADER([tcl/tcl.h], [],
   [AC_ERROR(TCL header file not found)])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
