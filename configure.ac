@@ -47,6 +47,9 @@ AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
 
 VL_LIB_READLINE
+if test "$HAVE_LIBREADLINE" = ""; then
+  AC_WARN(terminal line editing will not be supported)
+fi
 
 AX_LLVM_C([engine bitreader bitwriter])
 
@@ -58,6 +61,3 @@ AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile])
 
-if test "$HAVE_LIBREADLINE" = ""; then
-  AC_WARN(No readline compatible library found)
-fi

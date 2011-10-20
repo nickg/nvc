@@ -68,7 +68,7 @@ static char *shell_get_line(void)
       add_history(buf);
       return buf;
 #else   // HAVE_LIBREADLINE
-      printf("% ");
+      printf("%% ");
       fflush(stdout);
 #endif  // HAVE_LIBREADLINE
    }
