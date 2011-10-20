@@ -47,7 +47,7 @@ AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
 
 VL_LIB_READLINE
-if test "$HAVE_LIBREADLINE" = ""; then
+if test "$vl_cv_lib_readline" = "no"; then
   AC_WARN(terminal line editing will not be supported)
 fi
 
