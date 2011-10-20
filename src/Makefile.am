@@ -20,6 +20,5 @@ nvc_SOURCES = nvc.c
 # Force C++ linking
 nodist_EXTRA_nvc_SOURCES = dummy.cxx
 
-nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a \
-	$(LLVM_LIBS) -ltcl
+nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a $(LLVM_LIBS)
 
