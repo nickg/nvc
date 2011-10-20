@@ -62,13 +62,16 @@ static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
 
 static char *shell_get_line(void)
 {
-#ifdef HAVE_LIBREADLINE
    if (isatty(fileno(stdin))) {
+#ifdef HAVE_LIBREADLINE
       char *buf = readline("% ");
       add_history(buf);
       return buf;
-   }
+#else   // HAVE_LIBREADLINE
+      printf("% ");
+      fflush(stdout);
 #endif  // HAVE_LIBREADLINE
+   }
 
    size_t buflen = 256;
    char *buf = xmalloc(buflen);

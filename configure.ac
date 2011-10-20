@@ -57,3 +57,7 @@ AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile])
+
+if test "$HAVE_LIBREADLINE" = ""; then
+  AC_WARN(No readline compatible library found)
+fi
