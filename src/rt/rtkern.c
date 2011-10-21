@@ -379,6 +379,9 @@ static void rt_reset_signal(struct signal *s, tree_t decl)
 
 static void rt_setup(tree_t top)
 {
+   now = 0;
+   iteration = -1;
+
    while (eventq != NULL)
       deltaq_pop();
 
@@ -434,8 +437,6 @@ static void rt_run(struct rt_proc *proc, bool reset)
 static void rt_initial(void)
 {
    // Initialisation is described in LRM 93 section 12.6.4
-
-   now = 0;
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
