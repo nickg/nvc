@@ -136,11 +136,23 @@ static char *shell_get_line(void)
    }
 }
 
+static void shell_exit_handler(ClientData cd)
+{
+   bool *have_quit = cd;
+
+   if (!*have_quit)
+      slave_post_msg(SLAVE_QUIT, NULL, 0);
+
+   slave_wait();
+}
+
 void shell_run(tree_t e)
 {
    Tcl_Interp *interp = Tcl_CreateInterp();
 
    bool have_quit = false;
+
+   Tcl_CreateExitHandler(shell_exit_handler, &have_quit);
 
    Tcl_CreateObjCommand(interp, "quit", shell_cmd_quit, &have_quit, NULL);
    Tcl_CreateObjCommand(interp, "run", shell_cmd_run, NULL, NULL);
@@ -164,9 +176,5 @@ void shell_run(tree_t e)
       free(line);
    }
 
-   if (!have_quit)
-      slave_post_msg(SLAVE_QUIT, NULL, 0);
-
-   Tcl_DeleteInterp(interp);
-   slave_wait();
+   Tcl_Exit(EXIT_SUCCESS);
 }
