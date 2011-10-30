@@ -12,4 +12,9 @@ begin
         x <= y;
     end process;
 
+    process (x) is
+    begin
+        x <= x + 1;
+    end process;
+
 end architecture;

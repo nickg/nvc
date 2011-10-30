@@ -66,7 +66,6 @@ struct tree {
       struct param_array params;   // T_FCALL, T_ATTR_REF
       struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE
       struct tree_array  drivers;  // T_SIGNAL_DECL
-      struct tree_array  triggers; // T_WAIT
    };
    union {
       struct tree_array generics;  // T_ENTITY
@@ -103,7 +102,8 @@ struct tree {
          struct tree_array *sub_drivers;
          unsigned          n_elems;
       };
-      range_t range;               // T_ARRAY_SLICE
+      range_t           range;     // T_ARRAY_SLICE
+      struct tree_array triggers;  // T_WAIT, T_PROCESS
    };
 
    // Serialisation and GC bookkeeping
@@ -156,7 +156,7 @@ struct tree_rd_ctx {
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
-#define HAS_TRIGGERS(t) (IS(t, T_WAIT))
+#define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t) (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))

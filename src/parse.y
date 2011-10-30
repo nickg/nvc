@@ -169,7 +169,7 @@
 %type <l> variable_decl process_decl_item process_stmt_part type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
-%type <l> sensitivity_clause
+%type <l> sensitivity_clause process_sensitivity_clause
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -564,23 +564,29 @@ conc_stmt
 ;
 
 process_stmt
-: opt_label /* [ postponed ] */ tPROCESS /* [ ( sensitivity_clause ) ] */
+: opt_label /* [ postponed ] */ tPROCESS process_sensitivity_clause
   opt_is process_decl_part tBEGIN process_stmt_part tEND
   /* [ postponed ] */ tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
      tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
-     copy_trees($4, tree_add_decl, $$);
-     copy_trees($6, tree_add_stmt, $$);
+     copy_trees($5, tree_add_decl, $$);
+     copy_trees($7, tree_add_stmt, $$);
+     copy_trees($3, tree_add_trigger, $$);
 
-     if ($1 != NULL && $9 != NULL && $1 != $9) {
-        parse_error(&@9, "%s does not match architecture name %s",
-                    istr($9), istr($1));
+     if ($1 != NULL && $10 != NULL && $1 != $10) {
+        parse_error(&@10, "%s does not match process name %s",
+                    istr($10), istr($1));
      }
-     else if ($1 == NULL && $9 != NULL) {
-        parse_error(&@9, "process does not have a label");
+     else if ($1 == NULL && $10 != NULL) {
+        parse_error(&@10, "process does not have a label");
      }
   }
+;
+
+process_sensitivity_clause
+: tLPAREN name_list tRPAREN { $$ = $2; }
+| /* empty */ { $$ = NULL; }
 ;
 
 opt_is : tIS | /* empty */ ;
@@ -695,10 +701,7 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      if ($3 != NULL)
         tree_set_delay($$, $3);
-
-     for (tree_list_t *it = $2; it != NULL; it = it->next)
-        tree_add_trigger($$, it->value);
-     tree_list_free($2);
+     copy_trees($2, tree_add_trigger, $$);
   }
 | target tASSIGN expr tSEMI
   {

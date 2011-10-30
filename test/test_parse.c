@@ -214,7 +214,7 @@ START_TEST(test_process)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 2);
+   fail_unless(tree_stmts(a) == 3);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
@@ -229,6 +229,13 @@ START_TEST(test_process)
    fail_unless(tree_stmts(p) == 1);
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+
+   p = tree_stmt(a, 2);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_triggers(p) == 1);
+   d = tree_trigger(p, 0);
+   fail_unless(tree_kind(d) == T_REF);
+   fail_unless(tree_ident(d) == ident_new("X"));
 
    a = parse();
    fail_unless(a == NULL);
