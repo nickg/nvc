@@ -214,6 +214,50 @@ static int run(int argc, char **argv)
 
    return EXIT_SUCCESS;
 }
+static int dump_cmd(int argc, char **argv)
+{
+   set_work_lib();
+
+   static struct option long_options[] = {
+      {"elab", no_argument, 0, 'e'},
+      {0, 0, 0, 0}
+   };
+
+   bool add_elab = false;
+   int c, index = 0;
+   const char *spec = "e";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      case 'e':
+         add_elab = true;
+         break;
+      default:
+         abort();
+      }
+   }
+
+   if (optind == argc)
+      fatal("missing unit name");
+
+   for (int i = optind; i < argc; i++) {
+      ident_t name = to_unit_name(argv[i]);
+      if (add_elab)
+         name = ident_prefix(name, ident_new("elab"), '.');
+      tree_t top = lib_get(lib_work(), name);
+      if (top == NULL)
+         fatal("%s not analysed", istr(name));
+      dump(top);
+   }
+
+   return EXIT_SUCCESS;
+}
 
 static void usage(void)
 {
@@ -223,6 +267,7 @@ static void usage(void)
           " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
           " -e UNIT\t\tElaborate and generate code for UNIT\n"
           " -r UNIT\t\tExecute previously elaborated UNIT\n"
+          " --dump UNIT\t\tPrint out previously analysed UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -v, --version\t\tDisplay version and copyright information\n"
@@ -239,6 +284,9 @@ static void usage(void)
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --trace\t\tTrace simulation events\n"
+          "\n"
+          "Dump options:\n"
+          " -e, --elab\t\tDump an elaborated unit\n"
           "\n"
           "Report bugs to %s\n",
           PACKAGE, PACKAGE_BUGREPORT);
@@ -267,6 +315,7 @@ int main(int argc, char **argv)
       {"help",    no_argument,       0, 'h'},
       {"version", no_argument,       0, 'v'},
       {"work",    required_argument, 0, 'w'},
+      {"dump",    no_argument,       0, 'd'},
       {0, 0, 0, 0}
    };
 
@@ -310,6 +359,8 @@ int main(int argc, char **argv)
       return elaborate(argc, argv);
    case 'r':
       return run(argc, argv);
+   case 'd':
+      return dump_cmd(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;

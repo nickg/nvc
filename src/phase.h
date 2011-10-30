@@ -51,4 +51,7 @@ void cgen(tree_t top);
 // Toggle LLVM optimisations on and off
 void cgen_optimise_en(bool en);
 
+// Dump out a VHDL representation of the given unit
+void dump(tree_t top);
+
 #endif  // _PHASE_H
