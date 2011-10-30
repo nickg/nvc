@@ -127,6 +127,7 @@ OTHERS        {O}{T}{H}{E}{R}{S}
 ASSERT        {A}{S}{S}{E}{R}{T}
 SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 ON            {O}{N}
+MAP           {M}{A}{P}
 
 %%
 
@@ -184,6 +185,7 @@ ON            {O}{N}
 {ASSERT}        { begin_token(yytext); return tASSERT; }
 {SEVERITY}      { begin_token(yytext); return tSEVERITY; }
 {ON}            { begin_token(yytext); return tON; }
+{MAP}           { begin_token(yytext); return tMAP; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

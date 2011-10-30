@@ -58,6 +58,7 @@ typedef enum tree_kind {
    T_ATTR_REF,
    T_ARRAY_REF,
    T_ARRAY_SLICE,
+   T_INSTANCE,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -109,11 +110,12 @@ void tree_set_type(tree_t t, type_t ty);
 
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
 // T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
-// T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF
+// T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF, T_INSTANCE
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
+bool tree_has_ident(tree_t t);
 
-// T_ARCH, T_ATTR_REF
+// T_ARCH, T_ATTR_REF, T_INSTANCE
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 
@@ -131,7 +133,13 @@ unsigned tree_generics(tree_t t);
 tree_t tree_generic(tree_t t, unsigned n);
 void tree_add_generic(tree_t t, tree_t d);
 
-// T_FCALL, T_ARRAY_REF
+// T_INSTANCE
+unsigned tree_genmaps(tree_t t);
+param_t tree_genmap(tree_t t, unsigned n);
+void tree_add_genmap(tree_t t, param_t e);
+void tree_change_genmap(tree_t t, unsigned n, param_t e);
+
+// T_FCALL, T_ARRAY_REF, T_INSTANCE
 unsigned tree_params(tree_t t);
 param_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, param_t e);

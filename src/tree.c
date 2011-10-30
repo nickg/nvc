@@ -68,9 +68,10 @@ struct tree {
       struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
-      struct tree_array generics;  // T_ENTITY
-      struct tree_array stmts;     // T_ARCH, T_PROCESS, T_PACKAGE
-      type_t            type;      // many
+      struct tree_array  generics; // T_ENTITY
+      struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE
+      struct param_array genmaps;  // T_INSTANCE
+      type_t             type;     // many
    };
    union {
       literal_t   literal;         // T_LITERAL
@@ -138,14 +139,16 @@ struct tree_rd_ctx {
     || IS(t, T_ARRAY_SLICE))
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN) \
-    || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT))
+    || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
-    || IS(t, T_SIGNAL_DECL) || IS_STMT(t) || IS(t, T_VAR_DECL)    \
+    || IS(t, T_SIGNAL_DECL) || IS_STMT(t) || IS(t, T_VAR_DECL)          \
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
     || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL)   \
-    || IS(t, T_FUNC_DECL) || IS(t, T_ELAB) || IS(t, T_ATTR_REF))
-#define HAS_IDENT2(t) (IS(t, T_ARCH) || IS(t, T_ATTR_REF))
+    || IS(t, T_FUNC_DECL) || IS(t, T_ELAB) || IS(t, T_ATTR_REF)         \
+    || IS(t, T_INSTANCE))
+#define HAS_IDENT2(t) \
+   (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE))
 #define HAS_PORTS(t) (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
 #define HAS_TYPE(t) \
@@ -153,7 +156,8 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT) \
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
 #define HAS_PARAMS(t) \
-   (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF))
+   (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
+    || IS(t, T_INSTANCE))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
@@ -199,6 +203,20 @@ static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
 {
    assert(n < a->count);
    return a->items[n];
+}
+
+static void param_array_add(struct param_array *a, param_t p)
+{
+   if (a->max == 0) {
+      a->items = xmalloc(sizeof(param_t) * TREE_ARRAY_BASE_SZ);
+      a->max   = TREE_ARRAY_BASE_SZ;
+   }
+   else if (a->count == a->max) {
+      a->max *= 2;
+      a->items = xrealloc(a->items, sizeof(param_t) * a->max);
+   }
+
+   a->items[a->count++] = p;
 }
 
 tree_t tree_new(tree_kind_t kind)
@@ -306,6 +324,14 @@ ident_t tree_ident(tree_t t)
    assert(t->ident != NULL);
 
    return t->ident;
+}
+
+bool tree_has_ident(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_IDENT(t));
+
+   return t->ident != NULL;
 }
 
 void tree_set_ident(tree_t t, ident_t i)
@@ -462,17 +488,7 @@ void tree_add_param(tree_t t, param_t e)
    if (e.kind == P_POS)
       e.pos = t->params.count;
 
-   if (t->params.max == 0) {
-      t->params.items = xmalloc(sizeof(param_t) * TREE_ARRAY_BASE_SZ);
-      t->params.max   = TREE_ARRAY_BASE_SZ;
-   }
-   else if (t->params.count == t->params.max) {
-      t->params.max *= 2;
-      t->params.items = xrealloc(t->params.items,
-                                 sizeof(tree_t) * t->params.max);
-   }
-
-   t->params.items[t->params.count++] = e;
+   param_array_add(&t->params, e);
 }
 
 void tree_change_param(tree_t t, unsigned n, param_t e)
@@ -486,6 +502,48 @@ void tree_change_param(tree_t t, unsigned n, param_t e)
       e.pos = n;
 
    t->params.items[n] = e;
+}
+
+unsigned tree_genmaps(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_INSTANCE));
+
+   return t->genmaps.count;
+}
+
+param_t tree_genmap(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_INSTANCE));
+   assert(n < t->genmaps.count);
+
+   return t->genmaps.items[n];
+}
+
+void tree_add_genmap(tree_t t, param_t e)
+{
+   assert(t != NULL);
+   assert(IS(t, T_INSTANCE));
+   assert(e.kind == P_RANGE || IS_EXPR(e.value));
+
+   if (e.kind == P_POS)
+      e.pos = t->genmaps.count;
+
+   param_array_add(&t->genmaps, e);
+}
+
+void tree_change_genmap(tree_t t, unsigned n, param_t e)
+{
+   assert(t != NULL);
+   assert(IS(t, T_INSTANCE));
+   assert(e.kind == P_RANGE || IS_EXPR(e.value));
+   assert(n < t->genmaps.count);
+
+   if (e.kind == P_POS)
+      e.pos = n;
+
+   t->genmaps.items[n] = e;
 }
 
 void tree_set_literal(tree_t t, literal_t lit)

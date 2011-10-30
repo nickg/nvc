@@ -838,6 +838,47 @@ START_TEST(test_array)
 }
 END_TEST
 
+START_TEST(test_instance)
+{
+   tree_t a, s;
+
+   fail_unless(input_from_file(TESTDIR "/parse/instance.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 8);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_ident(s) == ident_new("A"));
+   fail_unless(tree_ident2(s) == ident_new("FOO"));
+
+   s = tree_stmt(a, 2);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_ident(s) == ident_new("B1"));
+   fail_unless(tree_ident2(s) == ident_new("WORK.FOO-GOO"));
+
+   s = tree_stmt(a, 5);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_ident(s) == ident_new("E"));
+   fail_unless(tree_ident2(s) == ident_new("WORK.FOO"));
+   fail_unless(tree_params(s) == 3);
+
+   s = tree_stmt(a, 7);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_ident(s) == ident_new("G"));
+   fail_unless(tree_ident2(s) == ident_new("WORK.FOO"));
+   fail_unless(tree_params(s) == 2);
+   fail_unless(tree_genmaps(s) == 1);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -857,6 +898,7 @@ int main(void)
    tcase_add_test(tc_core, test_qual);
    tcase_add_test(tc_core, test_func);
    tcase_add_test(tc_core, test_array);
+   tcase_add_test(tc_core, test_instance);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

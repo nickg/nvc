@@ -117,6 +117,9 @@
    static void copy_trees(tree_list_t *from,
                           void (*copy_fn)(tree_t t, tree_t d),
                           tree_t to);
+   static void copy_params(param_list_t *from,
+                           void (*copy_fn)(tree_t t, param_t p),
+                           tree_t to);
    static id_list_t *id_list_add(id_list_t *list, ident_t id);
    static id_list_t *id_list_append(id_list_t *a, id_list_t *b);
    static void id_list_free(id_list_t *list);
@@ -162,7 +165,8 @@
 %type <t> seq_stmt timeout_clause physical_literal target severity
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform waveform_element seq_stmt_without_label
-%type <i> id opt_id opt_label selected_id
+%type <t> comp_instance_stmt conc_stmt_without_label
+%type <i> id opt_id selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
@@ -182,7 +186,7 @@
 %type <v> secondary_unit_decls
 %type <a> element_assoc_list
 %type <b> element_assoc
-%type <c> param_list
+%type <c> param_list generic_map port_map
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -191,7 +195,7 @@
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS tASSERT tSEVERITY tON
+%token tOTHERS tASSERT tSEVERITY tON tMAP
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -287,8 +291,6 @@ selected_id_list
 ;
 
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
-
-opt_label : id tCOLON { $$ = $1; } | /* empty */ { $$ = NULL; } ;
 
 entity_decl
 : tENTITY id tIS entity_header /* entity_decl_part */ tEND
@@ -553,35 +555,95 @@ subtype_indication
 constraint : range_constraint | index_constraint ;
 
 conc_stmt
-: process_stmt
+: id tCOLON conc_stmt_without_label
+  {
+     $$ = $3;
+     if (tree_has_ident($$) && tree_ident($$) != $1)
+        parse_error(&@1, "%s does not match process name %s",
+                    istr(tree_ident($$)), istr($1));
+     else
+        tree_set_ident($$, $1);
+  }
+| conc_stmt_without_label
+  {
+     $$ = $1;
+     if (tree_has_ident($$))
+        parse_error(&@$, "process does not have a label");
+     else
+        tree_set_ident($$, ident_uniq("_proc"));
+  }
+;
+
+conc_stmt_without_label
+: process_stmt | comp_instance_stmt
   /* | block_statement
      | process_statement
      | concurrent_procedure_call_statement
      | concurrent_assertion_statement
      | concurrent_signal_assignment_statement
-     | component_instantiation_statement
      | generate_statement */
 ;
 
+comp_instance_stmt
+: id generic_map port_map tSEMI
+  {
+     $$ = tree_new(T_INSTANCE);
+     tree_set_ident2($$, $1);
+     copy_params($3, tree_add_param, $$);
+     copy_params($2, tree_add_genmap, $$);
+  }
+| tCOMPONENT selected_id generic_map port_map tSEMI
+  {
+     $$ = tree_new(T_INSTANCE);
+     tree_set_ident2($$, $2);
+     copy_params($4, tree_add_param, $$);
+     copy_params($3, tree_add_genmap, $$);
+  }
+| tENTITY selected_id generic_map port_map tSEMI
+  {
+     $$ = tree_new(T_INSTANCE);
+     tree_set_ident2($$, $2);
+     copy_params($4, tree_add_param, $$);
+     copy_params($3, tree_add_genmap, $$);
+  }
+| tENTITY selected_id tLPAREN id tRPAREN generic_map port_map tSEMI
+  {
+     $$ = tree_new(T_INSTANCE);
+     tree_set_ident2($$, ident_prefix($2, $4, '-'));
+     copy_params($7, tree_add_param, $$);
+     copy_params($6, tree_add_genmap, $$);
+  }
+| tCONFIGURATION selected_id generic_map port_map tSEMI
+  {
+     $$ = tree_new(T_INSTANCE);
+     tree_set_ident2($$, $2);
+     copy_params($4, tree_add_param, $$);
+     copy_params($3, tree_add_genmap, $$);
+  }
+;
+
+generic_map
+: tGENERIC tMAP tLPAREN param_list tRPAREN { $$ = $4; }
+| /* empty */ { $$ = NULL; }
+;
+
+port_map
+: tPORT tMAP tLPAREN  param_list tRPAREN { $$ = $4; }
+| /* empty */ { $$ = NULL; }
+;
+
 process_stmt
-: opt_label /* [ postponed ] */ tPROCESS process_sensitivity_clause
-  opt_is process_decl_part tBEGIN process_stmt_part tEND
-  /* [ postponed ] */ tPROCESS opt_id tSEMI
+: /* [ postponed ] */ tPROCESS process_sensitivity_clause opt_is
+  process_decl_part tBEGIN process_stmt_part tEND /* [ postponed ] */
+  tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
      tree_set_loc($$, &@2);
-     tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
-     copy_trees($5, tree_add_decl, $$);
-     copy_trees($7, tree_add_stmt, $$);
-     copy_trees($3, tree_add_trigger, $$);
-
-     if ($1 != NULL && $10 != NULL && $1 != $10) {
-        parse_error(&@10, "%s does not match process name %s",
-                    istr($10), istr($1));
-     }
-     else if ($1 == NULL && $10 != NULL) {
-        parse_error(&@10, "process does not have a label");
-     }
+     copy_trees($4, tree_add_decl, $$);
+     copy_trees($6, tree_add_stmt, $$);
+     copy_trees($2, tree_add_trigger, $$);
+     if ($9 != NULL)
+        tree_set_ident($$, $9);
   }
 ;
 
@@ -1043,6 +1105,18 @@ param_list
      param_t p = { .kind = P_POS, .value = $1 };
      $$ = param_list_add($3, p);
   }
+| id tASSOC expr
+  {
+     param_t p = { .kind = P_NAMED, .value = $3 };
+     p.name = $1;
+     $$ = param_list_add(NULL, p);
+  }
+| id tASSOC expr tCOMMA param_list
+  {
+     param_t p = { .kind = P_NAMED, .value = $3 };
+     p.name = $1;
+     $$ = param_list_add($5, p);
+  }
 ;
 
 aggregate
@@ -1183,15 +1257,12 @@ name
      $$ = tree_new(T_ARRAY_REF);
      tree_set_value($$, $1);
      tree_set_loc($$, &@$);
+     copy_params($3, tree_add_param, $$);
 
      if (tree_kind($1) == T_REF) {
         tree_change_kind($$, T_FCALL);
         tree_set_ident($$, tree_ident($1));
      }
-
-     for (param_list_t *it = $3; it != NULL; it = it->next)
-        tree_add_param($$, it->param);
-     param_list_free($3);
   }
 | name tLPAREN range tRPAREN
   {
@@ -1267,6 +1338,15 @@ static void copy_trees(tree_list_t *from,
    for (; from != NULL; from = from->next)
       (*copy_fn)(to, from->value);
    tree_list_free(from);
+}
+
+static void copy_params(param_list_t *from,
+                        void (*copy_fn)(tree_t t, param_t p),
+                        tree_t to)
+{
+   for (; from != NULL; from = from->next)
+      (*copy_fn)(to, from->param);
+   param_list_free(from);
 }
 
 static id_list_t *id_list_add(id_list_t *list, ident_t id)
