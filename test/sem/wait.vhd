@@ -23,5 +23,22 @@ begin
         wait on v;                      -- Not signal
     end process;
 
+    -- process sensitivity
+    process (x, y) is
+    begin
+        x <= y;
+    end process;
+
+    process (x, a) is                   -- Bad name a
+    begin
+        x <= '1';
+    end process;
+
+    process (x) is
+    begin
+        x <= y;
+        wait for 1 ns;                  -- Not allowed wait
+    end process;
+    
 end architecture;
     

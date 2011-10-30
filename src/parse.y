@@ -569,6 +569,7 @@ process_stmt
   /* [ postponed ] */ tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
+     tree_set_loc($$, &@2);
      tree_set_ident($$, $1 ? $1 : ident_uniq("_proc"));
      copy_trees($5, tree_add_decl, $$);
      copy_trees($7, tree_add_stmt, $$);

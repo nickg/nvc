@@ -360,6 +360,8 @@ START_TEST(test_wait)
    const error_t expect[] = {
       { 14, "type of delay must be TIME" },
       { 23, "name V in sensitivity list is not a signal" },
+      { 32, "undefined identifier A" },
+      { 37, "wait statement not allowed in process" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -903,11 +903,30 @@ static bool sem_check_func_decl(tree_t t)
    return scope_insert(t);
 }
 
-static bool sem_check_process(tree_t t)
+static bool sem_check_sensitivity(tree_t t)
 {
    bool ok = true;
+   for (unsigned i = 0; i < tree_triggers(t); i++) {
+      tree_t r = tree_trigger(t, i);
+      ok = sem_check(r) && ok;
 
+      if (ok) {
+         // Can only reference signals in sensitivity list
+         tree_t decl = tree_ref(r);
+         if (tree_kind(decl) != T_SIGNAL_DECL)
+            sem_error(r, "name %s in sensitivity list is not a signal",
+                      istr(tree_ident(decl)));
+      }
+   }
+
+   return ok;
+}
+
+static bool sem_check_process(tree_t t)
+{
    scope_push(NULL);
+
+   bool ok = sem_check_sensitivity(t);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
@@ -918,6 +937,13 @@ static bool sem_check_process(tree_t t)
    }
 
    scope_pop();
+
+   if (tree_triggers(t) > 0) {
+      // No wait statements allowed in process with sensitivity list
+      if (tree_visit_only(t, NULL, NULL, T_WAIT) > 0)
+         sem_error(t, "wait statement not allowed in process "
+                   "with sensitvity list");
+   }
 
    return ok;
 }
@@ -1290,21 +1316,7 @@ static bool sem_check_wait(tree_t t)
          sem_error(delay, "type of delay must be TIME");
    }
 
-   bool ok = true;
-   for (unsigned i = 0; i < tree_triggers(t); i++) {
-      tree_t r = tree_trigger(t, i);
-      ok = sem_check(r) && ok;
-
-      if (ok) {
-         // Can only reference signals in sensitivity list
-         tree_t decl = tree_ref(r);
-         if (tree_kind(decl) != T_SIGNAL_DECL)
-            sem_error(r, "name %s in sensitivity list is not a signal",
-                      istr(tree_ident(decl)));
-      }
-   }
-   
-   return ok;
+   return sem_check_sensitivity(t);
 }
 
 static bool sem_check_assert(tree_t t)
