@@ -1035,9 +1035,10 @@ static bool sem_check_arch(tree_t t)
 
    scope_pop();
 
-   // Prefix the architecture with the current library name
+   // Prefix the architecture with the current library and entity name
    ident_t lname = lib_name(lib_work());
-   ident_t qual = ident_prefix(lname, tree_ident(t), '.');
+   ident_t qual = ident_prefix(ident_prefix(lname, tree_ident2(t), '.'),
+                               tree_ident(t), '-');
    tree_set_ident(t, qual);
    ident_t ent_qual = ident_prefix(lname, tree_ident2(t), '.');
    tree_set_ident2(t, ent_qual);
@@ -1690,6 +1691,8 @@ static bool sem_check_instance(tree_t t)
    tree_t unit = lib_get(lib_work(), tree_ident2(t));
    if (unit == NULL)
       sem_error(t, "cannot find unit %s", istr(tree_ident2(t)));
+
+   tree_set_ref(t, unit);
 
    return sem_check_map(t, unit, tree_ports, tree_port,
                         tree_params, tree_param)

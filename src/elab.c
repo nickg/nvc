@@ -23,6 +23,8 @@
 #include <string.h>
 #include <stdarg.h>
 
+static void elab_arch(tree_t t, tree_t out, ident_t path);
+
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
    va_list ap;
@@ -53,27 +55,6 @@ static const char *simple_name(const char *full)
    return start;
 }
 
-static void elab_arch(tree_t t, tree_t out, ident_t path)
-{
-   for (unsigned i = 0; i < tree_decls(t); i++) {
-      tree_t d = tree_decl(t, i);
-      if (tree_kind(d) == T_SIGNAL_DECL) {
-         tree_set_ident(d, hpathf(path, ':', "%s",
-                                  istr(tree_ident(d))));
-         tree_add_decl(out, d);
-      }
-   }
-
-   for (unsigned i = 0; i < tree_stmts(t); i++) {
-      tree_t s = tree_stmt(t, i);
-      assert(tree_kind(s) == T_PROCESS);  // TODO: elab_stmt
-
-      tree_set_ident(s, hpathf(path, ':', "%s", istr(tree_ident(s))));
-
-      tree_add_stmt(out, s);
-   }
-}
-
 struct arch_search_params {
    ident_t name;
    tree_t  *arch;
@@ -87,20 +68,99 @@ static void find_arch(tree_t t, void *context)
       *(params->arch) = t;
 }
 
-static void elab_entity(tree_t t, tree_t out, ident_t path)
+static tree_t pick_arch(ident_t ent_name)
 {
    // XXX: LRM rules for selecting architecture?
 
    tree_t arch = NULL;
-   struct arch_search_params params = { tree_ident(t), &arch };
+   struct arch_search_params params = { ent_name, &arch };
    lib_foreach(lib_work(), find_arch, &params);
 
    if (arch == NULL)
-      fatal("no suitable architecture for entity %s", istr(tree_ident(t)));
+      fatal("no suitable architecture for entity %s", istr(ent_name));
 
-   printf("selected architecture %s of %s\n", istr(tree_ident(t)),
-          istr(tree_ident(arch)));
+   printf("selected architecture %s of %s\n", istr(tree_ident(arch)),
+          istr(ent_name));
 
+   return arch;
+}
+
+struct rewrite_params {
+   tree_t formal;
+   tree_t actual;
+};
+
+static tree_t rewrite_ports(tree_t t, void *context)
+{
+   struct rewrite_params *params = context;
+
+   switch (tree_kind(t)) {
+   case T_REF:
+      if (tree_kind(tree_ref(t)) == T_PORT_DECL
+          && (tree_ident(t) == tree_ident(params->formal))) {
+         printf("rewrite %s -> %s\n", istr(tree_ident(t)),
+                istr(tree_ident(params->actual)));
+         tree_set_ref(t, params->actual);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   return t;
+}
+
+static void elab_instance(tree_t t, tree_t out, ident_t path)
+{
+   tree_t unit = tree_ref(t);
+   assert(tree_kind(unit) == T_ENTITY);
+
+   tree_t arch = pick_arch(tree_ident2(t));
+
+   // TODO: make copy of arch
+
+   // Bind all ports to signals
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+
+      struct rewrite_params params = {
+         .formal = tree_port(unit, i),
+         .actual = tree_ref(p.value)
+      };
+      tree_rewrite(arch, rewrite_ports, &params);
+   }
+
+   elab_arch(arch, out, path);
+}
+
+static void elab_arch(tree_t t, tree_t out, ident_t path)
+{
+   for (unsigned i = 0; i < tree_decls(t); i++) {
+      tree_t d = tree_decl(t, i);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         tree_set_ident(d, hpathf(path, ':', "%s",
+                                  istr(tree_ident(d))));
+         tree_add_decl(out, d);
+      }
+   }
+
+   for (unsigned i = 0; i < tree_stmts(t); i++) {
+      tree_t s = tree_stmt(t, i);
+      ident_t npath = hpathf(path, ':', "%s", istr(tree_ident(s)));
+      tree_set_ident(s, npath);
+
+      if (tree_kind(s) == T_INSTANCE)
+         elab_instance(s, out, npath);
+      else
+         tree_add_stmt(out, s);
+   }
+}
+
+static void elab_entity(tree_t t, tree_t out, ident_t path)
+{
+   tree_t arch = pick_arch(tree_ident(t));
    ident_t new_path = hpathf(path, '@', "%s(%s)",
                              istr(tree_ident(t)),
                              simple_name(istr(tree_ident(arch))));

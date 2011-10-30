@@ -436,6 +436,23 @@ static tree_t simp_process(tree_t t)
       return t;
 }
 
+static tree_t simp_instance(tree_t t)
+{
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      param_t p = tree_param(t, i);
+      p.value = simp_expr(p.value);
+      tree_change_param(t, i, p);
+   }
+
+   for (unsigned i = 0; i < tree_genmaps(t); i++) {
+      param_t p = tree_genmap(t, i);
+      p.value = simp_expr(p.value);
+      tree_change_genmap(t, i, p);
+   }
+
+   return t;
+}
+
 static tree_t simp_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -458,6 +475,9 @@ static tree_t simp_stmt(tree_t t)
       if (tree_has_delay(t))
          tree_set_delay(t, simp_expr(tree_delay(t)));
       return t;
+
+   case T_INSTANCE:
+      return simp_instance(t);
 
    default:
       assert(false);

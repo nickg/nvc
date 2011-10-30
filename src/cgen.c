@@ -613,6 +613,7 @@ static void cgen_sched_event(tree_t on)
 
    LLVMValueRef signal =
       LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
+   printf("get_signal %s -> %p\n", istr(tree_ident(decl)), signal);
    assert(signal != NULL);
 
    LLVMValueRef args[] = { llvm_void_cast(signal) };

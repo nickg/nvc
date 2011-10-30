@@ -176,12 +176,13 @@ void tree_set_delay(tree_t t, tree_t d);
 unsigned tree_triggers(tree_t t);
 tree_t tree_trigger(tree_t t, unsigned n);
 void tree_add_trigger(tree_t t, tree_t s);
+void tree_change_trigger(tree_t t, unsigned n, tree_t s);
 
 // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
-// T_REF, T_FCALL
+// T_REF, T_FCALL, T_INSTANCE
 tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
@@ -240,9 +241,10 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);
 unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
                          void *context, tree_kind_t kind);
 
-void tree_gc(void);
+typedef tree_t (*tree_rewrite_fn_t)(tree_t t, void *context);
+tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context);
 
-void tree_dump(tree_t t);
+void tree_gc(void);
 
 tree_wr_ctx_t tree_write_begin(FILE *f);
 void tree_write(tree_t t, tree_wr_ctx_t ctx);

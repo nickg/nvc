@@ -171,7 +171,7 @@ struct tree_rd_ctx {
 #define HAS_CONTEXT(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE))
 #define HAS_REF(t) \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
-    || IS(t, T_ARRAY_SLICE))
+    || IS(t, T_ARRAY_SLICE) || IS(t, T_INSTANCE))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -769,6 +769,17 @@ void tree_add_trigger(tree_t t, tree_t s)
    tree_array_add(&t->triggers, s);
 }
 
+void tree_change_trigger(tree_t t, unsigned n, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(HAS_TRIGGERS(t));
+   assert(IS_EXPR(s));
+   assert(n < t->triggers.count);
+
+   t->triggers.items[n] = s;
+}
+
 tree_t tree_target(tree_t t)
 {
    assert(t != NULL);
@@ -799,7 +810,7 @@ void tree_set_ref(tree_t t, tree_t decl)
 {
    assert(t != NULL);
    assert(HAS_REF(t));
-   assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT));
+   assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT) || IS_TOP_LEVEL(decl));
 
    t->ref = decl;
 }
@@ -1702,3 +1713,173 @@ void range_bounds(range_t r, int64_t *low, int64_t *high)
    }
 }
 
+tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
+{
+   switch (tree_kind(t)) {
+   case T_ENTITY:
+      for (unsigned i = 0; i < tree_generics(t); i++)
+         (void)tree_rewrite(tree_generic(t, i), fn, context);
+      for (unsigned i = 0; i < tree_ports(t); i++)
+         (void)tree_rewrite(tree_port(t, i), fn, context);
+      break;
+
+   case T_ARCH:
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         (void)tree_rewrite(tree_decl(t, i), fn, context);
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         tree_change_stmt(t, i, tree_rewrite(tree_stmt(t, i), fn, context));
+      break;
+
+   case T_PACKAGE:
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         (void)tree_rewrite(tree_decl(t, i), fn, context);
+      break;
+
+   case T_PROCESS:
+      for (unsigned i = 0; i < tree_triggers(t); i++)
+         tree_change_trigger(t, i, tree_rewrite(tree_trigger(t, i),
+                                                fn, context));
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         (void)tree_rewrite(tree_decl(t, i), fn, context);
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         tree_change_stmt(t, i, tree_rewrite(tree_stmt(t, i), fn, context));
+      break;
+
+   case T_VAR_ASSIGN:
+   case T_SIGNAL_ASSIGN:
+      tree_set_target(t, tree_rewrite(tree_target(t), fn, context));
+      tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+      break;
+
+   case T_ASSERT:
+      tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+      tree_set_severity(t, tree_rewrite(tree_severity(t), fn, context));
+      tree_set_message(t, tree_rewrite(tree_message(t), fn, context));
+      break;
+
+   case T_WAIT:
+      for (unsigned i = 0; i < tree_triggers(t); i++)
+         tree_change_trigger(t, i, tree_rewrite(tree_trigger(t, i),
+                                                fn, context));
+      if (tree_has_delay(t))
+         tree_set_delay(t, tree_rewrite(tree_delay(t), fn, context));
+      break;
+
+   case T_INSTANCE:
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         param_t p = tree_param(t, i);
+         p.value = tree_rewrite(p.value, fn, context);
+         tree_change_param(t, i, p);
+      }
+      for (unsigned i = 0; i < tree_genmaps(t); i++) {
+         param_t p = tree_genmap(t, i);
+         p.value = tree_rewrite(p.value, fn, context);
+         tree_change_genmap(t, i, p);
+      }
+      break;
+
+   case T_FCALL:
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         param_t p = tree_param(t, i);
+         assert(p.kind == P_POS);
+         p.value = tree_rewrite(p.value, fn, context);
+         tree_change_param(t, i, p);
+      }
+      break;
+
+   case T_AGGREGATE:
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+         a.value = tree_rewrite(a.value, fn, context);
+
+         switch (a.kind) {
+         case A_POS:
+         case A_OTHERS:
+            break;
+         case A_NAMED:
+            a.name = tree_rewrite(a.name, fn, context);
+            break;
+         case A_RANGE:
+            a.range.left  = tree_rewrite(a.range.left, fn, context);
+            a.range.right = tree_rewrite(a.range.right, fn, context);
+            break;
+         }
+
+         tree_change_assoc(t, i, a);
+      }
+      break;
+
+   case T_ATTR_REF:
+      if (tree_has_value(t))
+         tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+      break;
+
+   case T_ARRAY_REF:
+      tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         param_t p = tree_param(t, i);
+         assert(p.kind == P_POS);
+         p.value = tree_rewrite(p.value, fn, context);
+         tree_change_param(t, i, p);
+      }
+      break;
+
+   case T_QUALIFIED:
+      tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+      break;
+
+   case T_SIGNAL_DECL:
+   case T_VAR_DECL:
+   case T_CONST_DECL:
+   case T_PORT_DECL:
+      if (tree_has_value(t))
+         tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+      break;
+
+   case T_TYPE_DECL:
+      {
+         type_t type = tree_type(t);
+
+         switch (type_kind(type)) {
+         case T_INTEGER:
+         case T_PHYSICAL:
+         case T_CARRAY:
+            {
+               for (unsigned i = 0; i < type_dims(type); i++) {
+                  range_t r = type_dim(type, i);
+                  r.left  = tree_rewrite(r.left, fn, context);
+                  r.right = tree_rewrite(r.right, fn, context);
+                  type_change_dim(type, i, r);
+               }
+            }
+            break;
+
+         default:
+            break;
+         }
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         range_t r = tree_range(t);
+         r.left  = tree_rewrite(r.left, fn, context);
+         r.right = tree_rewrite(r.right, fn, context);
+         tree_set_range(t, r);
+      }
+      break;
+
+   case T_LITERAL:
+   case T_REF:
+   case T_FUNC_DECL:
+   case T_ENUM_LIT:
+      break;
+
+   case T_ELAB:
+   case T_LAST_TREE_KIND:
+      assert(false);
+   }
+
+   return (*fn)(t, context);
+}
