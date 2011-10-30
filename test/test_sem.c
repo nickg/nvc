@@ -142,6 +142,11 @@ START_TEST(test_ports)
    const error_t expect[] = {
       { 31, "cannot read output port O" },
       { 42, "cannot assign to input port I" },
+      { 66, "missing actual for formal O" },
+      { 70, "formal I already has an actual" },
+      { 74, "too many positional actuals" },
+      { 77, "WORK.FOO has no formal CAKE" },
+      { 79, "cannot find unit WORK.BAD" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -150,6 +155,20 @@ START_TEST(test_ports)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
+
+   // Entity foo
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   // Entity top
 
    e = parse();
    fail_if(e == NULL);
@@ -167,6 +186,7 @@ START_TEST(test_ports)
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
+
 
 START_TEST(test_scope)
 {
@@ -496,6 +516,50 @@ START_TEST(test_assert)
 }
 END_TEST
 
+START_TEST(test_generics)
+{
+   tree_t a, e, p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/generics.vhd"));
+
+   const error_t expect[] = {
+      { 34, "missing actual for formal N" },
+      { 38, "too many positional actuals" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   // Entity bot
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   // Entity top
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -516,6 +580,7 @@ int main(void)
    tcase_add_test(tc_core, test_func);
    tcase_add_test(tc_core, test_array);
    tcase_add_test(tc_core, test_assert);
+   tcase_add_test(tc_core, test_generics);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

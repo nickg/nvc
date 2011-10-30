@@ -588,6 +588,7 @@ comp_instance_stmt
 : id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
+     tree_set_loc($$, &@$);
      tree_set_ident2($$, $1);
      copy_params($3, tree_add_param, $$);
      copy_params($2, tree_add_genmap, $$);
@@ -595,6 +596,7 @@ comp_instance_stmt
 | tCOMPONENT selected_id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
+     tree_set_loc($$, &@$);
      tree_set_ident2($$, $2);
      copy_params($4, tree_add_param, $$);
      copy_params($3, tree_add_genmap, $$);
@@ -602,6 +604,7 @@ comp_instance_stmt
 | tENTITY selected_id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
+     tree_set_loc($$, &@$);
      tree_set_ident2($$, $2);
      copy_params($4, tree_add_param, $$);
      copy_params($3, tree_add_genmap, $$);
@@ -609,6 +612,7 @@ comp_instance_stmt
 | tENTITY selected_id tLPAREN id tRPAREN generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
+     tree_set_loc($$, &@$);
      tree_set_ident2($$, ident_prefix($2, $4, '-'));
      copy_params($7, tree_add_param, $$);
      copy_params($6, tree_add_genmap, $$);
@@ -616,6 +620,7 @@ comp_instance_stmt
 | tCONFIGURATION selected_id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
+     tree_set_loc($$, &@$);
      tree_set_ident2($$, $2);
      copy_params($4, tree_add_param, $$);
      copy_params($3, tree_add_genmap, $$);

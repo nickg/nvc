@@ -43,3 +43,39 @@ begin
     end process;
     
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity top is
+end entity;
+
+use work.foo_pkg.all;
+
+architecture test of top is
+    signal x, y : my_int;
+begin
+
+    foo1: entity work.foo               -- OK
+        port map (
+            o => x,
+            i => y );
+
+    foo2: entity work.foo               -- OK
+        port map ( x, y );
+
+    foo3: entity work.foo
+        port map ( i => x );            -- Missing o association
+
+    foo4: entity work.foo               -- Two associations for i
+        port map ( i => x, i => y,
+                   o => x );
+
+    foo5: entity work.foo               -- Too many ports
+        port map ( x, y, x, y );
+
+    foo6: entity work.foo               -- No port cake
+        port map ( cake => 4 );
+
+    bad1: entity work.bad;              -- No such entity   
+    
+end architecture;

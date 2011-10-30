@@ -1613,6 +1613,87 @@ static bool sem_check_qualified(tree_t t)
    return sem_check(tree_value(t));
 }
 
+static bool sem_check_map(tree_t t, tree_t unit,
+                          unsigned (*tree_Fs)(tree_t t),
+                          tree_t (*tree_F)(tree_t t, unsigned n),
+                          unsigned (*tree_As)(tree_t t),
+                          param_t (*tree_A)(tree_t t, unsigned n))
+{
+   // Check there is an actual for each formal port or generic
+
+   const unsigned nformals = tree_Fs(unit);
+   bool ok = true;
+
+   struct {
+      tree_t decl;
+      bool   have;
+   } formals[nformals];
+
+   for (unsigned i = 0; i < nformals; i++) {
+      formals[i].decl = tree_F(unit, i);
+      formals[i].have = false;
+   }
+
+   for (unsigned i = 0; i < tree_As(t); i++) {
+      param_t p = tree_A(t, i);
+      tree_t decl = NULL;
+      switch (p.kind) {
+      case P_POS:
+         if (p.pos >= nformals)
+            sem_error(p.value, "too many positional actuals");
+         if (formals[p.pos].have)
+            sem_error(p.value, "formal %s already has an actual",
+                      istr(tree_ident(formals[p.pos].decl)));
+         formals[p.pos].have = true;
+         decl = formals[p.pos].decl;
+         break;
+
+      case P_NAMED:
+         for (unsigned i = 0; i < nformals; i++) {
+            if (tree_ident(formals[i].decl) == p.name) {
+               if (formals[i].have)
+                  sem_error(p.value, "formal %s already has an actual",
+                            istr(tree_ident(formals[i].decl)));
+               formals[i].have = true;
+               decl = formals[i].decl;
+               break;
+            }
+         }
+
+         if (decl == NULL)
+            sem_error(p.value, "%s has no formal %s",
+                      istr(tree_ident(unit)), istr(p.name));
+         break;
+
+      case P_RANGE:
+         sem_error(p.value, "ranges cannot be used here");
+      }
+
+      ok = sem_check_constrained(p.value, tree_type(decl)) && ok;
+   }
+
+   for (unsigned i = 0; i < nformals; i++) {
+      if (!formals[i].have)
+         sem_error(t, "missing actual for formal %s",
+                   istr(tree_ident(formals[i].decl)));
+   }
+
+   return ok;
+}
+
+static bool sem_check_instance(tree_t t)
+{
+   // Find the referenced design unit
+   tree_t unit = lib_get(lib_work(), tree_ident2(t));
+   if (unit == NULL)
+      sem_error(t, "cannot find unit %s", istr(tree_ident2(t)));
+
+   return sem_check_map(t, unit, tree_ports, tree_port,
+                        tree_params, tree_param)
+      && sem_check_map(t, unit, tree_generics, tree_generic,
+                       tree_genmaps, tree_genmap);
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1657,6 +1738,8 @@ bool sem_check(tree_t t)
       return sem_check_array_ref(t);
    case T_ARRAY_SLICE:
       return sem_check_array_slice(t);
+   case T_INSTANCE:
+      return sem_check_instance(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
