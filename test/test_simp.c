@@ -149,6 +149,50 @@ START_TEST(test_cfold)
 }
 END_TEST
 
+START_TEST(test_proc)
+{
+   tree_t e, a, p, s, r;
+
+   fail_unless(input_from_file(TESTDIR "/simp/proc.vhd"));
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_if(tree_triggers(p) > 0);
+   fail_unless(tree_stmts(p) == 2);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_ASSERT);
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_unless(tree_triggers(s) == 2);
+   r = tree_trigger(s, 0);
+   fail_unless(tree_kind(r) == T_REF);
+   fail_unless(tree_ident(r) == ident_new("X"));
+   r = tree_trigger(s, 1);
+   fail_unless(tree_kind(r) == T_REF);
+   fail_unless(tree_ident(r) == ident_new("Y"));
+
+   fail_unless(simplify_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -160,6 +204,7 @@ int main(void)
    TCase *tc_core = tcase_create("Core");
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_cfold);
+   tcase_add_test(tc_core, test_proc);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

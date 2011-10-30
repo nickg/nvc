@@ -24,6 +24,7 @@
 #define MAX_BUILTIN_ARGS 2
 
 static tree_t simp_expr(tree_t t);
+static tree_t simp_stmt(tree_t t);
 
 static ident_t std_bool_i = NULL;
 static ident_t builtin_i  = NULL;
@@ -401,19 +402,43 @@ static void simp_decl(tree_t t)
    }
 }
 
+static tree_t simp_process(tree_t t)
+{
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      simp_decl(tree_decl(t, i));
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
+
+   // Replace sensitivity list with a "wait on" statement
+   if (tree_triggers(t) > 0) {
+      tree_t p = tree_new(T_PROCESS);
+      tree_set_ident(p, tree_ident(t));
+      tree_set_loc(p, tree_loc(t));
+
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         tree_add_decl(p, tree_decl(t, i));
+
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         tree_add_stmt(p, tree_stmt(t, i));
+
+      tree_t w = tree_new(T_WAIT);
+      tree_set_loc(w, tree_loc(t));
+      for (unsigned i = 0; i < tree_triggers(t); i++)
+         tree_add_trigger(w, tree_trigger(t, i));
+      tree_add_stmt(p, w);
+
+      return p;
+   }
+   else
+      return t;
+}
+
 static tree_t simp_stmt(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_PROCESS:
-      {
-         for (unsigned i = 0; i < tree_decls(t); i++)
-            simp_decl(tree_decl(t, i));
-
-         for (unsigned i = 0; i < tree_stmts(t); i++)
-            tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
-
-         return t;
-      }
+      return simp_process(t);
 
    case T_VAR_ASSIGN:
    case T_SIGNAL_ASSIGN:
