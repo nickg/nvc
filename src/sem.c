@@ -908,14 +908,19 @@ static bool sem_check_sensitivity(tree_t t)
    bool ok = true;
    for (unsigned i = 0; i < tree_triggers(t); i++) {
       tree_t r = tree_trigger(t, i);
-      ok = sem_check(r) && ok;
+      ok = sem_check(r) && sem_readable(r) && ok;
 
       if (ok) {
          // Can only reference signals in sensitivity list
          tree_t decl = tree_ref(r);
-         if (tree_kind(decl) != T_SIGNAL_DECL)
+         switch (tree_kind(decl)) {
+         case T_SIGNAL_DECL:
+         case T_PORT_DECL:
+            break;
+         default:
             sem_error(r, "name %s in sensitivity list is not a signal",
                       istr(tree_ident(decl)));
+         }
       }
    }
 
