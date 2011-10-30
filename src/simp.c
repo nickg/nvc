@@ -23,9 +23,6 @@
 
 #define MAX_BUILTIN_ARGS 2
 
-static tree_t simp_expr(tree_t t);
-static tree_t simp_stmt(tree_t t);
-
 static ident_t std_bool_i = NULL;
 static ident_t builtin_i  = NULL;
 
@@ -33,6 +30,8 @@ static int errors = 0;
 
 #define simp_error(t, ...) \
    { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
+
+static tree_t simp_tree(tree_t t, void *context);
 
 static bool folded_num(tree_t t, literal_t *l)
 {
@@ -186,8 +185,6 @@ static tree_t simp_fcall(tree_t t)
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
-      p.value = simp_expr(p.value);
-      tree_change_param(t, i, p);
       can_fold_num = can_fold_num && folded_num(p.value, &largs[i]);
       can_fold_log = can_fold_log && folded_bool(p.value, &bargs[i]);
    }
@@ -206,7 +203,13 @@ static tree_t simp_ref(tree_t t)
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      return simp_expr(tree_value(decl));
+      if (type_kind(tree_type(decl)) == T_PHYSICAL) {
+         // Slight hack to constant-fold the definitions of
+         // physical units that and generated during the sem phase
+         return tree_rewrite(tree_value(decl), simp_tree, NULL);
+      }
+      else
+         return tree_value(decl);
    default:
       return t;
    }
@@ -215,7 +218,7 @@ static tree_t simp_ref(tree_t t)
 static tree_t simp_attr_ref(tree_t t)
 {
    if (tree_has_value(t))
-      return simp_expr(tree_value(t));
+      return tree_value(t);
    else {
       tree_t decl = tree_ref(t);
       assert(tree_kind(decl) == T_FUNC_DECL);
@@ -236,15 +239,11 @@ static tree_t simp_attr_ref(tree_t t)
 
 static tree_t simp_array_ref(tree_t t)
 {
-   tree_set_value(t, simp_expr(tree_value(t)));
-
    literal_t indexes[tree_params(t)];
    bool can_fold = true;
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
-      p.value = simp_expr(p.value);
-      tree_change_param(t, i, p);
       can_fold = can_fold && folded_num(p.value, &indexes[i]);
    }
 
@@ -301,116 +300,8 @@ static tree_t simp_array_ref(tree_t t)
    }
 }
 
-static tree_t simp_qualified(tree_t t)
-{
-   tree_set_value(t, simp_expr(tree_value(t)));
-   return t;
-}
-
-static tree_t simp_expr(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_LITERAL:
-      return t;
-
-   case T_FCALL:
-      return simp_fcall(t);
-
-   case T_REF:
-      return simp_ref(t);
-
-   case T_AGGREGATE:
-      {
-         for (unsigned i = 0; i < tree_assocs(t); i++) {
-            assoc_t a = tree_assoc(t, i);
-            a.value = simp_expr(a.value);
-
-            switch (a.kind) {
-            case A_POS:
-            case A_OTHERS:
-               break;
-            case A_NAMED:
-               a.name = simp_expr(a.name);
-               break;
-            case A_RANGE:
-               a.range.left  = simp_expr(a.range.left);
-               a.range.right = simp_expr(a.range.right);
-               break;
-            }
-
-            tree_change_assoc(t, i, a);
-         }
-         return t;
-      }
-
-   case T_ATTR_REF:
-      return simp_attr_ref(t);
-
-   case T_ARRAY_REF:
-      return simp_array_ref(t);
-
-   case T_QUALIFIED:
-      return simp_qualified(t);
-
-   default:
-      assert(false);
-   }
-}
-
-static void simp_type_decl(tree_t t)
-{
-   type_t type = tree_type(t);
-
-   switch (type_kind(type)) {
-   case T_INTEGER:
-   case T_PHYSICAL:
-   case T_CARRAY:
-      {
-         for (unsigned i = 0; i < type_dims(type); i++) {
-            range_t r = type_dim(type, i);
-            r.left  = simp_expr(r.left);
-            r.right = simp_expr(r.right);
-            type_change_dim(type, i, r);
-         }
-      }
-      break;
-
-   default:
-      break;
-   }
-}
-
-static void simp_decl(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_SIGNAL_DECL:
-   case T_VAR_DECL:
-   case T_CONST_DECL:
-   case T_PORT_DECL:
-      if (tree_has_value(t))
-         tree_set_value(t, simp_expr(tree_value(t)));
-      break;
-
-   case T_TYPE_DECL:
-      simp_type_decl(t);
-      break;
-
-   case T_FUNC_DECL:
-      break;
-
-   default:
-      assert(false);
-   }
-}
-
 static tree_t simp_process(tree_t t)
 {
-   for (unsigned i = 0; i < tree_decls(t); i++)
-      simp_decl(tree_decl(t, i));
-
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
-
    // Replace sensitivity list with a "wait on" statement
    if (tree_triggers(t) > 0) {
       tree_t p = tree_new(T_PROCESS);
@@ -436,76 +327,22 @@ static tree_t simp_process(tree_t t)
       return t;
 }
 
-static tree_t simp_instance(tree_t t)
-{
-   for (unsigned i = 0; i < tree_params(t); i++) {
-      param_t p = tree_param(t, i);
-      p.value = simp_expr(p.value);
-      tree_change_param(t, i, p);
-   }
-
-   for (unsigned i = 0; i < tree_genmaps(t); i++) {
-      param_t p = tree_genmap(t, i);
-      p.value = simp_expr(p.value);
-      tree_change_genmap(t, i, p);
-   }
-
-   return t;
-}
-
-static tree_t simp_stmt(tree_t t)
+static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
    case T_PROCESS:
       return simp_process(t);
-
-   case T_VAR_ASSIGN:
-   case T_SIGNAL_ASSIGN:
-      tree_set_target(t, simp_expr(tree_target(t)));
-      tree_set_value(t, simp_expr(tree_value(t)));
-      return t;
-
-   case T_ASSERT:
-      tree_set_value(t, simp_expr(tree_value(t)));
-      tree_set_severity(t, simp_expr(tree_severity(t)));
-      tree_set_message(t, simp_expr(tree_message(t)));
-      return t;
-
-   case T_WAIT:
-      if (tree_has_delay(t))
-         tree_set_delay(t, simp_expr(tree_delay(t)));
-      return t;
-
-   case T_INSTANCE:
-      return simp_instance(t);
-
+   case T_ARRAY_REF:
+      return simp_array_ref(t);
+   case T_ATTR_REF:
+      return simp_attr_ref(t);
+   case T_FCALL:
+      return simp_fcall(t);
+   case T_REF:
+      return simp_ref(t);
    default:
-      assert(false);
+      return t;
    }
-}
-
-static void simp_entity(tree_t t)
-{
-   for (unsigned i = 0; i < tree_generics(t); i++)
-      simp_decl(tree_generic(t, i));
-
-   for (unsigned i = 0; i < tree_ports(t); i++)
-      simp_decl(tree_port(t, i));
-}
-
-static void simp_arch(tree_t t)
-{
-   for (unsigned i = 0; i < tree_decls(t); i++)
-      simp_decl(tree_decl(t, i));
-
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      tree_change_stmt(t, i, simp_stmt(tree_stmt(t, i)));
-}
-
-static void simp_package(tree_t t)
-{
-   for (unsigned i = 0; i < tree_decls(t); i++)
-      simp_decl(tree_decl(t, i));
 }
 
 static void simp_intern_strings(void)
@@ -524,19 +361,7 @@ void simplify(tree_t top)
       have_interned = true;
    }
 
-   switch (tree_kind(top)) {
-   case T_ENTITY:
-      simp_entity(top);
-      break;
-   case T_ARCH:
-      simp_arch(top);
-      break;
-   case T_PACKAGE:
-      simp_package(top);
-      break;
-   default:
-      assert(false);
-   }
+   tree_rewrite(top, simp_tree, NULL);
 }
 
 int simplify_errors(void)
