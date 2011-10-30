@@ -978,6 +978,32 @@ static unsigned tree_visit_a(struct tree_array *a,
    return n;
 }
 
+static unsigned tree_visit_p(struct param_array *a,
+                             tree_visit_fn_t fn, void *context,
+                             tree_kind_t kind, unsigned generation,
+                             bool deep)
+{
+   unsigned n = 0;
+   for (unsigned i = 0; i < a->count; i++) {
+      switch (a->items[i].kind) {
+      case P_RANGE:
+         n += tree_visit_aux(a->items[i].range.left,
+                             fn, context, kind, generation, deep);
+         n += tree_visit_aux(a->items[i].range.right,
+                             fn, context, kind, generation, deep);
+         break;
+
+      case P_POS:
+      case P_NAMED:
+         n += tree_visit_aux(a->items[i].value,
+                             fn, context, kind, generation, deep);
+         break;
+      }
+   }
+
+   return n;
+}
+
 static unsigned tree_visit_type(type_t type,
                                 tree_visit_fn_t fn, void *context,
                                 tree_kind_t kind, unsigned generation,
@@ -1083,25 +1109,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->ref, fn, context, kind, generation, deep);
    if (HAS_TYPE(t) && deep)
       n += tree_visit_type(t->type, fn, context, kind, generation, deep);
-   if (HAS_PARAMS(t)) {
-      unsigned n = 0;
-      for (unsigned i = 0; i < t->params.count; i++) {
-         switch (t->params.items[i].kind) {
-         case P_RANGE:
-            n += tree_visit_aux(t->params.items[i].range.left,
-                                fn, context, kind, generation, deep);
-            n += tree_visit_aux(t->params.items[i].range.right,
-                                fn, context, kind, generation, deep);
-            break;
-
-         case P_POS:
-         case P_NAMED:
-            n += tree_visit_aux(t->params.items[i].value,
-                                fn, context, kind, generation, deep);
-            break;
-         }
-      }
-   }
+   if (HAS_PARAMS(t))
+      n += tree_visit_p(&t->params, fn, context, kind, generation, deep);
 
    if (IS(t, T_ASSERT)) {
       n += tree_visit_aux(t->severity, fn, context,
@@ -1142,6 +1151,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->range.right, fn, context, kind,
                           generation, deep);
    }
+   else if (IS(t, T_INSTANCE))
+      n += tree_visit_p(&t->genmaps, fn, context, kind, generation, deep);
 
    if (deep) {
       for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1218,6 +1229,51 @@ static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
       a->items[i] = tree_read(ctx);
 }
 
+static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
+{
+   write_u(a->count, ctx->file);
+   for (unsigned i = 0; i < a->count; i++) {
+      write_s(a->items[i].kind, ctx->file);
+      switch (a->items[i].kind) {
+      case P_POS:
+         write_s(a->items[i].pos, ctx->file);
+         tree_write(a->items[i].value, ctx);
+         break;
+      case P_RANGE:
+         tree_write(a->items[i].range.left, ctx);
+         tree_write(a->items[i].range.right, ctx);
+         break;
+      case P_NAMED:
+         ident_write(a->items[i].name, ctx->file);
+         tree_write(a->items[i].value, ctx);
+         break;
+      }
+   }
+}
+
+static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
+{
+   a->max = a->count = read_u(ctx->file);
+   a->items = xmalloc(sizeof(param_t) * a->count);
+
+   for (unsigned i = 0; i < a->count; i++) {
+      switch ((a->items[i].kind = read_s(ctx->file))) {
+      case P_POS:
+         a->items[i].pos   = read_s(ctx->file);
+         a->items[i].value = tree_read(ctx);
+         break;
+      case P_RANGE:
+         a->items[i].range.left  = tree_read(ctx);
+         a->items[i].range.right = tree_read(ctx);
+         break;
+      case P_NAMED:
+         a->items[i].name  = ident_read(ctx->file);
+         a->items[i].value = tree_read(ctx);
+         break;
+      }
+   }
+}
+
 tree_wr_ctx_t tree_write_begin(FILE *f)
 {
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
@@ -1288,26 +1344,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          ident_write(t->context[i], ctx->file);
    }
-   if (HAS_PARAMS(t)) {
-      write_u(t->params.count, ctx->file);
-      for (unsigned i = 0; i < t->params.count; i++) {
-         write_s(t->params.items[i].kind, ctx->file);
-         switch (t->params.items[i].kind) {
-         case P_POS:
-            write_s(t->params.items[i].pos, ctx->file);
-            tree_write(t->params.items[i].value, ctx);
-            break;
-         case P_RANGE:
-            tree_write(t->params.items[i].range.left, ctx);
-            tree_write(t->params.items[i].range.right, ctx);
-            break;
-         case P_NAMED:
-            ident_write(t->params.items[i].name, ctx->file);
-            tree_write(t->params.items[i].value, ctx);
-            break;
-         }
-      }
-   }
+   if (HAS_PARAMS(t))
+      write_p(&t->params, ctx);
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -1368,6 +1406,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_s(t->range.kind, ctx->file);
       tree_write(t->range.left, ctx);
       tree_write(t->range.right, ctx);
+      break;
+
+   case T_INSTANCE:
+      write_p(&t->genmaps, ctx);
       break;
 
    default:
@@ -1462,27 +1504,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       for (unsigned i = 0; i < t->n_contexts; i++)
          t->context[i] = ident_read(ctx->file);
    }
-   if (HAS_PARAMS(t)) {
-      t->params.max = t->params.count = read_u(ctx->file);
-      t->params.items = xmalloc(sizeof(param_t) * t->params.count);
-
-      for (unsigned i = 0; i < t->params.count; i++) {
-         switch ((t->params.items[i].kind = read_s(ctx->file))) {
-         case P_POS:
-            t->params.items[i].pos   = read_s(ctx->file);
-            t->params.items[i].value = tree_read(ctx);
-            break;
-         case P_RANGE:
-            t->params.items[i].range.left  = tree_read(ctx);
-            t->params.items[i].range.right = tree_read(ctx);
-            break;
-         case P_NAMED:
-            t->params.items[i].name  = ident_read(ctx->file);
-            t->params.items[i].value = tree_read(ctx);
-            break;
-         }
-      }
-   }
+   if (HAS_PARAMS(t))
+      read_p(&t->params, ctx);
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -1544,6 +1567,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->range.kind  = read_s(ctx->file);
       t->range.left  = tree_read(ctx);
       t->range.right = tree_read(ctx);
+      break;
+
+   case T_INSTANCE:
+      read_p(&t->genmaps, ctx);
       break;
 
    default:
