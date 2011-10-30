@@ -36,6 +36,7 @@ typedef void (*proc_fn_t)(int32_t reset);
 struct rt_proc {
    tree_t    source;
    proc_fn_t proc_fn;
+   unsigned  wakeup_gen;
 };
 
 typedef enum { E_PROCESS, E_DRIVER } event_kind_t;
@@ -67,6 +68,7 @@ struct waveform {
 
 struct sens_list {
    struct rt_proc   *proc;
+   unsigned         wakeup_gen;
    struct sens_list *next;
 };
 
@@ -79,9 +81,10 @@ struct signal {
    struct sens_list *sensitive;
 };
 
-static struct rt_proc *procs = NULL;
-static struct rt_proc *active_proc = NULL;
-static struct deltaq  *eventq = NULL;
+static struct rt_proc   *procs = NULL;
+static struct rt_proc   *active_proc = NULL;
+static struct deltaq    *eventq = NULL;
+static struct sens_list *resume = NULL;
 
 static size_t   n_procs = 0;
 static uint64_t now = 0;
@@ -217,11 +220,24 @@ void _sched_event(void *_sig)
    TRACE("_sched_event %s proc %s", fmt_sig(sig),
          istr(tree_ident(active_proc->source)));
 
-   struct sens_list *node = xmalloc(sizeof(struct sens_list));
-   node->proc = active_proc;
-   node->next = sig->sensitive;
+   // See if there is already a stale entry in the sensitvity
+   // list for this process
+   struct sens_list *it = sig->sensitive;
+   for (; it != NULL && it->proc != active_proc; it = it->next)
+      ;
 
-   sig->sensitive = node;
+   if (it == NULL ) {
+      struct sens_list *node = xmalloc(sizeof(struct sens_list));
+      node->proc       = active_proc;
+      node->wakeup_gen = active_proc->wakeup_gen + 1;
+      node->next       = sig->sensitive;
+
+      sig->sensitive = node;
+   }
+   else {
+      // Reuse the stale entry
+      it->wakeup_gen = active_proc->wakeup_gen + 1;
+   }
 }
 
 void _assert_fail(int8_t report, const uint8_t *msg,
@@ -385,6 +401,8 @@ static void rt_setup(tree_t top)
    while (eventq != NULL)
       deltaq_pop();
 
+   assert(resume == NULL);
+
    if (procs == NULL) {
       n_procs = tree_stmts(top);
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
@@ -418,8 +436,9 @@ static void rt_setup(tree_t top)
       tree_t p = tree_stmt(top, i);
       assert(tree_kind(p) == T_PROCESS);
 
-      procs[i].source  = p;
-      procs[i].proc_fn = jit_fun_ptr(istr(tree_ident(p)));
+      procs[i].source     = p;
+      procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)));
+      procs[i].wakeup_gen = 0;
 
       TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
@@ -432,6 +451,7 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
    active_proc = proc;
    (*proc->proc_fn)(reset ? 1 : 0);
+   ++(proc->wakeup_gen);
 }
 
 static void rt_initial(void)
@@ -440,6 +460,25 @@ static void rt_initial(void)
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
+}
+
+static void rt_wakeup(struct sens_list *sl)
+{
+   // To avoid having each process keep a list of the signals it is
+   // sensitive to, each process has a "wakeup generation" number which
+   // is incremented after each wait statement and stored in the signal
+   // sensitivity list. We then ignore any sensitivity list elements
+   // where the generation doesn't match the current process wakeup
+   // generation: these correspond to stale "wait on" statements that
+   // have already resumed.
+
+   if (sl->wakeup_gen == sl->proc->wakeup_gen) {
+      TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
+      sl->next = resume;
+      resume = sl;
+   }
+   else
+      free(sl);
 }
 
 static void rt_update_driver(struct signal *s, unsigned source)
@@ -460,10 +499,8 @@ static void rt_update_driver(struct signal *s, unsigned source)
 
             struct sens_list *it, *next;
             for (it = s->sensitive; it != NULL; it = next) {
-               TRACE("wakeup process %s", istr(tree_ident(it->proc->source)));
                next = it->next;
-               deltaq_insert(0, it->proc, NULL, 0);
-               free(it);
+               rt_wakeup(it);
             }
          }
 
@@ -514,6 +551,14 @@ static void rt_cycle(void)
       deltaq_pop();
    } while (eventq != NULL
             && (eventq->delta == 0 && eventq->iteration == iteration));
+
+   // Run all processes that resumed because of signal events
+   while (resume != NULL) {
+      struct sens_list *next = resume->next;
+      rt_run(resume->proc, false /* reset */);
+      free(resume);
+      resume = next;
+   }
 
    for (unsigned i = 0; i < n_active_signals; i++)
       active_signals[i]->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
