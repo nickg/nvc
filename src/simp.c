@@ -386,6 +386,7 @@ static void simp_decl(tree_t t)
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
    case T_CONST_DECL:
+   case T_PORT_DECL:
       if (tree_has_value(t))
          tree_set_value(t, simp_expr(tree_value(t)));
       break;
