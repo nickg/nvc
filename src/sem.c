@@ -60,6 +60,11 @@ static void sem_declare_predefined_ops(tree_t decl);
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 
+typedef unsigned (*tree_formals_t)(tree_t t);
+typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
+typedef unsigned (*tree_actuals_t)(tree_t t);
+typedef param_t (*tree_actual_t)(tree_t t, unsigned n);
+
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
 static struct type_set *top_type_set = NULL;
@@ -1614,10 +1619,8 @@ static bool sem_check_qualified(tree_t t)
 }
 
 static bool sem_check_map(tree_t t, tree_t unit,
-                          unsigned (*tree_Fs)(tree_t t),
-                          tree_t (*tree_F)(tree_t t, unsigned n),
-                          unsigned (*tree_As)(tree_t t),
-                          param_t (*tree_A)(tree_t t, unsigned n))
+                          tree_formals_t tree_Fs, tree_formal_t tree_F,
+                          tree_actuals_t tree_As, tree_actual_t tree_A)
 {
    // Check there is an actual for each formal port or generic
 
