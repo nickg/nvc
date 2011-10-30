@@ -424,6 +424,7 @@ static tree_t simp_process(tree_t t)
 
       tree_t w = tree_new(T_WAIT);
       tree_set_loc(w, tree_loc(t));
+      tree_set_ident(w, tree_ident(p));
       for (unsigned i = 0; i < tree_triggers(t); i++)
          tree_add_trigger(w, tree_trigger(t, i));
       tree_add_stmt(p, w);

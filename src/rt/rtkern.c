@@ -502,6 +502,7 @@ static void rt_update_driver(struct signal *s, unsigned source)
                next = it->next;
                rt_wakeup(it);
             }
+            s->sensitive = NULL;
          }
 
          assert(n_active_signals < MAX_ACTIVE_SIGS);
