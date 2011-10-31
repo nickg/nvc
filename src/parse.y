@@ -904,7 +904,19 @@ type_decl
      $$ = NULL;
      tree_list_append(&$$, t);
   }
-  /* | incomplete_type_decl */
+| tTYPE id tSEMI
+  {
+     type_t i = type_new(T_INCOMPLETE);
+     type_set_ident(i, $2);
+
+     tree_t t = tree_new(T_TYPE_DECL);
+     tree_set_ident(t, $2);
+     tree_set_type(t, i);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
 ;
 
 type_def

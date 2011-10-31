@@ -56,9 +56,9 @@ struct type_set {
    struct type_set *down;
 };
 
-static void sem_declare_predefined_ops(tree_t decl);
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
+static bool sem_declare(tree_t decl);
 
 typedef unsigned (*tree_formals_t)(tree_t t);
 typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
@@ -259,6 +259,19 @@ static void scope_insert_at(tree_t t, struct btree *where)
       scope_insert_at(t, *nextp);
 }
 
+static void scope_replace_at(tree_t t, tree_t with, struct btree *where)
+{
+   assert(where != NULL);
+   if (where->tree == t)
+      where->tree = with;
+   else {
+      bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
+
+      struct btree *next = (left ? where->left : where->right);
+      scope_replace_at(t, with, next);
+   }
+}
+
 static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
@@ -275,47 +288,11 @@ static bool scope_insert(tree_t t)
    return true;
 }
 
-static bool scope_insert_special(tree_t t)
+static void scope_replace(tree_t t, tree_t with)
 {
-   // Handle special cases of scope insertion such as enumeration
-   // literals, physical unit names, and predefined types
+   assert(top_scope != NULL);
 
-   bool ok = scope_insert(t);
-
-   if (tree_kind(t) == T_TYPE_DECL)
-      sem_declare_predefined_ops(t);
-
-   type_t type = tree_type(t);
-   switch (type_kind(type)) {
-   case T_ENUM:
-      // Need to add each literal to the scope
-      for (unsigned i = 0; i < type_enum_literals(type); i++)
-         ok = ok && scope_insert(type_enum_literal(type, i));
-      break;
-
-   case T_PHYSICAL:
-      // Create constant declarations for each unit
-      for (unsigned i = 0; i < type_units(type); i++) {
-         unit_t u = type_unit(type, i);
-         ok = ok && sem_check_constrained(u.multiplier, type);
-
-         tree_set_type(u.multiplier, type);
-
-         tree_t c = tree_new(T_CONST_DECL);
-         tree_set_loc(c, tree_loc(u.multiplier));
-         tree_set_ident(c, u.name);
-         tree_set_type(c, type);
-         tree_set_value(c, u.multiplier);
-
-         ok = ok && scope_insert(c);
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   return ok;
+   scope_replace_at(t, with, top_scope->decls);
 }
 
 static bool scope_import_unit(lib_t lib, ident_t name)
@@ -333,7 +310,8 @@ static bool scope_import_unit(lib_t lib, ident_t name)
                 istr(name), istr(lib_name(lib)));
 
    for (unsigned n = 0; n < tree_decls(unit); n++) {
-      if (!scope_insert_special(tree_decl(unit, n)))
+      tree_t decl = tree_decl(unit, n);
+      if (!sem_declare(decl))
          return false;
    }
 
@@ -493,6 +471,9 @@ static void sem_declare_predefined_ops(tree_t decl)
    // Predefined operators
 
    switch (type_kind(t)) {
+   case T_INCOMPLETE:
+      assert(false);   // Shouldn't reach here
+
    case T_PHYSICAL:
       // These types require INTEGER to be declared
       std_int = sem_std_type("STD.STANDARD.INTEGER");
@@ -613,12 +594,127 @@ static void sem_declare_predefined_ops(tree_t decl)
             tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
             tree_add_attr_tree(decl, ident_new("LOW"), r.right);
          }
+
+         tree_t image = sem_builtin_fn(ident_new("IMAGE"),
+                                       sem_std_type("STD.STANDARD.STRING"),
+                                       "image");
+         type_add_param(tree_type(image), t);
+
+         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
 
    default:
       break;
    }
+}
+
+static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
+{
+   // Resolve a subtype to its base type
+
+   while (type_kind(type) == T_SUBTYPE) {
+      type_t base = type_base(type);
+      if (type_kind(base) == T_UNRESOLVED) {
+         tree_t base_decl = scope_find(type_ident(base));
+         if (base_decl == NULL)
+            sem_error(t, "type %s is not defined", istr(type_ident(base)));
+
+         type_t base_type = tree_type(base_decl);
+         type_set_base(type, base_type);
+
+         // If the subtype is not constrained then give it the same
+         // range as its base type
+         if (type_dims(type) == 0) {
+            for (unsigned i = 0; i < type_dims(base_type); i++)
+               type_add_dim(type, type_dim(base_type, i));
+         }
+
+         base = tree_type(base_decl);
+      }
+
+      type = base;
+   }
+
+   if (pbase)
+      *pbase = type;
+
+   return true;
+}
+
+static bool sem_declare(tree_t decl)
+{
+   // Handle special cases of scope insertion such as enumeration
+   // literals, physical unit names, and predefined types
+
+   // Resolve the base type if necessary
+   if (!sem_check_subtype(decl, tree_type(decl), NULL))
+      return false;
+
+   // If this is full type declarataion then replace any previous
+   // incomplete type declaration
+   tree_t forward = scope_find(tree_ident(decl));
+   if (forward != NULL && tree_kind(forward) == T_TYPE_DECL) {
+      type_t incomplete = tree_type(forward);
+      if (type_kind(incomplete) == T_INCOMPLETE) {
+         // Replace the incomplete type with the one we are defining
+         type_replace(incomplete, tree_type(decl));
+         tree_set_type(decl, incomplete);
+
+         // Create a new incomplete type and attach that to the
+         // forward declaration: this is useful when we serialise
+         // the tree to avoid circular references
+         type_t ni = type_new(T_INCOMPLETE);
+         type_set_ident(ni, type_ident(incomplete));
+         tree_set_type(forward, ni);
+
+         scope_replace(forward, decl);
+      }
+   }
+   else if (!scope_insert(decl))
+      return false;
+
+   // Incomplete types cannot be checked any further
+   if (type_kind(tree_type(decl)) == T_INCOMPLETE)
+      return true;
+
+   // Declare any predefined operators and attributes
+   if (tree_kind(decl) == T_TYPE_DECL)
+      sem_declare_predefined_ops(decl);
+
+   bool ok = true;
+
+   type_t type = tree_type(decl);
+   switch (type_kind(type)) {
+   case T_ENUM:
+      // Need to add each literal to the scope
+      for (unsigned i = 0; i < type_enum_literals(type); i++)
+         ok = ok && scope_insert(type_enum_literal(type, i));
+      break;
+
+   case T_PHYSICAL:
+      // Create constant declarations for each unit
+      for (unsigned i = 0; i < type_units(type); i++) {
+         unit_t u = type_unit(type, i);
+         ok = ok && sem_check_constrained(u.multiplier, type);
+
+         tree_set_type(u.multiplier, type);
+
+         tree_t c = tree_new(T_CONST_DECL);
+         tree_set_loc(c, tree_loc(u.multiplier));
+         tree_set_ident(c, u.name);
+         tree_set_type(c, type);
+         tree_set_value(c, u.multiplier);
+
+         ok = ok && scope_insert(c);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   return ok;
 }
 
 static bool sem_check_context(tree_t t)
@@ -695,39 +791,6 @@ static bool sem_readable(tree_t t)
    }
 }
 
-static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
-{
-   // Resolve a subtype to its base type
-
-   while (type_kind(type) == T_SUBTYPE) {
-      type_t base = type_base(type);
-      if (type_kind(base) == T_UNRESOLVED) {
-         tree_t base_decl = scope_find(type_ident(base));
-         if (base_decl == NULL)
-            sem_error(t, "type %s is not defined", istr(type_ident(base)));
-
-         type_t base_type = tree_type(base_decl);
-         type_set_base(type, base_type);
-
-         // If the subtype is not constrained then give it the same
-         // range as its base type
-         if (type_dims(type) == 0) {
-            for (unsigned i = 0; i < type_dims(base_type); i++)
-               type_add_dim(type, type_dim(base_type, i));
-         }
-
-         base = tree_type(base_decl);
-      }
-
-      type = base;
-   }
-
-   if (pbase)
-      *pbase = type;
-
-   return true;
-}
-
 static bool sem_check_type(tree_t t, type_t *ptype)
 {
    // Check a type at the point where it is used not declared
@@ -785,7 +848,20 @@ static bool sem_check_type(tree_t t, type_t *ptype)
 
 static bool sem_check_type_decl(tree_t t)
 {
+   // We need to insert the type into the scope before performing
+   // further checks as when bootstrapping we need INTEGER defined
+   // before we can check any ranges. Adding a type with errors to
+   // the symbol table should also avoid spurious type-not-defined
+   // errors later on
+   scope_apply_prefix(t);
+   if (!sem_declare(t))
+      return false;
+
    type_t type = tree_type(t);
+
+   // Nothing more to do for incomplete types
+   if (type_kind(type) == T_INCOMPLETE)
+      return true;
 
    // Prefix the package name to the type name
    if (top_scope->prefix)
@@ -794,15 +870,6 @@ static bool sem_check_type_decl(tree_t t)
 
    type_t base;
    if (!sem_check_subtype(t, type, &base))
-      return false;
-
-   // We need to insert the type into the scope before performing
-   // further checks as when bootstrapping we need INTEGER defined
-   // before we can check any ranges. Adding a type with errors to
-   // the symbol table should also avoid spurious type-not-defined
-   // errors later on
-   scope_apply_prefix(t);
-   if (!scope_insert_special(t))
       return false;
 
    switch (type_kind(type)) {

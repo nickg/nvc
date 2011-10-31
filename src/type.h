@@ -43,6 +43,7 @@ typedef enum type_kind {
    T_FILE,
    T_ACCESS,
    T_FUNC,
+   T_INCOMPLETE,
 
    T_LAST_TYPE_KIND
 } type_kind_t;
@@ -100,6 +101,9 @@ void type_set_result(type_t t, type_t r);
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
+
+// T_INCOMPLETE
+void type_replace(type_t t, type_t a);
 
 type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx);
 void type_write(type_t t, type_wr_ctx_t ctx);

@@ -392,6 +392,39 @@ void type_set_result(type_t t, type_t r)
    t->result = r;
 }
 
+void type_replace(type_t t, type_t a)
+{
+   assert(t != NULL);
+   assert(IS(t, T_INCOMPLETE));
+
+   t->kind  = a->kind;
+   t->ident = a->ident;
+
+   if (HAS_DIMS(a)) {
+      for (unsigned i = 0; i < a->n_dims; i++)
+         type_add_dim(t, type_dim(a, i));
+   }
+
+   switch (a->kind) {
+   case T_UARRAY:
+      for (unsigned i = 0; i < type_index_constrs(a); i++)
+         type_add_index_constr(t, type_index_constr(a, i));
+
+      // Fall-through
+   case T_SUBTYPE:
+   case T_CARRAY:
+      type_set_base(t, type_base(a));
+      break;
+
+   case T_FUNC:
+      type_set_result(t, type_result(a));
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 unsigned type_index_constrs(type_t t)
 {
    assert(t != NULL);

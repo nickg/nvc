@@ -2,6 +2,8 @@
 -- STANDARD package as defined by IEEE 1076-1993
 --
 package STANDARD is
+
+    type STRING;
     
     type BOOLEAN is (FALSE, TRUE);
 

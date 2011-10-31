@@ -14,3 +14,5 @@ wait3           normal
 wait4           normal
 wait5           normal
 elab1           normal
+image           gold,normal
+
