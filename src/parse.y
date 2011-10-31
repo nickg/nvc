@@ -1256,7 +1256,7 @@ name
      tree_set_ident($$, $1);
      tree_set_loc($$, &@$);
   }
-| selected_id tTICK id /* [ ( expr ) ] */
+| selected_id tTICK id
   {
      $$ = tree_new(T_ATTR_REF);
      tree_set_ident($$, $1);
@@ -1271,15 +1271,21 @@ name
      // fix things up later. We stash the value $1 in the tree
      // anyway to make changing the kind easier.
 
-     $$ = tree_new(T_ARRAY_REF);
-     tree_set_value($$, $1);
+     if (tree_kind($1) == T_ATTR_REF) {
+        $$ = $1;
+     }
+     else {
+        $$ = tree_new(T_ARRAY_REF);
+        tree_set_value($$, $1);
+
+        if (tree_kind($1) == T_REF) {
+           tree_change_kind($$, T_FCALL);
+           tree_set_ident($$, tree_ident($1));
+        }
+     }
+
      tree_set_loc($$, &@$);
      copy_params($3, tree_add_param, $$);
-
-     if (tree_kind($1) == T_REF) {
-        tree_change_kind($$, T_FCALL);
-        tree_set_ident($$, tree_ident($1));
-     }
   }
 | name tLPAREN range tRPAREN
   {

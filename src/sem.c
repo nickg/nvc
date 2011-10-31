@@ -409,11 +409,18 @@ static type_t sem_std_type(const char *name)
 }
 
 static tree_t sem_builtin_fn(ident_t name, type_t result,
-                             const char *builtin)
+                             const char *builtin, ...)
 {
    type_t f = type_new(T_FUNC);
    type_set_ident(f, name);
    type_set_result(f, result);
+
+   va_list ap;
+   va_start(ap, builtin);
+   type_t arg;
+   while ((arg = va_arg(ap, type_t)))
+      type_add_param(f, arg);
+   va_end(ap);
 
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
@@ -426,7 +433,7 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
 static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
                                type_t result, const char *builtin)
 {
-   tree_t d = sem_builtin_fn(name, result, builtin);
+   tree_t d = sem_builtin_fn(name, result, builtin, NULL);
    type_add_param(tree_type(d), lhs);
    type_add_param(tree_type(d), rhs);
 
@@ -436,9 +443,7 @@ static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
 static void sem_declare_unary(ident_t name, type_t operand,
                               type_t result, const char *builtin)
 {
-   tree_t d = sem_builtin_fn(name, result, builtin);
-   type_add_param(tree_type(d), operand);
-
+   tree_t d = sem_builtin_fn(name, result, builtin, operand, NULL);
    scope_insert(d);
 }
 
@@ -597,9 +602,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
          tree_t image = sem_builtin_fn(ident_new("IMAGE"),
                                        sem_std_type("STD.STANDARD.STRING"),
-                                       "image");
-         type_add_param(tree_type(image), t);
-
+                                       "image", t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
@@ -939,9 +942,11 @@ static bool sem_check_decl(tree_t t)
       ident_t active_i = ident_new("ACTIVE");
       type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
       tree_add_attr_tree(t, event_i,
-                         sem_builtin_fn(event_i, std_bool, "event"));
+                         sem_builtin_fn(event_i, std_bool, "event",
+                                        type, NULL));
       tree_add_attr_tree(t, active_i,
-                         sem_builtin_fn(active_i, std_bool, "active"));
+                         sem_builtin_fn(active_i, std_bool, "active",
+                                        type, NULL));
    }
 
    scope_apply_prefix(t);
@@ -1654,16 +1659,40 @@ static bool sem_check_attr_ref(tree_t t)
                 istr(tree_ident(t)), istr(tree_ident2(t)));
 
    if (tree_kind(a) == T_FUNC_DECL) {
-      tree_set_type(t, type_result(tree_type(a)));
+      type_t ftype = tree_type(a);
+      tree_set_type(t, type_result(ftype));
 
-      tree_t ref = tree_new(T_REF);
-      tree_set_ident(ref, tree_ident(t));
-      tree_set_loc(ref, tree_loc(t));
-      tree_set_type(ref, tree_type(decl));
-      tree_set_ref(ref, decl);
+      if (tree_kind(decl) != T_TYPE_DECL) {
+         // For an expression X'A add X as the final parameter
+         tree_t ref = tree_new(T_REF);
+         tree_set_ident(ref, tree_ident(t));
+         tree_set_loc(ref, tree_loc(t));
+         tree_set_type(ref, tree_type(decl));
+         tree_set_ref(ref, decl);
 
-      param_t p = { .kind = P_POS, .value = ref };
-      tree_add_param(t, p);
+         param_t p = { .kind = P_POS, .value = ref };
+         tree_add_param(t, p);
+      }
+
+      if (tree_params(t) != type_params(ftype))
+         sem_error(t, "expected %d parameters for attribute %s "
+                   " but have %d", type_params(ftype),
+                   istr(tree_ident2(t)), tree_params(t));
+
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         param_t p = tree_param(t, i);
+         if (p.kind != P_POS)
+            sem_error(t, "only positional arguments supported here");
+
+         type_t expect_type = type_param(ftype, i);
+         if (!sem_check_constrained(p.value, expect_type))
+            return false;
+
+         if (!type_eq(tree_type(p.value), expect_type))
+            sem_error(t, "expected type %s for attribute %s",
+                      type_pp(expect_type), istr(tree_ident2(t)));
+      }
+
       tree_set_ref(t, a);
    }
    else {

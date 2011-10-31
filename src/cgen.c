@@ -403,6 +403,16 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
       else if (strcmp(builtin, "aneq") == 0)
          return LLVMBuildNot(
             builder, cgen_array_eq(arg_type, args[0], args[1]), "");
+      else if (strcmp(builtin, "image") == 0) {
+         LLVMValueRef image_fn = LLVMGetNamedFunction(module, "_image");
+         assert(image_fn != NULL);
+
+         assert(tree_params(t) == 1);
+         LLVMValueRef args[] = {
+            LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
+         };
+         return LLVMBuildCall(builder, image_fn, args, ARRAY_LEN(args), "");
+      }
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
@@ -1296,6 +1306,15 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMInt1Type(),
                                     _array_eq_args,
                                     ARRAY_LEN(_array_copy_args),
+                                    false));
+
+   LLVMTypeRef _image_args[] = {
+      LLVMInt64Type()
+   };
+   LLVMAddFunction(module, "_image",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _image_args,
+                                    ARRAY_LEN(_image_args),
                                     false));
 }
 
