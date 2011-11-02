@@ -407,11 +407,10 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          LLVMValueRef image_fn = LLVMGetNamedFunction(module, "_image");
          assert(image_fn != NULL);
 
-         assert(tree_params(t) == 1);
-         LLVMValueRef args[] = {
+         LLVMValueRef iargs[] = {
             LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
          };
-         return LLVMBuildCall(builder, image_fn, args, ARRAY_LEN(args), "");
+         return LLVMBuildCall(builder, image_fn, iargs, ARRAY_LEN(iargs), "");
       }
       else
          fatal("cannot generate code for builtin %s", builtin);
@@ -798,15 +797,24 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
       LLVMGetNamedFunction(module, "_assert_fail");
    assert(assert_fail_fn != NULL);
 
-   int64_t slow, shigh;
-   range_bounds(type_dim(tree_type(tree_message(t)), 0), &slow, &shigh);
+   int slen = -1;  // String is NULL terminated
+   LLVMValueRef msg_val = NULL;
+   type_t msg_type = tree_type(tree_message(t));
+   if (type_kind(msg_type) == T_CARRAY) {
+      int64_t slow, shigh;
+      range_bounds(type_dim(msg_type, 0), &slow, &shigh);
+      slen = shigh - slow + 1;
+      msg_val = cgen_array_to_c_string(message);
+   }
+   else
+      msg_val = message;
 
    LLVMValueRef args[] = {
       LLVMConstInt(LLVMInt8Type(),
                    tree_attr_int(t, ident_new("is_report"), 0),
                    false),
-      cgen_array_to_c_string(message),
-      LLVMConstInt(LLVMInt32Type(), shigh - slow + 1, false),
+      msg_val,
+      LLVMConstInt(LLVMInt32Type(), slen, false),
       severity
    };
    LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
@@ -1312,7 +1320,7 @@ static void cgen_support_fns(void)
       LLVMInt64Type()
    };
    LLVMAddFunction(module, "_image",
-                   LLVMFunctionType(LLVMVoidType(),
+                   LLVMFunctionType(llvm_void_ptr(),
                                     _image_args,
                                     ARRAY_LEN(_image_args),
                                     false));

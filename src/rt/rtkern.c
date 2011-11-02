@@ -37,6 +37,8 @@ struct rt_proc {
    tree_t    source;
    proc_fn_t proc_fn;
    unsigned  wakeup_gen;
+   void      *tmp_buf;
+   size_t    tmp_buf_sz;
 };
 
 typedef enum { E_PROCESS, E_DRIVER } event_kind_t;
@@ -97,6 +99,7 @@ static unsigned      n_active_signals = 0;
 
 static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
                           struct signal *signal, unsigned source);
+static void *rt_tmp_alloc(size_t sz);
 static void _tracef(const char *fmt, ...);
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
@@ -260,7 +263,10 @@ void _assert_fail(int8_t report, const uint8_t *msg,
            fmt_time(now), iteration,
            report ? "Report" : "Assertion",
            levels[severity]);
-   fwrite(msg, 1, msg_len, stderr);
+   if (msg_len >= 0)
+      fwrite(msg, 1, msg_len, stderr);
+   else
+      fputs((const char *)msg, stderr);
    fprintf(stderr, "\n");
 
    if (severity >= 2)
@@ -282,6 +288,13 @@ int8_t _array_eq(const void *lhs, const void *rhs, int32_t n, int32_t sz)
 {
    TRACE("_array_eq lhs=%p rhs=%p %dx%d", lhs, rhs, n, sz);
    return memcmp(lhs, rhs, n * sz) == 0;
+}
+
+int8_t *_image(int64_t val)
+{
+   char *buf = rt_tmp_alloc(32);
+   snprintf(buf, 32, "%"PRIi64, val);
+   return (int8_t*)buf;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +386,19 @@ static void deltaq_dump(void)
 }
 #endif
 
+static void *rt_tmp_alloc(size_t sz)
+{
+   // Allocate sz bytes that will be freed when the process suspends
+
+   size_t base = active_proc->tmp_buf_sz;
+   if (active_proc->tmp_buf != NULL)
+      active_proc->tmp_buf = xrealloc(active_proc->tmp_buf, base + sz);
+   else
+      active_proc->tmp_buf = xmalloc(sz);
+   active_proc->tmp_buf_sz = base + sz;
+   return (char*)active_proc->tmp_buf + base;
+}
+
 static void rt_reset_signal(struct signal *s, tree_t decl)
 {
    if (s->sources != NULL) {
@@ -439,6 +465,8 @@ static void rt_setup(tree_t top)
       procs[i].source     = p;
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)));
       procs[i].wakeup_gen = 0;
+      procs[i].tmp_buf    = NULL;
+      procs[i].tmp_buf_sz = 0;
 
       TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
@@ -452,6 +480,13 @@ static void rt_run(struct rt_proc *proc, bool reset)
    active_proc = proc;
    (*proc->proc_fn)(reset ? 1 : 0);
    ++(proc->wakeup_gen);
+
+   // Free any temporary memory allocated by the process
+   if (proc->tmp_buf) {
+      free(proc->tmp_buf);
+      proc->tmp_buf    = NULL;
+      proc->tmp_buf_sz = 0;
+   }
 }
 
 static void rt_initial(void)
