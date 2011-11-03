@@ -42,5 +42,11 @@ begin
             x := 1;
         end if;
     end process;
+
+    -- Null
+    process is
+    begin
+        null;
+    end process;
     
 end architecture;

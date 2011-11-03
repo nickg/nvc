@@ -1864,6 +1864,8 @@ bool sem_check(tree_t t)
       return sem_check_instance(t);
    case T_IF:
       return sem_check_if(t);
+   case T_NULL:
+      return true;
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

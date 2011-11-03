@@ -140,7 +140,7 @@ struct tree_rd_ctx {
 #define IS_STMT(t) \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
-    || IS(t, T_IF))
+    || IS(t, T_IF) || IS(t, T_NULL))
 #define HAS_IDENT(t) \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL) || IS(t, T_ARCH) \
     || IS(t, T_SIGNAL_DECL) || IS_STMT(t) || IS(t, T_VAR_DECL)          \

@@ -253,7 +253,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 5);
+   fail_unless(tree_stmts(a) == 6);
 
    // Wait statements
 
@@ -379,6 +379,15 @@ START_TEST(test_seq)
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("TRUE"));
    fail_unless(tree_stmts(s) == 1);
+
+   // Null statements
+
+   p = tree_stmt(a, 5);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 1);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_NULL);
 
    a = parse();
    fail_unless(a == NULL);

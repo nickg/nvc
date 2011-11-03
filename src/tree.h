@@ -60,6 +60,7 @@ typedef enum tree_kind {
    T_ARRAY_SLICE,
    T_INSTANCE,
    T_IF,
+   T_NULL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

@@ -18,5 +18,11 @@ begin
             x := 5;                     -- Error in statement
         end if;
     end process;
+
+    -- Null statements
+    process is
+    begin
+        null;
+    end process;
     
 end architecture;

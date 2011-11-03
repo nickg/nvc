@@ -822,13 +822,17 @@ seq_stmt_without_label
      tree_set_value($$, $2);
      copy_trees($4, tree_add_stmt, $$);
   }
+| tNULL tSEMI
+  {
+     $$ = tree_new(T_NULL);
+     tree_set_loc($$, &@$);
+  }
 /* | procedure_call_statement
    | case_statement
    | loop_statement
    | next_statement
    | exit_statement
-   | return_statement
-   | null_statement */
+   | return_statement */
 ;
 
 report
