@@ -39,4 +39,14 @@ begin
         x <= a3(-1);                    -- Error!
     end process;
 
+    process is
+    begin
+        if true then
+            x <= 1;
+        end if;
+        if false then
+            x <= 5;
+        end if;
+    end process;
+
 end architecture;

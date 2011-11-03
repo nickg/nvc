@@ -327,6 +327,30 @@ static tree_t simp_process(tree_t t)
       return t;
 }
 
+static tree_t simp_if(tree_t t)
+{
+   bool value_b;
+   if (folded_bool(tree_value(t), &value_b)) {
+      if (value_b) {
+         // If statement always executes so replace with then part
+         // XXX: make work for more than one statement
+         if (tree_stmts(t) == 1)
+            return tree_stmt(t, 0);
+         else
+            return t;
+      }
+      else {
+         // If statement never executes so delete
+         // XXX: replace with else part
+         tree_t null = tree_new(T_NULL);
+         tree_set_loc(null, tree_loc(t));
+         return null;
+      }
+   }
+   else
+      return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -340,6 +364,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_fcall(t);
    case T_REF:
       return simp_ref(t);
+   case T_IF:
+      return simp_if(t);
    default:
       return t;
    }
