@@ -1796,6 +1796,26 @@ static bool sem_check_instance(tree_t t)
                        tree_genmaps, tree_genmap);
 }
 
+static bool sem_check_if(tree_t t)
+{
+   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+
+   tree_t value = tree_value(t);
+   if (!sem_check_constrained(value, std_bool))
+      return false;
+
+   if (!type_eq(tree_type(value), std_bool))
+      sem_error(value, "type of test must be %s but is %s",
+                istr(type_ident(std_bool)),
+                istr(type_ident(tree_type(value))));
+
+   bool ok = true;
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      ok = sem_check(tree_stmt(t, i)) && ok;
+
+   return ok;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1842,6 +1862,8 @@ bool sem_check(tree_t t)
       return sem_check_array_slice(t);
    case T_INSTANCE:
       return sem_check_instance(t);
+   case T_IF:
+      return sem_check_if(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

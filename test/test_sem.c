@@ -560,6 +560,36 @@ START_TEST(test_generics)
 }
 END_TEST
 
+START_TEST(test_seq)
+{
+   tree_t a, e, p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
+
+   const error_t expect[] = {
+      { 14, "type of test must be STD.STANDARD.BOOLEAN" },
+      { 18, "undefined identifier X" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -581,6 +611,7 @@ int main(void)
    tcase_add_test(tc_core, test_array);
    tcase_add_test(tc_core, test_assert);
    tcase_add_test(tc_core, test_generics);
+   tcase_add_test(tc_core, test_seq);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
