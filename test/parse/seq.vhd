@@ -34,5 +34,13 @@ begin
     begin
         x := foo(1, 2, 3);
     end process;
+
+    -- If
+    process is
+    begin
+        if true then
+            x := 1;
+        end if;
+    end process;
     
 end architecture;

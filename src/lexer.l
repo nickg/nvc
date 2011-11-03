@@ -128,6 +128,9 @@ ASSERT        {A}{S}{S}{E}{R}{T}
 SEVERITY      {S}{E}{V}{E}{R}{I}{T}{Y}
 ON            {O}{N}
 MAP           {M}{A}{P}
+IF            {I}{F}
+THEN          {T}{H}{E}{N}
+ELSE          {E}{L}{S}{E}
 
 %%
 
@@ -186,6 +189,9 @@ MAP           {M}{A}{P}
 {SEVERITY}      { begin_token(yytext); return tSEVERITY; }
 {ON}            { begin_token(yytext); return tON; }
 {MAP}           { begin_token(yytext); return tMAP; }
+{IF}            { begin_token(yytext); return tIF; }
+{THEN}          { begin_token(yytext); return tTHEN; }
+{ELSE}          { begin_token(yytext); return tELSE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

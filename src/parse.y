@@ -170,7 +170,7 @@
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
-%type <l> variable_decl process_decl_item process_stmt_part type_decl
+%type <l> variable_decl process_decl_item seq_stmt_list type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause
@@ -192,10 +192,10 @@
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
 %token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE
+%token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE tIF
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS tASSERT tSEVERITY tON tMAP
+%token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -639,7 +639,7 @@ port_map
 
 process_stmt
 : /* [ postponed ] */ tPROCESS process_sensitivity_clause opt_is
-  process_decl_part tBEGIN process_stmt_part tEND /* [ postponed ] */
+  process_decl_part tBEGIN seq_stmt_list tEND /* [ postponed ] */
   tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
@@ -736,8 +736,8 @@ variable_decl
      id_list_free($2);
   }
 
-process_stmt_part
-: seq_stmt process_stmt_part
+seq_stmt_list
+: seq_stmt seq_stmt_list
   {
      $$ = $2;
      tree_list_prepend(&$$, $1);
@@ -815,8 +815,14 @@ seq_stmt_without_label
      tree_set_message($$, $2);
      tree_add_attr_int($$, ident_new("is_report"), 1);
   }
+| tIF expr tTHEN seq_stmt_list tEND tIF /* [label] */ tSEMI
+  {
+     $$ = tree_new(T_IF);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+     copy_trees($4, tree_add_stmt, $$);
+  }
 /* | procedure_call_statement
-   | if_statement
    | case_statement
    | loop_statement
    | next_statement
