@@ -50,10 +50,12 @@ struct proc_entry {
 struct proc_ctx {
    struct proc_entry *entry_list;
    LLVMValueRef      state;
+   LLVMValueRef      fn;
    tree_t            proc;
 };
 
 static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx);
+static void cgen_stmt(tree_t t, struct proc_ctx *ctx);
 
 static LLVMValueRef llvm_int32(int32_t i)
 {
@@ -824,6 +826,24 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, elsebb);
 }
 
+static void cgen_if(tree_t t, struct proc_ctx *ctx)
+{
+   LLVMBasicBlockRef then_bb = LLVMAppendBasicBlock(ctx->fn, "then");
+   LLVMBasicBlockRef end_bb = LLVMAppendBasicBlock(ctx->fn, "ifend");
+
+   LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+   LLVMBuildCondBr(builder, test, then_bb, end_bb);
+
+   LLVMPositionBuilderAtEnd(builder, then_bb);
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_stmt(tree_stmt(t, i), ctx);
+
+   LLVMBuildBr(builder, end_bb);
+
+   LLVMPositionBuilderAtEnd(builder, end_bb);
+}
+
 static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -838,6 +858,9 @@ static void cgen_stmt(tree_t t, struct proc_ctx *ctx)
       break;
    case T_ASSERT:
       cgen_assert(t, ctx);
+      break;
+   case T_IF:
+      cgen_if(t, ctx);
       break;
    default:
       assert(false);
@@ -962,18 +985,18 @@ static void cgen_process(tree_t t)
 
    LLVMTypeRef pargs[] = { LLVMInt32Type() };
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
-   LLVMValueRef fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
+   ctx.fn = LLVMAddFunction(module, istr(tree_ident(t)), ftype);
 
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMBasicBlockRef jt_bb    = LLVMAppendBasicBlock(fn, "jump_table");
-   LLVMBasicBlockRef init_bb  = LLVMAppendBasicBlock(fn, "init");
-   LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(fn, "start");
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(ctx.fn, "entry");
+   LLVMBasicBlockRef jt_bb    = LLVMAppendBasicBlock(ctx.fn, "jump_table");
+   LLVMBasicBlockRef init_bb  = LLVMAppendBasicBlock(ctx.fn, "init");
+   LLVMBasicBlockRef start_bb = LLVMAppendBasicBlock(ctx.fn, "start");
 
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
    // If the parameter is non-zero jump to the init block
 
-   LLVMValueRef param = LLVMGetParam(fn, 0);
+   LLVMValueRef param = LLVMGetParam(ctx.fn, 0);
    LLVMValueRef reset =
       LLVMBuildICmp(builder, LLVMIntNE, param, llvm_int32(0), "");
    LLVMBuildCondBr(builder, reset, init_bb, jt_bb);
@@ -1002,7 +1025,7 @@ static void cgen_process(tree_t t)
 
    struct proc_entry *it;
    for (it = ctx.entry_list; it != NULL; it = it->next) {
-      it->bb = LLVMAppendBasicBlock(fn, istr(tree_ident(it->wait)));
+      it->bb = LLVMAppendBasicBlock(ctx.fn, istr(tree_ident(it->wait)));
 
       LLVMAddCase(jswitch, llvm_int32(it->state_num), it->bb);
    }
