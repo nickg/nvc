@@ -31,7 +31,7 @@ static const char *work_name = "work";
 
 static void set_work_lib(void)
 {
-   lib_t work = lib_find(work_name, false);
+   lib_t work = lib_find(work_name, false, false);
    if (work == NULL) {
       if ((work = lib_new(work_name)) == NULL)
          exit(EXIT_FAILURE);

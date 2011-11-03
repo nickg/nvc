@@ -147,7 +147,7 @@ static void push_path(const char **base, size_t *pidx, const char *path)
    }
 }
 
-lib_t lib_find(const char *name, bool verbose)
+lib_t lib_find(const char *name, bool verbose, bool search)
 {
    // Search in already loaded libraries
    ident_t name_i = upcase_name(name);
@@ -161,18 +161,20 @@ lib_t lib_find(const char *name, bool verbose)
 
    push_path(paths, &idx, ".");
 
-   const char *libpath_env = getenv("NVC_LIBPATH");
    char *env_copy = NULL;
-   if (libpath_env) {
-      env_copy = strdup(libpath_env);
+   if (search) {
+      const char *libpath_env = getenv("NVC_LIBPATH");
+      if (libpath_env) {
+         env_copy = strdup(libpath_env);
 
-      const char *path_tok = strtok(env_copy, ":");
-      do {
-         push_path(paths, &idx, path_tok);
-      } while ((path_tok = strtok(NULL, ":")));
+         const char *path_tok = strtok(env_copy, ":");
+         do {
+            push_path(paths, &idx, path_tok);
+         } while ((path_tok = strtok(NULL, ":")));
+      }
+
+      push_path(paths, &idx, DATADIR);
    }
-
-   push_path(paths, &idx, DATADIR);
 
    lib_t lib;
    for (const char **p = paths; *p != NULL; p++) {

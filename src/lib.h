@@ -26,7 +26,7 @@ struct tree;
 
 typedef struct lib *lib_t;
 
-lib_t lib_find(const char *name, bool verbose);
+lib_t lib_find(const char *name, bool verbose, bool search);
 lib_t lib_new(const char *name);
 lib_t lib_tmp(void);
 void lib_free(lib_t lib);

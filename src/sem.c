@@ -730,7 +730,7 @@ static bool sem_check_context(tree_t t)
    // The std.standard package is also implicit unless we are
    // bootstrapping
    if (!bootstrap) {
-      lib_t std = lib_find("std", true);
+      lib_t std = lib_find("std", true, true);
       if (std == NULL)
          fatal("failed to find std library");
 
