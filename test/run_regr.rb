@@ -41,7 +41,7 @@ def run_cmd(c, invert=false)
   end
   
   pid = fork
-  exec("#{c} >>out 2>&1") if pid.nil?
+  exec("exec #{c} >>out 2>&1") if pid.nil?
   begin
     timeout(Opts['v'] ? 10 : 1) do
       Process.wait

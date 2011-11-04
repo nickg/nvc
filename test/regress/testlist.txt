@@ -16,3 +16,4 @@ wait5           normal
 elab1           normal
 image           gold,normal
 cond            gold,normal
+counter         normal

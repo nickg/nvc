@@ -937,7 +937,8 @@ static bool sem_check_decl(tree_t t)
                    istr(type_ident(type)));
    }
 
-   if (tree_kind(t) == T_SIGNAL_DECL) {
+   tree_kind_t kind = tree_kind(t);
+   if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
       ident_t event_i = ident_new("EVENT");
       ident_t active_i = ident_new("ACTIVE");
       type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
