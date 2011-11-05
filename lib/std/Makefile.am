@@ -5,7 +5,7 @@ std_DATA = std/_NVC_LIB std/STD.STANDARD
 
 bootstrap: $(std_DATA)
 
-std/_NHDL_LIB: std/STD.STANDARD
+std/_NVC_LIB: std/STD.STANDARD
 
 std/STD.STANDARD: $(nvc) $(srcdir)/standard.vhd
 	$(nvc) --work=std -a --bootstrap $(srcdir)/standard.vhd

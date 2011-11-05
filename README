@@ -1,1 +1,17 @@
-Nothing here yet
+NVC is a GPLv3 VHDL compiler and simulator
+
+See this post for more information:
+  http://www.doof.me.uk/2011/11/05/writing-a-vhdl-compiler/
+
+To build from a Git clone:
+  ./autogen.sh
+  ./configure
+  make
+  make install
+
+To run the regression tests:
+  make check
+
+To recompile the standard libraries:
+  make bootstrap
+Note this happens automatically when installing.
