@@ -36,6 +36,29 @@
 #include <readline/history.h>
 #endif
 
+static const char *shell_fmt_signal_value(tree_t t, uint64_t value)
+{
+   static char buf[256];
+
+   type_t type = tree_type(t);
+   switch (type_kind(type)) {
+   case T_INTEGER:
+      snprintf(buf, sizeof(buf), "%"PRIi64, value);
+      break;
+
+   case T_ENUM:
+      assert(value < type_enum_literals(type));
+      snprintf(buf, sizeof(buf),
+               istr(tree_ident(type_enum_literal(type, value))));
+      break;
+
+   default:
+      snprintf(buf, sizeof(buf), "%"PRIx64, value);
+   }
+
+   return buf;
+}
+
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
@@ -114,10 +137,10 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          reply_read_signal_msg_t reply;
          slave_get_reply(REPLY_READ_SIGNAL, &reply, sizeof(reply));
 
-         printf("%-30s%-20s\t%"PRIx64"\n",
+         printf("%-30s%-25s%s\n",
                 istr(tree_ident(d)),
                 type_pp(tree_type(d)),
-                reply.value);
+                shell_fmt_signal_value(d, reply.value));
       }
    }
    else if (strcmp(what, "process") == 0) {
