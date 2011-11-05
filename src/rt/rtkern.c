@@ -610,6 +610,54 @@ static void rt_one_time_init(void)
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
 }
 
+static void rt_cleanup_signal(struct signal *sig)
+{
+   for (int j = 0; j < sig->n_sources; j++) {
+      while (sig->sources[j] != NULL) {
+         struct waveform *next = sig->sources[j]->next;
+         rt_free(waveform_stack, sig->sources[j]);
+         sig->sources[j] = next;
+      }
+   }
+   free(sig->sources);
+
+   while (sig->sensitive) {
+      struct sens_list *next = sig->sensitive->next;
+      rt_free(sens_list_stack, sig->sensitive);
+      sig->sensitive = next;
+   }
+}
+
+static void rt_cleanup(tree_t top)
+{
+   while (eventq != NULL)
+      deltaq_pop();
+
+   assert(resume == NULL);
+
+   for (unsigned i = 0; i < tree_decls(top); i++) {
+      tree_t d = tree_decl(top, i);
+      assert(tree_kind(d) == T_SIGNAL_DECL);
+
+      struct signal *sig = tree_attr_ptr(d, ident_new("signal"));
+
+      type_t type = tree_type(d);
+      if (type_kind(type) == T_CARRAY) {
+         int64_t low, high;
+         range_bounds(type_dim(type, 0), &low, &high);
+
+         for (unsigned i = 0; i < high - low + 1; i++)
+            rt_cleanup_signal(&sig[i]);
+      }
+      else
+         rt_cleanup_signal(sig);
+   }
+
+   rt_alloc_stack_destroy(deltaq_stack);
+   rt_alloc_stack_destroy(waveform_stack);
+   rt_alloc_stack_destroy(sens_list_stack);
+}
+
 void rt_trace_en(bool en)
 {
    trace_on = en;
@@ -624,6 +672,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
    rt_initial();
    while (eventq != NULL && (now + eventq->delta <= stop_time))
       rt_cycle();
+   rt_cleanup(e);
 
    jit_shutdown();
 }
@@ -681,5 +730,6 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
       }
    }
 
+   rt_cleanup(e);
    jit_shutdown();
 }

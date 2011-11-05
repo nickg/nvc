@@ -18,6 +18,7 @@
 #include "alloc.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 // Profiling shows a large proportion of simulation time is spent in
 // malloc and free. These routines provide a stack-based fixed-size
@@ -44,6 +45,19 @@ rt_alloc_stack_t rt_alloc_stack_new(size_t size)
       rt_free(s, xmalloc(size));
 
    return s;
+}
+
+void rt_alloc_stack_destroy(rt_alloc_stack_t s)
+{
+   if (s->stack_top != s->stack_sz)
+      fatal("memory leak of %zu items from %zu byte stack",
+            s->stack_sz - s->stack_top, s->item_sz);
+
+   for (size_t i = 0; i < s->stack_sz; i++)
+      free(s->stack[i]);
+
+   free(s->stack);
+   free(s);
 }
 
 void *rt_alloc(rt_alloc_stack_t s)

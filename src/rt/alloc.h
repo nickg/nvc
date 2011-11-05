@@ -23,6 +23,7 @@
 typedef struct rt_alloc_stack *rt_alloc_stack_t;
 
 rt_alloc_stack_t rt_alloc_stack_new(size_t size);
+void rt_alloc_stack_destroy(rt_alloc_stack_t stack);
 void *rt_alloc(rt_alloc_stack_t stack);
 void rt_free(rt_alloc_stack_t stack, void *ptr);
 
