@@ -46,9 +46,35 @@ static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
 static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
                          int objc, Tcl_Obj *const objv[])
 {
-   slave_run_msg_t msg = {
-      .time = 0
-   };
+   uint64_t time = UINT64_MAX;
+   if (objc == 3) {
+      Tcl_WideInt base;
+      int error = Tcl_GetWideIntFromObj(interp, objv[1], &base);
+      if (error != TCL_OK || base <= 0) {
+         fprintf(stderr, "invalid time\n");
+         return TCL_ERROR;
+      }
+      const char *unit = Tcl_GetString(objv[2]);
+
+      uint64_t mult;
+      if      (strcmp(unit, "fs") == 0) mult = 1;
+      else if (strcmp(unit, "ps") == 0) mult = 1000;
+      else if (strcmp(unit, "ns") == 0) mult = 1000000;
+      else if (strcmp(unit, "us") == 0) mult = 1000000000;
+      else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
+      else {
+         fprintf(stderr, "invalid time unit %s", unit);
+         return TCL_ERROR;
+      }
+
+      time = base * mult;
+   }
+   else if (objc != 1) {
+      fprintf(stderr, "usage: run [time units]\n");
+      return TCL_ERROR;
+   }
+
+   slave_run_msg_t msg = { .time = time };
    slave_post_msg(SLAVE_RUN, &msg, sizeof(msg));
    return TCL_OK;
 }
