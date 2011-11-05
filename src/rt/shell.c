@@ -48,7 +48,7 @@ static const char *shell_fmt_signal_value(tree_t t, uint64_t value)
 
    case T_ENUM:
       assert(value < type_enum_literals(type));
-      snprintf(buf, sizeof(buf),
+      snprintf(buf, sizeof(buf), "%s",
                istr(tree_ident(type_enum_literal(type, value))));
       break;
 
