@@ -80,11 +80,12 @@ def check(t)
       then
         puts "failed (no match)".red
         print match_line.chomp
-        return
+        return false
       end
     end
   end
   print "ok".green
+  return true
 end
 
 def mkdir_p(n)
@@ -111,8 +112,11 @@ read_tests.each do |t|
       analyse t
       elaborate t
       run t
-      check t
-      passed += 1
+      if check t then
+        passed += 1
+      else
+        failed += 1
+      end
     rescue RuntimeError
       puts "failed".red
       File.open('out').each_line do |l|
