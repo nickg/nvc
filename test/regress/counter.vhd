@@ -25,7 +25,7 @@ end entity;
 
 architecture test of counter is
     signal clk   : bit := '0';
-    signal count : integer;
+    signal count : integer := 0;
 begin
 
     clkgen: process is

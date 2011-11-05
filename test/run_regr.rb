@@ -62,7 +62,11 @@ def elaborate(t)
 end
 
 def run(t)
-  run_cmd "#{nvc} -r #{t[:name]}", t[:flags].member?('fail')
+  stop = ""
+  t[:flags].each do |f|
+    stop = "--stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
+  end
+  run_cmd "#{nvc} -r #{stop} #{t[:name]}", t[:flags].member?('fail')
 end
 
 def check(t)
