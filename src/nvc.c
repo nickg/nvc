@@ -239,6 +239,7 @@ static int run(int argc, char **argv)
          rt_slave_exec(e, ctx);
    }
 
+   tree_read_end(ctx);
    return EXIT_SUCCESS;
 }
 static int dump_cmd(int argc, char **argv)

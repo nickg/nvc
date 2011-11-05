@@ -21,6 +21,7 @@
 #include "util.h"
 #include "signal.h"
 #include "slave.h"
+#include "alloc.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -87,6 +88,10 @@ static size_t   n_procs = 0;
 static uint64_t now = 0;
 static int      iteration = -1;
 static bool     trace_on = false;
+
+static rt_alloc_stack_t deltaq_stack = NULL;
+static rt_alloc_stack_t waveform_stack = NULL;
+static rt_alloc_stack_t sens_list_stack = NULL;
 
 #define MAX_ACTIVE_SIGS 128
 static struct signal *active_signals[MAX_ACTIVE_SIGS];
@@ -176,7 +181,7 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
       sig->n_sources = source + 1;
    }
 
-   struct waveform *w = xmalloc(sizeof(struct waveform));
+   struct waveform *w = rt_alloc(waveform_stack);
    w->value = value;
    w->when  = now + after;
    w->next  = NULL;
@@ -198,7 +203,7 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
       assert(now == 0);
       assert(after == 0);
 
-      struct waveform *dummy = xmalloc(sizeof(struct waveform));
+      struct waveform *dummy = rt_alloc(waveform_stack);
       dummy->value = value;
       dummy->when  = 0;
       dummy->next  = w;
@@ -225,7 +230,7 @@ void _sched_event(void *_sig)
       ;
 
    if (it == NULL ) {
-      struct sens_list *node = xmalloc(sizeof(struct sens_list));
+      struct sens_list *node = rt_alloc(sens_list_stack);
       node->proc       = active_proc;
       node->wakeup_gen = active_proc->wakeup_gen + 1;
       node->next       = sig->sensitive;
@@ -317,7 +322,7 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
 {
    assert(!(wake != NULL && signal != NULL));
 
-   struct deltaq *q = xmalloc(sizeof(struct deltaq));
+   struct deltaq *q = rt_alloc(deltaq_stack);
    q->next      = NULL;
    q->iteration = (delta == 0 ? iteration + 1 : 0);
 
@@ -363,7 +368,7 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
 static void deltaq_pop(void)
 {
    struct deltaq *next = eventq->next;
-   free(eventq);
+   rt_free(deltaq_stack, eventq);
    eventq = next;
 }
 
@@ -402,7 +407,7 @@ static void rt_reset_signal(struct signal *s, tree_t decl)
          w = s->sources[i];
          do {
             wnext = w->next;
-            free(w);
+            rt_free(waveform_stack, w);
          } while ((w = wnext) != NULL);
       }
 
@@ -508,7 +513,7 @@ static void rt_wakeup(struct sens_list *sl)
       resume = sl;
    }
    else
-      free(sl);
+      rt_free(sens_list_stack, sl);
 }
 
 static void rt_update_driver(struct signal *s, unsigned source)
@@ -543,7 +548,7 @@ static void rt_update_driver(struct signal *s, unsigned source)
       s->flags          |= new_flags;
       s->sources[source] = w_next;
 
-      free(w_now);
+      rt_free(waveform_stack, w_now);
    }
    else
       assert(w_now != NULL);
@@ -587,7 +592,7 @@ static void rt_cycle(void)
    while (resume != NULL) {
       struct sens_list *next = resume->next;
       rt_run(resume->proc, false /* reset */);
-      free(resume);
+      rt_free(sens_list_stack, resume);
       resume = next;
    }
 
@@ -599,6 +604,10 @@ static void rt_cycle(void)
 static void rt_one_time_init(void)
 {
    jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
+
+   deltaq_stack    = rt_alloc_stack_new(sizeof(struct deltaq));
+   waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
+   sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
 }
 
 void rt_trace_en(bool en)
