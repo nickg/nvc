@@ -611,14 +611,14 @@ void rt_trace_en(bool en)
    trace_on = en;
 }
 
-void rt_batch_exec(tree_t e)
+void rt_batch_exec(tree_t e, uint64_t stop_time)
 {
    jit_init(tree_ident(e));
 
    rt_one_time_init();
    rt_setup(e);
    rt_initial();
-   while (eventq != NULL)
+   while (eventq != NULL && (now + eventq->delta <= stop_time))
       rt_cycle();
 
    jit_shutdown();
@@ -626,8 +626,8 @@ void rt_batch_exec(tree_t e)
 
 static void rt_slave_run(slave_run_msg_t *msg)
 {
-   const uint64_t end = (msg->time == 0 ? ~0 : now + msg->time);
-   while (now < end && eventq != NULL)
+   const uint64_t end = (msg->time == 0 ? UINT64_MAX : now + msg->time);
+   while (eventq != NULL && (now + eventq->delta <= end))
       rt_cycle();
 }
 

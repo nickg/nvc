@@ -153,6 +153,26 @@ static int elaborate(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static uint64_t parse_time(const char *str)
+{
+   char     unit[4];
+   unsigned base;
+   uint64_t mult = 1;
+
+   if (sscanf(str, "%u%3s", &base, unit) != 2)
+      fatal("invalid time format: %s", str);
+
+   if      (strcmp(unit, "fs") == 0) mult = 1;
+   else if (strcmp(unit, "ps") == 0) mult = 1000;
+   else if (strcmp(unit, "ns") == 0) mult = 1000000;
+   else if (strcmp(unit, "us") == 0) mult = 1000000000;
+   else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
+   else
+      fatal("invalid unit: %s", unit);
+
+   return base * mult;
+}
+
 static int run(int argc, char **argv)
 {
    set_work_lib();
@@ -161,10 +181,13 @@ static int run(int argc, char **argv)
       {"trace", no_argument, 0, 't'},
       {"batch", no_argument, 0, 'b'},
       {"command", no_argument, 0, 'c'},
+      {"stop-time", required_argument, 0, 's'},
       {0, 0, 0, 0}
    };
 
    enum { BATCH, COMMAND } mode = BATCH;
+
+   uint64_t stop_time = UINT64_MAX;
 
    int c, index = 0;
    const char *spec = "bc";
@@ -186,6 +209,9 @@ static int run(int argc, char **argv)
       case 'c':
          mode = COMMAND;
          break;
+      case 's':
+         stop_time = parse_time(optarg);
+         break;
       default:
          abort();
       }
@@ -203,7 +229,7 @@ static int run(int argc, char **argv)
       fatal("%s not suitable top level", istr(top));
 
    if (mode == BATCH)
-      rt_batch_exec(e);
+      rt_batch_exec(e, stop_time);
    else {
       bool master = slave_fork();
       if (master)
@@ -283,6 +309,7 @@ static void usage(void)
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
+          "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           "\n"
           "Dump options:\n"
