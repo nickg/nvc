@@ -26,13 +26,6 @@
 
 #define INIT_ITEMS 128
 
-struct rt_alloc_stack {
-   void   **stack;
-   size_t stack_sz;
-   size_t stack_top;
-   size_t item_sz;
-};
-
 rt_alloc_stack_t rt_alloc_stack_new(size_t size)
 {
    struct rt_alloc_stack *s = xmalloc(sizeof(struct rt_alloc_stack));
@@ -60,7 +53,7 @@ void rt_alloc_stack_destroy(rt_alloc_stack_t s)
    free(s);
 }
 
-void *rt_alloc(rt_alloc_stack_t s)
+void *rt_alloc_slow(rt_alloc_stack_t s)
 {
    if (s->stack_top == 0) {
       s->stack_sz *= 2;
@@ -73,10 +66,3 @@ void *rt_alloc(rt_alloc_stack_t s)
    return s->stack[--s->stack_top];
 }
 
-void rt_free(rt_alloc_stack_t s, void *ptr)
-{
-   assert(ptr != NULL);
-   assert(s->stack_top < s->stack_sz);
-
-   s->stack[s->stack_top++] = ptr;
-}

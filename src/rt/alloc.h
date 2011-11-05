@@ -20,11 +20,34 @@
 
 #include "util.h"
 
+#include <assert.h>
+
+struct rt_alloc_stack {
+   void   **stack;
+   size_t stack_sz;
+   size_t stack_top;
+   size_t item_sz;
+};
+
 typedef struct rt_alloc_stack *rt_alloc_stack_t;
 
 rt_alloc_stack_t rt_alloc_stack_new(size_t size);
 void rt_alloc_stack_destroy(rt_alloc_stack_t stack);
-void *rt_alloc(rt_alloc_stack_t stack);
-void rt_free(rt_alloc_stack_t stack, void *ptr);
+void *rt_alloc_slow(rt_alloc_stack_t stack);
+
+static inline void *rt_alloc(rt_alloc_stack_t s)
+{
+   if (__builtin_expect(s->stack_top == 0, 0))
+      return rt_alloc_slow(s);
+   else
+      return s->stack[--s->stack_top];
+}
+
+static inline void rt_free(rt_alloc_stack_t s, void *ptr)
+{
+   assert(s->stack_top < s->stack_sz);
+
+   s->stack[s->stack_top++] = ptr;
+}
 
 #endif  // _RT_ALLOC_H
