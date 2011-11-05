@@ -57,13 +57,8 @@ struct deltaq {
    struct deltaq  *next;
 };
 
-union sigvalue {
-   uint64_t val;
-   void     *ptr;
-};
-
 struct waveform {
-   union sigvalue  value;
+   uint64_t        value;
    uint64_t        when;
    struct waveform *next;
 };
@@ -75,7 +70,7 @@ struct sens_list {
 };
 
 struct signal {
-   union sigvalue   resolved;
+   uint64_t         resolved;
    tree_t           decl;
    int32_t          flags;
    int32_t          n_sources;
@@ -182,9 +177,9 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    }
 
    struct waveform *w = xmalloc(sizeof(struct waveform));
-   w->value.val = value;
-   w->when      = now + after;
-   w->next      = NULL;
+   w->value = value;
+   w->when  = now + after;
+   w->next  = NULL;
 
    // TODO: transport vs. inertial
 
@@ -204,9 +199,9 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
       assert(after == 0);
 
       struct waveform *dummy = xmalloc(sizeof(struct waveform));
-      dummy->value.val = value;
-      dummy->when      = 0;
-      dummy->next      = w;
+      dummy->value = value;
+      dummy->when  = 0;
+      dummy->next  = w;
 
       sig->sources[source] = dummy;
    }
@@ -529,7 +524,7 @@ static void rt_update_driver(struct signal *s, unsigned source)
       const bool first_cycle = (iteration == 0 && now == 0);
       if (!first_cycle) {
          new_flags = SIGNAL_F_ACTIVE;
-         if (s->resolved.val != w_next->value.val) {
+         if (s->resolved != w_next->value) {
             new_flags |= SIGNAL_F_EVENT;
 
             struct sens_list *it, *next;
@@ -639,7 +634,7 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
 
    struct signal *sig = tree_attr_ptr(t, ident_new("signal"));
 
-   reply_read_signal_msg_t reply = { .value = sig->resolved.val };
+   reply_read_signal_msg_t reply = { .value = sig->resolved };
    slave_post_msg(REPLY_READ_SIGNAL, &reply, sizeof(reply));
 }
 
