@@ -23,9 +23,10 @@
 #include <stdint.h>
 
 struct tree;
+struct tree_rd_ctx;
 
 void rt_batch_exec(struct tree *e, uint64_t stop_time);
-void rt_slave_exec(struct tree *e);
+void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
 void rt_trace_en(bool en);
 
 void jit_init(ident_t top);

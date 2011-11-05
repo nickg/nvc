@@ -58,6 +58,12 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    case SLAVE_RUN:
       body_len = sizeof(slave_run_msg_t);
       break;
+   case SLAVE_READ_SIGNAL:
+      body_len = sizeof(slave_read_signal_msg_t);
+      break;
+   case REPLY_READ_SIGNAL:
+      body_len = sizeof(reply_read_signal_msg_t);
+      break;
    default:
       fatal("invalid slave message %u\n", *msg);
    }
@@ -68,6 +74,13 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
       if (nr < 0)
          fatal_errno("read");
    }
+}
+
+void slave_get_reply(slave_msg_t msg, void *buf, size_t len)
+{
+   slave_msg_t actual;
+   slave_get_msg(&actual, buf, &len);
+   assert(msg == actual);
 }
 
 bool slave_msg_ready(void)

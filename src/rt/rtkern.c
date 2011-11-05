@@ -631,7 +631,19 @@ static void rt_slave_run(slave_run_msg_t *msg)
       rt_cycle();
 }
 
-void rt_slave_exec(tree_t e)
+static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
+                                 tree_rd_ctx_t ctx)
+{
+   tree_t t = tree_read_recall(ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   struct signal *sig = tree_attr_ptr(t, ident_new("signal"));
+
+   reply_read_signal_msg_t reply = { .value = sig->resolved.val };
+   slave_post_msg(REPLY_READ_SIGNAL, &reply, sizeof(reply));
+}
+
+void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 {
    jit_init(tree_ident(e));
    rt_one_time_init();
@@ -655,6 +667,13 @@ void rt_slave_exec(tree_t e)
       case SLAVE_RUN:
          rt_slave_run((slave_run_msg_t*)buf);
          break;
+
+      case SLAVE_READ_SIGNAL:
+         rt_slave_read_signal((slave_read_signal_msg_t*)buf, ctx);
+         break;
+
+      default:
+         assert(false);
       }
    }
 

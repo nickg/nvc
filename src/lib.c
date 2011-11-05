@@ -272,7 +272,7 @@ void lib_put(lib_t lib, tree_t unit)
    lib_put_aux(lib, unit, true);
 }
 
-tree_t lib_get(lib_t lib, ident_t ident)
+tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
 {
    assert(lib != NULL);
 
@@ -296,11 +296,9 @@ tree_t lib_get(lib_t lib, ident_t ident)
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
          FILE *f = lib_fopen(lib, e->d_name, "r");
-         tree_rd_ctx_t ctx = tree_read_begin(f);
-         unit = tree_read(ctx);
+         *ctx = tree_read_begin(f);
+         unit = tree_read(*ctx);
          lib_put_aux(lib, unit, false);
-         tree_read_end(ctx);
-         fclose(f);
          break;
       }
    }
@@ -308,6 +306,15 @@ tree_t lib_get(lib_t lib, ident_t ident)
    closedir(d);
 
    return unit;
+}
+
+tree_t lib_get(lib_t lib, ident_t ident)
+{
+   tree_rd_ctx_t ctx = NULL;
+   tree_t t = lib_get_ctx(lib, ident, &ctx);
+   if (ctx != NULL)
+      tree_read_end(ctx);
+   return t;
 }
 
 void lib_load_all(lib_t lib)

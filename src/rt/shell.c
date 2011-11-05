@@ -25,6 +25,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <tcl/tcl.h>
 
 #ifdef HAVE_LIBREADLINE
@@ -80,7 +81,17 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
    else if (strcmp(what, "signals") == 0) {
       for (unsigned i = 0; i < tree_decls(top); i++) {
          tree_t d = tree_decl(top, i);
-         printf("%-30s%s\n", istr(tree_ident(d)), type_pp(tree_type(d)));
+
+         slave_read_signal_msg_t msg = { .index = tree_index(d) };
+         slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
+
+         reply_read_signal_msg_t reply;
+         slave_get_reply(REPLY_READ_SIGNAL, &reply, sizeof(reply));
+
+         printf("%-30s%-20s\t%"PRIx64"\n",
+                istr(tree_ident(d)),
+                type_pp(tree_type(d)),
+                reply.value);
       }
    }
    else if (strcmp(what, "process") == 0) {

@@ -225,6 +225,8 @@ void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p);
 range_t tree_range(tree_t t);
 void tree_set_range(tree_t t, range_t r);
 
+uint32_t tree_index(tree_t t);
+
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);
 const char *tree_attr_str(tree_t t, ident_t name);
 void tree_add_attr_int(tree_t t, ident_t name, int n);
@@ -257,5 +259,6 @@ tree_rd_ctx_t tree_read_begin(FILE *f);
 tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
 FILE *tree_read_file(tree_rd_ctx_t ctx);
+tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index);
 
 #endif  // _TREE_H

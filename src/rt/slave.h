@@ -28,15 +28,28 @@ typedef enum {
    // Messages from master to slave
    SLAVE_QUIT,
    SLAVE_RESTART,
-   SLAVE_RUN
+   SLAVE_RUN,
+   SLAVE_READ_SIGNAL,
+
+   // Messages from slave to master
+   REPLY_READ_SIGNAL
 } slave_msg_t;
 
 typedef struct {
    uint64_t time;
 } slave_run_msg_t;
 
+typedef struct {
+   uint32_t index;
+} slave_read_signal_msg_t;
+
+typedef struct {
+   uint64_t value;
+} reply_read_signal_msg_t;
+
 void slave_post_msg(slave_msg_t msg, const void *args, size_t len);
 void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len);
+void slave_get_reply(slave_msg_t msg, void *buf, size_t len);
 bool slave_msg_ready(void);
 bool slave_fork(void);
 void slave_kill(int sig);

@@ -23,6 +23,7 @@
 
 struct trie;
 struct tree;
+struct tree_rd_ctx;
 
 typedef struct lib *lib_t;
 
@@ -42,6 +43,8 @@ void lib_set_work(lib_t lib);
 
 void lib_put(lib_t lib, struct tree *unit);
 struct tree *lib_get(lib_t lib, struct trie *ident);
+struct tree *lib_get_ctx(lib_t lib, struct trie *ident,
+                         struct tree_rd_ctx **ctx);
 
 typedef void (*lib_iter_fn_t)(struct tree *t, void *context);
 void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context);

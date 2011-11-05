@@ -109,7 +109,7 @@ struct tree {
 
    // Serialisation and GC bookkeeping
    unsigned short generation;
-   unsigned       index;
+   uint32_t       index;
 };
 
 struct tree_wr_ctx {
@@ -228,7 +228,8 @@ tree_t tree_new(tree_kind_t kind)
 
    tree_t t = xmalloc(sizeof(struct tree));
    memset(t, '\0', sizeof(struct tree));
-   t->kind = kind;
+   t->kind  = kind;
+   t->index = UINT32_MAX;
 
    if (all_trees == NULL)
       all_trees = xmalloc(sizeof(tree_t) * max_trees);
@@ -968,6 +969,14 @@ void tree_set_pos(tree_t t, unsigned pos)
    t->pos = pos;
 }
 
+uint32_t tree_index(tree_t t)
+{
+   assert(t != NULL);
+   assert(t->index != UINT32_MAX);
+
+   return t->index;
+}
+
 static unsigned tree_visit_a(struct tree_array *a,
                              tree_visit_fn_t fn, void *context,
                              tree_kind_t kind, unsigned generation,
@@ -1468,11 +1477,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
    // reference upwards
+   t->index = ctx->n_trees++;
    if (ctx->n_trees == ctx->store_sz) {
       ctx->store_sz *= 2;
       ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
    }
-   ctx->store[ctx->n_trees++] = t;
+   ctx->store[t->index] = t;
 
    if (HAS_IDENT(t))
       tree_set_ident(t, ident_read(ctx->file));
@@ -1635,6 +1645,7 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
 
 void tree_read_end(tree_rd_ctx_t ctx)
 {
+   fclose(ctx->file);
    type_read_end(ctx->type_ctx);
    free(ctx->store);
    free(ctx);
@@ -1643,6 +1654,12 @@ void tree_read_end(tree_rd_ctx_t ctx)
 FILE *tree_read_file(tree_rd_ctx_t ctx)
 {
    return ctx->file;
+}
+
+tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index)
+{
+   assert(index < ctx->n_trees);
+   return ctx->store[index];
 }
 
 static struct attr *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)

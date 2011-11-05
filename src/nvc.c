@@ -222,7 +222,8 @@ static int run(int argc, char **argv)
 
    ident_t top = to_unit_name(argv[optind]);
    ident_t ename = ident_prefix(top, ident_new("elab"), '.');
-   tree_t e = lib_get(lib_work(), ename);
+   tree_rd_ctx_t ctx;
+   tree_t e = lib_get_ctx(lib_work(), ename, &ctx);
    if (e == NULL)
       fatal("%s not elaborated", istr(top));
    else if (tree_kind(e) != T_ELAB)
@@ -235,7 +236,7 @@ static int run(int argc, char **argv)
       if (master)
          shell_run(e);
       else
-         rt_slave_exec(e);
+         rt_slave_exec(e, ctx);
    }
 
    return EXIT_SUCCESS;
