@@ -1,7 +1,7 @@
 nvc = $(top_builddir)/src/nvc
 
 stddir = $(pkgdatadir)/std
-std_DATA = std/_NHDL_LIB std/STD.STANDARD
+std_DATA = std/_NVC_LIB std/STD.STANDARD
 
 bootstrap: $(std_DATA)
 

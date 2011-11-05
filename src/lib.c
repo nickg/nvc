@@ -105,7 +105,7 @@ static lib_t lib_find_at(const char *name, const char *path)
       return NULL;
 
    char marker[PATH_MAX];
-   snprintf(marker, sizeof(marker), "%s/_NHDL_LIB", dir);
+   snprintf(marker, sizeof(marker), "%s/_NVC_LIB", dir);
    if (access(marker, F_OK) < 0)
       return NULL;
 
@@ -126,7 +126,7 @@ lib_t lib_new(const char *name)
 
    lib_t l = lib_init(name, name);
 
-   FILE *tag = lib_fopen(l, "_NHDL_LIB", "w");
+   FILE *tag = lib_fopen(l, "_NVC_LIB", "w");
    fprintf(tag, "%s\n", PACKAGE_STRING);
    fclose(tag);
 
