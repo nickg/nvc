@@ -706,7 +706,7 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
       llvm_int32(0 /* source, TODO */),
-      LLVMBuildIntCast(builder, value, LLVMInt64Type(), ""),
+      LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
       llvm_int64(0)
    };
    LLVMBuildCall(builder, sched_waveform_fn,
