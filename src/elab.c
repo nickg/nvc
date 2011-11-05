@@ -45,10 +45,10 @@ static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 
 static const char *simple_name(const char *full)
 {
-   // Strip off any library prefix from the parameter
+   // Strip off any library or entity prefix from the parameter
    const char *start = full;
    for (const char *p = full; *p != '\0'; p++) {
-      if (*p == '.')
+      if (*p == '.' || *p == '-')
          start = p + 1;
    }
 
@@ -157,7 +157,7 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
       tree_t d = tree_decl(t, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
          tree_set_ident(d, hpathf(path, ':', "%s",
-                                  istr(tree_ident(d))));
+                                  simple_name(istr(tree_ident(d)))));
          tree_add_decl(out, d);
       }
    }
@@ -177,8 +177,8 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
 static void elab_entity(tree_t t, tree_t out, ident_t path)
 {
    tree_t arch = pick_arch(tree_ident(t));
-   ident_t new_path = hpathf(path, '@', "%s(%s)",
-                             istr(tree_ident(t)),
+   ident_t new_path = hpathf(path, ':', ":%s(%s)",
+                             simple_name(istr(tree_ident(t))),
                              simple_name(istr(tree_ident(arch))));
 
    elab_arch(arch, out, new_path);
