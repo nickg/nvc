@@ -35,9 +35,9 @@ begin
     end process;
 
     uut: entity work.counter_bot
-        port map ( clk, count );
---            clk   => clk,
---            count => count );
+        port map (
+            clk   => clk,
+            count => count );
 
     process (count) is
     begin

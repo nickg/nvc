@@ -123,10 +123,26 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
    // Bind all ports to signals
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
+      tree_t formal = NULL;
+
+      switch (p.kind) {
+      case P_POS:
+         formal = tree_port(unit, p.pos);
+         break;
+      case P_NAMED:
+         for (unsigned j = 0; j < tree_ports(unit); j++) {
+            tree_t port = tree_port(unit, j);
+            if (tree_ident(port) == p.name)
+               formal = port;
+         }
+         break;
+      default:
+         assert(false);
+      }
+      assert(formal != NULL);
 
       struct rewrite_params params = {
-         .formal = tree_port(unit, i),
+         .formal = formal,
          .actual = tree_ref(p.value)
       };
       tree_rewrite(arch, rewrite_ports, &params);
