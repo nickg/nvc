@@ -84,6 +84,13 @@ static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
                            LLVMInt32Type(), "");
 }
 
+static LLVMValueRef llvm_fn(const char *name)
+{
+   LLVMValueRef fn = LLVMGetNamedFunction(module, name);
+   assert(fn != NULL);
+   return fn;
+}
+
 static int bit_width(type_t t)
 {
    switch (type_kind(t)) {
@@ -208,10 +215,6 @@ static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
 {
    assert(type_kind(ty) == T_CARRAY);
 
-   LLVMValueRef array_copy_fn =
-      LLVMGetNamedFunction(module, "_array_copy");
-   assert(array_copy_fn != NULL);
-
    int64_t low, high;
    range_bounds(type_dim(ty, 0), &low, &high);
 
@@ -221,7 +224,7 @@ static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
       llvm_int32(high - low + 1),  // Number of elements
       llvm_sizeof(llvm_type(type_base(ty)))
    };
-   LLVMBuildCall(builder, array_copy_fn,
+   LLVMBuildCall(builder, llvm_fn("_array_copy"),
                  args, ARRAY_LEN(args), "");
 }
 
@@ -335,10 +338,6 @@ static LLVMValueRef cgen_array_eq(type_t ty, LLVMValueRef lhs, LLVMValueRef rhs)
 {
    assert(type_kind(ty) == T_CARRAY);
 
-   LLVMValueRef array_eq_fn =
-      LLVMGetNamedFunction(module, "_array_eq");
-   assert(array_eq_fn != NULL);
-
    int64_t low, high;
    range_bounds(type_dim(ty, 0), &low, &high);
 
@@ -348,7 +347,8 @@ static LLVMValueRef cgen_array_eq(type_t ty, LLVMValueRef lhs, LLVMValueRef rhs)
       llvm_int32(high - low + 1),  // Number of elements
       llvm_sizeof(llvm_type(type_base(ty)))
    };
-   return LLVMBuildCall(builder, array_eq_fn, args, ARRAY_LEN(args), "");
+   return LLVMBuildCall(builder, llvm_fn("_array_eq"),
+                        args, ARRAY_LEN(args), "");
 }
 
 static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
@@ -406,13 +406,11 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildNot(
             builder, cgen_array_eq(arg_type, args[0], args[1]), "");
       else if (strcmp(builtin, "image") == 0) {
-         LLVMValueRef image_fn = LLVMGetNamedFunction(module, "_image");
-         assert(image_fn != NULL);
-
          LLVMValueRef iargs[] = {
             LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
          };
-         return LLVMBuildCall(builder, image_fn, iargs, ARRAY_LEN(iargs), "");
+         return LLVMBuildCall(builder, llvm_fn("_image"),
+                              iargs, ARRAY_LEN(iargs), "");
       }
       else
          fatal("cannot generate code for builtin %s", builtin);
@@ -446,14 +444,11 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, struct proc_ctx *ctx)
    char name[256];
    snprintf(name, sizeof(name), "%s_load", istr(tree_ident(decl)));
 
-   LLVMValueRef array_load_fn = LLVMGetNamedFunction(module, name);
-   assert(array_load_fn != NULL);
-
    LLVMValueRef args[] = {
       LLVMBuildPointerCast(builder, tmp, LLVMTypeOf(tmp), "")
    };
 
-   LLVMBuildCall(builder, array_load_fn, args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
    return tmp;
 }
 
@@ -605,20 +600,12 @@ static LLVMValueRef cgen_expr(tree_t t, struct proc_ctx *ctx)
 
 static void cgen_sched_process(LLVMValueRef after)
 {
-   LLVMValueRef sched_process_fn =
-      LLVMGetNamedFunction(module, "_sched_process");
-   assert(sched_process_fn != NULL);
-
    LLVMValueRef args[] = { after };
-   LLVMBuildCall(builder, sched_process_fn, args, 1, "");
+   LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
 static void cgen_sched_event(tree_t on)
 {
-   LLVMValueRef sched_event_fn =
-      LLVMGetNamedFunction(module, "_sched_event");
-   assert(sched_event_fn != NULL);
-
    assert(tree_kind(on) == T_REF);
    tree_t decl = tree_ref(on);
 
@@ -628,7 +615,7 @@ static void cgen_sched_event(tree_t on)
    assert(signal != NULL);
 
    LLVMValueRef args[] = { llvm_void_cast(signal) };
-   LLVMBuildCall(builder, sched_event_fn,
+   LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
 }
 
@@ -699,17 +686,13 @@ static void cgen_var_assign(tree_t t, struct proc_ctx *ctx)
 
 static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
 {
-   LLVMValueRef sched_waveform_fn =
-      LLVMGetNamedFunction(module, "_sched_waveform");
-   assert(sched_waveform_fn != NULL);
-
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
       llvm_int32(0 /* source, TODO */),
       LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
       llvm_int64(0)
    };
-   LLVMBuildCall(builder, sched_waveform_fn,
+   LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
                  args, ARRAY_LEN(args), "");
 }
 
@@ -718,14 +701,11 @@ static void cgen_array_signal_store(tree_t decl, LLVMValueRef rhs)
    char name[256];
    snprintf(name, sizeof(name), "%s_store", istr(tree_ident(decl)));
 
-   LLVMValueRef array_store_fn = LLVMGetNamedFunction(module, name);
-   assert(array_store_fn != NULL);
-
    LLVMValueRef args[] = {
       LLVMBuildPointerCast(builder, rhs, LLVMTypeOf(rhs), "")
    };
 
-   LLVMBuildCall(builder, array_store_fn, args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
 }
 
 static void cgen_scalar_signal_assign(tree_t t, LLVMValueRef rhs,
@@ -800,10 +780,6 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
       LLVMPositionBuilderAtEnd(builder, thenbb);
    }
 
-   LLVMValueRef assert_fail_fn =
-      LLVMGetNamedFunction(module, "_assert_fail");
-   assert(assert_fail_fn != NULL);
-
    int slen = -1;  // String is NULL terminated
    LLVMValueRef msg_val = NULL;
    type_t msg_type = tree_type(tree_message(t));
@@ -822,7 +798,8 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
       LLVMConstInt(LLVMInt32Type(), slen, false),
       severity
    };
-   LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("_assert_fail"),
+                 args, ARRAY_LEN(args), "");
 
    if (!is_report) {
       LLVMBuildBr(builder, elsebb);
