@@ -49,6 +49,15 @@ begin
         else
             y := 2;
         end if;
+        if x > 3 then
+            null;
+        elsif x > 5 then
+            null;
+        elsif true then
+            null;
+        else
+            x := 2;
+        end if;
     end process;
 
     -- Null

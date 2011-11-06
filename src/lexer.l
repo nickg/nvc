@@ -131,6 +131,7 @@ MAP           {M}{A}{P}
 IF            {I}{F}
 THEN          {T}{H}{E}{N}
 ELSE          {E}{L}{S}{E}
+ELSIF         {E}{L}{S}{I}{F}
 
 %%
 
@@ -192,6 +193,7 @@ ELSE          {E}{L}{S}{E}
 {IF}            { begin_token(yytext); return tIF; }
 {THEN}          { begin_token(yytext); return tTHEN; }
 {ELSE}          { begin_token(yytext); return tELSE; }
+{ELSIF}         { begin_token(yytext); return tELSIF; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

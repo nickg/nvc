@@ -24,6 +24,16 @@ begin
         else
             v := true;                  -- Error in else part
         end if;
+
+        if false then
+            null;
+        elsif true then
+            null;
+        elsif x > 2 then
+            g := v;                     -- Error
+        else
+            v := 1;
+        end if;
     end process;
 
     -- Null statements

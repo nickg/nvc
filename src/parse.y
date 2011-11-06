@@ -165,7 +165,7 @@
 %type <t> seq_stmt timeout_clause physical_literal target severity
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform waveform_element seq_stmt_without_label
-%type <t> comp_instance_stmt conc_stmt_without_label
+%type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <i> id opt_id selected_id
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -195,7 +195,7 @@
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE tIF
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE
+%token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -822,6 +822,14 @@ seq_stmt_without_label
      tree_set_value($$, $2);
      copy_trees($4, tree_add_stmt, $$);
   }
+| tIF expr tTHEN seq_stmt_list tELSIF elsif_list
+  {
+     $$ = tree_new(T_IF);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+     copy_trees($4, tree_add_stmt, $$);
+     tree_add_else_stmt($$, $6);
+  }
 | tIF expr tTHEN seq_stmt_list tELSE seq_stmt_list
   tEND tIF opt_id tSEMI
   {
@@ -842,6 +850,36 @@ seq_stmt_without_label
    | next_statement
    | exit_statement
    | return_statement */
+;
+
+elsif_list
+: expr tTHEN seq_stmt_list tEND tIF opt_id tSEMI
+  {
+     $$ = tree_new(T_IF);
+     tree_set_ident($$, ident_uniq("elsif"));
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $1);
+     copy_trees($3, tree_add_stmt, $$);
+  }
+| expr tTHEN seq_stmt_list tELSE seq_stmt_list
+  tEND tIF opt_id tSEMI
+  {
+     $$ = tree_new(T_IF);
+     tree_set_ident($$, ident_uniq("elsif"));
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $1);
+     copy_trees($3, tree_add_stmt, $$);
+     copy_trees($5, tree_add_else_stmt, $$);
+  }
+| expr tTHEN seq_stmt_list tELSIF elsif_list
+  {
+     $$ = tree_new(T_IF);
+     tree_set_ident($$, ident_uniq("elsif"));
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $1);
+     copy_trees($3, tree_add_stmt, $$);
+     tree_add_else_stmt($$, $5);
+  }
 ;
 
 report

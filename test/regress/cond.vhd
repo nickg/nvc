@@ -19,6 +19,13 @@ begin
             null;
             report "x /= y + 1";
         end if;
+        if x = y - 1 then
+            report "x = y - 1" severity failure;
+        elsif x = y then
+            report "x = y still";
+        else
+            report "x /= y - 1 and x /= y" severity failure;
+        end if;
         wait;
     end process;
     

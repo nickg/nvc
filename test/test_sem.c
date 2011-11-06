@@ -570,6 +570,7 @@ START_TEST(test_seq)
       { 15, "type of test must be STD.STANDARD.BOOLEAN" },
       { 19, "undefined identifier X" },
       { 25, "no suitable overload for identifier TRUE" },
+      { 32, "undefined identifier X" },
       { -1, NULL }
    };
    expect_errors(expect);
