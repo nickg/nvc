@@ -1920,7 +1920,8 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 
    case T_IF:
       for (unsigned i = 0; i < tree_else_stmts(t); i++)
-         (void)tree_rewrite(tree_else_stmt(t, i), fn, context);
+         tree_change_else_stmt(
+            t, i, tree_rewrite(tree_else_stmt(t, i), fn, context));
       break;
 
    default:
