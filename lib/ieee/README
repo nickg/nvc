@@ -1,0 +1,18 @@
+The standard IEEE packages cannot be freely redistributed in source form.
+
+If you hold a valid IEEE license you can download them from here:
+  http://standards.ieee.org/downloads/1076/
+
+Otherwise various draft versions are easily available on the internet.
+
+The required files are:
+  math_complex-body.vhdl
+  math_complex.vhdl
+  math_real-body.vhdl
+  math_real.vhdl
+  numeric_bit-body.vhdl
+  numeric_bit.vhdl
+  numeric_std-body.vhdl
+  numeric_std.vhdl
+  std_logic_1164-body.vhdl
+  std_logic_1164.vhdl

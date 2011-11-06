@@ -12,6 +12,22 @@ Makefile.in
 /ylwrap
 /compile
 *.o
+*.a
 *~
 TAGS
 logs
+Makefile
+src/lexer.c
+src/parse.[ch]
+src/parse.output
+.deps
+/config.h
+/config.log
+/config.status
+/src/nvc
+/lib/std/std
+/lib/ieee/ieee
+stamp-h1
+
+# IEEE sources cannot be freely redistributed
+lib/ieee/*.vhdl
