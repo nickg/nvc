@@ -1823,6 +1823,27 @@ static void rewrite_a(struct tree_array *a,
    a->count = n;
 }
 
+static void rewrite_p(struct param_array *a,
+                      tree_rewrite_fn_t fn, void *context)
+{
+   for (unsigned i = 0; i < a->count; i++) {
+      switch (a->items[i].kind) {
+      case P_RANGE:
+         a->items[i].range.left =
+            tree_rewrite(a->items[i].range.left, fn, context);
+         a->items[i].range.right =
+            tree_rewrite(a->items[i].range.right, fn, context);
+         break;
+
+      case P_POS:
+      case P_NAMED:
+         a->items[i].value =
+            tree_rewrite(a->items[i].value, fn, context);
+         break;
+      }
+   }
+}
+
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
    if (HAS_GENERICS(t))
@@ -1845,13 +1866,8 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       if (tree_has_delay(t))
          tree_set_delay(t, tree_rewrite(tree_delay(t), fn, context));
    }
-   if (HAS_PARAMS(t)) {
-      for (unsigned i = 0; i < tree_params(t); i++) {
-         param_t p = tree_param(t, i);
-         p.value = tree_rewrite(p.value, fn, context);
-         tree_change_param(t, i, p);
-      }
-   }
+   if (HAS_PARAMS(t))
+      rewrite_p(&t->params, fn, context);
 
    switch (tree_kind(t)) {
    case T_ASSERT:
@@ -1860,11 +1876,7 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       break;
 
    case T_INSTANCE:
-      for (unsigned i = 0; i < tree_genmaps(t); i++) {
-         param_t p = tree_genmap(t, i);
-         p.value = tree_rewrite(p.value, fn, context);
-         tree_change_genmap(t, i, p);
-      }
+      rewrite_p(&t->genmaps, fn, context);
       break;
 
    case T_AGGREGATE:
