@@ -91,6 +91,13 @@ static LLVMValueRef llvm_fn(const char *name)
    return fn;
 }
 
+static LLVMValueRef llvm_global(const char *name)
+{
+   LLVMValueRef glob = LLVMGetNamedGlobal(module, name);
+   assert(glob != NULL);
+   return glob;
+}
+
 static int bit_width(type_t t)
 {
    switch (type_kind(t)) {
@@ -158,27 +165,12 @@ static LLVMTypeRef llvm_type(type_t t)
    }
 }
 
-static LLVMValueRef cgen_scalar_signal_ptr(tree_t decl)
-{
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
-
-   LLVMValueRef signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(signal != NULL);
-
-   return signal;
-}
-
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 {
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
-   LLVMValueRef signal_array =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(signal_array != NULL);
-
    LLVMValueRef indexes[] = { llvm_int32(0), elem };
-   return LLVMBuildGEP(builder, signal_array,
+   return LLVMBuildGEP(builder, llvm_global(istr(tree_ident(decl))),
                        indexes, ARRAY_LEN(indexes), "");
 }
 
@@ -293,7 +285,7 @@ static LLVMValueRef cgen_literal(tree_t t)
 
 static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
 {
-   LLVMValueRef signal_struct = cgen_scalar_signal_ptr(signal);
+   LLVMValueRef signal_struct = llvm_global(istr(tree_ident(signal)));
    LLVMValueRef bit = llvm_int32(flag);
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal_struct, SIGNAL_FLAGS, "");
@@ -422,10 +414,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
 
 static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, struct proc_ctx *ctx)
 {
-   LLVMValueRef signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(signal != NULL);
-
+   LLVMValueRef signal = llvm_global(istr(tree_ident(decl)));
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
@@ -452,10 +441,7 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, struct proc_ctx *ctx)
    LLVMValueRef right =
       cgen_expr(r.kind == RANGE_TO ? r.right : r.left, ctx);
 
-   LLVMValueRef s_signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(s_signal != NULL);
-
+   LLVMValueRef s_signal = llvm_global(istr(tree_ident(decl)));
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
    LLVMValueRef p_signal = LLVMBuildGEP(builder, s_signal,
                                         indexes, ARRAY_LEN(indexes), "");
@@ -520,10 +506,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct proc_ctx *ctx)
 
    case T_SIGNAL_DECL:
       {
-         LLVMValueRef signal_array =
-            LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-         assert(signal_array != NULL);
-
+         LLVMValueRef signal_array = llvm_global(istr(tree_ident(decl)));
          LLVMValueRef indexes[] = { llvm_int32(0), idx };
          LLVMValueRef signal = LLVMBuildGEP(builder, signal_array,
                                             indexes, ARRAY_LEN(indexes), "");
@@ -624,11 +607,7 @@ static void cgen_sched_event(tree_t on)
    assert(tree_kind(on) == T_REF);
    tree_t decl = tree_ref(on);
 
-   LLVMValueRef signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   printf("get_signal %s -> %p\n", istr(tree_ident(decl)), signal);
-   assert(signal != NULL);
-
+   LLVMValueRef signal = llvm_global(istr(tree_ident(decl)));
    LLVMValueRef args[] = { llvm_void_cast(signal) };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
@@ -724,10 +703,7 @@ static void cgen_array_signal_store(tree_t decl, LLVMValueRef rhs,
    LLVMValueRef right =
       cgen_expr(r.kind == RANGE_TO ? r.right : r.left, ctx);
 
-   LLVMValueRef s_signal =
-      LLVMGetNamedGlobal(module, istr(tree_ident(decl)));
-   assert(s_signal != NULL);
-
+   LLVMValueRef s_signal = llvm_global(istr(tree_ident(decl)));
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
    LLVMValueRef p_signal = LLVMBuildGEP(builder, s_signal,
                                         indexes, ARRAY_LEN(indexes), "");
@@ -745,7 +721,7 @@ static void cgen_scalar_signal_assign(tree_t t, LLVMValueRef rhs,
    if (type_kind(tree_type(decl)) == T_CARRAY)
       cgen_array_signal_store(decl, rhs, ctx);
    else
-      cgen_sched_waveform(cgen_scalar_signal_ptr(decl), rhs);
+      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), rhs);
 }
 
 static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
@@ -960,7 +936,7 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
       }
    }
    else
-      cgen_sched_waveform(cgen_scalar_signal_ptr(decl), val);
+      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), val);
 
    tree_add_attr_ptr(decl, tag_i, ctx->proc);
 }
