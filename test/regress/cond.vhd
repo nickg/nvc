@@ -16,6 +16,7 @@ begin
         if x = y + 1 then
             report "x = y + 1" severity failure;
         else
+            null;
             report "x /= y + 1";
         end if;
         wait;

@@ -345,11 +345,8 @@ static tree_t simp_if(tree_t t)
             // XXX: make work for more than one statement
             return tree_else_stmt(t, 0);
          }
-         else if (tree_else_stmts(t) == 0) {
-            tree_t null = tree_new(T_NULL);
-            tree_set_loc(null, tree_loc(t));
-            return null;
-         }
+         else if (tree_else_stmts(t) == 0)
+            return NULL;   // Delete it
          else
             return t;
       }
@@ -373,6 +370,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_ref(t);
    case T_IF:
       return simp_if(t);
+   case T_NULL:
+      return NULL;   // Delete it
    default:
       return t;
    }

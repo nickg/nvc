@@ -1813,6 +1813,14 @@ static void rewrite_a(struct tree_array *a,
 {
    for (unsigned i = 0; i < a->count; i++)
       a->items[i] = tree_rewrite(a->items[i], fn, context);
+
+   // If an item was rewritten to NULL then delete it
+   unsigned n = 0;
+   for (unsigned i = 0; i < a->count; i++) {
+      if (a->items[i] != NULL)
+         a->items[n++] = a->items[i];
+   }
+   a->count = n;
 }
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)

@@ -146,12 +146,11 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_stmt(p, 19)), 24));
 
    p = tree_stmt(a, 1);
+   fail_unless(tree_stmts(p) == 2);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    s = tree_stmt(p, 1);
-   fail_unless(tree_kind(s) == T_NULL);
-   s = tree_stmt(p, 2);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
 
    fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
