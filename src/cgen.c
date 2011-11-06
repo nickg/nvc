@@ -829,10 +829,15 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
 static void cgen_if(tree_t t, struct proc_ctx *ctx)
 {
    LLVMBasicBlockRef then_bb = LLVMAppendBasicBlock(ctx->fn, "then");
-   LLVMBasicBlockRef end_bb = LLVMAppendBasicBlock(ctx->fn, "ifend");
+   LLVMBasicBlockRef else_bb = LLVMAppendBasicBlock(ctx->fn, "else");
+
+   LLVMBasicBlockRef end_bb =
+      (tree_else_stmts(t) > 0)
+      ? LLVMAppendBasicBlock(ctx->fn, "ifend")
+      : else_bb;
 
    LLVMValueRef test = cgen_expr(tree_value(t), ctx);
-   LLVMBuildCondBr(builder, test, then_bb, end_bb);
+   LLVMBuildCondBr(builder, test, then_bb, else_bb);
 
    LLVMPositionBuilderAtEnd(builder, then_bb);
 
@@ -840,6 +845,15 @@ static void cgen_if(tree_t t, struct proc_ctx *ctx)
       cgen_stmt(tree_stmt(t, i), ctx);
 
    LLVMBuildBr(builder, end_bb);
+
+   if (tree_else_stmts(t) > 0) {
+      LLVMPositionBuilderAtEnd(builder, else_bb);
+
+      for (unsigned i = 0; i < tree_else_stmts(t); i++)
+         cgen_stmt(tree_else_stmt(t, i), ctx);
+
+      LLVMBuildBr(builder, end_bb);
+   }
 
    LLVMPositionBuilderAtEnd(builder, end_bb);
 }
