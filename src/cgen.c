@@ -782,19 +782,24 @@ static LLVMValueRef cgen_array_to_c_string(LLVMValueRef a)
 
 static void cgen_assert(tree_t t, struct proc_ctx *ctx)
 {
-   LLVMValueRef test     = cgen_expr(tree_value(t), ctx);
+   int is_report = tree_attr_int(t, ident_new("is_report"), 0);
+
    LLVMValueRef message  = cgen_expr(tree_message(t), ctx);
    LLVMValueRef severity = cgen_expr(tree_severity(t), ctx);
 
-   LLVMValueRef failed = LLVMBuildNot(builder, test, "");
+   LLVMBasicBlockRef thenbb, elsebb;
+   if (!is_report) {
+      LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+      LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
-   LLVMValueRef fn = LLVMGetBasicBlockParent(LLVMGetInsertBlock(builder));
-   LLVMBasicBlockRef thenbb = LLVMAppendBasicBlock(fn, "assert_fail");
-   LLVMBasicBlockRef elsebb = LLVMAppendBasicBlock(fn, "assert_pass");
+      thenbb = LLVMAppendBasicBlock(ctx->fn, "assert_fail");
+      elsebb = LLVMAppendBasicBlock(ctx->fn, "assert_pass");
 
-   LLVMBuildCondBr(builder, failed, thenbb, elsebb);
+      LLVMBuildCondBr(builder, failed, thenbb, elsebb);
 
-   LLVMPositionBuilderAtEnd(builder, thenbb);
+      LLVMPositionBuilderAtEnd(builder, thenbb);
+   }
+
    LLVMValueRef assert_fail_fn =
       LLVMGetNamedFunction(module, "_assert_fail");
    assert(assert_fail_fn != NULL);
@@ -812,18 +817,17 @@ static void cgen_assert(tree_t t, struct proc_ctx *ctx)
       msg_val = message;
 
    LLVMValueRef args[] = {
-      LLVMConstInt(LLVMInt8Type(),
-                   tree_attr_int(t, ident_new("is_report"), 0),
-                   false),
+      LLVMConstInt(LLVMInt8Type(), is_report, false),
       msg_val,
       LLVMConstInt(LLVMInt32Type(), slen, false),
       severity
    };
    LLVMBuildCall(builder, assert_fail_fn, args, ARRAY_LEN(args), "");
 
-   LLVMBuildBr(builder, elsebb);
-
-   LLVMPositionBuilderAtEnd(builder, elsebb);
+   if (!is_report) {
+      LLVMBuildBr(builder, elsebb);
+      LLVMPositionBuilderAtEnd(builder, elsebb);
+   }
 }
 
 static void cgen_if(tree_t t, struct proc_ctx *ctx)
