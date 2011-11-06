@@ -1808,29 +1808,25 @@ void range_bounds(range_t r, int64_t *low, int64_t *high)
    }
 }
 
+static void rewrite_a(struct tree_array *a,
+                      tree_rewrite_fn_t fn, void *context)
+{
+   for (unsigned i = 0; i < a->count; i++)
+      a->items[i] = tree_rewrite(a->items[i], fn, context);
+}
+
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
-   if (HAS_GENERICS(t)) {
-      for (unsigned i = 0; i < tree_generics(t); i++)
-         (void)tree_rewrite(tree_generic(t, i), fn, context);
-   }
-   if (HAS_PORTS(t)) {
-      for (unsigned i = 0; i < tree_ports(t); i++)
-         (void)tree_rewrite(tree_port(t, i), fn, context);
-   }
-   if (HAS_DECLS(t)) {
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         (void)tree_rewrite(tree_decl(t, i), fn, context);
-   }
-   if (HAS_TRIGGERS(t)) {
-      for (unsigned i = 0; i < tree_triggers(t); i++)
-         tree_change_trigger(t, i, tree_rewrite(tree_trigger(t, i),
-                                                fn, context));
-   }
-   if (HAS_STMTS(t)) {
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         tree_change_stmt(t, i, tree_rewrite(tree_stmt(t, i), fn, context));
-   }
+   if (HAS_GENERICS(t))
+      rewrite_a(&t->generics, fn, context);
+   if (HAS_PORTS(t))
+      rewrite_a(&t->ports, fn, context);
+   if (HAS_DECLS(t))
+      rewrite_a(&t->decls, fn, context);
+   if (HAS_TRIGGERS(t))
+      rewrite_a(&t->triggers, fn, context);
+   if (HAS_STMTS(t))
+      rewrite_a(&t->stmts, fn, context);
    if (HAS_TARGET(t))
       tree_set_target(t, tree_rewrite(tree_target(t), fn, context));
    if (HAS_VALUE(t)) {
@@ -1919,9 +1915,7 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       break;
 
    case T_IF:
-      for (unsigned i = 0; i < tree_else_stmts(t); i++)
-         tree_change_else_stmt(
-            t, i, tree_rewrite(tree_else_stmt(t, i), fn, context));
+      rewrite_a(&t->elses, fn, context);
       break;
 
    default:
