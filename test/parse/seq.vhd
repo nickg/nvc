@@ -41,6 +41,14 @@ begin
         if true then
             x := 1;
         end if;
+        test: if true then
+            x := y;
+        end if test;
+        if x > 2 then
+            x := 5;
+        else
+            y := 2;
+        end if;
     end process;
 
     -- Null

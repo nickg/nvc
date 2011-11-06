@@ -371,7 +371,7 @@ START_TEST(test_seq)
 
    p = tree_stmt(a, 4);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_stmts(p) == 3);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_IF);
@@ -379,6 +379,11 @@ START_TEST(test_seq)
    fail_unless(tree_kind(e) == T_REF);
    fail_unless(tree_ident(e) == ident_new("TRUE"));
    fail_unless(tree_stmts(s) == 1);
+
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(s) == T_IF);
+   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_else_stmts(s) == 1);
 
    // Null statements
 

@@ -815,12 +815,21 @@ seq_stmt_without_label
      tree_set_message($$, $2);
      tree_add_attr_int($$, ident_new("is_report"), 1);
   }
-| tIF expr tTHEN seq_stmt_list tEND tIF /* [label] */ tSEMI
+| tIF expr tTHEN seq_stmt_list tEND tIF opt_id tSEMI
   {
      $$ = tree_new(T_IF);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
      copy_trees($4, tree_add_stmt, $$);
+  }
+| tIF expr tTHEN seq_stmt_list tELSE seq_stmt_list
+  tEND tIF opt_id tSEMI
+  {
+     $$ = tree_new(T_IF);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+     copy_trees($4, tree_add_stmt, $$);
+     copy_trees($6, tree_add_else_stmt, $$);
   }
 | tNULL tSEMI
   {

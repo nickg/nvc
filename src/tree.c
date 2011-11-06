@@ -105,6 +105,7 @@ struct tree {
       };
       range_t           range;     // T_ARRAY_SLICE
       struct tree_array triggers;  // T_WAIT, T_PROCESS
+      struct tree_array elses;     // T_IF
    };
 
    // Serialisation and GC bookkeeping
@@ -655,6 +656,43 @@ void tree_change_stmt(tree_t t, unsigned n, tree_t s)
    t->stmts.items[n] = s;
 }
 
+unsigned tree_else_stmts(tree_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_IF));
+
+   return t->elses.count;
+}
+
+tree_t tree_else_stmt(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(IS(t, T_IF));
+
+   return tree_array_nth(&t->elses, n);
+}
+
+void tree_add_else_stmt(tree_t t, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(IS(t, T_IF));
+   assert(IS_STMT(s));
+
+   tree_array_add(&t->elses, s);
+}
+
+void tree_change_else_stmt(tree_t t, unsigned n, tree_t s)
+{
+   assert(t != NULL);
+   assert(s != NULL);
+   assert(IS(t, T_IF));
+   assert(IS_STMT(s));
+   assert(n < t->elses.count);
+
+   t->elses.items[n] = s;
+}
+
 unsigned tree_drivers(tree_t t)
 {
    assert(t != NULL);
@@ -1165,6 +1203,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
    }
    else if (IS(t, T_INSTANCE))
       n += tree_visit_p(&t->genmaps, fn, context, kind, generation, deep);
+   else if (IS(t, T_IF))
+      n += tree_visit_a(&t->elses, fn, context, kind, generation, deep);
 
    if (deep) {
       for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1424,6 +1464,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_p(&t->genmaps, ctx);
       break;
 
+   case T_IF:
+      write_a(&t->elses, ctx);
+      break;
+
    default:
       break;
    }
@@ -1584,6 +1628,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    case T_INSTANCE:
       read_p(&t->genmaps, ctx);
+      break;
+
+   case T_IF:
+      read_a(&t->elses, ctx);
       break;
 
    default:
@@ -1868,6 +1916,11 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
          r.right = tree_rewrite(r.right, fn, context);
          tree_set_range(t, r);
       }
+      break;
+
+   case T_IF:
+      for (unsigned i = 0; i < tree_else_stmts(t); i++)
+         (void)tree_rewrite(tree_else_stmt(t, i), fn, context);
       break;
 
    default:
