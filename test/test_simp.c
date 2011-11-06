@@ -151,6 +151,8 @@ START_TEST(test_cfold)
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_NULL);
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
 
    fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }

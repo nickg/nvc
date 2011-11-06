@@ -340,11 +340,18 @@ static tree_t simp_if(tree_t t)
             return t;
       }
       else {
-         // If statement never executes so delete
-         // XXX: replace with else part
-         tree_t null = tree_new(T_NULL);
-         tree_set_loc(null, tree_loc(t));
-         return null;
+         // If statement never executes so replace with else part
+         if (tree_else_stmts(t) == 1) {
+            // XXX: make work for more than one statement
+            return tree_else_stmt(t, 0);
+         }
+         else if (tree_else_stmts(t) == 0) {
+            tree_t null = tree_new(T_NULL);
+            tree_set_loc(null, tree_loc(t));
+            return null;
+         }
+         else
+            return t;
       }
    }
    else

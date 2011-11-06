@@ -47,6 +47,11 @@ begin
         if false then
             x <= 5;
         end if;
+        if false then
+            null;
+        else
+            x <= 5;
+        end if;
     end process;
 
 end architecture;
