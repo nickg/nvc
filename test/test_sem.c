@@ -567,8 +567,9 @@ START_TEST(test_seq)
    fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
 
    const error_t expect[] = {
-      { 14, "type of test must be STD.STANDARD.BOOLEAN" },
-      { 18, "undefined identifier X" },
+      { 15, "type of test must be STD.STANDARD.BOOLEAN" },
+      { 19, "undefined identifier X" },
+      { 25, "no suitable overload for identifier TRUE" },
       { -1, NULL }
    };
    expect_errors(expect);

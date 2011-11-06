@@ -1813,6 +1813,8 @@ static bool sem_check_if(tree_t t)
    bool ok = true;
    for (unsigned i = 0; i < tree_stmts(t); i++)
       ok = sem_check(tree_stmt(t, i)) && ok;
+   for (unsigned i = 0; i < tree_else_stmts(t); i++)
+      ok = sem_check(tree_else_stmt(t, i)) && ok;
 
    return ok;
 }
