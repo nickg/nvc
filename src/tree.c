@@ -496,19 +496,6 @@ void tree_add_param(tree_t t, param_t e)
    param_array_add(&t->params, e);
 }
 
-void tree_change_param(tree_t t, unsigned n, param_t e)
-{
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
-   assert(e.kind == P_RANGE || IS_EXPR(e.value));
-   assert(n < t->params.count);
-
-   if (e.kind == P_POS)
-      e.pos = n;
-
-   t->params.items[n] = e;
-}
-
 unsigned tree_genmaps(tree_t t)
 {
    assert(t != NULL);
@@ -536,19 +523,6 @@ void tree_add_genmap(tree_t t, param_t e)
       e.pos = t->genmaps.count;
 
    param_array_add(&t->genmaps, e);
-}
-
-void tree_change_genmap(tree_t t, unsigned n, param_t e)
-{
-   assert(t != NULL);
-   assert(IS(t, T_INSTANCE));
-   assert(e.kind == P_RANGE || IS_EXPR(e.value));
-   assert(n < t->genmaps.count);
-
-   if (e.kind == P_POS)
-      e.pos = n;
-
-   t->genmaps.items[n] = e;
 }
 
 void tree_set_literal(tree_t t, literal_t lit)
@@ -645,17 +619,6 @@ void tree_add_stmt(tree_t t, tree_t s)
    tree_array_add(&t->stmts, s);
 }
 
-void tree_change_stmt(tree_t t, unsigned n, tree_t s)
-{
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(HAS_STMTS(t));
-   assert(IS_STMT(s));
-   assert(n < t->stmts.count);
-
-   t->stmts.items[n] = s;
-}
-
 unsigned tree_else_stmts(tree_t t)
 {
    assert(t != NULL);
@@ -680,17 +643,6 @@ void tree_add_else_stmt(tree_t t, tree_t s)
    assert(IS_STMT(s));
 
    tree_array_add(&t->elses, s);
-}
-
-void tree_change_else_stmt(tree_t t, unsigned n, tree_t s)
-{
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(IS(t, T_IF));
-   assert(IS_STMT(s));
-   assert(n < t->elses.count);
-
-   t->elses.items[n] = s;
 }
 
 unsigned tree_drivers(tree_t t)
@@ -811,17 +763,6 @@ void tree_add_trigger(tree_t t, tree_t s)
    tree_array_add(&t->triggers, s);
 }
 
-void tree_change_trigger(tree_t t, unsigned n, tree_t s)
-{
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(HAS_TRIGGERS(t));
-   assert(IS_EXPR(s));
-   assert(n < t->triggers.count);
-
-   t->triggers.items[n] = s;
-}
-
 tree_t tree_target(tree_t t)
 {
    assert(t != NULL);
@@ -928,15 +869,6 @@ void tree_add_assoc(tree_t t, assoc_t a)
    }
 
    t->assocs[t->n_assocs++] = a;
-}
-
-void tree_change_assoc(tree_t t, unsigned n, assoc_t a)
-{
-   assert(t != NULL);
-   assert(IS(t, T_AGGREGATE));
-   assert(n < t->n_assocs);
-
-   t->assocs[n] = a;
 }
 
 tree_t tree_severity(tree_t t)
@@ -1881,23 +1813,21 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 
    case T_AGGREGATE:
       for (unsigned i = 0; i < tree_assocs(t); i++) {
-         assoc_t a = tree_assoc(t, i);
-         a.value = tree_rewrite(a.value, fn, context);
+         assoc_t *a = &t->assocs[i];
+         a->value = tree_rewrite(a->value, fn, context);
 
-         switch (a.kind) {
+         switch (a->kind) {
          case A_POS:
          case A_OTHERS:
             break;
          case A_NAMED:
-            a.name = tree_rewrite(a.name, fn, context);
+            a->name = tree_rewrite(a->name, fn, context);
             break;
          case A_RANGE:
-            a.range.left  = tree_rewrite(a.range.left, fn, context);
-            a.range.right = tree_rewrite(a.range.right, fn, context);
+            a->range.left  = tree_rewrite(a->range.left, fn, context);
+            a->range.right = tree_rewrite(a->range.right, fn, context);
             break;
          }
-
-         tree_change_assoc(t, i, a);
       }
       break;
 

@@ -139,13 +139,11 @@ void tree_add_generic(tree_t t, tree_t d);
 unsigned tree_genmaps(tree_t t);
 param_t tree_genmap(tree_t t, unsigned n);
 void tree_add_genmap(tree_t t, param_t e);
-void tree_change_genmap(tree_t t, unsigned n, param_t e);
 
 // T_FCALL, T_ARRAY_REF, T_INSTANCE
 unsigned tree_params(tree_t t);
 param_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, param_t e);
-void tree_change_param(tree_t t, unsigned n, param_t e);
 
 // T_LITERAL
 literal_t tree_literal(tree_t t);
@@ -167,13 +165,11 @@ void tree_add_decl(tree_t t, tree_t d);
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);
-void tree_change_stmt(tree_t t, unsigned n, tree_t d);
 
 // T_IF
 unsigned tree_else_stmts(tree_t t);
 tree_t tree_else_stmt(tree_t t, unsigned n);
 void tree_add_else_stmt(tree_t t, tree_t d);
-void tree_change_else_stmt(tree_t t, unsigned n, tree_t d);
 
 // T_WAIT
 bool tree_has_delay(tree_t t);
@@ -184,7 +180,6 @@ void tree_set_delay(tree_t t, tree_t d);
 unsigned tree_triggers(tree_t t);
 tree_t tree_trigger(tree_t t, unsigned n);
 void tree_add_trigger(tree_t t, tree_t s);
-void tree_change_trigger(tree_t t, unsigned n, tree_t s);
 
 // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
 tree_t tree_target(tree_t t);
@@ -203,7 +198,6 @@ void tree_add_context(tree_t t, ident_t ctx);
 unsigned tree_assocs(tree_t t);
 assoc_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, assoc_t a);
-void tree_change_assoc(tree_t t, unsigned n, assoc_t a);
 
 // T_ASSERT
 tree_t tree_severity(tree_t t);
