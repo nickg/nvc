@@ -772,6 +772,7 @@ static tree_t sem_make_int(int i)
 
    tree_t t = tree_new(T_LITERAL);
    tree_set_literal(t, l);
+   tree_set_type(t, sem_std_type("STD.STANDARD.INTEGER"));
 
    return t;
 }
@@ -814,7 +815,12 @@ static bool sem_check_type(tree_t t, type_t *ptype)
                   sem_error(t, "expected %d array dimensions but %d given",
                             type_index_constrs(base), type_dims(*ptype));
 
-               // TODO: check index constraints here
+               for (unsigned i = 0; i < type_dims(*ptype); i++) {
+                  range_t r = type_dim(*ptype, i);
+                  if (!(sem_check(r.left) && sem_check(r.right)))
+                     return false;
+                  // XXX: _constrained by index type
+               }
 
                type_t collapse = type_new(T_CARRAY);
                type_set_ident(collapse, type_ident(base));

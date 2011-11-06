@@ -17,6 +17,7 @@ begin
         assert s(0) = '0';
         wait for 1 ns;
         assert s(0) = v(3);
+        assert v = ( '1', '0', '1', '1' );
         s <= v;
         assert s = ( '0', '0', '1', '1' ) report "one";
         wait for 1 ns;
