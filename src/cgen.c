@@ -1179,18 +1179,17 @@ static void cgen_array_signal_load_fn(tree_t t, LLVMValueRef v)
    // Loop body
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
-   LLVMValueRef s_indexes[] = { i_loaded };
+   LLVMValueRef index[] = { i_loaded };
    LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
-                                      s_indexes, ARRAY_LEN(s_indexes),
+                                      index, ARRAY_LEN(index),
                                       "signal");
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "resolved");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "deref");
    LLVMValueRef val = LLVMBuildIntCast(builder, deref,
                                        llvm_type(elem_type), "val");
-   LLVMValueRef d_indexes[] = { i_loaded };
    LLVMValueRef dst = LLVMBuildGEP(builder, LLVMGetParam(fn, 1),
-                                   d_indexes, ARRAY_LEN(d_indexes),
+                                   index, ARRAY_LEN(index),
                                    "dst");
    LLVMBuildStore(builder, val, dst);
 
