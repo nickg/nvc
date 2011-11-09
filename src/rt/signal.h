@@ -21,6 +21,7 @@
 // Fixed fields in signal structure
 enum {
    SIGNAL_RESOLVED,
+   SIGNAL_LAST_VALUE,
    SIGNAL_DECL,
    SIGNAL_FLAGS,
    SIGNAL_N_SOURCES,

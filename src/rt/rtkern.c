@@ -72,6 +72,7 @@ struct sens_list {
 
 struct signal {
    uint64_t         resolved;
+   uint64_t         last_value;
    tree_t           decl;
    int32_t          flags;
    int32_t          n_sources;
@@ -543,7 +544,13 @@ static void rt_update_driver(struct signal *s, unsigned source)
          assert(n_active_signals < MAX_ACTIVE_SIGS);
          active_signals[n_active_signals++] = s;
       }
+      else {
+         // LAST_VALUE is the same as the initial value when
+         // there have been no events on the signal
+         s->resolved = w_next->value;
+      }
 
+      s->last_value      = s->resolved;
       s->resolved        = w_next->value;
       s->flags          |= new_flags;
       s->sources[source] = w_next;

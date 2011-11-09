@@ -17,3 +17,4 @@ elab1           normal
 image           gold,normal
 cond            gold,normal
 counter         normal,stop=50ns,gold
+last_value      normal

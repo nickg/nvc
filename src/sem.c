@@ -947,12 +947,16 @@ static bool sem_check_decl(tree_t t)
    if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
       ident_t event_i = ident_new("EVENT");
       ident_t active_i = ident_new("ACTIVE");
+      ident_t last_value_i = ident_new("LAST_VALUE");
       type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
       tree_add_attr_tree(t, event_i,
                          sem_builtin_fn(event_i, std_bool, "event",
                                         type, NULL));
       tree_add_attr_tree(t, active_i,
                          sem_builtin_fn(active_i, std_bool, "active",
+                                        type, NULL));
+      tree_add_attr_tree(t, last_value_i,
+                         sem_builtin_fn(last_value_i, type, "last_value",
                                         type, NULL));
    }
 

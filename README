@@ -5,7 +5,8 @@ See this post for more information:
 
 To build from a Git clone:
   ./autogen.sh
-  ./configure
+  mkdir build && cd build
+  ../configure
   make
   make install
 
