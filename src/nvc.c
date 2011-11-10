@@ -106,6 +106,7 @@ static int elaborate(int argc, char **argv)
 
    static struct option long_options[] = {
       {"disable-opt", no_argument, 0, 'o'},
+      {"dump-llvm", no_argument, 0, 'd'},
       {0, 0, 0, 0}
    };
 
@@ -116,6 +117,9 @@ static int elaborate(int argc, char **argv)
       switch (c) {
       case 'o':
          cgen_optimise_en(false);
+         break;
+      case 'd':
+         cgen_dump_en(true);
          break;
       case 0:
          // Set a flag
@@ -307,6 +311,7 @@ static void usage(void)
           "\n"
           "Elaborate options:\n"
           "     --disable-opt\tDisable LLVM optimisations\n"
+          "     --dump-llvm\tPrint generated LLVM IR\n"
           "\n"
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"

@@ -51,6 +51,9 @@ void cgen(tree_t top);
 // Toggle LLVM optimisations on and off
 void cgen_optimise_en(bool en);
 
+// Toggle dumping of generated LLVM IR
+void cgen_dump_en(bool on);
+
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 

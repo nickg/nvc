@@ -36,6 +36,7 @@
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static bool           run_optimiser = true;
+static bool           dump_module = false;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -1481,7 +1482,9 @@ void cgen(tree_t top)
 
    cgen_top(top);
 
-   //LLVMDumpModule(module);
+   if (dump_module)
+      LLVMDumpModule(module);
+
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
 
@@ -1508,4 +1511,9 @@ void cgen(tree_t top)
 void cgen_optimise_en(bool en)
 {
    run_optimiser = en;
+}
+
+void cgen_dump_en(bool on)
+{
+   dump_module = on;
 }
