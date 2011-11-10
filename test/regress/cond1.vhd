@@ -1,7 +1,7 @@
-entity cond is
+entity cond1 is
 end entity;
 
-architecture test of cond is
+architecture test of cond1 is
     signal x : integer := 5;
 begin
 

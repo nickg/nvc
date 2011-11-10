@@ -1,0 +1,2 @@
+1ns+0: Report Note: y = 2
+1ns+0: Report Note: x /= 4

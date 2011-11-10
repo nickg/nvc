@@ -15,6 +15,7 @@ wait4           normal
 wait5           normal
 elab1           normal
 image           gold,normal
-cond            gold,normal
+cond1           gold,normal
 counter         normal,stop=50ns,gold
 last_value      normal
+cond2           gold,normal
