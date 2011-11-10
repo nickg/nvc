@@ -1212,6 +1212,9 @@ static void sem_maybe_ambiguous(tree_t t, void *_ambiguous)
             *ambiguous = true;
       }
       break;
+   case T_AGGREGATE:
+      *ambiguous = true;
+      break;
    default:
       break;
    }

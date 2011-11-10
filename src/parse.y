@@ -1539,12 +1539,8 @@ static tree_t str_to_agg(const char *start, const char *end)
 {
    tree_t t = tree_new(T_AGGREGATE);
 
-   const char *p = start;
-   while (*p != '\0' && p != end)
-      ++p;
-
-   do {
-      const char ch[] = { '\'', *(--p), '\'', '\0' };
+   for (const char *p = start; *p != '\0' && p != end; p++) {
+      const char ch[] = { '\'', *p, '\'', '\0' };
 
       tree_t ref = tree_new(T_REF);
       tree_set_ident(ref, ident_new(ch));
@@ -1554,7 +1550,7 @@ static tree_t str_to_agg(const char *start, const char *end)
       a.value = ref;
 
       tree_add_assoc(t, a);
-   } while (p != start);
+   }
 
    return t;
 }

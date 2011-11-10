@@ -27,7 +27,7 @@ begin
         assert y'last_value = ( '0', '0', '0', '0' );
         y(1) <= '0';
         wait for 1 ns;
-        assert y'last_value = ( '0', '0', '1', '0' );
+        assert y'last_value = ( '0', '1', '0', '0' );
         
         wait;
     end process;

@@ -285,10 +285,25 @@ void _array_copy(void *dst, const void *src, int32_t n, int32_t sz)
    memcpy(dst, src, n * sz);
 }
 
-int8_t _array_eq(const void *lhs, const void *rhs, int32_t n, int32_t sz)
+int8_t _array_eq(const void *lhs, const void *rhs,
+                 int32_t n, int32_t sz, int32_t op)
 {
-   TRACE("_array_eq lhs=%p rhs=%p %dx%d", lhs, rhs, n, sz);
-   return memcmp(lhs, rhs, n * sz) == 0;
+   TRACE("_array_eq lhs=%p rhs=%p %dx%d op=%d", lhs, rhs, n, sz, op);
+   if (op) {
+      const uint8_t *pl = lhs;
+      const uint8_t *pr = (const uint8_t *)rhs + ((n - 1) * sz);
+      while (n--) {
+         for (int i = 0; i < sz; i++) {
+            if (*(pl + i) != *(pr + i))
+               return 0;
+         }
+         pl += sz;
+         pr -= sz;
+      }
+      return 1;
+   }
+   else
+      return memcmp(lhs, rhs, n * sz) == 0;
 }
 
 int8_t *_image(int64_t val)
@@ -545,12 +560,17 @@ static void rt_update_driver(struct signal *s, unsigned source)
          active_signals[n_active_signals++] = s;
       }
       else {
-         // LAST_VALUE is the same as the initial value when
-         // there have been no events on the signal
          s->resolved = w_next->value;
       }
 
-      s->last_value      = s->resolved;
+      // LAST_VALUE is the same as the initial value when
+      // there have been no events on the signal otherwise
+      // only update it when there is an event
+      if (first_cycle)
+         s->last_value = w_next->value;
+      else if (new_flags & SIGNAL_F_EVENT)
+         s->last_value = s->resolved;
+
       s->resolved        = w_next->value;
       s->flags          |= new_flags;
       s->sources[source] = w_next;

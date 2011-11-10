@@ -361,18 +361,24 @@ static LLVMValueRef cgen_signal_flag(tree_t ref, int flag)
       return cgen_scalar_signal_flag(sig_decl, flag);
 }
 
-static LLVMValueRef cgen_array_eq(type_t ty, LLVMValueRef lhs, LLVMValueRef rhs)
+static LLVMValueRef cgen_array_eq(type_t lhs_type, LLVMValueRef lhs,
+                                  type_t rhs_type, LLVMValueRef rhs)
 {
-   assert(type_kind(ty) == T_CARRAY);
+   assert(type_kind(lhs_type) == T_CARRAY);
+   assert(type_kind(rhs_type) == T_CARRAY);
 
    int64_t low, high;
-   range_bounds(type_dim(ty, 0), &low, &high);
+   range_bounds(type_dim(lhs_type, 0), &low, &high);
+
+   bool opposite =
+      (type_dim(lhs_type, 0).kind != type_dim(rhs_type, 0).kind);
 
    LLVMValueRef args[] = {
       llvm_void_cast(lhs),
       llvm_void_cast(rhs),
       llvm_int32(high - low + 1),  // Number of elements
-      llvm_sizeof(llvm_type(type_base(ty)))
+      llvm_sizeof(llvm_type(type_base(lhs_type))),
+      llvm_int32(opposite)
    };
    return LLVMBuildCall(builder, llvm_fn("_array_eq"),
                         args, ARRAY_LEN(args), "");
@@ -447,11 +453,16 @@ static LLVMValueRef cgen_fcall(tree_t t, struct proc_ctx *ctx)
          return LLVMBuildNot(builder, args[0], "");
       else if (strcmp(builtin, "and") == 0)
          return LLVMBuildAnd(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "aeq") == 0)
-         return cgen_array_eq(arg_type, args[0], args[1]);
-      else if (strcmp(builtin, "aneq") == 0)
+      else if (strcmp(builtin, "aeq") == 0) {
+         type_t rhs_type = tree_type(tree_param(t, 1).value);
+         return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
+      }
+      else if (strcmp(builtin, "aneq") == 0) {
+         type_t rhs_type = tree_type(tree_param(t, 1).value);
          return LLVMBuildNot(
-            builder, cgen_array_eq(arg_type, args[0], args[1]), "");
+            builder,
+            cgen_array_eq(arg_type, args[0], rhs_type, args[1]), "");
+      }
       else if (strcmp(builtin, "image") == 0) {
          LLVMValueRef iargs[] = {
             LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
@@ -566,7 +577,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct proc_ctx *ctx)
 
       switch (a.kind) {
       case A_POS:
-         if (r.kind == RANGE_DOWNTO)
+         if (r.kind == RANGE_TO)
             vals[i] = v;
          else
             vals[n_elems - i - 1] = v;
@@ -1439,12 +1450,13 @@ static void cgen_support_fns(void)
       llvm_void_ptr(),
       llvm_void_ptr(),
       LLVMInt32Type(),
+      LLVMInt32Type(),
       LLVMInt32Type()
    };
    LLVMAddFunction(module, "_array_eq",
                    LLVMFunctionType(LLVMInt1Type(),
                                     _array_eq_args,
-                                    ARRAY_LEN(_array_copy_args),
+                                    ARRAY_LEN(_array_eq_args),
                                     false));
 
    LLVMTypeRef _image_args[] = {
@@ -1469,7 +1481,7 @@ void cgen(tree_t top)
 
    cgen_top(top);
 
-   LLVMDumpModule(module);
+   //LLVMDumpModule(module);
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
 
