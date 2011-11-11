@@ -55,5 +55,19 @@ begin
         b := ('0', '1', '0', '1') = a;  -- OK
         b := ('0', '1') = ('0', '1');   -- Error
     end process;
+
+    process is
+        subtype some_foo is foo range a to b;
+        subtype less_foo is some_foo range a to a;
+        subtype all_foo is foo;
+        variable f : some_foo;
+        variable g : all_foo;
+        variable h : less_foo;
+    begin
+        f := a;                         -- OK
+        f := c;                         -- OK at semantic check
+        g := f;                         -- OK
+        g := h;                         -- OK
+    end process;
     
 end architecture;

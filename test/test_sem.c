@@ -265,7 +265,7 @@ START_TEST(test_ambiguous)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 6);
+   fail_unless(tree_stmts(a) == 7);
    sem_check(a);
 
    p = tree_stmt(a, 0);

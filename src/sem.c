@@ -408,6 +408,19 @@ static type_t sem_std_type(const char *name)
    return tree_type(decl);
 }
 
+static tree_t sem_make_int(int i)
+{
+   literal_t l;
+   l.kind = L_INT;
+   l.i    = i;
+
+   tree_t t = tree_new(T_LITERAL);
+   tree_set_literal(t, l);
+   tree_set_type(t, sem_std_type("STD.STANDARD.INTEGER"));
+
+   return t;
+}
+
 static tree_t sem_builtin_fn(ident_t name, type_t result,
                              const char *builtin, ...)
 {
@@ -584,6 +597,7 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_PHYSICAL:
    case T_SUBTYPE:
       {
+         fmt_loc(stdout, tree_loc(decl));
          range_t r = type_dim(t, 0);
 
          tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
@@ -629,8 +643,18 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          // If the subtype is not constrained then give it the same
          // range as its base type
          if (type_dims(type) == 0) {
-            for (unsigned i = 0; i < type_dims(base_type); i++)
-               type_add_dim(type, type_dim(base_type, i));
+            if (type_kind(base_type) == T_ENUM) {
+               range_t r = {
+                  .kind  = RANGE_TO,
+                  .left  = sem_make_int(0),
+                  .right = sem_make_int(type_enum_literals(base_type) - 1)
+               };
+               type_add_dim(type, r);
+            }
+            else {
+               for (unsigned i = 0; i < type_dims(base_type); i++)
+                  type_add_dim(type, type_dim(base_type, i));
+            }
          }
 
          base = tree_type(base_decl);
@@ -762,19 +786,6 @@ static bool sem_check_constrained(tree_t t, type_t type)
    bool ok = sem_check(t);
    type_set_pop();
    return ok;
-}
-
-static tree_t sem_make_int(int i)
-{
-   literal_t l;
-   l.kind = L_INT;
-   l.i    = i;
-
-   tree_t t = tree_new(T_LITERAL);
-   tree_set_literal(t, l);
-   tree_set_type(t, sem_std_type("STD.STANDARD.INTEGER"));
-
-   return t;
 }
 
 static bool sem_readable(tree_t t)
