@@ -597,7 +597,6 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_PHYSICAL:
    case T_SUBTYPE:
       {
-         fmt_loc(stdout, tree_loc(decl));
          range_t r = type_dim(t, 0);
 
          tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
@@ -637,27 +636,25 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          if (base_decl == NULL)
             sem_error(t, "type %s is not defined", istr(type_ident(base)));
 
-         type_t base_type = tree_type(base_decl);
-         type_set_base(type, base_type);
-
-         // If the subtype is not constrained then give it the same
-         // range as its base type
-         if (type_dims(type) == 0) {
-            if (type_kind(base_type) == T_ENUM) {
-               range_t r = {
-                  .kind  = RANGE_TO,
-                  .left  = sem_make_int(0),
-                  .right = sem_make_int(type_enum_literals(base_type) - 1)
-               };
-               type_add_dim(type, r);
-            }
-            else {
-               for (unsigned i = 0; i < type_dims(base_type); i++)
-                  type_add_dim(type, type_dim(base_type, i));
-            }
-         }
-
          base = tree_type(base_decl);
+         type_set_base(type, base);
+      }
+
+      // If the subtype is not constrained then give it the same
+      // range as its base type
+      if (type_dims(type) == 0) {
+         if (type_kind(base) == T_ENUM) {
+            range_t r = {
+               .kind  = RANGE_TO,
+               .left  = sem_make_int(0),
+               .right = sem_make_int(type_enum_literals(base) - 1)
+            };
+            type_add_dim(type, r);
+         }
+         else {
+            for (unsigned i = 0; i < type_dims(base); i++)
+               type_add_dim(type, type_dim(base, i));
+         }
       }
 
       type = base;
@@ -866,6 +863,49 @@ static bool sem_check_type(tree_t t, type_t *ptype)
    }
 }
 
+static bool sem_check_resolution(type_t type)
+{
+   // Resolution functions are described in LRM 93 section 2.4
+
+   assert(type_kind(type) == T_SUBTYPE);
+
+   tree_t ref = type_resolution(type);
+
+   tree_t fdecl = scope_find(tree_ident(ref));
+   if (fdecl == NULL)
+      sem_error(ref, "undefined resolution function %s",
+                istr(tree_ident(ref)));
+
+   if (tree_kind(fdecl) != T_FUNC_DECL)
+      sem_error(ref, "declaration %s is not a function",
+                istr(tree_ident(ref)));
+
+   type_t ftype = tree_type(fdecl);
+
+   // Must take a single parameter of array of base type
+
+   if (type_params(ftype) != 1)
+      sem_error(fdecl, "resolution function must have single argument");
+
+   type_t param = type_param(ftype, 0);
+   if (type_kind(param) != T_UARRAY)
+      sem_error(fdecl, "parameter of resolution function must be "
+                "an unconstrained array type");
+
+   if (!type_eq(type_base(param), type))
+      sem_error(fdecl, "parameter of resolution function must be "
+                "array of %s", type_pp(type));
+
+   // Return type must be the resolved type
+
+   if (!type_eq(type_result(ftype), type))
+      sem_error(fdecl, "result of resolution function must %s",
+                type_pp(type));
+
+   tree_set_ref(ref, fdecl);
+   return true;
+}
+
 static bool sem_check_type_decl(tree_t t)
 {
    // We need to insert the type into the scope before performing
@@ -926,6 +966,9 @@ static bool sem_check_type_decl(tree_t t)
             tree_set_type(r.left, type);
             tree_set_type(r.right, type);
          }
+
+         if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
+            ok = ok && sem_check_resolution(type);
 
          return ok;
       }

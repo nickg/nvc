@@ -1015,25 +1015,15 @@ static unsigned tree_visit_type(type_t type,
    }
 
    switch (type_kind(type)) {
-   case T_SUBTYPE:
-   case T_INTEGER:
-   case T_ENUM:
-      if (type_has_resolution(type))
-         n += tree_visit_aux(type_resolution(type), fn, context,
-                             kind, generation, deep);
-      break;
-
-   default:
-      break;
-   }
-
-   switch (type_kind(type)) {
    case T_UNRESOLVED:
       break;
 
    case T_SUBTYPE:
       n += tree_visit_type(type_base(type), fn, context, kind,
                            generation, deep);
+      if (type_has_resolution(type))
+         n += tree_visit_aux(type_resolution(type), fn, context,
+                             kind, generation, deep);
       break;
 
    case T_PHYSICAL:

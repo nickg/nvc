@@ -88,8 +88,7 @@ struct type_rd_ctx {
 #define HAS_BASE(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 #define HAS_RESOLUTION(t) \
-   (IS(t, T_INTEGER) || IS(t, T_ENUM) || IS(t, T_SUBTYPE)       \
-    || IS(t, T_UNRESOLVED))
+   (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
 
 type_t type_new(type_kind_t kind)
 {

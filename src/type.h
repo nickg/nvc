@@ -105,7 +105,7 @@ type_t type_index_constr(type_t t, unsigned n);
 // T_INCOMPLETE
 void type_replace(type_t t, type_t a);
 
-// T_INTEGER, T_ENUM
+// T_SUBTYPE, T_UNRESOLVED
 void type_set_resolution(type_t t, struct tree *r);
 bool type_has_resolution(type_t t);
 struct tree *type_resolution(type_t t);

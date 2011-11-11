@@ -428,7 +428,10 @@ START_TEST(test_func)
    fail_unless(input_from_file(TESTDIR "/sem/func.vhd"));
 
    const error_t expect[] = {
-      { 5, "function arguments must have mode IN" },
+      {  5, "function arguments must have mode IN" },
+      { 17, "must be an unconstrained array type" },
+      { 21, "resolution function must have single argument" },
+      { 25, "declaration UENUM is not a function" },
       { -1, NULL }
    };
    expect_errors(expect);
