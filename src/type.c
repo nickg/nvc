@@ -34,9 +34,10 @@ struct type {
    range_t     *dims;
    unsigned    n_dims;
 
+   type_t base;          // T_SUBTYPE, T_CARRAY, T_UARRAY
    union {
-      type_t base;    // T_SUBTYPE, T_CARRAY, T_UARRAY
-      type_t result;  // T_FUNC
+      type_t result;     // T_FUNC
+      tree_t resolution; // T_INTEGER, T_ENUM
    };
    union {
       struct {   // T_ENUM
@@ -82,10 +83,13 @@ struct type_rd_ctx {
 
 #define IS(t, k) ((t)->kind == (k))
 #define HAS_DIMS(t) \
-   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL) \
+   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL)   \
     || IS(t, T_CARRAY))
 #define HAS_BASE(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
+#define HAS_RESOLUTION(t) \
+   (IS(t, T_INTEGER) || IS(t, T_ENUM) || IS(t, T_SUBTYPE)       \
+    || IS(t, T_UNRESOLVED))
 
 type_t type_new(type_kind_t kind)
 {
@@ -452,6 +456,31 @@ type_t type_index_constr(type_t t, unsigned n)
    return t->index_constr[n];
 }
 
+void type_set_resolution(type_t t, tree_t r)
+{
+   assert(t != NULL);
+   assert(HAS_RESOLUTION(t));
+
+   t->resolution = r;
+}
+
+bool type_has_resolution(type_t t)
+{
+   assert(t != NULL);
+   assert(HAS_RESOLUTION(t));
+
+   return t->resolution != NULL;
+}
+
+tree_t type_resolution(type_t t)
+{
+   assert(t != NULL);
+   assert(HAS_RESOLUTION(t));
+   assert(t->resolution != NULL);
+
+   return t->resolution;
+}
+
 void type_unref(type_t t)
 {
    assert(t != NULL);
@@ -514,8 +543,12 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
-   if (write_b(t->base != NULL, f))
-      type_write(t->base, ctx);
+   if (HAS_BASE(t)) {
+      if (write_b(t->base != NULL, f))
+         type_write(t->base, ctx);
+   }
+   if (HAS_RESOLUTION(t))
+      tree_write(t->resolution, ctx->tree_ctx);
 
    if (IS(t, T_PHYSICAL)) {
       write_s(t->n_units, f);
@@ -582,10 +615,14 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_dims = ndims;
    }
-   if (read_b(f)) {
-      if ((t->base = type_read(ctx)))
-         type_ref(t->base);
+   if (HAS_BASE(t)) {
+      if (read_b(f)) {
+         if ((t->base = type_read(ctx)))
+            type_ref(t->base);
+      }
    }
+   if (HAS_RESOLUTION(t))
+      t->resolution = tree_read(ctx->tree_ctx);
 
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_s(f);

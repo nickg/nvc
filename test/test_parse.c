@@ -418,7 +418,7 @@ END_TEST
 
 START_TEST(test_types)
 {
-   tree_t a, d;
+   tree_t a, d, f;
    type_t t;
    range_t r;
    unit_t u;
@@ -428,7 +428,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 7);
+   fail_unless(tree_decls(a) == 8);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -490,6 +490,16 @@ START_TEST(test_types)
    fail_unless(tree_kind(r.right) == T_ATTR_REF);
    fail_unless(tree_ident(r.right) == ident_new("MY_INT"));
    fail_unless(tree_ident2(r.right) == ident_new("HIGH"));
+
+   d = tree_decl(a, 7);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("RINT"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_SUBTYPE);
+   fail_unless(type_has_resolution(t));
+   f = type_resolution(t);
+   fail_unless(tree_kind(f) == T_REF);
+   fail_unless(tree_ident(f) == ident_new("RESOLVED"));
 
    a = parse();
    fail_unless(a == NULL);

@@ -542,9 +542,8 @@ opt_mode
 ;
 
 subtype_indication
-: /* resolution_indication */ type_mark
-  { $$ = $1; }
-| /* resolution_indication */ type_mark constraint
+: type_mark { $$ = $1; }
+| type_mark constraint
   {
      $$ = type_new(T_SUBTYPE);
      type_set_base($$, $1);
@@ -937,6 +936,25 @@ subtype_decl
         type_set_base(sub, $4);
      }
      type_set_ident(sub, $2);
+
+     tree_t t = tree_new(T_TYPE_DECL);
+     tree_set_ident(t, $2);
+     tree_set_type(t, sub);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+| tSUBTYPE id tIS id subtype_indication tSEMI
+  {
+     tree_t r = tree_new(T_REF);
+     tree_set_loc(r, &@4);
+     tree_set_ident(r, $4);
+
+     type_t sub = type_new(T_SUBTYPE);
+     type_set_base(sub, $5);
+     type_set_ident(sub, $2);
+     type_set_resolution(sub, r);
 
      tree_t t = tree_new(T_TYPE_DECL);
      tree_set_ident(t, $2);

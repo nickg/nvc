@@ -15,6 +15,8 @@ architecture a of b is
     subtype my_small_int is my_int range 0 to 5;
 
     subtype foo is my_int range 2 to my_int'high;
+
+    subtype rint is resolved my_int;
 begin
 
 end architecture;
