@@ -1033,6 +1033,16 @@ static bool sem_check_func_decl(tree_t t)
 
       type_add_param(ftype, param_type);
       tree_set_type(p, param_type);
+
+      if (tree_has_value(p)) {
+         tree_t value = tree_value(p);
+         if (!sem_check_constrained(value, param_type))
+            return false;
+
+         if (!type_eq(tree_type(value), param_type))
+            sem_error(value, "type of default value must be %s",
+                      type_pp(param_type));
+      }
    }
 
    type_t rtype = type_result(ftype);

@@ -23,5 +23,7 @@ package func is
     subtype enum_bad2 is resolved3 uenum;  -- Error
 
     subtype enum_bad3 is uenum uenum;   -- Error
+
+    function default(x : in uenum := 6) return uenum;  -- Error
     
 end package;

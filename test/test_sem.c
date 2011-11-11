@@ -432,6 +432,7 @@ START_TEST(test_func)
       { 17, "must be an unconstrained array type" },
       { 21, "resolution function must have single argument" },
       { 25, "declaration UENUM is not a function" },
+      { 27, "type of default value must be WORK.FUNC.UENUM" },
       { -1, NULL }
    };
    expect_errors(expect);
