@@ -726,7 +726,7 @@ START_TEST(test_func)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 2);
+   fail_unless(tree_decls(p) == 3);
 
    f = tree_decl(p, 0);
    fail_unless(tree_kind(f) == T_FUNC_DECL);
@@ -743,6 +743,11 @@ START_TEST(test_func)
    fail_unless(tree_kind(f) == T_FUNC_DECL);
    fail_unless(tree_ident(f) == ident_new("NAUGHTY"));
    fail_unless(tree_ports(f) == 0);
+
+   f = tree_decl(p, 2);
+   fail_unless(tree_kind(f) == T_FUNC_DECL);
+   fail_unless(tree_ident(f) == ident_new("\"+\""));
+   fail_unless(tree_ports(f) == 2);
 
    p = parse();
    fail_unless(p == NULL);

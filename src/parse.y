@@ -166,7 +166,7 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform waveform_element seq_stmt_without_label
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
-%type <i> id opt_id selected_id
+%type <i> id opt_id selected_id func_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
@@ -689,7 +689,7 @@ process_decl_item
 
 subprogram_decl
 : /* procedure designator [ ( formal_parameter_list ) ]  | */
-  func_type id formal_param_list tRETURN type_mark tSEMI
+  func_type func_name formal_param_list tRETURN type_mark tSEMI
   {
      type_t t = type_new(T_FUNC);
      type_set_ident(t, $2);
@@ -711,6 +711,15 @@ subprogram_decl
 ;
 
 func_type : tPURE tFUNCTION | tIMPURE tFUNCTION | tFUNCTION ;
+
+func_name
+: id
+| tSTRING
+  {
+     $$ = ident_new(lvals.sval);
+     free(lvals.sval);
+  }
+;
 
 formal_param_list
 : tLPAREN interface_list tRPAREN { $$ = $2; }
