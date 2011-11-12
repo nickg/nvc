@@ -61,6 +61,7 @@ typedef enum tree_kind {
    T_INSTANCE,
    T_IF,
    T_NULL,
+   T_PBODY,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

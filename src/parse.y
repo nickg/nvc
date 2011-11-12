@@ -174,6 +174,7 @@
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause
+%type <l> package_body_decl_item package_body_decl_part
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -195,7 +196,7 @@
 %token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE tIF
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
-%token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF
+%token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -336,9 +337,23 @@ package_decl
                     istr($7), istr($2));
      }
   }
+| tPACKAGE tBODY id tIS package_body_decl_part
+  tEND opt_package_body opt_id tSEMI
+  {
+     $$ = tree_new(T_PBODY);
+     tree_set_ident($$, $3);
+     copy_trees($5, tree_add_decl, $$);
+
+     if ($8 != NULL && $8 != $3) {
+        parse_error(&@7, "%s does not match package body name %s",
+                    istr($8), istr($3));
+     }
+  }
 ;
 
 opt_package_token : tPACKAGE | /* empty */ ;
+
+opt_package_body : tPACKAGE tBODY | /* empty */ ;
 
 package_decl_part
 : package_decl_item package_decl_part
@@ -346,10 +361,7 @@ package_decl_part
      $$ = $1;
      tree_list_concat(&$$, $2);
   }
-| /* empty */
-  {
-     $$ = NULL;
-  }
+| /* empty */ { $$ = NULL; }
 ;
 
 package_decl_item
@@ -368,6 +380,22 @@ package_decl_item
    | use_clause
    | group_template_declaration
    | group_declaration */
+;
+
+package_body_decl_part
+: package_body_decl_item package_body_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */ { $$ = NULL; }
+;
+
+package_body_decl_item
+: type_decl
+| subtype_decl
+| constant_decl
+| subprogram_decl
 ;
 
 port_clause

@@ -132,6 +132,7 @@ IF            {I}{F}
 THEN          {T}{H}{E}{N}
 ELSE          {E}{L}{S}{E}
 ELSIF         {E}{L}{S}{I}{F}
+BODY          {B}{O}{D}{Y}
 
 %%
 
@@ -194,6 +195,7 @@ ELSIF         {E}{L}{S}{I}{F}
 {THEN}          { begin_token(yytext); return tTHEN; }
 {ELSE}          { begin_token(yytext); return tELSE; }
 {ELSIF}         { begin_token(yytext); return tELSIF; }
+{BODY}          { begin_token(yytext); return tBODY; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

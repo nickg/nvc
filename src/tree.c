@@ -148,7 +148,7 @@ struct tree_rd_ctx {
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
     || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL)   \
     || IS(t, T_FUNC_DECL) || IS(t, T_ELAB) || IS(t, T_ATTR_REF)         \
-    || IS(t, T_INSTANCE))
+    || IS(t, T_INSTANCE) || IS(t, T_PBODY))
 #define HAS_IDENT2(t) \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE))
 #define HAS_PORTS(t) (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL))
@@ -161,7 +161,8 @@ struct tree_rd_ctx {
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
     || IS(t, T_INSTANCE))
 #define HAS_DECLS(t) \
-   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB))
+   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB) \
+    || IS(t, T_PBODY))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF))
