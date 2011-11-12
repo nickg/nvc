@@ -129,11 +129,13 @@ struct tree_rd_ctx {
 };
 
 #define IS(t, k) ((t)->kind == (k))
-#define IS_TOP_LEVEL(t) (IS(t, T_ARCH) || IS(t, T_ENTITY) \
-                         || IS(t, T_PACKAGE) || IS(t, T_ELAB))
-#define IS_DECL(t) \
-   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
-    || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL))
+#define IS_TOP_LEVEL(t)                                  \
+   (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE) \
+    || IS(t, T_ELAB) || IS(t, T_PBODY))
+#define IS_DECL(t)                                                     \
+   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL)    \
+    || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL) \
+    || IS(t, T_FBODY))
 #define IS_EXPR(t) \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF) || IS(t, T_QUALIFIED) \
     || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)  \
@@ -148,7 +150,7 @@ struct tree_rd_ctx {
     || IS(t, T_REF) || IS(t, T_TYPE_DECL) || IS(t, T_PACKAGE)           \
     || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT) || IS(t, T_CONST_DECL)   \
     || IS(t, T_FUNC_DECL) || IS(t, T_ELAB) || IS(t, T_ATTR_REF)         \
-    || IS(t, T_INSTANCE) || IS(t, T_PBODY))
+    || IS(t, T_INSTANCE) || IS(t, T_PBODY) || IS(t, T_FBODY))
 #define HAS_IDENT2(t) \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE))
 #define HAS_PORTS(t) (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL))
@@ -164,8 +166,9 @@ struct tree_rd_ctx {
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB) \
     || IS(t, T_PBODY))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
-#define HAS_STMTS(t) \
-   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF))
+#define HAS_STMTS(t)                                                  \
+   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
+    || IS(t, T_FBODY))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 #define HAS_VALUE(t) \

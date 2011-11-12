@@ -174,7 +174,8 @@
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause
-%type <l> package_body_decl_item package_body_decl_part
+%type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
+%type <l> subprogram_decl_item
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -692,10 +693,7 @@ process_decl_part
      $$ = $1;
      tree_list_concat(&$$, $2);
   }
-| /* empty */
-  {
-     $$ = NULL;
-  }
+| /* empty */ { $$ = NULL; }
 ;
 
 process_decl_item
@@ -730,8 +728,19 @@ subprogram_decl
 
      for (tree_list_t *it = $3; it != NULL; it = it->next)
         tree_add_port(f, it->value);
-
      tree_list_free($3);
+
+     $$ = NULL;
+     tree_list_append(&$$, f);
+  }
+| func_type func_name formal_param_list tRETURN type_mark tIS
+  subprogram_decl_part tBEGIN seq_stmt_list tEND opt_func
+  func_name tSEMI
+  {
+     tree_t f = tree_new(T_FBODY);
+     tree_set_loc(f, &@$);
+     tree_set_ident(f, $2);
+
 
      $$ = NULL;
      tree_list_append(&$$, f);
@@ -740,6 +749,8 @@ subprogram_decl
 
 func_type : tPURE tFUNCTION | tIMPURE tFUNCTION | tFUNCTION ;
 
+opt_func : tFUNCTION | /* empty */ ;
+
 func_name
 : id
 | tSTRING
@@ -747,6 +758,30 @@ func_name
      $$ = ident_new(lvals.sval);
      free(lvals.sval);
   }
+;
+
+subprogram_decl_part
+: subprogram_decl_item subprogram_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */ { $$ = NULL; }
+;
+
+subprogram_decl_item
+: subprogram_decl
+| subtype_decl
+| constant_decl
+| variable_decl
+| type_decl
+  /* | file_declaration
+     | alias_declaration
+     | attribute_declaration
+     | attribute_specification
+     | use_clause
+     | group_template_declaration
+     | group_declaration */
 ;
 
 formal_param_list
