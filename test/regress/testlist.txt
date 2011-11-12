@@ -20,3 +20,4 @@ counter         normal,stop=50ns,gold
 last_value      normal
 cond2           gold,normal
 vecorder        normal
+elab2           normal
