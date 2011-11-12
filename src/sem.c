@@ -70,11 +70,11 @@ static int             errors = 0;
 static struct type_set *top_type_set = NULL;
 static bool            bootstrap = false;
 
-#define sem_error(t, ...) {               \
-   error_at(tree_loc(t), __VA_ARGS__);    \
-   errors++;                              \
-   return false;                          \
-}
+#define sem_error(t, ...) {                           \
+      error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
+      errors++;                                       \
+      return false;                                   \
+   }
 
 static void scope_push(ident_t prefix)
 {
@@ -769,7 +769,11 @@ static bool sem_check_context(tree_t t)
          c = all;
       }
 
-      if (!scope_import_unit(lib_work(), c))
+      lib_t lib = lib_find(istr(ident_until(c, '.')), true, true);
+      if (lib == NULL)
+         return false;
+
+      if (!scope_import_unit(lib, c))
           return false;
    }
 

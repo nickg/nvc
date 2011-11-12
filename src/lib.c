@@ -101,6 +101,10 @@ static lib_t lib_find_at(const char *name, const char *path)
    char dir[PATH_MAX];
    snprintf(dir, sizeof(dir), "%s/%s", path, name);
 
+   // Convert to lower case
+   for (char *p = dir; *p != '\0'; p++)
+      *p = tolower(*p);
+
    if (access(dir, F_OK) < 0)
       return NULL;
 

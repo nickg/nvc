@@ -145,6 +145,14 @@ START_TEST(test_char)
 }
 END_TEST
 
+START_TEST(test_until)
+{
+   ident_t i;
+   i = ident_new("aye.bee.c");
+   fail_unless(ident_until(i, '.') == ident_new("aye"));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -160,6 +168,7 @@ int main(void)
    tcase_add_test(tc_core, test_prefix);
    tcase_add_test(tc_core, test_strip);
    tcase_add_test(tc_core, test_char);
+   tcase_add_test(tc_core, test_until);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

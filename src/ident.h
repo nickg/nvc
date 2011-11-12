@@ -22,6 +22,9 @@ ident_t ident_strip(ident_t a, ident_t b);
 // Return the Nth character of an identifier counting from the end.
 char ident_char(ident_t i, unsigned n);
 
+// Return the the prefix of i that does not include c
+ident_t ident_until(ident_t i, char c);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoid except
 // for printing. The pointer returned is only valid for the next

@@ -213,3 +213,17 @@ char ident_char(ident_t i, unsigned n)
    else
       return ident_char(i->up, n - 1);
 }
+
+ident_t ident_until(ident_t i, char c)
+{
+   assert(i != NULL);
+
+   ident_t r = i;
+   while (i->value != '\0') {
+      if (i->value == c)
+         r = i->up;
+      i = i->up;
+   }
+
+   return r;
+}
