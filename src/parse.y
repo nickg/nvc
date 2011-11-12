@@ -960,8 +960,11 @@ subtype_decl
      tree_set_loc(r, &@4);
      tree_set_ident(r, $4);
 
-     type_t sub = type_new(T_SUBTYPE);
-     type_set_base(sub, $5);
+     type_t sub = $5;
+     if (type_kind(sub) != T_SUBTYPE) {
+        sub = type_new(T_SUBTYPE);
+        type_set_base(sub, $5);
+     }
      type_set_ident(sub, $2);
      type_set_resolution(sub, r);
 
