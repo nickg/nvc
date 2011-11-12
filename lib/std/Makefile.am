@@ -7,7 +7,7 @@ bootstrap: $(std_DATA)
 
 std/_NVC_LIB: std/STD.STANDARD
 
-std/STD.STANDARD: $(nvc) $(srcdir)/standard.vhd
+std/STD.STANDARD: $(srcdir)/standard.vhd
 	$(nvc) --work=std -a --bootstrap $(srcdir)/standard.vhd
 
 clean-local:

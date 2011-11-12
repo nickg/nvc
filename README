@@ -14,5 +14,6 @@ To run the regression tests:
   make check
 
 To recompile the standard libraries:
+  make -C lib clean
   make bootstrap
 Note this happens automatically when installing.
