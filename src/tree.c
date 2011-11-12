@@ -1015,12 +1015,21 @@ static unsigned tree_visit_type(type_t type,
    }
 
    switch (type_kind(type)) {
+   case T_SUBTYPE:
+   case T_CARRAY:
+   case T_UARRAY:
+      n += tree_visit_type(type_base(type), fn, context, kind,
+                           generation, deep);
+      break;
+   default:
+      break;
+   }
+
+   switch (type_kind(type)) {
    case T_UNRESOLVED:
       break;
 
    case T_SUBTYPE:
-      n += tree_visit_type(type_base(type), fn, context, kind,
-                           generation, deep);
       if (type_has_resolution(type))
          n += tree_visit_aux(type_resolution(type), fn, context,
                              kind, generation, deep);
@@ -1227,6 +1236,7 @@ static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
          tree_write(a->items[i].value, ctx);
          break;
       case P_RANGE:
+         write_s(a->items[i].range.kind, ctx->file);
          tree_write(a->items[i].range.left, ctx);
          tree_write(a->items[i].range.right, ctx);
          break;
@@ -1250,6 +1260,7 @@ static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
          a->items[i].value = tree_read(ctx);
          break;
       case P_RANGE:
+         a->items[i].range.kind  = read_s(ctx->file);
          a->items[i].range.left  = tree_read(ctx);
          a->items[i].range.right = tree_read(ctx);
          break;
@@ -1368,6 +1379,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
                tree_write(t->assocs[i].name, ctx);
                break;
             case A_RANGE:
+               write_s(t->assocs[i].range.kind, ctx->file);
                tree_write(t->assocs[i].range.left, ctx);
                tree_write(t->assocs[i].range.right, ctx);
                break;
@@ -1534,6 +1546,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
                t->assocs[i].name = tree_read(ctx);
                break;
             case A_RANGE:
+               t->assocs[i].range.kind  = read_s(ctx->file);
                t->assocs[i].range.left  = tree_read(ctx);
                t->assocs[i].range.right = tree_read(ctx);
                break;
@@ -1876,4 +1889,192 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
    }
 
    return (*fn)(t, context);
+}
+
+struct tree_copy_ctx {
+   tree_t   *copied;
+   size_t   n_copied;
+   unsigned generation;
+};
+
+static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
+
+static void copy_a(struct tree_array *from, struct tree_array *to,
+                   struct tree_copy_ctx *ctx)
+{
+   to->count = to->max = from->count;
+   to->items = xmalloc(to->count * sizeof(param_t));
+
+   for (unsigned i = 0; i < from->count; i++)
+      to->items[i] = tree_copy_aux(from->items[i], ctx);
+}
+
+static void copy_p(struct param_array *from, struct param_array *to,
+                   struct tree_copy_ctx *ctx)
+{
+   to->count = to->max = from->count;
+   to->items = xmalloc(to->count * sizeof(param_t));
+
+   for (unsigned i = 0; i < from->count; i++) {
+      param_t *fp = &from->items[i];
+      param_t *tp = &to->items[i];
+
+      switch ((tp->kind = fp->kind)) {
+      case P_POS:
+         tp->pos   = fp->pos;
+         tp->value = tree_copy_aux(fp->value, ctx);
+         break;
+      case P_RANGE:
+         tp->range.kind  = fp->range.kind;
+         tp->range.left  = tree_copy_aux(fp->range.left, ctx);
+         tp->range.right = tree_copy_aux(fp->range.right, ctx);
+         break;
+      case P_NAMED:
+         tp->name  = fp->name;
+         tp->value = tree_copy_aux(fp->value, ctx);
+         break;
+      }
+   }
+}
+
+static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
+{
+   if (t == NULL)
+      return NULL;
+
+   if (t->generation == ctx->generation) {
+      // Already copied this tree
+      assert(t->index < ctx->n_copied);
+      return ctx->copied[t->index];
+   }
+
+   tree_t copy = tree_new(t->kind);
+
+   t->generation = ctx->generation;
+   t->index      = (ctx->n_copied)++;
+   ctx->copied[t->index] = copy;
+
+   copy->loc        = t->loc;
+   if (HAS_IDENT(t))
+      copy->ident = t->ident;
+   if (HAS_IDENT2(t))
+      copy->ident2 = t->ident2;
+   if (HAS_PORTS(t))
+      copy_a(&t->ports, &copy->ports, ctx);
+   if (HAS_GENERICS(t))
+      copy_a(&t->generics, &copy->generics, ctx);
+   if (HAS_DECLS(t))
+      copy_a(&t->decls, &copy->decls, ctx);
+   if (HAS_TRIGGERS(t))
+      copy_a(&t->triggers, &copy->triggers, ctx);
+   if (HAS_STMTS(t))
+      copy_a(&t->stmts, &copy->stmts, ctx);
+   if (HAS_TYPE(t)) {
+      copy->type = t->type;
+      type_ref(copy->type);
+   }
+   if (HAS_VALUE(t))
+      copy->value = tree_copy_aux(t->value, ctx);
+   if (HAS_DELAY(t))
+      copy->delay = tree_copy_aux(t->delay, ctx);
+   if (HAS_TARGET(t))
+      copy->target = tree_copy_aux(t->target, ctx);
+   if (HAS_REF(t))
+      copy->ref = tree_copy_aux(t->ref, ctx);
+   if (HAS_CONTEXT(t)) {
+      for (unsigned i = 0; i < tree_contexts(t); i++)
+         tree_add_context(copy, tree_context(t, i));
+   }
+   if (HAS_PARAMS(t))
+      copy_p(&t->params, &copy->params, ctx);
+
+   switch (t->kind) {
+   case T_PORT_DECL:
+      copy->port_mode = t->port_mode;
+      break;
+
+   case T_LITERAL:
+      copy->literal = t->literal;
+      break;
+
+   case T_AGGREGATE:
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+         switch (a.kind) {
+         case A_POS:
+         case A_OTHERS:
+            break;
+         case A_NAMED:
+            a.name = tree_copy_aux(a.name, ctx);
+            break;
+         case A_RANGE:
+            a.range.left  = tree_copy_aux(a.range.left, ctx);
+            a.range.right = tree_copy_aux(a.range.right, ctx);
+            break;
+         }
+
+         tree_add_assoc(copy, a);
+      }
+      break;
+
+   case T_ASSERT:
+      copy->severity = tree_copy_aux(t->severity, ctx);
+      copy->message  = tree_copy_aux(t->message, ctx);
+      break;
+
+   case T_ENUM_LIT:
+      copy->pos = t->pos;
+      break;
+
+   case T_ARRAY_SLICE:
+      copy->range.kind  = t->range.kind;
+      copy->range.left  = tree_copy_aux(t->range.left, ctx);
+      copy->range.right = tree_copy_aux(t->range.right, ctx);
+      break;
+
+   case T_INSTANCE:
+      copy_p(&t->genmaps, &copy->genmaps, ctx);
+      break;
+
+   case T_IF:
+      copy_a(&t->elses, &copy->elses, ctx);
+      break;
+
+   default:
+      break;
+   }
+
+   for (unsigned i = 0; i < t->n_attrs; i++) {
+      switch (t->attrs[i].kind) {
+      case A_STRING:
+         tree_add_attr_str(copy, t->attrs[i].name, t->attrs[i].sval);
+         break;
+
+      case A_INT:
+         tree_add_attr_int(copy, t->attrs[i].name, t->attrs[i].ival);
+         break;
+
+      case A_TREE:
+         tree_add_attr_tree(copy, t->attrs[i].name, t->attrs[i].tval);
+         break;
+
+      case A_PTR:
+         tree_add_attr_ptr(copy, t->attrs[i].name, t->attrs[i].pval);
+         break;
+      }
+   }
+
+   return copy;
+}
+
+tree_t tree_copy(tree_t t)
+{
+   struct tree_copy_ctx ctx = {
+      .copied     = xmalloc(sizeof(tree_t) * n_trees_alloc),
+      .n_copied   = 0,
+      .generation = next_generation++
+   };
+   tree_t copy = tree_copy_aux(t, &ctx);
+   free(ctx.copied);
+   return copy;
 }

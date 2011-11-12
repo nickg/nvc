@@ -55,6 +55,7 @@ static tree_t str_to_agg(const char *p, const char *end)
 
    type_t type = type_new(T_CARRAY);
    type_set_ident(type, ident_new("string"));
+   type_set_base(type, type_universal_int());
    range_t r = { .kind = RANGE_DOWNTO, .left = left, .right = right };
    type_add_dim(type, r);
 
@@ -169,8 +170,8 @@ START_TEST(test_lib_save)
       tree_set_message(s4, str_to_agg("message", NULL));
       tree_add_stmt(pr, s4);
 
-      lib_put(work, ent);
       lib_put(work, ar);
+      lib_put(work, ent);
    }
 
    tree_gc();

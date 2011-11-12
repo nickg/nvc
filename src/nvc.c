@@ -142,6 +142,7 @@ static int elaborate(int argc, char **argv)
             istr(unit_i), istr(lib_name(lib_work())));
 
    tree_t e = elab(unit);
+   tree_gc();
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees. We also want to avoid saving the signal

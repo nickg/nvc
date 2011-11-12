@@ -106,6 +106,24 @@ START_TEST(test_elab1)
 }
 END_TEST
 
+START_TEST(test_elab2)
+{
+   tree_t top;
+
+   fail_unless(input_from_file(TESTDIR "/elab/elab2.vhd"));
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   top = run_elab();
+
+   driver_extract(top);
+   fail_unless(driver_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -118,6 +136,7 @@ int main(void)
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_drivers);
    tcase_add_test(tc_core, test_elab1);
+   tcase_add_test(tc_core, test_elab2);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

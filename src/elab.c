@@ -116,9 +116,7 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
 
-   tree_t arch = pick_arch(tree_ident2(t));
-
-   // TODO: make copy of arch
+   tree_t arch = tree_copy(pick_arch(tree_ident2(t)));
 
    // Bind all ports to signals
    for (unsigned i = 0; i < tree_params(t); i++) {
