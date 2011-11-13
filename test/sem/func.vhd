@@ -27,3 +27,15 @@ package func is
     function default(x : in uenum := 6) return uenum;  -- Error
     
 end package;
+
+package body bad is                     -- Error
+end package body;
+
+package body func is
+
+    function sum(x, y, z : in integer) return integer is
+    begin
+        null;
+    end function;
+
+end package body;

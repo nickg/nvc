@@ -433,6 +433,7 @@ START_TEST(test_func)
       { 21, "resolution function must have single argument" },
       { 25, "declaration UENUM is not a function" },
       { 27, "type of default value must be WORK.FUNC.UENUM" },
+      { 31, "no package named BAD" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -440,6 +441,16 @@ START_TEST(test_func)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PBODY);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PBODY);
    sem_check(p);
 
    fail_unless(parse() == NULL);

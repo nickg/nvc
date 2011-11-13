@@ -342,6 +342,7 @@ package_decl
   tEND opt_package_body opt_id tSEMI
   {
      $$ = tree_new(T_PBODY);
+     tree_set_loc($$, &@$);
      tree_set_ident($$, $3);
      copy_trees($5, tree_add_decl, $$);
 
@@ -735,12 +736,20 @@ subprogram_decl
   }
 | func_type func_name formal_param_list tRETURN type_mark tIS
   subprogram_decl_part tBEGIN seq_stmt_list tEND opt_func
-  func_name tSEMI
+  opt_func_name tSEMI
   {
+     type_t t = type_new(T_FUNC);
+     type_set_ident(t, $2);
+     type_set_result(t, $5);
+
      tree_t f = tree_new(T_FBODY);
      tree_set_loc(f, &@$);
      tree_set_ident(f, $2);
+     tree_set_type(f, t);
 
+     for (tree_list_t *it = $3; it != NULL; it = it->next)
+        tree_add_port(f, it->value);
+     tree_list_free($3);
 
      $$ = NULL;
      tree_list_append(&$$, f);
@@ -759,6 +768,8 @@ func_name
      free(lvals.sval);
   }
 ;
+
+opt_func_name : func_name | /* empty */ ;
 
 subprogram_decl_part
 : subprogram_decl_item subprogram_decl_part

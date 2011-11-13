@@ -1022,7 +1022,7 @@ static bool sem_check_decl(tree_t t)
    return scope_insert(t);
 }
 
-static bool sem_check_func_decl(tree_t t)
+static bool sem_check_func_ports(tree_t t)
 {
    type_t ftype = tree_type(t);
 
@@ -1055,8 +1055,28 @@ static bool sem_check_func_decl(tree_t t)
 
    type_set_result(ftype, rtype);
 
+   return true;
+}
+
+static bool sem_check_func_decl(tree_t t)
+{
+   if (!sem_check_func_ports(t))
+      return false;
+
    scope_apply_prefix(t);
    return scope_insert(t);
+}
+
+static bool sem_check_func_body(tree_t t)
+{
+   if (!sem_check_func_ports(t))
+      return false;
+
+   scope_apply_prefix(t);
+
+   // TODO: if there is no declaration to this function add it to the scope
+
+   return true;
 }
 
 static bool sem_check_sensitivity(tree_t t)
@@ -1123,6 +1143,29 @@ static bool sem_check_package(tree_t t)
    scope_pop();
 
    tree_set_ident(t, qual);
+   lib_put(lib_work(), t);
+
+   return ok;
+}
+
+static bool sem_check_package_body(tree_t t)
+{
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
+
+   tree_t head = lib_get(lib_work(), qual);
+   if (head == NULL)
+      sem_error(t, "no package named %s", istr(tree_ident(t)));
+
+   scope_push(qual);
+
+   bool ok = sem_check_context(t);
+
+   for (unsigned n = 0; n < tree_decls(t); n++)
+      ok = sem_check(tree_decl(t, n)) && ok;
+
+   scope_pop();
+
+   tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
    lib_put(lib_work(), t);
 
    return ok;
@@ -1950,6 +1993,10 @@ bool sem_check(tree_t t)
       return sem_check_if(t);
    case T_NULL:
       return true;
+   case T_PBODY:
+      return sem_check_package_body(t);
+   case T_FBODY:
+      return sem_check_func_body(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
