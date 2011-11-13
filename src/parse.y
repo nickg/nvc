@@ -926,12 +926,17 @@ seq_stmt_without_label
      $$ = tree_new(T_NULL);
      tree_set_loc($$, &@$);
   }
+| tRETURN expr tSEMI
+  {
+     $$ = tree_new(T_RETURN);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+  }
 /* | procedure_call_statement
    | case_statement
    | loop_statement
    | next_statement
-   | exit_statement
-   | return_statement */
+   | exit_statement */
 ;
 
 elsif_list

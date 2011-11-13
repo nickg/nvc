@@ -65,5 +65,11 @@ begin
     begin
         null;
     end process;
+
+    -- Return
+    process is
+    begin
+        return 4 * 4;
+    end process;
     
 end architecture;
