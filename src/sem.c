@@ -37,6 +37,7 @@ struct btree {
 
 struct scope {
    struct btree      *decls;
+   tree_t            func;
 
    // For design unit scopes
    ident_t           prefix;
@@ -84,6 +85,7 @@ static void scope_push(ident_t prefix)
    s->context  = NULL;
    s->imported = NULL;
    s->down     = top_scope;
+   s->func     = NULL;
 
    top_scope = s;
 }
@@ -295,7 +297,7 @@ static void scope_replace(tree_t t, tree_t with)
    scope_replace_at(t, with, top_scope->decls);
 }
 
-static bool scope_import_unit(lib_t lib, ident_t name)
+static bool scope_import_unit(tree_t t, lib_t lib, ident_t name)
 {
    // Check we haven't already imported this
    struct ident_list *it;
@@ -306,7 +308,7 @@ static bool scope_import_unit(lib_t lib, ident_t name)
 
    tree_t unit = lib_get(lib, name);
    if (unit == NULL)
-      sem_error(NULL, "unit %s not found in library %s",
+      sem_error(t, "unit %s not found in library %s",
                 istr(name), istr(lib_name(lib)));
 
    for (unsigned n = 0; n < tree_decls(unit); n++) {
@@ -757,7 +759,7 @@ static bool sem_check_context(tree_t t)
 
       ident_t std_standard_name = ident_new("STD.STANDARD");
       scope_add_context(std_standard_name);
-      if (!scope_import_unit(std, std_standard_name))
+      if (!scope_import_unit(t, std, std_standard_name))
          return false;
    }
 
@@ -773,7 +775,7 @@ static bool sem_check_context(tree_t t)
       if (lib == NULL)
          return false;
 
-      if (!scope_import_unit(lib, c))
+      if (!scope_import_unit(t, lib, c))
           return false;
    }
 
@@ -1076,6 +1078,22 @@ static bool sem_check_func_body(tree_t t)
 
    // TODO: if there is no declaration to this function add it to the scope
 
+   scope_push(NULL);
+   top_scope->func = t;
+
+   for (unsigned i = 0; i < tree_ports(t); i++)
+      scope_insert(tree_port(t, i));
+
+   bool ok = true;
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      ok = sem_check(tree_stmt(t, i)) && ok;
+
+   scope_pop();
+
+   unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
+   if (nret == 0)
+      sem_error(t, "function must contain a return statement");
+
    return true;
 }
 
@@ -1152,13 +1170,12 @@ static bool sem_check_package_body(tree_t t)
 {
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
-   tree_t head = lib_get(lib_work(), qual);
-   if (head == NULL)
-      sem_error(t, "no package named %s", istr(tree_ident(t)));
-
    scope_push(qual);
 
    bool ok = sem_check_context(t);
+
+   // Look up package declaration
+   ok = scope_import_unit(t, lib_work(), qual) && ok;
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
@@ -1943,6 +1960,22 @@ static bool sem_check_if(tree_t t)
    return ok;
 }
 
+static bool sem_check_return(tree_t t)
+{
+   if (top_scope->func == NULL)
+      sem_error(t, "return statement not allowed outside function");
+
+   type_t expect = type_result(tree_type(top_scope->func));
+
+   if (!sem_check_constrained(tree_value(t), expect))
+      return false;
+
+   if (!type_eq(tree_type(tree_value(t)), expect))
+      sem_error(t, "expected return type %s", type_pp(expect));
+
+   return true;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -1997,6 +2030,8 @@ bool sem_check(tree_t t)
       return sem_check_package_body(t);
    case T_FBODY:
       return sem_check_func_body(t);
+   case T_RETURN:
+      return sem_check_return(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

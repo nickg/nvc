@@ -41,5 +41,11 @@ begin
     begin
         null;
     end process;
+
+    -- Return statements
+    process is
+    begin
+        return 1;                       -- Error
+    end process;
     
 end architecture;

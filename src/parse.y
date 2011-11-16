@@ -727,9 +727,7 @@ subprogram_decl
      tree_set_ident(f, $2);
      tree_set_type(f, t);
 
-     for (tree_list_t *it = $3; it != NULL; it = it->next)
-        tree_add_port(f, it->value);
-     tree_list_free($3);
+     copy_trees($3, tree_add_port, f);
 
      $$ = NULL;
      tree_list_append(&$$, f);
@@ -747,9 +745,8 @@ subprogram_decl
      tree_set_ident(f, $2);
      tree_set_type(f, t);
 
-     for (tree_list_t *it = $3; it != NULL; it = it->next)
-        tree_add_port(f, it->value);
-     tree_list_free($3);
+     copy_trees($3, tree_add_port, f);
+     copy_trees($9, tree_add_stmt, f);
 
      $$ = NULL;
      tree_list_append(&$$, f);

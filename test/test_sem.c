@@ -433,7 +433,10 @@ START_TEST(test_func)
       { 21, "resolution function must have single argument" },
       { 25, "declaration UENUM is not a function" },
       { 27, "type of default value must be WORK.FUNC.UENUM" },
-      { 31, "no package named BAD" },
+      { 31, "unit WORK.BAD not found in library WORK" },
+      { 43, "no suitable overload for identifier A" },
+      { 46, "function arguments must have mode IN" },
+      { 51, "function must contain a return statement" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -586,6 +589,7 @@ START_TEST(test_seq)
       { 19, "undefined identifier X" },
       { 25, "no suitable overload for identifier TRUE" },
       { 32, "undefined identifier X" },
+      { 48, "return statement not allowed outside function" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -62,16 +62,15 @@ struct tree {
    unsigned    n_attrs;
 
    union {
-      struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL
+      struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL, T_FBODY
       struct param_array params;   // T_FCALL, T_ATTR_REF
       struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE
       struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
       struct tree_array  generics; // T_ENTITY
-      struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE
+      struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FBODY
       struct param_array genmaps;  // T_INSTANCE
-      type_t             type;     // many
    };
    union {
       literal_t   literal;         // T_LITERAL
@@ -107,6 +106,7 @@ struct tree {
       struct tree_array triggers;  // T_WAIT, T_PROCESS
       struct tree_array elses;     // T_IF
    };
+   type_t             type;        // many
 
    // Serialisation and GC bookkeeping
    unsigned short generation;
