@@ -717,10 +717,27 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
    tree_t t = tree_read_recall(ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
+   type_t type = tree_type(t);
+
+   int64_t low = 0, high = 0;
+   if (type_kind(type) == T_CARRAY)
+      range_bounds(type_dim(type, 0), &low, &high);
+
+   assert(msg->len <= high - low + 1);
+
    struct signal *sig = tree_attr_ptr(t, ident_new("signal"));
 
-   reply_read_signal_msg_t reply = { .value = sig->resolved };
-   slave_post_msg(REPLY_READ_SIGNAL, &reply, sizeof(reply));
+   const size_t rsz =
+      sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
+   reply_read_signal_msg_t *reply = xmalloc(rsz);
+
+   reply->len = msg->len;
+   for (unsigned i = 0; i < msg->len; i++)
+      reply->values[i] = sig[i].resolved;
+
+   slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
+
+   free(reply);
 }
 
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)

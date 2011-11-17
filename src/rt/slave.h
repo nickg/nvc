@@ -41,10 +41,12 @@ typedef struct {
 
 typedef struct {
    uint32_t index;
+   uint32_t len;
 } slave_read_signal_msg_t;
 
 typedef struct {
-   uint64_t value;
+   uint32_t len;
+   uint64_t values[0];
 } reply_read_signal_msg_t;
 
 void slave_post_msg(slave_msg_t msg, const void *args, size_t len);

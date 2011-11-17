@@ -62,7 +62,7 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
       body_len = sizeof(slave_read_signal_msg_t);
       break;
    case REPLY_READ_SIGNAL:
-      body_len = sizeof(reply_read_signal_msg_t);
+      body_len = *len;
       break;
    default:
       fatal("invalid slave message %u\n", *msg);

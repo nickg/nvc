@@ -36,24 +36,33 @@
 #include <readline/history.h>
 #endif
 
-static const char *shell_fmt_signal_value(tree_t t, uint64_t value)
+static const char *shell_fmt_signal_value(tree_t t, uint64_t *values,
+                                          unsigned len)
 {
    static char buf[256];
 
-   type_t type = tree_type(t);
-   switch (type_kind(type)) {
-   case T_INTEGER:
-      snprintf(buf, sizeof(buf), "%"PRIi64, value);
-      break;
+   char *p = buf;
+   const char *end = buf + sizeof(buf);
 
-   case T_ENUM:
-      assert(value < type_enum_literals(type));
-      snprintf(buf, sizeof(buf), "%s",
-               istr(tree_ident(type_enum_literal(type, value))));
-      break;
+   type_t base = tree_type(t);
+   if (type_kind(base) == T_CARRAY)
+      base = type_base(base);
 
-   default:
-      snprintf(buf, sizeof(buf), "%"PRIx64, value);
+   for (unsigned i = 0; i < len; i++) {
+      switch (type_kind(base)) {
+      case T_INTEGER:
+         p += snprintf(p, end - p, "%"PRIi64, values[i]);
+         break;
+
+      case T_ENUM:
+         assert(values[i] < type_enum_literals(base));
+         p += snprintf(p, end - p, "%s",
+                       istr(tree_ident(type_enum_literal(base, values[i]))));
+         break;
+
+      default:
+         p += snprintf(p, end - p, "%"PRIx64, values[i]);
+      }
    }
 
    return buf;
@@ -131,16 +140,27 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
       for (unsigned i = 0; i < tree_decls(top); i++) {
          tree_t d = tree_decl(top, i);
 
-         slave_read_signal_msg_t msg = { .index = tree_index(d) };
+         int64_t low = 0, high = 0;
+         if (type_kind(tree_type(d)) == T_CARRAY)
+            range_bounds(type_dim(tree_type(d), 0), &low, &high);
+
+         slave_read_signal_msg_t msg = {
+            .index = tree_index(d),
+            .len   = high - low + 1
+         };
          slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
 
-         reply_read_signal_msg_t reply;
-         slave_get_reply(REPLY_READ_SIGNAL, &reply, sizeof(reply));
+         const size_t rsz =
+            sizeof(reply_read_signal_msg_t) + (msg.len * sizeof(uint64_t));
+         reply_read_signal_msg_t *reply = xmalloc(rsz);
+         slave_get_reply(REPLY_READ_SIGNAL, reply, rsz);
 
          printf("%-30s%-25s%s\n",
                 istr(tree_ident(d)),
                 type_pp(tree_type(d)),
-                shell_fmt_signal_value(d, reply.value));
+                shell_fmt_signal_value(d, reply->values, msg.len));
+
+         free(reply);
       }
    }
    else if (strcmp(what, "process") == 0) {
