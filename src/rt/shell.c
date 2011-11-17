@@ -44,11 +44,19 @@ static const char *shell_fmt_signal_value(tree_t t, uint64_t *values,
    char *p = buf;
    const char *end = buf + sizeof(buf);
 
-   type_t base = tree_type(t);
-   if (type_kind(base) == T_CARRAY)
-      base = type_base(base);
+   type_t type = tree_type(t);
+   type_t base = (type_kind(type) == T_CARRAY ? type_base(type) : type);
 
-   for (unsigned i = 0; i < len; i++) {
+   unsigned left = 0, right = len - 1, step = 1;
+
+   if ((type_kind(type) == T_CARRAY)
+       && (type_dim(type, 0).kind == RANGE_DOWNTO)) {
+      left  = len - 1;
+      right = 0;
+      step  = -1;
+   }
+
+   for (unsigned i = left; i != right + step; i += step) {
       switch (type_kind(base)) {
       case T_INTEGER:
          p += snprintf(p, end - p, "%"PRIi64, values[i]);
