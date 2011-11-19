@@ -1076,7 +1076,28 @@ static bool sem_check_func_body(tree_t t)
 
    scope_apply_prefix(t);
 
-   // TODO: if there is no declaration to this function add it to the scope
+   // If there is no declaration for this function add one to the scope
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         if (tree_kind(decl) != T_FUNC_DECL)
+            continue;
+
+         if (type_eq(tree_type(t), tree_type(decl)))
+            break;
+      }
+   } while (decl != NULL);
+
+   if (decl == NULL) {
+      decl = tree_new(T_FUNC_DECL);
+      tree_set_loc(decl, tree_loc(t));
+      tree_set_ident(decl, tree_ident(t));
+      tree_set_type(decl, tree_type(t));
+
+      if (!scope_insert(decl))
+         return false;
+   }
 
    scope_push(NULL);
    top_scope->func = t;
