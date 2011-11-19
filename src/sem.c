@@ -2061,6 +2061,8 @@ bool sem_check(tree_t t)
       return sem_check_func_body(t);
    case T_RETURN:
       return sem_check_return(t);
+   case T_CASSIGN:
+      return sem_check_signal_assign(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
