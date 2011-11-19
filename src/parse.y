@@ -1106,6 +1106,11 @@ constrained_array_def
 
 index_constraint
 : tLPAREN range /* { , range } */ tRPAREN { $$ = $2; }
+| tLPAREN type_mark tRPAREN
+  {
+     $$.kind = RANGE_TYPE;
+     $$.type = $2;
+  }
 ;
 
 unconstrained_array_def

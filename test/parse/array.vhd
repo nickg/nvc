@@ -3,6 +3,9 @@ package p is
     type int_array is array (integer range <>) of integer;
 
     type ten_ints is array (1 to 10) of integer;
+
+    type chars is (A, B, C);
+    type char_counts is array (chars) of integer;
     
 end package;
 
@@ -12,6 +15,7 @@ architecture a of e is
     signal z : int_array(1 to 3) := ( 0, 1, 2 );
     signal n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
+    signal c : char_counts;
 begin
 
     process is
