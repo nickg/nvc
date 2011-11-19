@@ -69,5 +69,17 @@ begin
         g := f;                         -- OK
         g := h;                         -- OK
     end process;
+
+    process is
+        type weird is ( '¢', '¦' );
+        variable x : weird;
+        variable y : character;
+    begin
+        x := '¢';
+        y := '¢';
+        report "foo¥bar";
+    end process;
     
 end architecture;
+
+-- -*- coding: latin-1; -*-

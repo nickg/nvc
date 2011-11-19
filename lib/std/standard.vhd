@@ -1,3 +1,4 @@
+-- -*- coding: latin-1; -*-
 --
 -- STANDARD package as defined by IEEE 1076-1993
 --
@@ -30,12 +31,16 @@ package STANDARD is
         'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
         'x', 'y', 'z', '{', '|', '}', '~', DEL,
 
-        C128, C129, C130, C131, C132, C133, C134, C135,
-        C136, C137, C138, C139, C140, C141, C142, C143,
-        C144, C145, C146, C147, C148, C149, C150, C151,
-        C152, C153, C154, C155, C156, C157, C158, C159
+        C128, C129, C130, C131, C132, C133, C134,
+        C135, C136, C137, C138, C139, C140, C141,
+        C142, C143, C144, C145, C146, C147, C148,
+        C149, C150, C151, C152, C153, C154, C155,
+        C156, C157, C158, C159,
 
-        -- TODO: various extended characters
+        ' ', '¡', '¢', '£', '¤', '¥', '¦', '§',
+        '¨', '©', 'ª', '«', '¬', '­', '®', '¯',
+        '°', '±', '²', '³', '´', 'µ', '¶', '¹'
+                         -- TODO: 0xba onwards          
         );
 
     type SEVERITY_LEVEL is (NOTE, WARNING, ERROR, FAILURE);

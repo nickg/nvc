@@ -1646,6 +1646,9 @@ static tree_t str_to_agg(const char *start, const char *end)
    tree_t t = tree_new(T_AGGREGATE);
 
    for (const char *p = start; *p != '\0' && p != end; p++) {
+      if (*p == -127)
+         continue;
+
       const char ch[] = { '\'', *p, '\'', '\0' };
 
       tree_t ref = tree_new(T_REF);
