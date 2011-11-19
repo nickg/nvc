@@ -190,7 +190,8 @@ static char *shell_get_line(void)
    if (isatty(fileno(stdin))) {
 #ifdef HAVE_LIBREADLINE
       char *buf = readline("% ");
-      add_history(buf);
+      if ((buf != NULL) && (*buf != '\0'))
+         add_history(buf);
       return buf;
 #else   // HAVE_LIBREADLINE
       printf("%% ");
