@@ -53,4 +53,7 @@ package body func is
         null;         -- Missing return statement
     end function;
 
+    function foo(x, y, z : in integer) return integer;
+    function foo(x, y, z : in integer) return integer;  -- Duplicate
+    
 end package body;

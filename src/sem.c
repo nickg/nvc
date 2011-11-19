@@ -1060,10 +1060,31 @@ static bool sem_check_func_ports(tree_t t)
    return true;
 }
 
+static bool sem_check_func_duplicate(tree_t t)
+{
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         if (tree_kind(decl) != T_FUNC_DECL)
+            continue;
+
+         if (type_eq(tree_type(t), tree_type(decl)))
+            break;
+      }
+   } while (decl != NULL);
+
+   return decl != NULL;
+}
+
 static bool sem_check_func_decl(tree_t t)
 {
    if (!sem_check_func_ports(t))
       return false;
+
+   if (sem_check_func_duplicate(t))
+      sem_error(t, "duplicate declaration of function %s",
+                istr(tree_ident(t)));
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -1077,19 +1098,7 @@ static bool sem_check_func_body(tree_t t)
    scope_apply_prefix(t);
 
    // If there is no declaration for this function add to the scope
-   tree_t decl;
-   int n = 0;
-   do {
-      if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         if (tree_kind(decl) != T_FUNC_DECL)
-            continue;
-
-         if (type_eq(tree_type(t), tree_type(decl)))
-            break;
-      }
-   } while (decl != NULL);
-
-   if (decl == NULL) {
+   if (!sem_check_func_duplicate(t)) {
       if (!scope_insert(t))
          return false;
    }

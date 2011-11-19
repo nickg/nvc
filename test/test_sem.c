@@ -437,6 +437,7 @@ START_TEST(test_func)
       { 43, "no suitable overload for identifier A" },
       { 46, "function arguments must have mode IN" },
       { 51, "function must contain a return statement" },
+      { 57, "duplicate declaration of function FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
