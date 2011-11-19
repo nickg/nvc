@@ -64,6 +64,7 @@ typedef enum tree_kind {
    T_PBODY,
    T_FBODY,
    T_RETURN,
+   T_CASSIGN,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -154,7 +155,7 @@ void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
 // T_SIGNAL_ASSIGN, T_QUALIFIED, T_CONST_DECL, T_ASSERT,
-// T_ARRAY_REF, T_IF
+// T_ARRAY_REF, T_IF, T_CASSIGN
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
@@ -184,7 +185,7 @@ unsigned tree_triggers(tree_t t);
 tree_t tree_trigger(tree_t t, unsigned n);
 void tree_add_trigger(tree_t t, tree_t s);
 
-// T_VAR_ASSIGN, T_SIGNAL_ASSIGN
+// T_VAR_ASSIGN, T_SIGNAL_ASSIGN, T_CASSIGN
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 

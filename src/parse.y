@@ -166,6 +166,7 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform waveform_element seq_stmt_without_label
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
+%type <t> conc_assign_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -604,12 +605,13 @@ conc_stmt
 ;
 
 conc_stmt_without_label
-: process_stmt | comp_instance_stmt
+: process_stmt
+| comp_instance_stmt
+| conc_assign_stmt
   /* | block_statement
      | process_statement
      | concurrent_procedure_call_statement
      | concurrent_assertion_statement
-     | concurrent_signal_assignment_statement
      | generate_statement */
 ;
 
@@ -814,6 +816,17 @@ variable_decl
 
      id_list_free($2);
   }
+;
+
+conc_assign_stmt
+: target tLE waveform tSEMI
+  {
+     $$ = tree_new(T_CASSIGN);
+     tree_set_loc($$, &@$);
+     tree_set_target($$, $1);
+     tree_set_value($$, $3);
+  }
+;
 
 seq_stmt_list
 : seq_stmt seq_stmt_list

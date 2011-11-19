@@ -964,6 +964,29 @@ START_TEST(test_instance)
 }
 END_TEST
 
+START_TEST(test_conc)
+{
+   tree_t a, s;
+
+   fail_unless(input_from_file(TESTDIR "/parse/conc.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 1);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(tree_target(s)) == T_REF);
+   fail_unless(tree_kind(tree_value(s)) == T_FCALL);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -984,6 +1007,7 @@ int main(void)
    tcase_add_test(tc_core, test_func);
    tcase_add_test(tc_core, test_array);
    tcase_add_test(tc_core, test_instance);
+   tcase_add_test(tc_core, test_conc);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
