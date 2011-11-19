@@ -356,6 +356,36 @@ static tree_t simp_if(tree_t t)
       return t;
 }
 
+static void simp_build_wait(tree_t ref, void *context)
+{
+   tree_t wait = context;
+
+   if (tree_kind(tree_ref(ref)) == T_SIGNAL_DECL)
+      tree_add_trigger(wait, ref);
+}
+
+static tree_t simp_cassign(tree_t t)
+{
+   // Replace concurrent assignments with a process
+
+   tree_t p = tree_new(T_PROCESS);
+   tree_set_ident(p, tree_ident(t));
+
+   tree_t s = tree_new(T_SIGNAL_ASSIGN);
+   tree_set_loc(s, tree_loc(t));
+   tree_set_target(s, tree_target(t));
+   tree_set_value(s, tree_value(t));
+   tree_set_ident(s, tree_ident(t));
+
+   tree_t w = tree_new(T_WAIT);
+   tree_set_ident(w, ident_new("cassign"));
+   tree_visit_only(tree_value(t), simp_build_wait, w, T_REF);
+
+   tree_add_stmt(p, s);
+   tree_add_stmt(p, w);
+   return p;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -371,6 +401,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_ref(t);
    case T_IF:
       return simp_if(t);
+   case T_CASSIGN:
+      return simp_cassign(t);
    case T_NULL:
       return NULL;   // Delete it
    default:

@@ -35,7 +35,7 @@ static void dump_decl(tree_t t, int indent)
 
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
-      printf("signal \\%s\\ : %s;\n", istr(tree_ident(t)),
+      printf("signal %s : %s;\n", istr(tree_ident(t)),
              type_pp(tree_type(t)));
       break;
 
@@ -51,7 +51,7 @@ static void dump_expr(tree_t t)
       {
          const char *name = istr(tree_ident(tree_ref(t)));
          if (isalpha(name[0]))
-            printf("\\%s\\", name);
+            printf("%s", name);
          else
             printf("\"%s\"", name);
 
@@ -108,7 +108,7 @@ static void dump_expr(tree_t t)
       break;
 
    case T_REF:
-      printf("\\%s\\", istr(tree_ident(tree_ref(t))));
+      printf("%s", istr(tree_ident(tree_ref(t))));
       break;
 
    default:
@@ -119,7 +119,7 @@ static void dump_expr(tree_t t)
 static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
-   printf("\\%s\\: ", istr(tree_ident(t)));
+   printf("%s: ", istr(tree_ident(t)));
 
    switch (tree_kind(t)) {
    case T_PROCESS:
@@ -182,10 +182,35 @@ static void dump_stmt(tree_t t, int indent)
    printf(";\n");
 }
 
+static void dump_port(tree_t t, int indent)
+{
+   // TODO
+}
+
 static void dump_elab(tree_t t)
 {
-   printf("entity \\%s\\ is\nend entity;\n\n", istr(tree_ident(t)));
-   printf("architecture elab of \\%s\\ is\n", istr(tree_ident(t)));
+   printf("entity %s is\nend entity;\n\n", istr(tree_ident(t)));
+   printf("architecture elab of %s is\n", istr(tree_ident(t)));
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      dump_decl(tree_decl(t, i), 2);
+   printf("begin\n");
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      dump_stmt(tree_stmt(t, i), 2);
+   printf("end architecture;\n");
+}
+
+static void dump_entity(tree_t t)
+{
+   printf("entity %s is\n", istr(tree_ident(t)));
+   for (unsigned i = 0; i < tree_ports(t); i++)
+      dump_port(tree_port(t, i), 2);
+   printf("end entity;\n");
+}
+
+static void dump_arch(tree_t t)
+{
+   printf("architecture %s of %s is\n",
+          istr(tree_ident(t)), istr(tree_ident2(t)));
    for (unsigned i = 0; i < tree_decls(t); i++)
       dump_decl(tree_decl(t, i), 2);
    printf("begin\n");
@@ -199,6 +224,12 @@ void dump(tree_t t)
    switch (tree_kind(t)) {
    case T_ELAB:
       dump_elab(t);
+      break;
+   case T_ENTITY:
+      dump_entity(t);
+      break;
+   case T_ARCH:
+      dump_arch(t);
       break;
    default:
       assert(false);

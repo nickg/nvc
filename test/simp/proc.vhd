@@ -10,5 +10,8 @@ begin
     begin
         report "awake";
     end process;
+
+    -- Test rewrite of concurrent assignments
+    x <= y + 4;
     
 end architecture;

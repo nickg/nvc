@@ -179,6 +179,8 @@ START_TEST(test_proc)
 
    simplify(a);
 
+   ////////
+
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_if(tree_triggers(p) > 0);
@@ -196,6 +198,20 @@ START_TEST(test_proc)
    r = tree_trigger(s, 1);
    fail_unless(tree_kind(r) == T_REF);
    fail_unless(tree_ident(r) == ident_new("Y"));
+
+   ////////
+
+   p = tree_stmt(a, 1);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 2);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_WAIT);
+   fail_unless(tree_triggers(s) == 1);
+   fail_unless(tree_ident(tree_trigger(s, 0)) == ident_new("Y"));
 
    fail_unless(simplify_errors() == 0);
 }
