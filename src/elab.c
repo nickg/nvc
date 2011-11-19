@@ -79,9 +79,6 @@ static tree_t pick_arch(ident_t ent_name)
    if (arch == NULL)
       fatal("no suitable architecture for entity %s", istr(ent_name));
 
-   printf("selected architecture %s of %s\n", istr(tree_ident(arch)),
-          istr(ent_name));
-
    return arch;
 }
 
@@ -98,8 +95,6 @@ static tree_t rewrite_ports(tree_t t, void *context)
    case T_REF:
       if (tree_kind(tree_ref(t)) == T_PORT_DECL
           && (tree_ident(t) == tree_ident(params->formal))) {
-         printf("rewrite %s -> %s\n", istr(tree_ident(t)),
-                istr(tree_ident(params->actual)));
          tree_set_ref(t, params->actual);
       }
       break;
