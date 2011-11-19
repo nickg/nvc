@@ -153,10 +153,20 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
 {
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
-      if (tree_kind(d) == T_SIGNAL_DECL) {
-         tree_set_ident(d, hpathf(path, ':', "%s",
-                                  simple_name(istr(tree_ident(d)))));
+      ident_t pn = hpathf(path, ':', "%s",
+                          simple_name(istr(tree_ident(d))));
+
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
+      case T_FBODY:
+         tree_set_ident(d, pn);
          tree_add_decl(out, d);
+         break;
+      case T_FUNC_DECL:
+         tree_set_ident(d, pn);
+         break;
+      default:
+         break;
       }
    }
 

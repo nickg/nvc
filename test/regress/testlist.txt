@@ -21,3 +21,4 @@ last_value      normal
 cond2           gold,normal
 vecorder        normal
 elab2           normal
+func1           normal

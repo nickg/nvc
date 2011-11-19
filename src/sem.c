@@ -1076,7 +1076,7 @@ static bool sem_check_func_body(tree_t t)
 
    scope_apply_prefix(t);
 
-   // If there is no declaration for this function add one to the scope
+   // If there is no declaration for this function add to the scope
    tree_t decl;
    int n = 0;
    do {
@@ -1090,12 +1090,7 @@ static bool sem_check_func_body(tree_t t)
    } while (decl != NULL);
 
    if (decl == NULL) {
-      decl = tree_new(T_FUNC_DECL);
-      tree_set_loc(decl, tree_loc(t));
-      tree_set_ident(decl, tree_ident(t));
-      tree_set_type(decl, tree_type(t));
-
-      if (!scope_insert(decl))
+      if (!scope_insert(t))
          return false;
    }
 
@@ -1378,7 +1373,11 @@ static bool sem_check_fcall(tree_t t)
    int n = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         if (tree_kind(decl) != T_FUNC_DECL) {
+         switch (tree_kind(decl)) {
+         case T_FUNC_DECL:
+         case T_FBODY:
+            break;
+         default:
             // The grammar is ambiguous between function calls and
             // array references so must be an array reference
             tree_change_kind(t, T_ARRAY_REF);

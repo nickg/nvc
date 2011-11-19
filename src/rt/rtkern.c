@@ -452,7 +452,8 @@ static void rt_setup(tree_t top)
 
    for (unsigned i = 0; i < tree_decls(top); i++) {
       tree_t d = tree_decl(top, i);
-      assert(tree_kind(d) == T_SIGNAL_DECL);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
 
       struct signal *s = jit_var_ptr(istr(tree_ident(d)));
 
@@ -664,7 +665,8 @@ static void rt_cleanup(tree_t top)
 
    for (unsigned i = 0; i < tree_decls(top); i++) {
       tree_t d = tree_decl(top, i);
-      assert(tree_kind(d) == T_SIGNAL_DECL);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
 
       struct signal *sig = tree_attr_ptr(d, ident_new("signal"));
 
