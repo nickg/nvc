@@ -144,7 +144,7 @@ struct tree_rd_ctx {
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
-    || IS(t, T_CASSIGN))
+    || IS(t, T_CASSIGN) || IS(t, T_WHILE))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -152,7 +152,7 @@ struct tree_rd_ctx {
     || IS(t, T_PACKAGE) || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT)    \
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL) || IS(t, T_ELAB)     \
     || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE) || IS(t, T_PBODY)       \
-    || IS(t, T_FBODY) || IS(t, T_CASSIGN))
+    || IS(t, T_FBODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE))
 #define HAS_IDENT2(t) \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE))
 #define HAS_PORTS(t) \
@@ -171,7 +171,7 @@ struct tree_rd_ctx {
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
-    || IS(t, T_FBODY))
+    || IS(t, T_FBODY) || IS(t, T_WHILE))
 #define HAS_DELAY(t) (IS(t, T_WAIT))
 #define HAS_TARGET(t) \
    (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
@@ -179,7 +179,8 @@ struct tree_rd_ctx {
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)        \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)    \
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) \
-    || IS(t, T_IF) || IS(t, T_RETURN) || IS(t, T_CASSIGN))
+    || IS(t, T_IF) || IS(t, T_RETURN) || IS(t, T_CASSIGN)              \
+    || IS(t, T_WHILE))
 #define HAS_CONTEXT(t)                                          \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)        \
     || IS(t, T_PBODY))

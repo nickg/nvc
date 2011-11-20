@@ -71,5 +71,13 @@ begin
     begin
         return 4 * 4;
     end process;
+
+    -- While
+    process is
+    begin
+        while n > 0 loop
+            n := n - 1;
+        end loop;
+    end process;
     
 end architecture;

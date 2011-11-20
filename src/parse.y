@@ -199,6 +199,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
+%token tWHILE tLOOP
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -942,9 +943,15 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
   }
+| tWHILE expr tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
+  {
+     $$ = tree_new(T_WHILE);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+     copy_trees($4, tree_add_stmt, $$);
+  }
 /* | procedure_call_statement
    | case_statement
-   | loop_statement
    | next_statement
    | exit_statement */
 ;

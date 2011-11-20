@@ -133,6 +133,8 @@ THEN          {T}{H}{E}{N}
 ELSE          {E}{L}{S}{E}
 ELSIF         {E}{L}{S}{I}{F}
 BODY          {B}{O}{D}{Y}
+WHILE         {W}{H}{I}{L}{E}
+LOOP          {L}{O}{O}{P}
 
 %%
 
@@ -196,6 +198,8 @@ BODY          {B}{O}{D}{Y}
 {ELSE}          { begin_token(yytext); return tELSE; }
 {ELSIF}         { begin_token(yytext); return tELSIF; }
 {BODY}          { begin_token(yytext); return tBODY; }
+{WHILE}         { begin_token(yytext); return tWHILE; }
+{LOOP}          { begin_token(yytext); return tLOOP; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
