@@ -725,20 +725,21 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
    }
 }
 
-static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value)
+static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
+                                LLVMValueRef after)
 {
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
       llvm_int32(0 /* source, TODO */),
       LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
-      llvm_int64(0)
+      after
    };
    LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
                  args, ARRAY_LEN(args), "");
 }
 
 static void cgen_array_signal_store(tree_t decl, LLVMValueRef rhs,
-                                    struct cgen_ctx *ctx)
+                                    LLVMValueRef after, struct cgen_ctx *ctx)
 {
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_store",
@@ -762,17 +763,17 @@ static void cgen_array_signal_store(tree_t decl, LLVMValueRef rhs,
 }
 
 static void cgen_scalar_signal_assign(tree_t t, LLVMValueRef rhs,
-                                      struct cgen_ctx *ctx)
+                                      LLVMValueRef after, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(tree_target(t));
    if (type_kind(tree_type(decl)) == T_CARRAY)
-      cgen_array_signal_store(decl, rhs, ctx);
+      cgen_array_signal_store(decl, rhs, after, ctx);
    else
-      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), rhs);
+      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), rhs, after);
 }
 
 static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
-                                     struct cgen_ctx *ctx)
+                                     LLVMValueRef after, struct cgen_ctx *ctx)
 {
    tree_t target = tree_target(t);
 
@@ -783,26 +784,31 @@ static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
    assert(p.kind == P_POS);
 
    LLVMValueRef elem = cgen_expr(p.value, ctx);
-   cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs);
+   cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs, after);
 }
 
 static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
 {
-   assert(tree_waveforms(t) == 1);
+   for (unsigned i = 0; i < tree_waveforms(t); i++) {
+      tree_t w = tree_waveform(t, i);
 
-   LLVMValueRef rhs = cgen_expr(tree_value(tree_waveform(t, 0)), ctx);
+      LLVMValueRef rhs = cgen_expr(tree_value(w), ctx);
+      LLVMValueRef after = (tree_has_delay(w)
+                            ? cgen_expr(tree_delay(w), ctx)
+                            : llvm_int64(0));
 
-   switch (tree_kind(tree_target(t))) {
-   case T_REF:
-      cgen_scalar_signal_assign(t, rhs, ctx);
-      break;
+      switch (tree_kind(tree_target(t))) {
+      case T_REF:
+         cgen_scalar_signal_assign(t, rhs, after, ctx);
+         break;
 
-   case T_ARRAY_REF:
-      cgen_array_signal_assign(t, rhs, ctx);
-      break;
+      case T_ARRAY_REF:
+         cgen_array_signal_assign(t, rhs, after, ctx);
+         break;
 
-   default:
-      assert(false);
+      default:
+         assert(false);
+      }
    }
 }
 
@@ -1011,13 +1017,14 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
                LLVMValueRef ith = LLVMBuildGEP(builder, val, indices,
                                                ARRAY_LEN(indices), "");
                LLVMValueRef deref = LLVMBuildLoad(builder, ith, "");
-               cgen_sched_waveform(ptr, deref);
+               cgen_sched_waveform(ptr, deref, llvm_int64(0));
             }
          }
       }
    }
    else
-      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), val);
+      cgen_sched_waveform(llvm_global(istr(tree_ident(decl))), val,
+                          llvm_int64(0));
 
    tree_add_attr_ptr(decl, tag_i, ctx->proc);
 }
@@ -1359,7 +1366,7 @@ static void cgen_array_signal_store_fn(tree_t t, LLVMValueRef v)
                                      index, ARRAY_LEN(index),
                                      "p_src");
    LLVMValueRef val = LLVMBuildLoad(builder, p_src, "val");
-   cgen_sched_waveform(signal, val);
+   cgen_sched_waveform(signal, val, llvm_int64(0));
 
    LLVMValueRef inc =
       LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
