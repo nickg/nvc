@@ -591,6 +591,8 @@ START_TEST(test_seq)
       { 25, "no suitable overload for identifier TRUE" },
       { 32, "undefined identifier X" },
       { 48, "return statement not allowed outside function" },
+      { 62, "return statement not allowed outside function" },
+      { 64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);

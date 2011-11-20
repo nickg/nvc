@@ -2005,6 +2005,26 @@ static bool sem_check_return(tree_t t)
    return true;
 }
 
+static bool sem_check_while(tree_t t)
+{
+   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+
+   tree_t value = tree_value(t);
+   if (!sem_check_constrained(value, std_bool))
+      return false;
+
+   if (!type_eq(tree_type(value), std_bool))
+      sem_error(value, "type of loop condition must be %s but is %s",
+                istr(type_ident(std_bool)),
+                istr(type_ident(tree_type(value))));
+
+   bool ok = true;
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      ok = sem_check(tree_stmt(t, i)) && ok;
+
+   return ok;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -2063,6 +2083,8 @@ bool sem_check(tree_t t)
       return sem_check_return(t);
    case T_CASSIGN:
       return sem_check_signal_assign(t);
+   case T_WHILE:
+      return sem_check_while(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

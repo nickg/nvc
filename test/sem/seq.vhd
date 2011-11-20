@@ -47,5 +47,23 @@ begin
     begin
         return 1;                       -- Error
     end process;
+
+    -- While statements
+    process is
+        variable n : integer := 5;
+    begin
+        while n > 0 loop                -- OK
+            n := n - 1;
+        end loop;
+        loop                            -- OK
+            null;
+        end loop;
+        loop
+            return 5;                   -- Error
+        end loop;
+        while 5 loop                    -- Error
+            null;
+        end loop;
+    end process;
     
 end architecture;
