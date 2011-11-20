@@ -898,6 +898,26 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
    LLVMBuildRet(builder, rval);
 }
 
+static void cgen_while(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "while");
+   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "wbody");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "wexit");
+
+   LLVMBuildBr(builder, test_bb);
+
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+   LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+   LLVMBuildCondBr(builder, test, body_bb, exit_bb);
+
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_stmt(tree_stmt(t, i), ctx);
+   LLVMBuildBr(builder, test_bb);
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -918,6 +938,9 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
       break;
    case T_RETURN:
       cgen_return(t, ctx);
+      break;
+   case T_WHILE:
+      cgen_while(t, ctx);
       break;
    default:
       assert(false);

@@ -29,21 +29,6 @@ static void tab(int indent)
       fputc(' ', stdout);
 }
 
-static void dump_decl(tree_t t, int indent)
-{
-   tab(indent);
-
-   switch (tree_kind(t)) {
-   case T_SIGNAL_DECL:
-      printf("signal %s : %s;\n", istr(tree_ident(t)),
-             type_pp(tree_type(t)));
-      break;
-
-   default:
-      assert(false);
-   }
-}
-
 static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -116,6 +101,32 @@ static void dump_expr(tree_t t)
    }
 }
 
+static void dump_decl(tree_t t, int indent)
+{
+   tab(indent);
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_DECL:
+      printf("signal %s : %s", istr(tree_ident(t)),
+             type_pp(tree_type(t)));
+      break;
+
+   case T_VAR_DECL:
+      printf("variable %s : %s", istr(tree_ident(t)),
+             type_pp(tree_type(t)));
+      break;
+
+   default:
+      assert(false);
+   }
+
+   if (tree_has_value(t)) {
+      printf(" := ");
+      dump_expr(tree_value(t));
+   }
+   printf(";\n");
+}
+
 static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
@@ -150,6 +161,12 @@ static void dump_stmt(tree_t t, int indent)
       dump_expr(tree_value(t));
       break;
 
+   case T_VAR_ASSIGN:
+      dump_expr(tree_target(t));
+      printf(" := ");
+      dump_expr(tree_value(t));
+      break;
+
    case T_WAIT:
       printf("wait");
       if (tree_triggers(t) > 0) {
@@ -173,6 +190,16 @@ static void dump_stmt(tree_t t, int indent)
       dump_expr(tree_message(t));
       printf(" severity ");
       dump_expr(tree_severity(t));
+      break;
+
+   case T_WHILE:
+      printf("while ");
+      dump_expr(tree_value(t));
+      printf(" loop\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      tab(indent);
+      printf("end loop");
       break;
 
    default:
