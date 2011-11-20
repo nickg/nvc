@@ -1119,10 +1119,21 @@ constrained_array_def
 
 index_constraint
 : tLPAREN range /* { , range } */ tRPAREN { $$ = $2; }
-| tLPAREN type_mark tRPAREN
+| tLPAREN selected_id tRPAREN
   {
-     $$.kind = RANGE_TYPE;
-     $$.type = $2;
+     tree_t left = tree_new(T_ATTR_REF);
+     tree_set_loc(left, &@2);
+     tree_set_ident(left, $2);
+     tree_set_ident2(left, ident_new("LEFT"));
+
+     tree_t right = tree_new(T_ATTR_REF);
+     tree_set_loc(right, &@2);
+     tree_set_ident(right, $2);
+     tree_set_ident2(right, ident_new("RIGHT"));
+
+     $$.kind  = RANGE_TO;
+     $$.left  = left;
+     $$.right = right;
   }
 ;
 

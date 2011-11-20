@@ -49,14 +49,11 @@ typedef enum type_kind {
 } type_kind_t;
 
 typedef struct range {
-   union {
-      struct {
-         struct tree *left;
-         struct tree *right;
-      };
-      type_t type;
+   struct {
+      struct tree *left;
+      struct tree *right;
    };
-   enum { RANGE_TO, RANGE_DOWNTO, RANGE_TYPE } kind;
+   enum { RANGE_TO, RANGE_DOWNTO } kind;
 } range_t;
 
 typedef struct unit {
