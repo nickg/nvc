@@ -356,6 +356,17 @@ static tree_t simp_if(tree_t t)
       return t;
 }
 
+static tree_t simp_while(tree_t t)
+{
+   bool value_b;
+   if (folded_bool(tree_value(t), &value_b) && !value_b) {
+      // Condition is false so loop never executes
+      return NULL;
+   }
+   else
+      return t;
+}
+
 static void simp_build_wait(tree_t ref, void *context)
 {
    tree_t wait = context;
@@ -401,6 +412,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_ref(t);
    case T_IF:
       return simp_if(t);
+   case T_WHILE:
+      return simp_while(t);
    case T_CASSIGN:
       return simp_cassign(t);
    case T_NULL:

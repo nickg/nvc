@@ -52,6 +52,9 @@ begin
         else
             x <= 5;
         end if;
+        while false loop
+            null;
+        end loop;
     end process;
 
 end architecture;
