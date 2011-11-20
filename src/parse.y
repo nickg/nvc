@@ -175,7 +175,7 @@
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
-%type <l> subprogram_decl_item waveform
+%type <l> subprogram_decl_item waveform alias_decl
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -198,7 +198,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
-%token tWHILE tLOOP tAFTER
+%token tWHILE tLOOP tAFTER tALIAS
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -442,10 +442,10 @@ block_decl_item
 | subtype_decl
 | constant_decl
 | subprogram_decl
+| alias_decl
 /* | subprogram_body
    | shared_variable_declaration
    | file_declaration
-   | alias_declaration
    | component_declaration
    | attribute_declaration
    | attribute_specification
@@ -490,6 +490,29 @@ constant_decl
      }
 
      id_list_free($2);
+  }
+;
+
+alias_decl
+: tALIAS id tIS name tSEMI
+  {
+     tree_t a = tree_new(T_ALIAS);
+     tree_set_loc(a, &@$);
+     tree_set_ident(a, $2);
+     tree_set_value(a, $4);
+
+     $$ = NULL;
+     tree_list_append(&$$, a);
+  }
+| tALIAS id tCOLON subtype_indication tIS name tSEMI
+  {
+     tree_t a = tree_new(T_ALIAS);
+     tree_set_loc(a, &@$);
+     tree_set_ident(a, $2);
+     tree_set_value(a, $6);
+
+     $$ = NULL;
+     tree_list_append(&$$, a);
   }
 ;
 

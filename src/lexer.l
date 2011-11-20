@@ -136,6 +136,7 @@ BODY          {B}{O}{D}{Y}
 WHILE         {W}{H}{I}{L}{E}
 LOOP          {L}{O}{O}{P}
 AFTER         {A}{F}{T}{E}{R}
+ALIAS         {A}{L}{I}{A}{S}
 
 %%
 
@@ -202,6 +203,7 @@ AFTER         {A}{F}{T}{E}{R}
 {WHILE}         { begin_token(yytext); return tWHILE; }
 {LOOP}          { begin_token(yytext); return tLOOP; }
 {AFTER}         { begin_token(yytext); return tAFTER; }
+{ALIAS}         { begin_token(yytext); return tALIAS; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
