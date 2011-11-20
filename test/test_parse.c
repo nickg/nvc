@@ -423,12 +423,18 @@ START_TEST(test_seq)
 
    p = tree_stmt(a, 7);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_stmts(p) == 2);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_WHILE);
    fail_unless(tree_stmts(s) == 1);
    fail_unless(tree_kind(tree_value(s)) == T_FCALL);
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_WHILE);
+   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_kind(tree_value(s)) == T_REF);
+   fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
 
    a = parse();
    fail_unless(a == NULL);

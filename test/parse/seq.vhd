@@ -78,6 +78,9 @@ begin
         while n > 0 loop
             n := n - 1;
         end loop;
+        loop
+            null;
+        end loop;
     end process;
     
 end architecture;

@@ -950,6 +950,16 @@ seq_stmt_without_label
      tree_set_value($$, $2);
      copy_trees($4, tree_add_stmt, $$);
   }
+| tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
+  {
+     tree_t true_ref = tree_new(T_REF);
+     tree_set_ident(true_ref, ident_new("TRUE"));
+
+     $$ = tree_new(T_WHILE);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, true_ref);
+     copy_trees($2, tree_add_stmt, $$);
+  }
 /* | procedure_call_statement
    | case_statement
    | next_statement
