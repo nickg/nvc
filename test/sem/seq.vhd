@@ -2,6 +2,7 @@ entity seq is
 end entity;
 
 architecture test of seq is
+    signal i : integer;
 begin
 
     -- If statements
@@ -65,5 +66,12 @@ begin
             null;
         end loop;
     end process;
-    
+
+    -- Signal assignment
+    process is
+    begin
+        i <= 1, 2 after 1 ns;           -- OK
+        i <= 1 after 5;                 -- Not time
+    end process;
+
 end architecture;
