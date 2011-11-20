@@ -253,7 +253,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 8);
+   fail_unless(tree_stmts(a) == 9);
 
    // Wait statements
 
@@ -435,6 +435,27 @@ START_TEST(test_seq)
    fail_unless(tree_stmts(s) == 1);
    fail_unless(tree_kind(tree_value(s)) == T_REF);
    fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
+
+   // Multiple waveforms in signal assignment
+
+   p = tree_stmt(a, 8);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s) == 1);
+   fail_unless(tree_has_delay(tree_waveform(s, 0)));
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s) == 2);
+   fail_unless(tree_has_delay(tree_waveform(s, 0)));
+   fail_unless(tree_has_delay(tree_waveform(s, 1)));
+
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s) == 2);
+   fail_if(tree_has_delay(tree_waveform(s, 0)));
+   fail_unless(tree_has_delay(tree_waveform(s, 1)));
 
    a = parse();
    fail_unless(a == NULL);
@@ -728,7 +749,7 @@ START_TEST(test_qual)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
-   q = tree_value(s);
+   q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    fail_unless(tree_ident(q) == ident_new("FOO"));
    e = tree_value(q);
@@ -737,7 +758,7 @@ START_TEST(test_qual)
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
-   q = tree_value(s);
+   q = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    fail_unless(tree_ident(q) == ident_new("FOO"));
    e = tree_value(q);
@@ -928,13 +949,15 @@ START_TEST(test_array)
    fail_unless(tree_param(e, 0).pos == 0);
    fail_unless(tree_literal(tree_param(e, 0).value).i == 0);
    s = tree_stmt(p, 1);
-   e = tree_value(s);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_waveforms(s) == 1);
+   e = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(e) == T_FCALL);
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    e = tree_target(s);
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
-   e = tree_value(s);
+   e = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
 
    p = parse();
@@ -999,7 +1022,7 @@ START_TEST(test_conc)
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
-   fail_unless(tree_kind(tree_value(s)) == T_FCALL);
+   fail_unless(tree_kind(tree_value(tree_waveform(s, 0))) == T_FCALL);
 
    a = parse();
    fail_unless(a == NULL);

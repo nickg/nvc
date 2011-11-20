@@ -382,15 +382,19 @@ static tree_t simp_cassign(tree_t t)
    tree_t p = tree_new(T_PROCESS);
    tree_set_ident(p, tree_ident(t));
 
+   tree_t w = tree_new(T_WAIT);
+   tree_set_ident(w, ident_new("cassign"));
+
    tree_t s = tree_new(T_SIGNAL_ASSIGN);
    tree_set_loc(s, tree_loc(t));
    tree_set_target(s, tree_target(t));
-   tree_set_value(s, tree_value(t));
    tree_set_ident(s, tree_ident(t));
 
-   tree_t w = tree_new(T_WAIT);
-   tree_set_ident(w, ident_new("cassign"));
-   tree_visit_only(tree_value(t), simp_build_wait, w, T_REF);
+   for (unsigned i = 0; i < tree_waveforms(t); i++) {
+      tree_t wave = tree_waveform(t, i);
+      tree_add_waveform(s, wave);
+      tree_visit_only(wave, simp_build_wait, w, T_REF);
+   }
 
    tree_add_stmt(p, s);
    tree_add_stmt(p, w);

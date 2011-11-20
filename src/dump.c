@@ -146,7 +146,7 @@ static void dump_stmt(tree_t t, int indent)
       }
       printf("is\n");
       for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), 2);
+         dump_decl(tree_decl(t, i), indent + 2);
       tab(indent);
       printf("begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)

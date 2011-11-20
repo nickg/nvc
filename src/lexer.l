@@ -135,6 +135,7 @@ ELSIF         {E}{L}{S}{I}{F}
 BODY          {B}{O}{D}{Y}
 WHILE         {W}{H}{I}{L}{E}
 LOOP          {L}{O}{O}{P}
+AFTER         {A}{F}{T}{E}{R}
 
 %%
 
@@ -200,6 +201,7 @@ LOOP          {L}{O}{O}{P}
 {BODY}          { begin_token(yytext); return tBODY; }
 {WHILE}         { begin_token(yytext); return tWHILE; }
 {LOOP}          { begin_token(yytext); return tLOOP; }
+{AFTER}         { begin_token(yytext); return tAFTER; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

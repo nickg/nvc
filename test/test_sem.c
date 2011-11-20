@@ -272,12 +272,12 @@ START_TEST(test_ambiguous)
    fail_unless(tree_stmts(p) == 2);
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
-   rhs = tree_type(tree_value(s));
+   rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("FOO"));
    fail_unless(type_ident(rhs) == ident_new("FOO"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
-   rhs = tree_type(tree_value(s));
+   rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("BAR"));
    fail_unless(type_ident(rhs) == ident_new("BAR"));
 
@@ -285,12 +285,12 @@ START_TEST(test_ambiguous)
    fail_unless(tree_stmts(p) == 2);
    s = tree_stmt(p, 0);
    lhs = tree_type(tree_target(s));
-   rhs = tree_type(tree_value(s));
+   rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("FOO"));
    fail_unless(type_ident(rhs) == ident_new("FOO"));
    s = tree_stmt(p, 1);
    lhs = tree_type(tree_target(s));
-   rhs = tree_type(tree_value(s));
+   rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("BAR"));
    fail_unless(type_ident(rhs) == ident_new("BAR"));
 
@@ -308,7 +308,7 @@ START_TEST(test_ambiguous)
    fail_unless(type_ident(rhs) == ident_new("BAZ"));
    s = tree_stmt(p, 2);
    lhs = tree_type(tree_target(s));
-   rhs = tree_type(tree_value(s));
+   rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("FOO"));
    fail_unless(type_ident(rhs) == ident_new("FOO"));
 

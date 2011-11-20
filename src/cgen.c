@@ -788,7 +788,9 @@ static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
 
 static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
 {
-   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
+   assert(tree_waveforms(t) == 1);
+
+   LLVMValueRef rhs = cgen_expr(tree_value(tree_waveform(t, 0)), ctx);
 
    switch (tree_kind(tree_target(t))) {
    case T_REF:

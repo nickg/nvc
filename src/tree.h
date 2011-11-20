@@ -66,6 +66,7 @@ typedef enum tree_kind {
    T_RETURN,
    T_CASSIGN,
    T_WHILE,
+   T_WAVEFORM,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -155,11 +156,16 @@ literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
-// T_SIGNAL_ASSIGN, T_QUALIFIED, T_CONST_DECL, T_ASSERT,
-// T_ARRAY_REF, T_IF, T_CASSIGN, T_WHILE
+// T_QUALIFIED, T_CONST_DECL, T_ASSERT,
+// T_ARRAY_REF, T_IF, T_WHILE
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
+
+// T_SIGNAL_ASSIGN, T_CASSIGN
+unsigned tree_waveforms(tree_t t);
+tree_t tree_waveform(tree_t t, unsigned n);
+void tree_add_waveform(tree_t t, tree_t w);
 
 // T_ARCH, T_PROCESS, T_PACKAGE
 unsigned tree_decls(tree_t t);

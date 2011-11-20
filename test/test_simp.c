@@ -119,11 +119,11 @@ START_TEST(test_cfold)
    p = tree_stmt(a, 0);
 
    s = tree_stmt(p, 0);
-   fail_unless(folded_i(tree_value(s), 2));
+   fail_unless(folded_i(tree_value(tree_waveform(s, 0)), 2));
    s = tree_stmt(p, 1);
-   fail_unless(folded_i(tree_value(s), 8));
+   fail_unless(folded_i(tree_value(tree_waveform(s, 0)), 8));
    s = tree_stmt(p, 2);
-   fail_unless(folded_i(tree_value(s), -5));
+   fail_unless(folded_i(tree_value(tree_waveform(s, 0)), -5));
    s = tree_stmt(p, 3);
    fail_unless(folded_b(tree_value(s), true));
    s = tree_stmt(p, 4);
@@ -140,10 +140,10 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 13)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 14)), false));
    fail_unless(folded_b(tree_value(tree_stmt(p, 15)), false));
-   fail_unless(folded_i(tree_value(tree_stmt(p, 16)), 2));
-   fail_unless(folded_i(tree_value(tree_stmt(p, 17)), 5));
-   fail_unless(folded_i(tree_value(tree_stmt(p, 18)), 6));
-   fail_unless(folded_i(tree_value(tree_stmt(p, 19)), 24));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 16), 0)), 2));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 17), 0)), 5));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 18), 0)), 6));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 19), 0)), 24));
 
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 2);

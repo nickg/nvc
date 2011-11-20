@@ -70,6 +70,7 @@ struct tree {
    union {
       struct tree_array  generics; // T_ENTITY
       struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FBODY
+      struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_CASSSING
       struct param_array genmaps;  // T_INSTANCE
    };
    union {
@@ -77,9 +78,6 @@ struct tree {
       port_mode_t port_mode;       // T_PORT_MODE
       ident_t     ident2;          // T_ARCH, T_ATTR_REF
       tree_t      message;         // T_ASSERT
-   };
-   union {
-      tree_t value;                // many
       tree_t delay;                // T_WAIT
    };
    union {
@@ -106,7 +104,8 @@ struct tree {
       struct tree_array triggers;  // T_WAIT, T_PROCESS
       struct tree_array elses;     // T_IF
    };
-   type_t             type;        // many
+   type_t type;                    // many
+   tree_t value;                   // many
 
    // Serialisation and GC bookkeeping
    unsigned short generation;
@@ -172,21 +171,21 @@ struct tree_rd_ctx {
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
     || IS(t, T_FBODY) || IS(t, T_WHILE))
-#define HAS_DELAY(t) (IS(t, T_WAIT))
+#define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_TARGET(t) \
    (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
 #define HAS_VALUE(t)                                                   \
-   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)        \
+   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_WAVEFORM)             \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)    \
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) \
-    || IS(t, T_IF) || IS(t, T_RETURN) || IS(t, T_CASSIGN)              \
-    || IS(t, T_WHILE))
+    || IS(t, T_IF) || IS(t, T_RETURN) || IS(t, T_WHILE))
 #define HAS_CONTEXT(t)                                          \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)        \
     || IS(t, T_PBODY))
 #define HAS_REF(t) \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_INSTANCE))
+#define HAS_WAVEFORMS(t) (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -628,6 +627,32 @@ void tree_add_stmt(tree_t t, tree_t s)
    assert(IS_STMT(s));
 
    tree_array_add(&t->stmts, s);
+}
+
+unsigned tree_waveforms(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_WAVEFORMS(t));
+
+   return t->waves.count;
+}
+
+tree_t tree_waveform(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_WAVEFORMS(t));
+
+   return tree_array_nth(&t->waves, n);
+}
+
+void tree_add_waveform(tree_t t, tree_t w)
+{
+   assert(t != NULL);
+   assert(w != NULL);
+   assert(HAS_WAVEFORMS(t));
+   assert(IS(w, T_WAVEFORM));
+
+   tree_array_add(&t->waves, w);
 }
 
 unsigned tree_else_stmts(tree_t t)
@@ -1104,6 +1129,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
    if (HAS_STMTS(t))
       n += tree_visit_a(&t->stmts, fn, context, kind, generation, deep);
+   if (HAS_WAVEFORMS(t))
+      n += tree_visit_a(&t->waves, fn, context, kind, generation, deep);
    if (HAS_VALUE(t))
       n += tree_visit_aux(t->value, fn, context, kind, generation, deep);
    if (HAS_DELAY(t))
@@ -1338,6 +1365,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
       write_a(&t->stmts, ctx);
+   if (HAS_WAVEFORMS(t))
+      write_a(&t->waves, ctx);
    if (HAS_TYPE(t))
       type_write(t->type, ctx->type_ctx);
    if (HAS_VALUE(t))
@@ -1500,6 +1529,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
       read_a(&t->stmts, ctx);
+   if (HAS_WAVEFORMS(t))
+      read_a(&t->waves, ctx);
    if (HAS_TYPE(t)) {
       if ((t->type = type_read(ctx->type_ctx)))
          type_ref(t->type);
@@ -1815,6 +1846,8 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       rewrite_a(&t->triggers, fn, context);
    if (HAS_STMTS(t))
       rewrite_a(&t->stmts, fn, context);
+   if (HAS_WAVEFORMS(t))
+      rewrite_a(&t->waves, fn, context);
    if (HAS_TARGET(t))
       tree_set_target(t, tree_rewrite(tree_target(t), fn, context));
    if (HAS_VALUE(t)) {
@@ -1980,6 +2013,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->triggers, &copy->triggers, ctx);
    if (HAS_STMTS(t))
       copy_a(&t->stmts, &copy->stmts, ctx);
+   if (HAS_WAVEFORMS(t))
+      copy_a(&t->waves, &copy->waves, ctx);
    if (HAS_TYPE(t)) {
       copy->type = t->type;
       type_ref(copy->type);

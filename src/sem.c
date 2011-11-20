@@ -1316,19 +1316,37 @@ static bool sem_check_var_assign(tree_t t)
 static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
-   tree_t value = tree_value(t);
 
-   bool ok = sem_check(target);
-   if (!ok)
+   if (!sem_check(target))
       return false;
 
-   ok = sem_check_constrained(value, tree_type(target));
-   if (!ok)
-      return false;
+   type_t std_time = sem_std_type("STD.STANDARD.TIME");
 
-   ok = sem_readable(value);
-   if (!ok)
-      return false;
+   for (unsigned i = 0; i < tree_waveforms(t); i++) {
+      tree_t waveform = tree_waveform(t, i);
+      tree_t value = tree_value(waveform);
+
+      if (!sem_check_constrained(value, tree_type(target)))
+         return false;
+
+      if (!sem_readable(value))
+         return false;
+
+      if (!type_eq(tree_type(target), tree_type(value)))
+         sem_error(t, "type of value %s does not match type of target %s",
+                   istr(type_ident(tree_type(value))),
+                   istr(type_ident(tree_type(target))));
+
+      if (tree_has_delay(waveform)) {
+         tree_t delay = tree_delay(waveform);
+         if (!sem_check(delay))
+            return false;
+
+         if (!type_eq(tree_type(delay), std_time))
+            sem_error(delay, "type of delay must be %s",
+                      type_pp(std_time));
+      }
+   }
 
    tree_t decl = tree_ref(target);
    switch (tree_kind(decl)) {
@@ -1344,11 +1362,6 @@ static bool sem_check_signal_assign(tree_t t)
    default:
       sem_error(target, "invalid target of signal assignment");
    }
-
-   if (!type_eq(tree_type(target), tree_type(value)))
-      sem_error(t, "type of value %s does not match type of target %s",
-                istr(type_ident(tree_type(value))),
-                istr(type_ident(tree_type(target))));
 
    return true;
 }

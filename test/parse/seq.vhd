@@ -82,5 +82,13 @@ begin
             null;
         end loop;
     end process;
+
+    -- Delayed assignment
+    process is
+    begin
+        x <= 4 after 5 ns;
+        x <= 5 after 1 ns, 7 after 8 ns;
+        x <= 5, 7 after 8 ns;
+    end process;
     
 end architecture;

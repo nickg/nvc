@@ -164,9 +164,8 @@
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt timeout_clause physical_literal target severity
 %type <t> package_decl name aggregate string_literal report
-%type <t> waveform waveform_element seq_stmt_without_label
+%type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
-%type <t> conc_assign_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_signal_decl interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -176,7 +175,7 @@
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
-%type <l> subprogram_decl_item
+%type <l> subprogram_decl_item waveform
 %type <p> entity_header
 %type <s> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -199,7 +198,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
-%token tWHILE tLOOP
+%token tWHILE tLOOP tAFTER
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -825,7 +824,7 @@ conc_assign_stmt
      $$ = tree_new(T_CASSIGN);
      tree_set_loc($$, &@$);
      tree_set_target($$, $1);
-     tree_set_value($$, $3);
+     copy_trees($3, tree_add_waveform, $$);
   }
 ;
 
@@ -875,8 +874,8 @@ seq_stmt_without_label
   {
      $$ = tree_new(T_SIGNAL_ASSIGN);
      tree_set_target($$, $1);
-     tree_set_value($$, $3);
      tree_set_loc($$, &@$);
+     copy_trees($3, tree_add_waveform, $$);
   }
 | tASSERT expr report severity tSEMI
   {
@@ -1021,13 +1020,33 @@ target
 
 waveform
 : waveform_element
+  {
+     $$ = NULL;
+     tree_list_append(&$$, $1);
+  }
 | waveform_element tCOMMA waveform
+  {
+     $$ = $3;
+     tree_list_prepend(&$$, $1);
+  }
 | tUNAFFECTED { $$ = NULL; }
 ;
 
 waveform_element
-: expr /* [ after time_expression ] */
-| tNULL /* [ after time_expression ] */ { $$ = NULL; }
+: expr
+  {
+     $$ = tree_new(T_WAVEFORM);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $1);
+  }
+| expr tAFTER expr
+  {
+     $$ = tree_new(T_WAVEFORM);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $1);
+     tree_set_delay($$, $3);
+  }
+| tNULL { $$ = NULL; }
 ;
 
 timeout_clause
