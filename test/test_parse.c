@@ -1047,11 +1047,13 @@ START_TEST(test_alias)
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
+   fail_if(tree_has_type(d));
 
    d = tree_decl(a, 1);
    fail_unless(tree_kind(d) == T_ALIAS);
    fail_unless(tree_ident(d) == ident_new("BLAH"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
+   fail_unless(tree_has_type(d));
 
    a = parse();
    fail_unless(a == NULL);

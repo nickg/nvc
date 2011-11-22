@@ -372,10 +372,10 @@ package_decl_item
 | subtype_decl
 | constant_decl
 | subprogram_decl
+| alias_decl
 /* | signal_declaration
    | shared_variable_declaration
    | file_declaration
-   | alias_declaration
    | component_declaration
    | attribute_declaration
    | attribute_specification
@@ -510,6 +510,7 @@ alias_decl
      tree_set_loc(a, &@$);
      tree_set_ident(a, $2);
      tree_set_value(a, $6);
+     tree_set_type(a, $4);
 
      $$ = NULL;
      tree_list_append(&$$, a);
@@ -728,9 +729,9 @@ process_decl_item
 | subtype_decl
 | constant_decl
 | subprogram_decl
+| alias_decl
   /* | subprogram_body
      | file_declaration
-     | alias_declaration
      | attribute_declaration
      | attribute_specification
      | use_clause
@@ -808,8 +809,8 @@ subprogram_decl_item
 | constant_decl
 | variable_decl
 | type_decl
+| alias_decl
   /* | file_declaration
-     | alias_declaration
      | attribute_declaration
      | attribute_specification
      | use_clause

@@ -471,13 +471,13 @@ START_TEST(test_array)
    fail_unless(input_from_file(TESTDIR "/sem/array.vhd"));
 
    const error_t expect[] = {
-      { 26, "positional associations must appear first in aggregate" },
-      { 32, "named association must not follow others" },
-      { 38, "only a single others association allowed" },
-      { 45, "type of initial value universal integer does not match" },
-      { 54, "type of value universal integer does not match type of" },
-      { 56, "type of value WORK.P.INT_ARRAY does not match type" },
-      { 64, "for operator \"=\"(WORK.P.INT_ARRAY, WORK.P.TEN_INTS)" },
+      { 27, "positional associations must appear first in aggregate" },
+      { 33, "named association must not follow others" },
+      { 39, "only a single others association allowed" },
+      { 46, "type of initial value universal integer does not match" },
+      { 55, "type of value universal integer does not match type of" },
+      { 57, "type of value WORK.P.INT_ARRAY does not match type" },
+      { 65, "for operator \"=\"(WORK.P.INT_ARRAY, WORK.P.TEN_INTS)" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -586,14 +586,13 @@ START_TEST(test_seq)
    fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
 
    const error_t expect[] = {
-      { 16, "type of test must be STD.STANDARD.BOOLEAN" },
-      { 20, "undefined identifier X" },
-      { 26, "no suitable overload for identifier TRUE" },
-      { 33, "undefined identifier X" },
-      { 49, "return statement not allowed outside function" },
-      { 63, "return statement not allowed outside function" },
-      { 65, "type of loop condition must be STD.STANDARD.BOOLEAN" },
-      { 74, "type of delay must be STD.STANDARD.TIME" },
+      { 15, "type of test must be STD.STANDARD.BOOLEAN" },
+      { 19, "undefined identifier X" },
+      { 25, "no suitable overload for identifier TRUE" },
+      { 32, "undefined identifier X" },
+      { 48, "return statement not allowed outside function" },
+      { 62, "return statement not allowed outside function" },
+      { 64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);

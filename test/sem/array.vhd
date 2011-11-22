@@ -18,6 +18,7 @@ architecture a of e is
     signal z : int_array(1 to 3) := ( 0, 1, 2 );
     signal n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
+    alias a is x(2 to 3);
 begin
 
     process is
@@ -68,6 +69,11 @@ begin
     begin
         x(1 to 3) <= z;
         x(1 to 2) <= z(1 to 2);
+    end process;
+
+    process is
+    begin
+        a(2) <= 4;                      -- OK
     end process;
 
 end architecture;

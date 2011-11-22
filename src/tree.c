@@ -161,7 +161,8 @@ struct tree_rd_ctx {
 #define HAS_TYPE(t)                                                 \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL) \
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT)        \
-    || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL) || IS(t, T_FBODY))
+    || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL) || IS(t, T_FBODY)  \
+    || IS(t, T_ALIAS))
 #define HAS_PARAMS(t) \
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
     || IS(t, T_INSTANCE))
@@ -477,6 +478,14 @@ void tree_set_type(tree_t t, type_t ty)
    if (t->type)
       type_unref(t->type);
    t->type = ty;
+}
+
+bool tree_has_type(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_TYPE(t));
+
+   return t->type != NULL;
 }
 
 unsigned tree_params(tree_t t)

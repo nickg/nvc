@@ -1024,6 +1024,25 @@ static bool sem_check_decl(tree_t t)
    return scope_insert(t);
 }
 
+static bool sem_check_alias(tree_t t)
+{
+   if (!sem_check(tree_value(t)))
+      return false;
+
+   if (tree_has_type(t)) {
+      // TODO: this is not correct - check LRM
+      type_t type = tree_type(t);
+      if (!sem_check_type(t, &type))
+         return false;
+      tree_set_type(t, type);
+   }
+   else
+      tree_set_type(t, tree_type(tree_value(t)));
+
+   scope_apply_prefix(t);
+   return scope_insert(t);
+}
+
 static bool sem_check_func_ports(tree_t t)
 {
    type_t ftype = tree_type(t);
@@ -1770,6 +1789,11 @@ static bool sem_check_ref(tree_t t)
       tree_set_type(t, type_result(tree_type(decl)));
       break;
 
+   case T_ALIAS:
+      tree_set_type(t, tree_type(decl));
+      decl = tree_ref(tree_value(decl));
+      break;
+
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
    }
@@ -2098,6 +2122,8 @@ bool sem_check(tree_t t)
       return sem_check_signal_assign(t);
    case T_WHILE:
       return sem_check_while(t);
+   case T_ALIAS:
+      return sem_check_alias(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
