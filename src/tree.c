@@ -143,7 +143,7 @@ struct tree_rd_ctx {
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
-    || IS(t, T_CASSIGN) || IS(t, T_WHILE))
+    || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -153,8 +153,9 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE) || IS(t, T_PBODY)       \
     || IS(t, T_FBODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE)           \
     || IS(t, T_ALIAS))
-#define HAS_IDENT2(t) \
-   (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE))
+#define HAS_IDENT2(t)                                               \
+   (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)         \
+    || IS(t, T_FOR))
 #define HAS_PORTS(t) \
    (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL) || IS(t, T_FBODY))
 #define HAS_GENERICS(t) (IS(t, T_ENTITY))
@@ -172,7 +173,7 @@ struct tree_rd_ctx {
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
-    || IS(t, T_FBODY) || IS(t, T_WHILE))
+    || IS(t, T_FBODY) || IS(t, T_WHILE) || IS(t, T_FOR))
 #define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_TARGET(t) \
    (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
@@ -189,6 +190,7 @@ struct tree_rd_ctx {
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_INSTANCE))
 #define HAS_WAVEFORMS(t) (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
+#define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -957,7 +959,7 @@ void tree_set_message(tree_t t, tree_t m)
 range_t tree_range(tree_t t)
 {
    assert(t != NULL);
-   assert(IS(t, T_ARRAY_SLICE));
+   assert(HAS_RANGE(t));
 
    return t->range;
 }
@@ -965,7 +967,7 @@ range_t tree_range(tree_t t)
 void tree_set_range(tree_t t, range_t r)
 {
    assert(t != NULL);
-   assert(IS(t, T_ARRAY_SLICE));
+   assert(HAS_RANGE(t));
 
    t->range = r;
 }
@@ -1154,6 +1156,12 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_type(t->type, fn, context, kind, generation, deep);
    if (HAS_PARAMS(t))
       n += tree_visit_p(&t->params, fn, context, kind, generation, deep);
+   if (HAS_RANGE(t)) {
+      n += tree_visit_aux(t->range.left, fn, context, kind,
+                          generation, deep);
+      n += tree_visit_aux(t->range.right, fn, context, kind,
+                          generation, deep);
+   }
 
    if (IS(t, T_ASSERT)) {
       n += tree_visit_aux(t->severity, fn, context,
@@ -1187,12 +1195,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       for (unsigned i = 0; i < t->n_elems; i++)
          n += tree_visit_a(&t->sub_drivers[i], fn, context,
                            kind, generation, deep);
-   }
-   else if (IS(t, T_ARRAY_SLICE)) {
-      n += tree_visit_aux(t->range.left, fn, context, kind,
-                          generation, deep);
-      n += tree_visit_aux(t->range.right, fn, context, kind,
-                          generation, deep);
    }
    else if (IS(t, T_INSTANCE))
       n += tree_visit_p(&t->genmaps, fn, context, kind, generation, deep);
@@ -1395,6 +1397,11 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    }
    if (HAS_PARAMS(t))
       write_p(&t->params, ctx);
+   if (HAS_RANGE(t)) {
+      write_s(t->range.kind, ctx->file);
+      tree_write(t->range.left, ctx);
+      tree_write(t->range.right, ctx);
+   }
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -1450,12 +1457,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    case T_ENUM_LIT:
       write_u(t->pos, ctx->file);
-      break;
-
-   case T_ARRAY_SLICE:
-      write_s(t->range.kind, ctx->file);
-      tree_write(t->range.left, ctx);
-      tree_write(t->range.right, ctx);
       break;
 
    case T_INSTANCE:
@@ -1563,6 +1564,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
    if (HAS_PARAMS(t))
       read_p(&t->params, ctx);
+   if (HAS_RANGE(t)) {
+      t->range.kind  = read_s(ctx->file);
+      t->range.left  = tree_read(ctx);
+      t->range.right = tree_read(ctx);
+   }
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -1619,12 +1625,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    case T_ENUM_LIT:
       t->pos = read_u(ctx->file);
-      break;
-
-   case T_ARRAY_SLICE:
-      t->range.kind  = read_s(ctx->file);
-      t->range.left  = tree_read(ctx);
-      t->range.right = tree_read(ctx);
       break;
 
    case T_INSTANCE:
@@ -1871,6 +1871,12 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
    }
    if (HAS_PARAMS(t))
       rewrite_p(&t->params, fn, context);
+   if (HAS_RANGE(t)) {
+      range_t r = tree_range(t);
+      r.left  = tree_rewrite(r.left, fn, context);
+      r.right = tree_rewrite(r.right, fn, context);
+      tree_set_range(t, r);
+   }
 
    switch (tree_kind(t)) {
    case T_ASSERT:
@@ -1923,15 +1929,6 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
          default:
             break;
          }
-      }
-      break;
-
-   case T_ARRAY_SLICE:
-      {
-         range_t r = tree_range(t);
-         r.left  = tree_rewrite(r.left, fn, context);
-         r.right = tree_rewrite(r.right, fn, context);
-         tree_set_range(t, r);
       }
       break;
 
@@ -2044,6 +2041,11 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    }
    if (HAS_PARAMS(t))
       copy_p(&t->params, &copy->params, ctx);
+   if (HAS_RANGE(t)) {
+      copy->range.kind  = t->range.kind;
+      copy->range.left  = tree_copy_aux(t->range.left, ctx);
+      copy->range.right = tree_copy_aux(t->range.right, ctx);
+   }
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -2081,12 +2083,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    case T_ENUM_LIT:
       copy->pos = t->pos;
-      break;
-
-   case T_ARRAY_SLICE:
-      copy->range.kind  = t->range.kind;
-      copy->range.left  = tree_copy_aux(t->range.left, ctx);
-      copy->range.right = tree_copy_aux(t->range.right, ctx);
       break;
 
    case T_INSTANCE:

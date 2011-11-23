@@ -983,6 +983,31 @@ seq_stmt_without_label
      tree_set_value($$, true_ref);
      copy_trees($2, tree_add_stmt, $$);
   }
+| tFOR id tIN range tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
+  {
+     $$ = tree_new(T_FOR);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+     tree_set_range($$, $4);
+     copy_trees($6, tree_add_stmt, $$);
+  }
+| tFOR id tIN expr tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
+  {
+     if (tree_kind($4) != T_ATTR_REF || tree_ident2($4) != ident_new("range"))
+        parse_error(&@4, "invalid range expression");
+
+     range_t r = {
+        .kind  = RANGE_EXPR,
+        .left  = $4,
+        .right = NULL
+     };
+
+     $$ = tree_new(T_FOR);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+     tree_set_range($$, r);
+     copy_trees($6, tree_add_stmt, $$);
+  }
 /* | procedure_call_statement
    | case_statement
    | next_statement
@@ -1313,7 +1338,6 @@ range
      $$.right = $3;
      $$.kind  = RANGE_DOWNTO;
   }
-  /* | attribute_name */
 ;
 
 expr
@@ -1513,6 +1537,13 @@ name
      $$ = tree_new(T_ATTR_REF);
      tree_set_ident($$, $1);
      tree_set_ident2($$, $3);
+     tree_set_loc($$, &@$);
+  }
+| selected_id tTICK tRANGE
+  {
+     $$ = tree_new(T_ATTR_REF);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, ident_new("range"));
      tree_set_loc($$, &@$);
   }
 | name tLPAREN param_list tRPAREN

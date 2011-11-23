@@ -53,7 +53,7 @@ typedef struct range {
       struct tree *left;
       struct tree *right;
    };
-   enum { RANGE_TO, RANGE_DOWNTO } kind;
+   enum { RANGE_TO, RANGE_DOWNTO, RANGE_EXPR } kind;
 } range_t;
 
 typedef struct unit {

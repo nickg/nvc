@@ -253,7 +253,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 9);
+   fail_unless(tree_stmts(a) == 10);
 
    // Wait statements
 
@@ -456,6 +456,24 @@ START_TEST(test_seq)
    fail_unless(tree_waveforms(s) == 2);
    fail_if(tree_has_delay(tree_waveform(s, 0)));
    fail_unless(tree_has_delay(tree_waveform(s, 1)));
+
+   // For
+
+   p = tree_stmt(a, 9);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_FOR);
+   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_range(s).kind == RANGE_TO);
+   fail_unless(tree_kind(tree_range(s).left) == T_LITERAL);
+   fail_unless(tree_kind(tree_range(s).right) == T_LITERAL);
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_FOR);
+   fail_unless(tree_stmts(s) == 1);
+   fail_unless(tree_range(s).kind == RANGE_EXPR);
+   fail_unless(tree_kind(tree_range(s).left) == T_ATTR_REF);
+   fail_unless(tree_range(s).right == NULL);
 
    a = parse();
    fail_unless(a == NULL);

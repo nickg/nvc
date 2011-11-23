@@ -90,5 +90,16 @@ begin
         x <= 5 after 1 ns, 7 after 8 ns;
         x <= 5, 7 after 8 ns;
     end process;
+
+    -- For
+    process is
+    begin
+        for i in 0 to 10 loop
+            null;
+        end loop;
+        for i in foo'range loop
+            null;
+        end loop;
+    end process;
     
 end architecture;

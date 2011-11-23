@@ -68,6 +68,7 @@ typedef enum tree_kind {
    T_WHILE,
    T_WAVEFORM,
    T_ALIAS,
+   T_FOR,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -125,7 +126,7 @@ ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
 
-// T_ARCH, T_ATTR_REF, T_INSTANCE
+// T_ARCH, T_ATTR_REF, T_INSTANCE, T_FOR
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 
@@ -174,7 +175,7 @@ unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
 
-// T_ARCH, T_PROCESS, T_IF, T_WHILE
+// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);
@@ -234,7 +235,7 @@ unsigned tree_sub_drivers(tree_t t, unsigned elem);
 tree_t tree_sub_driver(tree_t t, unsigned elem, unsigned n);
 void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p);
 
-// T_ARRAY_SLICE
+// T_ARRAY_SLICE, T_FOR
 range_t tree_range(tree_t t);
 void tree_set_range(tree_t t, range_t r);
 
