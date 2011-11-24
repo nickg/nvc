@@ -138,6 +138,7 @@
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
    static tree_t str_to_agg(const char *start, const char *end);
+   static bool to_range_expr(tree_t t, range_t *r);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
 }
 
@@ -993,14 +994,9 @@ seq_stmt_without_label
   }
 | tFOR id tIN expr tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
   {
-     if (tree_kind($4) != T_ATTR_REF || tree_ident2($4) != ident_new("range"))
+     range_t r;
+     if (!to_range_expr($4, &r))
         parse_error(&@4, "invalid range expression");
-
-     range_t r = {
-        .kind  = RANGE_EXPR,
-        .left  = $4,
-        .right = NULL
-     };
 
      $$ = tree_new(T_FOR);
      tree_set_loc($$, &@$);
@@ -1554,21 +1550,32 @@ name
      // fix things up later. We stash the value $1 in the tree
      // anyway to make changing the kind easier.
 
-     if (tree_kind($1) == T_ATTR_REF) {
-        $$ = $1;
+     range_t r;
+     if ($3->next == NULL && to_range_expr($3->param.value, &r)) {
+        // Convert range parameters into array slices
+        $$ = tree_new(T_ARRAY_SLICE);
+        tree_set_value($$, $1);
+        tree_set_loc($$, &@$);
+        tree_set_range($$, r);
+        free($3);
      }
      else {
-        $$ = tree_new(T_ARRAY_REF);
-        tree_set_value($$, $1);
-
-        if (tree_kind($1) == T_REF) {
-           tree_change_kind($$, T_FCALL);
-           tree_set_ident($$, tree_ident($1));
+        if (tree_kind($1) == T_ATTR_REF) {
+           $$ = $1;
         }
-     }
+        else {
+           $$ = tree_new(T_ARRAY_REF);
+           tree_set_value($$, $1);
 
-     tree_set_loc($$, &@$);
-     copy_params($3, tree_add_param, $$);
+           if (tree_kind($1) == T_REF) {
+              tree_change_kind($$, T_FCALL);
+              tree_set_ident($$, tree_ident($1));
+           }
+        }
+
+        tree_set_loc($$, &@$);
+        copy_params($3, tree_add_param, $$);
+     }
   }
 | name tLPAREN range tRPAREN
   {
@@ -1782,6 +1789,19 @@ static tree_t str_to_agg(const char *start, const char *end)
    }
 
    return t;
+}
+
+static bool to_range_expr(tree_t t, range_t *r)
+{
+   if (tree_kind(t) == T_ATTR_REF && tree_ident2(t) == ident_new("range")) {
+      r->kind  = RANGE_EXPR;
+      r->left  = t;
+      r->right = NULL;
+
+      return true;
+   }
+   else
+      return false;
 }
 
 static void parse_error(const loc_t *loc, const char *fmt, ...)

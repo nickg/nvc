@@ -69,6 +69,7 @@ begin
     begin
         x(1 to 3) <= z;
         x(1 to 2) <= z(1 to 2);
+        x(x'range) <= (others => 0);
     end process;
 
     process is

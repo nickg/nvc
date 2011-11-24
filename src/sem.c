@@ -622,6 +622,14 @@ static void sem_declare_predefined_ops(tree_t decl)
       }
       break;
 
+   case T_ENUM:
+      {
+         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_int(0));
+         tree_add_attr_tree(decl, ident_new("RIGHT"),
+                            sem_make_int(type_enum_literals(t)));
+      }
+      break;
+
    default:
       break;
    }
@@ -1861,6 +1869,9 @@ static bool sem_check_attr_ref(tree_t t)
    if (decl == NULL)
       sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
 
+   if (tree_ident2(t) == ident_new("range"))
+      sem_error(t, "range expression not allowed here");
+
    tree_t a = tree_attr_tree(decl, tree_ident2(t));
    if (a == NULL)
       sem_error(t, "%s has no attribute %s",
@@ -2062,6 +2073,69 @@ static bool sem_check_while(tree_t t)
    return ok;
 }
 
+static bool sem_check_for(tree_t t)
+{
+   range_t r = tree_range(t);
+   if (r.kind == RANGE_EXPR) {
+      assert(tree_kind(r.left) == T_ATTR_REF);
+
+      tree_t decl = scope_find(tree_ident(r.left));
+      if (decl == NULL)
+         sem_error(t, "undefined identifier %s", istr(tree_ident(r.left)));
+
+      type_t type = tree_type(decl);
+      switch (type_kind(type)) {
+      case T_CARRAY:
+         r = type_dim(type, 0);
+         break;
+      case T_ENUM:
+         {
+            tree_t a = tree_new(T_ATTR_REF);
+            tree_set_ident(a, tree_ident(r.left));
+            tree_set_ident2(a, ident_new("LEFT"));
+
+            tree_t b = tree_new(T_ATTR_REF);
+            tree_set_ident(b, tree_ident(r.left));
+            tree_set_ident2(b, ident_new("RIGHT"));
+
+            r.kind  = RANGE_TO;
+            r.left  = a;
+            r.right = b;
+         }
+         break;
+      default:
+         sem_error(t, "%s does not have range", istr(tree_ident(r.left)));
+      }
+   }
+
+   if (!(sem_check(r.left) && sem_check(r.right)))
+      return false;
+
+   if (!type_eq(tree_type(r.left), tree_type(r.right)))
+      sem_error(r.right, "type mismatch in range");
+
+   type_t base = tree_type(r.left);
+   if (type_kind(base) == T_CARRAY)
+      base = type_base(base);
+
+   tree_t idecl = tree_new(T_VAR_DECL);
+   tree_set_ident(idecl, tree_ident2(t));
+   tree_set_loc(idecl, tree_loc(t));
+   tree_set_type(idecl, base);
+
+   tree_add_decl(t, idecl);
+
+   scope_push(NULL);
+   scope_insert(idecl);
+
+   bool ok = true;
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      ok = sem_check(tree_stmt(t, i)) && ok;
+
+   scope_pop();
+   return ok;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -2124,6 +2198,8 @@ bool sem_check(tree_t t)
       return sem_check_while(t);
    case T_ALIAS:
       return sem_check_alias(t);
+   case T_FOR:
+      return sem_check_for(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

@@ -436,6 +436,9 @@ void type_replace(type_t t, type_t a)
       type_set_result(t, type_result(a));
       break;
 
+   case T_INTEGER:
+      break;
+
    default:
       assert(false);
    }

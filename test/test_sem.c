@@ -593,6 +593,7 @@ START_TEST(test_seq)
       { 48, "return statement not allowed outside function" },
       { 62, "return statement not allowed outside function" },
       { 64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
+      { 79, "undefined identifier X" },
       { -1, NULL }
    };
    expect_errors(expect);

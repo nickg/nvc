@@ -4,6 +4,7 @@
 --
 package STANDARD is
 
+    type INTEGER;
     type STRING;
     
     type BOOLEAN is (FALSE, TRUE);

@@ -66,4 +66,19 @@ begin
         end loop;
     end process;
     
+    -- For
+    process is
+        variable v : integer;
+    begin
+        for i in 0 to 10 loop           -- OK
+            v := i + 1;
+        end loop;
+        for i in bit'range loop         -- OK
+            null;
+        end loop;
+        for i in x'range loop           -- Error
+            null;
+        end loop;
+    end process;
+    
 end architecture;

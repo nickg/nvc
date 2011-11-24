@@ -169,7 +169,7 @@ struct tree_rd_ctx {
     || IS(t, T_INSTANCE))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB) \
-    || IS(t, T_PBODY))
+    || IS(t, T_PBODY) || IS(t, T_FOR))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
