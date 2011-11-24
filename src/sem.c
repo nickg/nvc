@@ -626,7 +626,7 @@ static void sem_declare_predefined_ops(tree_t decl)
       {
          tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_int(0));
          tree_add_attr_tree(decl, ident_new("RIGHT"),
-                            sem_make_int(type_enum_literals(t)));
+                            sem_make_int(type_enum_literals(t) - 1));
       }
       break;
 
@@ -749,6 +749,53 @@ static bool sem_declare(tree_t decl)
    }
 
    return ok;
+}
+
+static bool sem_check_range(tree_t t)
+{
+   range_t r = tree_range(t);
+   if (r.kind == RANGE_EXPR) {
+      assert(tree_kind(r.left) == T_ATTR_REF);
+
+      tree_t decl = scope_find(tree_ident(r.left));
+      if (decl == NULL)
+         sem_error(r.left, "undefined identifier %s",
+                   istr(tree_ident(r.left)));
+
+      type_t type = tree_type(decl);
+      switch (type_kind(type)) {
+      case T_CARRAY:
+         r = type_dim(type, 0);
+         break;
+      case T_ENUM:
+         {
+            tree_t a = tree_new(T_ATTR_REF);
+            tree_set_ident(a, tree_ident(r.left));
+            tree_set_ident2(a, ident_new("LEFT"));
+
+            tree_t b = tree_new(T_ATTR_REF);
+            tree_set_ident(b, tree_ident(r.left));
+            tree_set_ident2(b, ident_new("RIGHT"));
+
+            r.kind  = RANGE_TO;
+            r.left  = a;
+            r.right = b;
+         }
+         break;
+      default:
+         sem_error(r.left, "%s does not have range",
+                   istr(tree_ident(r.left)));
+      }
+   }
+
+   if (!(sem_check(r.left) && sem_check(r.right)))
+      return false;
+
+   if (!type_eq(tree_type(r.left), tree_type(r.right)))
+      sem_error(r.right, "type mismatch in range");
+
+   tree_set_range(t, r);
+   return true;
 }
 
 static bool sem_check_context(tree_t t)
@@ -1846,7 +1893,7 @@ static bool sem_check_array_slice(tree_t t)
 
    type_set_push();
    type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
-   bool ok = sem_check(r.left) && sem_check(r.right);
+   bool ok = sem_check_range(t);
    type_set_pop();
 
    if (!ok)
@@ -2075,46 +2122,10 @@ static bool sem_check_while(tree_t t)
 
 static bool sem_check_for(tree_t t)
 {
-   range_t r = tree_range(t);
-   if (r.kind == RANGE_EXPR) {
-      assert(tree_kind(r.left) == T_ATTR_REF);
-
-      tree_t decl = scope_find(tree_ident(r.left));
-      if (decl == NULL)
-         sem_error(t, "undefined identifier %s", istr(tree_ident(r.left)));
-
-      type_t type = tree_type(decl);
-      switch (type_kind(type)) {
-      case T_CARRAY:
-         r = type_dim(type, 0);
-         break;
-      case T_ENUM:
-         {
-            tree_t a = tree_new(T_ATTR_REF);
-            tree_set_ident(a, tree_ident(r.left));
-            tree_set_ident2(a, ident_new("LEFT"));
-
-            tree_t b = tree_new(T_ATTR_REF);
-            tree_set_ident(b, tree_ident(r.left));
-            tree_set_ident2(b, ident_new("RIGHT"));
-
-            r.kind  = RANGE_TO;
-            r.left  = a;
-            r.right = b;
-         }
-         break;
-      default:
-         sem_error(t, "%s does not have range", istr(tree_ident(r.left)));
-      }
-   }
-
-   if (!(sem_check(r.left) && sem_check(r.right)))
+   if (!sem_check_range(t))
       return false;
 
-   if (!type_eq(tree_type(r.left), tree_type(r.right)))
-      sem_error(r.right, "type mismatch in range");
-
-   type_t base = tree_type(r.left);
+   type_t base = tree_type(tree_range(t).left);
    if (type_kind(base) == T_CARRAY)
       base = type_base(base);
 
