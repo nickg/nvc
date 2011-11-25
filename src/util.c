@@ -154,8 +154,11 @@ void fmt_loc(FILE *f, const struct loc *loc)
    char buf[80];
    size_t i = 0;
    while (i < sizeof(buf) - 4 && *lb != '\0' && *lb != '\n') {
-      // TODO: expand tabs?
-      buf[i++] = *lb++;
+      if (*lb == '\t')
+         buf[i++] = ' ';
+      else
+         buf[i++] = *lb;
+      ++lb;
    }
 
    if (i == sizeof(buf) - 4) {
