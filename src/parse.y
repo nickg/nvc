@@ -1363,11 +1363,11 @@ expr
 | tPLUS expr { $$ = build_expr1("+", $2, &@$); }
 | name
 | literal
-| selected_id tTICK tLPAREN expr tRPAREN
+| selected_id tTICK aggregate
   {
      $$ = tree_new(T_QUALIFIED);
      tree_set_ident($$, $1);
-     tree_set_value($$, $4);
+     tree_set_value($$, $3);
      tree_set_loc($$, &@$);
   }
 | aggregate

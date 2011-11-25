@@ -137,6 +137,7 @@ WHILE         {W}{H}{I}{L}{E}
 LOOP          {L}{O}{O}{P}
 AFTER         {A}{F}{T}{E}{R}
 ALIAS         {A}{L}{I}{A}{S}
+MOD           {M}{O}{D}
 
 %%
 
@@ -204,6 +205,7 @@ ALIAS         {A}{L}{I}{A}{S}
 {LOOP}          { begin_token(yytext); return tLOOP; }
 {AFTER}         { begin_token(yytext); return tAFTER; }
 {ALIAS}         { begin_token(yytext); return tALIAS; }
+{MOD}           { begin_token(yytext); return tMOD; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -225,6 +227,7 @@ ALIAS         {A}{L}{I}{A}{S}
 "="        { begin_token(yytext); return tEQ; }
 "/"        { begin_token(yytext); return tOVER; }
 "."        { begin_token(yytext); return tDOT; }
+"&"        { begin_token(yytext); return tAMP; }
 {INT}      { begin_token(yytext); lvals.ival = atoll(yytext); return tINT; }
 {STRING}   { begin_token(yytext); lvals.sval = strdup(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
