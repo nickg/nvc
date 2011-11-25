@@ -873,7 +873,7 @@ void tree_add_context(tree_t t, context_t ctx)
    assert(t->n_contexts < MAX_CONTEXTS);
 
    if (t->n_contexts == 0)
-      t->context = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
+      t->context = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
 
    t->context[t->n_contexts++] = ctx;
 }
@@ -1561,7 +1561,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->ref = tree_read(ctx);
    if (HAS_CONTEXT(t)) {
       t->n_contexts = read_s(ctx->file);
-      t->context    = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
+      t->context    = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
 
       for (unsigned i = 0; i < t->n_contexts; i++) {
          t->context[i].name = ident_read(ctx->file);
