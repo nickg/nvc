@@ -93,8 +93,8 @@ struct tree {
          unsigned n_assocs_alloc;
       };
       struct {                     // T_ARCH, T_ENTITY, T_PACKAGE
-         ident_t  *context;
-         unsigned n_contexts;
+         context_t *context;
+         unsigned  n_contexts;
       };
       struct {                     // T_SIGNAL_DECL
          struct tree_array *sub_drivers;
@@ -855,7 +855,7 @@ unsigned tree_contexts(tree_t t)
    return t->n_contexts;
 }
 
-ident_t tree_context(tree_t t, unsigned n)
+context_t tree_context(tree_t t, unsigned n)
 {
    assert(t != NULL);
    assert(HAS_CONTEXT(t));
@@ -864,7 +864,7 @@ ident_t tree_context(tree_t t, unsigned n)
    return t->context[n];
 }
 
-void tree_add_context(tree_t t, ident_t ctx)
+void tree_add_context(tree_t t, context_t ctx)
 {
    assert(t != NULL);
    assert(HAS_CONTEXT(t));
@@ -1392,8 +1392,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
       write_s(t->n_contexts, ctx->file);
-      for (unsigned i = 0; i < t->n_contexts; i++)
-         ident_write(t->context[i], ctx->file);
+      for (unsigned i = 0; i < t->n_contexts; i++) {
+         ident_write(t->context[i].name, ctx->file);
+         write_loc(&t->context[i].loc, ctx);
+      }
    }
    if (HAS_PARAMS(t))
       write_p(&t->params, ctx);
@@ -1559,8 +1561,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->n_contexts = read_s(ctx->file);
       t->context    = xmalloc(sizeof(ident_t) * MAX_CONTEXTS);
 
-      for (unsigned i = 0; i < t->n_contexts; i++)
-         t->context[i] = ident_read(ctx->file);
+      for (unsigned i = 0; i < t->n_contexts; i++) {
+         t->context[i].name = ident_read(ctx->file);
+         t->context[i].loc  = read_loc(ctx);
+      }
    }
    if (HAS_PARAMS(t))
       read_p(&t->params, ctx);

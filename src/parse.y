@@ -61,25 +61,20 @@
       char    cval;
    } lvals_t;
 
-   typedef struct id_list {
-      struct id_list *next;
-      ident_t        id;
-   } id_list_t;
+   union listval {
+      unit_t    unit;
+      ident_t   ident;
+      assoc_t   assoc;
+      param_t   param;
+      context_t context;
+   };
 
-   typedef struct unit_list {
-      struct unit_list *next;
-      unit_t           unit;
-   } unit_list_t;
+  #define LISTVAL(x) ((union listval)x)
 
-   typedef struct assoc_list {
-      struct assoc_list *next;
-      assoc_t           assoc;
-   } assoc_list_t;
-
-   typedef struct param_list {
-      struct param_list *next;
-      param_t           param;
-   } param_list_t;
+   typedef struct list {
+      struct list   *next;
+      union listval item;
+   } list_t;
 
    typedef struct tree_list {
       struct tree_list *next;
@@ -117,18 +112,12 @@
    static void copy_trees(tree_list_t *from,
                           void (*copy_fn)(tree_t t, tree_t d),
                           tree_t to);
-   static void copy_params(param_list_t *from,
+   static void copy_params(list_t *from,
                            void (*copy_fn)(tree_t t, param_t p),
                            tree_t to);
-   static id_list_t *id_list_add(id_list_t *list, ident_t id);
-   static id_list_t *id_list_append(id_list_t *a, id_list_t *b);
-   static void id_list_free(id_list_t *list);
-   static assoc_list_t *assoc_list_add(assoc_list_t *list, assoc_t a);
-   static void assoc_list_free(assoc_list_t *list);
-   static param_list_t *param_list_add(param_list_t *list, param_t a);
-   static void param_list_free(param_list_t *list);
-   static unit_list_t *unit_list_add(unit_list_t *list, unit_t id);
-   static void unit_list_free(unit_list_t *list);
+   static list_t *list_add(list_t *list, union listval item);
+   static list_t *list_append(list_t *a, list_t *b);
+   static void list_free(list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
    static void tree_list_prepend(tree_list_t **l, tree_t t);
    static void tree_list_concat(tree_list_t **a, tree_list_t *b);
@@ -150,15 +139,12 @@
       tree_list_t *left;
       tree_list_t *right;
    } p;
-   id_list_t    *s;
-   assoc_list_t *a;
-   param_list_t *c;
    assoc_t      b;
    port_mode_t  m;
    type_t       y;
    range_t      r;
    unit_t       u;
-   unit_list_t  *v;
+   list_t       *g;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -178,7 +164,7 @@
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl
 %type <p> entity_header
-%type <s> id_list context_item context_clause selected_id_list use_clause
+%type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
 %type <y> integer_type_def physical_type_def enum_type_def array_type_def
@@ -186,10 +172,10 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <r> range range_constraint index_constraint constraint
 %type <u> base_unit_decl
-%type <v> secondary_unit_decls
-%type <a> element_assoc_list
+%type <g> secondary_unit_decls
+%type <g> element_assoc_list
 %type <b> element_assoc
-%type <c> param_list generic_map port_map
+%type <g> param_list generic_map port_map
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -217,9 +203,9 @@
 design_unit
 : context_clause library_unit
   {
-     for (id_list_t *it = $1; it != NULL; it = it->next)
-        tree_add_context($2, it->id);
-     id_list_free($1);
+     for (list_t *it = $1; it != NULL; it = it->next)
+        tree_add_context($2, it->item.context);
+     list_free($1);
 
      root = $2;
      YYACCEPT;
@@ -230,7 +216,7 @@ design_unit
 context_clause
 : context_item context_clause
   {
-     $$ = id_list_append($2, $1);
+     $$ = list_append($2, $1);
   }
 | /* empty */ { $$ = NULL; }
 ;
@@ -241,14 +227,21 @@ library_clause
 : tLIBRARY id_list tSEMI
   {
      // TODO: foreach(id_list) { load_library(..); }
-     id_list_free($2);
+     list_free($2);
   }
 ;
 
 use_clause
 : tUSE selected_id_list tSEMI
   {
-     $$ = $2;
+     $$ = NULL;
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        context_t c = {
+           .name = it->item.ident,
+           .loc  = @2
+        };
+        $$ = list_add($$, LISTVAL(c));
+     }
   }
 ;
 
@@ -275,22 +268,22 @@ selected_id
 id_list
 : id
   {
-     $$ = id_list_add(NULL, $1);
+     $$ = list_add(NULL, LISTVAL($1));
   }
 | id tCOMMA id_list
   {
-     $$ = id_list_add($3, $1);
+     $$ = list_add($3, LISTVAL($1));
   }
 ;
 
 selected_id_list
 : selected_id
   {
-     $$ = id_list_add(NULL, $1);
+     $$ = list_add(NULL, LISTVAL($1));
   }
 | selected_id tCOMMA selected_id_list
   {
-     $$ = id_list_add($3, $1);
+     $$ = list_add($3, LISTVAL($1));
   }
 ;
 
@@ -462,9 +455,9 @@ signal_decl
   /* signal_kind */ opt_static_expr tSEMI
   {
      $$ = NULL;
-     for (id_list_t *it = $2; it != NULL; it = it->next) {
+     for (list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_SIGNAL_DECL);
-        tree_set_ident(t, it->id);
+        tree_set_ident(t, it->item.ident);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
         tree_set_loc(t, &@$);
@@ -472,7 +465,7 @@ signal_decl
         tree_list_append(&$$, t);
      }
 
-     id_list_free($2);
+     list_free($2);
   }
 ;
 
@@ -480,9 +473,9 @@ constant_decl
 : tCONSTANT id_list tCOLON subtype_indication opt_static_expr tSEMI
   {
      $$ = NULL;
-     for (id_list_t *it = $2; it != NULL; it = it->next) {
+     for (list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_CONST_DECL);
-        tree_set_ident(t, it->id);
+        tree_set_ident(t, it->item.ident);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
         tree_set_loc(t, &@$);
@@ -490,7 +483,7 @@ constant_decl
         tree_list_append(&$$, t);
      }
 
-     id_list_free($2);
+     list_free($2);
   }
 ;
 
@@ -563,9 +556,9 @@ interface_signal_decl
   /* opt_bus_token */ opt_static_expr
   {
      $$ = NULL;
-     for (id_list_t *it = $2; it != NULL; it = it->next) {
+     for (list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_PORT_DECL);
-        tree_set_ident(t, it->id);
+        tree_set_ident(t, it->item.ident);
         tree_set_port_mode(t, $4);
         tree_set_type(t, $5);
         tree_set_value(t, $6);
@@ -574,7 +567,7 @@ interface_signal_decl
         tree_list_append(&$$, t);
      }
 
-     id_list_free($2);
+     list_free($2);
   }
 ;
 
@@ -829,9 +822,9 @@ variable_decl
   opt_static_expr tSEMI
   {
      $$ = NULL;
-     for (id_list_t *it = $2; it != NULL; it = it->next) {
+     for (list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_VAR_DECL);
-        tree_set_ident(t, it->id);
+        tree_set_ident(t, it->item.ident);
         tree_set_type(t, $4);
         tree_set_value(t, $5);
         tree_set_loc(t, &@$);
@@ -839,7 +832,7 @@ variable_decl
         tree_list_append(&$$, t);
      }
 
-     id_list_free($2);
+     list_free($2);
   }
 ;
 
@@ -1289,10 +1282,10 @@ physical_type_def
      type_add_dim($$, $1);
      type_add_unit($$, $3);
 
-     for (unit_list_t *it = $4; it != NULL; it = it->next)
-        type_add_unit($$, it->unit);
+     for (list_t *it = $4; it != NULL; it = it->next)
+        type_add_unit($$, it->item.unit);
 
-     unit_list_free($4);
+     list_free($4);
   }
 ;
 
@@ -1315,7 +1308,7 @@ secondary_unit_decls
         .multiplier = $3
      };
 
-     $$ = unit_list_add($5, u);
+     $$ = list_add($5, LISTVAL(u));
   }
 ;
 
@@ -1387,24 +1380,24 @@ param_list
 : expr
   {
      param_t p = { .kind = P_POS, .value = $1 };
-     $$ = param_list_add(NULL, p);
+     $$ = list_add(NULL, LISTVAL(p));
   }
 | expr tCOMMA param_list
   {
      param_t p = { .kind = P_POS, .value = $1 };
-     $$ = param_list_add($3, p);
+     $$ = list_add($3, LISTVAL(p));
   }
 | id tASSOC expr
   {
      param_t p = { .kind = P_NAMED, .value = $3 };
      p.name = $1;
-     $$ = param_list_add(NULL, p);
+     $$ = list_add(NULL, LISTVAL(p));
   }
 | id tASSOC expr tCOMMA param_list
   {
      param_t p = { .kind = P_NAMED, .value = $3 };
      p.name = $1;
-     $$ = param_list_add($5, p);
+     $$ = list_add($5, LISTVAL(p));
   }
 ;
 
@@ -1413,29 +1406,29 @@ aggregate
   {
      // The grammar is ambiguous between an aggregate with a
      // single positional element and a parenthesised expression
-     if ($2->next == NULL && $2->assoc.kind == A_POS) {
-        $$ = $2->assoc.value;
+     if ($2->next == NULL && $2->item.assoc.kind == A_POS) {
+        $$ = $2->item.assoc.value;
      }
      else {
         $$ = tree_new(T_AGGREGATE);
         tree_set_loc($$, &@$);
 
-        for (assoc_list_t *it = $2; it != NULL; it = it->next)
-           tree_add_assoc($$, it->assoc);
+        for (list_t *it = $2; it != NULL; it = it->next)
+           tree_add_assoc($$, it->item.assoc);
      }
 
-     assoc_list_free($2);
+     list_free($2);
   }
 ;
 
 element_assoc_list
 : element_assoc
   {
-     $$ = assoc_list_add(NULL, $1);
+     $$ = list_add(NULL, LISTVAL($1));
   }
 | element_assoc tCOMMA element_assoc_list
   {
-     $$ = assoc_list_add($3, $1);
+     $$ = list_add($3, LISTVAL($1));
   }
 ;
 
@@ -1551,7 +1544,7 @@ name
      // anyway to make changing the kind easier.
 
      range_t r;
-     if ($3->next == NULL && to_range_expr($3->param.value, &r)) {
+     if ($3->next == NULL && to_range_expr($3->item.param.value, &r)) {
         // Convert range parameters into array slices
         $$ = tree_new(T_ARRAY_SLICE);
         tree_set_value($$, $1);
@@ -1653,29 +1646,29 @@ static void copy_trees(tree_list_t *from,
    tree_list_free(from);
 }
 
-static void copy_params(param_list_t *from,
+static void copy_params(list_t *from,
                         void (*copy_fn)(tree_t t, param_t p),
                         tree_t to)
 {
    for (; from != NULL; from = from->next)
-      (*copy_fn)(to, from->param);
-   param_list_free(from);
+      (*copy_fn)(to, from->item.param);
+   list_free(from);
 }
 
-static id_list_t *id_list_add(id_list_t *list, ident_t id)
+static list_t *list_add(list_t *list, union listval item)
 {
-   id_list_t *new = xmalloc(sizeof(id_list_t));
+   list_t *new = xmalloc(sizeof(list_t));
    new->next = list;
-   new->id   = id;
+   new->item = item;
    return new;
 }
 
-static id_list_t *id_list_append(id_list_t *a, id_list_t *b)
+static list_t *list_append(list_t *a, list_t *b)
 {
    if (a == NULL)
       return b;
 
-   id_list_t *it;
+   list_t *it;
    for (it = a; it->next != NULL; it = it->next)
       ;
    it->next = b;
@@ -1683,61 +1676,10 @@ static id_list_t *id_list_append(id_list_t *a, id_list_t *b)
    return a;
 }
 
-static void id_list_free(id_list_t *list)
+static void list_free(list_t *list)
 {
    while (list != NULL) {
-      id_list_t *next = list->next;
-      free(list);
-      list = next;
-   }
-}
-
-static unit_list_t *unit_list_add(unit_list_t *list, unit_t u)
-{
-   unit_list_t *new = xmalloc(sizeof(unit_list_t));
-   new->next = list;
-   new->unit = u;
-   return new;
-}
-
-static void unit_list_free(unit_list_t *list)
-{
-   while (list != NULL) {
-      unit_list_t *next = list->next;
-      free(list);
-      list = next;
-   }
-}
-
-static param_list_t *param_list_add(param_list_t *list, param_t a)
-{
-   param_list_t *new = xmalloc(sizeof(param_list_t));
-   new->next  = list;
-   new->param = a;
-   return new;
-}
-
-static void param_list_free(param_list_t *list)
-{
-   while (list != NULL) {
-      param_list_t *next = list->next;
-      free(list);
-      list = next;
-   }
-}
-
-static assoc_list_t *assoc_list_add(assoc_list_t *list, assoc_t a)
-{
-   assoc_list_t *new = xmalloc(sizeof(assoc_list_t));
-   new->next  = list;
-   new->assoc = a;
-   return new;
-}
-
-static void assoc_list_free(assoc_list_t *list)
-{
-   while (list != NULL) {
-      assoc_list_t *next = list->next;
+      list_t *next = list->next;
       free(list);
       list = next;
    }

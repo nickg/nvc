@@ -103,6 +103,11 @@ typedef struct param {
    enum { P_POS, P_NAMED, P_RANGE } kind;
 } param_t;
 
+typedef struct context {
+   ident_t name;
+   loc_t   loc;
+} context_t;
+
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
@@ -205,8 +210,8 @@ void tree_set_ref(tree_t t, tree_t decl);
 
 // T_ENTITY, T_ARCH, T_PACKAGE
 unsigned tree_contexts(tree_t t);
-ident_t tree_context(tree_t t, unsigned n);
-void tree_add_context(tree_t t, ident_t ctx);
+context_t tree_context(tree_t t, unsigned n);
+void tree_add_context(tree_t t, context_t ctx);
 
 // T_AGGREGATE
 unsigned tree_assocs(tree_t t);

@@ -297,19 +297,22 @@ static void scope_replace(tree_t t, tree_t with)
    scope_replace_at(t, with, top_scope->decls);
 }
 
-static bool scope_import_unit(tree_t t, lib_t lib, ident_t name)
+static bool scope_import_unit(context_t ctx, lib_t lib)
 {
    // Check we haven't already imported this
    struct ident_list *it;
    for (it = top_scope->imported; it != NULL; it = it->next) {
-      if (it->ident == name)
+      if (it->ident == ctx.name)
          return true;
    }
 
-   tree_t unit = lib_get(lib, name);
-   if (unit == NULL)
-      sem_error(t, "unit %s not found in library %s",
-                istr(name), istr(lib_name(lib)));
+   tree_t unit = lib_get(lib, ctx.name);
+   if (unit == NULL) {
+      error_at(&ctx.loc, "unit %s not found in library %s",
+               istr(ctx.name), istr(lib_name(lib)));
+      errors++;
+      return false;
+   }
 
    for (unsigned n = 0; n < tree_decls(unit); n++) {
       tree_t decl = tree_decl(unit, n);
@@ -317,7 +320,7 @@ static bool scope_import_unit(tree_t t, lib_t lib, ident_t name)
          return false;
    }
 
-   scope_ident_list_add(&top_scope->imported, name);
+   scope_ident_list_add(&top_scope->imported, ctx.name);
    return true;
 }
 
@@ -814,23 +817,28 @@ static bool sem_check_context(tree_t t)
 
       ident_t std_standard_name = ident_new("STD.STANDARD");
       scope_add_context(std_standard_name);
-      if (!scope_import_unit(t, std, std_standard_name))
+
+      context_t c = {
+         .name = std_standard_name,
+         .loc  = LOC_INVALID
+      };
+      if (!scope_import_unit(c, std))
          return false;
    }
 
    for (unsigned n = 0; n < tree_contexts(t); n++) {
-      ident_t c = tree_context(t, n);
-      ident_t all = ident_strip(c, ident_new(".all"));
+      context_t c = tree_context(t, n);
+      ident_t all = ident_strip(c.name, ident_new(".all"));
       if (all) {
          scope_add_context(all);
-         c = all;
+         c.name = all;
       }
 
-      lib_t lib = lib_find(istr(ident_until(c, '.')), true, true);
+      lib_t lib = lib_find(istr(ident_until(c.name, '.')), true, true);
       if (lib == NULL)
          return false;
 
-      if (!scope_import_unit(t, lib, c))
+      if (!scope_import_unit(c, lib))
           return false;
    }
 
@@ -1277,7 +1285,11 @@ static bool sem_check_package_body(tree_t t)
       return false;
 
    // Look up package declaration
-   bool ok = scope_import_unit(t, lib_work(), qual);
+   context_t c = {
+      .name = qual,
+      .loc  = *tree_loc(t)
+   };
+   bool ok = scope_import_unit(c, lib_work());
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
