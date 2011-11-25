@@ -1675,9 +1675,10 @@ static id_list_t *id_list_append(id_list_t *a, id_list_t *b)
    if (a == NULL)
       return b;
 
-   while (a->next)
-      a = a->next;
-   a->next = b;
+   id_list_t *it;
+   for (it = a; it->next != NULL; it = it->next)
+      ;
+   it->next = b;
 
    return a;
 }

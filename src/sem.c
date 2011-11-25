@@ -1252,8 +1252,10 @@ static bool sem_check_package(tree_t t)
 
    scope_push(qual);
 
-   bool ok = sem_check_context(t);
+   if (!sem_check_context(t))
+      return false;
 
+   bool ok = true;
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
@@ -1271,10 +1273,11 @@ static bool sem_check_package_body(tree_t t)
 
    scope_push(qual);
 
-   bool ok = sem_check_context(t);
+   if (!sem_check_context(t))
+      return false;
 
    // Look up package declaration
-   ok = scope_import_unit(t, lib_work(), qual) && ok;
+   bool ok = scope_import_unit(t, lib_work(), qual);
 
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
@@ -1291,8 +1294,10 @@ static bool sem_check_entity(tree_t t)
 {
    scope_push(NULL);
 
-   bool ok = sem_check_context(t);
+   if (!sem_check_context(t))
+      return false;
 
+   bool ok = true;
    for (unsigned n = 0; n < tree_generics(t); n++)
       ok = sem_check(tree_generic(t, n)) && ok;
 
