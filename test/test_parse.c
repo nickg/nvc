@@ -871,13 +871,10 @@ START_TEST(test_array)
    fail_unless(type_kind(t) == T_CARRAY);
    fail_unless(type_dims(t) == 1);
    r = type_dim(t, 0);
-   fail_unless(r.kind == RANGE_TO);
-   fail_unless(tree_kind(r.left) == T_ATTR_REF);
+   fail_unless(r.kind == RANGE_EXPR);
+   fail_unless(tree_kind(r.left) == T_REF);
    fail_unless(tree_ident(r.left) == ident_new("CHARS"));
-   fail_unless(tree_ident2(r.left) == ident_new("LEFT"));
-   fail_unless(tree_kind(r.right) == T_ATTR_REF);
-   fail_unless(tree_ident(r.right) == ident_new("CHARS"));
-   fail_unless(tree_ident2(r.right) == ident_new("RIGHT"));
+   fail_unless(r.right == NULL);
 
    a = parse();
    fail_if(a == NULL);

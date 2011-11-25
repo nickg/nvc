@@ -1192,22 +1192,23 @@ constrained_array_def
 ;
 
 index_constraint
-: tLPAREN range /* { , range } */ tRPAREN { $$ = $2; }
-| tLPAREN selected_id tRPAREN
+: tLPAREN expr tTO expr tRPAREN
   {
-     tree_t left = tree_new(T_ATTR_REF);
-     tree_set_loc(left, &@2);
-     tree_set_ident(left, $2);
-     tree_set_ident2(left, ident_new("LEFT"));
-
-     tree_t right = tree_new(T_ATTR_REF);
-     tree_set_loc(right, &@2);
-     tree_set_ident(right, $2);
-     tree_set_ident2(right, ident_new("RIGHT"));
-
      $$.kind  = RANGE_TO;
-     $$.left  = left;
-     $$.right = right;
+     $$.left  = $2;
+     $$.right = $4;
+  }
+| tLPAREN expr tDOWNTO expr tRPAREN
+  {
+     $$.kind  = RANGE_DOWNTO;
+     $$.left  = $2;
+     $$.right = $4;
+  }
+| tLPAREN expr tRPAREN
+  {
+     $$.kind  = RANGE_EXPR;
+     $$.left  = $2;
+     $$.right = NULL;
   }
 ;
 
