@@ -1192,8 +1192,13 @@ static bool sem_check_func_body(tree_t t)
       scope_insert(tree_port(t, i));
 
    bool ok = true;
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      ok = sem_check(tree_stmt(t, i)) && ok;
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   if (ok) {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         ok = sem_check(tree_stmt(t, i)) && ok;
+   }
 
    scope_pop();
 

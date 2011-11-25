@@ -175,7 +175,7 @@ unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
 void tree_add_waveform(tree_t t, tree_t w);
 
-// T_ARCH, T_PROCESS, T_PACKAGE
+// T_ARCH, T_PROCESS, T_PACKAGE, T_FBODY
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);

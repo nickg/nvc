@@ -17,6 +17,7 @@ end package two;
 package body one is
 
     function add_one(x : my_int) return my_int is
+        variable x : integer;
     begin
         null;
     end function add_one;

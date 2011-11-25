@@ -62,9 +62,11 @@ struct tree {
    unsigned    n_attrs;
 
    union {
+      struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FBODY
+   };
+   union {
       struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL, T_FBODY
       struct param_array params;   // T_FCALL, T_ATTR_REF
-      struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE
       struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
@@ -78,7 +80,7 @@ struct tree {
       port_mode_t port_mode;       // T_PORT_MODE
       ident_t     ident2;          // T_ARCH, T_ATTR_REF
       tree_t      message;         // T_ASSERT
-      tree_t delay;                // T_WAIT
+      tree_t      delay;           // T_WAIT
    };
    union {
       tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
@@ -169,7 +171,7 @@ struct tree_rd_ctx {
     || IS(t, T_INSTANCE))
 #define HAS_DECLS(t) \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE) || IS(t, T_ELAB) \
-    || IS(t, T_PBODY) || IS(t, T_FOR))
+    || IS(t, T_PBODY) || IS(t, T_FOR) || IS(t, T_FBODY))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \

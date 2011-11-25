@@ -766,6 +766,7 @@ subprogram_decl
      tree_set_type(f, t);
 
      copy_trees($3, tree_add_port, f);
+     copy_trees($7, tree_add_decl, f);
      copy_trees($9, tree_add_stmt, f);
 
      $$ = NULL;
