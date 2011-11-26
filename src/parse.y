@@ -160,7 +160,7 @@
 %type <l> variable_decl process_decl_item seq_stmt_list type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
-%type <l> sensitivity_clause process_sensitivity_clause
+%type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl
 %type <p> entity_header
@@ -185,7 +185,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
-%token tWHILE tLOOP tAFTER tALIAS
+%token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -367,11 +367,11 @@ package_decl_item
 | constant_decl
 | subprogram_decl
 | alias_decl
+| attr_decl
 /* | signal_declaration
    | shared_variable_declaration
    | file_declaration
    | component_declaration
-   | attribute_declaration
    | attribute_specification
    | disconnection_specification
    | use_clause
@@ -437,11 +437,11 @@ block_decl_item
 | constant_decl
 | subprogram_decl
 | alias_decl
+| attr_decl
 /* | subprogram_body
    | shared_variable_declaration
    | file_declaration
    | component_declaration
-   | attribute_declaration
    | attribute_specification
    | configuration_specification
    | disconnection_specification
@@ -504,6 +504,19 @@ alias_decl
      tree_set_loc(a, &@$);
      tree_set_ident(a, $2);
      tree_set_value(a, $6);
+     tree_set_type(a, $4);
+
+     $$ = NULL;
+     tree_list_append(&$$, a);
+  }
+;
+
+attr_decl
+: tATTRIBUTE id tCOLON type_mark tSEMI
+  {
+     tree_t a = tree_new(T_ATTR_DECL);
+     tree_set_loc(a, &@$);
+     tree_set_ident(a, $2);
      tree_set_type(a, $4);
 
      $$ = NULL;
@@ -724,9 +737,9 @@ process_decl_item
 | constant_decl
 | subprogram_decl
 | alias_decl
+| attr_decl
   /* | subprogram_body
      | file_declaration
-     | attribute_declaration
      | attribute_specification
      | use_clause
      | group_template_declaration
@@ -805,8 +818,8 @@ subprogram_decl_item
 | variable_decl
 | type_decl
 | alias_decl
+| attr_decl
   /* | file_declaration
-     | attribute_declaration
      | attribute_specification
      | use_clause
      | group_template_declaration

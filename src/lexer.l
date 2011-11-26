@@ -138,6 +138,7 @@ LOOP          {L}{O}{O}{P}
 AFTER         {A}{F}{T}{E}{R}
 ALIAS         {A}{L}{I}{A}{S}
 MOD           {M}{O}{D}
+ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
 
 %%
 
@@ -206,6 +207,7 @@ MOD           {M}{O}{D}
 {AFTER}         { begin_token(yytext); return tAFTER; }
 {ALIAS}         { begin_token(yytext); return tALIAS; }
 {MOD}           { begin_token(yytext); return tMOD; }
+{ATTRIBUTE}     { begin_token(yytext); return tATTRIBUTE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

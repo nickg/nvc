@@ -1077,6 +1077,31 @@ START_TEST(test_alias)
 }
 END_TEST
 
+START_TEST(test_attr)
+{
+   tree_t a, d;
+
+   fail_unless(input_from_file(TESTDIR "/parse/attr.vhd"));
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 0);
+   fail_unless(tree_decls(a) == 1);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_kind(d) == T_ATTR_DECL);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   fail_unless(type_kind(tree_type(d)) == T_UNRESOLVED);
+   fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1099,6 +1124,7 @@ int main(void)
    tcase_add_test(tc_core, test_instance);
    tcase_add_test(tc_core, test_conc);
    tcase_add_test(tc_core, test_alias);
+   tcase_add_test(tc_core, test_attr);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
