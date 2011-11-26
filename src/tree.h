@@ -70,6 +70,7 @@ typedef enum tree_kind {
    T_ALIAS,
    T_FOR,
    T_ATTR_DECL,
+   T_ATTR_SPEC,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -133,7 +134,7 @@ ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
 
-// T_ARCH, T_ATTR_REF, T_INSTANCE, T_FOR
+// T_ARCH, T_ATTR_REF, T_INSTANCE, T_FOR, T_ATTR_SPEC
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 
@@ -166,7 +167,7 @@ literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
-// T_QUALIFIED, T_CONST_DECL, T_ASSERT,
+// T_QUALIFIED, T_CONST_DECL, T_ASSERT, T_ATTR_SPEC
 // T_ARRAY_REF, T_IF, T_WHILE, T_REF
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);

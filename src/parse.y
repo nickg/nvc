@@ -162,7 +162,7 @@
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
-%type <l> subprogram_decl_item waveform alias_decl
+%type <l> subprogram_decl_item waveform alias_decl attr_spec
 %type <p> entity_header
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -368,11 +368,11 @@ package_decl_item
 | subprogram_decl
 | alias_decl
 | attr_decl
+| attr_spec
 /* | signal_declaration
    | shared_variable_declaration
    | file_declaration
    | component_declaration
-   | attribute_specification
    | disconnection_specification
    | use_clause
    | group_template_declaration
@@ -438,11 +438,11 @@ block_decl_item
 | subprogram_decl
 | alias_decl
 | attr_decl
+| attr_spec
 /* | subprogram_body
    | shared_variable_declaration
    | file_declaration
    | component_declaration
-   | attribute_specification
    | configuration_specification
    | disconnection_specification
    | use_clause
@@ -522,6 +522,25 @@ attr_decl
      $$ = NULL;
      tree_list_append(&$$, a);
   }
+;
+
+attr_spec
+: tATTRIBUTE id tOF id tCOLON entity_class tIS expr tSEMI
+  {
+     tree_t a = tree_new(T_ATTR_SPEC);
+     tree_set_loc(a, &@$);
+     tree_set_ident(a, $2);
+     tree_set_ident2(a, $4);
+     tree_set_value(a, $8);
+
+     $$ = NULL;
+     tree_list_append(&$$, a);
+  }
+;
+
+entity_class
+: tENTITY | tARCHITECTURE | tCONFIGURATION | tFUNCTION | tPACKAGE
+| tTYPE | tSUBTYPE | tCONSTANT | tSIGNAL | tVARIABLE
 ;
 
 arch_stmt_part
@@ -738,9 +757,9 @@ process_decl_item
 | subprogram_decl
 | alias_decl
 | attr_decl
+| attr_spec
   /* | subprogram_body
      | file_declaration
-     | attribute_specification
      | use_clause
      | group_template_declaration
      | group_declaration
@@ -819,8 +838,8 @@ subprogram_decl_item
 | type_decl
 | alias_decl
 | attr_decl
+| attr_spec
   /* | file_declaration
-     | attribute_specification
      | use_clause
      | group_template_declaration
      | group_declaration */
