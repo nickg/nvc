@@ -673,11 +673,11 @@ START_TEST(test_package)
 
    p = parse();
    fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PBODY);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
    fail_unless(tree_ident(p) == ident_new("ONE"));
    fail_unless(tree_decls(p) == 1);
    d = tree_decl(p, 0);
-   fail_unless(tree_kind(d) == T_FBODY);
+   fail_unless(tree_kind(d) == T_FUNC_BODY);
 
    p = parse();
    fail_unless(p == NULL);
@@ -1108,6 +1108,41 @@ START_TEST(test_attr)
 }
 END_TEST
 
+START_TEST(test_procedure)
+{
+   tree_t p, d;
+
+   fail_unless(input_from_file(TESTDIR "/parse/procedure.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 1);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_kind(d) == T_PROC_DECL);
+   fail_unless(tree_ports(d) == 2);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   fail_unless(tree_decls(p) == 1);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_kind(d) == T_PROC_BODY);
+   fail_unless(tree_ports(d) == 2);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   fail_unless(tree_decls(d) == 1);
+   fail_unless(tree_stmts(d) == 1);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1131,6 +1166,7 @@ int main(void)
    tcase_add_test(tc_core, test_conc);
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_attr);
+   tcase_add_test(tc_core, test_procedure);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -153,7 +153,7 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-      case T_FBODY:
+      case T_FUNC_BODY:
          tree_set_ident(d, pn);
          tree_add_decl(out, d);
          break;

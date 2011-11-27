@@ -1493,7 +1493,7 @@ static bool sem_check_fcall(tree_t t)
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
          switch (tree_kind(decl)) {
          case T_FUNC_DECL:
-         case T_FBODY:
+         case T_FUNC_BODY:
             break;
          default:
             // The grammar is ambiguous between function calls and
@@ -2219,9 +2219,9 @@ bool sem_check(tree_t t)
       return sem_check_if(t);
    case T_NULL:
       return true;
-   case T_PBODY:
+   case T_PACK_BODY:
       return sem_check_package_body(t);
-   case T_FBODY:
+   case T_FUNC_BODY:
       return sem_check_func_body(t);
    case T_RETURN:
       return sem_check_return(t);

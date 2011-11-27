@@ -53,7 +53,7 @@ struct type {
          unit_t   *units;
          unsigned n_units;
       };
-      struct {   // T_FUNC
+      struct {   // T_FUNC, T_PROC
          type_t   *params;
          unsigned n_params;
          unsigned params_alloc;
@@ -89,6 +89,7 @@ struct type_rd_ctx {
    (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 #define HAS_RESOLUTION(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
+#define HAS_PARAMS(t) (IS(t, T_FUNC) || IS(t, T_PROC))
 
 type_t type_new(type_kind_t kind)
 {
@@ -153,7 +154,9 @@ bool type_eq(type_t a, type_t b)
    if (type_kind(a) == T_FUNC) {
       if (!type_eq(type_result(a), type_result(b)))
          return false;
+   }
 
+   if (HAS_PARAMS(a)) {
       if (type_params(a) != type_params(b))
          return false;
 
@@ -355,7 +358,7 @@ void type_enum_add_literal(type_t t, tree_t lit)
 unsigned type_params(type_t t)
 {
    assert(t != NULL);
-   assert(IS(t, T_FUNC));
+   assert(HAS_PARAMS(t));
 
    return t->n_params;
 }
@@ -363,7 +366,7 @@ unsigned type_params(type_t t)
 type_t type_param(type_t t, unsigned n)
 {
    assert(t != NULL);
-   assert(IS(t, T_FUNC));
+   assert(HAS_PARAMS(t));
    assert(n < t->n_params);
 
    return t->params[n];
@@ -373,7 +376,7 @@ void type_add_param(type_t t, type_t p)
 {
    assert(t != NULL);
    assert(p != NULL);
-   assert(IS(t, T_FUNC));
+   assert(HAS_PARAMS(t));
 
    if (t->params == NULL) {
       t->params_alloc = 4;
@@ -502,17 +505,18 @@ void type_unref(type_t t)
    assert(t->refcount > 0);
 
    if (--(t->refcount) == 0) {
+      if (HAS_PARAMS(t)) {
+         for (unsigned i = 0; i < t->n_params; i++)
+            type_unref(t->params[i]);
+         free(t->params);
+      }
 
       if (IS(t, T_PHYSICAL) && t->units != NULL)
          free(t->units);
       else if (IS(t, T_ENUM) && t->literals != NULL)
          free(t->literals);
-      else if (IS(t, T_FUNC) && t->params != NULL) {
-         for (unsigned i = 0; i < t->n_params; i++)
-            type_unref(t->params[i]);
-         free(t->params);
+      else if (IS(t, T_FUNC))
          type_unref(t->result);
-      }
       if (HAS_DIMS(t) && t->dims != NULL)
          free(t->dims);
 
@@ -558,6 +562,11 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
+   if (HAS_PARAMS(t)) {
+      write_s(t->n_params, f);
+      for (unsigned i = 0; i < t->n_params; i++)
+         type_write(t->params[i], ctx);
+   }
    if (HAS_BASE(t)) {
       if (write_b(t->base != NULL, f))
          type_write(t->base, ctx);
@@ -577,12 +586,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_literals; i++)
          tree_write(t->literals[i], ctx->tree_ctx);
    }
-   else if (IS(t, T_FUNC)) {
-      write_s(t->n_params, f);
-      for (unsigned i = 0; i < t->n_params; i++)
-         type_write(t->params[i], ctx);
+   else if (IS(t, T_FUNC))
       type_write(t->result, ctx);
-   }
    else if (IS(t, T_UARRAY)) {
       write_s(t->n_index_constr, f);
       for (unsigned i = 0; i < t->n_index_constr; i++)
@@ -638,6 +643,18 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
+   if (HAS_PARAMS(t)) {
+      unsigned short nparams = read_s(f);
+
+      t->params = xmalloc(nparams * sizeof(type_t));
+      t->params_alloc = nparams;
+
+      for (unsigned i = 0; i < nparams; i++) {
+         if ((t->params[i] = type_read(ctx)))
+            type_ref(t->params[i]);
+      }
+      t->n_params = nparams;
+   }
 
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_s(f);
@@ -663,17 +680,6 @@ type_t type_read(type_rd_ctx_t ctx)
       t->n_literals = nlits;
    }
    else if (IS(t, T_FUNC)) {
-      unsigned short nparams = read_s(f);
-
-      t->params = xmalloc(nparams * sizeof(type_t));
-      t->params_alloc = nparams;
-
-      for (unsigned i = 0; i < nparams; i++) {
-         if ((t->params[i] = type_read(ctx)))
-            type_ref(t->params[i]);
-      }
-      t->n_params = nparams;
-
       if ((t->result = type_read(ctx)))
          type_ref(t->result);
    }

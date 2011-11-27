@@ -449,12 +449,12 @@ START_TEST(test_func)
 
    p = parse();
    fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PBODY);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
    sem_check(p);
 
    p = parse();
    fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PBODY);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
    sem_check(p);
 
    fail_unless(parse() == NULL);

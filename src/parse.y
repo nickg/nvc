@@ -185,7 +185,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
-%token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE
+%token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -336,7 +336,7 @@ package_decl
 | tPACKAGE tBODY id tIS package_body_decl_part
   tEND opt_package_body opt_id tSEMI
   {
-     $$ = tree_new(T_PBODY);
+     $$ = tree_new(T_PACK_BODY);
      tree_set_loc($$, &@$);
      tree_set_ident($$, $3);
      copy_trees($5, tree_add_decl, $$);
@@ -792,7 +792,7 @@ subprogram_decl
      type_set_ident(t, $2);
      type_set_result(t, $5);
 
-     tree_t f = tree_new(T_FBODY);
+     tree_t f = tree_new(T_FUNC_BODY);
      tree_set_loc(f, &@$);
      tree_set_ident(f, $2);
      tree_set_type(f, t);
@@ -804,11 +804,46 @@ subprogram_decl
      $$ = NULL;
      tree_list_append(&$$, f);
   }
+| tPROCEDURE id formal_param_list tSEMI
+  {
+     type_t t = type_new(T_PROC);
+     type_set_ident(t, $2);
+
+     tree_t p = tree_new(T_PROC_DECL);
+     tree_set_loc(p, &@$);
+     tree_set_ident(p, $2);
+     tree_set_type(p, t);
+
+     copy_trees($3, tree_add_port, p);
+
+     $$ = NULL;
+     tree_list_append(&$$, p);
+  }
+| tPROCEDURE id formal_param_list tIS subprogram_decl_part
+  tBEGIN seq_stmt_list tEND opt_proc opt_id tSEMI
+  {
+     type_t t = type_new(T_PROC);
+     type_set_ident(t, $2);
+
+     tree_t p = tree_new(T_PROC_BODY);
+     tree_set_loc(p, &@$);
+     tree_set_ident(p, $2);
+     tree_set_type(p, t);
+
+     copy_trees($3, tree_add_port, p);
+     copy_trees($5, tree_add_decl, p);
+     copy_trees($7, tree_add_stmt, p);
+
+     $$ = NULL;
+     tree_list_append(&$$, p);
+  }
 ;
 
 func_type : tPURE tFUNCTION | tIMPURE tFUNCTION | tFUNCTION ;
 
 opt_func : tFUNCTION | /* empty */ ;
+
+opt_proc : tPROCEDURE | /* empty */ ;
 
 func_name
 : id

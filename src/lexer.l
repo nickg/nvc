@@ -139,6 +139,7 @@ AFTER         {A}{F}{T}{E}{R}
 ALIAS         {A}{L}{I}{A}{S}
 MOD           {M}{O}{D}
 ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
+PROCEDURE     {P}{R}{O}{C}{E}{D}{U}{R}{E}
 
 %%
 
@@ -208,6 +209,7 @@ ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
 {ALIAS}         { begin_token(yytext); return tALIAS; }
 {MOD}           { begin_token(yytext); return tMOD; }
 {ATTRIBUTE}     { begin_token(yytext); return tATTRIBUTE; }
+{PROCEDURE}     { begin_token(yytext); return tPROCEDURE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }

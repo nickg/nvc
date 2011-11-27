@@ -170,7 +170,7 @@ static tree_t simp_fcall(tree_t t)
 {
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL
-          || tree_kind(decl) == T_FBODY);
+          || tree_kind(decl) == T_FUNC_BODY);
 
    const char *builtin = tree_attr_str(decl, builtin_i);
    if (builtin == NULL)

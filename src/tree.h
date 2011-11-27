@@ -61,8 +61,8 @@ typedef enum tree_kind {
    T_INSTANCE,
    T_IF,
    T_NULL,
-   T_PBODY,
-   T_FBODY,
+   T_PACK_BODY,
+   T_FUNC_BODY,
    T_RETURN,
    T_CASSIGN,
    T_WHILE,
@@ -71,6 +71,8 @@ typedef enum tree_kind {
    T_FOR,
    T_ATTR_DECL,
    T_ATTR_SPEC,
+   T_PROC_DECL,
+   T_PROC_BODY,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -178,12 +180,13 @@ unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
 void tree_add_waveform(tree_t t, tree_t w);
 
-// T_ARCH, T_PROCESS, T_PACKAGE, T_FBODY
+// T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY, T_PROC_BODY
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
 
-// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR
+// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR, T_FUNC_BODY
+// T_PROC_BODY
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);

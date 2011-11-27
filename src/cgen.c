@@ -408,7 +408,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL
-          || tree_kind(decl) == T_FBODY);
+          || tree_kind(decl) == T_FUNC_BODY);
 
    const char *builtin = tree_attr_str(decl, ident_new("builtin"));
 
@@ -1455,7 +1455,7 @@ static void cgen_top(tree_t t)
       case T_SIGNAL_DECL:
          cgen_signal(decl);
          break;
-      case T_FBODY:
+      case T_FUNC_BODY:
          cgen_func_body(decl);
          break;
       default:

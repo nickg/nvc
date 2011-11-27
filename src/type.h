@@ -44,6 +44,7 @@ typedef enum type_kind {
    T_ACCESS,
    T_FUNC,
    T_INCOMPLETE,
+   T_PROC,
 
    T_LAST_TYPE_KIND
 } type_kind_t;
@@ -66,7 +67,7 @@ type_t type_new(type_kind_t kind);
 type_kind_t type_kind(type_t t);
 bool type_eq(type_t a, type_t b);
 
-// T_UNRESOLVED, T_FUNC
+// T_UNRESOLVED, T_FUNC, T_PROC
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
@@ -90,7 +91,7 @@ unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
 
-// T_FUNC
+// T_FUNC, T_PROC
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);
 void type_add_param(type_t t, type_t p);
