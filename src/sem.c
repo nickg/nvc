@@ -1047,6 +1047,40 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
+static void sem_add_attributes(tree_t decl)
+{
+   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+
+   type_t type = tree_type(decl);
+   type_kind_t kind = type_kind(type);
+
+   if (kind == T_CARRAY) {
+      range_t r = type_dim(type, 0);
+
+      tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
+      tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
+      tree_add_attr_tree(decl, ident_new("ASCENDING"),
+                         sem_bool_lit(std_bool, r.kind == RANGE_TO));
+
+      if (r.kind == RANGE_TO) {
+         tree_add_attr_tree(decl, ident_new("LOW"), r.left);
+         tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
+      }
+      else {
+         tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
+         tree_add_attr_tree(decl, ident_new("LOW"), r.right);
+      }
+   }
+
+   if (kind == T_UARRAY || kind == T_CARRAY) {
+      ident_t length_i = ident_new("LENGTH");
+      tree_add_attr_tree(decl, length_i,
+                         sem_builtin_fn(length_i,
+                                        sem_std_type("STD.STANDARD.INTEGER"),
+                                        "length", type, NULL));
+   }
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1083,6 +1117,8 @@ static bool sem_check_decl(tree_t t)
                                         type, NULL));
    }
 
+   sem_add_attributes(t);
+
    scope_apply_prefix(t);
    return scope_insert(t);
 }
@@ -1101,6 +1137,8 @@ static bool sem_check_alias(tree_t t)
    }
    else
       tree_set_type(t, tree_type(tree_value(t)));
+
+   sem_add_attributes(t);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -1188,10 +1226,14 @@ static bool sem_check_func_body(tree_t t)
    scope_push(NULL);
    top_scope->func = t;
 
-   for (unsigned i = 0; i < tree_ports(t); i++)
-      scope_insert(tree_port(t, i));
-
    bool ok = true;
+
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+      sem_add_attributes(p);
+      ok = scope_insert(p) && ok;
+   }
+
    for (unsigned i = 0; i < tree_decls(t); i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 

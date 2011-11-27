@@ -37,6 +37,7 @@ begin
         x <= a3(8);
         x <= a3(10);                    -- Error!
         x <= a3(-1);                    -- Error!
+        x <= a1'length;
     end process;
 
     process is

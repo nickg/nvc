@@ -144,6 +144,7 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 17), 0)), 5));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 18), 0)), 6));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 19), 0)), 24));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 22), 0)), 5));
 
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 2);

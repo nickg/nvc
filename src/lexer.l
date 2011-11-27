@@ -141,6 +141,7 @@ MOD           {M}{O}{D}
 ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
 PROCEDURE     {P}{R}{O}{C}{E}{D}{U}{R}{E}
 EXIT          {E}{X}{I}{T}
+REM           {R}{E}{M}
 
 %%
 
@@ -212,6 +213,7 @@ EXIT          {E}{X}{I}{T}
 {ATTRIBUTE}     { begin_token(yytext); return tATTRIBUTE; }
 {PROCEDURE}     { begin_token(yytext); return tPROCEDURE; }
 {EXIT}          { begin_token(yytext); return tEXIT; }
+{REM}           { begin_token(yytext); return tREM; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
