@@ -101,5 +101,11 @@ begin
             null;
         end loop;
     end process;
+
+    -- Exit
+    process is
+    begin
+        exit;
+    end process;
     
 end architecture;

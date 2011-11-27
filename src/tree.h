@@ -73,6 +73,7 @@ typedef enum tree_kind {
    T_ATTR_SPEC,
    T_PROC_DECL,
    T_PROC_BODY,
+   T_EXIT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

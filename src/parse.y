@@ -185,7 +185,7 @@
 %token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
-%token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE
+%token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1065,10 +1065,14 @@ seq_stmt_without_label
      tree_set_range($$, r);
      copy_trees($6, tree_add_stmt, $$);
   }
+| tEXIT tSEMI
+  {
+     $$ = tree_new(T_EXIT);
+     tree_set_loc($$, &@$);
+  }
 /* | procedure_call_statement
    | case_statement
-   | next_statement
-   | exit_statement */
+   | next_statement */
 ;
 
 elsif_list

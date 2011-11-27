@@ -253,7 +253,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 10);
+   fail_unless(tree_stmts(a) == 11);
 
    // Wait statements
 
@@ -474,6 +474,13 @@ START_TEST(test_seq)
    fail_unless(tree_range(s).kind == RANGE_EXPR);
    fail_unless(tree_kind(tree_range(s).left) == T_ATTR_REF);
    fail_unless(tree_range(s).right == NULL);
+
+   // Exit
+
+   p = tree_stmt(a, 10);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_EXIT);
 
    a = parse();
    fail_unless(a == NULL);

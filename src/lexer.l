@@ -140,6 +140,7 @@ ALIAS         {A}{L}{I}{A}{S}
 MOD           {M}{O}{D}
 ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
 PROCEDURE     {P}{R}{O}{C}{E}{D}{U}{R}{E}
+EXIT          {E}{X}{I}{T}
 
 %%
 
@@ -210,6 +211,7 @@ PROCEDURE     {P}{R}{O}{C}{E}{D}{U}{R}{E}
 {MOD}           { begin_token(yytext); return tMOD; }
 {ATTRIBUTE}     { begin_token(yytext); return tATTRIBUTE; }
 {PROCEDURE}     { begin_token(yytext); return tPROCEDURE; }
+{EXIT}          { begin_token(yytext); return tEXIT; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
