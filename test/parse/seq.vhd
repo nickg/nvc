@@ -107,5 +107,12 @@ begin
     begin
         exit;
     end process;
+
+    -- Procedure call
+    process is
+    begin
+        foo(x, y, 1);
+        bar;
+    end process;
     
 end architecture;

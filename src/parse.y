@@ -963,6 +963,26 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      copy_trees($3, tree_add_waveform, $$);
   }
+| name tSEMI
+  {
+     switch (tree_kind($1)) {
+     case T_FCALL:
+        $$ = $1;
+        tree_change_kind($$, T_PCALL);
+        tree_set_ident2($$, tree_ident($$));
+        break;
+
+     case T_REF:
+        $$ = tree_new(T_PCALL);
+        tree_set_loc($$, &@1);
+        tree_set_ident2($$, tree_ident($1));
+        break;
+
+     default:
+        parse_error(&@1, "invalid procedure call");
+        $$ = tree_new(T_NULL);
+     }
+  }
 | tASSERT expr report severity tSEMI
   {
      if ($4 == NULL) {

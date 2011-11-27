@@ -66,7 +66,7 @@ struct tree {
    };
    union {
       struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL, T_FUNC_BODY
-      struct param_array params;   // T_FCALL, T_ATTR_REF
+      struct param_array params;   // T_FCALL, T_ATTR_REF, T_PCALL
       struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
@@ -84,7 +84,7 @@ struct tree {
    };
    union {
       tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
-      tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF
+      tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
       tree_t   severity;           // T_ASSERT
       unsigned pos;                // T_ENUM_LIT;
    };
@@ -148,7 +148,7 @@ struct tree_rd_ctx {
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
-    || IS(t, T_EXIT))
+    || IS(t, T_EXIT) || IS(t, T_PCALL))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -158,10 +158,11 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE) || IS(t, T_PACK_BODY)   \
     || IS(t, T_FUNC_BODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE)       \
     || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
-    || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT))
+    || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
+    || IS(t, T_PCALL))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
-    || IS(t, T_FOR) || IS(t, T_ATTR_SPEC))
+    || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL))
 #define HAS_PORTS(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY)       \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY))
@@ -174,7 +175,7 @@ struct tree_rd_ctx {
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY))
 #define HAS_PARAMS(t)                                                 \
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)         \
-    || IS(t, T_INSTANCE))
+    || IS(t, T_INSTANCE) || IS(t, T_PCALL))
 #define HAS_DECLS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE)             \
     || IS(t, T_ELAB) || IS(t, T_PACK_BODY) || IS(t, T_FOR)            \
@@ -185,20 +186,22 @@ struct tree_rd_ctx {
     || IS(t, T_FUNC_BODY) || IS(t, T_WHILE) || IS(t, T_FOR)           \
     || IS(t, T_PROC_BODY))
 #define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
-#define HAS_TARGET(t) \
-   (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
-#define HAS_VALUE(t)                                                   \
-   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_WAVEFORM)             \
-    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)    \
-    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) \
-    || IS(t, T_IF) || IS(t, T_RETURN) || IS(t, T_WHILE)                \
-    || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC))
-#define HAS_CONTEXT(t)                                          \
-   (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)        \
+#define HAS_TARGET(t)                                                 \
+   (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)                     \
+    || IS(t, T_CASSIGN))
+#define HAS_VALUE(t)                                                  \
+   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_WAVEFORM)            \
+    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)   \
+    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)                        \
+    || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
+    || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC))
+#define HAS_CONTEXT(t)                                                \
+   (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY))
-#define HAS_REF(t) \
-   (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) \
-    || IS(t, T_ARRAY_SLICE) || IS(t, T_INSTANCE))
+#define HAS_REF(t)                                                    \
+   (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
+    || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE)                     \
+    || IS(t, T_INSTANCE) || IS(t, T_PCALL))
 #define HAS_WAVEFORMS(t) (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
 #define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
 
