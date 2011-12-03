@@ -1941,36 +1941,32 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       rewrite_p(&t->genmaps, fn, context);
       break;
 
-   case T_TYPE_DECL:
-      {
-         type_t type = tree_type(t);
-
-         switch (type_kind(type)) {
-         case T_INTEGER:
-         case T_PHYSICAL:
-         case T_CARRAY:
-            {
-               for (unsigned i = 0; i < type_dims(type); i++) {
-                  range_t r = type_dim(type, i);
-                  r.left  = tree_rewrite(r.left, fn, context);
-                  r.right = tree_rewrite(r.right, fn, context);
-                  type_change_dim(type, i, r);
-               }
-            }
-            break;
-
-         default:
-            break;
-         }
-      }
-      break;
-
    case T_IF:
       rewrite_a(&t->elses, fn, context);
       break;
 
    default:
       break;
+   }
+
+   if (IS_DECL(t)) {
+      type_t type = tree_type(t);
+      switch (type_kind(type)) {
+      case T_INTEGER:
+      case T_SUBTYPE:
+      case T_PHYSICAL:
+      case T_CARRAY:
+         for (unsigned i = 0; i < type_dims(type); i++) {
+            range_t r = type_dim(type, i);
+            r.left  = tree_rewrite(r.left, fn, context);
+            r.right = tree_rewrite(r.right, fn, context);
+            type_change_dim(type, i, r);
+         }
+         break;
+
+      default:
+         break;
+      }
    }
 
    return (*fn)(t, context);
