@@ -20,5 +20,5 @@ entity five is
         X : boolean;
         Y : integer := 2 * 5);
     port (
-        p : out bit );
+        signal p : out bit );
 end entity;

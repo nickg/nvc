@@ -590,8 +590,8 @@ START_TEST(test_seq)
       { 19, "undefined identifier X" },
       { 25, "no suitable overload for identifier TRUE" },
       { 32, "undefined identifier X" },
-      { 48, "return statement not allowed outside function" },
-      { 62, "return statement not allowed outside function" },
+      { 48, "return statement not allowed outside subprogram" },
+      { 62, "return statement not allowed outside subprogram" },
       { 64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
       { 79, "undefined identifier X" },
       { -1, NULL }
@@ -644,6 +644,35 @@ START_TEST(test_conc)
 }
 END_TEST
 
+START_TEST(test_procedure)
+{
+   tree_t p;
+
+   fail_unless(input_from_file(TESTDIR "/sem/procedure.vhd"));
+
+   const error_t expect[] = {
+      { 23, "cannot return a value from a procedure" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -667,6 +696,7 @@ int main(void)
    tcase_add_test(tc_core, test_generics);
    tcase_add_test(tc_core, test_seq);
    tcase_add_test(tc_core, test_conc);
+   tcase_add_test(tc_core, test_procedure);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

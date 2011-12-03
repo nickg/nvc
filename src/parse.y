@@ -145,6 +145,7 @@
    range_t      r;
    unit_t       u;
    list_t       *g;
+   class_t      c;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -154,7 +155,7 @@
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <i> id opt_id selected_id func_name
-%type <l> interface_signal_decl interface_object_decl interface_list
+%type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
 %type <l> variable_decl process_decl_item seq_stmt_list type_decl
@@ -176,6 +177,7 @@
 %type <g> element_assoc_list
 %type <b> element_assoc
 %type <g> param_list generic_map port_map
+%type <c> object_class
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -577,14 +579,7 @@ interface_decl
 ;
 
 interface_object_decl
-: interface_signal_decl
-  /* | interface_constant_declaration
-     | interface_variable_declaration
-     | interface_file_declaration */
-;
-
-interface_signal_decl
-: opt_signal_token id_list tCOLON opt_mode subtype_indication
+: object_class id_list tCOLON opt_mode subtype_indication
   /* opt_bus_token */ opt_static_expr
   {
      $$ = NULL;
@@ -595,6 +590,7 @@ interface_signal_decl
         tree_set_type(t, $5);
         tree_set_value(t, $6);
         tree_set_loc(t, &@2);
+        tree_set_class(t, $1);
 
         tree_list_append(&$$, t);
      }
@@ -612,7 +608,10 @@ opt_static_expr
   { $$ = NULL; }
 ;
 
-opt_signal_token : tSIGNAL | /* empty */ ;
+object_class
+: tSIGNAL { $$ = C_SIGNAL; }
+| /* empty */ { $$ = C_DEFAULT; }
+;
 
 opt_mode
 : tIN { $$ = PORT_IN; }
@@ -1047,6 +1046,11 @@ seq_stmt_without_label
      $$ = tree_new(T_RETURN);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
+  }
+| tRETURN tSEMI
+  {
+     $$ = tree_new(T_RETURN);
+     tree_set_loc($$, &@$);
   }
 | tWHILE expr tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
   {

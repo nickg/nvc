@@ -33,6 +33,13 @@ typedef enum port_mode {
    PORT_BUFFER
 } port_mode_t;
 
+typedef enum class {
+   C_DEFAULT,
+   C_SIGNAL,
+   C_VARIABLE,
+   C_CONSTANT
+} class_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -251,6 +258,10 @@ void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p);
 // T_ARRAY_SLICE, T_FOR
 range_t tree_range(tree_t t);
 void tree_set_range(tree_t t, range_t r);
+
+// T_PORT_DECL
+class_t tree_class(tree_t t);
+void tree_set_class(tree_t t, class_t c);
 
 uint32_t tree_index(tree_t t);
 

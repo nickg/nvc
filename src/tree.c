@@ -105,6 +105,7 @@ struct tree {
       range_t           range;     // T_ARRAY_SLICE
       struct tree_array triggers;  // T_WAIT, T_PROCESS
       struct tree_array elses;     // T_IF
+      class_t           class;     // T_PORT_DECL
    };
    type_t type;                    // many
    tree_t value;                   // many
@@ -204,6 +205,7 @@ struct tree_rd_ctx {
     || IS(t, T_INSTANCE) || IS(t, T_PCALL))
 #define HAS_WAVEFORMS(t) (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
 #define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
+#define HAS_CLASS(t) (IS(t, T_PORT_DECL))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -1001,6 +1003,22 @@ void tree_set_pos(tree_t t, unsigned pos)
    t->pos = pos;
 }
 
+class_t tree_class(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_CLASS(t));
+
+   return t->class;
+}
+
+void tree_set_class(tree_t t, class_t c)
+{
+   assert(t != NULL);
+   assert(HAS_CLASS(t));
+
+   t->class = c;
+}
+
 uint32_t tree_index(tree_t t)
 {
    assert(t != NULL);
@@ -1417,6 +1435,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->range.left, ctx);
       tree_write(t->range.right, ctx);
    }
+   if (HAS_CLASS(t))
+      write_s(t->class, ctx->file);
 
    switch (t->kind) {
    case T_PORT_DECL:
@@ -1586,6 +1606,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->range.left  = tree_read(ctx);
       t->range.right = tree_read(ctx);
    }
+   if (HAS_CLASS(t))
+      t->class = read_s(ctx->file);
 
    switch (t->kind) {
    case T_PORT_DECL:

@@ -37,7 +37,7 @@ struct btree {
 
 struct scope {
    struct btree      *decls;
-   tree_t            func;
+   tree_t            subprog;
 
    // For design unit scopes
    ident_t           prefix;
@@ -85,7 +85,7 @@ static void scope_push(ident_t prefix)
    s->context  = NULL;
    s->imported = NULL;
    s->down     = top_scope;
-   s->func     = NULL;
+   s->subprog  = NULL;
 
    top_scope = s;
 }
@@ -1153,6 +1153,9 @@ static bool sem_check_func_ports(tree_t t)
       if (tree_port_mode(p) != PORT_IN)
          sem_error(p, "function arguments must have mode IN");
 
+      if (tree_class(p) == C_DEFAULT)
+         tree_set_class(p, C_VARIABLE);
+
       type_t param_type = tree_type(p);
       if (!sem_check_type(p, &param_type))
          return false;
@@ -1180,13 +1183,13 @@ static bool sem_check_func_ports(tree_t t)
    return true;
 }
 
-static bool sem_check_func_duplicate(tree_t t)
+static bool sem_check_duplicate(tree_t t, tree_kind_t kind)
 {
    tree_t decl;
    int n = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         if (tree_kind(decl) != T_FUNC_DECL)
+         if (tree_kind(decl) != kind)
             continue;
 
          if (type_eq(tree_type(t), tree_type(decl)))
@@ -1202,7 +1205,7 @@ static bool sem_check_func_decl(tree_t t)
    if (!sem_check_func_ports(t))
       return false;
 
-   if (sem_check_func_duplicate(t))
+   if (sem_check_duplicate(t, T_FUNC_DECL))
       sem_error(t, "duplicate declaration of function %s",
                 istr(tree_ident(t)));
 
@@ -1218,13 +1221,13 @@ static bool sem_check_func_body(tree_t t)
    scope_apply_prefix(t);
 
    // If there is no declaration for this function add to the scope
-   if (!sem_check_func_duplicate(t)) {
+   if (!sem_check_duplicate(t, T_FUNC_DECL)) {
       if (!scope_insert(t))
          return false;
    }
 
    scope_push(NULL);
-   top_scope->func = t;
+   top_scope->subprog = t;
 
    bool ok = true;
 
@@ -1248,6 +1251,86 @@ static bool sem_check_func_body(tree_t t)
    if (nret == 0)
       sem_error(t, "function must contain a return statement");
 
+   return true;
+}
+
+static bool sem_check_proc_ports(tree_t t)
+{
+   type_t ptype = tree_type(t);
+
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+
+      if (tree_class(p) == C_DEFAULT)
+         tree_set_class(p, C_VARIABLE);
+
+      type_t param_type = tree_type(p);
+      if (!sem_check_type(p, &param_type))
+         return false;
+
+      type_add_param(ptype, param_type);
+      tree_set_type(p, param_type);
+
+      if (tree_has_value(p)) {
+         tree_t value = tree_value(p);
+         if (!sem_check_constrained(value, param_type))
+            return false;
+
+         if (!type_eq(tree_type(value), param_type))
+            sem_error(value, "type of default value must be %s",
+                      type_pp(param_type));
+      }
+   }
+
+   return true;
+}
+
+static bool sem_check_proc_decl(tree_t t)
+{
+   if (!sem_check_proc_ports(t))
+      return false;
+
+   if (sem_check_duplicate(t, T_PROC_DECL))
+      sem_error(t, "duplicate declaration of procedure %s",
+                istr(tree_ident(t)));
+
+   scope_apply_prefix(t);
+   return scope_insert(t);
+}
+
+static bool sem_check_proc_body(tree_t t)
+{
+   if (!sem_check_proc_ports(t))
+      return false;
+
+   scope_apply_prefix(t);
+
+   // If there is no declaration for this procedure add to the scope
+   if (!sem_check_duplicate(t, T_PROC_DECL)) {
+      if (!scope_insert(t))
+         return false;
+   }
+
+   scope_push(NULL);
+   top_scope->subprog = t;
+
+   bool ok = true;
+
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+      sem_add_attributes(p);
+      ok = scope_insert(p) && ok;
+   }
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   if (ok) {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         ok = sem_check(tree_stmt(t, i)) && ok;
+   }
+
+   scope_pop();
    return true;
 }
 
@@ -1440,7 +1523,11 @@ static bool sem_check_var_assign(tree_t t)
       return false;
 
    tree_t decl = tree_ref(target);
-   if (tree_kind(decl) != T_VAR_DECL)
+
+   bool suitable = (tree_kind(decl) == T_VAR_DECL)
+      || (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
+
+   if (!suitable)
       sem_error(target, "invalid target of variable assignment");
 
    if (!type_eq(tree_type(target), tree_type(value)))
@@ -2150,16 +2237,21 @@ static bool sem_check_if(tree_t t)
 
 static bool sem_check_return(tree_t t)
 {
-   if (top_scope->func == NULL)
-      sem_error(t, "return statement not allowed outside function");
+   if (top_scope->subprog == NULL)
+      sem_error(t, "return statement not allowed outside subprogram");
 
-   type_t expect = type_result(tree_type(top_scope->func));
+   if (tree_has_value(t)) {
+      if (tree_kind(top_scope->subprog) == T_PROC_BODY)
+         sem_error(t, "cannot return a value from a procedure");
 
-   if (!sem_check_constrained(tree_value(t), expect))
-      return false;
+      type_t expect = type_result(tree_type(top_scope->subprog));
 
-   if (!type_eq(tree_type(tree_value(t)), expect))
-      sem_error(t, "expected return type %s", type_pp(expect));
+      if (!sem_check_constrained(tree_value(t), expect))
+         return false;
+
+      if (!type_eq(tree_type(tree_value(t)), expect))
+         sem_error(t, "expected return type %s", type_pp(expect));
+   }
 
    return true;
 }
@@ -2275,6 +2367,10 @@ bool sem_check(tree_t t)
       return sem_check_alias(t);
    case T_FOR:
       return sem_check_for(t);
+   case T_PROC_DECL:
+      return sem_check_proc_decl(t);
+   case T_PROC_BODY:
+      return sem_check_proc_body(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

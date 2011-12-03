@@ -42,6 +42,7 @@ START_TEST(test_entity)
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("A"));
    fail_unless(tree_port_mode(p) == PORT_IN);
+   fail_unless(tree_class(p) == C_DEFAULT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("INTEGER"));
@@ -135,6 +136,7 @@ START_TEST(test_entity)
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("P"));
    fail_unless(tree_port_mode(p) == PORT_OUT);
+   fail_unless(tree_class(p) == C_SIGNAL);
    fail_if(tree_has_value(p));
 
    e = parse();
