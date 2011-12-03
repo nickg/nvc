@@ -23,10 +23,35 @@
 #include <ctype.h>
 #include <inttypes.h>
 
+static void dump_expr(tree_t t);
+
 static void tab(int indent)
 {
    while (indent--)
       fputc(' ', stdout);
+}
+
+static void dump_params(tree_t t)
+{
+   if (tree_params(t) > 0) {
+      printf("(");
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         if (i > 0)
+            printf(", ");
+         param_t p = tree_param(t, i);
+         switch (p.kind) {
+         case P_POS:
+            break;
+         case P_RANGE:
+            assert(false);
+         case P_NAMED:
+            printf("%s => ", istr(p.name));
+            break;
+         }
+         dump_expr(p.value);
+      }
+      printf(")");
+   }
 }
 
 static void dump_expr(tree_t t)
@@ -39,26 +64,7 @@ static void dump_expr(tree_t t)
             printf("%s", name);
          else
             printf("\"%s\"", name);
-
-         if (tree_params(t) > 0) {
-            printf("(");
-            for (unsigned i = 0; i < tree_params(t); i++) {
-               if (i > 0)
-                  printf(", ");
-               param_t p = tree_param(t, i);
-               switch (p.kind) {
-               case P_POS:
-                  break;
-               case P_RANGE:
-                  assert(false);
-               case P_NAMED:
-                  printf("%s => ", istr(p.name));
-                  break;
-               }
-               dump_expr(p.value);
-            }
-            printf(")");
-         }
+         dump_params(t);
       }
       break;
 
@@ -85,6 +91,10 @@ static void dump_expr(tree_t t)
          case A_POS:
             dump_expr(a.value);
             break;
+         case A_OTHERS:
+            printf("others => ");
+            dump_expr(a.value);
+            break;
          default:
             assert(false);
          }
@@ -94,6 +104,22 @@ static void dump_expr(tree_t t)
 
    case T_REF:
       printf("%s", istr(tree_ident(tree_ref(t))));
+      break;
+
+   case T_ARRAY_REF:
+      printf("%s", istr(tree_ident(tree_ref(t))));
+      dump_params(t);
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         range_t r = tree_range(t);
+         printf("%s(", istr(tree_ident(tree_ref(t))));
+         dump_expr(r.left);
+         printf(" %s ", r.kind == RANGE_TO ? "to" : "downto");
+         dump_expr(r.right);
+         printf(")");
+      }
       break;
 
    default:
@@ -113,6 +139,11 @@ static void dump_decl(tree_t t, int indent)
 
    case T_VAR_DECL:
       printf("variable %s : %s", istr(tree_ident(t)),
+             type_pp(tree_type(t)));
+      break;
+
+   case T_CONST_DECL:
+      printf("constant %s : %s", istr(tree_ident(t)),
              type_pp(tree_type(t)));
       break;
 
@@ -158,7 +189,16 @@ static void dump_stmt(tree_t t, int indent)
    case T_SIGNAL_ASSIGN:
       dump_expr(tree_target(t));
       printf(" <= ");
-      dump_expr(tree_value(t));
+      for (unsigned i = 0; i < tree_waveforms(t); i++) {
+         if (i > 0)
+            printf(", ");
+         tree_t w = tree_waveform(t, i);
+         dump_expr(tree_value(w));
+         if (tree_has_delay(w)) {
+            printf(" after ");
+            dump_expr(tree_delay(w));
+         }
+      }
       break;
 
    case T_VAR_ASSIGN:
@@ -200,6 +240,22 @@ static void dump_stmt(tree_t t, int indent)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
       printf("end loop");
+      break;
+
+   case T_IF:
+      printf("if ");
+      dump_expr(tree_value(t));
+      printf(" then\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      if (tree_else_stmts(t) > 0) {
+         tab(indent);
+         printf("else\n");
+         for (unsigned i = 0; i < tree_else_stmts(t); i++)
+            dump_stmt(tree_else_stmt(t, i), indent + 2);
+      }
+      tab(indent);
+      printf("end if");
       break;
 
    default:
