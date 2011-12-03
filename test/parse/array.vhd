@@ -6,7 +6,9 @@ package p is
 
     type chars is (A, B, C);
     type char_counts is array (chars) of integer;
-    
+
+    type two_d is array (1 to 3, 4 to 6) of integer;
+        
 end package;
 
 architecture a of e is
@@ -16,6 +18,7 @@ architecture a of e is
     signal n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
     signal c : char_counts;
+    signal t : two_d;
 begin
 
     process is

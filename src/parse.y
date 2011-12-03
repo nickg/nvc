@@ -67,6 +67,7 @@
       assoc_t   assoc;
       param_t   param;
       context_t context;
+      range_t   range;
    };
 
   #define LISTVAL(x) ((union listval)x)
@@ -171,10 +172,10 @@
 %type <y> integer_type_def physical_type_def enum_type_def array_type_def
 %type <y> index_subtype_def
 %type <y> unconstrained_array_def constrained_array_def
-%type <r> range range_constraint index_constraint constraint
+%type <r> range range_constraint constraint_elem
 %type <u> base_unit_decl
-%type <g> secondary_unit_decls
-%type <g> element_assoc_list
+%type <g> secondary_unit_decls constraint_list
+%type <g> element_assoc_list index_constraint constraint
 %type <b> element_assoc
 %type <g> param_list generic_map port_map
 %type <c> object_class
@@ -627,11 +628,20 @@ subtype_indication
   {
      $$ = type_new(T_SUBTYPE);
      type_set_base($$, $1);
-     type_add_dim($$, $2);
+
+     for (list_t *it = $2; it != NULL; it = it->next)
+        type_add_dim($$, it->item.range);
+     list_free($2);
   }
 ;
 
-constraint : range_constraint | index_constraint ;
+constraint
+: range_constraint
+  {
+     $$ = list_add(NULL, LISTVAL($1));
+  }
+| index_constraint
+;
 
 conc_stmt
 : id tCOLON conc_stmt_without_label
@@ -1283,27 +1293,43 @@ constrained_array_def
   {
      $$ = type_new(T_CARRAY);
      type_set_base($$, $4);
-     type_add_dim($$, $2);
+
+     for (list_t *it = $2; it != NULL; it = it->next)
+        type_add_dim($$, it->item.range);
+     list_free($2);
   }
 ;
 
-index_constraint
-: tLPAREN expr tTO expr tRPAREN
+index_constraint : tLPAREN constraint_list tRPAREN { $$ = $2; } ;
+
+constraint_list
+: constraint_elem
+  {
+     $$ = list_add(NULL, LISTVAL($1));
+  }
+| constraint_elem tCOMMA constraint_list
+  {
+     $$ = list_add($3, LISTVAL($1));
+  }
+;
+
+constraint_elem
+: expr tTO expr
   {
      $$.kind  = RANGE_TO;
-     $$.left  = $2;
-     $$.right = $4;
+     $$.left  = $1;
+     $$.right = $3;
   }
-| tLPAREN expr tDOWNTO expr tRPAREN
+| expr tDOWNTO expr
   {
      $$.kind  = RANGE_DOWNTO;
-     $$.left  = $2;
-     $$.right = $4;
+     $$.left  = $1;
+     $$.right = $3;
   }
-| tLPAREN expr tRPAREN
+| expr
   {
      $$.kind  = RANGE_EXPR;
-     $$.left  = $2;
+     $$.left  = $1;
      $$.right = NULL;
   }
 ;

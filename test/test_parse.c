@@ -865,7 +865,7 @@ START_TEST(test_array)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 4);
+   fail_unless(tree_decls(p) == 5);
 
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -899,10 +899,23 @@ START_TEST(test_array)
    fail_unless(tree_ident(r.left) == ident_new("CHARS"));
    fail_unless(r.right == NULL);
 
+   d = tree_decl(p, 4);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("TWO_D"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_CARRAY);
+   fail_unless(type_dims(t) == 2);
+   r = type_dim(t, 0);
+   fail_unless(tree_literal(r.left).i == 1);
+   fail_unless(tree_literal(r.right).i == 3);
+   r = type_dim(t, 1);
+   fail_unless(tree_literal(r.left).i == 4);
+   fail_unless(tree_literal(r.right).i == 6);
+
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 6);
+   fail_unless(tree_decls(a) == 7);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("X"));
