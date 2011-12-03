@@ -346,22 +346,27 @@ static tree_t simp_if(tree_t t)
    if (folded_bool(tree_value(t), &value_b)) {
       if (value_b) {
          // If statement always executes so replace with then part
-         // XXX: make work for more than one statement
          if (tree_stmts(t) == 1)
             return tree_stmt(t, 0);
-         else
-            return t;
+         else {
+            tree_t b = tree_new(T_BLOCK);
+            for (unsigned i = 0; i < tree_stmts(t); i++)
+               tree_add_stmt(b, tree_stmt(t, i));
+            return b;
+         }
       }
       else {
          // If statement never executes so replace with else part
-         if (tree_else_stmts(t) == 1) {
-            // XXX: make work for more than one statement
+         if (tree_else_stmts(t) == 1)
             return tree_else_stmt(t, 0);
-         }
          else if (tree_else_stmts(t) == 0)
             return NULL;   // Delete it
-         else
-            return t;
+         else {
+            tree_t b = tree_new(T_BLOCK);
+            for (unsigned i = 0; i < tree_else_stmts(t); i++)
+               tree_add_stmt(b, tree_else_stmt(t, i));
+            return b;
+         }
       }
    }
    else

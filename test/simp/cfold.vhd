@@ -56,6 +56,11 @@ begin
         while false loop
             null;
         end loop;
+        if true then
+            x <= 1;
+            x <= 5;
+            null;
+        end if;
     end process;
 
 end architecture;
