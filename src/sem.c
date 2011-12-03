@@ -2303,6 +2303,22 @@ static bool sem_check_for(tree_t t)
    return ok;
 }
 
+static bool sem_check_block(tree_t t)
+{
+   scope_push(NULL);
+
+   bool ok = true;
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      ok = sem_check(tree_stmt(t, i)) && ok;
+
+   scope_pop();
+   return ok;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -2371,6 +2387,8 @@ bool sem_check(tree_t t)
       return sem_check_proc_decl(t);
    case T_PROC_BODY:
       return sem_check_proc_body(t);
+   case T_BLOCK:
+      return sem_check_block(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

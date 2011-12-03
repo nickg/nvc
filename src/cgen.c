@@ -926,6 +926,12 @@ static void cgen_while(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
+static void cgen_block(tree_t t, struct cgen_ctx *ctx)
+{
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_stmt(tree_stmt(t, i), ctx);
+}
+
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -949,6 +955,9 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
       break;
    case T_WHILE:
       cgen_while(t, ctx);
+      break;
+   case T_BLOCK:
+      cgen_block(t, ctx);
       break;
    default:
       assert(false);

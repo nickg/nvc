@@ -191,12 +191,12 @@ unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
 void tree_add_waveform(tree_t t, tree_t w);
 
-// T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY, T_PROC_BODY
+// T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY, T_PROC_BODY, T_BLOCK
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
 
-// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR, T_FUNC_BODY
+// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR, T_FUNC_BODY, T_BLOCK
 // T_PROC_BODY
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
