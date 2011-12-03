@@ -82,6 +82,8 @@ typedef enum tree_kind {
    T_PROC_BODY,
    T_EXIT,
    T_PCALL,
+   T_CASE,
+   T_BLOCK,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

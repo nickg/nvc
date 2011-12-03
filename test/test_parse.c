@@ -248,14 +248,14 @@ END_TEST
 
 START_TEST(test_seq)
 {
-   tree_t a, p, s, e;
+   tree_t a, p, s, e, b;
 
    fail_unless(input_from_file(TESTDIR "/parse/seq.vhd"));
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 12);
+   fail_unless(tree_stmts(a) == 13);
 
    // Wait statements
 
@@ -497,6 +497,20 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_ident2(s) == ident_new("BAR"));
    fail_unless(tree_params(s) == 0);
+
+   // Case
+
+   p = tree_stmt(a, 12);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_CASE);
+   fail_unless(tree_assocs(s) == 4 + 1);
+   fail_unless(tree_assoc(s, 0).kind == A_NAMED);
+   fail_unless(tree_assoc(s, 4).kind == A_OTHERS);
+   b = tree_assoc(s, 0).value;
+   fail_unless(tree_kind(b) == T_BLOCK);
+   fail_unless(tree_stmts(b) == 1);
+   fail_unless(tree_kind(tree_stmt(b, 0)) == T_NULL);
 
    a = parse();
    fail_unless(a == NULL);

@@ -142,6 +142,8 @@ ATTRIBUTE     {A}{T}{T}{R}{I}{B}{U}{T}{E}
 PROCEDURE     {P}{R}{O}{C}{E}{D}{U}{R}{E}
 EXIT          {E}{X}{I}{T}
 REM           {R}{E}{M}
+WHEN          {W}{H}{E}{N}
+CASE          {C}{A}{S}{E}
 
 %%
 
@@ -214,6 +216,8 @@ REM           {R}{E}{M}
 {PROCEDURE}     { begin_token(yytext); return tPROCEDURE; }
 {EXIT}          { begin_token(yytext); return tEXIT; }
 {REM}           { begin_token(yytext); return tREM; }
+{WHEN}          { begin_token(yytext); return tWHEN; }
+{CASE}          { begin_token(yytext); return tCASE; }
 
 "("        { begin_token(yytext); return tLPAREN; }
 ")"        { begin_token(yytext); return tRPAREN; }
@@ -236,6 +240,7 @@ REM           {R}{E}{M}
 "/"        { begin_token(yytext); return tOVER; }
 "."        { begin_token(yytext); return tDOT; }
 "&"        { begin_token(yytext); return tAMP; }
+"|"        { begin_token(yytext); return tBAR; }
 {INT}      { begin_token(yytext); lvals.ival = atoll(yytext); return tINT; }
 {STRING}   { begin_token(yytext); lvals.sval = strdup(yytext); return tSTRING; }
 {CHAR}     { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }

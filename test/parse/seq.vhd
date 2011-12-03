@@ -114,5 +114,20 @@ begin
         foo(x, y, 1);
         bar;
     end process;
+
+    -- Case
+    process is
+    begin
+        case x is
+            when 1 =>
+                null;
+            when 2 =>
+                null;
+            when 3 | 4 =>
+                null;
+            when others =>
+                null;                
+        end case;
+    end process;
     
 end architecture;

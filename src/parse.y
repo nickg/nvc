@@ -174,9 +174,9 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <r> range range_constraint constraint_elem
 %type <u> base_unit_decl
-%type <g> secondary_unit_decls constraint_list
-%type <g> element_assoc_list index_constraint constraint
-%type <b> element_assoc
+%type <g> secondary_unit_decls constraint_list case_alt_list
+%type <g> element_assoc_list index_constraint constraint choice_list
+%type <b> element_assoc choice
 %type <g> param_list generic_map port_map
 %type <c> object_class
 
@@ -189,6 +189,7 @@
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
+%token tWHEN tCASE tBAR
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1104,10 +1105,62 @@ seq_stmt_without_label
      $$ = tree_new(T_EXIT);
      tree_set_loc($$, &@$);
   }
-/* | procedure_call_statement
-   | case_statement
-   | next_statement */
+| tCASE expr tIS case_alt_list tEND tCASE opt_id tSEMI
+  {
+     $$ = tree_new(T_CASE);
+     tree_set_loc($$, &@$);
+
+     for (list_t *it = $4; it != NULL; it = it->next)
+        tree_add_assoc($$, it->item.assoc);
+     list_free($4);
+  }
+/* | next_statement */
 ;
+
+case_alt_list
+: tWHEN choice_list tASSOC seq_stmt_list
+  {
+     tree_t b = tree_new(T_BLOCK);
+     tree_set_loc(b, &@4);
+     copy_trees($4, tree_add_stmt, b);
+
+     for (list_t *it = $2; it != NULL; it = it->next)
+        it->item.assoc.value = b;
+
+     $$ = $2;
+  }
+| tWHEN choice_list tASSOC seq_stmt_list case_alt_list
+  {
+     tree_t b = tree_new(T_BLOCK);
+     tree_set_loc(b, &@4);
+     copy_trees($4, tree_add_stmt, b);
+
+     for (list_t *it = $2; it != NULL; it = it->next)
+        it->item.assoc.value = b;
+
+     $$ = list_append($2, $5);
+  }
+;
+
+choice_list
+: choice { $$ = list_add(NULL, LISTVAL($1)); }
+| choice tBAR choice_list { $$ = list_add($3, LISTVAL($1)); }
+;
+
+choice
+: expr
+  {
+     $$.kind  = A_NAMED;
+     $$.name  = $1;
+     $$.value = NULL;
+  }
+| tOTHERS
+  {
+     $$.kind  = A_OTHERS;
+     $$.value = NULL;
+  }
+;
+
 
 elsif_list
 : expr tTHEN seq_stmt_list tEND tIF opt_id tSEMI
