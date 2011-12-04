@@ -77,37 +77,70 @@ static void part_signal_driver(tree_t ref, tree_t proc)
    type_t type = tree_type(decl);
    assert(type_kind(type) == T_CARRAY);
 
-   int64_t low, high;
-   range_bounds(type_dim(type, 0), &low, &high);
+   int64_t type_low, type_high;
+   range_bounds(type_dim(type, 0), &type_low, &type_high);
 
-   param_t p = tree_param(ref, 0);
-   assert(p.kind == P_POS);
+   int64_t slice_low, slice_high;
+   bool no_static_prefix;
 
-   if (tree_kind(p.value) != T_LITERAL) {
+   switch (tree_kind(ref)) {
+   case T_ARRAY_SLICE:
+      {
+         range_t sr = tree_range(ref);
+
+         no_static_prefix =
+            (tree_kind(sr.left) != T_LITERAL
+             || tree_kind(sr.right) != T_LITERAL);
+
+         if (!no_static_prefix)
+            range_bounds(sr, &slice_low, &slice_high);
+      }
+      break;
+
+   case T_ARRAY_REF:
+      {
+         param_t p = tree_param(ref, 0);
+         assert(p.kind == P_POS);
+
+         no_static_prefix = (tree_kind(p.value) != T_LITERAL);
+
+         if (!no_static_prefix)
+            slice_low = slice_high = assume_int(p.value);
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+
+   if (no_static_prefix) {
       // Longest static prefix is whole signal
       whole_signal_driver(ref, proc);
       return;
    }
 
-   int64_t elem = assume_int(p.value);
-   assert(elem >= low && elem <= high);
+   for (unsigned elem = slice_low; elem <= slice_high; elem++) {
+      assert(elem >= type_low && elem <= type_high);
 
-   printf("low=%"PRIu64" high=%"PRIu64" elem=%"PRIu64"\n", low, high, elem);
+      bool already_driver = false;
+      for (unsigned j = 0; j < tree_sub_drivers(decl, elem); j++) {
+         if (tree_sub_driver(decl, elem, j) == proc)
+            already_driver = true;
+      }
 
-   for (unsigned j = 0; j < tree_sub_drivers(decl, elem - low); j++) {
-      if (tree_sub_driver(decl, elem - low, j) == proc)
-         return;
+      if (already_driver)
+         continue;
+
+      if (tree_sub_drivers(decl, elem) > 0 || tree_drivers(decl) > 0) {
+         // TODO: check for resolution function
+         error_at(tree_loc(decl),
+                  "element %u of signal %s has multiple drivers"
+                  " (not supported)", elem, istr(tree_ident(decl)));
+         errors++;
+      }
+
+      tree_add_sub_driver(decl, elem, proc);
    }
-
-   if (tree_sub_drivers(decl, elem - low) > 0 || tree_drivers(decl) > 0) {
-      // TODO: check for resolution function
-      error_at(tree_loc(decl),
-               "element %"PRIu64" of signal %s has multiple drivers"
-               " (not supported)", elem, istr(tree_ident(decl)));
-      errors++;
-   }
-
-   tree_add_sub_driver(decl, elem - low, proc);
 }
 
 static void proc_visit_cb(tree_t t, void *context)
@@ -122,6 +155,7 @@ static void proc_visit_cb(tree_t t, void *context)
       whole_signal_driver(target, proc);
       break;
    case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
       part_signal_driver(target, proc);
       break;
    default:
