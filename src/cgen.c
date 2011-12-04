@@ -483,6 +483,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildNot(builder, args[0], "");
       else if (strcmp(builtin, "and") == 0)
          return LLVMBuildAnd(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "xor") == 0)
+         return LLVMBuildXor(builder, args[0], args[1], "");
       else if (strcmp(builtin, "aeq") == 0) {
          type_t rhs_type = tree_type(tree_param(t, 1).value);
          return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
@@ -1503,11 +1505,6 @@ static void cgen_array_signal(tree_t t)
    range_t r = type_dim(tree_type(t), 0);
    int64_t low, high;
    range_bounds(r, &low, &high);
-
-   for (unsigned i = low; i <= high; i++) {
-      unsigned n_drivers = tree_sub_drivers(t, i - low);
-      printf("element %d has %d drivers\n", i, n_drivers);
-   }
 
    const unsigned n_elems = high - low + 1;
 
