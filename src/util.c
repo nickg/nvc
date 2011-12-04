@@ -288,10 +288,14 @@ static bool is_debugger_running(void)
    FILE *f = fopen("/proc/self/maps", "r");
    if (f != NULL) {
       char buf[256];
-      while (fgets(buf, sizeof(buf), f)) {
+      bool valgrind = false;
+      while (!valgrind && fgets(buf, sizeof(buf), f)) {
          if (strstr(buf, "vgpreload"))
-            return true;
+            valgrind = true;
       }
+      fclose(f);
+      if (valgrind)
+         return true;
    }
 #endif  //__linux
 
