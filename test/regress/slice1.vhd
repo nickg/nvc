@@ -12,13 +12,15 @@ begin
         v := ( 1, 2, 3, 4 );
         v(1 to 2) := ( 6, 7 );
         assert v = ( 1, 6, 7, 4 );
+        assert v(2 to 3) = ( 7, 4 );
 
         x <= ( 1, 2, 3, 4 );
         wait for 1 ns;
         x(1 to 2) <= ( 6, 7 );
         wait for 1 ns;
         assert x = ( 1, 6, 7, 4 );
-
+        assert x(2 to 3) = ( 7, 4 );
+        
         wait;
     end process;
     
