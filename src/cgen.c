@@ -483,8 +483,14 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildNot(builder, args[0], "");
       else if (strcmp(builtin, "and") == 0)
          return LLVMBuildAnd(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "or") == 0)
+         return LLVMBuildOr(builder, args[0], args[1], "");
       else if (strcmp(builtin, "xor") == 0)
          return LLVMBuildXor(builder, args[0], args[1], "");
+      else if (strcmp(builtin, "xnor") == 0)
+         return LLVMBuildNot(builder,
+                             LLVMBuildXor(builder, args[0], args[1], ""),
+                             "");
       else if (strcmp(builtin, "aeq") == 0) {
          type_t rhs_type = tree_type(tree_param(t, 1).value);
          return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
@@ -870,15 +876,19 @@ static void cgen_slice_signal_assign(tree_t t, tree_t value, LLVMValueRef rhs,
    tree_t decl = tree_ref(target);
    assert(type_kind(tree_type(decl)) == T_CARRAY);
 
-   // TODO: make work for non-constant bounds
-   int64_t low, high;
-   range_bounds(tree_range(target), &low, &high);
+   int64_t rhs_low, rhs_high;
+   range_bounds(type_dim(tree_type(value), 0), &rhs_low, &rhs_high);
 
-   for (int i = low; i <= high; i++) {
+   // TODO: make work for non-constant bounds
+   int64_t lhs_low, lhs_high;
+   range_bounds(tree_range(target), &lhs_low, &lhs_high);
+
+   int ri, li;
+   for (ri = rhs_low, li = lhs_low; ri <= rhs_high; ri++, li++) {
       LLVMValueRef lhs_off =
-         cgen_array_off(llvm_int32(i), tree_type(decl), ctx);
+         cgen_array_off(llvm_int32(li), tree_type(decl), ctx);
       LLVMValueRef rhs_off =
-         cgen_array_off(llvm_int32(i), tree_type(value), ctx);
+         cgen_array_off(llvm_int32(ri), tree_type(value), ctx);
 
       LLVMValueRef indexes[] = { llvm_int32(0), rhs_off };
       LLVMValueRef rhs_p = LLVMBuildGEP(builder, rhs,
