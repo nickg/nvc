@@ -2025,13 +2025,13 @@ static bool sem_check_array_ref(tree_t t)
       if (p.kind != P_POS)
          sem_error(t, "only scalar references supported");
 
-      // TODO: push type set containing index type of array
-      ok = sem_check(p.value) && ok;
+      range_t r = type_dim(type, i);
+      ok = sem_check_constrained(p.value, tree_type(r.left)) && ok;
    }
 
    tree_set_type(t, type_base(type));
    tree_set_ref(t, tree_ref(value));
-   return true;
+   return ok;
 }
 
 static bool sem_check_array_slice(tree_t t)
