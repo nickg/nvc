@@ -187,12 +187,14 @@ static int run(int argc, char **argv)
       {"batch", no_argument, 0, 'b'},
       {"command", no_argument, 0, 'c'},
       {"stop-time", required_argument, 0, 's'},
+      {"vcd", required_argument, 0, 'v'},
       {0, 0, 0, 0}
    };
 
    enum { BATCH, COMMAND } mode = BATCH;
 
    uint64_t stop_time = UINT64_MAX;
+   const char *vcd_fname = NULL;
 
    int c, index = 0;
    const char *spec = "bc";
@@ -217,6 +219,9 @@ static int run(int argc, char **argv)
       case 's':
          stop_time = parse_time(optarg);
          break;
+      case 'v':
+         vcd_fname = optarg;
+         break;
       default:
          abort();
       }
@@ -233,6 +238,9 @@ static int run(int argc, char **argv)
       fatal("%s not elaborated", istr(top));
    else if (tree_kind(e) != T_ELAB)
       fatal("%s not suitable top level", istr(top));
+
+   if (vcd_fname != NULL)
+      vcd_init(vcd_fname);
 
    if (mode == BATCH)
       rt_batch_exec(e, stop_time);

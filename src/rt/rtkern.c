@@ -78,6 +78,7 @@ struct signal {
    int32_t          n_sources;
    struct waveform  **sources;
    struct sens_list *sensitive;
+   sig_event_fn_t   event_cb;
 };
 
 static struct rt_proc   *procs = NULL;
@@ -102,6 +103,7 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
                           struct signal *signal, unsigned source);
 static void *rt_tmp_alloc(size_t sz);
 static void _tracef(const char *fmt, ...);
+static ident_t i_signal = NULL;
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
 
@@ -145,7 +147,7 @@ static const char *fmt_sig(struct signal *sig)
    const char *end = buf + sizeof(buf);
    p += snprintf(buf, end - p, "%s", istr(tree_ident(sig->decl)));
    if (type_kind(tree_type(sig->decl)) == T_CARRAY) {
-      struct signal *first = tree_attr_ptr(sig->decl, ident_new("signal"));
+      struct signal *first = tree_attr_ptr(sig->decl, i_signal);
       p += snprintf(p, end - p, "[%zd]", sig - first);
    }
    return buf;
@@ -231,7 +233,7 @@ void _sched_event(void *_sig, int32_t n)
       for (; it != NULL && it->proc != active_proc; it = it->next)
          ;
 
-      if (it == NULL ) {
+      if (it == NULL) {
          struct sens_list *node = rt_alloc(sens_list_stack);
          node->proc       = active_proc;
          node->wakeup_gen = active_proc->wakeup_gen + 1;
@@ -435,6 +437,7 @@ static void rt_reset_signal(struct signal *s, tree_t decl)
    s->decl      = decl;
    s->sensitive = NULL;
    s->sources   = NULL;
+   s->event_cb  = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -474,7 +477,7 @@ static void rt_setup(tree_t top)
          rt_reset_signal(s, d);
       }
 
-      tree_add_attr_ptr(d, ident_new("signal"), s);
+      tree_add_attr_ptr(d, i_signal, s);
    }
 
    for (unsigned i = 0; i < tree_stmts(top); i++) {
@@ -557,6 +560,9 @@ static void rt_update_driver(struct signal *s, unsigned source)
                rt_wakeup(it);
             }
             s->sensitive = NULL;
+
+            if (s->event_cb)
+               (*s->event_cb)(s->decl);
          }
 
          assert(n_active_signals < MAX_ACTIVE_SIGS);
@@ -633,6 +639,8 @@ static void rt_cycle(void)
 
 static void rt_one_time_init(void)
 {
+   i_signal = ident_new("signal");
+
    jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
 
    deltaq_stack    = rt_alloc_stack_new(sizeof(struct deltaq));
@@ -670,7 +678,7 @@ static void rt_cleanup(tree_t top)
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
-      struct signal *sig = tree_attr_ptr(d, ident_new("signal"));
+      struct signal *sig = tree_attr_ptr(d, i_signal);
 
       type_t type = tree_type(d);
       if (type_kind(type) == T_CARRAY) {
@@ -701,6 +709,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
    rt_one_time_init();
    rt_setup(e);
    rt_initial();
+   vcd_restart(e);
    while (eventq != NULL && (now + eventq->delta <= stop_time))
       rt_cycle();
    rt_cleanup(e);
@@ -729,7 +738,7 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
 
    assert(msg->len <= high - low + 1);
 
-   struct signal *sig = tree_attr_ptr(t, ident_new("signal"));
+   struct signal *sig = tree_attr_ptr(t, i_signal);
 
    const size_t rsz =
       sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
@@ -763,6 +772,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
       case SLAVE_RESTART:
          rt_setup(e);
          rt_initial();
+         vcd_restart(e);
          break;
 
       case SLAVE_RUN:
@@ -780,4 +790,36 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
    rt_cleanup(e);
    jit_shutdown();
+}
+
+void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
+{
+   assert(tree_kind(s) == T_SIGNAL_DECL);
+
+   struct signal *sig = tree_attr_ptr(s, i_signal);
+   assert(sig != NULL);
+
+   sig->event_cb = fn;
+}
+
+size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max)
+{
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   type_t type = tree_type(decl);
+
+   int64_t low = 0, high = 0;
+   if (type_kind(type) == T_CARRAY) {
+      range_bounds(type_dim(type, 0), &low, &high);
+   }
+   struct signal *base = tree_attr_ptr(decl, i_signal);
+
+   size_t n_vals = high - low + 1;
+   if (n_vals > max)
+      n_vals = max;
+
+   for (unsigned i = 0; i < n_vals; i++)
+      buf[i] = base[i].resolved;
+
+   return n_vals;
 }

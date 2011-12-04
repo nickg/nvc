@@ -1317,6 +1317,7 @@ static LLVMTypeRef cgen_signal_type(void)
       fields[SIGNAL_N_SOURCES]  = LLVMInt32Type();
       fields[SIGNAL_SOURCES]    = llvm_void_ptr();
       fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
+      fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
 
       ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
 
@@ -1337,6 +1338,7 @@ static LLVMValueRef cgen_signal_init(void)
    init[SIGNAL_N_SOURCES]  = llvm_int32(0);
    init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
    init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
+   init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
 
    return LLVMConstStruct(init, ARRAY_LEN(init), false);
 }
