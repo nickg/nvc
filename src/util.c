@@ -282,6 +282,19 @@ static bool is_debugger_running(void)
 
    return (info.kp_proc.p_flag & P_TRACED) != 0;
 #else  // __APPLE__
+
+#ifdef __linux
+   // Hack to detect if Valgrind is running
+   FILE *f = fopen("/proc/self/maps", "r");
+   if (f != NULL) {
+      char buf[256];
+      while (fgets(buf, sizeof(buf), f)) {
+         if (strstr(buf, "vgpreload"))
+            return true;
+      }
+   }
+#endif  //__linux
+
    pid_t pid = fork();
 
    if (pid == -1)
