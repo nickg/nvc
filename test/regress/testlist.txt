@@ -25,3 +25,4 @@ func1           normal
 signal5         normal
 while1          gold,normal
 signal6         gold,normal
+slice1          normal

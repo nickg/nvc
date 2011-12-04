@@ -167,6 +167,17 @@ static LLVMTypeRef llvm_type(type_t t)
    }
 }
 
+static LLVMValueRef cgen_array_off(LLVMValueRef off, type_t type,
+                                   struct cgen_ctx *ctx)
+{
+   // Convert VHDL offset 'off' to a zero-based LLVM array offset
+
+   range_t r = type_dim(type, 0);
+   LLVMValueRef low = cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
+
+   return LLVMBuildSub(builder, off, low, "");
+}
+
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 {
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -205,16 +216,25 @@ static LLVMValueRef cgen_proc_var(tree_t decl, struct cgen_ctx *ctx)
    assert(false);
 }
 
-static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
+static void cgen_array_copy(type_t ty, range_t r,
+                            LLVMValueRef src, LLVMValueRef dst)
 {
    assert(type_kind(ty) == T_CARRAY);
 
+   int64_t type_low, type_high;
+   range_bounds(type_dim(ty, 0), &type_low, &type_high);
+
    int64_t low, high;
-   range_bounds(type_dim(ty, 0), &low, &high);
+   range_bounds(r, &low, &high);
+
+   printf("low=%lu type_low=%lu\n", low, type_low);
+
+   assert(low >= type_low && high <= type_high);
 
    LLVMValueRef args[] = {
       llvm_void_cast(dst),         // Destination
       llvm_void_cast(src),         // Source
+      llvm_int32(low - type_low),  // Offset
       llvm_int32(high - low + 1),  // Number of elements
       llvm_sizeof(llvm_type(type_base(ty)))
    };
@@ -569,6 +589,26 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
    }
 }
 
+static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
+{
+   tree_t decl = tree_ref(t);
+
+   switch (tree_kind(decl)) {
+   case T_VAR_DECL:
+      {
+         assert(false);
+      }
+      break;
+
+   case T_SIGNAL_DECL:
+      assert(false);
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
 {
    range_t r = type_dim(tree_type(t), 0);
@@ -611,6 +651,9 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
       }
    }
 
+   for (unsigned i = 0; i < n_elems; i++)
+      assert(vals[i] != NULL);
+
    LLVMTypeRef arr_ty = llvm_type(tree_type(t));
    LLVMTypeRef elm_ty = llvm_type(type_base(tree_type(t)));
 
@@ -634,6 +677,8 @@ static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
       return cgen_ref(t, ctx);
    case T_ARRAY_REF:
       return cgen_array_ref(t, ctx);
+   case T_ARRAY_SLICE:
+      return cgen_array_slice(t, ctx);
    case T_AGGREGATE:
       return cgen_aggregate(t, ctx);
    case T_QUALIFIED:
@@ -693,7 +738,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
 
          type_t ty = tree_type(target);
          if (type_kind(ty) == T_CARRAY)
-            cgen_array_copy(ty, rhs, lhs);
+            cgen_array_copy(ty, type_dim(ty, 0), rhs, lhs);
          else
             LLVMBuildStore(builder, rhs, lhs);
       }
@@ -717,6 +762,17 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
                                          indexes, ARRAY_LEN(indexes), "");
 
          LLVMBuildStore(builder, rhs, ptr);
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         LLVMValueRef lhs = cgen_proc_var(tree_ref(target), ctx);
+
+         type_t ty = tree_type(tree_ref(target));
+         assert(type_kind(ty) == T_CARRAY);
+
+         cgen_array_copy(ty, tree_range(target), rhs, lhs);
       }
       break;
 
@@ -787,6 +843,32 @@ static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
    cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs, after);
 }
 
+static void cgen_slice_signal_assign(tree_t t, tree_t value, LLVMValueRef rhs,
+                                     LLVMValueRef after, struct cgen_ctx *ctx)
+{
+   tree_t target = tree_target(t);
+
+   tree_t decl = tree_ref(target);
+   assert(type_kind(tree_type(decl)) == T_CARRAY);
+
+   // TODO: make work for non-constant bounds
+   int64_t low, high;
+   range_bounds(tree_range(target), &low, &high);
+
+   for (int i = low; i <= high; i++) {
+      LLVMValueRef lhs_off =
+         cgen_array_off(llvm_int32(i), tree_type(decl), ctx);
+      LLVMValueRef rhs_off =
+         cgen_array_off(llvm_int32(i), tree_type(value), ctx);
+
+      LLVMValueRef indexes[] = { llvm_int32(0), rhs_off };
+      LLVMValueRef rhs_p = LLVMBuildGEP(builder, rhs,
+                                        indexes, ARRAY_LEN(indexes), "");
+      LLVMValueRef rhs_i = LLVMBuildLoad(builder, rhs_p, "");
+      cgen_sched_waveform(cgen_array_signal_ptr(decl, lhs_off), rhs_i, after);
+   }
+}
+
 static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
 {
    for (unsigned i = 0; i < tree_waveforms(t); i++) {
@@ -804,6 +886,10 @@ static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
 
       case T_ARRAY_REF:
          cgen_array_signal_assign(t, rhs, after, ctx);
+         break;
+
+      case T_ARRAY_SLICE:
+         cgen_slice_signal_assign(t, tree_value(w), rhs, after, ctx);
          break;
 
       default:
@@ -996,7 +1082,8 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
 
    tree_t target = tree_target(t);
    assert(tree_kind(target) == T_REF
-          || tree_kind(target) == T_ARRAY_REF);
+          || tree_kind(target) == T_ARRAY_REF
+          || tree_kind(target) == T_ARRAY_SLICE);
 
    tree_t decl = tree_ref(target);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -1144,7 +1231,7 @@ static void cgen_process(tree_t t)
 
          type_t ty = tree_type(v);
          if (type_kind(ty) == T_CARRAY)
-            cgen_array_copy(ty, val, var_ptr);
+            cgen_array_copy(ty, type_dim(ty, 0), val, var_ptr);
          else
             LLVMBuildStore(builder, val, var_ptr);
       }
@@ -1537,6 +1624,7 @@ static void cgen_support_fns(void)
    LLVMTypeRef _array_copy_args[] = {
       llvm_void_ptr(),
       llvm_void_ptr(),
+      LLVMInt32Type(),
       LLVMInt32Type(),
       LLVMInt32Type()
    };
