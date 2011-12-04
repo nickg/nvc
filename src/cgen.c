@@ -723,9 +723,20 @@ static void cgen_sched_event(tree_t on)
 {
    assert(tree_kind(on) == T_REF);
    tree_t decl = tree_ref(on);
+   type_t type = tree_type(decl);
+
+   int32_t n = 1;
+   if (type_kind(type) == T_CARRAY) {
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      n = high - low + 1;
+   }
 
    LLVMValueRef signal = llvm_global(istr(tree_ident(decl)));
-   LLVMValueRef args[] = { llvm_void_cast(signal) };
+   LLVMValueRef args[] = {
+      llvm_void_cast(signal),
+      llvm_int32(n)
+   };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
 }
@@ -1628,7 +1639,8 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _sched_event_args[] = {
-      llvm_void_ptr()
+      llvm_void_ptr(),
+      LLVMInt32Type()
    };
    LLVMAddFunction(module, "_sched_event",
                    LLVMFunctionType(LLVMVoidType(),

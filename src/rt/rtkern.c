@@ -217,30 +217,32 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    deltaq_insert(after, NULL, sig, source);
 }
 
-void _sched_event(void *_sig)
+void _sched_event(void *_sig, int32_t n)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_event %s proc %s", fmt_sig(sig),
+   TRACE("_sched_event %s n=%d proc %s", fmt_sig(sig), n,
          istr(tree_ident(active_proc->source)));
 
-   // See if there is already a stale entry in the sensitvity
-   // list for this process
-   struct sens_list *it = sig->sensitive;
-   for (; it != NULL && it->proc != active_proc; it = it->next)
-      ;
+   for (int i = 0; i < n; i++) {
+      // See if there is already a stale entry in the sensitvity
+      // list for this process
+      struct sens_list *it = sig[i].sensitive;
+      for (; it != NULL && it->proc != active_proc; it = it->next)
+         ;
 
-   if (it == NULL ) {
-      struct sens_list *node = rt_alloc(sens_list_stack);
-      node->proc       = active_proc;
-      node->wakeup_gen = active_proc->wakeup_gen + 1;
-      node->next       = sig->sensitive;
+      if (it == NULL ) {
+         struct sens_list *node = rt_alloc(sens_list_stack);
+         node->proc       = active_proc;
+         node->wakeup_gen = active_proc->wakeup_gen + 1;
+         node->next       = sig[i].sensitive;
 
-      sig->sensitive = node;
-   }
-   else {
-      // Reuse the stale entry
-      it->wakeup_gen = active_proc->wakeup_gen + 1;
+         sig[i].sensitive = node;
+      }
+      else {
+         // Reuse the stale entry
+         it->wakeup_gen = active_proc->wakeup_gen + 1;
+      }
    }
 }
 
