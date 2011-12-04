@@ -27,5 +27,5 @@ while1          gold,normal
 signal6         gold,normal
 slice1          normal
 logical1        normal
-
+lfsr            normal,stop=510ns
 
