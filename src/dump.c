@@ -127,29 +127,68 @@ static void dump_expr(tree_t t)
    }
 }
 
+static void dump_type(type_t type)
+{
+   if (type_kind(type) == T_CARRAY) {
+      printf("%s(", istr(type_ident(type)));
+      for (unsigned i = 0; i < type_dims(type); i++) {
+         if (i > 0)
+            printf(", ");
+         range_t r = type_dim(type, i);
+         dump_expr(r.left);
+         switch (r.kind) {
+         case RANGE_TO:
+            printf(" to ");
+            dump_expr(r.right);
+            break;
+         case RANGE_DOWNTO:
+            printf(" downto ");
+            dump_expr(r.right);
+            break;
+         case RANGE_EXPR:
+            break;
+         }
+      }
+      printf(")");
+   }
+   else
+      printf("%s", type_pp(type));
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
 
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
-      printf("signal %s : %s", istr(tree_ident(t)),
-             type_pp(tree_type(t)));
+      printf("signal %s : ", istr(tree_ident(t)));
       break;
 
    case T_VAR_DECL:
-      printf("variable %s : %s", istr(tree_ident(t)),
-             type_pp(tree_type(t)));
+      printf("variable %s : ", istr(tree_ident(t)));
       break;
 
    case T_CONST_DECL:
-      printf("constant %s : %s", istr(tree_ident(t)),
-             type_pp(tree_type(t)));
+      printf("constant %s : ", istr(tree_ident(t)));
+      break;
+
+   case T_TYPE_DECL:
+      printf("type %s is ", istr(tree_ident(t)));
+      break;
+
+   case T_ATTR_SPEC:
+      printf("TODO: T_ATTR_SPEC\n");
+      break;
+
+   case T_ATTR_DECL:
+      printf("TODO: T_ATTR_DECL\n");
       break;
 
    default:
       assert(false);
    }
+
+   dump_type(tree_type(t));
 
    if (tree_has_value(t)) {
       printf(" := ");

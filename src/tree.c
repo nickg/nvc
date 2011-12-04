@@ -1843,11 +1843,20 @@ void range_bounds(range_t r, int64_t *low, int64_t *high)
    }
 }
 
-static void rewrite_a(struct tree_array *a,
-                      tree_rewrite_fn_t fn, void *context)
+struct rewrite_ctx {
+   tree_t            *cache;
+   uint32_t          index;
+   uint32_t          generation;
+   tree_rewrite_fn_t fn;
+   void              *context;
+};
+
+static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx);
+
+static void rewrite_a(struct tree_array *a, struct rewrite_ctx *ctx)
 {
    for (unsigned i = 0; i < a->count; i++)
-      a->items[i] = tree_rewrite(a->items[i], fn, context);
+      a->items[i] = tree_rewrite_aux(a->items[i], ctx);
 
    // If an item was rewritten to NULL then delete it
    unsigned n = 0;
@@ -1858,74 +1867,85 @@ static void rewrite_a(struct tree_array *a,
    a->count = n;
 }
 
-static void rewrite_p(struct param_array *a,
-                      tree_rewrite_fn_t fn, void *context)
+static void rewrite_p(struct param_array *a, struct rewrite_ctx *ctx)
 {
    for (unsigned i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
       case P_RANGE:
          a->items[i].range.left =
-            tree_rewrite(a->items[i].range.left, fn, context);
+            tree_rewrite_aux(a->items[i].range.left, ctx);
          a->items[i].range.right =
-            tree_rewrite(a->items[i].range.right, fn, context);
+            tree_rewrite_aux(a->items[i].range.right, ctx);
          break;
 
       case P_POS:
       case P_NAMED:
-         a->items[i].value =
-            tree_rewrite(a->items[i].value, fn, context);
+         a->items[i].value = tree_rewrite_aux(a->items[i].value, ctx);
          break;
       }
    }
 }
 
-tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
+static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 {
+   if (t == NULL)
+      return NULL;
+
+   if (t->generation == ctx->generation) {
+      // Already rewritten this tree so return the cached version
+      if (ctx->cache[t->index] == NULL)
+         fmt_loc(stdout, tree_loc(t));
+      return ctx->cache[t->index];
+   }
+
+   t->generation = ctx->generation;
+   t->index      = ctx->index++;
+
    if (HAS_GENERICS(t))
-      rewrite_a(&t->generics, fn, context);
+      rewrite_a(&t->generics, ctx);
    if (HAS_PORTS(t))
-      rewrite_a(&t->ports, fn, context);
+      rewrite_a(&t->ports, ctx);
    if (HAS_DECLS(t))
-      rewrite_a(&t->decls, fn, context);
+      rewrite_a(&t->decls, ctx);
    if (HAS_TRIGGERS(t))
-      rewrite_a(&t->triggers, fn, context);
+      rewrite_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
-      rewrite_a(&t->stmts, fn, context);
+      rewrite_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
-      rewrite_a(&t->waves, fn, context);
+      rewrite_a(&t->waves, ctx);
    if (HAS_TARGET(t))
-      tree_set_target(t, tree_rewrite(tree_target(t), fn, context));
+      tree_set_target(t, tree_rewrite_aux(tree_target(t), ctx));
    if (HAS_VALUE(t)) {
       if (tree_has_value(t))
-         tree_set_value(t, tree_rewrite(tree_value(t), fn, context));
+         tree_set_value(t, tree_rewrite_aux(tree_value(t), ctx));
    }
    if (HAS_DELAY(t)) {
       if (tree_has_delay(t))
-         tree_set_delay(t, tree_rewrite(tree_delay(t), fn, context));
+         tree_set_delay(t, tree_rewrite_aux(tree_delay(t), ctx));
    }
    if (HAS_PARAMS(t))
-      rewrite_p(&t->params, fn, context);
+      rewrite_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
       range_t r = tree_range(t);
-      r.left  = tree_rewrite(r.left, fn, context);
-      r.right = tree_rewrite(r.right, fn, context);
+      r.left  = tree_rewrite_aux(r.left, ctx);
+      r.right = tree_rewrite_aux(r.right, ctx);
       tree_set_range(t, r);
    }
    if (HAS_ASSOCS(t)) {
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          assoc_t *a = &t->assocs[i];
-         a->value = tree_rewrite(a->value, fn, context);
+         a->value = tree_rewrite_aux(a->value, ctx);
 
          switch (a->kind) {
          case A_POS:
          case A_OTHERS:
             break;
          case A_NAMED:
-            a->name = tree_rewrite(a->name, fn, context);
+            a->name = tree_rewrite_aux(a->name, ctx);
             break;
          case A_RANGE:
-            a->range.left  = tree_rewrite(a->range.left, fn, context);
-            a->range.right = tree_rewrite(a->range.right, fn, context);
+            a->range.left  = tree_rewrite_aux(a->range.left, ctx);
+            a->range.right = tree_rewrite_aux(a->range.right, ctx);
             break;
          }
       }
@@ -1933,34 +1953,37 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 
    switch (tree_kind(t)) {
    case T_ASSERT:
-      tree_set_severity(t, tree_rewrite(tree_severity(t), fn, context));
-      tree_set_message(t, tree_rewrite(tree_message(t), fn, context));
+      tree_set_severity(t, tree_rewrite_aux(tree_severity(t), ctx));
+      tree_set_message(t, tree_rewrite_aux(tree_message(t), ctx));
       break;
 
    case T_INSTANCE:
-      rewrite_p(&t->genmaps, fn, context);
+      rewrite_p(&t->genmaps, ctx);
       break;
 
    case T_IF:
-      rewrite_a(&t->elses, fn, context);
+      rewrite_a(&t->elses, ctx);
       break;
 
    default:
       break;
    }
 
-   if (IS_DECL(t)) {
-      type_t type = tree_type(t);
-      switch (type_kind(type)) {
+   // Rewrite this tree before we rewrite the type as there may
+   // be a circular reference
+   ctx->cache[t->index] = (*ctx->fn)(t, ctx->context);
+
+   if (HAS_TYPE(t) && (t->type != NULL)) {
+      switch (type_kind(t->type)) {
       case T_INTEGER:
       case T_SUBTYPE:
       case T_PHYSICAL:
       case T_CARRAY:
-         for (unsigned i = 0; i < type_dims(type); i++) {
-            range_t r = type_dim(type, i);
-            r.left  = tree_rewrite(r.left, fn, context);
-            r.right = tree_rewrite(r.right, fn, context);
-            type_change_dim(type, i, r);
+         for (unsigned i = 0; i < type_dims(t->type); i++) {
+            range_t r = type_dim(t->type, i);
+            r.left  = tree_rewrite_aux(r.left, ctx);
+            r.right = tree_rewrite_aux(r.right, ctx);
+            type_change_dim(t->type, i, r);
          }
          break;
 
@@ -1969,7 +1992,26 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
       }
    }
 
-   return (*fn)(t, context);
+   return ctx->cache[t->index];
+}
+
+tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
+{
+   size_t cache_sz = sizeof(tree_t) * n_trees_alloc;
+   tree_t *cache = xmalloc(cache_sz);
+   memset(cache, '\0', cache_sz);
+
+   struct rewrite_ctx ctx = {
+      .cache      = cache,
+      .index      = 0,
+      .generation = next_generation++,
+      .fn         = fn,
+      .context    = context
+   };
+
+   tree_t result = tree_rewrite_aux(t, &ctx);
+   free(cache);
+   return result;
 }
 
 struct tree_copy_ctx {
