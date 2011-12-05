@@ -51,7 +51,7 @@ static int vcd_fmt_one(type_t type, char *buf, size_t max, uint64_t val)
    case T_ENUM:
       {
          const char map[] = { '0', '1', 'x', 'z' };
-         if (val > sizeof(map))
+         if (val >= sizeof(map))
             return snprintf(buf, max, "x");
          else
             return snprintf(buf, max, "%c", map[val]);
