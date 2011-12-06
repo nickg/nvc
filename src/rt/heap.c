@@ -49,21 +49,24 @@ static inline void exchange(heap_t h, int i, int j)
 
 static void min_heapify(heap_t h, int i)
 {
-   const int l = LEFT(i);
-   const int r = RIGHT(i);
+   for (;;) {
+      const int l = LEFT(i);
+      const int r = RIGHT(i);
 
-   int smallest;
-   if (l <= h->size && KEY(h, l) < KEY(h, i))
-      smallest = l;
-   else
-      smallest = i;
+      int smallest;
+      if (l <= h->size && KEY(h, l) < KEY(h, i))
+         smallest = l;
+      else
+         smallest = i;
 
-   if (r <= h->size && KEY(h, r) < KEY(h, smallest))
-      smallest = r;
+      if (r <= h->size && KEY(h, r) < KEY(h, smallest))
+         smallest = r;
 
-   if (smallest != i) {
+      if (smallest == i)
+         break;
+
       exchange(h, i, smallest);
-      min_heapify(h, smallest);
+      i = smallest;
    }
 }
 
