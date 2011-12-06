@@ -59,9 +59,9 @@ struct event {
 };
 
 struct waveform {
-   uint64_t        value;
    uint64_t        when;
    struct waveform *next;
+   uint64_t     value;
 };
 
 struct sens_list {
@@ -163,19 +163,8 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
-void _sched_process(int64_t delay)
+static void rt_alloc_source(struct signal *sig, int source)
 {
-   TRACE("_sched_process delay=%s", fmt_time(delay));
-   deltaq_insert(delay, active_proc, NULL, 0);
-}
-
-void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
-{
-   struct signal *sig = _sig;
-
-   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
-         fmt_sig(sig), source, value, fmt_time(after));
-
    // Allocate memory for drivers on demand
    const size_t ptr_sz = sizeof(struct waveform *);
    if (sig->sources == NULL) {
@@ -190,9 +179,31 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
              (source + 1 - sig->n_sources) * ptr_sz);
       sig->n_sources = source + 1;
    }
+}
 
+static struct waveform *rt_init_driver(struct signal *sig, int source)
+{
+   if (sig->sources[source] == NULL) {
+      // Assigning the initial value of a driver
+      // Generate a dummy transaction so the real one will be propagated
+      // at time zero (since the first element on the transaction queue
+      // is assumed to have already occured)
+      assert(now == 0);
+
+      struct waveform *dummy = rt_alloc(waveform_stack);
+      dummy->when  = 0;
+      dummy->next  = NULL;
+
+      return (sig->sources[source] = dummy);
+   }
+   else
+      return NULL;
+}
+
+static struct waveform *rt_alloc_driver(struct signal *sig, int source,
+                                        uint64_t after)
+{
    struct waveform *w = rt_alloc(waveform_stack);
-   w->value = value;
    w->when  = now + after;
    w->next  = NULL;
 
@@ -203,25 +214,77 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
       last = it;
       it = it->next;
    }
-
    w->next = it;
-   if (last == NULL) {
-      // Assigning the initial value of a driver
-      // Generate a dummy transaction so the real one will be propagated
-      // at time zero (since the first element on the transaction queue
-      // is assumed to have already occured)
-      assert(now == 0);
-      assert(after == 0);
+   last->next = w;
 
-      struct waveform *dummy = rt_alloc(waveform_stack);
-      dummy->value = value;
-      dummy->when  = 0;
-      dummy->next  = w;
+   return w;
+}
 
-      sig->sources[source] = dummy;
+void _sched_process(int64_t delay)
+{
+   TRACE("_sched_process delay=%s", fmt_time(delay));
+   deltaq_insert(delay, active_proc, NULL, 0);
+}
+
+void _sched_waveform_vec(void *_sig, int32_t source, void *values,
+                         int32_t n, int32_t size, int64_t after)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
+         fmt_sig(sig), source, values, n, size, fmt_time(after));
+
+   for (int i = 0; i < n; i++) {
+      rt_alloc_source(&sig[i], source);
+
+      uint64_t value;
+      switch (size) {
+      case 1:
+         value = ((uint8_t*)values)[i];
+         break;
+      case 2:
+         value = ((uint16_t*)values)[i];
+         break;
+      case 4:
+         value = ((uint32_t*)values)[i];
+         break;
+      case 8:
+         value = ((uint64_t*)values)[i];
+         break;
+      default:
+         assert(false);
+      }
+
+      struct waveform *w;
+      if ((w = rt_init_driver(&sig[i], source))) {
+         assert(after == 0);
+         assert(false);
+      }
+
+      w = rt_alloc_driver(&sig[i], source, after);
+      w->value = value;
+
+      deltaq_insert(after, NULL, &sig[i], source);
    }
-   else
-      last->next = w;
+}
+
+void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
+         fmt_sig(sig), source, value, fmt_time(after));
+
+   rt_alloc_source(sig, source);
+
+   struct waveform *w;
+   if ((w = rt_init_driver(sig, source))) {
+      assert(after == 0);
+      w->value = value;
+   }
+
+   w = rt_alloc_driver(sig, source, after);
+   w->value = value;
 
    deltaq_insert(after, NULL, sig, source);
 }
@@ -526,52 +589,54 @@ static void rt_wakeup(struct sens_list *sl)
       rt_free(sens_list_stack, sl);
 }
 
-static void rt_update_driver(struct signal *s, unsigned source)
+static void rt_update_signal(struct signal *s, int source, uint64_t value)
+{
+   TRACE("update signal %s value %"PRIx64, fmt_sig(s), value);
+
+   int32_t new_flags = 0;
+   const bool first_cycle = (iteration == 0 && now == 0);
+   if (!first_cycle) {
+      new_flags = SIGNAL_F_ACTIVE;
+      if (s->resolved != value) {
+         new_flags |= SIGNAL_F_EVENT;
+
+         struct sens_list *it, *next;
+         for (it = s->sensitive; it != NULL; it = next) {
+            next = it->next;
+            rt_wakeup(it);
+         }
+         s->sensitive = NULL;
+
+         if (s->event_cb)
+            (*s->event_cb)(s->decl);
+      }
+
+      assert(n_active_signals < MAX_ACTIVE_SIGS);
+      active_signals[n_active_signals++] = s;
+   }
+   else
+      s->resolved = value;
+
+   // LAST_VALUE is the same as the initial value when
+   // there have been no events on the signal otherwise
+   // only update it when there is an event
+   if (first_cycle)
+      s->last_value = value;
+   else if (new_flags & SIGNAL_F_EVENT)
+      s->last_value = s->resolved;
+
+   s->resolved        = value;
+   s->flags          |= new_flags;
+}
+
+static void rt_update_driver(struct signal *s, int source)
 {
    struct waveform *w_now  = s->sources[source];
    struct waveform *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      TRACE("update signal %s value %"PRIx64,
-            fmt_sig(s), w_next->value);
-
-      int32_t new_flags = 0;
-      const bool first_cycle = (iteration == 0 && now == 0);
-      if (!first_cycle) {
-         new_flags = SIGNAL_F_ACTIVE;
-         if (s->resolved != w_next->value) {
-            new_flags |= SIGNAL_F_EVENT;
-
-            struct sens_list *it, *next;
-            for (it = s->sensitive; it != NULL; it = next) {
-               next = it->next;
-               rt_wakeup(it);
-            }
-            s->sensitive = NULL;
-
-            if (s->event_cb)
-               (*s->event_cb)(s->decl);
-         }
-
-         assert(n_active_signals < MAX_ACTIVE_SIGS);
-         active_signals[n_active_signals++] = s;
-      }
-      else {
-         s->resolved = w_next->value;
-      }
-
-      // LAST_VALUE is the same as the initial value when
-      // there have been no events on the signal otherwise
-      // only update it when there is an event
-      if (first_cycle)
-         s->last_value = w_next->value;
-      else if (new_flags & SIGNAL_F_EVENT)
-         s->last_value = s->resolved;
-
-      s->resolved        = w_next->value;
-      s->flags          |= new_flags;
+      rt_update_signal(s, source, w_next->value);
       s->sources[source] = w_next;
-
       rt_free(waveform_stack, w_now);
    }
    else
