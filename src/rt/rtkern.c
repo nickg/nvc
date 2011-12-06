@@ -54,6 +54,7 @@ struct event {
       struct {
          struct signal *signal;
          unsigned      source;
+         int           length;
       };
    };
 };
@@ -90,6 +91,7 @@ static size_t   n_procs = 0;
 static uint64_t now = 0;
 static int      iteration = -1;
 static bool     trace_on = false;
+static ident_t  i_signal = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -99,11 +101,13 @@ static rt_alloc_stack_t sens_list_stack = NULL;
 static struct signal *active_signals[MAX_ACTIVE_SIGS];
 static unsigned      n_active_signals = 0;
 
-static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
-                          struct signal *signal, unsigned source);
+static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
+static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
+                                 unsigned source, int length);
+static void rt_alloc_driver(struct signal *sig, int source,
+                            uint64_t after, uint64_t value);
 static void *rt_tmp_alloc(size_t sz);
 static void _tracef(const char *fmt, ...);
-static ident_t i_signal = NULL;
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
 
@@ -163,67 +167,10 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
 
-static void rt_alloc_source(struct signal *sig, int source)
-{
-   // Allocate memory for drivers on demand
-   const size_t ptr_sz = sizeof(struct waveform *);
-   if (sig->sources == NULL) {
-      sig->n_sources = source + 1;
-      sig->sources = xmalloc(sig->n_sources * ptr_sz);
-      memset(sig->sources, '\0', sig->n_sources * ptr_sz);
-   }
-   else if (source >= sig->n_sources) {
-      // TODO: scale size more aggressively here?
-      sig->sources = xrealloc(sig->sources, (source + 1) * ptr_sz);
-      memset(&sig->sources[sig->n_sources], '\0',
-             (source + 1 - sig->n_sources) * ptr_sz);
-      sig->n_sources = source + 1;
-   }
-}
-
-static struct waveform *rt_init_driver(struct signal *sig, int source)
-{
-   if (sig->sources[source] == NULL) {
-      // Assigning the initial value of a driver
-      // Generate a dummy transaction so the real one will be propagated
-      // at time zero (since the first element on the transaction queue
-      // is assumed to have already occured)
-      assert(now == 0);
-
-      struct waveform *dummy = rt_alloc(waveform_stack);
-      dummy->when  = 0;
-      dummy->next  = NULL;
-
-      return (sig->sources[source] = dummy);
-   }
-   else
-      return NULL;
-}
-
-static struct waveform *rt_alloc_driver(struct signal *sig, int source,
-                                        uint64_t after)
-{
-   struct waveform *w = rt_alloc(waveform_stack);
-   w->when  = now + after;
-   w->next  = NULL;
-
-   // TODO: transport vs. inertial
-
-   struct waveform *it = sig->sources[source], *last = NULL;
-   while (it != NULL && it->when <= w->when) {
-      last = it;
-      it = it->next;
-   }
-   w->next = it;
-   last->next = w;
-
-   return w;
-}
-
 void _sched_process(int64_t delay)
 {
    TRACE("_sched_process delay=%s", fmt_time(delay));
-   deltaq_insert(delay, active_proc, NULL, 0);
+   deltaq_insert_proc(delay, active_proc);
 }
 
 void _sched_waveform_vec(void *_sig, int32_t source, void *values,
@@ -234,38 +181,33 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
    TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
          fmt_sig(sig), source, values, n, size, fmt_time(after));
 
-   for (int i = 0; i < n; i++) {
-      rt_alloc_source(&sig[i], source);
+   const uint8_t  *v8  = values;
+   const uint16_t *v16 = values;
+   const uint32_t *v32 = values;
+   const uint64_t *v64 = values;
 
-      uint64_t value;
-      switch (size) {
+   switch (size) {
       case 1:
-         value = ((uint8_t*)values)[i];
+         for (int i = 0; i < n; i++)
+            rt_alloc_driver(&sig[i], source, after, v8[i]);
          break;
       case 2:
-         value = ((uint16_t*)values)[i];
+         for (int i = 0; i < n; i++)
+            rt_alloc_driver(&sig[i], source, after, v16[i]);
          break;
       case 4:
-         value = ((uint32_t*)values)[i];
+         for (int i = 0; i < n; i++)
+            rt_alloc_driver(&sig[i], source, after, v32[i]);
          break;
       case 8:
-         value = ((uint64_t*)values)[i];
+         for (int i = 0; i < n; i++)
+            rt_alloc_driver(&sig[i], source, after, v64[i]);
          break;
       default:
          assert(false);
-      }
-
-      struct waveform *w;
-      if ((w = rt_init_driver(&sig[i], source))) {
-         assert(after == 0);
-         assert(false);
-      }
-
-      w = rt_alloc_driver(&sig[i], source, after);
-      w->value = value;
-
-      deltaq_insert(after, NULL, &sig[i], source);
    }
+
+   deltaq_insert_driver(after, sig, source, n);
 }
 
 void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
@@ -275,18 +217,9 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
          fmt_sig(sig), source, value, fmt_time(after));
 
-   rt_alloc_source(sig, source);
+   rt_alloc_driver(sig, source, after, value);
 
-   struct waveform *w;
-   if ((w = rt_init_driver(sig, source))) {
-      assert(after == 0);
-      w->value = value;
-   }
-
-   w = rt_alloc_driver(sig, source, after);
-   w->value = value;
-
-   deltaq_insert(after, NULL, sig, source);
+   deltaq_insert_driver(after, sig, source, 1);
 }
 
 void _sched_event(void *_sig, int32_t n)
@@ -407,24 +340,27 @@ static void _tracef(const char *fmt, ...)
    va_end(ap);
 }
 
-static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
-                          struct signal *signal, unsigned source)
+static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
 {
-   assert(!(wake != NULL && signal != NULL));
-
    struct event *e = rt_alloc(event_stack);
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
+   e->kind      = E_PROCESS;
+   e->wake_proc = wake;
 
-   if (wake != NULL) {
-      e->kind      = E_PROCESS;
-      e->wake_proc = wake;
-   }
-   else {
-      e->kind   = E_DRIVER;
-      e->signal = signal;
-      e->source = source;
-   }
+   heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+}
+
+static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
+                                 unsigned source, int length)
+{
+   struct event *e = rt_alloc(event_stack);
+   e->iteration = (delta == 0 ? iteration + 1 : 0);
+   e->when      = now + delta;
+   e->kind      = E_DRIVER;
+   e->signal    = signal;
+   e->source    = source;
+   e->length    = length;
 
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
@@ -444,16 +380,6 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 static void deltaq_dump(void)
 {
    heap_walk(eventq_heap, deltaq_walk, NULL);
-#if 0
-   struct deltaq *it;
-   for (it = eventq; it != NULL; it = it->next) {
-      printf("%s\t", fmt_time(it->delta));
-      if (it->kind == E_DRIVER)
-         printf("driver\t %s\n", fmt_sig(it->signal));
-      else
-         printf("process\t %s\n", istr(tree_ident(it->wake_proc->source)));
-   }
-#endif
 }
 #endif
 
@@ -589,6 +515,54 @@ static void rt_wakeup(struct sens_list *sl)
       rt_free(sens_list_stack, sl);
 }
 
+static void rt_alloc_driver(struct signal *sig, int source,
+                            uint64_t after, uint64_t value)
+{
+   // Allocate memory for drivers on demand
+   const size_t ptr_sz = sizeof(struct waveform *);
+   if (unlikely(sig->sources == NULL)) {
+      sig->n_sources = source + 1;
+      sig->sources = xmalloc(sig->n_sources * ptr_sz);
+      memset(sig->sources, '\0', sig->n_sources * ptr_sz);
+   }
+   else if (unlikely(source >= sig->n_sources)) {
+      // TODO: scale size more aggressively here?
+      sig->sources = xrealloc(sig->sources, (source + 1) * ptr_sz);
+      memset(&sig->sources[sig->n_sources], '\0',
+             (source + 1 - sig->n_sources) * ptr_sz);
+      sig->n_sources = source + 1;
+   }
+
+   if (unlikely(sig->sources[source] == NULL)) {
+      // Assigning the initial value of a driver
+      // Generate a dummy transaction so the real one will be propagated
+      // at time zero (since the first element on the transaction queue
+      // is assumed to have already occured)
+      assert(now == 0);
+
+      struct waveform *dummy = rt_alloc(waveform_stack);
+      dummy->when  = 0;
+      dummy->next  = NULL;
+
+      sig->sources[source] = dummy;
+   }
+
+   struct waveform *w = rt_alloc(waveform_stack);
+   w->when  = now + after;
+   w->next  = NULL;
+   w->value = value;
+
+   // TODO: transport vs. inertial
+
+   struct waveform *it = sig->sources[source], *last = NULL;
+   while (it != NULL && it->when <= w->when) {
+      last = it;
+      it = it->next;
+   }
+   w->next = it;
+   last->next = w;
+}
+
 static void rt_update_signal(struct signal *s, int source, uint64_t value)
 {
    TRACE("update signal %s value %"PRIx64, fmt_sig(s), value);
@@ -672,7 +646,8 @@ static void rt_cycle(void)
          rt_run(event->wake_proc, false /* reset */);
          break;
       case E_DRIVER:
-         rt_update_driver(event->signal, event->source);
+         for (int i = 0; i < event->length; i++)
+            rt_update_driver(&event->signal[i], event->source);
          break;
       }
 
