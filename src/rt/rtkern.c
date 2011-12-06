@@ -22,6 +22,7 @@
 #include "signal.h"
 #include "slave.h"
 #include "alloc.h"
+#include "heap.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -42,10 +43,10 @@ struct rt_proc {
    size_t    tmp_buf_sz;
 };
 
-typedef enum { E_PROCESS, E_DRIVER } event_kind_t;
+typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
 
-struct deltaq {
-   uint64_t       delta;
+struct event {
+   uint64_t       when;
    int            iteration;
    event_kind_t   kind;
    union {
@@ -55,7 +56,6 @@ struct deltaq {
          unsigned      source;
       };
    };
-   struct deltaq  *next;
 };
 
 struct waveform {
@@ -83,15 +83,15 @@ struct signal {
 
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
-static struct deltaq    *eventq = NULL;
 static struct sens_list *resume = NULL;
 
+static heap_t   eventq_heap = NULL;
 static size_t   n_procs = 0;
 static uint64_t now = 0;
 static int      iteration = -1;
 static bool     trace_on = false;
 
-static rt_alloc_stack_t deltaq_stack = NULL;
+static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 
@@ -151,6 +151,13 @@ static const char *fmt_sig(struct signal *sig)
       p += snprintf(p, end - p, "[%zd]", sig - first);
    }
    return buf;
+}
+
+static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
+{
+   // Use the bottom bit of the key to indicate the kind
+   // The highest priority should have the lowest enumeration value
+   return (when << 1) | (kind & 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,59 +349,39 @@ static void deltaq_insert(uint64_t delta, struct rt_proc *wake,
 {
    assert(!(wake != NULL && signal != NULL));
 
-   struct deltaq *q = rt_alloc(deltaq_stack);
-   q->next      = NULL;
-   q->iteration = (delta == 0 ? iteration + 1 : 0);
+   struct event *e = rt_alloc(event_stack);
+   e->iteration = (delta == 0 ? iteration + 1 : 0);
+   e->when      = now + delta;
 
    if (wake != NULL) {
-      q->kind      = E_PROCESS;
-      q->wake_proc = wake;
+      e->kind      = E_PROCESS;
+      e->wake_proc = wake;
    }
    else {
-      q->kind   = E_DRIVER;
-      q->signal = signal;
-      q->source = source;
+      e->kind   = E_DRIVER;
+      e->signal = signal;
+      e->source = source;
    }
 
-   if (eventq == NULL)
-      eventq = q;
-   else {
-      struct deltaq *it = eventq, *last = NULL;
-      uint64_t sum = 0;
-      while (it != NULL && sum + it->delta <= delta) {
-         sum += it->delta;
-         delta -= it->delta;
-
-         last = it;
-         it = it->next;
-      }
-
-      if (it != NULL) {
-         q->next = it;
-         if (last != NULL)
-            last->next = q;
-         else
-            eventq = q;
-
-         it->delta -= delta;
-      }
-      else
-         last->next = q;
-   }
-
-   q->delta = delta;
-}
-
-static void deltaq_pop(void)
-{
-   struct deltaq *next = eventq->next;
-   rt_free(deltaq_stack, eventq);
-   eventq = next;
+   heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
 
 #if TRACE_DELTAQ > 0
+static void deltaq_walk(uint64_t key, void *user, void *context)
+{
+   struct event *e = user;
+
+   printf("%s\t", fmt_time(e->when));
+   if (e->kind == E_DRIVER)
+      printf("driver\t %s\n", fmt_sig(e->signal));
+   else
+      printf("process\t %s\n", istr(tree_ident(e->wake_proc->source)));
+}
+
 static void deltaq_dump(void)
 {
+   heap_walk(eventq_heap, deltaq_walk, NULL);
+#if 0
    struct deltaq *it;
    for (it = eventq; it != NULL; it = it->next) {
       printf("%s\t", fmt_time(it->delta));
@@ -403,6 +390,7 @@ static void deltaq_dump(void)
       else
          printf("process\t %s\n", istr(tree_ident(it->wake_proc->source)));
    }
+#endif
 }
 #endif
 
@@ -445,10 +433,10 @@ static void rt_setup(tree_t top)
    now = 0;
    iteration = -1;
 
-   while (eventq != NULL)
-      deltaq_pop();
-
+   assert(eventq_heap == NULL);
    assert(resume == NULL);
+
+   eventq_heap = heap_new(512);
 
    if (procs == NULL) {
       n_procs = tree_stmts(top);
@@ -594,14 +582,15 @@ static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   if (eventq->delta > 0) {
-      now += eventq->delta;
-      eventq->delta = 0;
-      assert(eventq->iteration == 0);
+   struct event *peek = heap_min(eventq_heap);
+
+   if (peek->when > now) {
+      now = peek->when;
+      assert(peek->iteration == 0);
       iteration = 0;
    }
    else
-      iteration = eventq->iteration;
+      iteration = peek->iteration;
 
    TRACE("begin cycle");
 
@@ -610,19 +599,27 @@ static void rt_cycle(void)
       deltaq_dump();
 #endif
 
-   do {
-      switch (eventq->kind) {
+   for (;;) {
+      struct event *event = heap_extract_min(eventq_heap);
+
+      switch (event->kind) {
       case E_PROCESS:
-         rt_run(eventq->wake_proc, false /* reset */);
+         rt_run(event->wake_proc, false /* reset */);
          break;
       case E_DRIVER:
-         rt_update_driver(eventq->signal, eventq->source);
+         rt_update_driver(event->signal, event->source);
          break;
       }
 
-      deltaq_pop();
-   } while (eventq != NULL
-            && (eventq->delta == 0 && eventq->iteration == iteration));
+      rt_free(event_stack, event);
+
+      if (heap_size(eventq_heap) == 0)
+         break;
+
+      peek = heap_min(eventq_heap);
+      if (peek->when > now || peek->iteration != iteration)
+         break;
+   }
 
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
@@ -643,7 +640,7 @@ static void rt_one_time_init(void)
 
    jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
 
-   deltaq_stack    = rt_alloc_stack_new(sizeof(struct deltaq));
+   event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
 }
@@ -668,10 +665,13 @@ static void rt_cleanup_signal(struct signal *sig)
 
 static void rt_cleanup(tree_t top)
 {
-   while (eventq != NULL)
-      deltaq_pop();
-
    assert(resume == NULL);
+
+   while (heap_size(eventq_heap) > 0)
+      rt_free(event_stack, heap_extract_min(eventq_heap));
+
+   heap_free(eventq_heap);
+   eventq_heap = NULL;
 
    for (unsigned i = 0; i < tree_decls(top); i++) {
       tree_t d = tree_decl(top, i);
@@ -692,7 +692,7 @@ static void rt_cleanup(tree_t top)
          rt_cleanup_signal(sig);
    }
 
-   rt_alloc_stack_destroy(deltaq_stack);
+   rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
 }
@@ -700,6 +700,12 @@ static void rt_cleanup(tree_t top)
 void rt_trace_en(bool en)
 {
    trace_on = en;
+}
+
+static bool rt_stop_now(uint64_t stop_time)
+{
+   struct event *peek = heap_min(eventq_heap);
+   return peek->when > stop_time;
 }
 
 void rt_batch_exec(tree_t e, uint64_t stop_time)
@@ -710,7 +716,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
    rt_setup(e);
    rt_initial();
    vcd_restart(e);
-   while (eventq != NULL && (now + eventq->delta <= stop_time))
+   while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle();
    rt_cleanup(e);
 
@@ -720,7 +726,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
 static void rt_slave_run(slave_run_msg_t *msg)
 {
    const uint64_t end = now + msg->time;
-   while (eventq != NULL && (now + eventq->delta <= end))
+   while (heap_size(eventq_heap) > 0 && !rt_stop_now(end));
       rt_cycle();
 }
 

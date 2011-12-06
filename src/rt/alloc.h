@@ -37,7 +37,7 @@ void *rt_alloc_slow(rt_alloc_stack_t stack);
 
 static inline void *rt_alloc(rt_alloc_stack_t s)
 {
-   if (__builtin_expect(s->stack_top == 0, 0))
+   if (unlikely(s->stack_top == 0))
       return rt_alloc_slow(s);
    else
       return s->stack[--s->stack_top];

@@ -1,5 +1,5 @@
 check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp \
-	test_elab
+	test_elab test_heap
 TESTS_ENVIRONMENT = BUILD_DIR=$(top_builddir)
 TESTS = $(check_PROGRAMS) run_regr.rb
 
@@ -9,7 +9,7 @@ shared = $(src)/util.c
 
 AM_CFLAGS = -I $(src) -I $(build) -DTESTDIR=\"$(top_srcdir)/test\" \
 	$(CHECK_CFLAGS)
-LDADD = -lcheck $(build)/libnvc.a $(CHECK_LIBS)
+LDADD = -lcheck $(build)/rt/libnvc-rt.a $(build)/libnvc.a $(CHECK_LIBS)
 AM_LDFLAGS = -rdynamic
 
 test_lib_SOURCES = test_lib.c
