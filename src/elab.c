@@ -95,7 +95,17 @@ static tree_t rewrite_ports(tree_t t, void *context)
    case T_REF:
       if (tree_kind(tree_ref(t)) == T_PORT_DECL
           && (tree_ident(t) == tree_ident(params->formal))) {
-         tree_set_ref(t, params->actual);
+
+         switch (tree_kind(params->actual)) {
+         case T_SIGNAL_DECL:
+            tree_set_ref(t, params->actual);
+            break;
+         case T_LITERAL:
+         case T_AGGREGATE:
+            return params->actual;
+         default:
+            assert(false);
+         }
       }
       break;
 
@@ -106,27 +116,37 @@ static tree_t rewrite_ports(tree_t t, void *context)
    return t;
 }
 
-static void elab_instance(tree_t t, tree_t out, ident_t path)
+static void elab_map(tree_t t, tree_t arch,
+                     tree_formals_t tree_Fs, tree_formal_t tree_F,
+                     tree_actuals_t tree_As, tree_actual_t tree_A)
 {
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
 
-   tree_t arch = tree_copy(pick_arch(tree_ident2(t)));
+   // The map is processed in return order as generics may refer
+   // to earlier ones which would have already been rewritten
 
-   // Bind all ports to signals
-   for (unsigned i = 0; i < tree_params(t); i++) {
-      param_t p = tree_param(t, i);
+   bool have_formals[tree_Fs(unit)];
+   for (unsigned i = 0; i < tree_Fs(unit); i++)
+      have_formals[i] = false;
+
+   for (int i = tree_As(t) - 1; i >= 0; i--) {
+      param_t p = tree_A(t, i);
       tree_t formal = NULL;
 
       switch (p.kind) {
       case P_POS:
-         formal = tree_port(unit, p.pos);
+         formal = tree_F(unit, p.pos);
+         have_formals[p.pos] = true;
          break;
       case P_NAMED:
-         for (unsigned j = 0; j < tree_ports(unit); j++) {
-            tree_t port = tree_port(unit, j);
-            if (tree_ident(port) == p.name)
+         for (unsigned j = 0; j < tree_Fs(unit); j++) {
+            tree_t port = tree_F(unit, j);
+            if (tree_ident(port) == p.name) {
                formal = port;
+               have_formals[j] = true;
+               break;
+            }
          }
          break;
       default:
@@ -140,6 +160,29 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
       };
       tree_rewrite(arch, rewrite_ports, &params);
    }
+
+   for (int i = tree_Fs(unit) - 1; i >= 0; i--) {
+      if (!have_formals[i]) {
+         tree_t f = tree_F(unit, i);
+         assert(tree_has_value(f));
+
+         struct rewrite_params params = {
+            .formal = f,
+            .actual = tree_value(f)
+         };
+         tree_rewrite(arch, rewrite_ports, &params);
+      }
+   }
+}
+
+static void elab_instance(tree_t t, tree_t out, ident_t path)
+{
+   tree_t arch = tree_copy(pick_arch(tree_ident2(t)));
+
+   elab_map(t, arch, tree_ports, tree_port,
+            tree_params, tree_param);
+   elab_map(t, arch, tree_generics, tree_generic,
+            tree_genmaps, tree_genmap);
 
    elab_arch(arch, out, path);
 }
@@ -203,6 +246,11 @@ tree_t elab(tree_t top)
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
 
-   lib_put(lib_work(), e);
-   return e;
+   simplify(e);
+   if (simplify_errors() == 0) {
+      lib_put(lib_work(), e);
+      return e;
+   }
+   else
+      return NULL;
 }

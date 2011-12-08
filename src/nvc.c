@@ -142,6 +142,9 @@ static int elaborate(int argc, char **argv)
             istr(unit_i), istr(lib_name(lib_work())));
 
    tree_t e = elab(unit);
+   if (e == NULL)
+      return EXIT_FAILURE;
+
    tree_gc();
 
    // Save the library now so the code generator can attach temporary

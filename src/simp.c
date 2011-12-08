@@ -111,8 +111,8 @@ static tree_t simp_fcall_log(tree_t t, const char *builtin, bool *args)
       return get_bool_lit(t, args[0] ^ args[1]);
    else if (strcmp(builtin, "xnor") == 0)
       return get_bool_lit(t, !(args[0] ^ args[1]));
-
-   fatal("cannot fold builtin %s", builtin);
+   else
+      return t;
 }
 
 static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
@@ -162,8 +162,8 @@ static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
       else
          assert(false);
    }
-
-   fatal("cannot fold builtin %s", builtin);
+   else
+      return t;
 }
 
 static tree_t simp_fcall(tree_t t)

@@ -61,11 +61,6 @@ static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
 
-typedef unsigned (*tree_formals_t)(tree_t t);
-typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
-typedef unsigned (*tree_actuals_t)(tree_t t);
-typedef param_t (*tree_actual_t)(tree_t t, unsigned n);
-
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
 static struct type_set *top_type_set = NULL;
@@ -2189,7 +2184,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
    }
 
    for (unsigned i = 0; i < nformals; i++) {
-      if (!formals[i].have)
+      if (!formals[i].have && !tree_has_value(formals[i].decl))
          sem_error(t, "missing actual for formal %s",
                    istr(tree_ident(formals[i].decl)));
    }

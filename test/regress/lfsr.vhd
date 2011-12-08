@@ -1,4 +1,8 @@
 entity lfsr16 is
+    generic (
+        WIDTH : positive := 16;
+        INIT  : bit_vector(WIDTH - 1 downto 0) := (others => '0');
+        TAP   : natural := 3 );
     port (
         clk   : in bit;
         reset : in bit;  -- Asynchronous
@@ -8,10 +12,6 @@ entity lfsr16 is
 end entity;
 
 architecture rtl of lfsr16 is
-    constant WIDTH : positive := 16;
-    constant INIT  : bit_vector(WIDTH - 1 downto 0) := (others => '0');
-    constant TAP   : natural := 3;
-    
     signal state_r : bit_vector(WIDTH - 1 downto 0);
 begin
 
