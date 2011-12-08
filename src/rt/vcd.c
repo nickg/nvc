@@ -41,9 +41,10 @@ static const char *vcd_key_fmt(int key)
 
    char *p = buf;
    do {
-      *p = 33 + (key % (126 - 33));
+      *p++ = 33 + (key % (126 - 33));
       key /= (126 - 33);
    } while (key > 0);
+   *p = '\0';
 
    return buf;
 }
