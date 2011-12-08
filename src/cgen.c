@@ -59,6 +59,11 @@ struct cgen_ctx {
 static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx);
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx);
 
+static LLVMValueRef llvm_int8(int32_t i)
+{
+   return LLVMConstInt(LLVMInt8Type(), i, false);
+}
+
 static LLVMValueRef llvm_int32(int32_t i)
 {
    return LLVMConstInt(LLVMInt32Type(), i, false);
@@ -349,7 +354,7 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
 static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
 {
    LLVMValueRef signal_struct = llvm_global(istr(tree_ident(signal)));
-   LLVMValueRef bit = llvm_int32(flag);
+   LLVMValueRef bit = llvm_int8(flag);
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal_struct, SIGNAL_FLAGS, "");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
@@ -361,12 +366,12 @@ static LLVMValueRef cgen_array_signal_flag(tree_t signal, int flag)
 {
    // Need to OR the flag for each sub-element
 
-   LLVMValueRef bit = llvm_int32(flag);
+   LLVMValueRef bit = llvm_int8(flag);
 
    int64_t low, high;
    range_bounds(type_dim(tree_type(signal), 0), &low, &high);
 
-   LLVMValueRef result = llvm_int32(0);
+   LLVMValueRef result = llvm_int8(0);
    for (int i = 0; i < high - low + 1; i++) {
       LLVMValueRef struct_ptr =
          cgen_array_signal_ptr(signal, llvm_int32(i));
@@ -1299,8 +1304,9 @@ static LLVMTypeRef cgen_signal_type(void)
       fields[SIGNAL_RESOLVED]   = LLVMInt64Type();
       fields[SIGNAL_LAST_VALUE] = LLVMInt64Type();
       fields[SIGNAL_DECL]       = llvm_void_ptr();
-      fields[SIGNAL_FLAGS]      = LLVMInt32Type();
-      fields[SIGNAL_N_SOURCES]  = LLVMInt32Type();
+      fields[SIGNAL_FLAGS]      = LLVMInt8Type();
+      fields[SIGNAL_N_SOURCES]  = LLVMInt8Type();
+      fields[SIGNAL_OFFSET]     = LLVMInt16Type();
       fields[SIGNAL_SOURCES]    = llvm_void_ptr();
       fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
       fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
@@ -1320,8 +1326,9 @@ static LLVMValueRef cgen_signal_init(void)
    init[SIGNAL_RESOLVED]   = llvm_int64(0);
    init[SIGNAL_LAST_VALUE] = llvm_int64(0);
    init[SIGNAL_DECL]       = LLVMConstNull(llvm_void_ptr());
-   init[SIGNAL_FLAGS]      = llvm_int32(0);
-   init[SIGNAL_N_SOURCES]  = llvm_int32(0);
+   init[SIGNAL_FLAGS]      = llvm_int8(0);
+   init[SIGNAL_N_SOURCES]  = llvm_int8(0);
+   init[SIGNAL_OFFSET]     = LLVMConstInt(LLVMInt16Type(), 0, false);
    init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
    init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
    init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());

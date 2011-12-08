@@ -22,12 +22,18 @@
 #include <time.h>
 #include <inttypes.h>
 #include <string.h>
+#include <assert.h>
+#include <stdlib.h>
 
 #define MAX_VAR_WIDTH  256
 #define MAX_TEXT_WIDTH 512
+#define MAX_SCOPE_SZ   64
 
-static FILE *vcd_file = NULL;
+static FILE    *vcd_file = NULL;
 static ident_t i_vcd_key = NULL;
+static char    *scopes[MAX_SCOPE_SZ];
+static int     n_scopes = 0;
+static tree_t  vcd_top = NULL;
 
 static const char *vcd_key_fmt(int key)
 {
@@ -35,7 +41,7 @@ static const char *vcd_key_fmt(int key)
 
    char *p = buf;
    do {
-      *p = 34 + (key % (126 - 33));
+      *p = 33 + (key % (126 - 33));
       key /= (126 - 33);
    } while (key > 0);
 
@@ -83,6 +89,52 @@ static const char *vcd_value_fmt(tree_t decl)
    return buf;
 }
 
+static void emit_value(tree_t decl)
+{
+   int key = tree_attr_int(decl, i_vcd_key, -1);
+   fprintf(vcd_file, "%s%s%s\n", vcd_value_fmt(decl),
+           (type_kind(tree_type(decl)) == T_CARRAY ? " " : ""),
+           vcd_key_fmt(key));
+}
+
+static void vcd_event_cb(uint64_t now, tree_t decl)
+{
+   static uint64_t last_time = UINT64_MAX;
+
+   if (now != last_time) {
+      fprintf(vcd_file, "#%"PRIu64"\n", now);
+      last_time = now;
+   }
+
+   emit_value(decl);
+}
+
+static void vcd_enter_scope(tree_t decl)
+{
+   char *str = strdup(istr(tree_ident(decl)));
+
+   int n = 0;
+   const char *last = strrchr(str, ':');
+   char *p = strtok(str, ":");
+   do {
+      if (n < n_scopes) {
+         if (strcmp(p, scopes[n]) != 0) {
+            while (n <= n_scopes) {
+               fprintf(vcd_file, "$upscope $end\n");
+               free(scopes[n]);
+               n_scopes--;
+            }
+         }
+      }
+      else {
+         fprintf(vcd_file, "$scope module %s $end\n", p);
+         scopes[n_scopes++] = strdup(p);
+      }
+   } while (++n, (p = strtok(NULL, ":")) && p < last);
+
+   free(str);
+}
+
 static void vcd_emit_header(void)
 {
    rewind(vcd_file);
@@ -94,28 +146,20 @@ static void vcd_emit_header(void)
    fprintf(vcd_file, "$date\n  %s\n$end\n", tmbuf);
 
    fprintf(vcd_file, "$version\n  "PACKAGE_STRING"\n$end\n");
+   fprintf(vcd_file, "$timescale\n  1 fs\n$end\n");
 }
 
-static void vcd_event_cb(tree_t decl)
-{
-   uint64_t vals[MAX_VAR_WIDTH];
-   size_t n = rt_signal_value(decl, vals, MAX_VAR_WIDTH);
-
-   printf("callback! %s n=%zu\n", istr(tree_ident(decl)), n);
-}
-
-void vcd_restart(tree_t top)
+void vcd_restart(void)
 {
    if (vcd_file == NULL)
       return;
 
    vcd_emit_header();
 
-   fprintf(vcd_file, "$scope module %s $end\n", istr(tree_ident(top)));
-
+   n_scopes = 0;
    int next_key = 0;
-   for (unsigned i = 0; i < tree_decls(top); i++) {
-      tree_t d = tree_decl(top, i);
+   for (unsigned i = 0; i < tree_decls(vcd_top); i++) {
+      tree_t d = tree_decl(vcd_top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
@@ -131,32 +175,38 @@ void vcd_restart(tree_t top)
          w = high - low + 1;
       }
 
-      fprintf(vcd_file, "$var wire %d %s %s $end\n",
-              w, vcd_key_fmt(next_key), istr(tree_ident(d)));
+      vcd_enter_scope(d);
+
+      const char *name = strrchr(istr(tree_ident(d)), ':') + 1;
+      fprintf(vcd_file, "$var reg %d %s %s $end\n",
+              w, vcd_key_fmt(next_key), name);
 
       ++next_key;
    }
 
-   fprintf(vcd_file, "$upscope $end\n");
+   while (n_scopes--)
+      fprintf(vcd_file, "$upscope $end\n");
+
    fprintf(vcd_file, "$enddefinitions $end\n");
 
    fprintf(vcd_file, "$dumpvars\n");
 
-   for (unsigned i = 0; i < tree_decls(top); i++) {
-      tree_t d = tree_decl(top, i);
+   for (unsigned i = 0; i < tree_decls(vcd_top); i++) {
+      tree_t d = tree_decl(vcd_top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
-      int key = tree_attr_int(d, i_vcd_key, -1);
-      fprintf(vcd_file, "%s %s\n", vcd_value_fmt(d), vcd_key_fmt(key));
+      emit_value(d);
    }
 
    fprintf(vcd_file, "$end\n");
 }
 
-void vcd_init(const char *filename)
+void vcd_init(const char *filename, tree_t top)
 {
    i_vcd_key = ident_new("vcd_key");
+
+   vcd_top = top;
 
    vcd_file = fopen(filename, "w");
    if (vcd_file == NULL)

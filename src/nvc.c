@@ -240,7 +240,7 @@ static int run(int argc, char **argv)
       fatal("%s not suitable top level", istr(top));
 
    if (vcd_fname != NULL)
-      vcd_init(vcd_fname);
+      vcd_init(vcd_fname, e);
 
    if (mode == BATCH)
       rt_batch_exec(e, stop_time);

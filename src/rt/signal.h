@@ -25,6 +25,7 @@ enum {
    SIGNAL_DECL,
    SIGNAL_FLAGS,
    SIGNAL_N_SOURCES,
+   SIGNAL_OFFSET,
    SIGNAL_SOURCES,
    SIGNAL_SENSITIVE,
    SIGNAL_EVENT_CB,
@@ -35,7 +36,8 @@ enum {
 // Signal flags
 enum {
    SIGNAL_F_ACTIVE = (1 << 0),
-   SIGNAL_F_EVENT  = (1 << 1)
+   SIGNAL_F_EVENT  = (1 << 1),
+   SIGNAL_F_UPDATE = (1 << 2)
 };
 
 #endif // RT_SIGNAL_H

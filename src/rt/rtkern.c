@@ -75,8 +75,9 @@ struct signal {
    uint64_t         resolved;
    uint64_t         last_value;
    tree_t           decl;
-   int32_t          flags;
-   int32_t          n_sources;
+   uint8_t          flags;
+   uint8_t          n_sources;
+   uint16_t         offset;
    struct waveform  **sources;
    struct sens_list *sensitive;
    sig_event_fn_t   event_cb;
@@ -396,7 +397,7 @@ static void *rt_tmp_alloc(size_t sz)
    return (char*)active_proc->tmp_buf + base;
 }
 
-static void rt_reset_signal(struct signal *s, tree_t decl)
+static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
 {
    if (s->sources != NULL) {
       for (int i = 0; i < s->n_sources; i++) {
@@ -415,6 +416,7 @@ static void rt_reset_signal(struct signal *s, tree_t decl)
    s->sensitive = NULL;
    s->sources   = NULL;
    s->event_cb  = NULL;
+   s->offset    = offset;
 }
 
 static void rt_setup(tree_t top)
@@ -444,14 +446,14 @@ static void rt_setup(tree_t top)
          int64_t low, high;
          range_bounds(type_dim(type, 0), &low, &high);
 
-         for (unsigned i = 0; i < high - low + 1; i++) {
-            TRACE("signal %s[%d] at %p", istr(tree_ident(d)), i, &s[i]);
-            rt_reset_signal(&s[i], d);
+         for (unsigned j = 0; j < high - low + 1; j++) {
+            TRACE("signal %s[%d] at %p", istr(tree_ident(d)), j, &s[j]);
+            rt_reset_signal(&s[j], d, j);
          }
       }
       else {
          TRACE("signal %s at %p", istr(tree_ident(d)), s);
-         rt_reset_signal(s, d);
+         rt_reset_signal(s, d, 0);
       }
 
       tree_add_attr_ptr(d, i_signal, s);
@@ -580,16 +582,20 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
             rt_wakeup(it);
          }
          s->sensitive = NULL;
-
-         if (s->event_cb)
-            (*s->event_cb)(s->decl);
       }
 
       assert(n_active_signals < MAX_ACTIVE_SIGS);
       active_signals[n_active_signals++] = s;
    }
-   else
+   else {
       s->resolved = value;
+   }
+
+   // Set the update flag on the first element of the vector which
+   // will cause the event callback to be executed at the end of
+   // the cycle
+   struct signal *base = s - s->offset;
+   base->flags |= SIGNAL_F_UPDATE;
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
@@ -661,6 +667,9 @@ static void rt_cycle(void)
          break;
    }
 
+   if (unlikely(now == 0 && iteration == 0))
+      vcd_restart();
+
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
       struct sens_list *next = resume->next;
@@ -669,8 +678,15 @@ static void rt_cycle(void)
       resume = next;
    }
 
-   for (unsigned i = 0; i < n_active_signals; i++)
-      active_signals[i]->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
+   for (unsigned i = 0; i < n_active_signals; i++) {
+      struct signal *s = active_signals[i];
+      struct signal *base = s - s->offset;
+      s->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
+      if (base->event_cb != NULL && base->flags & SIGNAL_F_UPDATE) {
+         (*base->event_cb)(now, s->decl);
+         base->flags &= ~SIGNAL_F_UPDATE;
+      }
+   }
    n_active_signals = 0;
 }
 
@@ -755,7 +771,6 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
    rt_one_time_init();
    rt_setup(e);
    rt_initial();
-   vcd_restart(e);
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle();
    rt_cleanup(e);
@@ -818,7 +833,6 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
       case SLAVE_RESTART:
          rt_setup(e);
          rt_initial();
-         vcd_restart(e);
          break;
 
       case SLAVE_RUN:

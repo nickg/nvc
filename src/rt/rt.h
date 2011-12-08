@@ -25,7 +25,7 @@
 struct tree;
 struct tree_rd_ctx;
 
-typedef void (*sig_event_fn_t)(struct tree *);
+typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 
 void rt_batch_exec(struct tree *e, uint64_t stop_time);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
@@ -41,7 +41,7 @@ void jit_bind_fn(const char *name, void *ptr);
 
 void shell_run(struct tree *e);
 
-void vcd_init(const char *filename);
-void vcd_restart(struct tree *top);
+void vcd_init(const char *file, struct tree *top);
+void vcd_restart(void);
 
 #endif  // _RT_H
