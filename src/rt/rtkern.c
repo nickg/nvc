@@ -781,7 +781,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time)
 static void rt_slave_run(slave_run_msg_t *msg)
 {
    const uint64_t end = now + msg->time;
-   while (heap_size(eventq_heap) > 0 && !rt_stop_now(end));
+   while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
       rt_cycle();
 }
 
