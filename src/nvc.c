@@ -330,6 +330,7 @@ static void usage(void)
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
+          "     --vcd=FILE\t\tWrite VCD data to FILE\n"
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
