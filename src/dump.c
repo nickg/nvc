@@ -176,6 +176,12 @@ static void dump_decl(tree_t t, int indent)
       printf("type %s is ", istr(tree_ident(t)));
       break;
 
+   case T_ALIAS:
+      printf("alias %s is ", istr(tree_ident(t)));
+      dump_expr(tree_value(t));
+      printf(";\n");
+      return;
+
    case T_ATTR_SPEC:
       printf("TODO: T_ATTR_SPEC\n");
       break;
