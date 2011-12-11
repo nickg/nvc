@@ -1580,6 +1580,8 @@ static void cgen_top(tree_t t)
       case T_FUNC_BODY:
          cgen_func_body(decl);
          break;
+      case T_ALIAS:
+         break;
       default:
          assert(false);
       }

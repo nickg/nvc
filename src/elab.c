@@ -116,6 +116,16 @@ static tree_t rewrite_ports(tree_t t, void *context)
    return t;
 }
 
+static void elab_add_alias(tree_t arch, tree_t decl, ident_t ident)
+{
+   tree_t a = tree_new(T_ALIAS);
+   tree_set_ident(a, ident);
+   tree_set_value(a, decl);
+   tree_set_type(a, tree_type(decl));
+
+   tree_add_decl(arch, a);
+}
+
 static void elab_map(tree_t t, tree_t arch,
                      tree_formals_t tree_Fs, tree_formal_t tree_F,
                      tree_actuals_t tree_As, tree_actual_t tree_A)
@@ -159,6 +169,8 @@ static void elab_map(tree_t t, tree_t arch,
          .actual = tree_ref(p.value)
       };
       tree_rewrite(arch, rewrite_ports, &params);
+
+      elab_add_alias(arch, p.value, tree_ident(formal));
    }
 
    for (int i = tree_Fs(unit) - 1; i >= 0; i--) {
@@ -197,6 +209,7 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
       case T_FUNC_BODY:
+      case T_ALIAS:
          tree_set_ident(d, pn);
          tree_add_decl(out, d);
          break;

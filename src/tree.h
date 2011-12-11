@@ -181,7 +181,7 @@ void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
 // T_QUALIFIED, T_CONST_DECL, T_ASSERT, T_ATTR_SPEC
-// T_ARRAY_REF, T_IF, T_WHILE, T_REF
+// T_ARRAY_REF, T_IF, T_WHILE, T_REF, T_ALIAS
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);

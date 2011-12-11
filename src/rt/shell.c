@@ -147,6 +147,8 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
    else if (strcmp(what, "signals") == 0) {
       for (unsigned i = 0; i < tree_decls(top); i++) {
          tree_t d = tree_decl(top, i);
+         if (tree_kind(d) != T_SIGNAL_DECL)
+            continue;
 
          int64_t low = 0, high = 0;
          if (type_kind(tree_type(d)) == T_CARRAY)
@@ -175,6 +177,15 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
       for (unsigned i = 0; i < tree_stmts(top); i++) {
          tree_t p = tree_stmt(top, i);
          printf("%s\n", istr(tree_ident(p)));
+      }
+   }
+   else if (strcmp(what, "alias") == 0) {
+      for (unsigned i = 0; i < tree_decls(top); i++) {
+         tree_t a = tree_decl(top, i);
+         if (tree_kind(a) != T_ALIAS)
+            continue;
+
+         printf("%s\n", istr(tree_ident(a)));
       }
    }
    else {
