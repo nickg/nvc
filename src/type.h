@@ -50,10 +50,8 @@ typedef enum type_kind {
 } type_kind_t;
 
 typedef struct range {
-   struct {
-      struct tree *left;
-      struct tree *right;
-   };
+   struct tree *left;
+   struct tree *right;
    enum { RANGE_TO, RANGE_DOWNTO, RANGE_EXPR } kind;
 } range_t;
 
