@@ -145,6 +145,8 @@ static int elaborate(int argc, char **argv)
    if (e == NULL)
       return EXIT_FAILURE;
 
+   opt(e);
+
    tree_gc();
 
    // Save the library now so the code generator can attach temporary

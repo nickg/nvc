@@ -57,4 +57,7 @@ void cgen_dump_en(bool on);
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 
+// Optimise elaborated design
+void opt(tree_t top);
+
 #endif  // _PHASE_H
