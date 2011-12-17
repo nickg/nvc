@@ -89,4 +89,13 @@ begin
         w(6, 7, 2) := 2;                -- Too many indices
     end process;
 
+    process is
+        type letter is (A, B, C);
+        type larray is array (letter) of integer;
+        variable w : larray;
+    begin
+        w(A) := 2;                      -- OK
+        w(5) := 66;                     -- Wrong index type
+    end process;
+    
 end architecture;

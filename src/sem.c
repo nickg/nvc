@@ -749,50 +749,50 @@ static bool sem_declare(tree_t decl)
    return ok;
 }
 
-static bool sem_check_range(tree_t t)
+static bool sem_check_range(range_t *r)
 {
-   range_t r = tree_range(t);
-   if (r.kind == RANGE_EXPR) {
-      assert(tree_kind(r.left) == T_ATTR_REF);
+   if (r->kind == RANGE_EXPR) {
+      assert(r->right == NULL);
+      assert(tree_kind(r->left) == T_ATTR_REF
+             || tree_kind(r->left) == T_REF);
 
-      tree_t decl = scope_find(tree_ident(r.left));
+      tree_t decl = scope_find(tree_ident(r->left));
       if (decl == NULL)
-         sem_error(r.left, "undefined identifier %s",
-                   istr(tree_ident(r.left)));
+         sem_error(r->left, "undefined identifier %s",
+                   istr(tree_ident(r->left)));
 
       type_t type = tree_type(decl);
       switch (type_kind(type)) {
       case T_CARRAY:
-         r = type_dim(type, 0);
+         *r = type_dim(type, 0);
          break;
       case T_ENUM:
          {
             tree_t a = tree_new(T_ATTR_REF);
-            tree_set_ident(a, tree_ident(r.left));
+            tree_set_ident(a, tree_ident(r->left));
             tree_set_ident2(a, ident_new("LEFT"));
 
             tree_t b = tree_new(T_ATTR_REF);
-            tree_set_ident(b, tree_ident(r.left));
+            tree_set_ident(b, tree_ident(r->left));
             tree_set_ident2(b, ident_new("RIGHT"));
 
-            r.kind  = RANGE_TO;
-            r.left  = a;
-            r.right = b;
+            r->kind  = RANGE_TO;
+            r->left  = a;
+            r->right = b;
          }
          break;
       default:
-         sem_error(r.left, "%s does not have range",
-                   istr(tree_ident(r.left)));
+         sem_error(r->left, "%s does not have range",
+                   istr(tree_ident(r->left)));
       }
    }
 
-   if (!(sem_check(r.left) && sem_check(r.right)))
+   if (!(sem_check(r->left) && sem_check(r->right)))
       return false;
 
-   if (!type_eq(tree_type(r.left), tree_type(r.right)))
-      sem_error(r.right, "type mismatch in range");
+   if (!type_eq(tree_type(r->left), tree_type(r->right)))
+      sem_error(r->right, "type mismatch in range");
 
-   tree_set_range(t, r);
    return true;
 }
 
@@ -867,6 +867,22 @@ static bool sem_readable(tree_t t)
    }
 }
 
+static bool sem_check_array_dims(type_t type)
+{
+   for (unsigned i = 0; i < type_dims(type); i++) {
+      range_t r = type_dim(type, i);
+
+      // XXX: constrained by index type
+      //      push type set first
+      if (!sem_check_range(&r))
+         return false;
+
+      type_change_dim(type, i, r);
+   }
+
+   return true;
+}
+
 static bool sem_check_type(tree_t t, type_t *ptype)
 {
    // Check a type at the point where it is used not declared
@@ -887,12 +903,8 @@ static bool sem_check_type(tree_t t, type_t *ptype)
                   sem_error(t, "expected %d array dimensions but %d given",
                             type_index_constrs(base), type_dims(*ptype));
 
-               for (unsigned i = 0; i < type_dims(*ptype); i++) {
-                  range_t r = type_dim(*ptype, i);
-                  if (!(sem_check(r.left) && sem_check(r.right)))
-                     return false;
-                  // XXX: _constrained by index type
-               }
+               if (!sem_check_array_dims(*ptype))
+                  return false;
 
                type_t collapse = type_new(T_CARRAY);
                type_set_ident(collapse, type_ident(base));
@@ -998,14 +1010,10 @@ static bool sem_check_type_decl(tree_t t)
 
    switch (type_kind(type)) {
    case T_CARRAY:
-         for (unsigned i = 0; i < type_dims(base); i++) {
-            range_t r = type_dim(base, i);
-            // XXX: constrained by index type
-            if (!sem_check(r.left) || !sem_check(r.right))
-               return false;
-         }
+      if (!sem_check_array_dims(base))
+         return false;
 
-         // Fall through
+      // Fall through
    case T_UARRAY:
       {
          type_t elem_type = type_base(base);
@@ -2046,6 +2054,12 @@ static bool sem_check_array_ref(tree_t t)
 
       range_t r = type_dim(type, i);
       ok = sem_check_constrained(p.value, tree_type(r.left)) && ok;
+
+      if (!type_eq(tree_type(r.left), tree_type(p.value)))
+         sem_error(p.value, "type of index %s does not match type of "
+                   "array dimension %s",
+                   istr(type_ident(tree_type(r.left))),
+                   istr(type_ident(tree_type(p.value))));
    }
 
    tree_set_type(t, type_base(type));
@@ -2062,7 +2076,9 @@ static bool sem_check_array_slice(tree_t t)
 
    type_set_push();
    type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
-   bool ok = sem_check_range(t);
+   range_t r = tree_range(t);
+   bool ok = sem_check_range(&r);
+   tree_set_range(t, r);
    type_set_pop();
 
    if (!ok)
@@ -2296,8 +2312,10 @@ static bool sem_check_while(tree_t t)
 
 static bool sem_check_for(tree_t t)
 {
-   if (!sem_check_range(t))
+   range_t r = tree_range(t);
+   if (!sem_check_range(&r))
       return false;
+   tree_set_range(t, r);
 
    type_t base = tree_type(tree_range(t).left);
    if (type_kind(base) == T_CARRAY)
