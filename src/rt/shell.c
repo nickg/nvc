@@ -134,17 +134,18 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
    tree_t top = cd;
 
    if (objc == 1) {
-      fprintf(stderr, "try 'show help' for usage\n");
+      fprintf(stderr, "try 'show -help' for usage\n");
       return TCL_ERROR;
    }
 
    const char *what = Tcl_GetString(objv[1]);
-   if (strcmp(what, "help") == 0) {
+   if (strcmp(what, "-help") == 0) {
       printf("Usage: show [something]\n"
-             "  signals - list all signals in design with current value\n"
-             "  process - list all processes in design\n");
+             "  -signal  - list all signals in design with current value\n"
+             "  -process - list all processes in design\n"
+             "  -alias   - list all aliases in design\n");
    }
-   else if (strcmp(what, "signals") == 0) {
+   else if (strcmp(what, "-signal") == 0) {
       for (unsigned i = 0; i < tree_decls(top); i++) {
          tree_t d = tree_decl(top, i);
          if (tree_kind(d) != T_SIGNAL_DECL)
@@ -173,13 +174,13 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          free(reply);
       }
    }
-   else if (strcmp(what, "process") == 0) {
+   else if (strcmp(what, "-process") == 0) {
       for (unsigned i = 0; i < tree_stmts(top); i++) {
          tree_t p = tree_stmt(top, i);
          printf("%s\n", istr(tree_ident(p)));
       }
    }
-   else if (strcmp(what, "alias") == 0) {
+   else if (strcmp(what, "-alias") == 0) {
       for (unsigned i = 0; i < tree_decls(top); i++) {
          tree_t a = tree_decl(top, i);
          if (tree_kind(a) != T_ALIAS)
@@ -192,6 +193,21 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
       fprintf(stderr, "cannot show '%s' - try 'show help' for usage\n", what);
       return TCL_ERROR;
    }
+
+   return TCL_OK;
+}
+
+static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
+                          int objc, Tcl_Obj *const objv[])
+{
+   printf(
+      "NVC commands:\n"
+      "  show\t\tDisplay simulation objects\n"
+      "  restart\tRestart simulation\n"
+      "  quit\t\tExit simulation\n"
+      "Use -help on each command for detailed usage\n"
+      "\n"
+      "TCL commands:\n");
 
    return TCL_OK;
 }
@@ -258,6 +274,7 @@ void shell_run(tree_t e)
    Tcl_CreateObjCommand(interp, "run", shell_cmd_run, NULL, NULL);
    Tcl_CreateObjCommand(interp, "restart", shell_cmd_restart, NULL, NULL);
    Tcl_CreateObjCommand(interp, "show", shell_cmd_show, e, NULL);
+   Tcl_CreateObjCommand(interp, "help", shell_cmd_help, e, NULL);
 
    slave_post_msg(SLAVE_RESTART, NULL, 0);
 
