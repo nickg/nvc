@@ -629,6 +629,8 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
          tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_ref(left));
          tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
+         tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
+         tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
       }
       break;
 
