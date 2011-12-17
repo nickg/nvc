@@ -767,6 +767,7 @@ static bool sem_check_range(range_t *r)
          *r = type_dim(type, 0);
          break;
       case T_ENUM:
+      case T_UARRAY:
          {
             tree_t a = tree_new(T_ATTR_REF);
             tree_set_ident(a, tree_ident(r->left));
