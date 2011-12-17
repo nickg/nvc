@@ -1096,17 +1096,16 @@ static void sem_add_attributes(tree_t decl)
       }
    }
    else if (kind == T_UARRAY) {
-      ident_t low_i = ident_new("LOW");
-      tree_add_attr_tree(decl, low_i,
-                         sem_builtin_fn(low_i,
-                                        type_index_constr(type, 0),
-                                        "uarray_low", type, NULL));
-
-      ident_t high_i = ident_new("HIGH");
-      tree_add_attr_tree(decl, high_i,
-                         sem_builtin_fn(high_i,
-                                        type_index_constr(type, 0),
-                                        "uarray_high", type, NULL));
+      const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
+      const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
+                             "uarray_right", NULL };
+      const char **f, **imp;
+      for (f = funs, imp = impl; *f != NULL; f++, imp++) {
+         ident_t id = ident_new(*f);
+         tree_add_attr_tree(decl, id,
+                            sem_builtin_fn(id, type_index_constr(type, 0),
+                                           *imp, type, NULL));
+      }
    }
 
    if (kind == T_UARRAY || kind == T_CARRAY) {
