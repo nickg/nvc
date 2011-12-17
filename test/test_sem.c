@@ -478,6 +478,8 @@ START_TEST(test_array)
       { 55, "type of value universal integer does not match type of" },
       { 57, "type of value WORK.P.INT_ARRAY does not match type" },
       { 65, "for operator \"=\"(WORK.P.INT_ARRAY, WORK.P.TEN_INTS)" },
+      { 88, "array W has 2 dimensions but 1 indices given" },
+      { 89, "array W has 2 dimensions but 3 indices given" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -75,6 +75,18 @@ begin
     process is
     begin
         a(2) <= 4;                      -- OK
+        y(2) <= 1;                      -- OK
+    end process;
+
+    process is
+        type int2d is array (1 to 10, 1 to 4) of integer;
+        variable w : int2d := ( 1 => ( 1, 2, 3, 4 ),
+                                2 => ( others => 5 ),
+                                others => ( others => 0 ) );
+    begin
+        w(2, 4) := 6;
+        w(6) := 6;                      -- Too few indices
+        w(6, 7, 2) := 2;                -- Too many indices
     end process;
 
 end architecture;

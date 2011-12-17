@@ -997,8 +997,16 @@ static bool sem_check_type_decl(tree_t t)
       return false;
 
    switch (type_kind(type)) {
-   case T_UARRAY:
    case T_CARRAY:
+         for (unsigned i = 0; i < type_dims(base); i++) {
+            range_t r = type_dim(base, i);
+            // XXX: constrained by index type
+            if (!sem_check(r.left) || !sem_check(r.right))
+               return false;
+         }
+
+         // Fall through
+   case T_UARRAY:
       {
          type_t elem_type = type_base(base);
          if (!sem_check_type(t, &elem_type))
@@ -1930,9 +1938,21 @@ static bool sem_check_aggregate(tree_t t)
       }
    }
 
-   // All elements must be of the composite base type
+   // All elements must be of the composite base type if this is
+   // a one-dimensional array otherwise construct an array type
+   // with n-1 dimensions.
 
-   type_t base = type_base(composite_type);
+   type_t base = NULL;
+   if (type_dims(composite_type) == 1)
+      base = type_base(composite_type);
+   else {
+      base = type_new(T_CARRAY);
+      type_set_ident(base, type_ident(composite_type));
+      type_set_base(base, type_base(composite_type));
+
+      for (unsigned i = 1; i < type_dims(composite_type); i++)
+         type_add_dim(base, type_dim(composite_type, i));
+   }
 
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
@@ -2013,6 +2033,10 @@ static bool sem_check_array_ref(tree_t t)
    type_t type = tree_type(value);
    if (type_kind(type) != T_CARRAY)
       sem_error(t, "invalid array reference");
+
+   if (tree_params(t) != type_dims(type))
+      sem_error(t, "array %s has %d dimensions but %d indices given",
+                istr(tree_ident(value)), type_dims(type), tree_params(t));
 
    bool ok = true;
    for (unsigned i = 0; i < tree_params(t); i++) {
