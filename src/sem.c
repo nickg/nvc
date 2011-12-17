@@ -769,7 +769,7 @@ static bool sem_check_range(range_t *r)
       switch (type_kind(type)) {
       case T_CARRAY:
          *r = type_dim(type, 0);
-         break;
+         return true;
       case T_ENUM:
       case T_UARRAY:
          {
@@ -2167,7 +2167,7 @@ static bool sem_check_attr_ref(tree_t t)
 
       if (tree_params(t) != type_params(ftype))
          sem_error(t, "expected %d parameters for attribute %s "
-                   " but have %d", type_params(ftype),
+                   "but have %d", type_params(ftype),
                    istr(tree_ident2(t)), tree_params(t));
 
       for (unsigned i = 0; i < tree_params(t); i++) {

@@ -70,5 +70,14 @@ package body func is
     begin
         return table(x, y);
     end function;
+
+    function test6(x : uenum_vector) return uenum_vector is
+        variable tmp : uenum_vector(1 to x'length);
+    begin
+        for i in tmp'range loop
+            tmp(i) := A;
+        end loop;
+        return tmp;
+    end function;
     
 end package body;
