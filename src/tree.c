@@ -307,6 +307,8 @@ void tree_gc(void)
             free(t->decls.items);
          if (HAS_STMTS(t) && t->stmts.items != NULL)
             free(t->stmts.items);
+         if (HAS_ASSOCS(t) && t->n_assocs_alloc > 0)
+            free(t->assocs);
 
          if (HAS_CONTEXT(t) && t->context != NULL)
             free(t->context);

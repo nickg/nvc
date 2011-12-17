@@ -18,6 +18,8 @@
 #include "util.h"
 #include "phase.h"
 
+#include <stdlib.h>
+
 ////////////////////////////////////////////////////////////////////////////////
 // Replace processes of the form
 //
@@ -67,18 +69,12 @@ static tree_t opt_collapse_find_fn(tree_t t, void *context)
       if (lhs_simple && rhs_simple) {
          tree_t rhs = tree_ref(tree_value(wave));
 
-         printf("rhs=%s lhs=%s trigger=%s\n",
-                istr(tree_ident(rhs)), istr(tree_ident(lhs)),
-                istr(tree_ident(tree_ref(tree_trigger(wait, 0)))));
-
          const bool is_wait_on =
             !tree_has_delay(wait)
             && (tree_triggers(wait) == 1)
             && (tree_ref(tree_trigger(wait, 0)) == rhs);
 
          if (is_wait_on) {
-            printf("found match!!!\n");
-
             tree_t a = tree_new(T_ALIAS);
             tree_set_loc(a, tree_loc(t));
             tree_set_ident(a, tree_ident(lhs));
@@ -135,6 +131,12 @@ static void opt_collapse(tree_t top)
    };
    tree_rewrite(top, opt_collapse_find_fn, &ctx);
    tree_rewrite(top, opt_collapse_replace_fn, &ctx);
+
+   while (ctx.replace != NULL) {
+      struct collapse_list *tmp = ctx.replace;
+      ctx.replace = tmp->next;
+      free(tmp);
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
