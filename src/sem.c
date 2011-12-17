@@ -2095,7 +2095,7 @@ static bool sem_check_array_ref(tree_t t)
 
       ok = sem_check_constrained(p.value, expect) && ok;
 
-      if (!type_eq(expect, tree_type(p.value)))
+      if (ok && !type_eq(expect, tree_type(p.value)))
          sem_error(p.value, "type of index %s does not match type of "
                    "array dimension %s",
                    istr(type_ident(expect)),
