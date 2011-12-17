@@ -421,6 +421,15 @@ static tree_t sem_make_int(int i)
    return t;
 }
 
+static tree_t sem_make_ref(tree_t to)
+{
+   tree_t t = tree_new(T_REF);
+   tree_set_ident(t, tree_ident(to));
+   tree_set_ref(t, to);
+   tree_set_type(t, tree_type(to));
+   return t;
+}
+
 static tree_t sem_builtin_fn(ident_t name, type_t result,
                              const char *builtin, ...)
 {
@@ -463,13 +472,7 @@ static void sem_declare_unary(ident_t name, type_t operand,
 static tree_t sem_bool_lit(type_t std_bool, bool v)
 {
    tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
-
-   tree_t b = tree_new(T_REF);
-   tree_set_ref(b, lit);
-   tree_set_type(b, std_bool);
-   tree_set_ident(b, tree_ident(lit));
-
-   return b;
+   return sem_make_ref(lit);
 }
 
 static void sem_declare_predefined_ops(tree_t decl)
@@ -622,9 +625,10 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    case T_ENUM:
       {
-         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_int(0));
-         tree_add_attr_tree(decl, ident_new("RIGHT"),
-                            sem_make_int(type_enum_literals(t) - 1));
+         tree_t left  = type_enum_literal(t, 0);
+         tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
+         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_ref(left));
+         tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
       }
       break;
 
@@ -2097,8 +2101,8 @@ static bool sem_check_array_ref(tree_t t)
       if (ok && !type_eq(expect, tree_type(p.value)))
          sem_error(p.value, "type of index %s does not match type of "
                    "array dimension %s",
-                   istr(type_ident(expect)),
-                   istr(type_ident(tree_type(p.value))));
+                   istr(type_ident(tree_type(p.value))),
+                   istr(type_ident(expect)));
    }
 
    tree_set_type(t, type_base(type));
@@ -2154,11 +2158,8 @@ static bool sem_check_attr_ref(tree_t t)
 
       if (tree_kind(decl) != T_TYPE_DECL) {
          // For an expression X'A add X as the final parameter
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, tree_ident(t));
+         tree_t ref = sem_make_ref(decl);
          tree_set_loc(ref, tree_loc(t));
-         tree_set_type(ref, tree_type(decl));
-         tree_set_ref(ref, decl);
 
          param_t p = { .kind = P_POS, .value = ref };
          tree_add_param(t, p);

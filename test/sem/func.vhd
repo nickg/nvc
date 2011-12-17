@@ -60,5 +60,15 @@ package body func is
     begin
         return x(x'low);
     end function;
+
+    function test5(x, y : uenum) return uenum is
+        type uenum2d is array (uenum, uenum) of uenum;
+        constant table : uenum2d :=
+            ( ( A, A, A ),
+              ( A, B, C ),
+              ( A, C, B ) );
+    begin
+        return table(x, y);
+    end function;
     
 end package body;
