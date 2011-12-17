@@ -1010,10 +1010,6 @@ static bool sem_check_type_decl(tree_t t)
 
    switch (type_kind(type)) {
    case T_CARRAY:
-      if (!sem_check_array_dims(base))
-         return false;
-
-      // Fall through
    case T_UARRAY:
       {
          type_t elem_type = type_base(base);
@@ -1021,9 +1017,25 @@ static bool sem_check_type_decl(tree_t t)
             return false;
 
          type_set_base(base, elem_type);
-
-         return true;
       }
+      break;
+   default:
+      break;
+   }
+
+   switch (type_kind(type)) {
+   case T_CARRAY:
+      return sem_check_array_dims(base);
+
+   case T_UARRAY:
+      for (unsigned i = 0; i < type_index_constrs(type); i++) {
+         type_t index_type = type_index_constr(type, i);
+         if (!sem_check_type(t, &index_type))
+            return false;
+
+         type_change_index_constr(type, i, index_type);
+      }
+      return true;
 
    case T_INTEGER:
    case T_PHYSICAL:
@@ -1081,6 +1093,19 @@ static void sem_add_attributes(tree_t decl)
          tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
          tree_add_attr_tree(decl, ident_new("LOW"), r.right);
       }
+   }
+   else if (kind == T_UARRAY) {
+      ident_t low_i = ident_new("LOW");
+      tree_add_attr_tree(decl, low_i,
+                         sem_builtin_fn(low_i,
+                                        type_index_constr(type, 0),
+                                        "uarray_low", type, NULL));
+
+      ident_t high_i = ident_new("HIGH");
+      tree_add_attr_tree(decl, high_i,
+                         sem_builtin_fn(high_i,
+                                        type_index_constr(type, 0),
+                                        "uarray_high", type, NULL));
    }
 
    if (kind == T_UARRAY || kind == T_CARRAY) {
@@ -2038,13 +2063,22 @@ static bool sem_check_array_ref(tree_t t)
    if (!sem_check(value))
       return false;
 
+   unsigned nindex;
    type_t type = tree_type(value);
-   if (type_kind(type) != T_CARRAY)
+   switch (type_kind(type)) {
+   case T_CARRAY:
+      nindex = type_dims(type);
+      break;
+   case T_UARRAY:
+      nindex = type_index_constrs(type);
+      break;
+   default:
       sem_error(t, "invalid array reference");
+   }
 
-   if (tree_params(t) != type_dims(type))
+   if (tree_params(t) != nindex)
       sem_error(t, "array %s has %d dimensions but %d indices given",
-                istr(tree_ident(value)), type_dims(type), tree_params(t));
+                istr(tree_ident(value)), nindex, tree_params(t));
 
    bool ok = true;
    for (unsigned i = 0; i < tree_params(t); i++) {
@@ -2052,13 +2086,18 @@ static bool sem_check_array_ref(tree_t t)
       if (p.kind != P_POS)
          sem_error(t, "only scalar references supported");
 
-      range_t r = type_dim(type, i);
-      ok = sem_check_constrained(p.value, tree_type(r.left)) && ok;
+      type_t expect;
+      if (type_kind(type) == T_CARRAY)
+         expect = tree_type(type_dim(type, i).left);
+      else
+         expect = type_index_constr(type, i);
 
-      if (!type_eq(tree_type(r.left), tree_type(p.value)))
+      ok = sem_check_constrained(p.value, expect) && ok;
+
+      if (!type_eq(expect, tree_type(p.value)))
          sem_error(p.value, "type of index %s does not match type of "
                    "array dimension %s",
-                   istr(type_ident(tree_type(r.left))),
+                   istr(type_ident(expect)),
                    istr(type_ident(tree_type(p.value))));
    }
 

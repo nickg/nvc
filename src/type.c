@@ -466,6 +466,18 @@ void type_add_index_constr(type_t t, type_t c)
    t->index_constr[t->n_index_constr++] = c;
 }
 
+void type_change_index_constr(type_t t, unsigned n, type_t c)
+{
+   assert(t != NULL);
+   assert(c != NULL);
+   assert(type_kind(t) == T_UARRAY);
+   assert(n < t->n_index_constr);
+
+   type_ref(c);
+   type_unref(t->index_constr[n]);
+   t->index_constr[n] = c;
+}
+
 type_t type_index_constr(type_t t, unsigned n)
 {
    assert(t != NULL);

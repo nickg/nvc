@@ -55,5 +55,10 @@ package body func is
 
     function foo(x, y, z : in integer) return integer;
     function foo(x, y, z : in integer) return integer;  -- Duplicate
+
+    function test4(x : uenum_vector) return uenum is
+    begin
+        return x(x'low);
+    end function;
     
 end package body;

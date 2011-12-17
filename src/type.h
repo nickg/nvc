@@ -101,6 +101,7 @@ void type_set_result(type_t t, type_t r);
 // T_UARRAY
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);
+void type_change_index_constr(type_t t, unsigned n, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
 // T_INCOMPLETE
