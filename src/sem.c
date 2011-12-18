@@ -2311,6 +2311,77 @@ static bool sem_check_if(tree_t t)
    return ok;
 }
 
+static void sem_locally_static_fn(tree_t t, void *context)
+{
+   bool *locally_static = context;
+
+   // Rules for locally static expressions are in LRM 93 7.4.1
+   // TODO: these are not implemented correctly
+
+   if (tree_kind(t) == T_LITERAL)
+      return;
+   else if (tree_kind(t) == T_REF) {
+      tree_t decl = tree_ref(t);
+      switch (tree_kind(decl)) {
+      case T_CONST_DECL:
+      case T_ENUM_LIT:
+         return;
+      default:
+         break;
+      }
+   }
+   else if (tree_kind(t) == T_QUALIFIED)
+      return;
+
+   *locally_static = false;
+}
+
+static bool sem_locally_static(tree_t t)
+{
+   bool locally_static = true;
+   tree_visit(t, sem_locally_static_fn, &locally_static);
+   return locally_static;
+}
+
+static bool sem_check_case(tree_t t)
+{
+   tree_t test = tree_value(t);
+   if (!sem_check(test))
+      return false;
+
+   type_t type = tree_type(test);
+
+   bool ok = true;
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      switch (a.kind) {
+      case A_OTHERS:
+         if (i != tree_assocs(t) - 1)
+            sem_error(t, "others choice must appear last");
+         // TODO: check type elements not covered by other choices
+         break;
+
+      case A_NAMED:
+         ok = sem_check_constrained(a.name, type) && ok;
+         if (ok) {
+            if (!type_eq(tree_type(a.name), type))
+               sem_error(a.name, "case choice must have type %s",
+                         istr(type_ident(type)));
+            if (!sem_locally_static(a.name))
+               sem_error(a.name, "case choice must be locally static");
+         }
+         break;
+
+      default:
+         assert(false);
+      }
+
+      ok = sem_check(a.value) && ok;
+   }
+
+   return ok;
+}
+
 static bool sem_check_return(tree_t t)
 {
    if (top_scope->subprog == NULL)
@@ -2467,6 +2538,8 @@ bool sem_check(tree_t t)
       return sem_check_proc_body(t);
    case T_BLOCK:
       return sem_check_block(t);
+   case T_CASE:
+      return sem_check_case(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

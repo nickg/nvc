@@ -193,7 +193,7 @@ struct tree_rd_ctx {
 #define HAS_VALUE(t)                                                  \
    (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_WAVEFORM)            \
     || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)   \
-    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)                        \
+    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_CASE)       \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC))
 #define HAS_CONTEXT(t)                                                \

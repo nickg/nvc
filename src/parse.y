@@ -1109,6 +1109,7 @@ seq_stmt_without_label
   {
      $$ = tree_new(T_CASE);
      tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
 
      for (list_t *it = $4; it != NULL; it = it->next)
         tree_add_assoc($$, it->item.assoc);

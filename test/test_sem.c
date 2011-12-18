@@ -589,14 +589,16 @@ START_TEST(test_seq)
    fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
 
    const error_t expect[] = {
-      { 15, "type of test must be STD.STANDARD.BOOLEAN" },
-      { 19, "undefined identifier X" },
-      { 25, "no suitable overload for identifier TRUE" },
-      { 32, "undefined identifier X" },
-      { 48, "return statement not allowed outside subprogram" },
-      { 62, "return statement not allowed outside subprogram" },
-      { 64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
-      { 79, "undefined identifier X" },
+      {  15, "type of test must be STD.STANDARD.BOOLEAN" },
+      {  19, "undefined identifier X" },
+      {  25, "no suitable overload for identifier TRUE" },
+      {  32, "undefined identifier X" },
+      {  48, "return statement not allowed outside subprogram" },
+      {  62, "return statement not allowed outside subprogram" },
+      {  64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
+      {  79, "undefined identifier X" },
+      { 102, "others choice must appear last" },
+      { 109, "case choice must be locally static" },
       { -1, NULL }
    };
    expect_errors(expect);

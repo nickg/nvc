@@ -80,5 +80,36 @@ begin
             null;
         end loop;
     end process;
+
+    -- Case
+    process is
+        type letter is (A, B, C);
+        variable l : letter;
+    begin
+        l := A;
+        case l is                       -- OK
+            when a =>
+                null;
+            when b | c =>
+                null;
+        end case;
+        case l is                       -- OK
+            when a =>
+                null;
+            when others =>
+                null;
+        end case;
+        case l is                       -- Others not last
+            when others =>
+                null;
+            when a =>
+                null;
+        end case;
+        case l is
+            when l =>                   -- Not locally static
+                null;
+            when others =>
+        end case;
+    end process;
     
 end architecture;
