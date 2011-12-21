@@ -49,7 +49,7 @@ struct scope {
 
 #define MAX_OVERLOADS 32
 
-#define MAX_TS_MEMBERS 16
+#define MAX_TS_MEMBERS 32
 struct type_set {
    type_t          members[MAX_TS_MEMBERS];
    unsigned        n_members;
@@ -1121,6 +1121,22 @@ static void sem_add_attributes(tree_t decl)
                                         sem_std_type("STD.STANDARD.INTEGER"),
                                         "length", type, NULL));
    }
+
+   if ((tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
+       || (tree_kind(decl) == T_SIGNAL_DECL)) {
+      ident_t event_i = ident_new("EVENT");
+      ident_t last_value_i = ident_new("LAST_VALUE");
+      ident_t active_i = ident_new("ACTIVE");
+      tree_add_attr_tree(decl, event_i,
+                         sem_builtin_fn(event_i, std_bool, "event",
+                                        type, NULL));
+      tree_add_attr_tree(decl, active_i,
+                         sem_builtin_fn(active_i, std_bool, "active",
+                                        type, NULL));
+      tree_add_attr_tree(decl, last_value_i,
+                         sem_builtin_fn(last_value_i, type, "last_value",
+                                        type, NULL));
+   }
 }
 
 static bool sem_check_decl(tree_t t)
@@ -1142,22 +1158,8 @@ static bool sem_check_decl(tree_t t)
                    istr(type_ident(type)));
    }
 
-   tree_kind_t kind = tree_kind(t);
-   if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
-      ident_t event_i = ident_new("EVENT");
-      ident_t active_i = ident_new("ACTIVE");
-      ident_t last_value_i = ident_new("LAST_VALUE");
-      type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
-      tree_add_attr_tree(t, event_i,
-                         sem_builtin_fn(event_i, std_bool, "event",
-                                        type, NULL));
-      tree_add_attr_tree(t, active_i,
-                         sem_builtin_fn(active_i, std_bool, "active",
-                                        type, NULL));
-      tree_add_attr_tree(t, last_value_i,
-                         sem_builtin_fn(last_value_i, type, "last_value",
-                                        type, NULL));
-   }
+   if (tree_kind(t) == T_PORT_DECL && tree_class(t) == C_DEFAULT)
+      tree_set_class(t, C_SIGNAL);
 
    sem_add_attributes(t);
 
