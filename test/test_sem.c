@@ -611,7 +611,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
+   fail_if(sem_check(a));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
@@ -640,7 +640,7 @@ START_TEST(test_conc)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
+   fail_if(sem_check(a));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
@@ -669,7 +669,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
+   fail_if(sem_check(p));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

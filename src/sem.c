@@ -1293,7 +1293,7 @@ static bool sem_check_func_body(tree_t t)
    if (nret == 0)
       sem_error(t, "function must contain a return statement");
 
-   return true;
+   return ok;
 }
 
 static bool sem_check_proc_ports(tree_t t)
@@ -1373,7 +1373,7 @@ static bool sem_check_proc_body(tree_t t)
    }
 
    scope_pop();
-   return true;
+   return ok;
 }
 
 static bool sem_check_sensitivity(tree_t t)
@@ -1577,7 +1577,7 @@ static bool sem_check_var_assign(tree_t t)
                 istr(type_ident(tree_type(value))),
                 istr(type_ident(tree_type(target))));
 
-   return true;
+   return ok;
 }
 
 static bool sem_check_signal_assign(tree_t t)

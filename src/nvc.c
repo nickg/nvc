@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 static const char *work_name = "work";
 
@@ -86,8 +87,10 @@ static int analyse(int argc, char **argv)
 
       tree_t unit;
       while ((unit = parse())) {
-         if (sem_check(unit))
+         if (sem_check(unit)) {
+            assert(sem_errors() == 0);
             simplify(unit);
+         }
       }
    }
 
