@@ -153,30 +153,24 @@ void fmt_loc(FILE *f, const struct loc *loc)
    const char *lb = loc->linebuf;
    char buf[80];
    size_t i = 0;
-   while (i < sizeof(buf) - 4 && *lb != '\0' && *lb != '\n') {
+   while (i < sizeof(buf) - 1 && *lb != '\0' && *lb != '\n') {
       if (*lb == '\t')
          buf[i++] = ' ';
       else
          buf[i++] = *lb;
       ++lb;
    }
-
-   if (i == sizeof(buf) - 4) {
-      buf[i++] = '.';
-      buf[i++] = '.';
-      buf[i++] = '.';
-   }
-
    buf[i] = '\0';
 
    // Print ... if error location spans multiple lines
-   bool many_lines = (loc->first_line != loc->last_line);
-   int last_col = many_lines ? strlen(buf) + 4 : loc->last_column;
+   bool many_lines = (loc->first_line != loc->last_line)
+      || (i == sizeof(buf) - 1);
+   int last_col = many_lines ? strlen(buf) + 3 : loc->last_column;
 
    fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
-   for (int i = 0; i < loc->first_column + 4; i++)
+   for (int j = 0; j < loc->first_column + 4; j++)
       fprintf(stderr, " ");
-   for (int i = 0; i < last_col - loc->first_column + 1; i++)
+   for (int j = 0; j < last_col - loc->first_column + 1; j++)
       fprintf(stderr, "^");
    fprintf(stderr, "\n");
 }
