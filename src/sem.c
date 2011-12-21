@@ -80,7 +80,7 @@ static void scope_push(ident_t prefix)
    s->context  = NULL;
    s->imported = NULL;
    s->down     = top_scope;
-   s->subprog  = NULL;
+   s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
 
    top_scope = s;
 }
