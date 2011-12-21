@@ -1197,24 +1197,24 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                           generation, deep);
    }
    if (HAS_ASSOCS(t)) {
-      for (unsigned n = 0; n < t->n_assocs; n++) {
-         switch (t->assocs[n].kind) {
+      for (unsigned i = 0; i < t->n_assocs; i++) {
+         switch (t->assocs[i].kind) {
          case A_NAMED:
-            tree_visit_aux(t->assocs[n].name, fn, context,
-                           kind, generation, deep);
+            n += tree_visit_aux(t->assocs[i].name, fn, context,
+                                kind, generation, deep);
             break;
          case A_RANGE:
-            tree_visit_aux(t->assocs[n].range.left, fn, context,
-                           kind, generation, deep);
-            tree_visit_aux(t->assocs[n].range.right, fn, context,
-                           kind, generation, deep);
+            n += tree_visit_aux(t->assocs[i].range.left, fn, context,
+                                kind, generation, deep);
+            n += tree_visit_aux(t->assocs[i].range.right, fn, context,
+                                kind, generation, deep);
             break;
          default:
             break;
          }
 
-         tree_visit_aux(t->assocs[n].value, fn, context,
-                        kind, generation, deep);
+         n += tree_visit_aux(t->assocs[i].value, fn, context,
+                             kind, generation, deep);
       }
    }
 
@@ -1239,8 +1239,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       for (unsigned i = 0; i < t->n_attrs; i++) {
          switch (t->attrs[i].kind) {
          case A_TREE:
-            tree_visit_aux(t->attrs[i].tval, fn, context,
-                           kind, generation, deep);
+            n += tree_visit_aux(t->attrs[i].tval, fn, context,
+                                kind, generation, deep);
             break;
 
          default:
