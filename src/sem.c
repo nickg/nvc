@@ -576,11 +576,14 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    // Logical operators
 
-   bool logical =
-      (type_ident(t) == ident_new("STD.STANDARD.BOOLEAN")
-       || type_ident(t) == ident_new("STD.STANDARD.BIT"));
-   // TODO: also any one-dimensional array type whose element type
-   // is BIT or BOOLEAN
+   ident_t boolean_i = ident_new("STD.STANDARD.BOOLEAN");
+   ident_t bit_i = ident_new("STD.STANDARD.BIT");
+
+   bool logical = (type_ident(t) == boolean_i || type_ident(t) == bit_i);
+   if (type_kind(t) == T_CARRAY || type_kind(t) == T_UARRAY) {
+      type_t base = type_base(t);
+      logical = (type_ident(base) == boolean_i || type_ident(base) == bit_i);
+   }
 
    if (logical) {
       sem_declare_binary(ident_new("and"), t, t, t, "and");
