@@ -580,10 +580,6 @@ static void sem_declare_predefined_ops(tree_t decl)
    ident_t bit_i = ident_new("STD.STANDARD.BIT");
 
    bool logical = (type_ident(t) == boolean_i || type_ident(t) == bit_i);
-   if (type_kind(t) == T_CARRAY || type_kind(t) == T_UARRAY) {
-      type_t base = type_base(t);
-      logical = (type_ident(base) == boolean_i || type_ident(base) == bit_i);
-   }
 
    if (logical) {
       sem_declare_binary(ident_new("and"), t, t, t, "and");
@@ -593,6 +589,23 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new("nor"), t, t, t, "nor");
       sem_declare_binary(ident_new("xnor"), t, t, t, "xnor");
       sem_declare_unary(ident_new("not"), t, t, "not");
+   }
+
+   bool vec_logical = false;
+   if (type_kind(t) == T_CARRAY || type_kind(t) == T_UARRAY) {
+      type_t base = type_base(t);
+      vec_logical = (type_ident(base) == boolean_i
+                     || type_ident(base) == bit_i);
+   }
+
+   if (vec_logical) {
+      sem_declare_binary(ident_new("and"), t, t, t, "v_and");
+      sem_declare_binary(ident_new("or"), t, t, t, "v_or");
+      sem_declare_binary(ident_new("xor"), t, t, t, "v_xor");
+      sem_declare_binary(ident_new("nand"), t, t, t, "v_nand");
+      sem_declare_binary(ident_new("nor"), t, t, t, "v_nor");
+      sem_declare_binary(ident_new("xnor"), t, t, t, "v_xnor");
+      sem_declare_unary(ident_new("not"), t, t, "v_not");
    }
 
    // Predefined attributes
