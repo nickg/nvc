@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "phase.h"
 #include "util.h"
+#include "phase.h"
 #include "lib.h"
 #include "rt/signal.h"
 
@@ -1569,8 +1569,6 @@ static void cgen_func_body(tree_t t)
 
 static void cgen_top(tree_t t)
 {
-   assert(tree_kind(t) == T_ELAB);
-
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t decl = tree_decl(t, i);
       switch (tree_kind(decl)) {
@@ -1587,8 +1585,10 @@ static void cgen_top(tree_t t)
       }
    }
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
-      cgen_process(tree_stmt(t, i));
+   if (tree_kind(t) == T_ELAB) {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         cgen_process(tree_stmt(t, i));
+   }
 }
 
 static void optimise(void)
@@ -1702,8 +1702,9 @@ static void cgen_support_fns(void)
 
 void cgen(tree_t top)
 {
-   if (tree_kind(top) != T_ELAB)
-      fatal("cannot generate code for tree kind %d", tree_kind(top));
+   tree_kind_t kind = tree_kind(top);
+   if (kind != T_ELAB && kind != T_PACK_BODY)
+      fatal("cannot generate code for tree kind %d", kind);
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();

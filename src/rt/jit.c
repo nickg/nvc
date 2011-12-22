@@ -58,8 +58,11 @@ void jit_bind_fn(const char *name, void *ptr)
 
 void jit_init(ident_t top)
 {
+   ident_t orig = ident_strip(top, ident_new(".elab"));
+   ident_t final = ident_prefix(orig, ident_new("final"), '.');
+
    char fname[128];
-   snprintf(fname, sizeof(fname), "_%s.bc", istr(top));
+   snprintf(fname, sizeof(fname), "_%s.bc", istr(final));
 
    char path[PATH_MAX];
    lib_realpath(lib_work(), fname, path, sizeof(path));

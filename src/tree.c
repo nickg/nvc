@@ -198,7 +198,7 @@ struct tree_rd_ctx {
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
-    || IS(t, T_PACK_BODY))
+    || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
 #define HAS_REF(t)                                                    \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
     || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE)                     \
@@ -887,6 +887,11 @@ void tree_add_context(tree_t t, context_t ctx)
    assert(t != NULL);
    assert(HAS_CONTEXT(t));
    assert(t->n_contexts < MAX_CONTEXTS);
+
+   for (unsigned i = 0; i < tree_contexts(t); i++) {
+      if (t->context[i].name == ctx.name)
+         return;
+   }
 
    if (t->n_contexts == 0)
       t->context = xmalloc(sizeof(context_t) * MAX_CONTEXTS);

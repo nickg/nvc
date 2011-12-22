@@ -126,6 +126,12 @@ static void elab_add_alias(tree_t arch, tree_t decl, ident_t ident)
    tree_add_decl(arch, a);
 }
 
+static void elab_copy_context(tree_t dest, tree_t src)
+{
+   for (unsigned i = 0; i < tree_contexts(src); i++)
+      tree_add_context(dest, tree_context(src, i));
+}
+
 static void elab_map(tree_t t, tree_t arch,
                      tree_formals_t tree_Fs, tree_formal_t tree_F,
                      tree_actuals_t tree_As, tree_actual_t tree_A)
@@ -196,11 +202,14 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
    elab_map(t, arch, tree_generics, tree_generic,
             tree_genmaps, tree_genmap);
 
+   elab_copy_context(out, tree_ref(t));
    elab_arch(arch, out, path);
 }
 
 static void elab_arch(tree_t t, tree_t out, ident_t path)
 {
+   elab_copy_context(out, t);
+
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
       ident_t pn = hpathf(path, ':', "%s",
@@ -240,6 +249,7 @@ static void elab_entity(tree_t t, tree_t out, ident_t path)
                              simple_name(istr(tree_ident(t))),
                              simple_name(istr(tree_ident(arch))));
 
+   elab_copy_context(out, t);
    elab_arch(arch, out, new_path);
 }
 

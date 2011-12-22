@@ -378,5 +378,8 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
 {
    assert(lib != NULL);
 
-   snprintf(buf, buflen, "%s/%s", lib->path, name);
+   if (name)
+      snprintf(buf, buflen, "%s/%s", lib->path, name);
+   else
+      strncpy(buf, lib->path, buflen);
 }

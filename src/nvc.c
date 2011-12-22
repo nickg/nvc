@@ -90,6 +90,9 @@ static int analyse(int argc, char **argv)
          if (sem_check(unit)) {
             assert(sem_errors() == 0);
             simplify(unit);
+
+            if (tree_kind(unit) == T_PACK_BODY)
+               cgen(unit);
          }
       }
    }
@@ -162,6 +165,7 @@ static int elaborate(int argc, char **argv)
       return EXIT_FAILURE;
 
    cgen(e);
+   link_bc(e);
 
    return EXIT_SUCCESS;
 }
