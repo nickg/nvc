@@ -30,8 +30,6 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define MAX_UNITS 16
-
 #define MAX_SEARCH_PATHS 64
 
 struct lib_unit {
@@ -43,6 +41,7 @@ struct lib {
    char            path[PATH_MAX];
    ident_t         name;
    unsigned        n_units;
+   unsigned        units_alloc;
    struct lib_unit *units;
 };
 
@@ -86,10 +85,16 @@ static void lib_put_aux(lib_t lib, tree_t unit, bool dirty)
 {
    assert(lib != NULL);
    assert(unit != NULL);
-   assert(lib->n_units < MAX_UNITS);
 
-   if (lib->n_units == 0)
-      lib->units = xmalloc(sizeof(struct lib_unit) * MAX_UNITS);
+   if (lib->n_units == 0) {
+      lib->units_alloc = 16;
+      lib->units = xmalloc(sizeof(struct lib_unit) * lib->units_alloc);
+   }
+   else if (lib->n_units == lib->units_alloc) {
+      lib->units_alloc *= 2;
+      lib->units = xrealloc(lib->units,
+                            sizeof(struct lib_unit) * lib->units_alloc);
+   }
 
    unsigned n = lib->n_units++;
    lib->units[n].top   = unit;
