@@ -1579,6 +1579,8 @@ static void cgen_top(tree_t t)
          cgen_func_body(decl);
          break;
       case T_ALIAS:
+      case T_CONST_DECL:
+      case T_TYPE_DECL:
          break;
       default:
          assert(false);

@@ -24,6 +24,7 @@
 #include <inttypes.h>
 
 static void dump_expr(tree_t t);
+static void dump_stmt(tree_t t, int indent);
 
 static void tab(int indent)
 {
@@ -190,6 +191,24 @@ static void dump_decl(tree_t t, int indent)
       printf("TODO: T_ATTR_DECL\n");
       break;
 
+   case T_FUNC_DECL:
+      printf("function %s (...) return %s;\n", istr(tree_ident(t)),
+             type_pp(type_result(tree_type(t))));
+      return;
+
+   case T_FUNC_BODY:
+      printf("function %s (...) return %s is\n", istr(tree_ident(t)),
+             type_pp(type_result(tree_type(t))));
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i), indent + 2);
+      tab(indent);
+      printf("begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      tab(indent);
+      printf("end function;\n\n");
+      return;
+
    default:
       assert(false);
    }
@@ -303,6 +322,29 @@ static void dump_stmt(tree_t t, int indent)
       printf("end if");
       break;
 
+   case T_CASE:
+      printf("case ");
+      dump_expr(tree_value(t));
+      printf(" is\n");
+      tab(indent);
+      printf("end case");
+      break;
+
+   case T_RETURN:
+      printf("return");
+      if (tree_has_value(t)) {
+         printf(" ");
+         dump_expr(tree_value(t));
+      }
+      break;
+
+   case T_FOR:
+      printf("for %s in ", istr(tree_ident2(t)));
+      printf("...\n");
+      tab(indent);
+      printf("end for");
+      break;
+
    default:
       assert(false);
    }
@@ -347,6 +389,22 @@ static void dump_arch(tree_t t)
    printf("end architecture;\n");
 }
 
+static void dump_package(tree_t t)
+{
+   printf("package %s is\n", istr(tree_ident(t)));
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      dump_decl(tree_decl(t, i), 2);
+   printf("end package;\n");
+}
+
+static void dump_package_body(tree_t t)
+{
+   printf("package body %s is\n", istr(tree_ident(t)));
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      dump_decl(tree_decl(t, i), 2);
+   printf("end package body;\n");
+}
+
 void dump(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -358,6 +416,12 @@ void dump(tree_t t)
       break;
    case T_ARCH:
       dump_arch(t);
+      break;
+   case T_PACKAGE:
+      dump_package(t);
+      break;
+   case T_PACK_BODY:
+      dump_package_body(t);
       break;
    default:
       assert(false);

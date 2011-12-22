@@ -273,12 +273,13 @@ static int dump_cmd(int argc, char **argv)
 
    static struct option long_options[] = {
       {"elab", no_argument, 0, 'e'},
+      {"body", no_argument, 0, 'b'},
       {0, 0, 0, 0}
    };
 
-   bool add_elab = false;
+   bool add_elab = false, add_body = false;
    int c, index = 0;
-   const char *spec = "e";
+   const char *spec = "eb";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -290,6 +291,9 @@ static int dump_cmd(int argc, char **argv)
          exit(EXIT_FAILURE);
       case 'e':
          add_elab = true;
+         break;
+      case 'b':
+         add_body = true;
          break;
       default:
          abort();
@@ -303,6 +307,8 @@ static int dump_cmd(int argc, char **argv)
       ident_t name = to_unit_name(argv[i]);
       if (add_elab)
          name = ident_prefix(name, ident_new("elab"), '.');
+      else if (add_body)
+         name = ident_prefix(name, ident_new("body"), '-');
       tree_t top = lib_get(lib_work(), name);
       if (top == NULL)
          fatal("%s not analysed", istr(name));
@@ -343,6 +349,7 @@ static void usage(void)
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
+          " -b, --body\t\tDump package body\n"
           "\n"
           "Report bugs to %s\n",
           PACKAGE, PACKAGE_BUGREPORT);
