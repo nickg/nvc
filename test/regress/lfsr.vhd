@@ -1,7 +1,6 @@
 entity lfsr16 is
     generic (
         WIDTH : positive := 16;
-        INIT  : bit_vector(WIDTH - 1 downto 0) := (others => '0');
         TAP   : natural := 3 );
     port (
         clk   : in bit;
@@ -20,7 +19,7 @@ begin
     process (clk, reset) is
     begin
         if reset = '1' then
-            state_r <= INIT;
+            state_r <= (others => '0');
         elsif clk'event and clk = '1' then
             if en = '1' then
                 state_r(WIDTH - 1 downto 1) <= state_r(WIDTH - 2 downto 0);
