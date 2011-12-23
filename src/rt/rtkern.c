@@ -424,9 +424,10 @@ static void rt_setup(tree_t top)
    now = 0;
    iteration = -1;
 
-   assert(eventq_heap == NULL);
    assert(resume == NULL);
 
+   if (eventq_heap != NULL)
+      heap_free(eventq_heap);
    eventq_heap = heap_new(512);
 
    if (procs == NULL) {
