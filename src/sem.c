@@ -130,6 +130,12 @@ static void scope_add_context(ident_t prefix)
 {
    assert(top_scope != NULL);
 
+   struct ident_list *it;
+   for (it = top_scope->context; it != NULL; it = it->next) {
+      if (it->ident == prefix)
+         return;
+   }
+
    scope_ident_list_add(&top_scope->context, prefix);
 }
 
@@ -633,7 +639,7 @@ static void sem_declare_predefined_ops(tree_t decl)
             tree_add_attr_tree(decl, ident_new("LOW"), r.right);
          }
 
-         tree_t image = sem_builtin_fn(ident_new("IMAGE"),
+         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
                                        sem_std_type("STD.STANDARD.STRING"),
                                        "image", t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
@@ -662,10 +668,12 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_SUBTYPE:
    case T_ENUM:
       {
-         tree_t succ = sem_builtin_fn(ident_new("SUCC"), t, "succ", t, NULL);
+         tree_t succ = sem_builtin_fn(ident_new("NVC.BUILTIN.SUCC"),
+                                      t, "succ", t, NULL);
          tree_add_attr_tree(decl, ident_new("SUCC"), succ);
 
-         tree_t pred = sem_builtin_fn(ident_new("PRED"), t, "pred", t, NULL);
+         tree_t pred = sem_builtin_fn(ident_new("NVC.BUILTIN.PRED"),
+                                      t, "pred", t, NULL);
          tree_add_attr_tree(decl, ident_new("PRED"), pred);
       }
       break;
@@ -845,6 +853,9 @@ static bool sem_check_context(tree_t t)
 
    // The work library should always be searched
    scope_add_context(work_name);
+
+   // The builtin pseudo library is always visible
+   scope_add_context(ident_new("NVC.BUILTIN"));
 
    // The std.standard package is also implicit unless we are
    // bootstrapping

@@ -350,6 +350,7 @@ static tree_t simp_if(tree_t t)
             return tree_stmt(t, 0);
          else {
             tree_t b = tree_new(T_BLOCK);
+            tree_set_ident(b, tree_ident(t));
             for (unsigned i = 0; i < tree_stmts(t); i++)
                tree_add_stmt(b, tree_stmt(t, i));
             return b;
@@ -363,6 +364,7 @@ static tree_t simp_if(tree_t t)
             return NULL;   // Delete it
          else {
             tree_t b = tree_new(T_BLOCK);
+            tree_set_ident(b, tree_ident(t));
             for (unsigned i = 0; i < tree_else_stmts(t); i++)
                tree_add_stmt(b, tree_else_stmt(t, i));
             return b;
@@ -376,12 +378,82 @@ static tree_t simp_if(tree_t t)
 static tree_t simp_while(tree_t t)
 {
    bool value_b;
-   if (folded_bool(tree_value(t), &value_b) && !value_b) {
+   if (!tree_has_value(t))
+      return t;
+   else if (folded_bool(tree_value(t), &value_b) && !value_b) {
       // Condition is false so loop never executes
       return NULL;
    }
    else
       return t;
+}
+
+static tree_t simp_for(tree_t t)
+{
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, tree_ident(t));
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      tree_add_decl(b, tree_decl(t, i));
+
+   tree_t decl = tree_decl(t, 0);
+
+   tree_t var = tree_new(T_REF);
+   tree_set_ident(var, tree_ident(decl));
+   tree_set_type(var, tree_type(decl));
+   tree_set_ref(var, decl);
+
+   range_t r = tree_range(t);
+
+   tree_t init = tree_new(T_VAR_ASSIGN);
+   tree_set_ident(init, ident_uniq("init"));
+   tree_set_target(init, var);
+   tree_set_value(init, r.left);
+
+   tree_t wh = tree_new(T_WHILE);
+   tree_set_ident(wh, ident_uniq("loop"));
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      tree_add_stmt(wh, tree_stmt(t, i));
+
+   tree_t eq = tree_new(T_FUNC_DECL);
+   tree_set_ident(eq, ident_new("="));
+   tree_add_attr_str(eq, ident_new("builtin"), "eq");
+
+   tree_t cmp = tree_new(T_FCALL);
+   tree_set_ident(cmp, ident_new("="));
+   tree_set_ref(cmp, eq);
+   param_t p0 = { .kind = P_POS, .value = var };
+   tree_add_param(cmp, p0);
+   param_t p1 = { .kind = P_POS, .value = r.right };
+   tree_add_param(cmp, p1);
+
+   tree_t exit = tree_new(T_EXIT);
+   tree_set_ident(exit, ident_uniq("for_exit"));
+   tree_set_value(exit, cmp);
+
+   tree_t succ = tree_new(T_FUNC_DECL);
+   tree_set_ident(succ, ident_new("NVC.BUILTIN.SUCC"));
+   tree_add_attr_str(succ, ident_new("builtin"), "succ");
+
+   tree_t succ_call = tree_new(T_FCALL);
+   tree_set_ident(succ_call, ident_new("SUCC"));
+   tree_set_ref(succ_call, succ);
+   param_t p2 = { .kind = P_POS, .value = var };
+   tree_add_param(succ_call, p2);
+
+   tree_t next = tree_new(T_VAR_ASSIGN);
+   tree_set_ident(next, ident_uniq("for_next"));
+   tree_set_target(next, var);
+   tree_set_value(next, succ_call);
+
+   tree_add_stmt(wh, exit);
+   tree_add_stmt(wh, next);
+
+   tree_add_stmt(b, init);
+   tree_add_stmt(b, wh);
+
+   return b;
 }
 
 static void simp_build_wait(tree_t ref, void *context)
@@ -435,6 +507,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_if(t);
    case T_WHILE:
       return simp_while(t);
+   case T_FOR:
+      return simp_for(t);
    case T_CASSIGN:
       return simp_cassign(t);
    case T_NULL:

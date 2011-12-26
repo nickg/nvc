@@ -29,3 +29,5 @@ slice1          normal
 logical1        normal
 lfsr            normal,stop=510ns
 link1           normal
+for1            normal
+operator1       normal

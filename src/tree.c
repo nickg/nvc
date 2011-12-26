@@ -160,7 +160,7 @@ struct tree_rd_ctx {
     || IS(t, T_FUNC_BODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE)       \
     || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
-    || IS(t, T_PCALL) || IS(t, T_CASE))
+    || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
     || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL))

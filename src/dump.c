@@ -287,6 +287,18 @@ static void dump_stmt(tree_t t, int indent)
       }
       break;
 
+   case T_BLOCK:
+      printf("block is\n");
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i), indent + 2);
+      tab(indent);
+      printf("begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      tab(indent);
+      printf("end block");
+      break;
+
    case T_ASSERT:
       printf("assert ");
       dump_expr(tree_value(t));
@@ -297,9 +309,12 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_WHILE:
-      printf("while ");
-      dump_expr(tree_value(t));
-      printf(" loop\n");
+      if (tree_has_value(t)) {
+         printf("while ");
+         dump_expr(tree_value(t));
+         printf(" ");
+      }
+      printf("loop\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
          dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
@@ -320,6 +335,14 @@ static void dump_stmt(tree_t t, int indent)
       }
       tab(indent);
       printf("end if");
+      break;
+
+   case T_EXIT:
+      printf("exit");
+      if (tree_has_value(t)) {
+         printf(" when ");
+         dump_expr(tree_value(t));
+      }
       break;
 
    case T_CASE:

@@ -37,6 +37,7 @@ static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static bool           run_optimiser = true;
 static bool           dump_module = false;
+static ident_t        var_offset_i = NULL;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -47,9 +48,17 @@ struct proc_entry {
    struct proc_entry *next;
 };
 
+// Linked list of named blocks such as loops
+struct block_list {
+   ident_t           name;
+   LLVMBasicBlockRef exit_bb;
+   struct block_list *next;
+};
+
 // Code generation context for a process or function
 struct cgen_ctx {
    struct proc_entry *entry_list;
+   struct block_list *blocks;
    LLVMValueRef      state;
    LLVMValueRef      fn;
    tree_t            proc;
@@ -195,33 +204,14 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
                        indexes, ARRAY_LEN(indexes), "");
 }
 
-static unsigned proc_nvars(tree_t p)
-{
-   assert(tree_kind(p) == T_PROCESS);
-
-   unsigned nvars = 0;
-   for (unsigned i = 0; i < tree_decls(p); i++) {
-      if (tree_kind(tree_decl(p, i)) == T_VAR_DECL)
-         nvars++;
-   }
-
-   return nvars;
-}
-
 static LLVMValueRef cgen_proc_var(tree_t decl, struct cgen_ctx *ctx)
 {
    assert(tree_kind(decl) == T_VAR_DECL);
 
-   unsigned v = 0;
-   for (unsigned i = 0; i < tree_decls(ctx->proc); i++) {
-      tree_t di = tree_decl(ctx->proc, i);
-      if (di == decl)
-         return LLVMBuildStructGEP(builder, ctx->state, v + 1, "");
-      else if (tree_kind(di) == T_VAR_DECL)
-         ++v;
-   }
+   int offset = tree_attr_int(decl, var_offset_i, -1);
+   assert(offset != -1);
 
-   assert(false);
+   return LLVMBuildStructGEP(builder, ctx->state, offset, "");
 }
 
 static void cgen_array_copy(type_t ty, range_t r,
@@ -1036,15 +1026,26 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
 
 static void cgen_while(tree_t t, struct cgen_ctx *ctx)
 {
-   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "while");
    LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "wbody");
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "wexit");
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "while");
 
    LLVMBuildBr(builder, test_bb);
-
    LLVMPositionBuilderAtEnd(builder, test_bb);
-   LLVMValueRef test = cgen_expr(tree_value(t), ctx);
-   LLVMBuildCondBr(builder, test, body_bb, exit_bb);
+
+   if (tree_has_value(t)) {
+      LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+      LLVMBuildCondBr(builder, test, body_bb, exit_bb);
+   }
+   else
+      LLVMBuildBr(builder, body_bb);
+
+   struct block_list *bl = xmalloc(sizeof(struct block_list));
+   bl->exit_bb = exit_bb;
+   bl->name    = tree_ident(t);
+   bl->next    = ctx->blocks;
+
+   ctx->blocks = bl;
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
    for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -1052,12 +1053,38 @@ static void cgen_while(tree_t t, struct cgen_ctx *ctx)
    LLVMBuildBr(builder, test_bb);
 
    LLVMPositionBuilderAtEnd(builder, exit_bb);
+
+   ctx->blocks = bl->next;
+   free(bl);
 }
 
 static void cgen_block(tree_t t, struct cgen_ctx *ctx)
 {
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), ctx);
+}
+
+static void cgen_exit(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMBasicBlockRef not_bb = LLVMAppendBasicBlock(ctx->fn, "not_exit");
+
+   if (tree_has_value(t)) {
+      LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "exit");
+      LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+      LLVMBuildCondBr(builder, test, exit_bb, not_bb);
+      LLVMPositionBuilderAtEnd(builder, exit_bb);
+   }
+
+   // TODO: check ident2 -> if NULL then most closely nested block
+   // else search through block_list
+
+   assert(ctx->blocks != NULL);
+
+   struct block_list *bl = ctx->blocks;
+
+   LLVMBuildBr(builder, bl->exit_bb);
+
+   LLVMPositionBuilderAtEnd(builder, not_bb);
 }
 
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
@@ -1086,6 +1113,9 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
       break;
    case T_BLOCK:
       cgen_block(t, ctx);
+      break;
+   case T_EXIT:
+      cgen_exit(t, ctx);
       break;
    default:
       assert(false);
@@ -1167,17 +1197,33 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
    tree_add_attr_ptr(decl, tag_i, ctx->proc);
 }
 
-LLVMTypeRef cgen_process_state_type(tree_t t)
+struct cgen_proc_var_ctx {
+   LLVMTypeRef *types;
+   unsigned    offset;
+};
+
+static void cgen_visit_proc_vars(tree_t t, void *context)
 {
-   LLVMTypeRef fields[proc_nvars(t) + 1];
+   struct cgen_proc_var_ctx *ctx = context;
+
+   ctx->types[ctx->offset] = llvm_type(tree_type(t));
+   tree_add_attr_int(t, var_offset_i, ctx->offset);
+
+   ctx->offset++;
+}
+
+static LLVMTypeRef cgen_process_state_type(tree_t t)
+{
+   unsigned nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
+
+   LLVMTypeRef fields[nvars + 1];
    fields[0] = LLVMInt32Type();   // State
 
-   unsigned v = 1;
-   for (unsigned i = 0; i < tree_decls(t); i++) {
-      tree_t decl = tree_decl(t, i);
-      if (tree_kind(decl) == T_VAR_DECL)
-         fields[v++] = llvm_type(tree_type(decl));
-   }
+   struct cgen_proc_var_ctx ctx = {
+      .types  = fields,
+      .offset = 1
+   };
+   tree_visit_only(t, cgen_visit_proc_vars, &ctx, T_VAR_DECL);
 
    char name[64];
    snprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
@@ -1717,6 +1763,8 @@ static void cgen_support_fns(void)
 
 void cgen(tree_t top)
 {
+   var_offset_i = ident_new("var_offset");
+
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY)
       fatal("cannot generate code for tree kind %d", kind);
