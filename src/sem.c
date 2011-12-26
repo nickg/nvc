@@ -231,7 +231,8 @@ static tree_t scope_find_nth(ident_t i, int n)
 static bool can_overload(tree_t t)
 {
    return tree_kind(t) == T_ENUM_LIT
-      || tree_kind(t) == T_FUNC_DECL;
+      || tree_kind(t) == T_FUNC_DECL
+      || tree_kind(t) == T_FUNC_BODY;
 }
 
 static struct btree *scope_btree_new(tree_t t)
