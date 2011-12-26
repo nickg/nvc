@@ -149,7 +149,8 @@ struct tree_rd_ctx {
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
-    || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE))
+    || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
+    || IS(t, T_BLOCK))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -2103,8 +2104,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    if (HAS_WAVEFORMS(t))
       copy_a(&t->waves, &copy->waves, ctx);
    if (HAS_TYPE(t)) {
-      copy->type = t->type;
-      type_ref(copy->type);
+      if ((copy->type = t->type))
+         type_ref(copy->type);
    }
    if (HAS_VALUE(t))
       copy->value = tree_copy_aux(t->value, ctx);
