@@ -15,6 +15,8 @@ begin
         assert natural'high = integer'high;
         assert integer'ascending;
         assert not my_int'ascending;
+        assert integer'succ(0) = 1;
+        assert integer'pred(0) = -1;
         wait;
     end process;
     

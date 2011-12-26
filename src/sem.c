@@ -654,6 +654,25 @@ static void sem_declare_predefined_ops(tree_t decl)
    default:
       break;
    }
+
+   switch (type_kind(t)) {
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_SUBTYPE:
+   case T_ENUM:
+      {
+         tree_t succ = sem_builtin_fn(ident_new("SUCC"), t, "succ", t, NULL);
+         tree_add_attr_tree(decl, ident_new("SUCC"), succ);
+
+         tree_t pred = sem_builtin_fn(ident_new("PRED"), t, "pred", t, NULL);
+         tree_add_attr_tree(decl, ident_new("PRED"), pred);
+      }
+      break;
+
+   default:
+      break;
+   }
 }
 
 static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)

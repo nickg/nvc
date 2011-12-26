@@ -513,6 +513,14 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildCall(builder, llvm_fn("_image"),
                               iargs, ARRAY_LEN(iargs), "");
       }
+      else if (strcmp(builtin, "succ") == 0) {
+         return LLVMBuildAdd(builder, args[0],
+                             LLVMConstInt(llvm_type(arg_type), 1, false), "");
+      }
+      else if (strcmp(builtin, "pred") == 0) {
+         return LLVMBuildAdd(builder, args[0],
+                             LLVMConstInt(llvm_type(arg_type), -1, false), "");
+      }
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
