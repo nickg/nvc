@@ -582,13 +582,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    bool logical = (type_ident(t) == boolean_i || type_ident(t) == bit_i);
 
    if (logical) {
-      sem_declare_binary(ident_new("and"), t, t, t, "and");
-      sem_declare_binary(ident_new("or"), t, t, t, "or");
-      sem_declare_binary(ident_new("xor"), t, t, t, "xor");
-      sem_declare_binary(ident_new("nand"), t, t, t, "nand");
-      sem_declare_binary(ident_new("nor"), t, t, t, "nor");
-      sem_declare_binary(ident_new("xnor"), t, t, t, "xnor");
-      sem_declare_unary(ident_new("not"), t, t, "not");
+      sem_declare_binary(ident_new("\"and\""), t, t, t, "and");
+      sem_declare_binary(ident_new("\"or\""), t, t, t, "or");
+      sem_declare_binary(ident_new("\"xor\""), t, t, t, "xor");
+      sem_declare_binary(ident_new("\"nand\""), t, t, t, "nand");
+      sem_declare_binary(ident_new("\"nor\""), t, t, t, "nor");
+      sem_declare_binary(ident_new("\"xnor\""), t, t, t, "xnor");
+      sem_declare_unary(ident_new("\"not\""), t, t, "not");
    }
 
    bool vec_logical = false;
@@ -599,13 +599,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    if (vec_logical) {
-      sem_declare_binary(ident_new("and"), t, t, t, "v_and");
-      sem_declare_binary(ident_new("or"), t, t, t, "v_or");
-      sem_declare_binary(ident_new("xor"), t, t, t, "v_xor");
-      sem_declare_binary(ident_new("nand"), t, t, t, "v_nand");
-      sem_declare_binary(ident_new("nor"), t, t, t, "v_nor");
-      sem_declare_binary(ident_new("xnor"), t, t, t, "v_xnor");
-      sem_declare_unary(ident_new("not"), t, t, "v_not");
+      sem_declare_binary(ident_new("\"and\""), t, t, t, "v_and");
+      sem_declare_binary(ident_new("\"or\""), t, t, t, "v_or");
+      sem_declare_binary(ident_new("\"xor\""), t, t, t, "v_xor");
+      sem_declare_binary(ident_new("\"nand\""), t, t, t, "v_nand");
+      sem_declare_binary(ident_new("\"nor\""), t, t, t, "v_nor");
+      sem_declare_binary(ident_new("\"xnor\""), t, t, t, "v_xnor");
+      sem_declare_unary(ident_new("\"not\""), t, t, "v_not");
    }
 
    // Predefined attributes
