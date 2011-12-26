@@ -1168,12 +1168,12 @@ LLVMTypeRef cgen_process_state_type(tree_t t)
          fields[v++] = llvm_type(tree_type(decl));
    }
 
-   LLVMTypeRef ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
-
    char name[64];
    snprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
-   if (LLVMAddTypeName(module, name, ty))
+   LLVMTypeRef ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
+   if (ty == NULL)
       fatal("failed to add type name %s", name);
+   LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
 
    return ty;
 }
@@ -1311,10 +1311,9 @@ static LLVMTypeRef cgen_signal_type(void)
       fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
       fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
 
-      ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
-
-      if (LLVMAddTypeName(module, "signal_s", ty))
+      if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
          fatal("failed to add type name signal_s");
+      LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
    }
 
    return ty;
@@ -1333,7 +1332,10 @@ static LLVMValueRef cgen_signal_init(void)
    init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
    init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
 
-   return LLVMConstStruct(init, ARRAY_LEN(init), false);
+   LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
+   assert(signal_s != NULL);
+
+   return LLVMConstNamedStruct(signal_s, init, ARRAY_LEN(init));
 }
 
 static void cgen_scalar_signal(tree_t t)
@@ -1603,9 +1605,7 @@ static void optimise(void)
    LLVMAddGVNPass(pass_mgr);
    LLVMAddCFGSimplificationPass(pass_mgr);
 
-   if (LLVMRunPassManager(pass_mgr, module))
-      fatal("LLVM pass manager failed");
-
+   LLVMRunPassManager(pass_mgr, module);
    LLVMDisposePassManager(pass_mgr);
 }
 
