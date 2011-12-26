@@ -106,6 +106,7 @@ begin
     process is
     begin
         exit;
+        exit when x = 1;
     end process;
 
     -- Procedure call

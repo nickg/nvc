@@ -483,6 +483,11 @@ START_TEST(test_seq)
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_EXIT);
+   fail_if(tree_has_value(s));
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_EXIT);
+   fail_unless(tree_has_value(s));
 
    // Procedure call
 

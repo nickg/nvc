@@ -2487,6 +2487,23 @@ static bool sem_check_block(tree_t t)
    return ok;
 }
 
+static bool sem_check_exit(tree_t t)
+{
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check(value))
+         return false;
+
+      type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+      if (!type_eq(tree_type(value), std_bool))
+         sem_error(value, "type of exit condition must be %s but is %s",
+                   istr(type_ident(std_bool)),
+                   istr(type_ident(tree_type(value))));
+   }
+
+   return true;
+}
+
 bool sem_check(tree_t t)
 {
    switch (tree_kind(t)) {
@@ -2559,6 +2576,8 @@ bool sem_check(tree_t t)
       return sem_check_block(t);
    case T_CASE:
       return sem_check_case(t);
+   case T_EXIT:
+      return sem_check_exit(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

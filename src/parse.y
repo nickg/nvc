@@ -1105,6 +1105,12 @@ seq_stmt_without_label
      $$ = tree_new(T_EXIT);
      tree_set_loc($$, &@$);
   }
+| tEXIT tWHEN expr tSEMI
+  {
+     $$ = tree_new(T_EXIT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $3);
+  }
 | tCASE expr tIS case_alt_list tEND tCASE opt_id tSEMI
   {
      $$ = tree_new(T_CASE);

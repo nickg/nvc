@@ -111,5 +111,14 @@ begin
             when others =>
         end case;
     end process;
+
+    -- Exit
+    process is
+    begin
+        loop
+            exit when false;            -- OK
+            exit when 1;                -- Not boolean
+        end loop;
+    end process;
     
 end architecture;

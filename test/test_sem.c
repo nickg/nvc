@@ -599,6 +599,7 @@ START_TEST(test_seq)
       {  79, "undefined identifier X" },
       { 102, "others choice must appear last" },
       { 109, "case choice must be locally static" },
+      { 120, "type of exit condition must be STD.STANDARD.BOOLEAN" },
       { -1, NULL }
    };
    expect_errors(expect);
