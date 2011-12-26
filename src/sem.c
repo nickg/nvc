@@ -1863,7 +1863,7 @@ static bool sem_check_fcall(tree_t t)
       const char *end = fn + sizeof(fn);
       const char *fname = istr(tree_ident(t));
       const bool operator = !isalpha(fname[0]);
-      const char *quote = operator ? "\"" : "";
+      const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
       p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
       for (unsigned i = 0; i < tree_params(t); i++)
