@@ -1021,6 +1021,9 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
 {
    LLVMValueRef rval = cgen_expr(tree_value(t), ctx);
    LLVMBuildRet(builder, rval);
+
+   LLVMBasicBlockRef unreach_bb = LLVMAppendBasicBlock(ctx->fn, "unreach");
+   LLVMPositionBuilderAtEnd(builder, unreach_bb);
 }
 
 static void cgen_while(tree_t t, struct cgen_ctx *ctx)
@@ -1567,6 +1570,8 @@ static void cgen_func_body(tree_t t)
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
+
+   LLVMBuildUnreachable(builder);
 }
 
 static void cgen_top(tree_t t)
