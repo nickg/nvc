@@ -16,6 +16,8 @@ to the configure command.
 
 To run the regression tests:
   make check
+Note you may need to install additional Ruby libraries:
+  gem install colorize getopt
 
 To recompile the standard libraries:
   make -C lib clean
