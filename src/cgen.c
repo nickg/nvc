@@ -241,11 +241,11 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 
 static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx)
 {
-   assert(tree_kind(decl) == T_VAR_DECL);
-
    void *local = tree_attr_ptr(decl, local_var_i);
    if (local != NULL)
       return (LLVMValueRef)local;
+
+   assert(tree_kind(decl) == T_VAR_DECL);
 
    int offset = tree_attr_int(decl, var_offset_i, -1);
    assert(offset != -1);
@@ -627,6 +627,9 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
             return LLVMBuildLoad(builder, ptr, "");
       }
 
+   case T_PORT_DECL:
+      return cgen_get_var(decl, ctx);
+
    case T_SIGNAL_DECL:
       if (type_kind(tree_type(decl)) == T_CARRAY) {
          type_t type = tree_type(decl);
@@ -634,14 +637,6 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
       }
       else
          return cgen_scalar_signal_ref(decl, ctx);
-
-   case T_PORT_DECL:
-      // Function argument
-      for (unsigned i = 0; i < tree_ports(ctx->fdecl); i++) {
-         if (decl == tree_port(ctx->fdecl, i))
-            return LLVMGetParam(ctx->fn, i);
-      }
-      assert(false);
 
    default:
       abort();
@@ -677,14 +672,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef array = NULL;
          switch (tree_kind(decl)) {
          case T_VAR_DECL:
-            array = cgen_get_var(decl, ctx);
-            break;
          case T_PORT_DECL:
-            for (unsigned i = 0; i < tree_ports(ctx->fdecl); i++) {
-               if (decl == tree_port(ctx->fdecl, i))
-                  array = LLVMGetParam(ctx->fn, i);
-            }
-            assert(array != NULL);
+            array = cgen_get_var(decl, ctx);
             break;
          default:
             assert(false);
@@ -1755,6 +1744,11 @@ static void cgen_func_body(tree_t t)
       .fdecl      = t,
       .fn         = fn
    };
+
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t decl = tree_port(t, i);
+      tree_add_attr_ptr(decl, local_var_i, LLVMGetParam(fn, i));
+   }
 
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 

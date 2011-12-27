@@ -81,6 +81,9 @@ static int analyse(int argc, char **argv)
       }
    }
 
+   tree_t to_cgen[16];
+   int n_cgen = 0;
+
    for (int i = optind; i < argc; i++) {
       if (!input_from_file(argv[i]))
          return EXIT_FAILURE;
@@ -91,8 +94,10 @@ static int analyse(int argc, char **argv)
             assert(sem_errors() == 0);
             simplify(unit);
 
-            if (tree_kind(unit) == T_PACK_BODY)
-               cgen(unit);
+            if (tree_kind(unit) == T_PACK_BODY) {
+               assert(n_cgen < ARRAY_LEN(to_cgen));
+               to_cgen[n_cgen++] = unit;
+            }
          }
       }
    }
@@ -103,6 +108,10 @@ static int analyse(int argc, char **argv)
       return EXIT_FAILURE;
 
    lib_save(lib_work());
+
+   for (int i = 0; i < n_cgen; i++)
+      cgen(to_cgen[i]);
+
    return EXIT_SUCCESS;
 }
 
