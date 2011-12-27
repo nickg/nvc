@@ -100,7 +100,7 @@ void link_bc(tree_t top)
 {
    args = xmalloc(MAX_ARGS * sizeof(char*));
 
-   link_arg_f("%s/bin/llvm-ld", LLVM_PREFIX);
+   link_arg_f("%s/llvm-ld", LLVM_BINDIR);
    link_arg_f("-v");
    link_arg_f("-r");
    link_arg_f("-stats");
