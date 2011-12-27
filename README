@@ -10,6 +10,10 @@ To build from a Git clone:
   make
   make install
 
+To use a specific version of LLVM add
+  --with-llvm=/path/to/llvm-config
+to the configure command.
+
 To run the regression tests:
   make check
 

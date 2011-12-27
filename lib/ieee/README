@@ -1,9 +1,7 @@
 The standard IEEE packages cannot be freely redistributed in source form.
 
-If you hold a valid IEEE license you can download them from here:
-  http://standards.ieee.org/downloads/1076/
-
-Otherwise various draft versions are easily available on the internet.
+The libraries can be downloaded from the IEEE here:
+  http://standards.ieee.org/downloads/1076/1076.2-1996/
 
 The required files are:
   math_complex-body.vhdl
