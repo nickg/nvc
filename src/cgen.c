@@ -225,8 +225,6 @@ static void cgen_array_copy(type_t ty, range_t r,
    int64_t low, high;
    range_bounds(r, &low, &high);
 
-   printf("low=%lu type_low=%lu\n", low, type_low);
-
    assert(low >= type_low && high <= type_high);
 
    LLVMValueRef args[] = {
