@@ -570,6 +570,18 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_type), -1, false), "");
       }
+      else if (strcmp(builtin, "leftof") == 0) {
+         range_t r = type_dim(tree_type(t), 0);
+         int dir = (r.kind == RANGE_TO ? -1 : 1);
+         return LLVMBuildAdd(builder, args[0],
+                             LLVMConstInt(llvm_type(arg_type), dir, false), "");
+      }
+      else if (strcmp(builtin, "rightof") == 0) {
+         range_t r = type_dim(tree_type(t), 0);
+         int dir = (r.kind == RANGE_TO ? 1 : -1);
+         return LLVMBuildAdd(builder, args[0],
+                             LLVMConstInt(llvm_type(arg_type), dir, false), "");
+      }
       else if (strcmp(builtin, "length") == 0) {
          assert(type_kind(arg_type) == T_UARRAY);
 

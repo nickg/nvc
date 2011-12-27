@@ -675,6 +675,14 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t pred = sem_builtin_fn(ident_new("NVC.BUILTIN.PRED"),
                                       t, "pred", t, NULL);
          tree_add_attr_tree(decl, ident_new("PRED"), pred);
+
+         tree_t leftof = sem_builtin_fn(ident_new("NVC.BUILTIN.LEFTOF"),
+                                        t, "leftof", t, NULL);
+         tree_add_attr_tree(decl, ident_new("LEFTOF"), leftof);
+
+         tree_t rightof = sem_builtin_fn(ident_new("NVC.BUILTIN.RIGHTOF"),
+                                         t, "rightof", t, NULL);
+         tree_add_attr_tree(decl, ident_new("RIGHTOF"), rightof);
       }
       break;
 

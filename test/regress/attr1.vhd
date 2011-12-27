@@ -17,6 +17,10 @@ begin
         assert not my_int'ascending;
         assert integer'succ(0) = 1;
         assert integer'pred(0) = -1;
+        assert integer'leftof(1) = 0;
+        assert integer'rightof(1) = 2;
+        assert my_int'leftof(1) = 2;
+        assert my_int'rightof(1) = 0;
         wait;
     end process;
     

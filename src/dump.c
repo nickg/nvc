@@ -175,7 +175,24 @@ static void dump_decl(tree_t t, int indent)
 
    case T_TYPE_DECL:
       printf("type %s is ", istr(tree_ident(t)));
-      break;
+      {
+         type_t type = tree_type(t);
+         switch (type_kind(type)) {
+         case T_INTEGER:
+            {
+               range_t r = type_dim(type, 0);
+               printf("range ");
+               dump_expr(r.left);
+               printf(r.kind == RANGE_TO ? " to " : " downto ");
+               dump_expr(r.right);
+            }
+            break;
+         default:
+            dump_type(type);
+         }
+      }
+      printf(";\n");
+      return;
 
    case T_ALIAS:
       printf("alias %s is ", istr(tree_ident(t)));
