@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdarg.h>
 
 #define MAX_BUILTIN_ARGS 2
 
@@ -388,6 +389,33 @@ static tree_t simp_while(tree_t t)
       return t;
 }
 
+static tree_t simp_call_builtin(const char *name, const char *builtin,
+                                type_t type, ...)
+{
+   ident_t name_i = ident_new(name);
+
+   tree_t decl = tree_new(T_FUNC_DECL);
+   tree_set_ident(decl, name_i);
+   tree_add_attr_str(decl, ident_new("builtin"), builtin);
+
+   tree_t call = tree_new(T_FCALL);
+   tree_set_ident(call, name_i);
+   tree_set_ref(call, decl);
+   if (type != NULL)
+      tree_set_type(call, type);
+
+   va_list ap;
+   va_start(ap, type);
+   tree_t arg;
+   while ((arg = va_arg(ap, tree_t))) {
+      param_t p = { .kind = P_POS, .value = arg };
+      tree_add_param(call, p);
+   }
+   va_end(ap);
+
+   return call;
+}
+
 static tree_t simp_for(tree_t t)
 {
    tree_t b = tree_new(T_BLOCK);
@@ -420,27 +448,14 @@ static tree_t simp_for(tree_t t)
    tree_set_ident(eq, ident_new("="));
    tree_add_attr_str(eq, ident_new("builtin"), "eq");
 
-   tree_t cmp = tree_new(T_FCALL);
-   tree_set_ident(cmp, ident_new("="));
-   tree_set_ref(cmp, eq);
-   param_t p0 = { .kind = P_POS, .value = var };
-   tree_add_param(cmp, p0);
-   param_t p1 = { .kind = P_POS, .value = r.right };
-   tree_add_param(cmp, p1);
+   tree_t cmp = simp_call_builtin("=", "eq", NULL, var, r.right, NULL);
 
    tree_t exit = tree_new(T_EXIT);
    tree_set_ident(exit, ident_uniq("for_exit"));
    tree_set_value(exit, cmp);
 
-   tree_t succ = tree_new(T_FUNC_DECL);
-   tree_set_ident(succ, ident_new("NVC.BUILTIN.SUCC"));
-   tree_add_attr_str(succ, ident_new("builtin"), "succ");
-
-   tree_t succ_call = tree_new(T_FCALL);
-   tree_set_ident(succ_call, ident_new("SUCC"));
-   tree_set_ref(succ_call, succ);
-   param_t p2 = { .kind = P_POS, .value = var };
-   tree_add_param(succ_call, p2);
+   tree_t succ_call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
+                                        tree_type(decl), var, NULL);
 
    tree_t next = tree_new(T_VAR_ASSIGN);
    tree_set_ident(next, ident_uniq("for_next"));
