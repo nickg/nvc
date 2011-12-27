@@ -21,14 +21,14 @@ static void teardown(void)
 
 static int greater_than(const void *a, const void *b)
 {
-   return *(const uint64_t*)a > *(const uint64_t*)b;
+   return *(const uintptr_t*)a > *(const uintptr_t*)b;
 }
 
 static void walk_fn(uint64_t key, void *user, void *context)
 {
    uint64_t *last = context;
 
-   fail_if(key != (uint64_t)user);
+   fail_if(key != (uintptr_t)user);
    fail_if(*last > key);
 
    *last = key;
@@ -68,14 +68,14 @@ END_TEST
 START_TEST(test_rand)
 {
    static const int N = 1024;
-   uint64_t keys[N];
+   uintptr_t keys[N];
 
    for (int i = 0; i < N; i++) {
       keys[i] = random();
       heap_insert(h, keys[i], (void*)keys[i]);
    }
 
-   qsort(keys, N, sizeof(uint64_t), greater_than);
+   qsort(keys, N, sizeof(uintptr_t), greater_than);
 
    for (int i = 0; i < N; i++)
       fail_unless(heap_extract_min(h) == (void*)keys[i]);
