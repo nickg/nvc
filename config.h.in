@@ -155,6 +155,9 @@
 /* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
 
+/* Location of LLVM binaries */
+#undef LLVM_CONFIG_BINDIR
+
 /* Version of LLVM installed */
 #undef LLVM_VERSION
 

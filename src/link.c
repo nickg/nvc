@@ -26,8 +26,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "llvm/Config/llvm-config.h"
-
 #define MAX_ARGS 64
 #define ARG_LEN  256
 
@@ -100,7 +98,7 @@ void link_bc(tree_t top)
 {
    args = xmalloc(MAX_ARGS * sizeof(char*));
 
-   link_arg_f("%s/llvm-ld", LLVM_BINDIR);
+   link_arg_f("%s/llvm-ld", LLVM_CONFIG_BINDIR);
    link_arg_f("-v");
    link_arg_f("-r");
    link_arg_f("-stats");
