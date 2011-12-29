@@ -600,6 +600,13 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
       else if (strcmp(builtin, "uarray_right") == 0) {
          return LLVMBuildExtractValue(builder, args[0], 1, "right");
       }
+      else if (strcmp(builtin, "uarray_asc") == 0) {
+         return LLVMBuildICmp(
+            builder, LLVMIntEQ,
+            LLVMBuildExtractValue(builder, args[0], 2, "dir"),
+            llvm_int8(RANGE_TO),
+            "ascending");
+      }
       else
          fatal("cannot generate code for builtin %s", builtin);
    }

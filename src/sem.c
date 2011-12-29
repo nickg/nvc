@@ -820,7 +820,8 @@ static bool sem_check_range(range_t *r)
                    istr(tree_ident(r->left)));
 
       type_t type = tree_type(decl);
-      switch (type_kind(type)) {
+      type_kind_t kind = type_kind(type);
+      switch (kind) {
       case T_CARRAY:
          *r = type_dim(type, 0);
          return true;
@@ -835,7 +836,9 @@ static bool sem_check_range(range_t *r)
             tree_set_ident(b, tree_ident(r->left));
             tree_set_ident2(b, ident_new("RIGHT"));
 
-            r->kind  = RANGE_TO;
+            // If this is an unconstrained array then we can
+            // only find out the direction at runtime
+            r->kind  = (kind == T_UARRAY ? RANGE_DYN : RANGE_TO);
             r->left  = a;
             r->right = b;
          }
@@ -1167,6 +1170,12 @@ static void sem_add_attributes(tree_t decl)
                             sem_builtin_fn(id, type_index_constr(type, 0),
                                            *imp, type, NULL));
       }
+
+      ident_t asc_i = ident_new("ASCENDING");
+      tree_add_attr_tree(decl, asc_i,
+                         sem_builtin_fn(asc_i,
+                                        sem_std_type("STD.STANDARD.BOOLEAN"),
+                                        "uarray_asc", type, NULL));
    }
 
    if (kind == T_UARRAY || kind == T_CARRAY) {

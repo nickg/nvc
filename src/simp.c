@@ -454,13 +454,45 @@ static tree_t simp_for(tree_t t)
    tree_set_ident(exit, ident_uniq("for_exit"));
    tree_set_value(exit, cmp);
 
-   tree_t succ_call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
+   tree_t next;
+   if (r.kind == RANGE_DYN) {
+      assert(tree_kind(r.left) == T_FCALL);
+      param_t p = tree_param(r.left, 0);
+
+      tree_t asc = simp_call_builtin("NVC.BUILTIN.ASCENDING", "uarray_asc",
+                                     NULL, p.value, NULL);
+      next = tree_new(T_IF);
+      tree_set_value(next, asc);
+      tree_set_ident(next, ident_uniq("for_next"));
+
+      tree_t succ_call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
+                                           tree_type(decl), var, NULL);
+
+      tree_t a1 = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(a1, ident_uniq("for_next_asc"));
+      tree_set_target(a1, var);
+      tree_set_value(a1, succ_call);
+
+      tree_t pred_call = simp_call_builtin("NVC.BUILTIN.PRED", "pred",
+                                           tree_type(decl), var, NULL);
+
+      tree_t a2 = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(a2, ident_uniq("for_next_dsc"));
+      tree_set_target(a2, var);
+      tree_set_value(a2, pred_call);
+
+      tree_add_stmt(next, a1);
+      tree_add_else_stmt(next, a2);
+   }
+   else {
+      tree_t succ_call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
                                         tree_type(decl), var, NULL);
 
-   tree_t next = tree_new(T_VAR_ASSIGN);
-   tree_set_ident(next, ident_uniq("for_next"));
-   tree_set_target(next, var);
-   tree_set_value(next, succ_call);
+      next = tree_new(T_VAR_ASSIGN);
+      tree_set_ident(next, ident_uniq("for_next"));
+      tree_set_target(next, var);
+      tree_set_value(next, succ_call);
+   }
 
    tree_add_stmt(wh, exit);
    tree_add_stmt(wh, next);

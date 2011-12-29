@@ -146,6 +146,10 @@ static void dump_type(type_t type)
             printf(" downto ");
             dump_expr(r.right);
             break;
+         case RANGE_DYN:
+            printf(" dynamic ");
+            dump_expr(r.right);
+            break;
          case RANGE_EXPR:
             break;
          }

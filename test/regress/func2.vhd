@@ -27,7 +27,7 @@ begin
     begin
         assert len(v) = 5;
         assert sum(v) = 17;
-        --report integer'image(sum(u));
+        report integer'image(sum(u));
         wait;
     end process;
 

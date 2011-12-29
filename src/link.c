@@ -94,6 +94,24 @@ static void link_output(tree_t top)
    link_arg_bc(lib_work(), final);
 }
 
+char * get_llvm_bindir_path (char * default_llvm_bindir )
+{
+   if (getenv("NVC_LLVM_BINDIR_PATH") == NULL)
+   /* no preemptive environmental variable set */
+
+       if ( access(default_llvm_bindir, F_OK) == 0)
+           return (default_llvm_bindir);
+       else
+           fatal("can't access llvm bin directory %s", default_llvm_bindir);
+
+   else  /* environmental variable was present */
+       if (access(getenv("NVC_LLVM_BINDIR_PATH"), F_OK) == 0)
+           return(getenv("NVC_LLVM_BINDIR_PATH"));  /* static, optimized */
+       else
+           fatal("nvc override env variable NVC_LLVM_BINDIR_PATH not valid - %s",
+              getenv("NVC_LLVM_BINDIR_PATH"));
+}
+
 void link_bc(tree_t top)
 {
    args = xmalloc(MAX_ARGS * sizeof(char*));
