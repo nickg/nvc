@@ -18,6 +18,11 @@ architecture rtl of func2 is
         end loop;
         return tmp;
     end function;
+
+    function asc(x : int_array) return boolean is
+    begin
+        return x'ascending;
+    end function;
     
 begin
 
@@ -27,7 +32,9 @@ begin
     begin
         assert len(v) = 5;
         assert sum(v) = 17;
-        report integer'image(sum(u));
+        assert sum(u) = 13;
+        assert asc(v);
+        assert not asc(u);
         wait;
     end process;
 
