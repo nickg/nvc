@@ -8,7 +8,10 @@ begin
     begin
         for i in 1 to 5 loop
             report integer'image(i);
-        end loop;     
+        end loop;
+        for i in 100 downto 95 loop
+            report integer'image(i);
+        end loop;
         wait;
     end process;
     

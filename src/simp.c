@@ -485,13 +485,24 @@ static tree_t simp_for(tree_t t)
       tree_add_else_stmt(next, a2);
    }
    else {
-      tree_t succ_call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
-                                        tree_type(decl), var, NULL);
+      tree_t call;
+      switch (r.kind) {
+      case RANGE_TO:
+         call = simp_call_builtin("NVC.BUILTIN.SUCC", "succ",
+                                  tree_type(decl), var, NULL);
+         break;
+      case RANGE_DOWNTO:
+         call = simp_call_builtin("NVC.BUILTIN.PRED", "pred",
+                                  tree_type(decl), var, NULL);
+         break;
+      default:
+         assert(false);
+      }
 
       next = tree_new(T_VAR_ASSIGN);
       tree_set_ident(next, ident_uniq("for_next"));
       tree_set_target(next, var);
-      tree_set_value(next, succ_call);
+      tree_set_value(next, call);
    }
 
    tree_add_stmt(wh, exit);
