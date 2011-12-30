@@ -34,6 +34,8 @@
          result = YY_NULL;                   \
    }
 
+#define YY_USER_ACTION begin_token(yytext);
+
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
 
@@ -147,109 +149,109 @@ CASE          {C}{A}{S}{E}
 
 %%
 
-{COMMENT}       { begin_token(yytext); }
+{COMMENT}       { }
 
-{ENTITY}        { begin_token(yytext); return tENTITY; }
-{IS}            { begin_token(yytext); return tIS; }
-{END}           { begin_token(yytext); return tEND; }
-{GENERIC}       { begin_token(yytext); return tGENERIC; }
-{PORT}          { begin_token(yytext); return tPORT; }
-{CONSTANT}      { begin_token(yytext); return tCONSTANT; }
-{COMPONENT}     { begin_token(yytext); return tCOMPONENT; }
-{CONFIGURATION} { begin_token(yytext); return tCONFIGURATION; }
-{ARCHITECTURE}  { begin_token(yytext); return tARCHITECTURE; }
-{OF}            { begin_token(yytext); return tOF; }
-{BEGIN}         { begin_token(yytext); return tBEGIN; }
-{AND}           { begin_token(yytext); return tAND; }
-{OR}            { begin_token(yytext); return tOR; }
-{XOR}           { begin_token(yytext); return tXOR; }
-{XNOR}          { begin_token(yytext); return tXNOR; }
-{NAND}          { begin_token(yytext); return tNAND; }
-{NOR}           { begin_token(yytext); return tNOR; }
-{ABS}           { begin_token(yytext); return tABS; }
-{NOT}           { begin_token(yytext); return tNOT; }
-{ALL}           { begin_token(yytext); return tALL; }
-{IN}            { begin_token(yytext); return tIN; }
-{OUT}           { begin_token(yytext); return tOUT; }
-{BUFFER}        { begin_token(yytext); return tBUFFER; }
-{BUS}           { begin_token(yytext); return tBUS; }
-{UNAFFECTED}    { begin_token(yytext); return tUNAFFECTED; }
-{SIGNAL}        { begin_token(yytext); return tSIGNAL; }
-{PROCESS}       { begin_token(yytext); return tPROCESS; }
-{WAIT}          { begin_token(yytext); return tWAIT; }
-{REPORT}        { begin_token(yytext); return tREPORT; }
-{INOUT}         { begin_token(yytext); return tINOUT; }
-{LINKAGE}       { begin_token(yytext); return tLINKAGE; }
-{VARIABLE}      { begin_token(yytext); return tVARIABLE; }
-{FOR}           { begin_token(yytext); return tFOR; }
-{TYPE}          { begin_token(yytext); return tTYPE; }
-{RANGE}         { begin_token(yytext); return tRANGE; }
-{TO}            { begin_token(yytext); return tTO; }
-{DOWNTO}        { begin_token(yytext); return tDOWNTO; }
-{SUBTYPE}       { begin_token(yytext); return tSUBTYPE; }
-{UNITS}         { begin_token(yytext); return tUNITS; }
-{PACKAGE}       { begin_token(yytext); return tPACKAGE; }
-{LIBRARY}       { begin_token(yytext); return tLIBRARY; }
-{USE}           { begin_token(yytext); return tUSE; }
-{NULL}          { begin_token(yytext); return tNULL; }
-{FUNCTION}      { begin_token(yytext); return tFUNCTION; }
-{IMPURE}        { begin_token(yytext); return tIMPURE; }
-{PURE}          { begin_token(yytext); return tPURE; }
-{RETURN}        { begin_token(yytext); return tRETURN; }
-{ARRAY}         { begin_token(yytext); return tARRAY; }
-{OTHERS}        { begin_token(yytext); return tOTHERS; }
-{ASSERT}        { begin_token(yytext); return tASSERT; }
-{SEVERITY}      { begin_token(yytext); return tSEVERITY; }
-{ON}            { begin_token(yytext); return tON; }
-{MAP}           { begin_token(yytext); return tMAP; }
-{IF}            { begin_token(yytext); return tIF; }
-{THEN}          { begin_token(yytext); return tTHEN; }
-{ELSE}          { begin_token(yytext); return tELSE; }
-{ELSIF}         { begin_token(yytext); return tELSIF; }
-{BODY}          { begin_token(yytext); return tBODY; }
-{WHILE}         { begin_token(yytext); return tWHILE; }
-{LOOP}          { begin_token(yytext); return tLOOP; }
-{AFTER}         { begin_token(yytext); return tAFTER; }
-{ALIAS}         { begin_token(yytext); return tALIAS; }
-{MOD}           { begin_token(yytext); return tMOD; }
-{ATTRIBUTE}     { begin_token(yytext); return tATTRIBUTE; }
-{PROCEDURE}     { begin_token(yytext); return tPROCEDURE; }
-{EXIT}          { begin_token(yytext); return tEXIT; }
-{REM}           { begin_token(yytext); return tREM; }
-{WHEN}          { begin_token(yytext); return tWHEN; }
-{CASE}          { begin_token(yytext); return tCASE; }
+{ENTITY}        { return tENTITY; }
+{IS}            { return tIS; }
+{END}           { return tEND; }
+{GENERIC}       { return tGENERIC; }
+{PORT}          { return tPORT; }
+{CONSTANT}      { return tCONSTANT; }
+{COMPONENT}     { return tCOMPONENT; }
+{CONFIGURATION} { return tCONFIGURATION; }
+{ARCHITECTURE}  { return tARCHITECTURE; }
+{OF}            { return tOF; }
+{BEGIN}         { return tBEGIN; }
+{AND}           { return tAND; }
+{OR}            { return tOR; }
+{XOR}           { return tXOR; }
+{XNOR}          { return tXNOR; }
+{NAND}          { return tNAND; }
+{NOR}           { return tNOR; }
+{ABS}           { return tABS; }
+{NOT}           { return tNOT; }
+{ALL}           { return tALL; }
+{IN}            { return tIN; }
+{OUT}           { return tOUT; }
+{BUFFER}        { return tBUFFER; }
+{BUS}           { return tBUS; }
+{UNAFFECTED}    { return tUNAFFECTED; }
+{SIGNAL}        { return tSIGNAL; }
+{PROCESS}       { return tPROCESS; }
+{WAIT}          { return tWAIT; }
+{REPORT}        { return tREPORT; }
+{INOUT}         { return tINOUT; }
+{LINKAGE}       { return tLINKAGE; }
+{VARIABLE}      { return tVARIABLE; }
+{FOR}           { return tFOR; }
+{TYPE}          { return tTYPE; }
+{RANGE}         { return tRANGE; }
+{TO}            { return tTO; }
+{DOWNTO}        { return tDOWNTO; }
+{SUBTYPE}       { return tSUBTYPE; }
+{UNITS}         { return tUNITS; }
+{PACKAGE}       { return tPACKAGE; }
+{LIBRARY}       { return tLIBRARY; }
+{USE}           { return tUSE; }
+{NULL}          { return tNULL; }
+{FUNCTION}      { return tFUNCTION; }
+{IMPURE}        { return tIMPURE; }
+{PURE}          { return tPURE; }
+{RETURN}        { return tRETURN; }
+{ARRAY}         { return tARRAY; }
+{OTHERS}        { return tOTHERS; }
+{ASSERT}        { return tASSERT; }
+{SEVERITY}      { return tSEVERITY; }
+{ON}            { return tON; }
+{MAP}           { return tMAP; }
+{IF}            { return tIF; }
+{THEN}          { return tTHEN; }
+{ELSE}          { return tELSE; }
+{ELSIF}         { return tELSIF; }
+{BODY}          { return tBODY; }
+{WHILE}         { return tWHILE; }
+{LOOP}          { return tLOOP; }
+{AFTER}         { return tAFTER; }
+{ALIAS}         { return tALIAS; }
+{MOD}           { return tMOD; }
+{ATTRIBUTE}     { return tATTRIBUTE; }
+{PROCEDURE}     { return tPROCEDURE; }
+{EXIT}          { return tEXIT; }
+{REM}           { return tREM; }
+{WHEN}          { return tWHEN; }
+{CASE}          { return tCASE; }
 
-"("        { begin_token(yytext); return tLPAREN; }
-")"        { begin_token(yytext); return tRPAREN; }
-";"        { begin_token(yytext); return tSEMI; }
-":="       { begin_token(yytext); return tASSIGN; }
-":"        { begin_token(yytext); return tCOLON; }
-"**"       { begin_token(yytext); return tPOWER; }
-","        { begin_token(yytext); return tCOMMA; }
-"<>"       { begin_token(yytext); return tBOX; }
-"<"        { begin_token(yytext); return tLT; }
-"<="       { begin_token(yytext); return tLE; }
-">"        { begin_token(yytext); return tGT; }
-">="       { begin_token(yytext); return tGE; }
-"=>"       { begin_token(yytext); return tASSOC; }
-"+"        { begin_token(yytext); return tPLUS; }
-"-"        { begin_token(yytext); return tMINUS; }
-"*"        { begin_token(yytext); return tTIMES; }
-"/="       { begin_token(yytext); return tNEQ; }
-"="        { begin_token(yytext); return tEQ; }
-"/"        { begin_token(yytext); return tOVER; }
-"."        { begin_token(yytext); return tDOT; }
-"&"        { begin_token(yytext); return tAMP; }
-"|"        { begin_token(yytext); return tBAR; }
-{INT}      { begin_token(yytext); lvals.ival = atoll(yytext); return tINT; }
-{STRING}   { begin_token(yytext); lvals.sval = strdup(yytext); return tSTRING; }
-{CHAR}     { begin_token(yytext); lvals.sval = strdup(yytext); return tID; }
-{TICK}     { begin_token(yytext); return tTICK; }
-{ID}       { begin_token(yytext); return parse_id(yytext); }
-{EXID}     { begin_token(yytext); return parse_ex_id(yytext); }
-{SPACE}    { begin_token(yytext); }
-<<EOF>>    { begin_token(yytext); return 0; }
-.          { begin_token(yytext); return tERROR; }
+"("        { return tLPAREN; }
+")"        { return tRPAREN; }
+";"        { return tSEMI; }
+":="       { return tASSIGN; }
+":"        { return tCOLON; }
+"**"       { return tPOWER; }
+","        { return tCOMMA; }
+"<>"       { return tBOX; }
+"<"        { return tLT; }
+"<="       { return tLE; }
+">"        { return tGT; }
+">="       { return tGE; }
+"=>"       { return tASSOC; }
+"+"        { return tPLUS; }
+"-"        { return tMINUS; }
+"*"        { return tTIMES; }
+"/="       { return tNEQ; }
+"="        { return tEQ; }
+"/"        { return tOVER; }
+"."        { return tDOT; }
+"&"        { return tAMP; }
+"|"        { return tBAR; }
+{INT}      { lvals.ival = atoll(yytext); return tINT; }
+{STRING}   { lvals.sval = strdup(yytext); return tSTRING; }
+{CHAR}     { lvals.sval = strdup(yytext); return tID; }
+{TICK}     { return tTICK; }
+{ID}       { return parse_id(yytext); }
+{EXID}     { return parse_ex_id(yytext); }
+{SPACE}    { }
+<<EOF>>    { return 0; }
+.          { return tERROR; }
 %%
 
 static int parse_id(const char *str)
