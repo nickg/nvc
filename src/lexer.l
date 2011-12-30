@@ -36,9 +36,13 @@
 
 #define YY_USER_ACTION begin_token(yytext);
 
+#define TOKEN(t) return (last_token = t);
+
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
+static int resolve_ir1045(void);
 
+static int last_token = -1;
 lvals_t lvals;
 %}
 
@@ -151,108 +155,134 @@ CASE          {C}{A}{S}{E}
 
 {COMMENT}       { }
 
-{ENTITY}        { return tENTITY; }
-{IS}            { return tIS; }
-{END}           { return tEND; }
-{GENERIC}       { return tGENERIC; }
-{PORT}          { return tPORT; }
-{CONSTANT}      { return tCONSTANT; }
-{COMPONENT}     { return tCOMPONENT; }
-{CONFIGURATION} { return tCONFIGURATION; }
-{ARCHITECTURE}  { return tARCHITECTURE; }
-{OF}            { return tOF; }
-{BEGIN}         { return tBEGIN; }
-{AND}           { return tAND; }
-{OR}            { return tOR; }
-{XOR}           { return tXOR; }
-{XNOR}          { return tXNOR; }
-{NAND}          { return tNAND; }
-{NOR}           { return tNOR; }
-{ABS}           { return tABS; }
-{NOT}           { return tNOT; }
-{ALL}           { return tALL; }
-{IN}            { return tIN; }
-{OUT}           { return tOUT; }
-{BUFFER}        { return tBUFFER; }
-{BUS}           { return tBUS; }
-{UNAFFECTED}    { return tUNAFFECTED; }
-{SIGNAL}        { return tSIGNAL; }
-{PROCESS}       { return tPROCESS; }
-{WAIT}          { return tWAIT; }
-{REPORT}        { return tREPORT; }
-{INOUT}         { return tINOUT; }
-{LINKAGE}       { return tLINKAGE; }
-{VARIABLE}      { return tVARIABLE; }
-{FOR}           { return tFOR; }
-{TYPE}          { return tTYPE; }
-{RANGE}         { return tRANGE; }
-{TO}            { return tTO; }
-{DOWNTO}        { return tDOWNTO; }
-{SUBTYPE}       { return tSUBTYPE; }
-{UNITS}         { return tUNITS; }
-{PACKAGE}       { return tPACKAGE; }
-{LIBRARY}       { return tLIBRARY; }
-{USE}           { return tUSE; }
-{NULL}          { return tNULL; }
-{FUNCTION}      { return tFUNCTION; }
-{IMPURE}        { return tIMPURE; }
-{PURE}          { return tPURE; }
-{RETURN}        { return tRETURN; }
-{ARRAY}         { return tARRAY; }
-{OTHERS}        { return tOTHERS; }
-{ASSERT}        { return tASSERT; }
-{SEVERITY}      { return tSEVERITY; }
-{ON}            { return tON; }
-{MAP}           { return tMAP; }
-{IF}            { return tIF; }
-{THEN}          { return tTHEN; }
-{ELSE}          { return tELSE; }
-{ELSIF}         { return tELSIF; }
-{BODY}          { return tBODY; }
-{WHILE}         { return tWHILE; }
-{LOOP}          { return tLOOP; }
-{AFTER}         { return tAFTER; }
-{ALIAS}         { return tALIAS; }
-{MOD}           { return tMOD; }
-{ATTRIBUTE}     { return tATTRIBUTE; }
-{PROCEDURE}     { return tPROCEDURE; }
-{EXIT}          { return tEXIT; }
-{REM}           { return tREM; }
-{WHEN}          { return tWHEN; }
-{CASE}          { return tCASE; }
+{ENTITY}        { TOKEN(tENTITY); }
+{IS}            { TOKEN(tIS); }
+{END}           { TOKEN(tEND); }
+{GENERIC}       { TOKEN(tGENERIC); }
+{PORT}          { TOKEN(tPORT); }
+{CONSTANT}      { TOKEN(tCONSTANT); }
+{COMPONENT}     { TOKEN(tCOMPONENT); }
+{CONFIGURATION} { TOKEN(tCONFIGURATION); }
+{ARCHITECTURE}  { TOKEN(tARCHITECTURE); }
+{OF}            { TOKEN(tOF); }
+{BEGIN}         { TOKEN(tBEGIN); }
+{AND}           { TOKEN(tAND); }
+{OR}            { TOKEN(tOR); }
+{XOR}           { TOKEN(tXOR); }
+{XNOR}          { TOKEN(tXNOR); }
+{NAND}          { TOKEN(tNAND); }
+{NOR}           { TOKEN(tNOR); }
+{ABS}           { TOKEN(tABS); }
+{NOT}           { TOKEN(tNOT); }
+{ALL}           { TOKEN(tALL); }
+{IN}            { TOKEN(tIN); }
+{OUT}           { TOKEN(tOUT); }
+{BUFFER}        { TOKEN(tBUFFER); }
+{BUS}           { TOKEN(tBUS); }
+{UNAFFECTED}    { TOKEN(tUNAFFECTED); }
+{SIGNAL}        { TOKEN(tSIGNAL); }
+{PROCESS}       { TOKEN(tPROCESS); }
+{WAIT}          { TOKEN(tWAIT); }
+{REPORT}        { TOKEN(tREPORT); }
+{INOUT}         { TOKEN(tINOUT); }
+{LINKAGE}       { TOKEN(tLINKAGE); }
+{VARIABLE}      { TOKEN(tVARIABLE); }
+{FOR}           { TOKEN(tFOR); }
+{TYPE}          { TOKEN(tTYPE); }
+{RANGE}         { TOKEN(tRANGE); }
+{TO}            { TOKEN(tTO); }
+{DOWNTO}        { TOKEN(tDOWNTO); }
+{SUBTYPE}       { TOKEN(tSUBTYPE); }
+{UNITS}         { TOKEN(tUNITS); }
+{PACKAGE}       { TOKEN(tPACKAGE); }
+{LIBRARY}       { TOKEN(tLIBRARY); }
+{USE}           { TOKEN(tUSE); }
+{NULL}          { TOKEN(tNULL); }
+{FUNCTION}      { TOKEN(tFUNCTION); }
+{IMPURE}        { TOKEN(tIMPURE); }
+{PURE}          { TOKEN(tPURE); }
+{RETURN}        { TOKEN(tRETURN); }
+{ARRAY}         { TOKEN(tARRAY); }
+{OTHERS}        { TOKEN(tOTHERS); }
+{ASSERT}        { TOKEN(tASSERT); }
+{SEVERITY}      { TOKEN(tSEVERITY); }
+{ON}            { TOKEN(tON); }
+{MAP}           { TOKEN(tMAP); }
+{IF}            { TOKEN(tIF); }
+{THEN}          { TOKEN(tTHEN); }
+{ELSE}          { TOKEN(tELSE); }
+{ELSIF}         { TOKEN(tELSIF); }
+{BODY}          { TOKEN(tBODY); }
+{WHILE}         { TOKEN(tWHILE); }
+{LOOP}          { TOKEN(tLOOP); }
+{AFTER}         { TOKEN(tAFTER); }
+{ALIAS}         { TOKEN(tALIAS); }
+{MOD}           { TOKEN(tMOD); }
+{ATTRIBUTE}     { TOKEN(tATTRIBUTE); }
+{PROCEDURE}     { TOKEN(tPROCEDURE); }
+{EXIT}          { TOKEN(tEXIT); }
+{REM}           { TOKEN(tREM); }
+{WHEN}          { TOKEN(tWHEN); }
+{CASE}          { TOKEN(tCASE); }
 
-"("        { return tLPAREN; }
-")"        { return tRPAREN; }
-";"        { return tSEMI; }
-":="       { return tASSIGN; }
-":"        { return tCOLON; }
-"**"       { return tPOWER; }
-","        { return tCOMMA; }
-"<>"       { return tBOX; }
-"<"        { return tLT; }
-"<="       { return tLE; }
-">"        { return tGT; }
-">="       { return tGE; }
-"=>"       { return tASSOC; }
-"+"        { return tPLUS; }
-"-"        { return tMINUS; }
-"*"        { return tTIMES; }
-"/="       { return tNEQ; }
-"="        { return tEQ; }
-"/"        { return tOVER; }
-"."        { return tDOT; }
-"&"        { return tAMP; }
-"|"        { return tBAR; }
-{INT}      { lvals.ival = atoll(yytext); return tINT; }
-{STRING}   { lvals.sval = strdup(yytext); return tSTRING; }
-{CHAR}     { lvals.sval = strdup(yytext); return tID; }
-{TICK}     { return tTICK; }
+"("        { TOKEN(tLPAREN); }
+")"        { TOKEN(tRPAREN); }
+";"        { TOKEN(tSEMI); }
+":="       { TOKEN(tASSIGN); }
+":"        { TOKEN(tCOLON); }
+"**"       { TOKEN(tPOWER); }
+","        { TOKEN(tCOMMA); }
+"<>"       { TOKEN(tBOX); }
+"<"        { TOKEN(tLT); }
+"<="       { TOKEN(tLE); }
+">"        { TOKEN(tGT); }
+">="       { TOKEN(tGE); }
+"=>"       { TOKEN(tASSOC); }
+"+"        { TOKEN(tPLUS); }
+"-"        { TOKEN(tMINUS); }
+"*"        { TOKEN(tTIMES); }
+"/="       { TOKEN(tNEQ); }
+"="        { TOKEN(tEQ); }
+"/"        { TOKEN(tOVER); }
+"."        { TOKEN(tDOT); }
+"&"        { TOKEN(tAMP); }
+"|"        { TOKEN(tBAR); }
+"["        { TOKEN(tLSQUARE); }
+"]"        { TOKEN(tRSQUARE); }
+{INT}      { lvals.ival = atoll(yytext); TOKEN(tINT); }
+{STRING}   { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
+{TICK}     { TOKEN(tTICK); }
+{CHAR}     { if (resolve_ir1045()) {
+                lvals.sval = strdup(yytext);
+                TOKEN(tID);
+             }
+             REJECT;
+           }
 {ID}       { return parse_id(yytext); }
 {EXID}     { return parse_ex_id(yytext); }
 {SPACE}    { }
 <<EOF>>    { return 0; }
-.          { return tERROR; }
+.          { TOKEN(tERROR); }
 %%
+
+static int resolve_ir1045(void)
+{
+   // See here for discussion:
+   //   http://www.eda-stds.org/isac/IRs-VHDL-93/IR1045.txt
+   // The set of tokens that may precede a character literal is
+   // disjoint from that which may precede a single tick token.
+
+   switch (last_token) {
+   case tRSQUARE:
+   case tRPAREN:
+   case tALL:
+   case tID:
+      // Cannot be a character literal
+      return 0;
+   default:
+      return 1;
+   }
+}
 
 static int parse_id(const char *str)
 {
@@ -261,7 +291,7 @@ static int parse_id(const char *str)
       *p++ = toupper(*str++);
    *p = '\0';
 
-   return tID;
+   TOKEN(tID);
 }
 
 static int parse_ex_id(const char *str)
@@ -280,5 +310,5 @@ static int parse_ex_id(const char *str)
    }
    *p = '\0';
 
-   return tID;
+   TOKEN(tID);
 }

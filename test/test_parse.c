@@ -1198,6 +1198,37 @@ START_TEST(test_procedure)
 }
 END_TEST
 
+START_TEST(test_ir1045)
+{
+   tree_t a, s, q, v;
+
+   fail_unless(input_from_file(TESTDIR "/parse/ir1045.vhd"));
+
+   a = parse();
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   q = tree_value(tree_waveform(s, 0));
+   fail_unless(tree_kind(q) == T_QUALIFIED);
+   v = tree_value(q);
+   fail_unless(tree_kind(v) == T_AGGREGATE);
+
+   s = tree_stmt(a, 1);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   q = tree_value(tree_waveform(s, 0));
+   fail_unless(tree_kind(q) == T_QUALIFIED);
+   v = tree_value(q);
+   fail_unless(tree_kind(v) == T_REF);
+   fail_unless(tree_ident(v) == ident_new("'1'"));
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1222,6 +1253,7 @@ int main(void)
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_procedure);
+   tcase_add_test(tc_core, test_ir1045);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
