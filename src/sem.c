@@ -1534,8 +1534,10 @@ static bool sem_check_package_body(tree_t t)
       .name = qual,
       .loc  = *tree_loc(t)
    };
-   bool ok = scope_import_unit(c, lib_work());
+   if (!scope_import_unit(c, lib_work()))
+      return false;
 
+   bool ok = true;
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
