@@ -1682,6 +1682,9 @@ static bool sem_check_signal_assign(tree_t t)
    }
 
    tree_t decl = tree_ref(target);
+   while (tree_kind(decl) == T_ALIAS)
+      decl = tree_ref(tree_value(decl));
+
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
       break;
@@ -2107,17 +2110,13 @@ static bool sem_check_ref(tree_t t)
    case T_PORT_DECL:
    case T_CONST_DECL:
    case T_ENUM_LIT:
+   case T_ALIAS:
       tree_set_type(t, tree_type(decl));
       break;
 
    case T_FUNC_DECL:
       tree_change_kind(t, T_FCALL);
       tree_set_type(t, type_result(tree_type(decl)));
-      break;
-
-   case T_ALIAS:
-      tree_set_type(t, tree_type(decl));
-      decl = tree_ref(tree_value(decl));
       break;
 
    default:

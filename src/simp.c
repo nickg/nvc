@@ -70,7 +70,7 @@ static tree_t get_int_lit(tree_t t, int64_t i)
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
    tree_set_literal(f, l);
-   tree_set_type(f, type_result(tree_type(fdecl)));
+   tree_set_type(f, tree_type(t));
 
    return f;
 }
@@ -199,6 +199,33 @@ static tree_t simp_fcall(tree_t t)
       return t;
 }
 
+static tree_t simp_call_builtin(const char *name, const char *builtin,
+                                type_t type, ...)
+{
+   ident_t name_i = ident_new(name);
+
+   tree_t decl = tree_new(T_FUNC_DECL);
+   tree_set_ident(decl, name_i);
+   tree_add_attr_str(decl, ident_new("builtin"), builtin);
+
+   tree_t call = tree_new(T_FCALL);
+   tree_set_ident(call, name_i);
+   tree_set_ref(call, decl);
+   if (type != NULL)
+      tree_set_type(call, type);
+
+   va_list ap;
+   va_start(ap, type);
+   tree_t arg;
+   while ((arg = va_arg(ap, tree_t))) {
+      param_t p = { .kind = P_POS, .value = arg };
+      tree_add_param(call, p);
+   }
+   va_end(ap);
+
+   return call;
+}
+
 static tree_t simp_ref(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -253,6 +280,67 @@ static tree_t simp_attr_ref(tree_t t)
 
 static tree_t simp_array_ref(tree_t t)
 {
+   tree_t decl = tree_ref(t);
+   // XXX: may not be decl e.g. nested array ref
+
+   if (tree_kind(decl) == T_ALIAS) {
+      // Generate code to map from alias indexing to the
+      // indexing of the underlying array
+
+      tree_t base_decl = tree_ref(tree_value(decl));
+      assert(tree_kind(base_decl) != T_ALIAS);
+
+      type_t alias_type = tree_type(decl);
+      type_t base_type  = tree_type(base_decl);
+
+      tree_t new = tree_new(T_ARRAY_REF);
+      tree_set_loc(new, tree_loc(t));
+      tree_set_ref(new, base_decl);
+      tree_set_type(new, type_base(base_type));
+
+      assert(type_kind(alias_type) == T_CARRAY);
+
+      assert(type_dims(base_type) == 1);  // TODO: multi-dimensional arrays
+
+      if (type_kind(base_type) == T_CARRAY) {
+         // The transformation is a constant offset of indices
+         range_t alias_r = type_dim(alias_type, 0);
+         range_t base_r  = type_dim(base_type, 0);
+
+         param_t p = tree_param(t, 0);
+         type_t ptype = tree_type(p.value);
+
+         tree_t value;
+         if (alias_r.kind == base_r.kind) {
+            // Range in same direction
+
+            tree_t base = simp_call_builtin(
+               "\"-\"", "sub", ptype, base_r.left, alias_r.left, NULL);
+            value = simp_call_builtin(
+               "\"+\"", "add", ptype, p.value, base, NULL);
+         }
+         else {
+            // Range in opposite direction
+
+            tree_t base = simp_call_builtin(
+               "\"-\"", "sub", ptype, p.value, alias_r.left, NULL);
+            value = simp_call_builtin(
+               "\"-\"", "sub", ptype, base_r.left, base, NULL);
+         }
+
+         p.value = value;
+         tree_add_param(new, p);
+      }
+      else if (type_kind(base_type) == T_UARRAY) {
+         // The transformation must be computed at runtime
+         assert(false && "no uarray");
+      }
+      else
+         assert(false);
+
+      return new;
+   }
+
    literal_t indexes[tree_params(t)];
    bool can_fold = true;
    for (unsigned i = 0; i < tree_params(t); i++) {
@@ -265,9 +353,6 @@ static tree_t simp_array_ref(tree_t t)
       return t;
 
    assert(tree_params(t) == 1);
-
-   tree_t decl = tree_ref(t);
-   // XXX: may not be decl e.g. nested array ref
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
@@ -387,33 +472,6 @@ static tree_t simp_while(tree_t t)
    }
    else
       return t;
-}
-
-static tree_t simp_call_builtin(const char *name, const char *builtin,
-                                type_t type, ...)
-{
-   ident_t name_i = ident_new(name);
-
-   tree_t decl = tree_new(T_FUNC_DECL);
-   tree_set_ident(decl, name_i);
-   tree_add_attr_str(decl, ident_new("builtin"), builtin);
-
-   tree_t call = tree_new(T_FCALL);
-   tree_set_ident(call, name_i);
-   tree_set_ref(call, decl);
-   if (type != NULL)
-      tree_set_type(call, type);
-
-   va_list ap;
-   va_start(ap, type);
-   tree_t arg;
-   while ((arg = va_arg(ap, tree_t))) {
-      param_t p = { .kind = P_POS, .value = arg };
-      tree_add_param(call, p);
-   }
-   va_end(ap);
-
-   return call;
 }
 
 static tree_t simp_for(tree_t t)
