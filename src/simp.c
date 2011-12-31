@@ -258,9 +258,13 @@ static tree_t simp_attr_ref(tree_t t)
       if (strcmp(builtin, "length") == 0) {
          tree_t array = tree_param(t, 0).value;
          if (type_kind(tree_type(array)) == T_CARRAY) {
-            int64_t low, high;
-            range_bounds(type_dim(tree_type(array), 0), &low, &high);
-            return get_int_lit(t, high - low + 1);
+            range_t r = type_dim(tree_type(array), 0);
+            if (tree_kind(r.left) == T_LITERAL
+                && tree_kind(r.right) == T_LITERAL) {
+               int64_t low, high;
+               range_bounds(type_dim(tree_type(array), 0), &low, &high);
+               return get_int_lit(t, high - low + 1);
+            }
          }
       }
 

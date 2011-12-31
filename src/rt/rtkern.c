@@ -287,10 +287,16 @@ uint64_t _std_standard_now(void)
    return now;
 }
 
+char *_tmp_alloc(int32_t n, int32_t sz)
+{
+   TRACE("_tmp_alloc %dx%d bytes", n, sz);
+   return rt_tmp_alloc(n * sz);
+}
+
 void _array_copy(void *dst, const void *src, int32_t off, int32_t n, int32_t sz)
 {
    TRACE("_array_copy dst=%p+%d src=%p %dx%d", dst, off, src, n, sz);
-   memcpy((char *)dst + (off * sz) , src, n * sz);
+   memcpy((char *)dst + (off * sz), src, n * sz);
 }
 
 int8_t _array_eq(const void *lhs, const void *rhs,
@@ -387,14 +393,18 @@ static void deltaq_dump(void)
 static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed when the process suspends
-
+#if 0
    size_t base = active_proc->tmp_buf_sz;
    if (active_proc->tmp_buf != NULL)
       active_proc->tmp_buf = xrealloc(active_proc->tmp_buf, base + sz);
    else
       active_proc->tmp_buf = xmalloc(sz);
    active_proc->tmp_buf_sz = base + sz;
+   printf("alloc @ %p\n", (char*)active_proc->tmp_buf + base);
    return (char*)active_proc->tmp_buf + base;
+#else
+   return xmalloc(sz);
+#endif
 }
 
 static void rt_reset_signal(struct signal *s, tree_t decl, int offset)

@@ -1147,8 +1147,16 @@ static void sem_add_attributes(tree_t decl)
 
       tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
       tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
-      tree_add_attr_tree(decl, ident_new("ASCENDING"),
-                         sem_bool_lit(std_bool, r.kind == RANGE_TO));
+
+      if (r.kind != RANGE_DYN)
+         tree_add_attr_tree(decl, ident_new("ASCENDING"),
+                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
+      else {
+         ident_t asc_i = ident_new("ASCENDING");
+         tree_add_attr_tree(decl, asc_i,
+                            sem_builtin_fn(asc_i, std_bool,
+                                           "uarray_asc", type, NULL));
+      }
 
       if (r.kind == RANGE_TO) {
          tree_add_attr_tree(decl, ident_new("LOW"), r.left);
@@ -1173,8 +1181,7 @@ static void sem_add_attributes(tree_t decl)
 
       ident_t asc_i = ident_new("ASCENDING");
       tree_add_attr_tree(decl, asc_i,
-                         sem_builtin_fn(asc_i,
-                                        sem_std_type("STD.STANDARD.BOOLEAN"),
+                         sem_builtin_fn(asc_i, std_bool,
                                         "uarray_asc", type, NULL));
    }
 
