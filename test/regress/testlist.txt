@@ -34,3 +34,4 @@ operator1       normal
 fact            gold,normal
 func2           normal
 alias1          gold,normal
+alias2          gold,normal

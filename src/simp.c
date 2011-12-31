@@ -299,38 +299,70 @@ static tree_t simp_array_ref(tree_t t)
       tree_set_type(new, type_base(base_type));
 
       assert(type_kind(alias_type) == T_CARRAY);
+      assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
 
-      assert(type_dims(base_type) == 1);  // TODO: multi-dimensional arrays
+      range_t alias_r = type_dim(alias_type, 0);
 
-      if (type_kind(base_type) == T_CARRAY) {
+      param_t p = tree_param(t, 0);
+      type_t ptype = tree_type(p.value);
+
+      tree_t off = simp_call_builtin(
+         "-", "sub", ptype, p.value, alias_r.left, NULL);
+
+      switch (type_kind(base_type)) {
+      case T_CARRAY:
          // The transformation is a constant offset of indices
-         range_t alias_r = type_dim(alias_type, 0);
-         range_t base_r  = type_dim(base_type, 0);
-
-         param_t p = tree_param(t, 0);
-         type_t ptype = tree_type(p.value);
-
-         tree_t off = simp_call_builtin(
-            "\"-\"", "sub", ptype, p.value, alias_r.left, NULL);
-
-         if (alias_r.kind == base_r.kind) {
-            // Range in same direction
-            p.value = simp_call_builtin(
-               "\"+\"", "add", ptype, base_r.left, off, NULL);
+         {
+            range_t base_r  = type_dim(base_type, 0);
+            if (alias_r.kind == base_r.kind) {
+               // Range in same direction
+               p.value = simp_call_builtin(
+                  "+", "add", ptype, base_r.left, off, NULL);
+            }
+            else {
+               // Range in opposite direction
+               p.value = simp_call_builtin(
+                  "-", "sub", ptype, base_r.left, off, NULL);
+            }
          }
-         else {
-            // Range in opposite direction
-            p.value = simp_call_builtin(
-               "\"-\"", "sub", ptype, base_r.left, off, NULL);
-         }
-         tree_add_param(new, p);
-      }
-      else if (type_kind(base_type) == T_UARRAY) {
+         break;
+
+      case T_UARRAY:
          // The transformation must be computed at runtime
-         assert(false && "no uarray");
-      }
-      else
+         {
+            tree_t ref = tree_new(T_REF);
+            tree_set_ref(ref, base_decl);
+            tree_set_ident(ref, tree_ident(base_decl));
+            tree_set_type(ref, ptype);
+
+            tree_t base_left = simp_call_builtin(
+               "LEFT", "uarray_left", ptype, ref, NULL);
+
+            literal_t l;
+            l.kind = L_INT;
+            l.i = alias_r.kind;
+
+            tree_t rkind_lit = tree_new(T_LITERAL);
+            tree_set_literal(rkind_lit, l);
+            tree_set_type(rkind_lit, ptype);
+
+            // Call dircmp builtin which multiplies its third argument
+            // by -1 if the direction of the first argument is not equal
+            // to the direction of the second
+            tree_t off_dir = simp_call_builtin(
+               "NVC.BUILTIN.DIRCMP", "uarray_dircmp", ptype,
+               ref, rkind_lit, off, NULL);
+
+            p.value = simp_call_builtin(
+               "+", "add", ptype, base_left, off_dir, NULL);
+         }
+         break;
+
+      default:
          assert(false);
+      }
+
+      tree_add_param(new, p);
 
       return new;
    }

@@ -587,12 +587,21 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 
          // Argument must be a structure where the first two fields are the
          // left and right indices
+         LLVMValueRef downto = LLVMBuildICmp(
+            builder, LLVMIntEQ,
+            LLVMBuildExtractValue(builder, args[0], 2, "dir"),
+            llvm_int8(RANGE_DOWNTO),
+            "downto");
          LLVMValueRef left =
             LLVMBuildExtractValue(builder, args[0], 0, "left");
          LLVMValueRef right =
             LLVMBuildExtractValue(builder, args[0], 1, "right");
-         return LLVMBuildAdd(builder, LLVMBuildSub(builder, right, left, ""),
-                             llvm_int32(1), "length");
+         LLVMValueRef diff =
+            LLVMBuildSelect(builder, downto,
+                            LLVMBuildSub(builder, left, right, ""),
+                            LLVMBuildSub(builder, right, left, ""),
+                            "diff");
+         return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
       }
       else if (strcmp(builtin, "uarray_left") == 0) {
          return LLVMBuildExtractValue(builder, args[0], 0, "left");
@@ -606,6 +615,15 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
             LLVMBuildExtractValue(builder, args[0], 2, "dir"),
             llvm_int8(RANGE_TO),
             "ascending");
+      }
+      else if (strcmp(builtin, "uarray_dircmp") == 0) {
+         LLVMValueRef dir_eq = LLVMBuildICmp(
+            builder, LLVMIntEQ,
+            LLVMBuildExtractValue(builder, args[0], 2, "dir"),
+            LLVMBuildIntCast(builder, args[1], LLVMInt8Type(), ""),
+            "diff_eq");
+         LLVMValueRef neg = LLVMBuildNeg(builder, args[2], "neg");
+         return LLVMBuildSelect(builder, dir_eq, args[2], neg, "dirmul");
       }
       else
          fatal("cannot generate code for builtin %s", builtin);
