@@ -68,6 +68,13 @@ struct cgen_ctx {
 
 static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx);
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx);
+static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx);
+static bool cgen_const_bounds(type_t type);
+
+static LLVMValueRef llvm_int1(bool b)
+{
+   return LLVMConstInt(LLVMInt1Type(), b, false);
+}
 
 static LLVMValueRef llvm_int8(int32_t i)
 {
@@ -171,10 +178,16 @@ static LLVMTypeRef llvm_type(type_t t)
 
    case T_CARRAY:
       {
-         int64_t low, high;
-         range_bounds(type_dim(t, 0), &low, &high);
+         if (cgen_const_bounds(t)) {
+            int64_t low, high;
+            range_bounds(type_dim(t, 0), &low, &high);
 
-         return LLVMArrayType(llvm_type(type_base(t)), high - low + 1);
+            return LLVMArrayType(llvm_type(type_base(t)), high - low + 1);
+         }
+         else {
+            // Array size not known at compile time
+            return LLVMPointerType(llvm_type(type_base(t)), 0);
+         }
       }
 
    case T_UARRAY:
@@ -197,6 +210,65 @@ static LLVMTypeRef llvm_type(type_t t)
       assert(false);
    }
 }
+
+static bool cgen_const_bounds(type_t type)
+{
+   assert(type_kind(type) == T_CARRAY);
+   range_t r = type_dim(type, 0);
+   return (tree_kind(r.left) == T_LITERAL)
+      && (tree_kind(r.right) == T_LITERAL);
+}
+
+static LLVMValueRef cgen_local_var(tree_t d, struct cgen_ctx *ctx)
+{
+   LLVMValueRef var = NULL;
+
+   // Handle case where array size is not known until compile time
+   type_t type = tree_type(d);
+   if (type_kind(type) == T_CARRAY && !cgen_const_bounds(type)) {
+      range_t r = type_dim(type, 0);
+      LLVMValueRef downto;
+      if (r.kind == RANGE_DYN) {
+         // This can only appear when using 'RANGE
+         assert(tree_kind(r.left) == T_FCALL);
+         param_t p = tree_param(r.left, 0);
+         assert(tree_kind(p.value) == T_REF);
+
+         LLVMValueRef uarray = cgen_get_var(tree_ref(p.value), ctx);
+
+         downto =
+            LLVMBuildICmp(builder, LLVMIntEQ,
+                          LLVMBuildExtractValue(builder, uarray, 2, "dir"),
+                          llvm_int8(RANGE_DOWNTO), "downto");
+      }
+      else
+         downto = llvm_int1(r.kind == RANGE_DOWNTO);
+
+      LLVMValueRef left   = cgen_expr(r.left, ctx);
+      LLVMValueRef right  = cgen_expr(r.right, ctx);
+
+      LLVMValueRef diff =
+         LLVMBuildSelect(builder, downto,
+                         LLVMBuildSub(builder, left, right, ""),
+                         LLVMBuildSub(builder, right, left, ""), "");
+
+      LLVMValueRef length =
+         LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
+
+      var = LLVMBuildArrayAlloca(builder, llvm_type(type_base(type)),
+                                 length, istr(tree_ident(d)));
+   }
+
+   if (var == NULL)
+      var = LLVMBuildAlloca(builder, llvm_type(tree_type(d)),
+                            istr(tree_ident(d)));
+
+   if (tree_has_value(d))
+      LLVMBuildStore(builder, cgen_expr(tree_value(d), ctx), var);
+
+   return var;
+}
+
 
 static LLVMValueRef cgen_range_low(range_t r, struct cgen_ctx *ctx)
 {
@@ -371,8 +443,7 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
                                      indexes, ARRAY_LEN(indexes), "");
 
    LLVMValueRef args[] = {
-      p_signal, p_tmp, left_abs, right_abs,
-      LLVMConstInt(LLVMInt1Type(), last_value, false)
+      p_signal, p_tmp, left_abs, right_abs, llvm_int1(last_value)
    };
    LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
    return tmp;
@@ -728,8 +799,13 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
             ptr = LLVMBuildGEP(builder, array,
                                indexes, ARRAY_LEN(indexes), "");
          }
-         else {
+         else if (cgen_const_bounds(type)) {
             LLVMValueRef indexes[] = { llvm_int32(0), idx };
+            ptr = LLVMBuildGEP(builder, array,
+                               indexes, ARRAY_LEN(indexes), "");
+         }
+         else {
+            LLVMValueRef indexes[] = { idx };
             ptr = LLVMBuildGEP(builder, array,
                                indexes, ARRAY_LEN(indexes), "");
          }
@@ -933,17 +1009,27 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          tree_t target = tree_target(t);
 
          tree_t decl = tree_ref(target);
-         assert(type_kind(tree_type(decl)) == T_CARRAY);
+         type_t type = tree_type(decl);
+         assert(type_kind(type) == T_CARRAY);
 
          param_t p = tree_param(target, 0);
          assert(p.kind == P_POS);
 
-         LLVMValueRef idx = cgen_expr(p.value, ctx);
-
+         LLVMValueRef off = cgen_expr(p.value, ctx);
          LLVMValueRef array_ptr = cgen_get_var(decl, ctx);
-         LLVMValueRef indexes[] = { llvm_int32(0), idx };
-         LLVMValueRef ptr = LLVMBuildGEP(builder, array_ptr,
-                                         indexes, ARRAY_LEN(indexes), "");
+         LLVMValueRef idx = cgen_array_off(off, array_ptr, type, ctx);
+
+         LLVMValueRef ptr;
+         if (cgen_const_bounds(type)) {
+            LLVMValueRef indexes[] = { llvm_int32(0), idx };
+            ptr = LLVMBuildGEP(builder, array_ptr,
+                               indexes, ARRAY_LEN(indexes), "");
+         }
+         else {
+            LLVMValueRef indexes[] = { idx };
+            ptr = LLVMBuildGEP(builder, array_ptr,
+                               indexes, ARRAY_LEN(indexes), "");
+         }
 
          LLVMBuildStore(builder, rhs, ptr);
       }
@@ -1750,11 +1836,7 @@ static void cgen_func_vars(tree_t d, void *context)
 {
    struct cgen_ctx *ctx = context;
 
-   LLVMValueRef var = LLVMBuildAlloca(builder, llvm_type(tree_type(d)),
-                                      istr(tree_ident(d)));
-
-   if (tree_has_value(d))
-      LLVMBuildStore(builder, cgen_expr(tree_value(d), ctx), var);
+   LLVMValueRef var = cgen_local_var(d, ctx);
 
    tree_add_attr_ptr(d, local_var_i, var);
 }
