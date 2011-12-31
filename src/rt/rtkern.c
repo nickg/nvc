@@ -35,12 +35,16 @@
 
 typedef void (*proc_fn_t)(int32_t reset);
 
+struct tmp_chunk {
+   struct tmp_chunk *next;
+   void             *ptr;
+};
+
 struct rt_proc {
-   tree_t    source;
-   proc_fn_t proc_fn;
-   unsigned  wakeup_gen;
-   void      *tmp_buf;
-   size_t    tmp_buf_sz;
+   tree_t           source;
+   proc_fn_t        proc_fn;
+   unsigned         wakeup_gen;
+   struct tmp_chunk *tmp_chunks;
 };
 
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
@@ -49,14 +53,14 @@ struct event {
    uint64_t       when;
    int            iteration;
    event_kind_t   kind;
-   union {
-      struct rt_proc *wake_proc;
-      struct {
-         struct signal *signal;
-         unsigned      source;
-         int           length;
-      };
-   };
+
+   // E_PROCESS
+   struct rt_proc *wake_proc;
+
+   // E_DRIVER
+   struct signal  *signal;
+   unsigned       source;
+   int            length;
 };
 
 struct waveform {
@@ -97,6 +101,7 @@ static ident_t  i_signal = NULL;
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
+static rt_alloc_stack_t tmp_chunk_stack = NULL;
 
 #define MAX_ACTIVE_SIGS 128
 static struct signal *active_signals[MAX_ACTIVE_SIGS];
@@ -393,18 +398,12 @@ static void deltaq_dump(void)
 static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed when the process suspends
-#if 0
-   size_t base = active_proc->tmp_buf_sz;
-   if (active_proc->tmp_buf != NULL)
-      active_proc->tmp_buf = xrealloc(active_proc->tmp_buf, base + sz);
-   else
-      active_proc->tmp_buf = xmalloc(sz);
-   active_proc->tmp_buf_sz = base + sz;
-   printf("alloc @ %p\n", (char*)active_proc->tmp_buf + base);
-   return (char*)active_proc->tmp_buf + base;
-#else
-   return xmalloc(sz);
-#endif
+   struct tmp_chunk *c = rt_alloc(tmp_chunk_stack);
+   c->ptr  = xmalloc(sz);
+   c->next = active_proc->tmp_chunks;
+
+   active_proc->tmp_chunks = c;
+   return c->ptr;
 }
 
 static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
@@ -477,8 +476,7 @@ static void rt_setup(tree_t top)
       procs[i].source     = p;
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)));
       procs[i].wakeup_gen = 0;
-      procs[i].tmp_buf    = NULL;
-      procs[i].tmp_buf_sz = 0;
+      procs[i].tmp_chunks = NULL;
 
       TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
@@ -494,10 +492,11 @@ static void rt_run(struct rt_proc *proc, bool reset)
    ++(proc->wakeup_gen);
 
    // Free any temporary memory allocated by the process
-   if (proc->tmp_buf) {
-      free(proc->tmp_buf);
-      proc->tmp_buf    = NULL;
-      proc->tmp_buf_sz = 0;
+   while (proc->tmp_chunks) {
+      struct tmp_chunk *n = proc->tmp_chunks;
+      proc->tmp_chunks = n->next;
+      free(n->ptr);
+      rt_free(tmp_chunk_stack, n);
    }
 }
 
@@ -710,6 +709,7 @@ static void rt_one_time_init(void)
    event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
+   tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
 }
 
 static void rt_cleanup_signal(struct signal *sig)
