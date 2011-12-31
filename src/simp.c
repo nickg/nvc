@@ -310,25 +310,19 @@ static tree_t simp_array_ref(tree_t t)
          param_t p = tree_param(t, 0);
          type_t ptype = tree_type(p.value);
 
-         tree_t value;
+         tree_t off = simp_call_builtin(
+            "\"-\"", "sub", ptype, p.value, alias_r.left, NULL);
+
          if (alias_r.kind == base_r.kind) {
             // Range in same direction
-
-            tree_t base = simp_call_builtin(
-               "\"-\"", "sub", ptype, base_r.left, alias_r.left, NULL);
-            value = simp_call_builtin(
-               "\"+\"", "add", ptype, p.value, base, NULL);
+            p.value = simp_call_builtin(
+               "\"+\"", "add", ptype, base_r.left, off, NULL);
          }
          else {
             // Range in opposite direction
-
-            tree_t base = simp_call_builtin(
-               "\"-\"", "sub", ptype, p.value, alias_r.left, NULL);
-            value = simp_call_builtin(
-               "\"-\"", "sub", ptype, base_r.left, base, NULL);
+            p.value = simp_call_builtin(
+               "\"-\"", "sub", ptype, base_r.left, off, NULL);
          }
-
-         p.value = value;
          tree_add_param(new, p);
       }
       else if (type_kind(base_type) == T_UARRAY) {
