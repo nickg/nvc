@@ -548,7 +548,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    FILE *f = tree_write_file(ctx->tree_ctx);
 
    if (t == NULL) {
-      write_s(0xffff, f);   // Null marker
+      write_u16(0xffff, f);   // Null marker
       return;
    }
 
@@ -556,26 +556,26 @@ void type_write(type_t t, type_wr_ctx_t ctx)
 
    if (t->generation == ctx->generation) {
       // Already visited this type
-      write_s(0xfffe, f);   // Back reference marker
-      write_u(t->index, f);
+      write_u16(0xfffe, f);   // Back reference marker
+      write_u32(t->index, f);
       return;
    }
 
    t->generation = ctx->generation;
    t->index      = (ctx->n_types)++;
 
-   write_s(t->kind, f);
+   write_u16(t->kind, f);
    ident_write(t->ident, f);
    if (HAS_DIMS(t)) {
-      write_s(t->n_dims, f);
+      write_u16(t->n_dims, f);
       for (unsigned i = 0; i < t->n_dims; i++) {
-         write_s(t->dims[i].kind, f);
+         write_u16(t->dims[i].kind, f);
          tree_write(t->dims[i].left, ctx->tree_ctx);
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
    if (HAS_PARAMS(t)) {
-      write_s(t->n_params, f);
+      write_u16(t->n_params, f);
       for (unsigned i = 0; i < t->n_params; i++)
          type_write(t->params[i], ctx);
    }
@@ -587,21 +587,21 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       tree_write(t->resolution, ctx->tree_ctx);
 
    if (IS(t, T_PHYSICAL)) {
-      write_s(t->n_units, f);
+      write_u16(t->n_units, f);
       for (unsigned i = 0; i < t->n_units; i++) {
          tree_write(t->units[i].multiplier, ctx->tree_ctx);
          ident_write(t->units[i].name, f);
       }
    }
    else if (IS(t, T_ENUM)) {
-      write_s(t->n_literals, f);
+      write_u16(t->n_literals, f);
       for (unsigned i = 0; i < t->n_literals; i++)
          tree_write(t->literals[i], ctx->tree_ctx);
    }
    else if (IS(t, T_FUNC))
       type_write(t->result, ctx);
    else if (IS(t, T_UARRAY)) {
-      write_s(t->n_index_constr, f);
+      write_u16(t->n_index_constr, f);
       for (unsigned i = 0; i < t->n_index_constr; i++)
          type_write(t->index_constr[i], ctx);
    }
@@ -611,12 +611,12 @@ type_t type_read(type_rd_ctx_t ctx)
 {
    FILE *f = tree_read_file(ctx->tree_ctx);
 
-   unsigned short marker = read_s(f);
+   unsigned short marker = read_u16(f);
    if (marker == 0xffff)
       return NULL;   // Null marker
    else if (marker == 0xfffe) {
       // Back reference marker
-      unsigned index = read_u(f);
+      unsigned index = read_u32(f);
       assert(index < ctx->n_types);
       return ctx->store[index];
    }
@@ -636,12 +636,12 @@ type_t type_read(type_rd_ctx_t ctx)
    ctx->store[ctx->n_types++] = t;
 
    if (HAS_DIMS(t)) {
-      unsigned short ndims = read_s(f);
+      unsigned short ndims = read_u16(f);
       assert(ndims < MAX_DIMS);
       t->dims = xmalloc(sizeof(range_t) * MAX_DIMS);
 
       for (unsigned i = 0; i < ndims; i++) {
-         t->dims[i].kind  = read_s(f);
+         t->dims[i].kind  = read_u16(f);
          t->dims[i].left  = tree_read(ctx->tree_ctx);
          t->dims[i].right = tree_read(ctx->tree_ctx);
       }
@@ -656,7 +656,7 @@ type_t type_read(type_rd_ctx_t ctx)
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
    if (HAS_PARAMS(t)) {
-      unsigned short nparams = read_s(f);
+      unsigned short nparams = read_u16(f);
 
       t->params = xmalloc(nparams * sizeof(type_t));
       t->params_alloc = nparams;
@@ -669,7 +669,7 @@ type_t type_read(type_rd_ctx_t ctx)
    }
 
    if (IS(t, T_PHYSICAL)) {
-      unsigned short nunits = read_s(f);
+      unsigned short nunits = read_u16(f);
       assert(nunits < MAX_UNITS);
 
       t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
@@ -681,7 +681,7 @@ type_t type_read(type_rd_ctx_t ctx)
       t->n_units = nunits;
    }
    else if (IS(t, T_ENUM)) {
-      unsigned short nlits = read_s(f);
+      unsigned short nlits = read_u16(f);
 
       t->literals = xmalloc(nlits * sizeof(tree_t));
       t->lit_alloc = nlits;
@@ -696,7 +696,7 @@ type_t type_read(type_rd_ctx_t ctx)
          type_ref(t->result);
    }
    else if (IS(t, T_UARRAY)) {
-      unsigned short nconstr = read_s(f);
+      unsigned short nconstr = read_u16(f);
       assert(nconstr < MAX_DIMS);
 
       for (unsigned i = 0; i < nconstr; i++)

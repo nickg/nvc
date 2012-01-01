@@ -347,14 +347,14 @@ void register_trace_signal_handlers(void)
 #endif  // NO_STACK_TRACE
 }
 
-void write_u(unsigned u, FILE *f)
+void write_u32(uint32_t u, FILE *f)
 {
-   fwrite(&u, sizeof(unsigned), 1, f);
+   fwrite(&u, sizeof(uint32_t), 1, f);
 }
 
-void write_i(int i, FILE *f)
+void write_i32(int32_t i, FILE *f)
 {
-   fwrite(&i, sizeof(int), 1, f);
+   fwrite(&i, sizeof(int32_t), 1, f);
 }
 
 void write_i64(int64_t i, FILE *f)
@@ -362,9 +362,9 @@ void write_i64(int64_t i, FILE *f)
    fwrite(&i, sizeof(int64_t), 1, f);
 }
 
-void write_s(unsigned short s, FILE *f)
+void write_u16(uint16_t s, FILE *f)
 {
-   fwrite(&s, sizeof(unsigned short), 1, f);
+   fwrite(&s, sizeof(uint16_t), 1, f);
 }
 
 bool write_b(bool b, FILE *f)
@@ -374,18 +374,18 @@ bool write_b(bool b, FILE *f)
    return b;
 }
 
-unsigned read_u(FILE *f)
+uint32_t read_u32(FILE *f)
 {
-   unsigned u;
-   if (fread(&u, sizeof(unsigned), 1, f) != 1)
+   uint32_t u;
+   if (fread(&u, sizeof(uint32_t), 1, f) != 1)
       fatal("premature end of file");
    return u;
 }
 
-unsigned short read_s(FILE *f)
+uint16_t read_u16(FILE *f)
 {
-   unsigned short u;
-   if (fread(&u, sizeof(unsigned short), 1, f) != 1)
+   uint16_t u;
+   if (fread(&u, sizeof(uint16_t), 1, f) != 1)
       fatal("premature end of file");
    return u;
 }
@@ -398,10 +398,10 @@ bool read_b(FILE *f)
    return u;
 }
 
-int read_i(FILE *f)
+int32_t read_i32(FILE *f)
 {
-   int i;
-   if (fread(&i, sizeof(int), 1, f) != 1)
+   int32_t i;
+   if (fread(&i, sizeof(int32_t), 1, f) != 1)
       fatal("premature end of file");
    return i;
 }

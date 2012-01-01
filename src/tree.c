@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1287,32 +1287,32 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
-   write_s(l->first_line, ctx->file);
-   write_s(l->first_column, ctx->file);
-   write_s(l->last_line, ctx->file);
-   write_s(l->last_column, ctx->file);
+   write_u16(l->first_line, ctx->file);
+   write_u16(l->first_column, ctx->file);
+   write_u16(l->last_line, ctx->file);
+   write_u16(l->last_column, ctx->file);
 }
 
 static loc_t read_loc(tree_rd_ctx_t ctx)
 {
    loc_t l = { .file = "none", .linebuf = NULL };
-   l.first_line   = read_s(ctx->file);
-   l.first_column = read_s(ctx->file);
-   l.last_line    = read_s(ctx->file);
-   l.last_column  = read_s(ctx->file);
+   l.first_line   = read_u16(ctx->file);
+   l.first_column = read_u16(ctx->file);
+   l.last_line    = read_u16(ctx->file);
+   l.last_column  = read_u16(ctx->file);
    return l;
 }
 
 static void write_a(struct tree_array *a, tree_wr_ctx_t ctx)
 {
-   write_u(a->count, ctx->file);
+   write_u32(a->count, ctx->file);
    for (unsigned i = 0; i < a->count; i++)
       tree_write(a->items[i], ctx);
 }
 
 static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
 {
-   a->count = a->max = read_u(ctx->file);
+   a->count = a->max = read_u32(ctx->file);
    a->items = xmalloc(a->count * sizeof(tree_t));
    for (unsigned i = 0; i < a->count; i++)
       a->items[i] = tree_read(ctx);
@@ -1320,16 +1320,16 @@ static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
 
 static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
 {
-   write_u(a->count, ctx->file);
+   write_u32(a->count, ctx->file);
    for (unsigned i = 0; i < a->count; i++) {
-      write_s(a->items[i].kind, ctx->file);
+      write_u16(a->items[i].kind, ctx->file);
       switch (a->items[i].kind) {
       case P_POS:
-         write_s(a->items[i].pos, ctx->file);
+         write_u16(a->items[i].pos, ctx->file);
          tree_write(a->items[i].value, ctx);
          break;
       case P_RANGE:
-         write_s(a->items[i].range.kind, ctx->file);
+         write_u16(a->items[i].range.kind, ctx->file);
          tree_write(a->items[i].range.left, ctx);
          tree_write(a->items[i].range.right, ctx);
          break;
@@ -1343,17 +1343,17 @@ static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
 
 static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
 {
-   a->max = a->count = read_u(ctx->file);
+   a->max = a->count = read_u32(ctx->file);
    a->items = xmalloc(sizeof(param_t) * a->count);
 
    for (unsigned i = 0; i < a->count; i++) {
-      switch ((a->items[i].kind = read_s(ctx->file))) {
+      switch ((a->items[i].kind = read_u16(ctx->file))) {
       case P_POS:
-         a->items[i].pos   = read_s(ctx->file);
+         a->items[i].pos   = read_u16(ctx->file);
          a->items[i].value = tree_read(ctx);
          break;
       case P_RANGE:
-         a->items[i].range.kind  = read_s(ctx->file);
+         a->items[i].range.kind  = read_u16(ctx->file);
          a->items[i].range.left  = tree_read(ctx);
          a->items[i].range.right = tree_read(ctx);
          break;
@@ -1373,7 +1373,7 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->n_trees    = 0;
    ctx->type_ctx   = type_write_begin(ctx);
 
-   write_s(FILE_FMT_VER, f);
+   write_u16(FILE_FMT_VER, f);
 
    return ctx;
 }
@@ -1392,21 +1392,21 @@ FILE *tree_write_file(tree_wr_ctx_t ctx)
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
    if (t == NULL) {
-      write_s(0xffff, ctx->file);  // Null marker
+      write_u16(0xffff, ctx->file);  // Null marker
       return;
    }
 
    if (t->generation == ctx->generation) {
       // Already visited this tree
-      write_s(0xfffe, ctx->file);   // Back reference marker
-      write_u(t->index, ctx->file);
+      write_u16(0xfffe, ctx->file);   // Back reference marker
+      write_u32(t->index, ctx->file);
       return;
    }
 
    t->generation = ctx->generation;
    t->index      = (ctx->n_trees)++;
 
-   write_s(t->kind, ctx->file);
+   write_u16(t->kind, ctx->file);
    write_loc(&t->loc, ctx);
    if (HAS_IDENT(t))
       ident_write(t->ident, ctx->file);
@@ -1435,7 +1435,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    if (HAS_REF(t))
       tree_write(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
-      write_s(t->n_contexts, ctx->file);
+      write_u16(t->n_contexts, ctx->file);
       for (unsigned i = 0; i < t->n_contexts; i++) {
          ident_write(t->context[i].name, ctx->file);
          write_loc(&t->context[i].loc, ctx);
@@ -1444,28 +1444,28 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    if (HAS_PARAMS(t))
       write_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
-      write_s(t->range.kind, ctx->file);
+      write_u16(t->range.kind, ctx->file);
       tree_write(t->range.left, ctx);
       tree_write(t->range.right, ctx);
    }
    if (HAS_CLASS(t))
-      write_s(t->class, ctx->file);
+      write_u16(t->class, ctx->file);
    if (HAS_ASSOCS(t)) {
-      write_s(t->n_assocs, ctx->file);
+      write_u16(t->n_assocs, ctx->file);
 
       for (unsigned i = 0; i < t->n_assocs; i++) {
-         write_s(t->assocs[i].kind, ctx->file);
+         write_u16(t->assocs[i].kind, ctx->file);
          tree_write(t->assocs[i].value, ctx);
 
          switch (t->assocs[i].kind) {
          case A_POS:
-            write_s(t->assocs[i].pos, ctx->file);
+            write_u16(t->assocs[i].pos, ctx->file);
             break;
          case A_NAMED:
             tree_write(t->assocs[i].name, ctx);
             break;
          case A_RANGE:
-            write_s(t->assocs[i].range.kind, ctx->file);
+            write_u16(t->assocs[i].range.kind, ctx->file);
             tree_write(t->assocs[i].range.left, ctx);
             tree_write(t->assocs[i].range.right, ctx);
             break;
@@ -1479,12 +1479,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    switch (t->kind) {
    case T_PORT_DECL:
-      write_s(t->port_mode, ctx->file);
+      write_u16(t->port_mode, ctx->file);
       break;
 
    case T_LITERAL:
       {
-         write_s(t->literal.kind, ctx->file);
+         write_u16(t->literal.kind, ctx->file);
          switch (t->literal.kind) {
          case L_INT:
             write_i64(t->literal.i, ctx->file);
@@ -1501,7 +1501,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       break;
 
    case T_ENUM_LIT:
-      write_u(t->pos, ctx->file);
+      write_u32(t->pos, ctx->file);
       break;
 
    case T_INSTANCE:
@@ -1516,19 +1516,19 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       break;
    }
 
-   write_s(t->n_attrs, ctx->file);
+   write_u16(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
-      write_s(t->attrs[i].kind, ctx->file);
+      write_u16(t->attrs[i].kind, ctx->file);
       ident_write(t->attrs[i].name, ctx->file);
 
       switch (t->attrs[i].kind) {
       case A_STRING:
-         write_s(strlen(t->attrs[i].sval), ctx->file);
+         write_u16(strlen(t->attrs[i].sval), ctx->file);
          fputs(t->attrs[i].sval, ctx->file);
          break;
 
       case A_INT:
-         write_i(t->attrs[i].ival, ctx->file);
+         write_i32(t->attrs[i].ival, ctx->file);
          break;
 
       case A_TREE:
@@ -1541,18 +1541,18 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    }
 
 #ifdef EXTRA_READ_CHECKS
-   write_s(0xdead, ctx->file);
+   write_u16(0xdead, ctx->file);
 #endif  // EXTRA_READ_CHECKS
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
 {
-   unsigned short marker = read_s(ctx->file);
+   uint16_t marker = read_u16(ctx->file);
    if (marker == 0xffff)
       return NULL;    // Null marker
    else if (marker == 0xfffe) {
       // Back reference marker
-      unsigned index = read_u(ctx->file);
+      unsigned index = read_u32(ctx->file);
       assert(index < ctx->n_trees);
       return ctx->store[index];
    }
@@ -1601,7 +1601,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    if (HAS_REF(t))
       t->ref = tree_read(ctx);
    if (HAS_CONTEXT(t)) {
-      t->n_contexts = read_s(ctx->file);
+      t->n_contexts = read_u16(ctx->file);
       t->context    = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
 
       for (unsigned i = 0; i < t->n_contexts; i++) {
@@ -1612,29 +1612,29 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    if (HAS_PARAMS(t))
       read_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
-      t->range.kind  = read_s(ctx->file);
+      t->range.kind  = read_u16(ctx->file);
       t->range.left  = tree_read(ctx);
       t->range.right = tree_read(ctx);
    }
    if (HAS_CLASS(t))
-      t->class = read_s(ctx->file);
+      t->class = read_u16(ctx->file);
    if (HAS_ASSOCS(t)) {
-      t->n_assocs_alloc = t->n_assocs = read_s(ctx->file);
+      t->n_assocs_alloc = t->n_assocs = read_u16(ctx->file);
       t->assocs = xmalloc(sizeof(assoc_t) * t->n_assocs);
 
       for (unsigned i = 0; i < t->n_assocs; i++) {
-         t->assocs[i].kind  = read_s(ctx->file);
+         t->assocs[i].kind  = read_u16(ctx->file);
          t->assocs[i].value = tree_read(ctx);
 
          switch (t->assocs[i].kind) {
          case A_POS:
-            t->assocs[i].pos = read_s(ctx->file);
+            t->assocs[i].pos = read_u16(ctx->file);
             break;
          case A_NAMED:
             t->assocs[i].name = tree_read(ctx);
             break;
          case A_RANGE:
-            t->assocs[i].range.kind  = read_s(ctx->file);
+            t->assocs[i].range.kind  = read_u16(ctx->file);
             t->assocs[i].range.left  = tree_read(ctx);
             t->assocs[i].range.right = tree_read(ctx);
             break;
@@ -1648,12 +1648,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    switch (t->kind) {
    case T_PORT_DECL:
-      t->port_mode = read_s(ctx->file);
+      t->port_mode = read_u16(ctx->file);
       break;
 
    case T_LITERAL:
       {
-         t->literal.kind = read_s(ctx->file);
+         t->literal.kind = read_u16(ctx->file);
          switch (t->literal.kind) {
          case L_INT:
             t->literal.i = read_i64(ctx->file);
@@ -1670,7 +1670,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       break;
 
    case T_ENUM_LIT:
-      t->pos = read_u(ctx->file);
+      t->pos = read_u32(ctx->file);
       break;
 
    case T_INSTANCE:
@@ -1685,18 +1685,18 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       break;
    }
 
-   t->n_attrs = read_s(ctx->file);
+   t->n_attrs = read_u16(ctx->file);
    assert(t->n_attrs <= MAX_ATTRS);
    t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
 
    for (unsigned i = 0; i < t->n_attrs; i++) {
-      t->attrs[i].kind = read_s(ctx->file);
+      t->attrs[i].kind = read_u16(ctx->file);
       t->attrs[i].name = ident_read(ctx->file);
 
       switch (t->attrs[i].kind) {
       case A_STRING:
          {
-            size_t len = read_s(ctx->file);
+            size_t len = read_u16(ctx->file);
             t->attrs[i].sval = xmalloc(len + 1);
             fread(t->attrs[i].sval, len, 1, ctx->file);
             t->attrs[i].sval[len] = '\0';
@@ -1704,7 +1704,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          break;
 
       case A_INT:
-         t->attrs[i].ival = read_i(ctx->file);
+         t->attrs[i].ival = read_i32(ctx->file);
          break;
 
       case A_TREE:
@@ -1717,7 +1717,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
 
 #ifdef EXTRA_READ_CHECKS
-   unsigned short term = read_s(ctx->file);
+   unsigned short term = read_u16(ctx->file);
    if (term != 0xdead)
       fatal("bad tree termination marker %x kind=%d",
             term, t->kind);
@@ -1735,7 +1735,7 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
    ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
    ctx->n_trees  = 0;
 
-   uint16_t ver = read_s(f);
+   uint16_t ver = read_u16(f);
    if (ver != FILE_FMT_VER)
       fatal("serialised version %x expected %x", ver, FILE_FMT_VER);
 
