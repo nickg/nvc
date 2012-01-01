@@ -19,9 +19,9 @@ static void teardown(void)
    h = NULL;
 }
 
-static int greater_than(const void *a, const void *b)
+static int magnitude_compar(const void *a, const void *b)
 {
-   return *(const uintptr_t*)a > *(const uintptr_t*)b;
+   return *(const uintptr_t*)a - *(const uintptr_t*)b;
 }
 
 static void walk_fn(uint64_t key, void *user, void *context)
@@ -75,7 +75,7 @@ START_TEST(test_rand)
       heap_insert(h, keys[i], (void*)keys[i]);
    }
 
-   qsort(keys, N, sizeof(uintptr_t), greater_than);
+   qsort(keys, N, sizeof(uintptr_t), magnitude_compar);
 
    for (int i = 0; i < N; i++)
       fail_unless(heap_extract_min(h) == (void*)keys[i]);
