@@ -24,6 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
+#define FILE_FMT_VER 0x1000
 
 //#define EXTRA_READ_CHECKS
 
@@ -1372,6 +1373,8 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->n_trees    = 0;
    ctx->type_ctx   = type_write_begin(ctx);
 
+   write_s(FILE_FMT_VER, f);
+
    return ctx;
 }
 
@@ -1731,6 +1734,10 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
    ctx->store_sz = 128;
    ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
    ctx->n_trees  = 0;
+
+   uint16_t ver = read_s(f);
+   if (ver != FILE_FMT_VER)
+      fatal("serialised version %x expected %x", ver, FILE_FMT_VER);
 
    return ctx;
 }
