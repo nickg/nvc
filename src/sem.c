@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1503,14 +1503,14 @@ static bool sem_check_package(tree_t t)
 {
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
+   assert(top_scope == NULL);
    scope_push(qual);
 
-   if (!sem_check_context(t))
-      return false;
-
-   bool ok = true;
-   for (unsigned n = 0; n < tree_decls(t); n++)
-      ok = sem_check(tree_decl(t, n)) && ok;
+   bool ok = sem_check_context(t);
+   if (ok) {
+      for (unsigned n = 0; n < tree_decls(t); n++)
+         ok = sem_check(tree_decl(t, n)) && ok;
+   }
 
    scope_pop();
 
@@ -1524,22 +1524,22 @@ static bool sem_check_package_body(tree_t t)
 {
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
+   assert(top_scope == NULL);
    scope_push(qual);
 
-   if (!sem_check_context(t))
-      return false;
+   bool ok = sem_check_context(t);
 
    // Look up package declaration
    context_t c = {
       .name = qual,
       .loc  = *tree_loc(t)
    };
-   if (!scope_import_unit(c, lib_work()))
-      return false;
+   ok = ok && scope_import_unit(c, lib_work());
 
-   bool ok = true;
-   for (unsigned n = 0; n < tree_decls(t); n++)
-      ok = sem_check(tree_decl(t, n)) && ok;
+   if (ok) {
+      for (unsigned n = 0; n < tree_decls(t); n++)
+         ok = sem_check(tree_decl(t, n)) && ok;
+   }
 
    scope_pop();
 
@@ -1551,6 +1551,7 @@ static bool sem_check_package_body(tree_t t)
 
 static bool sem_check_entity(tree_t t)
 {
+   assert(top_scope == NULL);
    scope_push(NULL);
 
    if (!sem_check_context(t))
@@ -1583,6 +1584,7 @@ static bool sem_check_arch(tree_t t)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
 
+   assert(top_scope == NULL);
    scope_push(NULL);
 
    // Make all port and generic declarations available in this scope
