@@ -12,7 +12,7 @@ To build from a Git clone:
 
 To use a specific version of LLVM add
   --with-llvm=/path/to/llvm-config
-to the configure command.
+to the configure command. LLVM 3.0 or later is required.
 
 To run the regression tests:
   make check

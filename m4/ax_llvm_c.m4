@@ -58,10 +58,11 @@ AC_ARG_WITH([llvm],
 			LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
 			LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
                         LLVM_LIBS="$($ac_llvm_config_path --libs $1)"
-                        LLVM_VERSION="$($ac_llvm_config_path --version | sed s/\\.// | sed s/svn//g)"
+                        LLVM_VERSION="$($ac_llvm_config_path --version)"
                         LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
 
-                        if test "$LLVM_VERSION" -lt "30"; then
+                        llvm_ver_num="$(echo $LLVM_VERSION | sed s/\\.// | sed s/svn//g)"
+                        if test "$llvm_ver_num" -lt "30"; then
                            AC_MSG_ERROR([LLVM version 3.0 or later required])
                         fi
 

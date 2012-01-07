@@ -2138,13 +2138,8 @@ void cgen(tree_t top)
    snprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
 
    FILE *f = lib_fopen(lib_work(), fname, "w");
-#if LLVM_VERSION > 26
    if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
       fatal("error writing LLVM bitcode");
-#else
-   if (LLVMWriteBitcodeToFileHandle(module, fileno(f)) != 0)
-      fatal("error writing LLVM bitcode");
-#endif
    fclose(f);
 
    LLVMDisposeBuilder(builder);

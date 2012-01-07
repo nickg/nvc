@@ -80,15 +80,8 @@ void jit_init(ident_t top)
    LLVMInitializeNativeTarget();
    LLVMLinkInJIT();
 
-#if LLVM_VERSION > 26
    if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
       fatal("error creating execution engine: %s", error);
-#else
-   LLVMModuleProviderRef mp;
-   mp = LLVMCreateModuleProviderForExistingModule(module);
-   if (LLVMCreateExecutionEngine(&exec_engine, mp, &error))
-      fatal("error creating execution engine: %s", error);
-#endif
 }
 
 void jit_shutdown(void)
