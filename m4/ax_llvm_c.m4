@@ -114,7 +114,7 @@ AC_ARG_WITH([llvm],
 			AC_SUBST(LLVM_LDFLAGS)
                         AC_SUBST(LLVM_LIBS)
 			AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
-                        AC_DEFINE_UNQUOTED(LLVM_VERSION,[$LLVM_VERSION],[Version of LLVM installed])
+                        AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
                         AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
 		fi
 ])

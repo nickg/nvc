@@ -27,6 +27,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <tcl/tcl.h>
 
 static const char *work_name = "work";
 
@@ -373,7 +374,8 @@ static void version(void)
       "General Public Licence for details.";
 
 #ifdef HAVE_CONFIG_H
-   puts(PACKAGE_STRING);
+   printf("%s (llvm %s; tcl %s)\n",
+          PACKAGE_STRING, LLVM_VERSION, TCL_VERSION);
 #endif
 
    puts(copy);
