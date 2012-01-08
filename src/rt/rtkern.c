@@ -305,7 +305,7 @@ void _array_copy(void *dst, const void *src, int32_t off, int32_t n, int32_t sz)
 }
 
 int8_t _array_eq(const void *lhs, const void *rhs,
-                 int32_t n, int32_t sz, int32_t op)
+                 int32_t n, int32_t sz, int8_t op)
 {
    TRACE("_array_eq lhs=%p rhs=%p %dx%d op=%d", lhs, rhs, n, sz, op);
    if (op) {
