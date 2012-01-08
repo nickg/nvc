@@ -178,13 +178,17 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_CARRAY:
       {
          if (cgen_const_bounds(t)) {
-            int64_t low, high;
-            range_bounds(type_dim(t, 0), &low, &high);
-
-            return LLVMArrayType(llvm_type(type_base(t)), high - low + 1);
+            LLVMTypeRef a = llvm_type(type_base(t));
+            for (unsigned i = 0; i < type_dims(t); i++) {
+               int64_t low, high;
+               range_bounds(type_dim(t, i), &low, &high);
+               a = LLVMArrayType(a, high - low + 1);
+            }
+            return a;
          }
          else {
             // Array size not known at compile time
+            assert(type_dims(t) == 1);   // TODO
             return LLVMPointerType(llvm_type(type_base(t)), 0);
          }
       }

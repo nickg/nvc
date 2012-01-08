@@ -1395,16 +1395,25 @@ constraint_elem
 ;
 
 unconstrained_array_def
-: tARRAY tLPAREN index_subtype_def /* { , index_subtype_def } */
-  tRPAREN tOF subtype_indication
+: tARRAY tLPAREN index_subtype_def tRPAREN tOF subtype_indication
   {
-     $$ = type_new(T_UARRAY);
+     $$ = $3;
      type_set_base($$, $6);
-     type_add_index_constr($$, $3);
   }
 ;
 
-index_subtype_def : type_mark tRANGE tBOX { $$ = $1; } ;
+index_subtype_def
+: type_mark tRANGE tBOX
+  {
+     $$ = type_new(T_UARRAY);
+     type_add_index_constr($$, $1);
+  }
+| type_mark tRANGE tBOX tCOMMA index_subtype_def
+  {
+     $$ = $5;
+     type_add_index_constr($$, $1);
+  }
+;
 
 scalar_type_def
 : integer_type_def
