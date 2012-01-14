@@ -962,9 +962,12 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
    }
 }
 
-static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
+static LLVMValueRef cgen_sub_aggregate(tree_t t, struct cgen_ctx *ctx)
 {
-   range_t r = type_dim(tree_type(t), 0);
+   assert(tree_kind(t) == T_AGGREGATE);
+
+   type_t type = tree_type(t);
+   range_t r = type_dim(type, 0);
 
    int64_t low, high;
    range_bounds(r, &low, &high);
@@ -978,7 +981,11 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
 
-      LLVMValueRef v = cgen_expr(a.value, ctx);
+      LLVMValueRef v;
+      if (tree_kind(a.value) == T_AGGREGATE)
+         v = cgen_sub_aggregate(a.value, ctx);
+      else
+         v = cgen_expr(a.value, ctx);
 
       switch (a.kind) {
       case A_POS:
@@ -1007,15 +1014,22 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
    for (unsigned i = 0; i < n_elems; i++)
       assert(vals[i] != NULL);
 
-   LLVMTypeRef arr_ty = llvm_type(tree_type(t));
-   LLVMTypeRef elm_ty = llvm_type(type_base(tree_type(t)));
+   LLVMValueRef a = LLVMConstArray(LLVMTypeOf(vals[0]), vals, n_elems);
+   free(vals);
+   return a;
+}
 
-   LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "");
+static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMValueRef init = cgen_sub_aggregate(t, ctx);
+
+   LLVMTypeRef arr_ty = llvm_type(tree_type(t));
+
+   LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "aggregate");
    LLVMSetGlobalConstant(g, true);
    LLVMSetLinkage(g, LLVMInternalLinkage);
-   LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, n_elems));
+   LLVMSetInitializer(g, init);
 
-   free(vals);
    return g;
 }
 
