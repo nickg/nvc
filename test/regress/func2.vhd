@@ -23,6 +23,16 @@ architecture rtl of func2 is
     begin
         return x'ascending;
     end function;
+
+    function get_low(x : int_array) return integer is
+    begin
+        return x'low;
+    end function;
+
+    function get_high(x : int_array) return integer is
+    begin
+        return x'high;
+    end function;
     
 begin
 
@@ -34,6 +44,10 @@ begin
         assert sum(v) = 17;
         assert sum(u) = 13;
         assert asc(v);
+        assert get_low(u) = 1;
+        assert get_low(v) = 1;
+        assert get_high(u) = 5;
+        assert get_high(v) = 5;
         assert not asc(u);
         wait;
     end process;

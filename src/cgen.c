@@ -668,6 +668,15 @@ static LLVMValueRef cgen_last_value(tree_t signal, struct cgen_ctx *ctx)
    }
 }
 
+static LLVMValueRef cgen_uarray_asc(LLVMValueRef uarray)
+{
+   return LLVMBuildICmp(
+      builder, LLVMIntEQ,
+      LLVMBuildExtractValue(builder, uarray, 2, "dir"),
+      llvm_int8(RANGE_TO),
+      "ascending");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -804,11 +813,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildExtractValue(builder, args[0], 1, "right");
       }
       else if (strcmp(builtin, "uarray_asc") == 0) {
-         return LLVMBuildICmp(
-            builder, LLVMIntEQ,
-            LLVMBuildExtractValue(builder, args[0], 2, "dir"),
-            llvm_int8(RANGE_TO),
-            "ascending");
+         return cgen_uarray_asc(args[0]);
       }
       else if (strcmp(builtin, "uarray_dircmp") == 0) {
          LLVMValueRef dir_eq = LLVMBuildICmp(
@@ -818,6 +823,20 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
             "diff_eq");
          LLVMValueRef neg = LLVMBuildNeg(builder, args[2], "neg");
          return LLVMBuildSelect(builder, dir_eq, args[2], neg, "dirmul");
+      }
+      else if (strcmp(builtin, "uarray_low") == 0) {
+         return LLVMBuildSelect(
+            builder, cgen_uarray_asc(args[0]),
+            LLVMBuildExtractValue(builder, args[0], 0, "left"),
+            LLVMBuildExtractValue(builder, args[0], 1, "right"),
+            "low");
+      }
+      else if (strcmp(builtin, "uarray_high") == 0) {
+         return LLVMBuildSelect(
+            builder, cgen_uarray_asc(args[0]),
+            LLVMBuildExtractValue(builder, args[0], 1, "right"),
+            LLVMBuildExtractValue(builder, args[0], 0, "left"),
+            "high");
       }
       else
          fatal("cannot generate code for builtin %s", builtin);
