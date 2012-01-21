@@ -234,8 +234,12 @@ static bool cgen_const_bounds(type_t type)
 {
    assert(type_kind(type) == T_CARRAY);
    range_t r = type_dim(type, 0);
-   return (tree_kind(r.left) == T_LITERAL)
-      && (tree_kind(r.right) == T_LITERAL);
+   return (tree_kind(r.left) == T_LITERAL
+           || (tree_kind(r.left) == T_REF
+               && tree_kind(tree_ref(r.left)) == T_ENUM_LIT))
+      && (tree_kind(r.right) == T_LITERAL
+          || (tree_kind(r.left) == T_REF
+              && tree_kind(tree_ref(r.left)) == T_ENUM_LIT));
 }
 
 static LLVMValueRef cgen_array_meta(type_t type,
@@ -935,7 +939,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
    type_t type = tree_type(decl);
 
    LLVMValueRef array = NULL;
-   if (cgen_get_class(decl) == C_VARIABLE)
+   class_t class = cgen_get_class(decl);
+   if (class == C_VARIABLE || class == C_CONSTANT)
       array = cgen_get_var(decl, ctx);
 
    LLVMValueRef idx = llvm_int32(0);
