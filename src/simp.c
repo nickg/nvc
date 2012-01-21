@@ -382,7 +382,8 @@ static tree_t simp_array_ref(tree_t t)
    if (!can_fold)
       return t;
 
-   assert(tree_params(t) == 1);
+   if (tree_params(t) > 1)
+      return t;  // TODO: constant folding for multi-dimensional arrays
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
