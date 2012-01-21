@@ -922,6 +922,8 @@ static class_t cgen_get_class(tree_t decl)
       return C_VARIABLE;
    case T_SIGNAL_DECL:
       return C_SIGNAL;
+   case T_CONST_DECL:
+      return C_CONSTANT;
    default:
       return tree_class(decl);
    }
@@ -957,6 +959,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
 
    switch (cgen_get_class(decl)) {
    case C_VARIABLE:
+   case C_CONSTANT:
       {
          LLVMValueRef data = cgen_array_data_ptr(decl, ctx);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
@@ -2125,6 +2128,17 @@ static void cgen_func_body(tree_t t)
    LLVMBuildUnreachable(builder);
 }
 
+static void cgen_const_array(tree_t t)
+{
+   assert(type_kind(tree_type(t)) == T_CARRAY);
+
+   tree_t value = tree_value(t);
+   assert(tree_kind(value) == T_AGGREGATE);
+
+   LLVMValueRef c = cgen_aggregate(value, NULL);
+   tree_add_attr_ptr(t, local_var_i, c);
+}
+
 static void cgen_top(tree_t t)
 {
    for (unsigned i = 0; i < tree_decls(t); i++) {
@@ -2137,8 +2151,10 @@ static void cgen_top(tree_t t)
          cgen_func_body(decl);
          break;
       case T_ALIAS:
-      case T_CONST_DECL:
       case T_TYPE_DECL:
+         break;
+      case T_CONST_DECL:
+         cgen_const_array(decl);
          break;
       default:
          assert(false);

@@ -225,6 +225,12 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
       case T_FUNC_DECL:
          tree_set_ident(d, pn);
          break;
+      case T_CONST_DECL:
+         if (type_kind(tree_type(d)) == T_CARRAY) {
+            tree_set_ident(d, pn);
+            tree_add_decl(out, d);
+         }
+         break;
       default:
          break;
       }

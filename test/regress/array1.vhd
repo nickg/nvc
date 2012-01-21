@@ -3,6 +3,10 @@ end entity;
 
 architecture test of array1 is
     type matrix_t is array (integer range <>, integer range <>) of integer;
+
+    constant c : matrix_t(0 to 1, 0 to 1) := (
+        ( 1, 2 ),
+        ( 3, 4 ) );
 begin
 
     process is
@@ -15,6 +19,8 @@ begin
         report integer'image(m(2, 2));
         assert m(2, 2) = 5;
         assert m(3, 1) = 7;
+        report integer'image(c(1, 0));
+        assert c(1, 0) = 3;
         wait;
     end process;
 
