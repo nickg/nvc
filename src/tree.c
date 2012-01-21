@@ -1838,10 +1838,24 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
 
 int64_t assume_int(tree_t t)
 {
-   assert(tree_kind(t) == T_LITERAL);
-   literal_t l = tree_literal(t);
-   assert(l.kind == L_INT);
-   return l.i;
+   switch (tree_kind(t)) {
+   case T_LITERAL:
+      {
+         literal_t l = tree_literal(t);
+         assert(l.kind == L_INT);
+         return l.i;
+      }
+
+   case T_REF:
+      {
+         tree_t ref = tree_ref(t);
+         assert(tree_kind(ref) == T_ENUM_LIT);
+         return tree_pos(ref);
+      }
+
+   default:
+      assert(false);
+   }
 }
 
 void range_bounds(range_t r, int64_t *low, int64_t *high)
