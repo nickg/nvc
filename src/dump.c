@@ -25,6 +25,7 @@
 
 static void dump_expr(tree_t t);
 static void dump_stmt(tree_t t, int indent);
+static void dump_port(tree_t t, int indent);
 
 static void tab(int indent)
 {
@@ -213,15 +214,27 @@ static void dump_decl(tree_t t, int indent)
       break;
 
    case T_FUNC_DECL:
-      printf("function %s (...) return %s;\n", istr(tree_ident(t)),
-             type_pp(type_result(tree_type(t))));
+      printf("function %s (\n", istr(tree_ident(t)));
+      for (unsigned i = 0; i < tree_ports(t); i++) {
+         if (i > 0)
+            printf(";\n");
+         dump_port(tree_port(t, i), indent + 4);
+      }
+      printf(" )\n");
+      tab(indent + 2);
+      printf("return %s;\n", type_pp(type_result(tree_type(t))));
       return;
 
    case T_FUNC_BODY:
-      printf("function %s (...) return %s is\n", istr(tree_ident(t)),
-             type_pp(type_result(tree_type(t))));
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
+      printf("function %s (\n", istr(tree_ident(t)));
+      for (unsigned i = 0; i < tree_ports(t); i++) {
+         if (i > 0)
+            printf(";\n");
+         dump_port(tree_port(t, i), indent + 4);
+      }
+      printf(" )\n");
+      tab(indent + 2);
+      printf("return %s is\n", type_pp(type_result(tree_type(t))));
       tab(indent);
       printf("begin\n");
       for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -398,7 +411,23 @@ static void dump_stmt(tree_t t, int indent)
 
 static void dump_port(tree_t t, int indent)
 {
-   // TODO
+   tab(indent);
+   const char *class = NULL, *dir = NULL;
+   switch (tree_class(t)) {
+   case C_SIGNAL:   class = "signal";   break;
+   case C_VARIABLE: class = "variable"; break;
+   case C_DEFAULT:  class = "";         break;
+   case C_CONSTANT: class = "constant"; break;
+   }
+   switch (tree_port_mode(t)) {
+   case PORT_IN:      dir = "in";     break;
+   case PORT_OUT:     dir = "out";    break;
+   case PORT_INOUT:   dir = "inout";  break;
+   case PORT_BUFFER:  dir = "buffer"; break;
+   case PORT_INVALID: dir = "??";     break;
+   }
+   printf("%s %s : %s %s", class, istr(tree_ident(t)),
+          dir, type_pp(tree_type(t)));
 }
 
 static void dump_elab(tree_t t)
