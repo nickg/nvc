@@ -161,11 +161,17 @@ ident_t ident_uniq(const char *prefix)
 {
    static int counter = 0;
 
-   const size_t len = strlen(prefix) + 16;
-   char buf[len];
-   snprintf(buf, len, "%s%d", prefix, counter++);
+   const char *start = prefix;
+   struct trie *end;
+   if (search_trie(&start, &root, &end)) {
+      const size_t len = strlen(prefix) + 16;
+      char buf[len];
+      snprintf(buf, len, "%s%d", prefix, counter++);
 
-   return ident_new(buf);
+      return ident_new(buf);
+   }
+   else
+      return ident_new(prefix);
 }
 
 ident_t ident_prefix(ident_t a, ident_t b, char sep)

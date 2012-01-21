@@ -129,6 +129,7 @@
                              const struct YYLTYPE *loc);
    static tree_t str_to_agg(const char *start, const char *end);
    static bool to_range_expr(tree_t t, range_t *r);
+   static ident_t loc_to_ident(const loc_t *loc);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
 }
 
@@ -945,7 +946,7 @@ seq_stmt
 | seq_stmt_without_label
   {
      $$ = $1;
-     tree_set_ident($$, ident_uniq("s"));
+     tree_set_ident($$, loc_to_ident(&@1));
   }
 ;
 
@@ -1128,6 +1129,7 @@ case_alt_list
 : tWHEN choice_list tASSOC seq_stmt_list
   {
      tree_t b = tree_new(T_BLOCK);
+     tree_set_ident(b, loc_to_ident(&@4));
      tree_set_loc(b, &@4);
      copy_trees($4, tree_add_stmt, b);
 
@@ -1139,6 +1141,7 @@ case_alt_list
 | tWHEN choice_list tASSOC seq_stmt_list case_alt_list
   {
      tree_t b = tree_new(T_BLOCK);
+     tree_set_ident(b, loc_to_ident(&@4));
      tree_set_loc(b, &@4);
      copy_trees($4, tree_add_stmt, b);
 
@@ -1937,6 +1940,13 @@ static bool to_range_expr(tree_t t, range_t *r)
    }
    else
       return false;
+}
+
+static ident_t loc_to_ident(const loc_t *loc)
+{
+   char buf[128];
+   snprintf(buf, sizeof(buf), "line_%d", loc->first_line);
+   return ident_uniq(buf);
 }
 
 static void parse_error(const loc_t *loc, const char *fmt, ...)
