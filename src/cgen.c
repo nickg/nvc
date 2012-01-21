@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -178,13 +178,13 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_CARRAY:
       {
          if (cgen_const_bounds(t)) {
-            LLVMTypeRef a = llvm_type(type_base(t));
+            int nelems = 1;
             for (unsigned i = 0; i < type_dims(t); i++) {
                int64_t low, high;
                range_bounds(type_dim(t, i), &low, &high);
-               a = LLVMArrayType(a, high - low + 1);
+               nelems *= (high - low + 1);
             }
-            return a;
+            return LLVMArrayType(llvm_type(type_base(t)), nelems);
          }
          else {
             // Array size not known at compile time
@@ -962,74 +962,107 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
    }
 }
 
-static LLVMValueRef cgen_sub_aggregate(tree_t t, struct cgen_ctx *ctx)
+static void cgen_copy_vals(LLVMValueRef *dst, LLVMValueRef *src,
+                           unsigned n, bool backwards)
 {
-   assert(tree_kind(t) == T_AGGREGATE);
+   while (n--) {
+      *dst = *src;
+      ++src;
+      dst += (backwards ? -1 : 1);
+   }
+}
 
+static LLVMValueRef *cgen_aggregate_dim(tree_t t, struct cgen_ctx *ctx,
+                                        unsigned dim, unsigned *n_elems)
+{
    type_t type = tree_type(t);
-   range_t r = type_dim(type, 0);
 
-   int64_t low, high;
-   range_bounds(r, &low, &high);
+   *n_elems = 1;
+   for (unsigned i = dim; i < type_dims(type); i++) {
+      range_t r = type_dim(type, i);
 
-   const size_t n_elems = high - low + 1;
-   LLVMValueRef *vals = xmalloc(n_elems * sizeof(LLVMValueRef));
+      int64_t low, high;
+      range_bounds(r, &low, &high);
 
-   for (unsigned i = 0; i < n_elems; i++)
+      *n_elems *= (high - low + 1);
+   }
+
+   LLVMValueRef *vals = xmalloc(*n_elems * sizeof(LLVMValueRef));
+
+   for (unsigned i = 0; i < *n_elems; i++)
       vals[i] = NULL;
 
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
 
-      LLVMValueRef v;
-      if (tree_kind(a.value) == T_AGGREGATE)
-         v = cgen_sub_aggregate(a.value, ctx);
-      else
-         v = cgen_expr(a.value, ctx);
+      LLVMValueRef *sub;
+      unsigned nsub;
+      if (dim < type_dims(type) - 1) {
+         range_t r = type_dim(type, dim + 1);
+
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+
+         sub = cgen_aggregate_dim(a.value, ctx, 0, &nsub);
+      }
+      else {
+         sub  = xmalloc(sizeof(LLVMValueRef));
+         *sub = cgen_expr(a.value, ctx);
+         nsub = 1;
+      }
+
+      range_t r = type_dim(type, dim);
+
+      int64_t low, high;
+      range_bounds(r, &low, &high);
 
       switch (a.kind) {
       case A_POS:
          if (r.kind == RANGE_TO)
-            vals[i] = v;
+            cgen_copy_vals(vals + (i * nsub), sub, nsub, false);
          else
-            vals[n_elems - i - 1] = v;
+            cgen_copy_vals(vals + ((*n_elems - i - 1) * nsub),
+                           sub, nsub, true);
          break;
 
       case A_NAMED:
-         vals[assume_int(a.name) - low] = v;
+         cgen_copy_vals(vals + ((assume_int(a.name) - low) * nsub),
+                        sub, nsub, false);
          break;
 
       case A_OTHERS:
-         for (unsigned j = 0; j < n_elems; j++) {
-            if (vals[j] == NULL)
-               vals[j] = v;
+         assert((*n_elems % nsub) == 0);
+         for (unsigned j = 0; j < (*n_elems / nsub); j++) {
+            if (vals[j * nsub] == NULL)
+               cgen_copy_vals(vals + (j * nsub), sub, nsub, false);
          }
          break;
 
       case A_RANGE:
          assert(false);
       }
+
+      free(sub);
    }
 
-   for (unsigned i = 0; i < n_elems; i++)
+   for (unsigned i = 0; i < *n_elems; i++)
       assert(vals[i] != NULL);
 
-   LLVMValueRef a = LLVMConstArray(LLVMTypeOf(vals[0]), vals, n_elems);
-   free(vals);
-   return a;
+   return vals;
 }
 
 static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
 {
-   LLVMValueRef init = cgen_sub_aggregate(t, ctx);
+   unsigned nvals;
+   LLVMValueRef *vals = cgen_aggregate_dim(t, ctx, 0, &nvals);
 
-   LLVMTypeRef arr_ty = llvm_type(tree_type(t));
-
-   LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "aggregate");
+   LLVMTypeRef at = LLVMArrayType(LLVMTypeOf(vals[0]), nvals);
+   LLVMValueRef g = LLVMAddGlobal(module, at, "");
    LLVMSetGlobalConstant(g, true);
    LLVMSetLinkage(g, LLVMInternalLinkage);
-   LLVMSetInitializer(g, init);
+   LLVMSetInitializer(g, LLVMConstArray(LLVMTypeOf(vals[0]), vals, nvals));
 
+   free(vals);
    return g;
 }
 
