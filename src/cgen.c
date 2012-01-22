@@ -230,16 +230,27 @@ static const char *cgen_mangle_func_name(tree_t decl)
    return buf;
 }
 
+static bool cgen_is_const(tree_t t)
+{
+   if (tree_kind(t) == T_AGGREGATE) {
+      bool is_const = true;
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+         is_const = is_const && cgen_is_const(a.value);
+      }
+      return is_const;
+   }
+   else
+      return (tree_kind(t) == T_LITERAL
+              || (tree_kind(t) == T_REF
+                  && tree_kind(tree_ref(t)) == T_ENUM_LIT));
+}
+
 static bool cgen_const_bounds(type_t type)
 {
    assert(type_kind(type) == T_CARRAY);
    range_t r = type_dim(type, 0);
-   return (tree_kind(r.left) == T_LITERAL
-           || (tree_kind(r.left) == T_REF
-               && tree_kind(tree_ref(r.left)) == T_ENUM_LIT))
-      && (tree_kind(r.right) == T_LITERAL
-          || (tree_kind(r.left) == T_REF
-              && tree_kind(tree_ref(r.left)) == T_ENUM_LIT));
+   return cgen_is_const(r.left) && cgen_is_const(r.right);
 }
 
 static LLVMValueRef cgen_array_meta(type_t type,
@@ -262,7 +273,45 @@ static LLVMValueRef cgen_array_meta(type_t type,
    return var;
 }
 
-static LLVMValueRef cgen_local_var(tree_t d, struct cgen_ctx *ctx)
+
+static LLVMValueRef cgen_range_low(range_t r, struct cgen_ctx *ctx)
+{
+   return cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
+}
+
+static LLVMValueRef cgen_uarray_low(LLVMValueRef array)
+{
+   LLVMValueRef dir =
+      LLVMBuildExtractValue(builder, array, 2, "dir");
+   LLVMValueRef is_downto =
+      LLVMBuildICmp(builder, LLVMIntEQ, dir,
+                    llvm_int8(RANGE_DOWNTO), "is_downto");
+   LLVMValueRef left =
+      LLVMBuildExtractValue(builder, array, 0, "left");
+   LLVMValueRef right =
+      LLVMBuildExtractValue(builder, array, 1, "right");
+   return LLVMBuildSelect(builder, is_downto, right, left, "low");
+}
+
+static LLVMValueRef cgen_uarray_len(LLVMValueRef array)
+{
+   // Argument must be a structure where the first two fields are the
+   // left and right indices
+   LLVMValueRef downto = LLVMBuildICmp(
+      builder, LLVMIntEQ,
+      LLVMBuildExtractValue(builder, array, 2, "dir"),
+      llvm_int8(RANGE_DOWNTO),
+      "downto");
+   LLVMValueRef left  = LLVMBuildExtractValue(builder, array, 0, "left");
+   LLVMValueRef right = LLVMBuildExtractValue(builder, array, 1, "right");
+   LLVMValueRef diff  = LLVMBuildSelect(builder, downto,
+                                        LLVMBuildSub(builder, left, right, ""),
+                                        LLVMBuildSub(builder, right, left, ""),
+                                        "diff");
+   return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
+}
+
+static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
 {
    LLVMValueRef var = NULL;
 
@@ -316,52 +365,23 @@ static LLVMValueRef cgen_local_var(tree_t d, struct cgen_ctx *ctx)
       var = cgen_array_meta(type, left, right, kind_ll, ptr);
    }
 
-   if (var == NULL)
-      var = LLVMBuildAlloca(builder, llvm_type(tree_type(d)),
-                            istr(tree_ident(d)));
+   if (var == NULL) {
+      const char *name =
+         (tree_kind(d) == T_VAR_DECL ? istr(tree_ident(d)) : "");
+      var = LLVMBuildAlloca(builder, llvm_type(tree_type(d)), name);
+   }
+
+   return var;
+}
+
+static LLVMValueRef cgen_local_var(tree_t d, struct cgen_ctx *ctx)
+{
+   LLVMValueRef var = cgen_tmp_var(d, ctx);
 
    if (tree_has_value(d))
       LLVMBuildStore(builder, cgen_expr(tree_value(d), ctx), var);
 
    return var;
-}
-
-
-static LLVMValueRef cgen_range_low(range_t r, struct cgen_ctx *ctx)
-{
-   return cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
-}
-
-static LLVMValueRef cgen_uarray_low(LLVMValueRef array)
-{
-   LLVMValueRef dir =
-      LLVMBuildExtractValue(builder, array, 2, "dir");
-   LLVMValueRef is_downto =
-      LLVMBuildICmp(builder, LLVMIntEQ, dir,
-                    llvm_int8(RANGE_DOWNTO), "is_downto");
-   LLVMValueRef left =
-      LLVMBuildExtractValue(builder, array, 0, "left");
-   LLVMValueRef right =
-      LLVMBuildExtractValue(builder, array, 1, "right");
-   return LLVMBuildSelect(builder, is_downto, right, left, "low");
-}
-
-static LLVMValueRef cgen_uarray_len(LLVMValueRef array)
-{
-   // Argument must be a structure where the first two fields are the
-   // left and right indices
-   LLVMValueRef downto = LLVMBuildICmp(
-      builder, LLVMIntEQ,
-      LLVMBuildExtractValue(builder, array, 2, "dir"),
-      llvm_int8(RANGE_DOWNTO),
-      "downto");
-   LLVMValueRef left  = LLVMBuildExtractValue(builder, array, 0, "left");
-   LLVMValueRef right = LLVMBuildExtractValue(builder, array, 1, "right");
-   LLVMValueRef diff  = LLVMBuildSelect(builder, downto,
-                                        LLVMBuildSub(builder, left, right, ""),
-                                        LLVMBuildSub(builder, right, left, ""),
-                                        "diff");
-   return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
 }
 
 static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
@@ -899,11 +919,8 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
    return NULL;
 }
 
-static LLVMValueRef cgen_array_data_ptr(tree_t decl, struct cgen_ctx *ctx)
+static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 {
-   type_t type = tree_type(decl);
-   LLVMValueRef var = cgen_get_var(decl, ctx);
-
    if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type)) {
       // Unwrap array to get data pointer
       // TODO: insert bounds checking here
@@ -966,7 +983,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
    case C_VARIABLE:
    case C_CONSTANT:
       {
-         LLVMValueRef data = cgen_array_data_ptr(decl, ctx);
+         LLVMValueRef data = cgen_array_data_ptr(type, array);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
          return LLVMBuildLoad(builder, ptr, "");
       }
@@ -1002,7 +1019,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef low = cgen_range_low(r, ctx);
 
          LLVMValueRef array = cgen_get_var(decl, ctx);
-         LLVMValueRef ptr = cgen_array_data_ptr(decl, ctx);
+         LLVMValueRef ptr = cgen_array_data_ptr(type, array);
          LLVMValueRef indexes[] = {
             cgen_array_off(low, array, type, ctx, 0)
          };
@@ -1039,8 +1056,8 @@ static void cgen_copy_vals(LLVMValueRef *dst, LLVMValueRef *src,
    }
 }
 
-static LLVMValueRef *cgen_aggregate_dim(tree_t t, struct cgen_ctx *ctx,
-                                        unsigned dim, unsigned *n_elems)
+static LLVMValueRef *cgen_const_aggregate(tree_t t, struct cgen_ctx *ctx,
+                                          unsigned dim, unsigned *n_elems)
 {
    type_t type = tree_type(t);
 
@@ -1070,7 +1087,7 @@ static LLVMValueRef *cgen_aggregate_dim(tree_t t, struct cgen_ctx *ctx,
          int64_t low, high;
          range_bounds(r, &low, &high);
 
-         sub = cgen_aggregate_dim(a.value, ctx, 0, &nsub);
+         sub = cgen_const_aggregate(a.value, ctx, 0, &nsub);
       }
       else {
          sub  = xmalloc(sizeof(LLVMValueRef));
@@ -1118,19 +1135,118 @@ static LLVMValueRef *cgen_aggregate_dim(tree_t t, struct cgen_ctx *ctx,
    return vals;
 }
 
+static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
+{
+   // Generate code to fill in the aggregate at run time
+
+   type_t type = tree_type(t);
+
+   LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(ctx->fn, "da_test");
+   LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(ctx->fn, "da_body");
+   LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(ctx->fn, "da_exit");
+
+   // Prelude
+   LLVMValueRef a = cgen_tmp_var(t, ctx);
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, llvm_int32(0), i);
+
+   LLVMValueRef data = cgen_array_data_ptr(type, a);
+
+   LLVMValueRef len;
+   if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type))
+      len = cgen_uarray_len(a);
+   else {
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      len = llvm_int32(high - low + 1);
+   }
+
+   LLVMBuildBr(builder, test_bb);
+
+   LLVMValueRef def = NULL;
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      if (a.kind == A_OTHERS) {
+         def = cgen_expr(a.value, ctx);
+         break;
+      }
+   }
+
+   if (def == NULL)
+      def = LLVMGetUndef(llvm_type(type_base(type)));
+
+   // Loop test
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
+   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE, len,
+                                   i_loaded, "ge");
+   LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
+
+   // Loop body
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef what = def;
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      switch (a.kind) {
+      case A_POS:
+         {
+            LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
+                                            llvm_int32(a.pos), "");
+            what = LLVMBuildSelect(builder, eq, cgen_expr(a.value, ctx),
+                                   what, "");
+         }
+         break;
+
+      case A_NAMED:
+         assert(false);   // TODO
+         break;
+
+      case A_RANGE:
+         assert(false);   // TODO
+         break;
+
+      case A_OTHERS:
+         break;
+      }
+   }
+
+   LLVMValueRef indexes[] = { i_loaded };
+   LLVMValueRef ptr = LLVMBuildGEP(builder, data, indexes,
+                                   ARRAY_LEN(indexes), "ptr");
+   LLVMBuildStore(builder, what, ptr);
+
+   LLVMValueRef inc =
+      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+   LLVMBuildStore(builder, inc, i);
+   LLVMBuildBr(builder, test_bb);
+
+   // Epilogue
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+
+   return a;
+}
+
 static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
 {
-   unsigned nvals;
-   LLVMValueRef *vals = cgen_aggregate_dim(t, ctx, 0, &nvals);
+   bool is_const = (cgen_const_bounds(tree_type(t))
+                    && cgen_is_const(t));
 
-   LLVMTypeRef at = LLVMArrayType(LLVMTypeOf(vals[0]), nvals);
-   LLVMValueRef g = LLVMAddGlobal(module, at, "");
-   LLVMSetGlobalConstant(g, true);
-   LLVMSetLinkage(g, LLVMInternalLinkage);
-   LLVMSetInitializer(g, LLVMConstArray(LLVMTypeOf(vals[0]), vals, nvals));
+   if (is_const) {
+      unsigned nvals;
+      LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
 
-   free(vals);
-   return g;
+      LLVMTypeRef at = LLVMArrayType(LLVMTypeOf(vals[0]), nvals);
+      LLVMValueRef g = LLVMAddGlobal(module, at, "");
+      LLVMSetGlobalConstant(g, true);
+      LLVMSetLinkage(g, LLVMInternalLinkage);
+      LLVMSetInitializer(g, LLVMConstArray(LLVMTypeOf(vals[0]), vals, nvals));
+
+      free(vals);
+      return g;
+   }
+   else
+      return cgen_dyn_aggregate(t, ctx);
 }
 
 static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
@@ -1243,7 +1359,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef idx =
             cgen_array_off(cgen_expr(p.value, ctx), var, type, ctx, 0);
 
-         LLVMValueRef data = cgen_array_data_ptr(decl, ctx);
+         LLVMValueRef data = cgen_array_data_ptr(type, var);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
 
          LLVMBuildStore(builder, rhs, ptr);
