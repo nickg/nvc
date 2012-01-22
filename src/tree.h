@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -230,7 +230,7 @@ unsigned tree_contexts(tree_t t);
 context_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, context_t ctx);
 
-// T_AGGREGATE
+// T_AGGREGATE, T_CASE
 unsigned tree_assocs(tree_t t);
 assoc_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, assoc_t a);

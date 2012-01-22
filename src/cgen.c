@@ -1706,6 +1706,49 @@ static void cgen_exit(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, not_bb);
 }
 
+static void cgen_case(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "case_exit");
+
+   LLVMBasicBlockRef else_bb = exit_bb;
+   unsigned num_cases = 0;
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      if (tree_assoc(t, i).kind == A_OTHERS)
+         else_bb = LLVMAppendBasicBlock(ctx->fn, "case_others");
+      else
+         num_cases++;
+   }
+
+   LLVMValueRef val = cgen_expr(tree_value(t), ctx);
+   LLVMValueRef sw = LLVMBuildSwitch(builder, val, else_bb, num_cases);
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      switch (a.kind) {
+      case A_NAMED:
+         {
+            LLVMBasicBlockRef bb = LLVMAppendBasicBlock(ctx->fn, "");
+            LLVMAddCase(sw, cgen_expr(a.name, ctx), bb);
+
+            LLVMPositionBuilderAtEnd(builder, bb);
+         }
+         break;
+
+      case A_OTHERS:
+         LLVMPositionBuilderAtEnd(builder, else_bb);
+         break;
+
+      default:
+         assert(false);
+      }
+
+      cgen_stmt(a.value, ctx);
+      LLVMBuildBr(builder, exit_bb);
+   }
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -1735,6 +1778,9 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
       break;
    case T_EXIT:
       cgen_exit(t, ctx);
+      break;
+   case T_CASE:
+      cgen_case(t, ctx);
       break;
    default:
       assert(false);

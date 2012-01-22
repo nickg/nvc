@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -383,6 +383,23 @@ static void dump_stmt(tree_t t, int indent)
       printf("case ");
       dump_expr(tree_value(t));
       printf(" is\n");
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         tab(indent + 2);
+         assoc_t a = tree_assoc(t, i);
+         switch (a.kind) {
+         case A_NAMED:
+            printf("when ");
+            dump_expr(a.name);
+            printf(" =>\n");
+            break;
+         case A_OTHERS:
+            printf("when others =>\n");
+            break;
+         default:
+            assert(false);
+         }
+         dump_stmt(a.value, indent + 4);
+      }
       tab(indent);
       printf("end case");
       break;
