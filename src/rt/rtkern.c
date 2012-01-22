@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -330,6 +330,11 @@ int8_t *_image(int64_t val)
    char *buf = rt_tmp_alloc(32);
    snprintf(buf, 32, "%"PRIi64, val);
    return (int8_t*)buf;
+}
+
+void _debug_out(int32_t val)
+{
+   printf("DEBUG: val=%"PRIx32"\n", val);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

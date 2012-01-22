@@ -31,6 +31,7 @@
 
 static char **args = NULL;
 static int  n_args = 0;
+static bool optimise = true;
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -121,6 +122,9 @@ void link_bc(tree_t top)
    link_arg_f("-r");
    link_arg_f("-stats");
 
+   if (!optimise)
+      link_arg_f("--disable-opt");
+
    link_output(top);
    link_arg_bc(lib_work(), tree_ident(top));
 
@@ -151,3 +155,7 @@ void link_bc(tree_t top)
    free(args);
 }
 
+void link_optimise_en(bool en)
+{
+   optimise = en;
+}

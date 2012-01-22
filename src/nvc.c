@@ -133,6 +133,7 @@ static int elaborate(int argc, char **argv)
       switch (c) {
       case 'o':
          cgen_optimise_en(false);
+         link_optimise_en(false);
          break;
       case 'd':
          cgen_dump_en(true);
