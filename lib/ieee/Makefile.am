@@ -2,7 +2,8 @@ nvc = $(top_builddir)/src/nvc
 
 ieeedir = $(pkgdatadir)/ieee
 ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
-	ieee/IEEE.NUMERIC_STD #ieee/IEEE.STD_LOGIC_1164-body
+	ieee/IEEE.NUMERIC_STD ieee/IEEE.STD_LOGIC_1164-body \
+	ieee/_IEEE.STD_LOGIC_1164-body.bc
 
 lib = NVC_LIBPATH=../std
 
