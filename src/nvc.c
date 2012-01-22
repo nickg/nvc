@@ -60,6 +60,7 @@ static int analyse(int argc, char **argv)
 
    static struct option long_options[] = {
       {"bootstrap", no_argument, 0, 'b'},
+      {"dump-llvm", no_argument, 0, 'd'},
       {0, 0, 0, 0}
    };
 
@@ -76,6 +77,9 @@ static int analyse(int argc, char **argv)
          exit(EXIT_FAILURE);
       case 'b':
          sem_bootstrap_en(true);
+         break;
+      case 'd':
+         cgen_dump_en(true);
          break;
       default:
          abort();

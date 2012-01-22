@@ -411,7 +411,10 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
       low = cgen_range_low(r, ctx);
    }
 
-   return LLVMBuildSub(builder, off, low, "");
+   LLVMValueRef zero_based = LLVMBuildSub(builder, off, low, "");
+
+   // Array offsets are always 32-bit
+   return LLVMBuildIntCast(builder, zero_based, LLVMInt32Type(), "");
 }
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
@@ -712,7 +715,6 @@ static LLVMValueRef cgen_array_eq(type_t lhs_type, LLVMValueRef lhs,
 static LLVMValueRef cgen_last_value(tree_t signal, struct cgen_ctx *ctx)
 {
    tree_t sig_decl = tree_ref(signal);
-   assert(tree_kind(sig_decl) == T_SIGNAL_DECL);
 
    if (type_kind(tree_type(sig_decl)) == T_CARRAY) {
       type_t type = tree_type(sig_decl);
@@ -1009,7 +1011,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
       }
 
       idx = LLVMBuildAdd(builder, idx,
-                         cgen_array_off(offset, array, type, ctx, 0), "");
+                         cgen_array_off(offset, array, type, ctx, 0), "idx");
    }
 
    switch (cgen_get_class(decl)) {
