@@ -72,6 +72,7 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx);
 static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
+static LLVMTypeRef cgen_signal_type(void);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -251,6 +252,20 @@ static bool cgen_const_bounds(type_t type)
    return cgen_is_const(r.left) && cgen_is_const(r.right);
 }
 
+static class_t cgen_get_class(tree_t decl)
+{
+   switch (tree_kind(decl)) {
+   case T_VAR_DECL:
+      return C_VARIABLE;
+   case T_SIGNAL_DECL:
+      return C_SIGNAL;
+   case T_CONST_DECL:
+      return C_CONSTANT;
+   default:
+      return tree_class(decl);
+   }
+}
+
 static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef left, LLVMValueRef right,
                                     LLVMValueRef kind, LLVMValueRef ptr)
@@ -262,7 +277,6 @@ static LLVMValueRef cgen_array_meta(type_t type,
    var = LLVMBuildInsertValue(builder, var, kind, 3, "");
    return var;
 }
-
 
 static LLVMValueRef cgen_range_low(range_t r, struct cgen_ctx *ctx)
 {
@@ -510,6 +524,24 @@ static LLVMValueRef cgen_default_value(type_t ty)
    }
 }
 
+static void cgen_prototype(tree_t t, LLVMTypeRef *args)
+{
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+      switch (tree_class(p)) {
+      case C_SIGNAL:
+         args[i] = LLVMPointerType(cgen_signal_type(), 0);
+         break;
+
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         args[i] = llvm_type(tree_type(p));
+         break;
+      }
+   }
+}
+
 static LLVMValueRef cgen_fdecl(tree_t t)
 {
    const char *mangled = cgen_mangle_func_name(t);
@@ -519,9 +551,8 @@ static LLVMValueRef cgen_fdecl(tree_t t)
    else {
       type_t ftype = tree_type(t);
 
-      LLVMTypeRef atypes[type_params(ftype)];
-      for (unsigned i = 0; i < type_params(ftype); i++)
-         atypes[i] = llvm_type(type_param(ftype, i));
+      LLVMTypeRef atypes[tree_ports(t)];
+      cgen_prototype(t, atypes);
 
       return LLVMAddFunction(
          module,
@@ -727,31 +758,40 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
    LLVMValueRef args[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
-      args[i] = cgen_expr(p.value, ctx);
+      if (builtin == NULL && tree_class(tree_port(decl, i)) == C_SIGNAL) {
+         // Pass a pointer to the global signal structure
+         assert(tree_kind(p.value) == T_REF);
+         tree_t decl = tree_ref(p.value);
+         args[i] = tree_attr_ptr(decl, sig_struct_i);
+         assert(args[i] != NULL);
+      }
+      else {
+         args[i] = cgen_expr(p.value, ctx);
 
-      // If we are passing a constrained array argument wrap it in
-      // a structure with its metadata. Note we don't need to do
-      // this for unconstrained arrays as they are already wrapped.
-      type_t type = tree_type(p.value);
-      bool need_wrap =
-         (type_kind(type) == T_CARRAY)
-         && cgen_const_bounds(type)
-         && (builtin == NULL);
+         // If we are passing a constrained array argument wrap it in
+         // a structure with its metadata. Note we don't need to do
+         // this for unconstrained arrays as they are already wrapped.
+         type_t type = tree_type(p.value);
+         bool need_wrap =
+            (type_kind(type) == T_CARRAY)
+            && cgen_const_bounds(type)
+            && (builtin == NULL);
 
-      if (need_wrap) {
-         range_t r = type_dim(type, 0);
+         if (need_wrap) {
+            range_t r = type_dim(type, 0);
 
-         LLVMTypeRef ptr_type =
-            LLVMPointerType(llvm_type(type_base(type)), 0);
+            LLVMTypeRef ptr_type =
+               LLVMPointerType(llvm_type(type_base(type)), 0);
 
-         LLVMValueRef fields[] = {
-            LLVMBuildPointerCast(builder, args[i], ptr_type, ""),
-            llvm_int32(assume_int(r.left)),
-            llvm_int32(assume_int(r.right)),
-            llvm_int8(r.kind)
-         };
+            LLVMValueRef fields[] = {
+               LLVMBuildPointerCast(builder, args[i], ptr_type, ""),
+               llvm_int32(assume_int(r.left)),
+               llvm_int32(assume_int(r.right)),
+               llvm_int8(r.kind)
+            };
 
-         args[i] = LLVMConstStruct(fields, ARRAY_LEN(fields), false);
+            args[i] = LLVMConstStruct(fields, ARRAY_LEN(fields), false);
+         }
       }
    }
 
@@ -907,15 +947,17 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
       }
 
    case T_PORT_DECL:
-      return cgen_get_var(decl, ctx);
-
    case T_SIGNAL_DECL:
-      if (type_kind(tree_type(decl)) == T_CARRAY) {
-         type_t type = tree_type(decl);
-         return cgen_array_signal_ref(decl, type, ctx, false);
+      if (cgen_get_class(decl) == C_SIGNAL) {
+         if (type_kind(tree_type(decl)) == T_CARRAY) {
+            type_t type = tree_type(decl);
+            return cgen_array_signal_ref(decl, type, ctx, false);
+         }
+         else
+            return cgen_scalar_signal_ref(decl, ctx);
       }
       else
-         return cgen_scalar_signal_ref(decl, ctx);
+         return cgen_get_var(decl, ctx);
 
    default:
       abort();
@@ -938,20 +980,6 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
          LLVMBuildGEP(builder, var,
                       indexes, ARRAY_LEN(indexes), ""),
          LLVMPointerType(llvm_type(type_base(type)), 0), "aptr");
-   }
-}
-
-static class_t cgen_get_class(tree_t decl)
-{
-   switch (tree_kind(decl)) {
-   case T_VAR_DECL:
-      return C_VARIABLE;
-   case T_SIGNAL_DECL:
-      return C_SIGNAL;
-   case T_CONST_DECL:
-      return C_CONSTANT;
-   default:
-      return tree_class(decl);
    }
 }
 
@@ -2276,20 +2304,7 @@ static void cgen_func_body(tree_t t)
    type_t ftype = tree_type(t);
 
    LLVMTypeRef args[tree_ports(t)];
-   for (unsigned i = 0; i < tree_ports(t); i++) {
-      tree_t p = tree_port(t, i);
-      switch (tree_class(p)) {
-      case C_SIGNAL:
-         args[i] = LLVMPointerType(cgen_signal_type(), 0);
-         break;
-
-      case C_VARIABLE:
-      case C_DEFAULT:
-      case C_CONSTANT:
-         args[i] = llvm_type(tree_type(p));
-         break;
-      }
-   }
+   cgen_prototype(t, args);
 
    LLVMValueRef fn =
       LLVMAddFunction(module, cgen_mangle_func_name(t),
@@ -2307,8 +2322,18 @@ static void cgen_func_body(tree_t t)
    };
 
    for (unsigned i = 0; i < tree_ports(t); i++) {
-      tree_t decl = tree_port(t, i);
-      tree_add_attr_ptr(decl, local_var_i, LLVMGetParam(fn, i));
+      tree_t p = tree_port(t, i);
+      switch (tree_class(p)) {
+      case C_SIGNAL:
+         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
+         break;
+
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
+         break;
+      }
    }
 
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
