@@ -1661,7 +1661,7 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
                                           args, ARRAY_LEN(args), "buf");
 
-         cgen_array_copy_slice(type, type, r, rval, buf);
+         cgen_array_copy(type, type, rval, buf);
 
          LLVMTypeRef ptr_type =
             LLVMPointerType(llvm_type(type_base(type)), 0);
