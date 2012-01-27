@@ -104,6 +104,8 @@ static int analyse(int argc, char **argv)
                to_cgen[n_cgen++] = unit;
             }
          }
+         else
+            break;
       }
    }
 
