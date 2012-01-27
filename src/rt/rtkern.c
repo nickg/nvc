@@ -298,10 +298,45 @@ char *_tmp_alloc(int32_t n, int32_t sz)
    return rt_tmp_alloc(n * sz);
 }
 
-void _array_copy(void *dst, const void *src, int32_t off, int32_t n, int32_t sz)
+void _array_copy(void *dst, const void *src,
+                 int32_t off, int32_t n, int32_t sz, int8_t op)
 {
-   TRACE("_array_copy dst=%p+%d src=%p %dx%d", dst, off, src, n, sz);
-   memcpy((char *)dst + (off * sz), src, n * sz);
+   TRACE("_array_copy dst=%p+%d src=%p %dx%d op=%d",
+         dst, off, src, n, sz, op);
+   if (op) {
+      const uint8_t  *restrict s8  = src;
+      const uint16_t *restrict s16 = src;
+      const uint32_t *restrict s32 = src;
+      const uint64_t *restrict s64 = src;
+
+      uint8_t  *restrict d8  = dst;
+      uint16_t *restrict d16 = dst;
+      uint32_t *restrict d32 = dst;
+      uint64_t *restrict d64 = dst;
+
+      switch (sz) {
+      case 1:
+         for (int i = n - 1; i >= 0; i--)
+            *(d8 + off + i) = *s8++;
+         break;
+      case 2:
+         for (int i = n - 1; i >= 0; i--)
+            *(d16 + off + i) = *s16++;
+         break;
+      case 4:
+         for (int i = n - 1; i >= 0; i--)
+            *(d32 + off + i) = *s32++;
+         break;
+      case 8:
+         for (int i = n - 1; i >= 0; i--)
+            *(d64 + off + i) = *s64++;
+         break;
+      default:
+         assert(false);
+      }
+   }
+   else
+      memcpy((char *)dst + (off * sz), src, n * sz);
 }
 
 int8_t _array_eq(const void *lhs, const void *rhs,

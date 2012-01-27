@@ -440,40 +440,64 @@ static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx)
    return LLVMBuildStructGEP(builder, ctx->state, offset, "");
 }
 
-static void cgen_array_copy_slice(type_t ty, range_t r,
+static void cgen_array_copy_slice(type_t src_type, type_t dest_type, range_t r,
                                   LLVMValueRef src, LLVMValueRef dst)
 {
-   assert(type_kind(ty) == T_CARRAY);
+   assert(type_kind(dest_type) == T_CARRAY);
+
+   LLVMValueRef dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
+   LLVMValueRef src_dir;
+   if (type_kind(src_type) == T_UARRAY || !cgen_const_bounds(src_type))
+      src_dir = LLVMBuildExtractValue(builder, src, 3, "dir");
+   else
+      src_dir = llvm_int8(type_dim(src_type, 0).kind);
+
+   LLVMValueRef opposite_dir =
+      LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
    int64_t type_low, type_high;
-   range_bounds(type_dim(ty, 0), &type_low, &type_high);
+   range_bounds(type_dim(dest_type, 0), &type_low, &type_high);
 
    int64_t low, high;
    range_bounds(r, &low, &high);
 
    assert(low >= type_low && high <= type_high);
 
+   LLVMValueRef src_ptr = cgen_array_data_ptr(src_type, src);
+
    LLVMValueRef args[] = {
       llvm_void_cast(dst),         // Destination
-      llvm_void_cast(src),         // Source
+      llvm_void_cast(src_ptr),     // Source
       llvm_int32(low - type_low),  // Offset
       llvm_int32(high - low + 1),  // Number of elements
-      llvm_sizeof(llvm_type(type_base(ty)))
+      llvm_sizeof(llvm_type(type_base(dest_type))),
+      opposite_dir
    };
    LLVMBuildCall(builder, llvm_fn("_array_copy"),
                  args, ARRAY_LEN(args), "");
 }
 
-static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
+static void cgen_array_copy(type_t src_type, type_t dest_type,
+                            LLVMValueRef src, LLVMValueRef dst)
 {
-   assert(type_kind(ty) == T_CARRAY);
+   assert(type_kind(dest_type) == T_CARRAY);
+
+   LLVMValueRef dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
+   LLVMValueRef src_dir;
+   if (type_kind(src_type) == T_UARRAY || !cgen_const_bounds(src_type))
+      src_dir = LLVMBuildExtractValue(builder, src, 3, "dir");
+   else
+      src_dir = llvm_int8(type_dim(src_type, 0).kind);
+
+   LLVMValueRef opposite_dir =
+      LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
    LLVMValueRef ll_n_elems;
-   if (cgen_const_bounds(ty)) {
+   if (cgen_const_bounds(dest_type)) {
       int n_elems = 1;
-      for (unsigned i = 0; i < type_dims(ty); i++) {
+      for (unsigned i = 0; i < type_dims(dest_type); i++) {
          int64_t low, high;
-         range_bounds(type_dim(ty, i), &low, &high);
+         range_bounds(type_dim(dest_type, i), &low, &high);
 
          n_elems *= (high - low + 1);
       }
@@ -481,15 +505,18 @@ static void cgen_array_copy(type_t ty, LLVMValueRef src, LLVMValueRef dst)
    }
    else {
       ll_n_elems = cgen_uarray_len(dst);
-      dst = cgen_array_data_ptr(ty, dst);
+      dst = cgen_array_data_ptr(dest_type, dst);
    }
 
+   LLVMValueRef src_ptr = cgen_array_data_ptr(src_type, src);
+
    LLVMValueRef args[] = {
-      llvm_void_cast(dst),      // Destination
-      llvm_void_cast(src),      // Source
+      llvm_void_cast(dst),
+      llvm_void_cast(src_ptr),
       llvm_int32(0),            // Offset
       ll_n_elems,               // Number of elements
-      llvm_sizeof(llvm_type(type_base(ty)))
+      llvm_sizeof(llvm_type(type_base(dest_type))),
+      opposite_dir
    };
    LLVMBuildCall(builder, llvm_fn("_array_copy"),
                  args, ARRAY_LEN(args), "");
@@ -1358,6 +1385,7 @@ static void cgen_wait(tree_t t, struct cgen_ctx *ctx)
 static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
 {
    LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
+   type_t value_type = tree_type(tree_value(t));
 
    tree_t target = tree_target(t);
    switch (tree_kind(target)) {
@@ -1366,17 +1394,8 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef lhs = cgen_get_var(tree_ref(target), ctx);
 
          type_t ty = tree_type(target);
-         if (type_kind(ty) == T_CARRAY) {
-            type_t value_type = tree_type(tree_value(t));
-            bool wrapped = (type_kind(value_type) == T_UARRAY
-                            || !cgen_const_bounds(value_type));
-            if (wrapped) {
-               // Need to unpack data pointer first
-               rhs = LLVMBuildExtractValue(builder, rhs, 0, "data");
-            }
-
-            cgen_array_copy(ty, rhs, lhs);
-         }
+         if (type_kind(ty) == T_CARRAY)
+            cgen_array_copy(value_type, ty, rhs, lhs);
          else
             LLVMBuildStore(builder, rhs, lhs);
       }
@@ -1411,7 +1430,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          type_t ty = tree_type(tree_ref(target));
          assert(type_kind(ty) == T_CARRAY);
 
-         cgen_array_copy_slice(ty, tree_range(target), rhs, lhs);
+         cgen_array_copy_slice(value_type, ty, tree_range(target), rhs, lhs);
       }
       break;
 
@@ -1642,7 +1661,7 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
                                           args, ARRAY_LEN(args), "buf");
 
-         cgen_array_copy_slice(type, r, rval, buf);
+         cgen_array_copy_slice(type, type, r, rval, buf);
 
          LLVMTypeRef ptr_type =
             LLVMPointerType(llvm_type(type_base(type)), 0);
@@ -2008,7 +2027,7 @@ static void cgen_process(tree_t t)
 
          type_t ty = tree_type(v);
          if (type_kind(ty) == T_CARRAY)
-            cgen_array_copy(ty, val, var_ptr);
+            cgen_array_copy(ty, ty, val, var_ptr);
          else
             LLVMBuildStore(builder, val, var_ptr);
       }
@@ -2461,7 +2480,8 @@ static void cgen_support_fns(void)
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type(),
-      LLVMInt32Type()
+      LLVMInt32Type(),
+      LLVMInt1Type()
    };
    LLVMAddFunction(module, "_array_copy",
                    LLVMFunctionType(LLVMVoidType(),
