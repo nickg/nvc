@@ -91,12 +91,13 @@ static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
 
-static heap_t   eventq_heap = NULL;
-static size_t   n_procs = 0;
-static uint64_t now = 0;
-static int      iteration = -1;
-static bool     trace_on = false;
-static ident_t  i_signal = NULL;
+static heap_t        eventq_heap = NULL;
+static size_t        n_procs = 0;
+static uint64_t      now = 0;
+static int           iteration = -1;
+static bool          trace_on = false;
+static ident_t       i_signal = NULL;
+static tree_rd_ctx_t tree_rd_ctx = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -258,7 +259,7 @@ void _sched_event(void *_sig, int32_t n)
 }
 
 void _assert_fail(int8_t report, const uint8_t *msg,
-                  int32_t msg_len, int8_t severity)
+                  int32_t msg_len, int8_t severity, int32_t where)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -273,6 +274,9 @@ void _assert_fail(int8_t report, const uint8_t *msg,
       "Note", "Warning", "Error", "Failure"
    };
 
+   tree_t t = tree_read_recall(tree_rd_ctx, where);
+   const loc_t *l = tree_loc(t);
+
    fprintf(stderr, "%s+%d: %s %s: ",
            fmt_time(now), iteration,
            report ? "Report" : "Assertion",
@@ -282,6 +286,7 @@ void _assert_fail(int8_t report, const uint8_t *msg,
    else
       fputs((const char *)msg, stderr);
    fprintf(stderr, "\n");
+   fprintf(stderr, "\tFile %s, Line %d\n", l->file, l->first_line);
 
    if (severity >= 2)
       exit(EXIT_FAILURE);
@@ -815,8 +820,10 @@ static bool rt_stop_now(uint64_t stop_time)
    return peek->when > stop_time;
 }
 
-void rt_batch_exec(tree_t e, uint64_t stop_time)
+void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 {
+   tree_rd_ctx = ctx;
+
    jit_init(tree_ident(e));
 
    rt_one_time_init();
@@ -836,10 +843,9 @@ static void rt_slave_run(slave_run_msg_t *msg)
       rt_cycle();
 }
 
-static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
-                                 tree_rd_ctx_t ctx)
+static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
 {
-   tree_t t = tree_read_recall(ctx, msg->index);
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
    type_t type = tree_type(t);
@@ -867,6 +873,8 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg,
 
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 {
+   tree_rd_ctx = ctx;
+
    jit_init(tree_ident(e));
    rt_one_time_init();
 
@@ -891,7 +899,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
          break;
 
       case SLAVE_READ_SIGNAL:
-         rt_slave_read_signal((slave_read_signal_msg_t*)buf, ctx);
+         rt_slave_read_signal((slave_read_signal_msg_t*)buf);
          break;
 
       default:

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -61,11 +61,13 @@ void write_u16(uint16_t s, FILE *f);
 bool write_b(bool b, FILE *f);
 void write_i32(int32_t i, FILE *f);
 void write_i64(int64_t i, FILE *f);
+void write_u8(uint8_t u, FILE *f);
 
 uint32_t read_u32(FILE *f);
 uint16_t read_u16(FILE *f);
 bool read_b(FILE *f);
 int32_t read_i32(FILE *f);
 int64_t read_i64(FILE *f);
+uint8_t read_u8(FILE *f);
 
 #endif // _UTIL_H

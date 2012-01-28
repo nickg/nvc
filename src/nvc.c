@@ -272,7 +272,7 @@ static int run(int argc, char **argv)
       vcd_init(vcd_fname, e);
 
    if (mode == BATCH)
-      rt_batch_exec(e, stop_time);
+      rt_batch_exec(e, stop_time, ctx);
    else {
       bool master = slave_fork();
       if (master)

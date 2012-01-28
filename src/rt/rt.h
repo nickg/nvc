@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -27,7 +27,8 @@ struct tree_rd_ctx;
 
 typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 
-void rt_batch_exec(struct tree *e, uint64_t stop_time);
+void rt_batch_exec(struct tree *e, uint64_t stop_time,
+                   struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
 void rt_trace_en(bool en);
 void rt_set_event_cb(struct tree *s, sig_event_fn_t fn);

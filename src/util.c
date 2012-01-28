@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -367,6 +367,11 @@ void write_u16(uint16_t s, FILE *f)
    fwrite(&s, sizeof(uint16_t), 1, f);
 }
 
+void write_u8(uint8_t u, FILE *f)
+{
+   fwrite(&u, sizeof(uint8_t), 1, f);
+}
+
 bool write_b(bool b, FILE *f)
 {
    uint8_t c = b;
@@ -386,6 +391,14 @@ uint16_t read_u16(FILE *f)
 {
    uint16_t u;
    if (fread(&u, sizeof(uint16_t), 1, f) != 1)
+      fatal("premature end of file");
+   return u;
+}
+
+uint8_t read_u8(FILE *f)
+{
+   uint8_t u;
+   if (fread(&u, sizeof(uint8_t), 1, f) != 1)
       fatal("premature end of file");
    return u;
 }

@@ -1590,10 +1590,11 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
       msg_val = message;
 
    LLVMValueRef args[] = {
-      LLVMConstInt(LLVMInt8Type(), is_report, false),
+      llvm_int8(is_report),
       msg_val,
-      LLVMConstInt(LLVMInt32Type(), slen, false),
-      severity
+      llvm_int32(slen),
+      severity,
+      llvm_int32(tree_index(t))
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"),
                  args, ARRAY_LEN(args), "");
@@ -2467,7 +2468,8 @@ static void cgen_support_fns(void)
       LLVMInt8Type(),
       LLVMPointerType(LLVMInt8Type(), 0),
       LLVMInt32Type(),
-      LLVMInt8Type()
+      LLVMInt8Type(),
+      LLVMInt32Type()
    };
    LLVMAddFunction(module, "_assert_fail",
                    LLVMFunctionType(LLVMVoidType(),

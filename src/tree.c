@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1000
+#define FILE_FMT_VER 0x1001
 
 //#define EXTRA_READ_CHECKS
 
@@ -121,6 +121,7 @@ struct tree_wr_ctx {
    type_wr_ctx_t type_ctx;
    unsigned      generation;
    unsigned      n_trees;
+   const char    *file_names[256];
 };
 
 struct tree_rd_ctx {
@@ -129,6 +130,7 @@ struct tree_rd_ctx {
    unsigned      n_trees;
    tree_t        *store;
    unsigned      store_sz;
+   const char    *file_names[256];
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -1287,6 +1289,30 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
+   const char *fname = (l->file != NULL ? l->file : "(none)");
+
+   uint8_t findex;
+   for (findex = 0;
+        (findex < 0xff)
+           && (ctx->file_names[findex] != NULL)
+           && (strcmp(ctx->file_names[findex], fname) != 0);
+        findex++)
+      ;
+   assert(findex != 0xff);
+
+   if (ctx->file_names[findex] == NULL) {
+      const size_t len = strlen(fname) + 1;
+
+      ctx->file_names[findex] = fname;
+
+      write_u8(0xff, ctx->file);
+      write_u8(findex, ctx->file);
+      write_u16(len, ctx->file);
+      fwrite(fname, 1, len, ctx->file);
+   }
+   else
+      write_u8(findex, ctx->file);
+
    write_u16(l->first_line, ctx->file);
    write_u16(l->first_column, ctx->file);
    write_u16(l->last_line, ctx->file);
@@ -1295,7 +1321,23 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 
 static loc_t read_loc(tree_rd_ctx_t ctx)
 {
-   loc_t l = { .file = "none", .linebuf = NULL };
+   const char *fname;
+   uint8_t fmarker = read_u8(ctx->file);
+   if (fmarker == 0xff) {
+      uint8_t index = read_u8(ctx->file);
+      uint16_t len = read_u16(ctx->file);
+      char *buf = xmalloc(len);
+      fread(buf, 1, len, ctx->file);
+
+      ctx->file_names[index] = buf;
+      fname = buf;
+   }
+   else {
+      fname = ctx->file_names[fmarker];
+      assert(fname != NULL);
+   }
+
+   loc_t l = { .file = fname, .linebuf = NULL };
    l.first_line   = read_u16(ctx->file);
    l.first_column = read_u16(ctx->file);
    l.last_line    = read_u16(ctx->file);
@@ -1372,6 +1414,7 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->generation = next_generation++;
    ctx->n_trees    = 0;
    ctx->type_ctx   = type_write_begin(ctx);
+   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    write_u16(FILE_FMT_VER, f);
 
@@ -1734,6 +1777,7 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
    ctx->store_sz = 128;
    ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
    ctx->n_trees  = 0;
+   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    uint16_t ver = read_u16(f);
    if (ver != FILE_FMT_VER)
