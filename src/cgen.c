@@ -1590,7 +1590,6 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
       msg_val = message;
 
    LLVMValueRef args[] = {
-      llvm_int8(is_report),
       msg_val,
       llvm_int32(slen),
       severity,
@@ -2465,7 +2464,6 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _assert_fail_args[] = {
-      LLVMInt8Type(),
       LLVMPointerType(LLVMInt8Type(), 0),
       LLVMInt32Type(),
       LLVMInt8Type(),

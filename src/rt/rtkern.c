@@ -258,8 +258,8 @@ void _sched_event(void *_sig, int32_t n)
    }
 }
 
-void _assert_fail(int8_t report, const uint8_t *msg,
-                  int32_t msg_len, int8_t severity, int32_t where)
+void _assert_fail(const uint8_t *msg, int32_t msg_len,
+                  int8_t severity, int32_t where)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -279,7 +279,8 @@ void _assert_fail(int8_t report, const uint8_t *msg,
 
    fprintf(stderr, "%s+%d: %s %s: ",
            fmt_time(now), iteration,
-           report ? "Report" : "Assertion",
+           (tree_attr_int(t, ident_new("is_report"), 0)
+            ? "Report" : "Assertion"),
            levels[severity]);
    if (msg_len >= 0)
       fwrite(msg, 1, msg_len, stderr);
