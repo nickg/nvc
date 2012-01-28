@@ -284,6 +284,7 @@ static int run(int argc, char **argv)
    tree_read_end(ctx);
    return EXIT_SUCCESS;
 }
+
 static int dump_cmd(int argc, char **argv)
 {
    set_work_lib();

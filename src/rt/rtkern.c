@@ -187,10 +187,10 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
    TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
          fmt_sig(sig), source, values, n, size, fmt_time(after));
 
-   const uint8_t  *v8  = values;
-   const uint16_t *v16 = values;
-   const uint32_t *v32 = values;
-   const uint64_t *v64 = values;
+   const uint8_t  *restrict v8  = values;
+   const uint16_t *restrict v16 = values;
+   const uint32_t *restrict v32 = values;
+   const uint64_t *restrict v64 = values;
 
    switch (size) {
       case 1:
@@ -422,11 +422,11 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 {
    struct event *e = user;
 
-   printf("%s\t", fmt_time(e->when));
+   fprintf(stderr, "%s\t", fmt_time(e->when));
    if (e->kind == E_DRIVER)
-      printf("driver\t %s\n", fmt_sig(e->signal));
+      fprintf(stderr, "driver\t %s\n", fmt_sig(e->signal));
    else
-      printf("process\t %s\n", istr(tree_ident(e->wake_proc->source)));
+      fprintf(stderr, "process\t %s\n", istr(tree_ident(e->wake_proc->source)));
 }
 
 static void deltaq_dump(void)
