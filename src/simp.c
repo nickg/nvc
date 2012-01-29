@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -235,7 +235,8 @@ static tree_t simp_ref(tree_t t)
       if (type_kind(tree_type(decl)) == T_PHYSICAL) {
          // Slight hack to constant-fold the definitions of
          // physical units that and generated during the sem phase
-         return tree_rewrite(tree_value(decl), simp_tree, NULL);
+         tree_t copy = tree_copy(tree_value(decl));
+         return tree_rewrite(copy, simp_tree, NULL);
       }
       else
          return tree_value(decl);

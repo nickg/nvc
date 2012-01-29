@@ -3,16 +3,24 @@ use ieee.std_logic_1164.all;
 
 entity sub is
     port (
-        clk : in std_logic;
+        clk : out std_logic;
         cnt : out integer );
 end entity;
 
 architecture test of sub is
+    signal clk_i   : bit := '0';
+    signal clk_std : std_logic;
 begin
 
-    process (clk) is
+    clk_i <= not clk_i after 1 ns;
+
+    clk_std <= to_stdulogic(clk_i);
+
+    clk <= clk_std;
+
+    process (clk_std) is
     begin
-        if rising_edge(clk) then
+        if rising_edge(clk_std) then
             cnt <= cnt + 1;
         end if;
     end process;
@@ -29,10 +37,8 @@ use ieee.std_logic_1164.all;
 
 architecture test of ieee2 is
     signal cnt : integer := 0;
-    signal clk : std_logic := '0';
+    signal clk : std_logic;
 begin
-
-    clk <= not clk after 1 ns;
 
     sub_i: entity work.sub port map ( clk, cnt );
 
