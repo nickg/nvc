@@ -2210,6 +2210,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
          tree_add_assoc(copy, a);
       }
    }
+   if (HAS_CLASS(t))
+      copy->class = t->class;
 
    switch (t->kind) {
    case T_PORT_DECL:
