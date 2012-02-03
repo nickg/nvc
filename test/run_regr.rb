@@ -8,7 +8,7 @@ require 'getopt/std'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
-LibPath = "#{BuildDir}/lib/std"
+LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 Opts = Getopt::Std.getopts('v')
 
 def read_tests
