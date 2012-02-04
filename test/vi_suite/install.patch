@@ -1,0 +1,38 @@
+--- install.old	2012-02-04 21:36:38.059578767 +0000
++++ install	2012-02-04 21:38:37.776668713 +0000
+@@ -89,7 +89,7 @@
+ #    Choose Simulator
+ #--------------------------------------------------------------------
+ set simulator = ""
+-while (($simulator != '1') && ($simulator != '2') && ($simulator != '3') && ($simulator != '4') && ($simulator != '5'))
++while (($simulator != '1') && ($simulator != '2') && ($simulator != '3') && ($simulator != '4') && ($simulator != '5') && ($simulator != '6'))
+     echo ""              
+     echo "Simulators For which Install Scripts are Available...."
+     echo "Mentor Graphics. = 1"
+@@ -97,6 +97,7 @@
+     echo "Synopsys........ = 3"
+     echo "Model Technology = 4"
+     echo "Other........... = 5"
++    echo "NVC............. = 6"
+     echo -n "Please enter the number of your choice : "
+     set simulator = ($<)
+ end
+@@ -158,6 +159,18 @@
+    echo ""
+    echo ""
+ 
++else if ($simulator == '6') then
++#       ---------------------------------------------------------------------    
++#       NVC
++#       ---------------------------------------------------------------------
++   /bin/ln -s nvc/SSF SSF
++   /bin/ln -s nvc/create_library create_library
++   /bin/ln -s nvc/compile compile
++   /bin/ln -s nvc/simulate simulate
++
++   echo "The installation is now complete."
++
++
+ endif
+ 
+ echo "Remember to add the line:  setenv VI_TEST install_directory/vi_suite"

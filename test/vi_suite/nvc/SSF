@@ -1,0 +1,12 @@
+compiler_error:
+** Error
+simulator_error:
+** Fatal
+create_library:
+$work $work_path $suite_dir
+compile:
+$src_file $src_path $out_path $work $work_path $suite_dir
+simulate:
+$src_file $out_path $work $work_path $entity $arch $config $time_unit $time $suite_dir
+end
+

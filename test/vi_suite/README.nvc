@@ -1,0 +1,20 @@
+To run the VI VHDL test suite on NVC do the following:
+
+1. Find vi_suite.tar.Z (MD5: cc8eb372e4a97a95f6f3a68ea7696ec5) on the
+   internet Wayback Machine.
+2. Extract in nvc/test (i.e. over the top of this directory)
+3. Install csh on your computer
+4. Change "acc" in cfiles/*.mkf to "gcc". With GNU sed you can do
+     sed -i'' s/acc/gcc/g cfiles/*.mkf
+5. Set the VI_TEST environment variable to the vi_suite directory
+     export VI_TEST=$(pwd)
+6. Add $VI_TEST to your PATH 
+     export PATH=$PATH:$VI_TEST
+7. Patch the install script to support NVC
+     patch -p0 < install.patch
+8. Run ./install 
+9. Run ./tcp
+10. At the TCP# prompt:
+     set branch on all
+     set entorcfg entity
+     execute
