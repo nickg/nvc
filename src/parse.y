@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -166,6 +166,7 @@
 %type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec
+%type <l> conditional_waveforms
 %type <p> entity_header
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -916,12 +917,44 @@ variable_decl
 ;
 
 conc_assign_stmt
-: target tLE waveform tSEMI
+: target tLE conditional_waveforms tSEMI
   {
      $$ = tree_new(T_CASSIGN);
      tree_set_loc($$, &@$);
      tree_set_target($$, $1);
-     copy_trees($3, tree_add_waveform, $$);
+     copy_trees($3, tree_add_cond, $$);
+  }
+;
+
+conditional_waveforms
+: waveform
+  {
+     tree_t c = tree_new(T_COND);
+     tree_set_loc(c, &@1);
+     copy_trees($1, tree_add_waveform, c);
+
+     $$ = NULL;
+     tree_list_append(&$$, c);
+  }
+| waveform tWHEN expr
+  {
+     tree_t c = tree_new(T_COND);
+     tree_set_loc(c, &@1);
+     tree_set_value(c, $3);
+     copy_trees($1, tree_add_waveform, c);
+
+     $$ = NULL;
+     tree_list_append(&$$, c);
+  }
+| waveform tWHEN expr tELSE conditional_waveforms
+  {
+     tree_t c = tree_new(T_COND);
+     tree_set_loc(c, &@1);
+     tree_set_value(c, $3);
+     copy_trees($1, tree_add_waveform, c);
+
+     $$ = $5;
+     tree_list_prepend(&$$, c);
   }
 ;
 

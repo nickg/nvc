@@ -11,4 +11,8 @@ begin
 
     x <= '4';                           -- Wrong type
 
+    x <= 6 when y > 2 else 7;           -- OK
+
+    x <= 7 when 7 else 3;               -- Condition not boolean
+
 end architecture;

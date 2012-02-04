@@ -1080,19 +1080,34 @@ END_TEST
 
 START_TEST(test_conc)
 {
-   tree_t a, s;
+   tree_t a, s, c;
 
    fail_unless(input_from_file(TESTDIR "/parse/conc.vhd"));
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 1);
+   fail_unless(tree_stmts(a) == 2);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_REF);
-   fail_unless(tree_kind(tree_value(tree_waveform(s, 0))) == T_FCALL);
+   fail_unless(tree_conds(s) == 1);
+   c = tree_cond(s, 0);
+   fail_unless(tree_kind(c) == T_COND);
+   fail_unless(tree_waveforms(c) == 1);
+   fail_if(tree_has_value(c));
+   fail_unless(tree_kind(tree_value(tree_waveform(c, 0))) == T_FCALL);
+
+   s = tree_stmt(a, 1);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(tree_target(s)) == T_REF);
+   fail_unless(tree_conds(s) == 3);
+   c = tree_cond(s, 0);
+   fail_unless(tree_kind(c) == T_COND);
+   fail_unless(tree_waveforms(c) == 1);
+   fail_unless(tree_has_value(c));
+   fail_unless(tree_kind(tree_value(tree_waveform(c, 0))) == T_LITERAL);
 
    a = parse();
    fail_unless(a == NULL);
@@ -1200,7 +1215,7 @@ END_TEST
 
 START_TEST(test_ir1045)
 {
-   tree_t a, s, q, v;
+   tree_t a, s, q, v, c;
 
    fail_unless(input_from_file(TESTDIR "/parse/ir1045.vhd"));
 
@@ -1209,14 +1224,16 @@ START_TEST(test_ir1045)
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
-   q = tree_value(tree_waveform(s, 0));
+   c = tree_cond(s, 0);
+   q = tree_value(tree_waveform(c, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    v = tree_value(q);
    fail_unless(tree_kind(v) == T_AGGREGATE);
 
    s = tree_stmt(a, 1);
    fail_unless(tree_kind(s) == T_CASSIGN);
-   q = tree_value(tree_waveform(s, 0));
+   c = tree_cond(s, 0);
+   q = tree_value(tree_waveform(c, 0));
    fail_unless(tree_kind(q) == T_QUALIFIED);
    v = tree_value(q);
    fail_unless(tree_kind(v) == T_REF);

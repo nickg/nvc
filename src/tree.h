@@ -84,6 +84,7 @@ typedef enum tree_kind {
    T_PCALL,
    T_CASE,
    T_BLOCK,
+   T_COND,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -181,12 +182,13 @@ void tree_set_literal(tree_t t, literal_t lit);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
 // T_QUALIFIED, T_CONST_DECL, T_ASSERT, T_ATTR_SPEC
-// T_ARRAY_REF, T_IF, T_WHILE, T_REF, T_ALIAS
+// T_ARRAY_REF, T_IF, T_WHILE, T_REF, T_ALIAS, T_WAVEFORM
+// T_COND
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
 
-// T_SIGNAL_ASSIGN, T_CASSIGN
+// T_SIGNAL_ASSIGN, T_COND
 unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
 void tree_add_waveform(tree_t t, tree_t w);
@@ -206,6 +208,11 @@ void tree_add_stmt(tree_t t, tree_t d);
 unsigned tree_else_stmts(tree_t t);
 tree_t tree_else_stmt(tree_t t, unsigned n);
 void tree_add_else_stmt(tree_t t, tree_t d);
+
+// T_CASSIGN
+unsigned tree_conds(tree_t t);
+tree_t tree_cond(tree_t t, unsigned n);
+void tree_add_cond(tree_t t, tree_t d);
 
 // T_WAIT
 bool tree_has_delay(tree_t t);

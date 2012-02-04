@@ -1657,29 +1657,24 @@ static bool sem_check_var_assign(tree_t t)
    return ok;
 }
 
-static bool sem_check_signal_assign(tree_t t)
+static bool sem_check_waveforms(tree_t t, type_t expect)
 {
-   tree_t target = tree_target(t);
-
-   if (!sem_check(target))
-      return false;
-
    type_t std_time = sem_std_type("STD.STANDARD.TIME");
 
    for (unsigned i = 0; i < tree_waveforms(t); i++) {
       tree_t waveform = tree_waveform(t, i);
       tree_t value = tree_value(waveform);
 
-      if (!sem_check_constrained(value, tree_type(target)))
+      if (!sem_check_constrained(value, expect))
          return false;
 
       if (!sem_readable(value))
          return false;
 
-      if (!type_eq(tree_type(target), tree_type(value)))
+      if (!type_eq(expect, tree_type(value)))
          sem_error(t, "type of value %s does not match type of target %s",
                    istr(type_ident(tree_type(value))),
-                   istr(type_ident(tree_type(target))));
+                   istr(type_ident(expect)));
 
       if (tree_has_delay(waveform)) {
          tree_t delay = tree_delay(waveform);
@@ -1692,6 +1687,11 @@ static bool sem_check_signal_assign(tree_t t)
       }
    }
 
+   return true;
+}
+
+static bool sem_check_signal_target(tree_t target)
+{
    tree_t decl = tree_ref(target);
    while (tree_kind(decl) == T_ALIAS)
       decl = tree_ref(tree_value(decl));
@@ -1709,6 +1709,54 @@ static bool sem_check_signal_assign(tree_t t)
    default:
       sem_error(target, "invalid target of signal assignment");
    }
+
+   return true;
+}
+
+static bool sem_check_signal_assign(tree_t t)
+{
+   tree_t target = tree_target(t);
+
+   if (!sem_check(target))
+      return false;
+
+   if (!sem_check_waveforms(t, tree_type(target)))
+      return false;
+
+   if (!sem_check_signal_target(target))
+      return false;
+
+   return true;
+}
+
+static bool sem_check_cassign(tree_t t)
+{
+   tree_t target = tree_target(t);
+
+   if (!sem_check(target))
+      return false;
+
+   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+
+   for (unsigned i = 0; i < tree_conds(t); i++) {
+      tree_t c = tree_cond(t, i);
+
+      if (tree_has_value(c)) {
+         tree_t test = tree_value(c);
+
+         if (!sem_check(test))
+            return false;
+
+         if (!type_eq(tree_type(test), std_bool))
+            sem_error(test, "type of condition must be BOOLEAN");
+      }
+
+      if (!sem_check_waveforms(c, tree_type(target)))
+         return false;
+   }
+
+   if (!sem_check_signal_target(target))
+      return false;
 
    return true;
 }
@@ -2618,7 +2666,7 @@ bool sem_check(tree_t t)
    case T_RETURN:
       return sem_check_return(t);
    case T_CASSIGN:
-      return sem_check_signal_assign(t);
+      return sem_check_cassign(t);
    case T_WHILE:
       return sem_check_while(t);
    case T_ALIAS:

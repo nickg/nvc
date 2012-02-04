@@ -606,10 +606,21 @@ static tree_t simp_for(tree_t t)
 
 static void simp_build_wait(tree_t ref, void *context)
 {
+   // Add each signal referenced in an expression to the trigger
+   // list for a wait statement
+
    tree_t wait = context;
 
-   if (tree_kind(tree_ref(ref)) == T_SIGNAL_DECL)
+   tree_t decl = tree_ref(ref);
+   if (tree_kind(decl) == T_SIGNAL_DECL) {
+      // Check for duplicates
+      for (unsigned i = 0; i < tree_triggers(wait); i++) {
+         if (tree_ref(tree_trigger(wait, i)) == decl)
+            return;
+      }
+
       tree_add_trigger(wait, ref);
+   }
 }
 
 static tree_t simp_cassign(tree_t t)
@@ -622,18 +633,45 @@ static tree_t simp_cassign(tree_t t)
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("cassign"));
 
-   tree_t s = tree_new(T_SIGNAL_ASSIGN);
-   tree_set_loc(s, tree_loc(t));
-   tree_set_target(s, tree_target(t));
-   tree_set_ident(s, tree_ident(t));
+   tree_t container = p;  // Where to add new statements
+   void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
 
-   for (unsigned i = 0; i < tree_waveforms(t); i++) {
-      tree_t wave = tree_waveform(t, i);
-      tree_add_waveform(s, wave);
-      tree_visit_only(wave, simp_build_wait, w, T_REF);
+   for (unsigned i = 0; i < tree_conds(t); i++) {
+      tree_t c = tree_cond(t, i);
+
+      if (tree_has_value(c)) {
+         // Replace this with an if statement
+         tree_t i = tree_new(T_IF);
+         tree_set_value(i, tree_value(c));
+         tree_set_ident(i, ident_uniq("cond"));
+
+         tree_visit_only(tree_value(c), simp_build_wait, w, T_REF);
+
+         (*add_stmt)(container, i);
+
+         container = i;
+         add_stmt  = tree_add_stmt;
+      }
+
+      tree_t s = tree_new(T_SIGNAL_ASSIGN);
+      tree_set_loc(s, tree_loc(t));
+      tree_set_target(s, tree_target(t));
+      tree_set_ident(s, tree_ident(t));
+
+      for (unsigned i = 0; i < tree_waveforms(c); i++) {
+         tree_t wave = tree_waveform(c, i);
+         tree_add_waveform(s, wave);
+         tree_visit_only(wave, simp_build_wait, w, T_REF);
+      }
+
+      (*add_stmt)(container, s);
+
+      if (tree_has_value(c)) {
+         // Add subsequent statements to the else part
+         add_stmt = tree_add_else_stmt;
+      }
    }
 
-   tree_add_stmt(p, s);
    tree_add_stmt(p, w);
    return p;
 }

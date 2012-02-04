@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1001
+#define FILE_FMT_VER 0x1002
 
 //#define EXTRA_READ_CHECKS
 
@@ -73,8 +73,9 @@ struct tree {
    union {
       struct tree_array  generics; // T_ENTITY
       struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
-      struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_CASSSING
+      struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_COND
       struct param_array genmaps;  // T_INSTANCE
+      struct tree_array  conds;    // T_CASSIGN
    };
    union {
       literal_t   literal;         // T_LITERAL
@@ -200,7 +201,7 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_CASE)       \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC)         \
-    || IS(t, T_EXIT))
+    || IS(t, T_EXIT) || IS(t, T_COND))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
@@ -208,10 +209,12 @@ struct tree_rd_ctx {
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
     || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE)                     \
     || IS(t, T_INSTANCE) || IS(t, T_PCALL))
-#define HAS_WAVEFORMS(t) (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_CASSIGN))
+#define HAS_WAVEFORMS(t)                                              \
+   (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
 #define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL))
 #define HAS_ASSOCS(t) (IS(t, T_AGGREGATE) || IS(t, T_CASE))
+#define HAS_CONDS(t) (IS(t, T_CASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -717,6 +720,32 @@ void tree_add_else_stmt(tree_t t, tree_t s)
    tree_array_add(&t->elses, s);
 }
 
+unsigned tree_conds(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_CONDS(t));
+
+   return t->conds.count;
+}
+
+tree_t tree_cond(tree_t t, unsigned n)
+{
+   assert(t != NULL);
+   assert(HAS_CONDS(t));
+
+   return tree_array_nth(&t->conds, n);
+}
+
+void tree_add_cond(tree_t t, tree_t c)
+{
+   assert(t != NULL);
+   assert(c != NULL);
+   assert(HAS_CONDS(t));
+   assert(IS(c, T_COND));
+
+   tree_array_add(&t->conds, c);
+}
+
 unsigned tree_drivers(tree_t t)
 {
    assert(t != NULL);
@@ -1186,6 +1215,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
    if (HAS_STMTS(t))
       n += tree_visit_a(&t->stmts, fn, context, kind, generation, deep);
+   if (HAS_CONDS(t))
+      n += tree_visit_a(&t->conds, fn, context, kind, generation, deep);
    if (HAS_WAVEFORMS(t))
       n += tree_visit_a(&t->waves, fn, context, kind, generation, deep);
    if (HAS_VALUE(t))
@@ -1467,6 +1498,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       write_a(&t->waves, ctx);
+   if (HAS_CONDS(t))
+      write_a(&t->conds, ctx);
    if (HAS_TYPE(t))
       type_write(t->type, ctx->type_ctx);
    if (HAS_VALUE(t))
@@ -1631,6 +1664,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       read_a(&t->waves, ctx);
+   if (HAS_CONDS(t))
+      read_a(&t->conds, ctx);
    if (HAS_TYPE(t)) {
       if ((t->type = type_read(ctx->type_ctx)))
          type_ref(t->type);
@@ -1987,6 +2022,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       rewrite_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       rewrite_a(&t->waves, ctx);
+   if (HAS_CONDS(t))
+      rewrite_a(&t->conds, ctx);
    if (HAS_TARGET(t))
       tree_set_target(t, tree_rewrite_aux(tree_target(t), ctx));
    if (HAS_VALUE(t)) {
@@ -2162,6 +2199,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->generics, &copy->generics, ctx);
    if (HAS_DECLS(t))
       copy_a(&t->decls, &copy->decls, ctx);
+   if (HAS_CONDS(t))
+      copy_a(&t->conds, &copy->conds, ctx);
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
    if (HAS_STMTS(t))
