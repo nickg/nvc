@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -250,6 +250,12 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
 
 static void elab_entity(tree_t t, tree_t out, ident_t path)
 {
+   if (tree_ports(t) > 0 || tree_generics(t) > 0) {
+      // LRM 93 section 12.1 says implementation may allow this but
+      // is not required to
+      fatal("top-level entity may not have generics or ports");
+   }
+
    tree_t arch = pick_arch(tree_ident(t));
    ident_t new_path = hpathf(path, ':', ":%s(%s)",
                              simple_name(istr(tree_ident(t))),
