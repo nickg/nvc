@@ -304,7 +304,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx);
 void tree_write_end(tree_wr_ctx_t ctx);
 FILE *tree_write_file(tree_wr_ctx_t ctx);
 
-tree_rd_ctx_t tree_read_begin(FILE *f);
+tree_rd_ctx_t tree_read_begin(FILE *f, const char *name);
 tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
 FILE *tree_read_file(tree_rd_ctx_t ctx);

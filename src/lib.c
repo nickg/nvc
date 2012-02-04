@@ -121,6 +121,13 @@ static lib_t lib_find_at(const char *name, const char *path)
    return lib_init(name, dir);
 }
 
+static const char *lib_file_path(lib_t lib, const char *name)
+{
+   static char buf[PATH_MAX];
+   snprintf(buf, sizeof(buf), "%s/%s", lib->path, name);
+   return buf;
+}
+
 lib_t lib_new(const char *name)
 {
    if (access(name, F_OK) == 0) {
@@ -207,11 +214,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
 {
    assert(lib != NULL);
-
-   char buf[PATH_MAX];
-   snprintf(buf, sizeof(buf), "%s/%s", lib->path, name);
-
-   return fopen(buf, mode);
+   return fopen(lib_file_path(lib, name), mode);
 }
 
 void lib_free(lib_t lib)
@@ -305,7 +308,7 @@ tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
          FILE *f = lib_fopen(lib, e->d_name, "r");
-         *ctx = tree_read_begin(f);
+         *ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
          unit = tree_read(*ctx);
          lib_put_aux(lib, unit, false);
          break;

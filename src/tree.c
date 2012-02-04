@@ -131,6 +131,7 @@ struct tree_rd_ctx {
    unsigned      n_trees;
    tree_t        *store;
    unsigned      store_sz;
+   char          *db_fname;
    const char    *file_names[256];
 };
 
@@ -1804,7 +1805,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    return t;
 }
 
-tree_rd_ctx_t tree_read_begin(FILE *f)
+tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
 {
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
    ctx->file     = f;
@@ -1812,11 +1813,13 @@ tree_rd_ctx_t tree_read_begin(FILE *f)
    ctx->store_sz = 128;
    ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
    ctx->n_trees  = 0;
+   ctx->db_fname = strdup(fname);
    memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    uint16_t ver = read_u16(f);
    if (ver != FILE_FMT_VER)
-      fatal("serialised version %x expected %x", ver, FILE_FMT_VER);
+      fatal("%s: serialised version %x expected %x",
+            ctx->db_fname, ver, FILE_FMT_VER);
 
    return ctx;
 }
@@ -1826,6 +1829,7 @@ void tree_read_end(tree_rd_ctx_t ctx)
    fclose(ctx->file);
    type_read_end(ctx->type_ctx);
    free(ctx->store);
+   free(ctx->db_fname);
    free(ctx);
 }
 
