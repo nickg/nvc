@@ -290,7 +290,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
    fprintf(stderr, "\tFile %s, Line %d\n", l->file, l->first_line);
 
    if (severity >= 2)
-      exit(EXIT_FAILURE);
+      fatal("cannot continue");
 }
 
 uint64_t _std_standard_now(void)

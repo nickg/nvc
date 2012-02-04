@@ -92,7 +92,7 @@ void errorf(const char *fmt, ...)
 static void def_error_fn(const char *msg, const loc_t *loc)
 {
    if (loc->first_line != (unsigned short)-1) {
-      fprintf(stderr, "%s:%d: %s\n", loc->file, loc->first_line, msg);
+      fprintf(stderr, "** Error: %s:%d: %s\n", loc->file, loc->first_line, msg);
       fmt_loc(stderr, loc);
    }
    else
@@ -122,7 +122,7 @@ void fatal(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   fprintf(stderr, "fatal: ");
+   fprintf(stderr, "** Fatal: ");
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
 

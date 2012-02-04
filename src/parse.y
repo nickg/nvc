@@ -1986,7 +1986,7 @@ static void parse_error(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   fprintf(stderr, "%s:%d: ",  loc->file, loc->first_line);
+   fprintf(stderr, "** Error: %s:%d: ",  loc->file, loc->first_line);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, "\n");
    fmt_loc(stderr, loc);
