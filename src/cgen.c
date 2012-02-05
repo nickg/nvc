@@ -297,22 +297,35 @@ static LLVMValueRef cgen_uarray_low(LLVMValueRef array)
    return LLVMBuildSelect(builder, is_downto, right, left, "low");
 }
 
-static LLVMValueRef cgen_uarray_len(LLVMValueRef array)
+static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
 {
-   // Argument must be a structure where the first two fields are the
-   // left and right indices
-   LLVMValueRef downto = LLVMBuildICmp(
-      builder, LLVMIntEQ,
-      LLVMBuildExtractValue(builder, array, 3, "dir"),
-      llvm_int8(RANGE_DOWNTO),
-      "downto");
-   LLVMValueRef left  = LLVMBuildExtractValue(builder, array, 1, "left");
-   LLVMValueRef right = LLVMBuildExtractValue(builder, array, 2, "right");
-   LLVMValueRef diff  = LLVMBuildSelect(builder, downto,
-                                        LLVMBuildSub(builder, left, right, ""),
-                                        LLVMBuildSub(builder, right, left, ""),
-                                        "diff");
-   return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
+   if (type_kind(type) == T_CARRAY && cgen_const_bounds(type)) {
+      int n_elems = 1;
+      for (unsigned i = 0; i < type_dims(type); i++) {
+         int64_t low, high;
+         range_bounds(type_dim(type, i), &low, &high);
+
+         n_elems *= (high - low + 1);
+      }
+      return llvm_int32(n_elems);
+   }
+   else {
+      // Argument must be a structure where the first two fields are the
+      // left and right indices
+      LLVMValueRef downto = LLVMBuildICmp(
+         builder, LLVMIntEQ,
+         LLVMBuildExtractValue(builder, data, 3, "dir"),
+         llvm_int8(RANGE_DOWNTO),
+         "downto");
+      LLVMValueRef left  = LLVMBuildExtractValue(builder, data, 1, "left");
+      LLVMValueRef right = LLVMBuildExtractValue(builder, data, 2, "right");
+      LLVMValueRef diff  =
+         LLVMBuildSelect(builder, downto,
+                         LLVMBuildSub(builder, left, right, ""),
+                         LLVMBuildSub(builder, right, left, ""),
+                         "diff");
+      return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
+   }
 }
 
 static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
@@ -492,21 +505,9 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef opposite_dir =
       LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
-   LLVMValueRef ll_n_elems;
-   if (cgen_const_bounds(dest_type)) {
-      int n_elems = 1;
-      for (unsigned i = 0; i < type_dims(dest_type); i++) {
-         int64_t low, high;
-         range_bounds(type_dim(dest_type, i), &low, &high);
-
-         n_elems *= (high - low + 1);
-      }
-      ll_n_elems = llvm_int32(n_elems);
-   }
-   else {
-      ll_n_elems = cgen_uarray_len(dst);
+   LLVMValueRef ll_n_elems = cgen_array_len(src_type, src);
+   if (!cgen_const_bounds(dest_type))
       dst = cgen_array_data_ptr(dest_type, dst);
-   }
 
    LLVMValueRef src_ptr = cgen_array_data_ptr(src_type, src);
 
@@ -692,7 +693,7 @@ static LLVMValueRef cgen_array_eq(type_t lhs_type, LLVMValueRef lhs,
    if (type_kind(lhs_type) == T_UARRAY || !cgen_const_bounds(lhs_type)) {
       lhs_ptr = LLVMBuildExtractValue(builder, lhs, 0, "lhs_ptr");
       lhs_dir = LLVMBuildExtractValue(builder, lhs, 3, "lhs_dir");
-      lhs_len = cgen_uarray_len(lhs);
+      lhs_len = cgen_array_len(lhs_type, lhs);
    }
    else {
       lhs_ptr = lhs;
@@ -708,7 +709,7 @@ static LLVMValueRef cgen_array_eq(type_t lhs_type, LLVMValueRef lhs,
    if (type_kind(rhs_type) == T_UARRAY || !cgen_const_bounds(rhs_type)) {
       rhs_ptr = LLVMBuildExtractValue(builder, rhs, 0, "rhs_ptr");
       rhs_dir = LLVMBuildExtractValue(builder, rhs, 3, "rhs_dir");
-      rhs_len = cgen_uarray_len(rhs);
+      rhs_len = cgen_array_len(rhs_type, rhs);
    }
    else {
       rhs_ptr = rhs;
@@ -902,7 +903,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
       else if (strcmp(builtin, "length") == 0) {
          assert(type_kind(arg_type) == T_UARRAY
                 || !cgen_const_bounds(arg_type));
-         return cgen_uarray_len(args[0]);
+         return cgen_array_len(arg_type, args[0]);
       }
       else if (strcmp(builtin, "uarray_left") == 0) {
          return LLVMBuildExtractValue(builder, args[0], 1, "left");
@@ -1213,15 +1214,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
    LLVMBuildStore(builder, llvm_int32(0), i);
 
    LLVMValueRef data = cgen_array_data_ptr(type, a);
-
-   LLVMValueRef len;
-   if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type))
-      len = cgen_uarray_len(a);
-   else {
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      len = llvm_int32(high - low + 1);
-   }
+   LLVMValueRef len = cgen_array_len(type, a);
 
    LLVMBuildBr(builder, test_bb);
 
@@ -1311,6 +1304,35 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
       return cgen_dyn_aggregate(t, ctx);
 }
 
+static LLVMValueRef cgen_concat(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMValueRef var = cgen_tmp_var(t, ctx);
+
+   assert(tree_params(t) == 2);
+   tree_t args[] = {
+      tree_param(t, 0).value,
+      tree_param(t, 1).value
+   };
+
+   LLVMValueRef args_ll[] = {
+      cgen_expr(args[0], ctx),
+      cgen_expr(args[1], ctx)
+   };
+
+   cgen_array_copy(tree_type(args[0]), tree_type(t), args_ll[0], var);
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      cgen_array_len(tree_type(args[0]), args_ll[0])
+   };
+   LLVMValueRef off = LLVMBuildGEP(builder, var, indexes,
+                                   ARRAY_LEN(indexes), "off");
+
+   cgen_array_copy(tree_type(args[1]), tree_type(t), args_ll[1], off);
+
+   return var;
+}
+
 static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -1328,8 +1350,10 @@ static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
       return cgen_aggregate(t, ctx);
    case T_QUALIFIED:
       return cgen_expr(tree_value(t), ctx);
+   case T_CONCAT:
+      return cgen_concat(t, ctx);
    default:
-      fatal("missing cgen_expr for kind %d\n", tree_kind(t));
+      fatal("missing cgen_expr for kind %d", tree_kind(t));
    }
 }
 

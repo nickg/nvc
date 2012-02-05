@@ -148,7 +148,7 @@ struct tree_rd_ctx {
 #define IS_EXPR(t)                                                    \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF)                \
     || IS(t, T_QUALIFIED) || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF)  \
-    || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE))
+    || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) || IS(t, T_CONCAT))
 #define IS_STMT(t)                                                    \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
@@ -182,7 +182,7 @@ struct tree_rd_ctx {
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY))
 #define HAS_PARAMS(t)                                                 \
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)         \
-    || IS(t, T_INSTANCE) || IS(t, T_PCALL))
+    || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_CONCAT))
 #define HAS_DECLS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE)             \
     || IS(t, T_ELAB) || IS(t, T_PACK_BODY) || IS(t, T_FOR)            \

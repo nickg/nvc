@@ -163,7 +163,6 @@ void fatal(const char *fmt, ...)
 
    fprintf(stderr, "** Fatal: ");
    paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
-   fprintf(stderr, "\n");
 
    va_end(ap);
 

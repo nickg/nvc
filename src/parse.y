@@ -1578,7 +1578,6 @@ expr
 | expr tROR expr { $$ = build_expr2("\"ror\"", $1, $3, &@$); }
 | expr tPLUS expr { $$ = build_expr2("+", $1, $3, &@$); }
 | expr tMINUS expr { $$ = build_expr2("-", $1, $3, &@$); }
-| expr tAMP expr { $$ = build_expr2("&", $1, $3, &@$); }
 | expr tTIMES expr { $$ = build_expr2("*", $1, $3, &@$); }
 | expr tOVER expr { $$ = build_expr2("/", $1, $3, &@$); }
 | expr tMOD expr { $$ = build_expr2("\"mod\"", $1, $3, &@$); }
@@ -1588,6 +1587,15 @@ expr
 | tABS expr { $$ = build_expr1("\"abs\"", $2, &@$); }
 | tMINUS expr { $$ = build_expr1("-", $2, &@$); }
 | tPLUS expr { $$ = build_expr1("+", $2, &@$); }
+| expr tAMP expr
+  {
+     $$ = tree_new(T_CONCAT);
+     tree_set_loc($$, &@$);
+     param_t p1 = { .value = $1, .kind = P_POS };
+     tree_add_param($$, p1);
+     param_t p2 = { .value = $3, .kind = P_POS };
+     tree_add_param($$, p2);
+  }
 | name
 | literal
 | selected_id tTICK aggregate

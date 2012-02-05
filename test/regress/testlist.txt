@@ -46,3 +46,4 @@ func5           normal
 ieee1           normal
 ieee2           normal,stop=15ns
 cond3           normal
+concat1         normal

@@ -1246,6 +1246,28 @@ START_TEST(test_ir1045)
 }
 END_TEST
 
+START_TEST(test_concat)
+{
+   tree_t a, s, e;
+
+   fail_unless(input_from_file(TESTDIR "/parse/concat.vhd"));
+
+   a = parse();
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   e = tree_value(tree_waveform(tree_cond(s, 0), 0));
+   fail_unless(tree_kind(e) == T_CONCAT);
+   fail_unless(tree_params(e) == 2);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1271,6 +1293,7 @@ int main(void)
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_procedure);
    tcase_add_test(tc_core, test_ir1045);
+   tcase_add_test(tc_core, test_concat);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

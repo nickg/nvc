@@ -85,6 +85,7 @@ typedef enum tree_kind {
    T_CASE,
    T_BLOCK,
    T_COND,
+   T_CONCAT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -171,7 +172,7 @@ unsigned tree_genmaps(tree_t t);
 param_t tree_genmap(tree_t t, unsigned n);
 void tree_add_genmap(tree_t t, param_t e);
 
-// T_FCALL, T_ARRAY_REF, T_INSTANCE, T_PCALL
+// T_FCALL, T_ARRAY_REF, T_INSTANCE, T_PCALL, T_CONCAT
 unsigned tree_params(tree_t t);
 param_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, param_t e);

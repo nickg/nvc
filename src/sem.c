@@ -482,6 +482,46 @@ static tree_t sem_bool_lit(type_t std_bool, bool v)
    return sem_make_ref(lit);
 }
 
+static tree_t sem_int_lit(type_t type, int64_t i)
+{
+   literal_t l;
+   l.kind = L_INT;
+   l.i = i;
+
+   tree_t f = tree_new(T_LITERAL);
+   tree_set_literal(f, l);
+   tree_set_type(f, type);
+
+   return f;
+}
+
+static tree_t sem_call_builtin(const char *name, const char *builtin,
+                               type_t type, ...)
+{
+   ident_t name_i = ident_new(name);
+
+   // TODO: it's a waste to create a separate decl for each call
+   tree_t decl = tree_new(T_FUNC_DECL);
+   tree_set_ident(decl, name_i);
+   tree_add_attr_str(decl, ident_new("builtin"), builtin);
+
+   tree_t call = tree_new(T_FCALL);
+   tree_set_ident(call, name_i);
+   tree_set_ref(call, decl);
+   tree_set_type(call, type);
+
+   va_list ap;
+   va_start(ap, type);
+   tree_t arg;
+   while ((arg = va_arg(ap, tree_t))) {
+      param_t p = { .kind = P_POS, .value = arg };
+      tree_add_param(call, p);
+   }
+   va_end(ap);
+
+   return call;
+}
+
 static void sem_declare_predefined_ops(tree_t decl)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -899,7 +939,7 @@ static bool sem_check_context(tree_t t)
          return false;
 
       if (!scope_import_unit(c, lib))
-          return false;
+         return false;
    }
 
    return true;
@@ -1927,8 +1967,8 @@ static bool sem_check_fcall(tree_t t)
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-               p += snprintf(p, end - p, "    %s\n",
-                             type_pp(tree_type(overloads[n])));
+            p += snprintf(p, end - p, "    %s\n",
+                          type_pp(tree_type(overloads[n])));
       }
 
       sem_error(t, "ambiguous %s %s\n%s",
@@ -2016,6 +2056,87 @@ static bool sem_check_assert(tree_t t)
       sem_error(message, "type of message be %s but is %s",
                 istr(type_ident(std_string)),
                 istr(type_ident(tree_type(message))));
+
+   return true;
+}
+
+static tree_t sem_array_len(type_t type)
+{
+   range_t r = type_dim(type, 0);
+   type_t index_type = tree_type(r.left);
+
+   tree_t one = sem_int_lit(index_type, 1);
+
+   tree_t tmp;
+   if (r.kind == RANGE_TO)
+      tmp = sem_call_builtin("\"-\"", "sub", index_type,
+                             r.right, r.left, NULL);
+   else
+      tmp = sem_call_builtin("\"-\"", "sub", index_type,
+                             r.left, r.right, NULL);
+
+   return sem_call_builtin("\"+\"", "add", index_type, tmp, one, NULL);
+}
+
+static bool sem_check_concat(tree_t t)
+{
+   // Concatenation expressions are treated differently to other operators
+   // as they have special rules. See LRM 93 section 9.2.5
+
+   assert(tree_params(t) == 2);
+   tree_t left  = tree_param(t, 0).value;
+   tree_t right = tree_param(t, 1).value;
+
+   if (!sem_check(left) || !sem_check(right))
+      return false;
+
+   type_t ltype;
+   if (!sem_check_subtype(left, tree_type(left), &ltype))
+      return false;
+
+   type_t rtype;
+   if (!sem_check_subtype(right, tree_type(right), &rtype))
+      return false;
+
+   if (type_kind(ltype) == T_CARRAY && type_kind(rtype) == T_CARRAY) {
+      // Simple case where both sides are constrained arrays
+      if (!type_eq(ltype, rtype))
+         sem_error(t, "cannot concatenate arrays of different types");
+
+      if (type_dims(ltype) > 1)
+         sem_error(t, "cannot concatenate arrays with more than one dimension");
+
+      type_t index_type = tree_type(type_dim(ltype, 0).left);
+
+      range_t index_r = type_dim(index_type, 0);
+
+      tree_t left_len = sem_array_len(ltype);
+      tree_t right_len = sem_array_len(rtype);
+
+      type_t result = type_new(T_CARRAY);
+      type_set_ident(result, type_ident(ltype));
+      type_set_base(result, type_base(ltype));
+
+      tree_t one = sem_int_lit(index_type, 1);
+
+      tree_t result_len = sem_call_builtin(
+         "\"+\"", "add", index_type, left_len, right_len, NULL);
+      tree_t tmp = sem_call_builtin(
+         "\"-\"", "sub", index_type, result_len, index_r.left, NULL);
+      tree_t result_right = sem_call_builtin(
+         "\"-\"", "sub", index_type, tmp, one, NULL);
+
+      range_t result_r = {
+         .kind  = index_r.kind,
+         .left  = index_r.left,
+         .right = result_right
+      };
+      type_add_dim(result, result_r);
+
+      tree_set_type(t, result);
+   }
+   else
+      assert(false);
 
    return true;
 }
@@ -2683,6 +2804,8 @@ bool sem_check(tree_t t)
       return sem_check_case(t);
    case T_EXIT:
       return sem_check_exit(t);
+   case T_CONCAT:
+      return sem_check_concat(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
