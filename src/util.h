@@ -50,6 +50,7 @@ error_fn_t set_error_fn(error_fn_t fn);
 
 void error_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
+void error_at_v(const loc_t *loc, const char *fmt, va_list ap);
 
 void fmt_loc(FILE *f, const loc_t *loc);
 

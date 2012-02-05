@@ -15,10 +15,12 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define _GNU_SOURCE
+#include <features.h>
+
 #include "util.h"
 
 // Get REG_EIP from ucontext.h
-#define __USE_GNU
 #include <sys/ucontext.h>
 
 #include <stdlib.h>
@@ -31,6 +33,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -55,11 +58,38 @@
 #endif
 
 #define N_TRACE_DEPTH  16
-#define ERROR_SZ  1024
+#define ERROR_SZ       1024
+#define PAGINATE_RIGHT 72
 
 static void def_error_fn(const char *msg, const loc_t *loc);
 
-static error_fn_t  error_fn = def_error_fn;
+static error_fn_t error_fn = def_error_fn;
+
+static void paginate_msg(const char *fmt, va_list ap, int left, int right)
+{
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+
+   const char *p = strp;
+   int col = left;
+   while (*p != '\0') {
+      if (isspace(*p) && col >= right) {
+         // Can break line here
+         fputc('\n', stderr);
+         for (col = 0; col < left; col++)
+            fputc(' ', stderr);
+      }
+      else {
+         fputc(*p, stderr);
+         ++col;
+      }
+      ++p;
+   }
+   fputc('\n', stderr);
+
+   free(strp);
+}
 
 void *xmalloc(size_t size)
 {
@@ -82,21 +112,19 @@ void errorf(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   fprintf(stderr, "error: ");
-   vfprintf(stderr, fmt, ap);
-   fprintf(stderr, "\n");
+   fprintf(stderr, "** Error: ");
+   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
 
    va_end(ap);
 }
 
 static void def_error_fn(const char *msg, const loc_t *loc)
 {
+   errorf("%s", msg);
    if (loc->first_line != (unsigned short)-1) {
-      fprintf(stderr, "** Error: %s:%d: %s\n", loc->file, loc->first_line, msg);
+      fprintf(stderr, "\tFile %s, Line %d\n", loc->file, loc->first_line);
       fmt_loc(stderr, loc);
    }
-   else
-      fprintf(stderr, "(none): %s\n", msg);
 }
 
 void error_at(const loc_t *loc, const char *fmt, ...)
@@ -104,10 +132,21 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char buf[ERROR_SZ];
-   vsnprintf(buf, ERROR_SZ, fmt, ap);
-   error_fn(buf, loc != NULL ? loc : &LOC_INVALID);
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+   error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    va_end(ap);
+   free(strp);
+}
+
+void error_at_v(const loc_t *loc, const char *fmt, va_list ap)
+{
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+   error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
+   free(strp);
 }
 
 error_fn_t set_error_fn(error_fn_t fn)
@@ -123,7 +162,7 @@ void fatal(const char *fmt, ...)
    va_start(ap, fmt);
 
    fprintf(stderr, "** Fatal: ");
-   vfprintf(stderr, fmt, ap);
+   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
    fprintf(stderr, "\n");
 
    va_end(ap);
@@ -136,7 +175,7 @@ void fatal_errno(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   fprintf(stderr, "fatal: ");
+   fprintf(stderr, "** Fatal: ");
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, ": %s\n", strerror(errno));
 
