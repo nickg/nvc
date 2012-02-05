@@ -273,6 +273,10 @@ void tree_set_range(tree_t t, range_t r);
 class_t tree_class(tree_t t);
 void tree_set_class(tree_t t, class_t c);
 
+// T_CASSIGN, T_SIGNAL_ASSIGN
+tree_t tree_reject(tree_t t);
+void tree_set_reject(tree_t t, tree_t r);
+
 uint32_t tree_index(tree_t t);
 
 void tree_add_attr_str(tree_t t, ident_t name, const char *str);

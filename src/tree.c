@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1002
+#define FILE_FMT_VER 0x1003
 
 //#define EXTRA_READ_CHECKS
 
@@ -83,6 +83,7 @@ struct tree {
       ident_t     ident2;          // T_ARCH, T_ATTR_REF
       tree_t      message;         // T_ASSERT
       tree_t      delay;           // T_WAIT
+      tree_t      reject;          // T_CASSIGN, T_SIGNAL_ASSIGN
    };
    union {
       tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
@@ -216,6 +217,7 @@ struct tree_rd_ctx {
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL))
 #define HAS_ASSOCS(t) (IS(t, T_AGGREGATE) || IS(t, T_CASE))
 #define HAS_CONDS(t) (IS(t, T_CASSIGN))
+#define HAS_REJECT(t) (IS(t, T_CASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -1062,6 +1064,24 @@ void tree_set_class(tree_t t, class_t c)
    t->class = c;
 }
 
+tree_t tree_reject(tree_t t)
+{
+   assert(t != NULL);
+   assert(HAS_REJECT(t));
+   assert(t->reject != NULL);
+
+   return t->reject;
+}
+
+void tree_set_reject(tree_t t, tree_t r)
+{
+   assert(t != NULL);
+   assert(HAS_REJECT(t));
+   assert(IS_EXPR(r));
+
+   t->reject = r;
+}
+
 uint32_t tree_index(tree_t t)
 {
    assert(t != NULL);
@@ -1224,6 +1244,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->value, fn, context, kind, generation, deep);
    if (HAS_DELAY(t))
       n += tree_visit_aux(t->delay, fn, context, kind, generation, deep);
+   if (HAS_REJECT(t))
+      n += tree_visit_aux(t->reject, fn, context, kind, generation, deep);
    if (HAS_TARGET(t))
       n += tree_visit_aux(t->target, fn, context, kind, generation, deep);
    if (HAS_REF(t) && deep)
@@ -1507,6 +1529,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       tree_write(t->value, ctx);
    if (HAS_DELAY(t))
       tree_write(t->delay, ctx);
+   if (HAS_REJECT(t))
+      tree_write(t->reject, ctx);
    if (HAS_TARGET(t))
       tree_write(t->target, ctx);
    if (HAS_REF(t))
@@ -1675,6 +1699,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->value = tree_read(ctx);
    if (HAS_DELAY(t))
       t->delay = tree_read(ctx);
+   if (HAS_REJECT(t))
+      t->reject = tree_read(ctx);
    if (HAS_TARGET(t))
       t->target = tree_read(ctx);
    if (HAS_REF(t))
@@ -2038,6 +2064,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       if (tree_has_delay(t))
          tree_set_delay(t, tree_rewrite_aux(tree_delay(t), ctx));
    }
+   if (HAS_REJECT(t))
+      t->reject = tree_rewrite_aux(t->reject, ctx);
    if (HAS_PARAMS(t))
       rewrite_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
@@ -2217,6 +2245,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    }
    if (HAS_VALUE(t))
       copy->value = tree_copy_aux(t->value, ctx);
+   if (HAS_REJECT(t))
+      copy->reject = tree_copy_aux(t->reject, ctx);
    if (HAS_DELAY(t))
       copy->delay = tree_copy_aux(t->delay, ctx);
    if (HAS_TARGET(t))

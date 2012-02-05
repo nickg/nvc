@@ -630,6 +630,7 @@ START_TEST(test_conc)
    const error_t expect[] = {
       { 12, "no suitable overload for identifier '4'" },
       { 16, "type of condition must be BOOLEAN" },
+      { 18, "reject interval must have type TIME" },
       { -1, NULL }
    };
    expect_errors(expect);

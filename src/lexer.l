@@ -66,6 +66,7 @@ F       [fF]
 G       [gG]
 H       [hH]
 I       [iI]
+J       [jJ]
 K       [kK]
 L       [lL]
 N       [nN]
@@ -150,6 +151,9 @@ EXIT          {E}{X}{I}{T}
 REM           {R}{E}{M}
 WHEN          {W}{H}{E}{N}
 CASE          {C}{A}{S}{E}
+TRANSPORT     {T}{R}{A}{N}{S}{P}{O}{R}{T}
+INERTIAL      {I}{N}{E}{R}{T}{I}{A}{L}
+REJECT        {R}{E}{J}{E}{C}{T}
 
 %%
 
@@ -224,6 +228,9 @@ CASE          {C}{A}{S}{E}
 {REM}           { TOKEN(tREM); }
 {WHEN}          { TOKEN(tWHEN); }
 {CASE}          { TOKEN(tCASE); }
+{TRANSPORT}     { TOKEN(tTRANSPORT); }
+{REJECT}        { TOKEN(tREJECT); }
+{INERTIAL}      { TOKEN(tINERTIAL); }
 
 "("        { TOKEN(tLPAREN); }
 ")"        { TOKEN(tRPAREN); }

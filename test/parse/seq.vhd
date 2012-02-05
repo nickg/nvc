@@ -89,6 +89,9 @@ begin
         x <= 4 after 5 ns;
         x <= 5 after 1 ns, 7 after 8 ns;
         x <= 5, 7 after 8 ns;
+        x <= inertial 5;
+        x <= transport 4 after 2 ns;
+        x <= reject 4 ns inertial 6 after 10 ns;
     end process;
 
     -- For

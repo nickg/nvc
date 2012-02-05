@@ -1753,6 +1753,18 @@ static bool sem_check_signal_target(tree_t target)
    return true;
 }
 
+static bool sem_check_reject(tree_t t)
+{
+   if (!sem_check(t))
+      return false;
+
+   type_t std_time = sem_std_type("STD.STANDARD.TIME");
+   if (!type_eq(tree_type(t), std_time))
+      sem_error(t, "reject interval must have type TIME");
+
+   return true;
+}
+
 static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
@@ -1764,6 +1776,9 @@ static bool sem_check_signal_assign(tree_t t)
       return false;
 
    if (!sem_check_signal_target(target))
+      return false;
+
+   if (!sem_check_reject(tree_reject(t)))
       return false;
 
    return true;
@@ -1796,6 +1811,9 @@ static bool sem_check_cassign(tree_t t)
    }
 
    if (!sem_check_signal_target(target))
+      return false;
+
+   if (!sem_check_reject(tree_reject(t)))
       return false;
 
    return true;

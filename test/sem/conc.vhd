@@ -15,4 +15,6 @@ begin
 
     x <= 7 when 7 else 3;               -- Condition not boolean
 
+    x <= reject 5 inertial 7;           -- Reject not time
+
 end architecture;

@@ -131,6 +131,8 @@
    static bool to_range_expr(tree_t t, range_t *r);
    static ident_t loc_to_ident(const loc_t *loc);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
+   static tree_t get_time(int64_t fs);
+   static void set_delay_mechanism(tree_t t, tree_t reject);
 }
 
 %union {
@@ -156,6 +158,7 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
+%type <t> delay_mechanism
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -191,7 +194,8 @@
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
-%token tWHEN tCASE tBAR tLSQUARE tRSQUARE
+%token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
+%token tREJECT
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -917,12 +921,14 @@ variable_decl
 ;
 
 conc_assign_stmt
-: target tLE conditional_waveforms tSEMI
+: target tLE delay_mechanism conditional_waveforms tSEMI
   {
      $$ = tree_new(T_CASSIGN);
      tree_set_loc($$, &@$);
      tree_set_target($$, $1);
-     copy_trees($3, tree_add_cond, $$);
+     copy_trees($4, tree_add_cond, $$);
+
+     set_delay_mechanism($$, $3);
   }
 ;
 
@@ -1000,12 +1006,13 @@ seq_stmt_without_label
      tree_set_value($$, $3);
      tree_set_loc($$, &@$);
   }
-| target tLE /* [ delay_mechanism ] */ waveform tSEMI
+| target tLE delay_mechanism waveform tSEMI
   {
      $$ = tree_new(T_SIGNAL_ASSIGN);
      tree_set_target($$, $1);
      tree_set_loc($$, &@$);
-     copy_trees($3, tree_add_waveform, $$);
+     copy_trees($4, tree_add_waveform, $$);
+     set_delay_mechanism($$, $3);
   }
 | name tSEMI
   {
@@ -1557,6 +1564,13 @@ range
   }
 ;
 
+delay_mechanism
+: tTRANSPORT { $$ = get_time(0); }
+| tREJECT expr tINERTIAL { $$ = $2; }
+| tINERTIAL { $$ = NULL; }
+| /* empty */ { $$ = NULL; }  // Default to inertial
+;
+
 expr
 : expr tAND expr { $$ = build_expr2("\"and\"", $1, $3, &@$); }
 | expr tOR expr { $$ = build_expr2("\"or\"", $1, $3, &@$); }
@@ -1981,6 +1995,42 @@ static bool to_range_expr(tree_t t, range_t *r)
    }
    else
       return false;
+}
+
+static tree_t get_time(int64_t fs)
+{
+   tree_t lit = tree_new(T_LITERAL);
+   literal_t l = { { .i = fs }, .kind = L_INT };
+   tree_set_literal(lit, l);
+
+   tree_t unit = tree_new(T_REF);
+   tree_set_ident(unit, ident_new("FS"));
+
+   tree_t f = tree_new(T_FCALL);
+   tree_set_ident(f, ident_new("*"));
+   param_t left = { .kind = P_POS, .value = lit };
+   tree_add_param(f, left);
+   param_t right = { .kind = P_POS, .value = unit };
+   tree_add_param(f, right);
+
+   return f;
+}
+
+static void set_delay_mechanism(tree_t t, tree_t reject)
+{
+   if (reject == NULL) {
+      // Inertial delay with same value as waveform
+      // TODO: is it correct to only look at the first waveform here?
+      tree_t w = (tree_kind(t) == T_CASSIGN
+                  ? tree_waveform(tree_cond(t, 0), 0)
+                  :  tree_waveform(t, 0));
+      if (tree_has_delay(w))
+         tree_set_reject(t, tree_delay(w));
+      else
+         tree_set_reject(t, get_time(0));
+   }
+   else
+      tree_set_reject(t, reject);
 }
 
 static ident_t loc_to_ident(const loc_t *loc)
