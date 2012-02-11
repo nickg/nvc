@@ -2158,7 +2158,7 @@ static bool sem_check_concat(tree_t t)
       tree_set_type(t, result);
    }
    else
-      assert(false);
+      sem_error(t, "cannot check this kind of concatenation");
 
    return true;
 }
