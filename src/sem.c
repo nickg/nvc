@@ -1577,6 +1577,10 @@ static bool sem_check_package_body(tree_t t)
    ok = ok && scope_import_unit(c, lib_work());
 
    if (ok) {
+      tree_t pack = lib_get(lib_work(), c.name);
+      assert(pack != NULL);
+      ok = ok && sem_check_context(pack);
+
       for (unsigned n = 0; n < tree_decls(t); n++)
          ok = sem_check(tree_decl(t, n)) && ok;
    }
