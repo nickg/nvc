@@ -201,7 +201,7 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
    // Print ... if error location spans multiple lines
    bool many_lines = (loc->first_line != loc->last_line)
-      || (i == sizeof(buf) - 1);
+      || (i == sizeof(buf) - 1 && i <= loc->last_column);
    int last_col = many_lines ? strlen(buf) + 3 : loc->last_column;
 
    fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
