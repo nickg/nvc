@@ -124,6 +124,12 @@ static void dump_expr(tree_t t)
       }
       break;
 
+   case T_TYPE_CONV:
+      printf("%s(", istr(tree_ident(tree_ref(t))));
+      dump_expr(tree_param(t, 0).value);
+      printf(")");
+      break;
+
    default:
       assert(false);
    }

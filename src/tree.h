@@ -86,6 +86,7 @@ typedef enum tree_kind {
    T_BLOCK,
    T_COND,
    T_CONCAT,
+   T_TYPE_CONV,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -136,7 +137,7 @@ const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL,
-// T_CONST_DECL, T_FUNC_DECL, T_ALIAS, T_ATTR_DECL
+// T_CONST_DECL, T_FUNC_DECL, T_ALIAS, T_ATTR_DECL, T_TYPE_CONV
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 bool tree_has_type(tree_t t);
@@ -144,7 +145,7 @@ bool tree_has_type(tree_t t);
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
 // T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
 // T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF, T_INSTANCE, T_WHILE,
-// T_ATTR_DECL, T_PCALL
+// T_ATTR_DECL, T_PCALL, T_TYPE_CONV
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
@@ -172,7 +173,7 @@ unsigned tree_genmaps(tree_t t);
 param_t tree_genmap(tree_t t, unsigned n);
 void tree_add_genmap(tree_t t, param_t e);
 
-// T_FCALL, T_ARRAY_REF, T_INSTANCE, T_PCALL, T_CONCAT
+// T_FCALL, T_ARRAY_REF, T_INSTANCE, T_PCALL, T_CONCAT, T_TYPE_CONV
 unsigned tree_params(tree_t t);
 param_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, param_t e);
@@ -229,7 +230,7 @@ void tree_add_trigger(tree_t t, tree_t s);
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
-// T_REF, T_FCALL, T_INSTANCE, T_PCALL
+// T_REF, T_FCALL, T_INSTANCE, T_PCALL, T_TYPE_CONV
 tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 

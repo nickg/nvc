@@ -1823,6 +1823,45 @@ static bool sem_check_cassign(tree_t t)
    return true;
 }
 
+static bool sem_check_conversion(tree_t t)
+{
+   // Type conversions are described in LRM 93 section 7.3.5
+
+   if (tree_params(t) != 1)
+      sem_error(t, "type conversions must have exactly one parameter");
+
+   param_t p = tree_param(t, 0);
+   if (!sem_check(p.value))
+      return false;
+
+   type_t from = tree_type(p.value);
+   type_t to   = tree_type(tree_ref(t));
+
+   tree_set_type(t, to);
+
+   type_kind_t from_k = type_kind(from);
+   type_kind_t to_k   = type_kind(to);
+
+   // Conversions are allowed between any abstract numeric types
+   if (from_k == T_INTEGER && to_k == T_INTEGER)
+      return true;
+
+   if (from_k == T_CARRAY && to_k == T_UARRAY) {
+      // Types must have same dimensionality
+      bool same_dim = (type_dims(from) == type_index_constrs(to));
+
+      // TODO: index types the same or closely related
+
+      // Element types must be the same
+      bool same_elem = type_eq(type_base(from), type_base(to));
+
+      if (same_dim && same_elem)
+         return true;
+   }
+
+   sem_error(t, "conversion only allowed between closely related types");
+}
+
 static void sem_maybe_ambiguous(tree_t t, void *_ambiguous)
 {
    bool *ambiguous = _ambiguous;
@@ -1856,6 +1895,10 @@ static bool sem_check_fcall(tree_t t)
          case T_FUNC_DECL:
          case T_FUNC_BODY:
             break;
+         case T_TYPE_DECL:
+            tree_change_kind(t, T_TYPE_CONV);
+            tree_set_ref(t, decl);
+            return sem_check_conversion(t);
          default:
             // The grammar is ambiguous between function calls and
             // array references so must be an array reference
