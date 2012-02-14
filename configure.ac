@@ -41,10 +41,13 @@ AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
                   sys/socket.h])
 
-AC_CHECK_HEADER([tcl/tcl.h], [],
-  [AC_ERROR(TCL header file not found)])
+AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
+
+if test ! "$have_tcl" = "yes"; then
+  AC_ERROR(TCL header file not found)
+fi
 
 VL_LIB_READLINE
 if test "$vl_cv_lib_readline" = "no"; then

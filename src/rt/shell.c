@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -26,7 +26,12 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <inttypes.h>
+
+#if defined HAVE_TCL_TCL_H
 #include <tcl/tcl.h>
+#elif defined HAVE_TCL_H
+#include <tcl.h>
+#endif
 
 #ifdef HAVE_LIBREADLINE
 #include <readline/readline.h>
