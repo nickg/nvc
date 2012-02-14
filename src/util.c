@@ -390,33 +390,39 @@ void register_trace_signal_handlers(void)
 
 void write_u32(uint32_t u, FILE *f)
 {
-   fwrite(&u, sizeof(uint32_t), 1, f);
+   if (fwrite(&u, sizeof(uint32_t), 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 void write_i32(int32_t i, FILE *f)
 {
-   fwrite(&i, sizeof(int32_t), 1, f);
+   if (fwrite(&i, sizeof(int32_t), 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 void write_i64(int64_t i, FILE *f)
 {
-   fwrite(&i, sizeof(int64_t), 1, f);
+   if (fwrite(&i, sizeof(int64_t), 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 void write_u16(uint16_t s, FILE *f)
 {
-   fwrite(&s, sizeof(uint16_t), 1, f);
+   if (fwrite(&s, sizeof(uint16_t), 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 void write_u8(uint8_t u, FILE *f)
 {
-   fwrite(&u, sizeof(uint8_t), 1, f);
+   if (fwrite(&u, sizeof(uint8_t), 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 bool write_b(bool b, FILE *f)
 {
    uint8_t c = b;
-   fwrite(&c, 1, 1, f);
+   if (fwrite(&c, 1, 1, f) != 1)
+      fatal("fwrite failed");
    return b;
 }
 

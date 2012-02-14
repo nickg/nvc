@@ -1364,7 +1364,8 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
       write_u8(0xff, ctx->file);
       write_u8(findex, ctx->file);
       write_u16(len, ctx->file);
-      fwrite(fname, 1, len, ctx->file);
+      if (fwrite(fname, 1, len, ctx->file) != len)
+         fatal("fwrite failed");
    }
    else
       write_u8(findex, ctx->file);
@@ -1383,7 +1384,8 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
       uint8_t index = read_u8(ctx->file);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
-      fread(buf, 1, len, ctx->file);
+      if (fread(buf, len, 1, ctx->file) != 1)
+         fatal("premature end of file");
 
       ctx->file_names[index] = buf;
       fname = buf;
@@ -1805,7 +1807,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          {
             size_t len = read_u16(ctx->file);
             t->attrs[i].sval = xmalloc(len + 1);
-            fread(t->attrs[i].sval, len, 1, ctx->file);
+            if (fread(t->attrs[i].sval, len, 1, ctx->file) != 1)
+               fatal("premature end of file");
             t->attrs[i].sval[len] = '\0';
          }
          break;

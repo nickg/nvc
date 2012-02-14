@@ -134,8 +134,10 @@ void ident_write(ident_t ident, FILE *f)
    assert(ident != NULL);
 
    uint16_t len = ident->depth;
-   fwrite(&len, sizeof(uint16_t), 1, f);
-   fwrite(istr(ident), ident->depth, 1, f);
+   if (fwrite(&len, sizeof(uint16_t), 1, f) != 1)
+      fatal("fwrite failed");
+   if (fwrite(istr(ident), ident->depth, 1, f) != 1)
+      fatal("fwrite failed");
 }
 
 ident_t ident_read(FILE *f)

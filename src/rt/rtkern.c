@@ -283,7 +283,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
             ? "Report" : "Assertion"),
            levels[severity]);
    if (msg_len >= 0)
-      fwrite(msg, 1, msg_len, stderr);
+      (void)fwrite(msg, 1, msg_len, stderr);
    else
       fputs((const char *)msg, stderr);
    fprintf(stderr, "\n");

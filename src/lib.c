@@ -71,7 +71,8 @@ static lib_t lib_init(const char *name, const char *rpath)
    l->units   = NULL;
    l->name    = upcase_name(name);
 
-   realpath(rpath, l->path);
+   if (realpath(rpath, l->path) == NULL)
+      strncpy(l->path, rpath, PATH_MAX);
 
    struct lib_list *el = xmalloc(sizeof(struct lib_list));
    el->item = l;
