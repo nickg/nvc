@@ -51,6 +51,8 @@
 #else
 #define ARCH_IP_REG __eip
 #endif
+#elif defined __powerpc
+#define ARCH_IP_REG __nip
 #else
 #warning "Don't know the IP register name for your architecture!"
 #define NO_STACK_TRACE
@@ -261,6 +263,8 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 #ifdef __APPLE__
    uintptr_t ip = uc->uc_mcontext->__ss.ARCH_IP_REG;
+#elif defined __powerpc
+   uintptr_t ip = uc->uc_mcontext.regs->nip;
 #else
    uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG];
 #endif
