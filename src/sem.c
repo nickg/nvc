@@ -53,6 +53,7 @@ struct scope {
 struct type_set {
    type_t          members[MAX_TS_MEMBERS];
    unsigned        n_members;
+   bool            universal;
 
    struct type_set *down;
 };
@@ -331,8 +332,15 @@ static void type_set_push(void)
    struct type_set *t = xmalloc(sizeof(struct type_set));
    t->n_members = 0;
    t->down      = top_type_set;
+   t->universal = false;
 
    top_type_set = t;
+}
+
+static void type_set_push_universal(void)
+{
+   type_set_push();
+   top_type_set->universal = true;
 }
 
 static void type_set_pop(void)
@@ -367,6 +375,7 @@ static void type_set_force(type_t t)
 
    top_type_set->members[0] = t;
    top_type_set->n_members  = 1;
+   top_type_set->universal  = false;
 }
 
 static bool type_set_uniq(type_t *pt)
@@ -403,7 +412,7 @@ static bool type_set_member(type_t t)
          return true;
    }
 
-   return false;
+   return top_type_set->universal;
 }
 
 static type_t sem_std_type(const char *name)
@@ -579,10 +588,10 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Fall-through
    case T_INTEGER:
       // Modulus
-      sem_declare_binary(ident_new("MOD"), t, t, t, "mod");
+      sem_declare_binary(ident_new("\"mod\""), t, t, t, "mod");
 
       // Remainder
-      sem_declare_binary(ident_new("REM"), t, t, t, "rem");
+      sem_declare_binary(ident_new("\"rem\""), t, t, t, "rem");
 
       // Fall-through
    case T_REAL:
@@ -1830,8 +1839,16 @@ static bool sem_check_conversion(tree_t t)
    if (tree_params(t) != 1)
       sem_error(t, "type conversions must have exactly one parameter");
 
+   // Really we should push the set of types that are closely related
+   // to the one being converted to
+   type_set_push_universal();
+
    param_t p = tree_param(t, 0);
-   if (!sem_check(p.value))
+   bool ok = sem_check(p.value);
+
+   type_set_pop();
+
+   if (!ok)
       return false;
 
    type_t from = tree_type(p.value);
@@ -2049,7 +2066,7 @@ static bool sem_check_fcall(tree_t t)
    }
 
    if (decl == NULL) {
-      char fn[256];
+      char fn[512];
       char *p = fn;
       const char *end = fn + sizeof(fn);
       const char *fname = istr(tree_ident(t));
@@ -2062,6 +2079,14 @@ static bool sem_check_fcall(tree_t t)
                        (i == 0 ? "" : ", "),
                        istr(type_ident(tree_type(tree_param(t, i).value))));
       p += snprintf(p, end - p, ")");
+
+      if (top_type_set != NULL && top_type_set->n_members > 0) {
+         p += snprintf(p, end - p, " return");
+         for (int i = 0; i < top_type_set->n_members; i++)
+            p += snprintf(p, end - p, "%s %s",
+                          (i > 0 ? " |" : ""),
+                          type_pp(top_type_set->members[i]));
+      }
 
       sem_error(t, (n == 1 ? "undefined %s %s"
                     : "no suitable overload for %s %s"),
