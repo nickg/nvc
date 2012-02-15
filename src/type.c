@@ -752,10 +752,8 @@ const char *type_pp(type_t t)
          char *p = fn;
          const char *end = fn + sizeof(fn);
          const char *fname = istr(type_ident(t));
-         const bool operator = !isalpha(fname[0]);
-         const char *quote = operator ? "\"" : "";
 
-         p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
+         p += snprintf(p, end - p, "%s(", fname);
          for (unsigned i = 0; i < type_params(t); i++)
             p += snprintf(p, end - p, "%s%s",
                           (i == 0 ? "" : ", "),

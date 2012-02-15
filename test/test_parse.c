@@ -113,7 +113,7 @@ START_TEST(test_entity)
    fail_unless(tree_has_value(g));
    v = tree_value(g);
    fail_unless(tree_kind(v) == T_FCALL);
-   fail_unless(tree_ident(v) == ident_new("*"));
+   fail_unless(tree_ident(v) == ident_new("\"*\""));
    fail_unless(tree_params(v) == 2);
    x = tree_param(v, 0);
    fail_unless(x.kind == P_POS);
@@ -268,7 +268,7 @@ START_TEST(test_seq)
    fail_unless(tree_has_delay(s));
    e = tree_delay(s);
    fail_unless(tree_kind(e) == T_FCALL);
-   fail_unless(tree_ident(e) == ident_new("*"));
+   fail_unless(tree_ident(e) == ident_new("\"*\""));
    fail_unless(tree_params(e) == 2);
    fail_unless(tree_kind(tree_param(e, 0).value) == T_LITERAL);
    fail_unless(tree_kind(tree_param(e, 1).value) == T_REF);
@@ -315,12 +315,12 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_VAR_ASSIGN);
    e = tree_value(s);
    fail_unless(tree_kind(e) == T_FCALL);
-   fail_unless(tree_ident(e) == ident_new("+"));
+   fail_unless(tree_ident(e) == ident_new("\"+\""));
    fail_unless(tree_params(e) == 2);
    fail_unless(tree_kind(tree_param(e, 0).value) == T_REF);
    e = tree_param(e, 1).value;
    fail_unless(tree_kind(e) == T_FCALL);
-   fail_unless(tree_ident(e) == ident_new("*"));
+   fail_unless(tree_ident(e) == ident_new("\"*\""));
    fail_unless(tree_params(e) == 2);
    fail_unless(tree_kind(tree_param(e, 0).value) == T_REF);
    fail_unless(tree_kind(tree_param(e, 1).value) == T_LITERAL);
@@ -640,7 +640,7 @@ START_TEST(test_literal)
    fail_unless(tree_ident(d) == ident_new("NEG"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_FCALL);
-   fail_unless(tree_ident(v) == ident_new("-"));
+   fail_unless(tree_ident(v) == ident_new("\"-\""));
    fail_unless(tree_params(v) == 1);
    l = tree_literal(tree_param(v, 0).value);
    fail_unless(l.kind == L_INT);

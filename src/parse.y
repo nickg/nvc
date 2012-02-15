@@ -1578,29 +1578,29 @@ expr
 | expr tNOR expr { $$ = build_expr2("\"nor\"", $1, $3, &@$); }
 | expr tXOR expr { $$ = build_expr2("\"xor\"", $1, $3, &@$); }
 | expr tXNOR expr { $$ = build_expr2("\"xnor\"", $1, $3, &@$); }
-| expr tEQ expr { $$ = build_expr2("=", $1, $3, &@$); }
-| expr tNEQ expr { $$ = build_expr2("/=", $1, $3, &@$); }
-| expr tLT expr { $$ = build_expr2("<", $1, $3, &@$); }
-| expr tLE expr { $$ = build_expr2("<=", $1, $3, &@$); }
-| expr tGT expr { $$ = build_expr2(">", $1, $3, &@$); }
-| expr tGE expr { $$ = build_expr2(">=", $1, $3, &@$); }
+| expr tEQ expr { $$ = build_expr2("\"=\"", $1, $3, &@$); }
+| expr tNEQ expr { $$ = build_expr2("\"/=\"", $1, $3, &@$); }
+| expr tLT expr { $$ = build_expr2("\"<\"", $1, $3, &@$); }
+| expr tLE expr { $$ = build_expr2("\"<=\"", $1, $3, &@$); }
+| expr tGT expr { $$ = build_expr2("\">\"", $1, $3, &@$); }
+| expr tGE expr { $$ = build_expr2("\">=\"", $1, $3, &@$); }
 | expr tSLL expr { $$ = build_expr2("\"sll\"", $1, $3, &@$); }
 | expr tSRL expr { $$ = build_expr2("\"srl\"", $1, $3, &@$); }
 | expr tSLA expr { $$ = build_expr2("\"sla\"", $1, $3, &@$); }
 | expr tSRA expr { $$ = build_expr2("\"sra\"", $1, $3, &@$); }
 | expr tROL expr { $$ = build_expr2("\"rol\"", $1, $3, &@$); }
 | expr tROR expr { $$ = build_expr2("\"ror\"", $1, $3, &@$); }
-| expr tPLUS expr { $$ = build_expr2("+", $1, $3, &@$); }
-| expr tMINUS expr { $$ = build_expr2("-", $1, $3, &@$); }
-| expr tTIMES expr { $$ = build_expr2("*", $1, $3, &@$); }
-| expr tOVER expr { $$ = build_expr2("/", $1, $3, &@$); }
+| expr tPLUS expr { $$ = build_expr2("\"+\"", $1, $3, &@$); }
+| expr tMINUS expr { $$ = build_expr2("\"-\"", $1, $3, &@$); }
+| expr tTIMES expr { $$ = build_expr2("\"*\"", $1, $3, &@$); }
+| expr tOVER expr { $$ = build_expr2("\"/\"", $1, $3, &@$); }
 | expr tMOD expr { $$ = build_expr2("\"mod\"", $1, $3, &@$); }
 | expr tREM expr { $$ = build_expr2("\"rem\"", $1, $3, &@$); }
-| expr tPOWER expr { $$ = build_expr2("**", $1, $3, &@$); }
+| expr tPOWER expr { $$ = build_expr2("\"**\"", $1, $3, &@$); }
 | tNOT expr { $$ = build_expr1("\"not\"", $2, &@$); }
 | tABS expr { $$ = build_expr1("\"abs\"", $2, &@$); }
-| tMINUS expr { $$ = build_expr1("-", $2, &@$); }
-| tPLUS expr { $$ = build_expr1("+", $2, &@$); }
+| tMINUS expr { $$ = build_expr1("\"-\"", $2, &@$); }
+| tPLUS expr { $$ = build_expr1("\"+\"", $2, &@$); }
 | expr tAMP expr
   {
      $$ = tree_new(T_CONCAT);
@@ -1748,7 +1748,7 @@ physical_literal
 
      $$ = tree_new(T_FCALL);
      tree_set_loc($$, &@$);
-     tree_set_ident($$, ident_new("*"));
+     tree_set_ident($$, ident_new("\"*\""));
      param_t left = { .kind = P_POS, .value = $1 };
      tree_add_param($$, left);
      param_t right = { .kind = P_POS, .value = unit };
@@ -2007,7 +2007,7 @@ static tree_t get_time(int64_t fs)
    tree_set_ident(unit, ident_new("FS"));
 
    tree_t f = tree_new(T_FCALL);
-   tree_set_ident(f, ident_new("*"));
+   tree_set_ident(f, ident_new("\"*\""));
    param_t left = { .kind = P_POS, .value = lit };
    tree_add_param(f, left);
    param_t right = { .kind = P_POS, .value = unit };

@@ -537,10 +537,10 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    type_t t = tree_type(decl);
 
-   ident_t mult  = ident_new("*");
-   ident_t div   = ident_new("/");
-   ident_t plus  = ident_new("+");
-   ident_t minus = ident_new("-");
+   ident_t mult  = ident_new("\"*\"");
+   ident_t div   = ident_new("\"/\"");
+   ident_t plus  = ident_new("\"+\"");
+   ident_t minus = ident_new("\"-\"");
 
    type_t std_int = NULL;
    type_t std_bool = NULL;
@@ -569,8 +569,8 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_CARRAY:
    case T_UARRAY:
       // Operators on arrays
-      sem_declare_binary(ident_new("="), t, t, std_bool, "aeq");
-      sem_declare_binary(ident_new("/="), t, t, std_bool, "aneq");
+      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "aeq");
+      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "aneq");
       break;
 
    case T_PHYSICAL:
@@ -617,15 +617,15 @@ static void sem_declare_predefined_ops(tree_t decl)
 
       // Fall-through
    case T_ENUM:
-      sem_declare_binary(ident_new("<"), t, t, std_bool, "lt");
-      sem_declare_binary(ident_new("<="), t, t, std_bool, "leq");
-      sem_declare_binary(ident_new(">"), t, t, std_bool, "gt");
-      sem_declare_binary(ident_new(">="), t, t, std_bool, "geq");
+      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");
+      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "leq");
+      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "gt");
+      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "geq");
 
       // Fall-through
    default:
-      sem_declare_binary(ident_new("="), t, t, std_bool, "eq");
-      sem_declare_binary(ident_new("/="), t, t, std_bool, "neq");
+      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "eq");
+      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "neq");
 
       break;
    }
