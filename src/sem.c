@@ -235,11 +235,23 @@ static tree_t scope_find_nth(ident_t i, int n)
    return scope_find_in(i, top_scope, true, n);
 }
 
-static bool can_overload(tree_t t)
+static bool scope_can_overload(tree_t t)
 {
    return tree_kind(t) == T_ENUM_LIT
       || tree_kind(t) == T_FUNC_DECL
       || tree_kind(t) == T_FUNC_BODY;
+}
+
+static bool scope_hides(tree_t a, tree_t b)
+{
+   // True if declaration of b hides a
+   if (type_eq(tree_type(a), tree_type(b))) {
+      ident_t builtin_i = ident_new("builtin");
+      return (tree_attr_str(a, builtin_i) != NULL)
+         && (tree_attr_str(b, builtin_i) == NULL);
+   }
+   else
+      return false;
 }
 
 static struct btree *scope_btree_new(tree_t t)
@@ -254,14 +266,18 @@ static struct btree *scope_btree_new(tree_t t)
 
 static void scope_insert_at(tree_t t, struct btree *where)
 {
-   bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
+   if (scope_hides(where->tree, t))
+      where->tree = t;
+   else {
+      bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
 
-   struct btree **nextp = (left ? &where->left : &where->right);
+      struct btree **nextp = (left ? &where->left : &where->right);
 
-   if (*nextp == NULL)
-      *nextp = scope_btree_new(t);
-   else
-      scope_insert_at(t, *nextp);
+      if (*nextp == NULL)
+         *nextp = scope_btree_new(t);
+      else
+         scope_insert_at(t, *nextp);
+   }
 }
 
 static void scope_replace_at(tree_t t, tree_t with, struct btree *where)
@@ -281,7 +297,7 @@ static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
 
-   if (!can_overload(t)
+   if (!scope_can_overload(t)
        && scope_find_in(tree_ident(t), top_scope, false, 0))
       sem_error(t, "%s already declared in this scope",
                 istr(tree_ident(t)));
@@ -1356,8 +1372,11 @@ static bool sem_check_duplicate(tree_t t, tree_kind_t kind)
          if (tree_kind(decl) != kind)
             continue;
 
-         if (type_eq(tree_type(t), tree_type(decl)))
-            break;
+         if (type_eq(tree_type(t), tree_type(decl))) {
+            // Allow builtin functions to be hidden
+            if (tree_attr_str(decl, ident_new("builtin")) == NULL)
+               break;
+         }
       }
    } while (decl != NULL);
 
@@ -2371,7 +2390,7 @@ static bool sem_check_ref(tree_t t)
                   && type_set_member(type_result(type)))
             // Zero-argument function of correct type
             break;
-         else if (!can_overload(decl))
+         else if (!scope_can_overload(decl))
             break;
       }
    } while (decl != NULL);

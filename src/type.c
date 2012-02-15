@@ -758,7 +758,8 @@ const char *type_pp(type_t t)
             p += snprintf(p, end - p, "%s%s",
                           (i == 0 ? "" : ", "),
                           istr(type_ident(type_param(t, i))));
-         p += snprintf(p, end - p, ") -> %s", istr(type_ident(type_result(t))));
+         p += snprintf(p, end - p, ") return %s",
+                       istr(type_ident(type_result(t))));
 
          return fn;
       }
