@@ -58,9 +58,20 @@
 #define NO_STACK_TRACE
 #endif
 
-#define N_TRACE_DEPTH  16
-#define ERROR_SZ       1024
-#define PAGINATE_RIGHT 72
+#define N_TRACE_DEPTH   16
+#define ERROR_SZ        1024
+#define PAGINATE_RIGHT  72
+
+#define ANSI_RESET      0
+#define ANSI_BOLD       1
+#define ANSI_FG_BLACK   30
+#define ANSI_FG_RED     31
+#define ANSI_FG_GREEN   32
+#define ANSI_FG_YELLOW  33
+#define ANSI_FG_BLUE    34
+#define ANSI_FG_MAGENTA 35
+#define ANSI_FG_CYAN    36
+#define ANSI_FG_WHITE   37
 
 static void def_error_fn(const char *msg, const loc_t *loc);
 
@@ -92,6 +103,20 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    free(strp);
 }
 
+static bool want_color(void)
+{
+   static int want = -1;
+   if (want == -1)
+      want = (isatty(STDERR_FILENO) || getenv("NVC_NO_COLOR") != NULL);
+   return want;
+}
+
+static void set_attr(int attr)
+{
+   if (want_color())
+      fprintf(stderr, "\033[%dm", attr);
+}
+
 void *xmalloc(size_t size)
 {
    void *p = malloc(size);
@@ -113,8 +138,11 @@ void errorf(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
+   set_attr(ANSI_FG_RED);
    fprintf(stderr, "** Error: ");
+   set_attr(ANSI_RESET);
    paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
+   set_attr(ANSI_RESET);
 
    va_end(ap);
 }
@@ -124,6 +152,7 @@ static void def_error_fn(const char *msg, const loc_t *loc)
    errorf("%s", msg);
    if (loc->first_line != (unsigned short)-1) {
       fprintf(stderr, "\tFile %s, Line %d\n", loc->file, loc->first_line);
+      set_attr(ANSI_RESET);
       fmt_loc(stderr, loc);
    }
 }
@@ -162,7 +191,9 @@ void fatal(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
+   set_attr(ANSI_FG_RED);
    fprintf(stderr, "** Fatal: ");
+   set_attr(ANSI_RESET);
    paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
 
    va_end(ap);
@@ -175,7 +206,9 @@ void fatal_errno(const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
+   set_attr(ANSI_FG_RED);
    fprintf(stderr, "** Fatal: ");
+   set_attr(ANSI_RESET);
    vfprintf(stderr, fmt, ap);
    fprintf(stderr, ": %s\n", strerror(errno));
 
@@ -206,11 +239,14 @@ void fmt_loc(FILE *f, const struct loc *loc)
       || (i == sizeof(buf) - 1 && i <= loc->last_column);
    int last_col = many_lines ? strlen(buf) + 3 : loc->last_column;
 
+   set_attr(ANSI_FG_CYAN);
    fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
    for (int j = 0; j < loc->first_column + 4; j++)
       fprintf(stderr, " ");
+   set_attr(ANSI_FG_GREEN);
    for (int j = 0; j < last_col - loc->first_column + 1; j++)
       fprintf(stderr, "^");
+   set_attr(ANSI_RESET);
    fprintf(stderr, "\n");
 }
 
