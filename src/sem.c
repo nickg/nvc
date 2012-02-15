@@ -1846,9 +1846,16 @@ static bool sem_check_conversion(tree_t t)
    if (from_k == T_INTEGER && to_k == T_INTEGER)
       return true;
 
-   if (from_k == T_CARRAY && to_k == T_UARRAY) {
+   bool from_array = (from_k == T_CARRAY || from_k == T_UARRAY);
+   bool to_array   = (to_k == T_CARRAY || to_k == T_UARRAY);
+
+   if (from_array && to_array) {
       // Types must have same dimensionality
-      bool same_dim = (type_dims(from) == type_index_constrs(to));
+      unsigned from_dim = (from_k == T_CARRAY ? type_dims(from)
+                           : type_index_constrs(from));
+      unsigned to_dim   = (to_k == T_CARRAY ? type_dims(to)
+                           : type_index_constrs(to));
+      bool same_dim = (from_dim == to_dim);
 
       // TODO: index types the same or closely related
 
