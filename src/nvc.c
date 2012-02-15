@@ -27,7 +27,11 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#if defined HAVE_TCL_TCL_H
 #include <tcl/tcl.h>
+#elif defined HAVE_TCL_H
+#include <tcl.h>
+#endif
 
 static const char *work_name = "work";
 

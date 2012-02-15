@@ -282,9 +282,10 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
            (tree_attr_int(t, ident_new("is_report"), 0)
             ? "Report" : "Assertion"),
            levels[severity]);
-   if (msg_len >= 0)
-      (void)fwrite(msg, 1, msg_len, stderr);
-   else
+   if (msg_len >= 0) {
+      if (fwrite(msg, 1, msg_len, stderr) != msg_len)
+         fatal("fwrite failed");
+   } else
       fputs((const char *)msg, stderr);
    fprintf(stderr, "\n");
    fprintf(stderr, "\tFile %s, Line %d\n", l->file, l->first_line);
