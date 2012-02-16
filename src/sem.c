@@ -155,22 +155,6 @@ static void scope_dump(void)
 }
 #endif
 
-static bool scope_btree_cmp(ident_t a, ident_t b)
-{
-   // We can't compare identifier pointers directly as these may be
-   // prefixed during a search so we compare the final character with
-   // a hack to make character identifiers behave better
-
-   char a_final = ident_char(a, 0);
-   char b_final = ident_char(b, 0);
-   if (a_final == '\'' && b_final == '\'') {
-      a_final = ident_char(a, 1);
-      b_final = ident_char(b, 1);
-   }
-
-   return a_final < b_final;
-}
-
 static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
 {
    if (s == NULL)
@@ -186,8 +170,7 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
                --k;
          }
 
-         bool left = scope_btree_cmp(i, search->name);
-         search = (left ? search->left : search->right);
+         search = ((i < search->name) ? search->left : search->right);
       }
 
       return (recur ? scope_find_in(i, s->down, true, k) : NULL);
@@ -239,9 +222,8 @@ static void scope_insert_at(tree_t t, ident_t name, struct btree *where)
    if (scope_hides(where->tree, t))
       where->tree = t;
    else {
-      bool left = scope_btree_cmp(name, where->name);
-
-      struct btree **nextp = (left ? &where->left : &where->right);
+      struct btree **nextp =
+         ((name < where->name) ? &where->left : &where->right);
 
       if (*nextp == NULL)
          *nextp = scope_btree_new(t, name);
