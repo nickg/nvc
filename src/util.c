@@ -39,6 +39,16 @@
 #include <sys/ptrace.h>
 #include <sys/sysctl.h>
 
+#ifdef HAVE_CURSES
+#if defined HAVE_NCURSES_H
+#include <ncurses.h>
+#include <term.h>
+#elif defined HAVE_NCURSES_CURSES_H
+#include <ncurses/curses.h>
+#include <ncurses/term.h>
+#endif
+#endif  // HAVE_CURSES
+
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported
 #if defined REG_RIP
@@ -75,7 +85,8 @@
 
 static void def_error_fn(const char *msg, const loc_t *loc);
 
-static error_fn_t error_fn = def_error_fn;
+static error_fn_t error_fn   = def_error_fn;
+static bool       want_color = false;
 
 static void paginate_msg(const char *fmt, va_list ap, int left, int right)
 {
@@ -103,17 +114,9 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    free(strp);
 }
 
-static bool want_color(void)
-{
-   static int want = -1;
-   if (want == -1)
-      want = (isatty(STDERR_FILENO) || getenv("NVC_NO_COLOR") != NULL);
-   return want;
-}
-
 static void set_attr(int attr)
 {
-   if (want_color())
+   if (want_color)
       fprintf(stderr, "\033[%dm", attr);
 }
 
@@ -508,4 +511,19 @@ int64_t read_i64(FILE *f)
    if (fread(&i, sizeof(int64_t), 1, f) != 1)
       fatal("premature end of file");
    return i;
+}
+
+void term_init(void)
+{
+   const char *nvc_no_color = getenv("NVC_NO_COLOR");
+
+#ifdef HAVE_CURSES
+   int errret;
+   if (setupterm(NULL, STDERR_FILENO, &errret) == OK)
+      want_color = (has_colors() && (nvc_no_color == NULL));
+   else
+      want_color = false;
+#else   // HAVE_CURSES
+   want_color = isatty(STDERR_FILENO) && (nvc_no_color == NULL);
+#endif  // HAVE_CURSES
 }

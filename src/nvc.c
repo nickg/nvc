@@ -395,6 +395,7 @@ static void version(void)
 
 int main(int argc, char **argv)
 {
+   term_init();
    register_trace_signal_handlers();
 
    static struct option long_options[] = {

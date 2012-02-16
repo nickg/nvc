@@ -56,6 +56,8 @@ fi
 
 AX_LLVM_C([engine bitreader bitwriter])
 
+AX_WITH_CURSES
+
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
