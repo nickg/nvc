@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -202,7 +202,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
    }
 
    if (verbose) {
-      fprintf(stderr, "library %s not found in:\n", name);
+      errorf("library %s not found in:", name);
       for (const char **p = paths; *p != NULL; p++) {
          fprintf(stderr, "  %s\n", *p);
       }
