@@ -37,7 +37,7 @@ struct type {
    type_t base;          // T_SUBTYPE, T_CARRAY, T_UARRAY
    union {
       type_t result;     // T_FUNC
-      tree_t resolution; // T_INTEGER, T_ENUM
+      tree_t resolution; // T_INTEGER, T_SUBTYPE
    };
    union {
       struct {   // T_ENUM
@@ -440,6 +440,11 @@ void type_replace(type_t t, type_t a)
       break;
 
    case T_INTEGER:
+      break;
+
+   case T_ENUM:
+      for (unsigned i = 0; i < type_enum_literals(a); i++)
+         type_enum_add_literal(t, type_enum_literal(a, i));
       break;
 
    default:

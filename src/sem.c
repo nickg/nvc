@@ -31,6 +31,7 @@ struct ident_list {
 
 struct btree {
    tree_t       tree;
+   ident_t      name;
    struct btree *left;
    struct btree *right;
 };
@@ -41,7 +42,6 @@ struct scope {
 
    // For design unit scopes
    ident_t           prefix;
-   struct ident_list *context;
    struct ident_list *imported;
 
    struct scope      *down;
@@ -78,7 +78,6 @@ static void scope_push(ident_t prefix)
    struct scope *s = xmalloc(sizeof(struct scope));
    s->decls    = NULL;
    s->prefix   = prefix;
-   s->context  = NULL;
    s->imported = NULL;
    s->down     = top_scope;
    s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
@@ -109,7 +108,6 @@ static void scope_pop(void)
 {
    assert(top_scope != NULL);
 
-   scope_ident_list_free(top_scope->context);
    scope_ident_list_free(top_scope->imported);
    scope_btree_free(top_scope->decls);
 
@@ -127,19 +125,6 @@ static void scope_ident_list_add(struct ident_list **list, ident_t i)
    *list = c;
 }
 
-static void scope_add_context(ident_t prefix)
-{
-   assert(top_scope != NULL);
-
-   struct ident_list *it;
-   for (it = top_scope->context; it != NULL; it = it->next) {
-      if (it->ident == prefix)
-         return;
-   }
-
-   scope_ident_list_add(&top_scope->context, prefix);
-}
-
 static void scope_apply_prefix(tree_t t)
 {
    if (top_scope->prefix)
@@ -150,8 +135,7 @@ static void scope_apply_prefix(tree_t t)
 #if 0
 static void scope_dump_aux(struct btree *b)
 {
-   printf("%-30s%s\n", istr(tree_ident(b->tree)),
-          type_pp(tree_type(b->tree)));
+   printf("%-30s%s\n", istr(b->name), type_pp(tree_type(b->tree)));
    if (b->left)
       scope_dump_aux(b->left);
    if (b->right)
@@ -195,29 +179,14 @@ static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
       struct btree *search = s->decls;
 
       while (search != NULL) {
-         ident_t this = tree_ident(search->tree);
-
-         if (this == i
-             || (s->prefix != NULL
-                 && this == ident_prefix(s->prefix, i, '.'))) {
+         if (search->name == i) {
             if (k == 0)
                return search->tree;
             else
                --k;
          }
-         else {
-            struct ident_list *it;
-            for (it = s->context; it != NULL; it = it->next) {
-               if (this == ident_prefix(it->ident, i, '.')) {
-                  if (k == 0)
-                     return search->tree;
-                  else
-                     --k;
-               }
-            }
-         }
 
-         bool left = scope_btree_cmp(i, this);
+         bool left = scope_btree_cmp(i, search->name);
          search = (left ? search->left : search->right);
       }
 
@@ -254,29 +223,30 @@ static bool scope_hides(tree_t a, tree_t b)
       return false;
 }
 
-static struct btree *scope_btree_new(tree_t t)
+static struct btree *scope_btree_new(tree_t t, ident_t name)
 {
    struct btree *b = xmalloc(sizeof(struct btree));
    b->tree  = t;
+   b->name  = name;
    b->left  = NULL;
    b->right = NULL;
 
    return b;
 }
 
-static void scope_insert_at(tree_t t, struct btree *where)
+static void scope_insert_at(tree_t t, ident_t name, struct btree *where)
 {
    if (scope_hides(where->tree, t))
       where->tree = t;
    else {
-      bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
+      bool left = scope_btree_cmp(name, where->name);
 
       struct btree **nextp = (left ? &where->left : &where->right);
 
       if (*nextp == NULL)
-         *nextp = scope_btree_new(t);
+         *nextp = scope_btree_new(t, name);
       else
-         scope_insert_at(t, *nextp);
+         scope_insert_at(t, name, *nextp);
    }
 }
 
@@ -285,12 +255,14 @@ static void scope_replace_at(tree_t t, tree_t with, struct btree *where)
    assert(where != NULL);
    if (where->tree == t)
       where->tree = with;
-   else {
-      bool left = scope_btree_cmp(tree_ident(t), tree_ident(where->tree));
 
-      struct btree *next = (left ? where->left : where->right);
-      scope_replace_at(t, with, next);
-   }
+   // We need to walk over the whole tree as this may appear under
+   // multiple names
+
+   if (where->left != NULL)
+      scope_replace_at(t, with, where->left);
+   if (where->right != NULL)
+      scope_replace_at(t, with, where->right);
 }
 
 static bool scope_insert(tree_t t)
@@ -303,10 +275,16 @@ static bool scope_insert(tree_t t)
                 istr(tree_ident(t)));
 
    if (top_scope->decls == NULL)
-      top_scope->decls = scope_btree_new(t);
+      top_scope->decls = scope_btree_new(t, tree_ident(t));
    else
-      scope_insert_at(t, top_scope->decls);
+      scope_insert_at(t, tree_ident(t), top_scope->decls);
    return true;
+}
+
+static void scope_insert_alias(tree_t t, ident_t name)
+{
+   assert(top_scope != NULL);
+   scope_insert_at(t, name, top_scope->decls);
 }
 
 static void scope_replace(tree_t t, tree_t with)
@@ -316,7 +294,7 @@ static void scope_replace(tree_t t, tree_t with)
    scope_replace_at(t, with, top_scope->decls);
 }
 
-static bool scope_import_unit(context_t ctx, lib_t lib)
+static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
 {
    // Check we haven't already imported this
    struct ident_list *it;
@@ -337,6 +315,17 @@ static bool scope_import_unit(context_t ctx, lib_t lib)
       tree_t decl = tree_decl(unit, n);
       if (!sem_declare(decl))
          return false;
+
+      // Make unqualified and package qualified names visible
+      const char *tmp = istr(tree_ident(decl));
+      const char *pqual = strchr(tmp, '.');
+      if (pqual != NULL)
+         scope_insert_alias(decl, ident_new(pqual + 1));
+      if (all) {
+         const char *unqual = strrchr(tmp, '.');
+         if (unqual != NULL)
+            scope_insert_alias(decl, ident_new(unqual + 1));
+      }
    }
 
    scope_ident_list_add(&top_scope->imported, ctx.name);
@@ -433,9 +422,11 @@ static bool type_set_member(type_t t)
 
 static type_t sem_std_type(const char *name)
 {
-   tree_t decl = scope_find(ident_new(name));
+   ident_t name_i = ident_new(name);
+   ident_t qual = ident_prefix(ident_new("STD.STANDARD"), name_i, '.');
+   tree_t decl = scope_find(qual);
    if (decl == NULL)
-      fatal("cannot find %s type", name);
+      fatal("cannot find %s type", istr(qual));
 
    return tree_type(decl);
 }
@@ -448,7 +439,7 @@ static tree_t sem_make_int(int i)
 
    tree_t t = tree_new(T_LITERAL);
    tree_set_literal(t, l);
-   tree_set_type(t, sem_std_type("STD.STANDARD.INTEGER"));
+   tree_set_type(t, sem_std_type("INTEGER"));
 
    return t;
 }
@@ -569,12 +560,12 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    case T_PHYSICAL:
       // These types require INTEGER to be declared
-      std_int = sem_std_type("STD.STANDARD.INTEGER");
+      std_int = sem_std_type("INTEGER");
 
       // Fall-through
    default:
       // These types require BOOLEAN to be declared
-      std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+      std_bool = sem_std_type("BOOLEAN");
    }
 
    switch (type_kind(t)) {
@@ -705,7 +696,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          }
 
          tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       sem_std_type("STD.STANDARD.STRING"),
+                                       sem_std_type("STRING"),
                                        "image", t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
@@ -925,14 +916,6 @@ static bool sem_check_range(range_t *r)
 
 static bool sem_check_context(tree_t t)
 {
-   ident_t work_name = lib_name(lib_work());
-
-   // The work library should always be searched
-   scope_add_context(work_name);
-
-   // The builtin pseudo library is always visible
-   scope_add_context(ident_new("NVC.BUILTIN"));
-
    // The std.standard package is also implicit unless we are
    // bootstrapping
    if (!bootstrap) {
@@ -940,30 +923,25 @@ static bool sem_check_context(tree_t t)
       if (std == NULL)
          fatal("failed to find std library");
 
-      ident_t std_standard_name = ident_new("STD.STANDARD");
-      scope_add_context(std_standard_name);
-
       context_t c = {
-         .name = std_standard_name,
+         .name = ident_new("STD.STANDARD"),
          .loc  = LOC_INVALID
       };
-      if (!scope_import_unit(c, std))
+      if (!scope_import_unit(c, std, true))
          return false;
    }
 
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       context_t c = tree_context(t, n);
       ident_t all = ident_strip(c.name, ident_new(".all"));
-      if (all) {
-         scope_add_context(all);
+      if (all)
          c.name = all;
-      }
 
       lib_t lib = lib_find(istr(ident_until(c.name, '.')), true, true);
       if (lib == NULL)
          return false;
 
-      if (!scope_import_unit(c, lib))
+      if (!scope_import_unit(c, lib, all != NULL))
          return false;
    }
 
@@ -1178,7 +1156,7 @@ static bool sem_check_type_decl(tree_t t)
          type_set_push();
          type_set_add(type_kind(type) == T_SUBTYPE
                       ? base
-                      : sem_std_type("STD.STANDARD.INTEGER"));
+                      : sem_std_type("INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 
@@ -1202,7 +1180,7 @@ static bool sem_check_type_decl(tree_t t)
 
 static void sem_add_attributes(tree_t decl)
 {
-   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+   type_t std_bool = sem_std_type("BOOLEAN");
 
    type_t type = tree_type(decl);
    type_kind_t kind = type_kind(type);
@@ -1254,7 +1232,7 @@ static void sem_add_attributes(tree_t decl)
       ident_t length_i = ident_new("LENGTH");
       tree_add_attr_tree(decl, length_i,
                          sem_builtin_fn(length_i,
-                                        sem_std_type("STD.STANDARD.INTEGER"),
+                                        sem_std_type("INTEGER"),
                                         "length", type, NULL));
    }
 
@@ -1576,8 +1554,17 @@ static bool sem_check_package(tree_t t)
 
    bool ok = sem_check_context(t);
    if (ok) {
-      for (unsigned n = 0; n < tree_decls(t); n++)
-         ok = sem_check(tree_decl(t, n)) && ok;
+      for (unsigned n = 0; n < tree_decls(t); n++) {
+         tree_t decl = tree_decl(t, n);
+         ident_t unqual = tree_ident(decl);
+
+         if (sem_check(tree_decl(t, n))) {
+            // Make the unqualified name visible inside the package
+            scope_insert_alias(decl, unqual);
+         }
+         else
+            ok = false;
+      }
    }
 
    scope_pop();
@@ -1602,15 +1589,30 @@ static bool sem_check_package_body(tree_t t)
       .name = qual,
       .loc  = *tree_loc(t)
    };
-   ok = ok && scope_import_unit(c, lib_work());
+   ok = ok && scope_import_unit(c, lib_work(), true);
 
    if (ok) {
       tree_t pack = lib_get(lib_work(), c.name);
       assert(pack != NULL);
       ok = ok && sem_check_context(pack);
 
-      for (unsigned n = 0; n < tree_decls(t); n++)
-         ok = sem_check(tree_decl(t, n)) && ok;
+      for (unsigned n = 0; n < tree_decls(t); n++) {
+         tree_t decl = tree_decl(t, n);
+         ident_t unqual = tree_ident(decl);
+
+         // Make the unqualified name visible inside the package except
+         // in the case of function bodies where the declaration is
+         // already visible
+         if (sem_check(decl)) {
+            bool make_visible =
+               (tree_kind(decl) != T_FUNC_BODY
+                || !sem_check_duplicate(decl, T_FUNC_DECL));
+            if (make_visible)
+               scope_insert_alias(decl, unqual);
+         }
+         else
+            ok = false;
+      }
    }
 
    scope_pop();
@@ -1731,7 +1733,7 @@ static bool sem_check_var_assign(tree_t t)
 
 static bool sem_check_waveforms(tree_t t, type_t expect)
 {
-   type_t std_time = sem_std_type("STD.STANDARD.TIME");
+   type_t std_time = sem_std_type("TIME");
 
    for (unsigned i = 0; i < tree_waveforms(t); i++) {
       tree_t waveform = tree_waveform(t, i);
@@ -1790,7 +1792,7 @@ static bool sem_check_reject(tree_t t)
    if (!sem_check(t))
       return false;
 
-   type_t std_time = sem_std_type("STD.STANDARD.TIME");
+   type_t std_time = sem_std_type("TIME");
    if (!type_eq(tree_type(t), std_time))
       sem_error(t, "reject interval must have type TIME");
 
@@ -1823,7 +1825,7 @@ static bool sem_check_cassign(tree_t t)
    if (!sem_check(target))
       return false;
 
-   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+   type_t std_bool = sem_std_type("BOOLEAN");
 
    for (unsigned i = 0; i < tree_conds(t); i++) {
       tree_t c = tree_cond(t, i);
@@ -2075,11 +2077,11 @@ static bool sem_check_fcall(tree_t t)
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-            p += snprintf(p, end - p, "    %s\n",
+            p += snprintf(p, end - p, "\n    %s",
                           type_pp(tree_type(overloads[n])));
       }
 
-      sem_error(t, "ambiguous %s %s\n%s",
+      sem_error(t, "ambiguous %s %s%s",
                 operator ? "use of operator" : "call to function",
                 istr(tree_ident(t)), buf);
    }
@@ -2141,9 +2143,9 @@ static bool sem_check_assert(tree_t t)
 {
    // Rules for asserion statements are in LRM 93 section 8.2
 
-   type_t std_bool     = sem_std_type("STD.STANDARD.BOOLEAN");
-   type_t std_string   = sem_std_type("STD.STANDARD.STRING");
-   type_t std_severity = sem_std_type("STD.STANDARD.SEVERITY_LEVEL");
+   type_t std_bool     = sem_std_type("BOOLEAN");
+   type_t std_string   = sem_std_type("STRING");
+   type_t std_severity = sem_std_type("SEVERITY_LEVEL");
 
    tree_t value  = tree_value(t);
    tree_t severity = tree_severity(t);
@@ -2481,7 +2483,7 @@ static bool sem_check_array_slice(tree_t t)
    type_t array_type = tree_type(tree_value(t));
 
    type_set_push();
-   type_set_add(sem_std_type("STD.STANDARD.INTEGER"));
+   type_set_add(sem_std_type("INTEGER"));
    range_t r = tree_range(t);
    bool ok = sem_check_range(&r);
    tree_set_range(t, r);
@@ -2652,7 +2654,7 @@ static bool sem_check_instance(tree_t t)
 
 static bool sem_check_if(tree_t t)
 {
-   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+   type_t std_bool = sem_std_type("BOOLEAN");
 
    tree_t value = tree_value(t);
    if (!sem_check_constrained(value, std_bool))
@@ -2766,7 +2768,7 @@ static bool sem_check_return(tree_t t)
 
 static bool sem_check_while(tree_t t)
 {
-   type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+   type_t std_bool = sem_std_type("BOOLEAN");
 
    tree_t value = tree_value(t);
    if (!sem_check_constrained(value, std_bool))
@@ -2836,7 +2838,7 @@ static bool sem_check_exit(tree_t t)
       if (!sem_check(value))
          return false;
 
-      type_t std_bool = sem_std_type("STD.STANDARD.BOOLEAN");
+      type_t std_bool = sem_std_type("BOOLEAN");
       if (!type_eq(tree_type(value), std_bool))
          sem_error(value, "type of exit condition must be %s but is %s",
                    istr(type_ident(std_bool)),
