@@ -1846,6 +1846,13 @@ static bool sem_check_cassign(tree_t t)
    return true;
 }
 
+static unsigned sem_array_dimension(type_t a)
+{
+   return (type_kind(a) == T_CARRAY
+           ? type_dims(a)
+           : type_index_constrs(a));
+}
+
 static bool sem_check_conversion(tree_t t)
 {
    // Type conversions are described in LRM 93 section 7.3.5
@@ -1882,11 +1889,7 @@ static bool sem_check_conversion(tree_t t)
 
    if (from_array && to_array) {
       // Types must have same dimensionality
-      unsigned from_dim = (from_k == T_CARRAY ? type_dims(from)
-                           : type_index_constrs(from));
-      unsigned to_dim   = (to_k == T_CARRAY ? type_dims(to)
-                           : type_index_constrs(to));
-      bool same_dim = (from_dim == to_dim);
+      bool same_dim = (sem_array_dimension(from) == sem_array_dimension(to));
 
       // TODO: index types the same or closely related
 
@@ -2261,7 +2264,7 @@ static bool sem_check_concat(tree_t t)
       if (!type_eq(ltype, rtype))
          sem_error(t, "cannot concatenate arrays of different types");
 
-      if (type_dims(ltype) > 1)
+      if (sem_array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
       tree_set_type(t, type_kind(ltype) == T_UARRAY ? ltype : rtype);
@@ -2426,6 +2429,7 @@ static bool sem_check_ref(tree_t t)
       break;
 
    case T_FUNC_DECL:
+   case T_FUNC_BODY:
       tree_change_kind(t, T_FCALL);
       tree_set_type(t, type_result(tree_type(decl)));
       break;
