@@ -2194,7 +2194,14 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   if (!sem_check(left) || !sem_check(right))
+   bool ok, left_ambiguous;
+   sem_maybe_ambiguous(left, &left_ambiguous);
+   if (left_ambiguous)
+      ok = sem_check(right) && sem_check_constrained(left, tree_type(right));
+   else
+      ok = sem_check(left) && sem_check_constrained(right, tree_type(left));
+
+   if (!ok)
       return false;
 
    type_t ltype;
@@ -2241,6 +2248,16 @@ static bool sem_check_concat(tree_t t)
       type_add_dim(result, result_r);
 
       tree_set_type(t, result);
+   }
+   else if (type_kind(ltype) == T_UARRAY || type_kind(rtype) == T_UARRAY) {
+      // Result is an unconstrained array
+      if (!type_eq(ltype, rtype))
+         sem_error(t, "cannot concatenate arrays of different types");
+
+      if (type_dims(ltype) > 1)
+         sem_error(t, "cannot concatenate arrays with more than one dimension");
+
+      tree_set_type(t, type_kind(ltype) == T_UARRAY ? ltype : rtype);
    }
    else
       sem_error(t, "cannot check this kind of concatenation");
