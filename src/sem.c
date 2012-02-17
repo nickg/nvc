@@ -365,16 +365,23 @@ static void type_set_force(type_t t)
    top_type_set->universal  = false;
 }
 
-static bool type_set_uniq(type_t *pt)
+static bool type_set_uniq_composite(type_t *pt)
 {
    assert(top_type_set != NULL);
 
-   if (top_type_set->n_members == 1) {
-      *pt = top_type_set->members[0];
-      return true;
+   *pt = NULL;
+   for (int i = 0; i < top_type_set->n_members; i++) {
+      type_kind_t kind = type_kind(top_type_set->members[i]);
+      bool comp = (kind == T_CARRAY || kind == T_UARRAY);
+      if (comp) {
+         if (*pt != NULL)
+            return false;
+         else
+            *pt = top_type_set->members[i];
+      }
    }
-   else
-      return false;
+
+   return true;
 }
 
 #if 0
@@ -2288,7 +2295,7 @@ static bool sem_check_aggregate(tree_t t)
    // context in which the aggregate appears
 
    type_t composite_type;
-   if (!type_set_uniq(&composite_type))
+   if (!type_set_uniq_composite(&composite_type))
       sem_error(t, "type of aggregate is ambiguous");
 
    // Aggregates are only valid for composite types
