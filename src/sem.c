@@ -560,6 +560,10 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Operators on arrays
       sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "aeq");
       sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "aneq");
+      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "alt");
+      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "aleq");
+      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "agt");
+      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "ageq");
       break;
 
    case T_PHYSICAL:
