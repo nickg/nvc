@@ -5,6 +5,8 @@ AM_INIT_AUTOMAKE([color-tests])
 
 AC_CONFIG_MACRO_DIR([m4])
 
+AC_CANONICAL_HOST
+
 AC_PROG_CC
 AC_PROG_CC_C99
 AM_PROG_CC_C_O
@@ -61,6 +63,13 @@ AX_WITH_CURSES
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
+
+# On cygwin local headers can sometimes be included instead
+# of system ones which is worked around using -I-. A better
+# solution would be to have automake use -iquote.
+case $host_os in
+  *cygwin* ) CFLAGS="$CFLAGS -I-" ;;
+esac
 
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
