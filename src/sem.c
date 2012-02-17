@@ -1945,6 +1945,9 @@ static bool sem_check_fcall(tree_t t)
       }
    } while (decl != NULL);
 
+   if (n_overloads == 0)
+      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+
    // Work out which parameters have ambiguous interpretations
    bool ambiguous[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++) {
