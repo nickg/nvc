@@ -294,8 +294,10 @@ static int resolve_ir1045(void)
 static int parse_id(const char *str)
 {
    char *p = (lvals.sval = xmalloc(strlen(str) + 1));
-   while (*str)
-      *p++ = toupper(*str++);
+   while (*str) {
+      *p++ = toupper((uint8_t)*str);
+      str++;
+   }
    *p = '\0';
 
    TOKEN(tID);

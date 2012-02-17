@@ -2055,7 +2055,7 @@ static bool sem_check_fcall(tree_t t)
       char buf[1024];
       char *p = buf;
       const char *end = buf + sizeof(buf);
-      const bool operator = !isalpha(*istr(tree_ident(t)));
+      const bool operator = !isalpha((uint8_t)*istr(tree_ident(t)));
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
@@ -2073,7 +2073,7 @@ static bool sem_check_fcall(tree_t t)
       char *p = fn;
       const char *end = fn + sizeof(fn);
       const char *fname = istr(tree_ident(t));
-      const bool operator = !isalpha(fname[0]);
+      const bool operator = !isalpha((uint8_t)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
       p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);

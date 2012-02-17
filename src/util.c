@@ -19,8 +19,10 @@
 
 #include "util.h"
 
+#if !defined __CYGWIN__
 // Get REG_EIP from ucontext.h
 #include <sys/ucontext.h>
+#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -28,7 +30,9 @@
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
+#if !defined __CYGWIN__
 #include <execinfo.h>
+#endif
 #include <signal.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -36,18 +40,29 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#if !defined __CYGWIN__
 #include <sys/ptrace.h>
 #include <sys/sysctl.h>
+#endif
 
-#ifdef HAVE_CURSES
-#if defined HAVE_NCURSES_H
-#include <ncurses.h>
+#if defined HAVE_NCURSESW_CURSES_H
+#include <ncursesw/curses.h>
+#include <ncursesw/term.h>
+#elif defined HAVE_NCURSESW_H
+#include <ncursesw.h>
 #include <term.h>
 #elif defined HAVE_NCURSES_CURSES_H
 #include <ncurses/curses.h>
 #include <ncurses/term.h>
+#elif defined HAVE_NCURSES_H
+#include <ncurses.h>
+#include <term.h>
+#elif defined HAVE_CURSES_H
+#include <curses.h>
+#include <term.h>
+#else
+#error "SysV or X/Open-compatible Curses header file required"
 #endif
-#endif  // HAVE_CURSES
 
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported
@@ -63,6 +78,8 @@
 #endif
 #elif defined __powerpc
 #define ARCH_IP_REG __nip
+#elif defined __CYGWIN__
+#define NO_STACK_TRACE
 #else
 #warning "Don't know the IP register name for your architecture!"
 #define NO_STACK_TRACE
@@ -97,7 +114,7 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    const char *p = strp;
    int col = left;
    while (*p != '\0') {
-      if (isspace(*p) && col >= right) {
+      if (isspace((uint8_t)*p) && col >= right) {
          // Can break line here
          fputc('\n', stderr);
          for (col = 0; col < left; col++)
