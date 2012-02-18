@@ -1941,10 +1941,17 @@ static bool sem_check_fcall(tree_t t)
             tree_set_ref(t, decl);
             return sem_check_conversion(t);
          default:
-            // The grammar is ambiguous between function calls and
-            // array references so must be an array reference
-            tree_change_kind(t, T_ARRAY_REF);
-            return sem_check_array_ref(t);
+            {
+               type_kind_t kind = type_kind(tree_type(decl));
+               if (kind == T_CARRAY || kind == T_UARRAY) {
+                  // The grammar is ambiguous between function calls and
+                  // array references so must be an array reference
+                  tree_change_kind(t, T_ARRAY_REF);
+                  return sem_check_array_ref(t);
+               }
+               else
+                  continue;   // Look for the next matching name
+            }
          }
 
          type_t func_type = tree_type(decl);
