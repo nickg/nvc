@@ -456,6 +456,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx)
 static void cgen_array_copy_slice(type_t src_type, type_t dest_type, range_t r,
                                   LLVMValueRef src, LLVMValueRef dst)
 {
+   // TODO: merge this with cgen_array_copy
+
    assert(type_kind(dest_type) == T_CARRAY);
 
    LLVMValueRef dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
@@ -491,7 +493,8 @@ static void cgen_array_copy_slice(type_t src_type, type_t dest_type, range_t r,
 }
 
 static void cgen_array_copy(type_t src_type, type_t dest_type,
-                            LLVMValueRef src, LLVMValueRef dst)
+                            LLVMValueRef src, LLVMValueRef dst,
+                            LLVMValueRef offset)
 {
    assert(type_kind(dest_type) == T_CARRAY);
 
@@ -511,11 +514,14 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
 
    LLVMValueRef src_ptr = cgen_array_data_ptr(src_type, src);
 
+   if (offset == NULL)
+      offset = llvm_int32(0);
+
    LLVMValueRef args[] = {
       llvm_void_cast(dst),
       llvm_void_cast(src_ptr),
-      llvm_int32(0),            // Offset
-      ll_n_elems,               // Number of elements
+      offset,
+      ll_n_elems,
       llvm_sizeof(llvm_type(type_base(dest_type))),
       opposite_dir
    };
@@ -1319,16 +1325,10 @@ static LLVMValueRef cgen_concat(tree_t t, struct cgen_ctx *ctx)
       cgen_expr(args[1], ctx)
    };
 
-   cgen_array_copy(tree_type(args[0]), tree_type(t), args_ll[0], var);
+   cgen_array_copy(tree_type(args[0]), tree_type(t), args_ll[0], var, NULL);
 
-   LLVMValueRef indexes[] = {
-      llvm_int32(0),
-      cgen_array_len(tree_type(args[0]), args_ll[0])
-   };
-   LLVMValueRef off = LLVMBuildGEP(builder, var, indexes,
-                                   ARRAY_LEN(indexes), "off");
-
-   cgen_array_copy(tree_type(args[1]), tree_type(t), args_ll[1], off);
+   LLVMValueRef off = cgen_array_len(tree_type(args[0]), args_ll[0]);
+   cgen_array_copy(tree_type(args[1]), tree_type(t), args_ll[1], var, off);
 
    return var;
 }
@@ -1419,7 +1419,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
 
          type_t ty = tree_type(target);
          if (type_kind(ty) == T_CARRAY)
-            cgen_array_copy(value_type, ty, rhs, lhs);
+            cgen_array_copy(value_type, ty, rhs, lhs, NULL);
          else
             LLVMBuildStore(builder, rhs, lhs);
       }
@@ -1685,7 +1685,7 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
                                           args, ARRAY_LEN(args), "buf");
 
-         cgen_array_copy(type, type, rval, buf);
+         cgen_array_copy(type, type, rval, buf, NULL);
 
          LLVMTypeRef ptr_type =
             LLVMPointerType(llvm_type(type_base(type)), 0);
@@ -2051,7 +2051,7 @@ static void cgen_process(tree_t t)
 
          type_t ty = tree_type(v);
          if (type_kind(ty) == T_CARRAY)
-            cgen_array_copy(ty, ty, val, var_ptr);
+            cgen_array_copy(ty, ty, val, var_ptr, NULL);
          else
             LLVMBuildStore(builder, val, var_ptr);
       }

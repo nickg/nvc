@@ -2222,20 +2222,39 @@ static bool sem_check_concat(tree_t t)
    if (!sem_check_subtype(right, tree_type(right), &rtype))
       return false;
 
-   if (type_kind(ltype) == T_CARRAY && type_kind(rtype) == T_CARRAY) {
-      // Simple case where both sides are constrained arrays
+   type_kind_t lkind = type_kind(ltype);
+   type_kind_t rkind = type_kind(rtype);
+
+   bool l_array = (lkind == T_CARRAY || lkind == T_UARRAY);
+   bool r_array = (rkind == T_CARRAY || rkind == T_UARRAY);
+
+   if (l_array && r_array) {
       if (!type_eq(ltype, rtype))
          sem_error(t, "cannot concatenate arrays of different types");
 
-      if (type_dims(ltype) > 1)
+      if (sem_array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
-      type_t index_type = tree_type(type_dim(ltype, 0).left);
+      type_t index_type;
+      if (lkind == T_CARRAY)
+         index_type = tree_type(type_dim(ltype, 0).left);
+      else
+         index_type = type_index_constr(ltype, 0);
 
       range_t index_r = type_dim(index_type, 0);
 
-      tree_t left_len = sem_array_len(ltype);
-      tree_t right_len = sem_array_len(rtype);
+      type_t std_int = sem_std_type("INTEGER");
+      tree_t left_len, right_len;
+
+      if (lkind == T_CARRAY)
+         left_len = sem_array_len(ltype);
+      else
+         left_len = sem_call_builtin("length", "length", std_int, left, NULL);
+
+      if (rkind == T_CARRAY)
+         right_len = sem_array_len(rtype);
+      else
+         right_len = sem_call_builtin("length", "length", std_int, right, NULL);
 
       type_t result = type_new(T_CARRAY);
       type_set_ident(result, type_ident(ltype));
@@ -2258,16 +2277,6 @@ static bool sem_check_concat(tree_t t)
       type_add_dim(result, result_r);
 
       tree_set_type(t, result);
-   }
-   else if (type_kind(ltype) == T_UARRAY || type_kind(rtype) == T_UARRAY) {
-      // Result is an unconstrained array
-      if (!type_eq(ltype, rtype))
-         sem_error(t, "cannot concatenate arrays of different types");
-
-      if (sem_array_dimension(ltype) > 1)
-         sem_error(t, "cannot concatenate arrays with more than one dimension");
-
-      tree_set_type(t, type_kind(ltype) == T_UARRAY ? ltype : rtype);
    }
    else
       sem_error(t, "cannot check this kind of concatenation");

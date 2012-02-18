@@ -24,6 +24,8 @@ src/parse.output
 /config.h
 /config.log
 /config.status
+/config.guess
+/config.sub
 /src/nvc
 /lib/std/std
 /lib/ieee/ieee
