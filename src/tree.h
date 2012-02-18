@@ -243,6 +243,7 @@ void tree_add_context(tree_t t, context_t ctx);
 unsigned tree_assocs(tree_t t);
 assoc_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, assoc_t a);
+void tree_change_assoc(tree_t t, unsigned i, assoc_t a);
 
 // T_ASSERT
 tree_t tree_severity(tree_t t);

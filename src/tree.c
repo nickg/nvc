@@ -955,6 +955,15 @@ assoc_t tree_assoc(tree_t t, unsigned n)
    return t->assocs[n];
 }
 
+void tree_change_assoc(tree_t t, unsigned i, assoc_t a)
+{
+   assert(t != NULL);
+   assert(HAS_ASSOCS(t));
+   assert(i < t->n_assocs);
+
+   t->assocs[i] = a;
+}
+
 void tree_add_assoc(tree_t t, assoc_t a)
 {
    assert(t != NULL);

@@ -2510,6 +2510,13 @@ static bool sem_check_aggregate(tree_t t)
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
 
+      if (a.kind == A_RANGE) {
+         if (!sem_check_range(&a.range))
+            return false;
+
+         tree_change_assoc(t, i, a);
+      }
+
       if (!sem_check_constrained(a.value, base))
          return false;
 
