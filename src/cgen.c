@@ -188,7 +188,10 @@ static LLVMTypeRef llvm_type(type_t t)
             for (unsigned i = 0; i < type_dims(t); i++) {
                int64_t low, high;
                range_bounds(type_dim(t, i), &low, &high);
-               nelems *= (high - low + 1);
+               if (high < low)
+                  nelems = 0;
+               else
+                  nelems *= (high - low + 1);
             }
             return LLVMArrayType(llvm_type(type_base(t)), nelems);
          }
@@ -305,7 +308,10 @@ static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
          int64_t low, high;
          range_bounds(type_dim(type, i), &low, &high);
 
-         n_elems *= (high - low + 1);
+         if (high < low)
+            n_elems = 0;
+         else
+            n_elems *= (high - low + 1);
       }
       return llvm_int32(n_elems);
    }
@@ -324,7 +330,10 @@ static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
                          LLVMBuildSub(builder, left, right, ""),
                          LLVMBuildSub(builder, right, left, ""),
                          "diff");
-      return LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
+      LLVMValueRef len = LLVMBuildAdd(builder, diff, llvm_int32(1), "len");
+      LLVMValueRef neg = LLVMBuildICmp(builder, LLVMIntSLT, len,
+                                       llvm_int32(0), "negative");
+      return LLVMBuildSelect(builder, neg, llvm_int32(0), len, "len_clamp");
    }
 }
 
@@ -1099,8 +1108,14 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, struct cgen_ctx *ctx,
       int64_t low, high;
       range_bounds(r, &low, &high);
 
-      *n_elems *= (high - low + 1);
+      if (high < low)
+         *n_elems = 0;
+      else
+         *n_elems *= (high - low + 1);
    }
+
+   if (*n_elems == 0)
+      return NULL;
 
    LLVMValueRef *vals = xmalloc(*n_elems * sizeof(LLVMValueRef));
 
@@ -1259,11 +1274,13 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
       unsigned nvals;
       LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
 
-      LLVMTypeRef at = LLVMArrayType(LLVMTypeOf(vals[0]), nvals);
+      LLVMTypeRef ltype = llvm_type(type_base(tree_type(t)));
+
+      LLVMTypeRef at = LLVMArrayType(ltype, nvals);
       LLVMValueRef g = LLVMAddGlobal(module, at, "");
       LLVMSetGlobalConstant(g, true);
       LLVMSetLinkage(g, LLVMInternalLinkage);
-      LLVMSetInitializer(g, LLVMConstArray(LLVMTypeOf(vals[0]), vals, nvals));
+      LLVMSetInitializer(g, LLVMConstArray(ltype, vals, nvals));
 
       free(vals);
       return g;
@@ -1649,8 +1666,10 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
          int64_t low, high;
          range_bounds(r, &low, &high);
 
+         int n_elems = (high < low ? 0 : high - low + 1);
+
          LLVMValueRef args[] = {
-            llvm_int32(high - low + 1),
+            llvm_int32(n_elems),
             llvm_sizeof(llvm_type(type_base(type)))
          };
          LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),

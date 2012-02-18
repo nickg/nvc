@@ -48,3 +48,4 @@ ieee2           normal,stop=15ns
 cond3           normal
 concat1         normal
 concat2         normal
+null1           normal

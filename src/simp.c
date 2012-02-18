@@ -264,7 +264,7 @@ static tree_t simp_attr_ref(tree_t t)
                 && tree_kind(r.right) == T_LITERAL) {
                int64_t low, high;
                range_bounds(type_dim(tree_type(array), 0), &low, &high);
-               return get_int_lit(t, high - low + 1);
+               return get_int_lit(t, (high < low) ? 0 : high - low + 1);
             }
          }
       }
