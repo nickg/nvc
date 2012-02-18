@@ -120,5 +120,19 @@ begin
             exit when 1;                -- Not boolean
         end loop;
     end process;
+
+    -- Procedure call
+    process is
+        procedure add1(x : in integer; y : out integer) is
+        begin
+            y := x + 1;
+        end procedure;
+
+        variable a, b : integer;
+    begin
+        add1(a, b);                     -- OK
+        add1(1, b);                     -- OK
+        add1(3, 6);                     -- Error
+    end process;
     
 end architecture;

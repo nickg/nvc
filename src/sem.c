@@ -1415,8 +1415,16 @@ static bool sem_check_proc_ports(tree_t t)
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
 
-      if (tree_class(p) == C_DEFAULT)
-         tree_set_class(p, C_VARIABLE);
+      if (tree_class(p) == C_DEFAULT) {
+         switch (tree_port_mode(p)) {
+         case PORT_OUT:
+         case PORT_INOUT:
+            tree_set_class(p, C_VARIABLE);
+            break;
+         default:
+            break;
+         }
+      }
 
       type_t param_type = tree_type(p);
       if (!sem_check_type(p, &param_type))
@@ -2212,6 +2220,21 @@ static bool sem_check_pcall(tree_t t)
       sem_error(t, (n == 1 ? "undefined procedure %s"
                     : "no suitable overload for procedure %s"),
                 fn);
+   }
+
+   for (unsigned i = 0; i < tree_params(t); i++) {
+      param_t param = tree_param(t, i);
+      tree_t  port  = tree_port(decl, i);
+
+      if (tree_class(port) == C_VARIABLE) {
+         switch (tree_kind(param.value)) {
+         case T_REF:
+         case T_ARRAY_REF:
+            break;
+         default:
+            sem_error(param.value, "parameter must be a variable");
+         }
+      }
    }
 
 #if 0
