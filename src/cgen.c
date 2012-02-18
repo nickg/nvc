@@ -2379,15 +2379,15 @@ static void cgen_func_body(tree_t t)
    LLVMBuildUnreachable(builder);
 }
 
-static void cgen_const_array(tree_t t)
+static void cgen_global_const(tree_t t)
 {
-   assert(type_kind(tree_type(t)) == T_CARRAY);
+   if (type_kind(tree_type(t)) == T_CARRAY) {
+      tree_t value = tree_value(t);
+      assert(tree_kind(value) == T_AGGREGATE);
 
-   tree_t value = tree_value(t);
-   assert(tree_kind(value) == T_AGGREGATE);
-
-   LLVMValueRef c = cgen_aggregate(value, NULL);
-   tree_add_attr_ptr(t, local_var_i, c);
+      LLVMValueRef c = cgen_aggregate(value, NULL);
+      tree_add_attr_ptr(t, local_var_i, c);
+   }
 }
 
 static void cgen_top(tree_t t)
@@ -2405,7 +2405,7 @@ static void cgen_top(tree_t t)
       case T_TYPE_DECL:
          break;
       case T_CONST_DECL:
-         cgen_const_array(decl);
+         cgen_global_const(decl);
          break;
       default:
          assert(false);
