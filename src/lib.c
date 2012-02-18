@@ -57,7 +57,7 @@ static ident_t upcase_name(const char *name)
 {
    char *name_up = strdup(name);
    for (char *p = name_up; *p != '\0'; p++)
-      *p = toupper(*p);
+      *p = toupper((uint8_t)*p);
 
    ident_t i = ident_new(name_up);
    free(name_up);
@@ -109,7 +109,7 @@ static lib_t lib_find_at(const char *name, const char *path)
 
    // Convert to lower case
    for (char *p = dir; *p != '\0'; p++)
-      *p = tolower(*p);
+      *p = tolower((uint8_t)*p);
 
    if (access(dir, F_OK) < 0)
       return NULL;
