@@ -1923,51 +1923,11 @@ static void sem_maybe_ambiguous(tree_t t, void *_ambiguous)
    }
 }
 
-static bool sem_check_fcall(tree_t t)
+static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
+                                 tree_t *overloads, int n_overloads)
 {
-   tree_t overloads[MAX_OVERLOADS];
-   int n_overloads = 0;
-
-   tree_t decl;
-   int n = 0;
-   do {
-      if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         switch (tree_kind(decl)) {
-         case T_FUNC_DECL:
-         case T_FUNC_BODY:
-            break;
-         case T_TYPE_DECL:
-            tree_change_kind(t, T_TYPE_CONV);
-            tree_set_ref(t, decl);
-            return sem_check_conversion(t);
-         default:
-            {
-               type_kind_t kind = type_kind(tree_type(decl));
-               if (kind == T_CARRAY || kind == T_UARRAY) {
-                  // The grammar is ambiguous between function calls and
-                  // array references so must be an array reference
-                  tree_change_kind(t, T_ARRAY_REF);
-                  return sem_check_array_ref(t);
-               }
-               else
-                  continue;   // Look for the next matching name
-            }
-         }
-
-         type_t func_type = tree_type(decl);
-         if (type_set_member(type_result(func_type))) {
-            // Number of arguments must match
-            if (type_params(func_type) != tree_params(t))
-               continue;
-
-            // Found a matching function definition
-            overloads[n_overloads++] = decl;
-         }
-      }
-   } while (decl != NULL);
-
-   if (n_overloads == 0)
-      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+   *pick    = NULL;
+   *matches = 0;
 
    // Work out which parameters have ambiguous interpretations
    bool ambiguous[tree_params(t)];
@@ -2034,7 +1994,6 @@ static bool sem_check_fcall(tree_t t)
          return false;
    }
 
-   int matches = 0;
    for (int n = 0; n < n_overloads; n++) {
       if (overloads[n] == NULL)
          continue;
@@ -2050,6 +2009,7 @@ static bool sem_check_fcall(tree_t t)
       }
 
       if (match) {
+         (*matches)++;
          bool builtin = tree_attr_str(overloads[n], ident_new("builtin"));
          if (all_universal && builtin) {
             // If all the arguments are universal integer or real and
@@ -2066,14 +2026,68 @@ static bool sem_check_fcall(tree_t t)
             tree_set_ref(t, overloads[n]);
             return true;
          }
-         else {
-            decl = overloads[n];
-            matches++;
-         }
+         else
+            *pick = overloads[n];
       }
       else
          overloads[n] = NULL;
    }
+
+   return true;
+}
+
+static bool sem_check_fcall(tree_t t)
+{
+   tree_t overloads[MAX_OVERLOADS];
+   int n_overloads = 0;
+
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         switch (tree_kind(decl)) {
+         case T_FUNC_DECL:
+         case T_FUNC_BODY:
+            break;
+         case T_TYPE_DECL:
+            tree_change_kind(t, T_TYPE_CONV);
+            tree_set_ref(t, decl);
+            return sem_check_conversion(t);
+         default:
+            {
+               type_kind_t kind = type_kind(tree_type(decl));
+               if (kind == T_CARRAY || kind == T_UARRAY) {
+                  // The grammar is ambiguous between function calls and
+                  // array references so must be an array reference
+                  tree_change_kind(t, T_ARRAY_REF);
+                  return sem_check_array_ref(t);
+               }
+               else
+                  continue;   // Look for the next matching name
+            }
+         }
+
+         type_t func_type = tree_type(decl);
+         if (type_set_member(type_result(func_type))) {
+            // Number of arguments must match
+            if (type_params(func_type) != tree_params(t))
+               continue;
+
+            // Found a matching function definition
+            overloads[n_overloads++] = decl;
+         }
+      }
+   } while (decl != NULL);
+
+   if (n_overloads == 0)
+      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+
+   int matches;
+   if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
+      return false;
+
+   if (matches > 0 && decl == NULL)
+      return true;   // Resolved to a builtin function
 
    if (matches > 1) {
       char buf[1024];
@@ -2128,6 +2142,84 @@ static bool sem_check_fcall(tree_t t)
 
    tree_set_ref(t, decl);
    tree_set_type(t, type_result(tree_type(decl)));
+   return true;
+}
+
+static bool sem_check_pcall(tree_t t)
+{
+   tree_t overloads[MAX_OVERLOADS];
+   int n_overloads = 0;
+
+   tree_t decl;
+   int n = 0;
+   do {
+      if ((decl = scope_find_nth(tree_ident2(t), n++))) {
+         switch (tree_kind(decl)) {
+         case T_PROC_DECL:
+         case T_PROC_BODY:
+            break;
+         default:
+            continue;   // Look for the next matching name
+         }
+
+         // Number of arguments must match
+         if (type_params(tree_type(decl)) != tree_params(t))
+            continue;
+
+         // Found a matching function definition
+         overloads[n_overloads++] = decl;
+      }
+   } while (decl != NULL);
+
+   if (n_overloads == 0)
+      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
+
+   int matches;
+   if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
+      return false;
+
+   if (matches > 0 && decl == NULL)
+      return true;   // Resolved to a builtin function
+
+   if (matches > 1) {
+      char buf[1024];
+      char *p = buf;
+      const char *end = buf + sizeof(buf);
+
+      for (int n = 0; n < n_overloads; n++) {
+         if (overloads[n] != NULL)
+            p += snprintf(p, end - p, "\n    %s",
+                          type_pp(tree_type(overloads[n])));
+      }
+
+      sem_error(t, "ambiguous call to procedure %s%s",
+                istr(tree_ident2(t)), buf);
+   }
+
+   if (decl == NULL) {
+      char fn[512];
+      char *p = fn;
+      const char *end = fn + sizeof(fn);
+      const char *fname = istr(tree_ident2(t));
+
+      p += snprintf(p, end - p, "%s(", fname);
+      for (unsigned i = 0; i < tree_params(t); i++)
+         p += snprintf(p, end - p, "%s%s",
+                       (i == 0 ? "" : ", "),
+                       istr(type_ident(tree_type(tree_param(t, i).value))));
+      p += snprintf(p, end - p, ")");
+
+      sem_error(t, (n == 1 ? "undefined procedure %s"
+                    : "no suitable overload for procedure %s"),
+                fn);
+   }
+
+#if 0
+   printf("pick: %s\n", type_pp(tree_type(decl)));
+   fmt_loc(stdout, tree_loc(t));
+#endif
+
+   tree_set_ref(t, decl);
    return true;
 }
 
@@ -2957,6 +3049,8 @@ bool sem_check(tree_t t)
       return sem_check_exit(t);
    case T_CONCAT:
       return sem_check_concat(t);
+   case T_PCALL:
+      return sem_check_pcall(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
