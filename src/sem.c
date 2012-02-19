@@ -381,7 +381,7 @@ static bool type_set_uniq_composite(type_t *pt)
       }
    }
 
-   return true;
+   return (*pt != NULL);
 }
 
 #if 0
@@ -398,7 +398,7 @@ static void type_set_dump(void)
 
 static bool type_set_member(type_t t)
 {
-   if (top_type_set == NULL)
+   if (top_type_set == NULL || top_type_set->n_members == 0)
       return true;
 
    for (unsigned n = 0; n < top_type_set->n_members; n++) {
@@ -2326,12 +2326,44 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   bool ok, left_ambiguous;
+   type_set_push();
+
+   bool ok, left_ambiguous = false;
+   type_t expect;
+   tree_t other;
+
    sem_maybe_ambiguous(left, &left_ambiguous);
-   if (left_ambiguous)
-      ok = sem_check(right) && sem_check_constrained(left, tree_type(right));
-   else
-      ok = sem_check(left) && sem_check_constrained(right, tree_type(left));
+   if (left_ambiguous) {
+      if ((ok = sem_check(right))) {
+         expect = tree_type(right);
+         other  = left;
+      }
+   }
+   else {
+      if ((ok = sem_check(left))) {
+         expect = tree_type(left);
+         other  = right;
+      }
+   }
+
+   if (ok) {
+      if (type_kind(expect) == T_CARRAY) {
+         // The bounds of one side should not be used to determine
+         // those of the other side
+         type_t u = type_new(T_UARRAY);
+         type_set_base(u, type_base(expect));
+         type_set_ident(u, type_ident(expect));
+         for (unsigned i = 0; i < type_dims(expect); i++)
+            type_add_index_constr(u, tree_type(type_dim(expect, i).left));
+         type_set_add(u);
+      }
+      else
+         type_set_add(expect);
+
+      ok = ok && sem_check(other);
+   }
+
+   type_set_pop();
 
    if (!ok)
       return false;
@@ -2463,6 +2495,8 @@ static bool sem_check_aggregate(tree_t t)
    // and those must appear before any others association
 
    enum { POS, NAMED, OTHERS } state = POS;
+   bool have_named = false;
+   bool have_pos = false;
 
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
@@ -2472,6 +2506,7 @@ static bool sem_check_aggregate(tree_t t)
          if (state > POS)
             sem_error(a.value, "positional associations must appear "
                       "first in aggregate");
+         have_pos = true;
          break;
 
       case A_NAMED:
@@ -2480,6 +2515,7 @@ static bool sem_check_aggregate(tree_t t)
             sem_error(a.name, "named association must not follow "
                       "others association in aggregate");
          state = NAMED;
+         have_named = true;
          break;
 
       case A_OTHERS:
@@ -2490,6 +2526,15 @@ static bool sem_check_aggregate(tree_t t)
          break;
       }
    }
+
+   // Named and positional associations cannot be mixed in array
+   // aggregates
+
+   bool array = (type_kind(composite_type) == T_CARRAY
+                 || type_kind(composite_type) == T_UARRAY);
+   if (array && have_named && have_pos)
+      sem_error(t, "named and positional associations cannot be "
+                "mixed in array aggregates");
 
    // All elements must be of the composite base type if this is
    // a one-dimensional array otherwise construct an array type

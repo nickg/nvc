@@ -481,6 +481,7 @@ START_TEST(test_array)
       { 88, "array W has 2 dimensions but 1 indices given" },
       { 89, "array W has 2 dimensions but 3 indices given" },
       { 98, "type of index universal integer does not match type" },
+      { 102, "named and positional associations cannot be mixed in" },
       { -1, NULL }
    };
    expect_errors(expect);

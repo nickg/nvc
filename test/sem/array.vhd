@@ -16,9 +16,9 @@ architecture a of e is
     signal x : int_array(1 to 5);
     signal y : ten_ints;
     signal z : int_array(1 to 3) := ( 0, 1, 2 );
-    signal n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
     alias a is x(2 to 3);
+    
 begin
 
     process is
@@ -60,7 +60,7 @@ begin
     process is
         variable b : boolean;
     begin
-        b := z = n;                     -- OK
+        b := z = m;                     -- OK
         b := z /= m;                    -- OK
         b := z = y;                     -- Different types
     end process;
@@ -96,6 +96,11 @@ begin
     begin
         w(A) := 2;                      -- OK
         w(5) := 66;                     -- Wrong index type
+    end process;
+
+    process is
+        variable n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );  -- Error
+    begin
     end process;
     
 end architecture;
