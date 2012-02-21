@@ -411,7 +411,8 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 static bool is_debugger_running(void)
 {
-#ifdef __APPLE__
+#if defined __APPLE__
+
    struct kinfo_proc info;
    info.kp_proc.p_flag = 0;
 
@@ -427,13 +428,13 @@ static bool is_debugger_running(void)
       fatal_errno("sysctl");
 
    return (info.kp_proc.p_flag & P_TRACED) != 0;
-#else  // __APPLE__
 
-#ifdef __linux
+#elif defined __linux
+
    // Hack to detect if Valgrind is running
    FILE *f = fopen("/proc/self/maps", "r");
    if (f != NULL) {
-      char buf[256];
+      char buf[1024];
       bool valgrind = false;
       while (!valgrind && fgets(buf, sizeof(buf), f)) {
          if (strstr(buf, "vgpreload"))
@@ -443,7 +444,6 @@ static bool is_debugger_running(void)
       if (valgrind)
          return true;
    }
-#endif  //__linux
 
    pid_t pid = fork();
 
@@ -474,7 +474,13 @@ static bool is_debugger_running(void)
       waitpid(pid, &status, 0);
       return WEXITSTATUS(status);
    }
-#endif  // __APPLE__
+
+#else
+
+   // Not able to detect debugger on this platform
+   return false;
+
+#endif
 }
 
 #endif  // NO_STACK_TRACE
