@@ -100,6 +100,8 @@
 #define ANSI_FG_CYAN    36
 #define ANSI_FG_WHITE   37
 
+typedef void (*print_fn_t)(const char *fmt, ...);
+
 static void def_error_fn(const char *msg, const loc_t *loc);
 
 static error_fn_t error_fn   = def_error_fn;
@@ -153,28 +155,53 @@ void *xrealloc(void *ptr, size_t size)
    return ptr;
 }
 
+static void fmt_color(int color, const char *prefix,
+                      const char *fmt, va_list ap)
+{
+   set_attr(color);
+   fprintf(stderr, "** %s: ", prefix);
+   set_attr(ANSI_RESET);
+   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
+}
+
 void errorf(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Error", fmt, ap);
+   va_end(ap);
+}
 
-   set_attr(ANSI_FG_RED);
-   fprintf(stderr, "** Error: ");
-   set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
-   set_attr(ANSI_RESET);
+void warnf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_YELLOW, "Warning", fmt, ap);
+   va_end(ap);
+}
 
+void notef(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_RESET, "Note", fmt, ap);
    va_end(ap);
 }
 
 static void def_error_fn(const char *msg, const loc_t *loc)
 {
    errorf("%s", msg);
-   if (loc->first_line != (unsigned short)-1) {
-      fprintf(stderr, "\tFile %s, Line %d\n", loc->file, loc->first_line);
-      set_attr(ANSI_RESET);
-      fmt_loc(stderr, loc);
-   }
+   fmt_loc(stderr, loc);
+}
+
+static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
+{
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+   (*fn)("%s", strp);
+   fmt_loc(stderr, loc);
+   free(strp);
 }
 
 void error_at(const loc_t *loc, const char *fmt, ...)
@@ -186,8 +213,36 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    if (vasprintf(&strp, fmt, ap) < 0)
       abort();
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
-   va_end(ap);
    free(strp);
+
+   va_end(ap);
+}
+
+void warn_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   msg_at(warnf, loc, fmt, ap);
+   va_end(ap);
+}
+
+void note_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   msg_at(notef, loc, fmt, ap);
+   va_end(ap);
+}
+
+void fatal_at(const loc_t *loc, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+   fmt_loc(stderr, loc);
+   va_end(ap);
+
+   exit(EXIT_FAILURE);
 }
 
 void error_at_v(const loc_t *loc, const char *fmt, va_list ap)
@@ -210,12 +265,7 @@ void fatal(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-
-   set_attr(ANSI_FG_RED);
-   fprintf(stderr, "** Fatal: ");
-   set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
-
+   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
    va_end(ap);
 
    exit(EXIT_FAILURE);
@@ -239,7 +289,12 @@ void fatal_errno(const char *fmt, ...)
 
 void fmt_loc(FILE *f, const struct loc *loc)
 {
-   if (loc->first_line == (unsigned short)-1 || loc->linebuf == NULL)
+   if (loc->first_line == (unsigned short)-1)
+      return;
+
+   fprintf(f, "\tFile %s, Line %d\n", loc->file, loc->first_line);
+
+   if (loc->linebuf == NULL)
       return;
 
    const char *lb = loc->linebuf;
@@ -260,14 +315,14 @@ void fmt_loc(FILE *f, const struct loc *loc)
    int last_col = many_lines ? strlen(buf) + 3 : loc->last_column;
 
    set_attr(ANSI_FG_CYAN);
-   fprintf(stderr, "    %s%s\n", buf, many_lines ? " ..." : "");
+   fprintf(f, "    %s%s\n", buf, many_lines ? " ..." : "");
    for (int j = 0; j < loc->first_column + 4; j++)
-      fprintf(stderr, " ");
+      fprintf(f, " ");
    set_attr(ANSI_FG_GREEN);
    for (int j = 0; j < last_col - loc->first_column + 1; j++)
-      fprintf(stderr, "^");
+      fprintf(f, "^");
    set_attr(ANSI_RESET);
-   fprintf(stderr, "\n");
+   fprintf(f, "\n");
 }
 
 #ifndef NO_STACK_TRACE

@@ -37,6 +37,10 @@ void *xrealloc(void *ptr, size_t size);
 
 void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
+void warnf(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+void notef(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
 void fatal_errno(const char *fmt, ...)
@@ -50,6 +54,12 @@ typedef void (*error_fn_t)(const char *msg, const loc_t *loc);
 error_fn_t set_error_fn(error_fn_t fn);
 
 void error_at(const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+void warn_at(const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+void note_at(const loc_t *loc, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+void fatal_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void error_at_v(const loc_t *loc, const char *fmt, va_list ap);
 

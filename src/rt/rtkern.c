@@ -31,7 +31,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TRACE_DELTAQ 1
+#define TRACE_DELTAQ  1
+#define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
 
@@ -66,7 +67,7 @@ struct event {
 struct waveform {
    uint64_t        when;
    struct waveform *next;
-   uint64_t     value;
+   uint64_t        value;
 };
 
 struct sens_list {
@@ -275,23 +276,37 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
    };
 
    tree_t t = tree_read_recall(tree_rd_ctx, where);
-   const loc_t *l = tree_loc(t);
 
-   fprintf(stderr, "%s+%d: %s %s: ",
-           fmt_time(now), iteration,
-           (tree_attr_int(t, ident_new("is_report"), 0)
-            ? "Report" : "Assertion"),
-           levels[severity]);
+   char *copy = NULL;
    if (msg_len >= 0) {
-      if (fwrite(msg, 1, msg_len, stderr) != msg_len)
-         fatal("fwrite failed");
-   } else
-      fputs((const char *)msg, stderr);
-   fprintf(stderr, "\n");
-   fprintf(stderr, "\tFile %s, Line %d\n", l->file, l->first_line);
+      copy = xmalloc(msg_len + 1);
+      memcpy(copy, msg, msg_len);
+      copy[msg_len] = '\0';
+   }
 
-   if (severity >= 2)
-      fatal("cannot continue");
+   void (*fn)(const loc_t *loc, const char *fmt, ...);
+
+   switch (severity) {
+   case 0: fn = note_at; break;
+   case 1: fn = warn_at; break;
+   case 2:
+   case 3: fn = error_at; break;
+   default:
+      assert(false);
+   }
+
+   if (severity >= EXIT_SEVERITY)
+      fn = fatal_at;
+
+   (*fn)(tree_loc(t), "%s+%d: %s %s: %s",
+         fmt_time(now), iteration,
+         (tree_attr_int(t, ident_new("is_report"), 0)
+          ? "Report" : "Assertion"),
+         levels[severity],
+         (copy != NULL ? copy : (const char *)msg));
+
+   if (copy != NULL)
+      free(copy);
 }
 
 uint64_t _std_standard_now(void)
