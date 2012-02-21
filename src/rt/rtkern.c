@@ -752,6 +752,16 @@ static void rt_one_time_init(void)
    i_signal = ident_new("signal");
 
    jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
+   jit_bind_fn("_sched_process", _sched_process);
+   jit_bind_fn("_sched_waveform_vec", _sched_waveform_vec);
+   jit_bind_fn("_sched_waveform", _sched_waveform);
+   jit_bind_fn("_sched_event", _sched_event);
+   jit_bind_fn("_assert_fail", _assert_fail);
+   jit_bind_fn("_tmp_alloc", _tmp_alloc);
+   jit_bind_fn("_array_copy", _array_copy);
+   jit_bind_fn("_array_eq", _array_eq);
+   jit_bind_fn("_image", _image);
+   jit_bind_fn("_debug_out", _debug_out);
 
    event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
