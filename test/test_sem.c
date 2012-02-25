@@ -236,6 +236,16 @@ START_TEST(test_scope)
       sem_check(a);
    }
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 

@@ -88,3 +88,18 @@ begin
     end process;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity overload is
+    port (
+        SI:     in      bit;
+        SO:     out     bit
+    );
+end ;
+
+architecture behave of overload is
+begin
+    foo_inst:
+        SO <= SI;
+end behave;

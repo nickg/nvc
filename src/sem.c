@@ -279,10 +279,12 @@ static void scope_replace(tree_t t, tree_t with)
 static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
 {
    // Check we haven't already imported this
-   struct ident_list *it;
-   for (it = top_scope->imported; it != NULL; it = it->next) {
-      if (it->ident == ctx.name)
-         return true;
+   for (struct scope *s = top_scope; s != NULL; s = s->down) {
+      struct ident_list *it;
+      for (it = s->imported; it != NULL; it = it->next) {
+         if (it->ident == ctx.name)
+            return true;
+      }
    }
 
    tree_t unit = lib_get(lib, ctx.name);
@@ -1551,10 +1553,11 @@ static bool sem_check_package(tree_t t)
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
    assert(top_scope == NULL);
-   scope_push(qual);
+   scope_push(NULL);
 
    bool ok = sem_check_context(t);
    if (ok) {
+      scope_push(qual);
       for (unsigned n = 0; n < tree_decls(t); n++) {
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
@@ -1566,6 +1569,7 @@ static bool sem_check_package(tree_t t)
          else
             ok = false;
       }
+      scope_pop();
    }
 
    scope_pop();
@@ -1581,9 +1585,11 @@ static bool sem_check_package_body(tree_t t)
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
 
    assert(top_scope == NULL);
-   scope_push(qual);
+   scope_push(NULL);
 
    bool ok = sem_check_context(t);
+
+   scope_push(qual);
 
    // Look up package declaration
    context_t c = {
@@ -1617,6 +1623,7 @@ static bool sem_check_package_body(tree_t t)
    }
 
    scope_pop();
+   scope_pop();
 
    tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
    lib_put(lib_work(), t);
@@ -1629,16 +1636,17 @@ static bool sem_check_entity(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
-   if (!sem_check_context(t))
-      return false;
+   bool ok = sem_check_context(t);
 
-   bool ok = true;
+   scope_push(NULL);
+
    for (unsigned n = 0; n < tree_generics(t); n++)
       ok = sem_check(tree_generic(t, n)) && ok;
 
    for (unsigned n = 0; n < tree_ports(t); n++)
       ok = sem_check(tree_port(t, n)) && ok;
 
+   scope_pop();
    scope_pop();
 
    // Prefix the entity with the current library name
@@ -1664,7 +1672,9 @@ static bool sem_check_arch(tree_t t)
 
    // Make all port and generic declarations available in this scope
 
-   bool ok = sem_check_context(e);
+   bool ok = sem_check_context(e) && sem_check_context(t);
+
+   scope_push(NULL);
 
    for (unsigned n = 0; n < tree_ports(e); n++)
       scope_insert(tree_port(e, n));
@@ -1674,8 +1684,6 @@ static bool sem_check_arch(tree_t t)
 
    // Now check the architecture itself
 
-   ok = ok && sem_check_context(t);
-
    for (unsigned n = 0; n < tree_decls(t); n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
@@ -1684,6 +1692,7 @@ static bool sem_check_arch(tree_t t)
          ok = sem_check(tree_stmt(t, n)) && ok;
    }
 
+   scope_pop();
    scope_pop();
 
    // Prefix the architecture with the current library and entity name
