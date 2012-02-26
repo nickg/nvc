@@ -2327,6 +2327,29 @@ static tree_t sem_array_len(type_t type)
    return sem_call_builtin("\"+\"", "add", index_type, tmp, one, NULL);
 }
 
+static bool sem_check_concat_param(tree_t t, type_t expect)
+{
+   type_set_push();
+
+   if (type_kind(expect) == T_CARRAY) {
+      // The bounds of one side should not be used to determine
+      // those of the other side
+      type_t u = type_new(T_UARRAY);
+      type_set_base(u, type_base(expect));
+      type_set_ident(u, type_ident(expect));
+      for (unsigned i = 0; i < type_dims(expect); i++)
+         type_add_index_constr(u, tree_type(type_dim(expect, i).left));
+      type_set_add(u);
+   }
+   else
+      type_set_add(expect);
+
+   bool ok = sem_check(t);
+   type_set_pop();
+
+   return ok;
+}
+
 static bool sem_check_concat(tree_t t)
 {
    // Concatenation expressions are treated differently to other operators
@@ -2336,14 +2359,22 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   type_set_push();
-
-   bool ok, left_ambiguous = false;
    type_t expect;
+   bool uniq_comp = type_set_uniq_composite(&expect);
+
+   bool ok, left_ambig = false, right_ambig = false;
    tree_t other;
 
-   sem_maybe_ambiguous(left, &left_ambiguous);
-   if (left_ambiguous) {
+   sem_maybe_ambiguous(left, &left_ambig);
+   sem_maybe_ambiguous(right, &right_ambig);
+
+   if (left_ambig && right_ambig) {
+      if (!uniq_comp)
+         sem_error(t, "type of concatenation is ambiguous");
+      ok = sem_check_concat_param(left, expect);
+      other = right;
+   }
+   else if (left_ambig) {
       if ((ok = sem_check(right))) {
          expect = tree_type(right);
          other  = left;
@@ -2356,26 +2387,7 @@ static bool sem_check_concat(tree_t t)
       }
    }
 
-   if (ok) {
-      if (type_kind(expect) == T_CARRAY) {
-         // The bounds of one side should not be used to determine
-         // those of the other side
-         type_t u = type_new(T_UARRAY);
-         type_set_base(u, type_base(expect));
-         type_set_ident(u, type_ident(expect));
-         for (unsigned i = 0; i < type_dims(expect); i++)
-            type_add_index_constr(u, tree_type(type_dim(expect, i).left));
-         type_set_add(u);
-      }
-      else
-         type_set_add(expect);
-
-      ok = ok && sem_check(other);
-   }
-
-   type_set_pop();
-
-   if (!ok)
+   if (!(ok && sem_check_concat_param(other, expect)))
       return false;
 
    type_t ltype;
