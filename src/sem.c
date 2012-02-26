@@ -61,6 +61,7 @@ struct type_set {
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
+static bool sem_locally_static(tree_t t);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
@@ -2564,11 +2565,20 @@ static bool sem_check_aggregate(tree_t t)
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
 
-      if (a.kind == A_RANGE) {
+      switch (a.kind) {
+      case A_RANGE:
          if (!sem_check_range(&a.range))
             return false;
-
          tree_change_assoc(t, i, a);
+         break;
+
+      case A_NAMED:
+         if (!sem_check(a.name))  // TODO: constrained by index type
+            return false;
+         break;
+
+      default:
+         break;
       }
 
       if (!sem_check_constrained(a.value, base))
@@ -2580,6 +2590,18 @@ static bool sem_check_aggregate(tree_t t)
                    istr(type_ident(tree_type(a.value))),
                    istr(type_ident(base)));
 
+   }
+
+   // If a named choice is not locally static then it must be the
+   // only element
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      if (a.kind == A_NAMED && !sem_locally_static(a.name)) {
+         if (tree_assocs(t) != 1)
+            sem_error(a.name, "non-locally static choice must be "
+                      "only choice");
+      }
    }
 
    tree_set_type(t, composite_type);

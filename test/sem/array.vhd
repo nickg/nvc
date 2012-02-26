@@ -102,5 +102,14 @@ begin
         variable n : int_array(1 to 3) := ( 0, 1 => 1, others => 2 );  -- Error
     begin
     end process;
+
+    process is
+        variable x : integer;
+        constant c : integer := 3;
+        variable y : int_array(1 to 3);
+    begin
+        y := ( 1 => 2, 2 => 3, x => 5 );  -- Error
+        y := ( 1 => 2, 2 => 3, c => 5 );  -- OK
+    end process;
     
 end architecture;
