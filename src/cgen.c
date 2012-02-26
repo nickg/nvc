@@ -532,7 +532,7 @@ static LLVMValueRef cgen_default_value(type_t ty)
    }
 }
 
-static void cgen_prototype(tree_t t, LLVMTypeRef *args)
+static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
 {
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
@@ -544,7 +544,10 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args)
       case C_VARIABLE:
       case C_DEFAULT:
       case C_CONSTANT:
-         args[i] = llvm_type(tree_type(p));
+         if (tree_port_mode(p) == PORT_IN)
+            args[i] = llvm_type(tree_type(p));
+         else
+            args[i] = LLVMPointerType(llvm_type(tree_type(p)), 0);
          break;
       }
    }
@@ -560,7 +563,7 @@ static LLVMValueRef cgen_fdecl(tree_t t)
       type_t ftype = tree_type(t);
 
       LLVMTypeRef atypes[tree_ports(t)];
-      cgen_prototype(t, atypes);
+      cgen_prototype(t, atypes, false);
 
       return LLVMAddFunction(
          module,
@@ -568,6 +571,28 @@ static LLVMValueRef cgen_fdecl(tree_t t)
          LLVMFunctionType(llvm_type(type_result(ftype)),
                           atypes,
                           type_params(ftype),
+                          false));
+   }
+}
+
+static LLVMValueRef cgen_pdecl(tree_t t)
+{
+   const char *mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   if (fn != NULL)
+      return fn;
+   else {
+      type_t ptype = tree_type(t);
+
+      LLVMTypeRef atypes[tree_ports(t)];
+      cgen_prototype(t, atypes, true);
+
+      return LLVMAddFunction(
+         module,
+         cgen_mangle_func_name(t),
+         LLVMFunctionType(llvm_void_ptr(),
+                          atypes,
+                          type_params(ptype),
                           false));
    }
 }
@@ -744,25 +769,11 @@ static LLVMValueRef cgen_uarray_asc(LLVMValueRef uarray)
       "ascending");
 }
 
-static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
+static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
-   assert(tree_kind(decl) == T_FUNC_DECL
-          || tree_kind(decl) == T_FUNC_BODY);
-
    const char *builtin = tree_attr_str(decl, ident_new("builtin"));
 
-   // Special attributes
-   if (builtin) {
-      if (strcmp(builtin, "event") == 0)
-         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_EVENT);
-      else if (strcmp(builtin, "active") == 0)
-         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
-      else if (strcmp(builtin, "last_value") == 0)
-         return cgen_last_value(tree_param(t, 0).value, ctx);
-   }
-
-   LLVMValueRef args[tree_params(t)];
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       if (builtin == NULL && tree_class(tree_port(decl, i)) == C_SIGNAL) {
@@ -773,14 +784,29 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          assert(args[i] != NULL);
       }
       else {
-         args[i] = cgen_expr(p.value, ctx);
+         args[i] = NULL;
+
+         type_t type = tree_type(p.value);
+         type_kind_t type_k = type_kind(type);
+
+         // If this is a scalar out or inout parameter then we need
+         // to pass a pointer rather than the value
+         if (builtin == NULL) {
+            port_mode_t mode = tree_port_mode(tree_port(decl, i));
+            bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
+                             && !(type_k == T_UARRAY || type_k == T_CARRAY));
+            if (need_ptr)
+               args[i] = cgen_get_var(tree_ref(p.value), ctx);
+         }
+
+         if (args[i] == NULL)
+            args[i] = cgen_expr(p.value, ctx);
 
          // If we are passing a constrained array argument wrap it in
          // a structure with its metadata. Note we don't need to do
          // this for unconstrained arrays as they are already wrapped.
-         type_t type = tree_type(p.value);
          bool need_wrap =
-            (type_kind(type) == T_CARRAY)
+            (type_k == T_CARRAY)
             && cgen_const_bounds(type)
             && (builtin == NULL);
 
@@ -801,6 +827,28 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          }
       }
    }
+}
+
+static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
+{
+   tree_t decl = tree_ref(t);
+   assert(tree_kind(decl) == T_FUNC_DECL
+          || tree_kind(decl) == T_FUNC_BODY);
+
+   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+
+   // Special attributes
+   if (builtin) {
+      if (strcmp(builtin, "event") == 0)
+         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_EVENT);
+      else if (strcmp(builtin, "active") == 0)
+         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
+      else if (strcmp(builtin, "last_value") == 0)
+         return cgen_last_value(tree_param(t, 0).value, ctx);
+   }
+
+   LLVMValueRef args[tree_params(t)];
+   cgen_call_args(t, args, ctx);
 
    // Regular builtin functions
    if (builtin) {
@@ -1806,6 +1854,16 @@ static void cgen_case(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
+static void cgen_pcall(tree_t t, struct cgen_ctx *ctx)
+{
+   tree_t decl = tree_ref(t);
+
+   LLVMValueRef args[tree_params(t)];
+   cgen_call_args(t, args, ctx);
+
+   LLVMBuildCall(builder, cgen_pdecl(decl), args, tree_params(t), "");
+}
+
 static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -1838,6 +1896,9 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx)
       break;
    case T_CASE:
       cgen_case(t, ctx);
+      break;
+   case T_PCALL:
+      cgen_pcall(t, ctx);
       break;
    default:
       assert(false);
@@ -2339,7 +2400,7 @@ static void cgen_func_body(tree_t t)
    type_t ftype = tree_type(t);
 
    LLVMTypeRef args[tree_ports(t)];
-   cgen_prototype(t, args);
+   cgen_prototype(t, args, false);
 
    LLVMValueRef fn =
       LLVMAddFunction(module, cgen_mangle_func_name(t),
@@ -2379,6 +2440,60 @@ static void cgen_func_body(tree_t t)
    LLVMBuildUnreachable(builder);
 }
 
+static void cgen_proc_body(tree_t t)
+{
+   // Procedures take an extra "context" parameter which is used to support
+   // suspending and resuming. If the procedure returns non-NULL then this
+   // pointer should be saved, the caller should suspend, and we it resumes
+   // call the procedure again with the saved pointer as the first argument.
+   // If the procedure returns NULL execution continues as normal.
+   // TODO: implement this
+
+   type_t ptype = tree_type(t);
+
+   LLVMTypeRef args[tree_ports(t)];
+   cgen_prototype(t, args, true);
+
+   LLVMValueRef fn =
+      LLVMAddFunction(module, cgen_mangle_func_name(t),
+                      LLVMFunctionType(llvm_void_ptr(),
+                                       args, type_params(ptype), false));
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   struct cgen_ctx ctx = {
+      .entry_list = NULL,
+      .proc       = NULL,
+      .fdecl      = t,
+      .fn         = fn
+   };
+
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      tree_t p = tree_port(t, i);
+      switch (tree_class(p)) {
+      case C_SIGNAL:
+         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
+         break;
+
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
+         break;
+      }
+   }
+
+   // TODO: for procedures these should be placed in a dynamically
+   //       allocated context struct
+   tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
+
+   for (unsigned i = 0; i < tree_stmts(t); i++)
+      cgen_stmt(tree_stmt(t, i), &ctx);
+
+   LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+}
+
 static void cgen_global_const(tree_t t)
 {
    if (type_kind(tree_type(t)) == T_CARRAY) {
@@ -2406,6 +2521,12 @@ static void cgen_top(tree_t t)
          break;
       case T_CONST_DECL:
          cgen_global_const(decl);
+         break;
+      case T_FUNC_DECL:
+      case T_PROC_DECL:
+         break;
+      case T_PROC_BODY:
+         cgen_proc_body(decl);
          break;
       default:
          assert(false);

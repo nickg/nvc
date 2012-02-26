@@ -50,3 +50,4 @@ concat1         normal
 concat2         normal
 null1           normal
 agg3            normal
+proc1           normal
