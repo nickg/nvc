@@ -2490,24 +2490,7 @@ static bool sem_check_aggregate(tree_t t)
 
    switch (type_kind(composite_type)) {
    case T_CARRAY:
-      break;
    case T_UARRAY:
-      {
-         // Create a new constrained array type with these dimensions
-
-         type_t tmp = type_new(T_CARRAY);
-         type_set_ident(tmp, type_ident(composite_type));
-         type_set_base(tmp, type_base(composite_type));  // Element type
-
-         // TODO: check index constraints
-
-         range_t r = { .kind  = RANGE_TO,
-                       .left  = sem_make_int(0),  // XXX: 'left of index type,
-                       .right = sem_make_int(tree_assocs(t) - 1) };  // XXX
-         type_add_dim(tmp, r);
-
-         composite_type = tmp;
-      }
       break;
    default:
       sem_error(t, "aggregates must have a composite type");
@@ -2557,6 +2540,47 @@ static bool sem_check_aggregate(tree_t t)
    if (array && have_named && have_pos)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
+
+   // If the composite type is unconstrained create a new constrained
+   // array type
+
+   if (type_kind(composite_type) == T_UARRAY) {
+      type_t tmp = type_new(T_CARRAY);
+      type_set_ident(tmp, type_ident(composite_type));
+      type_set_base(tmp, type_base(composite_type));  // Element type
+
+      assert(type_index_constrs(composite_type) == 1);  // TODO
+
+      type_t index_type = type_index_constr(composite_type, 0);
+      range_t index_r = type_dim(index_type, 0);
+
+      if (have_named) {
+         tree_t low = sem_call_builtin("NVC.BUILTIN.AGG_LOW", "agg_low",
+                                       index_type, t, NULL);
+         tree_t high = sem_call_builtin("NVC.BUILTIN.AGG_HIGH", "agg_high",
+                                        index_type, t, NULL);
+
+         range_t r = {
+            .kind  = index_r.kind,
+            .left  = (index_r.kind == RANGE_TO ? low : high),
+            .right = (index_r.kind == RANGE_TO ? high : low)
+         };
+         type_add_dim(tmp, r);
+      }
+      else {
+         tree_t n_elems = sem_make_int(tree_assocs(t) - 1);
+
+         range_t r = {
+            .kind  = index_r.kind,
+            .left  = index_r.left,
+            .right = sem_call_builtin("\"+\"", "add", index_type, n_elems,
+                                      index_r.left, NULL)
+         };
+         type_add_dim(tmp, r);
+      }
+
+      composite_type = tmp;
+   }
 
    // All elements must be of the composite base type if this is
    // a one-dimensional array otherwise construct an array type

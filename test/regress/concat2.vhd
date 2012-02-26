@@ -16,6 +16,8 @@ begin
     begin
         x := get_array & ( 0 => 4 );
         assert x = (1, 2, 3, 4);
+        x := get_array & ( 6 => 8 );
+        assert x = (1, 2, 3, 8);
         wait;
     end process;
 

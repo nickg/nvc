@@ -58,6 +58,32 @@ static bool folded_bool(tree_t t, bool *b)
    return false;
 }
 
+static bool folded_agg(tree_t t)
+{
+   if (tree_kind(t) == T_AGGREGATE) {
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+         literal_t dummy;
+         switch (a.kind) {
+         case A_NAMED:
+            if (!folded_num(a.name, &dummy))
+               return false;
+            break;
+         case A_RANGE:
+            if (!folded_num(a.range.left, &dummy)
+                || !folded_num(a.range.right, &dummy))
+               return false;
+            break;
+         default:
+            break;
+         }
+      }
+      return true;
+   }
+   else
+      return false;
+}
+
 static tree_t get_int_lit(tree_t t, int64_t i)
 {
    tree_t fdecl = tree_ref(t);
@@ -167,6 +193,45 @@ static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
       return t;
 }
 
+static tree_t simp_fcall_agg(tree_t t, const char *builtin)
+{
+   bool agg_low  = (strcmp(builtin, "agg_low") == 0);
+   bool agg_high = (strcmp(builtin, "agg_high") == 0);
+
+   if (agg_low || agg_high) {
+      int64_t low = INT64_MAX, high = INT64_MIN;
+      param_t p = tree_param(t, 0);
+      for (unsigned i = 0; i < tree_assocs(p.value); i++) {
+         assoc_t a = tree_assoc(p.value, i);
+         switch (a.kind) {
+         case A_NAMED:
+            {
+               int64_t tmp = assume_int(a.name);
+               if (tmp < low) low = tmp;
+               if (tmp > high) high = tmp;
+            }
+            break;
+
+         case A_RANGE:
+            {
+               int64_t low_r, high_r;
+               range_bounds(a.range, &low_r, &high_r);
+               if (low_r < low) low = low_r;
+               if (high_r > high) high = high_r;
+            }
+            break;
+
+         default:
+            assert(false);
+         }
+      }
+
+      return get_int_lit(t, agg_low ? low : high);
+   }
+   else
+      return t;
+}
+
 static tree_t simp_fcall(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -182,6 +247,7 @@ static tree_t simp_fcall(tree_t t)
 
    bool can_fold_num = true;
    bool can_fold_log = true;
+   bool can_fold_agg = true;
    literal_t largs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
@@ -189,12 +255,15 @@ static tree_t simp_fcall(tree_t t)
       assert(p.kind == P_POS);
       can_fold_num = can_fold_num && folded_num(p.value, &largs[i]);
       can_fold_log = can_fold_log && folded_bool(p.value, &bargs[i]);
+      can_fold_agg = can_fold_agg && folded_agg(p.value);
    }
 
    if (can_fold_num)
       return simp_fcall_num(t, builtin, largs);
    else if (can_fold_log)
       return simp_fcall_log(t, builtin, bargs);
+   else if (can_fold_agg)
+      return simp_fcall_agg(t, builtin);
    else
       return t;
 }

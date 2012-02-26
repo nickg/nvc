@@ -49,3 +49,4 @@ cond3           normal
 concat1         normal
 concat2         normal
 null1           normal
+agg3            normal
