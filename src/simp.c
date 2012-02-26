@@ -676,6 +676,54 @@ static tree_t simp_cassign(tree_t t)
    return p;
 }
 
+static tree_t simp_check_bounds(tree_t i, int64_t low, int64_t high)
+{
+   literal_t folded;
+   if (folded_num(i, &folded)) {
+      if (folded.i < low || folded.i > high)
+         simp_error(i, "index out of bounds");
+   }
+   return NULL;
+}
+
+static tree_t simp_aggregate(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (type_kind(type) != T_CARRAY)
+      return t;
+
+   range_t r = type_dim(type, 0);
+   if (tree_kind(r.left) != T_LITERAL || tree_kind(r.right) != T_LITERAL)
+      return t;
+
+   // Check for out of bounds indexes
+
+   int64_t low, high;
+   range_bounds(type_dim(type, 0), &low, &high);
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      switch (a.kind) {
+      case A_NAMED:
+         if (simp_check_bounds(a.name, low, high))
+            return t;
+         break;
+
+      case A_RANGE:
+         if (simp_check_bounds(a.range.left, low, high)
+             || simp_check_bounds(a.range.right, low, high))
+            return t;
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -697,6 +745,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_for(t);
    case T_CASSIGN:
       return simp_cassign(t);
+   case T_AGGREGATE:
+      return simp_aggregate(t);
    case T_NULL:
       return NULL;   // Delete it
    default:

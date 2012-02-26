@@ -63,4 +63,11 @@ begin
         end if;
     end process;
 
+    process is
+        variable a : int_array(1 to 3);
+    begin
+        a := (1, 2, 3);                 -- OK
+        a := (5 => 1, 6 => 2, 7 => 3);  -- Error
+    end process;
+
 end architecture;
