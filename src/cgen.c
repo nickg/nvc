@@ -1045,7 +1045,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
 
    LLVMValueRef array = NULL;
    class_t class = cgen_get_class(decl);
-   if (class == C_VARIABLE || class == C_CONSTANT)
+
+   if (class == C_VARIABLE || class == C_CONSTANT || class == C_DEFAULT)
       array = cgen_get_var(decl, ctx);
 
    LLVMValueRef idx = llvm_int32(0);
@@ -1067,9 +1068,10 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
                          cgen_array_off(offset, array, type, ctx, 0), "idx");
    }
 
-   switch (cgen_get_class(decl)) {
+   switch (class) {
    case C_VARIABLE:
    case C_CONSTANT:
+   case C_DEFAULT:
       {
          LLVMValueRef data = cgen_array_data_ptr(type, array);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
