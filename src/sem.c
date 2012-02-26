@@ -2091,8 +2091,18 @@ static bool sem_check_fcall(tree_t t)
             if (type_params(func_type) != tree_params(t))
                continue;
 
-            // Found a matching function definition
-            overloads[n_overloads++] = decl;
+            // Same function may appear multiple times in the symbol
+            // table under different names
+            bool duplicate = false;
+            for (int i = 0; i < n_overloads; i++) {
+               if (overloads[i] == decl)
+                  duplicate = true;
+            }
+
+            if (!duplicate) {
+               // Found a matching function definition
+               overloads[n_overloads++] = decl;
+            }
          }
       }
    } while (decl != NULL);
