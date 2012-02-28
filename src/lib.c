@@ -348,7 +348,6 @@ void lib_load_all(lib_t lib)
    }
 
    closedir(d);
-
 }
 
 ident_t lib_name(lib_t lib)

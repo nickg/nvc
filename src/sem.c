@@ -503,33 +503,6 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
-static tree_t sem_call_builtin(const char *name, const char *builtin,
-                               type_t type, ...)
-{
-   ident_t name_i = ident_new(name);
-
-   // TODO: it's a waste to create a separate decl for each call
-   tree_t decl = tree_new(T_FUNC_DECL);
-   tree_set_ident(decl, name_i);
-   tree_add_attr_str(decl, ident_new("builtin"), builtin);
-
-   tree_t call = tree_new(T_FCALL);
-   tree_set_ident(call, name_i);
-   tree_set_ref(call, decl);
-   tree_set_type(call, type);
-
-   va_list ap;
-   va_start(ap, type);
-   tree_t arg;
-   while ((arg = va_arg(ap, tree_t))) {
-      param_t p = { .kind = P_POS, .value = arg };
-      tree_add_param(call, p);
-   }
-   va_end(ap);
-
-   return call;
-}
-
 static void sem_declare_predefined_ops(tree_t decl)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -2328,13 +2301,13 @@ static tree_t sem_array_len(type_t type)
 
    tree_t tmp;
    if (r.kind == RANGE_TO)
-      tmp = sem_call_builtin("\"-\"", "sub", index_type,
-                             r.right, r.left, NULL);
+      tmp = call_builtin("\"-\"", "sub", index_type,
+                         r.right, r.left, NULL);
    else
-      tmp = sem_call_builtin("\"-\"", "sub", index_type,
-                             r.left, r.right, NULL);
+      tmp = call_builtin("\"-\"", "sub", index_type,
+                         r.left, r.right, NULL);
 
-   return sem_call_builtin("\"+\"", "add", index_type, tmp, one, NULL);
+   return call_builtin("\"+\"", "add", index_type, tmp, one, NULL);
 }
 
 static bool sem_check_concat_param(tree_t t, type_t expect)
@@ -2435,12 +2408,12 @@ static bool sem_check_concat(tree_t t)
       if (lkind == T_CARRAY)
          left_len = sem_array_len(ltype);
       else
-         left_len = sem_call_builtin("length", "length", std_int, left, NULL);
+         left_len = call_builtin("length", "length", std_int, left, NULL);
 
       if (rkind == T_CARRAY)
          right_len = sem_array_len(rtype);
       else
-         right_len = sem_call_builtin("length", "length", std_int, right, NULL);
+         right_len = call_builtin("length", "length", std_int, right, NULL);
 
       type_t result = type_new(T_CARRAY);
       type_set_ident(result, type_ident(ltype));
@@ -2448,11 +2421,11 @@ static bool sem_check_concat(tree_t t)
 
       tree_t one = sem_int_lit(index_type, 1);
 
-      tree_t result_len = sem_call_builtin(
+      tree_t result_len = call_builtin(
          "\"+\"", "add", index_type, left_len, right_len, NULL);
-      tree_t tmp = sem_call_builtin(
+      tree_t tmp = call_builtin(
          "\"-\"", "sub", index_type, result_len, index_r.left, NULL);
-      tree_t result_right = sem_call_builtin(
+      tree_t result_right = call_builtin(
          "\"-\"", "sub", index_type, tmp, one, NULL);
 
       range_t result_r = {
@@ -2565,10 +2538,10 @@ static bool sem_check_aggregate(tree_t t)
       range_t index_r = type_dim(index_type, 0);
 
       if (have_named) {
-         tree_t low = sem_call_builtin("NVC.BUILTIN.AGG_LOW", "agg_low",
-                                       index_type, t, NULL);
-         tree_t high = sem_call_builtin("NVC.BUILTIN.AGG_HIGH", "agg_high",
-                                        index_type, t, NULL);
+         tree_t low = call_builtin("NVC.BUILTIN.AGG_LOW", "agg_low",
+                                   index_type, t, NULL);
+         tree_t high = call_builtin("NVC.BUILTIN.AGG_HIGH", "agg_high",
+                                    index_type, t, NULL);
 
          range_t r = {
             .kind  = index_r.kind,
@@ -2583,8 +2556,8 @@ static bool sem_check_aggregate(tree_t t)
          range_t r = {
             .kind  = index_r.kind,
             .left  = index_r.left,
-            .right = sem_call_builtin("\"+\"", "add", index_type, n_elems,
-                                      index_r.left, NULL)
+            .right = call_builtin("\"+\"", "add", index_type, n_elems,
+                                  index_r.left, NULL)
          };
          type_add_dim(tmp, r);
       }

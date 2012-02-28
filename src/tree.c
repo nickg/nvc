@@ -2364,3 +2364,56 @@ tree_t tree_copy(tree_t t)
    free(ctx.copied);
    return copy;
 }
+
+tree_t call_builtin(const char *name, const char *builtin, type_t type, ...)
+{
+   struct decl_cache {
+      struct decl_cache *next;
+      ident_t bname;
+      tree_t  decl;
+   };
+
+   static struct decl_cache *cache = NULL;
+
+   ident_t bname = ident_new(builtin);
+   ident_t name_i = ident_new(name);
+
+   struct decl_cache *it;
+   tree_t decl = NULL;
+   for (it = cache; it != NULL; it = it->next) {
+      if (it->bname == bname) {
+         decl = it->decl;
+         break;
+      }
+   }
+
+   if (decl == NULL) {
+      decl = tree_new(T_FUNC_DECL);
+      tree_set_ident(decl, name_i);
+      tree_add_attr_str(decl, ident_new("builtin"), builtin);
+   }
+
+   struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
+   c->next  = cache;
+   c->bname = bname;
+   c->decl  = decl;
+
+   cache = c;
+
+   tree_t call = tree_new(T_FCALL);
+   tree_set_ident(call, name_i);
+   tree_set_ref(call, decl);
+   if (type != NULL)
+      tree_set_type(call, type);
+
+   va_list ap;
+   va_start(ap, type);
+   tree_t arg;
+   while ((arg = va_arg(ap, tree_t))) {
+      param_t p = { .kind = P_POS, .value = arg };
+      tree_add_param(call, p);
+   }
+   va_end(ap);
+
+   return call;
+}
