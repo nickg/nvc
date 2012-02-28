@@ -325,6 +325,107 @@ static tree_t simp_attr_ref(tree_t t)
    }
 }
 
+static tree_t simp_alias_index(tree_t decl, tree_t index)
+{
+   tree_t base_decl = tree_ref(tree_value(decl));
+   assert(tree_kind(base_decl) != T_ALIAS);
+
+   type_t alias_type = tree_type(decl);
+   type_t base_type  = tree_type(base_decl);
+
+   assert(type_kind(alias_type) == T_CARRAY);
+   assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
+
+   range_t alias_r = type_dim(alias_type, 0);
+
+   type_t ptype = tree_type(index);
+
+   tree_t off = call_builtin("\"-\"", "sub", ptype,
+                             index, alias_r.left, NULL);
+
+   switch (type_kind(base_type)) {
+   case T_CARRAY:
+      // The transformation is a constant offset of indices
+      {
+         range_t base_r  = type_dim(base_type, 0);
+         if (alias_r.kind == base_r.kind) {
+            // Range in same direction
+            return call_builtin("\"+\"", "add", ptype, base_r.left, off, NULL);
+         }
+         else {
+            // Range in opposite direction
+            return call_builtin("\"-\"", "sub", ptype, base_r.left, off, NULL);
+         }
+      }
+      break;
+
+   case T_UARRAY:
+      // The transformation must be computed at runtime
+      {
+         tree_t ref = tree_new(T_REF);
+         tree_set_ref(ref, base_decl);
+         tree_set_ident(ref, tree_ident(base_decl));
+         tree_set_type(ref, ptype);
+
+         tree_t base_left = call_builtin(
+            "LEFT", "uarray_left", ptype, ref, NULL);
+
+         literal_t l;
+         l.kind = L_INT;
+         l.i = alias_r.kind;
+
+         tree_t rkind_lit = tree_new(T_LITERAL);
+         tree_set_literal(rkind_lit, l);
+         tree_set_type(rkind_lit, ptype);
+
+         // Call dircmp builtin which multiplies its third argument
+         // by -1 if the direction of the first argument is not equal
+         // to the direction of the second
+         tree_t off_dir = call_builtin(
+            "NVC.BUILTIN.DIRCMP", "uarray_dircmp", ptype,
+            ref, rkind_lit, off, NULL);
+
+         return call_builtin("+", "add", ptype, base_left, off_dir, NULL);
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
+static tree_t simp_array_slice(tree_t t)
+{
+   tree_t decl = tree_ref(t);
+   // XXX: may not be decl e.g. nested array ref
+
+   if (tree_kind(decl) == T_ALIAS) {
+      tree_t base_decl = tree_ref(tree_value(decl));
+      type_t base_type = tree_type(base_decl);
+
+      range_t slice_r = tree_range(t);
+      slice_r.left  = simp_alias_index(decl, slice_r.left);
+      slice_r.right = simp_alias_index(decl, slice_r.right);
+
+      switch (type_kind(base_type)) {
+      case T_CARRAY:
+         slice_r.kind = type_dim(base_type, 0).kind;
+         break;
+      case T_UARRAY:
+         break;
+      default:
+         assert(false);
+      }
+
+      type_change_dim(tree_type(t), 0, slice_r);
+
+      tree_set_range(t, slice_r);
+      tree_set_ref(t, base_decl);
+   }
+
+   return t;
+}
+
 static tree_t simp_array_ref(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -335,80 +436,14 @@ static tree_t simp_array_ref(tree_t t)
       // indexing of the underlying array
 
       tree_t base_decl = tree_ref(tree_value(decl));
-      assert(tree_kind(base_decl) != T_ALIAS);
-
-      type_t alias_type = tree_type(decl);
-      type_t base_type  = tree_type(base_decl);
 
       tree_t new = tree_new(T_ARRAY_REF);
       tree_set_loc(new, tree_loc(t));
       tree_set_ref(new, base_decl);
-      tree_set_type(new, type_base(base_type));
-
-      assert(type_kind(alias_type) == T_CARRAY);
-      assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
-
-      range_t alias_r = type_dim(alias_type, 0);
+      tree_set_type(new, type_base(tree_type(base_decl)));
 
       param_t p = tree_param(t, 0);
-      type_t ptype = tree_type(p.value);
-
-      tree_t off = call_builtin("\"-\"", "sub", ptype,
-                                p.value, alias_r.left, NULL);
-
-      switch (type_kind(base_type)) {
-      case T_CARRAY:
-         // The transformation is a constant offset of indices
-         {
-            range_t base_r  = type_dim(base_type, 0);
-            if (alias_r.kind == base_r.kind) {
-               // Range in same direction
-               p.value = call_builtin(
-                  "\"+\"", "add", ptype, base_r.left, off, NULL);
-            }
-            else {
-               // Range in opposite direction
-               p.value = call_builtin(
-                  "\"-\"", "sub", ptype, base_r.left, off, NULL);
-            }
-         }
-         break;
-
-      case T_UARRAY:
-         // The transformation must be computed at runtime
-         {
-            tree_t ref = tree_new(T_REF);
-            tree_set_ref(ref, base_decl);
-            tree_set_ident(ref, tree_ident(base_decl));
-            tree_set_type(ref, ptype);
-
-            tree_t base_left = call_builtin(
-               "LEFT", "uarray_left", ptype, ref, NULL);
-
-            literal_t l;
-            l.kind = L_INT;
-            l.i = alias_r.kind;
-
-            tree_t rkind_lit = tree_new(T_LITERAL);
-            tree_set_literal(rkind_lit, l);
-            tree_set_type(rkind_lit, ptype);
-
-            // Call dircmp builtin which multiplies its third argument
-            // by -1 if the direction of the first argument is not equal
-            // to the direction of the second
-            tree_t off_dir = call_builtin(
-               "NVC.BUILTIN.DIRCMP", "uarray_dircmp", ptype,
-               ref, rkind_lit, off, NULL);
-
-            p.value = call_builtin(
-               "+", "add", ptype, base_left, off_dir, NULL);
-         }
-         break;
-
-      default:
-         assert(false);
-      }
-
+      p.value = simp_alias_index(decl, p.value);
       tree_add_param(new, p);
 
       return new;
@@ -769,6 +804,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_process(t);
    case T_ARRAY_REF:
       return simp_array_ref(t);
+   case T_ARRAY_SLICE:
+      return simp_array_slice(t);
    case T_ATTR_REF:
       return simp_attr_ref(t);
    case T_FCALL:

@@ -62,10 +62,7 @@ static void dump_expr(tree_t t)
    case T_FCALL:
       {
          const char *name = istr(tree_ident(tree_ref(t)));
-         if (isalpha((uint8_t)name[0]))
-            printf("%s", name);
-         else
-            printf("\"%s\"", name);
+         printf("%s", name);
          dump_params(t);
       }
       break;

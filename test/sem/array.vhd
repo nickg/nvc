@@ -17,7 +17,7 @@ architecture a of e is
     signal y : ten_ints;
     signal z : int_array(1 to 3) := ( 0, 1, 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
-    alias a is x(2 to 3);
+    alias a : int_array(2 to 3) is x(2 to 3);
     
 begin
 
@@ -110,6 +110,14 @@ begin
     begin
         y := ( 1 => 2, 2 => 3, x => 5 );  -- Error
         y := ( 1 => 2, 2 => 3, c => 5 );  -- OK
+    end process;
+
+    process is
+        variable x : integer;
+        variable y : int_array(3 downto 0);
+    begin
+        x(1 to 3) := (others => 4);     -- Error
+        y(1 to 3) := (others => 4);     -- Error
     end process;
     
 end architecture;
