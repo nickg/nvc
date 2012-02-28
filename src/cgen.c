@@ -1626,7 +1626,7 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
    LLVMValueRef message  = cgen_expr(tree_message(t), ctx);
    LLVMValueRef severity = cgen_expr(tree_severity(t), ctx);
 
-   LLVMBasicBlockRef thenbb, elsebb;
+   LLVMBasicBlockRef thenbb, elsebb = NULL;
    if (!is_report) {
       LLVMValueRef test = cgen_expr(tree_value(t), ctx);
       LLVMValueRef failed = LLVMBuildNot(builder, test, "");
