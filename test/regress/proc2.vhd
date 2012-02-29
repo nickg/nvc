@@ -11,6 +11,11 @@ architecture test of proc2 is
             a(i) := a'length;
         end loop;
     end procedure;
+
+    procedure fill2(a : out int_array; v : in integer) is
+    begin
+        a := (6, 6, 6);
+    end procedure;
     
 begin
 
@@ -22,6 +27,8 @@ begin
         assert x = (3, 3, 3);
         fill(y);
         assert y = (2, 2);
+        fill2(x, 6);
+        assert x = (6, 6, 6);
         wait;
     end process;
 

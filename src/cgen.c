@@ -468,21 +468,24 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset)
 {
-   assert(type_kind(dest_type) == T_CARRAY);
-
-   LLVMValueRef dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
    LLVMValueRef src_dir;
    if (type_kind(src_type) == T_UARRAY || !cgen_const_bounds(src_type))
       src_dir = LLVMBuildExtractValue(builder, src, 3, "dir");
    else
       src_dir = llvm_int8(type_dim(src_type, 0).kind);
 
+   LLVMValueRef dst_dir;
+   if (type_kind(dest_type) == T_UARRAY || !cgen_const_bounds(dest_type))
+      dst_dir = LLVMBuildExtractValue(builder, dst, 3, "dir");
+   else
+      dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
+
    LLVMValueRef opposite_dir =
       LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
    LLVMValueRef ll_n_elems = cgen_array_len(src_type, src);
 
-   if (!cgen_const_bounds(dest_type))
+   if (type_kind(dest_type) == T_UARRAY || !cgen_const_bounds(dest_type))
       dst = cgen_array_data_ptr(dest_type, dst);
 
    LLVMValueRef src_ptr = cgen_array_data_ptr(src_type, src);
@@ -937,7 +940,6 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
       else if (strcmp(builtin, "length") == 0) {
          assert(type_kind(arg_type) == T_UARRAY
                 || !cgen_const_bounds(arg_type));
-         fmt_loc(stdout, tree_loc(t));
          return cgen_array_len(arg_type, args[0]);
       }
       else if (strcmp(builtin, "uarray_left") == 0) {
@@ -1469,7 +1471,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef lhs = cgen_get_var(tree_ref(target), ctx);
 
          type_t ty = tree_type(target);
-         if (type_kind(ty) == T_CARRAY)
+         if (type_kind(ty) == T_CARRAY || type_kind(ty) == T_UARRAY)
             cgen_array_copy(value_type, ty, rhs, lhs, NULL);
          else
             LLVMBuildStore(builder, rhs, lhs);
