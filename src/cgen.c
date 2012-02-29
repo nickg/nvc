@@ -1110,7 +1110,18 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
          range_t r = tree_range(t);
          LLVMValueRef low = cgen_range_low(r, ctx);
 
-         LLVMValueRef array = cgen_get_var(decl, ctx);
+         LLVMValueRef array;
+         if (tree_kind(decl) == T_ALIAS) {
+            tree_t base = tree_ref(tree_value(decl));
+            assert(type_kind(tree_type(base)) == T_UARRAY);
+
+            array = cgen_tmp_var(decl, ctx);
+            cgen_array_copy(tree_type(base), type,
+                            cgen_get_var(base, ctx), array, NULL);
+         }
+         else
+            array = cgen_get_var(decl, ctx);
+
          LLVMValueRef ptr = cgen_array_data_ptr(type, array);
          LLVMValueRef indexes[] = {
             cgen_array_off(low, array, type, ctx, 0)
@@ -2399,25 +2410,6 @@ static void cgen_func_vars(tree_t d, void *context)
    tree_add_attr_ptr(d, local_var_i, var);
 }
 
-static void cgen_func_alias(tree_t a, void *context)
-{
-   struct cgen_ctx *ctx = context;
-
-   // Create temporary copy of array aliases to ensure the
-   // direction is correct
-
-   tree_t decl = tree_ref(tree_value(a));
-
-   // All others should have been removed earlier
-   assert(type_kind(tree_type(decl)) == T_UARRAY);
-
-   LLVMValueRef var = cgen_tmp_var(a, ctx);
-   cgen_array_copy(tree_type(decl), tree_type(a),
-                   cgen_get_var(decl, ctx), var, NULL);
-
-   tree_add_attr_ptr(a, local_var_i, var);
-}
-
 static void cgen_func_body(tree_t t)
 {
    type_t ftype = tree_type(t);
@@ -2456,7 +2448,6 @@ static void cgen_func_body(tree_t t)
    }
 
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
-   tree_visit_only(t, cgen_func_alias, &ctx, T_ALIAS);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
