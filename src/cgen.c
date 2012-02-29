@@ -1104,6 +1104,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
 
    switch (cgen_get_class(decl)) {
    case C_VARIABLE:
+   case C_DEFAULT:
       {
          type_t type = tree_type(decl);
 
@@ -1496,15 +1497,9 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          type_t ty = tree_type(tree_ref(target));
          assert(type_kind(ty) == T_CARRAY);
 
-         int64_t type_low, type_high;
-         range_bounds(type_dim(ty, 0), &type_low, &type_high);
-
-         int64_t low, high;
-         range_bounds(tree_range(target), &low, &high);
-
-         assert(low >= type_low && high <= type_high);
-
-         LLVMValueRef off = llvm_int32(low - type_low);
+         LLVMValueRef type_low = cgen_range_low(type_dim(ty, 0), ctx);
+         LLVMValueRef low = cgen_range_low(tree_range(target), ctx);
+         LLVMValueRef off = LLVMBuildSub(builder, low, type_low, "off");
          cgen_array_copy(value_type, ty, rhs, lhs, off);
       }
       break;
