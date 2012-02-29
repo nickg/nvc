@@ -898,8 +898,9 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildXor(builder, args[0], args[1], "");
       else if (strcmp(builtin, "xnor") == 0)
          return LLVMBuildNot(builder,
-                             LLVMBuildXor(builder, args[0], args[1], ""),
-                             "");
+                             LLVMBuildXor(builder, args[0], args[1], ""), "");
+      else if (strcmp(builtin, "mod") == 0)
+         return LLVMBuildURem(builder, args[0], args[1], "");
       else if (strcmp(builtin, "aeq") == 0) {
          type_t rhs_type = tree_type(tree_param(t, 1).value);
          return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
@@ -1027,10 +1028,8 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
          return cgen_get_var(decl, ctx);
 
    default:
-      abort();
+      assert(false);
    }
-
-   return NULL;
 }
 
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
@@ -1386,6 +1385,12 @@ static LLVMValueRef cgen_concat(tree_t t, struct cgen_ctx *ctx)
    return var;
 }
 
+static LLVMValueRef cgen_type_conv(tree_t t, struct cgen_ctx *ctx)
+{
+   // TODO: fix this for real<->integer conversion
+   return cgen_expr(tree_param(t, 0).value, ctx);
+}
+
 static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
@@ -1405,6 +1410,8 @@ static LLVMValueRef cgen_expr(tree_t t, struct cgen_ctx *ctx)
       return cgen_expr(tree_value(t), ctx);
    case T_CONCAT:
       return cgen_concat(t, ctx);
+   case T_TYPE_CONV:
+      return cgen_type_conv(t, ctx);
    default:
       fatal("missing cgen_expr for kind %d", tree_kind(t));
    }
