@@ -1723,11 +1723,11 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
    type_t type = tree_type(tree_value(t));
    type_kind_t kind = type_kind(type);
    if (kind == T_CARRAY || kind == T_UARRAY) {
-      range_t r = type_dim(type, 0);
-
       if (kind == T_CARRAY && cgen_const_bounds(type)) {
          // Need to make a copy of this array as it is currently
          // on the stack
+
+         range_t r = type_dim(type, 0);
          assert(r.kind != RANGE_DYN);
 
          int64_t low, high;
