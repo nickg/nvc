@@ -52,3 +52,4 @@ null1           normal
 agg3            normal
 proc1           normal
 alias3          normal
+proc2           normal

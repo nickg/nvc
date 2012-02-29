@@ -546,10 +546,17 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       case C_VARIABLE:
       case C_DEFAULT:
       case C_CONSTANT:
-         if (tree_port_mode(p) == PORT_IN)
-            args[i] = llvm_type(tree_type(p));
-         else
-            args[i] = LLVMPointerType(llvm_type(tree_type(p)), 0);
+         {
+            type_t type = tree_type(p);
+            type_kind_t type_k = type_kind(type);
+            port_mode_t mode = tree_port_mode(p);
+            bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
+                             && !(type_k == T_UARRAY || type_k == T_CARRAY));
+            if (need_ptr)
+               args[i] = LLVMPointerType(llvm_type(type), 0);
+            else
+               args[i] = llvm_type(type);
+         }
          break;
       }
    }
@@ -930,6 +937,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
       else if (strcmp(builtin, "length") == 0) {
          assert(type_kind(arg_type) == T_UARRAY
                 || !cgen_const_bounds(arg_type));
+         fmt_loc(stdout, tree_loc(t));
          return cgen_array_len(arg_type, args[0]);
       }
       else if (strcmp(builtin, "uarray_left") == 0) {
@@ -1474,7 +1482,6 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
 
          tree_t decl = tree_ref(target);
          type_t type = tree_type(decl);
-         assert(type_kind(type) == T_CARRAY);
 
          param_t p = tree_param(target, 0);
          assert(p.kind == P_POS);
