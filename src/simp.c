@@ -403,24 +403,27 @@ static tree_t simp_array_slice(tree_t t)
       tree_t base_decl = tree_ref(tree_value(decl));
       type_t base_type = tree_type(base_decl);
 
-      range_t slice_r = tree_range(t);
-      slice_r.left  = simp_alias_index(decl, slice_r.left);
-      slice_r.right = simp_alias_index(decl, slice_r.right);
-
       switch (type_kind(base_type)) {
       case T_CARRAY:
-         slice_r.kind = type_dim(base_type, 0).kind;
+         {
+            range_t slice_r = tree_range(t);
+            slice_r.left  = simp_alias_index(decl, slice_r.left);
+            slice_r.right = simp_alias_index(decl, slice_r.right);
+
+            slice_r.kind = type_dim(base_type, 0).kind;
+
+            type_change_dim(tree_type(t), 0, slice_r);
+
+            tree_set_range(t, slice_r);
+            tree_set_ref(t, base_decl);
+         }
          break;
       case T_UARRAY:
+         // Transformation is done at runtime by making a copy
          break;
       default:
          assert(false);
       }
-
-      type_change_dim(tree_type(t), 0, slice_r);
-
-      tree_set_range(t, slice_r);
-      tree_set_ref(t, base_decl);
    }
 
    return t;

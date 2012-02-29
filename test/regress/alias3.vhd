@@ -7,8 +7,6 @@ architecture test of alias3 is
     function cut(x : int_array; low, high: integer) return int_array is
         alias a : int_array(1 to x'length) is x;
     begin
-        report integer'image(a(low));
-        report integer'image(a(high));
         return a(low to high);
     end function;
 
@@ -21,9 +19,9 @@ begin
         alias sa : int_array(4 downto 0) is x;
     begin
         assert x(2 to 4) = (2, 3, 4);
-        assert sa(3 downto 1) = (2, 3, 4) report "foo";
+        assert sa(3 downto 1) = (2, 3, 4);
         assert cut(x, 2, 3) = (2, 3);
-        --assert cut(y, 1, 2) = (4, 3);
+        assert cut(y, 1, 2) = (4, 3);
         wait;
     end process;
 

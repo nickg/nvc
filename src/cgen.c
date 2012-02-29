@@ -264,6 +264,8 @@ static class_t cgen_get_class(tree_t decl)
       return C_SIGNAL;
    case T_CONST_DECL:
       return C_CONSTANT;
+   case T_ALIAS:
+      return cgen_get_class(tree_ref(tree_value(decl)));
    default:
       return tree_class(decl);
    }
@@ -2397,6 +2399,25 @@ static void cgen_func_vars(tree_t d, void *context)
    tree_add_attr_ptr(d, local_var_i, var);
 }
 
+static void cgen_func_alias(tree_t a, void *context)
+{
+   struct cgen_ctx *ctx = context;
+
+   // Create temporary copy of array aliases to ensure the
+   // direction is correct
+
+   tree_t decl = tree_ref(tree_value(a));
+
+   // All others should have been removed earlier
+   assert(type_kind(tree_type(decl)) == T_UARRAY);
+
+   LLVMValueRef var = cgen_tmp_var(a, ctx);
+   cgen_array_copy(tree_type(decl), tree_type(a),
+                   cgen_get_var(decl, ctx), var, NULL);
+
+   tree_add_attr_ptr(a, local_var_i, var);
+}
+
 static void cgen_func_body(tree_t t)
 {
    type_t ftype = tree_type(t);
@@ -2435,6 +2456,7 @@ static void cgen_func_body(tree_t t)
    }
 
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
+   tree_visit_only(t, cgen_func_alias, &ctx, T_ALIAS);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
