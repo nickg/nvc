@@ -2510,6 +2510,8 @@ static bool sem_check_aggregate(tree_t t)
          if (state == OTHERS)
             sem_error(a.value, "only a single others association "
                       "allowed in aggregate");
+         if (type_kind(composite_type) == T_UARRAY)
+            sem_error(a.value, "others choice not allowed in this context");
          state = OTHERS;
          break;
       }

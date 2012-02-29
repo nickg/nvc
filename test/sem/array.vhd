@@ -118,6 +118,7 @@ begin
     begin
         x(1 to 3) := (others => 4);     -- Error
         y(1 to 3) := (others => 4);     -- Error
+        assert y = (others => 4);       -- Error
     end process;
     
 end architecture;
