@@ -841,6 +841,74 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
    }
 }
 
+static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
+                                   type_t left_type, type_t right_type,
+                                   LLVMIntPredicate pred, struct cgen_ctx *ctx)
+{
+   // Behaviour of relational operators on arrays is described in
+   // LRM 93 section 7.2.2
+
+   LLVMValueRef left_len  = cgen_array_len(left_type, lhs);
+   LLVMValueRef right_len = cgen_array_len(right_type, rhs);
+
+   LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
+   LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
+
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, llvm_int32(0), i);
+
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "rel_test");
+   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "rel_body");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "rel_exit");
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
+   LLVMValueRef len_ge_l = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded,
+                                         left_len, "len_ge_l");
+   LLVMValueRef len_ge_r = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded,
+                                         right_len, "len_ge_r");
+   LLVMBuildCondBr(builder, LLVMBuildOr(builder, len_ge_l, len_ge_r, ""),
+                   exit_bb, body_bb);
+
+   // Loop body
+
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef l_ptr = LLVMBuildGEP(builder, left_base,
+                                     &i_loaded, 1, "l_ptr");
+   LLVMValueRef r_ptr = LLVMBuildGEP(builder, right_base,
+                                     &i_loaded, 1, "r_ptr");
+
+   LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
+   LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
+
+   LLVMValueRef cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
+   LLVMValueRef eq  = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+
+   LLVMValueRef inc =
+      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+   LLVMBuildStore(builder, inc, i);
+
+   LLVMBuildCondBr(builder, eq, test_bb, exit_bb);
+
+   // Epilogue
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+
+   LLVMValueRef phi = LLVMBuildPhi(builder, LLVMInt1Type(), "arel");
+
+   LLVMValueRef      values[] = { cmp,     len_ge_l };
+   LLVMBasicBlockRef bbs[]    = { body_bb, test_bb  };
+   LLVMAddIncoming(phi, values, bbs, 2);
+
+   return phi;
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -975,6 +1043,22 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
             LLVMBuildExtractValue(builder, args[0], 1, "left"),
             "high");
       }
+      else if (strcmp(builtin, "alt") == 0)
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntSLT, ctx);
+      else if (strcmp(builtin, "agt") == 0)
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntSGT, ctx);
+      else if (strcmp(builtin, "aleq") == 0)
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntSLE, ctx);
+      else if (strcmp(builtin, "ageq") == 0)
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntSGE, ctx);
       else
          fatal("cannot generate code for builtin %s", builtin);
    }
