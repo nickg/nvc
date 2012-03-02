@@ -1402,8 +1402,6 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
    LLVMValueRef data = cgen_array_data_ptr(type, a);
    LLVMValueRef len = cgen_array_len(type, a);
 
-   LLVMBuildBr(builder, test_bb);
-
    LLVMValueRef def = NULL;
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
@@ -1412,6 +1410,8 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
          break;
       }
    }
+
+   LLVMBuildBr(builder, test_bb);
 
    if (def == NULL)
       def = LLVMGetUndef(llvm_type(type_base(type)));
