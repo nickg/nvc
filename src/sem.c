@@ -1701,6 +1701,9 @@ static bool sem_check_var_assign(tree_t t)
 
    tree_t decl = tree_ref(target);
 
+   while (tree_kind(decl) == T_ALIAS)
+      decl = tree_ref(tree_value(decl));
+
    bool suitable = (tree_kind(decl) == T_VAR_DECL)
       || (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
 

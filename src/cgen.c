@@ -909,6 +909,41 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    return phi;
 }
 
+static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
+                                   struct cgen_ctx *ctx)
+{
+   assert(tree_kind(t) == T_AGGREGATE);
+
+   LLVMValueRef result = llvm_int32(def);
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      LLVMValueRef this = NULL;
+      switch (a.kind) {
+         case A_NAMED:
+            this = cgen_expr(a.name, ctx);
+            break;
+
+         case A_RANGE:
+            if ((low && a.range.kind == RANGE_TO)
+                || (!low && a.range.kind == RANGE_DOWNTO))
+               this = cgen_expr(a.range.left, ctx);
+            else
+               this = cgen_expr(a.range.right, ctx);
+            break;
+
+         default:
+            assert(false);
+      }
+
+      LLVMIntPredicate pred = (low ? LLVMIntSLT : LLVMIntSGT);
+      LLVMValueRef cmp = LLVMBuildICmp(builder, pred, this, result, "");
+      result = LLVMBuildSelect(builder, cmp, this, result, "");
+   }
+
+   return result;
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -925,10 +960,10 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
       else if (strcmp(builtin, "last_value") == 0)
          return cgen_last_value(tree_param(t, 0).value, ctx);
-      else if (strcmp(builtin, "agg_low") == 0
-               || strcmp(builtin, "agg_high") == 0)
-         fatal_at(tree_loc(tree_param(t, 0).value),
-                  "cannot generate code for this aggregate");
+      else if (strcmp(builtin, "agg_low") == 0)
+         return cgen_agg_bound(tree_param(t, 0).value, true, INT32_MAX, ctx);
+      else if (strcmp(builtin, "agg_high") == 0)
+         return cgen_agg_bound(tree_param(t, 0).value, false, INT32_MIN, ctx);
    }
 
    LLVMValueRef args[tree_params(t)];
@@ -1330,7 +1365,14 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, struct cgen_ctx *ctx,
          break;
 
       case A_RANGE:
-         assert(false);
+         {
+            int64_t r_low, r_high;
+            range_bounds(a.range, &r_low, &r_high);
+
+            for (int j = r_low; j <= r_high; j++)
+               cgen_copy_vals(vals + ((j - low) * nsub), sub, nsub, false);
+         }
+         break;
       }
 
       free(sub);
@@ -1398,11 +1440,32 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
          break;
 
       case A_NAMED:
-         assert(false);   // TODO
+         {
+            LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
+                                            cgen_expr(a.name, ctx), "");
+            what = LLVMBuildSelect(builder, eq, cgen_expr(a.value, ctx),
+                                   what, "");
+         }
          break;
 
       case A_RANGE:
-         assert(false);   // TODO
+         {
+            LLVMIntPredicate lpred =
+               (a.range.kind == RANGE_TO ? LLVMIntSGE : LLVMIntSLE);
+            LLVMIntPredicate rpred =
+               (a.range.kind == RANGE_TO ? LLVMIntSLE : LLVMIntSGE);
+
+            LLVMValueRef lcmp =
+               LLVMBuildICmp(builder, lpred, i_loaded,
+                             cgen_expr(a.range.left, ctx), "lcmp");
+            LLVMValueRef rcmp =
+               LLVMBuildICmp(builder, rpred, i_loaded,
+                             cgen_expr(a.range.right, ctx), "rcmp");
+            LLVMValueRef in = LLVMBuildOr(builder, lcmp, rcmp, "in");
+
+            what = LLVMBuildSelect(builder, in, cgen_expr(a.value, ctx),
+                                   what, "");
+         }
          break;
 
       case A_OTHERS:

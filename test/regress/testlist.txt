@@ -54,3 +54,4 @@ proc1           normal
 alias3          normal
 proc2           normal
 operator3       normal
+agg4            normal
