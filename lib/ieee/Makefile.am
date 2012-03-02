@@ -3,7 +3,8 @@ nvc = $(top_builddir)/src/nvc
 ieeedir = $(pkgdatadir)/ieee
 ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
 	ieee/IEEE.NUMERIC_STD ieee/IEEE.STD_LOGIC_1164-body \
-	ieee/_IEEE.STD_LOGIC_1164-body.bc
+	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
+	ieee/_IEEE.NUMERIC_STD-body.bc
 
 lib = NVC_LIBPATH=../std
 
@@ -21,6 +22,9 @@ ieee/IEEE.NUMERIC_BIT: $(srcdir)/numeric_bit.vhdl
 	$(lib) $(nvc) --work=ieee -a $<
 
 ieee/IEEE.NUMERIC_STD: $(srcdir)/numeric_std.vhdl
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl
 	$(lib) $(nvc) --work=ieee -a $<
 
 clean-local:

@@ -14,3 +14,6 @@ The required files are:
   numeric_std.vhdl
   std_logic_1164-body.vhdl
   std_logic_1164.vhdl
+
+Note you will need to uncomment the definition of operator "xnor" in the
+std_logic_1164 package and body.

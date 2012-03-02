@@ -2579,10 +2579,13 @@ static void cgen_func_body(tree_t t)
    LLVMTypeRef args[tree_ports(t)];
    cgen_prototype(t, args, false);
 
-   LLVMValueRef fn =
-      LLVMAddFunction(module, cgen_mangle_func_name(t),
-                      LLVMFunctionType(llvm_type(type_result(ftype)),
-                                       args, type_params(ftype), false));
+   const char *mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   if (fn == NULL) {
+      fn = LLVMAddFunction(module, mangled,
+                           LLVMFunctionType(llvm_type(type_result(ftype)),
+                                            args, type_params(ftype), false));
+   }
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
@@ -2631,10 +2634,13 @@ static void cgen_proc_body(tree_t t)
    LLVMTypeRef args[tree_ports(t)];
    cgen_prototype(t, args, true);
 
-   LLVMValueRef fn =
-      LLVMAddFunction(module, cgen_mangle_func_name(t),
-                      LLVMFunctionType(llvm_void_ptr(),
-                                       args, type_params(ptype), false));
+   const char *mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   if (fn == NULL) {
+      fn = LLVMAddFunction(module, mangled,
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            args, type_params(ptype), false));
+   }
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
