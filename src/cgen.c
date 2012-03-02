@@ -925,6 +925,10 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
       else if (strcmp(builtin, "last_value") == 0)
          return cgen_last_value(tree_param(t, 0).value, ctx);
+      else if (strcmp(builtin, "agg_low") == 0
+               || strcmp(builtin, "agg_high") == 0)
+         fatal_at(tree_loc(tree_param(t, 0).value),
+                  "cannot generate code for this aggregate");
    }
 
    LLVMValueRef args[tree_params(t)];
