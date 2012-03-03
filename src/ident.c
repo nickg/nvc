@@ -29,23 +29,30 @@ static struct trie root = {
    .children = NULL
 };
 
-static void build_trie(const char *str, struct trie *prev, struct trie **end)
+static struct trie *alloc_node(char ch, struct trie *prev)
 {
-   assert(*str != '\0');
-   assert(prev != NULL);
-
    struct trie *t = xmalloc(sizeof(struct trie));
-   t->value    = *str;
+   t->value    = ch;
    t->depth    = prev->depth + 1;
    t->up       = prev;
    t->children = NULL;
 
    struct clist *c = xmalloc(sizeof(struct clist));
-   c->value    = *str;
+   c->value    = ch;
    c->down     = t;
    c->next     = prev->children;
 
    prev->children = c;
+
+   return t;
+}
+
+static void build_trie(const char *str, struct trie *prev, struct trie **end)
+{
+   assert(*str != '\0');
+   assert(prev != NULL);
+
+   struct trie *t = alloc_node(*str, prev);
 
    if (*(++str) == '\0')
       *end = t;
@@ -53,16 +60,22 @@ static void build_trie(const char *str, struct trie *prev, struct trie **end)
       build_trie(str, t, end);
 }
 
+static struct clist *search_node(struct trie *t, char ch)
+{
+   struct clist *it;
+   for (it = t->children;
+        it != NULL && it->value != ch;
+        it = it->next)
+      ;
+   return it;
+}
+
 static bool search_trie(const char **str, struct trie *t, struct trie **end)
 {
    assert(**str != '\0');
    assert(t != NULL);
 
-   struct clist *it;
-   for (it = t->children;
-        it != NULL && it->value != **str;
-        it = it->next)
-      ;
+   struct clist *it = search_node(t, **str);
 
    if (it == NULL) {
       *end = t;
@@ -136,6 +149,7 @@ void ident_write(ident_t ident, FILE *f)
    uint16_t len = ident->depth;
    if (fwrite(&len, sizeof(uint16_t), 1, f) != 1)
       fatal("fwrite failed");
+
    if (fwrite(istr(ident), ident->depth, 1, f) != 1)
       fatal("fwrite failed");
 }
@@ -149,14 +163,21 @@ ident_t ident_read(FILE *f)
    if (len > IDENT_MAX_LEN)
       fatal("identifier too long %u", len);
 
-   char *buf = xmalloc(len);
-   if (fread(buf, len, 1, f) != 1)
-      fatal("failed to read identifier data from file");
-   ident_t i = ident_new(buf);
-   assert(i->depth == len);
-   free(buf);
+   struct trie *p = &root;
+   for (uint16_t i = 0; i < len; i++) {
+      char ch = fgetc(f);
+      if (ch == '\0')
+         break;
 
-   return i;
+      struct clist *it = search_node(p, ch);
+
+      if (it != NULL)
+         p = it->down;
+      else
+         p = alloc_node(ch, p);
+   }
+
+   return p;
 }
 
 ident_t ident_uniq(const char *prefix)
