@@ -714,7 +714,7 @@ type_t type_read(type_rd_ctx_t ctx)
 
 type_wr_ctx_t type_write_begin(tree_wr_ctx_t tree_ctx)
 {
-   static unsigned next_generation = 1;
+   extern unsigned next_generation;
 
    struct type_wr_ctx *ctx = xmalloc(sizeof(struct type_wr_ctx));
    ctx->tree_ctx   = tree_ctx;
@@ -771,5 +771,15 @@ const char *type_pp(type_t t)
 
    default:
       return istr(type_ident(t));
+   }
+}
+
+bool type_update_generation(type_t t, unsigned generation)
+{
+   if (t->generation == generation)
+      return false;
+   else {
+      t->generation = generation;
+      return true;
    }
 }

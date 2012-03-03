@@ -131,4 +131,7 @@ void type_unref(type_t t);
 type_t type_universal_int(void);
 bool type_is_universal(type_t t);
 
+// Tree visit helper
+bool type_update_generation(type_t t, unsigned generation);
+
 #endif  // _TYPE_H

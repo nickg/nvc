@@ -224,10 +224,11 @@ struct tree_rd_ctx {
 #define TREE_ARRAY_BASE_SZ  16
 
 // Garbage collection
-static tree_t   *all_trees = NULL;
-static size_t   max_trees = 128;   // Grows at runtime
-static size_t   n_trees_alloc = 0;
-static unsigned next_generation = 1;
+static tree_t *all_trees = NULL;
+static size_t max_trees = 128;   // Grows at runtime
+static size_t n_trees_alloc = 0;
+
+unsigned next_generation = 1;
 
 static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                                tree_kind_t kind, unsigned generation,
@@ -1146,6 +1147,9 @@ static unsigned tree_visit_type(type_t type,
                                 bool deep)
 {
    if (type == NULL)
+      return 0;
+
+   if (!type_update_generation(type, generation))
       return 0;
 
    unsigned n = 0;
