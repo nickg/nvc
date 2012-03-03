@@ -176,8 +176,11 @@ ident_t ident_uniq(const char *prefix)
 
       return ident_new(buf);
    }
-   else
-      return ident_new(prefix);
+   else {
+      struct trie *result;
+      build_trie(start, end, &result);
+      return result;
+   }
 }
 
 ident_t ident_prefix(ident_t a, ident_t b, char sep)
