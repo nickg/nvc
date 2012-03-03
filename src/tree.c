@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1003
+#define FILE_FMT_VER 0x1004
 
 //#define EXTRA_READ_CHECKS
 

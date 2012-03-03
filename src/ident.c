@@ -7,8 +7,6 @@
 #include <string.h>
 #include <stdint.h>
 
-#define IDENT_MAX_LEN (1 << 12)
-
 struct clist {
    char         value;
    struct trie  *down;
@@ -146,31 +144,16 @@ void ident_write(ident_t ident, FILE *f)
 {
    assert(ident != NULL);
 
-   uint16_t len = ident->depth;
-   if (fwrite(&len, sizeof(uint16_t), 1, f) != 1)
-      fatal("fwrite failed");
-
    if (fwrite(istr(ident), ident->depth, 1, f) != 1)
       fatal("fwrite failed");
 }
 
 ident_t ident_read(FILE *f)
 {
-   uint16_t len;
-   if (fread(&len, sizeof(uint16_t), 1, f) != 1)
-      fatal("failed to read identifier length from file");
-
-   if (len > IDENT_MAX_LEN)
-      fatal("identifier too long %u", len);
-
    struct trie *p = &root;
-   for (uint16_t i = 0; i < len; i++) {
-      char ch = fgetc(f);
-      if (ch == '\0')
-         break;
-
+   char ch;
+   while ((ch = fgetc(f)) != '\0') {
       struct clist *it = search_node(p, ch);
-
       if (it != NULL)
          p = it->down;
       else
