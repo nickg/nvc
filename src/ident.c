@@ -56,9 +56,22 @@ static struct trie *alloc_node(char ch, struct trie *prev)
    struct clist *c = xmalloc(sizeof(struct clist));
    c->value    = ch;
    c->down     = t;
-   c->next     = prev->children;
+   c->next     = NULL;
 
-   prev->children = c;
+   struct clist *it, *last;
+   for (it = prev->children, last = NULL;
+        it != NULL && it->value < ch;
+        last = it, it = it->next)
+      ;
+
+   if (last == NULL) {
+      c->next = prev->children;
+      prev->children = c;
+   }
+   else {
+      last->next = c;
+      c->next = it;
+   }
 
    return t;
 }
@@ -80,10 +93,10 @@ static struct clist *search_node(struct trie *t, char ch)
 {
    struct clist *it;
    for (it = t->children;
-        it != NULL && it->value != ch;
+        it != NULL && it->value < ch;
         it = it->next)
       ;
-   return it;
+   return (it != NULL && it->value == ch ? it : NULL);
 }
 
 static bool search_trie(const char **str, struct trie *t, struct trie **end)
