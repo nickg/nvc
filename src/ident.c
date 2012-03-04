@@ -10,7 +10,8 @@
 struct clist {
    char         value;
    struct trie  *down;
-   struct clist *next;
+   struct clist *left;
+   struct clist *right;
 };
 
 struct trie {
@@ -56,22 +57,17 @@ static struct trie *alloc_node(char ch, struct trie *prev)
    struct clist *c = xmalloc(sizeof(struct clist));
    c->value    = ch;
    c->down     = t;
-   c->next     = NULL;
+   c->left     = NULL;
+   c->right    = NULL;
 
-   struct clist *it, *last;
-   for (it = prev->children, last = NULL;
-        it != NULL && it->value < ch;
-        last = it, it = it->next)
+   struct clist *it, **where;
+   for (it = prev->children, where = &(prev->children);
+        it != NULL;
+        where = (ch < it->value ? &(it->left) : &(it->right)),
+           it = *where)
       ;
 
-   if (last == NULL) {
-      c->next = prev->children;
-      prev->children = c;
-   }
-   else {
-      last->next = c;
-      c->next = it;
-   }
+   *where = c;
 
    return t;
 }
@@ -93,10 +89,11 @@ static struct clist *search_node(struct trie *t, char ch)
 {
    struct clist *it;
    for (it = t->children;
-        it != NULL && it->value < ch;
-        it = it->next)
+        (it != NULL) && (it->value != ch);
+        it = (ch < it->value ? it->left : it->right))
       ;
-   return (it != NULL && it->value == ch ? it : NULL);
+
+   return it;
 }
 
 static bool search_trie(const char **str, struct trie *t, struct trie **end)
