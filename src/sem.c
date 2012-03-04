@@ -1222,6 +1222,40 @@ static void sem_add_attributes(tree_t decl)
    }
 }
 
+static tree_t sem_default_value(type_t type)
+{
+   type_t base;
+   (void)sem_check_subtype(NULL, type, &base);
+
+   switch (type_kind(base)) {
+   case T_CARRAY:
+      {
+         tree_t def = NULL;
+         for (int i = type_dims(type) - 1 ; i >= 0; i--) {
+            tree_t val = (def ? def : sem_default_value(type_base(type)));
+            def = tree_new(T_AGGREGATE);
+            assoc_t a = {
+               .kind = A_OTHERS,
+               .value = val
+            };
+            tree_add_assoc(def, a);
+         }
+         return def;
+      }
+
+   case T_INTEGER:
+   case T_PHYSICAL:
+   case T_REAL:
+      return type_dim(type, 0).left;
+
+   case T_ENUM:
+      return sem_make_ref(type_enum_literal(base, 0));
+
+   default:
+      assert(false);
+   }
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1229,6 +1263,9 @@ static bool sem_check_decl(tree_t t)
       return false;
 
    tree_set_type(t, type);
+
+   if (!tree_has_value(t) && (tree_kind(t) != T_PORT_DECL))
+      tree_set_value(t, sem_default_value(type));
 
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);

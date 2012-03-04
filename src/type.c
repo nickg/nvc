@@ -274,10 +274,12 @@ type_t type_universal_int(void)
       tree_t left = tree_new(T_LITERAL);
       literal_t l_min = { { .i = INT_MIN }, .kind = L_INT };
       tree_set_literal(left, l_min);
+      tree_set_type(left, t);
 
       tree_t right = tree_new(T_LITERAL);
       literal_t l_max = { { .i = INT_MAX }, .kind = L_INT };
       tree_set_literal(right, l_max);
+      tree_set_type(right, t);
 
       range_t r = { .kind  = RANGE_TO,
                     .left  = left,

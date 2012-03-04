@@ -505,38 +505,6 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                  args, ARRAY_LEN(args), "");
 }
 
-static LLVMValueRef cgen_default_value(type_t ty)
-{
-   // XXX: get sem to do this and assume tree_has_value
-
-   if (type_kind(ty) == T_CARRAY) {
-      int64_t low, high;
-      range_bounds(type_dim(ty, 0), &low, &high);
-
-      const size_t n_elems = high - low + 1;
-      LLVMValueRef *vals = xmalloc(n_elems * sizeof(LLVMValueRef));
-
-      LLVMValueRef def = cgen_default_value(type_base(ty));
-      for (size_t i = 0; i < n_elems; i++)
-         vals[i] = def;
-
-      LLVMTypeRef arr_ty = llvm_type(ty);
-      LLVMValueRef g = LLVMAddGlobal(module, arr_ty, "");
-      LLVMSetGlobalConstant(g, true);
-      LLVMSetLinkage(g, LLVMInternalLinkage);
-
-      LLVMTypeRef elm_ty = llvm_type(type_base(ty));
-      LLVMSetInitializer(g, LLVMConstArray(elm_ty, vals, n_elems));
-
-      free(vals);
-      return g;
-   }
-   else {
-      // XXX: need to use ty'left
-      return LLVMConstInt(llvm_type(ty), 0, false);
-   }
-}
-
 static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
 {
    for (unsigned i = 0; i < tree_ports(t); i++) {
@@ -2124,10 +2092,8 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
    if (tree_attr_ptr(decl, tag_i) == ctx->proc)
       return;   // Already initialised this signal
 
-   LLVMValueRef val =
-      tree_has_value(decl)
-      ? cgen_expr(tree_value(decl), ctx)
-      : cgen_default_value(tree_type(decl));
+   assert(tree_has_value(decl));
+   LLVMValueRef val = cgen_expr(tree_value(decl), ctx);
 
    type_t type = tree_type(decl);
    if (type_kind(type) == T_CARRAY) {
@@ -2270,10 +2236,8 @@ static void cgen_process(tree_t t)
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t v = tree_decl(t, i);
       if (tree_kind(v) == T_VAR_DECL) {
-         LLVMValueRef val =
-            tree_has_value(v)
-            ? cgen_expr(tree_value(v), &ctx)
-            : cgen_default_value(tree_type(v));
+         assert(tree_has_value(v));
+         LLVMValueRef val = cgen_expr(tree_value(v), &ctx);
 
          LLVMValueRef var_ptr = cgen_get_var(v, &ctx);
 
