@@ -27,8 +27,11 @@ char ident_char(ident_t i, unsigned n);
 // Return the the prefix of i that does not include c
 ident_t ident_until(ident_t i, char c);
 
+// Compare identifier against a NULL-terminated string
+bool icmp(ident_t i, const char *s);
+
 // Convert an identifier reference to a NULL-terminated string.
-// This function is quite slow so its use should be avoid except
+// This function is quite slow so its use should be avoided except
 // for printing. The pointer returned is only valid for the next
 // ISTR_MAX_BUFS calls to istr.
 #define ISTR_MAX_BUFS 8

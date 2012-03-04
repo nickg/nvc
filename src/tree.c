@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1005
+#define FILE_FMT_VER 0x1006
 
 //#define EXTRA_READ_CHECKS
 
@@ -48,10 +48,10 @@ struct attr {
    attr_kind_t kind;
    ident_t     name;
    union {
-      char   *sval;
-      int    ival;
-      void   *pval;
-      tree_t tval;
+      ident_t sval;
+      int     ival;
+      void    *pval;
+      tree_t  tval;
    };
 };
 
@@ -326,13 +326,8 @@ void tree_gc(void)
          if (HAS_CONTEXT(t) && t->context != NULL)
             free(t->context);
 
-         if (t->attrs != NULL) {
-            for (unsigned i = 0; i < t->n_attrs; i++) {
-               if (t->attrs[i].kind == A_STRING)
-                  free(t->attrs[i].sval);
-            }
+         if (t->attrs != NULL)
             free(t->attrs);
-         }
 
          free(t);
 
@@ -1641,8 +1636,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
       switch (t->attrs[i].kind) {
       case A_STRING:
-         write_u16(strlen(t->attrs[i].sval), ctx->file);
-         fputs(t->attrs[i].sval, ctx->file);
+         ident_write(t->attrs[i].sval, ctx->ident_ctx);
          break;
 
       case A_INT:
@@ -1815,13 +1809,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
       switch (t->attrs[i].kind) {
       case A_STRING:
-         {
-            size_t len = read_u16(ctx->file);
-            t->attrs[i].sval = xmalloc(len + 1);
-            if (fread(t->attrs[i].sval, len, 1, ctx->file) != 1)
-               fatal("premature end of file");
-            t->attrs[i].sval[len] = '\0';
-         }
+         t->attrs[i].sval = ident_read(ctx->ident_ctx);
          break;
 
       case A_INT:
@@ -1919,12 +1907,12 @@ static struct attr *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
    return &t->attrs[i];
 }
 
-void tree_add_attr_str(tree_t t, ident_t name, const char *str)
+void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
 {
-   tree_add_attr(t, name, A_STRING)->sval = strdup(str);
+   tree_add_attr(t, name, A_STRING)->sval = str;
 }
 
-const char *tree_attr_str(tree_t t, ident_t name)
+ident_t tree_attr_str(tree_t t, ident_t name)
 {
    struct attr *a = tree_find_attr(t, name, A_STRING);
    return a ? a->sval : NULL;
@@ -2392,7 +2380,7 @@ tree_t call_builtin(const char *name, const char *builtin, type_t type, ...)
    if (decl == NULL) {
       decl = tree_new(T_FUNC_DECL);
       tree_set_ident(decl, name_i);
-      tree_add_attr_str(decl, ident_new("builtin"), builtin);
+      tree_add_attr_str(decl, ident_new("builtin"), ident_new(builtin));
    }
 
    struct decl_cache *c = xmalloc(sizeof(struct decl_cache));

@@ -752,7 +752,7 @@ static LLVMValueRef cgen_uarray_asc(LLVMValueRef uarray)
 static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
-   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+   ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
 
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
@@ -918,19 +918,19 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
    assert(tree_kind(decl) == T_FUNC_DECL
           || tree_kind(decl) == T_FUNC_BODY);
 
-   const char *builtin = tree_attr_str(decl, ident_new("builtin"));
+   ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
 
    // Special attributes
    if (builtin) {
-      if (strcmp(builtin, "event") == 0)
+      if (icmp(builtin, "event"))
          return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_EVENT);
-      else if (strcmp(builtin, "active") == 0)
+      else if (icmp(builtin, "active"))
          return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
-      else if (strcmp(builtin, "last_value") == 0)
+      else if (icmp(builtin, "last_value"))
          return cgen_last_value(tree_param(t, 0).value, ctx);
-      else if (strcmp(builtin, "agg_low") == 0)
+      else if (icmp(builtin, "agg_low"))
          return cgen_agg_bound(tree_param(t, 0).value, true, INT32_MAX, ctx);
-      else if (strcmp(builtin, "agg_high") == 0)
+      else if (icmp(builtin, "agg_high"))
          return cgen_agg_bound(tree_param(t, 0).value, false, INT32_MIN, ctx);
    }
 
@@ -941,93 +941,93 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
    if (builtin) {
       type_t arg_type = tree_type(tree_param(t, 0).value);
 
-      if (strcmp(builtin, "mul") == 0)
+      if (icmp(builtin, "mul"))
          return LLVMBuildMul(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "add") == 0)
+      else if (icmp(builtin, "add"))
          return LLVMBuildAdd(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "sub") == 0)
+      else if (icmp(builtin, "sub"))
          return LLVMBuildSub(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "div") == 0)
+      else if (icmp(builtin, "div"))
          return LLVMBuildSDiv(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "eq") == 0)
+      else if (icmp(builtin, "eq"))
          return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
-      else if (strcmp(builtin, "neq") == 0)
+      else if (icmp(builtin, "neq"))
          return LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
-      else if (strcmp(builtin, "lt") == 0)
+      else if (icmp(builtin, "lt"))
          return LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
-      else if (strcmp(builtin, "gt") == 0)
+      else if (icmp(builtin, "gt"))
          return LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
-      else if (strcmp(builtin, "leq") == 0)
+      else if (icmp(builtin, "leq"))
          return LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
-      else if (strcmp(builtin, "geq") == 0)
+      else if (icmp(builtin, "geq"))
          return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
-      else if (strcmp(builtin, "neg") == 0)
+      else if (icmp(builtin, "neg"))
          return LLVMBuildNeg(builder, args[0], "");
-      else if (strcmp(builtin, "not") == 0)
+      else if (icmp(builtin, "not"))
          return LLVMBuildNot(builder, args[0], "");
-      else if (strcmp(builtin, "and") == 0)
+      else if (icmp(builtin, "and"))
          return LLVMBuildAnd(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "or") == 0)
+      else if (icmp(builtin, "or"))
          return LLVMBuildOr(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "xor") == 0)
+      else if (icmp(builtin, "xor"))
          return LLVMBuildXor(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "xnor") == 0)
+      else if (icmp(builtin, "xnor"))
          return LLVMBuildNot(builder,
                              LLVMBuildXor(builder, args[0], args[1], ""), "");
-      else if (strcmp(builtin, "mod") == 0)
+      else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
-      else if (strcmp(builtin, "aeq") == 0) {
+      else if (icmp(builtin, "aeq")) {
          type_t rhs_type = tree_type(tree_param(t, 1).value);
          return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
       }
-      else if (strcmp(builtin, "aneq") == 0) {
+      else if (icmp(builtin, "aneq")) {
          type_t rhs_type = tree_type(tree_param(t, 1).value);
          return LLVMBuildNot(
             builder,
             cgen_array_eq(arg_type, args[0], rhs_type, args[1]), "");
       }
-      else if (strcmp(builtin, "image") == 0) {
+      else if (icmp(builtin, "image")) {
          LLVMValueRef iargs[] = {
             LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
          };
          return LLVMBuildCall(builder, llvm_fn("_image"),
                               iargs, ARRAY_LEN(iargs), "");
       }
-      else if (strcmp(builtin, "succ") == 0) {
+      else if (icmp(builtin, "succ")) {
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_type), 1, false), "");
       }
-      else if (strcmp(builtin, "pred") == 0) {
+      else if (icmp(builtin, "pred")) {
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_type), -1, false), "");
       }
-      else if (strcmp(builtin, "leftof") == 0) {
+      else if (icmp(builtin, "leftof")) {
          range_t r = type_dim(tree_type(t), 0);
          int dir = (r.kind == RANGE_TO ? -1 : 1);
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_type), dir, false), "");
       }
-      else if (strcmp(builtin, "rightof") == 0) {
+      else if (icmp(builtin, "rightof")) {
          range_t r = type_dim(tree_type(t), 0);
          int dir = (r.kind == RANGE_TO ? 1 : -1);
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_type), dir, false), "");
       }
-      else if (strcmp(builtin, "length") == 0) {
+      else if (icmp(builtin, "length")) {
          assert(type_kind(arg_type) == T_UARRAY
                 || !cgen_const_bounds(arg_type));
          return cgen_array_len(arg_type, args[0]);
       }
-      else if (strcmp(builtin, "uarray_left") == 0) {
+      else if (icmp(builtin, "uarray_left")) {
          return LLVMBuildExtractValue(builder, args[0], 1, "left");
       }
-      else if (strcmp(builtin, "uarray_right") == 0) {
+      else if (icmp(builtin, "uarray_right")) {
          return LLVMBuildExtractValue(builder, args[0], 2, "right");
       }
-      else if (strcmp(builtin, "uarray_asc") == 0) {
+      else if (icmp(builtin, "uarray_asc")) {
          return cgen_uarray_asc(args[0]);
       }
-      else if (strcmp(builtin, "uarray_dircmp") == 0) {
+      else if (icmp(builtin, "uarray_dircmp")) {
          LLVMValueRef dir_eq = LLVMBuildICmp(
             builder, LLVMIntEQ,
             LLVMBuildExtractValue(builder, args[0], 3, "dir"),
@@ -1036,38 +1036,38 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef neg = LLVMBuildNeg(builder, args[2], "neg");
          return LLVMBuildSelect(builder, dir_eq, args[2], neg, "dirmul");
       }
-      else if (strcmp(builtin, "uarray_low") == 0) {
+      else if (icmp(builtin, "uarray_low")) {
          return LLVMBuildSelect(
             builder, cgen_uarray_asc(args[0]),
             LLVMBuildExtractValue(builder, args[0], 1, "left"),
             LLVMBuildExtractValue(builder, args[0], 2, "right"),
             "low");
       }
-      else if (strcmp(builtin, "uarray_high") == 0) {
+      else if (icmp(builtin, "uarray_high")) {
          return LLVMBuildSelect(
             builder, cgen_uarray_asc(args[0]),
             LLVMBuildExtractValue(builder, args[0], 2, "right"),
             LLVMBuildExtractValue(builder, args[0], 1, "left"),
             "high");
       }
-      else if (strcmp(builtin, "alt") == 0)
+      else if (icmp(builtin, "alt"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSLT, ctx);
-      else if (strcmp(builtin, "agt") == 0)
+      else if (icmp(builtin, "agt"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSGT, ctx);
-      else if (strcmp(builtin, "aleq") == 0)
+      else if (icmp(builtin, "aleq"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSLE, ctx);
-      else if (strcmp(builtin, "ageq") == 0)
+      else if (icmp(builtin, "ageq"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSGE, ctx);
       else
-         fatal("cannot generate code for builtin %s", builtin);
+         fatal("cannot generate code for builtin %s", istr(builtin));
    }
    else {
       return LLVMBuildCall(builder, cgen_fdecl(decl),

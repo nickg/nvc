@@ -344,3 +344,14 @@ ident_t ident_until(ident_t i, char c)
 
    return r;
 }
+
+bool icmp(ident_t i, const char *s)
+{
+   assert(i != NULL);
+
+   struct trie *result;
+   if (!search_trie(&s, &root, &result))
+      return false;
+   else
+      return result == i;
+}

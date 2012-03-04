@@ -122,68 +122,68 @@ static tree_t get_bool_lit(tree_t t, bool v)
    return b;
 }
 
-static tree_t simp_fcall_log(tree_t t, const char *builtin, bool *args)
+static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
 {
-   if (strcmp(builtin, "not") == 0)
+   if (icmp(builtin, "not"))
       return get_bool_lit(t, !args[0]);
-   else if (strcmp(builtin, "and") == 0)
+   else if (icmp(builtin, "and"))
       return get_bool_lit(t, args[0] && args[1]);
-   else if (strcmp(builtin, "nand") == 0)
+   else if (icmp(builtin, "nand"))
       return get_bool_lit(t, !(args[0] && args[1]));
-   else if (strcmp(builtin, "or") == 0)
+   else if (icmp(builtin, "or"))
       return get_bool_lit(t, args[0] || args[1]);
-   else if (strcmp(builtin, "nor") == 0)
+   else if (icmp(builtin, "nor"))
       return get_bool_lit(t, !(args[0] || args[1]));
-   else if (strcmp(builtin, "xor") == 0)
+   else if (icmp(builtin, "xor"))
       return get_bool_lit(t, args[0] ^ args[1]);
-   else if (strcmp(builtin, "xnor") == 0)
+   else if (icmp(builtin, "xnor"))
       return get_bool_lit(t, !(args[0] ^ args[1]));
    else
       return t;
 }
 
-static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
+static tree_t simp_fcall_num(tree_t t, ident_t builtin, literal_t *args)
 {
    const int lkind = args[0].kind;  // Assume all types checked same
    assert(lkind == L_INT);
 
-   if (strcmp(builtin, "mul") == 0) {
+   if (icmp(builtin, "mul")) {
       return get_int_lit(t, args[0].i * args[1].i);
    }
-   else if (strcmp(builtin, "div") == 0) {
+   else if (icmp(builtin, "div")) {
       return get_int_lit(t, args[0].i / args[1].i);
    }
-   else if (strcmp(builtin, "add") == 0) {
+   else if (icmp(builtin, "add")) {
       return get_int_lit(t, args[0].i + args[1].i);
    }
-   else if (strcmp(builtin, "sub") == 0) {
+   else if (icmp(builtin, "sub")) {
       return get_int_lit(t, args[0].i - args[1].i);
    }
-   else if (strcmp(builtin, "neg") == 0) {
+   else if (icmp(builtin, "neg")) {
       return get_int_lit(t, -args[0].i);
    }
-   else if (strcmp(builtin, "identity") == 0) {
+   else if (icmp(builtin, "identity")) {
       return get_int_lit(t, args[0].i);
    }
-   else if (strcmp(builtin, "eq") == 0) {
+   else if (icmp(builtin, "eq")) {
       if (args[0].kind == L_INT && args[1].kind == L_INT)
          return get_bool_lit(t, args[0].i == args[1].i);
       else
          assert(false);
    }
-   else if (strcmp(builtin, "neq") == 0) {
+   else if (icmp(builtin, "neq")) {
       if (args[0].kind == L_INT && args[1].kind == L_INT)
          return get_bool_lit(t, args[0].i != args[1].i);
       else
          assert(false);
    }
-   else if (strcmp(builtin, "gt") == 0) {
+   else if (icmp(builtin, "gt")) {
       if (args[0].kind == L_INT && args[1].kind == L_INT)
          return get_bool_lit(t, args[0].i > args[1].i);
       else
          assert(false);
    }
-   else if (strcmp(builtin, "lt") == 0) {
+   else if (icmp(builtin, "lt")) {
       if (args[0].kind == L_INT && args[1].kind == L_INT)
          return get_bool_lit(t, args[0].i < args[1].i);
       else
@@ -193,10 +193,10 @@ static tree_t simp_fcall_num(tree_t t, const char *builtin, literal_t *args)
       return t;
 }
 
-static tree_t simp_fcall_agg(tree_t t, const char *builtin)
+static tree_t simp_fcall_agg(tree_t t, ident_t builtin)
 {
-   bool agg_low  = (strcmp(builtin, "agg_low") == 0);
-   bool agg_high = (strcmp(builtin, "agg_high") == 0);
+   bool agg_low  = icmp(builtin, "agg_low");
+   bool agg_high = icmp(builtin, "agg_high");
 
    if (agg_low || agg_high) {
       int64_t low = INT64_MAX, high = INT64_MIN;
@@ -238,7 +238,7 @@ static tree_t simp_fcall(tree_t t)
    assert(tree_kind(decl) == T_FUNC_DECL
           || tree_kind(decl) == T_FUNC_BODY);
 
-   const char *builtin = tree_attr_str(decl, builtin_i);
+   ident_t builtin = tree_attr_str(decl, builtin_i);
    if (builtin == NULL)
       return t;     // TODO: expand pure function calls
 
@@ -299,10 +299,10 @@ static tree_t simp_attr_ref(tree_t t)
       tree_t decl = tree_ref(t);
       assert(tree_kind(decl) == T_FUNC_DECL);
 
-      const char *builtin = tree_attr_str(decl, builtin_i);
+      ident_t builtin = tree_attr_str(decl, builtin_i);
       assert(builtin != NULL);
 
-      if (strcmp(builtin, "length") == 0) {
+      if (icmp(builtin, "length")) {
          tree_t array = tree_param(t, 0).value;
          if (type_kind(tree_type(array)) == T_CARRAY) {
             range_t r = type_dim(tree_type(array), 0);
@@ -838,7 +838,7 @@ static tree_t simp_tree(tree_t t, void *context)
 
 static void simp_intern_strings(void)
 {
-   // Intern some commponly used strings
+   // Intern some commonly used strings
 
    std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
    builtin_i  = ident_new("builtin");

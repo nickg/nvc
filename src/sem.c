@@ -67,6 +67,8 @@ static struct scope    *top_scope = NULL;
 static int             errors = 0;
 static struct type_set *top_type_set = NULL;
 static bool            bootstrap = false;
+static ident_t         builtin_i;
+static ident_t         std_standard_i;
 
 #define sem_error(t, ...) {                           \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -199,7 +201,6 @@ static bool scope_hides(tree_t a, tree_t b)
 {
    // True if declaration of b hides a
    if (type_eq(tree_type(a), tree_type(b))) {
-      ident_t builtin_i = ident_new("builtin");
       return (tree_attr_str(a, builtin_i) != NULL)
          && (tree_attr_str(b, builtin_i) == NULL);
    }
@@ -415,7 +416,7 @@ static bool type_set_member(type_t t)
 static type_t sem_std_type(const char *name)
 {
    ident_t name_i = ident_new(name);
-   ident_t qual = ident_prefix(ident_new("STD.STANDARD"), name_i, '.');
+   ident_t qual = ident_prefix(std_standard_i, name_i, '.');
    tree_t decl = scope_find(qual);
    if (decl == NULL)
       fatal("cannot find %s type", istr(qual));
@@ -462,7 +463,7 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
-   tree_add_attr_str(d, ident_new("builtin"), builtin);
+   tree_add_attr_str(d, builtin_i, ident_new(builtin));
 
    return d;
 }
@@ -893,7 +894,7 @@ static bool sem_check_context(tree_t t)
          fatal("failed to find std library");
 
       context_t c = {
-         .name = ident_new("STD.STANDARD"),
+         .name = std_standard_i,
          .loc  = LOC_INVALID
       };
       if (!scope_import_unit(c, std, true))
@@ -1358,7 +1359,7 @@ static bool sem_check_duplicate(tree_t t, tree_kind_t kind)
 
          if (type_eq(tree_type(t), tree_type(decl))) {
             // Allow builtin functions to be hidden
-            if (tree_attr_str(decl, ident_new("builtin")) == NULL)
+            if (tree_attr_str(decl, builtin_i) == NULL)
                break;
          }
       }
@@ -2041,7 +2042,7 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
 
       if (match) {
          (*matches)++;
-         bool builtin = tree_attr_str(overloads[n], ident_new("builtin"));
+         bool builtin = tree_attr_str(overloads[n], builtin_i);
          if (all_universal && builtin) {
             // If all the arguments are universal integer or real and
             // this is a builtin function then it doesn't matter which
@@ -2285,8 +2286,7 @@ static bool sem_check_wait(tree_t t)
       tree_t delay = tree_delay(t);
       sem_check(delay);
 
-      ident_t time_name = ident_new("STD.STANDARD.TIME");
-      if (type_ident(tree_type(delay)) != time_name)
+      if (!icmp(type_ident(tree_type(delay)), "STD.STANDARD.TIME"))
          sem_error(delay, "type of delay must be TIME");
    }
 
@@ -2808,7 +2808,7 @@ static bool sem_check_attr_ref(tree_t t)
    if (decl == NULL)
       sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
 
-   if (tree_ident2(t) == ident_new("range"))
+   if (icmp(tree_ident2(t), "range"))
       sem_error(t, "range expression not allowed here");
 
    tree_t a = tree_attr_tree(decl, tree_ident2(t));
@@ -3147,8 +3147,23 @@ static bool sem_check_exit(tree_t t)
    return true;
 }
 
+
+static void sem_intern_strings(void)
+{
+   // Intern some commonly used strings
+
+   builtin_i      = ident_new("builtin");
+   std_standard_i = ident_new("STD.STANDARD");
+}
+
 bool sem_check(tree_t t)
 {
+   static bool have_interned = false;
+   if (!have_interned) {
+      sem_intern_strings();
+      have_interned = true;
+   }
+
    switch (tree_kind(t)) {
    case T_ARCH:
       return sem_check_arch(t);

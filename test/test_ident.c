@@ -161,6 +161,21 @@ START_TEST(test_until)
 }
 END_TEST
 
+START_TEST(test_icmp)
+{
+   ident_t i, j;
+
+   i = ident_new("foobar");
+   j = ident_new("cake");
+
+   fail_unless(icmp(i, "foobar"));
+   fail_unless(icmp(j, "cake"));
+   fail_if(icmp(i, "cake"));
+   fail_if(icmp(i, "fooba"));
+   fail_if(icmp(j, "cakesniffer"));
+}
+END_TEST;
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -177,6 +192,7 @@ int main(void)
    tcase_add_test(tc_core, test_strip);
    tcase_add_test(tc_core, test_char);
    tcase_add_test(tc_core, test_until);
+   tcase_add_test(tc_core, test_icmp);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
