@@ -15,17 +15,26 @@ struct clist {
 
 struct trie {
    char         value;
-   unsigned     depth;
+   uint8_t      write_gen;
+   uint16_t     write_index;
+   uint16_t     depth;
    struct trie  *up;
    struct clist *children;
 };
 
 struct ident_rd_ctx {
-   FILE *file;
+   FILE    *file;
+   size_t  n_idents;
+   ident_t *idents;
 };
 
 struct ident_wr_ctx {
-   FILE *file;
+   FILE    *file;
+   long    start_off;
+   ident_t *pending;
+   size_t  n_pending;
+   size_t  pend_alloc;
+   uint8_t generation;
 };
 
 static struct trie root = {
@@ -38,10 +47,11 @@ static struct trie root = {
 static struct trie *alloc_node(char ch, struct trie *prev)
 {
    struct trie *t = xmalloc(sizeof(struct trie));
-   t->value    = ch;
-   t->depth    = prev->depth + 1;
-   t->up       = prev;
-   t->children = NULL;
+   t->value     = ch;
+   t->depth     = prev->depth + 1;
+   t->up        = prev;
+   t->children  = NULL;
+   t->write_gen = 0;
 
    struct clist *c = xmalloc(sizeof(struct clist));
    c->value    = ch;
@@ -150,13 +160,40 @@ const char *istr(ident_t ident)
 
 ident_wr_ctx_t ident_write_begin(FILE *f)
 {
+   static uint8_t ident_wr_gen = 1;
+   assert(ident_wr_gen > 0);
+
    struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));
-   ctx->file = f;
+   ctx->file       = f;
+   ctx->start_off  = ftell(f);
+   ctx->pend_alloc = 512;
+   ctx->pending    = xmalloc(sizeof(ident_t) * ctx->pend_alloc);
+   ctx->n_pending  = 0;
+   ctx->generation = ident_wr_gen++;
+
+   // Write a placeholder that will later be overwritten with the
+   // offset of the identifier table
+   write_u32(~0, ctx->file);
+
    return ctx;
 }
 
 void ident_write_end(ident_wr_ctx_t ctx)
 {
+   long table_off = ftell(ctx->file);
+
+   write_u16(ctx->n_pending, ctx->file);
+
+   for (size_t i = 0; i < ctx->n_pending; i++) {
+      ident_t ident = ctx->pending[i];
+      if (fwrite(istr(ident), ident->depth, 1, ctx->file) != 1)
+         fatal("fwrite failed");
+   }
+
+   fseek(ctx->file, ctx->start_off, SEEK_SET);
+   write_u32(table_off, ctx->file);
+
+   free(ctx->pending);
    free(ctx);
 }
 
@@ -164,35 +201,68 @@ void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
    assert(ident != NULL);
 
-   if (fwrite(istr(ident), ident->depth, 1, ctx->file) != 1)
-      fatal("fwrite failed");
+   uint16_t index;
+   if (ident->write_gen == ctx->generation)
+      index = ident->write_index;
+   else {
+      index = ctx->n_pending;
+
+      if (ctx->n_pending == ctx->pend_alloc) {
+         ctx->pend_alloc *= 2;
+         ctx->pending = xrealloc(
+            ctx->pending, sizeof(ident_t) * ctx->pend_alloc);
+      }
+
+      ctx->pending[ctx->n_pending++] = ident;
+      assert(ctx->n_pending != UINT16_MAX);
+
+      ident->write_gen   = ctx->generation;
+      ident->write_index = index;
+   }
+
+   write_u16(index, ctx->file);
 }
 
 ident_rd_ctx_t ident_read_begin(FILE *f)
 {
+   long ident_off = read_u32(f);
+   long save_off = ftell(f);
+
+   fseek(f, ident_off, SEEK_SET);
+
    struct ident_rd_ctx *ctx = xmalloc(sizeof(struct ident_rd_ctx));
-   ctx->file = f;
+   ctx->file     = f;
+   ctx->n_idents = read_u16(ctx->file);
+   ctx->idents   = xmalloc(sizeof(ident_t) * ctx->n_idents);
+
+   for (size_t i = 0; i < ctx->n_idents; i++) {
+      struct trie *p = &root;
+      char ch;
+      while ((ch = fgetc(ctx->file)) != '\0') {
+         struct clist *it = search_node(p, ch);
+         if (it != NULL)
+            p = it->down;
+         else
+            p = alloc_node(ch, p);
+      }
+      ctx->idents[i] = p;
+   }
+
+   fseek(ctx->file, save_off, SEEK_SET);
    return ctx;
 }
 
 void ident_read_end(ident_rd_ctx_t ctx)
 {
+   free(ctx->idents);
    free(ctx);
 }
 
 ident_t ident_read(ident_rd_ctx_t ctx)
 {
-   struct trie *p = &root;
-   char ch;
-   while ((ch = fgetc(ctx->file)) != '\0') {
-      struct clist *it = search_node(p, ch);
-      if (it != NULL)
-         p = it->down;
-      else
-         p = alloc_node(ch, p);
-   }
-
-   return p;
+   uint16_t index = read_u16(ctx->file);
+   assert(index < ctx->n_idents);
+   return ctx->idents[index];
 }
 
 ident_t ident_uniq(const char *prefix)

@@ -24,7 +24,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1004
+#define FILE_FMT_VER 0x1005
 
 //#define EXTRA_READ_CHECKS
 
@@ -1478,6 +1478,8 @@ static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
 
 tree_wr_ctx_t tree_write_begin(FILE *f)
 {
+   write_u16(FILE_FMT_VER, f);
+
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
    ctx->file       = f;
    ctx->generation = next_generation++;
@@ -1486,13 +1488,12 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->type_ctx   = type_write_begin(ctx, ctx->ident_ctx);
    memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
-   write_u16(FILE_FMT_VER, f);
-
    return ctx;
 }
 
 void tree_write_end(tree_wr_ctx_t ctx)
 {
+   ident_write_end(ctx->ident_ctx);
    type_write_end(ctx->type_ctx);
    free(ctx);
 }
@@ -1848,6 +1849,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
 tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
 {
+   uint16_t ver = read_u16(f);
+   if (ver != FILE_FMT_VER)
+      fatal("%s: serialised version %x expected %x",
+            fname, ver, FILE_FMT_VER);
+
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
    ctx->file      = f;
    ctx->ident_ctx = ident_read_begin(f);
@@ -1858,16 +1864,12 @@ tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
    ctx->db_fname  = strdup(fname);
    memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
-   uint16_t ver = read_u16(f);
-   if (ver != FILE_FMT_VER)
-      fatal("%s: serialised version %x expected %x",
-            ctx->db_fname, ver, FILE_FMT_VER);
-
    return ctx;
 }
 
 void tree_read_end(tree_rd_ctx_t ctx)
 {
+   ident_read_end(ctx->ident_ctx);
    type_read_end(ctx->type_ctx);
    fclose(ctx->file);
    free(ctx->store);
