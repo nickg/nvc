@@ -62,7 +62,6 @@ static void link_context(context_t ctx)
 {
    ident_t all = ident_strip(ctx.name, ident_new(".all"));
    assert(all != NULL);
-   printf("%s\n", istr(all));
 
    lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
    if (lib == NULL)

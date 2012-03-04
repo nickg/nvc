@@ -342,8 +342,9 @@ void tree_gc(void)
          all_trees[p++] = all_trees[i];
    }
 
-   printf("[gc: freed %zu trees; %zu allocated]\n",
-          n_trees_alloc - p, p);
+   if (getenv("NVC_GC_VERBOSE") != NULL)
+      printf("[gc: freed %zu trees; %zu allocated]\n",
+             n_trees_alloc - p, p);
 
    n_trees_alloc = p;
 

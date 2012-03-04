@@ -778,6 +778,7 @@ void type_sweep(unsigned generation)
          all_types[p++] = all_types[i];
    }
 
-   printf("[gc: freed %zu types; %zu allocated]\n",
-          n_types_alloc - p, p);
+   if (getenv("NVC_GC_VERBOSE") != NULL)
+      printf("[gc: freed %zu types; %zu allocated]\n",
+             n_types_alloc - p, p);
 }
