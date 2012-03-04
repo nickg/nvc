@@ -123,15 +123,14 @@ void type_read_end(type_rd_ctx_t ctx);
 // Pretty printing
 const char *type_pp(type_t t);
 
-// Reference counting
-void type_ref(type_t t);
-void type_unref(type_t t);
-
 // Predefined types
 type_t type_universal_int(void);
 bool type_is_universal(type_t t);
 
 // Tree visit helper
 bool type_update_generation(type_t t, unsigned generation);
+
+// Garbage collection
+void type_sweep(unsigned generation);
 
 #endif  // _TYPE_H

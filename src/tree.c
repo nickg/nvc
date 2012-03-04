@@ -114,8 +114,8 @@ struct tree {
    tree_t value;                   // many
 
    // Serialisation and GC bookkeeping
-   unsigned short generation;
-   uint32_t       index;
+   uint32_t generation;
+   uint32_t index;
 };
 
 struct tree_wr_ctx {
@@ -308,9 +308,6 @@ void tree_gc(void)
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       tree_t t = all_trees[i];
       if (t->generation < base_gen) {
-         if (HAS_TYPE(t) && t->type != NULL)
-            type_unref(t->type);
-
          if (HAS_PORTS(t) && t->ports.items != NULL)
             free(t->ports.items);
          if (HAS_GENERICS(t) && t->generics.items != NULL)
@@ -352,6 +349,8 @@ void tree_gc(void)
           n_trees_alloc - p, p);
 
    n_trees_alloc = p;
+
+   type_sweep(base_gen);
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -508,9 +507,6 @@ void tree_set_type(tree_t t, type_t ty)
    assert(t != NULL);
    assert(HAS_TYPE(t));
 
-   type_ref(ty);
-   if (t->type)
-      type_unref(t->type);
    t->type = ty;
 }
 
@@ -1708,10 +1704,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->waves, ctx);
    if (HAS_CONDS(t))
       read_a(&t->conds, ctx);
-   if (HAS_TYPE(t)) {
-      if ((t->type = type_read(ctx->type_ctx)))
-         type_ref(t->type);
-   }
+   if (HAS_TYPE(t))
+      t->type = type_read(ctx->type_ctx);
    if (HAS_VALUE(t))
       t->value = tree_read(ctx);
    if (HAS_DELAY(t))
@@ -2257,10 +2251,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->stmts, &copy->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       copy_a(&t->waves, &copy->waves, ctx);
-   if (HAS_TYPE(t)) {
-      if ((copy->type = t->type))
-         type_ref(copy->type);
-   }
+   if (HAS_TYPE(t))
+      copy->type = t->type;
    if (HAS_VALUE(t))
       copy->value = tree_copy_aux(t->value, ctx);
    if (HAS_REJECT(t))

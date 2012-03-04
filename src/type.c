@@ -60,12 +60,9 @@ struct type {
       };
    };
 
-   // Reference counting
-   unsigned short refcount;
-
    // Serialisation accounting
-   unsigned short generation;
-   unsigned       index;
+   uint32_t generation;
+   uint32_t index;
 };
 
 struct type_wr_ctx {
@@ -91,11 +88,24 @@ struct type_rd_ctx {
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
 #define HAS_PARAMS(t) (IS(t, T_FUNC) || IS(t, T_PROC))
 
+// Garbage collection
+static type_t *all_types = NULL;
+static size_t max_types = 128;   // Grows at runtime
+static size_t n_types_alloc = 0;
+
 type_t type_new(type_kind_t kind)
 {
    struct type *t = xmalloc(sizeof(struct type));
    memset(t, '\0', sizeof(struct type));
    t->kind = kind;
+
+   if (all_types == NULL)
+      all_types = xmalloc(sizeof(tree_t) * max_types);
+   else if (n_types_alloc == max_types) {
+      max_types *= 2;
+      all_types = xrealloc(all_types, sizeof(tree_t) * max_types);
+   }
+   all_types[n_types_alloc++] = t;
 
    return t;
 }
@@ -250,7 +260,6 @@ void type_set_base(type_t t, type_t b)
    assert(HAS_BASE(t));
    assert(b != NULL);
 
-   type_ref(b);
    t->base = b;
 }
 
@@ -274,8 +283,6 @@ type_t type_universal_int(void)
                     .left  = left,
                     .right = right };
       type_add_dim(t, r);
-
-      type_ref(t);
    }
 
    return t;
@@ -387,7 +394,6 @@ void type_add_param(type_t t, type_t p)
       t->params = xrealloc(t->params, t->params_alloc * sizeof(type_t));
    }
 
-   type_ref(p);
    t->params[t->n_params++] = p;
 }
 
@@ -405,9 +411,6 @@ void type_set_result(type_t t, type_t r)
    assert(t != NULL);
    assert(IS(t, T_FUNC));
 
-   type_ref(r);
-   if (t->result)
-      type_unref(t->result);
    t->result = r;
 }
 
@@ -467,7 +470,6 @@ void type_add_index_constr(type_t t, type_t c)
    assert(type_kind(t) == T_UARRAY);
    assert(t->n_index_constr < MAX_DIMS);
 
-   type_ref(c);
    t->index_constr[t->n_index_constr++] = c;
 }
 
@@ -478,8 +480,6 @@ void type_change_index_constr(type_t t, unsigned n, type_t c)
    assert(type_kind(t) == T_UARRAY);
    assert(n < t->n_index_constr);
 
-   type_ref(c);
-   type_unref(t->index_constr[n]);
    t->index_constr[n] = c;
 }
 
@@ -516,38 +516,6 @@ tree_t type_resolution(type_t t)
    return t->resolution;
 }
 
-void type_unref(type_t t)
-{
-   assert(t != NULL);
-   assert(t->refcount > 0);
-
-   if (--(t->refcount) == 0) {
-      if (HAS_PARAMS(t)) {
-         for (unsigned i = 0; i < t->n_params; i++)
-            type_unref(t->params[i]);
-         free(t->params);
-      }
-
-      if (IS(t, T_PHYSICAL) && t->units != NULL)
-         free(t->units);
-      else if (IS(t, T_ENUM) && t->literals != NULL)
-         free(t->literals);
-      else if (IS(t, T_FUNC))
-         type_unref(t->result);
-      if (HAS_DIMS(t) && t->dims != NULL)
-         free(t->dims);
-
-      free(t);
-   }
-}
-
-void type_ref(type_t t)
-{
-   assert(t != NULL);
-
-   (t->refcount)++;
-}
-
 void type_write(type_t t, type_wr_ctx_t ctx)
 {
    FILE *f = tree_write_file(ctx->tree_ctx);
@@ -556,8 +524,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       write_u16(0xffff, f);   // Null marker
       return;
    }
-
-   assert(t->refcount > 0);
 
    if (t->generation == ctx->generation) {
       // Already visited this type
@@ -653,10 +619,8 @@ type_t type_read(type_rd_ctx_t ctx)
       t->n_dims = ndims;
    }
    if (HAS_BASE(t)) {
-      if (read_b(f)) {
-         if ((t->base = type_read(ctx)))
-            type_ref(t->base);
-      }
+      if (read_b(f))
+         t->base = type_read(ctx);
    }
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
@@ -666,10 +630,8 @@ type_t type_read(type_rd_ctx_t ctx)
       t->params = xmalloc(nparams * sizeof(type_t));
       t->params_alloc = nparams;
 
-      for (unsigned i = 0; i < nparams; i++) {
-         if ((t->params[i] = type_read(ctx)))
-            type_ref(t->params[i]);
-      }
+      for (unsigned i = 0; i < nparams; i++)
+         t->params[i] = type_read(ctx);
       t->n_params = nparams;
    }
 
@@ -696,16 +658,14 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_literals = nlits;
    }
-   else if (IS(t, T_FUNC)) {
-      if ((t->result = type_read(ctx)))
-         type_ref(t->result);
-   }
+   else if (IS(t, T_FUNC))
+      t->result = type_read(ctx);
    else if (IS(t, T_UARRAY)) {
       unsigned short nconstr = read_u16(f);
       assert(nconstr < MAX_DIMS);
 
       for (unsigned i = 0; i < nconstr; i++)
-         type_ref((t->index_constr[i] = type_read(ctx)));
+         t->index_constr[i] = type_read(ctx);
       t->n_index_constr = nconstr;
    }
 
@@ -782,4 +742,36 @@ bool type_update_generation(type_t t, unsigned generation)
       t->generation = generation;
       return true;
    }
+}
+
+void type_sweep(unsigned generation)
+{
+   for (unsigned i = 0; i < n_types_alloc; i++) {
+      type_t t = all_types[i];
+      if (t->generation < generation) {
+         if (IS(t, T_PHYSICAL) && t->units != NULL)
+            free(t->units);
+         else if (IS(t, T_ENUM) && t->literals != NULL)
+            free(t->literals);
+
+         if (HAS_PARAMS(t) && t->params != NULL)
+            free(t->params);
+         if (HAS_DIMS(t) && t->dims != NULL)
+            free(t->dims);
+
+         free(t);
+
+         all_types[i] = NULL;
+      }
+   }
+
+   // Compact
+   size_t p = 0;
+   for (unsigned i = 0; i < n_types_alloc; i++) {
+      if (all_types[i] != NULL)
+         all_types[p++] = all_types[i];
+   }
+
+   printf("[gc: freed %zu types; %zu allocated]\n",
+          n_types_alloc - p, p);
 }

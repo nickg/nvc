@@ -337,9 +337,6 @@ static void type_set_pop(void)
 {
    assert(top_type_set != NULL);
 
-   for (int i = 0; i < top_type_set->n_members; i++)
-      type_unref(top_type_set->members[i]);
-
    struct type_set *old = top_type_set;
    top_type_set = old->down;
    free(old);
@@ -357,7 +354,6 @@ static void type_set_add(type_t t)
          return;
    }
 
-   type_ref(t);
    top_type_set->members[top_type_set->n_members++] = t;
 }
 
@@ -366,9 +362,6 @@ static void type_set_force(type_t t)
    assert(top_type_set != NULL);
    assert(t != NULL);
    assert(type_kind(t) != T_UNRESOLVED);
-
-   for (int i = 1; i < top_type_set->n_members; i++)
-      type_unref(top_type_set->members[i]);
 
    top_type_set->members[0] = t;
    top_type_set->n_members  = 1;

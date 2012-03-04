@@ -1891,8 +1891,8 @@ static void copy_trees(tree_list_t *from,
                        void (*copy_fn)(tree_t t, tree_t d),
                        tree_t to)
 {
-   for (; from != NULL; from = from->next)
-      (*copy_fn)(to, from->value);
+   for (tree_list_t *it = from; it != NULL; it = it->next)
+      (*copy_fn)(to, it->value);
    tree_list_free(from);
 }
 
@@ -1900,8 +1900,8 @@ static void copy_params(list_t *from,
                         void (*copy_fn)(tree_t t, param_t p),
                         tree_t to)
 {
-   for (; from != NULL; from = from->next)
-      (*copy_fn)(to, from->item.param);
+   for (list_t *it = from; it != NULL; it = it->next)
+      (*copy_fn)(to, it->item.param);
    list_free(from);
 }
 
