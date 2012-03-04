@@ -252,6 +252,7 @@ use_clause
         };
         $$ = list_add($$, LISTVAL(c));
      }
+     list_free($2);
   }
 ;
 
