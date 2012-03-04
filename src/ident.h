@@ -4,6 +4,8 @@
 #include "lib.h"
 
 typedef struct trie *ident_t;
+typedef struct ident_wr_ctx *ident_wr_ctx_t;
+typedef struct ident_rd_ctx *ident_rd_ctx_t;
 
 // Intern a string as an identifier.
 ident_t ident_new(const char *str);
@@ -32,7 +34,12 @@ ident_t ident_until(ident_t i, char c);
 #define ISTR_MAX_BUFS 8
 const char *istr(ident_t ident);
 
-void ident_write(ident_t ident, FILE *f);
-ident_t ident_read(FILE *f);
+ident_wr_ctx_t ident_write_begin(FILE *f);
+void ident_write(ident_t ident, ident_wr_ctx_t ctx);
+void ident_write_end(ident_wr_ctx_t ctx);
+
+ident_rd_ctx_t ident_read_begin(FILE *f);
+ident_t ident_read(ident_rd_ctx_t ctx);
+void ident_read_end(ident_rd_ctx_t ctx);
 
 #endif // _IDENT_H

@@ -66,16 +66,18 @@ struct type {
 };
 
 struct type_wr_ctx {
-   tree_wr_ctx_t tree_ctx;
-   unsigned      generation;
-   unsigned      n_types;
+   tree_wr_ctx_t  tree_ctx;
+   ident_wr_ctx_t ident_ctx;
+   unsigned       generation;
+   unsigned       n_types;
 };
 
 struct type_rd_ctx {
-   tree_rd_ctx_t tree_ctx;
-   unsigned      n_types;
-   type_t        *store;
-   unsigned      store_sz;
+   tree_rd_ctx_t  tree_ctx;
+   ident_rd_ctx_t ident_ctx;
+   unsigned       n_types;
+   type_t         *store;
+   unsigned       store_sz;
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -538,7 +540,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    t->index      = (ctx->n_types)++;
 
    write_u16(t->kind, f);
-   ident_write(t->ident, f);
+   ident_write(t->ident, ctx->ident_ctx);
    if (HAS_DIMS(t)) {
       write_u16(t->n_dims, f);
       for (unsigned i = 0; i < t->n_dims; i++) {
@@ -563,7 +565,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       write_u16(t->n_units, f);
       for (unsigned i = 0; i < t->n_units; i++) {
          tree_write(t->units[i].multiplier, ctx->tree_ctx);
-         ident_write(t->units[i].name, f);
+         ident_write(t->units[i].name, ctx->ident_ctx);
       }
    }
    else if (IS(t, T_ENUM)) {
@@ -597,7 +599,7 @@ type_t type_read(type_rd_ctx_t ctx)
    assert(marker < T_LAST_TYPE_KIND);
 
    type_t t = type_new((type_kind_t)marker);
-   t->ident = ident_read(f);
+   t->ident = ident_read(ctx->ident_ctx);
 
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
@@ -645,7 +647,7 @@ type_t type_read(type_rd_ctx_t ctx)
 
       for (unsigned i = 0; i < nunits; i++) {
          t->units[i].multiplier = tree_read(ctx->tree_ctx);
-         t->units[i].name = ident_read(f);
+         t->units[i].name = ident_read(ctx->ident_ctx);
       }
       t->n_units = nunits;
    }
@@ -674,12 +676,13 @@ type_t type_read(type_rd_ctx_t ctx)
    return t;
 }
 
-type_wr_ctx_t type_write_begin(tree_wr_ctx_t tree_ctx)
+type_wr_ctx_t type_write_begin(tree_wr_ctx_t tree_ctx, ident_wr_ctx_t ident_ctx)
 {
    extern unsigned next_generation;
 
    struct type_wr_ctx *ctx = xmalloc(sizeof(struct type_wr_ctx));
    ctx->tree_ctx   = tree_ctx;
+   ctx->ident_ctx  = ident_ctx;
    ctx->generation = next_generation++;
    ctx->n_types    = 0;
 
@@ -691,13 +694,14 @@ void type_write_end(type_wr_ctx_t ctx)
    free(ctx);
 }
 
-type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx)
+type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx, ident_rd_ctx_t ident_ctx)
 {
    struct type_rd_ctx *ctx = xmalloc(sizeof(struct type_rd_ctx));
-   ctx->tree_ctx = tree_ctx;
-   ctx->store_sz = 32;
-   ctx->store    = xmalloc(ctx->store_sz * sizeof(type_t));
-   ctx->n_types  = 0;
+   ctx->tree_ctx  = tree_ctx;
+   ctx->ident_ctx = ident_ctx;
+   ctx->store_sz  = 32;
+   ctx->store     = xmalloc(ctx->store_sz * sizeof(type_t));
+   ctx->n_types   = 0;
 
    return ctx;
 }

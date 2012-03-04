@@ -112,11 +112,13 @@ void type_set_resolution(type_t t, struct tree *r);
 bool type_has_resolution(type_t t);
 struct tree *type_resolution(type_t t);
 
-type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx);
+type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
+                               ident_wr_ctx_t ident_ctx);
 void type_write(type_t t, type_wr_ctx_t ctx);
 void type_write_end(type_wr_ctx_t ctx);
 
-type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx);
+type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
+                              ident_rd_ctx_t ident_ctx);
 type_t type_read(type_rd_ctx_t ctx);
 void type_read_end(type_rd_ctx_t ctx);
 

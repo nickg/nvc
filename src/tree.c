@@ -119,21 +119,23 @@ struct tree {
 };
 
 struct tree_wr_ctx {
-   FILE          *file;
-   type_wr_ctx_t type_ctx;
-   unsigned      generation;
-   unsigned      n_trees;
-   const char    *file_names[256];
+   FILE           *file;
+   type_wr_ctx_t  type_ctx;
+   ident_wr_ctx_t ident_ctx;
+   unsigned       generation;
+   unsigned       n_trees;
+   const char     *file_names[256];
 };
 
 struct tree_rd_ctx {
-   FILE          *file;
-   type_rd_ctx_t type_ctx;
-   unsigned      n_trees;
-   tree_t        *store;
-   unsigned      store_sz;
-   char          *db_fname;
-   const char    *file_names[256];
+   FILE           *file;
+   type_rd_ctx_t  type_ctx;
+   ident_rd_ctx_t ident_ctx;
+   unsigned       n_trees;
+   tree_t         *store;
+   unsigned       store_sz;
+   char           *db_fname;
+   const char     *file_names[256];
 };
 
 #define IS(t, k) ((t)->kind == (k))
@@ -1443,7 +1445,7 @@ static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
          tree_write(a->items[i].range.right, ctx);
          break;
       case P_NAMED:
-         ident_write(a->items[i].name, ctx->file);
+         ident_write(a->items[i].name, ctx->ident_ctx);
          tree_write(a->items[i].value, ctx);
          break;
       }
@@ -1467,7 +1469,7 @@ static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
          a->items[i].range.right = tree_read(ctx);
          break;
       case P_NAMED:
-         a->items[i].name  = ident_read(ctx->file);
+         a->items[i].name  = ident_read(ctx->ident_ctx);
          a->items[i].value = tree_read(ctx);
          break;
       }
@@ -1480,7 +1482,8 @@ tree_wr_ctx_t tree_write_begin(FILE *f)
    ctx->file       = f;
    ctx->generation = next_generation++;
    ctx->n_trees    = 0;
-   ctx->type_ctx   = type_write_begin(ctx);
+   ctx->ident_ctx  = ident_write_begin(f);
+   ctx->type_ctx   = type_write_begin(ctx, ctx->ident_ctx);
    memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    write_u16(FILE_FMT_VER, f);
@@ -1519,9 +1522,9 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    write_u16(t->kind, ctx->file);
    write_loc(&t->loc, ctx);
    if (HAS_IDENT(t))
-      ident_write(t->ident, ctx->file);
+      ident_write(t->ident, ctx->ident_ctx);
    if (HAS_IDENT2(t))
-      ident_write(t->ident2, ctx->file);
+      ident_write(t->ident2, ctx->ident_ctx);
    if (HAS_PORTS(t))
       write_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
@@ -1551,7 +1554,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    if (HAS_CONTEXT(t)) {
       write_u16(t->n_contexts, ctx->file);
       for (unsigned i = 0; i < t->n_contexts; i++) {
-         ident_write(t->context[i].name, ctx->file);
+         ident_write(t->context[i].name, ctx->ident_ctx);
          write_loc(&t->context[i].loc, ctx);
       }
    }
@@ -1633,7 +1636,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    write_u16(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
       write_u16(t->attrs[i].kind, ctx->file);
-      ident_write(t->attrs[i].name, ctx->file);
+      ident_write(t->attrs[i].name, ctx->ident_ctx);
 
       switch (t->attrs[i].kind) {
       case A_STRING:
@@ -1687,9 +1690,9 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    ctx->store[t->index] = t;
 
    if (HAS_IDENT(t))
-      tree_set_ident(t, ident_read(ctx->file));
+      tree_set_ident(t, ident_read(ctx->ident_ctx));
    if (HAS_IDENT2(t))
-      tree_set_ident2(t, ident_read(ctx->file));
+      tree_set_ident2(t, ident_read(ctx->ident_ctx));
    if (HAS_PORTS(t))
       read_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
@@ -1721,7 +1724,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       t->context    = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
 
       for (unsigned i = 0; i < t->n_contexts; i++) {
-         t->context[i].name = ident_read(ctx->file);
+         t->context[i].name = ident_read(ctx->ident_ctx);
          t->context[i].loc  = read_loc(ctx);
       }
    }
@@ -1807,7 +1810,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    for (unsigned i = 0; i < t->n_attrs; i++) {
       t->attrs[i].kind = read_u16(ctx->file);
-      t->attrs[i].name = ident_read(ctx->file);
+      t->attrs[i].name = ident_read(ctx->ident_ctx);
 
       switch (t->attrs[i].kind) {
       case A_STRING:
@@ -1846,12 +1849,13 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
 {
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
-   ctx->file     = f;
-   ctx->type_ctx = type_read_begin(ctx);
-   ctx->store_sz = 128;
-   ctx->store    = xmalloc(ctx->store_sz * sizeof(tree_t));
-   ctx->n_trees  = 0;
-   ctx->db_fname = strdup(fname);
+   ctx->file      = f;
+   ctx->ident_ctx = ident_read_begin(f);
+   ctx->type_ctx  = type_read_begin(ctx, ctx->ident_ctx);
+   ctx->store_sz  = 128;
+   ctx->store     = xmalloc(ctx->store_sz * sizeof(tree_t));
+   ctx->n_trees   = 0;
+   ctx->db_fname  = strdup(fname);
    memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    uint16_t ver = read_u16(f);
@@ -1864,8 +1868,8 @@ tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
 
 void tree_read_end(tree_rd_ctx_t ctx)
 {
-   fclose(ctx->file);
    type_read_end(ctx->type_ctx);
+   fclose(ctx->file);
    free(ctx->store);
    free(ctx->db_fname);
    free(ctx);

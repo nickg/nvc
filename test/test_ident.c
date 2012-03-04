@@ -71,16 +71,24 @@ START_TEST(test_read_write)
    FILE *f = tmpfile();
    fail_if(f == NULL);
 
-   ident_write(i1, f);
-   ident_write(i2, f);
-   ident_write(i3, f);
+   ident_wr_ctx_t wctx = ident_write_begin(f);
+
+   ident_write(i1, wctx);
+   ident_write(i2, wctx);
+   ident_write(i3, wctx);
+
+   ident_write_end(wctx);
 
    rewind(f);
 
+   ident_rd_ctx_t rctx = ident_read_begin(f);
+
    ident_t j1, j2, j3;
-   j1 = ident_read(f);
-   j2 = ident_read(f);
-   j3 = ident_read(f);
+   j1 = ident_read(rctx);
+   j2 = ident_read(rctx);
+   j3 = ident_read(rctx);
+
+   ident_read_end(rctx);
 
    fail_unless(i1 == j1);
    fail_unless(i2 == j2);

@@ -20,6 +20,14 @@ struct trie {
    struct clist *children;
 };
 
+struct ident_rd_ctx {
+   FILE *file;
+};
+
+struct ident_wr_ctx {
+   FILE *file;
+};
+
 static struct trie root = {
    .value    = '\0',
    .depth    = 1,
@@ -140,19 +148,43 @@ const char *istr(ident_t ident)
    return *bufp;
 }
 
-void ident_write(ident_t ident, FILE *f)
+ident_wr_ctx_t ident_write_begin(FILE *f)
+{
+   struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));
+   ctx->file = f;
+   return ctx;
+}
+
+void ident_write_end(ident_wr_ctx_t ctx)
+{
+   free(ctx);
+}
+
+void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
    assert(ident != NULL);
 
-   if (fwrite(istr(ident), ident->depth, 1, f) != 1)
+   if (fwrite(istr(ident), ident->depth, 1, ctx->file) != 1)
       fatal("fwrite failed");
 }
 
-ident_t ident_read(FILE *f)
+ident_rd_ctx_t ident_read_begin(FILE *f)
+{
+   struct ident_rd_ctx *ctx = xmalloc(sizeof(struct ident_rd_ctx));
+   ctx->file = f;
+   return ctx;
+}
+
+void ident_read_end(ident_rd_ctx_t ctx)
+{
+   free(ctx);
+}
+
+ident_t ident_read(ident_rd_ctx_t ctx)
 {
    struct trie *p = &root;
    char ch;
-   while ((ch = fgetc(f)) != '\0') {
+   while ((ch = fgetc(ctx->file)) != '\0') {
       struct clist *it = search_node(p, ch);
       if (it != NULL)
          p = it->down;
