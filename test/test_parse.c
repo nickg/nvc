@@ -1268,6 +1268,37 @@ START_TEST(test_concat)
 }
 END_TEST
 
+START_TEST(test_based)
+{
+   tree_t p, d;
+
+   fail_unless(input_from_file(TESTDIR "/parse/based.vhd"));
+
+   p = parse();
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_literal(tree_value(d)).i == 13);
+
+   d = tree_decl(p, 1);
+   fail_unless(tree_literal(tree_value(d)).i == 6);
+
+   d = tree_decl(p, 2);
+   fail_unless(tree_literal(tree_value(d)).i == 7);
+
+   d = tree_decl(p, 3);
+   fail_unless(tree_literal(tree_value(d)).i == 1234);
+
+   d = tree_decl(p, 4);
+   fail_unless(tree_literal(tree_value(d)).i == 0xbeef01);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1294,6 +1325,7 @@ int main(void)
    tcase_add_test(tc_core, test_procedure);
    tcase_add_test(tc_core, test_ir1045);
    tcase_add_test(tc_core, test_concat);
+   tcase_add_test(tc_core, test_based);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

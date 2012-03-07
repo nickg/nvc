@@ -75,7 +75,6 @@ static const char *vcd_value_fmt(tree_t decl)
 
    uint64_t vals[MAX_VAR_WIDTH];
    size_t w = rt_signal_value(decl, vals, MAX_VAR_WIDTH);
-   (void)w;
    type_t type = tree_type(decl);
    if (type_kind(type) == T_CARRAY) {
       char *p = buf;

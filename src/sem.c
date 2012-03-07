@@ -3147,7 +3147,6 @@ static bool sem_check_exit(tree_t t)
    return true;
 }
 
-
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings

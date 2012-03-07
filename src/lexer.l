@@ -36,10 +36,11 @@
 
 #define YY_USER_ACTION begin_token(yytext);
 
-#define TOKEN(t) return (last_token = t);
+#define TOKEN(t) return (last_token = (t));
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
+static int parse_based_int(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
@@ -48,14 +49,15 @@ lvals_t lvals;
 
 /* TODO: look at string_literal and character_literal */
 
-ID      [a-zA-Z][a-zA-Z_0-9]*
-EXID    \\.*\\
-STRING  \".*\"
-CHAR    '.'
-COMMENT --.*\n
-INT     [0-9]+
-SPACE   [ \t\r\n]+
-TICK    \'
+ID         [a-zA-Z][a-zA-Z_0-9]*
+EXID       \\.*\\
+STRING     \".*\"
+CHAR       '.'
+COMMENT    --.*\n
+INT        [0-9]+
+BASED_INT  {INT}#[0-9a-fA-f]+#
+SPACE      [ \t\r\n]+
+TICK       \'
 
 A       [aA]
 B       [bB]
@@ -232,44 +234,45 @@ REJECT        {R}{E}{J}{E}{C}{T}
 {REJECT}        { TOKEN(tREJECT); }
 {INERTIAL}      { TOKEN(tINERTIAL); }
 
-"("        { TOKEN(tLPAREN); }
-")"        { TOKEN(tRPAREN); }
-";"        { TOKEN(tSEMI); }
-":="       { TOKEN(tASSIGN); }
-":"        { TOKEN(tCOLON); }
-"**"       { TOKEN(tPOWER); }
-","        { TOKEN(tCOMMA); }
-"<>"       { TOKEN(tBOX); }
-"<"        { TOKEN(tLT); }
-"<="       { TOKEN(tLE); }
-">"        { TOKEN(tGT); }
-">="       { TOKEN(tGE); }
-"=>"       { TOKEN(tASSOC); }
-"+"        { TOKEN(tPLUS); }
-"-"        { TOKEN(tMINUS); }
-"*"        { TOKEN(tTIMES); }
-"/="       { TOKEN(tNEQ); }
-"="        { TOKEN(tEQ); }
-"/"        { TOKEN(tOVER); }
-"."        { TOKEN(tDOT); }
-"&"        { TOKEN(tAMP); }
-"|"        { TOKEN(tBAR); }
-"["        { TOKEN(tLSQUARE); }
-"]"        { TOKEN(tRSQUARE); }
-{INT}      { lvals.ival = atoll(yytext); TOKEN(tINT); }
-{STRING}   { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
-{TICK}     { TOKEN(tTICK); }
-{CHAR}     { if (resolve_ir1045()) {
-                lvals.sval = strdup(yytext);
-                TOKEN(tID);
+"("          { TOKEN(tLPAREN); }
+")"          { TOKEN(tRPAREN); }
+";"          { TOKEN(tSEMI); }
+":="         { TOKEN(tASSIGN); }
+":"          { TOKEN(tCOLON); }
+"**"         { TOKEN(tPOWER); }
+","          { TOKEN(tCOMMA); }
+"<>"         { TOKEN(tBOX); }
+"<"          { TOKEN(tLT); }
+"<="         { TOKEN(tLE); }
+">"          { TOKEN(tGT); }
+">="         { TOKEN(tGE); }
+"=>"         { TOKEN(tASSOC); }
+"+"          { TOKEN(tPLUS); }
+"-"          { TOKEN(tMINUS); }
+"*"          { TOKEN(tTIMES); }
+"/="         { TOKEN(tNEQ); }
+"="          { TOKEN(tEQ); }
+"/"          { TOKEN(tOVER); }
+"."          { TOKEN(tDOT); }
+"&"          { TOKEN(tAMP); }
+"|"          { TOKEN(tBAR); }
+"["          { TOKEN(tLSQUARE); }
+"]"          { TOKEN(tRSQUARE); }
+{INT}        { lvals.ival = atoll(yytext); TOKEN(tINT); }
+{BASED_INT}  { return parse_based_int(yytext); }
+{STRING}     { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
+{TICK}       { TOKEN(tTICK); }
+{CHAR}       { if (resolve_ir1045()) {
+                  lvals.sval = strdup(yytext);
+                  TOKEN(tID);
+               }
+               REJECT;
              }
-             REJECT;
-           }
-{ID}       { return parse_id(yytext); }
-{EXID}     { return parse_ex_id(yytext); }
-{SPACE}    { }
-<<EOF>>    { return 0; }
-.          { TOKEN(tERROR); }
+{ID}         { return parse_id(yytext); }
+{EXID}       { return parse_ex_id(yytext); }
+{SPACE}      { }
+<<EOF>>      { return 0; }
+.            { TOKEN(tERROR); }
 %%
 
 static int resolve_ir1045(void)
@@ -321,3 +324,19 @@ static int parse_ex_id(const char *str)
 
    TOKEN(tID);
 }
+
+static int parse_based_int(const char *str)
+{
+   char *tmp = strdup(str);
+
+   char *base  = strtok(tmp, "#");
+   char *value = strtok(NULL, "#");
+
+   char *eptr = NULL;
+   lvals.ival = strtol(value, &eptr, atoi(base));
+
+   free(tmp);
+
+   TOKEN(*eptr == '\0' ? tINT : tERROR);
+}
+
