@@ -334,9 +334,10 @@ static int parse_based_int(const char *str)
 
    char *eptr = NULL;
    lvals.ival = strtol(value, &eptr, atoi(base));
+   int t = *eptr == '\0' ? tINT : tERROR;
 
    free(tmp);
 
-   TOKEN(*eptr == '\0' ? tINT : tERROR);
+   TOKEN(t);
 }
 
