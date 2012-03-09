@@ -275,7 +275,13 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
       "Note", "Warning", "Error", "Failure"
    };
 
-   tree_t t = tree_read_recall(tree_rd_ctx, where);
+   bool is_report = false;
+   const loc_t *loc = NULL;
+   if (where != -1) {
+      tree_t t = tree_read_recall(tree_rd_ctx, where);
+      loc = tree_loc(t);
+      is_report = tree_attr_int(t, ident_new("is_report"), 0);
+   }
 
    char *copy = NULL;
    if (msg_len >= 0) {
@@ -298,10 +304,9 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
    if (severity >= EXIT_SEVERITY)
       fn = fatal_at;
 
-   (*fn)(tree_loc(t), "%s+%d: %s %s: %s",
+   (*fn)(loc, "%s+%d: %s %s: %s",
          fmt_time(now), iteration,
-         (tree_attr_int(t, ident_new("is_report"), 0)
-          ? "Report" : "Assertion"),
+         (is_report ? "Report" : "Assertion"),
          levels[severity],
          (copy != NULL ? copy : (const char *)msg));
 

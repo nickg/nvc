@@ -35,11 +35,14 @@
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
-static bool           run_optimiser = true;
-static bool           dump_module = false;
-static ident_t        var_offset_i = NULL;
-static ident_t        local_var_i = NULL;
-static ident_t        sig_struct_i = NULL;
+
+static bool run_optimiser = true;
+static bool dump_module = false;
+static bool is_package = false;
+
+static ident_t var_offset_i = NULL;
+static ident_t local_var_i = NULL;
+static ident_t sig_struct_i = NULL;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -1798,7 +1801,7 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
       msg_val,
       llvm_int32(slen),
       severity,
-      llvm_int32(tree_index(t))
+      llvm_int32(is_package ? -1 : tree_index(t))
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"),
                  args, ARRAY_LEN(args), "");
@@ -2822,6 +2825,8 @@ void cgen(tree_t top)
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY)
       fatal("cannot generate code for tree kind %d", kind);
+
+   is_package = (kind == T_PACK_BODY);
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();
