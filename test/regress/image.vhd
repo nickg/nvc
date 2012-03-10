@@ -11,6 +11,7 @@ begin
         report integer'image(-42);
         i := 73;
         report integer'image(i);
+        report "i=" & integer'image(i) & " units";
         wait;
     end process;
     

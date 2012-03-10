@@ -172,6 +172,22 @@ static int bit_width(type_t t)
    }
 }
 
+static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base)
+{
+   // Unconstrained arrays are represented by a structure
+   // containing the left and right indices, a flag indicating
+   // direction, and a pointer to the array data
+
+   LLVMTypeRef fields[] = {
+      LLVMPointerType(base, 0),
+      LLVMInt32Type(),      // Left
+      LLVMInt32Type(),      // Right
+      LLVMInt8Type()        // Direction
+   };
+
+   return LLVMStructType(fields, ARRAY_LEN(fields), false);
+}
+
 static LLVMTypeRef llvm_type(type_t t)
 {
    switch (type_kind(t)) {
@@ -199,18 +215,7 @@ static LLVMTypeRef llvm_type(type_t t)
             return LLVMArrayType(llvm_type(type_base(t)), nelems);
          }
          else {
-            // Unconstrained arrays are represented by a structure
-            // containing the left and right indices, a flag indicating
-            // direction, and a pointer to the array data
-
-            LLVMTypeRef fields[] = {
-               LLVMPointerType(llvm_type(type_base(t)), 0),
-               LLVMInt32Type(),      // Left
-               LLVMInt32Type(),      // Right
-               LLVMInt8Type()        // Direction
-            };
-
-            return LLVMStructType(fields, ARRAY_LEN(fields), false);
+            return llvm_uarray_type(llvm_type(type_base(t)));
          }
       }
 
@@ -1756,15 +1761,6 @@ static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
    }
 }
 
-static LLVMValueRef cgen_array_to_c_string(LLVMValueRef a)
-{
-   LLVMValueRef indices[] = {
-      llvm_int32(0), llvm_int32(0)
-   };
-
-   return LLVMBuildGEP(builder, a, indices, ARRAY_LEN(indices), "");
-}
-
 static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
 {
    int is_report = tree_attr_int(t, ident_new("is_report"), 0);
@@ -1785,21 +1781,11 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
       LLVMPositionBuilderAtEnd(builder, thenbb);
    }
 
-   int slen = -1;  // String is NULL terminated
-   LLVMValueRef msg_val = NULL;
    type_t msg_type = tree_type(tree_message(t));
-   if (type_kind(msg_type) == T_CARRAY) {
-      int64_t slow, shigh;
-      range_bounds(type_dim(msg_type, 0), &slow, &shigh);
-      slen = shigh - slow + 1;
-      msg_val = cgen_array_to_c_string(message);
-   }
-   else
-      msg_val = message;
 
    LLVMValueRef args[] = {
-      msg_val,
-      llvm_int32(slen),
+      cgen_array_data_ptr(msg_type, message),
+      cgen_array_len(msg_type, message),
       severity,
       llvm_int32(is_package ? -1 : tree_index(t))
    };
@@ -2791,7 +2777,7 @@ static void cgen_support_fns(void)
       LLVMInt64Type()
    };
    LLVMAddFunction(module, "_image",
-                   LLVMFunctionType(llvm_void_ptr(),
+                   LLVMFunctionType(llvm_uarray_type(LLVMInt8Type()),
                                     _image_args,
                                     ARRAY_LEN(_image_args),
                                     false));

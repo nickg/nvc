@@ -88,6 +88,13 @@ struct signal {
    sig_event_fn_t   event_cb;
 };
 
+struct uarray {
+   void    *ptr;
+   int32_t left;
+   int32_t right;
+   int8_t  dir;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
@@ -387,11 +394,14 @@ int8_t _array_eq(const void *lhs, const void *rhs,
       return memcmp(lhs, rhs, n * sz) == 0;
 }
 
-int8_t *_image(int64_t val)
+struct uarray _image(int64_t val)
 {
-   char *buf = rt_tmp_alloc(32);
-   snprintf(buf, 32, "%"PRIi64, val);
-   return (int8_t*)buf;
+   struct uarray u;
+   u.ptr   = rt_tmp_alloc(32);
+   u.left  = 0;
+   u.right = snprintf(u.ptr, 32, "%"PRIi64, val) - 1;
+   u.dir   = RANGE_TO;
+   return u;
 }
 
 void _debug_out(int32_t val)

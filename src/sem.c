@@ -2466,7 +2466,7 @@ static bool sem_check_concat(tree_t t)
       tree_t tmp = call_builtin(
          "\"-\"", "sub", index_type, result_len, index_r.left, NULL);
       tree_t result_right = call_builtin(
-         "\"-\"", "sub", index_type, tmp, one, NULL);
+         "\"+\"", "add", index_type, tmp, one, NULL);
 
       range_t result_r = {
          .kind  = index_r.kind,
