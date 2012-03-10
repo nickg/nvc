@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
@@ -2356,13 +2357,18 @@ tree_t tree_copy(tree_t t)
    return copy;
 }
 
-tree_t call_builtin(const char *name, const char *builtin, type_t type, ...)
+tree_t call_builtin(const char *builtin, type_t type, ...)
 {
    struct decl_cache {
       struct decl_cache *next;
       ident_t bname;
       tree_t  decl;
    };
+
+   char name[64];
+   snprintf(name, sizeof(name), "NVC.BUILTIN.%s", builtin);
+   for (char *p = name; *p != '\0'; p++)
+      *p = toupper(*p);
 
    static struct decl_cache *cache = NULL;
 

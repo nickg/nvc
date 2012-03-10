@@ -293,7 +293,7 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val);
 // Utility functions
 int64_t assume_int(tree_t t);
 void range_bounds(range_t r, int64_t *low, int64_t *high);
-tree_t call_builtin(const char *name, const char *builtin, type_t type, ...);
+tree_t call_builtin(const char *builtin, type_t type, ...);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);

@@ -344,8 +344,7 @@ static tree_t simp_alias_index(tree_t decl, tree_t index)
 
    type_t ptype = tree_type(index);
 
-   tree_t off = call_builtin("\"-\"", "sub", ptype,
-                             index, alias_r.left, NULL);
+   tree_t off = call_builtin("sub", ptype, index, alias_r.left, NULL);
 
    switch (type_kind(base_type)) {
    case T_CARRAY:
@@ -354,11 +353,11 @@ static tree_t simp_alias_index(tree_t decl, tree_t index)
          range_t base_r  = type_dim(base_type, 0);
          if (alias_r.kind == base_r.kind) {
             // Range in same direction
-            return call_builtin("\"+\"", "add", ptype, base_r.left, off, NULL);
+            return call_builtin("add", ptype, base_r.left, off, NULL);
          }
          else {
             // Range in opposite direction
-            return call_builtin("\"-\"", "sub", ptype, base_r.left, off, NULL);
+            return call_builtin("sub", ptype, base_r.left, off, NULL);
          }
       }
       break;
@@ -371,8 +370,7 @@ static tree_t simp_alias_index(tree_t decl, tree_t index)
          tree_set_ident(ref, tree_ident(base_decl));
          tree_set_type(ref, ptype);
 
-         tree_t base_left = call_builtin(
-            "LEFT", "uarray_left", ptype, ref, NULL);
+         tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
 
          literal_t l;
          l.kind = L_INT;
@@ -385,11 +383,10 @@ static tree_t simp_alias_index(tree_t decl, tree_t index)
          // Call dircmp builtin which multiplies its third argument
          // by -1 if the direction of the first argument is not equal
          // to the direction of the second
-         tree_t off_dir = call_builtin(
-            "NVC.BUILTIN.DIRCMP", "uarray_dircmp", ptype,
-            ref, rkind_lit, off, NULL);
+         tree_t off_dir = call_builtin("uarray_dircmp", ptype,
+                                       ref, rkind_lit, off, NULL);
 
-         return call_builtin("+", "add", ptype, base_left, off_dir, NULL);
+         return call_builtin("add", ptype, base_left, off_dir, NULL);
       }
       break;
 
@@ -618,7 +615,7 @@ static tree_t simp_for(tree_t t)
    for (unsigned i = 0; i < tree_stmts(t); i++)
       tree_add_stmt(wh, tree_stmt(t, i));
 
-   tree_t cmp = call_builtin("\"=\"", "eq", NULL, var, r.right, NULL);
+   tree_t cmp = call_builtin("eq", NULL, var, r.right, NULL);
 
    tree_t exit = tree_new(T_EXIT);
    tree_set_ident(exit, ident_uniq("for_exit"));
@@ -629,27 +626,24 @@ static tree_t simp_for(tree_t t)
       assert(tree_kind(r.left) == T_FCALL);
       param_t p = tree_param(r.left, 0);
 
-      tree_t asc = call_builtin("NVC.BUILTIN.ASCENDING", "uarray_asc",
-                                NULL, p.value, NULL);
+      tree_t asc = call_builtin("uarray_asc", NULL, p.value, NULL);
       next = tree_new(T_IF);
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));
 
-      tree_t succ_call = call_builtin("NVC.BUILTIN.SUCC", "succ",
-                                      tree_type(decl), var, NULL);
+      tree_t succ = call_builtin("succ", tree_type(decl), var, NULL);
 
       tree_t a1 = tree_new(T_VAR_ASSIGN);
       tree_set_ident(a1, ident_uniq("for_next_asc"));
       tree_set_target(a1, var);
-      tree_set_value(a1, succ_call);
+      tree_set_value(a1, succ);
 
-      tree_t pred_call = call_builtin("NVC.BUILTIN.PRED", "pred",
-                                      tree_type(decl), var, NULL);
+      tree_t pred = call_builtin("pred", tree_type(decl), var, NULL);
 
       tree_t a2 = tree_new(T_VAR_ASSIGN);
       tree_set_ident(a2, ident_uniq("for_next_dsc"));
       tree_set_target(a2, var);
-      tree_set_value(a2, pred_call);
+      tree_set_value(a2, pred);
 
       tree_add_stmt(next, a1);
       tree_add_else_stmt(next, a2);
@@ -658,12 +652,10 @@ static tree_t simp_for(tree_t t)
       tree_t call;
       switch (r.kind) {
       case RANGE_TO:
-         call = call_builtin("NVC.BUILTIN.SUCC", "succ",
-                             tree_type(decl), var, NULL);
+         call = call_builtin("succ", tree_type(decl), var, NULL);
          break;
       case RANGE_DOWNTO:
-         call = call_builtin("NVC.BUILTIN.PRED", "pred",
-                             tree_type(decl), var, NULL);
+         call = call_builtin("pred", tree_type(decl), var, NULL);
          break;
       default:
          assert(false);
