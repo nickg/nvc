@@ -945,15 +945,37 @@ static bool sem_readable(tree_t t)
    }
 }
 
-static bool sem_check_array_dims(type_t type)
+static bool sem_check_array_dims(type_t type, type_t constraint)
 {
    for (unsigned i = 0; i < type_dims(type); i++) {
       range_t r = type_dim(type, i);
 
-      // XXX: constrained by index type
-      //      push type set first
-      if (!sem_check_range(&r))
+      type_t index_type =
+         constraint ? type_index_constr(constraint, i) : NULL;
+
+      type_set_push();
+      if (index_type)
+         type_set_add(index_type);
+      bool ok = sem_check_range(&r);
+      type_set_pop();
+
+      if (!ok)
          return false;
+
+      if (index_type) {
+         tree_t error = NULL;
+         if (!type_eq(tree_type(r.left), index_type))
+            error = r.left;
+         else if (!type_eq(tree_type(r.right), index_type))
+            error = r.right;
+
+         if (error)
+            sem_error(error, "type of bound does not match type of index %s",
+                      type_pp(index_type));
+
+         tree_set_type(r.left, index_type);
+         tree_set_type(r.right, index_type);
+      }
 
       type_change_dim(type, i, r);
    }
@@ -981,7 +1003,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
                   sem_error(t, "expected %d array dimensions but %d given",
                             type_index_constrs(base), type_dims(*ptype));
 
-               if (!sem_check_array_dims(*ptype))
+               if (!sem_check_array_dims(*ptype, base))
                   return false;
 
                type_t collapse = type_new(T_CARRAY);
@@ -1103,7 +1125,7 @@ static bool sem_check_type_decl(tree_t t)
 
    switch (type_kind(type)) {
    case T_CARRAY:
-      return sem_check_array_dims(base);
+      return sem_check_array_dims(base, NULL);
 
    case T_UARRAY:
       for (unsigned i = 0; i < type_index_constrs(type); i++) {
@@ -2462,7 +2484,7 @@ static bool sem_check_concat(tree_t t)
       tree_t result_len = call_builtin(
          "add", index_type, left_len, right_len, NULL);
       tree_t tmp = call_builtin(
-         "sub", index_type, result_len, index_r.left, NULL);
+         "add", index_type, result_len, index_r.left, NULL);
       tree_t result_right = call_builtin(
          "sub", index_type, tmp, one, NULL);
 

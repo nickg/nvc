@@ -128,9 +128,11 @@ static void dump_expr(tree_t t)
       break;
 
    case T_CONCAT:
+      printf("(");
       dump_expr(tree_param(t, 0).value);
       printf(" & ");
       dump_expr(tree_param(t, 1).value);
+      printf(")");
       break;
 
    default:
@@ -551,6 +553,17 @@ void dump(tree_t t)
       break;
    case T_PACK_BODY:
       dump_package_body(t);
+      break;
+   case T_FCALL:
+   case T_LITERAL:
+   case T_AGGREGATE:
+   case T_REF:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_TYPE_CONV:
+   case T_CONCAT:
+      dump_expr(t);
+      printf("\n");
       break;
    default:
       assert(false);
