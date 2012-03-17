@@ -35,6 +35,7 @@
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
+static LLVMValueRef   mod_name = NULL;
 
 static bool run_optimiser = true;
 static bool dump_module = false;
@@ -996,7 +997,10 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
       }
       else if (icmp(builtin, "image")) {
          LLVMValueRef iargs[] = {
-            LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), "")
+            LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), ""),
+            llvm_int32(tree_index(tree_param(t, 0).value)),
+            LLVMBuildPointerCast(builder, mod_name,
+                                 LLVMPointerType(LLVMInt8Type(), 0), "")
          };
          return LLVMBuildCall(builder, llvm_fn("_image"),
                               iargs, ARRAY_LEN(iargs), "");
@@ -2774,7 +2778,9 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _image_args[] = {
-      LLVMInt64Type()
+      LLVMInt64Type(),
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0)
    };
    LLVMAddFunction(module, "_image",
                    LLVMFunctionType(llvm_uarray_type(LLVMInt8Type()),
@@ -2802,6 +2808,24 @@ static void cgen_support_fns(void)
                                     false));
 }
 
+static void cgen_module_name(tree_t top)
+{
+   const char *name_str = istr(tree_ident(top));
+
+   size_t len = strlen(name_str);
+   LLVMValueRef chars[len + 1];
+   for (size_t i = 0; i < len; i++)
+      chars[i] = llvm_int8(name_str[i]);
+   chars[len] = llvm_int8('\0');
+
+   mod_name = LLVMAddGlobal(module,
+                            LLVMArrayType(LLVMInt8Type(), len + 1),
+                            "module_name");
+   LLVMSetInitializer(mod_name,
+                      LLVMConstArray(LLVMInt8Type(), chars, len + 1));
+   LLVMSetLinkage(mod_name, LLVMPrivateLinkage);
+}
+
 void cgen(tree_t top)
 {
    var_offset_i = ident_new("var_offset");
@@ -2817,6 +2841,7 @@ void cgen(tree_t top)
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();
 
+   cgen_module_name(top);
    cgen_support_fns();
 
    cgen_top(top);

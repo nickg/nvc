@@ -2,3 +2,4 @@
 0ms+0: Report Note: -42
 0ms+0: Report Note: 73
 0ms+0: Report Note: i=73 units
+0ms+0: Report Note: 'c'

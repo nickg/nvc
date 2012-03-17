@@ -680,6 +680,11 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
          tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
          tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
+
+         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
+                                       sem_std_type("STRING"),
+                                       "image", t, NULL);
+         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
 

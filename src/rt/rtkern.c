@@ -394,12 +394,36 @@ int8_t _array_eq(const void *lhs, const void *rhs,
       return memcmp(lhs, rhs, n * sz) == 0;
 }
 
-struct uarray _image(int64_t val)
+struct uarray _image(int64_t val, int32_t where, const char *module)
 {
+   tree_t t = tree_read_recall(tree_rd_ctx, where);
+
+   type_t type = tree_type(t);
+   while (type_kind(type) == T_SUBTYPE)
+      type = type_base(type);
+
+   const size_t max = 32;
+   char *buf = rt_tmp_alloc(max);
+   size_t len = 0;
+
+   switch (type_kind(type)) {
+   case T_INTEGER:
+      len = snprintf(buf, max, "%"PRIi64, val);
+      break;
+
+   case T_ENUM:
+      len = snprintf(buf, max, "%s",
+                     istr(tree_ident(type_enum_literal(type, val))));
+      break;
+
+   default:
+      fatal_at(tree_loc(t), "cannot use 'IMAGE with this type");
+   }
+
    struct uarray u;
-   u.ptr   = rt_tmp_alloc(32);
+   u.ptr   = buf;
    u.left  = 0;
-   u.right = snprintf(u.ptr, 32, "%"PRIi64, val) - 1;
+   u.right = len - 1;
    u.dir   = RANGE_TO;
    return u;
 }
