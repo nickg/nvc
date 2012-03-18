@@ -316,6 +316,14 @@ static LLVMValueRef cgen_uarray_low(LLVMValueRef array)
    return LLVMBuildSelect(builder, is_downto, right, left, "low");
 }
 
+static LLVMValueRef cgen_array_dir(type_t type, LLVMValueRef var)
+{
+   if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type))
+      return LLVMBuildExtractValue(builder, var, 3, "dir");
+   else
+      return llvm_int8(type_dim(type, 0).kind);
+}
+
 static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
 {
    if (type_kind(type) == T_CARRAY && cgen_const_bounds(type)) {
@@ -482,17 +490,8 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset)
 {
-   LLVMValueRef src_dir;
-   if (type_kind(src_type) == T_UARRAY || !cgen_const_bounds(src_type))
-      src_dir = LLVMBuildExtractValue(builder, src, 3, "dir");
-   else
-      src_dir = llvm_int8(type_dim(src_type, 0).kind);
-
-   LLVMValueRef dst_dir;
-   if (type_kind(dest_type) == T_UARRAY || !cgen_const_bounds(dest_type))
-      dst_dir = LLVMBuildExtractValue(builder, dst, 3, "dir");
-   else
-      dst_dir = llvm_int8(type_dim(dest_type, 0).kind);
+   LLVMValueRef src_dir = cgen_array_dir(src_type, src);
+   LLVMValueRef dst_dir = cgen_array_dir(dest_type, dst);
 
    LLVMValueRef opposite_dir =
       LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
@@ -836,6 +835,14 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
    LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
 
+   LLVMValueRef ldir = cgen_array_dir(left_type, lhs);
+   LLVMValueRef rdir = cgen_array_dir(right_type, rhs);
+
+   LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
+                                         llvm_int8(RANGE_DOWNTO), "l_downto");
+   LLVMValueRef r_downto = LLVMBuildICmp(builder, LLVMIntEQ, rdir,
+                                         llvm_int8(RANGE_DOWNTO), "r_downto");
+
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -861,10 +868,19 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
+   LLVMValueRef i_plus_1   = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "");
+   LLVMValueRef l_off_down = LLVMBuildSub(builder, left_len, i_plus_1, "");
+   LLVMValueRef r_off_down = LLVMBuildSub(builder, right_len, i_plus_1, "");
+
+   LLVMValueRef l_off = LLVMBuildSelect(builder, l_downto,
+                                        l_off_down, i_loaded, "l_off");
+   LLVMValueRef r_off = LLVMBuildSelect(builder, r_downto,
+                                        r_off_down, i_loaded, "r_off");
+
    LLVMValueRef l_ptr = LLVMBuildGEP(builder, left_base,
-                                     &i_loaded, 1, "l_ptr");
+                                     &l_off, 1, "l_ptr");
    LLVMValueRef r_ptr = LLVMBuildGEP(builder, right_base,
-                                     &i_loaded, 1, "r_ptr");
+                                     &r_off, 1, "r_ptr");
 
    LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
