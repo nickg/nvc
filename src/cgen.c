@@ -289,7 +289,8 @@ static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef left, LLVMValueRef right,
                                     LLVMValueRef kind, LLVMValueRef ptr)
 {
-   LLVMValueRef var = LLVMGetUndef(llvm_type(type));
+   LLVMTypeRef base = llvm_type(type_base(type));
+   LLVMValueRef var = LLVMGetUndef(llvm_uarray_type(base));
    var = LLVMBuildInsertValue(builder, var, ptr, 0, "");
    var = LLVMBuildInsertValue(builder, var, left, 1, "");
    var = LLVMBuildInsertValue(builder, var, right, 2, "");
@@ -322,6 +323,22 @@ static LLVMValueRef cgen_array_dir(type_t type, LLVMValueRef var)
       return LLVMBuildExtractValue(builder, var, 3, "dir");
    else
       return llvm_int8(type_dim(type, 0).kind);
+}
+
+static LLVMValueRef cgen_array_left(type_t type, LLVMValueRef var)
+{
+   if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type))
+      return LLVMBuildExtractValue(builder, var, 1, "left");
+   else
+      return llvm_int32(assume_int(type_dim(type, 0).left));
+}
+
+static LLVMValueRef cgen_array_right(type_t type, LLVMValueRef var)
+{
+   if (type_kind(type) == T_UARRAY || !cgen_const_bounds(type))
+      return LLVMBuildExtractValue(builder, var, 2, "right");
+   else
+      return llvm_int32(assume_int(type_dim(type, 0).right));
 }
 
 static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
@@ -401,15 +418,12 @@ static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
       LLVMValueRef length =
          LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
 
-      LLVMTypeRef ptr_type =
-         LLVMPointerType(llvm_type(type_base(type)), 0);
+      LLVMTypeRef base_type = llvm_type(type_base(type));
+      LLVMTypeRef ptr_type  = LLVMPointerType(base_type, 0);
 
-      LLVMValueRef args[] = {
-         length,
-         llvm_sizeof(llvm_type(type_base(type)))
-      };
-      LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
-                                       args, ARRAY_LEN(args), "buf");
+      LLVMValueRef buf =
+         LLVMBuildArrayAlloca(builder, base_type, length, "buf");
+
       LLVMValueRef ptr = LLVMBuildPointerCast(builder, buf, ptr_type, "");
 
       var = cgen_array_meta(type, left, right, kind_ll, ptr);
@@ -1806,45 +1820,42 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
    LLVMValueRef rval = cgen_expr(tree_value(t), ctx);
 
    // If we are returning an array then wrap it with metadata
-   type_t type = tree_type(tree_value(t));
-   type_kind_t kind = type_kind(type);
+   type_t stype = tree_type(tree_value(t));
+   type_kind_t kind = type_kind(stype);
    if (kind == T_CARRAY || kind == T_UARRAY) {
-      if (kind == T_CARRAY && cgen_const_bounds(type)) {
-         // Need to make a copy of this array as it is currently
-         // on the stack
+      // Need to make a copy of this array as it is currently
+      // on the stack
 
-         range_t r = type_dim(type, 0);
-         assert(r.kind != RANGE_DYN);
+      type_t rtype = type_result(tree_type(ctx->fdecl));
+      assert(type_kind(rtype) == T_UARRAY);
 
-         int64_t low, high;
-         range_bounds(r, &low, &high);
+      LLVMTypeRef base_type = llvm_type(type_base(stype));
 
-         int n_elems = (high < low ? 0 : high - low + 1);
+      LLVMValueRef args[] = {
+         cgen_array_len(stype, rval),
+         llvm_sizeof(base_type)
+      };
+      LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
+                                       args, ARRAY_LEN(args), "buf");
 
-         LLVMValueRef args[] = {
-            llvm_int32(n_elems),
-            llvm_sizeof(llvm_type(type_base(type)))
-         };
-         LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
-                                          args, ARRAY_LEN(args), "buf");
+      LLVMTypeRef ptr_type = LLVMPointerType(base_type, 0);
 
-         cgen_array_copy(type, type, rval, buf, NULL);
+      LLVMValueRef rarray = cgen_array_meta(
+         rtype,
+         cgen_array_left(stype, rval),
+         cgen_array_right(stype, rval),
+         cgen_array_dir(stype, rval),
+         LLVMBuildPointerCast(builder, buf, ptr_type, ""));
 
-         LLVMTypeRef ptr_type =
-            LLVMPointerType(llvm_type(type_base(type)), 0);
+      cgen_array_copy(stype, rtype, rval, rarray, NULL);
 
-         LLVMValueRef values[] = {
-            LLVMBuildPointerCast(builder, buf, ptr_type, ""),
-            cgen_expr(r.left, ctx),
-            cgen_expr(r.right, ctx),
-            llvm_int8(r.kind)
-         };
-         LLVMBuildAggregateRet(builder, values, ARRAY_LEN(values));
-      }
-      else {
-         // Array already has metadata
-         LLVMBuildRet(builder, rval);
-      }
+      LLVMValueRef values[] = {
+         LLVMBuildExtractValue(builder, rarray, 0, "ptr"),
+         LLVMBuildExtractValue(builder, rarray, 1, "left"),
+         LLVMBuildExtractValue(builder, rarray, 2, "right"),
+         LLVMBuildExtractValue(builder, rarray, 3, "dir")
+      };
+      LLVMBuildAggregateRet(builder, values, ARRAY_LEN(values));
    }
    else
       LLVMBuildRet(builder, rval);
