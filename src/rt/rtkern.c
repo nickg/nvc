@@ -95,9 +95,16 @@ struct uarray {
    int8_t  dir;
 };
 
+struct loaded {
+   const char    *name;
+   tree_rd_ctx_t read_ctx;
+   struct loaded *next;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
+static struct loaded    *loaded = NULL;
 
 static heap_t        eventq_heap = NULL;
 static size_t        n_procs = 0;
@@ -122,6 +129,7 @@ static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
 static void rt_alloc_driver(struct signal *sig, int source,
                             uint64_t after, uint64_t value);
 static void *rt_tmp_alloc(size_t sz);
+static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
 
 #define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
@@ -266,8 +274,8 @@ void _sched_event(void *_sig, int32_t n)
    }
 }
 
-void _assert_fail(const uint8_t *msg, int32_t msg_len,
-                  int8_t severity, int32_t where)
+void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
+                  int32_t where, const char *module)
 {
    // LRM 93 section 8.2
    // The error message consists of at least
@@ -282,13 +290,9 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len,
       "Note", "Warning", "Error", "Failure"
    };
 
-   bool is_report = false;
-   const loc_t *loc = NULL;
-   if (where != -1) {
-      tree_t t = tree_read_recall(tree_rd_ctx, where);
-      loc = tree_loc(t);
-      is_report = tree_attr_int(t, ident_new("is_report"), 0);
-   }
+   tree_t t = rt_recall_tree(module, where);
+   const loc_t *loc = tree_loc(t);
+   bool is_report = tree_attr_int(t, ident_new("is_report"), 0);
 
    char *copy = NULL;
    if (msg_len >= 0) {
@@ -396,7 +400,7 @@ int8_t _array_eq(const void *lhs, const void *rhs,
 
 struct uarray _image(int64_t val, int32_t where, const char *module)
 {
-   tree_t t = tree_read_recall(tree_rd_ctx, where);
+   tree_t t = rt_recall_tree(module, where);
 
    type_t type = tree_type(t);
    while (type_kind(type) == T_SUBTYPE)
@@ -799,6 +803,48 @@ static void rt_cycle(void)
       }
    }
    n_active_signals = 0;
+}
+
+static void rt_load_unit(const char *name)
+{
+   char *tmp = strdup(name);
+   const char *lib_name  = strtok(tmp, ".");
+
+   lib_t lib = lib_find(lib_name, true, true);
+   if (lib == NULL)
+      fatal("cannot continue");
+
+   tree_rd_ctx_t ctx = NULL;
+   if (lib_get_ctx(lib, ident_new(name), &ctx) == NULL)
+      fatal("cannot find unit %s", name);
+
+   struct loaded *l = xmalloc(sizeof(struct loaded));
+   l->next     = NULL;
+   l->name     = name;
+   l->read_ctx = ctx;
+
+   if (loaded == NULL)
+      loaded = l;
+   else {
+      struct loaded *it;
+      for (it = loaded; it->next != NULL; it = it->next)
+         ;
+      it->next = l;
+   }
+
+   free(tmp);
+}
+
+static tree_t rt_recall_tree(const char *unit, int32_t where)
+{
+   struct loaded *it;
+   for (it = loaded; it != NULL; it = it->next) {
+      if (it->name == unit)
+         return tree_read_recall(it->read_ctx, where);
+   }
+
+   rt_load_unit(unit);
+   return rt_recall_tree(unit, where);
 }
 
 static void rt_one_time_init(void)

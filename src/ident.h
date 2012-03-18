@@ -24,8 +24,11 @@ ident_t ident_strip(ident_t a, ident_t b);
 // Return the Nth character of an identifier counting from the end.
 char ident_char(ident_t i, unsigned n);
 
-// Return the the prefix of i that does not include c
+// Return the prefix of i that does not include c
 ident_t ident_until(ident_t i, char c);
+
+// Return the prefix of i up to the final c
+ident_t ident_runtil(ident_t i, char c);
 
 // Compare identifier against a NULL-terminated string
 bool icmp(ident_t i, const char *s);

@@ -33,8 +33,9 @@
 #define MAX_SEARCH_PATHS 64
 
 struct lib_unit {
-   tree_t top;
-   bool   dirty;
+   tree_t        top;
+   tree_rd_ctx_t read_ctx;
+   bool          dirty;
 };
 
 struct lib {
@@ -82,7 +83,8 @@ static lib_t lib_init(const char *name, const char *rpath)
    return l;
 }
 
-static void lib_put_aux(lib_t lib, tree_t unit, bool dirty)
+static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
+                                    tree_rd_ctx_t ctx, bool dirty)
 {
    assert(lib != NULL);
    assert(unit != NULL);
@@ -98,8 +100,11 @@ static void lib_put_aux(lib_t lib, tree_t unit, bool dirty)
    }
 
    unsigned n = lib->n_units++;
-   lib->units[n].top   = unit;
-   lib->units[n].dirty = dirty;
+   lib->units[n].top      = unit;
+   lib->units[n].read_ctx = ctx;
+   lib->units[n].dirty    = dirty;
+
+   return &(lib->units[n]);
 }
 
 static lib_t lib_find_at(const char *name, const char *path)
@@ -282,17 +287,17 @@ void lib_set_work(lib_t lib)
 
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, true);
+   lib_put_aux(lib, unit, NULL, true);
 }
 
-tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
+static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
    // Search in the list of already loaded libraries
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (tree_ident(lib->units[n].top) == ident)
-         return lib->units[n].top;
+         return &(lib->units[n]);
    }
 
    if (*(lib->path) == '\0')   // Temporary library
@@ -303,31 +308,46 @@ tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
    if (d == NULL)
       fatal("%s: %s", lib->path, strerror(errno));
 
-   tree_t unit = NULL;
+   struct lib_unit *unit = NULL;
    const char *search = istr(ident);
    struct dirent *e;
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
          FILE *f = lib_fopen(lib, e->d_name, "r");
-         *ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
-         unit = tree_read(*ctx);
-         lib_put_aux(lib, unit, false);
+         tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
+         tree_t top = tree_read(ctx);
+         unit = lib_put_aux(lib, top, ctx, false);
          break;
       }
    }
 
    closedir(d);
-
    return unit;
+}
+
+tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
+{
+   struct lib_unit *lu = lib_get_aux(lib, ident);
+   if (lu != NULL) {
+      *ctx = lu->read_ctx;
+      return lu->top;
+   }
+   else
+      return NULL;
 }
 
 tree_t lib_get(lib_t lib, ident_t ident)
 {
-   tree_rd_ctx_t ctx = NULL;
-   tree_t t = lib_get_ctx(lib, ident, &ctx);
-   if (ctx != NULL)
-      tree_read_end(ctx);
-   return t;
+   struct lib_unit *lu = lib_get_aux(lib, ident);
+   if (lu != NULL) {
+      if (lu->read_ctx != NULL) {
+         tree_read_end(lu->read_ctx);
+         lu->read_ctx = NULL;
+      }
+      return lu->top;
+   }
+   else
+      return NULL;
 }
 
 void lib_load_all(lib_t lib)

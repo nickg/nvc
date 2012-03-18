@@ -39,7 +39,6 @@ static LLVMValueRef   mod_name = NULL;
 
 static bool run_optimiser = true;
 static bool dump_module = false;
-static bool is_package = false;
 
 static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
@@ -119,6 +118,12 @@ static LLVMValueRef llvm_fn(const char *name)
    LLVMValueRef fn = LLVMGetNamedFunction(module, name);
    assert(fn != NULL);
    return fn;
+}
+
+static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
+{
+   for (size_t i = 0; i < n; i++)
+      chars[i] = llvm_int8(*str ? *(str++) : '\0');
 }
 
 #if 0
@@ -1791,7 +1796,9 @@ static void cgen_assert(tree_t t, struct cgen_ctx *ctx)
       cgen_array_data_ptr(msg_type, message),
       cgen_array_len(msg_type, message),
       severity,
-      llvm_int32(is_package ? -1 : tree_index(t))
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"),
                  args, ARRAY_LEN(args), "");
@@ -2742,7 +2749,8 @@ static void cgen_support_fns(void)
       LLVMPointerType(LLVMInt8Type(), 0),
       LLVMInt32Type(),
       LLVMInt8Type(),
-      LLVMInt32Type()
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0)
    };
    LLVMAddFunction(module, "_assert_fail",
                    LLVMFunctionType(LLVMVoidType(),
@@ -2814,9 +2822,7 @@ static void cgen_module_name(tree_t top)
 
    size_t len = strlen(name_str);
    LLVMValueRef chars[len + 1];
-   for (size_t i = 0; i < len; i++)
-      chars[i] = llvm_int8(name_str[i]);
-   chars[len] = llvm_int8('\0');
+   llvm_str(chars, len + 1, name_str);
 
    mod_name = LLVMAddGlobal(module,
                             LLVMArrayType(LLVMInt8Type(), len + 1),
@@ -2835,8 +2841,6 @@ void cgen(tree_t top)
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY)
       fatal("cannot generate code for tree kind %d", kind);
-
-   is_package = (kind == T_PACK_BODY);
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();

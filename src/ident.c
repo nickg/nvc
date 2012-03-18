@@ -355,6 +355,20 @@ ident_t ident_until(ident_t i, char c)
    return r;
 }
 
+ident_t ident_runtil(ident_t i, char c)
+{
+   assert(i != NULL);
+
+   ident_t r = i;
+   while (i->value != '\0') {
+      if (i->value == c)
+         return i->up;
+      i = i->up;
+   }
+
+   return r;
+}
+
 bool icmp(ident_t i, const char *s)
 {
    assert(i != NULL);

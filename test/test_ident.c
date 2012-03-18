@@ -161,6 +161,14 @@ START_TEST(test_until)
 }
 END_TEST
 
+START_TEST(test_runtil)
+{
+   ident_t i;
+   i = ident_new("aye.bee.c");
+   fail_unless(ident_runtil(i, '.') == ident_new("aye.bee"));
+}
+END_TEST
+
 START_TEST(test_icmp)
 {
    ident_t i, j;
@@ -192,6 +200,7 @@ int main(void)
    tcase_add_test(tc_core, test_strip);
    tcase_add_test(tc_core, test_char);
    tcase_add_test(tc_core, test_until);
+   tcase_add_test(tc_core, test_runtil);
    tcase_add_test(tc_core, test_icmp);
    suite_add_tcase(s, tc_core);
 

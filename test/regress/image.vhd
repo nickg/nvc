@@ -26,7 +26,7 @@ begin
         report integer'image(i);
         report "i=" & integer'image(i) & " units";
         report character'image('c');
-        --print_char('X');
+        print_char('X');
         wait;
     end process;
     
