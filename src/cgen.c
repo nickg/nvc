@@ -681,60 +681,6 @@ static LLVMValueRef cgen_signal_flag(tree_t ref, int flag)
       return cgen_scalar_signal_flag(sig_decl, flag);
 }
 
-static LLVMValueRef cgen_array_eq(type_t lhs_type, LLVMValueRef lhs,
-                                  type_t rhs_type, LLVMValueRef rhs)
-{
-   LLVMValueRef lhs_ptr, lhs_len, lhs_dir;
-   if (type_kind(lhs_type) == T_UARRAY || !cgen_const_bounds(lhs_type)) {
-      lhs_ptr = LLVMBuildExtractValue(builder, lhs, 0, "lhs_ptr");
-      lhs_dir = LLVMBuildExtractValue(builder, lhs, 3, "lhs_dir");
-      lhs_len = cgen_array_len(lhs_type, lhs);
-   }
-   else {
-      lhs_ptr = lhs;
-
-      range_t r = type_dim(lhs_type, 0);
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-      lhs_len = llvm_int32(high - low + 1);
-      lhs_dir = llvm_int8(r.kind);
-   }
-
-   LLVMValueRef rhs_ptr, rhs_len = NULL, rhs_dir;
-   if (type_kind(rhs_type) == T_UARRAY || !cgen_const_bounds(rhs_type)) {
-      rhs_ptr = LLVMBuildExtractValue(builder, rhs, 0, "rhs_ptr");
-      rhs_dir = LLVMBuildExtractValue(builder, rhs, 3, "rhs_dir");
-      rhs_len = cgen_array_len(rhs_type, rhs);
-   }
-   else {
-      rhs_ptr = rhs;
-
-      range_t r = type_dim(rhs_type, 0);
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-      rhs_len = llvm_int32(high - low + 1);
-      rhs_dir = llvm_int8(r.kind);
-   }
-
-   LLVMValueRef len_eq =
-      LLVMBuildICmp(builder, LLVMIntEQ, lhs_len, rhs_len, "len_eq");
-
-   LLVMValueRef opposite =
-      LLVMBuildICmp(builder, LLVMIntNE, lhs_dir, rhs_dir, "opposite");
-
-   LLVMValueRef args[] = {
-      llvm_void_cast(lhs_ptr),
-      llvm_void_cast(rhs_ptr),
-      lhs_len,
-      llvm_sizeof(llvm_type(type_base(lhs_type))),
-      opposite
-   };
-   LLVMValueRef result = LLVMBuildCall(builder, llvm_fn("_array_eq"),
-                                       args, ARRAY_LEN(args), "");
-
-   return LLVMBuildSelect(builder, len_eq, result, llvm_int1(0), "");
-}
-
 static LLVMValueRef cgen_last_value(tree_t signal, struct cgen_ctx *ctx)
 {
    tree_t sig_decl = tree_ref(signal);
@@ -1006,16 +952,14 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
                              LLVMBuildXor(builder, args[0], args[1], ""), "");
       else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
-      else if (icmp(builtin, "aeq")) {
-         type_t rhs_type = tree_type(tree_param(t, 1).value);
-         return cgen_array_eq(arg_type, args[0], rhs_type, args[1]);
-      }
-      else if (icmp(builtin, "aneq")) {
-         type_t rhs_type = tree_type(tree_param(t, 1).value);
-         return LLVMBuildNot(
-            builder,
-            cgen_array_eq(arg_type, args[0], rhs_type, args[1]), "");
-      }
+      else if (icmp(builtin, "aeq"))
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntEQ, ctx);
+      else if (icmp(builtin, "aneq"))
+         return cgen_array_rel(args[0], args[1], arg_type,
+                               tree_type(tree_param(t, 1).value),
+                               LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
          LLVMValueRef iargs[] = {
             LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), ""),
@@ -2786,19 +2730,6 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _array_copy_args,
                                     ARRAY_LEN(_array_copy_args),
-                                    false));
-
-   LLVMTypeRef _array_eq_args[] = {
-      llvm_void_ptr(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt1Type()
-   };
-   LLVMAddFunction(module, "_array_eq",
-                   LLVMFunctionType(LLVMInt1Type(),
-                                    _array_eq_args,
-                                    ARRAY_LEN(_array_eq_args),
                                     false));
 
    LLVMTypeRef _image_args[] = {

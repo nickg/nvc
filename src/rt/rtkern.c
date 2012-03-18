@@ -377,27 +377,6 @@ void _array_copy(void *dst, const void *src,
       memcpy((char *)dst + (off * sz), src, n * sz);
 }
 
-int8_t _array_eq(const void *lhs, const void *rhs,
-                 int32_t n, int32_t sz, int8_t op)
-{
-   TRACE("_array_eq lhs=%p rhs=%p %dx%d op=%d", lhs, rhs, n, sz, op);
-   if (op) {
-      const uint8_t *pl = lhs;
-      const uint8_t *pr = (const uint8_t *)rhs + ((n - 1) * sz);
-      while (n--) {
-         for (int i = 0; i < sz; i++) {
-            if (*(pl + i) != *(pr + i))
-               return 0;
-         }
-         pl += sz;
-         pr -= sz;
-      }
-      return 1;
-   }
-   else
-      return memcmp(lhs, rhs, n * sz) == 0;
-}
-
 struct uarray _image(int64_t val, int32_t where, const char *module)
 {
    tree_t t = rt_recall_tree(module, where);
@@ -859,7 +838,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_assert_fail", _assert_fail);
    jit_bind_fn("_tmp_alloc", _tmp_alloc);
    jit_bind_fn("_array_copy", _array_copy);
-   jit_bind_fn("_array_eq", _array_eq);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
 
