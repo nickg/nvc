@@ -1646,18 +1646,17 @@ static bool sem_check_package_body(tree_t t)
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
 
+         ok = sem_check(decl) && ok;
+
          // Make the unqualified name visible inside the package except
          // in the case of function bodies where the declaration is
          // already visible
-         if (sem_check(decl)) {
-            bool make_visible =
-               (tree_kind(decl) != T_FUNC_BODY
-                || !sem_check_duplicate(decl, T_FUNC_DECL));
-            if (make_visible)
-               scope_insert_alias(decl, unqual);
-         }
-         else
-            ok = false;
+         bool make_visible =
+            (tree_kind(decl) != T_FUNC_BODY
+             || !sem_check_duplicate(decl, T_FUNC_DECL));
+
+         if (make_visible)
+            scope_insert_alias(decl, unqual);
       }
    }
 
