@@ -2368,7 +2368,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    char name[64];
    snprintf(name, sizeof(name), "NVC.BUILTIN.%s", builtin);
    for (char *p = name; *p != '\0'; p++)
-      *p = toupper(*p);
+      *p = toupper((uint8_t)*p);
 
    static struct decl_cache *cache = NULL;
 
