@@ -79,5 +79,12 @@ package body func is
         end loop;
         return tmp;
     end function;
+
+    function test7(x : uenum_vector) return uenum_vector is
+        subtype rtype is uenum_vector(x'length downto 0);
+        variable r : rtype;
+    begin
+        return r;
+    end function;
     
 end package body;
