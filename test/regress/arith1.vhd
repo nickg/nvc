@@ -22,6 +22,7 @@ begin
         assert x <= y;
         assert y >= x;
         assert (- x) = -3;
+        assert x ** y = 531441;
         wait;
     end process;
 

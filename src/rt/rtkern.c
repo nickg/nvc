@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #define TRACE_DELTAQ  1
 #define EXIT_SEVERITY 2
@@ -414,6 +415,14 @@ struct uarray _image(int64_t val, int32_t where, const char *module)
 void _debug_out(int32_t val)
 {
    printf("DEBUG: val=%"PRIx32"\n", val);
+}
+
+int32_t _iexp(int32_t n, int32_t v)
+{
+   if (unlikely(v < 0))
+      fatal("negative exponent not allowed for integer");
+
+   return (int32_t)pow(n, v);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -840,6 +849,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_array_copy", _array_copy);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
+   jit_bind_fn("_iexp", _iexp);
 
    event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));

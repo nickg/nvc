@@ -966,6 +966,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
                              LLVMBuildXor(builder, args[0], args[1], ""), "");
       else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
+      else if (icmp(builtin, "exp"))
+         return LLVMBuildCall(builder, llvm_fn("_iexp"), args, 2, "");
       else if (icmp(builtin, "aeq"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),
@@ -2771,6 +2773,16 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _debug_out_args,
                                     ARRAY_LEN(_debug_out_args),
+                                    false));
+
+   LLVMTypeRef _iexp_args[] = {
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_iexp",
+                   LLVMFunctionType(LLVMInt32Type(),
+                                    _iexp_args,
+                                    ARRAY_LEN(_iexp_args),
                                     false));
 }
 

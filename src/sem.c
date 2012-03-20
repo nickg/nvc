@@ -519,24 +519,10 @@ static void sem_declare_predefined_ops(tree_t decl)
    ident_t plus  = ident_new("\"+\"");
    ident_t minus = ident_new("\"-\"");
 
-   type_t std_int = NULL;
-   type_t std_bool = NULL;
-
    // Predefined operators
 
-   switch (type_kind(t)) {
-   case T_INCOMPLETE:
-      assert(false);   // Shouldn't reach here
-
-   case T_PHYSICAL:
-      // These types require INTEGER to be declared
-      std_int = sem_std_type("INTEGER");
-
-      // Fall-through
-   default:
-      // These types require BOOLEAN to be declared
-      std_bool = sem_std_type("BOOLEAN");
-   }
+   type_t std_bool = sem_std_type("BOOLEAN");
+   type_t std_int  = sem_std_type("INTEGER");
 
    switch (type_kind(t)) {
    case T_SUBTYPE:
@@ -595,6 +581,9 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Sign operators
       sem_declare_unary(plus, t, t, "identity");
       sem_declare_unary(minus, t, t, "neg");
+
+      // Exponentiation
+      sem_declare_binary(ident_new("\"**\""), t, std_int, t, "exp");
 
       // Fall-through
    case T_ENUM:
