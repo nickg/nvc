@@ -585,6 +585,9 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Exponentiation
       sem_declare_binary(ident_new("\"**\""), t, std_int, t, "exp");
 
+      // Absolute value
+      sem_declare_unary(ident_new("\"abs\""), t, t, "abs");
+
       // Fall-through
    case T_ENUM:
       sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");

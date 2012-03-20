@@ -968,6 +968,13 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildURem(builder, args[0], args[1], "");
       else if (icmp(builtin, "exp"))
          return LLVMBuildCall(builder, llvm_fn("_iexp"), args, 2, "");
+      else if (icmp(builtin, "abs")) {
+         return LLVMBuildSelect(
+            builder,
+            LLVMBuildICmp(builder, LLVMIntSLT, args[0], llvm_int32(0), ""),
+            LLVMBuildNeg(builder, args[0], ""),
+            args[0], "abs");
+      }
       else if (icmp(builtin, "aeq"))
          return cgen_array_rel(args[0], args[1], arg_type,
                                tree_type(tree_param(t, 1).value),

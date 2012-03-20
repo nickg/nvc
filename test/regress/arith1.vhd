@@ -23,6 +23,9 @@ begin
         assert y >= x;
         assert (- x) = -3;
         assert x ** y = 531441;
+        x := -34;
+        assert abs x = 34;
+        assert abs y = 12;
         wait;
     end process;
 
