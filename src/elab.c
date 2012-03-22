@@ -139,14 +139,11 @@ static void elab_map(tree_t t, tree_t arch,
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
 
-   // The map is processed in reverse order as generics may refer
-   // to earlier ones which would have already been rewritten
-
    bool have_formals[tree_Fs(unit)];
    for (unsigned i = 0; i < tree_Fs(unit); i++)
       have_formals[i] = false;
 
-   for (int i = tree_As(t) - 1; i >= 0; i--) {
+   for (unsigned i = 0; i < tree_As(t); i++) {
       param_t p = tree_A(t, i);
       tree_t formal = NULL;
 

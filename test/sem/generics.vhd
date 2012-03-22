@@ -38,6 +38,14 @@ begin
         generic map ( 1, 2 )
         port map ( o => x );
 
-    
-
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity bad is
+    generic (
+        X : integer;
+        Y : integer := X + 1 );         -- X not visible
+    port (
+        p : in integer := X );
+end entity;

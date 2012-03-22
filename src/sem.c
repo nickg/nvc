@@ -1315,6 +1315,29 @@ static bool sem_check_decl(tree_t t)
    return scope_insert(t);
 }
 
+static bool sem_check_port_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (!sem_check_type(t, &type))
+      return false;
+
+   tree_set_type(t, type);
+
+   if (tree_has_value(t)) {
+      tree_t value = tree_value(t);
+      if (!sem_check_constrained(value, type))
+         return false;
+
+      if (!type_eq(type, tree_type(value)))
+         sem_error(value, "type of default value %s does not match type "
+                   "of declaration %s", istr(type_ident(tree_type(value))),
+                   istr(type_ident(type)));
+   }
+
+   sem_add_attributes(t);
+   return true;
+}
+
 static bool sem_check_alias(tree_t t)
 {
    if (!sem_check(tree_value(t)))
@@ -1348,22 +1371,10 @@ static bool sem_check_func_ports(tree_t t)
       if (tree_class(p) == C_DEFAULT)
          tree_set_class(p, C_VARIABLE);
 
-      type_t param_type = tree_type(p);
-      if (!sem_check_type(p, &param_type))
+      if (!sem_check(p))
          return false;
 
-      type_add_param(ftype, param_type);
-      tree_set_type(p, param_type);
-
-      if (tree_has_value(p)) {
-         tree_t value = tree_value(p);
-         if (!sem_check_constrained(value, param_type))
-            return false;
-
-         if (!type_eq(tree_type(value), param_type))
-            sem_error(value, "type of default value must be %s",
-                      type_pp(param_type));
-      }
+      type_add_param(ftype, tree_type(p));
    }
 
    type_t rtype = type_result(ftype);
@@ -1467,22 +1478,10 @@ static bool sem_check_proc_ports(tree_t t)
          }
       }
 
-      type_t param_type = tree_type(p);
-      if (!sem_check_type(p, &param_type))
+      if (!sem_check(p))
          return false;
 
-      type_add_param(ptype, param_type);
-      tree_set_type(p, param_type);
-
-      if (tree_has_value(p)) {
-         tree_t value = tree_value(p);
-         if (!sem_check_constrained(value, param_type))
-            return false;
-
-         if (!type_eq(tree_type(value), param_type))
-            sem_error(value, "type of default value must be %s",
-                      type_pp(param_type));
-      }
+      type_add_param(ptype, tree_type(p));
    }
 
    return true;
@@ -1681,8 +1680,18 @@ static bool sem_check_entity(tree_t t)
    for (unsigned n = 0; n < tree_generics(t); n++)
       ok = sem_check(tree_generic(t, n)) && ok;
 
-   for (unsigned n = 0; n < tree_ports(t); n++)
-      ok = sem_check(tree_port(t, n)) && ok;
+   // Make generics visible in this region
+   for (unsigned n = 0; n < tree_generics(t); n++)
+      ok = scope_insert(tree_generic(t, n)) && ok;
+
+   for (unsigned n = 0; n < tree_ports(t); n++) {
+      tree_t p = tree_port(t, n);
+
+      if (tree_class(p) == C_DEFAULT)
+         tree_set_class(p, C_SIGNAL);
+
+      ok = sem_check(p) && ok;
+   }
 
    scope_pop();
    scope_pop();
@@ -3188,9 +3197,10 @@ bool sem_check(tree_t t)
       return sem_check_entity(t);
    case T_TYPE_DECL:
       return sem_check_type_decl(t);
+   case T_PORT_DECL:
+      return sem_check_port_decl(t);
    case T_SIGNAL_DECL:
    case T_VAR_DECL:
-   case T_PORT_DECL:
    case T_CONST_DECL:
       return sem_check_decl(t);
    case T_PROCESS:

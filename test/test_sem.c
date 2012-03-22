@@ -442,7 +442,7 @@ START_TEST(test_func)
       { 17, "must be an unconstrained array type" },
       { 21, "resolution function must have single argument" },
       { 25, "declaration UENUM is not a function" },
-      { 27, "type of default value must be WORK.FUNC.UENUM" },
+      { 27, "type of default value universal integer does not" },
       { 31, "unit WORK.BAD not found in library WORK" },
       { 43, "no suitable overload for identifier A" },
       { 46, "function arguments must have mode IN" },
@@ -562,6 +562,7 @@ START_TEST(test_generics)
    const error_t expect[] = {
       { 34, "missing actual for formal N" },
       { 38, "too many positional actuals" },
+      { 48, "undefined identifier X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -589,6 +590,13 @@ START_TEST(test_generics)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
+
+   // Entity bad
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
