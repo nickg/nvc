@@ -619,6 +619,8 @@ opt_static_expr
 
 object_class
 : tSIGNAL { $$ = C_SIGNAL; }
+| tVARIABLE { $$ = C_VARIABLE; }
+| tCONSTANT { $$ = C_CONSTANT; }
 | /* empty */ { $$ = C_DEFAULT; }
 ;
 

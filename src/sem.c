@@ -1677,8 +1677,21 @@ static bool sem_check_entity(tree_t t)
 
    scope_push(NULL);
 
-   for (unsigned n = 0; n < tree_generics(t); n++)
-      ok = sem_check(tree_generic(t, n)) && ok;
+   for (unsigned n = 0; n < tree_generics(t); n++) {
+      tree_t g = tree_generic(t, n);
+
+      switch (tree_class(g)) {
+      case C_DEFAULT:
+         tree_set_class(g, C_CONSTANT);
+         break;
+      case C_CONSTANT:
+         break;
+      default:
+         sem_error(g, "invalid object class for generic");
+      }
+
+      ok = sem_check(g) && ok;
+   }
 
    // Make generics visible in this region
    for (unsigned n = 0; n < tree_generics(t); n++)

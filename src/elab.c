@@ -169,14 +169,28 @@ static void elab_map(tree_t t, tree_t arch,
 
       struct rewrite_params params = {
          .formal = formal,
-         .actual = tree_ref(p.value)
+         .actual = NULL
       };
-      tree_rewrite(arch, rewrite_ports, &params);
 
-      elab_add_alias(arch, p.value, tree_ident(formal));
+      switch (tree_class(formal)) {
+      case C_SIGNAL:
+         params.actual = tree_ref(p.value);
+         elab_add_alias(arch, p.value, tree_ident(formal));
+         break;
+
+      case C_CONSTANT:
+         params.actual = p.value;
+         break;
+
+      default:
+         assert(false);
+      }
+
+      tree_rewrite(arch, rewrite_ports, &params);
    }
 
-   for (int i = tree_Fs(unit) - 1; i >= 0; i--) {
+   // Assign default values
+   for (unsigned i = 0; i < tree_Fs(unit); i++) {
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
          assert(tree_has_value(f));

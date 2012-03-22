@@ -49,3 +49,11 @@ entity bad is
     port (
         p : in integer := X );
 end entity;
+
+-------------------------------------------------------------------------------
+
+entity class is
+    generic (
+        constant X : integer;           -- OK
+        signal Y : integer );           -- Error
+end entity;

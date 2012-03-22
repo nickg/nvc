@@ -563,6 +563,7 @@ START_TEST(test_generics)
       { 34, "missing actual for formal N" },
       { 38, "too many positional actuals" },
       { 48, "undefined identifier X" },
+      { 58, "invalid object class for generic" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -592,6 +593,13 @@ START_TEST(test_generics)
    sem_check(a);
 
    // Entity bad
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   // Entity class
 
    e = parse();
    fail_if(e == NULL);
