@@ -213,10 +213,10 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
    TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
          fmt_sig(sig), source, values, n, size, fmt_time(after));
 
-   const uint8_t  *restrict v8  = values;
-   const uint16_t *restrict v16 = values;
-   const uint32_t *restrict v32 = values;
-   const uint64_t *restrict v64 = values;
+   const uint8_t  *v8  = values;
+   const uint16_t *v16 = values;
+   const uint32_t *v32 = values;
+   const uint64_t *v64 = values;
 
    switch (size) {
       case 1:
