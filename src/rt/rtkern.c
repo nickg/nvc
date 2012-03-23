@@ -141,7 +141,7 @@ static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
 
-#define TRACE(...) if (trace_on) _tracef(__VA_ARGS__)
+#define TRACE(...) if (unlikely(trace_on)) _tracef(__VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
@@ -703,7 +703,7 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
 
    int32_t new_flags = 0;
    const bool first_cycle = (iteration == 0 && now == 0);
-   if (!first_cycle) {
+   if (likely(!first_cycle)) {
       new_flags = SIGNAL_F_ACTIVE;
       if (s->resolved != value) {
          new_flags |= SIGNAL_F_EVENT;
@@ -732,7 +732,7 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
-   if (first_cycle)
+   if (unlikely(first_cycle))
       s->last_value = value;
    else if (new_flags & SIGNAL_F_EVENT)
       s->last_value = s->resolved;
