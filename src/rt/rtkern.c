@@ -37,9 +37,17 @@
 
 typedef void (*proc_fn_t)(int32_t reset);
 
-struct tmp_chunk {
+struct tmp_chunk_hdr {
    struct tmp_chunk *next;
-   void             *ptr;
+   size_t alloced;
+   char   *external;
+};
+
+#define TMP_BUF_SZ (1024 - sizeof(struct tmp_chunk_hdr))
+
+struct tmp_chunk {
+   struct tmp_chunk_hdr hdr;
+   char buf[TMP_BUF_SZ];
 };
 
 struct rt_proc {
@@ -491,12 +499,32 @@ static void deltaq_dump(void)
 static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed when the process suspends
-   struct tmp_chunk *c = rt_alloc(tmp_chunk_stack);
-   c->ptr  = xmalloc(sz);
-   c->next = active_proc->tmp_chunks;
 
-   active_proc->tmp_chunks = c;
-   return c->ptr;
+   struct tmp_chunk *c = active_proc->tmp_chunks;
+
+   bool reuse =
+      (c != NULL)
+      && (TMP_BUF_SZ - c->hdr.alloced >= sz)
+      && (c->hdr.external == NULL);
+
+   if (likely(reuse)) {
+      char *ptr = c->buf + c->hdr.alloced;
+      c->hdr.alloced += sz;
+      return ptr;
+   }
+   else {
+      c = rt_alloc(tmp_chunk_stack);
+      c->hdr.alloced  = sz;
+      c->hdr.external = NULL;
+      c->hdr.next     = active_proc->tmp_chunks;
+
+      active_proc->tmp_chunks = c;
+
+      if (likely(sz <= TMP_BUF_SZ))
+         return c->buf;
+      else
+         return (c->hdr.external = xmalloc(sz));
+   }
 }
 
 static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
@@ -587,8 +615,9 @@ static void rt_run(struct rt_proc *proc, bool reset)
    // Free any temporary memory allocated by the process
    while (proc->tmp_chunks) {
       struct tmp_chunk *n = proc->tmp_chunks;
-      proc->tmp_chunks = n->next;
-      free(n->ptr);
+      proc->tmp_chunks = n->hdr.next;
+      if (n->hdr.external != NULL)
+         free(n->hdr.external);
       rt_free(tmp_chunk_stack, n);
    }
 }
