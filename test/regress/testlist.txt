@@ -58,3 +58,4 @@ agg4            normal
 ieee3           normal
 default1        normal
 generic1        normal
+signal7         normal

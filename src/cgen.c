@@ -769,14 +769,12 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
             LLVMTypeRef ptr_type =
                LLVMPointerType(llvm_type(type_base(type)), 0);
 
-            LLVMValueRef fields[] = {
-               LLVMBuildPointerCast(builder, args[i], ptr_type, ""),
+            args[i] = cgen_array_meta(
+               type,
                llvm_int32(assume_int(r.left)),
                llvm_int32(assume_int(r.right)),
-               llvm_int8(r.kind)
-            };
-
-            args[i] = LLVMConstStruct(fields, ARRAY_LEN(fields), false);
+               llvm_int8(r.kind),
+               LLVMBuildPointerCast(builder, args[i], ptr_type, ""));
          }
       }
    }
