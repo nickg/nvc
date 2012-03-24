@@ -120,5 +120,14 @@ begin
         y(1 to 3) := (others => 4);     -- Error
         assert y = (others => 4);       -- Error
     end process;
+
+    process is
+        subtype five_ints is ten_ints(1 to 4);
+        variable x : five_ints;
+    begin
+        x(1 to 3) := (1, 2, 3);         -- OK
+        x(2) := 1;                      -- OK
+        x(3 downto 1) := (others => '0');  -- Error
+    end process;       
     
 end architecture;

@@ -496,6 +496,7 @@ START_TEST(test_array)
       { 119, "type of slice prefix is not an array" },
       { 120, "range direction of slice does not match prefix" },
       { 121, "others choice not allowed in this context" },
+      { 130, "range direction of slice does not match prefix" },
       { -1, NULL }
    };
    expect_errors(expect);

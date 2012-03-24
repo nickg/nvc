@@ -2792,8 +2792,11 @@ static bool sem_check_array_ref(tree_t t)
    if (!sem_check(value))
       return false;
 
+   type_t type = tree_type(tree_value(t));
+   while (type_kind(type) == T_SUBTYPE)
+      type = type_base(type);
+
    unsigned nindex;
-   type_t type = tree_type(value);
    switch (type_kind(type)) {
    case T_CARRAY:
       nindex = type_dims(type);
@@ -2841,6 +2844,9 @@ static bool sem_check_array_slice(tree_t t)
       return false;
 
    type_t array_type = tree_type(tree_value(t));
+   while (type_kind(array_type) == T_SUBTYPE)
+      array_type = type_base(array_type);
+
    type_kind_t array_k = type_kind(array_type);
 
    if (array_k != T_CARRAY && array_k != T_UARRAY)
