@@ -1140,16 +1140,13 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_INTEGER:
    case T_PHYSICAL:
-   case T_SUBTYPE:
       {
          range_t r = type_dim(type, 0);
 
          // Check the range expressions as if they were INTEGERs
          // when there is no base type
          type_set_push();
-         type_set_add(type_kind(type) == T_SUBTYPE
-                      ? base
-                      : sem_std_type("INTEGER"));
+         type_set_add(sem_std_type("INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 
@@ -1160,7 +1157,40 @@ static bool sem_check_type_decl(tree_t t)
             tree_set_type(r.right, type);
          }
 
-         if (type_kind(type) == T_SUBTYPE && type_has_resolution(type))
+         return ok;
+      }
+
+   case T_SUBTYPE:
+      {
+         bool ok = true;
+         for (unsigned i = 0; i < type_dims(type); i++) {
+            range_t r = type_dim(type, i);
+
+            type_t index = NULL;
+            switch (type_kind(base)) {
+            case T_CARRAY:
+               index = tree_type(type_dim(base, i).left);
+               break;
+            case T_UARRAY:
+               index = type_index_constr(base, i);
+               break;
+            default:
+               index = base;
+               break;
+            }
+
+            type_set_push();
+            type_set_add(index);
+            ok = sem_check(r.left) && sem_check(r.right) && ok;
+            type_set_pop();
+
+            if (ok) {
+               tree_set_type(r.left, index);
+               tree_set_type(r.right, index);
+            }
+         }
+
+         if (type_has_resolution(type))
             ok = ok && sem_check_resolution(type);
 
          return ok;
