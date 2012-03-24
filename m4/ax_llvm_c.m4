@@ -63,6 +63,7 @@ AC_DEFUN([AX_LLVM_C],
                 LLVM_LIBS="$($ac_llvm_config_path --libs $1)"
                 LLVM_VERSION="$($ac_llvm_config_path --version)"
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
+                LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
                 llvm_ver_num="$(echo $LLVM_VERSION | sed s/\\.// | sed s/svn//g)"
                 if test "$llvm_ver_num" -lt "30"; then
@@ -100,6 +101,26 @@ AC_DEFUN([AX_LLVM_C],
 
                 if test "x$ax_cv_llvm" = "xyes"; then
                     succeeded=yes
+                fi
+
+                shlib="-Wl,-rpath $LLVM_LIBDIR -lLLVM-$LLVM_VERSION"
+
+                LIBS="$LIBS_SAVED $shlib"
+                export LIBS
+
+                AC_CACHE_CHECK(for LLVM shared library,
+                    ax_cv_llvm_shared,
+                    [AC_LANG_PUSH([C++])
+                        AC_RUN_IFELSE(
+                            [AC_LANG_PROGRAM(
+                                    [[@%:@include <llvm-c/Core.h>]],
+                                    [[LLVMModuleCreateWithName("test"); return 0;]])],
+                            ax_cv_llvm_shared=yes,
+                            ax_cv_llvm_shared=no)
+                        AC_LANG_POP([C++])])
+
+                if test "x$ax_cv_llvm_shared" = "xyes"; then
+                    LLVM_LIBS="$shlib"
                 fi
 
                 CFLAGS="$CFLAGS_SAVED"
