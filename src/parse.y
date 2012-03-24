@@ -26,6 +26,7 @@
    #include <unistd.h>
    #include <string.h>
    #include <stdarg.h>
+   #include <ctype.h>
 }
 
 %code requires {
@@ -868,6 +869,8 @@ func_name
 : id
 | tSTRING
   {
+     for (char *p = lvals.sval; *p != '\0'; p++)
+        *p = tolower((uint8_t)*p);
      $$ = ident_new(lvals.sval);
      free(lvals.sval);
   }
