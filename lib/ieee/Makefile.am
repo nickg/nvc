@@ -15,16 +15,16 @@ ieee/_NVC_LIB:
 ieee/IEEE.STD_LOGIC_1164: $(srcdir)/std_logic_1164.vhdl
 	$(lib) $(nvc) --work=ieee -a $<
 
-ieee/IEEE.STD_LOGIC_1164-body: $(srcdir)/std_logic_1164-body.vhdl
+ieee/IEEE.STD_LOGIC_1164-body: $(srcdir)/std_logic_1164-body.vhdl ieee/IEEE.STD_LOGIC_1164
 	$(lib) $(nvc) --work=ieee -a $<
 
-ieee/IEEE.NUMERIC_BIT: $(srcdir)/numeric_bit.vhdl
+ieee/IEEE.NUMERIC_BIT: $(srcdir)/numeric_bit.vhdl ieee/IEEE.STD_LOGIC_1164
 	$(lib) $(nvc) --work=ieee -a $<
 
-ieee/IEEE.NUMERIC_STD: $(srcdir)/numeric_std.vhdl
+ieee/IEEE.NUMERIC_STD: $(srcdir)/numeric_std.vhdl ieee/IEEE.STD_LOGIC_1164
 	$(lib) $(nvc) --work=ieee -a $<
 
-ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl
+ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl ieee/IEEE.NUMERIC_STD
 	$(lib) $(nvc) --work=ieee -a $<
 
 clean-local:
