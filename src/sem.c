@@ -2165,7 +2165,11 @@ static bool sem_check_fcall(tree_t t)
             return sem_check_conversion(t);
          default:
             {
-               type_kind_t kind = type_kind(tree_type(decl));
+               type_t dtype = tree_type(decl);
+               while (type_kind(dtype) == T_SUBTYPE)
+                  dtype = type_base(dtype);
+
+               type_kind_t kind = type_kind(dtype);
                if (kind == T_CARRAY || kind == T_UARRAY) {
                   // The grammar is ambiguous between function calls and
                   // array references so must be an array reference

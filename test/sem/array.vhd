@@ -128,6 +128,18 @@ begin
         x(1 to 3) := (1, 2, 3);         -- OK
         x(2) := 1;                      -- OK
         x(3 downto 1) := (others => '0');  -- Error
+        assert x(2) = 5;                -- OK
     end process;       
-    
+
+    process is
+        function foo(size: integer) return int_array is
+	    subtype rtype is int_array(size-1 downto 0);
+            variable result: rtype;
+        begin
+            assert result(0) = 1;
+            return result;
+        end;
+    begin
+    end process;
+
 end architecture;
