@@ -1494,10 +1494,32 @@ static LLVMValueRef cgen_concat(tree_t t, struct cgen_ctx *ctx)
       cgen_expr(args[1], ctx)
    };
 
-   cgen_array_copy(tree_type(args[0]), tree_type(t), args_ll[0], var, NULL);
+   type_kind_t lkind = type_kind(tree_type(args[0]));
+   type_kind_t rkind = type_kind(tree_type(args[1]));
 
-   LLVMValueRef off = cgen_array_len(tree_type(args[0]), args_ll[0]);
-   cgen_array_copy(tree_type(args[1]), tree_type(t), args_ll[1], var, off);
+   LLVMValueRef off = NULL;
+   type_t type = tree_type(t);
+
+   if (lkind == T_CARRAY || lkind == T_UARRAY) {
+      cgen_array_copy(tree_type(args[0]), type, args_ll[0], var, NULL);
+      off = cgen_array_len(tree_type(args[0]), args_ll[0]);
+   }
+   else {
+      LLVMValueRef zero = llvm_int32(0);
+      LLVMValueRef data = cgen_array_data_ptr(type, var);
+      LLVMValueRef ptr = LLVMBuildGEP(builder, data, &zero, 1, "");
+      LLVMBuildStore(builder, args_ll[0], ptr);
+
+      off = llvm_int32(1);
+   }
+
+   if (rkind == T_CARRAY || rkind == T_UARRAY)
+      cgen_array_copy(tree_type(args[1]), type, args_ll[1], var, off);
+   else {
+      LLVMValueRef data = cgen_array_data_ptr(type, var);
+      LLVMValueRef ptr = LLVMBuildGEP(builder, data, &off, 1, "");
+      LLVMBuildStore(builder, args_ll[1], ptr);
+   }
 
    return var;
 }

@@ -721,6 +721,7 @@ START_TEST(test_concat)
    fail_unless(input_from_file(TESTDIR "/sem/concat.vhd"));
 
    const error_t expect[] = {
+      { 21, "type of scalar does not match element type of array" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -733,7 +734,7 @@ START_TEST(test_concat)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(sem_check(a));
+   fail_if(sem_check(a));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

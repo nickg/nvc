@@ -18,6 +18,10 @@ begin
         assert x = (1, 2, 3, 4, 5);
         s := "ab" & "cde";
         assert s = "abcde";
+        z := 0 & y;
+        assert z = (0, 1, 2);
+        z := y & 3;
+        assert z = (1, 2, 3);
         wait;
     end process;
 
