@@ -387,7 +387,7 @@ static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
 
    // Handle case where array size is not known until run time
    type_t type = tree_type(d);
-   if (!cgen_const_bounds(type)) {
+   if (type_kind(type) == T_CARRAY && !cgen_const_bounds(type)) {
       // Allocate the array for the process temporary heap and
       // wrap in a metadata struct
 
