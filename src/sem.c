@@ -2949,7 +2949,7 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      if (tree_kind(decl) != T_TYPE_DECL) {
+      if ((tree_kind(decl) != T_TYPE_DECL) && (tree_params(t) == 0)) {
          // For an expression X'A add X as the final parameter
          tree_t ref = sem_make_ref(decl);
          tree_set_loc(ref, tree_loc(t));

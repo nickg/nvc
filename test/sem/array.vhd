@@ -142,4 +142,13 @@ begin
     begin
     end process;
 
+    process is
+        function plus(A, B: int_array) return int_array is
+            variable BV, sum: int_array(A'left downto 0);
+        begin
+            return sum;
+        end;
+    begin
+    end process;
+
 end architecture;
