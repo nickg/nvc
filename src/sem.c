@@ -2595,6 +2595,9 @@ static bool sem_check_concat(tree_t t)
       else
          array_len = call_builtin("length", std_int, array, NULL);
 
+      tree_t result_right = call_builtin(
+         "add", index_type, index_r.left, array_len, NULL);
+
       type_t result = type_new(T_CARRAY);
       type_set_ident(result, type_ident(atype));
       type_set_base(result, type_base(atype));
@@ -2602,7 +2605,7 @@ static bool sem_check_concat(tree_t t)
       range_t result_r = {
          .kind  = index_r.kind,
          .left  = index_r.left,
-         .right = array_len
+         .right = result_right
       };
       type_add_dim(result, result_r);
 
