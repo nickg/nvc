@@ -50,7 +50,7 @@ static const char *shell_fmt_signal_value(tree_t t, uint64_t *values,
    const char *end = buf + sizeof(buf);
 
    type_t type = tree_type(t);
-   type_t base = (type_kind(type) == T_CARRAY ? type_base(type) : type);
+   type_t base = (type_is_array(type) ? type_elem(type) : type);
 
    unsigned left = 0, right = len - 1, step = 1;
 

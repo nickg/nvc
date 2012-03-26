@@ -622,7 +622,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    bool vec_logical = false;
    if (type_kind(t) == T_CARRAY || type_kind(t) == T_UARRAY) {
-      type_t base = type_base(t);
+      type_t base = type_elem(t);
       vec_logical = (type_ident(base) == boolean_i
                      || type_ident(base) == bit_i);
    }
@@ -1009,7 +1009,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
 
                type_t collapse = type_new(T_CARRAY);
                type_set_ident(collapse, type_ident(base));
-               type_set_base(collapse, type_base(base));  // Element type
+               type_set_elem(collapse, type_elem(base));  // Element type
 
                for (unsigned i = 0; i < type_dims(*ptype); i++)
                   type_add_dim(collapse, type_dim(*ptype, i));
@@ -1069,7 +1069,7 @@ static bool sem_check_resolution(type_t type)
       sem_error(fdecl, "parameter of resolution function must be "
                 "an unconstrained array type");
 
-   if (!type_eq(type_base(param), type))
+   if (!type_eq(type_elem(param), type))
       sem_error(fdecl, "parameter of resolution function must be "
                 "array of %s", type_pp(type));
 
@@ -1113,11 +1113,11 @@ static bool sem_check_type_decl(tree_t t)
    case T_CARRAY:
    case T_UARRAY:
       {
-         type_t elem_type = type_base(base);
+         type_t elem_type = type_elem(base);
          if (!sem_check_type(t, &elem_type))
             return false;
 
-         type_set_base(base, elem_type);
+         type_set_elem(base, elem_type);
       }
       break;
    default:
@@ -1290,7 +1290,7 @@ static tree_t sem_default_value(type_t type)
       {
          tree_t def = NULL;
          for (int i = type_dims(type) - 1 ; i >= 0; i--) {
-            tree_t val = (def ? def : sem_default_value(type_base(base)));
+            tree_t val = (def ? def : sem_default_value(type_elem(base)));
             def = tree_new(T_AGGREGATE);
             assoc_t a = {
                .kind = A_OTHERS,
@@ -2004,7 +2004,7 @@ static bool sem_check_conversion(tree_t t)
       // TODO: index types the same or closely related
 
       // Element types must be the same
-      bool same_elem = type_eq(type_base(from), type_base(to));
+      bool same_elem = type_eq(type_elem(from), type_elem(to));
 
       if (same_dim && same_elem)
          return true;
@@ -2443,7 +2443,7 @@ static bool sem_check_concat_param(tree_t t, type_t expect)
       // The bounds of one side should not be used to determine
       // those of the other side
       type_t u = type_new(T_UARRAY);
-      type_set_base(u, type_base(expect));
+      type_set_elem(u, type_elem(expect));
       type_set_ident(u, type_ident(expect));
       for (unsigned i = 0; i < type_dims(expect); i++)
          type_add_index_constr(u, tree_type(type_dim(expect, i).left));
@@ -2453,7 +2453,7 @@ static bool sem_check_concat_param(tree_t t, type_t expect)
       type_set_add(expect);
 
    if (expect_k == T_CARRAY || expect_k == T_UARRAY)
-      type_set_add(type_base(expect));
+      type_set_add(type_elem(expect));
 
    bool ok = sem_check(t);
    type_set_pop();
@@ -2545,7 +2545,7 @@ static bool sem_check_concat(tree_t t)
 
       type_t result = type_new(T_CARRAY);
       type_set_ident(result, type_ident(ltype));
-      type_set_base(result, type_base(ltype));
+      type_set_elem(result, type_elem(ltype));
 
       tree_t one = sem_int_lit(index_type, 1);
 
@@ -2577,7 +2577,7 @@ static bool sem_check_concat(tree_t t)
       if (sem_array_dimension(atype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
-      if (!type_eq(stype, type_base(atype)))
+      if (!type_eq(stype, type_elem(atype)))
          sem_error(t, "type of scalar does not match element type of array");
 
       type_t index_type;
@@ -2600,7 +2600,7 @@ static bool sem_check_concat(tree_t t)
 
       type_t result = type_new(T_CARRAY);
       type_set_ident(result, type_ident(atype));
-      type_set_base(result, type_base(atype));
+      type_set_elem(result, type_elem(atype));
 
       range_t result_r = {
          .kind  = index_r.kind,
@@ -2700,7 +2700,7 @@ static bool sem_check_aggregate(tree_t t)
    if (type_kind(composite_type) == T_UARRAY) {
       type_t tmp = type_new(T_CARRAY);
       type_set_ident(tmp, type_ident(composite_type));
-      type_set_base(tmp, type_base(composite_type));  // Element type
+      type_set_elem(tmp, type_elem(composite_type));  // Element type
 
       assert(type_index_constrs(composite_type) == 1);  // TODO
 
@@ -2739,11 +2739,11 @@ static bool sem_check_aggregate(tree_t t)
 
    type_t elem_type = NULL;
    if (type_dims(composite_type) == 1)
-      elem_type = type_base(base_type);
+      elem_type = type_elem(base_type);
    else {
       elem_type = type_new(T_CARRAY);
       type_set_ident(elem_type, type_ident(composite_type));
-      type_set_base(elem_type, type_base(base_type));
+      type_set_elem(elem_type, type_elem(base_type));
 
       for (unsigned i = 1; i < type_dims(composite_type); i++)
          type_add_dim(elem_type, type_dim(composite_type, i));
@@ -2891,7 +2891,7 @@ static bool sem_check_array_ref(tree_t t)
                    istr(type_ident(expect)));
    }
 
-   tree_set_type(t, type_base(type));
+   tree_set_type(t, type_elem(type));
    tree_set_ref(t, tree_ref(value));
    return ok;
 }
@@ -2925,7 +2925,7 @@ static bool sem_check_array_slice(tree_t t)
 
    type_t slice_type = type_new(T_CARRAY);
    type_set_ident(slice_type, type_ident(array_type));
-   type_set_base(slice_type, type_base(array_type));
+   type_set_elem(slice_type, type_elem(array_type));
    type_add_dim(slice_type, tree_range(t));
 
    tree_set_ref(t, tree_ref(tree_value(t)));
@@ -3226,7 +3226,7 @@ static bool sem_check_for(tree_t t)
 
    type_t base = tree_type(tree_range(t).left);
    if (type_kind(base) == T_CARRAY)
-      base = type_base(base);
+      base = type_elem(base);
 
    tree_t idecl = tree_new(T_VAR_DECL);
    tree_set_ident(idecl, tree_ident2(t));

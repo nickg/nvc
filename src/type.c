@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,10 @@ struct type {
    range_t     *dims;
    unsigned    n_dims;
 
-   type_t base;          // T_SUBTYPE, T_CARRAY, T_UARRAY
+   union {
+      type_t base;          // T_SUBTYPE
+      type_t elem;          // T_CARRAY, T_UARRAY
+   };
    union {
       type_t result;     // T_FUNC
       tree_t resolution; // T_INTEGER, T_SUBTYPE
@@ -89,6 +92,7 @@ struct type_rd_ctx {
 #define HAS_RESOLUTION(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
 #define HAS_PARAMS(t) (IS(t, T_FUNC) || IS(t, T_PROC))
+#define HAS_ELEM(t) (IS(t, T_CARRAY) || IS(t, T_UARRAY))
 
 // Garbage collection
 static type_t *all_types = NULL;
@@ -158,7 +162,7 @@ bool type_eq(type_t a, type_t b)
       return false;
 
    if (compare_c_u_arrays)
-      return type_eq(type_base(a), type_base(b));
+      return type_eq(type_elem(a), type_elem(b));
 
    if (HAS_DIMS(a) && type_dims(a) != type_dims(b))
       return false;
@@ -263,6 +267,29 @@ void type_set_base(type_t t, type_t b)
    assert(b != NULL);
 
    t->base = b;
+}
+
+type_t type_elem(type_t t)
+{
+   assert(t != NULL);
+
+   if (IS(t, T_SUBTYPE))
+      return type_elem(t->base);
+   else {
+      assert(HAS_ELEM(t));
+      assert(t->elem != NULL);
+
+      return t->elem;
+   }
+}
+
+void type_set_elem(type_t t, type_t e)
+{
+   assert(t != NULL);
+   assert(HAS_ELEM(t));
+   assert(e != NULL);
+
+   t->elem = e;
 }
 
 type_t type_universal_int(void)
@@ -437,8 +464,11 @@ void type_replace(type_t t, type_t a)
          type_add_index_constr(t, type_index_constr(a, i));
 
       // Fall-through
-   case T_SUBTYPE:
    case T_CARRAY:
+      type_set_elem(t, type_elem(a));
+      break;
+
+   case T_SUBTYPE:
       type_set_base(t, type_base(a));
       break;
 
@@ -558,6 +588,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       if (write_b(t->base != NULL, f))
          type_write(t->base, ctx);
    }
+   if (HAS_ELEM(t))
+      type_write(t->elem, ctx);
    if (HAS_RESOLUTION(t))
       tree_write(t->resolution, ctx->tree_ctx);
 
@@ -626,6 +658,8 @@ type_t type_read(type_rd_ctx_t ctx)
       if (read_b(f))
          t->base = type_read(ctx);
    }
+   if (HAS_ELEM(t))
+      t->elem = type_read(ctx);
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
    if (HAS_PARAMS(t)) {
@@ -783,4 +817,12 @@ void type_sweep(unsigned generation)
              n_types_alloc - p, p);
 
    n_types_alloc = p;
+}
+
+bool type_is_array(type_t t)
+{
+   if (t->kind == T_SUBTYPE)
+      return type_is_array(t->base);
+   else
+      return (t->kind == T_CARRAY || t->kind == T_UARRAY);
 }

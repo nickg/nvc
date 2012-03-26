@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1006
+#define FILE_FMT_VER 0x1007
 
 //#define EXTRA_READ_CHECKS
 
@@ -1169,9 +1169,13 @@ static unsigned tree_visit_type(type_t type,
 
    switch (type_kind(type)) {
    case T_SUBTYPE:
+      n += tree_visit_type(type_base(type), fn, context, kind,
+                           generation, deep);
+      break;
+
    case T_CARRAY:
    case T_UARRAY:
-      n += tree_visit_type(type_base(type), fn, context, kind,
+      n += tree_visit_type(type_elem(type), fn, context, kind,
                            generation, deep);
       break;
    default:

@@ -81,7 +81,7 @@ static const char *vcd_value_fmt(tree_t decl)
       const char *end = buf + MAX_TEXT_WIDTH;
       p += snprintf(p, end - p, "b");
       for (size_t i = 0; i < w; i++)
-         p += vcd_fmt_one(type_base(type), p, end - p, vals[i]);
+         p += vcd_fmt_one(type_elem(type), p, end - p, vals[i]);
    }
    else
       vcd_fmt_one(type, buf, MAX_TEXT_WIDTH, vals[0]);

@@ -1401,7 +1401,7 @@ constrained_array_def
 : tARRAY index_constraint tOF subtype_indication
   {
      $$ = type_new(T_CARRAY);
-     type_set_base($$, $4);
+     type_set_elem($$, $4);
 
      for (list_t *it = $2; it != NULL; it = it->next)
         type_add_dim($$, it->item.range);
@@ -1447,7 +1447,7 @@ unconstrained_array_def
 : tARRAY tLPAREN index_subtype_def tRPAREN tOF subtype_indication
   {
      $$ = $3;
-     type_set_base($$, $6);
+     type_set_elem($$, $6);
   }
 ;
 

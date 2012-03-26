@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -69,9 +69,13 @@ bool type_eq(type_t a, type_t b);
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
-// T_SUBTYPE, T_UARRAY, T_CARRAY
+// T_SUBTYPE
 type_t type_base(type_t t);
 void type_set_base(type_t t, type_t b);
+
+// T_UARRAY, T_CARRAY
+type_t type_elem(type_t t);
+void type_set_elem(type_t t, type_t e);
 
 // T_INTEGER, T_SUBTYPE, T_PHYSICAL, T_CARRAY
 unsigned type_dims(type_t t);
@@ -134,5 +138,8 @@ bool type_update_generation(type_t t, unsigned generation);
 
 // Garbage collection
 void type_sweep(unsigned generation);
+
+// Type or its parent type is an array
+bool type_is_array(type_t t);
 
 #endif  // _TYPE_H

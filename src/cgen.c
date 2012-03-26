@@ -218,10 +218,10 @@ static LLVMTypeRef llvm_type(type_t t)
                else
                   nelems *= (high - low + 1);
             }
-            return LLVMArrayType(llvm_type(type_base(t)), nelems);
+            return LLVMArrayType(llvm_type(type_elem(t)), nelems);
          }
          else {
-            return llvm_uarray_type(llvm_type(type_base(t)));
+            return llvm_uarray_type(llvm_type(type_elem(t)));
          }
       }
 
@@ -292,7 +292,7 @@ static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef left, LLVMValueRef right,
                                     LLVMValueRef kind, LLVMValueRef ptr)
 {
-   LLVMTypeRef base = llvm_type(type_base(type));
+   LLVMTypeRef base = llvm_type(type_elem(type));
    LLVMValueRef var = LLVMGetUndef(llvm_uarray_type(base));
    var = LLVMBuildInsertValue(builder, var, ptr, 0, "");
    var = LLVMBuildInsertValue(builder, var, left, 1, "");
@@ -385,9 +385,10 @@ static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
 {
    LLVMValueRef var = NULL;
 
-   // Handle case where array size is not known until run time
    type_t type = tree_type(d);
-   if (type_kind(type) == T_CARRAY && !cgen_const_bounds(type)) {
+
+   // Handle case where array size is not known until run time
+   if (type_is_array(type) && !cgen_const_bounds(type)) {
       // Allocate the array for the process temporary heap and
       // wrap in a metadata struct
 
@@ -421,7 +422,7 @@ static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
       LLVMValueRef length =
          LLVMBuildAdd(builder, diff, llvm_int32(1), "length");
 
-      LLVMTypeRef base_type = llvm_type(type_base(type));
+      LLVMTypeRef base_type = llvm_type(type_elem(type));
       LLVMTypeRef ptr_type  = LLVMPointerType(base_type, 0);
 
       LLVMValueRef buf =
@@ -443,8 +444,7 @@ static LLVMValueRef cgen_tmp_var(tree_t d, struct cgen_ctx *ctx)
 
 static LLVMValueRef cgen_local_var(tree_t d, struct cgen_ctx *ctx)
 {
-   type_kind_t tk = type_kind(tree_type(d));
-   if (tree_has_value(d) && (tk == T_CARRAY || tk == T_UARRAY)) {
+   if (tree_has_value(d) && type_is_array(tree_type(d))) {
       // Generating the initial value will also allocate storage
       return cgen_expr(tree_value(d), ctx);
    }
@@ -528,7 +528,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
       llvm_void_cast(src_ptr),
       offset,
       ll_n_elems,
-      llvm_sizeof(llvm_type(type_base(dest_type))),
+      llvm_sizeof(llvm_type(type_elem(dest_type))),
       opposite_dir
    };
    LLVMBuildCall(builder, llvm_fn("_array_copy"),
@@ -630,7 +630,7 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_load",
-            istr(type_ident(type_base(tree_type(decl)))));
+            istr(type_ident(type_elem(tree_type(decl)))));
 
    range_t r = type_dim(slice_type, 0);
    LLVMValueRef left_off =
@@ -770,7 +770,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
             range_t r = type_dim(type, 0);
 
             LLVMTypeRef ptr_type =
-               LLVMPointerType(llvm_type(type_base(type)), 0);
+               LLVMPointerType(llvm_type(type_elem(type)), 0);
 
             args[i] = cgen_array_meta(
                type,
@@ -1136,7 +1136,7 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
          builder,
          LLVMBuildGEP(builder, var,
                       indexes, ARRAY_LEN(indexes), ""),
-         LLVMPointerType(llvm_type(type_base(type)), 0), "aptr");
+         LLVMPointerType(llvm_type(type_elem(type)), 0), "aptr");
    }
 }
 
@@ -1382,7 +1382,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, struct cgen_ctx *ctx)
    LLVMBuildBr(builder, test_bb);
 
    if (def == NULL)
-      def = LLVMGetUndef(llvm_type(type_base(type)));
+      def = LLVMGetUndef(llvm_type(type_elem(type)));
 
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
@@ -1466,7 +1466,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, struct cgen_ctx *ctx)
       unsigned nvals;
       LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
 
-      LLVMTypeRef ltype = llvm_type(type_base(tree_type(t)));
+      LLVMTypeRef ltype = llvm_type(type_elem(tree_type(t)));
 
       LLVMTypeRef at = LLVMArrayType(ltype, nvals);
       LLVMValueRef g = LLVMAddGlobal(module, at, "");
@@ -1652,7 +1652,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
          LLVMValueRef lhs = cgen_get_var(tree_ref(target), ctx);
 
          type_t ty = tree_type(tree_ref(target));
-         assert(type_kind(ty) == T_CARRAY);
+         assert(type_is_array(ty));
 
          LLVMValueRef type_low = cgen_range_low(type_dim(ty, 0), ctx);
          LLVMValueRef low = cgen_range_low(tree_range(target), ctx);
@@ -1688,7 +1688,7 @@ static void cgen_array_signal_store(tree_t decl, type_t slice_type,
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_store",
-            istr(type_ident(type_base(tree_type(decl)))));
+            istr(type_ident(type_elem(tree_type(decl)))));
 
    range_t r = type_dim(slice_type, 0);
    LLVMValueRef left_off =
@@ -1863,7 +1863,7 @@ static void cgen_return(tree_t t, struct cgen_ctx *ctx)
       type_t rtype = type_result(tree_type(ctx->fdecl));
       assert(type_kind(rtype) == T_UARRAY);
 
-      LLVMTypeRef base_type = llvm_type(type_base(stype));
+      LLVMTypeRef base_type = llvm_type(type_elem(stype));
 
       LLVMValueRef args[] = {
          cgen_array_len(stype, rval),
@@ -2337,7 +2337,7 @@ static void cgen_array_signal_load_fn(tree_t t, LLVMValueRef v)
 {
    // Build a function to load the array into a temporary
 
-   type_t elem_type = type_base(tree_type(t));
+   type_t elem_type = type_elem(tree_type(t));
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_load",
@@ -2438,7 +2438,7 @@ static void cgen_array_signal_store_fn(tree_t t, LLVMValueRef v)
 {
    // Build a function to schedule an array assignment
 
-   type_t elem_type = type_base(tree_type(t));
+   type_t elem_type = type_elem(tree_type(t));
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_store",
