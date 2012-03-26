@@ -379,8 +379,7 @@ static bool type_set_uniq_composite(type_t *pt)
       while (type_kind(type) == T_SUBTYPE)
          type = type_base(type);
 
-      type_kind_t kind = type_kind(type);
-      bool comp = (kind == T_CARRAY || kind == T_UARRAY);
+      bool comp = type_is_array(type);
       if (comp) {
          if (*pt != NULL)
             return false;
