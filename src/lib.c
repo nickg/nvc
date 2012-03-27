@@ -181,7 +181,16 @@ lib_t lib_find(const char *name, bool verbose, bool search)
    const char *paths[MAX_SEARCH_PATHS];
    size_t idx = 0;
 
-   push_path(paths, &idx, ".");
+   char *name_copy = strdup(name);
+   char *sep = strrchr(name_copy, '/');
+   if (sep == NULL)
+      push_path(paths, &idx, ".");
+   else {
+      // Work library contains path
+      *sep = '\0';
+      push_path(paths, &idx, name_copy);
+      name = sep + 1;
+   }
 
    char *env_copy = NULL;
    if (search) {
@@ -201,6 +210,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
    lib_t lib;
    for (const char **p = paths; *p != NULL; p++) {
       if ((lib = lib_find_at(name, *p))) {
+         free(name_copy);
          free(env_copy);
          return lib;
       }
@@ -213,6 +223,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
       }
    }
 
+   free(name_copy);
    free(env_copy);
    return NULL;
 }

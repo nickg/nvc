@@ -1093,7 +1093,7 @@ static LLVMValueRef cgen_ref(tree_t t, struct cgen_ctx *ctx)
    case T_VAR_DECL:
       {
          LLVMValueRef ptr = cgen_get_var(decl, ctx);
-         if (type_kind(tree_type(decl)) == T_CARRAY)
+         if (type_is_array(tree_type(decl)))
             return ptr;
          else
             return LLVMBuildLoad(builder, ptr, "");
