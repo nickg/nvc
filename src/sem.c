@@ -2901,12 +2901,8 @@ static bool sem_check_array_slice(tree_t t)
       return false;
 
    type_t array_type = tree_type(tree_value(t));
-   while (type_kind(array_type) == T_SUBTYPE)
-      array_type = type_base(array_type);
 
-   type_kind_t array_k = type_kind(array_type);
-
-   if (array_k != T_CARRAY && array_k != T_UARRAY)
+   if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
 
    type_set_push();
@@ -2919,7 +2915,12 @@ static bool sem_check_array_slice(tree_t t)
    if (!ok)
       return false;
 
-   if (array_k == T_CARRAY && (r.kind != type_dim(array_type, 0).kind))
+   bool wrong_dir =
+      (type_kind(array_type) != T_UARRAY)
+      && (r.kind != type_dim(array_type, 0).kind)
+      && (type_dim(array_type, 0).kind != RANGE_DYN);
+
+   if (wrong_dir)
       sem_error(t, "range direction of slice does not match prefix");
 
    type_t slice_type = type_new(T_CARRAY);
