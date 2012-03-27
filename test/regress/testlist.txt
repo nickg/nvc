@@ -59,3 +59,4 @@ ieee3           normal
 default1        normal
 generic1        normal
 signal7         normal
+synopsys1       normal

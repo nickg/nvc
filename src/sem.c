@@ -2220,7 +2220,7 @@ static bool sem_check_fcall(tree_t t)
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-            p += snprintf(p, end - p, "\n    %s",
+            p += snprintf(p, end - p, "\n%s",
                           type_pp(tree_type(overloads[n])));
       }
 

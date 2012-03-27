@@ -5,7 +5,10 @@ nvc = $(top_builddir)/src/nvc
 synopsysdir = $(pkgdatadir)/ieee
 ieee = ../ieee/ieee
 synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
-	$(ieee)/IEEE.STD_LOGIC_SIGNED $(ieee)/IEEE.STD_LOGIC_UNSIGNED
+	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.bc $(ieee)/IEEE.STD_LOGIC_SIGNED \
+	$(ieee)/IEEE.STD_LOGIC_SIGNED-body $(ieee)/_IEEE.STD_LOGIC_SIGNED-body.bc \
+	$(ieee)/IEEE.STD_LOGIC_UNSIGNED $(ieee)/IEEE.STD_LOGIC_UNSIGNED-body \
+	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.bc
 
 lib = NVC_LIBPATH=../std
 
