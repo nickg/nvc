@@ -90,6 +90,11 @@ static void dump_expr(tree_t t)
          case A_POS:
             dump_expr(a.value);
             break;
+         case A_NAMED:
+            dump_expr(a.name);
+            printf(" => ");
+            dump_expr(a.value);
+            break;
          case A_OTHERS:
             printf("others => ");
             dump_expr(a.value);
@@ -503,8 +508,24 @@ static void dump_elab(tree_t t)
 static void dump_entity(tree_t t)
 {
    printf("entity %s is\n", istr(tree_ident(t)));
-   for (unsigned i = 0; i < tree_ports(t); i++)
+   if (tree_generics(t) > 0) {
+      printf("  port (\n");
+      for (unsigned i = 0; i < tree_generics(t); i++) {
+         if (i > 0)
+            printf(";\n");
+         tab(4);
+         dump_port(tree_generic(t, i), 2);
+      }
+      printf(" );\n");
+   }
+   printf("  port (\n");
+   for (unsigned i = 0; i < tree_ports(t); i++) {
+      if (i > 0)
+         printf(";\n");
+      tab(4);
       dump_port(tree_port(t, i), 2);
+   }
+   printf(" );\n");
    printf("end entity;\n");
 }
 
