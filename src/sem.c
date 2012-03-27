@@ -901,6 +901,7 @@ static bool sem_check_context(tree_t t)
          return false;
    }
 
+   bool ok = true;
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       context_t c = tree_context(t, n);
       ident_t all = ident_strip(c.name, ident_new(".all"));
@@ -908,14 +909,13 @@ static bool sem_check_context(tree_t t)
          c.name = all;
 
       lib_t lib = lib_find(istr(ident_until(c.name, '.')), true, true);
-      if (lib == NULL)
-         return false;
-
-      if (!scope_import_unit(c, lib, all != NULL))
-         return false;
+      if (lib != NULL)
+         ok = scope_import_unit(c, lib, all != NULL) && ok;
+      else
+         ok = false;
    }
 
-   return true;
+   return ok;
 }
 
 static bool sem_check_constrained(tree_t t, type_t type)
