@@ -203,8 +203,10 @@ static LLVMTypeRef llvm_type(type_t t)
       return LLVMIntType(bit_width(t));
 
    case T_SUBTYPE:
-      return llvm_type(type_base(t));
+      if (!type_is_array(t))
+         return llvm_type(type_base(t));
 
+      // Fall-through
    case T_CARRAY:
    case T_UARRAY:
       {
@@ -737,7 +739,6 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
          args[i] = NULL;
 
          type_t type = tree_type(p.value);
-         type_kind_t type_k = type_kind(type);
 
          // If this is a scalar out or inout parameter then we need
          // to pass a pointer rather than the value
@@ -756,7 +757,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
          // a structure with its metadata. Note we don't need to do
          // this for unconstrained arrays as they are already wrapped.
          bool need_wrap =
-            (type_k == T_CARRAY)
+            type_is_array(type)
             && cgen_const_bounds(type)
             && (builtin == NULL);
 
@@ -2237,7 +2238,7 @@ static void cgen_process(tree_t t)
          LLVMValueRef var_ptr = cgen_get_var(v, &ctx);
 
          type_t ty = tree_type(v);
-         if (type_kind(ty) == T_CARRAY)
+         if (type_is_array(ty))
             cgen_array_copy(ty, ty, val, var_ptr, NULL);
          else
             LLVMBuildStore(builder, val, var_ptr);

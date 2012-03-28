@@ -304,7 +304,7 @@ static tree_t simp_attr_ref(tree_t t)
 
       if (icmp(builtin, "length")) {
          tree_t array = tree_param(t, 0).value;
-         if (type_kind(tree_type(array)) == T_CARRAY) {
+         if (type_kind(tree_type(array)) != T_UARRAY) {
             range_t r = type_dim(tree_type(array), 0);
             if (tree_kind(r.left) == T_LITERAL
                 && tree_kind(r.right) == T_LITERAL) {
@@ -405,6 +405,7 @@ static tree_t simp_array_slice(tree_t t)
       type_t base_type = tree_type(base_decl);
 
       switch (type_kind(base_type)) {
+      case T_SUBTYPE:
       case T_CARRAY:
          {
             range_t slice_r = tree_range(t);
