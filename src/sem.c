@@ -2901,6 +2901,8 @@ static bool sem_check_array_slice(tree_t t)
       return false;
 
    type_t array_type = tree_type(tree_value(t));
+   while (type_kind(array_type) == T_SUBTYPE)
+      array_type = type_base(array_type);
 
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
