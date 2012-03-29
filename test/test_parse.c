@@ -1320,8 +1320,8 @@ START_TEST(test_bitstring)
    p = parse();
    fail_unless(tree_kind(p) == T_PACKAGE);
 
-   ident_t one = ident_new("1");
-   ident_t zero = ident_new("0");
+   ident_t one = ident_new("'1'");
+   ident_t zero = ident_new("'0'");
 
    a = tree_value(tree_decl(p, 0));
    fail_unless(tree_assocs(a) == 16);
