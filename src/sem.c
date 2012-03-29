@@ -376,8 +376,6 @@ static bool type_set_uniq_composite(type_t *pt)
    *pt = NULL;
    for (int i = 0; i < top_type_set->n_members; i++) {
       type_t type = top_type_set->members[i];
-      while (type_kind(type) == T_SUBTYPE)
-         type = type_base(type);
 
       bool comp = type_is_array(type);
       if (comp) {
@@ -1957,9 +1955,9 @@ static bool sem_check_cassign(tree_t t)
 
 static unsigned sem_array_dimension(type_t a)
 {
-   return (type_kind(a) == T_CARRAY
-           ? type_dims(a)
-           : type_index_constrs(a));
+   return (type_kind(a) == T_UARRAY
+           ? type_index_constrs(a)
+           : type_dims(a));
 }
 
 static bool sem_check_conversion(tree_t t)
@@ -2163,21 +2161,14 @@ static bool sem_check_fcall(tree_t t)
             tree_set_ref(t, decl);
             return sem_check_conversion(t);
          default:
-            {
-               type_t dtype = tree_type(decl);
-               while (type_kind(dtype) == T_SUBTYPE)
-                  dtype = type_base(dtype);
-
-               type_kind_t kind = type_kind(dtype);
-               if (kind == T_CARRAY || kind == T_UARRAY) {
-                  // The grammar is ambiguous between function calls and
-                  // array references so must be an array reference
-                  tree_change_kind(t, T_ARRAY_REF);
-                  return sem_check_array_ref(t);
-               }
-               else
-                  continue;   // Look for the next matching name
+            if (type_is_array(tree_type(decl))) {
+               // The grammar is ambiguous between function calls and
+               // array references so must be an array reference
+               tree_change_kind(t, T_ARRAY_REF);
+               return sem_check_array_ref(t);
             }
+            else
+               continue;   // Look for the next matching name
          }
 
          type_t func_type = tree_type(decl);
@@ -2500,19 +2491,14 @@ static bool sem_check_concat(tree_t t)
    if (!(ok && sem_check_concat_param(other, expect)))
       return false;
 
-   type_t ltype;
-   if (!sem_check_subtype(left, tree_type(left), &ltype))
-      return false;
-
-   type_t rtype;
-   if (!sem_check_subtype(right, tree_type(right), &rtype))
-      return false;
+   type_t ltype = tree_type(left);
+   type_t rtype = tree_type(right);
 
    type_kind_t lkind = type_kind(ltype);
    type_kind_t rkind = type_kind(rtype);
 
-   bool l_array = (lkind == T_CARRAY || lkind == T_UARRAY);
-   bool r_array = (rkind == T_CARRAY || rkind == T_UARRAY);
+   bool l_array = type_is_array(ltype);
+   bool r_array = type_is_array(rtype);
 
    if (l_array && r_array) {
       if (!type_eq(ltype, rtype))
@@ -2522,29 +2508,29 @@ static bool sem_check_concat(tree_t t)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
       type_t index_type;
-      if (lkind == T_CARRAY)
-         index_type = tree_type(type_dim(ltype, 0).left);
-      else
+      if (lkind == T_UARRAY)
          index_type = type_index_constr(ltype, 0);
+      else
+         index_type = tree_type(type_dim(ltype, 0).left);
 
       range_t index_r = type_dim(index_type, 0);
 
       type_t std_int = sem_std_type("INTEGER");
       tree_t left_len, right_len;
 
-      if (lkind == T_CARRAY)
-         left_len = sem_array_len(ltype);
-      else
+      if (lkind == T_UARRAY)
          left_len = call_builtin("length", std_int, left, NULL);
-
-      if (rkind == T_CARRAY)
-         right_len = sem_array_len(rtype);
       else
-         right_len = call_builtin("length", std_int, right, NULL);
+         left_len = sem_array_len(ltype);
 
-      type_t result = type_new(T_CARRAY);
+      if (rkind == T_UARRAY)
+         right_len = call_builtin("length", std_int, right, NULL);
+      else
+         right_len = sem_array_len(rtype);
+
+      type_t result = type_new(T_SUBTYPE);
       type_set_ident(result, type_ident(ltype));
-      type_set_elem(result, type_elem(ltype));
+      type_set_base(result, ltype);
 
       tree_t one = sem_int_lit(index_type, 1);
 
@@ -2580,26 +2566,26 @@ static bool sem_check_concat(tree_t t)
          sem_error(t, "type of scalar does not match element type of array");
 
       type_t index_type;
-      if (akind == T_CARRAY)
-         index_type = tree_type(type_dim(atype, 0).left);
-      else
+      if (akind == T_UARRAY)
          index_type = type_index_constr(atype, 0);
+      else
+         index_type = tree_type(type_dim(atype, 0).left);
 
       range_t index_r = type_dim(index_type, 0);
 
       type_t std_int = sem_std_type("INTEGER");
       tree_t array_len;
-      if (akind == T_CARRAY)
-         array_len = sem_array_len(atype);
-      else
+      if (akind == T_UARRAY)
          array_len = call_builtin("length", std_int, array, NULL);
+      else
+         array_len = sem_array_len(atype);
 
       tree_t result_right = call_builtin(
          "add", index_type, index_r.left, array_len, NULL);
 
-      type_t result = type_new(T_CARRAY);
+      type_t result = type_new(T_SUBTYPE);
       type_set_ident(result, type_ident(atype));
-      type_set_elem(result, type_elem(atype));
+      type_set_base(result, atype);
 
       range_t result_r = {
          .kind  = index_r.kind,
@@ -2850,20 +2836,13 @@ static bool sem_check_array_ref(tree_t t)
       return false;
 
    type_t type = tree_type(tree_value(t));
-   while (type_kind(type) == T_SUBTYPE)
-      type = type_base(type);
 
-   unsigned nindex;
-   switch (type_kind(type)) {
-   case T_CARRAY:
-      nindex = type_dims(type);
-      break;
-   case T_UARRAY:
-      nindex = type_index_constrs(type);
-      break;
-   default:
+   if (!type_is_array(type))
       sem_error(t, "invalid array reference");
-   }
+
+   unsigned nindex = (type_kind(type) == T_UARRAY
+                      ? type_index_constrs(type)
+                      : type_dims(type));
 
    if (tree_params(t) != nindex)
       sem_error(t, "array %s has %d dimensions but %d indices given",
@@ -2876,10 +2855,10 @@ static bool sem_check_array_ref(tree_t t)
          sem_error(t, "only scalar references supported");
 
       type_t expect;
-      if (type_kind(type) == T_CARRAY)
-         expect = tree_type(type_dim(type, i).left);
-      else
+      if (type_kind(type) == T_UARRAY)
          expect = type_index_constr(type, i);
+      else
+         expect = tree_type(type_dim(type, i).left);
 
       ok = sem_check_constrained(p.value, expect) && ok;
 
@@ -2901,8 +2880,6 @@ static bool sem_check_array_slice(tree_t t)
       return false;
 
    type_t array_type = tree_type(tree_value(t));
-   while (type_kind(array_type) == T_SUBTYPE)
-      array_type = type_base(array_type);
 
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
@@ -2925,9 +2902,9 @@ static bool sem_check_array_slice(tree_t t)
    if (wrong_dir)
       sem_error(t, "range direction of slice does not match prefix");
 
-   type_t slice_type = type_new(T_CARRAY);
+   type_t slice_type = type_new(T_SUBTYPE);
    type_set_ident(slice_type, type_ident(array_type));
-   type_set_elem(slice_type, type_elem(array_type));
+   type_set_base(slice_type, array_type);
    type_add_dim(slice_type, tree_range(t));
 
    tree_set_ref(t, tree_ref(tree_value(t)));
