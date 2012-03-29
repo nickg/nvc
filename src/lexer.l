@@ -52,6 +52,7 @@ lvals_t lvals;
 ID         [a-zA-Z][a-zA-Z_0-9]*
 EXID       \\.*\\
 STRING     \"([^\"]|\"\")*\"
+BIT_STRING [BOX]\"[0-9a-fA-f_]+\"
 CHAR       '.'
 COMMENT    --.*\n
 INT        [0-9]+
@@ -260,6 +261,7 @@ REJECT        {R}{E}{J}{E}{C}{T}
 "]"          { TOKEN(tRSQUARE); }
 {INT}        { lvals.ival = atoll(yytext); TOKEN(tINT); }
 {BASED_INT}  { return parse_based_int(yytext); }
+{BIT_STRING} { lvals.sval = strdup(yytext); TOKEN(tBITSTRING); }
 {STRING}     { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
 {TICK}       { TOKEN(tTICK); }
 {CHAR}       { if (resolve_ir1045()) {

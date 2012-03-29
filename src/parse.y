@@ -129,6 +129,7 @@
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
    static tree_t str_to_agg(const char *start, const char *end);
+   static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
    static bool to_range_expr(tree_t t, range_t *r);
    static ident_t loc_to_ident(const loc_t *loc);
    static void parse_error(const loc_t *loc, const char *fmt, ...);
@@ -159,7 +160,7 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
-%type <t> delay_mechanism
+%type <t> delay_mechanism bit_string_literal
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -196,7 +197,7 @@
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
-%token tREJECT
+%token tREJECT tBITSTRING
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1716,9 +1717,9 @@ element_assoc
 literal
 : numeric_literal
 | string_literal
-/* | bit_string_literal
-   | null
-*/
+| bit_string_literal
+/*   | null
+ */
 ;
 
 string_literal
@@ -1731,6 +1732,13 @@ string_literal
      free(lvals.sval);
   }
 ;
+
+bit_string_literal
+: tBITSTRING
+  {
+     $$ = bit_str_to_agg(lvals.sval, &@$);
+     free(lvals.sval);
+  }
 
 numeric_literal : abstract_literal | physical_literal ;
 
@@ -1985,6 +1993,49 @@ static tree_t str_to_agg(const char *start, const char *end)
       a.value = ref;
 
       tree_add_assoc(t, a);
+   }
+
+   return t;
+}
+
+static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
+{
+   tree_t t = tree_new(T_AGGREGATE);
+   tree_set_loc(t, loc);
+
+   char base_ch = str[0];
+   int base;
+   switch (base_ch) {
+   case 'X': base = 16; break;
+   case 'O': base = 8;  break;
+   case 'B': base = 2;  break;
+   default:
+      parse_error(loc, "invalid base '%c' for bit string", base_ch);
+      return t;
+   }
+
+   tree_t one = tree_new(T_REF);
+   tree_set_ident(one, ident_new("1"));
+
+   tree_t zero = tree_new(T_REF);
+   tree_set_ident(zero, ident_new("0"));
+
+   for (const char *p = str + 2; *p != '\"'; p++) {
+      int n = (isdigit((int)*p) ? (*p - '0')
+               : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
+
+      if (n >= base) {
+         parse_error(loc, "invalid digit '%c' in bit string", *p);
+         return t;
+      }
+
+      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
+         assoc_t a;
+         a.kind = A_POS;
+         a.value = (n / d) ? one : zero;
+
+         tree_add_assoc(t, a);
+      }
    }
 
    return t;

@@ -1311,6 +1311,63 @@ START_TEST(test_based)
 }
 END_TEST
 
+START_TEST(test_bitstring)
+{
+   tree_t p, a;
+
+   fail_unless(input_from_file(TESTDIR "/parse/bitstring.vhd"));
+
+   p = parse();
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   ident_t one = ident_new("1");
+   ident_t zero = ident_new("0");
+
+   a = tree_value(tree_decl(p, 0));
+   fail_unless(tree_assocs(a) == 16);
+   fail_unless(tree_ident(tree_assoc(a, 0).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 1).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 2).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 3).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 4).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 5).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 6).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 7).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 8).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 9).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 10).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 11).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 12).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 13).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 14).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 15).value) == zero);
+
+   a = tree_value(tree_decl(p, 1));
+   fail_unless(tree_assocs(a) == 12);
+   fail_unless(tree_ident(tree_assoc(a, 0).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 1).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 2).value) == one);
+
+   a = tree_value(tree_decl(p, 2));
+   fail_unless(tree_assocs(a) == 8);
+   fail_unless(tree_ident(tree_assoc(a, 0).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 1).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 2).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 3).value) == zero);
+
+   a = tree_value(tree_decl(p, 3));
+   fail_unless(tree_assocs(a) == 3);
+   fail_unless(tree_ident(tree_assoc(a, 0).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 1).value) == zero);
+   fail_unless(tree_ident(tree_assoc(a, 2).value) == one);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1338,6 +1395,7 @@ int main(void)
    tcase_add_test(tc_core, test_ir1045);
    tcase_add_test(tc_core, test_concat);
    tcase_add_test(tc_core, test_based);
+   tcase_add_test(tc_core, test_bitstring);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
