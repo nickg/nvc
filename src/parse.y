@@ -160,11 +160,11 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
-%type <t> delay_mechanism bit_string_literal
+%type <t> delay_mechanism bit_string_literal block_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
-%type <l> block_decl_item arch_decl_part arch_stmt_part process_decl_part
+%type <l> block_decl_item block_decl_part conc_stmt_list process_decl_part
 %type <l> variable_decl process_decl_item seq_stmt_list type_decl
 %type <l> subtype_decl package_decl_part package_decl_item enum_lit_list
 %type <l> constant_decl formal_param_list subprogram_decl name_list
@@ -197,7 +197,7 @@
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
-%token tREJECT tBITSTRING
+%token tREJECT tBITSTRING tBLOCK
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -414,7 +414,7 @@ port_clause
 ;
 
 arch_body
-: tARCHITECTURE id tOF id tIS arch_decl_part tBEGIN arch_stmt_part
+: tARCHITECTURE id tOF id tIS block_decl_part tBEGIN conc_stmt_list
   tEND opt_arch_token opt_id tSEMI
   {
      $$ = tree_new(T_ARCH);
@@ -428,18 +428,6 @@ arch_body
         parse_error(&@11, "%s does not match architecture name %s",
                     istr($11), istr($2));
      }
-  }
-;
-
-arch_decl_part
-: block_decl_item arch_decl_part
-  {
-     $$ = $1;
-     tree_list_concat(&$$, $2);
-  }
-| /* empty */
-  {
-     $$ = NULL;
   }
 ;
 
@@ -556,8 +544,8 @@ entity_class
 | tTYPE | tSUBTYPE | tCONSTANT | tSIGNAL | tVARIABLE
 ;
 
-arch_stmt_part
-: conc_stmt arch_stmt_part
+conc_stmt_list
+: conc_stmt conc_stmt_list
   {
      $$ = $2;
      tree_list_prepend(&$$, $1);
@@ -660,7 +648,7 @@ conc_stmt
   {
      $$ = $3;
      if (tree_has_ident($$) && tree_ident($$) != $1)
-        parse_error(&@1, "%s does not match process name %s",
+        parse_error(&@1, "%s does not match statement name %s",
                     istr(tree_ident($$)), istr($1));
      else
         tree_set_ident($$, $1);
@@ -679,9 +667,8 @@ conc_stmt_without_label
 : process_stmt
 | comp_instance_stmt
 | conc_assign_stmt
-  /* | block_statement
-     | process_statement
-     | concurrent_procedure_call_statement
+| block_stmt
+  /* | concurrent_procedure_call_statement
      | concurrent_assertion_statement
      | generate_statement */
 ;
@@ -785,6 +772,27 @@ process_decl_item
      | group_template_declaration
      | group_declaration
   */
+;
+
+block_stmt
+: tBLOCK /* [ ( guard_expression ) ] */ opt_is /*block_header*/
+  block_decl_part tBEGIN conc_stmt_list tEND tBLOCK opt_id tSEMI
+  {
+     $$ = tree_new(T_BLOCK);
+     copy_trees($3, tree_add_decl, $$);
+     copy_trees($5, tree_add_stmt, $$);
+     if ($8 != NULL)
+        tree_set_ident($$, $8);
+  }
+;
+
+block_decl_part
+: block_decl_item block_decl_part
+  {
+     $$ = $1;
+     tree_list_concat(&$$, $2);
+  }
+| /* empty */ { $$ = NULL; }
 ;
 
 subprogram_decl

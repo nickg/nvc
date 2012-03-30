@@ -1368,6 +1368,33 @@ START_TEST(test_bitstring)
 }
 END_TEST
 
+START_TEST(test_block)
+{
+   tree_t a, b;
+
+   fail_unless(input_from_file(TESTDIR "/parse/block.vhd"));
+
+   a = parse();
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 2);
+
+   b = tree_stmt(a, 0);
+   fail_unless(tree_kind(b) == T_BLOCK);
+   fail_unless(tree_decls(b) == 0);
+   fail_unless(tree_stmts(b) == 0);
+
+   b = tree_stmt(a, 1);
+   fail_unless(tree_kind(b) == T_BLOCK);
+   fail_unless(tree_decls(b) == 2);
+   fail_unless(tree_stmts(b) == 1);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1396,6 +1423,7 @@ int main(void)
    tcase_add_test(tc_core, test_concat);
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
+   tcase_add_test(tc_core, test_block);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

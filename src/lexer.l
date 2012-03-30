@@ -157,6 +157,7 @@ CASE          {C}{A}{S}{E}
 TRANSPORT     {T}{R}{A}{N}{S}{P}{O}{R}{T}
 INERTIAL      {I}{N}{E}{R}{T}{I}{A}{L}
 REJECT        {R}{E}{J}{E}{C}{T}
+BLOCK         {B}{L}{O}{C}{K}
 
 %%
 
@@ -234,6 +235,7 @@ REJECT        {R}{E}{J}{E}{C}{T}
 {TRANSPORT}     { TOKEN(tTRANSPORT); }
 {REJECT}        { TOKEN(tREJECT); }
 {INERTIAL}      { TOKEN(tINERTIAL); }
+{BLOCK}         { TOKEN(tBLOCK); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

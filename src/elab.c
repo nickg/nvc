@@ -24,6 +24,7 @@
 #include <stdarg.h>
 
 static void elab_arch(tree_t t, tree_t out, ident_t path);
+static void elab_block(tree_t t, tree_t out, ident_t path);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -217,10 +218,8 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
    elab_arch(arch, out, path);
 }
 
-static void elab_arch(tree_t t, tree_t out, ident_t path)
+static void elab_decls(tree_t t, tree_t out, ident_t path)
 {
-   elab_copy_context(out, t);
-
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
       ident_t pn = hpathf(path, ':', "%s",
@@ -248,17 +247,39 @@ static void elab_arch(tree_t t, tree_t out, ident_t path)
          break;
       }
    }
+}
 
+static void elab_stmts(tree_t t, tree_t out, ident_t path)
+{
    for (unsigned i = 0; i < tree_stmts(t); i++) {
       tree_t s = tree_stmt(t, i);
       ident_t npath = hpathf(path, ':', "%s", istr(tree_ident(s)));
       tree_set_ident(s, npath);
 
-      if (tree_kind(s) == T_INSTANCE)
+      switch (tree_kind(s)) {
+      case T_INSTANCE:
          elab_instance(s, out, npath);
-      else
+         break;
+      case T_BLOCK:
+         elab_block(s, out, npath);
+         break;
+      default:
          tree_add_stmt(out, s);
+      }
    }
+}
+
+static void elab_block(tree_t t, tree_t out, ident_t path)
+{
+   elab_decls(t, out, path);
+   elab_stmts(t, out, path);
+}
+
+static void elab_arch(tree_t t, tree_t out, ident_t path)
+{
+   elab_copy_context(out, t);
+   elab_decls(t, out, path);
+   elab_stmts(t, out, path);
 }
 
 static void elab_entity(tree_t t, tree_t out, ident_t path)
