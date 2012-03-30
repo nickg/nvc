@@ -898,6 +898,15 @@ static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
    return result;
 }
 
+static LLVMValueRef cgen_instance_name(tree_t ref)
+{
+   tree_t decl = tree_ref(ref);
+
+   LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
+   LLVMValueRef cast = llvm_void_cast(signal);
+   return LLVMBuildCall(builder, llvm_fn("_inst_name"), &cast, 1, "");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -918,6 +927,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return cgen_agg_bound(tree_param(t, 0).value, true, INT32_MAX, ctx);
       else if (icmp(builtin, "agg_high"))
          return cgen_agg_bound(tree_param(t, 0).value, false, INT32_MIN, ctx);
+      else if (icmp(builtin, "instance_name"))
+         return cgen_instance_name(tree_param(t, 0).value);
    }
 
    LLVMValueRef args[tree_params(t)];
@@ -2806,6 +2817,15 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMInt32Type(),
                                     _iexp_args,
                                     ARRAY_LEN(_iexp_args),
+                                    false));
+
+   LLVMTypeRef _inst_name_args[] = {
+      llvm_void_ptr()
+   };
+   LLVMAddFunction(module, "_inst_name",
+                   LLVMFunctionType(llvm_uarray_type(LLVMInt8Type()),
+                                    _inst_name_args,
+                                    ARRAY_LEN(_inst_name_args),
                                     false));
 }
 

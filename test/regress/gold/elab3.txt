@@ -1,0 +1,3 @@
+0ms+0: Report Note: :elab3(test):x
+1ns+0: Report Note: :elab3(test):b:y
+2ns+0: Report Note: :elab3(test):s@sub(test):p

@@ -433,6 +433,24 @@ int32_t _iexp(int32_t n, int32_t v)
    return (int32_t)pow(n, v);
 }
 
+struct uarray _inst_name(void *_sig)
+{
+   struct signal *sig = _sig;
+
+   const char *str = istr(tree_ident(sig->decl));
+
+   size_t len = strlen(str) + 1;
+   char *buf = rt_tmp_alloc(len);
+   strncpy(buf, str, len);
+
+   struct uarray u;
+   u.ptr   = buf;
+   u.left  = 0;
+   u.right = len - 1;
+   u.dir   = RANGE_TO;
+   return u;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 
@@ -879,6 +897,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
    jit_bind_fn("_iexp", _iexp);
+   jit_bind_fn("_inst_name", _inst_name);
 
    event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));

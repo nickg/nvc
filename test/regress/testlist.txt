@@ -61,3 +61,4 @@ generic1        normal
 signal7         normal
 synopsys1       normal
 block1          normal
+elab3           normal,gold

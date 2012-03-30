@@ -209,13 +209,17 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
 {
    tree_t arch = tree_copy(pick_arch(tree_ident2(t)));
 
+   ident_t npath = hpathf(path, '@', "%s(%s)",
+                          simple_name(istr(tree_ident2(arch))),
+                          simple_name(istr(tree_ident(arch))));
+
    elab_map(t, arch, tree_ports, tree_port,
             tree_params, tree_param);
    elab_map(t, arch, tree_generics, tree_generic,
             tree_genmaps, tree_genmap);
 
    elab_copy_context(out, tree_ref(t));
-   elab_arch(arch, out, path);
+   elab_arch(arch, out, npath);
 }
 
 static void elab_decls(tree_t t, tree_t out, ident_t path)
