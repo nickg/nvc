@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,9 +31,13 @@
 
 static FILE    *vcd_file = NULL;
 static ident_t i_vcd_key = NULL;
+static ident_t i_fmt_fn  = NULL;
+static ident_t i_fmt_arg = NULL;
 static char    *scopes[MAX_SCOPE_SZ];
 static int     n_scopes = 0;
 static tree_t  vcd_top = NULL;
+
+typedef int (*vcd_fmt_fn_t)(char *buf, size_t max, uint64_t val, void *arg);
 
 static const char *vcd_key_fmt(int key)
 {
@@ -49,23 +53,59 @@ static const char *vcd_key_fmt(int key)
    return buf;
 }
 
-static int vcd_fmt_one(type_t type, char *buf, size_t max, uint64_t val)
+static int vcd_fmt_int(char *buf, size_t max, uint64_t val, void *arg)
 {
+   return snprintf(buf, max, "h%"PRIx64, val);
+}
+
+static int vcd_fmt_enum(char *buf, size_t max, uint64_t val, void *arg)
+{
+   return snprintf(buf, max, "%c", ((const char*)arg)[val]);
+}
+
+static bool vcd_set_fmt_fn(tree_t decl)
+{
+   type_t type = tree_type(decl);
+
+   if (type_is_array(type))
+      type = type_elem(type);
+
+   while (type_kind(type) == T_SUBTYPE)
+      type = type_base(type);
+
+   vcd_fmt_fn_t fn = NULL;
+   void *arg = NULL;
+
    switch (type_kind(type)) {
    case T_INTEGER:
-      return snprintf(buf, max, "h%"PRIx64, val);
+      fn = vcd_fmt_int;
+      break;
 
    case T_ENUM:
       {
-         const char map[] = { '0', '1', 'x', 'z' };
-         if (val >= sizeof(map))
-            return snprintf(buf, max, "x");
-         else
-            return snprintf(buf, max, "%c", map[val]);
+         ident_t i = type_ident(type);
+         if (icmp(i, "STD.STANDARD.BIT"))
+            arg = "01xz";
+         else if (icmp(i, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
+            arg = "xx01zx01x";
+
+         if (arg != NULL)
+            fn = vcd_fmt_enum;
       }
+      break;
 
    default:
-      return 0; // Cannot format this in VCD
+      break;
+   }
+
+   if (fn == NULL) {
+      warnf("cannot format type %s in VCD", istr(type_ident(type)));
+      return false;
+   }
+   else {
+      tree_add_attr_ptr(decl, i_fmt_fn, fn);
+      tree_add_attr_ptr(decl, i_fmt_arg, arg);
+      return true;
    }
 }
 
@@ -73,18 +113,28 @@ static const char *vcd_value_fmt(tree_t decl)
 {
    static char buf[MAX_TEXT_WIDTH];
 
+   vcd_fmt_fn_t fn = tree_attr_ptr(decl, i_fmt_fn);
+   void *arg = tree_attr_ptr(decl, i_fmt_arg);
+
    uint64_t vals[MAX_VAR_WIDTH];
-   size_t w = rt_signal_value(decl, vals, MAX_VAR_WIDTH);
+   int w = rt_signal_value(decl, vals, MAX_VAR_WIDTH);
    type_t type = tree_type(decl);
-   if (type_kind(type) == T_CARRAY) {
+   if (type_is_array(type)) {
       char *p = buf;
       const char *end = buf + MAX_TEXT_WIDTH;
       p += snprintf(p, end - p, "b");
-      for (size_t i = 0; i < w; i++)
-         p += vcd_fmt_one(type_elem(type), p, end - p, vals[i]);
+
+      if (type_dim(type, 0).kind == RANGE_DOWNTO) {
+         for (int i = w - 1; i >= 0; i--)
+            p += (*fn)(p, end - p, vals[i], arg);
+      }
+      else {
+         for (int i = 0; i < w; i++)
+            p += (*fn)(p, end - p, vals[i], arg);
+      }
    }
    else
-      vcd_fmt_one(type, buf, MAX_TEXT_WIDTH, vals[0]);
+      (*fn)(buf, MAX_TEXT_WIDTH, vals[0], arg);
 
    return buf;
 }
@@ -163,6 +213,9 @@ void vcd_restart(void)
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
+      if (!vcd_set_fmt_fn(d))
+         continue;
+
       rt_set_event_cb(d, vcd_event_cb);
 
       tree_add_attr_int(d, i_vcd_key, next_key);
@@ -196,6 +249,9 @@ void vcd_restart(void)
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
+      if (tree_attr_int(d, i_vcd_key, -1) == -1)
+         continue;
+
       emit_value(d);
    }
 
@@ -205,6 +261,8 @@ void vcd_restart(void)
 void vcd_init(const char *filename, tree_t top)
 {
    i_vcd_key = ident_new("vcd_key");
+   i_fmt_fn  = ident_new("fmt_fn");
+   i_fmt_arg = ident_new("fmt_arg");
 
    vcd_top = top;
 

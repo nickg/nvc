@@ -1898,6 +1898,7 @@ static struct attr *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
    assert(t->n_attrs < MAX_ATTRS);
+   assert(name != NULL);
 
    struct attr *a = tree_find_attr(t, name, kind);
    if (a != NULL)
