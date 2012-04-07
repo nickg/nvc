@@ -131,9 +131,12 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          reply_read_signal_msg_t *reply = xmalloc(rsz);
          slave_get_reply(REPLY_READ_SIGNAL, reply, rsz);
 
-         printf("%-30s%-25s%s\n",
+         const char *type_str = type_pp(tree_type(d));
+         const char *short_name = strrchr(type_str, '.');
+
+         printf("%-30s%-20s%s\n",
                 istr(tree_ident(d)),
-                type_pp(tree_type(d)),
+                (short_name != NULL ? short_name + 1 : type_str),
                 pprint(d, reply->values, msg.len));
 
          free(reply);
