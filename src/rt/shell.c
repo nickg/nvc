@@ -41,46 +41,6 @@
 #include <readline/history.h>
 #endif
 
-static const char *shell_fmt_signal_value(tree_t t, uint64_t *values,
-                                          unsigned len)
-{
-   static char buf[256];
-
-   char *p = buf;
-   const char *end = buf + sizeof(buf);
-
-   type_t type = tree_type(t);
-   type_t base = (type_is_array(type) ? type_elem(type) : type);
-
-   unsigned left = 0, right = len - 1, step = 1;
-
-   if ((type_kind(type) == T_CARRAY)
-       && (type_dim(type, 0).kind == RANGE_DOWNTO)) {
-      left  = len - 1;
-      right = 0;
-      step  = -1;
-   }
-
-   for (unsigned i = left; i != right + step; i += step) {
-      switch (type_kind(base)) {
-      case T_INTEGER:
-         p += snprintf(p, end - p, "%"PRIi64, values[i]);
-         break;
-
-      case T_ENUM:
-         assert(values[i] < type_enum_literals(base));
-         p += snprintf(p, end - p, "%s",
-                       istr(tree_ident(type_enum_literal(base, values[i]))));
-         break;
-
-      default:
-         p += snprintf(p, end - p, "%"PRIx64, values[i]);
-      }
-   }
-
-   return buf;
-}
-
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
@@ -174,7 +134,7 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          printf("%-30s%-25s%s\n",
                 istr(tree_ident(d)),
                 type_pp(tree_type(d)),
-                shell_fmt_signal_value(d, reply->values, msg.len));
+                pprint(d, reply->values, msg.len));
 
          free(reply);
       }

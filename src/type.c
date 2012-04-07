@@ -826,3 +826,10 @@ bool type_is_array(type_t t)
    else
       return (t->kind == T_CARRAY || t->kind == T_UARRAY);
 }
+
+type_t type_base_recur(type_t t)
+{
+   while (t->kind == T_SUBTYPE)
+      t = t->base;
+   return t;
+}
