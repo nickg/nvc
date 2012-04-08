@@ -85,6 +85,10 @@ begin
     process is
         type letter is (A, B, C);
         variable l : letter;
+        variable v : bit_vector(0 to 3);
+        constant k : bit := '1';
+        variable n : bit;
+        variable i : integer;
     begin
         l := A;
         case l is                       -- OK
@@ -110,6 +114,28 @@ begin
                 null;
             when others =>
         end case;
+        case v is
+            when "0101" =>              --OK
+                null;
+            when "1101" =>              -- OK
+                null;
+        end case;
+        case v is
+            when (0 to 3 => k) =>       -- OK
+                null;
+            when (0 to 3 => n) =>       -- Not locally static
+                null;
+        end case;
+        case i is
+            when 1 =>                   -- OK
+                null;
+            when integer'(5) =>         -- OK
+                null;
+            when (1 + 5) * 7 =>         -- OK
+                null;
+            when i + 2 =>               -- Not locally static
+                null;
+        end case;   
     end process;
 
     -- Exit

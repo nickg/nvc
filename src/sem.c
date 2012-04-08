@@ -3091,36 +3091,76 @@ static bool sem_check_if(tree_t t)
    return ok;
 }
 
-static void sem_locally_static_fn(tree_t t, void *context)
-{
-   bool *locally_static = context;
-
-   // Rules for locally static expressions are in LRM 93 7.4.1
-   // TODO: these are not implemented correctly
-
-   if (tree_kind(t) == T_LITERAL)
-      return;
-   else if (tree_kind(t) == T_REF) {
-      tree_t decl = tree_ref(t);
-      switch (tree_kind(decl)) {
-      case T_CONST_DECL:
-      case T_ENUM_LIT:
-         return;
-      default:
-         break;
-      }
-   }
-   else if (tree_kind(t) == T_QUALIFIED)
-      return;
-
-   *locally_static = false;
-}
-
 static bool sem_locally_static(tree_t t)
 {
-   bool locally_static = true;
-   tree_visit(t, sem_locally_static_fn, &locally_static);
-   return locally_static;
+   // Rules for locally static expressions are in LRM 93 7.4.1
+
+   type_t type = tree_type(t);
+   tree_kind_t kind = tree_kind(t);
+
+   // Any literal other than of type time
+   if (kind == T_LITERAL) {
+      type_t std_time = sem_std_type("TIME");
+      return !type_eq(type, std_time);
+   }
+   else if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_ENUM_LIT))
+      return true;
+
+   // A constant reference with a locally static value
+   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_CONST_DECL))
+      return sem_locally_static(tree_value(tree_ref(t)));
+
+   // An alias of a locally static name
+   if (kind == T_ALIAS)
+      return sem_locally_static(tree_value(t));
+
+   // A function call of an implicit operator with locally static actuals
+   if (kind == T_FCALL) {
+      tree_t decl = tree_ref(t);
+      if (tree_attr_str(decl, builtin_i) == NULL)
+         return false;
+
+      bool all_static = true;
+      for (unsigned i = 0; i < tree_params(t); i++) {
+         param_t p = tree_param(t, i);
+         all_static = all_static && sem_locally_static(p.value);
+      }
+      return all_static;
+   }
+
+   // TODO: clauses e, f, and g re. attributes
+
+   // A qualified expression whose operand is locally static
+   if (kind == T_QUALIFIED)
+      return sem_locally_static(tree_value(t));
+
+   // A type conversion whose expression is locally static
+   if (kind == T_TYPE_CONV)
+      return sem_locally_static(tree_value(t));
+
+   // Aggregates must have locally static range and all elements
+   // must have locally static values
+   if (kind == T_AGGREGATE) {
+      range_t r = type_dim(type, 0);
+      if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+         return false;
+
+      if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
+         return false;
+
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+         if ((a.kind == A_NAMED) && !sem_locally_static(a.name))
+            return false;
+
+         if (!sem_locally_static(a.value))
+            return false;
+      }
+
+      return true;
+   }
+
+   return false;
 }
 
 static bool sem_check_case(tree_t t)

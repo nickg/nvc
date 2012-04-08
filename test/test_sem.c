@@ -629,10 +629,12 @@ START_TEST(test_seq)
       {  62, "return statement not allowed outside subprogram" },
       {  64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
       {  79, "undefined identifier X" },
-      { 102, "others choice must appear last" },
-      { 109, "case choice must be locally static" },
-      { 120, "type of exit condition must be STD.STANDARD.BOOLEAN" },
-      { 135, "parameter must be a variable" },
+      { 106, "others choice must appear last" },
+      { 113, "case choice must be locally static" },
+      { 126, "case choice must be locally static" },
+      { 136, "case choice must be locally static" },
+      { 146, "type of exit condition must be STD.STANDARD.BOOLEAN" },
+      { 161, "parameter must be a variable" },
       { -1, NULL }
    };
    expect_errors(expect);
