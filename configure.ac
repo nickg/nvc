@@ -71,6 +71,8 @@ case $host_os in
   *cygwin* ) CFLAGS="$CFLAGS -I-" ;;
 esac
 
+AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which $CC)"], [System compiler])
+
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \

@@ -150,7 +150,7 @@ static void link_shared(tree_t top)
 {
    link_args_begin();
 
-   link_arg_f("/usr/bin/cc");
+   link_arg_f("%s", SYSTEM_CC);
    link_arg_f("-shared");
    link_arg_f("-o");
    link_output(top, "so");   // TODO: different on OS X, etc.
