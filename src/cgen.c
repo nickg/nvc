@@ -547,9 +547,12 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
          {
             type_t type = tree_type(p);
             port_mode_t mode = tree_port_mode(p);
+            bool array = type_is_array(type);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
-                             && !type_is_array(type));
+                             && !array);
             if (need_ptr)
+               args[i] = LLVMPointerType(llvm_type(type), 0);
+            else if (array && (type_kind(type) != T_UARRAY))
                args[i] = LLVMPointerType(llvm_type(type), 0);
             else
                args[i] = llvm_type(type);
@@ -738,17 +741,22 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
       else {
          args[i] = NULL;
 
-         type_t type = tree_type(p.value);
+         type_t type = tree_type(p.value), formal_type;
 
          // If this is a scalar out or inout parameter then we need
          // to pass a pointer rather than the value
          if (builtin == NULL) {
-            port_mode_t mode = tree_port_mode(tree_port(decl, i));
+            tree_t port = tree_port(decl, i);
+            port_mode_t mode = tree_port_mode(port);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !type_is_array(type));
             if (need_ptr)
                args[i] = cgen_get_var(tree_ref(p.value), ctx);
+
+            formal_type = tree_type(port);
          }
+         else
+            formal_type = type;
 
          if (args[i] == NULL)
             args[i] = cgen_expr(p.value, ctx);
@@ -757,7 +765,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
          // a structure with its metadata. Note we don't need to do
          // this for unconstrained arrays as they are already wrapped.
          bool need_wrap =
-            type_is_array(type)
+            (type_kind(formal_type) == T_UARRAY)
             && cgen_const_bounds(type)
             && (builtin == NULL);
 
