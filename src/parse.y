@@ -161,6 +161,7 @@
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt
+%type <t> conc_select_assign_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -184,7 +185,7 @@
 %type <g> secondary_unit_decls constraint_list case_alt_list
 %type <g> element_assoc_list index_constraint constraint choice_list
 %type <b> element_assoc choice
-%type <g> param_list generic_map port_map
+%type <g> param_list generic_map port_map selected_waveforms
 %type <c> object_class
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
@@ -197,7 +198,7 @@
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
-%token tREJECT tBITSTRING tBLOCK
+%token tREJECT tBITSTRING tBLOCK tWITH tSELECT
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -667,6 +668,7 @@ conc_stmt_without_label
 : process_stmt
 | comp_instance_stmt
 | conc_assign_stmt
+| conc_select_assign_stmt
 | block_stmt
   /* | concurrent_procedure_call_statement
      | concurrent_assertion_statement
@@ -976,6 +978,47 @@ conditional_waveforms
 
      $$ = $5;
      tree_list_prepend(&$$, c);
+  }
+;
+
+conc_select_assign_stmt
+: tWITH expr tSELECT target tLE
+  delay_mechanism selected_waveforms tSEMI
+{
+   $$ = tree_new(T_SELECT);
+   tree_set_loc($$, &@$);
+   tree_set_value($$, $2);
+
+   for (list_t *it = $7; it != NULL; it = it->next) {
+      tree_set_target(it->item.assoc.value, $4);
+      set_delay_mechanism(it->item.assoc.value, $6);
+      tree_add_assoc($$, it->item.assoc);
+   }
+   list_free($7);
+}
+
+selected_waveforms
+: waveform tWHEN choice_list tCOMMA selected_waveforms
+  {
+     tree_t s = tree_new(T_SIGNAL_ASSIGN);
+     tree_set_loc(s, &@$);
+     copy_trees($1, tree_add_waveform, s);
+
+     for (list_t *it = $3; it != NULL; it = it->next)
+        it->item.assoc.value = s;
+
+     $$ = list_append($3, $5);
+  }
+| waveform tWHEN choice_list
+  {
+     tree_t s = tree_new(T_SIGNAL_ASSIGN);
+     tree_set_loc(s, &@$);
+     copy_trees($1, tree_add_waveform, s);
+
+     for (list_t *it = $3; it != NULL; it = it->next)
+        it->item.assoc.value = s;
+
+     $$ = $3;
   }
 ;
 

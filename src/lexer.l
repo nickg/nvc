@@ -158,6 +158,8 @@ TRANSPORT     {T}{R}{A}{N}{S}{P}{O}{R}{T}
 INERTIAL      {I}{N}{E}{R}{T}{I}{A}{L}
 REJECT        {R}{E}{J}{E}{C}{T}
 BLOCK         {B}{L}{O}{C}{K}
+WITH          {W}{I}{T}{H}
+SELECT        {S}{E}{L}{E}{C}{T}
 
 %%
 
@@ -236,6 +238,8 @@ BLOCK         {B}{L}{O}{C}{K}
 {REJECT}        { TOKEN(tREJECT); }
 {INERTIAL}      { TOKEN(tINERTIAL); }
 {BLOCK}         { TOKEN(tBLOCK); }
+{WITH}          { TOKEN(tWITH); }
+{SELECT}        { TOKEN(tSELECT); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

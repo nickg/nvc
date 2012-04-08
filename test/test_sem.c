@@ -666,6 +666,9 @@ START_TEST(test_conc)
       { 12, "no suitable overload for identifier '4'" },
       { 16, "type of condition must be BOOLEAN" },
       { 18, "reject interval must have type TIME" },
+      { 26, "choice must be locally static" },
+      { 29, "no suitable overload for identifier TRUE" },
+      { 32, "choice must have type STD.STANDARD.INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);

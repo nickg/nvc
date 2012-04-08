@@ -1099,7 +1099,7 @@ START_TEST(test_conc)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 2);
+   fail_unless(tree_stmts(a) == 3);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
@@ -1120,6 +1120,10 @@ START_TEST(test_conc)
    fail_unless(tree_waveforms(c) == 1);
    fail_unless(tree_has_value(c));
    fail_unless(tree_kind(tree_value(tree_waveform(c, 0))) == T_LITERAL);
+
+   s = tree_stmt(a, 2);
+   fail_unless(tree_kind(s) == T_SELECT);
+   fail_unless(tree_assocs(s) == 3);
 
    a = parse();
    fail_unless(a == NULL);

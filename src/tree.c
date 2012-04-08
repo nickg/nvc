@@ -160,7 +160,7 @@ struct tree_rd_ctx {
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
-    || IS(t, T_BLOCK))
+    || IS(t, T_BLOCK) || IS(t, T_SELECT))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -171,7 +171,8 @@ struct tree_rd_ctx {
     || IS(t, T_FUNC_BODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE)       \
     || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
-    || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK))
+    || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK)              \
+    || IS(t, T_SELECT))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
     || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL))
@@ -208,7 +209,7 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_CASE)       \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC)         \
-    || IS(t, T_EXIT) || IS(t, T_COND))
+    || IS(t, T_EXIT) || IS(t, T_COND) || IS(t, T_SELECT))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
@@ -220,7 +221,8 @@ struct tree_rd_ctx {
    (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
 #define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL))
-#define HAS_ASSOCS(t) (IS(t, T_AGGREGATE) || IS(t, T_CASE))
+#define HAS_ASSOCS(t)                                                 \
+   (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))
 #define HAS_CONDS(t) (IS(t, T_CASSIGN))
 #define HAS_REJECT(t) (IS(t, T_CASSIGN) || IS(t, T_SIGNAL_ASSIGN))
 

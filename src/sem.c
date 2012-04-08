@@ -70,11 +70,11 @@ static bool            bootstrap = false;
 static ident_t         builtin_i;
 static ident_t         std_standard_i;
 
-#define sem_error(t, ...) {                           \
+#define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
       errors++;                                       \
       return false;                                   \
-   }
+   } while (0)
 
 static void scope_push(ident_t prefix)
 {
@@ -3299,6 +3299,31 @@ static bool sem_check_exit(tree_t t)
    return true;
 }
 
+static bool sem_check_select(tree_t t)
+{
+   if (!sem_check(tree_value(t)))
+      return false;
+
+   type_t value_type = tree_type(tree_value(t));
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      if (a.kind == A_NAMED) {
+         if (!sem_check(a.name))
+            return false;
+         else if (!type_eq(tree_type(a.name), value_type))
+            sem_error(a.name, "choice must have type %s", type_pp(value_type));
+         else if (!sem_locally_static(a.name))
+            sem_error(a.name, "choice must be locally static");
+      }
+
+      if (!sem_check(a.value))
+         return false;
+   }
+
+   return true;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -3392,6 +3417,8 @@ bool sem_check(tree_t t)
       return sem_check_concat(t);
    case T_PCALL:
       return sem_check_pcall(t);
+   case T_SELECT:
+      return sem_check_select(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
