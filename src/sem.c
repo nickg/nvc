@@ -2017,23 +2017,18 @@ static bool sem_check_conversion(tree_t t)
    sem_error(t, "conversion only allowed between closely related types");
 }
 
-static void sem_maybe_ambiguous(tree_t t, void *_ambiguous)
+static bool sem_maybe_ambiguous(tree_t t)
 {
-   bool *ambiguous = _ambiguous;
-
    switch (tree_kind(t)) {
    case T_REF:
       {
          tree_t decl = scope_find(tree_ident(t));
-         if (decl != NULL && tree_kind(decl) == T_ENUM_LIT)
-            *ambiguous = true;
+         return (decl != NULL && tree_kind(decl) == T_ENUM_LIT);
       }
-      break;
    case T_AGGREGATE:
-      *ambiguous = true;
-      break;
+      return true;
    default:
-      break;
+      return false;
    }
 }
 
@@ -2048,8 +2043,7 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
-      ambiguous[i] = false;
-      tree_visit(p.value, sem_maybe_ambiguous, &ambiguous[i]);
+      ambiguous[i] = sem_maybe_ambiguous(p.value);
    }
 
    // First pass: only check those parameters which are unambiguous
@@ -2470,11 +2464,11 @@ static bool sem_check_concat(tree_t t)
    type_t expect;
    bool uniq_comp = type_set_uniq_composite(&expect);
 
-   bool ok, left_ambig = false, right_ambig = false;
+   bool ok;
    tree_t other;
 
-   sem_maybe_ambiguous(left, &left_ambig);
-   sem_maybe_ambiguous(right, &right_ambig);
+   bool left_ambig  = sem_maybe_ambiguous(left);
+   bool right_ambig = sem_maybe_ambiguous(right);
 
    if (left_ambig && right_ambig) {
       if (!uniq_comp)
