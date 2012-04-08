@@ -133,6 +133,7 @@ static int elaborate(int argc, char **argv)
    static struct option long_options[] = {
       {"disable-opt", no_argument, 0, 'o'},
       {"dump-llvm", no_argument, 0, 'd'},
+      {"native", no_argument, 0, 'n'},
       {0, 0, 0, 0}
    };
 
@@ -147,6 +148,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'd':
          cgen_dump_en(true);
+         break;
+      case 'n':
+         link_native_en(true);
          break;
       case 0:
          // Set a flag
@@ -361,6 +365,7 @@ static void usage(void)
           "Elaborate options:\n"
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
+          "     --native\t\tGenerate native code shared library\n"
           "\n"
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"

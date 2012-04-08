@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -63,5 +63,8 @@ void opt(tree_t top);
 
 // Link together bitcode packages with elaborated design
 void link_bc(tree_t top);
+
+// Enable native code output
+void link_native_en(bool en);
 
 #endif  // _PHASE_H

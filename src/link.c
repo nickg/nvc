@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 static char **args = NULL;
 static int  n_args = 0;
 static bool optimise = true;
+static bool native = false;
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -45,12 +46,17 @@ static void link_arg_f(const char *fmt, ...)
    args[++n_args] = NULL;
 }
 
-static void link_arg_bc(lib_t lib, ident_t name)
+static void link_product(lib_t lib, ident_t name, const char *ext)
 {
    char path[256];
    lib_realpath(lib, NULL, path, sizeof(path));
 
-   link_arg_f("%s/_%s.bc", path, istr(name));
+   link_arg_f("%s/_%s.%s", path, istr(name), ext);
+}
+
+static void link_arg_bc(lib_t lib, ident_t name)
+{
+   link_product(lib, name, "bc");
 }
 
 static bool link_needs_body(tree_t pack)
@@ -85,49 +91,28 @@ static void link_context(context_t ctx)
    link_arg_bc(lib, body_i);
 }
 
-static void link_output(tree_t top)
+static void link_output(tree_t top, const char *ext)
 {
-   link_arg_f("-b");
-
    ident_t orig = ident_strip(tree_ident(top), ident_new(".elab"));
    ident_t final = ident_prefix(orig, ident_new("final"), '.');
-   link_arg_bc(lib_work(), final);
+   link_product(lib_work(), final, ext);
 }
 
-char * get_llvm_bindir_path (char * default_llvm_bindir )
-{
-   if (getenv("NVC_LLVM_BINDIR_PATH") == NULL)
-   /* no preemptive environmental variable set */
-
-       if ( access(default_llvm_bindir, F_OK) == 0)
-           return (default_llvm_bindir);
-       else
-           fatal("can't access llvm bin directory %s", default_llvm_bindir);
-
-   else  /* environmental variable was present */
-       if (access(getenv("NVC_LLVM_BINDIR_PATH"), F_OK) == 0)
-           return(getenv("NVC_LLVM_BINDIR_PATH"));  /* static, optimized */
-       else
-           fatal("nvc override env variable NVC_LLVM_BINDIR_PATH not valid - %s",
-              getenv("NVC_LLVM_BINDIR_PATH"));
-}
-
-void link_bc(tree_t top)
+static void link_args_begin(void)
 {
    args = xmalloc(MAX_ARGS * sizeof(char*));
+   n_args = 0;
+}
 
-   link_arg_f("%s/llvm-ld", LLVM_CONFIG_BINDIR);
-   link_arg_f("-r");
+static void link_args_end(void)
+{
+   for (int i = 0; i < n_args; i++)
+      free(args[i]);
+   free(args);
+}
 
-   if (!optimise)
-      link_arg_f("--disable-opt");
-
-   link_output(top);
-   link_arg_bc(lib_work(), tree_ident(top));
-
-   for (unsigned i = 0; i < tree_contexts(top); i++)
-      link_context(tree_context(top, i));
-
+static void link_exec(void)
+{
    for (int i = 0; i < n_args; i++)
       printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
 
@@ -142,17 +127,77 @@ void link_bc(tree_t top)
          fatal_errno("waitpid");
 
       if (WEXITSTATUS(status) != 0)
-         fatal("llvm-ld failed with status %d", WEXITSTATUS(status));
+         fatal("%s failed with status %d", args[0], WEXITSTATUS(status));
    }
    else
       fatal_errno("fork");
+}
 
-   for (int i = 0; i < n_args; i++)
-      free(args[i]);
-   free(args);
+static void link_assembly(tree_t top)
+{
+   link_args_begin();
+
+   link_arg_f("%s/llc", LLVM_CONFIG_BINDIR);
+   link_arg_f("-relocation-model=pic");
+   link_output(top, "bc");
+
+   link_exec();
+
+   link_args_end();
+}
+
+static void link_shared(tree_t top)
+{
+   link_args_begin();
+
+   link_arg_f("/usr/bin/cc");
+   link_arg_f("-shared");
+   link_arg_f("-o");
+   link_output(top, "so");   // TODO: different on OS X, etc.
+   link_output(top, "s");
+
+   link_exec();
+
+   link_args_end();
+}
+
+static void link_native(tree_t top)
+{
+   link_assembly(top);
+   link_shared(top);
+}
+
+void link_bc(tree_t top)
+{
+   link_args_begin();
+
+   link_arg_f("%s/llvm-ld", LLVM_CONFIG_BINDIR);
+   link_arg_f("-r");
+
+   if (!optimise)
+      link_arg_f("--disable-opt");
+
+   link_arg_f("-b");
+   link_output(top, "bc");
+   link_arg_bc(lib_work(), tree_ident(top));
+
+   for (unsigned i = 0; i < tree_contexts(top); i++)
+      link_context(tree_context(top, i));
+
+   link_exec();
+
+   link_args_end();
+
+   if (native)
+      link_native(top);
 }
 
 void link_optimise_en(bool en)
 {
    optimise = en;
+}
+
+void link_native_en(bool en)
+{
+   native = en;
 }
