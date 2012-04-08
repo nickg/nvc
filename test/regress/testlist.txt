@@ -63,3 +63,4 @@ synopsys1       normal
 block1          normal
 elab3           normal,gold
 func6           normal
+case2           normal

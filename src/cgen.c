@@ -1971,8 +1971,10 @@ static void cgen_exit(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, not_bb);
 }
 
-static void cgen_case(tree_t t, struct cgen_ctx *ctx)
+static void cgen_case_scalar(tree_t t, struct cgen_ctx *ctx)
 {
+   // Case with scalar value maps onto LLVM case
+
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "case_exit");
 
    LLVMBasicBlockRef else_bb = exit_bb;
@@ -2012,6 +2014,65 @@ static void cgen_case(tree_t t, struct cgen_ctx *ctx)
    }
 
    LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
+static void cgen_case_array(tree_t t, struct cgen_ctx *ctx)
+{
+   // Case with array value must use chain of ifs
+
+   // TODO: multiple calls to cgen_array_rel is very inefficient
+   //       replace this with code to compare all values in a single
+   //       loop (e.g. build a bit mask of length #assocs)
+
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "case_exit");
+
+   LLVMValueRef val = cgen_expr(tree_value(t), ctx);
+   type_t type = tree_type(tree_value(t));
+
+   bool have_others = false;
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      LLVMBasicBlockRef next_bb = NULL;
+      assoc_t a = tree_assoc(t, i);
+      switch (a.kind) {
+      case A_NAMED:
+         {
+            LLVMBasicBlockRef this_bb =
+               LLVMAppendBasicBlock(ctx->fn, "case_body");
+            next_bb = LLVMAppendBasicBlock(ctx->fn, "case_test");
+            LLVMValueRef eq = cgen_array_rel(val, cgen_expr(a.name, ctx),
+                                             type, type, LLVMIntEQ, ctx);
+            LLVMBuildCondBr(builder, eq, this_bb, next_bb);
+            LLVMPositionBuilderAtEnd(builder, this_bb);
+         }
+         break;
+
+      case A_OTHERS:
+         next_bb = exit_bb;
+         have_others = true;
+         break;
+
+      default:
+         assert(false);
+      }
+
+      cgen_stmt(a.value, ctx);
+      LLVMBuildBr(builder, exit_bb);
+
+      LLVMPositionBuilderAtEnd(builder, next_bb);
+   }
+
+   if (!have_others)
+      LLVMBuildBr(builder, exit_bb);
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
+static void cgen_case(tree_t t, struct cgen_ctx *ctx)
+{
+   if (type_is_array(tree_type(tree_value(t))))
+      cgen_case_array(t, ctx);
+   else
+      cgen_case_scalar(t, ctx);
 }
 
 static void cgen_pcall(tree_t t, struct cgen_ctx *ctx)
