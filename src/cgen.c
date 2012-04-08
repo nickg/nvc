@@ -2214,11 +2214,8 @@ static void cgen_process(tree_t t)
 
    tree_visit_only(t, cgen_jump_table_fn, &ctx, T_WAIT);
 
-   if (ctx.entry_list == NULL) {
-      const loc_t *loc = tree_loc(t);
-      fprintf(stderr, "%s:%d: no wait statement in process\n",
-              loc->file, loc->first_line);
-   }
+   if (ctx.entry_list == NULL)
+      warn_at(tree_loc(t), "no wait statement in process");
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
