@@ -143,7 +143,7 @@ static time_t jit_mod_time(const char *path)
       if (errno == ENOENT)
          return 0;
       else
-         fatal_errno(path);
+         fatal_errno("%s", path);
    }
    return st.st_mtime;
 }
