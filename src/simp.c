@@ -812,8 +812,18 @@ static tree_t simp_select(tree_t t)
    tree_set_loc(c, tree_loc(t));
    tree_set_value(c, tree_value(t));
 
-   for (unsigned i = 0; i < tree_assocs(t); i++)
-      tree_add_assoc(c, tree_assoc(t, i));
+   tree_visit_only(tree_value(t), simp_build_wait, w, T_REF);
+
+   for (unsigned i = 0; i < tree_assocs(t); i++) {
+      assoc_t a = tree_assoc(t, i);
+      tree_add_assoc(c, a);
+
+      if (a.kind == A_NAMED)
+         tree_visit_only(a.name, simp_build_wait, w, T_REF);
+
+      for (unsigned j = 0; j < tree_waveforms(a.value); j++)
+         tree_visit_only(tree_waveform(a.value, j), simp_build_wait, w, T_REF);
+   }
 
    tree_add_stmt(p, c);
    tree_add_stmt(p, w);

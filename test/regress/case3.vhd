@@ -6,7 +6,7 @@ architecture test of case3 is
     signal y : integer;
 begin
 
-    with x select y <= 
+    decode: with x select y <=
         0 when X"0",
         1 when X"1",
         2 when X"2",
@@ -24,15 +24,15 @@ begin
         14 when X"e",
         15 when X"f";
 
-    process is
+    stim: process is
     begin
         wait for 0 ns;
         assert y = 0;
         x <= X"4";
-        wait on y;
+        wait for 1 ns;
         assert y = 4;
         x <= X"f";
-        wait on y;
+        wait for 1 ns;
         assert y = 15;
         wait;
     end process;
