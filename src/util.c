@@ -76,7 +76,7 @@
 #else
 #define ARCH_IP_REG __eip
 #endif
-#elif defined __powerpc
+#elif defined __ppc__ || defined __powerpc__
 #define ARCH_IP_REG __nip
 #elif defined __CYGWIN__
 #define NO_STACK_TRACE
@@ -374,7 +374,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
 #ifdef __APPLE__
    uintptr_t ip = uc->uc_mcontext->__ss.ARCH_IP_REG;
-#elif defined __powerpc
+#elif defined __ppc__ || defined __powerpc__
    uintptr_t ip = uc->uc_mcontext.regs->nip;
 #else
    uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG];
