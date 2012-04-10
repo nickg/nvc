@@ -668,7 +668,7 @@ START_TEST(test_conc)
       { 18, "reject interval must have type TIME" },
       { 26, "choice must be locally static" },
       { 29, "no suitable overload for identifier TRUE" },
-      { 32, "choice must have type STD.STANDARD.INTEGER" },
+      { 32, "no suitable overload for identifier FALSE" },
       { -1, NULL }
    };
    expect_errors(expect);

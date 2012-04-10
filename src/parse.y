@@ -1001,7 +1001,8 @@ selected_waveforms
 : waveform tWHEN choice_list tCOMMA selected_waveforms
   {
      tree_t s = tree_new(T_SIGNAL_ASSIGN);
-     tree_set_loc(s, &@$);
+     tree_set_ident(s, loc_to_ident(&@1));
+     tree_set_loc(s, &@1);
      copy_trees($1, tree_add_waveform, s);
 
      for (list_t *it = $3; it != NULL; it = it->next)
@@ -1012,7 +1013,8 @@ selected_waveforms
 | waveform tWHEN choice_list
   {
      tree_t s = tree_new(T_SIGNAL_ASSIGN);
-     tree_set_loc(s, &@$);
+     tree_set_ident(s, loc_to_ident(&@1));
+     tree_set_loc(s, &@1);
      copy_trees($1, tree_add_waveform, s);
 
      for (list_t *it = $3; it != NULL; it = it->next)

@@ -3309,7 +3309,7 @@ static bool sem_check_select(tree_t t)
    for (unsigned i = 0; i < tree_assocs(t); i++) {
       assoc_t a = tree_assoc(t, i);
       if (a.kind == A_NAMED) {
-         if (!sem_check(a.name))
+         if (!sem_check_constrained(a.name, value_type))
             return false;
          else if (!type_eq(tree_type(a.name), value_type))
             sem_error(a.name, "choice must have type %s", type_pp(value_type));

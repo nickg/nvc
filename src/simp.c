@@ -797,6 +797,29 @@ static tree_t simp_aggregate(tree_t t)
    return t;
 }
 
+static tree_t simp_select(tree_t t)
+{
+   // Replace a select statement with a case inside a process
+
+   tree_t p = tree_new(T_PROCESS);
+   tree_set_ident(p, tree_ident(t));
+
+   tree_t w = tree_new(T_WAIT);
+   tree_set_ident(w, ident_new("select_wait"));
+
+   tree_t c = tree_new(T_CASE);
+   tree_set_ident(c, ident_new("select_case"));
+   tree_set_loc(c, tree_loc(t));
+   tree_set_value(c, tree_value(t));
+
+   for (unsigned i = 0; i < tree_assocs(t); i++)
+      tree_add_assoc(c, tree_assoc(t, i));
+
+   tree_add_stmt(p, c);
+   tree_add_stmt(p, w);
+   return p;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -822,6 +845,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_cassign(t);
    case T_AGGREGATE:
       return simp_aggregate(t);
+   case T_SELECT:
+      return simp_select(t);
    case T_NULL:
       return NULL;   // Delete it
    default:
