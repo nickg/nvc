@@ -999,8 +999,10 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
                                tree_type(tree_param(t, 1).value),
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
+         bool is_signed = (type_kind(type_base_recur(arg_type)) == T_INTEGER);
+         LLVMOpcode op = (is_signed ? LLVMSExt : LLVMZExt);
          LLVMValueRef iargs[] = {
-            LLVMBuildZExtOrBitCast(builder, args[0], LLVMInt64Type(), ""),
+            LLVMBuildCast(builder, op, args[0], LLVMInt64Type(), ""),
             llvm_int32(tree_index(tree_param(t, 0).value)),
             LLVMBuildPointerCast(builder, mod_name,
                                  LLVMPointerType(LLVMInt8Type(), 0), "")
