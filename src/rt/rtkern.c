@@ -110,10 +110,17 @@ struct loaded {
    struct loaded *next;
 };
 
+struct run_queue {
+   struct event **queue;
+   size_t       wr, rd;
+   size_t       alloc;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
 static struct loaded    *loaded = NULL;
+static struct run_queue run_queue;
 
 static heap_t        eventq_heap = NULL;
 static size_t        n_procs = 0;
@@ -773,6 +780,34 @@ static void rt_update_driver(struct signal *s, int source)
       assert(w_now != NULL);
 }
 
+static void rt_push_run_queue(struct event *e)
+{
+   if (unlikely(run_queue.wr == run_queue.alloc)) {
+      if (run_queue.alloc == 0) {
+         run_queue.alloc = 128;
+         run_queue.queue = xmalloc(sizeof(struct event *) * run_queue.alloc);
+      }
+      else {
+         run_queue.alloc *= 2;
+         run_queue.queue = realloc(run_queue.queue,
+                                   sizeof(struct event *) * run_queue.alloc);
+      }
+   }
+
+   run_queue.queue[(run_queue.wr)++] = e;
+}
+
+static struct event *rt_pop_run_queue(void)
+{
+   if (run_queue.wr == run_queue.rd) {
+      run_queue.wr = 0;
+      run_queue.rd = 0;
+      return NULL;
+   }
+   else
+      return run_queue.queue[(run_queue.rd)++];
+}
+
 static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
@@ -795,8 +830,18 @@ static void rt_cycle(void)
 #endif
 
    for (;;) {
-      struct event *event = heap_extract_min(eventq_heap);
+      rt_push_run_queue(heap_extract_min(eventq_heap));
 
+      if (heap_size(eventq_heap) == 0)
+         break;
+
+      peek = heap_min(eventq_heap);
+      if (peek->when > now || peek->iteration != iteration)
+         break;
+   }
+
+   struct event *event;
+   while ((event = rt_pop_run_queue())) {
       switch (event->kind) {
       case E_PROCESS:
          rt_run(event->wake_proc, false /* reset */);
@@ -808,13 +853,6 @@ static void rt_cycle(void)
       }
 
       rt_free(event_stack, event);
-
-      if (heap_size(eventq_heap) == 0)
-         break;
-
-      peek = heap_min(eventq_heap);
-      if (peek->when > now || peek->iteration != iteration)
-         break;
    }
 
    if (unlikely(now == 0 && iteration == 0))
