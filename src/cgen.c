@@ -1000,7 +1000,7 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
          LLVMValueRef iargs[] = {
-            LLVMBuildIntCast(builder, args[0], LLVMInt64Type(), ""),
+            LLVMBuildZExtOrBitCast(builder, args[0], LLVMInt64Type(), ""),
             llvm_int32(tree_index(tree_param(t, 0).value)),
             LLVMBuildPointerCast(builder, mod_name,
                                  LLVMPointerType(LLVMInt8Type(), 0), "")
