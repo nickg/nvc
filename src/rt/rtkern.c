@@ -271,14 +271,14 @@ void _sched_event(void *_sig, int32_t n)
       if (it == NULL) {
          struct sens_list *node = rt_alloc(sens_list_stack);
          node->proc       = active_proc;
-         node->wakeup_gen = active_proc->wakeup_gen + 1;
+         node->wakeup_gen = active_proc->wakeup_gen;
          node->next       = sig[i].sensitive;
 
          sig[i].sensitive = node;
       }
       else {
          // Reuse the stale entry
-         it->wakeup_gen = active_proc->wakeup_gen + 1;
+         it->wakeup_gen = active_proc->wakeup_gen;
       }
    }
 }
@@ -628,7 +628,6 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
    active_proc = proc;
    (*proc->proc_fn)(reset ? 1 : 0);
-   ++(proc->wakeup_gen);
 
    // Free any temporary memory allocated by the process
    while (proc->tmp_chunks) {
@@ -660,6 +659,7 @@ static void rt_wakeup(struct sens_list *sl)
 
    if (sl->wakeup_gen == sl->proc->wakeup_gen) {
       TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
+      ++(sl->proc->wakeup_gen);
       sl->next = resume;
       resume = sl;
    }

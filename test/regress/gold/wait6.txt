@@ -1,0 +1,4 @@
+0ms+0: Report Note: x changed '0' '0' '0' '0'
+0ms+1: Report Note: x changed '0' '0' '0' '1'
+1ns+1: Report Note: x changed '0' '0' '1' '0'
+2ns+1: Report Note: x changed '1' '1' '1' '1'
