@@ -153,7 +153,12 @@ static void link_shared(tree_t top)
    link_arg_f("%s", SYSTEM_CC);
    link_arg_f("-shared");
    link_arg_f("-o");
-   link_output(top, "so");   // TODO: different on OS X, etc.
+   // TODO: different on OS X, etc.
+#if defined __CYGWIN__
+   link_output(top, "dll");
+#else
+   link_output(top, "so");
+#endif
    link_output(top, "s");
 
    link_exec();

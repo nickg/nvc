@@ -155,7 +155,12 @@ void jit_init(ident_t top)
 
    char bc_fname[64], so_fname[64];;
    snprintf(bc_fname, sizeof(bc_fname), "_%s.bc", istr(final));
+   // TODO: different on OS X, etc.
+#if defined __CYGWIN__
+   snprintf(so_fname, sizeof(so_fname), "_%s.dll", istr(final));
+#else
    snprintf(so_fname, sizeof(so_fname), "_%s.so", istr(final));
+#endif
 
    char bc_path[PATH_MAX], so_path[PATH_MAX];
    lib_realpath(lib_work(), bc_fname, bc_path, sizeof(bc_path));
