@@ -605,6 +605,29 @@ static tree_t simp_for(tree_t t)
 
    range_t r = tree_range(t);
 
+   tree_t test = NULL;
+   switch (r.kind) {
+   case RANGE_TO:
+      test = call_builtin("leq", NULL, r.left, r.right, NULL);
+      break;
+   case RANGE_DOWNTO:
+      test = call_builtin("geq", NULL, r.left, r.right, NULL);
+      break;
+   case RANGE_DYN:
+      break;
+   default:
+      assert(false);
+   }
+
+   tree_t container = b;
+   if (test != NULL) {
+      container = tree_new(T_IF);
+      tree_set_ident(container, ident_uniq("null_check"));
+      tree_set_value(container, test);
+
+      tree_add_stmt(b, container);
+   }
+
    tree_t init = tree_new(T_VAR_ASSIGN);
    tree_set_ident(init, ident_uniq("init"));
    tree_set_target(init, var);
@@ -671,8 +694,8 @@ static tree_t simp_for(tree_t t)
    tree_add_stmt(wh, exit);
    tree_add_stmt(wh, next);
 
-   tree_add_stmt(b, init);
-   tree_add_stmt(b, wh);
+   tree_add_stmt(container, init);
+   tree_add_stmt(container, wh);
 
    return b;
 }
