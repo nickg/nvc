@@ -393,7 +393,7 @@ void _array_copy(void *dst, const void *src,
       memcpy((char *)dst + (off * sz), src, n * sz);
 }
 
-struct uarray _image(int64_t val, int32_t where, const char *module)
+void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
 {
    tree_t t = rt_recall_tree(module, where);
 
@@ -419,12 +419,10 @@ struct uarray _image(int64_t val, int32_t where, const char *module)
       fatal_at(tree_loc(t), "cannot use 'IMAGE with this type");
    }
 
-   struct uarray u;
-   u.ptr   = buf;
-   u.left  = 0;
-   u.right = len - 1;
-   u.dir   = RANGE_TO;
-   return u;
+   u->ptr   = buf;
+   u->left  = 0;
+   u->right = len - 1;
+   u->dir   = RANGE_TO;
 }
 
 void _debug_out(int32_t val)
@@ -440,7 +438,7 @@ int32_t _iexp(int32_t n, int32_t v)
    return (int32_t)pow(n, v);
 }
 
-struct uarray _inst_name(void *_sig)
+void _inst_name(void *_sig, struct uarray *u)
 {
    struct signal *sig = _sig;
 
@@ -450,12 +448,10 @@ struct uarray _inst_name(void *_sig)
    char *buf = rt_tmp_alloc(len);
    strncpy(buf, str, len);
 
-   struct uarray u;
-   u.ptr   = buf;
-   u.left  = 0;
-   u.right = len - 1;
-   u.dir   = RANGE_TO;
-   return u;
+   u->ptr   = buf;
+   u->left  = 0;
+   u->right = len - 1;
+   u->dir   = RANGE_TO;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
