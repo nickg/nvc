@@ -31,6 +31,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define TRACE_DELTAQ  1
 #define EXIT_SEVERITY 2
@@ -129,6 +131,7 @@ static int           iteration = -1;
 static bool          trace_on = false;
 static ident_t       i_signal = NULL;
 static tree_rd_ctx_t tree_rd_ctx = NULL;
+static struct rusage ready_rusage;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -999,6 +1002,35 @@ static bool rt_stop_now(uint64_t stop_time)
    return peek->when > stop_time;
 }
 
+static void rt_stats_ready(void)
+{
+   if (getrusage(RUSAGE_SELF, &ready_rusage) < 0)
+      fatal_errno("getrusage");
+}
+
+static unsigned rt_tv2ms(struct timeval *tv)
+{
+   return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
+}
+
+static void rt_stats_print(void)
+{
+   struct rusage final_rusage;
+   if (getrusage(RUSAGE_SELF, &final_rusage) < 0)
+      fatal_errno("getrusage");
+
+   unsigned ready_u = rt_tv2ms(&ready_rusage.ru_utime);
+   unsigned ready_s = rt_tv2ms(&ready_rusage.ru_stime);
+
+   unsigned final_u = rt_tv2ms(&final_rusage.ru_utime);
+   unsigned final_s = rt_tv2ms(&final_rusage.ru_stime);
+
+   notef("setup:%ums run:%ums maxrss:%ldkB",
+         ready_u + ready_s,
+         final_u + final_s - ready_u - ready_s,
+         final_rusage.ru_maxrss);
+}
+
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1007,12 +1039,16 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 
    rt_one_time_init();
    rt_setup(e);
+   rt_stats_ready();
    rt_initial();
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle();
    rt_cleanup(e);
 
    jit_shutdown();
+
+   if (opt_get_int("rt-stats"))
+      rt_stats_print();
 }
 
 static void rt_slave_run(slave_run_msg_t *msg)

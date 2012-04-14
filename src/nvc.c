@@ -224,6 +224,7 @@ static int run(int argc, char **argv)
       {"command", no_argument, 0, 'c'},
       {"stop-time", required_argument, 0, 's'},
       {"vcd", required_argument, 0, 'v'},
+      {"stats", no_argument, 0, 'S'},
       {0, 0, 0, 0}
    };
 
@@ -257,6 +258,9 @@ static int run(int argc, char **argv)
          break;
       case 'v':
          vcd_fname = optarg;
+         break;
+      case 'S':
+         opt_set_int("rt-stats", 1);
          break;
       default:
          abort();
@@ -345,6 +349,7 @@ static int dump_cmd(int argc, char **argv)
 
 static void set_default_opts(void)
 {
+   opt_set_int("rt-stats", 0);
    opt_set_int("rt_trace_en", 0);
    opt_set_int("dump-llvm", 0);
    opt_set_int("optimise", 1);
@@ -378,6 +383,7 @@ static void usage(void)
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
+          "     --stats\t\tPrint statistics at end of run\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           "     --vcd=FILE\t\tWrite VCD data to FILE\n"
