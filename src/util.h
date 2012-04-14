@@ -84,4 +84,7 @@ int32_t read_i32(FILE *f);
 int64_t read_i64(FILE *f);
 uint8_t read_u8(FILE *f);
 
+void opt_set_int(const char *name, int val);
+int opt_get_int(const char *name);
+
 #endif // _UTIL_H

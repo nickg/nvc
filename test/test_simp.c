@@ -19,6 +19,7 @@ static error_fn_t orig_error_fn = NULL;
 static void setup(void)
 {
    lib_set_work(lib_tmp());
+   opt_set_int("bootstrap", 0);
 }
 
 static void teardown(void)

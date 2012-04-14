@@ -37,9 +37,6 @@ static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static LLVMValueRef   mod_name = NULL;
 
-static bool run_optimiser = true;
-static bool dump_module = false;
-
 static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
 static ident_t sig_struct_i = NULL;
@@ -2944,13 +2941,13 @@ void cgen(tree_t top)
 
    cgen_top(top);
 
-   if (dump_module)
+   if (opt_get_int("dump-llvm"))
       LLVMDumpModule(module);
 
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
 
-   if (run_optimiser)
+   if (opt_get_int("optimise"))
       optimise();
 
    char fname[256];
@@ -2965,12 +2962,3 @@ void cgen(tree_t top)
    LLVMDisposeModule(module);
 }
 
-void cgen_optimise_en(bool en)
-{
-   run_optimiser = en;
-}
-
-void cgen_dump_en(bool on)
-{
-   dump_module = on;
-}

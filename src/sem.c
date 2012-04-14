@@ -66,7 +66,6 @@ static bool sem_locally_static(tree_t t);
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
 static struct type_set *top_type_set = NULL;
-static bool            bootstrap = false;
 static ident_t         builtin_i;
 static ident_t         std_standard_i;
 
@@ -886,7 +885,7 @@ static bool sem_check_context(tree_t t)
 {
    // The std.standard package is also implicit unless we are
    // bootstrapping
-   if (!bootstrap) {
+   if (!opt_get_int("bootstrap")) {
       lib_t std = lib_find("std", true, true);
       if (std == NULL)
          fatal("failed to find std library");
@@ -3427,9 +3426,4 @@ bool sem_check(tree_t t)
 int sem_errors(void)
 {
    return errors;
-}
-
-void sem_bootstrap_en(bool en)
-{
-   bootstrap = en;
 }

@@ -30,7 +30,6 @@ typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 void rt_batch_exec(struct tree *e, uint64_t stop_time,
                    struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
-void rt_trace_en(bool en);
 void rt_set_event_cb(struct tree *s, sig_event_fn_t fn);
 size_t rt_signal_value(struct tree *s, uint64_t *buf, size_t max);
 

@@ -933,6 +933,8 @@ static void rt_one_time_init(void)
    jit_bind_fn("_iexp", _iexp);
    jit_bind_fn("_inst_name", _inst_name);
 
+   trace_on = opt_get_int("rt_trace_en");
+
    event_stack     = rt_alloc_stack_new(sizeof(struct event));
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
@@ -989,11 +991,6 @@ static void rt_cleanup(tree_t top)
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
-}
-
-void rt_trace_en(bool en)
-{
-   trace_on = en;
 }
 
 static bool rt_stop_now(uint64_t stop_time)

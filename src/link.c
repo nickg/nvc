@@ -31,8 +31,6 @@
 
 static char **args = NULL;
 static int  n_args = 0;
-static bool optimise = true;
-static bool native = false;
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -179,7 +177,7 @@ void link_bc(tree_t top)
    link_arg_f("%s/llvm-ld", LLVM_CONFIG_BINDIR);
    link_arg_f("-r");
 
-   if (!optimise)
+   if (!opt_get_int("optimise"))
       link_arg_f("--disable-opt");
 
    link_arg_f("-b");
@@ -193,16 +191,6 @@ void link_bc(tree_t top)
 
    link_args_end();
 
-   if (native)
+   if (opt_get_int("native"))
       link_native(top);
-}
-
-void link_optimise_en(bool en)
-{
-   optimise = en;
-}
-
-void link_native_en(bool en)
-{
-   native = en;
 }

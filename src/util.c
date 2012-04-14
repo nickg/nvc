@@ -104,8 +104,15 @@ typedef void (*print_fn_t)(const char *fmt, ...);
 
 static void def_error_fn(const char *msg, const loc_t *loc);
 
-static error_fn_t error_fn   = def_error_fn;
-static bool       want_color = false;
+struct option {
+   struct option *next;
+   const char    *key;
+   int           value;
+};
+
+static error_fn_t    error_fn   = def_error_fn;
+static bool          want_color = false;
+static struct option *options = NULL;
 
 static void paginate_msg(const char *fmt, va_list ap, int left, int right)
 {
@@ -604,4 +611,34 @@ void term_init(void)
 #else   // HAVE_CURSES
    want_color = isatty(STDERR_FILENO) && (nvc_no_color == NULL);
 #endif  // HAVE_CURSES
+}
+
+void opt_set_int(const char *name, int val)
+{
+   struct option *it;
+   for (it = options; (it != NULL) && (it->key != name); it = it->next)
+      ;
+
+   if (it != NULL)
+      it->value = val;
+   else {
+      it = xmalloc(sizeof(struct option));
+      it->key   = name;
+      it->value = val;
+      it->next  = options;
+
+      options = it;
+   }
+}
+
+int opt_get_int(const char *name)
+{
+   struct option *it;
+   for (it = options; (it != NULL) && (it->key != name); it = it->next)
+      ;
+
+   if (it != NULL)
+      return it->value;
+   else
+      fatal("invalid option %s", name);
 }

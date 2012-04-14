@@ -27,9 +27,6 @@ bool sem_check(tree_t t);
 // The number of errors found during the semantic check phase.
 int sem_errors(void);
 
-// Enable special mode for analysing STANDARD package
-void sem_bootstrap_en(bool en);
-
 // Fold all constant expressions
 void simplify(tree_t top);
 
@@ -48,13 +45,6 @@ tree_t elab(tree_t top);
 // Generate LLVM bitcode for an elaborated design
 void cgen(tree_t top);
 
-// Toggle LLVM optimisations on and off
-void cgen_optimise_en(bool en);
-void link_optimise_en(bool en);
-
-// Toggle dumping of generated LLVM IR
-void cgen_dump_en(bool on);
-
 // Dump out a VHDL representation of the given unit
 void dump(tree_t top);
 
@@ -63,8 +53,5 @@ void opt(tree_t top);
 
 // Link together bitcode packages with elaborated design
 void link_bc(tree_t top);
-
-// Enable native code output
-void link_native_en(bool en);
 
 #endif  // _PHASE_H
