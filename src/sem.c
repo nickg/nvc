@@ -23,6 +23,9 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 struct ident_list {
    ident_t           ident;
@@ -277,6 +280,30 @@ static void scope_replace(tree_t t, tree_t with)
    scope_replace_at(t, with, top_scope->decls);
 }
 
+static bool sem_check_stale(lib_t lib, tree_t t)
+{
+   // Check if the source file corresponding to t has been modified
+   // more recently than the library unit
+
+   const loc_t *l = tree_loc(t);
+   if (l->file == NULL)
+      return true;
+
+   struct stat st;
+   if (stat(l->file, &st) < 0) {
+      if (errno != ENOENT)
+         fatal_errno("%s", l->file);
+      else
+         return true;
+   }
+
+   if (st.st_mtime > lib_mtime(lib, tree_ident(t)))
+      sem_error(NULL, "source file %s for unit %s has changed and must "
+                "be reanalysed", l->file, istr(tree_ident(t)));
+   else
+      return true;
+}
+
 static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
 {
    // Check we haven't already imported this
@@ -295,6 +322,9 @@ static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
       errors++;
       return false;
    }
+
+   if (!sem_check_stale(lib, unit))
+      return false;
 
    for (unsigned n = 0; n < tree_decls(unit); n++) {
       tree_t decl = tree_decl(unit, n);
@@ -1759,6 +1789,9 @@ static bool sem_check_arch(tree_t t)
    if (e == NULL)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
+
+   if (!sem_check_stale(lib_work(), e))
+      return false;
 
    assert(top_scope == NULL);
    scope_push(NULL);
