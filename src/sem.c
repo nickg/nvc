@@ -3054,6 +3054,13 @@ static bool sem_check_instance(tree_t t)
    if (unit == NULL)
       sem_error(t, "cannot find unit %s", istr(tree_ident2(t)));
 
+   if (tree_kind(unit) == T_ARCH) {
+      unit = lib_get(lib_work(), ident_until(tree_ident2(t), '-'));
+      if (unit == NULL)
+         sem_error(t, "no entity corresponding to architecture %s",
+                   istr(tree_ident2(t)));
+   }
+
    tree_set_ref(t, unit);
 
    return sem_check_map(t, unit, tree_ports, tree_port,

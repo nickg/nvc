@@ -20,6 +20,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 struct trie;
 struct tree;
@@ -45,6 +46,7 @@ void lib_put(lib_t lib, struct tree *unit);
 struct tree *lib_get(lib_t lib, struct trie *ident);
 struct tree *lib_get_ctx(lib_t lib, struct trie *ident,
                          struct tree_rd_ctx **ctx);
+time_t lib_mtime(lib_t lib, struct trie *ident);
 
 typedef void (*lib_iter_fn_t)(struct tree *t, void *context);
 void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context);

@@ -65,20 +65,35 @@ static void find_arch(tree_t t, void *context)
 {
    struct arch_search_params *params = context;
 
-   if (tree_kind(t) == T_ARCH && tree_ident2(t) == params->name)
-      *(params->arch) = t;
+   lib_t work = lib_work();
+
+   if ((tree_kind(t) == T_ARCH) && (tree_ident2(t) == params->name)) {
+      if (*(params->arch) == NULL)
+         *(params->arch) = t;
+      else {
+         time_t old_mtime = lib_mtime(work, tree_ident2(*(params->arch)));
+         time_t new_mtime = lib_mtime(work, tree_ident2(t));
+
+         if (new_mtime > old_mtime)
+            *(params->arch) = t;
+      }
+   }
 }
 
-static tree_t pick_arch(ident_t ent_name)
+static tree_t pick_arch(const loc_t *loc, ident_t name)
 {
-   // XXX: LRM rules for selecting architecture?
+   // When an explicit architecture name is not given select the most
+   // recently analysed architecture of this entity
 
-   tree_t arch = NULL;
-   struct arch_search_params params = { ent_name, &arch };
-   lib_foreach(lib_work(), find_arch, &params);
+   tree_t arch = lib_get(lib_work(), name);
+   if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
+      arch = NULL;
+      struct arch_search_params params = { name, &arch };
+      lib_foreach(lib_work(), find_arch, &params);
 
-   if (arch == NULL)
-      fatal("no suitable architecture for entity %s", istr(ent_name));
+      if (arch == NULL)
+         fatal_at(loc, "no suitable architecture for %s", istr(name));
+   }
 
    return arch;
 }
@@ -222,7 +237,9 @@ static void elab_map(tree_t t, tree_t arch,
 
 static void elab_instance(tree_t t, tree_t out, ident_t path)
 {
-   tree_t arch = tree_copy(pick_arch(tree_ident2(t)));
+   // Default binding indication is described in LRM 93 section 5.2.2
+
+   tree_t arch = tree_copy(pick_arch(tree_loc(t), tree_ident2(t)));
 
    ident_t npath = hpathf(path, '@', "%s(%s)",
                           simple_name(istr(tree_ident2(arch))),
@@ -309,7 +326,7 @@ static void elab_entity(tree_t t, tree_t out, ident_t path)
       fatal("top-level entity may not have generics or ports");
    }
 
-   tree_t arch = pick_arch(tree_ident(t));
+   tree_t arch = pick_arch(NULL, tree_ident(t));
    ident_t new_path = hpathf(path, ':', ":%s(%s)",
                              simple_name(istr(tree_ident(t))),
                              simple_name(istr(tree_ident(arch))));

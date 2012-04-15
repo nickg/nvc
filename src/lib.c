@@ -36,6 +36,7 @@ struct lib_unit {
    tree_t        top;
    tree_rd_ctx_t read_ctx;
    bool          dirty;
+   time_t        mtime;
 };
 
 struct lib {
@@ -84,7 +85,7 @@ static lib_t lib_init(const char *name, const char *rpath)
 }
 
 static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
-                                    tree_rd_ctx_t ctx, bool dirty)
+                                    tree_rd_ctx_t ctx, bool dirty, time_t mtime)
 {
    assert(lib != NULL);
    assert(unit != NULL);
@@ -103,6 +104,7 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    lib->units[n].top      = unit;
    lib->units[n].read_ctx = ctx;
    lib->units[n].dirty    = dirty;
+   lib->units[n].mtime    = mtime;
 
    return &(lib->units[n]);
 }
@@ -298,7 +300,7 @@ void lib_set_work(lib_t lib)
 
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, NULL, true);
+   lib_put_aux(lib, unit, NULL, true, time(NULL));
 }
 
 static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
@@ -327,13 +329,25 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          FILE *f = lib_fopen(lib, e->d_name, "r");
          tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
          tree_t top = tree_read(ctx);
-         unit = lib_put_aux(lib, top, ctx, false);
+
+         struct stat st;
+         if (fstat(fileno(f), &st) < 0)
+            fatal_errno("%s", e->d_name);
+
+         unit = lib_put_aux(lib, top, ctx, false, st.st_mtime);
          break;
       }
    }
 
    closedir(d);
    return unit;
+}
+
+time_t lib_mtime(lib_t lib, ident_t ident)
+{
+   struct lib_unit *lu = lib_get_aux(lib, ident);
+   assert(lu != NULL);
+   return lu->mtime;
 }
 
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
