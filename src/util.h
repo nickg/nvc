@@ -60,7 +60,7 @@ void warn_at(const loc_t *loc, const char *fmt, ...)
 void note_at(const loc_t *loc, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 void fatal_at(const loc_t *loc, const char *fmt, ...)
-   __attribute__((format(printf, 2, 3)));
+   __attribute__((format(printf, 2, 3), noreturn));
 void error_at_v(const loc_t *loc, const char *fmt, va_list ap);
 
 void fmt_loc(FILE *f, const loc_t *loc);

@@ -133,6 +133,22 @@ static void elab_copy_context(tree_t dest, tree_t src)
       tree_add_context(dest, tree_context(src, i));
 }
 
+static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
+{
+   switch (tree_kind(actual)) {
+   case T_REF:
+      elab_add_alias(arch, actual, tree_ident(formal));
+      return tree_ref(actual);
+
+   case T_LITERAL:
+      return actual;
+
+   default:
+      fatal_at(tree_loc(actual), "tree kind %d not supported as actual",
+               tree_kind(actual));
+   }
+}
+
 static void elab_map(tree_t t, tree_t arch,
                      tree_formals_t tree_Fs, tree_formal_t tree_F,
                      tree_actuals_t tree_As, tree_actual_t tree_A)
@@ -175,8 +191,7 @@ static void elab_map(tree_t t, tree_t arch,
 
       switch (tree_class(formal)) {
       case C_SIGNAL:
-         params.actual = tree_ref(p.value);
-         elab_add_alias(arch, p.value, tree_ident(formal));
+         params.actual = elab_signal_port(arch, formal, p.value);
          break;
 
       case C_CONSTANT:

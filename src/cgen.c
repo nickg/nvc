@@ -1587,7 +1587,13 @@ static void cgen_sched_process(LLVMValueRef after)
 
 static void cgen_sched_event(tree_t on)
 {
-   assert(tree_kind(on) == T_REF);
+   if (tree_kind(on) != T_REF) {
+      // It is possible for constant folding to replace a signal with
+      // a constant which will then appear in a sensitivity list so
+      // just ignore it
+      return;
+   }
+
    tree_t decl = tree_ref(on);
    type_t type = tree_type(decl);
 
