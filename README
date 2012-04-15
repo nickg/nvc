@@ -1,7 +1,8 @@
 NVC is a GPLv3 VHDL compiler and simulator
 
-See this post for more information:
+See these posts for more information:
   http://www.doof.me.uk/2011/11/05/writing-a-vhdl-compiler/
+  http://www.doof.me.uk/2012/04/15/vhdl-compiler-improvements/
 
 To build from a Git clone:
   ./autogen.sh
