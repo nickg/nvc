@@ -106,7 +106,7 @@ static void def_error_fn(const char *msg, const loc_t *loc);
 
 struct option {
    struct option *next;
-   const char    *key;
+   char          *key;
    int           value;
 };
 
@@ -616,14 +616,14 @@ void term_init(void)
 void opt_set_int(const char *name, int val)
 {
    struct option *it;
-   for (it = options; (it != NULL) && (it->key != name); it = it->next)
+   for (it = options; (it != NULL) && strcmp(it->key, name); it = it->next)
       ;
 
    if (it != NULL)
       it->value = val;
    else {
       it = xmalloc(sizeof(struct option));
-      it->key   = name;
+      it->key   = strdup(name);
       it->value = val;
       it->next  = options;
 
