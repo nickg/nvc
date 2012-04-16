@@ -634,7 +634,7 @@ void opt_set_int(const char *name, int val)
 int opt_get_int(const char *name)
 {
    struct option *it;
-   for (it = options; (it != NULL) && (it->key != name); it = it->next)
+   for (it = options; (it != NULL) && strcmp(it->key, name); it = it->next)
       ;
 
    if (it != NULL)
