@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -36,7 +37,7 @@ struct lib_unit {
    tree_t        top;
    tree_rd_ctx_t read_ctx;
    bool          dirty;
-   time_t        mtime;
+   lib_mtime_t   mtime;
 };
 
 struct lib {
@@ -85,7 +86,8 @@ static lib_t lib_init(const char *name, const char *rpath)
 }
 
 static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
-                                    tree_rd_ctx_t ctx, bool dirty, time_t mtime)
+                                    tree_rd_ctx_t ctx, bool dirty,
+                                    lib_mtime_t mtime)
 {
    assert(lib != NULL);
    assert(unit != NULL);
@@ -298,9 +300,14 @@ void lib_set_work(lib_t lib)
    work = lib;
 }
 
+static lib_mtime_t lib_time_to_usecs(time_t t)
+{
+   return (lib_mtime_t)t * 1000 * 1000;
+}
+
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, NULL, true, time(NULL));
+   lib_put_aux(lib, unit, NULL, true, lib_time_to_usecs(time(NULL)));
 }
 
 static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
@@ -334,7 +341,14 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          if (fstat(fileno(f), &st) < 0)
             fatal_errno("%s", e->d_name);
 
-         unit = lib_put_aux(lib, top, ctx, false, st.st_mtime);
+         lib_mtime_t mt = lib_time_to_usecs(st.st_mtime);
+#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+         mt += st.st_mtimespec.tv_nsec / 1000;
+#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+         mt += st.st_mtim.tv_nsec / 1000;
+#endif
+
+         unit = lib_put_aux(lib, top, ctx, false, mt);
          break;
       }
    }
@@ -343,7 +357,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
    return unit;
 }
 
-time_t lib_mtime(lib_t lib, ident_t ident)
+lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
 {
    struct lib_unit *lu = lib_get_aux(lib, ident);
    assert(lu != NULL);

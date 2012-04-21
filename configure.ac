@@ -43,6 +43,9 @@ AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
                   sys/socket.h])
 
+AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
+AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
+
 AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
