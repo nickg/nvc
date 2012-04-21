@@ -74,7 +74,18 @@ static void find_arch(tree_t t, void *context)
          time_t old_mtime = lib_mtime(work, tree_ident2(*(params->arch)));
          time_t new_mtime = lib_mtime(work, tree_ident2(t));
 
-         if (new_mtime > old_mtime)
+         if (new_mtime == old_mtime) {
+            // Analysed at the same time: compare line number
+            // Note this assumes both architectures are from the same
+            // file but this shouldn't be a problem with high-resolution
+            // timestamps
+            int new_line = tree_loc(t)->first_line;
+            int old_line = tree_loc(*(params->arch))->first_line;
+
+            if (new_line > old_line)
+               *(params->arch) = t;
+         }
+         else if (new_mtime > old_mtime)
             *(params->arch) = t;
       }
    }
