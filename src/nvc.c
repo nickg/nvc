@@ -111,14 +111,14 @@ static int analyse(int argc, char **argv)
          else
             break;
       }
+
+      tree_gc();
+
+      if (parse_errors() + sem_errors() + simplify_errors() > 0)
+         return EXIT_FAILURE;
+
+      lib_save(lib_work());
    }
-
-   tree_gc();
-
-   if (parse_errors() + sem_errors() + simplify_errors() > 0)
-      return EXIT_FAILURE;
-
-   lib_save(lib_work());
 
    for (int i = 0; i < n_cgen; i++)
       cgen(to_cgen[i]);
