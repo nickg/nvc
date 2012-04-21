@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 
 #include "util.h"
+#include "ident.h"
 
 #if !defined __CYGWIN__
 // Get REG_EIP from ucontext.h
@@ -106,7 +107,7 @@ static void def_error_fn(const char *msg, const loc_t *loc);
 
 struct option {
    struct option *next;
-   char          *key;
+   ident_t       key;
    int           value;
 };
 
@@ -615,15 +616,16 @@ void term_init(void)
 
 void opt_set_int(const char *name, int val)
 {
+   ident_t name_i = ident_new(name);
    struct option *it;
-   for (it = options; (it != NULL) && strcmp(it->key, name); it = it->next)
+   for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
       ;
 
    if (it != NULL)
       it->value = val;
    else {
       it = xmalloc(sizeof(struct option));
-      it->key   = strdup(name);
+      it->key   = ident_new(name);
       it->value = val;
       it->next  = options;
 
@@ -633,8 +635,9 @@ void opt_set_int(const char *name, int val)
 
 int opt_get_int(const char *name)
 {
+   ident_t name_i = ident_new(name);
    struct option *it;
-   for (it = options; (it != NULL) && strcmp(it->key, name); it = it->next)
+   for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
       ;
 
    if (it != NULL)
