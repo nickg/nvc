@@ -10,6 +10,7 @@ begin
         variable x, y : int_array(1 to 3);
         variable z : int_array(1 to 6);
         variable s : string(1 to 5);
+        variable t : int_array(1 to 2);
     begin
         x := ( 1, 2, 3 );
         y := ( 4, 5, 6 );
@@ -19,6 +20,8 @@ begin
         w := y & 5;                     -- OK
         s := 'h' & string'("ello");     -- OK
         s := 1 & string'("ello");       -- Error
+        t := 6 & 7;                     -- OK
+        t := 7 & character'( 'x' );     -- Error
         wait;
     end process;
 

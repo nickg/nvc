@@ -2493,8 +2493,9 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   type_t expect;
-   bool uniq_comp = type_set_uniq_composite(&expect);
+   type_t composite;
+   bool uniq_comp = type_set_uniq_composite(&composite);
+   type_t expect = composite;
 
    bool ok;
    tree_t other;
@@ -2629,8 +2630,36 @@ static bool sem_check_concat(tree_t t)
 
       tree_set_type(t, result);
    }
-   else
-      sem_error(t, "cannot check this kind of concatenation");
+   else {
+      // Concatenating two scalars
+
+      if (!type_eq(ltype, rtype))
+         sem_error(t, "cannot concatenate values of different types");
+
+      type_t index_type;
+      if (type_kind(composite) == T_UARRAY)
+         index_type = type_index_constr(composite, 0);
+      else
+         index_type = tree_type(type_dim(composite, 0).left);
+
+      range_t index_r = type_dim(index_type, 0);
+
+      tree_t result_right = call_builtin(
+         "add", index_type, index_r.left, sem_int_lit(index_type, 1), NULL);
+
+      type_t result = type_new(T_SUBTYPE);
+      type_set_ident(result, type_ident(composite));
+      type_set_base(result, composite);
+
+      range_t result_r = {
+         .kind  = index_r.kind,
+         .left  = index_r.left,
+         .right = result_right
+      };
+      type_add_dim(result, result_r);
+
+      tree_set_type(t, result);
+   }
 
    return true;
 }

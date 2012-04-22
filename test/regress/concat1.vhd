@@ -22,6 +22,8 @@ begin
         assert z = (0, 1, 2);
         z := y & 3;
         assert z = (1, 2, 3);
+        y := 8 & 9;
+        assert y = (8, 9);
         wait;
     end process;
 
