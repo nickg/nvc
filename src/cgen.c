@@ -1315,13 +1315,16 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, struct cgen_ctx *ctx,
 
       LLVMValueRef *sub;
       unsigned nsub;
-      if (dim < type_dims(type) - 1) {
-         range_t r = type_dim(type, dim + 1);
+      if (dim < type_dims(type) - 1)
+         sub = cgen_const_aggregate(a.value, ctx, 0 /* XXX */, &nsub);
+      else if (tree_kind(a.value) == T_AGGREGATE) {
+         unsigned nvals;
+         LLVMValueRef *v = cgen_const_aggregate(a.value, ctx, 0, &nvals);
+         LLVMTypeRef ltype = llvm_type(type_elem(tree_type(a.value)));
 
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-
-         sub = cgen_const_aggregate(a.value, ctx, 0, &nsub);
+         sub  = xmalloc(sizeof(LLVMValueRef));
+         *sub = LLVMConstArray(ltype, v, nvals);
+         nsub = 1;
       }
       else {
          sub  = xmalloc(sizeof(LLVMValueRef));
