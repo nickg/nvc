@@ -88,6 +88,7 @@ typedef enum tree_kind {
    T_CONCAT,
    T_TYPE_CONV,
    T_SELECT,
+   T_COMPONENT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -146,7 +147,7 @@ bool tree_has_type(tree_t t);
 // T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
 // T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
 // T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF, T_INSTANCE, T_WHILE,
-// T_ATTR_DECL, T_PCALL, T_TYPE_CONV
+// T_ATTR_DECL, T_PCALL, T_TYPE_CONV, T_COMPONENT
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
@@ -155,7 +156,7 @@ bool tree_has_ident(tree_t t);
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 
-// T_ENTITY, T_FUNC_DECL
+// T_ENTITY, T_FUNC_DECL, T_COMPONENT
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);
 void tree_add_port(tree_t t, tree_t d);
@@ -164,7 +165,7 @@ void tree_add_port(tree_t t, tree_t d);
 port_mode_t tree_port_mode(tree_t t);
 void tree_set_port_mode(tree_t t, port_mode_t mode);
 
-// T_ENTITY
+// T_ENTITY, T_COMPONENT
 unsigned tree_generics(tree_t t);
 tree_t tree_generic(tree_t t, unsigned n);
 void tree_add_generic(tree_t t, tree_t d);

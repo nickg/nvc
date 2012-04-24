@@ -1399,6 +1399,35 @@ START_TEST(test_block)
 }
 END_TEST
 
+START_TEST(test_comp)
+{
+   tree_t p, c;
+
+   fail_unless(input_from_file(TESTDIR "/parse/comp.vhd"));
+
+   p = parse();
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 2);
+
+   c = tree_decl(p, 0);
+   fail_unless(tree_kind(c) == T_COMPONENT);
+   fail_unless(tree_ident(c) == ident_new("C"));
+   fail_unless(tree_ports(c) == 1);
+   fail_unless(tree_generics(c) == 1);
+
+   c = tree_decl(p, 1);
+   fail_unless(tree_kind(c) == T_COMPONENT);
+   fail_unless(tree_ident(c) == ident_new("FOO"));
+   fail_unless(tree_ports(c) == 1);
+   fail_unless(tree_generics(c) == 0);
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1428,6 +1457,7 @@ int main(void)
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
    tcase_add_test(tc_core, test_block);
+   tcase_add_test(tc_core, test_comp);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -72,7 +72,7 @@ struct tree {
       struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
-      struct tree_array  generics; // T_ENTITY
+      struct tree_array  generics; // T_ENTITY, T_COMPONENT
       struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
       struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_COND
       struct param_array genmaps;  // T_INSTANCE
@@ -148,7 +148,7 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL)                      \
     || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY) || IS(t, T_ALIAS)     \
     || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC) || IS(t, T_PROC_DECL) \
-    || IS(t, T_PROC_BODY))
+    || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT))
 #define IS_EXPR(t)                                                    \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF)                \
     || IS(t, T_QUALIFIED) || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF)  \
@@ -172,14 +172,14 @@ struct tree_rd_ctx {
     || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
     || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK)              \
-    || IS(t, T_SELECT))
+    || IS(t, T_SELECT) || IS(t, T_COMPONENT))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
     || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL))
 #define HAS_PORTS(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY)       \
-    || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY))
-#define HAS_GENERICS(t) (IS(t, T_ENTITY))
+    || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT))
+#define HAS_GENERICS(t) (IS(t, T_ENTITY) || IS(t, T_COMPONENT))
 #define HAS_TYPE(t)                                                   \
    (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL)   \
     || IS(t, T_TYPE_DECL) || IS_EXPR(t) || IS(t, T_ENUM_LIT)          \

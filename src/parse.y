@@ -172,7 +172,7 @@
 %type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec
-%type <l> conditional_waveforms
+%type <l> conditional_waveforms component_decl
 %type <p> entity_header
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -384,10 +384,10 @@ package_decl_item
 | alias_decl
 | attr_decl
 | attr_spec
+| component_decl
 /* | signal_declaration
    | shared_variable_declaration
    | file_declaration
-   | component_declaration
    | disconnection_specification
    | use_clause
    | group_template_declaration
@@ -442,16 +442,35 @@ block_decl_item
 | alias_decl
 | attr_decl
 | attr_spec
+| component_decl
 /* | subprogram_body
    | shared_variable_declaration
    | file_declaration
-   | component_declaration
    | configuration_specification
    | disconnection_specification
    | use_clause
    | group_template_declaration
    | group_declaration */
 ;
+
+component_decl
+: tCOMPONENT id opt_is generic_clause port_clause tEND
+  tCOMPONENT opt_id tSEMI
+{
+   tree_t t = tree_new(T_COMPONENT);
+   tree_set_ident(t, $2);
+   tree_set_loc(t, &@$);
+   copy_trees($4, tree_add_generic, t);
+   copy_trees($5, tree_add_port, t);
+
+   if ($8 != NULL && $8 != $2) {
+      parse_error(&@7, "%s does not match entity name %s",
+                  istr($8), istr($2));
+   }
+
+   $$ = NULL;
+   tree_list_append(&$$, t);
+}
 
 signal_decl
 : tSIGNAL id_list tCOLON subtype_indication
