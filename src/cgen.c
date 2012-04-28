@@ -1258,9 +1258,6 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
       {
          type_t type = tree_type(decl);
 
-         range_t r = tree_range(t);
-         LLVMValueRef low = cgen_range_low(r, ctx);
-
          LLVMValueRef array;
          if (tree_kind(decl) == T_ALIAS) {
             tree_t base = tree_ref(tree_value(decl));
@@ -1273,7 +1270,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
          else
             array = cgen_get_var(decl, ctx);
 
-         return cgen_get_slice(array, type, r, ctx);
+         return cgen_get_slice(array, type, tree_range(t), ctx);
       }
 
    case C_SIGNAL:
