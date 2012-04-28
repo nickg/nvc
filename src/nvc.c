@@ -101,6 +101,7 @@ static int analyse(int argc, char **argv)
       while ((unit = parse())) {
          if (sem_check(unit)) {
             assert(sem_errors() == 0);
+            unalias(unit);
             simplify(unit);
 
             if (tree_kind(unit) == T_PACK_BODY) {
