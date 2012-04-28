@@ -122,6 +122,16 @@ static tree_t get_bool_lit(tree_t t, bool v)
    return b;
 }
 
+static tree_t get_ref(tree_t decl)
+{
+   tree_t var = tree_new(T_REF);
+   tree_set_ident(var, tree_ident(decl));
+   tree_set_type(var, tree_type(decl));
+   tree_set_ref(var, decl);
+
+   return var;
+}
+
 static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
 {
    if (icmp(builtin, "not"))
@@ -365,11 +375,7 @@ static tree_t simp_alias_index(tree_t decl, tree_t index)
    case T_UARRAY:
       // The transformation must be computed at runtime
       {
-         tree_t ref = tree_new(T_REF);
-         tree_set_ref(ref, base_decl);
-         tree_set_ident(ref, tree_ident(base_decl));
-         tree_set_type(ref, ptype);
-
+         tree_t ref = get_ref(base_decl);
          tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
 
          literal_t l;
@@ -598,10 +604,7 @@ static tree_t simp_for(tree_t t)
 
    tree_t decl = tree_decl(t, 0);
 
-   tree_t var = tree_new(T_REF);
-   tree_set_ident(var, tree_ident(decl));
-   tree_set_type(var, tree_type(decl));
-   tree_set_ref(var, decl);
+   tree_t var = get_ref(decl);
 
    range_t r = tree_range(t);
 
