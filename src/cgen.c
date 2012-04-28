@@ -1639,33 +1639,18 @@ static void cgen_wait(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, it->bb);
 }
 
-static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
+static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
 {
-   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
-   type_t value_type = tree_type(tree_value(t));
-
-   tree_t target = tree_target(t);
-   switch (tree_kind(target)) {
+   switch (tree_kind(t)) {
    case T_REF:
-      {
-         LLVMValueRef lhs = cgen_get_var(tree_ref(target), ctx);
-
-         type_t ty = tree_type(target);
-         if (type_is_array(ty))
-            cgen_array_copy(value_type, ty, rhs, lhs, NULL);
-         else
-            LLVMBuildStore(builder, rhs, lhs);
-      }
-      break;
+      return cgen_get_var(tree_ref(t), ctx);
 
    case T_ARRAY_REF:
       {
-         tree_t target = tree_target(t);
-
-         tree_t decl = tree_ref(target);
+         tree_t decl = tree_ref(t);
          type_t type = tree_type(decl);
 
-         param_t p = tree_param(target, 0);
+         param_t p = tree_param(t, 0);
          assert(p.kind == P_POS);
 
          LLVMValueRef var = cgen_get_var(decl, ctx);
@@ -1673,29 +1658,53 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
             cgen_array_off(cgen_expr(p.value, ctx), var, type, ctx, 0);
 
          LLVMValueRef data = cgen_array_data_ptr(type, var);
-         LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
-
-         LLVMBuildStore(builder, rhs, ptr);
+         return LLVMBuildGEP(builder, data, &idx, 1, "");
       }
-      break;
 
    case T_ARRAY_SLICE:
       {
-         LLVMValueRef lhs = cgen_get_var(tree_ref(target), ctx);
+         LLVMValueRef array = cgen_get_var(tree_ref(t), ctx);
 
-         type_t ty = tree_type(tree_ref(target));
+         type_t ty = tree_type(tree_ref(t));
          assert(type_is_array(ty));
 
-         LLVMValueRef type_low = cgen_range_low(type_dim(ty, 0), ctx);
-         LLVMValueRef low = cgen_range_low(tree_range(target), ctx);
-         LLVMValueRef off = LLVMBuildSub(builder, low, type_low, "off");
-         cgen_array_copy(value_type, ty, rhs, lhs, off);
+         range_t r = tree_range(t);
+
+         LLVMValueRef low = cgen_range_low(r, ctx);
+         LLVMValueRef off = cgen_array_off(low, array, ty, ctx, 0);
+         LLVMValueRef data = cgen_array_data_ptr(ty, array);
+
+         LLVMValueRef ptr = LLVMBuildGEP(builder, data, &off, 1, "");
+
+         if (cgen_const_bounds(tree_type(t)))
+            return ptr;
+         else
+            return cgen_array_meta(tree_type(t),
+                                   cgen_expr(r.left, ctx),
+                                   cgen_expr(r.right, ctx),
+                                   llvm_int8(r.kind),
+                                   ptr);
       }
-      break;
 
    default:
       assert(false);
    }
+}
+
+static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
+{
+   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
+   type_t value_type = tree_type(tree_value(t));
+
+   tree_t target = tree_target(t);
+
+   LLVMValueRef lhs = cgen_lvalue(target, ctx);
+
+   type_t ty = tree_type(target);
+   if (type_is_array(ty))
+      cgen_array_copy(value_type, ty, rhs, lhs, NULL);
+   else
+      LLVMBuildStore(builder, rhs, lhs);
 }
 
 static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
