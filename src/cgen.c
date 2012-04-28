@@ -985,6 +985,8 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
                              LLVMBuildXor(builder, args[0], args[1], ""), "");
       else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
+      else if (icmp(builtin, "rem"))
+         return LLVMBuildSRem(builder, args[0], args[1], "");
       else if (icmp(builtin, "exp"))
          return LLVMBuildCall(builder, llvm_fn("_iexp"), args, 2, "");
       else if (icmp(builtin, "abs")) {
