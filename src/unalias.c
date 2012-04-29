@@ -109,12 +109,11 @@ static tree_t unalias_array_slice(tree_t t)
       switch (type_kind(base_type)) {
       case T_SUBTYPE:
       case T_CARRAY:
+      case T_UARRAY:
          {
             range_t slice_r = tree_range(t);
             slice_r.left  = unalias_index(decl, slice_r.left);
             slice_r.right = unalias_index(decl, slice_r.right);
-
-            slice_r.kind = type_dim(base_type, 0).kind;
 
             type_change_dim(tree_type(t), 0, slice_r);
 
@@ -122,8 +121,6 @@ static tree_t unalias_array_slice(tree_t t)
             tree_set_value(t, get_ref(base_decl));
          }
          break;
-      case T_UARRAY:
-         assert(false);
       default:
          assert(false);
       }

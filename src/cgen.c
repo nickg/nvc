@@ -280,8 +280,6 @@ static class_t cgen_get_class(tree_t decl)
       return C_SIGNAL;
    case T_CONST_DECL:
       return C_CONSTANT;
-   case T_ALIAS:
-      return cgen_get_class(tree_ref(tree_value(decl)));
    default:
       return tree_class(decl);
    }
@@ -1261,19 +1259,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
    case C_DEFAULT:
       {
          type_t type = tree_type(decl);
-
-         LLVMValueRef array;
-         if (tree_kind(decl) == T_ALIAS) {
-            tree_t base = tree_ref(tree_value(decl));
-            assert(type_kind(tree_type(base)) == T_UARRAY);
-
-            array = cgen_tmp_var(decl, ctx);
-            cgen_array_copy(tree_type(base), type,
-                            cgen_get_var(base, ctx), array, NULL);
-         }
-         else
-            array = cgen_get_var(decl, ctx);
-
+         LLVMValueRef array = cgen_get_var(decl, ctx);
          return cgen_get_slice(array, type, tree_range(t), ctx);
       }
 
