@@ -1642,10 +1642,7 @@ static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
 
    case T_ARRAY_REF:
       {
-         assert(tree_kind(tree_value(t)) == T_REF);
-
-         tree_t decl = tree_ref(tree_value(t));
-         type_t type = tree_type(decl);
+         type_t type = tree_type(tree_value(t));
 
          param_t p = tree_param(t, 0);
          assert(p.kind == P_POS);

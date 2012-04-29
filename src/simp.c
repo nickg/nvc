@@ -334,9 +334,9 @@ static tree_t simp_attr_ref(tree_t t)
 
 static tree_t simp_array_ref(tree_t t)
 {
-   // XXX: may not be decl e.g. nested array ref
    tree_t value = tree_value(t);
-   assert(tree_kind(value) == T_REF);
+   if (tree_kind(value) != T_REF)
+      return t;
 
    tree_t decl = tree_ref(value);
 

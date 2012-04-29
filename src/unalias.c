@@ -96,9 +96,9 @@ static tree_t unalias_index(tree_t decl, tree_t index)
 
 static tree_t unalias_array_slice(tree_t t)
 {
-   // XXX: may not be decl e.g. nested array ref
    tree_t value = tree_value(t);
-   assert(tree_kind(value) == T_REF);
+   if (tree_kind(value) != T_REF)
+      return t;
 
    tree_t decl = tree_ref(value);
 
@@ -131,9 +131,9 @@ static tree_t unalias_array_slice(tree_t t)
 
 static tree_t unalias_array_ref(tree_t t)
 {
-   // XXX: may not be decl e.g. nested array ref
    tree_t value = tree_value(t);
-   assert(tree_kind(value) == T_REF);
+   if (tree_kind(value) != T_REF)
+      return t;
 
    tree_t decl = tree_ref(value);
 
