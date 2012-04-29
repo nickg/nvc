@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1007
+#define FILE_FMT_VER 0x1008
 
 //#define EXTRA_READ_CHECKS
 
@@ -215,7 +215,6 @@ struct tree_rd_ctx {
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
 #define HAS_REF(t)                                                    \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
-    || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE)                     \
     || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV))
 #define HAS_WAVEFORMS(t)                                              \
    (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))

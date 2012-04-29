@@ -1192,7 +1192,9 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 
 static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
 {
-   tree_t decl = tree_ref(t);
+   assert(tree_kind(tree_value(t)) == T_REF);
+
+   tree_t decl = tree_ref(tree_value(t));
    type_t type = tree_type(decl);
 
    LLVMValueRef array = NULL;
@@ -1250,7 +1252,9 @@ static LLVMValueRef cgen_array_ref(tree_t t, struct cgen_ctx *ctx)
 
 static LLVMValueRef cgen_array_slice(tree_t t, struct cgen_ctx *ctx)
 {
-   tree_t decl = tree_ref(t);
+   assert(tree_kind(tree_value(t)) == T_REF);
+
+   tree_t decl = tree_ref(tree_value(t));
 
    switch (cgen_get_class(decl)) {
    case C_VARIABLE:
@@ -1652,13 +1656,15 @@ static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
 
    case T_ARRAY_REF:
       {
-         tree_t decl = tree_ref(t);
+         assert(tree_kind(tree_value(t)) == T_REF);
+
+         tree_t decl = tree_ref(tree_value(t));
          type_t type = tree_type(decl);
 
          param_t p = tree_param(t, 0);
          assert(p.kind == P_POS);
 
-         LLVMValueRef var = cgen_get_var(decl, ctx);
+         LLVMValueRef var = cgen_lvalue(tree_value(t), ctx);
          LLVMValueRef idx =
             cgen_array_off(cgen_expr(p.value, ctx), var, type, ctx, 0);
 
@@ -1668,9 +1674,9 @@ static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
 
    case T_ARRAY_SLICE:
       {
-         LLVMValueRef array = cgen_get_var(tree_ref(t), ctx);
+         LLVMValueRef array = cgen_lvalue(tree_value(t), ctx);
 
-         type_t ty = tree_type(tree_ref(t));
+         type_t ty = tree_type(tree_value(t));
          return cgen_get_slice(array, ty, tree_range(t), ctx);
       }
 
@@ -1756,7 +1762,9 @@ static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
 {
    tree_t target = tree_target(t);
 
-   tree_t decl = tree_ref(target);
+   assert(tree_kind(tree_value(target)) == T_REF);
+
+   tree_t decl = tree_ref(tree_value(target));
    assert(type_kind(tree_type(decl)) == T_CARRAY);
 
    param_t p = tree_param(target, 0);
@@ -1771,7 +1779,9 @@ static void cgen_slice_signal_assign(tree_t t, tree_t value, LLVMValueRef rhs,
 {
    tree_t target = tree_target(t);
 
-   tree_t decl = tree_ref(target);
+   assert(tree_kind(tree_value(target)) == T_REF);
+
+   tree_t decl = tree_ref(tree_value(target));
    assert(type_kind(tree_type(decl)) == T_CARRAY);
 
    cgen_array_signal_store(decl, tree_type(target), rhs,
@@ -2179,7 +2189,12 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
           || tree_kind(target) == T_ARRAY_REF
           || tree_kind(target) == T_ARRAY_SLICE);
 
-   tree_t decl = tree_ref(target);
+   // XXX: temp
+   tree_t x = target;
+   while (tree_kind(x) != T_REF)
+      x = tree_value(x);
+
+   tree_t decl = tree_ref(x);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
    ident_t tag_i = ident_new("driver_tag");

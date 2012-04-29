@@ -99,6 +99,13 @@ static void dump_expr(tree_t t)
             printf("others => ");
             dump_expr(a.value);
             break;
+         case A_RANGE:
+            dump_expr(a.range.left);
+            printf(" %s ", a.range.kind == RANGE_TO ? "to" : "downto");
+            dump_expr(a.range.right);
+            printf(" => ");
+            dump_expr(a.value);
+            break;
          default:
             assert(false);
          }
@@ -111,14 +118,15 @@ static void dump_expr(tree_t t)
       break;
 
    case T_ARRAY_REF:
-      printf("%s", istr(tree_ident(tree_ref(t))));
+      dump_expr(tree_value(t));
       dump_params(t);
       break;
 
    case T_ARRAY_SLICE:
       {
          range_t r = tree_range(t);
-         printf("%s(", istr(tree_ident(tree_ref(t))));
+         dump_expr(tree_value(t));
+         printf("(");
          dump_expr(r.left);
          printf(" %s ", r.kind == RANGE_TO ? "to" : "downto");
          dump_expr(r.right);

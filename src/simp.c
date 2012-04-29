@@ -271,17 +271,23 @@ static tree_t simp_fcall(tree_t t)
 static tree_t simp_ref(tree_t t)
 {
    tree_t decl = tree_ref(t);
+   type_t type = tree_type(decl);
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (type_kind(tree_type(decl)) == T_PHYSICAL) {
+      if (type_kind(type) == T_PHYSICAL) {
          // Slight hack to constant-fold the definitions of
          // physical units that and generated during the sem phase
          tree_t copy = tree_copy(tree_value(decl));
          return tree_rewrite(copy, simp_tree, NULL);
       }
+      else if (type_is_array(type))
+         return t;
       else
          return tree_value(decl);
+
+   case T_ALIAS:
+      return tree_value(decl);
 
    default:
       return t;
@@ -328,8 +334,11 @@ static tree_t simp_attr_ref(tree_t t)
 
 static tree_t simp_array_ref(tree_t t)
 {
-   tree_t decl = tree_ref(t);
    // XXX: may not be decl e.g. nested array ref
+   tree_t value = tree_value(t);
+   assert(tree_kind(value) == T_REF);
+
+   tree_t decl = tree_ref(value);
 
    literal_t indexes[tree_params(t)];
    bool can_fold = true;

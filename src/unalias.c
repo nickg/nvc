@@ -22,14 +22,14 @@
 #include <string.h>
 #include <stdarg.h>
 
-static tree_t unalias_ref(tree_t t)
+static tree_t get_ref(tree_t decl)
 {
-   tree_t decl = tree_ref(t);
+   tree_t var = tree_new(T_REF);
+   tree_set_ident(var, tree_ident(decl));
+   tree_set_type(var, tree_type(decl));
+   tree_set_ref(var, decl);
 
-   if (tree_kind(decl) == T_ALIAS)
-      return tree_value(decl);
-   else
-      return t;
+   return var;
 }
 
 static tree_t unalias_index(tree_t decl, tree_t index)
@@ -68,11 +68,7 @@ static tree_t unalias_index(tree_t decl, tree_t index)
    case T_UARRAY:
       // The transformation must be computed at runtime
       {
-         tree_t ref = tree_new(T_REF);
-         tree_set_ident(ref, tree_ident(base_decl));
-         tree_set_type(ref, tree_type(base_decl));
-         tree_set_ref(ref, base_decl);
-
+         tree_t ref = get_ref(base_decl);
          tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
 
          literal_t l;
@@ -100,8 +96,11 @@ static tree_t unalias_index(tree_t decl, tree_t index)
 
 static tree_t unalias_array_slice(tree_t t)
 {
-   tree_t decl = tree_ref(t);
    // XXX: may not be decl e.g. nested array ref
+   tree_t value = tree_value(t);
+   assert(tree_kind(value) == T_REF);
+
+   tree_t decl = tree_ref(value);
 
    if (tree_kind(decl) == T_ALIAS) {
       tree_t base_decl = tree_ref(tree_value(decl));
@@ -120,12 +119,11 @@ static tree_t unalias_array_slice(tree_t t)
             type_change_dim(tree_type(t), 0, slice_r);
 
             tree_set_range(t, slice_r);
-            tree_set_ref(t, base_decl);
+            tree_set_value(t, get_ref(base_decl));
          }
          break;
       case T_UARRAY:
-         // Transformation is done at runtime by making a copy
-         break;
+         assert(false);
       default:
          assert(false);
       }
@@ -136,8 +134,11 @@ static tree_t unalias_array_slice(tree_t t)
 
 static tree_t unalias_array_ref(tree_t t)
 {
-   tree_t decl = tree_ref(t);
    // XXX: may not be decl e.g. nested array ref
+   tree_t value = tree_value(t);
+   assert(tree_kind(value) == T_REF);
+
+   tree_t decl = tree_ref(value);
 
    if (tree_kind(decl) == T_ALIAS) {
       // Generate code to map from alias indexing to the
@@ -147,7 +148,7 @@ static tree_t unalias_array_ref(tree_t t)
 
       tree_t new = tree_new(T_ARRAY_REF);
       tree_set_loc(new, tree_loc(t));
-      tree_set_ref(new, base_decl);
+      tree_set_value(new, get_ref(base_decl));
       tree_set_type(new, type_elem(tree_type(base_decl)));
 
       param_t p = tree_param(t, 0);
@@ -167,8 +168,6 @@ static tree_t unalias_tree(tree_t t, void *context)
       return unalias_array_ref(t);
    case T_ARRAY_SLICE:
       return unalias_array_slice(t);
-   case T_REF:
-      return unalias_ref(t);
    default:
       return t;
    }

@@ -1834,6 +1834,27 @@ static bool sem_check_arch(tree_t t)
    return ok;
 }
 
+static tree_t sem_check_lvalue(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      return sem_check_lvalue(tree_ref(t));
+   case T_ARRAY_SLICE:
+   case T_ARRAY_REF:
+   case T_ALIAS:
+      return sem_check_lvalue(tree_value(t));
+   case T_VAR_DECL:
+   case T_SIGNAL_DECL:
+   case T_PORT_DECL:
+   case T_CONST_DECL:
+      return t;
+   default:
+      error_at(tree_loc(t), "not a suitable l-value");
+      ++errors;
+      return NULL;
+   }
+}
+
 static bool sem_check_var_assign(tree_t t)
 {
    tree_t target = tree_target(t);
@@ -1851,10 +1872,9 @@ static bool sem_check_var_assign(tree_t t)
    if (!ok)
       return false;
 
-   tree_t decl = tree_ref(target);
-
-   while (tree_kind(decl) == T_ALIAS)
-      decl = tree_ref(tree_value(decl));
+   tree_t decl = sem_check_lvalue(target);
+   if (decl == NULL)
+      return false;
 
    bool suitable = (tree_kind(decl) == T_VAR_DECL)
       || (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
@@ -1905,9 +1925,9 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
 
 static bool sem_check_signal_target(tree_t target)
 {
-   tree_t decl = tree_ref(target);
-   while (tree_kind(decl) == T_ALIAS)
-      decl = tree_ref(tree_value(decl));
+   tree_t decl = sem_check_lvalue(target);
+   if (decl == NULL)
+      return false;
 
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
@@ -2921,7 +2941,6 @@ static bool sem_check_array_ref(tree_t t)
    }
 
    tree_set_type(t, type_elem(type));
-   tree_set_ref(t, tree_ref(value));
    return ok;
 }
 
@@ -2958,7 +2977,6 @@ static bool sem_check_array_slice(tree_t t)
    type_set_base(slice_type, array_type);
    type_add_dim(slice_type, tree_range(t));
 
-   tree_set_ref(t, tree_ref(tree_value(t)));
    tree_set_type(t, slice_type);
    return true;
 }
