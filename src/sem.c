@@ -202,7 +202,7 @@ static bool scope_can_overload(tree_t t)
 static bool scope_hides(tree_t a, tree_t b)
 {
    // True if declaration of b hides a
-   if (tree_kind(a) == T_COMPONENT)
+   if ((tree_kind(a) == T_COMPONENT) || (tree_kind(b) == T_COMPONENT))
       return false;
    else if (type_eq(tree_type(a), tree_type(b))) {
       return (tree_attr_str(a, builtin_i) != NULL)
