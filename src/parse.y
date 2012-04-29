@@ -2079,9 +2079,9 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
    char base_ch = str[0];
    int base;
    switch (base_ch) {
-   case 'X': base = 16; break;
-   case 'O': base = 8;  break;
-   case 'B': base = 2;  break;
+   case 'X': case 'x': base = 16; break;
+   case 'O': case 'o': base = 8;  break;
+   case 'B': case 'b': base = 2;  break;
    default:
       parse_error(loc, "invalid base '%c' for bit string", base_ch);
       return t;

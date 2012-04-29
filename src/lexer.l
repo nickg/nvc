@@ -52,7 +52,7 @@ lvals_t lvals;
 ID         [a-zA-Z][a-zA-Z_0-9]*
 EXID       \\.*\\
 STRING     \"([^\"]|\"\")*\"
-BIT_STRING [BOX]\"[0-9a-fA-f_]+\"
+BIT_STRING [BOXbox]\"[0-9a-fA-f_]+\"
 CHAR       '.'
 COMMENT    --.*\n
 INT        [0-9]+

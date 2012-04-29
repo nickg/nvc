@@ -4,5 +4,6 @@ package bitstring is
     constant y : t := O"1234";
     constant z : t := X"ab";
     constant b : t := B"101";
+    constant c : t := x"f";
     
 end package;

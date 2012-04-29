@@ -1365,6 +1365,13 @@ START_TEST(test_bitstring)
    fail_unless(tree_ident(tree_assoc(a, 1).value) == zero);
    fail_unless(tree_ident(tree_assoc(a, 2).value) == one);
 
+   a = tree_value(tree_decl(p, 4));
+   fail_unless(tree_assocs(a) == 4);
+   fail_unless(tree_ident(tree_assoc(a, 0).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 1).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 2).value) == one);
+   fail_unless(tree_ident(tree_assoc(a, 3).value) == one);
+
    p = parse();
    fail_unless(p == NULL);
 
