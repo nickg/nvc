@@ -202,7 +202,9 @@ static bool scope_can_overload(tree_t t)
 static bool scope_hides(tree_t a, tree_t b)
 {
    // True if declaration of b hides a
-   if (type_eq(tree_type(a), tree_type(b))) {
+   if (tree_kind(a) == T_COMPONENT)
+      return false;
+   else if (type_eq(tree_type(a), tree_type(b))) {
       return (tree_attr_str(a, builtin_i) != NULL)
          && (tree_attr_str(b, builtin_i) == NULL);
    }
@@ -1731,14 +1733,9 @@ static bool sem_check_package_body(tree_t t)
    return ok;
 }
 
-static bool sem_check_entity(tree_t t)
+static bool sem_check_generics(tree_t t)
 {
-   assert(top_scope == NULL);
-   scope_push(NULL);
-
-   bool ok = sem_check_context(t);
-
-   scope_push(NULL);
+   bool ok = true;
 
    for (unsigned n = 0; n < tree_generics(t); n++) {
       tree_t g = tree_generic(t, n);
@@ -1756,9 +1753,18 @@ static bool sem_check_entity(tree_t t)
       ok = sem_check(g) && ok;
    }
 
-   // Make generics visible in this region
-   for (unsigned n = 0; n < tree_generics(t); n++)
-      ok = scope_insert(tree_generic(t, n)) && ok;
+   if (ok) {
+      // Make generics visible in this region
+      for (unsigned n = 0; n < tree_generics(t); n++)
+         ok = scope_insert(tree_generic(t, n)) && ok;
+   }
+
+   return ok;
+}
+
+static bool sem_check_ports(tree_t t)
+{
+   bool ok = true;
 
    for (unsigned n = 0; n < tree_ports(t); n++) {
       tree_t p = tree_port(t, n);
@@ -1768,6 +1774,36 @@ static bool sem_check_entity(tree_t t)
 
       ok = sem_check(p) && ok;
    }
+
+   return ok;
+}
+
+static bool sem_check_component(tree_t t)
+{
+   scope_push(NULL);
+
+   bool ok = sem_check_generics(t) && sem_check_ports(t);
+
+   scope_pop();
+
+   if (ok) {
+      scope_apply_prefix(t);
+      return scope_insert(t);
+   }
+   else
+      return false;
+}
+
+static bool sem_check_entity(tree_t t)
+{
+   assert(top_scope == NULL);
+   scope_push(NULL);
+
+   bool ok = sem_check_context(t);
+
+   scope_push(NULL);
+
+   ok = ok && sem_check_generics(t) && sem_check_ports(t);
 
    scope_pop();
    scope_pop();
@@ -3538,6 +3574,8 @@ bool sem_check(tree_t t)
       return sem_check_attr_spec(t);
    case T_ATTR_DECL:
       return sem_check_attr_decl(t);
+   case T_COMPONENT:
+      return sem_check_component(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

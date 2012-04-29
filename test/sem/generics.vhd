@@ -11,7 +11,7 @@ begin
         o <= N;
         wait;
     end process;
-    
+
 end architecture;
 
 -------------------------------------------------------------------------------
@@ -57,3 +57,13 @@ entity class is
         constant X : integer;           -- OK
         signal Y : integer );           -- Error
 end entity;
+
+-------------------------------------------------------------------------------
+
+package p is
+
+    component c is
+        generic ( X : integer );        -- OK
+    end component;
+
+end package;
