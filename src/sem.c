@@ -3399,6 +3399,46 @@ static bool sem_check_select(tree_t t)
    return true;
 }
 
+static bool sem_check_attr_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (!sem_check_type(t, &type))
+      return false;
+
+   tree_set_type(t, type);
+
+   scope_apply_prefix(t);
+   return scope_insert(t);
+}
+
+static bool sem_check_attr_spec(tree_t t)
+{
+   tree_t attr_decl = scope_find(tree_ident(t));
+   if (attr_decl == NULL)
+      sem_error(t, "undefined attribute %s", istr(tree_ident(t)));
+
+   tree_t obj_decl = scope_find(tree_ident2(t));
+   if (obj_decl == NULL)
+      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
+
+   if (tree_kind(attr_decl) != T_ATTR_DECL)
+      sem_error(t, "name %s is not an attribute declaration",
+                istr(tree_ident(t)));
+
+   type_t type = tree_type(attr_decl);
+
+   tree_t value = tree_value(t);
+   if (!sem_check_constrained(value, type))
+      return false;
+
+   if (!type_eq(type, tree_type(value)))
+      sem_error(t, "expected attribute type %s", type_pp(type));
+
+   tree_add_attr_tree(obj_decl, tree_ident(t), value);
+
+   return true;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -3494,6 +3534,10 @@ bool sem_check(tree_t t)
       return sem_check_pcall(t);
    case T_SELECT:
       return sem_check_select(t);
+   case T_ATTR_SPEC:
+      return sem_check_attr_spec(t);
+   case T_ATTR_DECL:
+      return sem_check_attr_decl(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
