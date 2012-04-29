@@ -2171,16 +2171,13 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
    struct cgen_ctx *ctx = arg;
 
    tree_t target = tree_target(t);
-   assert(tree_kind(target) == T_REF
-          || tree_kind(target) == T_ARRAY_REF
-          || tree_kind(target) == T_ARRAY_SLICE);
+   tree_kind_t kind;
+   while ((kind = tree_kind(target)) != T_REF) {
+      assert((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE));
+      target = tree_value(target);
+   }
 
-   // XXX: temp
-   tree_t x = target;
-   while (tree_kind(x) != T_REF)
-      x = tree_value(x);
-
-   tree_t decl = tree_ref(x);
+   tree_t decl = tree_ref(target);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
    ident_t tag_i = ident_new("driver_tag");
