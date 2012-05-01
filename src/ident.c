@@ -39,10 +39,12 @@ struct ident_wr_ctx {
 };
 
 static struct trie root = {
-   .value    = '\0',
-   .depth    = 1,
-   .up       = NULL,
-   .children = NULL
+   .value       = '\0',
+   .write_gen   = 0,
+   .write_index = 0,
+   .depth       = 1,
+   .up          = NULL,
+   .children    = NULL
 };
 
 static struct trie *alloc_node(char ch, struct trie *prev)
