@@ -297,7 +297,7 @@ void fatal_errno(const char *fmt, ...)
 
 void fmt_loc(FILE *f, const struct loc *loc)
 {
-   if ((loc == NULL) || (loc->first_line == (unsigned short)-1))
+   if ((loc == NULL) || (loc->first_line == LINE_INVALID))
       return;
 
    fprintf(f, "\tFile %s, Line %d\n", loc->file, loc->first_line);
