@@ -12,6 +12,11 @@ architecture test of func6 is
         r(3) := x(0);
         return r;
     end function;
+
+    function flipu(x : bit_vector) return bit_vector is
+    begin
+        return flip(x);
+    end function;
     
 begin
 
@@ -21,6 +26,7 @@ begin
         assert flip("1010") = "0101";
         b := "1100";
         assert flip(b) = "0011";
+        assert flipu(b) = "0011";
         wait;
     end process;
 

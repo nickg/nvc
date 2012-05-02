@@ -801,6 +801,23 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
                llvm_int8(r.kind),
                LLVMBuildPointerCast(builder, args[i], ptr_type, ""));
          }
+
+         // If we are passing an unconstrained array actual to a
+         // constrained formal then we need to unwrap the array
+         bool need_unwrap =
+            (type_kind(formal_type) == T_CARRAY)
+            && !(cgen_const_bounds(type))
+            && (builtin == NULL);
+
+         if (need_unwrap) {
+            // XXX: insert bounds checking here
+
+            args[i] = LLVMBuildPointerCast(
+               builder,
+               LLVMBuildExtractValue(builder, args[i], 0, "aptr"),
+               LLVMPointerType(llvm_type(formal_type), 0),
+               "unwrapped");
+         }
       }
    }
 }
