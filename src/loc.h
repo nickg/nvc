@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2012  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -18,17 +18,19 @@
 #ifndef _LOC_H
 #define _LOC_H
 
+#include <stdint.h>
+
 typedef struct loc {
-   unsigned short first_line;
-   unsigned short first_column;
-   unsigned short last_line;
-   unsigned short last_column;
-   const char     *file;
-   const char     *linebuf;
+   uint16_t   first_line;
+   uint16_t   first_column;
+   uint16_t   last_line;
+   uint16_t   last_column;
+   const char *file;
+   const char *linebuf;
 } loc_t;
 
-#define LINE_INVALID   ((unsigned short)-1)
-#define COLUMN_INVALID ((unsigned short)-1)
+#define LINE_INVALID   UINT16_MAX
+#define COLUMN_INVALID UINT16_MAX
 
 static const loc_t LOC_INVALID = {
    LINE_INVALID,
