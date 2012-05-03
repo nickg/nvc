@@ -32,28 +32,28 @@ struct node {
 
 struct heap {
    struct node *nodes;
-   int         size;
-   int         max_size;
+   size_t    size;
+   size_t    max_size;
 };
 
 #define NODE(h, i) (h->nodes[i - 1])
 #define KEY(h, i)  (NODE(h, i).key)
 #define USER(h, i) (NODE(h, i).user)
 
-static inline void exchange(heap_t h, int i, int j)
+static inline void exchange(heap_t h, size_t i, size_t j)
 {
    struct node tmp = NODE(h, j);
    NODE(h, j) = NODE(h, i);
    NODE(h, i) = tmp;
 }
 
-static void min_heapify(heap_t h, int i)
+static void min_heapify(heap_t h, size_t i)
 {
    for (;;) {
-      const int l = LEFT(i);
-      const int r = RIGHT(i);
+      const size_t l = LEFT(i);
+      const size_t r = RIGHT(i);
 
-      int smallest;
+      size_t smallest;
       if (l <= h->size && KEY(h, l) < KEY(h, i))
          smallest = l;
       else
@@ -70,7 +70,7 @@ static void min_heapify(heap_t h, int i)
    }
 }
 
-static inline void heap_decrease_key(heap_t h, int i, uint64_t key)
+static inline void heap_decrease_key(heap_t h, size_t i, uint64_t key)
 {
    if (unlikely(key > KEY(h, i)))
       fatal("new key is larger than current key");
@@ -82,7 +82,7 @@ static inline void heap_decrease_key(heap_t h, int i, uint64_t key)
    }
 }
 
-heap_t heap_new(int init_size)
+heap_t heap_new(size_t init_size)
 {
    struct heap *h = xmalloc(sizeof(struct heap));
    h->nodes    = xmalloc(init_size * sizeof(struct node));
@@ -132,13 +132,13 @@ void heap_insert(heap_t h, uint64_t key, void *user)
    heap_decrease_key(h, h->size, key);
 }
 
-int heap_size(heap_t h)
+size_t heap_size(heap_t h)
 {
    return h->size;
 }
 
 void heap_walk(heap_t h, heap_walk_fn_t fn, void *context)
 {
-   for (int i = 1; i <= h->size; i++)
+   for (size_t i = 1; i <= h->size; i++)
       (*fn)(KEY(h, i), USER(h, i), context);
 }

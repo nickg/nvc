@@ -18,18 +18,19 @@
 #ifndef _HEAP_H
 #define _HEAP_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct heap *heap_t;
 
 typedef void (*heap_walk_fn_t)(uint64_t key, void *user, void *context);
 
-heap_t heap_new(int init_size);
+heap_t heap_new(size_t init_size);
 void heap_free(heap_t h);
 void *heap_extract_min(heap_t h);
 void *heap_min(heap_t h);
 void heap_insert(heap_t h, uint64_t key, void *user);
-int heap_size(heap_t h);
+size_t heap_size(heap_t h);
 void heap_walk(heap_t h, heap_walk_fn_t fn, void *context);
 
 #endif
