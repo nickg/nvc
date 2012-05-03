@@ -38,7 +38,7 @@ static size_t pp_one(char *p, size_t len, type_t type, uint64_t value)
 {
    switch (type_kind(type)) {
    case T_INTEGER:
-      return snprintf(p, len, "%"PRIi64, value);
+      return snprintf(p, len, "%"PRIu64, value);
 
    case T_ENUM:
       {
@@ -70,7 +70,8 @@ const char *pprint(tree_t t, uint64_t *values, unsigned len)
 
       p += snprintf(p, end - p, all_char ? "\"" : "(");
 
-      unsigned left = 0, right = len - 1, step = 1;
+      unsigned left = 0, right = len - 1;
+      int step = 1;
       if (type_dim(type, 0).kind == RANGE_DOWNTO) {
          left  = len - 1;
          right = 0;
