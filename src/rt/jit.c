@@ -72,6 +72,9 @@ static void jit_native_name(const char *name, char *buf, size_t len)
       case ')':
          p = jit_str_add(p, "_29_");
          break;
+      case '@':
+         p = jit_str_add(p, "_40_");
+         break;
       default:
          *p++ = ch;
       }
