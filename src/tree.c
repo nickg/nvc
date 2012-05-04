@@ -160,7 +160,8 @@ struct tree_rd_ctx {
     || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
-    || IS(t, T_BLOCK) || IS(t, T_SELECT))
+    || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
+    || IS(t, T_FOR_GENERATE))
 #define HAS_IDENT(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
     || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
@@ -172,10 +173,12 @@ struct tree_rd_ctx {
     || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
     || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK)              \
-    || IS(t, T_SELECT) || IS(t, T_COMPONENT))
+    || IS(t, T_SELECT) || IS(t, T_COMPONENT) || IS(t, T_IF_GENERATE)  \
+    || IS(t, T_FOR_GENERATE))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
-    || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL))
+    || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL)           \
+    || IS(t, T_FOR_GENERATE))
 #define HAS_PORTS(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY)       \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT))
@@ -193,12 +196,14 @@ struct tree_rd_ctx {
 #define HAS_DECLS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE)             \
     || IS(t, T_ELAB) || IS(t, T_PACK_BODY) || IS(t, T_FOR)            \
-    || IS(t, T_FUNC_BODY) || IS(t, T_PROC_BODY) || IS(t, T_BLOCK))
+    || IS(t, T_FUNC_BODY) || IS(t, T_PROC_BODY) || IS(t, T_BLOCK)     \
+    || IS(t, T_IF_GENERATE) || IS(t, T_FOR_GENERATE))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
     || IS(t, T_FUNC_BODY) || IS(t, T_WHILE) || IS(t, T_FOR)           \
-    || IS(t, T_PROC_BODY) || IS(t, T_BLOCK))
+    || IS(t, T_PROC_BODY) || IS(t, T_BLOCK) || IS(t, T_IF_GENERATE)   \
+    || IS(t, T_FOR_GENERATE))
 #define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_TARGET(t)                                                 \
    (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)                     \
@@ -209,7 +214,8 @@ struct tree_rd_ctx {
     || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_CASE)       \
     || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC)         \
-    || IS(t, T_EXIT) || IS(t, T_COND) || IS(t, T_SELECT))
+    || IS(t, T_EXIT) || IS(t, T_COND) || IS(t, T_SELECT)              \
+    || IS(t, T_IF_GENERATE))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
@@ -218,7 +224,8 @@ struct tree_rd_ctx {
     || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV))
 #define HAS_WAVEFORMS(t)                                              \
    (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
-#define HAS_RANGE(t) (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR))
+#define HAS_RANGE(t)                                                  \
+   (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL))
 #define HAS_ASSOCS(t)                                                 \
    (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))

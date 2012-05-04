@@ -160,6 +160,7 @@ REJECT        {R}{E}{J}{E}{C}{T}
 BLOCK         {B}{L}{O}{C}{K}
 WITH          {W}{I}{T}{H}
 SELECT        {S}{E}{L}{E}{C}{T}
+GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
 
 %%
 
@@ -240,6 +241,7 @@ SELECT        {S}{E}{L}{E}{C}{T}
 {BLOCK}         { TOKEN(tBLOCK); }
 {WITH}          { TOKEN(tWITH); }
 {SELECT}        { TOKEN(tSELECT); }
+{GENERATE}      { TOKEN(tGENERATE); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

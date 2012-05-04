@@ -161,7 +161,7 @@
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt
-%type <t> conc_select_assign_stmt
+%type <t> conc_select_assign_stmt generate_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -173,7 +173,7 @@
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec
 %type <l> conditional_waveforms component_decl
-%type <p> entity_header
+%type <p> entity_header generate_body
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
@@ -198,7 +198,7 @@
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
-%token tREJECT tBITSTRING tBLOCK tWITH tSELECT
+%token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -268,7 +268,6 @@ id
      free(lvals.sval);
   }
 ;
-
 
 selected_id
 : id tDOT selected_id
@@ -456,21 +455,22 @@ block_decl_item
 component_decl
 : tCOMPONENT id opt_is generic_clause port_clause tEND
   tCOMPONENT opt_id tSEMI
-{
-   tree_t t = tree_new(T_COMPONENT);
-   tree_set_ident(t, $2);
-   tree_set_loc(t, &@$);
-   copy_trees($4, tree_add_generic, t);
-   copy_trees($5, tree_add_port, t);
+  {
+     tree_t t = tree_new(T_COMPONENT);
+     tree_set_ident(t, $2);
+     tree_set_loc(t, &@$);
+     copy_trees($4, tree_add_generic, t);
+     copy_trees($5, tree_add_port, t);
 
-   if ($8 != NULL && $8 != $2) {
-      parse_error(&@7, "%s does not match entity name %s",
-                  istr($8), istr($2));
-   }
+     if ($8 != NULL && $8 != $2) {
+        parse_error(&@7, "%s does not match component name %s",
+                    istr($8), istr($2));
+     }
 
-   $$ = NULL;
-   tree_list_append(&$$, t);
-}
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+;
 
 signal_decl
 : tSIGNAL id_list tCOLON subtype_indication
@@ -682,59 +682,115 @@ conc_stmt
      else
         tree_set_ident($$, ident_uniq("_proc"));
   }
+| comp_instance_stmt
+| block_stmt
+| generate_stmt
 ;
 
 conc_stmt_without_label
 : process_stmt
-| comp_instance_stmt
 | conc_assign_stmt
 | conc_select_assign_stmt
-| block_stmt
   /* | concurrent_procedure_call_statement
-     | concurrent_assertion_statement
-     | generate_statement */
+     | concurrent_assertion_statement */
+;
+
+generate_stmt
+: id tCOLON tIF expr generate_body
+  {
+     $$ = tree_new(T_IF_GENERATE);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, $1);
+     tree_set_value($$, $4);
+     copy_trees($5.left, tree_add_decl, $$);
+     copy_trees($5.right, tree_add_stmt, $$);
+  }
+| id tCOLON tFOR id tIN range generate_body
+  {
+     $$ = tree_new(T_FOR_GENERATE);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $4);
+     tree_set_range($$, $6);
+     copy_trees($7.left, tree_add_decl, $$);
+     copy_trees($7.right, tree_add_stmt, $$);
+  }
+| id tCOLON tFOR id tIN expr generate_body
+  {
+     range_t r;
+     if (!to_range_expr($6, &r))
+        parse_error(&@6, "invalid range expression");
+
+     $$ = tree_new(T_FOR_GENERATE);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $4);
+     tree_set_range($$, r);
+     copy_trees($7.left, tree_add_decl, $$);
+     copy_trees($7.right, tree_add_stmt, $$);
+  }
+;
+
+generate_body
+: tGENERATE block_decl_part tBEGIN conc_stmt_list
+  tEND tGENERATE opt_id tSEMI
+  {
+     $$.left  = $2;
+     $$.right = $4;
+  }
+| tGENERATE conc_stmt_list tEND tGENERATE opt_id tSEMI
+  {
+     $$.left  = NULL;
+     $$.right = $2;
+  }
 ;
 
 comp_instance_stmt
-: id generic_map port_map tSEMI
+: id tCOLON id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
      tree_set_loc($$, &@$);
-     tree_set_ident2($$, $1);
-     copy_params($3, tree_add_param, $$);
-     copy_params($2, tree_add_genmap, $$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $3);
+     copy_params($5, tree_add_param, $$);
+     copy_params($4, tree_add_genmap, $$);
   }
-| tCOMPONENT selected_id generic_map port_map tSEMI
+| id tCOLON tCOMPONENT id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
      tree_set_loc($$, &@$);
-     tree_set_ident2($$, $2);
-     copy_params($4, tree_add_param, $$);
-     copy_params($3, tree_add_genmap, $$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $4);
+     copy_params($6, tree_add_param, $$);
+     copy_params($5, tree_add_genmap, $$);
   }
-| tENTITY selected_id generic_map port_map tSEMI
+| id tCOLON tENTITY selected_id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
      tree_set_loc($$, &@$);
-     tree_set_ident2($$, $2);
-     copy_params($4, tree_add_param, $$);
-     copy_params($3, tree_add_genmap, $$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $4);
+     copy_params($6, tree_add_param, $$);
+     copy_params($5, tree_add_genmap, $$);
   }
-| tENTITY selected_id tLPAREN id tRPAREN generic_map port_map tSEMI
+| id tCOLON tENTITY selected_id tLPAREN id tRPAREN generic_map
+  port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
      tree_set_loc($$, &@$);
-     tree_set_ident2($$, ident_prefix($2, $4, '-'));
-     copy_params($7, tree_add_param, $$);
-     copy_params($6, tree_add_genmap, $$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, ident_prefix($4, $6, '-'));
+     copy_params($9, tree_add_param, $$);
+     copy_params($8, tree_add_genmap, $$);
   }
-| tCONFIGURATION selected_id generic_map port_map tSEMI
+| id tCOLON tCONFIGURATION selected_id generic_map port_map tSEMI
   {
      $$ = tree_new(T_INSTANCE);
      tree_set_loc($$, &@$);
-     tree_set_ident2($$, $2);
-     copy_params($4, tree_add_param, $$);
-     copy_params($3, tree_add_genmap, $$);
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, $4);
+     copy_params($6, tree_add_param, $$);
+     copy_params($5, tree_add_genmap, $$);
   }
 ;
 
@@ -797,14 +853,17 @@ process_decl_item
 ;
 
 block_stmt
-: tBLOCK /* [ ( guard_expression ) ] */ opt_is /*block_header*/
+: id tCOLON tBLOCK /* [ ( guard_expression ) ] */ opt_is /*block_header*/
   block_decl_part tBEGIN conc_stmt_list tEND tBLOCK opt_id tSEMI
   {
      $$ = tree_new(T_BLOCK);
-     copy_trees($3, tree_add_decl, $$);
-     copy_trees($5, tree_add_stmt, $$);
-     if ($8 != NULL)
-        tree_set_ident($$, $8);
+     tree_set_ident($$, $1);
+     copy_trees($5, tree_add_decl, $$);
+     copy_trees($7, tree_add_stmt, $$);
+
+     if ($10 != NULL && $10 != $1)
+        parse_error(&@10, "%s does not match block name %s",
+                    istr($10), istr($1));
   }
 ;
 
