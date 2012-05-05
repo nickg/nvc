@@ -1,7 +1,7 @@
 nvc = $(top_builddir)/src/nvc
 
 stddir = $(pkgdatadir)/std
-std_DATA = std/_NVC_LIB std/STD.STANDARD
+std_DATA = std/_NVC_LIB std/STD.STANDARD #std/STD.TEXTIO
 
 bootstrap: $(std_DATA)
 
@@ -9,6 +9,9 @@ std/_NVC_LIB: std/STD.STANDARD
 
 std/STD.STANDARD: $(srcdir)/standard.vhd
 	$(nvc) --work=std -a --bootstrap $(srcdir)/standard.vhd
+
+std/STD.TEXTIO: $(srcdir)/textio.vhd
+	$(nvc) --work=std -a $(srcdir)/textio.vhd
 
 clean-local:
 	-test -d std && $(RM) -r std
