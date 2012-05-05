@@ -486,7 +486,9 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMValueRef ptr = LLVMBuildGEP(builder, data, &off, 1, "");
 
-   if (cgen_const_bounds(type))
+   bool unwrap = cgen_is_const(r.left) && cgen_is_const(r.right);
+
+   if (unwrap)
       return ptr;
    else
       return cgen_array_meta(type,
@@ -804,19 +806,18 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
 
          // If we are passing an unconstrained array actual to a
          // constrained formal then we need to unwrap the array
-         bool need_unwrap =
-            (type_kind(formal_type) == T_CARRAY)
-            && !(cgen_const_bounds(type))
-            && (builtin == NULL);
+         if (type_kind(formal_type) == T_CARRAY) {
+            bool need_unwrap = (!cgen_const_bounds(type)
+                                && (builtin == NULL));
 
-         if (need_unwrap) {
-            // XXX: insert bounds checking here
+            LLVMValueRef ptr = args[i];
+            if (need_unwrap) {
+               // XXX: insert bounds checking here
+               ptr = LLVMBuildExtractValue(builder, args[i], 0, "aptr");
+            }
 
-            args[i] = LLVMBuildPointerCast(
-               builder,
-               LLVMBuildExtractValue(builder, args[i], 0, "aptr"),
-               LLVMPointerType(llvm_type(formal_type), 0),
-               "unwrapped");
+            LLVMTypeRef lt = LLVMPointerType(llvm_type(formal_type), 0);
+            args[i] = LLVMBuildPointerCast(builder, ptr, lt, "");
          }
       }
    }
