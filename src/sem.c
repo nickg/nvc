@@ -1261,7 +1261,24 @@ static void sem_add_attributes(tree_t decl)
    type_t type = tree_type(decl);
    type_kind_t kind = type_kind(type);
 
-   if (kind == T_CARRAY) {
+   if (kind == T_UARRAY) {
+      const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
+      const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
+                             "uarray_right", NULL };
+      const char **f, **imp;
+      for (f = funs, imp = impl; *f != NULL; f++, imp++) {
+         ident_t id = ident_new(*f);
+         tree_add_attr_tree(decl, id,
+                            sem_builtin_fn(id, type_index_constr(type, 0),
+                                           *imp, type, NULL));
+      }
+
+      ident_t asc_i = ident_new("ASCENDING");
+      tree_add_attr_tree(decl, asc_i,
+                         sem_builtin_fn(asc_i, std_bool,
+                                        "uarray_asc", type, NULL));
+   }
+   else if (type_is_array(type)) {
       range_t r = type_dim(type, 0);
 
       tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
@@ -1286,25 +1303,8 @@ static void sem_add_attributes(tree_t decl)
          tree_add_attr_tree(decl, ident_new("LOW"), r.right);
       }
    }
-   else if (kind == T_UARRAY) {
-      const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
-      const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
-                             "uarray_right", NULL };
-      const char **f, **imp;
-      for (f = funs, imp = impl; *f != NULL; f++, imp++) {
-         ident_t id = ident_new(*f);
-         tree_add_attr_tree(decl, id,
-                            sem_builtin_fn(id, type_index_constr(type, 0),
-                                           *imp, type, NULL));
-      }
 
-      ident_t asc_i = ident_new("ASCENDING");
-      tree_add_attr_tree(decl, asc_i,
-                         sem_builtin_fn(asc_i, std_bool,
-                                        "uarray_asc", type, NULL));
-   }
-
-   if (kind == T_UARRAY || kind == T_CARRAY) {
+   if (type_is_array(type)) {
       ident_t length_i = ident_new("LENGTH");
       tree_add_attr_tree(decl, length_i,
                          sem_builtin_fn(length_i,
