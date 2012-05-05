@@ -151,4 +151,12 @@ begin
     begin
     end process;
 
+    process is
+        subtype int4_t is int_array(1 to 4);
+        type foo_t is array (integer'left to 10) of integer;
+        variable v : int_array(foo_t'range);
+    begin
+        assert int4_t'length = 4;
+    end process;
+
 end architecture;

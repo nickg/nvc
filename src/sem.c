@@ -552,7 +552,9 @@ static void sem_declare_predefined_ops(tree_t decl)
    type_t std_bool = sem_std_type("BOOLEAN");
    type_t std_int  = sem_std_type("INTEGER");
 
-   switch (type_kind(t)) {
+   type_kind_t kind = type_kind(t);
+
+   switch (kind) {
    case T_SUBTYPE:
       // Use operators of base type
       break;
@@ -649,7 +651,7 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    bool vec_logical = false;
-   if (type_kind(t) == T_CARRAY || type_kind(t) == T_UARRAY) {
+   if (kind == T_CARRAY || kind == T_UARRAY) {
       type_t base = type_elem(t);
       vec_logical = (type_ident(base) == boolean_i
                      || type_ident(base) == bit_i);
@@ -667,7 +669,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    // Predefined attributes
 
-   switch (type_kind(t)) {
+   switch (kind) {
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:
@@ -714,6 +716,16 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    default:
       break;
+   }
+
+   bool array_attrs = ((kind == T_CARRAY)
+                       || (kind == T_SUBTYPE && type_is_array(t)));
+   if (array_attrs) {
+      ident_t length_i = ident_new("LENGTH");
+      tree_add_attr_tree(decl, length_i,
+                         sem_builtin_fn(length_i,
+                                        sem_std_type("INTEGER"),
+                                        "length", t, NULL));
    }
 
    switch (type_kind(t)) {
@@ -2927,6 +2939,7 @@ static bool sem_check_ref(tree_t t)
    case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_ALIAS:
+   case T_TYPE_DECL:
       tree_set_type(t, tree_type(decl));
       break;
 
@@ -3041,7 +3054,7 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      if ((tree_kind(decl) != T_TYPE_DECL) && (tree_params(t) == 0)) {
+      if (tree_params(t) == 0) {
          // For an expression X'A add X as the final parameter
          tree_t ref = sem_make_ref(decl);
          tree_set_loc(ref, tree_loc(t));
