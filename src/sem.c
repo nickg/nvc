@@ -776,17 +776,30 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       // If the subtype is not constrained then give it the same
       // range as its base type
       if (type_dims(type) == 0) {
-         if (type_kind(base) == T_ENUM) {
-            range_t r = {
-               .kind  = RANGE_TO,
-               .left  = sem_make_int(0),
-               .right = sem_make_int(type_enum_literals(base) - 1)
-            };
-            type_add_dim(type, r);
-         }
-         else {
+         switch (type_kind(base)) {
+         case T_ENUM:
+            {
+               range_t r = {
+                  .kind  = RANGE_TO,
+                  .left  = sem_make_int(0),
+                  .right = sem_make_int(type_enum_literals(base) - 1)
+               };
+               type_add_dim(type, r);
+            }
+            break;
+
+         case T_UARRAY:
+            sem_error(t, "sorry, this form of subtype is not supported");
+
+         case T_CARRAY:
+         case T_SUBTYPE:
+         case T_INTEGER:
             for (unsigned i = 0; i < type_dims(base); i++)
                type_add_dim(type, type_dim(base, i));
+            break;
+
+         default:
+            assert(false);
          }
       }
 
@@ -2095,6 +2108,12 @@ static bool sem_check_conversion(tree_t t)
    type_t to   = tree_type(tree_ref(t));
 
    tree_set_type(t, to);
+
+   // Resolve both types to their base types
+   while (type_kind(from) == T_SUBTYPE)
+      from = type_base(from);
+   while (type_kind(to) == T_SUBTYPE)
+      to = type_base(to);
 
    type_kind_t from_k = type_kind(from);
    type_kind_t to_k   = type_kind(to);
