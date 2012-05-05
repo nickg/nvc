@@ -330,6 +330,9 @@ static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
 
    for (unsigned n = 0; n < tree_decls(unit); n++) {
       tree_t decl = tree_decl(unit, n);
+      if (tree_kind(decl) == T_ATTR_SPEC)
+         continue;
+
       if (!sem_declare(decl))
          return false;
 
@@ -1695,7 +1698,7 @@ static bool sem_check_package(tree_t t)
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
 
-         if (sem_check(tree_decl(t, n))) {
+         if (sem_check(decl) && (tree_kind(decl) != T_ATTR_SPEC)) {
             // Make the unqualified name visible inside the package
             scope_insert_alias(decl, unqual);
          }

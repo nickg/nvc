@@ -40,6 +40,7 @@ static LLVMValueRef   mod_name = NULL;
 static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
 static ident_t sig_struct_i = NULL;
+static ident_t foreign_i = NULL;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -236,10 +237,29 @@ static const char *cgen_mangle_func_name(tree_t decl)
    char *p = buf;
    type_t type = tree_type(decl);
 
-   p += snprintf(p, end - p, "%s", istr(tree_ident(decl)));
-   for (unsigned i = 0; i < type_params(type); i++) {
-      type_t param = type_param(type, i);
-      p += snprintf(p, end - p, "$%s", istr(type_ident(param)));
+   tree_t foreign = tree_attr_tree(decl, foreign_i);
+   if (foreign != NULL) {
+      assert(tree_kind(foreign) == T_AGGREGATE);
+
+      for (unsigned i = 0; i < tree_assocs(foreign); i++) {
+         assoc_t a = tree_assoc(foreign, i);
+         assert(a.kind == A_POS);
+         assert(tree_kind(a.value) == T_REF);
+
+         tree_t ch = tree_ref(a.value);
+         assert(tree_kind(ch) == T_ENUM_LIT);
+
+         *p++ = tree_pos(ch);
+      }
+
+      *p = '\0';
+   }
+   else {
+      p += snprintf(p, end - p, "%s", istr(tree_ident(decl)));
+      for (unsigned i = 0; i < type_params(type); i++) {
+         type_t param = type_param(type, i);
+         p += snprintf(p, end - p, "$%s", istr(type_ident(param)));
+      }
    }
 
    return buf;
@@ -2946,6 +2966,7 @@ void cgen(tree_t top)
    var_offset_i = ident_new("var_offset");
    local_var_i  = ident_new("local_var");
    sig_struct_i = ident_new("sig_struct");
+   foreign_i    = ident_new("FOREIGN");
 
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY)

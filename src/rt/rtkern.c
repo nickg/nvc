@@ -923,7 +923,7 @@ static void rt_one_time_init(void)
 {
    i_signal = ident_new("signal");
 
-   jit_bind_fn("STD.STANDARD.NOW", _std_standard_now);
+   jit_bind_fn("_std_standard_now", _std_standard_now);
    jit_bind_fn("_sched_process", _sched_process);
    jit_bind_fn("_sched_waveform_vec", _sched_waveform_vec);
    jit_bind_fn("_sched_waveform", _sched_waveform);

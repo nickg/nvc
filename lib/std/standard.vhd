@@ -80,5 +80,7 @@ package STANDARD is
                               MODE_ERROR);
 
     attribute FOREIGN : STRING;
+
+    attribute FOREIGN of NOW : function is "_std_standard_now";
     
 end package;
