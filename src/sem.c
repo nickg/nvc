@@ -1064,7 +1064,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
       return true;
 
    default:
-      abort();
+      assert(false);
    }
 }
 
@@ -3360,14 +3360,10 @@ static bool sem_check_for(tree_t t)
       return false;
    tree_set_range(t, r);
 
-   type_t base = tree_type(tree_range(t).left);
-   if (type_kind(base) == T_CARRAY)
-      base = type_elem(base);
-
    tree_t idecl = tree_new(T_VAR_DECL);
    tree_set_ident(idecl, tree_ident2(t));
    tree_set_loc(idecl, tree_loc(t));
-   tree_set_type(idecl, base);
+   tree_set_type(idecl, tree_type(r.left));
 
    tree_add_decl(t, idecl);
 
@@ -3480,6 +3476,65 @@ static bool sem_check_attr_spec(tree_t t)
    return true;
 }
 
+static bool sem_check_if_generate(tree_t t)
+{
+   type_t std_bool = sem_std_type("BOOLEAN");
+   tree_t value = tree_value(t);
+
+   if (!sem_check_constrained(value, std_bool))
+      return false;
+
+   if (!type_eq(tree_type(value), std_bool))
+      sem_error(value, "condition of generate statement must be BOOLEAN");
+
+   scope_push(NULL);
+
+   bool ok = true;
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   if (ok) {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         ok = sem_check(tree_stmt(t, i)) && ok;
+   }
+
+   scope_pop();
+   return ok;
+}
+
+static bool sem_check_for_generate(tree_t t)
+{
+
+   range_t r = tree_range(t);
+   if (!sem_check_range(&r))
+      return false;
+   tree_set_range(t, r);
+
+   tree_t idecl = tree_new(T_VAR_DECL);
+   tree_set_ident(idecl, tree_ident2(t));
+   tree_set_loc(idecl, tree_loc(t));
+   tree_set_type(idecl, tree_type(r.left));
+
+   tree_set_ref(t, idecl);
+
+   scope_push(NULL);
+   scope_insert(idecl);
+
+   bool ok = true;
+
+   for (unsigned i = 0; i < tree_decls(t); i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   if (ok) {
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         ok = sem_check(tree_stmt(t, i)) && ok;
+   }
+
+   scope_pop();
+   return ok;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -3581,6 +3636,10 @@ bool sem_check(tree_t t)
       return sem_check_attr_decl(t);
    case T_COMPONENT:
       return sem_check_component(t);
+   case T_IF_GENERATE:
+      return sem_check_if_generate(t);
+   case T_FOR_GENERATE:
+      return sem_check_for_generate(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }

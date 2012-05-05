@@ -90,7 +90,7 @@ struct tree {
       tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
       tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
       tree_t   severity;           // T_ASSERT
-      unsigned pos;                // T_ENUM_LIT;
+      unsigned pos;                // T_ENUM_LIT
    };
    union {
       struct {                     // T_AGGREGATE
@@ -221,7 +221,8 @@ struct tree_rd_ctx {
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
 #define HAS_REF(t)                                                    \
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
-    || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV))
+    || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV)      \
+    || IS(t, T_FOR_GENERATE))
 #define HAS_WAVEFORMS(t)                                              \
    (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
 #define HAS_RANGE(t)                                                  \
