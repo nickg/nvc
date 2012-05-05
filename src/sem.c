@@ -1357,6 +1357,11 @@ static bool sem_check_decl(tree_t t)
 
    tree_set_type(t, type);
 
+   tree_kind_t kind = tree_kind(t);
+
+   if (!tree_has_value(t) && kind == T_CONST_DECL )
+      sem_error(t, "constant declaration must have an initial value");
+
    if (!tree_has_value(t) && (tree_kind(t) != T_PORT_DECL))
       tree_set_value(t, sem_default_value(type));
 

@@ -338,6 +338,7 @@ START_TEST(test_const)
 
    const error_t expect[] = {
       { 12, "invalid target of variable assignment" },
+      { 16, "constant declaration must have an initial value" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -12,4 +12,9 @@ begin
         x := v;                         -- Error
     end process;
 
+    process is
+        constant c : integer;           -- Error
+    begin
+    end process;
+
 end architecture;
