@@ -178,7 +178,7 @@
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
 %type <y> integer_type_def physical_type_def enum_type_def array_type_def
-%type <y> index_subtype_def
+%type <y> index_subtype_def access_type_def file_type_def
 %type <y> unconstrained_array_def constrained_array_def
 %type <r> range range_constraint constraint_elem
 %type <u> base_unit_decl
@@ -198,7 +198,8 @@
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
-%token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE
+%token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
+%token tFILE
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1520,9 +1521,25 @@ type_decl
 type_def
 : scalar_type_def
 | array_type_def
-  /* | record_type_def
-     | access_type_definition
-     | file_type_definition */
+| access_type_def
+| file_type_def
+  /* | record_type_def */
+;
+
+file_type_def
+: tFILE tOF type_mark
+  {
+     $$ = type_new(T_FILE);
+     type_set_file($$, $3);
+  }
+;
+
+access_type_def
+: tACCESS subtype_indication
+  {
+     $$ = type_new(T_ACCESS);
+     type_set_access($$, $2);
+  }
 ;
 
 array_type_def

@@ -37,6 +37,8 @@ struct type {
    union {
       type_t base;          // T_SUBTYPE
       type_t elem;          // T_CARRAY, T_UARRAY
+      type_t access;        // T_ACCESS
+      type_t file;          // T_FILE
    };
    union {
       type_t result;     // T_FUNC
@@ -550,6 +552,40 @@ tree_t type_resolution(type_t t)
    return t->resolution;
 }
 
+type_t type_access(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_ACCESS));
+
+   return t->access;
+}
+
+void type_set_access(type_t t, type_t a)
+{
+   assert(t != NULL);
+   assert(a != NULL);
+   assert(IS(t, T_ACCESS));
+
+   t->access = a;
+}
+
+type_t type_file(type_t t)
+{
+   assert(t != NULL);
+   assert(IS(t, T_FILE));
+
+   return t->file;
+}
+
+void type_set_file(type_t t, type_t f)
+{
+   assert(t != NULL);
+   assert(f != NULL);
+   assert(IS(t, T_FILE));
+
+   t->file = f;
+}
+
 void type_write(type_t t, type_wr_ctx_t ctx)
 {
    FILE *f = tree_write_file(ctx->tree_ctx);
@@ -612,6 +648,10 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_index_constr; i++)
          type_write(t->index_constr[i], ctx);
    }
+   else if (IS(t, T_ACCESS))
+      type_write(t->access, ctx);
+   else if (IS(t, T_FILE))
+      type_write(t->file, ctx);
 }
 
 type_t type_read(type_rd_ctx_t ctx)
@@ -706,6 +746,10 @@ type_t type_read(type_rd_ctx_t ctx)
          t->index_constr[i] = type_read(ctx);
       t->n_index_constr = nconstr;
    }
+   else if (IS(t, T_ACCESS))
+      t->access = type_read(ctx);
+   else if (IS(t, T_FILE))
+      t->file = type_read(ctx);
 
    return t;
 }

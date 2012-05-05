@@ -102,6 +102,14 @@ void type_add_param(type_t t, type_t p);
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
 
+// T_ACCESS
+type_t type_access(type_t t);
+void type_set_access(type_t t, type_t a);
+
+// T_FILE
+type_t type_file(type_t t);
+void type_set_file(type_t t, type_t f);
+
 // T_UARRAY
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);

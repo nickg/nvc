@@ -536,7 +536,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 8);
+   fail_unless(tree_decls(a) == 10);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -608,6 +608,22 @@ START_TEST(test_types)
    f = type_resolution(t);
    fail_unless(tree_kind(f) == T_REF);
    fail_unless(tree_ident(f) == ident_new("RESOLVED"));
+
+   d = tree_decl(a, 8);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("P"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_ACCESS);
+   fail_unless(type_kind(type_access(t)) == T_UNRESOLVED);
+   fail_unless(type_ident(type_access(t)) == ident_new("MY_INT"));
+
+   d = tree_decl(a, 9);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("F"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_FILE);
+   fail_unless(type_kind(type_file(t)) == T_UNRESOLVED);
+   fail_unless(type_ident(type_file(t)) == ident_new("MY_INT"));
 
    a = parse();
    fail_unless(a == NULL);

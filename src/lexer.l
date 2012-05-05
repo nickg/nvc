@@ -161,6 +161,8 @@ BLOCK         {B}{L}{O}{C}{K}
 WITH          {W}{I}{T}{H}
 SELECT        {S}{E}{L}{E}{C}{T}
 GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
+ACCESS        {A}{C}{C}{E}{S}{S}
+FILE          {F}{I}{L}{E}
 
 %%
 
@@ -242,6 +244,8 @@ GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
 {WITH}          { TOKEN(tWITH); }
 {SELECT}        { TOKEN(tSELECT); }
 {GENERATE}      { TOKEN(tGENERATE); }
+{ACCESS}        { TOKEN(tACCESS); }
+{FILE}          { TOKEN(tFILE); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }
