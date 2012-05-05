@@ -806,12 +806,9 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, struct cgen_ctx *ctx)
 
          // If we are passing an unconstrained array actual to a
          // constrained formal then we need to unwrap the array
-         if (type_kind(formal_type) == T_CARRAY) {
-            bool need_unwrap = (!cgen_const_bounds(type)
-                                && (builtin == NULL));
-
+         if ((type_kind(formal_type) == T_CARRAY) && (builtin == NULL)) {
             LLVMValueRef ptr = args[i];
-            if (need_unwrap) {
+            if (!cgen_const_bounds(type)) {
                // XXX: insert bounds checking here
                ptr = LLVMBuildExtractValue(builder, args[i], 0, "aptr");
             }

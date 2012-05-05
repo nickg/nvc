@@ -13,6 +13,7 @@ begin
     begin
         assert x(0) = 0 report "one";
         assert x(1) = 1 report "two";
+        assert x = ( 0, 1 );
         x := ( 2, 3 );
         report integer'image(x(0));
         report integer'image(x(1));
@@ -32,6 +33,7 @@ begin
 
         assert y(0) = 0 report "y one";
         assert y(1) = 1 report "y two";
+        assert y = ( 1, 0 );
         y := ( 2, 3 );
         report integer'image(y(0));
         report integer'image(y(1));
