@@ -172,7 +172,7 @@
 %type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec
-%type <l> conditional_waveforms component_decl
+%type <l> conditional_waveforms component_decl file_decl
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -199,7 +199,7 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE
+%token tFILE tOPEN
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -385,9 +385,9 @@ package_decl_item
 | attr_decl
 | attr_spec
 | component_decl
+| file_decl
 /* | signal_declaration
    | shared_variable_declaration
-   | file_declaration
    | disconnection_specification
    | use_clause
    | group_template_declaration
@@ -443,14 +443,66 @@ block_decl_item
 | attr_decl
 | attr_spec
 | component_decl
+| file_decl
 /* | subprogram_body
    | shared_variable_declaration
-   | file_declaration
    | configuration_specification
    | disconnection_specification
    | use_clause
    | group_template_declaration
    | group_declaration */
+;
+
+file_decl
+: tFILE id_list tCOLON subtype_indication tOPEN expr tIS expr tSEMI
+  {
+     $$ = NULL;
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_FILE_DECL);
+        tree_set_ident(t, it->item.ident);
+        tree_set_type(t, $4);
+        tree_set_file_mode(t, $6);
+        tree_set_value(t, $8);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     list_free($2);
+  }
+| tFILE id_list tCOLON subtype_indication tIS expr tSEMI
+  {
+     tree_t m = tree_new(T_REF);
+     tree_set_ident(m, ident_new("READ_MODE"));
+
+     $$ = NULL;
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_FILE_DECL);
+        tree_set_ident(t, it->item.ident);
+        tree_set_type(t, $4);
+        tree_set_value(t, $6);
+        tree_set_file_mode(t, m);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     list_free($2);
+  }
+| tFILE id_list tCOLON subtype_indication tSEMI
+  {
+     $$ = NULL;
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_FILE_DECL);
+        tree_set_ident(t, it->item.ident);
+        tree_set_type(t, $4);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     list_free($2);
+  }
 ;
 
 component_decl
@@ -845,8 +897,8 @@ process_decl_item
 | alias_decl
 | attr_decl
 | attr_spec
+| file_decl
   /* | subprogram_body
-     | file_declaration
      | use_clause
      | group_template_declaration
      | group_declaration
@@ -987,8 +1039,8 @@ subprogram_decl_item
 | alias_decl
 | attr_decl
 | attr_spec
-  /* | file_declaration
-     | use_clause
+| file_decl
+  /* | use_clause
      | group_template_declaration
      | group_declaration */
 ;

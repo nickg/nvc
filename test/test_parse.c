@@ -536,7 +536,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 10);
+   fail_unless(tree_decls(a) == 13);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -624,6 +624,26 @@ START_TEST(test_types)
    fail_unless(type_kind(t) == T_FILE);
    fail_unless(type_kind(type_file(t)) == T_UNRESOLVED);
    fail_unless(type_ident(type_file(t)) == ident_new("MY_INT"));
+
+   d = tree_decl(a, 10);
+   fail_unless(tree_kind(d) == T_FILE_DECL);
+   fail_unless(tree_ident(d) == ident_new("F1"));
+   fail_unless(tree_has_value(d));
+   fail_unless(tree_kind(tree_value(d)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
+
+   d = tree_decl(a, 11);
+   fail_unless(tree_kind(d) == T_FILE_DECL);
+   fail_unless(tree_ident(d) == ident_new("F2"));
+   fail_unless(tree_has_value(d));
+   fail_unless(tree_kind(tree_value(d)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
+   fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
+
+   d = tree_decl(a, 12);
+   fail_unless(tree_kind(d) == T_FILE_DECL);
+   fail_unless(tree_ident(d) == ident_new("F3"));
+   fail_if(tree_has_value(d));
 
    a = parse();
    fail_unless(a == NULL);

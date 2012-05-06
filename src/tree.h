@@ -91,6 +91,7 @@ typedef enum tree_kind {
    T_COMPONENT,
    T_IF_GENERATE,
    T_FOR_GENERATE,
+   T_FILE_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -141,7 +142,8 @@ const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
 
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL,
-// T_CONST_DECL, T_FUNC_DECL, T_ALIAS, T_ATTR_DECL, T_TYPE_CONV
+// T_CONST_DECL, T_FUNC_DECL, T_ALIAS, T_ATTR_DECL, T_TYPE_CONV,
+// T_FILE_DECL
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 bool tree_has_type(tree_t t);
@@ -150,7 +152,7 @@ bool tree_has_type(tree_t t);
 // T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
 // T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF, T_INSTANCE, T_WHILE,
 // T_ATTR_DECL, T_PCALL, T_TYPE_CONV, T_COMPONENT, T_IF_GENERATE,
-// T_FOR_GENERATE
+// T_FOR_GENERATE, T_FILE_DECL
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
@@ -168,6 +170,10 @@ void tree_add_port(tree_t t, tree_t d);
 // T_PORT_DECL
 port_mode_t tree_port_mode(tree_t t);
 void tree_set_port_mode(tree_t t, port_mode_t mode);
+
+// T_FILE_DECL
+tree_t tree_file_mode(tree_t t);
+void tree_set_file_mode(tree_t t, tree_t m);
 
 // T_ENTITY, T_COMPONENT
 unsigned tree_generics(tree_t t);
@@ -191,7 +197,7 @@ void tree_set_literal(tree_t t, literal_t lit);
 // T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
 // T_QUALIFIED, T_CONST_DECL, T_ASSERT, T_ATTR_SPEC
 // T_ARRAY_REF, T_IF, T_WHILE, T_REF, T_ALIAS, T_WAVEFORM
-// T_COND, T_SELECT, T_IF_GENERATE
+// T_COND, T_SELECT, T_IF_GENERATE, T_FILE_DECL
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);

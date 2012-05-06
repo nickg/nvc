@@ -163,6 +163,7 @@ SELECT        {S}{E}{L}{E}{C}{T}
 GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
 ACCESS        {A}{C}{C}{E}{S}{S}
 FILE          {F}{I}{L}{E}
+OPEN          {O}{P}{E}{N}
 
 %%
 
@@ -246,6 +247,7 @@ FILE          {F}{I}{L}{E}
 {GENERATE}      { TOKEN(tGENERATE); }
 {ACCESS}        { TOKEN(tACCESS); }
 {FILE}          { TOKEN(tFILE); }
+{OPEN}          { TOKEN(tOPEN); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }
