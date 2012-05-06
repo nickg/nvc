@@ -37,7 +37,8 @@ typedef enum class {
    C_DEFAULT,
    C_SIGNAL,
    C_VARIABLE,
-   C_CONSTANT
+   C_CONSTANT,
+   C_FILE
 } class_t;
 
 typedef enum tree_kind {

@@ -599,6 +599,9 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
                args[i] = llvm_type(type);
          }
          break;
+
+      case C_FILE:
+         assert(false);
       }
    }
 }
@@ -2694,6 +2697,9 @@ static void cgen_func_body(tree_t t)
       case C_CONSTANT:
          tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
          break;
+
+      case C_FILE:
+         assert(false);
       }
    }
 
@@ -2749,6 +2755,9 @@ static void cgen_proc_body(tree_t t)
       case C_CONSTANT:
          tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
          break;
+
+      case C_FILE:
+         assert(false);
       }
    }
 

@@ -685,6 +685,7 @@ object_class
 : tSIGNAL { $$ = C_SIGNAL; }
 | tVARIABLE { $$ = C_VARIABLE; }
 | tCONSTANT { $$ = C_CONSTANT; }
+| tFILE { $$ = C_FILE; }
 | /* empty */ { $$ = C_DEFAULT; }
 ;
 
