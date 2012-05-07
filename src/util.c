@@ -300,7 +300,7 @@ void fmt_loc(FILE *f, const struct loc *loc)
    if ((loc == NULL) || (loc->first_line == LINE_INVALID))
       return;
 
-   fprintf(f, "\tFile %s, Line %d\n", loc->file, loc->first_line);
+   fprintf(f, "\tFile %s, Line %u\n", loc->file, loc->first_line);
 
    if (loc->linebuf == NULL)
       return;
@@ -324,10 +324,10 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
    set_attr(ANSI_FG_CYAN);
    fprintf(f, "    %s%s\n", buf, many_lines ? " ..." : "");
-   for (int j = 0; j < loc->first_column + 4; j++)
+   for (uint16_t j = 0; j < loc->first_column + 4; j++)
       fprintf(f, " ");
    set_attr(ANSI_FG_GREEN);
-   for (int j = 0; j < last_col - loc->first_column + 1; j++)
+   for (uint16_t j = 0; j < last_col - loc->first_column + 1; j++)
       fprintf(f, "^");
    set_attr(ANSI_RESET);
    fprintf(f, "\n");
