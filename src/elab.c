@@ -79,8 +79,8 @@ static void find_arch(tree_t t, void *context)
             // Note this assumes both architectures are from the same
             // file but this shouldn't be a problem with high-resolution
             // timestamps
-            int new_line = tree_loc(t)->first_line;
-            int old_line = tree_loc(*(params->arch))->first_line;
+            uint16_t new_line = tree_loc(t)->first_line;
+            uint16_t old_line = tree_loc(*(params->arch))->first_line;
 
             if (new_line > old_line)
                *(params->arch) = t;
