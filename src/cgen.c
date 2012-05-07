@@ -209,7 +209,7 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_UARRAY:
       {
          if (cgen_const_bounds(t)) {
-            int nelems = 1;
+            unsigned nelems = 1;
             for (unsigned i = 0; i < type_dims(t); i++) {
                int64_t low, high;
                range_bounds(type_dim(t, i), &low, &high);
