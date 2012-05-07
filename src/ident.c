@@ -185,7 +185,7 @@ ident_wr_ctx_t ident_write_begin(FILE *f)
 
    // Write a placeholder that will later be overwritten with the
    // offset of the identifier table
-   write_u32(~0, ctx->file);
+   write_u32(UINT32_MAX, ctx->file);
 
    return ctx;
 }
