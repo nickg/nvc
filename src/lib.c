@@ -307,7 +307,8 @@ static lib_mtime_t lib_time_to_usecs(time_t t)
 
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_put_aux(lib, unit, NULL, true, lib_time_to_usecs(time(NULL)));
+   lib_mtime_t usecs = lib_time_to_usecs(time(NULL));
+   lib_put_aux(lib, unit, NULL, true, usecs);
 }
 
 static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
