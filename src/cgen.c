@@ -133,7 +133,7 @@ static void debug_out(LLVMValueRef val)
 }
 #endif
 
-static int bit_width(type_t t)
+static unsigned bit_width(type_t t)
 {
    switch (type_kind(t)) {
    case T_INTEGER:
