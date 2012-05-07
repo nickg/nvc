@@ -80,7 +80,7 @@ static LLVMValueRef llvm_int1(bool b)
    return LLVMConstInt(LLVMInt1Type(), b, false);
 }
 
-static LLVMValueRef llvm_int8(int32_t i)
+static LLVMValueRef llvm_int8(int8_t i)
 {
    return LLVMConstInt(LLVMInt8Type(), i, false);
 }
