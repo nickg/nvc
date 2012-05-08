@@ -2225,7 +2225,7 @@ static void copy_a(struct tree_array *from, struct tree_array *to,
    to->count = to->max = from->count;
    to->items = xmalloc(to->count * sizeof(param_t));
 
-   for (unsigned i = 0; i < from->count; i++)
+   for (size_t i = 0; i < from->count; i++)
       to->items[i] = tree_copy_aux(from->items[i], ctx);
 }
 
@@ -2235,7 +2235,7 @@ static void copy_p(struct param_array *from, struct param_array *to,
    to->count = to->max = from->count;
    to->items = xmalloc(to->count * sizeof(param_t));
 
-   for (unsigned i = 0; i < from->count; i++) {
+   for (size_t i = 0; i < from->count; i++) {
       param_t *fp = &from->items[i];
       param_t *tp = &to->items[i];
 
