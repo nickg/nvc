@@ -2044,12 +2044,12 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx);
 
 static void rewrite_a(struct tree_array *a, struct rewrite_ctx *ctx)
 {
-   for (unsigned i = 0; i < a->count; i++)
+   for (size_t i = 0; i < a->count; i++)
       a->items[i] = tree_rewrite_aux(a->items[i], ctx);
 
    // If an item was rewritten to NULL then delete it
-   unsigned n = 0;
-   for (unsigned i = 0; i < a->count; i++) {
+   size_t n = 0;
+   for (size_t i = 0; i < a->count; i++) {
       if (a->items[i] != NULL)
          a->items[n++] = a->items[i];
    }
