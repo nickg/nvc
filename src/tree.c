@@ -2058,7 +2058,7 @@ static void rewrite_a(struct tree_array *a, struct rewrite_ctx *ctx)
 
 static void rewrite_p(struct param_array *a, struct rewrite_ctx *ctx)
 {
-   for (unsigned i = 0; i < a->count; i++) {
+   for (size_t i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
       case P_RANGE:
          a->items[i].range.left =
