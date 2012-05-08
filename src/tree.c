@@ -2457,7 +2457,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    va_start(ap, type);
    tree_t arg;
    while ((arg = va_arg(ap, tree_t))) {
-      param_t p = { .kind = P_POS, .value = arg };
+      param_t p = { .value = arg, { .pos = 0 }, .kind = P_POS };
       tree_add_param(call, p);
    }
    va_end(ap);
