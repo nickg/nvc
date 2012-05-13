@@ -2602,7 +2602,63 @@ static void cgen_array_signal_store_fn(type_t elem_type)
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
    if (type_is_array(elem_type)) {
-      assert(false);
+      // Recursively store each sub-array
+
+      LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
+      LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(fn, "body");
+      LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(fn, "exit");
+
+      // Prelude
+      LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+      LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
+      LLVMBuildBr(builder, test_bb);
+
+      // Loop test
+      LLVMPositionBuilderAtEnd(builder, test_bb);
+      LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
+      LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
+                                   LLVMGetParam(fn, 3),
+                                      i_loaded, "ge");
+      LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
+
+      // Loop body
+      LLVMPositionBuilderAtEnd(builder, body_bb);
+
+      LLVMValueRef index[] = { i_loaded };
+      LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
+                                         index, ARRAY_LEN(index),
+                                         "signal");
+
+      char sub_name[256];
+      snprintf(sub_name, sizeof(sub_name), "%s_vec_store",
+               istr(type_ident(type_elem(elem_type))));
+
+      cgen_array_signal_store_fn(type_elem(elem_type));
+
+      LLVMValueRef indexes[] = {
+         LLVMBuildSub(builder, i_loaded, LLVMGetParam(fn, 2), ""),
+         llvm_int32(0)
+      };
+      LLVMValueRef dst = LLVMBuildGEP(builder, LLVMGetParam(fn, 1),
+                                      indexes, ARRAY_LEN(indexes), "dst");
+      LLVMValueRef src = LLVMBuildGEP(builder, signal,
+                                      indexes, ARRAY_LEN(indexes), "src");
+
+      range_t r = type_dim(elem_type, 0);
+      LLVMValueRef left  = llvm_int32(assume_int(r.left));
+      LLVMValueRef right = llvm_int32(assume_int(r.right));
+
+      LLVMValueRef args[] = {
+         src, dst, left, right
+      };
+      LLVMBuildCall(builder, llvm_fn(sub_name), args, ARRAY_LEN(args), "");
+
+      LLVMValueRef inc =
+         LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+      LLVMBuildStore(builder, inc, i);
+      LLVMBuildBr(builder, test_bb);
+
+      LLVMPositionBuilderAtEnd(builder, exit_bb);
    }
    else {
       LLVMValueRef n =
