@@ -1767,69 +1767,57 @@ static void cgen_array_signal_store(tree_t decl, type_t slice_type,
    LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
 }
 
-static void cgen_scalar_signal_assign(tree_t t, tree_t value, LLVMValueRef rhs,
-                                      LLVMValueRef after, struct cgen_ctx *ctx)
-{
-   tree_t decl = tree_ref(tree_target(t));
-   if (type_kind(tree_type(decl)) == T_CARRAY)
-      cgen_array_signal_store(decl, tree_type(decl), rhs,
-                              tree_type(value), after, ctx);
-   else
-      cgen_sched_waveform(tree_attr_ptr(decl, sig_struct_i), rhs, after);
-}
-
-static void cgen_array_signal_assign(tree_t t, LLVMValueRef rhs,
-                                     LLVMValueRef after, struct cgen_ctx *ctx)
-{
-   tree_t target = tree_target(t);
-
-   assert(tree_kind(tree_value(target)) == T_REF);
-
-   tree_t decl = tree_ref(tree_value(target));
-   assert(type_kind(tree_type(decl)) == T_CARRAY);
-
-   param_t p = tree_param(target, 0);
-   assert(p.kind == P_POS);
-
-   LLVMValueRef elem = cgen_expr(p.value, ctx);
-   cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs, after);
-}
-
-static void cgen_slice_signal_assign(tree_t t, tree_t value, LLVMValueRef rhs,
-                                     LLVMValueRef after, struct cgen_ctx *ctx)
-{
-   tree_t target = tree_target(t);
-
-   assert(tree_kind(tree_value(target)) == T_REF);
-
-   tree_t decl = tree_ref(tree_value(target));
-   assert(type_kind(tree_type(decl)) == T_CARRAY);
-
-   cgen_array_signal_store(decl, tree_type(target), rhs,
-                           tree_type(value), after, ctx);
-}
-
 static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
 {
    for (unsigned i = 0; i < tree_waveforms(t); i++) {
       tree_t w = tree_waveform(t, i);
 
-      LLVMValueRef rhs = cgen_expr(tree_value(w), ctx);
+      tree_t target = tree_target(t);
+      tree_t value  = tree_value(w);
+
+      LLVMValueRef rhs = cgen_expr(value, ctx);
       LLVMValueRef after = (tree_has_delay(w)
                             ? cgen_expr(tree_delay(w), ctx)
                             : llvm_int64(0));
 
       switch (tree_kind(tree_target(t))) {
       case T_REF:
-         cgen_scalar_signal_assign(t, tree_value(w), rhs, after, ctx);
+         {
+            tree_t decl = tree_ref(target);
+            if (type_kind(tree_type(decl)) == T_CARRAY)
+               cgen_array_signal_store(decl, tree_type(decl), rhs,
+                                       tree_type(value), after, ctx);
+            else
+               cgen_sched_waveform(tree_attr_ptr(decl, sig_struct_i),
+                                   rhs, after);
+         }
          break;
 
       case T_ARRAY_REF:
-         cgen_array_signal_assign(t, rhs, after, ctx);
+         {
+            assert(tree_kind(tree_value(target)) == T_REF);
+
+            tree_t decl = tree_ref(tree_value(target));
+            assert(type_kind(tree_type(decl)) == T_CARRAY);
+
+            param_t p = tree_param(target, 0);
+            assert(p.kind == P_POS);
+
+            LLVMValueRef elem = cgen_expr(p.value, ctx);
+            cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs, after);
+         }
          break;
 
       case T_ARRAY_SLICE:
-         cgen_slice_signal_assign(t, tree_value(w), rhs, after, ctx);
+         {
+            assert(tree_kind(tree_value(target)) == T_REF);
+
+            tree_t decl = tree_ref(tree_value(target));
+            assert(type_kind(tree_type(decl)) == T_CARRAY);
+
+            cgen_array_signal_store(decl, tree_type(target), rhs,
+                                    tree_type(value), after, ctx);
+         }
          break;
 
       default:
