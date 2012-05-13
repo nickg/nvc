@@ -73,7 +73,7 @@ static void cgen_stmt(tree_t t, struct cgen_ctx *ctx);
 static LLVMValueRef cgen_get_var(tree_t decl, struct cgen_ctx *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
-static LLVMTypeRef cgen_signal_type(void);
+static LLVMTypeRef cgen_signal_type(type_t type);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -579,7 +579,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       tree_t p = tree_port(t, i);
       switch (tree_class(p)) {
       case C_SIGNAL:
-         args[i] = LLVMPointerType(cgen_signal_type(), 0);
+         args[i] = LLVMPointerType(cgen_signal_type(tree_type(t)), 0);
          break;
 
       case C_VARIABLE:
@@ -2401,61 +2401,43 @@ static void cgen_process(tree_t t)
    }
 }
 
-static LLVMTypeRef cgen_signal_type(void)
+static LLVMValueRef cgen_signal_init(type_t type)
 {
-   LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
-   if (ty == NULL) {
-      LLVMTypeRef fields[SIGNAL_N_FIELDS];
-      fields[SIGNAL_RESOLVED]   = LLVMInt64Type();
-      fields[SIGNAL_LAST_VALUE] = LLVMInt64Type();
-      fields[SIGNAL_DECL]       = llvm_void_ptr();
-      fields[SIGNAL_FLAGS]      = LLVMInt8Type();
-      fields[SIGNAL_N_SOURCES]  = LLVMInt8Type();
-      fields[SIGNAL_OFFSET]     = LLVMInt16Type();
-      fields[SIGNAL_SOURCES]    = llvm_void_ptr();
-      fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
-      fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
+   if (type_is_array(type)) {
+      range_t r = type_dim(type, 0);
+      int64_t low, high;
+      range_bounds(r, &low, &high);
 
-      if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
-         fatal("failed to add type name signal_s");
-      LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
+      const unsigned n_elems = high - low + 1;
+
+      LLVMValueRef array_init[n_elems];
+      LLVMValueRef init = cgen_signal_init(type_elem(type));
+      for (unsigned i = 0; i < n_elems; i++)
+         array_init[i] = init;
+      return LLVMConstArray(LLVMTypeOf(init), array_init, n_elems);
    }
+   else {
+      LLVMValueRef init[SIGNAL_N_FIELDS];
+      init[SIGNAL_RESOLVED]   = llvm_int64(0);
+      init[SIGNAL_LAST_VALUE] = llvm_int64(0);
+      init[SIGNAL_DECL]       = LLVMConstNull(llvm_void_ptr());
+      init[SIGNAL_FLAGS]      = llvm_int8(0);
+      init[SIGNAL_N_SOURCES]  = llvm_int8(0);
+      init[SIGNAL_OFFSET]     = LLVMConstInt(LLVMInt16Type(), 0, false);
+      init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
+      init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
+      init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
 
-   return ty;
-}
+      LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
+      assert(signal_s != NULL);
 
-static LLVMValueRef cgen_signal_init(void)
-{
-   LLVMValueRef init[SIGNAL_N_FIELDS];
-   init[SIGNAL_RESOLVED]   = llvm_int64(0);
-   init[SIGNAL_LAST_VALUE] = llvm_int64(0);
-   init[SIGNAL_DECL]       = LLVMConstNull(llvm_void_ptr());
-   init[SIGNAL_FLAGS]      = llvm_int8(0);
-   init[SIGNAL_N_SOURCES]  = llvm_int8(0);
-   init[SIGNAL_OFFSET]     = LLVMConstInt(LLVMInt16Type(), 0, false);
-   init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
-   init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
-   init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
-
-   LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
-   assert(signal_s != NULL);
-
-   return LLVMConstNamedStruct(signal_s, init, ARRAY_LEN(init));
-}
-
-static void cgen_scalar_signal(tree_t t)
-{
-   LLVMTypeRef ty = cgen_signal_type();
-   LLVMValueRef v = LLVMAddGlobal(module, ty, istr(tree_ident(t)));
-   LLVMSetInitializer(v, cgen_signal_init());
-
-   tree_add_attr_ptr(t, sig_struct_i, v);
+      return LLVMConstNamedStruct(signal_s, init, ARRAY_LEN(init));
+   }
 }
 
 static void cgen_array_signal_load_fn(tree_t t, LLVMValueRef v)
 {
    // Build a function to load the array into a temporary
-
    type_t elem_type = type_elem(tree_type(t));
 
    char name[256];
@@ -2469,7 +2451,7 @@ static void cgen_array_signal_load_fn(tree_t t, LLVMValueRef v)
    LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
 
    LLVMTypeRef args[] = {
-      LLVMPointerType(cgen_signal_type(), 0),
+      LLVMPointerType(cgen_signal_type(elem_type), 0),
       LLVMPointerType(llvm_type(elem_type), 0),
       LLVMInt32Type(),    // Left
       LLVMInt32Type(),    // Right
@@ -2572,7 +2554,7 @@ static void cgen_array_signal_store_fn(tree_t t, LLVMValueRef v)
    LLVMTypeRef ll_elem_type = llvm_type(elem_type);
 
    LLVMTypeRef fn_args[] = {
-      LLVMPointerType(cgen_signal_type(), 0),
+      LLVMPointerType(cgen_signal_type(elem_type), 0),
       LLVMPointerType(ll_elem_type, 0),
       LLVMInt32Type(),    // Left
       LLVMInt32Type(),    // Right
@@ -2616,39 +2598,60 @@ static void cgen_array_signal_store_fn(tree_t t, LLVMValueRef v)
    LLVMPositionBuilderAtEnd(builder, saved_bb);
 }
 
-static void cgen_array_signal(tree_t t)
+static LLVMTypeRef cgen_signal_type(type_t type)
 {
-   assert(tree_drivers(t) == 0);
+   if (type_is_array(type)) {
+      range_t r = type_dim(type, 0);
+      int64_t low, high;
+      range_bounds(r, &low, &high);
 
-   range_t r = type_dim(tree_type(t), 0);
-   int64_t low, high;
-   range_bounds(r, &low, &high);
+      const unsigned n_elems = high - low + 1;
 
-   const unsigned n_elems = high - low + 1;
+      LLVMTypeRef base_type = cgen_signal_type(type_elem(type));
+      return LLVMArrayType(base_type, n_elems);
+   }
+   else {
+      LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
+      if (ty == NULL) {
+         LLVMTypeRef fields[SIGNAL_N_FIELDS];
+         fields[SIGNAL_RESOLVED]   = LLVMInt64Type();
+         fields[SIGNAL_LAST_VALUE] = LLVMInt64Type();
+         fields[SIGNAL_DECL]       = llvm_void_ptr();
+         fields[SIGNAL_FLAGS]      = LLVMInt8Type();
+         fields[SIGNAL_N_SOURCES]  = LLVMInt8Type();
+         fields[SIGNAL_OFFSET]     = LLVMInt16Type();
+         fields[SIGNAL_SOURCES]    = llvm_void_ptr();
+         fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
+         fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
 
-   LLVMTypeRef base_ty = cgen_signal_type();
-   LLVMTypeRef array_ty = LLVMArrayType(base_ty, n_elems);
-   LLVMValueRef v = LLVMAddGlobal(module, array_ty, istr(tree_ident(t)));
+         if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
+            fatal("failed to add type name signal_s");
+         LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
+      }
 
-   LLVMValueRef array_init[n_elems];
-   for (unsigned i = 0; i < n_elems; i++)
-      array_init[i] = cgen_signal_init();
-   LLVMSetInitializer(v, LLVMConstArray(base_ty, array_init, n_elems));
-
-   cgen_array_signal_load_fn(t, v);
-   cgen_array_signal_store_fn(t, v);
-
-   tree_add_attr_ptr(t, sig_struct_i, v);
+      return ty;
+   }
 }
 
 static void cgen_signal(tree_t t)
 {
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   if (type_kind(tree_type(t)) == T_CARRAY)
-      cgen_array_signal(t);
-   else
-      cgen_scalar_signal(t);
+   type_t type = tree_type(t);
+
+   LLVMTypeRef lltype = cgen_signal_type(type);
+   LLVMValueRef v = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
+
+   LLVMSetInitializer(v, cgen_signal_init(type));
+
+   if (type_is_array(type)) {
+      assert(tree_drivers(t) == 0);
+
+      cgen_array_signal_load_fn(t, v);
+      cgen_array_signal_store_fn(t, v);
+   }
+
+   tree_add_attr_ptr(t, sig_struct_i, v);
 }
 
 static void cgen_func_vars(tree_t d, void *context)
