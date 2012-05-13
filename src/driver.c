@@ -72,7 +72,11 @@ static void whole_signal_driver(tree_t ref, tree_t proc)
 static void part_signal_driver(tree_t ref, tree_t proc)
 {
    tree_t value = tree_value(ref);
-   assert(tree_kind(value) == T_REF);
+
+   if (tree_kind(value) != T_REF) {
+      part_signal_driver(value, proc);
+      return;
+   }
 
    tree_t decl = tree_ref(value);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
