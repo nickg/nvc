@@ -50,6 +50,7 @@ static tree_t opt_collapse_find_fn(tree_t t, void *context)
    const bool maybe_alias =
       (tree_stmts(t) == 2)
       && (tree_kind(tree_stmt(t, 0)) == T_SIGNAL_ASSIGN)
+      && (tree_kind(tree_target(tree_stmt(t, 0))) == T_REF)
       && (tree_waveforms(tree_stmt(t, 0)) == 1)
       && (tree_kind(tree_stmt(t, 1)) == T_WAIT);
 
