@@ -433,14 +433,6 @@ void _debug_out(int32_t val)
    printf("DEBUG: val=%"PRIx32"\n", val);
 }
 
-int32_t _iexp(int32_t n, int32_t v)
-{
-   if (unlikely(v < 0))
-      fatal("negative exponent not allowed for integer");
-
-   return (int32_t)pow(n, v);
-}
-
 void _inst_name(void *_sig, struct uarray *u)
 {
    struct signal *sig = _sig;
@@ -933,7 +925,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_array_copy", _array_copy);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
-   jit_bind_fn("_iexp", _iexp);
    jit_bind_fn("_inst_name", _inst_name);
 
    trace_on = opt_get_int("rt_trace_en");

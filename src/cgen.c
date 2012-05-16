@@ -1047,8 +1047,17 @@ static LLVMValueRef cgen_fcall(tree_t t, struct cgen_ctx *ctx)
          return LLVMBuildURem(builder, args[0], args[1], "");
       else if (icmp(builtin, "rem"))
          return LLVMBuildSRem(builder, args[0], args[1], "");
-      else if (icmp(builtin, "exp"))
-         return LLVMBuildCall(builder, llvm_fn("_iexp"), args, 2, "");
+      else if (icmp(builtin, "exp")) {
+         LLVMValueRef cast[] = {
+            LLVMBuildUIToFP(builder, args[0], LLVMDoubleType(), ""),
+            LLVMBuildUIToFP(builder, args[1], LLVMDoubleType(), "")
+         };
+         return LLVMBuildFPToUI(
+            builder,
+            LLVMBuildCall(builder, llvm_fn("llvm.pow.f64"), cast, 2, ""),
+            llvm_type(tree_type(t)),
+            "pow");
+      }
       else if (icmp(builtin, "abs")) {
          return LLVMBuildSelect(
             builder,
@@ -3019,14 +3028,14 @@ static void cgen_support_fns(void)
                                     ARRAY_LEN(_debug_out_args),
                                     false));
 
-   LLVMTypeRef _iexp_args[] = {
-      LLVMInt32Type(),
-      LLVMInt32Type()
+   LLVMTypeRef llvm_pow_args[] = {
+      LLVMDoubleType(),
+      LLVMDoubleType()
    };
-   LLVMAddFunction(module, "_iexp",
-                   LLVMFunctionType(LLVMInt32Type(),
-                                    _iexp_args,
-                                    ARRAY_LEN(_iexp_args),
+   LLVMAddFunction(module, "llvm.pow.f64",
+                   LLVMFunctionType(LLVMDoubleType(),
+                                    llvm_pow_args,
+                                    ARRAY_LEN(llvm_pow_args),
                                     false));
 
    LLVMTypeRef _inst_name_args[] = {
