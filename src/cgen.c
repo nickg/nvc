@@ -1681,7 +1681,7 @@ static void cgen_wait(tree_t t, struct cgen_ctx *ctx)
    LLVMPositionBuilderAtEnd(builder, it->bb);
 }
 
-static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
+static LLVMValueRef cgen_var_lvalue(tree_t t, struct cgen_ctx *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
@@ -1694,7 +1694,7 @@ static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
          param_t p = tree_param(t, 0);
          assert(p.kind == P_POS);
 
-         LLVMValueRef var = cgen_lvalue(tree_value(t), ctx);
+         LLVMValueRef var = cgen_var_lvalue(tree_value(t), ctx);
          LLVMValueRef idx =
             cgen_array_off(cgen_expr(p.value, ctx), var, type, ctx, 0);
 
@@ -1704,7 +1704,7 @@ static LLVMValueRef cgen_lvalue(tree_t t, struct cgen_ctx *ctx)
 
    case T_ARRAY_SLICE:
       {
-         LLVMValueRef array = cgen_lvalue(tree_value(t), ctx);
+         LLVMValueRef array = cgen_var_lvalue(tree_value(t), ctx);
 
          type_t ty = tree_type(tree_value(t));
          return cgen_get_slice(array, ty, tree_range(t), ctx);
@@ -1722,7 +1722,7 @@ static void cgen_var_assign(tree_t t, struct cgen_ctx *ctx)
 
    tree_t target = tree_target(t);
 
-   LLVMValueRef lhs = cgen_lvalue(target, ctx);
+   LLVMValueRef lhs = cgen_var_lvalue(target, ctx);
 
    type_t ty = tree_type(target);
    if (type_is_array(ty))
