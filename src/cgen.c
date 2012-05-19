@@ -1750,7 +1750,7 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
                                     LLVMValueRef rhs, type_t rhs_type,
                                     LLVMValueRef after, cgen_ctx_t ctx)
 {
-   assert(type_kind(lhs_type) == T_CARRAY);
+   assert(type_is_array(lhs_type));
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_store",
@@ -1780,16 +1780,13 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t ctx)
                             ? cgen_expr(tree_delay(w), ctx)
                             : llvm_int64(0));
 
+      LLVMValueRef p_signal = NULL;
+
       switch (tree_kind(target)) {
       case T_REF:
          {
             tree_t decl = tree_ref(target);
-            LLVMValueRef p_signal = cgen_array_signal_ptr(decl, llvm_int32(0));
-            if (type_kind(tree_type(decl)) == T_CARRAY)
-               cgen_array_signal_store(p_signal, tree_type(decl),
-                                       rhs, tree_type(value), after, ctx);
-            else
-               cgen_sched_waveform(p_signal, rhs, after);
+            p_signal = cgen_array_signal_ptr(decl, llvm_int32(0));
          }
          break;
 
@@ -1804,7 +1801,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t ctx)
             assert(p.kind == P_POS);
 
             LLVMValueRef elem = cgen_expr(p.value, ctx);
-            cgen_sched_waveform(cgen_array_signal_ptr(decl, elem), rhs, after);
+            p_signal = cgen_array_signal_ptr(decl, elem);
          }
          break;
 
@@ -1816,15 +1813,19 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t ctx)
             assert(type_kind(tree_type(decl)) == T_CARRAY);
 
             LLVMValueRef low = cgen_range_low(tree_range(target), ctx);
-            LLVMValueRef p_signal = cgen_array_signal_ptr(decl, low);
-            cgen_array_signal_store(p_signal, tree_type(decl),
-                                    rhs, tree_type(value), after, ctx);
+            p_signal = cgen_array_signal_ptr(decl, low);
          }
          break;
 
       default:
          assert(false);
       }
+
+      if (type_is_array(tree_type(value)))
+         cgen_array_signal_store(p_signal, tree_type(target),
+                                 rhs, tree_type(value), after, ctx);
+      else
+         cgen_sched_waveform(p_signal, rhs, after);
    }
 }
 
