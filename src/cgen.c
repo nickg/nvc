@@ -1744,35 +1744,24 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
                  args, ARRAY_LEN(args), "");
 }
 
-static void cgen_array_signal_store(tree_t decl, type_t slice_type,
+static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
                                     LLVMValueRef rhs, type_t rhs_type,
                                     LLVMValueRef after, struct cgen_ctx *ctx)
 {
-   type_t type = tree_type(decl);
-   assert(type_kind(type) == T_CARRAY);
+   assert(type_kind(lhs_type) == T_CARRAY);
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_store",
-            istr(type_ident(type_elem(tree_type(decl)))));
-
-   range_t r = type_dim(slice_type, 0);
-   LLVMValueRef left_off =
-      cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
-   LLVMValueRef right_off =
-      cgen_expr(r.kind == RANGE_TO ? r.right : r.left, ctx);
-
-   LLVMValueRef left_abs = cgen_array_off(left_off, NULL, type, ctx, 0);
-   LLVMValueRef right_abs = cgen_array_off(right_off, NULL, type, ctx, 0);
+            istr(type_ident(type_elem(lhs_type))));
 
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
 
-   LLVMValueRef s_signal = tree_attr_ptr(decl, sig_struct_i);
-   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-   LLVMValueRef p_signal = LLVMBuildGEP(builder, s_signal,
-                                        indexes, ARRAY_LEN(indexes), "");
+   LLVMValueRef indexes[] = { llvm_int32(0) };
    LLVMValueRef p_rhs = LLVMBuildGEP(builder, rhs_data, indexes, 1, "");
 
-   LLVMValueRef args[] = { p_signal, p_rhs, left_abs, right_abs };
+   LLVMValueRef n_elems = cgen_array_len(rhs_type, rhs);
+
+   LLVMValueRef args[] = { lhs, p_rhs, n_elems };
    LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
 }
 
@@ -1789,16 +1778,16 @@ static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
                             ? cgen_expr(tree_delay(w), ctx)
                             : llvm_int64(0));
 
-      switch (tree_kind(tree_target(t))) {
+      switch (tree_kind(target)) {
       case T_REF:
          {
             tree_t decl = tree_ref(target);
+            LLVMValueRef p_signal = cgen_array_signal_ptr(decl, llvm_int32(0));
             if (type_kind(tree_type(decl)) == T_CARRAY)
-               cgen_array_signal_store(decl, tree_type(decl), rhs,
-                                       tree_type(value), after, ctx);
+               cgen_array_signal_store(p_signal, tree_type(decl),
+                                       rhs, tree_type(value), after, ctx);
             else
-               cgen_sched_waveform(tree_attr_ptr(decl, sig_struct_i),
-                                   rhs, after);
+               cgen_sched_waveform(p_signal, rhs, after);
          }
          break;
 
@@ -1824,8 +1813,10 @@ static void cgen_signal_assign(tree_t t, struct cgen_ctx *ctx)
             tree_t decl = tree_ref(tree_value(target));
             assert(type_kind(tree_type(decl)) == T_CARRAY);
 
-            cgen_array_signal_store(decl, tree_type(target), rhs,
-                                    tree_type(value), after, ctx);
+            LLVMValueRef low = cgen_range_low(tree_range(target), ctx);
+            LLVMValueRef p_signal = cgen_array_signal_ptr(decl, low);
+            cgen_array_signal_store(p_signal, tree_type(decl),
+                                    rhs, tree_type(value), after, ctx);
          }
          break;
 
@@ -2587,8 +2578,7 @@ static void cgen_array_signal_store_fn(type_t elem_type)
    LLVMTypeRef fn_args[] = {
       LLVMPointerType(cgen_signal_type(elem_type), 0),
       LLVMPointerType(ll_elem_type, 0),
-      LLVMInt32Type(),    // Left
-      LLVMInt32Type(),    // Right
+      LLVMInt32Type(),    // Number of elements
    };
    fn = LLVMAddFunction(module, name,
                         LLVMFunctionType(LLVMVoidType(),
@@ -2607,14 +2597,14 @@ static void cgen_array_signal_store_fn(type_t elem_type)
 
       // Prelude
       LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-      LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
+      LLVMBuildStore(builder, llvm_int32(0), i);
       LLVMBuildBr(builder, test_bb);
 
       // Loop test
       LLVMPositionBuilderAtEnd(builder, test_bb);
       LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
       LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
-                                   LLVMGetParam(fn, 3),
+                                      LLVMGetParam(fn, 2),
                                       i_loaded, "ge");
       LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
 
@@ -2641,12 +2631,8 @@ static void cgen_array_signal_store_fn(type_t elem_type)
       LLVMValueRef src = LLVMBuildGEP(builder, signal,
                                       indexes, ARRAY_LEN(indexes), "src");
 
-      range_t r = type_dim(elem_type, 0);
-      LLVMValueRef left  = llvm_int32(assume_int(r.left));
-      LLVMValueRef right = llvm_int32(assume_int(r.right));
-
       LLVMValueRef args[] = {
-         src, dst, left, right
+         src, dst, cgen_array_len(elem_type, NULL)
       };
       LLVMBuildCall(builder, llvm_fn(sub_name), args, ARRAY_LEN(args), "");
 
@@ -2658,13 +2644,7 @@ static void cgen_array_signal_store_fn(type_t elem_type)
       LLVMPositionBuilderAtEnd(builder, exit_bb);
    }
    else {
-      LLVMValueRef n =
-         LLVMBuildAdd(builder,
-                      LLVMBuildSub(builder, LLVMGetParam(fn, 3),
-                                   LLVMGetParam(fn, 2), ""),
-                      llvm_int32(1), "n");
-
-      LLVMValueRef dst_index[] = { LLVMGetParam(fn, 2) };
+      LLVMValueRef dst_index[] = { llvm_int32(0) };
       LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
                                          dst_index, ARRAY_LEN(dst_index),
                                          "signal");
@@ -2677,7 +2657,7 @@ static void cgen_array_signal_store_fn(type_t elem_type)
          llvm_void_cast(signal),
          llvm_int32(0 /* source, TODO */),
          llvm_void_cast(p_src),
-         n,
+         LLVMGetParam(fn, 2),   // Number of element
          llvm_sizeof(ll_elem_type),
          llvm_int64(0 /* after, TODO */)
       };
