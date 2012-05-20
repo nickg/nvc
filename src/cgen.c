@@ -1771,24 +1771,28 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
-      {
-         tree_t decl = tree_ref(t);
-         return cgen_array_signal_ptr(decl, llvm_int32(0));
-      }
-      break;
+      return cgen_array_signal_ptr(tree_ref(t), llvm_int32(0));
 
    case T_ARRAY_REF:
       {
-         assert(tree_kind(tree_value(t)) == T_REF);
-
-         tree_t decl = tree_ref(tree_value(t));
-         assert(type_is_array(tree_type(decl)));
-
          param_t p = tree_param(t, 0);
          assert(p.kind == P_POS);
 
          LLVMValueRef elem = cgen_expr(p.value, ctx);
-         return cgen_array_signal_ptr(decl, elem);
+
+         if (tree_kind(tree_value(t)) == T_REF) {
+            tree_t decl = tree_ref(tree_value(t));
+            assert(type_is_array(tree_type(decl)));
+
+            return cgen_array_signal_ptr(decl, elem);
+         }
+         else {
+            LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
+
+            LLVMValueRef indexes[] = { llvm_int32(0), elem };
+            return LLVMBuildGEP(builder, p_base,
+                                indexes, ARRAY_LEN(indexes), "foo");
+         }
       }
       break;
 
@@ -2217,7 +2221,7 @@ static void cgen_driver_init_fn(tree_t t, void *arg)
    LLVMValueRef val = cgen_expr(tree_value(decl), ctx);
 
    type_t type = tree_type(decl);
-   if (type_kind(type) == T_CARRAY) {
+   if (type_is_array(type)) {
       // Initialise only those sub-elements for which this
       // process is a driver
 
