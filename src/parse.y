@@ -58,6 +58,7 @@
 
    typedef struct {
       int64_t ival;
+      double  rval;
       char    *sval;
       char    cval;
    } lvals_t;
@@ -199,7 +200,7 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE tOPEN
+%token tFILE tOPEN tREAL
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1952,7 +1953,13 @@ abstract_literal
      literal_t l = { { .i = lvals.ival }, .kind = L_INT };
      tree_set_literal($$, l);
   }
-/* | tFLOAT */
+| tREAL
+  {
+     $$ = tree_new(T_LITERAL);
+     tree_set_loc($$, &@$);
+     literal_t l = { { .r = lvals.rval }, .kind = L_REAL };
+     tree_set_literal($$, l);
+  }
 ;
 
 physical_literal

@@ -27,6 +27,7 @@
 #include "util.h"
 
 #include <ctype.h>
+#include <math.h>
 
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
@@ -36,11 +37,13 @@
 
 #define YY_USER_ACTION begin_token(yytext);
 
-#define TOKEN(t) return (last_token = (t));
+#define TOKEN(t) return (last_token = (t))
 
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
 static int parse_based_int(const char *str);
+static int parse_real(const char *str);
+static int parse_int(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
@@ -55,7 +58,9 @@ STRING     \"([^\"]|\"\")*\"
 BIT_STRING [BOXbox]\"[0-9a-fA-f_]+\"
 CHAR       '.'
 COMMENT    --.*\n
-INT        [0-9]+
+INT        [0-9]+{EXPONENT}?
+REAL       {INT}\.{INT}
+EXPONENT   [Ee][+-]?[0-9]+
 BASED_INT  {INT}#[0-9a-fA-f]+#
 SPACE      [ \t\r\n]+
 TICK       \'
@@ -273,8 +278,9 @@ OPEN          {O}{P}{E}{N}
 "|"          { TOKEN(tBAR); }
 "["          { TOKEN(tLSQUARE); }
 "]"          { TOKEN(tRSQUARE); }
-{INT}        { lvals.ival = atoll(yytext); TOKEN(tINT); }
+{INT}        { return parse_int(yytext); }
 {BASED_INT}  { return parse_based_int(yytext); }
+{REAL}       { return parse_real(yytext); }
 {BIT_STRING} { lvals.sval = strdup(yytext); TOKEN(tBITSTRING); }
 {STRING}     { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
 {TICK}       { TOKEN(tTICK); }
@@ -341,6 +347,29 @@ static int parse_ex_id(const char *str)
    TOKEN(tID);
 }
 
+static int parse_int(const char *str)
+{
+   char *tmp = strdup(str);
+
+   char *base = strtok(tmp, "eE");
+   char *exp  = strtok(NULL, "eE");
+
+   lvals.ival = atoll(base);
+
+   int e = (exp ? atoi(exp) : 0);
+
+   free(tmp);
+
+   if (e < 0)
+      TOKEN(tERROR);
+   else {
+      for (; e > 0; e--)
+         lvals.ival *= 10;
+   }
+
+   TOKEN(tINT);
+}
+
 static int parse_based_int(const char *str)
 {
    char *tmp = strdup(str);
@@ -357,3 +386,20 @@ static int parse_based_int(const char *str)
    TOKEN(t);
 }
 
+static int parse_real(const char *str)
+{
+   char *tmp = strdup(str);
+
+   char *base = strtok(tmp, "eE");
+   char *exp  = strtok(NULL, "eE");
+
+   lvals.rval = strtod(base, NULL);
+
+   int e = (exp ? atoi(exp) : 0);
+   if (e != 0)
+      lvals.rval *= pow(10.0, (double)e);
+
+   free(tmp);
+
+   TOKEN(tREAL);
+}
