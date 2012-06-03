@@ -139,6 +139,7 @@ const char *type_pp(type_t t);
 
 // Predefined types
 type_t type_universal_int(void);
+type_t type_universal_real(void);
 bool type_is_universal(type_t t);
 
 // Tree visit helper

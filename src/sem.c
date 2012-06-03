@@ -2760,6 +2760,9 @@ static bool sem_check_literal(tree_t t)
    case L_INT:
       tree_set_type(t, type_universal_int());
       break;
+   case L_REAL:
+      tree_set_type(t, type_universal_real());
+      break;
    default:
       assert(false);
    }

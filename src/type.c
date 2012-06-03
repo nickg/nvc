@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <float.h>
 
 #define MAX_DIMS     4
 #define MAX_UNITS    16
@@ -88,7 +89,7 @@ struct type_rd_ctx {
 #define IS(t, k) ((t)->kind == (k))
 #define HAS_DIMS(t) \
    (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL)   \
-    || IS(t, T_CARRAY))
+    || IS(t, T_CARRAY) || IS(t, T_REAL))
 #define HAS_BASE(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 #define HAS_RESOLUTION(t) \
@@ -294,28 +295,49 @@ void type_set_elem(type_t t, type_t e)
    t->elem = e;
 }
 
+static type_t type_make_universal(type_kind_t kind, const char *name,
+                                  literal_t min, literal_t max)
+{
+   type_t t = type_new(kind);
+   type_set_ident(t, ident_new(name));
+
+   tree_t left = tree_new(T_LITERAL);
+   tree_set_literal(left, min);
+   tree_set_type(left, t);
+
+   tree_t right = tree_new(T_LITERAL);
+   tree_set_literal(right, max);
+   tree_set_type(right, t);
+
+   range_t r = { .kind  = RANGE_TO,
+                 .left  = left,
+                 .right = right };
+   type_add_dim(t, r);
+
+   return t;
+}
+
 type_t type_universal_int(void)
 {
    static type_t t = NULL;
 
    if (t == NULL) {
-      t = type_new(T_INTEGER);
-      type_set_ident(t, ident_new("universal integer"));
+      literal_t min = { { .i = INT_MIN }, .kind = L_INT };
+      literal_t max = { { .i = INT_MAX }, .kind = L_INT };
+      t = type_make_universal(T_INTEGER, "universal integer", min, max);
+   }
 
-      tree_t left = tree_new(T_LITERAL);
-      literal_t l_min = { { .i = INT_MIN }, .kind = L_INT };
-      tree_set_literal(left, l_min);
-      tree_set_type(left, t);
+   return t;
+}
 
-      tree_t right = tree_new(T_LITERAL);
-      literal_t l_max = { { .i = INT_MAX }, .kind = L_INT };
-      tree_set_literal(right, l_max);
-      tree_set_type(right, t);
+type_t type_universal_real(void)
+{
+   static type_t t = NULL;
 
-      range_t r = { .kind  = RANGE_TO,
-                    .left  = left,
-                    .right = right };
-      type_add_dim(t, r);
+   if (t == NULL) {
+      literal_t min = { { .r = -DBL_MAX }, .kind = L_REAL };
+      literal_t max = { { .r = DBL_MAX },  .kind = L_REAL };
+      t = type_make_universal(T_REAL, "universal real", min, max);
    }
 
    return t;
@@ -325,10 +347,14 @@ bool type_is_universal(type_t t)
 {
    assert(t != NULL);
 
-   if (t->kind == T_INTEGER)
+   switch (t->kind) {
+   case T_INTEGER:
       return t->ident == type_universal_int()->ident;
-   else
+   case T_REAL:
+      return t->ident == type_universal_real()->ident;
+   default:
       return false;
+   }
 }
 
 unsigned type_units(type_t t)
