@@ -58,10 +58,11 @@ STRING     \"([^\"]|\"\")*\"
 BIT_STRING [BOXbox]\"[0-9a-fA-f_]+\"
 CHAR       '.'
 COMMENT    --.*\n
-INT        [0-9]+{EXPONENT}?
+DIGITS     [0-9][0-9_]*
+INT        {DIGITS}{EXPONENT}?
 REAL       {INT}\.{INT}
-EXPONENT   [Ee][+-]?[0-9]+
-BASED_INT  {INT}#[0-9a-fA-f]+#
+EXPONENT   [Ee][+-]?{DIGITS}
+BASED_INT  {INT}#[0-9a-fA-f][0-9a-fA-f_]*#
 SPACE      [ \t\r\n]+
 TICK       \'
 
@@ -347,9 +348,19 @@ static int parse_ex_id(const char *str)
    TOKEN(tID);
 }
 
+static void strip_underscores(char *s)
+{
+   char *p;
+   for (p = s; *s != '\0'; s++)
+      if (*s != '_')
+         *p++ = *s;
+   *p = '\0';
+}
+
 static int parse_int(const char *str)
 {
    char *tmp = strdup(str);
+   strip_underscores(tmp);
 
    char *base = strtok(tmp, "eE");
    char *exp  = strtok(NULL, "eE");
@@ -373,6 +384,7 @@ static int parse_int(const char *str)
 static int parse_based_int(const char *str)
 {
    char *tmp = strdup(str);
+   strip_underscores(tmp);
 
    char *base  = strtok(tmp, "#");
    char *value = strtok(NULL, "#");
@@ -389,6 +401,7 @@ static int parse_based_int(const char *str)
 static int parse_real(const char *str)
 {
    char *tmp = strdup(str);
+   strip_underscores(tmp);
 
    char *base = strtok(tmp, "eE");
    char *exp  = strtok(NULL, "eE");
