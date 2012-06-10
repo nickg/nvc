@@ -505,6 +505,7 @@ void type_replace(type_t t, type_t a)
       break;
 
    case T_INTEGER:
+   case T_REAL:
       break;
 
    case T_ENUM:

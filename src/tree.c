@@ -1620,7 +1620,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          case A_OTHERS:
             break;
          default:
-            abort();
+            assert(false);
          }
       }
    }
@@ -1634,11 +1634,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       {
          write_u16(t->literal.kind, ctx->file);
          switch (t->literal.kind) {
+         case L_REAL:
          case L_INT:
             write_i64(t->literal.i, ctx->file);
             break;
          default:
-            abort();
+            assert(false);
          }
       }
       break;
@@ -1794,7 +1795,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          case A_OTHERS:
             break;
          default:
-            abort();
+            assert(false);
          }
       }
    }
@@ -1809,10 +1810,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          t->literal.kind = read_u16(ctx->file);
          switch (t->literal.kind) {
          case L_INT:
+         case L_REAL:
             t->literal.i = read_i64(ctx->file);
             break;
          default:
-            abort();
+            assert(false);
          }
       }
       break;

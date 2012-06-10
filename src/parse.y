@@ -178,7 +178,7 @@
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
-%type <y> integer_type_def physical_type_def enum_type_def array_type_def
+%type <y> physical_type_def enum_type_def array_type_def
 %type <y> index_subtype_def access_type_def file_type_def
 %type <y> unconstrained_array_def constrained_array_def
 %type <r> range range_constraint constraint_elem
@@ -1669,16 +1669,16 @@ index_subtype_def
 ;
 
 scalar_type_def
-: integer_type_def
-| physical_type_def
+: physical_type_def
 | enum_type_def
-  /* | floating_type_definition */
-;
-
-integer_type_def
-: range_constraint
+| range_constraint
   {
-     $$ = type_new(T_INTEGER);
+     bool real = ((tree_kind($1.left) == T_LITERAL)
+                  && (tree_literal($1.left).kind == L_REAL))
+        || ((tree_kind($1.right) == T_LITERAL)
+            && (tree_literal($1.right).kind == L_REAL));
+
+     $$ = type_new(real ? T_REAL : T_INTEGER);
      type_add_dim($$, $1);
   }
 ;

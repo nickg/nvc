@@ -597,19 +597,15 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_REAL:
       // Addition
       sem_declare_binary(plus, t, t, t, "add");
-      //sem_declare_binary(plus, t, t, "add");
 
       // Subtraction
       sem_declare_binary(minus, t, t, t, "sub");
-      //sem_declare_binary(minus, t, t, t, "sub");
 
       // Multiplication
       sem_declare_binary(mult, t, t, t, "mul");
-      //sem_declare_binary(mult, t, t, t, "mul");
 
       // Division
       sem_declare_binary(div, t, t, t, "div");
-      //sem_declare_binary(div, t, t, t, "div");
 
       // Sign operators
       sem_declare_unary(plus, t, t, "identity");
@@ -1202,7 +1198,7 @@ static bool sem_check_type_decl(tree_t t)
          // Check the range expressions as if they were INTEGERs
          // when there is no base type
          type_set_push();
-         type_set_add(sem_std_type("INTEGER"));
+         //type_set_add(sem_std_type("INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 
@@ -2254,6 +2250,10 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
             switch (type_kind(f_result)) {
             case T_INTEGER:
                tree_set_type(t, type_universal_int());
+               break;
+            case T_REAL:
+               printf("here!!\n");
+               tree_set_type(t, type_universal_real());
                break;
             default:
                tree_set_type(t, f_result);
