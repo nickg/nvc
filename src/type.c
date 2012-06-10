@@ -43,7 +43,7 @@ struct type {
    };
    union {
       type_t result;     // T_FUNC
-      tree_t resolution; // T_INTEGER, T_SUBTYPE
+      tree_t resolution; // T_SUBTYPE
    };
    union {
       struct {   // T_ENUM
@@ -155,6 +155,13 @@ bool type_eq(type_t a, type_t b)
    ident_t uint_i = type_ident(universal_int);
    if (type_kind(a) == T_INTEGER
        && (type_ident(a) == uint_i || type_ident(b) == uint_i))
+      return true;
+
+   // Universal real type is equal to any other real type
+   type_t universal_real = type_universal_real();
+   ident_t ureal_i = type_ident(universal_real);
+   if (type_kind(a) == T_REAL
+       && (type_ident(a) == ureal_i || type_ident(b) == ureal_i))
       return true;
 
    // XXX: this is not quite right as structurally equivalent types

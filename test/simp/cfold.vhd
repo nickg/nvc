@@ -70,4 +70,14 @@ begin
         a := (5 => 1, 6 => 2, 7 => 3);  -- Error
     end process;
 
+    process is
+        variable r : real;
+        variable b : boolean;
+    begin
+        r := 1.0 + 0.0;
+        r := 1.5 * 4.0;
+        r := 2.0 / 2.0;
+        b := 4.6 > 1.2;
+    end process;
+
 end architecture;

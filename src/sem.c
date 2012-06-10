@@ -793,6 +793,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          case T_CARRAY:
          case T_SUBTYPE:
          case T_INTEGER:
+         case T_REAL:
             for (unsigned i = 0; i < type_dims(base); i++)
                type_add_dim(type, type_dim(base, i));
             break;
@@ -1192,13 +1193,15 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_INTEGER:
    case T_PHYSICAL:
+   case T_REAL:
       {
          range_t r = type_dim(type, 0);
 
          // Check the range expressions as if they were INTEGERs
          // when there is no base type
          type_set_push();
-         //type_set_add(sem_std_type("INTEGER"));
+         type_set_add(sem_std_type(type_kind(type) == T_REAL
+                                   ? "REAL" : "INTEGER"));
          bool ok = sem_check(r.left) && sem_check(r.right);
          type_set_pop();
 
@@ -2252,7 +2255,6 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
                tree_set_type(t, type_universal_int());
                break;
             case T_REAL:
-               printf("here!!\n");
                tree_set_type(t, type_universal_real());
                break;
             default:

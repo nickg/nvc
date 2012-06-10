@@ -1179,6 +1179,7 @@ static unsigned tree_visit_type(type_t type,
    switch (type_kind(type)) {
    case T_SUBTYPE:
    case T_INTEGER:
+   case T_REAL:
    case T_PHYSICAL:
    case T_CARRAY:
       for (unsigned i = 0; i < type_dims(type); i++) {
@@ -2175,6 +2176,7 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    if (HAS_TYPE(t) && (t->type != NULL)) {
       switch (type_kind(t->type)) {
       case T_INTEGER:
+      case T_REAL:
       case T_SUBTYPE:
       case T_PHYSICAL:
       case T_CARRAY:

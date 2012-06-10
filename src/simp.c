@@ -34,11 +34,21 @@ static int errors = 0;
 
 static tree_t simp_tree(tree_t t, void *context);
 
-static bool folded_num(tree_t t, literal_t *l)
+static bool folded_int(tree_t t, literal_t *l)
 {
    if (tree_kind(t) == T_LITERAL) {
       *l = tree_literal(t);
-      return true;
+      return (l->kind == L_INT);
+   }
+   else
+      return false;
+}
+
+static bool folded_real(tree_t t, literal_t *l)
+{
+   if (tree_kind(t) == T_LITERAL) {
+      *l = tree_literal(t);
+      return (l->kind == L_REAL);
    }
    else
       return false;
@@ -66,12 +76,12 @@ static bool folded_agg(tree_t t)
          literal_t dummy;
          switch (a.kind) {
          case A_NAMED:
-            if (!folded_num(a.name, &dummy))
+            if (!folded_int(a.name, &dummy))
                return false;
             break;
          case A_RANGE:
-            if (!folded_num(a.range.left, &dummy)
-                || !folded_num(a.range.right, &dummy))
+            if (!folded_int(a.range.left, &dummy)
+                || !folded_int(a.range.right, &dummy))
                return false;
             break;
          default:
@@ -92,6 +102,23 @@ static tree_t get_int_lit(tree_t t, int64_t i)
    literal_t l;
    l.kind = L_INT;
    l.i = i;
+
+   tree_t f = tree_new(T_LITERAL);
+   tree_set_loc(f, tree_loc(t));
+   tree_set_literal(f, l);
+   tree_set_type(f, tree_type(t));
+
+   return f;
+}
+
+static tree_t get_real_lit(tree_t t, double r)
+{
+   tree_t fdecl = tree_ref(t);
+   assert(tree_kind(fdecl) == T_FUNC_DECL);
+
+   literal_t l;
+   l.kind = L_REAL;
+   l.r = r;
 
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
@@ -142,7 +169,46 @@ static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
       return t;
 }
 
-static tree_t simp_fcall_num(tree_t t, ident_t builtin, literal_t *args)
+static tree_t simp_fcall_real(tree_t t, ident_t builtin, literal_t *args)
+{
+   const int lkind = args[0].kind;  // Assume all types checked same
+   assert(lkind == L_REAL);
+
+   if (icmp(builtin, "mul")) {
+      return get_real_lit(t, args[0].r * args[1].r);
+   }
+   else if (icmp(builtin, "div")) {
+      return get_real_lit(t, args[0].r / args[1].r);
+   }
+   else if (icmp(builtin, "add")) {
+      return get_real_lit(t, args[0].r + args[1].r);
+   }
+   else if (icmp(builtin, "sub")) {
+      return get_real_lit(t, args[0].r - args[1].r);
+   }
+   else if (icmp(builtin, "neg")) {
+      return get_real_lit(t, -args[0].r);
+   }
+   else if (icmp(builtin, "identity")) {
+      return get_real_lit(t, args[0].r);
+   }
+   else if (icmp(builtin, "eq")) {
+      return get_bool_lit(t, args[0].r == args[1].r);
+   }
+   else if (icmp(builtin, "neq")) {
+      return get_bool_lit(t, args[0].r != args[1].r);
+   }
+   else if (icmp(builtin, "gt")) {
+      return get_bool_lit(t, args[0].r > args[1].r);
+   }
+   else if (icmp(builtin, "lt")) {
+      return get_bool_lit(t, args[0].r < args[1].r);
+   }
+   else
+      return t;
+}
+
+static tree_t simp_fcall_int(tree_t t, ident_t builtin, literal_t *args)
 {
    const int lkind = args[0].kind;  // Assume all types checked same
    assert(lkind == L_INT);
@@ -166,28 +232,16 @@ static tree_t simp_fcall_num(tree_t t, ident_t builtin, literal_t *args)
       return get_int_lit(t, args[0].i);
    }
    else if (icmp(builtin, "eq")) {
-      if (args[0].kind == L_INT && args[1].kind == L_INT)
-         return get_bool_lit(t, args[0].i == args[1].i);
-      else
-         assert(false);
+      return get_bool_lit(t, args[0].i == args[1].i);
    }
    else if (icmp(builtin, "neq")) {
-      if (args[0].kind == L_INT && args[1].kind == L_INT)
-         return get_bool_lit(t, args[0].i != args[1].i);
-      else
-         assert(false);
+      return get_bool_lit(t, args[0].i != args[1].i);
    }
    else if (icmp(builtin, "gt")) {
-      if (args[0].kind == L_INT && args[1].kind == L_INT)
-         return get_bool_lit(t, args[0].i > args[1].i);
-      else
-         assert(false);
+      return get_bool_lit(t, args[0].i > args[1].i);
    }
    else if (icmp(builtin, "lt")) {
-      if (args[0].kind == L_INT && args[1].kind == L_INT)
-         return get_bool_lit(t, args[0].i < args[1].i);
-      else
-         assert(false);
+      return get_bool_lit(t, args[0].i < args[1].i);
    }
    else
       return t;
@@ -245,25 +299,29 @@ static tree_t simp_fcall(tree_t t)
    if (tree_params(t) > MAX_BUILTIN_ARGS)
       return t;
 
-   bool can_fold_num = true;
-   bool can_fold_log = true;
-   bool can_fold_agg = true;
+   bool can_fold_int  = true;
+   bool can_fold_log  = true;
+   bool can_fold_agg  = true;
+   bool can_fold_real = true;
    literal_t largs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
-      can_fold_num = can_fold_num && folded_num(p.value, &largs[i]);
-      can_fold_log = can_fold_log && folded_bool(p.value, &bargs[i]);
-      can_fold_agg = can_fold_agg && folded_agg(p.value);
+      can_fold_int  = can_fold_int && folded_int(p.value, &largs[i]);
+      can_fold_log  = can_fold_log && folded_bool(p.value, &bargs[i]);
+      can_fold_agg  = can_fold_agg && folded_agg(p.value);
+      can_fold_real = can_fold_real && folded_real(p.value, &largs[i]);
    }
 
-   if (can_fold_num)
-      return simp_fcall_num(t, builtin, largs);
+   if (can_fold_int)
+      return simp_fcall_int(t, builtin, largs);
    else if (can_fold_log)
       return simp_fcall_log(t, builtin, bargs);
    else if (can_fold_agg)
       return simp_fcall_agg(t, builtin);
+   else if (can_fold_real)
+      return simp_fcall_real(t, builtin, largs);
    else
       return t;
 }
@@ -345,7 +403,7 @@ static tree_t simp_array_ref(tree_t t)
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
-      can_fold = can_fold && folded_num(p.value, &indexes[i]);
+      can_fold = can_fold && folded_int(p.value, &indexes[i]);
    }
 
    if (!can_fold)
@@ -662,7 +720,7 @@ static tree_t simp_cassign(tree_t t)
 static tree_t simp_check_bounds(tree_t i, int64_t low, int64_t high)
 {
    literal_t folded;
-   if (folded_num(i, &folded)) {
+   if (folded_int(i, &folded)) {
       if (folded.i < low || folded.i > high)
          simp_error(i, "index out of bounds");
    }

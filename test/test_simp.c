@@ -66,6 +66,18 @@ static bool folded_i(tree_t t, int64_t i)
    return l.i == i;
 }
 
+static bool folded_r(tree_t t, double r)
+{
+   if (tree_kind(t) != T_LITERAL)
+      return false;
+
+   literal_t l = tree_literal(t);
+   if (l.kind != L_REAL)
+      return false;
+
+   return l.r == r;
+}
+
 static bool folded_b(tree_t t, bool b)
 {
    if (tree_kind(t) != T_REF)
@@ -158,6 +170,12 @@ START_TEST(test_cfold)
    s = tree_stmt(p, 2);
    fail_unless(tree_kind(s) == T_BLOCK);
    fail_unless(tree_stmts(s) == 2);
+
+   p = tree_stmt(a, 3);
+   fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 1.0));
+   fail_unless(folded_r(tree_value(tree_stmt(p, 1)), 6.0));
+   fail_unless(folded_r(tree_value(tree_stmt(p, 2)), 1.0));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 3)), true));
 
    fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
