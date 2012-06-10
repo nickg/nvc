@@ -1340,8 +1340,7 @@ static void sem_add_attributes(tree_t decl)
 
 static tree_t sem_default_value(type_t type)
 {
-   type_t base;
-   (void)sem_check_subtype(NULL, type, &base);
+   type_t base = type_base_recur(type);
 
    switch (type_kind(base)) {
    case T_UARRAY:
