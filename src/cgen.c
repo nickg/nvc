@@ -2197,57 +2197,6 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
    }
 }
 
-static void cgen_driver_init_fn(tree_t t, void *arg)
-{
-   assert(tree_kind(t) == T_SIGNAL_ASSIGN);
-
-   cgen_ctx_t ctx = arg;
-
-   tree_t target = tree_target(t);
-   tree_kind_t kind;
-   while ((kind = tree_kind(target)) != T_REF) {
-      assert((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE));
-      target = tree_value(target);
-   }
-
-   tree_t decl = tree_ref(target);
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
-
-   ident_t tag_i = ident_new("driver_tag");
-   if (tree_attr_ptr(decl, tag_i) == ctx->proc)
-      return;   // Already initialised this signal
-
-   assert(tree_has_value(decl));
-   LLVMValueRef val = cgen_expr(tree_value(decl), ctx);
-
-   type_t type = tree_type(decl);
-   if (type_is_array(type)) {
-      // Initialise only those sub-elements for which this
-      // process is a driver
-
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-
-      for (unsigned i = 0; i < high - low + 1; i++) {
-         for (unsigned j = 0; j < tree_sub_drivers(decl, i); j++) {
-            if (tree_sub_driver(decl, i, j) == ctx->proc) {
-               LLVMValueRef ptr = cgen_array_signal_ptr(decl, llvm_int32(i));
-               LLVMValueRef indices[] = { llvm_int32(0), llvm_int32(i) };
-               LLVMValueRef ith = LLVMBuildGEP(builder, val, indices,
-                                               ARRAY_LEN(indices), "");
-               LLVMValueRef deref = LLVMBuildLoad(builder, ith, "");
-               cgen_sched_waveform(ptr, deref, llvm_int64(0));
-            }
-         }
-      }
-   }
-   else
-      cgen_sched_waveform(tree_attr_ptr(decl, sig_struct_i), val,
-                          llvm_int64(0));
-
-   tree_add_attr_ptr(decl, tag_i, ctx->proc);
-}
-
 struct cgen_proc_var_ctx {
    LLVMTypeRef *types;
    unsigned    offset;
@@ -2370,10 +2319,6 @@ static void cgen_process(tree_t t)
             LLVMBuildStore(builder, val, var_ptr);
       }
    }
-
-   // Signal driver initialisation
-
-   tree_visit_only(t, cgen_driver_init_fn, &ctx, T_SIGNAL_ASSIGN);
 
    // Return to simulation kernel after initialisation
 
@@ -2867,6 +2812,45 @@ static void cgen_global_const(tree_t t)
    }
 }
 
+static void cgen_reset_function(tree_t t)
+{
+   char name[128];
+   snprintf(name, sizeof(name), "%s_reset", istr(tree_ident(t)));
+
+   LLVMValueRef fn =
+      LLVMAddFunction(module, name,
+                      LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
+
+   struct cgen_ctx ctx = {
+      .fn = fn
+   };
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   for (unsigned i = 0; i < tree_decls(t); i++) {
+      tree_t d = tree_decl(t, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+
+      // Schedule the initial assignment to the signal
+      assert(tree_has_value(d));
+      LLVMValueRef val = cgen_expr(tree_value(d), &ctx);
+
+      LLVMValueRef p_signal = cgen_array_signal_ptr(d, llvm_int32(0));
+
+      type_t type = tree_type(d);
+
+      if (type_is_array(type))
+         cgen_array_signal_store(p_signal, type, val, type,
+                                 llvm_int64(0), &ctx);
+      else
+         cgen_sched_waveform(p_signal, val, llvm_int64(0));
+   }
+
+   LLVMBuildRetVoid(builder);
+}
+
 static void cgen_top(tree_t t)
 {
    for (unsigned i = 0; i < tree_decls(t); i++) {
@@ -2894,6 +2878,8 @@ static void cgen_top(tree_t t)
          assert(false);
       }
    }
+
+   cgen_reset_function(t);
 
    if (tree_kind(t) == T_ELAB) {
       for (unsigned i = 0; i < tree_stmts(t); i++)

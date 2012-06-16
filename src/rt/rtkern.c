@@ -221,7 +221,7 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
    struct signal *sig = _sig;
 
    TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
-         fmt_sig(sig), source, values, n, size, fmt_time(after));
+         sig, source, values, n, size, fmt_time(after));
 
    const uint8_t  *v8  = values;
    const uint16_t *v16 = values;
@@ -637,9 +637,15 @@ static void rt_run(struct rt_proc *proc, bool reset)
    }
 }
 
-static void rt_initial(void)
+static void rt_initial(tree_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
+
+   char name[128];
+   snprintf(name, sizeof(name), "%s_reset", istr(tree_ident(top)));
+
+   void (*reset_fn)(void) = jit_fun_ptr(name);
+   (*reset_fn)();
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
@@ -1031,7 +1037,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
    rt_one_time_init();
    rt_setup(e);
    rt_stats_ready();
-   rt_initial();
+   rt_initial(e);
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle();
    rt_cleanup(e);
@@ -1097,7 +1103,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
       case SLAVE_RESTART:
          rt_setup(e);
-         rt_initial();
+         rt_initial(e);
          break;
 
       case SLAVE_RUN:
