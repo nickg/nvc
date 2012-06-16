@@ -181,13 +181,8 @@ static int elaborate(int argc, char **argv)
    tree_gc();
 
    // Save the library now so the code generator can attach temporary
-   // meta data to trees. We also want to avoid saving the signal
-   // driver lists which will be very large
+   // meta data to trees
    lib_save(lib_work());
-
-   driver_extract(e);
-   if (driver_errors() > 0)
-      return EXIT_FAILURE;
 
    cgen(e);
    link_bc(e);
