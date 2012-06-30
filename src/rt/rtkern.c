@@ -156,6 +156,17 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
+static int array_size(type_t type)
+{
+   if (type_is_array(type)) {
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      return (high - low + 1) * array_size(type_elem(type));
+   }
+   else
+      return 1;
+}
+
 static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
 {
    struct {
@@ -192,9 +203,17 @@ static const char *fmt_sig(struct signal *sig)
    char *p = buf;
    const char *end = buf + sizeof(buf);
    p += snprintf(buf, end - p, "%s", istr(tree_ident(sig->decl)));
-   if (type_kind(tree_type(sig->decl)) == T_CARRAY) {
-      struct signal *first = tree_attr_ptr(sig->decl, i_signal);
-      p += snprintf(p, end - p, "[%zd]", sig - first);
+
+   struct signal *first = tree_attr_ptr(sig->decl, i_signal);
+   ptrdiff_t offset = sig - first;
+
+   type_t type = tree_type(sig->decl);
+   while (type_is_array(type)) {
+      int stride = array_size(type_elem(type));
+      p += snprintf(p, end - p, "[%zd]", offset / stride);
+      offset %= stride;
+
+      type = type_elem(type);
    }
    return buf;
 }
@@ -220,7 +239,7 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform_vec %s source=%d values=%p n=%d size=%d after=%s",
+   TRACE("_sched_waveform_vec %p source=%d values=%p n=%d size=%d after=%s",
          sig, source, values, n, size, fmt_time(after));
 
    const uint8_t  *v8  = values;
@@ -587,23 +606,20 @@ static void rt_setup(tree_t top)
          continue;
 
       struct signal *s = jit_var_ptr(istr(tree_ident(d)));
+      tree_add_attr_ptr(d, i_signal, s);
 
       type_t type = tree_type(d);
-      if (type_kind(type) == T_CARRAY) {
-         int64_t low, high;
-         range_bounds(type_dim(type, 0), &low, &high);
-
-         for (unsigned j = 0; j < high - low + 1; j++) {
-            TRACE("signal %s[%d] at %p", istr(tree_ident(d)), j, &s[j]);
+      if (type_is_array(type)) {
+         int total = array_size(type);
+         for (unsigned j = 0; j < total; j++) {
             rt_reset_signal(&s[j], d, j);
+            TRACE("signal %s at %p", fmt_sig(&s[j]), &s[j]);
          }
       }
       else {
-         TRACE("signal %s at %p", istr(tree_ident(d)), s);
          rt_reset_signal(s, d, 0);
+         TRACE("signal %s at %p", fmt_sig(s), s);
       }
-
-      tree_add_attr_ptr(d, i_signal, s);
    }
 
    for (unsigned i = 0; i < tree_stmts(top); i++) {
