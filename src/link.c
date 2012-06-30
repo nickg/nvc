@@ -174,22 +174,46 @@ void link_bc(tree_t top)
 {
    link_args_begin();
 
-   link_arg_f("%s/llvm-ld", LLVM_CONFIG_BINDIR);
-   link_arg_f("-r");
+   link_arg_f("%s/llvm-link", LLVM_CONFIG_BINDIR);
 
-   if (!opt_get_int("optimise"))
-      link_arg_f("--disable-opt");
+   bool opt_en = opt_get_int("optimise");
 
-   link_arg_f("-b");
-   link_output(top, "bc");
+   char tmp[128];
+   snprintf(tmp, sizeof(tmp), "%s/%sXXXXXX", P_tmpdir,
+            istr(ident_runtil(tree_ident(top), '.')));
+
+   link_arg_f("-o");
+   if (opt_en) {
+      if (mkstemp(tmp) < 0)
+         fatal_errno("mkstemp");
+      link_arg_f(tmp);
+   }
+   else
+      link_output(top, "bc");
+
    link_arg_bc(lib_work(), tree_ident(top));
 
    for (unsigned i = 0; i < tree_contexts(top); i++)
       link_context(tree_context(top, i));
 
    link_exec();
-
    link_args_end();
+
+   if (opt_en) {
+      link_args_begin();
+
+      link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
+      link_arg_f("-std-compile-opts");
+      link_arg_f("-o");
+      link_output(top, "bc");
+      link_arg_f(tmp);
+
+      link_exec();
+      link_args_end();
+
+      if (unlink(tmp) < 0)
+         fatal_errno("unlink");
+   }
 
    if (opt_get_int("native"))
       link_native(top);
