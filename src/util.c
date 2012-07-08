@@ -417,6 +417,8 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       exit(EXIT_FAILURE);
 }
 
+#endif  // NO_STACK_TRACE
+
 static bool is_debugger_running(void)
 {
 #if defined __APPLE__
@@ -491,7 +493,29 @@ static bool is_debugger_running(void)
 #endif
 }
 
-#endif  // NO_STACK_TRACE
+static void gdb_sighandler(int sig, siginfo_t *info)
+{
+   char exe[256];
+   if (readlink("/proc/self/exe", exe, sizeof(exe)) < 0)
+      fatal_errno("readlink");
+
+   char pid[16];
+   snprintf(pid, sizeof(pid), "%d", getpid());
+
+   pid_t p = fork();
+   if (p == 0) {
+      execl("/usr/bin/gdb", "gdb", "-ex", "cont", exe, pid, NULL);
+      fatal_errno("execl");
+   }
+   else if (p < 0)
+      fatal_errno("fork");
+   else {
+      // Allow a little time for GDB to start before dropping
+      // into the default signal handler
+      sleep(1);
+      signal(sig, SIG_DFL);
+   }
+}
 
 void register_trace_signal_handlers(void)
 {
@@ -511,6 +535,28 @@ void register_trace_signal_handlers(void)
    sigaction(SIGILL, &sa, NULL);
    sigaction(SIGABRT, &sa, NULL);
 #endif  // NO_STACK_TRACE
+}
+
+void register_gdb_signal_handlers(void)
+{
+#ifdef __linux
+   if (is_debugger_running())
+      return;
+
+   struct sigaction sa;
+   sa.sa_sigaction = (void*)gdb_sighandler;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_flags = SA_RESTART | SA_SIGINFO;
+
+   sigaction(SIGSEGV, &sa, NULL);
+   sigaction(SIGUSR1, &sa, NULL);
+   sigaction(SIGFPE, &sa, NULL);
+   sigaction(SIGBUS, &sa, NULL);
+   sigaction(SIGILL, &sa, NULL);
+   sigaction(SIGABRT, &sa, NULL);
+#else  // __linux
+   register_trace_signal_handlers();
+#endif  // __linux
 }
 
 void write_u32(uint32_t u, FILE *f)

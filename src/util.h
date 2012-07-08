@@ -67,6 +67,7 @@ void fmt_loc(FILE *f, const loc_t *loc);
 
 void show_stacktrace(void);
 void register_trace_signal_handlers(void);
+void register_gdb_signal_handlers(void);
 
 void term_init(void);
 

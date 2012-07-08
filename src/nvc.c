@@ -411,8 +411,12 @@ static void version(void)
 int main(int argc, char **argv)
 {
    term_init();
-   register_trace_signal_handlers();
    set_default_opts();
+
+   if (getenv("NVC_GDB") != NULL)
+      register_gdb_signal_handlers();
+   else
+      register_trace_signal_handlers();
 
    static struct option long_options[] = {
       {"help",    no_argument,       0, 'h'},
