@@ -58,7 +58,7 @@ def analyse(t)
 end
 
 def elaborate(t)
-  run_cmd "#{nvc} -e #{t[:name]}"
+  run_cmd "#{nvc} -e #{t[:name]} --disable-opt"
 end
 
 def run(t)
