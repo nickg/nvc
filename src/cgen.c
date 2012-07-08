@@ -2994,8 +2994,7 @@ void cgen(tree_t top)
    if (LLVMVerifyModule(module, LLVMPrintMessageAction, NULL))
       fatal("LLVM verification failed");
 
-   if (opt_get_int("optimise"))
-      optimise();
+   optimise();
 
    char fname[256];
    snprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
