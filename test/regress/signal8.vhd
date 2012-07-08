@@ -11,7 +11,7 @@ begin
 
     process is
     begin
-  --      a(1)(2) <= 2;
+        a(1)(2) <= 2;
         --assert a(1)(2) = 2;
 --        a := ( others => ( 1, 2, 3, 4 ) );
 --        b := a(1);

@@ -993,11 +993,9 @@ static void rt_cleanup(tree_t top)
       struct signal *sig = tree_attr_ptr(d, i_signal);
 
       type_t type = tree_type(d);
-      if (type_kind(type) == T_CARRAY) {
-         int64_t low, high;
-         range_bounds(type_dim(type, 0), &low, &high);
-
-         for (unsigned i = 0; i < high - low + 1; i++)
+      if (type_is_array(type)) {
+         int size = array_size(type);
+         for (unsigned i = 0; i < size; i++)
             rt_cleanup_signal(&sig[i]);
       }
       else

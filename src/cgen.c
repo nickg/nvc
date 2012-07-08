@@ -1750,18 +1750,35 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
 {
    assert(type_is_array(lhs_type));
 
+   int levels = 0;
+   type_t elem = lhs_type;
+   do {
+      elem = type_elem(elem);
+      levels++;
+   } while (type_is_array(elem));
+
    char name[256];
-   snprintf(name, sizeof(name), "%s_vec_store",
-            istr(type_ident(type_elem(lhs_type))));
+   snprintf(name, sizeof(name), "%s_vec_store", istr(type_ident(elem)));
 
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
 
-   LLVMValueRef indexes[] = { llvm_int32(0) };
-   LLVMValueRef p_rhs = LLVMBuildGEP(builder, rhs_data, indexes, 1, "");
+   LLVMValueRef indexes[levels];
+   for (int i = 0; i < levels; i++)
+      indexes[i] = llvm_int32(0);
+   LLVMValueRef p_rhs = LLVMBuildGEP(builder, rhs_data, indexes, levels, "");
 
-   LLVMValueRef n_elems = cgen_array_len(rhs_type, rhs);
+   LLVMValueRef p_lhs = lhs;
+   if (levels > 1)
+      p_lhs = LLVMBuildGEP(builder, lhs, indexes, levels, "");
 
-   LLVMValueRef args[] = { lhs, p_rhs, n_elems };
+   LLVMValueRef n_elems = llvm_int32(1);
+   type_t dim = rhs_type;
+   for (int i = 0; i < levels; i++) {
+      LLVMValueRef dim_len = cgen_array_len(dim, rhs);
+      n_elems = LLVMBuildMul(builder, n_elems, dim_len, "");
+   }
+
+   LLVMValueRef args[] = { p_lhs, p_rhs, n_elems };
    LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
 }
 

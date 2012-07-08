@@ -68,3 +68,4 @@ case3           normal
 wait6           normal,gold
 elab4           normal
 elab5           normal
+signal8         normal
