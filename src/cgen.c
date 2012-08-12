@@ -74,6 +74,7 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMTypeRef cgen_signal_type(type_t type);
+static void cgen_array_copy_fn(type_t type);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -170,6 +171,10 @@ static unsigned bit_width(type_t t)
          else
             return 32;
       }
+
+   case T_UARRAY:
+   case T_CARRAY:
+      return bit_width(type_elem(t));
 
    default:
       assert(false);
@@ -450,7 +455,15 @@ static LLVMValueRef cgen_tmp_var(tree_t d, cgen_ctx_t *ctx)
    else {
       const char *name =
          (tree_kind(d) == T_VAR_DECL ? istr(tree_ident(d)) : "");
-      return LLVMBuildAlloca(builder, llvm_type(tree_type(d)), name);
+      LLVMValueRef var = LLVMBuildAlloca(builder, llvm_type(type), name);
+
+      if (type_is_array(type)) {
+         // Get a pointer to the first element
+         LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+         return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
+      }
+      else
+         return var;
    }
 }
 
@@ -550,8 +563,10 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 
 static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
-                            LLVMValueRef offset)
+                            LLVMValueRef offset, cgen_ctx_t *ctx)
 {
+   cgen_array_copy_fn(src_type);
+
    LLVMValueRef src_dir = cgen_array_dir(src_type, src);
    LLVMValueRef dst_dir = cgen_array_dir(dest_type, dst);
 
@@ -568,16 +583,54 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    if (offset == NULL)
       offset = llvm_int32(0);
 
-   LLVMValueRef args[] = {
-      llvm_void_cast(dst),
-      llvm_void_cast(src_ptr),
-      offset,
-      ll_n_elems,
-      llvm_sizeof(llvm_type(type_elem(dest_type))),
-      opposite_dir
-   };
-   LLVMBuildCall(builder, llvm_fn("_array_copy"),
-                 args, ARRAY_LEN(args), "");
+   LLVMBasicBlockRef fast_bb = LLVMAppendBasicBlock(ctx->fn, "fast");
+   LLVMBasicBlockRef slow_bb = LLVMAppendBasicBlock(ctx->fn, "slow");
+   LLVMBasicBlockRef done_bb = LLVMAppendBasicBlock(ctx->fn, "done");
+
+   LLVMBuildCondBr(builder, opposite_dir, slow_bb, fast_bb);
+
+   // Fast path: use LLVM memcpy
+
+   LLVMPositionBuilderAtEnd(builder, fast_bb);
+
+   {
+      int width = bit_width(type_elem(dest_type));
+
+      char name[128];
+      snprintf(name, sizeof(name), "copy.i%d", width);
+
+      LLVMValueRef args[] = {
+         dst,
+         src_ptr,
+         offset,
+         ll_n_elems,
+         opposite_dir
+      };
+      LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
+
+      LLVMBuildBr(builder, done_bb);
+   }
+
+   // Slow path: call _array_copy helper
+
+   LLVMPositionBuilderAtEnd(builder, slow_bb);
+
+   {
+      LLVMValueRef args[] = {
+         llvm_void_cast(dst),
+         llvm_void_cast(src_ptr),
+         offset,
+         ll_n_elems,
+         llvm_sizeof(llvm_type(type_elem(dest_type))),
+         opposite_dir
+      };
+      LLVMBuildCall(builder, llvm_fn("_array_copy"),
+                    args, ARRAY_LEN(args), "");
+
+      LLVMBuildBr(builder, done_bb);
+   }
+
+   LLVMPositionBuilderAtEnd(builder, done_bb);
 }
 
 static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
@@ -1598,7 +1651,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
    type_t type = tree_type(t);
 
    if (type_is_array(tree_type(args[0]))) {
-      cgen_array_copy(tree_type(args[0]), type, args_ll[0], var, NULL);
+      cgen_array_copy(tree_type(args[0]), type, args_ll[0], var, NULL, ctx);
       off = cgen_array_len(tree_type(args[0]), args_ll[0]);
    }
    else {
@@ -1611,7 +1664,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
    }
 
    if (type_is_array(tree_type(args[1])))
-      cgen_array_copy(tree_type(args[1]), type, args_ll[1], var, off);
+      cgen_array_copy(tree_type(args[1]), type, args_ll[1], var, off, ctx);
    else {
       LLVMValueRef data = cgen_array_data_ptr(type, var);
       LLVMValueRef ptr = LLVMBuildGEP(builder, data, &off, 1, "");
@@ -1753,7 +1806,7 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
 
    type_t ty = tree_type(target);
    if (type_is_array(ty))
-      cgen_array_copy(value_type, ty, rhs, lhs, NULL);
+      cgen_array_copy(value_type, ty, rhs, lhs, NULL, ctx);
    else
       LLVMBuildStore(builder, rhs, lhs);
 }
@@ -1993,7 +2046,7 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
          cgen_array_dir(stype, rval),
          LLVMBuildPointerCast(builder, buf, ptr_type, ""));
 
-      cgen_array_copy(stype, rtype, rval, rarray, NULL);
+      cgen_array_copy(stype, rtype, rval, rarray, NULL, ctx);
 
       LLVMValueRef values[] = {
          LLVMBuildExtractValue(builder, rarray, 0, "ptr"),
@@ -2369,7 +2422,7 @@ static void cgen_process(tree_t t)
 
          type_t ty = tree_type(v);
          if (type_is_array(ty))
-            cgen_array_copy(ty, ty, val, var_ptr, NULL);
+            cgen_array_copy(ty, ty, val, var_ptr, NULL, &ctx);
          else
             LLVMBuildStore(builder, val, var_ptr);
       }
@@ -2433,6 +2486,109 @@ static LLVMValueRef cgen_signal_init(type_t type)
    }
 }
 
+static void cgen_array_copy_fn(type_t elem_type)
+{
+   // Build a function to copy one array into another
+
+   while (type_is_array(elem_type))
+      elem_type = type_elem(elem_type);
+
+   int width = bit_width(elem_type);
+
+   char name[256];
+   snprintf(name, sizeof(name), "copy.i%d", width);
+
+   LLVMValueRef fn;
+   if ((fn = LLVMGetNamedFunction(module, name)))
+      return;
+
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
+
+   LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(elem_type), 0);
+
+   LLVMTypeRef args[] = {
+      ptr_type,           // Dest
+      ptr_type,           // Source
+      LLVMInt32Type(),    // Offset
+      LLVMInt32Type(),    // Number
+      LLVMInt1Type()      // Reverse
+   };
+   fn = LLVMAddFunction(module, name,
+                        LLVMFunctionType(LLVMVoidType(),
+                                         args, ARRAY_LEN(args), false));
+   LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMBasicBlockRef mcpy_bb  = LLVMAppendBasicBlock(fn, "mcpy");
+   LLVMBasicBlockRef loop_bb  = LLVMAppendBasicBlock(fn, "loop");
+   LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
+   LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(fn, "body");
+   LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(fn, "exit");
+
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   LLVMValueRef indexes[] = { LLVMGetParam(fn, 2) };
+   LLVMValueRef dst_ptr = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
+                                       indexes, ARRAY_LEN(indexes), "dst_off");
+
+   // Check if we're reversing the array
+
+   LLVMValueRef reverse = LLVMGetParam(fn, 4);
+   LLVMBuildCondBr(builder, reverse, loop_bb, mcpy_bb);
+
+   // Just call memcpy if not reversing
+
+   LLVMPositionBuilderAtEnd(builder, mcpy_bb);
+
+   char memcpy_name[128];
+   snprintf(memcpy_name, sizeof(memcpy_name),
+            "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
+
+   int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+   LLVMValueRef size = LLVMBuildMul(builder, LLVMGetParam(fn, 3),
+                                    llvm_int32(bytes), "size");
+
+   LLVMValueRef memcpy_args[] = {
+      dst_ptr,
+      LLVMGetParam(fn, 1),
+      size,
+      llvm_int32(width),
+      llvm_int1(0)
+   };
+   LLVMBuildCall(builder, llvm_fn(memcpy_name),
+                 memcpy_args, ARRAY_LEN(memcpy_args), "");
+
+   LLVMBuildBr(builder, exit_bb);
+
+   // Prelude
+   LLVMPositionBuilderAtEnd(builder, loop_bb);
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
+   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
+                                   LLVMGetParam(fn, 3),
+                                   i_loaded, "ge");
+   LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
+
+   // Loop body
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef inc =
+      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+   LLVMBuildStore(builder, inc, i);
+   LLVMBuildBr(builder, test_bb);
+
+   // Epilogue
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+   LLVMBuildRetVoid(builder);
+
+   LLVMPositionBuilderAtEnd(builder, saved_bb);
+}
+
 static void cgen_array_signal_load_fn(type_t elem_type)
 {
    // Build a function to load the array into a temporary
@@ -2461,6 +2617,7 @@ static void cgen_array_signal_load_fn(type_t elem_type)
    fn = LLVMAddFunction(module, name,
                         LLVMFunctionType(LLVMVoidType(),
                                          args, ARRAY_LEN(args), false));
+   LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
@@ -2921,6 +3078,27 @@ static void cgen_support_fns(void)
                                     llvm_pow_args,
                                     ARRAY_LEN(llvm_pow_args),
                                     false));
+
+   const int memcpy_widths[] = { 1, 8, 16, 32, 64 };
+   for (int i = 0; i < ARRAY_LEN(memcpy_widths); i++) {
+      int w = memcpy_widths[i];
+
+      char name[128];
+      snprintf(name, sizeof(name), "llvm.memcpy.p0i%d.p0i%d.i32", w, w);
+
+      LLVMTypeRef llvm_memcpy_args[] = {
+         LLVMPointerType(LLVMIntType(w), 0),
+         LLVMPointerType(LLVMIntType(w), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt1Type()
+      };
+      LLVMAddFunction(module, name,
+                      LLVMFunctionType(LLVMVoidType(),
+                                       llvm_memcpy_args,
+                                       ARRAY_LEN(llvm_memcpy_args),
+                                       false));
+   }
 
    LLVMTypeRef _inst_name_args[] = {
       llvm_void_ptr(),
