@@ -538,7 +538,14 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    int offset = tree_attr_int(decl, var_offset_i, -1);
    assert(offset != -1);
 
-   return LLVMBuildStructGEP(builder, ctx->state, offset, "");
+   LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
+   if (type_is_array(tree_type(decl))) {
+      // Get a pointer to the first element
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+      return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
+   }
+   else
+      return var;
 }
 
 static void cgen_array_copy(type_t src_type, type_t dest_type,
