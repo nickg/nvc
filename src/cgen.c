@@ -1241,16 +1241,23 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 
 static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 {
-   assert(tree_kind(tree_value(t)) == T_REF);
-
-   tree_t decl = tree_ref(tree_value(t));
-   type_t type = tree_type(decl);
-
+   tree_t decl = NULL;
+   class_t class = C_VARIABLE;
    LLVMValueRef array = NULL;
-   class_t class = cgen_get_class(decl);
 
-   if (class == C_VARIABLE || class == C_CONSTANT || class == C_DEFAULT)
-      array = cgen_get_var(decl, ctx);
+   tree_t value = tree_value(t);
+   if (tree_kind(value) == T_REF) {
+      decl = tree_ref(value);
+
+      class = cgen_get_class(decl);
+
+      if (class == C_VARIABLE || class == C_CONSTANT || class == C_DEFAULT)
+         array = cgen_get_var(decl, ctx);
+   }
+   else
+      array = cgen_expr(value, ctx);
+
+   type_t type = tree_type(value);
 
    LLVMValueRef idx = llvm_int32(0);
    for (unsigned i = 0; i < tree_params(t); i++) {
@@ -1283,6 +1290,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
    case C_SIGNAL:
       {
+         assert(decl != NULL);
+
          LLVMValueRef signal_array = tree_attr_ptr(decl, sig_struct_i);
          LLVMValueRef indexes[] = { llvm_int32(0), idx };
          LLVMValueRef signal = LLVMBuildGEP(builder, signal_array,

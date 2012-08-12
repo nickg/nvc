@@ -22,7 +22,7 @@ begin
         --    report "b(" & integer'image(i) & ") = " & integer'image(b(i));
         --end loop;
         assert b = ( 1, 99, 3, 4 );
---        assert a(1)(2) = 2;
+        assert a(1)(2) = 99;
 --        a := ( others => ( 1, 2, 3, 4 ) );
 --        b := a(1);
 --        assert b = ( 1, 2, 3, 4);
