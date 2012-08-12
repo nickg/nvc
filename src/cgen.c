@@ -671,8 +671,7 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
                                       "vec_load_tmp");
 
    char name[256];
-   snprintf(name, sizeof(name), "%s_vec_load",
-            istr(type_ident(type_elem(type))));
+   snprintf(name, sizeof(name), "vec_load.i%d", bit_width(type_elem(type)));
 
    range_t r = type_dim(slice_type, 0);
 
@@ -1833,7 +1832,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
 
-            LLVMValueRef indexes[] = { idx };
+            LLVMValueRef indexes[] = {idx };
             return LLVMBuildGEP(builder, p_base,
                                 indexes, ARRAY_LEN(indexes), "");
          }
@@ -2429,9 +2428,10 @@ static void cgen_array_signal_load_fn(type_t elem_type)
    while (type_is_array(elem_type))
       elem_type = type_elem(elem_type);
 
+   int width = bit_width(elem_type);
+
    char name[256];
-   snprintf(name, sizeof(name), "%s_vec_load",
-            istr(type_ident(elem_type)));
+   snprintf(name, sizeof(name), "vec_load.i%d", width);
 
    LLVMValueRef fn;
    if ((fn = LLVMGetNamedFunction(module, name)))
