@@ -1797,6 +1797,7 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
    for (int i = 0; i < levels; i++) {
       LLVMValueRef dim_len = cgen_array_len(dim, rhs);
       n_elems = LLVMBuildMul(builder, n_elems, dim_len, "");
+      dim = type_elem(dim);
    }
 
    LLVMValueRef args[] = { p_lhs, p_rhs, n_elems };
