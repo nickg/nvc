@@ -1777,9 +1777,6 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
       levels++;
    } while (type_is_array(elem));
 
-   char name[256];
-   snprintf(name, sizeof(name), "%s_vec_store", istr(type_ident(elem)));
-
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
 
    LLVMValueRef indexes[levels];
@@ -1796,29 +1793,16 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
       dim = type_elem(dim);
    }
 
-   LLVMValueRef dst_index[] = { llvm_int32(0) };
-   LLVMValueRef signal = LLVMBuildGEP(builder, p_lhs,
-                                      dst_index, ARRAY_LEN(dst_index),
-                                      "signal");
-
-   LLVMValueRef src_index[] = { llvm_int32(0) };
-   LLVMValueRef p_src = LLVMBuildGEP(builder, p_rhs,
-                                     src_index, ARRAY_LEN(src_index),
-                                     "p_src");
-
-   LLVMTypeRef ll_elem_type = llvm_type(elem);
-
    LLVMValueRef args[] = {
-      llvm_void_cast(signal),
+      llvm_void_cast(p_lhs),
       llvm_int32(0 /* source, TODO */),
-      llvm_void_cast(p_src),
+      llvm_void_cast(p_rhs),
       n_elems,
-      llvm_sizeof(ll_elem_type),
+      llvm_sizeof(llvm_type(elem)),
       llvm_int64(0 /* after, TODO */)
    };
    LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
                  args, ARRAY_LEN(args), "");
-
 }
 
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
