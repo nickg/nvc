@@ -1787,10 +1787,7 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
    for (int i = 0; i < levels; i++)
       indexes[i] = llvm_int32(0);
    LLVMValueRef p_rhs = LLVMBuildGEP(builder, rhs_data, indexes, levels, "");
-
-   LLVMValueRef p_lhs = lhs;
-   if (levels > 1)
-      p_lhs = LLVMBuildGEP(builder, lhs, indexes, levels, "");
+   LLVMValueRef p_lhs = LLVMBuildGEP(builder, lhs, indexes, levels, "");
 
    LLVMValueRef n_elems = llvm_int32(1);
    type_t dim = rhs_type;
@@ -1824,12 +1821,19 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             tree_t decl = tree_ref(tree_value(t));
             assert(type_is_array(tree_type(decl)));
 
-            return cgen_array_signal_ptr(decl, idx);
+            LLVMValueRef signal = cgen_array_signal_ptr(decl, idx);
+            if (type_is_array(type_elem(type))) {
+               LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+               return LLVMBuildGEP(builder, signal,
+                                   indexes, ARRAY_LEN(indexes), "");
+            }
+            else
+               return signal;
          }
          else {
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
 
-            LLVMValueRef indexes[] = { llvm_int32(0), idx };
+            LLVMValueRef indexes[] = { idx };
             return LLVMBuildGEP(builder, p_base,
                                 indexes, ARRAY_LEN(indexes), "");
          }

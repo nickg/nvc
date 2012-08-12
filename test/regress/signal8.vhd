@@ -23,9 +23,10 @@ begin
         --end loop;
         assert b = ( 1, 99, 3, 4 );
         assert a(1)(2) = 99;
---        a := ( others => ( 1, 2, 3, 4 ) );
---        b := a(1);
---        assert b = ( 1, 2, 3, 4);
+        a(1) <= ( 21, 22, 23, 24 );
+        wait for 1 ns;
+        assert a(1)(1) = 21;
+        assert a(1)(3) = 23;
         wait;
     end process;
 
