@@ -1796,8 +1796,29 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
       dim = type_elem(dim);
    }
 
-   LLVMValueRef args[] = { p_lhs, p_rhs, n_elems };
-   LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
+   LLVMValueRef dst_index[] = { llvm_int32(0) };
+   LLVMValueRef signal = LLVMBuildGEP(builder, p_lhs,
+                                      dst_index, ARRAY_LEN(dst_index),
+                                      "signal");
+
+   LLVMValueRef src_index[] = { llvm_int32(0) };
+   LLVMValueRef p_src = LLVMBuildGEP(builder, p_rhs,
+                                     src_index, ARRAY_LEN(src_index),
+                                     "p_src");
+
+   LLVMTypeRef ll_elem_type = llvm_type(elem);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(signal),
+      llvm_int32(0 /* source, TODO */),
+      llvm_void_cast(p_src),
+      n_elems,
+      llvm_sizeof(ll_elem_type),
+      llvm_int64(0 /* after, TODO */)
+   };
+   LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
+                 args, ARRAY_LEN(args), "");
+
 }
 
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
@@ -2525,63 +2546,6 @@ static void cgen_array_signal_load_fn(type_t elem_type)
    LLVMPositionBuilderAtEnd(builder, saved_bb);
 }
 
-static void cgen_array_signal_store_fn(type_t elem_type)
-{
-   // Build a function to schedule an array assignment
-
-   while (type_is_array(elem_type))
-      elem_type = type_elem(elem_type);
-
-   char name[256];
-   snprintf(name, sizeof(name), "%s_vec_store",
-            istr(type_ident(elem_type)));
-
-   LLVMValueRef fn;
-   if ((fn = LLVMGetNamedFunction(module, name)))
-      return;
-
-   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
-
-   LLVMTypeRef ll_elem_type = llvm_type(elem_type);
-
-   LLVMTypeRef fn_args[] = {
-      LLVMPointerType(cgen_signal_type(elem_type), 0),
-      LLVMPointerType(ll_elem_type, 0),
-      LLVMInt32Type(),    // Number of elements
-   };
-   fn = LLVMAddFunction(module, name,
-                        LLVMFunctionType(LLVMVoidType(),
-                                         fn_args, ARRAY_LEN(fn_args),
-                                         false));
-
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMPositionBuilderAtEnd(builder, entry_bb);
-
-   LLVMValueRef dst_index[] = { llvm_int32(0) };
-   LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
-                                      dst_index, ARRAY_LEN(dst_index),
-                                      "signal");
-
-   LLVMValueRef src_index[] = { llvm_int32(0) };
-   LLVMValueRef p_src = LLVMBuildGEP(builder, LLVMGetParam(fn, 1),
-                                     src_index, ARRAY_LEN(src_index),
-                                        "p_src");
-   LLVMValueRef args[] = {
-      llvm_void_cast(signal),
-      llvm_int32(0 /* source, TODO */),
-      llvm_void_cast(p_src),
-      LLVMGetParam(fn, 2),   // Number of element
-      llvm_sizeof(ll_elem_type),
-      llvm_int64(0 /* after, TODO */)
-   };
-   LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
-                 args, ARRAY_LEN(args), "");
-
-   LLVMBuildRetVoid(builder);
-
-   LLVMPositionBuilderAtEnd(builder, saved_bb);
-}
-
 static LLVMTypeRef cgen_signal_type(type_t type)
 {
    if (type_is_array(type)) {
@@ -2628,12 +2592,8 @@ static void cgen_signal(tree_t t)
 
    LLVMSetInitializer(v, cgen_signal_init(type));
 
-   if (type_is_array(type)) {
-      assert(tree_drivers(t) == 0);
-
+   if (type_is_array(type))
       cgen_array_signal_load_fn(type_elem(type));
-      cgen_array_signal_store_fn(type_elem(type));
-   }
 
    tree_add_attr_ptr(t, sig_struct_i, v);
 }
