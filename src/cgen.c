@@ -661,21 +661,21 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
-                                          cgen_ctx_t *ctx, bool last_value)
+static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
+                                  type_t slice_type, bool last_value,
+                                  cgen_ctx_t *ctx)
 {
-   type_t type = tree_type(decl);
-   assert(type_kind(type) == T_CARRAY);
-
    // Copy the resolved signal into a temporary array
+
    LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(slice_type),
-                                      istr(tree_ident(decl)));
+                                      "vec_load_tmp");
 
    char name[256];
    snprintf(name, sizeof(name), "%s_vec_load",
-            istr(type_ident(type_elem(tree_type(decl)))));
+            istr(type_ident(type_elem(type))));
 
    range_t r = type_dim(slice_type, 0);
+
    LLVMValueRef left_off =
       cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
    LLVMValueRef right_off =
@@ -684,9 +684,8 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
    LLVMValueRef left_abs = cgen_array_off(left_off, NULL, type, ctx, 0);
    LLVMValueRef right_abs = cgen_array_off(right_off, NULL, type, ctx, 0);
 
-   LLVMValueRef s_signal = tree_attr_ptr(decl, sig_struct_i);
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-   LLVMValueRef p_signal = LLVMBuildGEP(builder, s_signal,
+   LLVMValueRef p_signal = LLVMBuildGEP(builder, signal,
                                         indexes, ARRAY_LEN(indexes), "");
    LLVMValueRef p_tmp = LLVMBuildGEP(builder, tmp,
                                      indexes, ARRAY_LEN(indexes), "");
@@ -696,6 +695,12 @@ static LLVMValueRef cgen_array_signal_ref(tree_t decl, type_t slice_type,
    };
    LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
    return tmp;
+}
+
+static LLVMValueRef cgen_sig_struct(tree_t decl)
+{
+   // Return the signal structure for a signal declaration
+   return tree_attr_ptr(decl, sig_struct_i);
 }
 
 static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
@@ -747,7 +752,7 @@ static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
 
    if (type_kind(tree_type(sig_decl)) == T_CARRAY) {
       type_t type = tree_type(sig_decl);
-      return cgen_array_signal_ref(sig_decl, type, ctx, true);
+      return cgen_vec_load(cgen_sig_struct(sig_decl), type, type, true, ctx);
    }
    else {
       LLVMValueRef signal = tree_attr_ptr(sig_decl, sig_struct_i);
@@ -1203,10 +1208,9 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    case T_PORT_DECL:
    case T_SIGNAL_DECL:
       if (cgen_get_class(decl) == C_SIGNAL) {
-         if (type_kind(tree_type(decl)) == T_CARRAY) {
-            type_t type = tree_type(decl);
-            return cgen_array_signal_ref(decl, type, ctx, false);
-         }
+         type_t type = tree_type(decl);
+         if (type_is_array(type))
+            return cgen_vec_load(cgen_sig_struct(decl), type, type, false, ctx);
          else
             return cgen_scalar_signal_ref(decl, ctx);
       }
@@ -1286,35 +1290,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          type_t elem_type = type_elem(type);
          if (type_is_array(elem_type)) {
             // Load this sub-array into a temporary variable
-            LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(elem_type),
-                                               istr(tree_ident(decl)));
-
-            char name[256];
-            snprintf(name, sizeof(name), "%s_vec_load",
-                     istr(type_ident(type_elem(elem_type))));
-
-            range_t r = type_dim(elem_type, 0);
-            LLVMValueRef left_off =
-               cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
-            LLVMValueRef right_off =
-               cgen_expr(r.kind == RANGE_TO ? r.right : r.left, ctx);
-
-            LLVMValueRef left_abs =
-               cgen_array_off(left_off, NULL, type, ctx, 0);
-            LLVMValueRef right_abs =
-               cgen_array_off(right_off, NULL, type, ctx, 0);
-
-            LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-            LLVMValueRef p_tmp = LLVMBuildGEP(builder, tmp,
-                                              indexes, ARRAY_LEN(indexes), "");
-            LLVMValueRef p_signal = LLVMBuildGEP(builder, signal,
-                                                 indexes, ARRAY_LEN(indexes), "");
-
-            LLVMValueRef args[] = {
-               p_signal, p_tmp, left_abs, right_abs, llvm_int1(0)
-            };
-            LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
-            return tmp;
+            return cgen_vec_load(signal, elem_type, elem_type, false, ctx);
          }
          else {
             LLVMValueRef ptr =
@@ -1335,18 +1311,19 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
    assert(tree_kind(tree_value(t)) == T_REF);
 
    tree_t decl = tree_ref(tree_value(t));
+   type_t type = tree_type(decl);
 
    switch (cgen_get_class(decl)) {
    case C_VARIABLE:
    case C_DEFAULT:
       {
-         type_t type = tree_type(decl);
          LLVMValueRef array = cgen_get_var(decl, ctx);
          return cgen_get_slice(array, type, tree_range(t), ctx);
       }
 
    case C_SIGNAL:
-      return cgen_array_signal_ref(decl, tree_type(t), ctx, false);
+      return cgen_vec_load(cgen_sig_struct(decl), type, tree_type(t),
+                           false, ctx);
 
    default:
       assert(false);
@@ -1830,8 +1807,6 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          type_t type = tree_type(tree_value(t));
 
-         //LLVMValueRef elem = cgen_expr(p.value, ctx);
-         //LLVMValueRef zero = cgen_array_off(elem, NULL,
          LLVMValueRef idx =
             cgen_array_off(cgen_expr(p.value, ctx), NULL, type, ctx, 0);
 
