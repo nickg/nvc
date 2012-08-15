@@ -570,9 +570,6 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef src_dir = cgen_array_dir(src_type, src);
    LLVMValueRef dst_dir = cgen_array_dir(dest_type, dst);
 
-   LLVMValueRef opposite_dir =
-      LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
-
    LLVMValueRef ll_n_elems = cgen_array_len(src_type, src);
 
    if (!cgen_const_bounds(dest_type))
@@ -583,54 +580,89 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    if (offset == NULL)
       offset = llvm_int32(0);
 
-   LLVMBasicBlockRef fast_bb = LLVMAppendBasicBlock(ctx->fn, "fast");
-   LLVMBasicBlockRef slow_bb = LLVMAppendBasicBlock(ctx->fn, "slow");
-   LLVMBasicBlockRef done_bb = LLVMAppendBasicBlock(ctx->fn, "done");
+   LLVMValueRef opposite_dir =
+      LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
-   LLVMBuildCondBr(builder, opposite_dir, slow_bb, fast_bb);
+   bool same_dir_const =
+      (cgen_const_bounds(src_type) && cgen_const_bounds(dest_type)
+       && (type_dim(src_type, 0).kind == type_dim(dest_type, 0).kind));
 
-   // Fast path: use LLVM memcpy
+   if (same_dir_const) {
+      // Fast path: use LLVM memcpy
 
-   LLVMPositionBuilderAtEnd(builder, fast_bb);
-
-   {
-      int width = bit_width(type_elem(dest_type));
+      int width = bit_width(src_type);
 
       char name[128];
-      snprintf(name, sizeof(name), "copy.i%d", width);
+      snprintf(name, sizeof(name),
+               "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
+
+      int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+      LLVMValueRef size = LLVMBuildMul(builder, ll_n_elems,
+                                       llvm_int32(bytes), "size");
+
+      LLVMValueRef indexes[] = { offset };
+      LLVMValueRef dst_ptr = LLVMBuildGEP(builder, dst, indexes,
+                                          ARRAY_LEN(indexes), "dst_ptr");
 
       LLVMValueRef args[] = {
-         dst,
+         dst_ptr,
          src_ptr,
-         offset,
-         ll_n_elems,
-         opposite_dir
+         size,
+         llvm_int32(bytes),
+         llvm_int1(0)
       };
       LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
-
-      LLVMBuildBr(builder, done_bb);
    }
+   else {
+      LLVMBasicBlockRef fast_bb = LLVMAppendBasicBlock(ctx->fn, "fast");
+      LLVMBasicBlockRef slow_bb = LLVMAppendBasicBlock(ctx->fn, "slow");
+      LLVMBasicBlockRef done_bb = LLVMAppendBasicBlock(ctx->fn, "done");
 
-   // Slow path: call _array_copy helper
+      LLVMBuildCondBr(builder, opposite_dir, slow_bb, fast_bb);
 
-   LLVMPositionBuilderAtEnd(builder, slow_bb);
+      // Fast(ish) path: use per-type copy function
 
-   {
-      LLVMValueRef args[] = {
-         llvm_void_cast(dst),
-         llvm_void_cast(src_ptr),
-         offset,
-         ll_n_elems,
-         llvm_sizeof(llvm_type(type_elem(dest_type))),
-         opposite_dir
-      };
-      LLVMBuildCall(builder, llvm_fn("_array_copy"),
-                    args, ARRAY_LEN(args), "");
+      LLVMPositionBuilderAtEnd(builder, fast_bb);
 
-      LLVMBuildBr(builder, done_bb);
+      {
+         int width = bit_width(type_elem(dest_type));
+
+         char name[128];
+         snprintf(name, sizeof(name), "copy.i%d", width);
+
+         LLVMValueRef args[] = {
+            dst,
+            src_ptr,
+            offset,
+            ll_n_elems,
+            opposite_dir
+         };
+         LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
+
+         LLVMBuildBr(builder, done_bb);
+      }
+
+      // Slow path: call _array_copy helper
+
+      LLVMPositionBuilderAtEnd(builder, slow_bb);
+
+      {
+         LLVMValueRef args[] = {
+            llvm_void_cast(dst),
+            llvm_void_cast(src_ptr),
+            offset,
+            ll_n_elems,
+            llvm_sizeof(llvm_type(type_elem(dest_type))),
+            opposite_dir
+         };
+         LLVMBuildCall(builder, llvm_fn("_array_copy"),
+                       args, ARRAY_LEN(args), "");
+
+         LLVMBuildBr(builder, done_bb);
+      }
+
+      LLVMPositionBuilderAtEnd(builder, done_bb);
    }
-
-   LLVMPositionBuilderAtEnd(builder, done_bb);
 }
 
 static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
