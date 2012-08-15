@@ -74,7 +74,6 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMTypeRef cgen_signal_type(type_t type);
-static void cgen_array_reverse_fn(type_t type);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -565,8 +564,6 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset, cgen_ctx_t *ctx)
 {
-   cgen_array_reverse_fn(src_type);
-
    LLVMValueRef src_dir = cgen_array_dir(src_type, src);
    LLVMValueRef dst_dir = cgen_array_dir(dest_type, dst);
 
@@ -628,40 +625,21 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                     memcpy_args, ARRAY_LEN(memcpy_args), "");
       LLVMBuildBr(builder, done_bb);
 
-      // Slow path: call reverse.iN helper function
+      // Slow path: call _array_reverse helper function
 
       LLVMPositionBuilderAtEnd(builder, slow_bb);
 
-      {
-#if 0
-         LLVMValueRef args[] = {
-            llvm_void_cast(dst),
-            llvm_void_cast(src_ptr),
-            offset,
-            ll_n_elems,
-            llvm_sizeof(llvm_type(type_elem(dest_type))),
-            opposite_dir
-         };
-         LLVMBuildCall(builder, llvm_fn("_array_copy"),
-                       args, ARRAY_LEN(args), "");
-#else
-         int width = bit_width(type_elem(dest_type));
+      LLVMValueRef reverse_args[] = {
+         llvm_void_cast(dst),
+         llvm_void_cast(src_ptr),
+         offset,
+         ll_n_elems,
+         llvm_sizeof(llvm_type(type_elem(dest_type)))
+      };
+      LLVMBuildCall(builder, llvm_fn("_array_reverse"),
+                    reverse_args, ARRAY_LEN(reverse_args), "");
 
-         char name[128];
-         snprintf(name, sizeof(name), "reverse.i%d", width);
-
-         LLVMValueRef args[] = {
-            dst,
-            src_ptr,
-            offset,
-            ll_n_elems,
-            opposite_dir
-         };
-         LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
-#endif
-
-         LLVMBuildBr(builder, done_bb);
-      }
+      LLVMBuildBr(builder, done_bb);
 
       LLVMPositionBuilderAtEnd(builder, done_bb);
    }
@@ -2520,96 +2498,6 @@ static LLVMValueRef cgen_signal_init(type_t type)
    }
 }
 
-static void cgen_array_reverse_fn(type_t elem_type)
-{
-   // Build a function to reverse one array into another
-
-   while (type_is_array(elem_type))
-      elem_type = type_elem(elem_type);
-
-   int width = bit_width(elem_type);
-
-   char name[256];
-   snprintf(name, sizeof(name), "reverse.i%d", width);
-
-   LLVMValueRef fn;
-   if ((fn = LLVMGetNamedFunction(module, name)))
-      return;
-
-   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
-
-   LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(elem_type), 0);
-
-   LLVMTypeRef args[] = {
-      ptr_type,           // Dest
-      ptr_type,           // Source
-      LLVMInt32Type(),    // Offset
-      LLVMInt32Type(),    // Number
-      LLVMInt1Type()      // Reverse
-   };
-   fn = LLVMAddFunction(module, name,
-                        LLVMFunctionType(LLVMVoidType(),
-                                         args, ARRAY_LEN(args), false));
-   LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
-
-   LLVMAddAttribute(LLVMGetParam(fn, 0), LLVMNoCaptureAttribute);
-   LLVMAddAttribute(LLVMGetParam(fn, 1), LLVMNoCaptureAttribute);
-
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
-   LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(fn, "body");
-   LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(fn, "exit");
-
-   LLVMPositionBuilderAtEnd(builder, entry_bb);
-
-   LLVMValueRef indexes[] = { LLVMGetParam(fn, 2) };
-   LLVMValueRef dst_ptr = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
-                                       indexes, ARRAY_LEN(indexes), "dst_off");
-
-   LLVMValueRef src_ptr = LLVMGetParam(fn, 1);
-
-   // Prelude
-   LLVMValueRef n_sub_1 = LLVMBuildSub(builder, LLVMGetParam(fn, 3),
-                                       llvm_int32(1), "n_sub_1");
-   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-   LLVMBuildStore(builder, n_sub_1, i);
-   LLVMValueRef j = LLVMBuildAlloca(builder, LLVMInt32Type(), "j");
-   LLVMBuildStore(builder, llvm_int32(0), j);
-   LLVMBuildBr(builder, test_bb);
-
-   // Loop test
-   LLVMPositionBuilderAtEnd(builder, test_bb);
-   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
-   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntSGE,
-                                   i_loaded, llvm_int32(0), "ge");
-   LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
-
-   // Loop body
-   LLVMPositionBuilderAtEnd(builder, body_bb);
-
-   LLVMValueRef j_loaded = LLVMBuildLoad(builder, j, "");
-   LLVMValueRef dst_ptr_plus_i =
-      LLVMBuildGEP(builder, dst_ptr, &i_loaded, 1, "dst_ptr_plus_i");
-   LLVMValueRef src_ptr_plus_j =
-      LLVMBuildGEP(builder, src_ptr, &j_loaded, 1, "src_ptr_plus_j");
-   LLVMValueRef src_tmp = LLVMBuildLoad(builder, src_ptr_plus_j, "");
-   LLVMBuildStore(builder, src_tmp, dst_ptr_plus_i);
-
-   LLVMValueRef dec_i =
-      LLVMBuildSub(builder, i_loaded, llvm_int32(1), "dec_i");
-   LLVMBuildStore(builder, dec_i, i);
-   LLVMValueRef inc_j =
-      LLVMBuildAdd(builder, j_loaded, llvm_int32(1), "inc_j");
-   LLVMBuildStore(builder, inc_j, j);
-   LLVMBuildBr(builder, test_bb);
-
-   // Epilogue
-   LLVMPositionBuilderAtEnd(builder, exit_bb);
-   LLVMBuildRetVoid(builder);
-
-   LLVMPositionBuilderAtEnd(builder, saved_bb);
-}
-
 static void cgen_array_signal_load_fn(type_t elem_type)
 {
    // Build a function to load the array into a temporary
@@ -3045,18 +2933,17 @@ static void cgen_support_fns(void)
                                     ARRAY_LEN(_assert_fail_args),
                                     false));
 
-   LLVMTypeRef _array_copy_args[] = {
+   LLVMTypeRef _array_reverse_args[] = {
       llvm_void_ptr(),
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt1Type()
+      LLVMInt32Type()
    };
-   LLVMAddFunction(module, "_array_copy",
+   LLVMAddFunction(module, "_array_reverse",
                    LLVMFunctionType(LLVMVoidType(),
-                                    _array_copy_args,
-                                    ARRAY_LEN(_array_copy_args),
+                                    _array_reverse_args,
+                                    ARRAY_LEN(_array_reverse_args),
                                     false));
 
    LLVMTypeRef _image_args[] = {
@@ -3100,12 +2987,13 @@ static void cgen_support_fns(void)
                                     ARRAY_LEN(llvm_pow_args),
                                     false));
 
-   const int memcpy_widths[] = { 1, 8, 16, 32, 64 };
-   for (int i = 0; i < ARRAY_LEN(memcpy_widths); i++) {
-      int w = memcpy_widths[i];
+   const int widths[] = { 1, 8, 16, 32, 64 };
+   for (int i = 0; i < ARRAY_LEN(widths); i++) {
+      int w = widths[i];
 
-      char name[128];
-      snprintf(name, sizeof(name), "llvm.memcpy.p0i%d.p0i%d.i32", w, w);
+      char memcpy_name[128];
+      snprintf(memcpy_name, sizeof(memcpy_name),
+               "llvm.memcpy.p0i%d.p0i%d.i32", w, w);
 
       LLVMTypeRef llvm_memcpy_args[] = {
          LLVMPointerType(LLVMIntType(w), 0),
@@ -3114,10 +3002,26 @@ static void cgen_support_fns(void)
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      LLVMAddFunction(module, name,
+      LLVMAddFunction(module, memcpy_name,
                       LLVMFunctionType(LLVMVoidType(),
                                        llvm_memcpy_args,
                                        ARRAY_LEN(llvm_memcpy_args),
+                                       false));
+
+      char reverse_name[128];
+      snprintf(reverse_name, sizeof(reverse_name), "_reverse_i%d", w);
+
+      LLVMTypeRef reverse_args[] = {
+         LLVMPointerType(LLVMIntType(w), 0),
+         LLVMPointerType(LLVMIntType(w), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt1Type()
+      };
+      LLVMAddFunction(module, reverse_name,
+                      LLVMFunctionType(LLVMVoidType(),
+                                       reverse_args,
+                                       ARRAY_LEN(reverse_args),
                                        false));
    }
 

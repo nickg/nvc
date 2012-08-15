@@ -374,45 +374,39 @@ char *_tmp_alloc(int32_t n, int32_t sz)
    return rt_tmp_alloc(n * sz);
 }
 
-void _array_copy(void *dst, const void *src,
-                 int32_t off, int32_t n, int32_t sz, int8_t op)
+void _array_reverse(void *restrict dst, const void *restrict src,
+                    int32_t off, int32_t n, int32_t sz)
 {
-   TRACE("_array_copy dst=%p+%d src=%p %dx%d op=%d",
-         dst, off, src, n, sz, op);
-   if (op) {
-      const uint8_t  *restrict s8  = src;
-      const uint16_t *restrict s16 = src;
-      const uint32_t *restrict s32 = src;
-      const uint64_t *restrict s64 = src;
+   const uint8_t  *restrict s8  = src;
+   const uint16_t *restrict s16 = src;
+   const uint32_t *restrict s32 = src;
+   const uint64_t *restrict s64 = src;
 
-      uint8_t  *restrict d8  = dst;
-      uint16_t *restrict d16 = dst;
-      uint32_t *restrict d32 = dst;
-      uint64_t *restrict d64 = dst;
+   uint8_t  *restrict d8  = dst;
+   uint16_t *restrict d16 = dst;
+   uint32_t *restrict d32 = dst;
+   uint64_t *restrict d64 = dst;
 
-      switch (sz) {
-      case 1:
-         for (int i = n - 1; i >= 0; i--)
-            *(d8 + off + i) = *s8++;
-         break;
-      case 2:
-         for (int i = n - 1; i >= 0; i--)
-            *(d16 + off + i) = *s16++;
-         break;
-      case 4:
-         for (int i = n - 1; i >= 0; i--)
-            *(d32 + off + i) = *s32++;
-         break;
-      case 8:
-         for (int i = n - 1; i >= 0; i--)
-            *(d64 + off + i) = *s64++;
-         break;
-      default:
-         assert(false);
-      }
+   switch (sz) {
+   case 1:
+      for (int i = n - 1; i >= 0; i--)
+         *(d8 + off + i) = *s8++;
+      break;
+   case 2:
+      for (int i = n - 1; i >= 0; i--)
+         *(d16 + off + i) = *s16++;
+      break;
+   case 4:
+      for (int i = n - 1; i >= 0; i--)
+         *(d32 + off + i) = *s32++;
+      break;
+   case 8:
+      for (int i = n - 1; i >= 0; i--)
+         *(d64 + off + i) = *s64++;
+      break;
+   default:
+      assert(false);
    }
-   else
-      memcpy((char *)dst + (off * sz), src, n * sz);
 }
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
@@ -944,7 +938,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_sched_event", _sched_event);
    jit_bind_fn("_assert_fail", _assert_fail);
    jit_bind_fn("_tmp_alloc", _tmp_alloc);
-   jit_bind_fn("_array_copy", _array_copy);
+   jit_bind_fn("_array_reverse", _array_reverse);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
    jit_bind_fn("_inst_name", _inst_name);
