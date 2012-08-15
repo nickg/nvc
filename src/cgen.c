@@ -2550,6 +2550,9 @@ static void cgen_array_copy_fn(type_t elem_type)
                                          args, ARRAY_LEN(args), false));
    LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
 
+   LLVMAddAttribute(LLVMGetParam(fn, 0), LLVMNoCaptureAttribute);
+   LLVMAddAttribute(LLVMGetParam(fn, 1), LLVMNoCaptureAttribute);
+
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef mcpy_bb  = LLVMAppendBasicBlock(fn, "mcpy");
    LLVMBasicBlockRef loop_bb  = LLVMAppendBasicBlock(fn, "loop");
@@ -2562,6 +2565,8 @@ static void cgen_array_copy_fn(type_t elem_type)
    LLVMValueRef indexes[] = { LLVMGetParam(fn, 2) };
    LLVMValueRef dst_ptr = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
                                        indexes, ARRAY_LEN(indexes), "dst_off");
+
+   LLVMValueRef src_ptr = LLVMGetParam(fn, 1);
 
    // Check if we're reversing the array
 
@@ -2582,7 +2587,7 @@ static void cgen_array_copy_fn(type_t elem_type)
 
    LLVMValueRef memcpy_args[] = {
       dst_ptr,
-      LLVMGetParam(fn, 1),
+      src_ptr,
       size,
       llvm_int32(width),
       llvm_int1(0)
@@ -2594,24 +2599,38 @@ static void cgen_array_copy_fn(type_t elem_type)
 
    // Prelude
    LLVMPositionBuilderAtEnd(builder, loop_bb);
+   LLVMValueRef n_sub_1 = LLVMBuildSub(builder, LLVMGetParam(fn, 3),
+                                       llvm_int32(1), "n_sub_1");
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-   LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
+   LLVMBuildStore(builder, n_sub_1, i);
+   LLVMValueRef j = LLVMBuildAlloca(builder, LLVMInt32Type(), "j");
+   LLVMBuildStore(builder, llvm_int32(0), j);
    LLVMBuildBr(builder, test_bb);
 
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
    LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
-   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
-                                   LLVMGetParam(fn, 3),
-                                   i_loaded, "ge");
+   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntSGE,
+                                   i_loaded, llvm_int32(0), "ge");
    LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
 
    // Loop body
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
-   LLVMValueRef inc =
-      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
-   LLVMBuildStore(builder, inc, i);
+   LLVMValueRef j_loaded = LLVMBuildLoad(builder, j, "");
+   LLVMValueRef dst_ptr_plus_i =
+      LLVMBuildGEP(builder, dst_ptr, &i_loaded, 1, "dst_ptr_plus_i");
+   LLVMValueRef src_ptr_plus_j =
+      LLVMBuildGEP(builder, src_ptr, &j_loaded, 1, "src_ptr_plus_j");
+   LLVMValueRef src_tmp = LLVMBuildLoad(builder, src_ptr_plus_j, "");
+   LLVMBuildStore(builder, src_tmp, dst_ptr_plus_i);
+
+   LLVMValueRef dec_i =
+      LLVMBuildSub(builder, i_loaded, llvm_int32(1), "dec_i");
+   LLVMBuildStore(builder, dec_i, i);
+   LLVMValueRef inc_j =
+      LLVMBuildAdd(builder, j_loaded, llvm_int32(1), "inc_j");
+   LLVMBuildStore(builder, inc_j, j);
    LLVMBuildBr(builder, test_bb);
 
    // Epilogue
