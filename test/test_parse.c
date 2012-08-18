@@ -1150,7 +1150,7 @@ START_TEST(test_instance)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 8);
+   fail_unless(tree_stmts(a) == 9);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_INSTANCE);
@@ -1174,6 +1174,11 @@ START_TEST(test_instance)
    fail_unless(tree_ident2(s) == ident_new("WORK.FOO"));
    fail_unless(tree_params(s) == 2);
    fail_unless(tree_genmaps(s) == 1);
+
+   s = tree_stmt(a, 8);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_param(s, 0).kind == P_NAMED);
+   fail_unless(tree_kind(tree_param(s, 0).value) == T_OPEN);
 
    a = parse();
    fail_unless(a == NULL);

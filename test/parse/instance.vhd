@@ -20,5 +20,8 @@ begin
     g: entity work.foo
         generic map ( X => 1 )
         port map ( a, b );            
+
+    h: entity work.foo
+        port map ( a => open );
     
 end architecture;

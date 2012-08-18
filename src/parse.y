@@ -161,7 +161,7 @@
 %type <t> package_decl name aggregate string_literal report
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
-%type <t> delay_mechanism bit_string_literal block_stmt
+%type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
@@ -1837,27 +1837,36 @@ expr
 ;
 
 param_list
-: expr
+: expr_or_open
   {
      param_t p = { .kind = P_POS, .value = $1 };
      $$ = list_add(NULL, LISTVAL(p));
   }
-| expr tCOMMA param_list
+| expr_or_open tCOMMA param_list
   {
      param_t p = { .kind = P_POS, .value = $1 };
      $$ = list_add($3, LISTVAL(p));
   }
-| id tASSOC expr
+| id tASSOC expr_or_open
   {
      param_t p = { .kind = P_NAMED, .value = $3 };
      p.name = $1;
      $$ = list_add(NULL, LISTVAL(p));
   }
-| id tASSOC expr tCOMMA param_list
+| id tASSOC expr_or_open tCOMMA param_list
   {
      param_t p = { .kind = P_NAMED, .value = $3 };
      p.name = $1;
      $$ = list_add($5, LISTVAL(p));
+  }
+;
+
+expr_or_open
+: expr
+| tOPEN
+  {
+     $$ = tree_new(T_OPEN);
+     tree_set_loc($$, &@$);
   }
 ;
 

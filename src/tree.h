@@ -93,6 +93,7 @@ typedef enum tree_kind {
    T_IF_GENERATE,
    T_FOR_GENERATE,
    T_FILE_DECL,
+   T_OPEN,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
