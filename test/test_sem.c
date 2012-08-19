@@ -148,6 +148,7 @@ START_TEST(test_ports)
       { 74, "too many positional actuals" },
       { 77, "WORK.FOO has no formal CAKE" },
       { 79, "cannot find unit WORK.BAD" },
+      { 88, "OPEN can only be used with OUT ports" },
       { -1, NULL }
    };
    expect_errors(expect);

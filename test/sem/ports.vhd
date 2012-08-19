@@ -77,5 +77,15 @@ begin
         port map ( cake => 4 );
 
     bad1: entity work.bad;              -- No such entity   
+
+    open1: entity work.foo              -- OK
+        port map (
+            i => x,
+            o => open );
+
+    open2: entity work.foo              -- Cannot use OPEN with input
+        port map (
+            i => open,
+            o => open );
     
 end architecture;

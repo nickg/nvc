@@ -423,6 +423,16 @@ static bool type_set_uniq_composite(type_t *pt)
    return (*pt != NULL);
 }
 
+static bool type_set_any(type_t *pt)
+{
+   if ((top_type_set == NULL) || (top_type_set->n_members == 0))
+      return false;
+   else {
+      *pt = top_type_set->members[0];
+      return true;
+   }
+}
+
 #if 0
 static void type_set_dump(void)
 {
@@ -3185,6 +3195,9 @@ static bool sem_check_map(tree_t t, tree_t unit,
       }
 
       ok = sem_check_constrained(p.value, tree_type(decl)) && ok;
+
+      if ((tree_kind(p.value) == T_OPEN) && (tree_port_mode(decl) != PORT_OUT))
+         sem_error(p.value, "OPEN can only be used with OUT ports");
    }
 
    for (unsigned i = 0; i < nformals; i++) {
@@ -3574,6 +3587,17 @@ static bool sem_check_for_generate(tree_t t)
    return ok;
 }
 
+static bool sem_check_open(tree_t t)
+{
+   type_t type;
+   if (type_set_any(&type)) {
+      tree_set_type(t, type);
+      return true;
+   }
+   else
+      sem_error(t, "OPEN cannot be used here");
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -3679,6 +3703,8 @@ bool sem_check(tree_t t)
       return sem_check_if_generate(t);
    case T_FOR_GENERATE:
       return sem_check_for_generate(t);
+   case T_OPEN:
+      return sem_check_open(t);
    default:
       sem_error(t, "cannot check tree kind %d", tree_kind(t));
    }
