@@ -24,6 +24,7 @@
 // Replace processes of the form
 //
 //   process is
+//   begin
 //     x <= y;
 //     wait on y;
 //   end process;
@@ -141,8 +142,36 @@ static void opt_collapse(tree_t top)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Delete processes that contain just a single wait statement
+//
+//   process is
+//   begin
+//     wait on x;
+//   end process;
+//
+// Such processes can result from optimising away assignments to OPEN outputs.
+//
+
+static tree_t opt_delete_wait_only_fn(tree_t t, void *ctx)
+{
+   if (tree_kind(t) != T_PROCESS)
+      return t;
+
+   if ((tree_stmts(t) == 1) && (tree_kind(tree_stmt(t, 0)) == T_WAIT))
+      return NULL;
+   else
+      return t;
+}
+
+static void opt_delete_wait_only(tree_t top)
+{
+   tree_rewrite(top, opt_delete_wait_only_fn, NULL);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void opt(tree_t top)
 {
    opt_collapse(top);
+   opt_delete_wait_only(top);
 }

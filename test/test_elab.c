@@ -125,6 +125,25 @@ START_TEST(test_elab2)
 }
 END_TEST
 
+START_TEST(test_open)
+{
+   tree_t top;
+
+   fail_unless(input_from_file(TESTDIR "/elab/open.vhd"));
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   top = run_elab();
+   opt(top);
+
+   // Optimisation should have deleted all statements
+   fail_unless(tree_stmts(top) == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -138,6 +157,7 @@ int main(void)
    tcase_add_test(tc_core, test_drivers);
    tcase_add_test(tc_core, test_elab1);
    tcase_add_test(tc_core, test_elab2);
+   tcase_add_test(tc_core, test_open);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -2107,8 +2107,13 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       rewrite_a(&t->waves, ctx);
    if (HAS_CONDS(t))
       rewrite_a(&t->conds, ctx);
-   if (HAS_TARGET(t))
-      tree_set_target(t, tree_rewrite_aux(tree_target(t), ctx));
+   if (HAS_TARGET(t)) {
+      tree_t new = tree_rewrite_aux(tree_target(t), ctx);
+      if (new != NULL)
+         tree_set_target(t, new);
+      else
+         return NULL;
+   }
    if (HAS_VALUE(t)) {
       if (tree_has_value(t))
          tree_set_value(t, tree_rewrite_aux(tree_value(t), ctx));

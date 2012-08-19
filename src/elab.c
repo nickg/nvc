@@ -123,6 +123,10 @@ static tree_t rewrite_ports(tree_t t, void *context)
       if (tree_kind(tree_ref(t)) == T_PORT_DECL
           && (tree_ident(t) == tree_ident(params->formal))) {
 
+         // Delete assignments to OPEN ports
+         if (params->actual == NULL)
+            return NULL;
+
          switch (tree_kind(params->actual)) {
          case T_SIGNAL_DECL:
             tree_set_ref(t, params->actual);
@@ -168,6 +172,9 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
 
    case T_LITERAL:
       return actual;
+
+   case T_OPEN:
+      return NULL;
 
    default:
       fatal_at(tree_loc(actual), "tree kind %d not supported as actual",
