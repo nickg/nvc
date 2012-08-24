@@ -493,6 +493,7 @@ static bool is_debugger_running(void)
 #endif
 }
 
+#ifdef __linux
 static void gdb_sighandler(int sig, siginfo_t *info)
 {
    char exe[256];
@@ -516,6 +517,7 @@ static void gdb_sighandler(int sig, siginfo_t *info)
       signal(sig, SIG_DFL);
    }
 }
+#endif  // __linux
 
 void register_trace_signal_handlers(void)
 {

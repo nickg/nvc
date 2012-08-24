@@ -186,7 +186,7 @@ void link_bc(tree_t top)
    if (opt_en) {
       if (mkstemp(tmp) < 0)
          fatal_errno("mkstemp");
-      link_arg_f(tmp);
+      link_arg_f("%s", tmp);
    }
    else
       link_output(top, "bc");
@@ -206,7 +206,7 @@ void link_bc(tree_t top)
       link_arg_f("-std-compile-opts");
       link_arg_f("-o");
       link_output(top, "bc");
-      link_arg_f(tmp);
+      link_arg_f("%s", tmp);
 
       link_exec();
       link_args_end();
