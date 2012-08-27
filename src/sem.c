@@ -385,7 +385,7 @@ static void type_set_add(type_t t)
    assert(type_kind(t) != T_UNRESOLVED);
 
    for (unsigned i = 0; i < top_type_set->n_members; i++) {
-      if (top_type_set->members[i] == t)
+      if (type_eq(top_type_set->members[i], t))
          return;
    }
 
@@ -403,24 +403,31 @@ static void type_set_force(type_t t)
    top_type_set->universal  = false;
 }
 
-static bool type_set_uniq_composite(type_t *pt)
+static void type_set_force_composite(void)
 {
    assert(top_type_set != NULL);
 
-   *pt = NULL;
+   int j = 0;
    for (int i = 0; i < top_type_set->n_members; i++) {
       type_t type = top_type_set->members[i];
-
-      bool comp = type_is_array(type);
-      if (comp) {
-         if (*pt != NULL)
-            return false;
-         else
-            *pt = top_type_set->members[i];
-      }
+      if (type_is_array(type))
+         top_type_set->members[j++] = type;
    }
+   top_type_set->n_members = j;
+}
 
-   return (*pt != NULL);
+static bool type_set_uniq(type_t *pt)
+{
+   assert(top_type_set != NULL);
+
+   if (top_type_set->n_members == 1) {
+      *pt = top_type_set->members[0];
+      return true;
+   }
+   else {
+      *pt = NULL;
+      return false;
+   }
 }
 
 static bool type_set_any(type_t *pt)
@@ -444,6 +451,20 @@ static void type_set_dump(void)
    printf("}\n");
 }
 #endif
+
+static const char *type_set_fmt(void)
+{
+   static char buf[1024];
+   const char *end = buf + sizeof(buf);
+   char *p = buf;
+   if (top_type_set != NULL) {
+      for (unsigned n = 0; n < top_type_set->n_members; n++)
+         p += snprintf(p, end - p, "%s    %s",
+                       (n == 0) ? "" : "\n",
+                       istr(type_ident(top_type_set->members[n])));
+   }
+   return buf;
+}
 
 static bool type_set_member(type_t t)
 {
@@ -2607,8 +2628,10 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
+   type_set_force_composite();
+
    type_t composite;
-   bool uniq_comp = type_set_uniq_composite(&composite);
+   bool uniq_comp = type_set_uniq(&composite);
    type_t expect = composite;
 
    bool ok;
@@ -2619,7 +2642,7 @@ static bool sem_check_concat(tree_t t)
 
    if (left_ambig && right_ambig) {
       if (!uniq_comp)
-         sem_error(t, "type of concatenation is ambiguous");
+         sem_error(t, "type of concatenation is ambiguous\n%s", type_set_fmt());
       ok = sem_check_concat_param(left, expect);
       other = right;
    }
@@ -2788,9 +2811,11 @@ static bool sem_check_aggregate(tree_t t)
    // The type of an aggregate must be determinable solely from the
    // context in which the aggregate appears
 
+   type_set_force_composite();
+
    type_t composite_type;
-   if (!type_set_uniq_composite(&composite_type))
-      sem_error(t, "type of aggregate is ambiguous");
+   if (!type_set_uniq(&composite_type))
+      sem_error(t, "type of aggregate is ambiguous\n%s", type_set_fmt());
 
    type_t base_type = composite_type;
    while (type_kind(base_type) == T_SUBTYPE)
