@@ -2341,7 +2341,7 @@ static bool sem_check_fcall(tree_t t)
             // table under different names
             bool duplicate = false;
             for (int i = 0; i < n_overloads; i++) {
-               if (overloads[i] == decl)
+               if (type_eq(tree_type(overloads[i]), func_type))
                   duplicate = true;
             }
 
