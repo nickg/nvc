@@ -960,7 +960,11 @@ static bool sem_check_range(range_t *r)
       }
    }
 
-   if (!(sem_check(r->left) && sem_check(r->right)))
+   type_set_push();
+   bool ok = sem_check(r->left) && sem_check(r->right);
+   type_set_pop();
+
+   if (!ok)
       return false;
 
    if (!type_eq(tree_type(r->left), tree_type(r->right)))
