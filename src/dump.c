@@ -494,6 +494,8 @@ static void dump_port(tree_t t, int indent)
    case C_DEFAULT:  class = "";         break;
    case C_CONSTANT: class = "constant"; break;
    case C_FILE:     class = "file";     break;
+   default:
+      assert(false);
    }
    switch (tree_port_mode(t)) {
    case PORT_IN:      dir = "in";     break;

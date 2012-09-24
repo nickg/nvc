@@ -1154,22 +1154,38 @@ START_TEST(test_instance)
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_COMPONENT);
    fail_unless(tree_ident(s) == ident_new("A"));
    fail_unless(tree_ident2(s) == ident_new("FOO"));
 
    s = tree_stmt(a, 2);
    fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_ENTITY);
    fail_unless(tree_ident(s) == ident_new("B1"));
    fail_unless(tree_ident2(s) == ident_new("WORK.FOO-GOO"));
 
+   s = tree_stmt(a, 3);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_CONFIGURATION);
+   fail_unless(tree_ident(s) == ident_new("C"));
+   fail_unless(tree_ident2(s) == ident_new("WORK.BAR"));
+
+   s = tree_stmt(a, 4);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_COMPONENT);
+   fail_unless(tree_ident(s) == ident_new("D"));
+   fail_unless(tree_ident2(s) == ident_new("FOO"));
+
    s = tree_stmt(a, 5);
    fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_ENTITY);
    fail_unless(tree_ident(s) == ident_new("E"));
    fail_unless(tree_ident2(s) == ident_new("WORK.FOO"));
    fail_unless(tree_params(s) == 3);
 
    s = tree_stmt(a, 7);
    fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_ENTITY);
    fail_unless(tree_ident(s) == ident_new("G"));
    fail_unless(tree_ident2(s) == ident_new("WORK.FOO"));
    fail_unless(tree_params(s) == 2);
@@ -1177,6 +1193,7 @@ START_TEST(test_instance)
 
    s = tree_stmt(a, 8);
    fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_ENTITY);
    fail_unless(tree_param(s, 0).kind == P_NAMED);
    fail_unless(tree_kind(tree_param(s, 0).value) == T_OPEN);
 

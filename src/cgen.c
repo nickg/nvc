@@ -688,7 +688,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
          }
          break;
 
-      case C_FILE:
+      default:
          assert(false);
       }
    }
@@ -2718,7 +2718,7 @@ static void cgen_func_body(tree_t t)
          tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
          break;
 
-      case C_FILE:
+      default:
          assert(false);
       }
    }
@@ -2776,7 +2776,7 @@ static void cgen_proc_body(tree_t t)
          tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
          break;
 
-      case C_FILE:
+      default:
          assert(false);
       }
    }

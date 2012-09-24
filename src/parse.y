@@ -807,6 +807,7 @@ comp_instance_stmt
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, $3);
+     tree_set_class($$, C_COMPONENT);
      copy_params($5, tree_add_param, $$);
      copy_params($4, tree_add_genmap, $$);
   }
@@ -816,6 +817,7 @@ comp_instance_stmt
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
+     tree_set_class($$, C_COMPONENT);
      copy_params($6, tree_add_param, $$);
      copy_params($5, tree_add_genmap, $$);
   }
@@ -825,6 +827,7 @@ comp_instance_stmt
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
+     tree_set_class($$, C_ENTITY);
      copy_params($6, tree_add_param, $$);
      copy_params($5, tree_add_genmap, $$);
   }
@@ -835,6 +838,7 @@ comp_instance_stmt
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, ident_prefix($4, $6, '-'));
+     tree_set_class($$, C_ENTITY);
      copy_params($9, tree_add_param, $$);
      copy_params($8, tree_add_genmap, $$);
   }
@@ -844,6 +848,7 @@ comp_instance_stmt
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
+     tree_set_class($$, C_CONFIGURATION);
      copy_params($6, tree_add_param, $$);
      copy_params($5, tree_add_genmap, $$);
   }

@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1008
+#define FILE_FMT_VER 0x1009
 
 //#define EXTRA_READ_CHECKS
 
@@ -228,7 +228,7 @@ struct tree_rd_ctx {
    (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
 #define HAS_RANGE(t)                                                  \
    (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
-#define HAS_CLASS(t) (IS(t, T_PORT_DECL))
+#define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
 #define HAS_ASSOCS(t)                                                 \
    (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))
 #define HAS_CONDS(t) (IS(t, T_CASSIGN))
