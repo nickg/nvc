@@ -6,7 +6,12 @@ ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
 	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
 	ieee/_IEEE.NUMERIC_STD-body.bc
 
-lib = NVC_LIBPATH=../std
+# XXX: add -L argument and move $(nvc_verbose) to $(nvc)
+lib = $(nvc_verbose) NVC_LIBPATH=../std
+
+nvc_verbose = $(nvc_verbose_@AM_V@)
+nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
+nvc_verbose_0 = @echo "  NVC   " $@;
 
 bootstrap: $(ieee_DATA)
 

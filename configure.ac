@@ -1,7 +1,8 @@
 AC_INIT([nvc], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
-AM_INIT_AUTOMAKE([color-tests])
+AM_INIT_AUTOMAKE([1.11 color-tests])
+AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
 
@@ -75,6 +76,13 @@ case $host_os in
 esac
 
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which $CC)"], [System compiler])
+
+# Turn on silent make when using the GNU version
+AX_CHECK_GNU_MAKE
+if ! test x$_cv_gnu_make_command = x ; then
+  MAKEFLAGS='$(if $(V),,-s)'
+fi
+AC_SUBST(MAKEFLAGS)
 
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \

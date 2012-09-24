@@ -1,7 +1,11 @@
-nvc = $(top_builddir)/src/nvc
+nvc = $(nvc_verbose)$(top_builddir)/src/nvc
 
 stddir = $(pkgdatadir)/std
 std_DATA = std/_NVC_LIB std/STD.STANDARD #std/STD.TEXTIO
+
+nvc_verbose = $(nvc_verbose_@AM_V@)
+nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
+nvc_verbose_0 = @echo "  NVC   " $@;
 
 bootstrap: $(std_DATA)
 
