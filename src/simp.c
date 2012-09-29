@@ -491,7 +491,7 @@ static tree_t simp_wait(tree_t t)
    // If there is no sensitivity list supplied generate one from the
    // condition clause
 
-   if (tree_has_value(t))
+   if (tree_has_value(t) && (tree_triggers(t) == 0))
       tree_visit_only(tree_value(t), simp_build_wait, t, T_REF);
 
    return t;
