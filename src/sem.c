@@ -2519,11 +2519,25 @@ static bool sem_check_pcall(tree_t t)
 static bool sem_check_wait(tree_t t)
 {
    if (tree_has_delay(t)) {
+      type_t std_time = sem_std_type("TIME");
       tree_t delay = tree_delay(t);
-      sem_check(delay);
 
-      if (!icmp(type_ident(tree_type(delay)), "STD.STANDARD.TIME"))
+      if (!sem_check_constrained(delay, std_time))
+         return false;
+
+      if (!type_eq(tree_type(delay), std_time))
          sem_error(delay, "type of delay must be TIME");
+   }
+
+   if (tree_has_value(t)) {
+      type_t std_bool = sem_std_type("BOOLEAN");
+      tree_t value = tree_value(t);
+
+      if (!sem_check_constrained(value, std_bool))
+         return false;
+
+      if (!type_eq(tree_type(value), std_bool))
+         sem_error(value, "type of condition must be BOOLEAN");
    }
 
    return sem_check_sensitivity(t);

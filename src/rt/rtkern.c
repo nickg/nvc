@@ -38,6 +38,7 @@
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
+typedef int8_t (*until_fn_t)(void);
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -84,6 +85,7 @@ struct waveform {
 struct sens_list {
    struct rt_proc   *proc;
    unsigned         wakeup_gen;
+   until_fn_t       until;
    struct sens_list *next;
 };
 
@@ -283,12 +285,12 @@ void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
    deltaq_insert_driver(after, sig, source, 1);
 }
 
-void _sched_event(void *_sig, int32_t n)
+void _sched_event(void *_sig, int32_t n, until_fn_t until)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_event %s n=%d proc %s", fmt_sig(sig), n,
-         istr(tree_ident(active_proc->source)));
+   TRACE("_sched_event %s n=%d until=%p proc %s", fmt_sig(sig), n,
+         until, istr(tree_ident(active_proc->source)));
 
    for (int i = 0; i < n; i++) {
       // See if there is already a stale entry in the sensitvity
@@ -301,6 +303,7 @@ void _sched_event(void *_sig, int32_t n)
          struct sens_list *node = rt_alloc(sens_list_stack);
          node->proc       = active_proc;
          node->wakeup_gen = active_proc->wakeup_gen;
+         node->until      = until;
          node->next       = sig[i].sensitive;
 
          sig[i].sensitive = node;
@@ -308,6 +311,7 @@ void _sched_event(void *_sig, int32_t n)
       else {
          // Reuse the stale entry
          it->wakeup_gen = active_proc->wakeup_gen;
+         it->until      = until;
       }
    }
 }
@@ -671,7 +675,7 @@ static void rt_initial(tree_t top)
       rt_run(&procs[i], true /* reset */);
 }
 
-static void rt_wakeup(struct sens_list *sl)
+static bool rt_wakeup(struct sens_list *sl)
 {
    // To avoid having each process keep a list of the signals it is
    // sensitive to, each process has a "wakeup generation" number which
@@ -681,14 +685,27 @@ static void rt_wakeup(struct sens_list *sl)
    // generation: these correspond to stale "wait on" statements that
    // have already resumed.
 
+   const char *pstr = NULL;
+   if (unlikely(trace_on))
+      pstr = istr(tree_ident(sl->proc->source));
+
    if (sl->wakeup_gen == sl->proc->wakeup_gen) {
-      TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
-      ++(sl->proc->wakeup_gen);
-      sl->next = resume;
-      resume = sl;
+      if (unlikely((sl->until != NULL) && ((*sl->until)() == 0))) {
+         TRACE("process %s condition check failed", pstr);
+         return false;
+      }
+      else {
+         TRACE("wakeup process %s", pstr);
+         ++(sl->proc->wakeup_gen);
+         sl->next = resume;
+         resume = sl;
+         return true;
+      }
    }
-   else
+   else {
       rt_free(sens_list_stack, sl);
+      return true;
+   }
 }
 
 static void rt_alloc_driver(struct signal *sig, int source,
@@ -747,16 +764,8 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
    const bool first_cycle = (iteration == 0 && now == 0);
    if (likely(!first_cycle)) {
       new_flags = SIGNAL_F_ACTIVE;
-      if (s->resolved != value) {
+      if (s->resolved != value)
          new_flags |= SIGNAL_F_EVENT;
-
-         struct sens_list *it, *next;
-         for (it = s->sensitive; it != NULL; it = next) {
-            next = it->next;
-            rt_wakeup(it);
-         }
-         s->sensitive = NULL;
-      }
 
       assert(n_active_signals < MAX_ACTIVE_SIGS);
       active_signals[n_active_signals++] = s;
@@ -781,6 +790,19 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
 
    s->resolved        = value;
    s->flags          |= new_flags;
+
+   // Wake up any processes sensitive to this signal
+   if (new_flags & SIGNAL_F_EVENT) {
+      struct sens_list *it, *next, *save = NULL;
+      for (it = s->sensitive; it != NULL; it = next) {
+         next = it->next;
+         if (unlikely(!rt_wakeup(it))) {
+            it->next = save;
+            save = it;
+         }
+      }
+      s->sensitive = save;
+   }
 }
 
 static void rt_update_driver(struct signal *s, int source)

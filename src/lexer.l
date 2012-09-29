@@ -170,6 +170,7 @@ GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
 ACCESS        {A}{C}{C}{E}{S}{S}
 FILE          {F}{I}{L}{E}
 OPEN          {O}{P}{E}{N}
+UNTIL         {U}{N}{T}{I}{L}
 
 %%
 
@@ -254,6 +255,7 @@ OPEN          {O}{P}{E}{N}
 {ACCESS}        { TOKEN(tACCESS); }
 {FILE}          { TOKEN(tFILE); }
 {OPEN}          { TOKEN(tOPEN); }
+{UNTIL}         { TOKEN(tUNTIL); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

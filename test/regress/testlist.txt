@@ -70,3 +70,4 @@ elab4           normal
 elab5           normal
 signal8         normal
 ram1            normal
+wait7           normal

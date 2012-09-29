@@ -9,6 +9,9 @@ begin
         wait on x;
         wait on x, y, z(1 downto 0);
         wait on w(1) for 2 ns;
+        wait until x = 3;
+        wait until y = x for 5 ns;
+        wait on x until x = 2 for 1 ns;
     end process;
 
     -- Blocking assignment

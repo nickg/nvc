@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1009
+#define FILE_FMT_VER 0x100a
 
 //#define EXTRA_READ_CHECKS
 
@@ -216,7 +216,7 @@ struct tree_rd_ctx {
     || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
     || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC)         \
     || IS(t, T_EXIT) || IS(t, T_COND) || IS(t, T_SELECT)              \
-    || IS(t, T_IF_GENERATE) || IS(t, T_FILE_DECL))
+    || IS(t, T_IF_GENERATE) || IS(t, T_FILE_DECL) || IS(t, T_WAIT))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))

@@ -39,6 +39,16 @@ begin
         x <= y;
         wait for 1 ns;                  -- Not allowed wait
     end process;
+
+    -- wait until
+    process is
+    begin
+        wait until true;
+        wait until x = '1';
+        wait until x;                   -- Not boolean
+        wait until y = x for 1 ns;
+        wait until y = x for x;         -- Not time
+    end process;
     
 end architecture;
     

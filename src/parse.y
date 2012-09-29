@@ -162,7 +162,7 @@
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
-%type <t> conc_select_assign_stmt generate_stmt
+%type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -200,7 +200,7 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE tOPEN tREAL
+%token tFILE tOPEN tREAL tUNTIL
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1189,13 +1189,14 @@ seq_stmt
 ;
 
 seq_stmt_without_label
-: tWAIT sensitivity_clause /* [ condition_clause ] */
-  timeout_clause tSEMI
+: tWAIT sensitivity_clause condition_clause timeout_clause tSEMI
   {
      $$ = tree_new(T_WAIT);
      tree_set_loc($$, &@$);
      if ($3 != NULL)
-        tree_set_delay($$, $3);
+        tree_set_value($$, $3);
+     if ($4 != NULL)
+        tree_set_delay($$, $4);
      copy_trees($2, tree_add_trigger, $$);
   }
 | target tASSIGN expr tSEMI
@@ -1493,6 +1494,11 @@ waveform_element
      tree_set_delay($$, $3);
   }
 | tNULL { $$ = NULL; }
+;
+
+condition_clause
+: tUNTIL expr { $$ = $2; }
+| /* empty */ { $$ = NULL; }
 ;
 
 timeout_clause

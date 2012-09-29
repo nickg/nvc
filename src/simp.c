@@ -33,6 +33,7 @@ static int errors = 0;
    { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
 
 static tree_t simp_tree(tree_t t, void *context);
+static void simp_build_wait(tree_t ref, void *context);
 
 static bool folded_int(tree_t t, literal_t *l)
 {
@@ -484,6 +485,18 @@ static tree_t simp_process(tree_t t)
       return t;
 }
 
+static tree_t simp_wait(tree_t t)
+{
+   // LRM 93 section 8.1
+   // If there is no sensitivity list supplied generate one from the
+   // condition clause
+
+   if (tree_has_value(t))
+      tree_visit_only(tree_value(t), simp_build_wait, t, T_REF);
+
+   return t;
+}
+
 static tree_t simp_if(tree_t t)
 {
    bool value_b;
@@ -823,6 +836,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_aggregate(t);
    case T_SELECT:
       return simp_select(t);
+   case T_WAIT:
+      return simp_wait(t);
    case T_NULL:
       return NULL;   // Delete it
    default:
