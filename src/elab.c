@@ -257,6 +257,10 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
+   if ((tree_class(t) == C_COMPONENT) || (tree_class(t) == C_CONFIGURATION))
+      fatal_at(tree_loc(t), "sorry, instantiating components or configurations "
+               "is not supported yet");
+
    tree_t arch = tree_copy(pick_arch(tree_loc(t), tree_ident2(t)));
 
    ident_t npath = hpathf(path, '@', "%s(%s)",
