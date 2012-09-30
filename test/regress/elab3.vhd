@@ -9,6 +9,7 @@ begin
     begin
         wait for 2 ns;
         report p'instance_name;
+        report p'path_name;
         wait;
     end process;
 
@@ -33,6 +34,7 @@ begin
         begin
             wait for 1 ns;
             report y'instance_name;
+            report y'path_name;
             wait;
         end process;
         
@@ -41,6 +43,7 @@ begin
     process is
     begin
         report x'instance_name;
+        report x'path_name;
         wait;
     end process;
 

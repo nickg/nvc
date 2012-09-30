@@ -1055,19 +1055,20 @@ static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
    return result;
 }
 
-static LLVMValueRef cgen_instance_name(tree_t ref)
+static LLVMValueRef cgen_name_attr(tree_t ref, int which)
 {
    tree_t decl = tree_ref(ref);
 
    LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
    LLVMValueRef res = LLVMBuildAlloca(builder,
                                       llvm_uarray_type(LLVMInt8Type()),
-                                      "inst_name");
+                                      "name_attr");
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
-      res
+      llvm_int32(which),
+      res,
    };
-   LLVMBuildCall(builder, llvm_fn("_inst_name"), args, ARRAY_LEN(args), "");
+   LLVMBuildCall(builder, llvm_fn("_name_attr"), args, ARRAY_LEN(args), "");
    return LLVMBuildLoad(builder, res, "");
 }
 
@@ -1092,7 +1093,9 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "agg_high"))
          return cgen_agg_bound(tree_param(t, 0).value, false, INT32_MIN, ctx);
       else if (icmp(builtin, "instance_name"))
-         return cgen_instance_name(tree_param(t, 0).value);
+         return cgen_name_attr(tree_param(t, 0).value, 1);
+      else if (icmp(builtin, "path_name"))
+         return cgen_name_attr(tree_param(t, 0).value, 0);
    }
 
    LLVMValueRef args[tree_params(t)];
@@ -3084,14 +3087,15 @@ static void cgen_support_fns(void)
                                        false));
    }
 
-   LLVMTypeRef _inst_name_args[] = {
+   LLVMTypeRef _name_attr_args[] = {
       llvm_void_ptr(),
+      LLVMInt32Type(),
       LLVMPointerType(llvm_uarray_type(LLVMInt8Type()), 0)
    };
-   LLVMAddFunction(module, "_inst_name",
+   LLVMAddFunction(module, "_name_attr",
                    LLVMFunctionType(LLVMVoidType(),
-                                    _inst_name_args,
-                                    ARRAY_LEN(_inst_name_args),
+                                    _name_attr_args,
+                                    ARRAY_LEN(_name_attr_args),
                                     false));
 }
 

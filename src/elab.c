@@ -23,8 +23,14 @@
 #include <string.h>
 #include <stdarg.h>
 
-static void elab_arch(tree_t t, tree_t out, ident_t path);
-static void elab_block(tree_t t, tree_t out, ident_t path);
+typedef struct {
+   tree_t  out;
+   ident_t path;    // Current 'PATH_NAME
+   ident_t inst;    // Current 'INSTANCE_NAME
+} elab_ctx_t;
+
+static void elab_arch(tree_t t, const elab_ctx_t *ctx);
+static void elab_block(tree_t t, const elab_ctx_t *ctx);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -253,7 +259,7 @@ static void elab_map(tree_t t, tree_t arch,
    }
 }
 
-static void elab_instance(tree_t t, tree_t out, ident_t path)
+static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
@@ -263,42 +269,53 @@ static void elab_instance(tree_t t, tree_t out, ident_t path)
 
    tree_t arch = tree_copy(pick_arch(tree_loc(t), tree_ident2(t)));
 
-   ident_t npath = hpathf(path, '@', "%s(%s)",
-                          simple_name(istr(tree_ident2(arch))),
-                          simple_name(istr(tree_ident(arch))));
-
    elab_map(t, arch, tree_ports, tree_port,
             tree_params, tree_param);
    elab_map(t, arch, tree_generics, tree_generic,
             tree_genmaps, tree_genmap);
 
-   elab_copy_context(out, tree_ref(t));
-   elab_arch(arch, out, npath);
+   elab_copy_context(ctx->out, tree_ref(t));
+
+   ident_t ninst = hpathf(ctx->inst, '@', "%s(%s)",
+                          simple_name(istr(tree_ident2(arch))),
+                          simple_name(istr(tree_ident(arch))));
+
+   elab_ctx_t new_ctx = {
+      .out  = ctx->out,
+      .path = ctx->path,
+      .inst = ninst
+   };
+   elab_arch(arch, &new_ctx);
 }
 
-static void elab_decls(tree_t t, tree_t out, ident_t path)
+static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
+   ident_t inst_name_i = ident_new("INSTANCE_NAME");
+
    for (unsigned i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
-      ident_t pn = hpathf(path, ':', "%s",
-                          simple_name(istr(tree_ident(d))));
+      const char *label = simple_name(istr(tree_ident(d)));
+      ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+      ident_t npath = hpathf(ctx->path, ':', "%s", label);
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
       case T_FUNC_BODY:
       case T_PROC_BODY:
       case T_ALIAS:
-         tree_set_ident(d, pn);
-         tree_add_decl(out, d);
+         tree_set_ident(d, npath);
+         tree_add_decl(ctx->out, d);
+         tree_add_attr_str(d, inst_name_i, ninst);
          break;
       case T_FUNC_DECL:
       case T_PROC_DECL:
-         tree_set_ident(d, pn);
+         tree_set_ident(d, npath);
          break;
       case T_CONST_DECL:
          if (type_kind(tree_type(d)) == T_CARRAY) {
-            tree_set_ident(d, pn);
-            tree_add_decl(out, d);
+            tree_set_ident(d, npath);
+            tree_add_attr_str(d, inst_name_i, ninst);
+            tree_add_decl(ctx->out, d);
          }
          break;
       default:
@@ -307,40 +324,49 @@ static void elab_decls(tree_t t, tree_t out, ident_t path)
    }
 }
 
-static void elab_stmts(tree_t t, tree_t out, ident_t path)
+static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    for (unsigned i = 0; i < tree_stmts(t); i++) {
       tree_t s = tree_stmt(t, i);
-      ident_t npath = hpathf(path, ':', "%s", istr(tree_ident(s)));
+      const char *label = istr(tree_ident(s));
+      ident_t npath = hpathf(ctx->path, ':', "%s", label);
+      ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
+
       tree_set_ident(s, npath);
+
+      elab_ctx_t new_ctx = {
+         .out  = ctx->out,
+         .path = npath,
+         .inst = ninst
+      };
 
       switch (tree_kind(s)) {
       case T_INSTANCE:
-         elab_instance(s, out, npath);
+         elab_instance(s, &new_ctx);
          break;
       case T_BLOCK:
-         elab_block(s, out, npath);
+         elab_block(s, &new_ctx);
          break;
       default:
-         tree_add_stmt(out, s);
+         tree_add_stmt(ctx->out, s);
       }
    }
 }
 
-static void elab_block(tree_t t, tree_t out, ident_t path)
+static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_decls(t, out, path);
-   elab_stmts(t, out, path);
+   elab_decls(t, ctx);
+   elab_stmts(t, ctx);
 }
 
-static void elab_arch(tree_t t, tree_t out, ident_t path)
+static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
-   elab_copy_context(out, t);
-   elab_decls(t, out, path);
-   elab_stmts(t, out, path);
+   elab_copy_context(ctx->out, t);
+   elab_decls(t, ctx);
+   elab_stmts(t, ctx);
 }
 
-static void elab_entity(tree_t t, tree_t out, ident_t path)
+static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 {
    if (tree_ports(t) > 0 || tree_generics(t) > 0) {
       // LRM 93 section 12.1 says implementation may allow this but
@@ -349,12 +375,19 @@ static void elab_entity(tree_t t, tree_t out, ident_t path)
    }
 
    tree_t arch = pick_arch(NULL, tree_ident(t));
-   ident_t new_path = hpathf(path, ':', ":%s(%s)",
-                             simple_name(istr(tree_ident(t))),
-                             simple_name(istr(tree_ident(arch))));
+   const char *name = simple_name(istr(tree_ident(t)));
+   ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
+                          simple_name(istr(tree_ident(arch))));
+   ident_t npath = hpathf(ctx->path, ':', ":%s", name);
 
-   elab_copy_context(out, t);
-   elab_arch(arch, out, new_path);
+   elab_copy_context(ctx->out, t);
+
+   elab_ctx_t new_ctx = {
+      .out  = ctx->out,
+      .path = npath,
+      .inst = ninst,
+   };
+   elab_arch(arch, &new_ctx);
 }
 
 tree_t elab(tree_t top)
@@ -365,9 +398,15 @@ tree_t elab(tree_t top)
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));
 
+   elab_ctx_t ctx = {
+      .out  = e,
+      .path = NULL,
+      .inst = NULL
+   };
+
    switch (tree_kind(top)) {
    case T_ENTITY:
-      elab_entity(top, e, NULL);
+      elab_entity(top, &ctx);
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));

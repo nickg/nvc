@@ -77,7 +77,7 @@ START_TEST(test_drivers)
    fail_unless(input_from_file(TESTDIR "/elab/drivers.vhd"));
 
    const error_t expect[] = {
-      {  5, "signal :drivers(a):y has multiple drivers" },
+      {  5, "signal :drivers:y has multiple drivers" },
       { -1, NULL }
    };
    expect_errors(expect);

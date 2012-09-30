@@ -460,11 +460,22 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
       printf("\n");
 }
 
-void _inst_name(void *_sig, struct uarray *u)
+void _name_attr(void *_sig, int which, struct uarray *u)
 {
    struct signal *sig = _sig;
+   ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
-   const char *str = istr(tree_ident(sig->decl));
+   const char *str;
+   switch (which) {
+   case 0:   // PATH_NAME
+      str = istr(tree_ident(sig->decl));
+      break;
+   case 1:   // INSTANCE_NAME
+      str = istr(tree_attr_str(sig->decl, inst_name_i));
+      break;
+   default:
+      assert(false);
+   }
 
    size_t len = strlen(str) + 1;
    char *buf = rt_tmp_alloc(len);
@@ -973,7 +984,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_array_reverse", _array_reverse);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
-   jit_bind_fn("_inst_name", _inst_name);
+   jit_bind_fn("_name_attr", _name_attr);
 
    trace_on = opt_get_int("rt_trace_en");
 

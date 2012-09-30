@@ -1357,6 +1357,7 @@ static void sem_add_attributes(tree_t decl)
       ident_t last_value_i = ident_new("LAST_VALUE");
       ident_t active_i     = ident_new("ACTIVE");
       ident_t inst_name_i  = ident_new("INSTANCE_NAME");
+      ident_t path_name_i  = ident_new("PATH_NAME");
 
       tree_add_attr_tree(decl, event_i,
                          sem_builtin_fn(event_i, std_bool, "event",
@@ -1370,6 +1371,9 @@ static void sem_add_attributes(tree_t decl)
       tree_add_attr_tree(decl, inst_name_i,
                          sem_builtin_fn(inst_name_i, std_string,
                                         "instance_name", type, NULL));
+      tree_add_attr_tree(decl, path_name_i,
+                         sem_builtin_fn(path_name_i, std_string,
+                                        "path_name", type, NULL));
    }
 }
 
