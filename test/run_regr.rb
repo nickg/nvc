@@ -9,7 +9,7 @@ require 'getopt/std'
 TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
-Opts = Getopt::Std.getopts('v')
+Opts = Getopt::Std.getopts('vn')
 
 def read_tests
   tests = []
@@ -24,11 +24,11 @@ def read_tests
 end
 
 def valgrind
-  if Opts['v'] then
-    'valgrind '
-  else
-    ''
-  end
+  Opts['v'] ? 'valgrind ' : ''
+end
+
+def native
+  Opts['n'] ? '--native' : ''
 end
 
 def nvc
@@ -58,7 +58,7 @@ def analyse(t)
 end
 
 def elaborate(t)
-  run_cmd "#{nvc} -e #{t[:name]} --disable-opt"
+  run_cmd "#{nvc} -e #{t[:name]} --disable-opt #{native}"
 end
 
 def run(t)

@@ -151,9 +151,10 @@ static void link_shared(tree_t top)
    link_arg_f("%s", SYSTEM_CC);
    link_arg_f("-shared");
    link_arg_f("-o");
-   // TODO: different on OS X, etc.
 #if defined __CYGWIN__
    link_output(top, "dll");
+#elif defined __APPLE__
+   link_output(top, "dylib");
 #else
    link_output(top, "so");
 #endif
