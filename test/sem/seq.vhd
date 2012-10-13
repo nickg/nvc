@@ -115,7 +115,7 @@ begin
             when others =>
         end case;
         case v is
-            when "0101" =>              --OK
+            when "0101" =>              -- OK
                 null;
             when "1101" =>              -- OK
                 null;
@@ -135,7 +135,13 @@ begin
                 null;
             when i + 2 =>               -- Not locally static
                 null;
-        end case;   
+        end case;
+        case l is                       -- Choice C not covered
+            when a =>
+                null;
+            when b =>
+                null;
+        end case;
     end process;
 
     -- Exit

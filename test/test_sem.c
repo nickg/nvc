@@ -645,8 +645,9 @@ START_TEST(test_seq)
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
       { 136, "case choice must be locally static" },
-      { 146, "type of exit condition must be STD.STANDARD.BOOLEAN" },
-      { 161, "parameter must be a variable" },
+      { 139, "missing choice C in case statement" },
+      { 152, "type of exit condition must be STD.STANDARD.BOOLEAN" },
+      { 167, "parameter must be a variable" },
       { -1, NULL }
    };
    expect_errors(expect);

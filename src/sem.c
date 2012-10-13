@@ -3387,7 +3387,6 @@ static bool sem_check_case(tree_t t)
       case A_OTHERS:
          if (i != tree_assocs(t) - 1)
             sem_error(t, "others choice must appear last");
-         // TODO: check type elements not covered by other choices
          break;
 
       case A_NAMED:
@@ -3408,7 +3407,52 @@ static bool sem_check_case(tree_t t)
       ok = sem_check(a.value) && ok;
    }
 
-   return ok;
+   if (!ok)
+      return false;
+
+   // Check the choices cover all elements of an enumerated type
+   if (type_kind(type) == T_ENUM) {
+      unsigned nlits = type_enum_literals(type);
+      bool have[nlits];
+      for (unsigned i = 0; i < nlits; i++)
+         have[i] = false;
+
+      bool have_others = false;
+
+      for (unsigned i = 0; i < tree_assocs(t); i++) {
+         assoc_t a = tree_assoc(t, i);
+
+         if (a.kind == A_OTHERS) {
+            have_others = true;
+            continue;
+         }
+
+         ident_t name = tree_ident(a.name);
+         for (unsigned j = 0; j < nlits; j++) {
+            if (tree_ident(type_enum_literal(type, j)) == name) {
+               if (have[j])
+                  sem_error(a.name, "choice %s appears multiple times "
+                            "in case statement", istr(name));
+               else
+                  have[j] = true;
+            }
+         }
+      }
+
+      bool have_all = true;
+      for (unsigned i = 0; i < nlits; i++) {
+         if (!have[i] && !have_others)
+            sem_error(t, "missing choice %s in case statement",
+                      istr(tree_ident(type_enum_literal(type, i))));
+         have_all = have_all && have[i];
+      }
+
+      if (have_all && have_others)
+         warn_at(tree_loc(t), "OTHERS choice is redundant as named "
+                 "choices cover all cases");
+   }
+
+   return true;
 }
 
 static bool sem_check_return(tree_t t)
