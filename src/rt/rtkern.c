@@ -89,6 +89,11 @@ struct sens_list {
    struct sens_list *next;
 };
 
+struct source {
+   int              id;
+   struct waveform *waveforms;
+};
+
 struct signal {
    uint64_t         resolved;
    uint64_t         last_value;
@@ -96,7 +101,7 @@ struct signal {
    uint8_t          flags;
    uint8_t          n_sources;
    uint16_t         offset;
-   struct waveform  **sources;
+   struct source    *sources;
    struct sens_list *sensitive;
    sig_event_fn_t   event_cb;
 };
@@ -586,7 +591,7 @@ static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
    if (s->sources != NULL) {
       for (int i = 0; i < s->n_sources; i++) {
          struct waveform *w, *wnext;
-         w = s->sources[i];
+         w = s->sources[i].waveforms;
          do {
             wnext = w->next;
             rt_free(waveform_stack, w);
@@ -723,21 +728,20 @@ static void rt_alloc_driver(struct signal *sig, int source,
                             uint64_t after, uint64_t value)
 {
    // Allocate memory for drivers on demand
-   const size_t ptr_sz = sizeof(struct waveform *);
+   const size_t source_sz = sizeof(struct source);
    if (unlikely(sig->sources == NULL)) {
       sig->n_sources = source + 1;
-      sig->sources = xmalloc(sig->n_sources * ptr_sz);
-      memset(sig->sources, '\0', sig->n_sources * ptr_sz);
+      sig->sources = xmalloc(sig->n_sources * source_sz);
+      memset(sig->sources, '\0', sig->n_sources * source_sz);
    }
    else if (unlikely(source >= sig->n_sources)) {
-      // TODO: scale size more aggressively here?
-      sig->sources = xrealloc(sig->sources, (source + 1) * ptr_sz);
+      sig->sources = xrealloc(sig->sources, (source + 1) * source_sz);
       memset(&sig->sources[sig->n_sources], '\0',
-             (source + 1 - sig->n_sources) * ptr_sz);
+             (source + 1 - sig->n_sources) * source_sz);
       sig->n_sources = source + 1;
    }
 
-   if (unlikely(sig->sources[source] == NULL)) {
+   if (unlikely(sig->sources[source].waveforms == NULL)) {
       // Assigning the initial value of a driver
       // Generate a dummy transaction so the real one will be propagated
       // at time zero (since the first element on the transaction queue
@@ -748,7 +752,7 @@ static void rt_alloc_driver(struct signal *sig, int source,
       dummy->when  = 0;
       dummy->next  = NULL;
 
-      sig->sources[source] = dummy;
+      sig->sources[source].waveforms = dummy;
    }
 
    struct waveform *w = rt_alloc(waveform_stack);
@@ -758,7 +762,7 @@ static void rt_alloc_driver(struct signal *sig, int source,
 
    // TODO: transport vs. inertial
 
-   struct waveform *it = sig->sources[source], *last = NULL;
+   struct waveform *it = sig->sources[source].waveforms, *last = NULL;
    while (it != NULL && it->when <= w->when) {
       last = it;
       it = it->next;
@@ -818,12 +822,12 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
 
 static void rt_update_driver(struct signal *s, int source)
 {
-   struct waveform *w_now  = s->sources[source];
+   struct waveform *w_now  = s->sources[source].waveforms;
    struct waveform *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
       rt_update_signal(s, source, w_next->value);
-      s->sources[source] = w_next;
+      s->sources[source].waveforms = w_next;
       rt_free(waveform_stack, w_now);
    }
    else
@@ -997,10 +1001,10 @@ static void rt_one_time_init(void)
 static void rt_cleanup_signal(struct signal *sig)
 {
    for (int j = 0; j < sig->n_sources; j++) {
-      while (sig->sources[j] != NULL) {
-         struct waveform *next = sig->sources[j]->next;
-         rt_free(waveform_stack, sig->sources[j]);
-         sig->sources[j] = next;
+      while (sig->sources[j].waveforms != NULL) {
+         struct waveform *next = sig->sources[j].waveforms->next;
+         rt_free(waveform_stack, sig->sources[j].waveforms);
+         sig->sources[j].waveforms = next;
       }
    }
    free(sig->sources);

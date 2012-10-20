@@ -66,6 +66,7 @@ typedef struct cgen_ctx {
    LLVMValueRef      fn;
    tree_t            proc;
    tree_t            fdecl;
+   int               source_id;
 } cgen_ctx_t;
 
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx);
@@ -1879,11 +1880,11 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
 }
 
 static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
-                                LLVMValueRef after)
+                                LLVMValueRef after, cgen_ctx_t *ctx)
 {
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
-      llvm_int32(0 /* source, TODO */),
+      llvm_int32(ctx->source_id),
       LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
       after
    };
@@ -2007,7 +2008,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          cgen_array_signal_store(p_signal, tree_type(target),
                                  rhs, tree_type(value), after, ctx);
       else
-         cgen_sched_waveform(p_signal, rhs, after);
+         cgen_sched_waveform(p_signal, rhs, after, ctx);
    }
 }
 
@@ -2851,7 +2852,8 @@ static void cgen_reset_function(tree_t t)
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
    struct cgen_ctx ctx = {
-      .fn = fn
+      .fn        = fn,
+      .source_id = 0   // Source ID zero means initial value
    };
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
@@ -2874,7 +2876,7 @@ static void cgen_reset_function(tree_t t)
          cgen_array_signal_store(p_signal, type, val, type,
                                  llvm_int64(0), &ctx);
       else
-         cgen_sched_waveform(p_signal, val, llvm_int64(0));
+         cgen_sched_waveform(p_signal, val, llvm_int64(0), &ctx);
    }
 
    LLVMBuildRetVoid(builder);
@@ -3153,4 +3155,3 @@ void cgen(tree_t top)
    LLVMDisposeBuilder(builder);
    LLVMDisposeModule(module);
 }
-
