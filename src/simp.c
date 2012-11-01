@@ -399,9 +399,11 @@ static tree_t simp_array_ref(tree_t t)
 
    tree_t decl = tree_ref(value);
 
-   literal_t indexes[tree_params(t)];
+   const unsigned nparams = tree_params(t);
+
+   literal_t indexes[nparams];
    bool can_fold = true;
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   for (unsigned i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
       can_fold = can_fold && folded_int(p.value, &indexes[i]);
@@ -410,8 +412,10 @@ static tree_t simp_array_ref(tree_t t)
    if (!can_fold)
       return t;
 
-   if (tree_params(t) > 1)
+   if (nparams > 1)
       return t;  // TODO: constant folding for multi-dimensional arrays
+
+   assert(nparams == 1);
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:

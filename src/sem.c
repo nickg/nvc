@@ -2202,16 +2202,18 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
    *pick    = NULL;
    *matches = 0;
 
+   const unsigned nparams = tree_params(t);
+
    // Work out which parameters have ambiguous interpretations
-   bool ambiguous[tree_params(t)];
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   bool ambiguous[nparams];
+   for (unsigned i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
       ambiguous[i] = sem_maybe_ambiguous(p.value);
    }
 
    // First pass: only check those parameters which are unambiguous
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   for (unsigned i = 0; i < nparams; i++) {
       if (ambiguous[i])
          continue;
 
@@ -2245,7 +2247,7 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
 
    // Second pass: now the set of overloads has been constrained check
    // those parameters which might be ambiguous
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   for (unsigned i = 0; i < nparams; i++) {
       if (!ambiguous[i])
          continue;
 

@@ -195,11 +195,14 @@ static void elab_map(tree_t t, tree_t arch,
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
 
-   bool have_formals[tree_Fs(unit)];
-   for (unsigned i = 0; i < tree_Fs(unit); i++)
+   const unsigned nformals = tree_Fs(unit);
+   const unsigned nactuals = tree_As(t);
+
+   bool have_formals[nformals];
+   for (unsigned i = 0; i < nformals; i++)
       have_formals[i] = false;
 
-   for (unsigned i = 0; i < tree_As(t); i++) {
+   for (unsigned i = 0; i < nactuals; i++) {
       param_t p = tree_A(t, i);
       tree_t formal = NULL;
 
@@ -209,7 +212,7 @@ static void elab_map(tree_t t, tree_t arch,
          have_formals[p.pos] = true;
          break;
       case P_NAMED:
-         for (unsigned j = 0; j < tree_Fs(unit); j++) {
+         for (unsigned j = 0; j < nformals; j++) {
             tree_t port = tree_F(unit, j);
             if (tree_ident(port) == p.name) {
                formal = port;
@@ -245,7 +248,7 @@ static void elab_map(tree_t t, tree_t arch,
    }
 
    // Assign default values
-   for (unsigned i = 0; i < tree_Fs(unit); i++) {
+   for (unsigned i = 0; i < nformals; i++) {
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
          assert(tree_has_value(f));
