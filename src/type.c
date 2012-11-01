@@ -640,7 +640,10 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    t->index      = (ctx->n_types)++;
 
    write_u16(t->kind, f);
-   ident_write(t->ident, ctx->ident_ctx);
+
+   // Call type_ident here to generate an arbitrary name if needed
+   ident_write(type_ident(t), ctx->ident_ctx);
+
    if (HAS_DIMS(t)) {
       write_u16(t->n_dims, f);
       for (unsigned i = 0; i < t->n_dims; i++) {
