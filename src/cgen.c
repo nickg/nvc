@@ -1923,11 +1923,11 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
 
    LLVMValueRef args[] = {
       llvm_void_cast(p_lhs),
-      llvm_int32(0 /* source, TODO */),
+      llvm_int32(ctx->source_id),
       llvm_void_cast(p_rhs),
       n_elems,
       llvm_sizeof(llvm_type(elem)),
-      llvm_int64(0 /* after, TODO */)
+      after
    };
    LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
                  args, ARRAY_LEN(args), "");
