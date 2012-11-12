@@ -1892,7 +1892,7 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
                  args, ARRAY_LEN(args), "");
 }
 
-static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
+static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
                                     LLVMValueRef rhs, type_t rhs_type,
                                     LLVMValueRef after, cgen_ctx_t *ctx)
 {
@@ -1991,7 +1991,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
       LLVMValueRef p_signal = cgen_signal_lvalue(tree_target(t), ctx);
 
       if (type_is_array(tree_type(value)))
-         cgen_array_signal_store(p_signal, tree_type(target),
+         cgen_sched_waveform_vec(p_signal, tree_type(target),
                                  rhs, tree_type(value), after, ctx);
       else
          cgen_sched_waveform(p_signal, rhs, after, ctx);
@@ -2859,7 +2859,7 @@ static void cgen_reset_function(tree_t t)
       type_t type = tree_type(d);
 
       if (type_is_array(type))
-         cgen_array_signal_store(p_signal, type, val, type,
+         cgen_sched_waveform_vec(p_signal, type, val, type,
                                  llvm_int64(0), &ctx);
       else
          cgen_sched_waveform(p_signal, val, llvm_int64(0), &ctx);
