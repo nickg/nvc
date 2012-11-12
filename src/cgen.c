@@ -1898,22 +1898,14 @@ static void cgen_array_signal_store(LLVMValueRef lhs, type_t lhs_type,
 {
    assert(type_is_array(lhs_type));
 
-   int levels = 0;
-   type_t elem = lhs_type;
-   do {
-      elem = type_elem(elem);
-      levels++;
-   } while (type_is_array(elem));
-
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
 
    LLVMValueRef n_elems = llvm_int32(1);
-   type_t dim = rhs_type;
-   for (int i = 0; i < levels; i++) {
-      LLVMValueRef dim_len = cgen_array_len(dim, rhs);
+   type_t elem = rhs_type;
+   do {
+      LLVMValueRef dim_len = cgen_array_len(elem, rhs);
       n_elems = LLVMBuildMul(builder, n_elems, dim_len, "");
-      dim = type_elem(dim);
-   }
+   } while (type_is_array((elem = type_elem(elem))));
 
    LLVMValueRef args[] = {
       llvm_void_cast(lhs),
