@@ -1416,6 +1416,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
    switch (cgen_get_class(decl)) {
    case C_VARIABLE:
    case C_DEFAULT:
+   case C_CONSTANT:
       {
          LLVMValueRef array = cgen_get_var(decl, ctx);
          return cgen_get_slice(array, type, tree_range(t), ctx);
