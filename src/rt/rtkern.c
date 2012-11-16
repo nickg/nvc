@@ -63,17 +63,12 @@ struct rt_proc {
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
 
 struct event {
-   uint64_t       when;
-   int            iteration;
-   event_kind_t   kind;
-
-   // E_PROCESS
-   struct rt_proc *wake_proc;
-
-   // E_DRIVER
+   uint64_t        when;
+   int             iteration;
+   event_kind_t    kind;
+   struct rt_proc *proc;
    struct signal  *signal;
-   unsigned       driver;
-   int            length;
+   int             length;
 };
 
 struct waveform {
@@ -90,7 +85,7 @@ struct sens_list {
 };
 
 struct driver {
-   int              id;
+   struct rt_proc  *proc;
    struct waveform *waveforms;
 };
 
@@ -151,9 +146,9 @@ static unsigned      n_active_signals = 0;
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
 static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
-                                 unsigned driver, int length);
-static void rt_alloc_driver(struct signal *sig, int driver,
-                            uint64_t after, uint64_t value);
+                                 int length, struct rt_proc *driver);
+static void rt_alloc_driver(struct signal *sig, uint64_t after,
+                            uint64_t value);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
@@ -257,25 +252,25 @@ void _sched_waveform_vec(void *_sig, int32_t driver, void *values,
    switch (size) {
       case 1:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], driver, after, v8[i]);
+            rt_alloc_driver(&sig[i], after, v8[i]);
          break;
       case 2:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], driver, after, v16[i]);
+            rt_alloc_driver(&sig[i], after, v16[i]);
          break;
       case 4:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], driver, after, v32[i]);
+            rt_alloc_driver(&sig[i], after, v32[i]);
          break;
       case 8:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], driver, after, v64[i]);
+            rt_alloc_driver(&sig[i], after, v64[i]);
          break;
       default:
          assert(false);
    }
 
-   deltaq_insert_driver(after, sig, driver, n);
+   deltaq_insert_driver(after, sig, n, active_proc);
 }
 
 void _sched_waveform(void *_sig, int32_t driver, int64_t value, int64_t after)
@@ -285,9 +280,9 @@ void _sched_waveform(void *_sig, int32_t driver, int64_t value, int64_t after)
    TRACE("_sched_waveform %s driver=%d value=%"PRIx64" after=%s",
          fmt_sig(sig), driver, value, fmt_time(after));
 
-   rt_alloc_driver(sig, driver, after, value);
+   rt_alloc_driver(sig, after, value);
 
-   deltaq_insert_driver(after, sig, driver, 1);
+   deltaq_insert_driver(after, sig, 1, active_proc);
 }
 
 void _sched_event(void *_sig, int32_t n, until_fn_t until)
@@ -560,20 +555,20 @@ static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
    e->kind      = E_PROCESS;
-   e->wake_proc = wake;
+   e->proc      = wake;
 
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
 
 static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
-                                 unsigned driver, int length)
+                                 int length, struct rt_proc *driver)
 {
    struct event *e = rt_alloc(event_stack);
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
    e->kind      = E_DRIVER;
    e->signal    = signal;
-   e->driver    = driver;
+   e->proc      = driver;
    e->length    = length;
 
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
@@ -588,7 +583,7 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    if (e->kind == E_DRIVER)
       fprintf(stderr, "driver\t %s\n", fmt_sig(e->signal));
    else
-      fprintf(stderr, "process\t %s\n", istr(tree_ident(e->wake_proc->source)));
+      fprintf(stderr, "process\t %s\n", istr(tree_ident(e->proc->source)));
 }
 
 static void deltaq_dump(void)
@@ -646,6 +641,7 @@ static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
    s->decl      = decl;
    s->sensitive = NULL;
    s->drivers   = NULL;
+   s->n_drivers = 0;
    s->event_cb  = NULL;
    s->offset    = offset;
 }
@@ -766,17 +762,18 @@ static bool rt_wakeup(struct sens_list *sl)
    }
 }
 
-static void rt_alloc_driver(struct signal *sig, int driver,
-                            uint64_t after, uint64_t value)
+static void rt_alloc_driver(struct signal *sig, uint64_t after, uint64_t value)
 {
-   // Allocate memory for drivers on demand
-   const size_t driver_sz = sizeof(struct driver);
-   if (unlikely(sig->drivers == NULL)) {
-      sig->n_drivers = driver + 1;
-      sig->drivers = xmalloc(sig->n_drivers * driver_sz);
-      memset(sig->drivers, '\0', sig->n_drivers * driver_sz);
+   // Try to find this process is the list of existing drivers
+   int driver;
+   for (driver = 0; driver < sig->n_drivers; driver++) {
+      if (likely(sig->drivers[driver].proc == active_proc))
+         break;
    }
-   else if (unlikely(driver >= sig->n_drivers)) {
+
+   // Allocate memory for drivers on demand
+   if (unlikely(driver == sig->n_drivers)) {
+      const size_t driver_sz = sizeof(struct driver);
       sig->drivers = xrealloc(sig->drivers, (driver + 1) * driver_sz);
       memset(&sig->drivers[sig->n_drivers], '\0',
              (driver + 1 - sig->n_drivers) * driver_sz);
@@ -790,6 +787,7 @@ static void rt_alloc_driver(struct signal *sig, int driver,
       dummy->next  = NULL;
 
       sig->drivers[driver].waveforms = dummy;
+      sig->drivers[driver].proc      = active_proc;
    }
 
    struct waveform *w = rt_alloc(waveform_stack);
@@ -857,8 +855,16 @@ static void rt_update_signal(struct signal *s, int driver, uint64_t value)
    }
 }
 
-static void rt_update_driver(struct signal *s, int driver)
+static void rt_update_driver(struct signal *s, struct rt_proc *proc)
 {
+   // Find the driver owned by proc
+   int driver;
+   for (driver = 0; driver < s->n_drivers; driver++) {
+      if (likely(s->drivers[driver].proc == proc))
+         break;
+   }
+   assert(driver != s->n_drivers);
+
    struct waveform *w_now  = s->drivers[driver].waveforms;
    struct waveform *w_next = w_now->next;
 
@@ -935,11 +941,11 @@ static void rt_cycle(void)
    while ((event = rt_pop_run_queue())) {
       switch (event->kind) {
       case E_PROCESS:
-         rt_run(event->wake_proc, false /* reset */);
+         rt_run(event->proc, false /* reset */);
          break;
       case E_DRIVER:
          for (int i = 0; i < event->length; i++)
-            rt_update_driver(&event->signal[i], event->driver);
+            rt_update_driver(&event->signal[i], event->proc);
          break;
       }
 
