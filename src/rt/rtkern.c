@@ -321,6 +321,48 @@ void _sched_event(void *_sig, int32_t n, until_fn_t until)
    }
 }
 
+void _set_initial_vec(void *_sig, void *values, int32_t n, int32_t size)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_set_initial_vec %p values=%p n=%d size=%d", sig, values, n, size);
+
+   const uint8_t  *v8  = values;
+   const uint16_t *v16 = values;
+   const uint32_t *v32 = values;
+   const uint64_t *v64 = values;
+
+   switch (size) {
+      case 1:
+         for (int i = 0; i < n; i++)
+            sig[i].resolved = sig[i].last_value = v8[i];
+         break;
+      case 2:
+         for (int i = 0; i < n; i++)
+            sig[i].resolved = sig[i].last_value = v16[i];
+         break;
+      case 4:
+         for (int i = 0; i < n; i++)
+            sig[i].resolved = sig[i].last_value = v32[i];
+         break;
+      case 8:
+         for (int i = 0; i < n; i++)
+            sig[i].resolved = sig[i].last_value = v64[i];
+         break;
+      default:
+         assert(false);
+   }
+}
+
+void _set_initial(void *_sig, int64_t value)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_set_initial %s value=%"PRIx64, fmt_sig(sig), value);
+
+   sig->resolved = sig->last_value = value;
+}
+
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
                   int32_t where, const char *module)
 {
@@ -743,11 +785,6 @@ static void rt_alloc_driver(struct signal *sig, int source,
 
    if (unlikely(sig->sources[source].waveforms == NULL)) {
       // Assigning the initial value of a driver
-      // Generate a dummy transaction so the real one will be propagated
-      // at time zero (since the first element on the transaction queue
-      // is assumed to have already occured)
-      assert(now == 0);
-
       struct waveform *dummy = rt_alloc(waveform_stack);
       dummy->when  = 0;
       dummy->next  = NULL;
@@ -989,6 +1026,8 @@ static void rt_one_time_init(void)
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
    jit_bind_fn("_name_attr", _name_attr);
+   jit_bind_fn("_set_initial", _set_initial);
+   jit_bind_fn("_set_initial_vec", _set_initial_vec);
 
    trace_on = opt_get_int("rt_trace_en");
 

@@ -412,6 +412,25 @@ static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
    }
 }
 
+static LLVMValueRef cgen_array_len_recur(type_t type, LLVMValueRef data)
+{
+   LLVMValueRef n_elems = llvm_int32(1);
+   type_t elem = type;
+   do {
+      LLVMValueRef dim_len = cgen_array_len(elem, data);
+      n_elems = LLVMBuildMul(builder, n_elems, dim_len, "");
+   } while (type_is_array((elem = type_elem(elem))));
+
+   return n_elems;
+}
+
+static LLVMValueRef cgen_array_elem_size(type_t type)
+{
+   while (type_is_array((type = type_elem(type))))
+      ;
+   return llvm_sizeof(llvm_type(type));
+}
+
 static LLVMValueRef cgen_tmp_var(tree_t d, cgen_ctx_t *ctx)
 {
    type_t type = tree_type(d);
@@ -1900,20 +1919,14 @@ static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
    assert(type_is_array(lhs_type));
 
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
-
-   LLVMValueRef n_elems = llvm_int32(1);
-   type_t elem = rhs_type;
-   do {
-      LLVMValueRef dim_len = cgen_array_len(elem, rhs);
-      n_elems = LLVMBuildMul(builder, n_elems, dim_len, "");
-   } while (type_is_array((elem = type_elem(elem))));
+   LLVMValueRef n_elems = cgen_array_len_recur(rhs_type, rhs);
 
    LLVMValueRef args[] = {
       llvm_void_cast(lhs),
       llvm_int32(ctx->source_id),
       llvm_void_cast(rhs_data),
       n_elems,
-      llvm_sizeof(llvm_type(elem)),
+      cgen_array_elem_size(rhs_type),
       after
    };
    LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
@@ -2859,11 +2872,26 @@ static void cgen_reset_function(tree_t t)
 
       type_t type = tree_type(d);
 
-      if (type_is_array(type))
-         cgen_sched_waveform_vec(p_signal, type, val, type,
-                                 llvm_int64(0), &ctx);
-      else
-         cgen_sched_waveform(p_signal, val, llvm_int64(0), &ctx);
+      if (type_is_array(type)) {
+         LLVMValueRef n_elems = cgen_array_len_recur(type, val);
+
+         LLVMValueRef args[] = {
+            llvm_void_cast(p_signal),
+            llvm_void_cast(val),
+            n_elems,
+            cgen_array_elem_size(type)
+         };
+         LLVMBuildCall(builder, llvm_fn("_set_initial_vec"),
+                       args, ARRAY_LEN(args), "");
+      }
+      else {
+         LLVMValueRef args[] = {
+            llvm_void_cast(p_signal),
+            LLVMBuildZExt(builder, val, LLVMInt64Type(), "")
+         };
+         LLVMBuildCall(builder, llvm_fn("_set_initial"),
+                       args, ARRAY_LEN(args), "");
+      }
    }
 
    LLVMBuildRetVoid(builder);
@@ -2963,6 +2991,28 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _sched_event_args,
                                     ARRAY_LEN(_sched_event_args),
+                                    false));
+
+   LLVMTypeRef _set_initial_args[] = {
+      llvm_void_ptr(),
+      LLVMInt64Type()
+   };
+   LLVMAddFunction(module, "_set_initial",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _set_initial_args,
+                                    ARRAY_LEN(_set_initial_args),
+                                    false));
+
+   LLVMTypeRef _set_initial_vec_args[] = {
+      llvm_void_ptr(),
+      llvm_void_ptr(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_set_initial_vec",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _set_initial_vec_args,
+                                    ARRAY_LEN(_set_initial_vec_args),
                                     false));
 
    LLVMTypeRef _assert_fail_args[] = {
