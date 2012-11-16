@@ -72,7 +72,7 @@ struct event {
 
    // E_DRIVER
    struct signal  *signal;
-   unsigned       source;
+   unsigned       driver;
    int            length;
 };
 
@@ -89,7 +89,7 @@ struct sens_list {
    struct sens_list *next;
 };
 
-struct source {
+struct driver {
    int              id;
    struct waveform *waveforms;
 };
@@ -99,9 +99,9 @@ struct signal {
    uint64_t         last_value;
    tree_t           decl;
    uint8_t          flags;
-   uint8_t          n_sources;
+   uint8_t          n_drivers;
    uint16_t         offset;
-   struct source    *sources;
+   struct driver    *drivers;
    struct sens_list *sensitive;
    sig_event_fn_t   event_cb;
 };
@@ -151,8 +151,8 @@ static unsigned      n_active_signals = 0;
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
 static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
-                                 unsigned source, int length);
-static void rt_alloc_driver(struct signal *sig, int source,
+                                 unsigned driver, int length);
+static void rt_alloc_driver(struct signal *sig, int driver,
                             uint64_t after, uint64_t value);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
@@ -241,13 +241,13 @@ void _sched_process(int64_t delay)
    deltaq_insert_proc(delay, active_proc);
 }
 
-void _sched_waveform_vec(void *_sig, int32_t source, void *values,
+void _sched_waveform_vec(void *_sig, int32_t driver, void *values,
                          int32_t n, int32_t size, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform_vec %p source=%d values=%p n=%d size=%d after=%s",
-         sig, source, values, n, size, fmt_time(after));
+   TRACE("_sched_waveform_vec %p driver=%d values=%p n=%d size=%d after=%s",
+         sig, driver, values, n, size, fmt_time(after));
 
    const uint8_t  *v8  = values;
    const uint16_t *v16 = values;
@@ -257,37 +257,37 @@ void _sched_waveform_vec(void *_sig, int32_t source, void *values,
    switch (size) {
       case 1:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], source, after, v8[i]);
+            rt_alloc_driver(&sig[i], driver, after, v8[i]);
          break;
       case 2:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], source, after, v16[i]);
+            rt_alloc_driver(&sig[i], driver, after, v16[i]);
          break;
       case 4:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], source, after, v32[i]);
+            rt_alloc_driver(&sig[i], driver, after, v32[i]);
          break;
       case 8:
          for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], source, after, v64[i]);
+            rt_alloc_driver(&sig[i], driver, after, v64[i]);
          break;
       default:
          assert(false);
    }
 
-   deltaq_insert_driver(after, sig, source, n);
+   deltaq_insert_driver(after, sig, driver, n);
 }
 
-void _sched_waveform(void *_sig, int32_t source, int64_t value, int64_t after)
+void _sched_waveform(void *_sig, int32_t driver, int64_t value, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform %s source=%d value=%"PRIx64" after=%s",
-         fmt_sig(sig), source, value, fmt_time(after));
+   TRACE("_sched_waveform %s driver=%d value=%"PRIx64" after=%s",
+         fmt_sig(sig), driver, value, fmt_time(after));
 
-   rt_alloc_driver(sig, source, after, value);
+   rt_alloc_driver(sig, driver, after, value);
 
-   deltaq_insert_driver(after, sig, source, 1);
+   deltaq_insert_driver(after, sig, driver, 1);
 }
 
 void _sched_event(void *_sig, int32_t n, until_fn_t until)
@@ -566,14 +566,14 @@ static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
 }
 
 static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
-                                 unsigned source, int length)
+                                 unsigned driver, int length)
 {
    struct event *e = rt_alloc(event_stack);
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
    e->kind      = E_DRIVER;
    e->signal    = signal;
-   e->source    = source;
+   e->driver    = driver;
    e->length    = length;
 
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
@@ -630,22 +630,22 @@ static void *rt_tmp_alloc(size_t sz)
 
 static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
 {
-   if (s->sources != NULL) {
-      for (int i = 0; i < s->n_sources; i++) {
+   if (s->drivers != NULL) {
+      for (int i = 0; i < s->n_drivers; i++) {
          struct waveform *w, *wnext;
-         w = s->sources[i].waveforms;
+         w = s->drivers[i].waveforms;
          do {
             wnext = w->next;
             rt_free(waveform_stack, w);
          } while ((w = wnext) != NULL);
       }
 
-      free(s->sources);
+      free(s->drivers);
    }
 
    s->decl      = decl;
    s->sensitive = NULL;
-   s->sources   = NULL;
+   s->drivers   = NULL;
    s->event_cb  = NULL;
    s->offset    = offset;
 }
@@ -766,30 +766,30 @@ static bool rt_wakeup(struct sens_list *sl)
    }
 }
 
-static void rt_alloc_driver(struct signal *sig, int source,
+static void rt_alloc_driver(struct signal *sig, int driver,
                             uint64_t after, uint64_t value)
 {
    // Allocate memory for drivers on demand
-   const size_t source_sz = sizeof(struct source);
-   if (unlikely(sig->sources == NULL)) {
-      sig->n_sources = source + 1;
-      sig->sources = xmalloc(sig->n_sources * source_sz);
-      memset(sig->sources, '\0', sig->n_sources * source_sz);
+   const size_t driver_sz = sizeof(struct driver);
+   if (unlikely(sig->drivers == NULL)) {
+      sig->n_drivers = driver + 1;
+      sig->drivers = xmalloc(sig->n_drivers * driver_sz);
+      memset(sig->drivers, '\0', sig->n_drivers * driver_sz);
    }
-   else if (unlikely(source >= sig->n_sources)) {
-      sig->sources = xrealloc(sig->sources, (source + 1) * source_sz);
-      memset(&sig->sources[sig->n_sources], '\0',
-             (source + 1 - sig->n_sources) * source_sz);
-      sig->n_sources = source + 1;
+   else if (unlikely(driver >= sig->n_drivers)) {
+      sig->drivers = xrealloc(sig->drivers, (driver + 1) * driver_sz);
+      memset(&sig->drivers[sig->n_drivers], '\0',
+             (driver + 1 - sig->n_drivers) * driver_sz);
+      sig->n_drivers = driver + 1;
    }
 
-   if (unlikely(sig->sources[source].waveforms == NULL)) {
+   if (unlikely(sig->drivers[driver].waveforms == NULL)) {
       // Assigning the initial value of a driver
       struct waveform *dummy = rt_alloc(waveform_stack);
       dummy->when  = 0;
       dummy->next  = NULL;
 
-      sig->sources[source].waveforms = dummy;
+      sig->drivers[driver].waveforms = dummy;
    }
 
    struct waveform *w = rt_alloc(waveform_stack);
@@ -799,7 +799,7 @@ static void rt_alloc_driver(struct signal *sig, int source,
 
    // TODO: transport vs. inertial
 
-   struct waveform *it = sig->sources[source].waveforms, *last = NULL;
+   struct waveform *it = sig->drivers[driver].waveforms, *last = NULL;
    while (it != NULL && it->when <= w->when) {
       last = it;
       it = it->next;
@@ -808,7 +808,7 @@ static void rt_alloc_driver(struct signal *sig, int source,
    last->next = w;
 }
 
-static void rt_update_signal(struct signal *s, int source, uint64_t value)
+static void rt_update_signal(struct signal *s, int driver, uint64_t value)
 {
    TRACE("update signal %s value %"PRIx64, fmt_sig(s), value);
 
@@ -857,14 +857,14 @@ static void rt_update_signal(struct signal *s, int source, uint64_t value)
    }
 }
 
-static void rt_update_driver(struct signal *s, int source)
+static void rt_update_driver(struct signal *s, int driver)
 {
-   struct waveform *w_now  = s->sources[source].waveforms;
+   struct waveform *w_now  = s->drivers[driver].waveforms;
    struct waveform *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      rt_update_signal(s, source, w_next->value);
-      s->sources[source].waveforms = w_next;
+      rt_update_signal(s, driver, w_next->value);
+      s->drivers[driver].waveforms = w_next;
       rt_free(waveform_stack, w_now);
    }
    else
@@ -939,7 +939,7 @@ static void rt_cycle(void)
          break;
       case E_DRIVER:
          for (int i = 0; i < event->length; i++)
-            rt_update_driver(&event->signal[i], event->source);
+            rt_update_driver(&event->signal[i], event->driver);
          break;
       }
 
@@ -1039,14 +1039,14 @@ static void rt_one_time_init(void)
 
 static void rt_cleanup_signal(struct signal *sig)
 {
-   for (int j = 0; j < sig->n_sources; j++) {
-      while (sig->sources[j].waveforms != NULL) {
-         struct waveform *next = sig->sources[j].waveforms->next;
-         rt_free(waveform_stack, sig->sources[j].waveforms);
-         sig->sources[j].waveforms = next;
+   for (int j = 0; j < sig->n_drivers; j++) {
+      while (sig->drivers[j].waveforms != NULL) {
+         struct waveform *next = sig->drivers[j].waveforms->next;
+         rt_free(waveform_stack, sig->drivers[j].waveforms);
+         sig->drivers[j].waveforms = next;
       }
    }
-   free(sig->sources);
+   free(sig->drivers);
 
    while (sig->sensitive) {
       struct sens_list *next = sig->sensitive->next;
