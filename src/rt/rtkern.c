@@ -808,21 +808,18 @@ static void rt_alloc_driver(struct signal *sig, uint64_t after, uint64_t value)
 
 static void rt_update_signal(struct signal *s, int driver, uint64_t value)
 {
-   TRACE("update signal %s value %"PRIx64, fmt_sig(s), value);
+   TRACE("update signal %s value=%"PRIx64" driver=%d",
+         fmt_sig(s), value, driver);
 
-   int32_t new_flags = 0;
-   const bool first_cycle = (iteration == 0 && now == 0);
-   if (likely(!first_cycle)) {
-      new_flags = SIGNAL_F_ACTIVE;
-      if (s->resolved != value)
-         new_flags |= SIGNAL_F_EVENT;
+   if (s->n_drivers > 1)
+      fatal("sorry, multiple drivers are not supported yet");
 
-      assert(n_active_signals < MAX_ACTIVE_SIGS);
-      active_signals[n_active_signals++] = s;
-   }
-   else {
-      s->resolved = value;
-   }
+   int32_t new_flags = SIGNAL_F_ACTIVE;
+   if (s->resolved != value)
+      new_flags |= SIGNAL_F_EVENT;
+
+   assert(n_active_signals < MAX_ACTIVE_SIGS);
+   active_signals[n_active_signals++] = s;
 
    // Set the update flag on the first element of the vector which
    // will cause the event callback to be executed at the end of
@@ -833,13 +830,11 @@ static void rt_update_signal(struct signal *s, int driver, uint64_t value)
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
-   if (unlikely(first_cycle))
-      s->last_value = value;
-   else if (new_flags & SIGNAL_F_EVENT)
+   if (new_flags & SIGNAL_F_EVENT)
       s->last_value = s->resolved;
 
-   s->resolved        = value;
-   s->flags          |= new_flags;
+   s->resolved  = value;
+   s->flags    |= new_flags;
 
    // Wake up any processes sensitive to this signal
    if (new_flags & SIGNAL_F_EVENT) {
