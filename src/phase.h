@@ -36,12 +36,6 @@ void simplify(tree_t top);
 // Number of errors found during simplification
 int simplify_errors(void);
 
-// Find all drivers associated with signals
-void driver_extract(tree_t top);
-
-// Number of errors found during driver extraction
-int driver_errors(void);
-
 // Elaborate a top level entity
 tree_t elab(tree_t top);
 
