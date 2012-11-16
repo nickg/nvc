@@ -66,7 +66,6 @@ typedef struct cgen_ctx {
    LLVMValueRef      fn;
    tree_t            proc;
    tree_t            fdecl;
-   int               source_id;
 } cgen_ctx_t;
 
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx);
@@ -1904,7 +1903,6 @@ static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
 {
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
-      llvm_int32(ctx->source_id),
       LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
       after
    };
@@ -1923,7 +1921,6 @@ static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
 
    LLVMValueRef args[] = {
       llvm_void_cast(lhs),
-      llvm_int32(ctx->source_id),
       llvm_void_cast(rhs_data),
       n_elems,
       cgen_array_elem_size(rhs_type),
@@ -2852,8 +2849,7 @@ static void cgen_reset_function(tree_t t)
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
    struct cgen_ctx ctx = {
-      .fn        = fn,
-      .source_id = 0   // Source ID zero means initial value
+      .fn        = fn
    };
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
@@ -2958,7 +2954,6 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _sched_waveform_args[] = {
       llvm_void_ptr(),
-      LLVMInt32Type(),
       LLVMInt64Type(),
       LLVMInt64Type()
    };
@@ -2970,7 +2965,6 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _sched_waveform_vec_args[] = {
       llvm_void_ptr(),
-      LLVMInt32Type(),
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type(),

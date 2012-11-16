@@ -236,13 +236,13 @@ void _sched_process(int64_t delay)
    deltaq_insert_proc(delay, active_proc);
 }
 
-void _sched_waveform_vec(void *_sig, int32_t driver, void *values,
-                         int32_t n, int32_t size, int64_t after)
+void _sched_waveform_vec(void *_sig, void *values, int32_t n,
+                         int32_t size, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform_vec %p driver=%d values=%p n=%d size=%d after=%s",
-         sig, driver, values, n, size, fmt_time(after));
+   TRACE("_sched_waveform_vec %p values=%p n=%d size=%d after=%s",
+         sig, values, n, size, fmt_time(after));
 
    const uint8_t  *v8  = values;
    const uint16_t *v16 = values;
@@ -273,12 +273,12 @@ void _sched_waveform_vec(void *_sig, int32_t driver, void *values,
    deltaq_insert_driver(after, sig, n, active_proc);
 }
 
-void _sched_waveform(void *_sig, int32_t driver, int64_t value, int64_t after)
+void _sched_waveform(void *_sig, int64_t value, int64_t after)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform %s driver=%d value=%"PRIx64" after=%s",
-         fmt_sig(sig), driver, value, fmt_time(after));
+   TRACE("_sched_waveform %s value=%"PRIx64" after=%s",
+         fmt_sig(sig), value, fmt_time(after));
 
    rt_alloc_driver(sig, after, value);
 
