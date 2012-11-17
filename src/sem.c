@@ -1141,7 +1141,8 @@ static bool sem_check_resolution(type_t type)
       sem_error(ref, "undefined resolution function %s",
                 istr(tree_ident(ref)));
 
-   if (tree_kind(fdecl) != T_FUNC_DECL)
+   tree_kind_t kind = tree_kind(fdecl);
+   if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY))
       sem_error(ref, "declaration %s is not a function",
                 istr(tree_ident(ref)));
 

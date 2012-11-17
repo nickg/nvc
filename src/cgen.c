@@ -2517,7 +2517,7 @@ static void cgen_process(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_signal_init(type_t type)
+static LLVMValueRef cgen_signal_init(type_t type, LLVMValueRef resolution)
 {
    if (type_is_array(type)) {
       range_t r = type_dim(type, 0);
@@ -2527,7 +2527,7 @@ static LLVMValueRef cgen_signal_init(type_t type)
       const unsigned n_elems = high - low + 1;
 
       LLVMValueRef array_init[n_elems];
-      LLVMValueRef init = cgen_signal_init(type_elem(type));
+      LLVMValueRef init = cgen_signal_init(type_elem(type), resolution);
       for (unsigned i = 0; i < n_elems; i++)
          array_init[i] = init;
       return LLVMConstArray(LLVMTypeOf(init), array_init, n_elems);
@@ -2543,6 +2543,7 @@ static LLVMValueRef cgen_signal_init(type_t type)
       init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
+      init[SIGNAL_RESOLUTION] = resolution;
 
       LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
       assert(signal_s != NULL);
@@ -2681,6 +2682,7 @@ static LLVMTypeRef cgen_signal_type(type_t type)
          fields[SIGNAL_SOURCES]    = llvm_void_ptr();
          fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
          fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
+         fields[SIGNAL_RESOLUTION] = llvm_void_ptr();
 
          if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
             fatal("failed to add type name signal_s");
@@ -2689,6 +2691,115 @@ static LLVMTypeRef cgen_signal_type(type_t type)
 
       return ty;
    }
+}
+
+static LLVMValueRef cgen_resolution_func(type_t type)
+{
+   if ((type_kind(type) != T_SUBTYPE) || !type_has_resolution(type))
+      return LLVMConstNull(llvm_void_ptr());
+
+   // Generate a wrapper function to call the type's resolution function
+   // This needs to convert an array of raw 64-bit signal values to the
+   // signal's LLVM type
+
+   char name[256];
+   snprintf(name, sizeof(name), "%s$resolution", istr(type_ident(type)));
+
+   LLVMValueRef fn = LLVMGetNamedFunction(module, name);
+   if (fn != NULL)
+      return fn;    // Already generated wrapper
+
+   LLVMTypeRef args[] = {
+      LLVMPointerType(LLVMInt64Type(), 0),
+      LLVMInt32Type()
+   };
+
+   fn = LLVMAddFunction(module, name,
+                        LLVMFunctionType(LLVMInt64Type(),
+                                         args, ARRAY_LEN(args), false));
+
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   // Convert 64-bit values to array of required type
+   LLVMTypeRef elem_type = llvm_type(type);
+   LLVMValueRef vals =
+      LLVMBuildArrayAlloca(builder,
+                           elem_type,
+                           LLVMGetParam(fn, 1),  // Number of elements
+                           "vals");
+
+   // Loop prelude
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, llvm_int32(0), i);
+
+   LLVMBasicBlockRef loop_bb = LLVMAppendBasicBlock(fn, "loop");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(fn, "exit");
+
+   LLVMBuildBr(builder, loop_bb);
+   LLVMPositionBuilderAtEnd(builder, loop_bb);
+
+   // Loop body
+
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i_loaded");
+
+   LLVMValueRef src = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
+                                   &i_loaded, 1, "src");
+   LLVMValueRef dst = LLVMBuildGEP(builder, vals, &i_loaded, 1, "dst");
+
+   LLVMValueRef src_loaded = LLVMBuildLoad(builder, src, "src_loaded");
+
+   LLVMBuildStore(builder,
+                  LLVMBuildTrunc(builder, src_loaded, elem_type, "trunc"),
+                  dst);
+
+   LLVMValueRef i_plus1  =
+      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "i_plus1");
+   LLVMBuildStore(builder, i_plus1, i);
+
+   LLVMValueRef end = LLVMBuildICmp(builder, LLVMIntEQ, i_plus1,
+                                    LLVMGetParam(fn, 1), "end");
+
+   LLVMBuildCondBr(builder, end, exit_bb, loop_bb);
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+
+   // Wrap array in meta data and call actual resolution function
+
+   tree_t fdecl = tree_ref(type_resolution(type));
+   type_t ftype = tree_type(fdecl);
+
+   // TODO: check what standard says about left/right and direction
+   LLVMValueRef left  = llvm_int32(0);
+   LLVMValueRef right = LLVMBuildSub(builder, LLVMGetParam(fn, 1),
+                                     llvm_int32(1), "right");
+   LLVMValueRef dir   = llvm_int8(RANGE_TO);
+
+   LLVMValueRef wrapped =
+      cgen_array_meta(type_param(ftype, 0), left, right, dir, vals);
+
+   const char *rfn_name = cgen_mangle_func_name(fdecl);
+   LLVMValueRef rfn = LLVMGetNamedFunction(module, rfn_name);
+   if (rfn == NULL) {
+      // The resolution function is not visible yet e.g. because it
+      // is declared in another package
+      LLVMTypeRef args[tree_ports(fdecl)];
+      cgen_prototype(fdecl, args, false);
+
+      rfn = LLVMAddFunction(module, rfn_name,
+                            LLVMFunctionType(elem_type, args, 1, false));
+   }
+
+   LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
+
+   LLVMBuildRet(builder,
+                LLVMBuildZExt(builder, r, LLVMInt64Type(), ""));
+
+   LLVMPositionBuilderAtEnd(builder, saved_bb);
+
+   return llvm_void_cast(fn);
 }
 
 static void cgen_signal(tree_t t)
@@ -2700,7 +2811,9 @@ static void cgen_signal(tree_t t)
    LLVMTypeRef lltype = cgen_signal_type(type);
    LLVMValueRef v = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
 
-   LLVMSetInitializer(v, cgen_signal_init(type));
+   LLVMValueRef r = cgen_resolution_func(type);
+
+   LLVMSetInitializer(v, cgen_signal_init(type, r));
 
    if (type_is_array(type))
       cgen_array_signal_load_fn(type_elem(type));

@@ -39,6 +39,7 @@
 
 typedef void (*proc_fn_t)(int32_t reset);
 typedef int8_t (*until_fn_t)(void);
+typedef uint64_t (*resolution_fn_t)(uint64_t *vals, int32_t n);
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -99,6 +100,7 @@ struct signal {
    struct driver    *drivers;
    struct sens_list *sensitive;
    sig_event_fn_t   event_cb;
+   resolution_fn_t  resolution;
 };
 
 struct uarray {
@@ -811,11 +813,26 @@ static void rt_update_signal(struct signal *s, int driver, uint64_t value)
    TRACE("update signal %s value=%"PRIx64" driver=%d",
          fmt_sig(s), value, driver);
 
-   if (s->n_drivers > 1)
-      fatal("sorry, multiple drivers are not supported yet");
+   uint64_t resolved;
+   if (unlikely(s->n_drivers > 1)) {
+      // If there is more than one driver call the resolution function
+
+      if (unlikely(s->resolution == NULL))
+         fatal_at(tree_loc(s->decl), "signal %s has multiple drivers but "
+                  "no resolution function", istr(tree_ident(s->decl)));
+
+      uint64_t vals[s->n_drivers];
+      for (int i = 0; i < s->n_drivers; i++)
+         vals[i] = s->drivers[i].waveforms->value;
+      vals[driver] = value;
+
+      resolved = (*s->resolution)(vals, s->n_drivers);
+   }
+   else
+      resolved = value;
 
    int32_t new_flags = SIGNAL_F_ACTIVE;
-   if (s->resolved != value)
+   if (s->resolved != resolved)
       new_flags |= SIGNAL_F_EVENT;
 
    assert(n_active_signals < MAX_ACTIVE_SIGS);
@@ -833,7 +850,7 @@ static void rt_update_signal(struct signal *s, int driver, uint64_t value)
    if (new_flags & SIGNAL_F_EVENT)
       s->last_value = s->resolved;
 
-   s->resolved  = value;
+   s->resolved  = resolved;
    s->flags    |= new_flags;
 
    // Wake up any processes sensitive to this signal
