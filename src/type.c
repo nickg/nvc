@@ -833,6 +833,7 @@ const char *type_pp(type_t t)
 
    switch (type_kind(t)) {
    case T_FUNC:
+   case T_PROC:
       {
          static char fn[256];
          char *p = fn;
@@ -844,8 +845,10 @@ const char *type_pp(type_t t)
             p += snprintf(p, end - p, "%s%s",
                           (i == 0 ? "" : ", "),
                           istr(type_ident(type_param(t, i))));
-         p += snprintf(p, end - p, ") return %s",
-                       istr(type_ident(type_result(t))));
+         p += snprintf(p, end - p, ")");
+         if (type_kind(t) == T_FUNC)
+            p += snprintf(p, end - p, " return %s",
+                          istr(type_ident(type_result(t))));
 
          return fn;
       }
