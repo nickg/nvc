@@ -65,6 +65,7 @@ static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
 static bool sem_locally_static(tree_t t);
+static tree_t sem_check_lvalue(tree_t t);
 
 static struct scope    *top_scope = NULL;
 static int             errors = 0;
@@ -1681,7 +1682,7 @@ static bool sem_check_sensitivity(tree_t t)
 
       if (ok) {
          // Can only reference signals in sensitivity list
-         tree_t decl = tree_ref(r);
+         tree_t decl = sem_check_lvalue(r);
          switch (tree_kind(decl)) {
          case T_SIGNAL_DECL:
          case T_PORT_DECL:

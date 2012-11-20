@@ -391,12 +391,12 @@ START_TEST(test_wait)
    fail_unless(input_from_file(TESTDIR "/sem/wait.vhd"));
 
    const error_t expect[] = {
-      { 14, "type of delay must be TIME" },
-      { 23, "name V in sensitivity list is not a signal" },
-      { 32, "undefined identifier A" },
-      { 37, "wait statement not allowed in process" },
-      { 48, "type of condition must be BOOLEAN" },
-      { 50, "type of delay must be TIME" },
+      { 17, "type of delay must be TIME" },
+      { 26, "name V in sensitivity list is not a signal" },
+      { 35, "undefined identifier A" },
+      { 40, "wait statement not allowed in process" },
+      { 51, "type of condition must be BOOLEAN" },
+      { 53, "type of delay must be TIME" },
       { -1, NULL }
    };
    expect_errors(expect);

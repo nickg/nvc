@@ -3,6 +3,9 @@ end entity;
 
 architecture b of a is
     signal x, y : bit;
+    signal z : bit_vector(3 downto 0);
+    alias xa is x;
+    alias za : bit is z(2);
 begin
 
     -- wait for
@@ -49,6 +52,16 @@ begin
         wait until y = x for 1 ns;
         wait until y = x for x;         -- Not time
     end process;
-    
+
+    -- Alias in sensitivity list
+    process (xa, za) is
+    begin
+    end process;
+
+    -- Wait on scalar sub-elements and slices
+    process is
+    begin
+        wait on z(1), za, z(2 downto 1);
+    end process;
+
 end architecture;
-    
