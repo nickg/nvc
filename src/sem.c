@@ -1776,6 +1776,7 @@ static bool sem_check_package_body(tree_t t)
    if (ok) {
       tree_t pack = lib_get(lib_work(), c.name);
       assert(pack != NULL);
+      // XXX: this call should be in the outer scope above
       ok = ok && sem_check_context(pack);
 
       for (unsigned n = 0; n < tree_decls(t); n++) {
@@ -1785,11 +1786,15 @@ static bool sem_check_package_body(tree_t t)
          ok = sem_check(decl) && ok;
 
          // Make the unqualified name visible inside the package except
-         // in the case of function bodies where the declaration is
-         // already visible
-         bool make_visible =
-            (tree_kind(decl) != T_FUNC_BODY
-             || !sem_check_duplicate(decl, T_FUNC_DECL));
+         // in the case of function and procedure bodies where the declaration
+         // is already visible
+         bool func_body_dup =
+            ((tree_kind(decl) == T_FUNC_BODY)
+             && (sem_check_duplicate(decl, T_FUNC_DECL)));
+         bool proc_body_dup =
+            ((tree_kind(decl) == T_PROC_BODY)
+             && (sem_check_duplicate(decl, T_PROC_DECL)));
+         bool make_visible = !func_body_dup && !proc_body_dup;
 
          if (make_visible)
             scope_insert_alias(decl, unqual);

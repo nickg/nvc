@@ -7,7 +7,7 @@ package func is
     type uenum is (A, B, C);
 
     type uenum_vector is array (integer range <>) of uenum;
-    
+
     function resolved(v : uenum_vector) return uenum;
 
     subtype enum is resolved uenum;
@@ -25,7 +25,7 @@ package func is
     subtype enum_bad3 is uenum uenum;   -- Error
 
     function default(x : in uenum := 6) return uenum;  -- Error
-    
+
 end package;
 
 package body bad is                     -- Error
@@ -86,5 +86,10 @@ package body func is
     begin
         return r;
     end function;
-    
+
+    function test8(x : uenum) return uenum_vector is
+    begin
+        return test7((1 to 3 => x));
+    end function;
+
 end package body;

@@ -1,7 +1,7 @@
 package p is
 
     procedure foo(x : in integer; y : out integer);
-    
+
 end package;
 
 package body p is
@@ -22,5 +22,10 @@ package body p is
         return;                         -- OK
         return 5;                       -- Error
     end procedure;
-    
+
+    procedure foo_wrap(y : out integer) is
+    begin
+        foo(5, y);
+    end procedure;
+
 end package body;
