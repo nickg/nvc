@@ -3,6 +3,8 @@ The standard IEEE packages cannot be freely redistributed in source form.
 The libraries can be downloaded from the IEEE here:
   http://standards.ieee.org/downloads/1076/1076.2-1996/
 
+The script tools/fetch-ieee.sh can automate this for you.
+
 The required files are:
   math_complex-body.vhdl
   math_complex.vhdl
