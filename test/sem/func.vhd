@@ -92,4 +92,14 @@ package body func is
         return test7((1 to 3 => x));
     end function;
 
+    function default2(y : in integer := 6) return integer is
+    begin
+        return y * 2;
+    end function;
+
+    function test9 return integer is
+    begin
+        return default2;
+    end function;
+
 end package body;

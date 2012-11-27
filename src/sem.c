@@ -520,17 +520,27 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
    type_set_ident(f, name);
    type_set_result(f, result);
 
-   va_list ap;
-   va_start(ap, builtin);
-   type_t arg;
-   while ((arg = va_arg(ap, type_t)))
-      type_add_param(f, arg);
-   va_end(ap);
-
    tree_t d = tree_new(T_FUNC_DECL);
    tree_set_ident(d, name);
    tree_set_type(d, f);
    tree_add_attr_str(d, builtin_i, ident_new(builtin));
+
+   ident_t arg_name = ident_new("_a");
+
+   va_list ap;
+   va_start(ap, builtin);
+   type_t arg;
+   while ((arg = va_arg(ap, type_t))) {
+      type_add_param(f, arg);
+
+      tree_t port = tree_new(T_PORT_DECL);
+      tree_set_ident(port, arg_name);
+      tree_set_type(port, arg);
+      tree_set_port_mode(port, PORT_IN);
+
+      tree_add_port(d, port);
+   }
+   va_end(ap);
 
    return d;
 }
@@ -538,10 +548,7 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
 static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
                                type_t result, const char *builtin)
 {
-   tree_t d = sem_builtin_fn(name, result, builtin, NULL);
-   type_add_param(tree_type(d), lhs);
-   type_add_param(tree_type(d), rhs);
-
+   tree_t d = sem_builtin_fn(name, result, builtin, lhs, rhs, NULL);
    scope_insert(d);
 }
 
@@ -1600,6 +1607,7 @@ static bool sem_check_func_body(tree_t t)
 static bool sem_check_proc_ports(tree_t t)
 {
    type_t ptype = tree_type(t);
+   bool seen_default = false;
 
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
@@ -1617,6 +1625,12 @@ static bool sem_check_proc_ports(tree_t t)
 
       if (!sem_check(p))
          return false;
+
+      if (tree_has_value(p))
+         seen_default = true;
+      else if (seen_default)
+         sem_error(t, "argument %s without default follows arguments with "
+                   "default values", istr(tree_ident(p)));
 
       type_add_param(ptype, tree_type(p));
    }
@@ -1789,11 +1803,11 @@ static bool sem_check_package_body(tree_t t)
          // in the case of function and procedure bodies where the declaration
          // is already visible
          bool func_body_dup =
-            ((tree_kind(decl) == T_FUNC_BODY)
-             && (sem_check_duplicate(decl, T_FUNC_DECL)));
+            (tree_kind(decl) == T_FUNC_BODY)
+            && sem_check_duplicate(decl, T_FUNC_DECL);
          bool proc_body_dup =
-            ((tree_kind(decl) == T_PROC_BODY)
-             && (sem_check_duplicate(decl, T_PROC_DECL)));
+            (tree_kind(decl) == T_PROC_BODY)
+            && sem_check_duplicate(decl, T_PROC_DECL);
          bool make_visible = !func_body_dup && !proc_body_dup;
 
          if (make_visible)
@@ -2320,6 +2334,50 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
    return true;
 }
 
+static int sem_required_args(tree_t decl)
+{
+   // Count the number of non-default arguments
+   // This assumes we have already checked that no non-default
+   // rguments follow the first default argument
+   int n;
+   for (n = 0;
+        (n < tree_ports(decl))
+           && !tree_has_value(tree_port(decl, n));
+        n++)
+      ;
+   return n;
+}
+
+static bool sem_check_arity(tree_t call, tree_t decl)
+{
+   const int nparams = tree_params(call);
+   const int nports  = tree_ports(decl);
+   const int nreq    = sem_required_args(decl);
+
+   if (nports < nparams)
+      return false;
+   else
+      return (nparams == nports) || (nparams >= nreq);
+}
+
+static void sem_copy_default_args(tree_t call, tree_t decl)
+{
+   const int nparams = tree_params(call);
+   const int nports  = tree_ports(decl);
+
+   // Copy the default values for any unspecified arguments
+   for (int i = nparams; i < nports; i++) {
+      tree_t port = tree_port(decl, i);
+      assert(tree_has_value(port));
+
+      param_t param = {
+         .value = tree_value(port),
+         .kind  = P_POS
+      };
+      tree_add_param(call, param);
+   }
+}
+
 static bool sem_check_fcall(tree_t t)
 {
    tree_t overloads[MAX_OVERLOADS];
@@ -2351,7 +2409,7 @@ static bool sem_check_fcall(tree_t t)
          type_t func_type = tree_type(decl);
          if (type_set_member(type_result(func_type))) {
             // Number of arguments must match
-            if (type_params(func_type) != tree_params(t))
+            if (!sem_check_arity(t, decl))
                continue;
 
             // Same function may appear multiple times in the symbol
@@ -2454,7 +2512,7 @@ static bool sem_check_pcall(tree_t t)
          }
 
          // Number of arguments must match
-         if (type_params(tree_type(decl)) != tree_params(t))
+         if (!sem_check_arity(t, decl))
             continue;
 
          // Found a matching function definition
@@ -2463,7 +2521,7 @@ static bool sem_check_pcall(tree_t t)
    } while (decl != NULL);
 
    if (n_overloads == 0)
-      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
+      sem_error(t, "undefined procedure %s", istr(tree_ident2(t)));
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
@@ -2519,6 +2577,8 @@ static bool sem_check_pcall(tree_t t)
          }
       }
    }
+
+   sem_copy_default_args(t, decl);
 
 #if 0
    printf("pick: %s\n", type_pp(tree_type(decl)));
@@ -3010,7 +3070,7 @@ static bool sem_check_ref(tree_t t)
          if (type_set_member(type))
             break;
          else if (type_kind(type) == T_FUNC
-                  && type_params(type) == 0
+                  && (sem_required_args(decl) == 0)
                   && type_set_member(type_result(type)))
             // Zero-argument function of correct type
             break;

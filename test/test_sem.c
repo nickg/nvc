@@ -711,6 +711,8 @@ START_TEST(test_procedure)
 
    const error_t expect[] = {
       { 23, "cannot return a value from a procedure" },
+      { 40, "type of default value universal integer does not match" },
+      { 44, "argument Y without default follows arguments with" },
       { -1, NULL }
    };
    expect_errors(expect);
