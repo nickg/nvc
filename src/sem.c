@@ -2484,6 +2484,8 @@ static bool sem_check_fcall(tree_t t)
                 fn);
    }
 
+   sem_copy_default_args(t, decl);
+
 #if 0
    printf("pick: %s\n", type_pp(tree_type(decl)));
    fmt_loc(stdout, tree_loc(t));
