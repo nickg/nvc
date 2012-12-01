@@ -25,10 +25,10 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x100f
+#define FILE_FMT_VER 0x1010
 #define MAX_ITEMS    8
 
-//#define EXTRA_READ_CHECKS
+#define EXTRA_READ_CHECKS
 
 struct tree_array {
    size_t count;
@@ -64,6 +64,7 @@ enum {
    I_MESSAGE  = (1 << 3),
    I_TARGET   = (1 << 4),
    I_LITERAL  = (1 << 5),
+   I_IDENT2   = (1 << 6),
 };
 
 typedef union {
@@ -79,7 +80,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_ARCH
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE),
@@ -139,7 +140,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
 
    // T_ATTR_REF
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_IDENT2),
 
    // T_ARRAY_REF
    (I_VALUE),
@@ -148,7 +149,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE),
 
    // T_INSTANCE
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_IF
    (I_IDENT | I_VALUE),
@@ -178,13 +179,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_FOR
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_ATTR_DECL
    (I_IDENT),
 
    // T_ATTR_SPEC
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_IDENT2),
 
    // T_PROC_DECL
    (I_IDENT),
@@ -196,7 +197,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_PCALL
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_CASE
    (I_IDENT | I_VALUE),
@@ -223,7 +224,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_FOR_GENERATE
-   (I_IDENT),
+   (I_IDENT | I_IDENT2),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE),
@@ -232,7 +233,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (0),
 };
 
-#define ITEM_IDENT   (I_IDENT)
+#define ITEM_IDENT   (I_IDENT | I_IDENT2)
 #define ITEM_TREE    (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
 #define ITEM_LITERAL (I_LITERAL)
 
@@ -254,7 +255,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 
 static const char *item_text_map[] = {
    "I_IDENT",   "I_VALUE", "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL",
+   "I_LITERAL", "I_IDENT2",
 };
 
 struct tree {
@@ -282,7 +283,6 @@ struct tree {
    };
    union {
       port_mode_t port_mode;       // T_PORT_MODE
-      ident_t     ident2;          // T_ARCH, T_ATTR_REF
       tree_t      delay;           // T_WAIT
       tree_t      reject;          // T_CASSIGN, T_SIGNAL_ASSIGN
    };
@@ -359,10 +359,6 @@ struct tree_rd_ctx {
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
-    || IS(t, T_FOR_GENERATE))
-#define HAS_IDENT2(t)                                                 \
-   (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
-    || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL)           \
     || IS(t, T_FOR_GENERATE))
 #define HAS_PORTS(t)                                                  \
    (IS(t, T_ENTITY) || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY)       \
@@ -615,20 +611,14 @@ void tree_set_ident(tree_t t, ident_t i)
 
 ident_t tree_ident2(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_IDENT2(t));
-   assert(t->ident2 != NULL);
-
-   return t->ident2;
+   item_t *item = lookup_item(t, I_IDENT2);
+   assert(item->ident != NULL);
+   return item->ident;
 }
 
 void tree_set_ident2(tree_t t, ident_t i)
 {
-   assert(t != NULL);
-   assert(i != NULL);
-   assert(HAS_IDENT2(t));
-
-   t->ident2 = i;
+   lookup_item(t, I_IDENT2)->ident = i;
 }
 
 tree_kind_t tree_kind(tree_t t)
@@ -1746,6 +1736,10 @@ FILE *tree_write_file(tree_wr_ctx_t ctx)
 
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
+#ifdef EXTRA_READ_CHECKS
+   write_u16(0xf11f, ctx->file);
+#endif  // EXTRA_READ_CHECKS
+
    if (t == NULL) {
       write_u16(0xffff, ctx->file);  // Null marker
       return;
@@ -1791,8 +1785,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       }
    }
 
-   if (HAS_IDENT2(t))
-      ident_write(t->ident2, ctx->ident_ctx);
    if (HAS_PORTS(t))
       write_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
@@ -1913,6 +1905,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
 tree_t tree_read(tree_rd_ctx_t ctx)
 {
+#ifdef EXTRA_READ_CHECKS
+   uint16_t start = read_u16(ctx->file);
+   if (start != 0xf11f)
+      fatal("bad tree start marker %x", start);
+#endif  // EXTRA_READ_CHECKS
+
    uint16_t marker = read_u16(ctx->file);
    if (marker == 0xffff)
       return NULL;    // Null marker
@@ -1967,8 +1965,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       }
    }
 
-   if (HAS_IDENT2(t))
-      tree_set_ident2(t, ident_read(ctx->ident_ctx));
    if (HAS_PORTS(t))
       read_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
@@ -2089,7 +2085,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
 
 #ifdef EXTRA_READ_CHECKS
-   unsigned short term = read_u16(ctx->file);
+   uint16_t term = read_u16(ctx->file);
    if (term != 0xdead)
       fatal("bad tree termination marker %x kind=%d",
             term, t->kind);
@@ -2530,8 +2526,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       }
    }
 
-   if (HAS_IDENT2(t))
-      copy->ident2 = t->ident2;
    if (HAS_PORTS(t))
       copy_a(&t->ports, &copy->ports, ctx);
    if (HAS_GENERICS(t))
