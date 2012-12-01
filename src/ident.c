@@ -137,27 +137,7 @@ const char *istr(ident_t ident)
 {
    assert(ident != NULL);
 
-   // This is a bit of a kludge but keeping a sufficient number
-   // of static buffers allows us to use istr multiple times in printf
-   static char   *buf_set[ISTR_MAX_BUFS];
-   static size_t buflen[ISTR_MAX_BUFS];
-   static int    next_buf = 0;
-
-   char **bufp = &buf_set[next_buf];
-   size_t *blenp = &buflen[next_buf];
-   next_buf = (next_buf + 1) % ISTR_MAX_BUFS;
-
-   if (*bufp == NULL) {
-      *bufp = xmalloc(ident->depth);
-      *blenp = ident->depth;
-   }
-
-   while (ident->depth > *blenp) {
-      *blenp *= 2;
-      *bufp = xrealloc(*bufp, *blenp);
-   }
-
-   char *p = *bufp + ident->depth - 1;
+   char *p = get_fmt_buf(ident->depth) + ident->depth - 1;
    *p = '\0';
 
    struct trie *it;
@@ -165,9 +145,8 @@ const char *istr(ident_t ident)
       assert(it != NULL);
       *(--p) = it->value;
    }
-   assert(p == *bufp);
 
-   return *bufp;
+   return p;
 }
 
 ident_wr_ctx_t ident_write_begin(FILE *f)

@@ -344,7 +344,9 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_SIGNAL_ASSIGN:
       dump_expr(tree_target(t));
-      printf(" <= ");
+      printf(" <= reject ");
+      dump_expr(tree_reject(t));
+      printf(" inertial ");
       for (unsigned i = 0; i < tree_waveforms(t); i++) {
          if (i > 0)
             printf(", ");

@@ -35,9 +35,7 @@ bool icmp(ident_t i, const char *s);
 
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoided except
-// for printing. The pointer returned is only valid for the next
-// ISTR_MAX_BUFS calls to istr.
-#define ISTR_MAX_BUFS 8
+// for printing.
 const char *istr(ident_t ident);
 
 ident_wr_ctx_t ident_write_begin(FILE *f);

@@ -715,6 +715,7 @@ static tree_t simp_cassign(tree_t t)
       tree_set_loc(s, tree_loc(t));
       tree_set_target(s, tree_target(t));
       tree_set_ident(s, tree_ident(t));
+      tree_set_reject(s, tree_reject(c));
 
       for (unsigned i = 0; i < tree_waveforms(c); i++) {
          tree_t wave = tree_waveform(c, i);

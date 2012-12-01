@@ -101,6 +101,8 @@
 #define ANSI_FG_CYAN    36
 #define ANSI_FG_WHITE   37
 
+#define MAX_FMT_BUFS    8
+
 typedef void (*print_fn_t)(const char *fmt, ...);
 
 static void def_error_fn(const char *msg, const loc_t *loc);
@@ -692,4 +694,30 @@ int opt_get_int(const char *name)
       return it->value;
    else
       fatal("invalid option %s", name);
+}
+
+char *get_fmt_buf(size_t len)
+{
+   // This is a bit of a kludge but keeping a sufficient number
+   // of static buffers allows us to use format functions multiple
+   // times in printf
+   static char   *buf_set[MAX_FMT_BUFS];
+   static size_t  buflen[MAX_FMT_BUFS];
+   static int     next_buf = 0;
+
+   char **bufp = &buf_set[next_buf];
+   size_t *blenp = &buflen[next_buf];
+   next_buf = (next_buf + 1) % MAX_FMT_BUFS;
+
+   if (*bufp == NULL) {
+      *bufp = xmalloc(len);
+      *blenp = len;
+   }
+
+   while (len > *blenp) {
+      *blenp *= 2;
+      *bufp = xrealloc(*bufp, *blenp);
+   }
+
+   return *bufp;
 }

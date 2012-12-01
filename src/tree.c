@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x100a
+#define FILE_FMT_VER 0x100b
 
 //#define EXTRA_READ_CHECKS
 
@@ -232,7 +232,7 @@ struct tree_rd_ctx {
 #define HAS_ASSOCS(t)                                                 \
    (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))
 #define HAS_CONDS(t) (IS(t, T_CASSIGN))
-#define HAS_REJECT(t) (IS(t, T_CASSIGN) || IS(t, T_SIGNAL_ASSIGN))
+#define HAS_REJECT(t) (IS(t, T_COND) || IS(t, T_SIGNAL_ASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 

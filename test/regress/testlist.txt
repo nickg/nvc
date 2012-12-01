@@ -74,3 +74,4 @@ wait7           normal
 const1          normal
 driver1         normal
 driver2         normal
+delay1          normal

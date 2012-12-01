@@ -88,4 +88,6 @@ uint8_t read_u8(FILE *f);
 void opt_set_int(const char *name, int val);
 int opt_get_int(const char *name);
 
+char *get_fmt_buf(size_t len);
+
 #endif // _UTIL_H

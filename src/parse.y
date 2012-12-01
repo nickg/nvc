@@ -1082,9 +1082,10 @@ conc_assign_stmt
      $$ = tree_new(T_CASSIGN);
      tree_set_loc($$, &@$);
      tree_set_target($$, $1);
-     copy_trees($4, tree_add_cond, $$);
 
-     set_delay_mechanism($$, $3);
+     for (tree_list_t *it = $4; it != NULL; it = it->next)
+        set_delay_mechanism(it->value, $3);
+     copy_trees($4, tree_add_cond, $$);
   }
 ;
 
