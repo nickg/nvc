@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x100c
+#define FILE_FMT_VER 0x100d
 #define MAX_ITEMS    8
 
 //#define EXTRA_READ_CHECKS
@@ -58,8 +58,10 @@ struct attr {
 };
 
 enum {
-   I_IDENT = (1 << 0),
-   I_VALUE = (1 << 1),
+   I_IDENT    = (1 << 0),
+   I_VALUE    = (1 << 1),
+   I_SEVERITY = (1 << 2),
+   I_MESSAGE  = (1 << 3),
 };
 
 typedef union {
@@ -129,7 +131,7 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (0),
 
    // T_ASSERT
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
 
    // T_ATTR_REF
    (I_IDENT | I_VALUE),
@@ -226,7 +228,7 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
 };
 
 #define ITEM_IDENT (I_IDENT)
-#define ITEM_TREE  (I_VALUE)
+#define ITEM_TREE  (I_VALUE | I_SEVERITY | I_MESSAGE)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -245,7 +247,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT", "I_VALUE",
+   "I_IDENT", "I_VALUE", "I_SEVERITY", "I_MESSAGE"
 };
 
 struct tree {
@@ -275,14 +277,12 @@ struct tree {
       literal_t   literal;         // T_LITERAL
       port_mode_t port_mode;       // T_PORT_MODE
       ident_t     ident2;          // T_ARCH, T_ATTR_REF
-      tree_t      message;         // T_ASSERT
       tree_t      delay;           // T_WAIT
       tree_t      reject;          // T_CASSIGN, T_SIGNAL_ASSIGN
    };
    union {
       tree_t   target;             // T_VAR_ASSIGN, T_SIGNAL_ASSIGN
       tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
-      tree_t   severity;           // T_ASSERT
       tree_t   file_mode;          // T_FILE_DECL
       unsigned pos;                // T_ENUM_LIT
    };
@@ -623,7 +623,7 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
    const uint32_t new_has = has_map[kind];
 
    item_t *tmp = xmalloc(sizeof(item_t) * MAX_ITEMS);
-   memcpy(tmp, t->items, MAX_ITEMS);
+   memcpy(tmp, t->items, sizeof(item_t) * MAX_ITEMS);
 
    const int nitems = __builtin_popcount(new_has);
 
@@ -824,9 +824,8 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   item_t *item = lookup_item(t, I_VALUE);
    assert(v == NULL || IS_EXPR(v));
-   item->tree = v;
+   lookup_item(t, I_VALUE)->tree = v;
 }
 
 unsigned tree_decls(tree_t t)
@@ -1201,38 +1200,28 @@ void tree_add_assoc(tree_t t, assoc_t a)
 
 tree_t tree_severity(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ASSERT));
-   assert(t->severity != NULL);
-
-   return t->severity;
+   item_t *item = lookup_item(t, I_SEVERITY);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_severity(tree_t t, tree_t s)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ASSERT));
    assert(IS_EXPR(s));
-
-   t->severity = s;
+   lookup_item(t, I_SEVERITY)->tree = s;
 }
 
 tree_t tree_message(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ASSERT));
-   assert(t->message != NULL);
-
-   return t->message;
+   item_t *item = lookup_item(t, I_MESSAGE);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_message(tree_t t, tree_t m)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ASSERT));
    assert(IS_EXPR(m));
-
-   t->message = m;
+   lookup_item(t, I_MESSAGE)->tree = m;
 }
 
 range_t tree_range(tree_t t)
@@ -1480,8 +1469,14 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          else if (ITEM_TREE & mask)
             n += tree_visit_aux(t->items[i].tree, fn, context,
                                 kind, generation, deep);
-         else
-            assert(false);
+         else {
+            int item;
+            for (item = 0; (mask & (1 << item)) == 0; item++)
+               ;
+
+            assert(item < ARRAY_LEN(item_text_map));
+            fatal("tree item %s does not have a type", item_text_map[item]);
+         }
          i++;
       }
    }
@@ -1540,13 +1535,7 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       }
    }
 
-   if (IS(t, T_ASSERT)) {
-      n += tree_visit_aux(t->severity, fn, context,
-                          kind, generation, deep);
-      n += tree_visit_aux(t->message, fn, context,
-                          kind, generation, deep);
-   }
-   else if (IS(t, T_SIGNAL_DECL) && deep) {
+   if (IS(t, T_SIGNAL_DECL) && deep) {
       n += tree_visit_a(&t->drivers, fn, context, kind, generation, deep);
       for (unsigned i = 0; i < t->n_elems; i++)
          n += tree_visit_a(&t->sub_drivers[i], fn, context,
@@ -1873,11 +1862,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       }
       break;
 
-   case T_ASSERT:
-      tree_write(t->severity, ctx);
-      tree_write(t->message, ctx);
-      break;
-
    case T_ENUM_LIT:
       write_u32(t->pos, ctx->file);
       break;
@@ -2059,11 +2043,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             assert(false);
          }
       }
-      break;
-
-   case T_ASSERT:
-      t->severity = tree_read(ctx);
-      t->message  = tree_read(ctx);
       break;
 
    case T_ENUM_LIT:
@@ -2622,11 +2601,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    case T_LITERAL:
       copy->literal = t->literal;
-      break;
-
-   case T_ASSERT:
-      copy->severity = tree_copy_aux(t->severity, ctx);
-      copy->message  = tree_copy_aux(t->message, ctx);
       break;
 
    case T_ENUM_LIT:
