@@ -808,20 +808,29 @@ static void rt_alloc_driver(struct signal *sig, uint64_t after,
    struct waveform *last = d->waveforms;
    struct waveform *it   = last->next;
    while ((it != NULL) && (it->when < w->when)) {
-      last = it;
-      it = it->next;
+      // If the current transaction is within the pulse rejection interval
+      // and the value is different to that of the new transaction then
+      // delete the current transaction
+      if ((it->when >= w->when - reject) && (it->value != w->value)) {
+         struct waveform *next = it->next;
+         last->next = next;
+         rt_free(waveform_stack, it);
+         it = next;
+      }
+      else {
+         last = it;
+         it = it->next;
+      }
    }
    w->next = NULL;
    last->next = w;
 
    // Delete all transactions later than this
+   // We could remove this transaction from the deltaq as well but the
+   // overhead of doing so is probably higher than the cost of waking
+   // up for the empty event
    while (it != NULL) {
       rt_free(waveform_stack, it);
-
-      // We could remove this transaction from the deltaq as well but the
-      // overhead of doing so is probably higher than the cost of waking
-      // up for the empty event
-
       it = it->next;
    }
 }
