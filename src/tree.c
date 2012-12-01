@@ -272,7 +272,6 @@ struct tree {
    union {
       struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL, T_FUNC_BODY
       struct param_array params;   // T_FCALL, T_ATTR_REF, T_PCALL
-      struct tree_array  drivers;  // T_SIGNAL_DECL
    };
    union {
       struct tree_array  generics; // T_ENTITY, T_COMPONENT
@@ -300,10 +299,6 @@ struct tree {
       struct {                     // T_ARCH, T_ENTITY, T_PACKAGE
          context_t *context;
          unsigned  n_contexts;
-      };
-      struct {                     // T_SIGNAL_DECL
-         struct tree_array *sub_drivers;
-         unsigned          n_elems;
       };
       range_t           range;     // T_ARRAY_SLICE
       struct tree_array triggers;  // T_WAIT, T_PROCESS
@@ -959,71 +954,6 @@ void tree_add_cond(tree_t t, tree_t c)
    tree_array_add(&t->conds, c);
 }
 
-unsigned tree_drivers(tree_t t)
-{
-   assert(t != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-
-   return t->drivers.count;
-}
-
-tree_t tree_driver(tree_t t, unsigned n)
-{
-   assert(t != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-
-   return tree_array_nth(&t->drivers, n);
-}
-
-void tree_add_driver(tree_t t, tree_t d)
-{
-   assert(t != NULL);
-   assert(d != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-   assert(IS(d, T_PROCESS));
-
-   tree_array_add(&t->drivers, d);
-}
-
-unsigned tree_sub_drivers(tree_t t, unsigned elem)
-{
-   assert(t != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-
-   if (t->sub_drivers == NULL || elem >= t->n_elems)
-      return 0;
-   else
-      return t->sub_drivers[elem].count;
-}
-
-tree_t tree_sub_driver(tree_t t, unsigned elem, unsigned n)
-{
-   assert(t != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-   assert(elem < t->n_elems);
-
-   return tree_array_nth(&t->sub_drivers[elem], n);
-}
-
-void tree_add_sub_driver(tree_t t, unsigned elem, tree_t p)
-{
-   assert(t != NULL);
-   assert(IS(t, T_SIGNAL_DECL));
-   assert(IS(p, T_PROCESS));
-
-   if (elem >= t->n_elems) {
-      // TODO: growing by 1 each time is pretty inefficient
-      //  -> add tree_sub_driver_hint(tree_t, unsigned)
-      t->sub_drivers = xrealloc(t->sub_drivers,
-                                (elem + 1) * sizeof(struct tree_array));
-      memset(&t->sub_drivers[t->n_elems], '\0',
-             (elem + 1 - t->n_elems) * sizeof(struct tree_array));
-      t->n_elems = elem + 1;
-   }
-
-   tree_array_add(&t->sub_drivers[elem], p);
-}
-
 bool tree_has_delay(tree_t t)
 {
    assert(t != NULL);
@@ -1526,12 +1456,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       }
    }
 
-   if (IS(t, T_SIGNAL_DECL) && deep) {
-      n += tree_visit_a(&t->drivers, fn, context, kind, generation, deep);
-      for (unsigned i = 0; i < t->n_elems; i++)
-         n += tree_visit_a(&t->sub_drivers[i], fn, context,
-                           kind, generation, deep);
-   }
    else if (IS(t, T_INSTANCE))
       n += tree_visit_p(&t->genmaps, fn, context, kind, generation, deep);
    else if (IS(t, T_IF))
