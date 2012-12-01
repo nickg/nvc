@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x100b
+#define FILE_FMT_VER 0x100c
 #define MAX_ITEMS    8
 
 //#define EXTRA_READ_CHECKS
@@ -59,11 +59,13 @@ struct attr {
 
 enum {
    I_IDENT = (1 << 0),
+   I_VALUE = (1 << 1),
 };
 
-union item {
+typedef struct {
    ident_t ident;
-};
+   tree_t  tree;
+} item_t;
 
 static const uint32_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
@@ -73,19 +75,19 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PORT_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_FCALL
    (I_IDENT),
 
    // T_LITERAL
-   (0),
+   (I_VALUE),
 
    // T_SIGNAL_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_VAR_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_PROCESS
    (I_IDENT),
@@ -94,13 +96,13 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_WAIT
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_TYPE_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_VAR_ASSIGN
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_PACKAGE
    (I_IDENT),
@@ -109,16 +111,16 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_QUALIFIED
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_ENUM_LIT
    (I_IDENT),
 
    // T_CONST_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_FUNC_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_ELAB
    (I_IDENT),
@@ -127,22 +129,22 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (0),
 
    // T_ASSERT
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_ATTR_REF
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_ARRAY_REF
-   (0),
+   (I_VALUE),
 
    // T_ARRAY_SLICE
-   (0),
+   (I_VALUE),
 
    // T_INSTANCE
    (I_IDENT),
 
    // T_IF
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_NULL
    (I_IDENT),
@@ -154,19 +156,19 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_RETURN
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_CASSIGN
    (I_IDENT),
 
    // T_WHILE
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_WAVEFORM
-   (0),
+   (I_VALUE),
 
    // T_ALIAS
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_FOR
    (I_IDENT),
@@ -175,7 +177,7 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_ATTR_SPEC
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_PROC_DECL
    (I_IDENT),
@@ -184,19 +186,19 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_EXIT
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_PCALL
    (I_IDENT),
 
    // T_CASE
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_BLOCK
    (I_IDENT),
 
    // T_COND
-   (0),
+   (I_VALUE),
 
    // T_CONCAT
    (0),
@@ -205,23 +207,26 @@ static const uint32_t has_map[T_LAST_TREE_KIND] = {
    (0),
 
    // T_SELECT
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_COMPONENT
    (I_IDENT),
 
    // T_IF_GENERATE
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_FOR_GENERATE
    (I_IDENT),
 
    // T_FILE_DECL
-   (I_IDENT),
+   (I_IDENT | I_VALUE),
 
    // T_OPEN
    (0),
 };
+
+#define ITEM_IDENT (I_IDENT)
+#define ITEM_TREE  (I_VALUE)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -236,17 +241,12 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ATTR_SPEC",    "T_PROC_DECL",     "T_PROC_BODY",  "T_EXIT",
    "T_PCALL",        "T_CASE",          "T_BLOCK",      "T_COND",
    "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
-   "T_IF_GENERATE"   "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
+   "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT",
+   "I_IDENT", "I_VALUE",
 };
-
-#define BITS_ENTITY      (I_IDENT)
-#define BITS_PORT_DECL   (I_IDENT)
-#define BITS_ARCH        (I_IDENT)
-#define BITS_SIGNAL_DECL (I_IDENT)
 
 struct tree {
    tree_kind_t kind;
@@ -254,7 +254,7 @@ struct tree {
    struct attr *attrs;
    unsigned    n_attrs;
 
-   union item  items[MAX_ITEMS];
+   item_t      items[MAX_ITEMS];
 
    union {
       struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
@@ -306,7 +306,6 @@ struct tree {
       class_t           class;     // T_PORT_DECL
    };
    type_t type;                    // many
-   tree_t value;                   // many
 
    // Serialisation and GC bookkeeping
    uint32_t generation;
@@ -356,19 +355,6 @@ struct tree_rd_ctx {
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
-#define HAS_IDENT(t)                                                  \
-   (IS(t, T_ENTITY) || IS(t, T_PORT_DECL) || IS(t, T_FCALL)           \
-    || IS(t, T_ARCH) || IS(t, T_SIGNAL_DECL) || IS_STMT(t)            \
-    || IS(t, T_VAR_DECL) || IS(t, T_REF) || IS(t, T_TYPE_DECL)        \
-    || IS(t, T_PACKAGE) || IS(t, T_QUALIFIED) || IS(t, T_ENUM_LIT)    \
-    || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL) || IS(t, T_ELAB)     \
-    || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE) || IS(t, T_PACK_BODY)   \
-    || IS(t, T_FUNC_BODY) || IS(t, T_CASSIGN) || IS(t, T_WHILE)       \
-    || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC)     \
-    || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_EXIT)      \
-    || IS(t, T_PCALL) || IS(t, T_CASE) || IS(t, T_BLOCK)              \
-    || IS(t, T_SELECT) || IS(t, T_COMPONENT) || IS(t, T_IF_GENERATE)  \
-    || IS(t, T_FOR_GENERATE) || IS(t, T_FILE_DECL))
 #define HAS_IDENT2(t)                                                 \
    (IS(t, T_ARCH) || IS(t, T_ATTR_REF) || IS(t, T_INSTANCE)           \
     || IS(t, T_FOR) || IS(t, T_ATTR_SPEC) || IS(t, T_PCALL)           \
@@ -402,14 +388,6 @@ struct tree_rd_ctx {
 #define HAS_TARGET(t)                                                 \
    (IS(t, T_VAR_ASSIGN) || IS(t, T_SIGNAL_ASSIGN)                     \
     || IS(t, T_CASSIGN))
-#define HAS_VALUE(t)                                                  \
-   (IS_DECL(t) || IS(t, T_VAR_ASSIGN) || IS(t, T_WAVEFORM)            \
-    || IS(t, T_QUALIFIED) || IS(t, T_CONST_DECL) || IS(t, T_ASSERT)   \
-    || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF) || IS(t, T_CASE)       \
-    || IS(t, T_ARRAY_SLICE) || IS(t, T_IF) || IS(t, T_RETURN)         \
-    || IS(t, T_WHILE) || IS(t, T_ALIAS) || IS(t, T_ATTR_SPEC)         \
-    || IS(t, T_EXIT) || IS(t, T_COND) || IS(t, T_SELECT)              \
-    || IS(t, T_IF_GENERATE) || IS(t, T_FILE_DECL) || IS(t, T_WAIT))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
@@ -440,8 +418,9 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                                tree_kind_t kind, unsigned generation,
                                bool deep);
 
-static int lookup_item(tree_t t, uint32_t mask)
+static item_t *lookup_item(tree_t t, uint32_t mask)
 {
+   assert(t != NULL);
    assert((mask & (mask - 1)) == 0);
    const uint32_t has = has_map[t->kind];
 
@@ -454,13 +433,15 @@ static int lookup_item(tree_t t, uint32_t mask)
             kind_text_map[t->kind], item_text_map[item]);
    }
 
-   int n = 0, i = 0, tmp;
-   while ((tmp = i++ << n), (tmp != mask)) {
-      if (tmp & has)
-         ++n;
+   uint32_t m = 1;
+   int n = 0;
+   while (!(m & mask)) {
+      if (has & m)
+         n++;
+      m <<= 1;
    }
 
-   return n;
+   return &(t->items[n]);
 }
 
 static void tree_array_add(struct tree_array *a, tree_t t)
@@ -595,45 +576,19 @@ void tree_set_loc(tree_t t, const loc_t *loc)
 
 ident_t tree_ident(tree_t t)
 {
-#if 0
-   assert(t != NULL);
-   assert(HAS_IDENT(t));
-   assert(t->ident != NULL);
-
-   return t->ident;
-#else
-   int index = lookup_item(t, I_IDENT);
-   assert(t->items[index].ident != NULL);
-   return t->items[index].ident;
-#endif
+   item_t *item = lookup_item(t, I_IDENT);
+   assert(item->ident != NULL);
+   return item->ident;
 }
 
 bool tree_has_ident(tree_t t)
 {
-#if 0
-   assert(t != NULL);
-   assert(HAS_IDENT(t));
-
-   return t->ident != NULL;
-#else
-   int index = lookup_item(t, I_IDENT);
-   return t->items[index].ident != NULL;
-#endif
+   return lookup_item(t, I_IDENT)->ident != NULL;
 }
 
 void tree_set_ident(tree_t t, ident_t i)
 {
-#if 0
-   assert(t != NULL);
-   assert(i != NULL);
-   assert(HAS_IDENT(t));
-
-   t->ident = i;
-#else
-   assert(i != NULL);
-   int index = lookup_item(t, I_IDENT);
-   t->items[index].ident = i;
-#endif
+   lookup_item(t, I_IDENT)->ident = i;
 }
 
 ident_t tree_ident2(tree_t t)
@@ -836,28 +791,22 @@ literal_t tree_literal(tree_t t)
 
 bool tree_has_value(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_VALUE(t));
-
-   return t->value != NULL;
+   return lookup_item(t, I_VALUE)->tree != NULL;
 }
 
 tree_t tree_value(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_VALUE(t));
-   assert(t->value != NULL);
-
-   return t->value;
+   item_t *item = lookup_item(t, I_VALUE);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   assert(t != NULL);
-   assert(HAS_VALUE(t));
+   item_t *item = lookup_item(t, I_VALUE);
    assert(v == NULL || IS_EXPR(v));
-
-   t->value = v;
+   assert(item->ident == NULL);
+   item->tree = v;
 }
 
 unsigned tree_decls(tree_t t)
@@ -1501,6 +1450,22 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    unsigned n = 0;
 
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int i = 0; i < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask)
+            n += tree_visit_aux(t->items[i].tree, fn, context,
+                                kind, generation, deep);
+         else
+            assert(false);
+         i++;
+      }
+   }
+
    if (HAS_PORTS(t))
       n += tree_visit_a(&t->ports, fn, context, kind, generation, deep);
    if (HAS_GENERICS(t))
@@ -1515,8 +1480,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->conds, fn, context, kind, generation, deep);
    if (HAS_WAVEFORMS(t))
       n += tree_visit_a(&t->waves, fn, context, kind, generation, deep);
-   if (HAS_VALUE(t))
-      n += tree_visit_aux(t->value, fn, context, kind, generation, deep);
    if (HAS_DELAY(t))
       n += tree_visit_aux(t->delay, fn, context, kind, generation, deep);
    if (HAS_REJECT(t))
@@ -1789,9 +1752,17 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    const uint32_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
-   for (int i = 0; i < nitems; i++) {
-      // TODO: check type of this item
-      ident_write(t->items[i].ident, ctx->ident_ctx);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ident_write(t->items[n].ident, ctx->ident_ctx);
+         else if (ITEM_TREE & mask)
+            tree_write(t->items[n].tree, ctx);
+         else
+            assert(false);
+         n++;
+      }
    }
 
    if (HAS_IDENT2(t))
@@ -1812,8 +1783,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->conds, ctx);
    if (HAS_TYPE(t))
       type_write(t->type, ctx->type_ctx);
-   if (HAS_VALUE(t))
-      tree_write(t->value, ctx);
    if (HAS_DELAY(t))
       tree_write(t->delay, ctx);
    if (HAS_REJECT(t))
@@ -1964,8 +1933,23 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
    ctx->store[t->index] = t;
 
-   if (HAS_IDENT(t))
-      tree_set_ident(t, ident_read(ctx->ident_ctx));
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            t->items[n].ident = ident_read(ctx->ident_ctx);
+         else if (ITEM_TREE & mask) {
+            assert(t->kind != T_FCALL);
+            t->items[n].tree = tree_read(ctx);
+         }
+         else
+            assert(false);
+         n++;
+      }
+   }
+
    if (HAS_IDENT2(t))
       tree_set_ident2(t, ident_read(ctx->ident_ctx));
    if (HAS_PORTS(t))
@@ -1984,8 +1968,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->conds, ctx);
    if (HAS_TYPE(t))
       t->type = type_read(ctx->type_ctx);
-   if (HAS_VALUE(t))
-      t->value = tree_read(ctx);
    if (HAS_DELAY(t))
       t->delay = tree_read(ctx);
    if (HAS_REJECT(t))
@@ -2332,6 +2314,24 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    t->generation = ctx->generation;
    t->index      = ctx->index++;
 
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   int i, n;
+   for (i = 0, n = 0; n < nitems; i++) {
+      const uint32_t mask = 1 << i;
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask) {
+            if (t->items[n].tree != NULL)
+               t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
+         }
+         else
+            assert(false);
+         n++;
+      }
+   }
+
    if (HAS_GENERICS(t))
       rewrite_a(&t->generics, ctx);
    if (HAS_PORTS(t))
@@ -2352,10 +2352,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
          tree_set_target(t, new);
       else
          return NULL;
-   }
-   if (HAS_VALUE(t)) {
-      if (tree_has_value(t))
-         tree_set_value(t, tree_rewrite_aux(tree_value(t), ctx));
    }
    if (HAS_DELAY(t)) {
       if (tree_has_delay(t))
@@ -2526,9 +2522,18 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    const uint32_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
-   for (int i = 0; i < nitems; i++) {
-      // TODO: check type of this item
-      copy->items[i].ident = t->items[i].ident;
+   int i, n;
+   for (i = 0, n = 0; n < nitems; i++) {
+      const uint32_t mask = 1 << i;
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            copy->items[n].ident = t->items[n].ident;
+         else if (ITEM_TREE & mask)
+            copy->items[n].tree = tree_copy_aux(t->items[n].tree, ctx);
+         else
+            assert(false);
+         n++;
+      }
    }
 
    if (HAS_IDENT2(t))
@@ -2549,8 +2554,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->waves, &copy->waves, ctx);
    if (HAS_TYPE(t))
       copy->type = t->type;
-   if (HAS_VALUE(t))
-      copy->value = tree_copy_aux(t->value, ctx);
    if (HAS_REJECT(t))
       copy->reject = tree_copy_aux(t->reject, ctx);
    if (HAS_DELAY(t))
