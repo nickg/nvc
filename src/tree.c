@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x100e
+#define FILE_FMT_VER 0x100f
 #define MAX_ITEMS    8
 
 //#define EXTRA_READ_CHECKS
@@ -63,11 +63,13 @@ enum {
    I_SEVERITY = (1 << 2),
    I_MESSAGE  = (1 << 3),
    I_TARGET   = (1 << 4),
+   I_LITERAL  = (1 << 5),
 };
 
 typedef union {
-   ident_t ident;
-   tree_t  tree;
+   ident_t   ident;
+   tree_t    tree;
+   literal_t literal;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -86,7 +88,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_LITERAL
-   (I_VALUE),
+   (I_VALUE | I_LITERAL),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE),
@@ -230,8 +232,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (0),
 };
 
-#define ITEM_IDENT (I_IDENT)
-#define ITEM_TREE  (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
+#define ITEM_IDENT   (I_IDENT)
+#define ITEM_TREE    (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
+#define ITEM_LITERAL (I_LITERAL)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -250,7 +253,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT", "I_VALUE", "I_SEVERITY", "I_MESSAGE", "I_TARGET",
+   "I_IDENT",   "I_VALUE", "I_SEVERITY", "I_MESSAGE", "I_TARGET",
+   "I_LITERAL",
 };
 
 struct tree {
@@ -277,7 +281,6 @@ struct tree {
       struct tree_array  conds;    // T_CASSIGN
    };
    union {
-      literal_t   literal;         // T_LITERAL
       port_mode_t port_mode;       // T_PORT_MODE
       ident_t     ident2;          // T_ARCH, T_ATTR_REF
       tree_t      delay;           // T_WAIT
@@ -451,6 +454,16 @@ static item_t *lookup_item(tree_t t, imask_t mask)
    }
 
    return &(t->items[n]);
+}
+
+static void item_without_type(imask_t mask)
+{
+   int item;
+   for (item = 0; (mask & (1 << item)) == 0; item++)
+      ;
+
+   assert(item < ARRAY_LEN(item_text_map));
+   fatal("tree item %s does not have a type", item_text_map[item]);
 }
 
 static void tree_array_add(struct tree_array *a, tree_t t)
@@ -805,18 +818,12 @@ void tree_add_genmap(tree_t t, param_t e)
 
 void tree_set_literal(tree_t t, literal_t lit)
 {
-   assert(t != NULL);
-   assert(IS(t, T_LITERAL));
-
-   t->literal = lit;
+   lookup_item(t, I_LITERAL)->literal = lit;
 }
 
 literal_t tree_literal(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_LITERAL));
-
-   return t->literal;
+   return lookup_item(t, I_LITERAL)->literal;
 }
 
 bool tree_has_value(tree_t t)
@@ -1463,9 +1470,9 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    unsigned n = 0;
 
-   const uint32_t has = has_map[t->kind];
+   const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
@@ -1473,14 +1480,10 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          else if (ITEM_TREE & mask)
             n += tree_visit_aux(t->items[i].tree, fn, context,
                                 kind, generation, deep);
-         else {
-            int item;
-            for (item = 0; (mask & (1 << item)) == 0; item++)
-               ;
-
-            assert(item < ARRAY_LEN(item_text_map));
-            fatal("tree item %s does not have a type", item_text_map[item]);
-         }
+         else if (ITEM_LITERAL & mask)
+            ;
+         else
+            item_without_type(mask);
          i++;
       }
    }
@@ -1770,6 +1773,18 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             ident_write(t->items[n].ident, ctx->ident_ctx);
          else if (ITEM_TREE & mask)
             tree_write(t->items[n].tree, ctx);
+         else if (ITEM_LITERAL & mask) {
+            literal_t *l = &(t->items[n].literal);
+            write_u16(l->kind, ctx->file);
+            switch (l->kind) {
+            case L_REAL:
+            case L_INT:
+               write_i64(l->i, ctx->file);
+               break;
+            default:
+               assert(false);
+            }
+         }
          else
             assert(false);
          n++;
@@ -1846,20 +1861,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    switch (t->kind) {
    case T_PORT_DECL:
       write_u16(t->port_mode, ctx->file);
-      break;
-
-   case T_LITERAL:
-      {
-         write_u16(t->literal.kind, ctx->file);
-         switch (t->literal.kind) {
-         case L_REAL:
-         case L_INT:
-            write_i64(t->literal.i, ctx->file);
-            break;
-         default:
-            assert(false);
-         }
-      }
       break;
 
    case T_ENUM_LIT:
@@ -1948,6 +1949,18 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             assert(t->kind != T_FCALL);
             t->items[n].tree = tree_read(ctx);
          }
+         else if (ITEM_LITERAL & mask) {
+            literal_t *l = &(t->items[n].literal);
+            l->kind = read_u16(ctx->file);
+            switch (l->kind) {
+            case L_INT:
+            case L_REAL:
+               l->i = read_i64(ctx->file);
+               break;
+            default:
+               assert(false);
+            }
+         }
          else
             assert(false);
          n++;
@@ -2027,20 +2040,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    switch (t->kind) {
    case T_PORT_DECL:
       t->port_mode = read_u16(ctx->file);
-      break;
-
-   case T_LITERAL:
-      {
-         t->literal.kind = read_u16(ctx->file);
-         switch (t->literal.kind) {
-         case L_INT:
-         case L_REAL:
-            t->literal.i = read_i64(ctx->file);
-            break;
-         default:
-            assert(false);
-         }
-      }
       break;
 
    case T_ENUM_LIT:
@@ -2320,8 +2319,10 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
+         else if (ITEM_LITERAL & mask)
+            ;
          else
-            assert(false);
+            item_without_type(mask);
          n++;
       }
    }
@@ -2521,6 +2522,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].ident = t->items[n].ident;
          else if (ITEM_TREE & mask)
             copy->items[n].tree = tree_copy_aux(t->items[n].tree, ctx);
+         else if (ITEM_LITERAL & mask)
+            copy->items[n].literal = t->items[n].literal;
          else
             assert(false);
          n++;
@@ -2587,10 +2590,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    switch (t->kind) {
    case T_PORT_DECL:
       copy->port_mode = t->port_mode;
-      break;
-
-   case T_LITERAL:
-      copy->literal = t->literal;
       break;
 
    case T_ENUM_LIT:
