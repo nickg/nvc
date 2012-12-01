@@ -25,16 +25,16 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1010
+#define FILE_FMT_VER 0x1011
 #define MAX_ITEMS    8
 
 #define EXTRA_READ_CHECKS
 
-struct tree_array {
+typedef struct tree_array /* DELME */ {
    size_t count;
    size_t max;
    tree_t *items;
-};
+} tree_array_t;
 
 struct param_array {
    size_t  count;
@@ -65,12 +65,14 @@ enum {
    I_TARGET   = (1 << 4),
    I_LITERAL  = (1 << 5),
    I_IDENT2   = (1 << 6),
+   I_DECLS    = (1 << 7),
 };
 
 typedef union {
-   ident_t   ident;
-   tree_t    tree;
-   literal_t literal;
+   ident_t      ident;
+   tree_t       tree;
+   literal_t    literal;
+   tree_array_t tree_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -80,7 +82,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_DECLS),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE),
@@ -98,7 +100,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_PROCESS
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_REF
    (I_IDENT),
@@ -113,7 +115,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET),
 
    // T_PACKAGE
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET),
@@ -131,7 +133,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_ELAB
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_AGGREGATE
    (0),
@@ -158,10 +160,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_FUNC_BODY
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_RETURN
    (I_IDENT | I_VALUE),
@@ -179,7 +181,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_FOR
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_DECLS),
 
    // T_ATTR_DECL
    (I_IDENT),
@@ -191,7 +193,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PROC_BODY
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_EXIT
    (I_IDENT | I_VALUE),
@@ -203,7 +205,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_BLOCK
-   (I_IDENT),
+   (I_IDENT | I_DECLS),
 
    // T_COND
    (I_VALUE),
@@ -221,10 +223,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_IF_GENERATE
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_DECLS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_DECLS),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE),
@@ -233,9 +235,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (0),
 };
 
-#define ITEM_IDENT   (I_IDENT | I_IDENT2)
-#define ITEM_TREE    (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
-#define ITEM_LITERAL (I_LITERAL)
+#define ITEM_IDENT      (I_IDENT | I_IDENT2)
+#define ITEM_TREE       (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
+#define ITEM_LITERAL    (I_LITERAL)
+#define ITEM_TREE_ARRAY (I_DECLS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -254,8 +257,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT",   "I_VALUE", "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL", "I_IDENT2",
+   "I_IDENT",   "I_VALUE",  "I_SEVERITY", "I_MESSAGE", "I_TARGET",
+   "I_LITERAL", "I_IDENT2", "I_DECLS",
 };
 
 struct tree {
@@ -266,9 +269,6 @@ struct tree {
 
    item_t      items[MAX_ITEMS];
 
-   union {
-      struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
-   };
    union {
       struct tree_array  ports;    // T_ENTITY, T_FUNC_DECL, T_FUNC_BODY
       struct param_array params;   // T_FCALL, T_ATTR_REF, T_PCALL
@@ -374,11 +374,6 @@ struct tree_rd_ctx {
    (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)         \
     || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_CONCAT)         \
     || IS(t, T_TYPE_CONV))
-#define HAS_DECLS(t)                                                  \
-   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_PACKAGE)             \
-    || IS(t, T_ELAB) || IS(t, T_PACK_BODY) || IS(t, T_FOR)            \
-    || IS(t, T_FUNC_BODY) || IS(t, T_PROC_BODY) || IS(t, T_BLOCK)     \
-    || IS(t, T_IF_GENERATE) || IS(t, T_FOR_GENERATE))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_STMTS(t)                                                  \
    (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
@@ -462,7 +457,7 @@ static void item_without_type(imask_t mask)
    fatal("tree item %s does not have a type", item_text_map[item]);
 }
 
-static void tree_array_add(struct tree_array *a, tree_t t)
+static void tree_array_add(tree_array_t *a, tree_t t)
 {
    if (a->max == 0) {
       a->items = xmalloc(sizeof(tree_t) * TREE_ARRAY_BASE_SZ);
@@ -476,7 +471,7 @@ static void tree_array_add(struct tree_array *a, tree_t t)
    a->items[a->count++] = t;
 }
 
-static inline tree_t tree_array_nth(struct tree_array *a, unsigned n)
+static inline tree_t tree_array_nth(tree_array_t *a, unsigned n)
 {
    assert(n < a->count);
    return a->items[n];
@@ -536,14 +531,24 @@ void tree_gc(void)
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       tree_t t = all_trees[i];
       if (t->generation < base_gen) {
+
+         const imask_t has = has_map[t->kind];
+         const int nitems = __builtin_popcount(has);
+         imask_t mask = 1;
+         for (int n = 0; n < nitems; mask <<= 1) {
+            if (has & mask) {
+               if (ITEM_TREE_ARRAY & mask)
+                  free(t->items[n].tree_array.items);
+               n++;
+            }
+         }
+
          if (HAS_PORTS(t) && t->ports.items != NULL)
             free(t->ports.items);
          if (HAS_GENERICS(t) && t->generics.items != NULL)
             free(t->generics.items);
          if (HAS_PARAMS(t) && t->params.items != NULL)
             free(t->params.items);
-         if (HAS_DECLS(t) && t->decls.items != NULL)
-            free(t->decls.items);
          if (HAS_STMTS(t) && t->stmts.items != NULL)
             free(t->stmts.items);
          if (HAS_ASSOCS(t) && t->n_assocs_alloc > 0)
@@ -836,28 +841,18 @@ void tree_set_value(tree_t t, tree_t v)
 
 unsigned tree_decls(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_DECLS(t));
-
-   return t->decls.count;
+   return lookup_item(t, I_DECLS)->tree_array.count;
 }
 
 tree_t tree_decl(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_DECLS(t));
-
-   return tree_array_nth(&t->decls, n);
+   return tree_array_nth(&(lookup_item(t, I_DECLS)->tree_array), n);
 }
 
 void tree_add_decl(tree_t t, tree_t d)
 {
-   assert(t != NULL);
-   assert(d != NULL);
-   assert(HAS_DECLS(t));
    assert(IS_DECL(d));
-
-   tree_array_add(&t->decls, d);
+   tree_array_add(&(lookup_item(t, I_DECLS)->tree_array), d);
 }
 
 unsigned tree_stmts(tree_t t)
@@ -1472,6 +1467,9 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                                 kind, generation, deep);
          else if (ITEM_LITERAL & mask)
             ;
+         else if (ITEM_TREE_ARRAY & mask)
+            n += tree_visit_a(&(t->items[i].tree_array), fn, context,
+                              kind, generation, deep);
          else
             item_without_type(mask);
          i++;
@@ -1482,8 +1480,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->ports, fn, context, kind, generation, deep);
    if (HAS_GENERICS(t))
       n += tree_visit_a(&t->generics, fn, context, kind, generation, deep);
-   if (HAS_DECLS(t))
-      n += tree_visit_a(&t->decls, fn, context, kind, generation, deep);
    if (HAS_TRIGGERS(t))
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
    if (HAS_STMTS(t))
@@ -1779,6 +1775,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
                assert(false);
             }
          }
+         else if (ITEM_TREE_ARRAY & mask)
+            write_a(&(t->items[n].tree_array), ctx);
          else
             assert(false);
          n++;
@@ -1789,8 +1787,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
       write_a(&t->generics, ctx);
-   if (HAS_DECLS(t))
-      write_a(&t->decls, ctx);
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
@@ -1959,6 +1955,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
                assert(false);
             }
          }
+         else if (ITEM_TREE_ARRAY & mask)
+            read_a(&(t->items[n].tree_array), ctx);
          else
             assert(false);
          n++;
@@ -1969,8 +1967,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->ports, ctx);
    if (HAS_GENERICS(t))
       read_a(&t->generics, ctx);
-   if (HAS_DECLS(t))
-      read_a(&t->decls, ctx);
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
@@ -2317,6 +2313,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
          else if (ITEM_LITERAL & mask)
             ;
+         else if (ITEM_TREE_ARRAY & mask)
+            rewrite_a(&(t->items[n].tree_array), ctx);
          else
             item_without_type(mask);
          n++;
@@ -2327,8 +2325,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       rewrite_a(&t->generics, ctx);
    if (HAS_PORTS(t))
       rewrite_a(&t->ports, ctx);
-   if (HAS_DECLS(t))
-      rewrite_a(&t->decls, ctx);
    if (HAS_TRIGGERS(t))
       rewrite_a(&t->triggers, ctx);
    if (HAS_STMTS(t))
@@ -2520,6 +2516,9 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].tree = tree_copy_aux(t->items[n].tree, ctx);
          else if (ITEM_LITERAL & mask)
             copy->items[n].literal = t->items[n].literal;
+         else if (ITEM_TREE_ARRAY & mask)
+            copy_a(&(t->items[n].tree_array),
+                   &(copy->items[n].tree_array), ctx);
          else
             assert(false);
          n++;
@@ -2530,8 +2529,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->ports, &copy->ports, ctx);
    if (HAS_GENERICS(t))
       copy_a(&t->generics, &copy->generics, ctx);
-   if (HAS_DECLS(t))
-      copy_a(&t->decls, &copy->decls, ctx);
    if (HAS_CONDS(t))
       copy_a(&t->conds, &copy->conds, ctx);
    if (HAS_TRIGGERS(t))
