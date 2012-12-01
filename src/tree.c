@@ -66,6 +66,7 @@ enum {
    I_LITERAL  = (1 << 5),
    I_IDENT2   = (1 << 6),
    I_DECLS    = (1 << 7),
+   I_STMTS    = (1 << 8),
 };
 
 typedef union {
@@ -82,7 +83,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE),
@@ -100,7 +101,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // T_REF
    (I_IDENT),
@@ -133,7 +134,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_ELAB
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // T_AGGREGATE
    (0),
@@ -154,7 +155,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2),
 
    // T_IF
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_NULL
    (I_IDENT),
@@ -163,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // T_RETURN
    (I_IDENT | I_VALUE),
@@ -172,7 +173,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TARGET),
 
    // T_WHILE
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_STMTS),
 
    // T_WAVEFORM
    (I_VALUE),
@@ -181,7 +182,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_FOR
-   (I_IDENT | I_IDENT2 | I_DECLS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
 
    // T_ATTR_DECL
    (I_IDENT),
@@ -193,7 +194,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // T_EXIT
    (I_IDENT | I_VALUE),
@@ -205,7 +206,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_BLOCK
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_STMTS),
 
    // T_COND
    (I_VALUE),
@@ -223,10 +224,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_IF_GENERATE
-   (I_IDENT | I_VALUE | I_DECLS),
+   (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE),
@@ -238,7 +239,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_IDENT      (I_IDENT | I_IDENT2)
 #define ITEM_TREE       (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
 #define ITEM_LITERAL    (I_LITERAL)
-#define ITEM_TREE_ARRAY (I_DECLS)
+#define ITEM_TREE_ARRAY (I_DECLS | I_STMTS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -258,7 +259,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 
 static const char *item_text_map[] = {
    "I_IDENT",   "I_VALUE",  "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL", "I_IDENT2", "I_DECLS",
+   "I_LITERAL", "I_IDENT2", "I_DECLS",    "I_STMTS",
 };
 
 struct tree {
@@ -275,7 +276,6 @@ struct tree {
    };
    union {
       struct tree_array  generics; // T_ENTITY, T_COMPONENT
-      struct tree_array  stmts;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
       struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_COND
       struct param_array genmaps;  // T_INSTANCE
       struct tree_array  conds;    // T_CASSIGN
@@ -370,11 +370,6 @@ struct tree_rd_ctx {
     || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_CONCAT)         \
     || IS(t, T_TYPE_CONV))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
-#define HAS_STMTS(t)                                                  \
-   (IS(t, T_ARCH) || IS(t, T_PROCESS) || IS(t, T_ELAB) || IS(t, T_IF) \
-    || IS(t, T_FUNC_BODY) || IS(t, T_WHILE) || IS(t, T_FOR)           \
-    || IS(t, T_PROC_BODY) || IS(t, T_BLOCK) || IS(t, T_IF_GENERATE)   \
-    || IS(t, T_FOR_GENERATE))
 #define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
@@ -413,6 +408,8 @@ static void tree_sanity_check(void)
       const int nitems = __builtin_popcount(has_map[i]);
       assert(nitems < MAX_ITEMS);
    }
+
+   printf("sizeof(struct tree) = %d\n", (int)sizeof(struct tree));
 }
 
 static item_t *lookup_item(tree_t t, imask_t mask)
@@ -544,8 +541,6 @@ void tree_gc(void)
             free(t->generics.items);
          if (HAS_PARAMS(t) && t->params.items != NULL)
             free(t->params.items);
-         if (HAS_STMTS(t) && t->stmts.items != NULL)
-            free(t->stmts.items);
          if (HAS_ASSOCS(t) && t->n_assocs_alloc > 0)
             free(t->assocs);
 
@@ -852,28 +847,18 @@ void tree_add_decl(tree_t t, tree_t d)
 
 unsigned tree_stmts(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_STMTS(t));
-
-   return t->stmts.count;
+   return lookup_item(t, I_STMTS)->tree_array.count;
 }
 
 tree_t tree_stmt(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_STMTS(t));
-
-   return tree_array_nth(&t->stmts, n);
+   return tree_array_nth(&(lookup_item(t, I_STMTS)->tree_array), n);
 }
 
 void tree_add_stmt(tree_t t, tree_t s)
 {
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(HAS_STMTS(t));
    assert(IS_STMT(s));
-
-   tree_array_add(&t->stmts, s);
+   tree_array_add(&(lookup_item(t, I_STMTS)->tree_array), s);
 }
 
 unsigned tree_waveforms(tree_t t)
@@ -1412,8 +1397,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_a(&t->generics, fn, context, kind, generation, deep);
    if (HAS_TRIGGERS(t))
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
-   if (HAS_STMTS(t))
-      n += tree_visit_a(&t->stmts, fn, context, kind, generation, deep);
    if (HAS_CONDS(t))
       n += tree_visit_a(&t->conds, fn, context, kind, generation, deep);
    if (HAS_WAVEFORMS(t))
@@ -1713,8 +1696,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->generics, ctx);
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
-   if (HAS_STMTS(t))
-      write_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       write_a(&t->waves, ctx);
    if (HAS_CONDS(t))
@@ -1893,8 +1874,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       read_a(&t->generics, ctx);
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
-   if (HAS_STMTS(t))
-      read_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       read_a(&t->waves, ctx);
    if (HAS_CONDS(t))
@@ -2251,8 +2230,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       rewrite_a(&t->ports, ctx);
    if (HAS_TRIGGERS(t))
       rewrite_a(&t->triggers, ctx);
-   if (HAS_STMTS(t))
-      rewrite_a(&t->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       rewrite_a(&t->waves, ctx);
    if (HAS_CONDS(t))
@@ -2457,8 +2434,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy_a(&t->conds, &copy->conds, ctx);
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
-   if (HAS_STMTS(t))
-      copy_a(&t->stmts, &copy->stmts, ctx);
    if (HAS_WAVEFORMS(t))
       copy_a(&t->waves, &copy->waves, ctx);
    if (HAS_TYPE(t))
