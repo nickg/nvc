@@ -1459,9 +1459,6 @@ severity
 target
 : name
   {
-     // A target cannot be a function call so resolve ambiguity here
-     if (tree_kind($1) == T_FCALL)
-        tree_change_kind($1, T_ARRAY_REF);
      $$ = $1;
   }
 ;

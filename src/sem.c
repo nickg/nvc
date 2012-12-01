@@ -2399,7 +2399,12 @@ static bool sem_check_fcall(tree_t t)
             if (type_is_array(tree_type(decl))) {
                // The grammar is ambiguous between function calls and
                // array references so must be an array reference
+               tree_t ref = tree_new(T_REF);
+               tree_set_ident(ref, tree_ident(t));
+
                tree_change_kind(t, T_ARRAY_REF);
+               tree_set_value(t, ref);
+
                return sem_check_array_ref(t);
             }
             else

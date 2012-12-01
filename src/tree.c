@@ -62,7 +62,7 @@ enum {
    I_VALUE = (1 << 1),
 };
 
-typedef struct {
+typedef union {
    ident_t ident;
    tree_t  tree;
 } item_t;
@@ -618,6 +618,27 @@ tree_kind_t tree_kind(tree_t t)
 void tree_change_kind(tree_t t, tree_kind_t kind)
 {
    assert(t != NULL);
+
+   const uint32_t old_has = has_map[t->kind];
+   const uint32_t new_has = has_map[kind];
+
+   item_t *tmp = xmalloc(sizeof(item_t) * MAX_ITEMS);
+   memcpy(tmp, t->items, MAX_ITEMS);
+
+   const int nitems = __builtin_popcount(new_has);
+
+   int op = 0, np = 0;
+   for (uint32_t mask = 1; np < nitems; mask <<= 1) {
+      if ((old_has & mask) && (new_has & mask))
+         t->items[np++] = tmp[op++];
+      else if (old_has & mask)
+         ++op;
+      else if (new_has & mask)
+         memset(&(t->items[np++]), '\0', sizeof(item_t));
+   }
+
+   free(tmp);
+
    t->kind = kind;
 }
 
@@ -805,7 +826,6 @@ void tree_set_value(tree_t t, tree_t v)
 {
    item_t *item = lookup_item(t, I_VALUE);
    assert(v == NULL || IS_EXPR(v));
-   assert(item->ident == NULL);
    item->tree = v;
 }
 

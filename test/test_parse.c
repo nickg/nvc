@@ -1134,7 +1134,7 @@ START_TEST(test_array)
    fail_unless(tree_kind(p) == T_PROCESS);
    s = tree_stmt(p, 0);
    e = tree_target(s);
-   fail_unless(tree_kind(e) == T_ARRAY_REF);
+   fail_unless(tree_kind(e) == T_FCALL);
    fail_unless(tree_params(e) == 1);
    fail_unless(tree_param(e, 0).kind == P_POS);
    fail_unless(tree_param(e, 0).pos == 0);
