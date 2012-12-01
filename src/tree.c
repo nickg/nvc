@@ -26,6 +26,7 @@
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
 #define FILE_FMT_VER 0x100b
+#define MAX_ITEMS    8
 
 //#define EXTRA_READ_CHECKS
 
@@ -56,12 +57,204 @@ struct attr {
    };
 };
 
+enum {
+   I_IDENT = (1 << 0),
+};
+
+union item {
+   ident_t ident;
+};
+
+static const uint32_t has_map[T_LAST_TREE_KIND] = {
+   // T_ENTITY
+   (I_IDENT),
+
+   // T_ARCH
+   (I_IDENT),
+
+   // T_PORT_DECL
+   (I_IDENT),
+
+   // T_FCALL
+   (I_IDENT),
+
+   // T_LITERAL
+   (0),
+
+   // T_SIGNAL_DECL
+   (I_IDENT),
+
+   // T_VAR_DECL
+   (I_IDENT),
+
+   // T_PROCESS
+   (I_IDENT),
+
+   // T_REF
+   (I_IDENT),
+
+   // T_WAIT
+   (I_IDENT),
+
+   // T_TYPE_DECL
+   (I_IDENT),
+
+   // T_VAR_ASSIGN
+   (I_IDENT),
+
+   // T_PACKAGE
+   (I_IDENT),
+
+   // T_SIGNAL_ASSIGN
+   (I_IDENT),
+
+   // T_QUALIFIED
+   (I_IDENT),
+
+   // T_ENUM_LIT
+   (I_IDENT),
+
+   // T_CONST_DECL
+   (I_IDENT),
+
+   // T_FUNC_DECL
+   (I_IDENT),
+
+   // T_ELAB
+   (I_IDENT),
+
+   // T_AGGREGATE
+   (0),
+
+   // T_ASSERT
+   (I_IDENT),
+
+   // T_ATTR_REF
+   (I_IDENT),
+
+   // T_ARRAY_REF
+   (0),
+
+   // T_ARRAY_SLICE
+   (0),
+
+   // T_INSTANCE
+   (I_IDENT),
+
+   // T_IF
+   (I_IDENT),
+
+   // T_NULL
+   (I_IDENT),
+
+   // T_PACK_BODY
+   (I_IDENT),
+
+   // T_FUNC_BODY
+   (I_IDENT),
+
+   // T_RETURN
+   (I_IDENT),
+
+   // T_CASSIGN
+   (I_IDENT),
+
+   // T_WHILE
+   (I_IDENT),
+
+   // T_WAVEFORM
+   (0),
+
+   // T_ALIAS
+   (I_IDENT),
+
+   // T_FOR
+   (I_IDENT),
+
+   // T_ATTR_DECL
+   (I_IDENT),
+
+   // T_ATTR_SPEC
+   (I_IDENT),
+
+   // T_PROC_DECL
+   (I_IDENT),
+
+   // T_PROC_BODY
+   (I_IDENT),
+
+   // T_EXIT
+   (I_IDENT),
+
+   // T_PCALL
+   (I_IDENT),
+
+   // T_CASE
+   (I_IDENT),
+
+   // T_BLOCK
+   (I_IDENT),
+
+   // T_COND
+   (0),
+
+   // T_CONCAT
+   (0),
+
+   // T_TYPE_CONV
+   (0),
+
+   // T_SELECT
+   (I_IDENT),
+
+   // T_COMPONENT
+   (I_IDENT),
+
+   // T_IF_GENERATE
+   (I_IDENT),
+
+   // T_FOR_GENERATE
+   (I_IDENT),
+
+   // T_FILE_DECL
+   (I_IDENT),
+
+   // T_OPEN
+   (0),
+};
+
+static const char *kind_text_map[T_LAST_TREE_KIND] = {
+   "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
+   "T_LITERAL",      "T_SIGNAL_DECL",   "T_VAR_DECL",   "T_PROCESS",
+   "T_REF",          "T_WAIT",          "T_TYPE_DECL",  "T_VAR_ASSIGN",
+   "T_PACKAGE",      "T_SIGNAL_ASSIGN", "T_QUALIFIED",  "T_ENUM_LIT",
+   "T_CONST_DECL",   "T_FUNC_DECL",     "T_ELAB",       "T_AGGREGATE",
+   "T_ASSERT",       "T_ATTR_REF",      "T_ARRAY_REF",  "T_ARRAY_SLICE",
+   "T_INSTANCE",     "T_IF",            "T_NULL",       "T_PACK_BODY",
+   "T_FUNC_BODY",    "T_RETURN",        "T_CASSIGN",    "T_WHILE",
+   "T_WAVEFORM",     "T_ALIAS",         "T_FOR",        "T_ATTR_DECL",
+   "T_ATTR_SPEC",    "T_PROC_DECL",     "T_PROC_BODY",  "T_EXIT",
+   "T_PCALL",        "T_CASE",          "T_BLOCK",      "T_COND",
+   "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
+   "T_IF_GENERATE"   "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
+};
+
+static const char *item_text_map[] = {
+   "I_IDENT",
+};
+
+#define BITS_ENTITY      (I_IDENT)
+#define BITS_PORT_DECL   (I_IDENT)
+#define BITS_ARCH        (I_IDENT)
+#define BITS_SIGNAL_DECL (I_IDENT)
+
 struct tree {
    tree_kind_t kind;
    loc_t       loc;
-   ident_t     ident;
    struct attr *attrs;
    unsigned    n_attrs;
+
+   union item  items[MAX_ITEMS];
 
    union {
       struct tree_array  decls;    // T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY
@@ -247,6 +440,29 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                                tree_kind_t kind, unsigned generation,
                                bool deep);
 
+static int lookup_item(tree_t t, uint32_t mask)
+{
+   assert((mask & (mask - 1)) == 0);
+   const uint32_t has = has_map[t->kind];
+
+   if (unlikely((has & mask) == 0)) {
+      int item;
+      for (item = 0; (mask & (1 << item)) == 0; item++)
+         ;
+
+      fatal("tree kind %s does not have item %s",
+            kind_text_map[t->kind], item_text_map[item]);
+   }
+
+   int n = 0, i = 0, tmp;
+   while ((tmp = i++ << n), (tmp != mask)) {
+      if (tmp & has)
+         ++n;
+   }
+
+   return n;
+}
+
 static void tree_array_add(struct tree_array *a, tree_t t)
 {
    if (a->max == 0) {
@@ -379,28 +595,45 @@ void tree_set_loc(tree_t t, const loc_t *loc)
 
 ident_t tree_ident(tree_t t)
 {
+#if 0
    assert(t != NULL);
    assert(HAS_IDENT(t));
    assert(t->ident != NULL);
 
    return t->ident;
+#else
+   int index = lookup_item(t, I_IDENT);
+   assert(t->items[index].ident != NULL);
+   return t->items[index].ident;
+#endif
 }
 
 bool tree_has_ident(tree_t t)
 {
+#if 0
    assert(t != NULL);
    assert(HAS_IDENT(t));
 
    return t->ident != NULL;
+#else
+   int index = lookup_item(t, I_IDENT);
+   return t->items[index].ident != NULL;
+#endif
 }
 
 void tree_set_ident(tree_t t, ident_t i)
 {
+#if 0
    assert(t != NULL);
    assert(i != NULL);
    assert(HAS_IDENT(t));
 
    t->ident = i;
+#else
+   assert(i != NULL);
+   int index = lookup_item(t, I_IDENT);
+   t->items[index].ident = i;
+#endif
 }
 
 ident_t tree_ident2(tree_t t)
@@ -1553,8 +1786,14 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    write_u16(t->kind, ctx->file);
    write_loc(&t->loc, ctx);
-   if (HAS_IDENT(t))
-      ident_write(t->ident, ctx->ident_ctx);
+
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   for (int i = 0; i < nitems; i++) {
+      // TODO: check type of this item
+      ident_write(t->items[i].ident, ctx->ident_ctx);
+   }
+
    if (HAS_IDENT2(t))
       ident_write(t->ident2, ctx->ident_ctx);
    if (HAS_PORTS(t))
@@ -2283,9 +2522,15 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    t->index      = (ctx->n_copied)++;
    ctx->copied[t->index] = copy;
 
-   copy->loc        = t->loc;
-   if (HAS_IDENT(t))
-      copy->ident = t->ident;
+   copy->loc = t->loc;
+
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   for (int i = 0; i < nitems; i++) {
+      // TODO: check type of this item
+      copy->items[i].ident = t->items[i].ident;
+   }
+
    if (HAS_IDENT2(t))
       copy->ident2 = t->ident2;
    if (HAS_PORTS(t))
