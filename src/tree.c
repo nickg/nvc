@@ -78,6 +78,7 @@ enum {
    I_DELAY     = (1 << 17),
    I_REJECT    = (1 << 18),
    I_POS       = (1 << 19),
+   I_REF       = (1 << 20),
 };
 
 typedef union {
@@ -104,7 +105,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_PORT_MODE),
 
    // T_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF),
 
    // T_LITERAL
    (I_LITERAL | I_TYPE),
@@ -119,7 +120,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // T_REF
-   (I_IDENT | I_TYPE),
+   (I_IDENT | I_TYPE | I_REF),
 
    // T_WAIT
    (I_IDENT | I_VALUE | I_DELAY),
@@ -158,7 +159,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
 
    // T_ATTR_REF
-   (I_IDENT | I_VALUE | I_IDENT2 | I_PARAMS | I_TYPE),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_PARAMS | I_TYPE | I_REF),
 
    // T_ARRAY_REF
    (I_VALUE | I_PARAMS | I_TYPE),
@@ -167,7 +168,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF),
 
    // T_IF
    (I_IDENT | I_VALUE | I_STMTS),
@@ -215,7 +216,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_PCALL
-   (I_IDENT | I_IDENT2 | I_PARAMS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
 
    // T_CASE
    (I_IDENT | I_VALUE),
@@ -230,7 +231,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_PARAMS | I_TYPE),
 
    // T_TYPE_CONV
-   (I_PARAMS | I_TYPE),
+   (I_PARAMS | I_TYPE | I_REF),
 
    // T_SELECT
    (I_IDENT | I_VALUE),
@@ -242,7 +243,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -253,7 +254,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT)
+                          | I_DELAY | I_REJECT | I_REF)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS)
@@ -282,7 +283,8 @@ static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE", "I_TARGET",
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
-   "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",
+   "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
+   "I_REF",
 };
 
 struct tree {
@@ -294,7 +296,6 @@ struct tree {
    item_t      items[MAX_ITEMS];
 
    union {
-      tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
       tree_t   file_mode;          // T_FILE_DECL
    };
    union {
@@ -920,20 +921,15 @@ void tree_set_target(tree_t t, tree_t lhs)
 
 tree_t tree_ref(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_REF(t));
-   assert(t->ref != NULL);
-
-   return t->ref;
+   item_t *item = lookup_item(t, I_REF);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_ref(tree_t t, tree_t decl)
 {
-   assert(t != NULL);
-   assert(HAS_REF(t));
    assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT) || IS_TOP_LEVEL(decl));
-
-   t->ref = decl;
+   lookup_item(t, I_REF)->tree = decl;
 }
 
 unsigned tree_contexts(tree_t t)
@@ -1273,7 +1269,7 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    unsigned n = 0;
 
-   const imask_t deep_mask = I_TYPE;
+   const imask_t deep_mask = I_TYPE | I_REF;
 
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
@@ -1310,8 +1306,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    if (HAS_TRIGGERS(t))
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
-   if (HAS_REF(t) && deep)
-      n += tree_visit_aux(t->ref, fn, context, kind, generation, deep);
    if (HAS_RANGE(t)) {
       n += tree_visit_aux(t->range.left, fn, context, kind,
                           generation, deep);
@@ -1599,8 +1593,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
-   if (HAS_REF(t))
-      tree_write(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
       write_u16(t->n_contexts, ctx->file);
       for (unsigned i = 0; i < t->n_contexts; i++) {
@@ -1723,10 +1715,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       if (has & mask) {
          if (ITEM_IDENT & mask)
             t->items[n].ident = ident_read(ctx->ident_ctx);
-         else if (ITEM_TREE & mask) {
-            assert(t->kind != T_FCALL);
+         else if (ITEM_TREE & mask)
             t->items[n].tree = tree_read(ctx);
-         }
          else if (ITEM_LITERAL & mask) {
             literal_t *l = &(t->items[n].literal);
             l->kind = read_u16(ctx->file);
@@ -1757,8 +1747,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
-   if (HAS_REF(t))
-      t->ref = tree_read(ctx);
    if (HAS_CONTEXT(t)) {
       t->n_contexts = read_u16(ctx->file);
       t->context    = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
@@ -2056,19 +2044,19 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 
    if (t->generation == ctx->generation) {
       // Already rewritten this tree so return the cached version
-      if (ctx->cache[t->index] == NULL)
-         fmt_loc(stdout, tree_loc(t));
       return ctx->cache[t->index];
    }
 
    t->generation = ctx->generation;
    t->index      = ctx->index++;
 
+   const imask_t skip_mask = I_REF;
+
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
+      if (has & mask & ~skip_mask) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
@@ -2087,8 +2075,10 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else
             item_without_type(mask);
-         n++;
       }
+
+      if (has & mask)
+         n++;
    }
 
    if (HAS_TRIGGERS(t))
@@ -2284,8 +2274,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
-   if (HAS_REF(t))
-      copy->ref = tree_copy_aux(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
       for (unsigned i = 0; i < tree_contexts(t); i++)
          tree_add_context(copy, tree_context(t, i));
