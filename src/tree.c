@@ -1294,11 +1294,13 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    unsigned n = 0;
 
+   const imask_t deep_mask = I_TYPE;
+
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask) {
+      if (has & mask & ~(deep ? 0 : deep_mask)) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
@@ -1312,17 +1314,17 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          else if (ITEM_PARAM_ARRAY & mask)
             n += tree_visit_p(&(t->items[i].param_array), fn, context,
                               kind, generation, deep);
-         else if (ITEM_TYPE & mask) {
-            if (deep) // XXX
-               n += tree_visit_type(t->items[i].type, fn, context, kind,
-                                    generation, deep);
-         }
+         else if (ITEM_TYPE & mask)
+            n += tree_visit_type(t->items[i].type, fn, context, kind,
+                                 generation, deep);
          else if (ITEM_PORT_MODE & mask)
             ;
          else
             item_without_type(mask);
-         i++;
       }
+
+      if (has & mask)
+         i++;
    }
 
    if (HAS_TRIGGERS(t))
