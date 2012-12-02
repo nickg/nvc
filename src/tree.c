@@ -31,15 +31,15 @@
 #define EXTRA_READ_CHECKS
 
 typedef struct tree_array /* DELME */ {
-   size_t  count;
-   size_t  max;
-   tree_t *items;
+   uint32_t  count;
+   uint32_t  max;
+   tree_t   *items;
 } tree_array_t;
 
 typedef struct param_array /* DELME */ {
-   size_t   count;
-   size_t   max;
-   param_t *items;
+   uint32_t  count;
+   uint32_t  max;
+   param_t  *items;
 } param_array_t;
 
 typedef enum {
