@@ -70,6 +70,9 @@ enum {
    I_PORTS    = (1 << 9),
    I_GENERICS = (1 << 10),
    I_PARAMS   = (1 << 11),
+   I_GENMAPS  = (1 << 12),
+   I_WAVES    = (1 << 13),
+   I_CONDS    = (1 << 14),
 };
 
 typedef union {
@@ -123,7 +126,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS),
 
    // T_SIGNAL_ASSIGN
-   (I_IDENT | I_TARGET),
+   (I_IDENT | I_TARGET | I_WAVES),
 
    // T_QUALIFIED
    (I_IDENT | I_VALUE),
@@ -156,7 +159,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2 | I_PARAMS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS),
 
    // T_IF
    (I_IDENT | I_VALUE | I_STMTS),
@@ -174,7 +177,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_CASSIGN
-   (I_IDENT | I_TARGET),
+   (I_IDENT | I_TARGET | I_CONDS),
 
    // T_WHILE
    (I_IDENT | I_VALUE | I_STMTS),
@@ -213,7 +216,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // T_COND
-   (I_VALUE),
+   (I_VALUE | I_WAVES),
 
    // T_CONCAT
    (I_PARAMS),
@@ -243,8 +246,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
 #define ITEM_LITERAL     (I_LITERAL)
-#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS)
-#define ITEM_PARAM_ARRAY (I_PARAMS)
+#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
+                          | I_CONDS)
+#define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -265,7 +269,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",  "I_SEVERITY", "I_MESSAGE", "I_TARGET",
    "I_LITERAL",  "I_IDENT2", "I_DECLS",    "I_STMTS",   "I_PORTS",
-   "I_GENERICS", "I_PARAMS",
+   "I_GENERICS", "I_PARAMS", "I_GENMAPS",  "I_WAVES",   "I_CONDS",
 };
 
 struct tree {
@@ -276,11 +280,6 @@ struct tree {
 
    item_t      items[MAX_ITEMS];
 
-   union {
-      struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_COND
-      struct param_array genmaps;  // T_INSTANCE
-      struct tree_array  conds;    // T_CASSIGN
-   };
    union {
       port_mode_t port_mode;       // T_PORT_MODE
       tree_t      delay;           // T_WAIT
@@ -371,14 +370,11 @@ struct tree_rd_ctx {
    (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
     || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV)      \
     || IS(t, T_FOR_GENERATE))
-#define HAS_WAVEFORMS(t)                                              \
-   (IS(t, T_SIGNAL_ASSIGN) || IS(t, T_COND))
 #define HAS_RANGE(t)                                                  \
    (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
 #define HAS_ASSOCS(t)                                                 \
    (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))
-#define HAS_CONDS(t) (IS(t, T_CASSIGN))
 #define HAS_REJECT(t) (IS(t, T_COND) || IS(t, T_SIGNAL_ASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
@@ -745,31 +741,22 @@ void tree_add_param(tree_t t, param_t e)
 
 unsigned tree_genmaps(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_INSTANCE));
-
-   return t->genmaps.count;
+   return lookup_item(t, I_GENMAPS)->param_array.count;
 }
 
 param_t tree_genmap(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(IS(t, T_INSTANCE));
-   assert(n < t->genmaps.count);
-
-   return t->genmaps.items[n];
+   return param_array_nth(&(lookup_item(t, I_GENMAPS)->param_array), n);
 }
 
 void tree_add_genmap(tree_t t, param_t e)
 {
-   assert(t != NULL);
-   assert(IS(t, T_INSTANCE));
    assert(e.kind == P_RANGE || IS_EXPR(e.value));
 
    if (e.kind == P_POS)
-      e.pos = t->genmaps.count;
+      e.pos = tree_genmaps(t);
 
-   param_array_add(&t->genmaps, e);
+   param_array_add(&(lookup_item(t, I_GENMAPS)->param_array), e);
 }
 
 void tree_set_literal(tree_t t, literal_t lit)
@@ -834,28 +821,18 @@ void tree_add_stmt(tree_t t, tree_t s)
 
 unsigned tree_waveforms(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_WAVEFORMS(t));
-
-   return t->waves.count;
+   return lookup_item(t, I_WAVES)->tree_array.count;
 }
 
 tree_t tree_waveform(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_WAVEFORMS(t));
-
-   return tree_array_nth(&t->waves, n);
+   return tree_array_nth(&(lookup_item(t, I_WAVES)->tree_array), n);
 }
 
 void tree_add_waveform(tree_t t, tree_t w)
 {
-   assert(t != NULL);
-   assert(w != NULL);
-   assert(HAS_WAVEFORMS(t));
    assert(IS(w, T_WAVEFORM));
-
-   tree_array_add(&t->waves, w);
+   tree_array_add(&(lookup_item(t, I_WAVES)->tree_array), w);
 }
 
 unsigned tree_else_stmts(tree_t t)
@@ -886,28 +863,18 @@ void tree_add_else_stmt(tree_t t, tree_t s)
 
 unsigned tree_conds(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_CONDS(t));
-
-   return t->conds.count;
+   return lookup_item(t, I_CONDS)->tree_array.count;
 }
 
 tree_t tree_cond(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_CONDS(t));
-
-   return tree_array_nth(&t->conds, n);
+   return tree_array_nth(&(lookup_item(t, I_CONDS)->tree_array), n);
 }
 
 void tree_add_cond(tree_t t, tree_t c)
 {
-   assert(t != NULL);
-   assert(c != NULL);
-   assert(HAS_CONDS(t));
    assert(IS(c, T_COND));
-
-   tree_array_add(&t->conds, c);
+   tree_array_add(&(lookup_item(t, I_CONDS)->tree_array), c);
 }
 
 bool tree_has_delay(tree_t t)
@@ -1367,10 +1334,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    if (HAS_TRIGGERS(t))
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
-   if (HAS_CONDS(t))
-      n += tree_visit_a(&t->conds, fn, context, kind, generation, deep);
-   if (HAS_WAVEFORMS(t))
-      n += tree_visit_a(&t->waves, fn, context, kind, generation, deep);
    if (HAS_DELAY(t))
       n += tree_visit_aux(t->delay, fn, context, kind, generation, deep);
    if (HAS_REJECT(t))
@@ -1407,8 +1370,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       }
    }
 
-   else if (IS(t, T_INSTANCE))
-      n += tree_visit_p(&t->genmaps, fn, context, kind, generation, deep);
    else if (IS(t, T_IF))
       n += tree_visit_a(&t->elses, fn, context, kind, generation, deep);
    else if (IS(t, T_FILE_DECL))
@@ -1662,10 +1623,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
-   if (HAS_WAVEFORMS(t))
-      write_a(&t->waves, ctx);
-   if (HAS_CONDS(t))
-      write_a(&t->conds, ctx);
    if (HAS_TYPE(t))
       type_write(t->type, ctx->type_ctx);
    if (HAS_DELAY(t))
@@ -1722,10 +1679,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    case T_ENUM_LIT:
       write_u32(t->pos, ctx->file);
-      break;
-
-   case T_INSTANCE:
-      write_p(&t->genmaps, ctx);
       break;
 
    case T_IF:
@@ -1836,10 +1789,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
-   if (HAS_WAVEFORMS(t))
-      read_a(&t->waves, ctx);
-   if (HAS_CONDS(t))
-      read_a(&t->conds, ctx);
    if (HAS_TYPE(t))
       t->type = type_read(ctx->type_ctx);
    if (HAS_DELAY(t))
@@ -1899,10 +1848,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    case T_ENUM_LIT:
       t->pos = read_u32(ctx->file);
-      break;
-
-   case T_INSTANCE:
-      read_p(&t->genmaps, ctx);
       break;
 
    case T_IF:
@@ -2188,10 +2133,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 
    if (HAS_TRIGGERS(t))
       rewrite_a(&t->triggers, ctx);
-   if (HAS_WAVEFORMS(t))
-      rewrite_a(&t->waves, ctx);
-   if (HAS_CONDS(t))
-      rewrite_a(&t->conds, ctx);
    if (HAS_DELAY(t)) {
       if (tree_has_delay(t))
          tree_set_delay(t, tree_rewrite_aux(tree_delay(t), ctx));
@@ -2228,10 +2169,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    case T_ASSERT:
       tree_set_severity(t, tree_rewrite_aux(tree_severity(t), ctx));
       tree_set_message(t, tree_rewrite_aux(tree_message(t), ctx));
-      break;
-
-   case T_INSTANCE:
-      rewrite_p(&t->genmaps, ctx);
       break;
 
    case T_IF:
@@ -2385,12 +2322,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       }
    }
 
-   if (HAS_CONDS(t))
-      copy_a(&t->conds, &copy->conds, ctx);
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
-   if (HAS_WAVEFORMS(t))
-      copy_a(&t->waves, &copy->waves, ctx);
    if (HAS_TYPE(t))
       copy->type = t->type;
    if (HAS_REJECT(t))
@@ -2437,10 +2370,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    case T_ENUM_LIT:
       copy->pos = t->pos;
-      break;
-
-   case T_INSTANCE:
-      copy_p(&t->genmaps, &copy->genmaps, ctx);
       break;
 
    case T_IF:
