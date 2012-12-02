@@ -77,6 +77,7 @@ enum {
    I_PORT_MODE = (1 << 16),
    I_DELAY     = (1 << 17),
    I_REJECT    = (1 << 18),
+   I_POS       = (1 << 19),
 };
 
 typedef union {
@@ -87,6 +88,7 @@ typedef union {
    param_array_t param_array;
    type_t        type;
    port_mode_t   port_mode;
+   uint32_t      uint;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -138,7 +140,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_ENUM_LIT
-   (I_IDENT | I_TYPE),
+   (I_IDENT | I_TYPE | I_POS),
 
    // T_CONST_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -258,6 +260,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_PORT_MODE   (I_PORT_MODE)
+#define ITEM_UINT        (I_POS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -293,7 +296,6 @@ struct tree {
    union {
       tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
       tree_t   file_mode;          // T_FILE_DECL
-      unsigned pos;                // T_ENUM_LIT
    };
    union {
       struct {                     // T_AGGREGATE
@@ -1065,18 +1067,12 @@ void tree_set_range(tree_t t, range_t r)
 
 unsigned tree_pos(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ENUM_LIT));
-
-   return t->pos;
+   return lookup_item(t, I_POS)->uint;
 }
 
 void tree_set_pos(tree_t t, unsigned pos)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ENUM_LIT));
-
-   t->pos = pos;
+   lookup_item(t, I_POS)->uint = pos;
 }
 
 class_t tree_class(tree_t t)
@@ -1301,6 +1297,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
             n += tree_visit_type(t->items[i].type, fn, context, kind,
                                  generation, deep);
          else if (ITEM_PORT_MODE & mask)
+            ;
+         else if (ITEM_UINT & mask)
             ;
          else
             item_without_type(mask);
@@ -1591,8 +1589,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             type_write(t->items[n].type, ctx->type_ctx);
          else if (ITEM_PORT_MODE & mask)
             write_u8(t->items[n].port_mode, ctx->file);
+         else if (ITEM_UINT & mask)
+            write_u32(t->items[n].uint, ctx->file);
          else
-            assert(false);
+            item_without_type(mask);
          n++;
       }
    }
@@ -1643,10 +1643,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    }
 
    switch (t->kind) {
-   case T_ENUM_LIT:
-      write_u32(t->pos, ctx->file);
-      break;
-
    case T_IF:
       write_a(&t->elses, ctx);
       break;
@@ -1751,8 +1747,10 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].type = type_read(ctx->type_ctx);
          else if (ITEM_PORT_MODE & mask)
             t->items[n].port_mode = read_u8(ctx->file);
+         else if (ITEM_UINT & mask)
+            t->items[n].uint = read_u32(ctx->file);
          else
-            assert(false);
+            item_without_type(mask);
          n++;
       }
    }
@@ -1806,10 +1804,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
 
    switch (t->kind) {
-   case T_ENUM_LIT:
-      t->pos = read_u32(ctx->file);
-      break;
-
    case T_IF:
       read_a(&t->elses, ctx);
       break;
@@ -2089,6 +2083,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_PORT_MODE & mask)
             ;
+         else if (ITEM_UINT & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -2278,8 +2274,10 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].type = t->items[n].type;
          else if (ITEM_PORT_MODE & mask)
             copy->items[n].port_mode = t->items[n].port_mode;
+         else if (ITEM_UINT & mask)
+            copy->items[n].uint = t->items[n].uint;
          else
-            assert(false);
+            item_without_type(mask);
          n++;
       }
    }
@@ -2320,10 +2318,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy->class = t->class;
 
    switch (t->kind) {
-   case T_ENUM_LIT:
-      copy->pos = t->pos;
-      break;
-
    case T_IF:
       copy_a(&t->elses, &copy->elses, ctx);
       break;
