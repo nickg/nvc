@@ -58,22 +58,23 @@ struct attr {
 };
 
 enum {
-   I_IDENT    = (1 << 0),
-   I_VALUE    = (1 << 1),
-   I_SEVERITY = (1 << 2),
-   I_MESSAGE  = (1 << 3),
-   I_TARGET   = (1 << 4),
-   I_LITERAL  = (1 << 5),
-   I_IDENT2   = (1 << 6),
-   I_DECLS    = (1 << 7),
-   I_STMTS    = (1 << 8),
-   I_PORTS    = (1 << 9),
-   I_GENERICS = (1 << 10),
-   I_PARAMS   = (1 << 11),
-   I_GENMAPS  = (1 << 12),
-   I_WAVES    = (1 << 13),
-   I_CONDS    = (1 << 14),
-   I_TYPE     = (1 << 15),
+   I_IDENT     = (1 << 0),
+   I_VALUE     = (1 << 1),
+   I_SEVERITY  = (1 << 2),
+   I_MESSAGE   = (1 << 3),
+   I_TARGET    = (1 << 4),
+   I_LITERAL   = (1 << 5),
+   I_IDENT2    = (1 << 6),
+   I_DECLS     = (1 << 7),
+   I_STMTS     = (1 << 8),
+   I_PORTS     = (1 << 9),
+   I_GENERICS  = (1 << 10),
+   I_PARAMS    = (1 << 11),
+   I_GENMAPS   = (1 << 12),
+   I_WAVES     = (1 << 13),
+   I_CONDS     = (1 << 14),
+   I_TYPE      = (1 << 15),
+   I_PORT_MODE = (1 << 16),
 };
 
 typedef union {
@@ -83,6 +84,7 @@ typedef union {
    tree_array_t  tree_array;
    param_array_t param_array;
    type_t        type;
+   port_mode_t   port_mode;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -95,7 +97,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
 
    // T_PORT_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_PORT_MODE),
 
    // T_FCALL
    (I_IDENT | I_PARAMS | I_TYPE),
@@ -252,6 +254,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_CONDS)
 #define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
+#define ITEM_PORT_MODE   (I_PORT_MODE)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -270,10 +273,10 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT",    "I_VALUE",  "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL",  "I_IDENT2", "I_DECLS",    "I_STMTS",   "I_PORTS",
-   "I_GENERICS", "I_PARAMS", "I_GENMAPS",  "I_WAVES",   "I_CONDS",
-   "I_TYPE",
+   "I_IDENT",    "I_VALUE",    "I_SEVERITY", "I_MESSAGE", "I_TARGET",
+   "I_LITERAL",  "I_IDENT2",   "I_DECLS",    "I_STMTS",   "I_PORTS",
+   "I_GENERICS", "I_PARAMS",   "I_GENMAPS",  "I_WAVES",   "I_CONDS",
+   "I_TYPE",     "I_PORT_MODE",
 };
 
 struct tree {
@@ -285,7 +288,6 @@ struct tree {
    item_t      items[MAX_ITEMS];
 
    union {
-      port_mode_t port_mode;       // T_PORT_MODE
       tree_t      delay;           // T_WAIT
       tree_t      reject;          // T_CASSIGN, T_SIGNAL_ASSIGN
    };
@@ -660,19 +662,14 @@ void tree_add_port(tree_t t, tree_t d)
 
 port_mode_t tree_port_mode(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_PORT_DECL));
-   assert(t->port_mode != PORT_INVALID);
-
-   return t->port_mode;
+   item_t *item = lookup_item(t, I_PORT_MODE);
+   assert(item->port_mode != PORT_INVALID);
+   return item->port_mode;
 }
 
 void tree_set_port_mode(tree_t t, port_mode_t mode)
 {
-   assert(t != NULL);
-   assert(IS(t, T_PORT_DECL));
-
-   t->port_mode = mode;
+   lookup_item(t, I_PORT_MODE)->port_mode = mode;
 }
 
 unsigned tree_generics(tree_t t)
@@ -1320,6 +1317,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                n += tree_visit_type(t->items[i].type, fn, context, kind,
                                     generation, deep);
          }
+         else if (ITEM_PORT_MODE & mask)
+            ;
          else
             item_without_type(mask);
          i++;
@@ -1609,6 +1608,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             write_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_write(t->items[n].type, ctx->type_ctx);
+         else if (ITEM_PORT_MODE & mask)
+            write_u8(t->items[n].port_mode, ctx->file);
          else
             assert(false);
          n++;
@@ -1665,10 +1666,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    }
 
    switch (t->kind) {
-   case T_PORT_DECL:
-      write_u16(t->port_mode, ctx->file);
-      break;
-
    case T_ENUM_LIT:
       write_u32(t->pos, ctx->file);
       break;
@@ -1775,6 +1772,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             read_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             t->items[n].type = type_read(ctx->type_ctx);
+         else if (ITEM_PORT_MODE & mask)
+            t->items[n].port_mode = read_u8(ctx->file);
          else
             assert(false);
          n++;
@@ -1834,10 +1833,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
 
    switch (t->kind) {
-   case T_PORT_DECL:
-      t->port_mode = read_u16(ctx->file);
-      break;
-
    case T_ENUM_LIT:
       t->pos = read_u32(ctx->file);
       break;
@@ -2119,6 +2114,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             rewrite_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             ;
+         else if (ITEM_PORT_MODE & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -2312,6 +2309,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
                    &(copy->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             copy->items[n].type = t->items[n].type;
+         else if (ITEM_PORT_MODE & mask)
+            copy->items[n].port_mode = t->items[n].port_mode;
          else
             assert(false);
          n++;
@@ -2358,10 +2357,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       copy->class = t->class;
 
    switch (t->kind) {
-   case T_PORT_DECL:
-      copy->port_mode = t->port_mode;
-      break;
-
    case T_ENUM_LIT:
       copy->pos = t->pos;
       break;
