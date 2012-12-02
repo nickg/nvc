@@ -75,6 +75,8 @@ enum {
    I_CONDS     = (1 << 14),
    I_TYPE      = (1 << 15),
    I_PORT_MODE = (1 << 16),
+   I_DELAY     = (1 << 17),
+   I_REJECT    = (1 << 18),
 };
 
 typedef union {
@@ -103,7 +105,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE),
 
    // T_LITERAL
-   (I_VALUE | I_LITERAL | I_TYPE),
+   (I_LITERAL | I_TYPE),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -118,7 +120,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE),
 
    // T_WAIT
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_DELAY),
 
    // T_TYPE_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -130,7 +132,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS),
 
    // T_SIGNAL_ASSIGN
-   (I_IDENT | I_TARGET | I_WAVES),
+   (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
 
    // T_QUALIFIED
    (I_IDENT | I_VALUE | I_TYPE),
@@ -187,7 +189,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_STMTS),
 
    // T_WAVEFORM
-   (I_VALUE),
+   (I_VALUE | I_DELAY),
 
    // T_ALIAS
    (I_IDENT | I_VALUE | I_TYPE),
@@ -220,7 +222,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS),
 
    // T_COND
-   (I_VALUE | I_WAVES),
+   (I_VALUE | I_WAVES | I_REJECT),
 
    // T_CONCAT
    (I_PARAMS | I_TYPE),
@@ -248,7 +250,8 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
-#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
+#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
+                          | I_DELAY | I_REJECT)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS)
@@ -273,10 +276,10 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_IDENT",    "I_VALUE",    "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL",  "I_IDENT2",   "I_DECLS",    "I_STMTS",   "I_PORTS",
-   "I_GENERICS", "I_PARAMS",   "I_GENMAPS",  "I_WAVES",   "I_CONDS",
-   "I_TYPE",     "I_PORT_MODE",
+   "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE", "I_TARGET",
+   "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
+   "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
+   "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",
 };
 
 struct tree {
@@ -287,10 +290,6 @@ struct tree {
 
    item_t      items[MAX_ITEMS];
 
-   union {
-      tree_t      delay;           // T_WAIT
-      tree_t      reject;          // T_CASSIGN, T_SIGNAL_ASSIGN
-   };
    union {
       tree_t   ref;                // T_REF, T_FCALL, T_ARRAY_REF, T_PCALL
       tree_t   file_mode;          // T_FILE_DECL
@@ -361,7 +360,6 @@ struct tree_rd_ctx {
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
-#define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
@@ -374,7 +372,6 @@ struct tree_rd_ctx {
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
 #define HAS_ASSOCS(t)                                                 \
    (IS(t, T_AGGREGATE) || IS(t, T_CASE)|| IS(t, T_SELECT))
-#define HAS_REJECT(t) (IS(t, T_COND) || IS(t, T_SIGNAL_ASSIGN))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -865,29 +862,20 @@ void tree_add_cond(tree_t t, tree_t c)
 
 bool tree_has_delay(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_DELAY(t));
-
-   return t->delay != NULL;
+   return lookup_item(t, I_DELAY)->tree != NULL;
 }
 
 tree_t tree_delay(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_DELAY(t));
-   assert(t->delay != NULL);
-
-   return t->delay;
+   item_t *item = lookup_item(t, I_DELAY);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_delay(tree_t t, tree_t d)
 {
-   assert(t != NULL);
-   assert(d != NULL);
-   assert(HAS_DELAY(t));
    assert(IS_EXPR(d));
-
-   t->delay = d;
+   lookup_item(t, I_DELAY)->tree = d;
 }
 
 unsigned tree_triggers(tree_t t)
@@ -1109,20 +1097,15 @@ void tree_set_class(tree_t t, class_t c)
 
 tree_t tree_reject(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_REJECT(t));
-   assert(t->reject != NULL);
-
-   return t->reject;
+   item_t *item = lookup_item(t, I_REJECT);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 void tree_set_reject(tree_t t, tree_t r)
 {
-   assert(t != NULL);
-   assert(HAS_REJECT(t));
    assert(IS_EXPR(r));
-
-   t->reject = r;
+   lookup_item(t, I_REJECT)->tree = r;
 }
 
 tree_t tree_file_mode(tree_t t)
@@ -1329,10 +1312,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    if (HAS_TRIGGERS(t))
       n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
-   if (HAS_DELAY(t))
-      n += tree_visit_aux(t->delay, fn, context, kind, generation, deep);
-   if (HAS_REJECT(t))
-      n += tree_visit_aux(t->reject, fn, context, kind, generation, deep);
    if (HAS_REF(t) && deep)
       n += tree_visit_aux(t->ref, fn, context, kind, generation, deep);
    if (HAS_RANGE(t)) {
@@ -1620,10 +1599,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
-   if (HAS_DELAY(t))
-      tree_write(t->delay, ctx);
-   if (HAS_REJECT(t))
-      tree_write(t->reject, ctx);
    if (HAS_REF(t))
       tree_write(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
@@ -1784,10 +1759,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
-   if (HAS_DELAY(t))
-      t->delay = tree_read(ctx);
-   if (HAS_REJECT(t))
-      t->reject = tree_read(ctx);
    if (HAS_REF(t))
       t->ref = tree_read(ctx);
    if (HAS_CONTEXT(t)) {
@@ -2126,12 +2097,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 
    if (HAS_TRIGGERS(t))
       rewrite_a(&t->triggers, ctx);
-   if (HAS_DELAY(t)) {
-      if (tree_has_delay(t))
-         tree_set_delay(t, tree_rewrite_aux(tree_delay(t), ctx));
-   }
-   if (HAS_REJECT(t))
-      t->reject = tree_rewrite_aux(t->reject, ctx);
    if (HAS_RANGE(t)) {
       range_t r = tree_range(t);
       r.left  = tree_rewrite_aux(r.left, ctx);
@@ -2321,10 +2286,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
-   if (HAS_REJECT(t))
-      copy->reject = tree_copy_aux(t->reject, ctx);
-   if (HAS_DELAY(t))
-      copy->delay = tree_copy_aux(t->delay, ctx);
    if (HAS_REF(t))
       copy->ref = tree_copy_aux(t->ref, ctx);
    if (HAS_CONTEXT(t)) {
