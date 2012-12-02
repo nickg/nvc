@@ -79,6 +79,7 @@ enum {
    I_REJECT    = (1 << 18),
    I_POS       = (1 << 19),
    I_REF       = (1 << 20),
+   I_FILE_MODE = (1 << 21),
 };
 
 typedef union {
@@ -246,7 +247,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF),
 
    // T_FILE_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE),
 
    // T_OPEN
    (I_TYPE),
@@ -254,7 +255,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT | I_REF)
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS)
@@ -292,12 +293,8 @@ struct tree {
    loc_t       loc;
    struct attr *attrs;
    unsigned    n_attrs;
-
    item_t      items[MAX_ITEMS];
 
-   union {
-      tree_t   file_mode;          // T_FILE_DECL
-   };
    union {
       struct {                     // T_AGGREGATE
          assoc_t  *assocs;
@@ -366,10 +363,6 @@ struct tree_rd_ctx {
 #define HAS_CONTEXT(t)                                                \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
     || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
-#define HAS_REF(t)                                                    \
-   (IS(t, T_REF) || IS(t, T_FCALL) || IS(t, T_ATTR_REF)               \
-    || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_TYPE_CONV)      \
-    || IS(t, T_FOR_GENERATE))
 #define HAS_RANGE(t)                                                  \
    (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
@@ -1102,19 +1095,12 @@ void tree_set_reject(tree_t t, tree_t r)
 
 tree_t tree_file_mode(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_FILE_DECL));
-
-   return t->file_mode;
+   return lookup_item(t, I_FILE_MODE)->tree;
 }
 
 void tree_set_file_mode(tree_t t, tree_t m)
 {
-   assert(t != NULL);
-   assert(m != NULL);
-   assert(IS(t, T_FILE_DECL));
-
-   t->file_mode = m;
+   lookup_item(t, I_FILE_MODE)->tree = m;
 }
 
 uint32_t tree_index(tree_t t)
@@ -1336,8 +1322,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
    else if (IS(t, T_IF))
       n += tree_visit_a(&t->elses, fn, context, kind, generation, deep);
-   else if (IS(t, T_FILE_DECL))
-      n += tree_visit_aux(t->file_mode, fn, context, kind, generation, deep);
 
    if (deep) {
       for (unsigned i = 0; i < t->n_attrs; i++) {
@@ -1639,10 +1623,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       write_a(&t->elses, ctx);
       break;
 
-   case T_FILE_DECL:
-      tree_write(t->file_mode, ctx);
-      break;
-
    default:
       break;
    }
@@ -1794,10 +1774,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    switch (t->kind) {
    case T_IF:
       read_a(&t->elses, ctx);
-      break;
-
-   case T_FILE_DECL:
-      t->file_mode = tree_read(ctx);
       break;
 
    default:
@@ -2119,10 +2095,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       rewrite_a(&t->elses, ctx);
       break;
 
-   case T_FILE_DECL:
-      tree_set_file_mode(t, tree_rewrite_aux(t->file_mode, ctx));
-      break;
-
    default:
       break;
    }
@@ -2308,10 +2280,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    switch (t->kind) {
    case T_IF:
       copy_a(&t->elses, &copy->elses, ctx);
-      break;
-
-   case T_FILE_DECL:
-      copy->file_mode = tree_copy_aux(t->file_mode, ctx);
       break;
 
    default:
