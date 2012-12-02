@@ -31,16 +31,16 @@
 #define EXTRA_READ_CHECKS
 
 typedef struct tree_array /* DELME */ {
-   size_t count;
-   size_t max;
+   size_t  count;
+   size_t  max;
    tree_t *items;
 } tree_array_t;
 
-struct param_array {
-   size_t  count;
-   size_t  max;
+typedef struct param_array /* DELME */ {
+   size_t   count;
+   size_t   max;
    param_t *items;
-};
+} param_array_t;
 
 typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
@@ -69,13 +69,15 @@ enum {
    I_STMTS    = (1 << 8),
    I_PORTS    = (1 << 9),
    I_GENERICS = (1 << 10),
+   I_PARAMS   = (1 << 11),
 };
 
 typedef union {
-   ident_t      ident;
-   tree_t       tree;
-   literal_t    literal;
-   tree_array_t tree_array;
+   ident_t       ident;
+   tree_t        tree;
+   literal_t     literal;
+   tree_array_t  tree_array;
+   param_array_t param_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -91,7 +93,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_FCALL
-   (I_IDENT),
+   (I_IDENT | I_PARAMS),
 
    // T_LITERAL
    (I_VALUE | I_LITERAL),
@@ -145,16 +147,16 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
 
    // T_ATTR_REF
-   (I_IDENT | I_VALUE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_PARAMS),
 
    // T_ARRAY_REF
-   (I_VALUE),
+   (I_VALUE | I_PARAMS),
 
    // T_ARRAY_SLICE
    (I_VALUE),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_PARAMS),
 
    // T_IF
    (I_IDENT | I_VALUE | I_STMTS),
@@ -202,7 +204,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE),
 
    // T_PCALL
-   (I_IDENT | I_IDENT2),
+   (I_IDENT | I_IDENT2 | I_PARAMS),
 
    // T_CASE
    (I_IDENT | I_VALUE),
@@ -214,10 +216,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE),
 
    // T_CONCAT
-   (0),
+   (I_PARAMS),
 
    // T_TYPE_CONV
-   (0),
+   (I_PARAMS),
 
    // T_SELECT
    (I_IDENT | I_VALUE),
@@ -238,10 +240,11 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (0),
 };
 
-#define ITEM_IDENT      (I_IDENT | I_IDENT2)
-#define ITEM_TREE       (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
-#define ITEM_LITERAL    (I_LITERAL)
-#define ITEM_TREE_ARRAY (I_DECLS | I_STMTS | I_PORTS | I_GENERICS)
+#define ITEM_IDENT       (I_IDENT | I_IDENT2)
+#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET)
+#define ITEM_LITERAL     (I_LITERAL)
+#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS)
+#define ITEM_PARAM_ARRAY (I_PARAMS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -262,7 +265,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",  "I_SEVERITY", "I_MESSAGE", "I_TARGET",
    "I_LITERAL",  "I_IDENT2", "I_DECLS",    "I_STMTS",   "I_PORTS",
-   "I_GENERICS",
+   "I_GENERICS", "I_PARAMS",
 };
 
 struct tree {
@@ -273,9 +276,6 @@ struct tree {
 
    item_t      items[MAX_ITEMS];
 
-   union {
-      struct param_array params;   // T_FCALL, T_ATTR_REF, T_PCALL
-   };
    union {
       struct tree_array  waves;    // T_SIGNAL_ASSIGN, T_COND
       struct param_array genmaps;  // T_INSTANCE
@@ -362,10 +362,6 @@ struct tree_rd_ctx {
     || IS(t, T_CONST_DECL) || IS(t, T_FUNC_DECL)                      \
     || IS(t, T_FUNC_BODY) || IS(t, T_ALIAS) || IS(t, T_ATTR_DECL)     \
     || IS(t, T_PROC_DECL) || IS(t, T_PROC_BODY) || IS(t, T_FILE_DECL))
-#define HAS_PARAMS(t)                                                 \
-   (IS(t, T_FCALL) || IS(t, T_ATTR_REF) || IS(t, T_ARRAY_REF)         \
-    || IS(t, T_INSTANCE) || IS(t, T_PCALL) || IS(t, T_CONCAT)         \
-    || IS(t, T_TYPE_CONV))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_DELAY(t) (IS(t, T_WAIT) || IS(t, T_WAVEFORM))
 #define HAS_CONTEXT(t)                                                \
@@ -465,7 +461,7 @@ static inline tree_t tree_array_nth(tree_array_t *a, unsigned n)
    return a->items[n];
 }
 
-static void param_array_add(struct param_array *a, param_t p)
+static void param_array_add(param_array_t *a, param_t p)
 {
    if (a->max == 0) {
       a->items = xmalloc(sizeof(param_t) * TREE_ARRAY_BASE_SZ);
@@ -477,6 +473,12 @@ static void param_array_add(struct param_array *a, param_t p)
    }
 
    a->items[a->count++] = p;
+}
+
+static inline param_t param_array_nth(param_array_t *a, unsigned n)
+{
+   assert(n < a->count);
+   return a->items[n];
 }
 
 tree_t tree_new(tree_kind_t kind)
@@ -533,12 +535,12 @@ void tree_gc(void)
             if (has & mask) {
                if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
+               else if (ITEM_PARAM_ARRAY & mask)
+                  free(t->items[n].param_array.items);
                n++;
             }
          }
 
-         if (HAS_PARAMS(t) && t->params.items != NULL)
-            free(t->params.items);
          if (HAS_ASSOCS(t) && t->n_assocs_alloc > 0)
             free(t->assocs);
 
@@ -723,31 +725,22 @@ bool tree_has_type(tree_t t)
 
 unsigned tree_params(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
-
-   return t->params.count;
+   return lookup_item(t, I_PARAMS)->param_array.count;
 }
 
 param_t tree_param(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
-   assert(n < t->params.count);
-
-   return t->params.items[n];
+   return param_array_nth(&(lookup_item(t, I_PARAMS)->param_array), n);
 }
 
 void tree_add_param(tree_t t, param_t e)
 {
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
    assert(e.kind == P_RANGE || IS_EXPR(e.value));
 
    if (e.kind == P_POS)
-      e.pos = t->params.count;
+      e.pos = tree_params(t);
 
-   param_array_add(&t->params, e);
+   param_array_add(&(lookup_item(t, I_PARAMS)->param_array), e);
 }
 
 unsigned tree_genmaps(tree_t t)
@@ -1204,7 +1197,7 @@ uint32_t tree_index(tree_t t)
    return t->index;
 }
 
-static unsigned tree_visit_a(struct tree_array *a,
+static unsigned tree_visit_a(tree_array_t *a,
                              tree_visit_fn_t fn, void *context,
                              tree_kind_t kind, unsigned generation,
                              bool deep)
@@ -1217,7 +1210,7 @@ static unsigned tree_visit_a(struct tree_array *a,
    return n;
 }
 
-static unsigned tree_visit_p(struct param_array *a,
+static unsigned tree_visit_p(param_array_t *a,
                              tree_visit_fn_t fn, void *context,
                              tree_kind_t kind, unsigned generation,
                              bool deep)
@@ -1363,6 +1356,9 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          else if (ITEM_TREE_ARRAY & mask)
             n += tree_visit_a(&(t->items[i].tree_array), fn, context,
                               kind, generation, deep);
+         else if (ITEM_PARAM_ARRAY & mask)
+            n += tree_visit_p(&(t->items[i].param_array), fn, context,
+                              kind, generation, deep);
          else
             item_without_type(mask);
          i++;
@@ -1383,8 +1379,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       n += tree_visit_aux(t->ref, fn, context, kind, generation, deep);
    if (HAS_TYPE(t) && deep)
       n += tree_visit_type(t->type, fn, context, kind, generation, deep);
-   if (HAS_PARAMS(t))
-      n += tree_visit_p(&t->params, fn, context, kind, generation, deep);
    if (HAS_RANGE(t)) {
       n += tree_visit_aux(t->range.left, fn, context, kind,
                           generation, deep);
@@ -1658,6 +1652,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          }
          else if (ITEM_TREE_ARRAY & mask)
             write_a(&(t->items[n].tree_array), ctx);
+         else if (ITEM_PARAM_ARRAY & mask)
+            write_p(&(t->items[n].param_array), ctx);
          else
             assert(false);
          n++;
@@ -1685,8 +1681,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          write_loc(&t->context[i].loc, ctx);
       }
    }
-   if (HAS_PARAMS(t))
-      write_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
       write_u16(t->range.kind, ctx->file);
       tree_write(t->range.left, ctx);
@@ -1832,6 +1826,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          }
          else if (ITEM_TREE_ARRAY & mask)
             read_a(&(t->items[n].tree_array), ctx);
+         else if (ITEM_PARAM_ARRAY & mask)
+            read_p(&(t->items[n].param_array), ctx);
          else
             assert(false);
          n++;
@@ -1861,8 +1857,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          t->context[i].loc  = read_loc(ctx);
       }
    }
-   if (HAS_PARAMS(t))
-      read_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
       t->range.kind  = read_u16(ctx->file);
       t->range.left  = tree_read(ctx);
@@ -2184,6 +2178,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_TREE_ARRAY & mask)
             rewrite_a(&(t->items[n].tree_array), ctx);
+         else if (ITEM_PARAM_ARRAY & mask)
+            rewrite_p(&(t->items[n].param_array), ctx);
          else
             item_without_type(mask);
          n++;
@@ -2202,8 +2198,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    }
    if (HAS_REJECT(t))
       t->reject = tree_rewrite_aux(t->reject, ctx);
-   if (HAS_PARAMS(t))
-      rewrite_p(&t->params, ctx);
    if (HAS_RANGE(t)) {
       range_t r = tree_range(t);
       r.left  = tree_rewrite_aux(r.left, ctx);
@@ -2382,6 +2376,9 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
          else if (ITEM_TREE_ARRAY & mask)
             copy_a(&(t->items[n].tree_array),
                    &(copy->items[n].tree_array), ctx);
+         else if (ITEM_PARAM_ARRAY & mask)
+            copy_p(&(t->items[n].param_array),
+                   &(copy->items[n].param_array), ctx);
          else
             assert(false);
          n++;
@@ -2406,8 +2403,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       for (unsigned i = 0; i < tree_contexts(t); i++)
          tree_add_context(copy, tree_context(t, i));
    }
-   if (HAS_PARAMS(t))
-      copy_p(&t->params, &copy->params, ctx);
    if (HAS_RANGE(t)) {
       copy->range.kind  = t->range.kind;
       copy->range.left  = tree_copy_aux(t->range.left, ctx);
