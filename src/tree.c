@@ -48,6 +48,11 @@ typedef struct {
    assoc_t  *items;
 } assoc_array_t;
 
+typedef struct {
+   context_t *items;
+   uint32_t   count;
+} context_set_t;
+
 typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
 } attr_kind_t;
@@ -87,6 +92,7 @@ enum {
    I_REF       = (1 << 20),
    I_FILE_MODE = (1 << 21),
    I_ASSOCS    = (1 << 22),
+   I_CONTEXT   = (1 << 23),
 };
 
 typedef union {
@@ -99,16 +105,17 @@ typedef union {
    port_mode_t   port_mode;
    uint32_t      uint;
    assoc_array_t assoc_array;
+   context_set_t context_set;
 } item_t;
 
 typedef uint32_t imask_t;
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
-   (I_IDENT | I_PORTS | I_GENERICS),
+   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT),
 
    // T_PORT_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_PORT_MODE),
@@ -141,7 +148,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_CONTEXT),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
@@ -159,7 +166,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_PORTS | I_TYPE),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT),
 
    // T_AGGREGATE
    (I_TYPE | I_ASSOCS),
@@ -186,7 +193,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS),
+   (I_IDENT | I_DECLS | I_CONTEXT),
 
    // T_FUNC_BODY
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE),
@@ -272,6 +279,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_PORT_MODE   (I_PORT_MODE)
 #define ITEM_UINT        (I_POS)
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
+#define ITEM_CONTEXT     (I_CONTEXT)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -294,7 +302,7 @@ static const char *item_text_map[] = {
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
-   "I_REF",      "I_FILE_MODE", "I_ASSOCS"
+   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT"
 };
 
 struct tree {
@@ -305,13 +313,6 @@ struct tree {
    item_t      items[MAX_ITEMS];
 
    union {
-      struct {                     // T_AGGREGATE
-
-      };
-      struct {                     // T_ARCH, T_ENTITY, T_PACKAGE
-         context_t *context;
-         unsigned  n_contexts;
-      };
       range_t           range;     // T_ARRAY_SLICE
       struct tree_array triggers;  // T_WAIT, T_PROCESS
       struct tree_array elses;     // T_IF
@@ -367,9 +368,6 @@ struct tree_rd_ctx {
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
 #define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
-#define HAS_CONTEXT(t)                                                \
-   (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
-    || IS(t, T_PACK_BODY) || IS(t, T_ELAB))
 #define HAS_RANGE(t)                                                  \
    (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
@@ -551,12 +549,11 @@ void tree_gc(void)
                   free(t->items[n].param_array.items);
                else if (ITEM_ASSOC_ARRAY & mask)
                   free(t->items[n].assoc_array.items);
+               else if (ITEM_CONTEXT & mask)
+                  free(t->items[n].context_set.items);
                n++;
             }
          }
-
-         if (HAS_CONTEXT(t) && t->context != NULL)
-            free(t->context);
 
          if (t->attrs != NULL)
             free(t->attrs);
@@ -950,36 +947,30 @@ void tree_set_ref(tree_t t, tree_t decl)
 
 unsigned tree_contexts(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_CONTEXT(t));
-
-   return t->n_contexts;
+   return lookup_item(t, I_CONTEXT)->context_set.count;
 }
 
 context_t tree_context(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_CONTEXT(t));
-   assert(n < t->n_contexts);
-
-   return t->context[n];
+   item_t *item = lookup_item(t, I_CONTEXT);
+   assert(n < item->context_set.count);
+   return item->context_set.items[n];
 }
 
 void tree_add_context(tree_t t, context_t ctx)
 {
-   assert(t != NULL);
-   assert(HAS_CONTEXT(t));
-   assert(t->n_contexts < MAX_CONTEXTS);
+   item_t *item = lookup_item(t, I_CONTEXT);
+   assert(item->context_set.count < MAX_CONTEXTS);
 
-   for (unsigned i = 0; i < tree_contexts(t); i++) {
-      if (t->context[i].name == ctx.name)
+   for (unsigned i = 0; i < item->context_set.count; i++) {
+      if (item->context_set.items[i].name == ctx.name)
          return;
    }
 
-   if (t->n_contexts == 0)
-      t->context = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
+   if (item->context_set.count == 0)
+      item->context_set.items = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
 
-   t->context[t->n_contexts++] = ctx;
+   item->context_set.items[item->context_set.count++] = ctx;
 }
 
 unsigned tree_assocs(tree_t t)
@@ -1317,6 +1308,8 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          else if (ITEM_ASSOC_ARRAY & mask)
             n += tree_visit_s(&(t->items[i].assoc_array), fn, context, kind,
                               generation, deep);
+         else if (ITEM_CONTEXT & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -1642,6 +1635,14 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             write_u32(t->items[n].uint, ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
             write_s(&(t->items[n].assoc_array), ctx);
+         else if (ITEM_CONTEXT & mask) {
+            write_u16(t->items[n].context_set.count, ctx->file);
+            for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
+               context_t *c = &(t->items[n].context_set.items[i]);
+               ident_write(c->name, ctx->ident_ctx);
+               write_loc(&(c->loc), ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
@@ -1650,13 +1651,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       write_a(&t->triggers, ctx);
-   if (HAS_CONTEXT(t)) {
-      write_u16(t->n_contexts, ctx->file);
-      for (unsigned i = 0; i < t->n_contexts; i++) {
-         ident_write(t->context[i].name, ctx->ident_ctx);
-         write_loc(&t->context[i].loc, ctx);
-      }
-   }
    if (HAS_RANGE(t)) {
       write_u16(t->range.kind, ctx->file);
       tree_write(t->range.left, ctx);
@@ -1768,6 +1762,17 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].uint = read_u32(ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
             read_s(&(t->items[n].assoc_array), ctx);
+         else if (ITEM_CONTEXT & mask) {
+            t->items[n].context_set.count = read_u16(ctx->file);
+            t->items[n].context_set.items =
+               xmalloc(sizeof(context_t) * MAX_CONTEXTS);
+
+            for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
+               context_t *c = &(t->items[n].context_set.items[i]);
+               c->name = ident_read(ctx->ident_ctx);
+               c->loc  = read_loc(ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
@@ -1776,15 +1781,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    if (HAS_TRIGGERS(t))
       read_a(&t->triggers, ctx);
-   if (HAS_CONTEXT(t)) {
-      t->n_contexts = read_u16(ctx->file);
-      t->context    = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
-
-      for (unsigned i = 0; i < t->n_contexts; i++) {
-         t->context[i].name = ident_read(ctx->ident_ctx);
-         t->context[i].loc  = read_loc(ctx);
-      }
-   }
    if (HAS_RANGE(t)) {
       t->range.kind  = read_u16(ctx->file);
       t->range.left  = tree_read(ctx);
@@ -2094,6 +2090,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_ASSOC_ARRAY & mask)
             rewrite_s(&(t->items[n].assoc_array), ctx);
+         else if (ITEM_CONTEXT & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -2294,6 +2292,14 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
          else if (ITEM_ASSOC_ARRAY & mask)
             copy_s(&(t->items[n].assoc_array),
                    &(copy->items[n].assoc_array), ctx);
+         else if (ITEM_CONTEXT & mask) {
+            copy->items[n].context_set.count = t->items[n].context_set.count;
+            copy->items[n].context_set.items =
+               xmalloc(MAX_CONTEXTS * sizeof(context_t));
+            memcpy(copy->items[n].context_set.items,
+                   t->items[n].context_set.items,
+                   t->items[n].context_set.count * sizeof(context_t));
+         }
          else
             item_without_type(mask);
          n++;
@@ -2302,10 +2308,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 
    if (HAS_TRIGGERS(t))
       copy_a(&t->triggers, &copy->triggers, ctx);
-   if (HAS_CONTEXT(t)) {
-      for (unsigned i = 0; i < tree_contexts(t); i++)
-         tree_add_context(copy, tree_context(t, i));
-   }
    if (HAS_RANGE(t)) {
       copy->range.kind  = t->range.kind;
       copy->range.left  = tree_copy_aux(t->range.left, ctx);
