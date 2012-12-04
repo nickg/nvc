@@ -93,6 +93,7 @@ enum {
    I_FILE_MODE = (1 << 21),
    I_ASSOCS    = (1 << 22),
    I_CONTEXT   = (1 << 23),
+   I_TRIGGERS  = (1 << 24),
 };
 
 typedef union {
@@ -133,13 +134,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS),
 
    // T_REF
    (I_IDENT | I_TYPE | I_REF),
 
    // T_WAIT
-   (I_IDENT | I_VALUE | I_DELAY),
+   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS),
 
    // T_TYPE_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -273,7 +274,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS)
+                          | I_CONDS | I_TRIGGERS)
 #define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_PORT_MODE   (I_PORT_MODE)
@@ -302,7 +303,7 @@ static const char *item_text_map[] = {
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
-   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT"
+   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS"
 };
 
 struct tree {
@@ -314,7 +315,6 @@ struct tree {
 
    union {
       range_t           range;     // T_ARRAY_SLICE
-      struct tree_array triggers;  // T_WAIT, T_PROCESS
       struct tree_array elses;     // T_IF
       class_t           class;     // T_PORT_DECL
    };
@@ -367,7 +367,6 @@ struct tree_rd_ctx {
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
-#define HAS_TRIGGERS(t) (IS(t, T_WAIT) || IS(t, T_PROCESS))
 #define HAS_RANGE(t)                                                  \
    (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 #define HAS_CLASS(t) (IS(t, T_PORT_DECL) || IS(t, T_INSTANCE))
@@ -896,28 +895,18 @@ void tree_set_delay(tree_t t, tree_t d)
 
 unsigned tree_triggers(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_TRIGGERS(t));
-
-   return t->triggers.count;
+   return lookup_item(t, I_TRIGGERS)->tree_array.count;
 }
 
 tree_t tree_trigger(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_TRIGGERS(t));
-
-   return tree_array_nth(&t->triggers, n);
+   return tree_array_nth(&(lookup_item(t, I_TRIGGERS)->tree_array), n);
 }
 
 void tree_add_trigger(tree_t t, tree_t s)
 {
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(HAS_TRIGGERS(t));
    assert(IS_EXPR(s));
-
-   tree_array_add(&t->triggers, s);
+   tree_array_add(&(lookup_item(t, I_TRIGGERS)->tree_array), s);
 }
 
 tree_t tree_target(tree_t t)
@@ -1318,8 +1307,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          i++;
    }
 
-   if (HAS_TRIGGERS(t))
-      n += tree_visit_a(&t->triggers, fn, context, kind, generation, deep);
    if (HAS_RANGE(t)) {
       n += tree_visit_aux(t->range.left, fn, context, kind,
                           generation, deep);
@@ -1649,8 +1636,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       }
    }
 
-   if (HAS_TRIGGERS(t))
-      write_a(&t->triggers, ctx);
    if (HAS_RANGE(t)) {
       write_u16(t->range.kind, ctx->file);
       tree_write(t->range.left, ctx);
@@ -1779,8 +1764,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       }
    }
 
-   if (HAS_TRIGGERS(t))
-      read_a(&t->triggers, ctx);
    if (HAS_RANGE(t)) {
       t->range.kind  = read_u16(ctx->file);
       t->range.left  = tree_read(ctx);
@@ -2100,8 +2083,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
          n++;
    }
 
-   if (HAS_TRIGGERS(t))
-      rewrite_a(&t->triggers, ctx);
    if (HAS_RANGE(t)) {
       range_t r = tree_range(t);
       r.left  = tree_rewrite_aux(r.left, ctx);
@@ -2306,8 +2287,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       }
    }
 
-   if (HAS_TRIGGERS(t))
-      copy_a(&t->triggers, &copy->triggers, ctx);
    if (HAS_RANGE(t)) {
       copy->range.kind  = t->range.kind;
       copy->range.left  = tree_copy_aux(t->range.left, ctx);
