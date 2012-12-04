@@ -94,6 +94,7 @@ enum {
    I_ASSOCS    = (1 << 22),
    I_CONTEXT   = (1 << 23),
    I_TRIGGERS  = (1 << 24),
+   I_ELSES     = (1 << 25),
 };
 
 typedef union {
@@ -188,7 +189,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF),
 
    // T_IF
-   (I_IDENT | I_VALUE | I_STMTS),
+   (I_IDENT | I_VALUE | I_STMTS | I_ELSES),
 
    // T_NULL
    (I_IDENT),
@@ -274,7 +275,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS)
+                          | I_CONDS | I_TRIGGERS | I_ELSES)
 #define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_PORT_MODE   (I_PORT_MODE)
@@ -303,7 +304,8 @@ static const char *item_text_map[] = {
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
-   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS"
+   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
+   "I_ELSES",
 };
 
 struct tree {
@@ -315,7 +317,6 @@ struct tree {
 
    union {
       range_t           range;     // T_ARRAY_SLICE
-      struct tree_array elses;     // T_IF
       class_t           class;     // T_PORT_DECL
    };
 
@@ -835,28 +836,18 @@ void tree_add_waveform(tree_t t, tree_t w)
 
 unsigned tree_else_stmts(tree_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_IF));
-
-   return t->elses.count;
+   return lookup_item(t, I_ELSES)->tree_array.count;
 }
 
 tree_t tree_else_stmt(tree_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(IS(t, T_IF));
-
-   return tree_array_nth(&t->elses, n);
+   return tree_array_nth(&(lookup_item(t, I_ELSES)->tree_array), n);
 }
 
 void tree_add_else_stmt(tree_t t, tree_t s)
 {
-   assert(t != NULL);
-   assert(s != NULL);
-   assert(IS(t, T_IF));
    assert(IS_STMT(s));
-
-   tree_array_add(&t->elses, s);
+   tree_array_add(&(lookup_item(t, I_ELSES)->tree_array), s);
 }
 
 unsigned tree_conds(tree_t t)
@@ -1314,9 +1305,6 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
                           generation, deep);
    }
 
-   else if (IS(t, T_IF))
-      n += tree_visit_a(&t->elses, fn, context, kind, generation, deep);
-
    if (deep) {
       for (unsigned i = 0; i < t->n_attrs; i++) {
          switch (t->attrs[i].kind) {
@@ -1644,15 +1632,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    if (HAS_CLASS(t))
       write_u16(t->class, ctx->file);
 
-   switch (t->kind) {
-   case T_IF:
-      write_a(&t->elses, ctx);
-      break;
-
-   default:
-      break;
-   }
-
    write_u16(t->n_attrs, ctx->file);
    for (unsigned i = 0; i < t->n_attrs; i++) {
       write_u16(t->attrs[i].kind, ctx->file);
@@ -1771,15 +1750,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
    if (HAS_CLASS(t))
       t->class = read_u16(ctx->file);
-
-   switch (t->kind) {
-   case T_IF:
-      read_a(&t->elses, ctx);
-      break;
-
-   default:
-      break;
-   }
 
    t->n_attrs = read_u16(ctx->file);
    assert(t->n_attrs <= MAX_ATTRS);
@@ -2090,20 +2060,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       tree_set_range(t, r);
    }
 
-   switch (tree_kind(t)) {
-   case T_ASSERT:
-      tree_set_severity(t, tree_rewrite_aux(tree_severity(t), ctx));
-      tree_set_message(t, tree_rewrite_aux(tree_message(t), ctx));
-      break;
-
-   case T_IF:
-      rewrite_a(&t->elses, ctx);
-      break;
-
-   default:
-      break;
-   }
-
    // Deleting the target deletes the statement
    if ((has & I_TARGET) && (lookup_item(t, I_TARGET)->tree == NULL))
       return NULL;
@@ -2294,15 +2250,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    }
    if (HAS_CLASS(t))
       copy->class = t->class;
-
-   switch (t->kind) {
-   case T_IF:
-      copy_a(&t->elses, &copy->elses, ctx);
-      break;
-
-   default:
-      break;
-   }
 
    for (unsigned i = 0; i < t->n_attrs; i++) {
       switch (t->attrs[i].kind) {
