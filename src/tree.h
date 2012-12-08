@@ -146,144 +146,107 @@ void tree_change_kind(tree_t t, tree_kind_t kind);
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);
 
-// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_REF, T_TYPE_DECL,
-// T_CONST_DECL, T_FUNC_DECL, T_ALIAS, T_ATTR_DECL, T_TYPE_CONV,
-// T_FILE_DECL
+// See `has_map' in tree.c for definition of which fields each tree
+// kind contains
+
 type_t tree_type(tree_t t);
 void tree_set_type(tree_t t, type_t ty);
 bool tree_has_type(tree_t t);
 
-// T_ENTITY, T_PORT_DECL, T_FCALL, T_ARCH, T_SIGNAL_DECL, T_PROCESS,
-// T_VAR_DECL, T_REF, T_TYPE_DECL, T_PACKAGE, T_QUALIFIED, T_ENUM_LIT,
-// T_CONST_DECL, T_FUNC_DECL, T_ATTR_REF, T_INSTANCE, T_WHILE,
-// T_ATTR_DECL, T_PCALL, T_TYPE_CONV, T_COMPONENT, T_IF_GENERATE,
-// T_FOR_GENERATE, T_FILE_DECL
 ident_t tree_ident(tree_t t);
 void tree_set_ident(tree_t t, ident_t i);
 bool tree_has_ident(tree_t t);
 
-// T_ARCH, T_ATTR_REF, T_INSTANCE, T_FOR, T_ATTR_SPEC, T_PCALL,
-// T_IF_GENERATE, T_FOR_GENERATE
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
 
-// T_ENTITY, T_FUNC_DECL, T_COMPONENT
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);
 void tree_add_port(tree_t t, tree_t d);
 
-// T_PORT_DECL
 port_mode_t tree_port_mode(tree_t t);
 void tree_set_port_mode(tree_t t, port_mode_t mode);
 
-// T_FILE_DECL
 tree_t tree_file_mode(tree_t t);
 void tree_set_file_mode(tree_t t, tree_t m);
 
-// T_ENTITY, T_COMPONENT
 unsigned tree_generics(tree_t t);
 tree_t tree_generic(tree_t t, unsigned n);
 void tree_add_generic(tree_t t, tree_t d);
 
-// T_INSTANCE
 unsigned tree_genmaps(tree_t t);
 param_t tree_genmap(tree_t t, unsigned n);
 void tree_add_genmap(tree_t t, param_t e);
 
-// T_FCALL, T_ARRAY_REF, T_INSTANCE, T_PCALL, T_CONCAT, T_TYPE_CONV
 unsigned tree_params(tree_t t);
 param_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, param_t e);
 
-// T_LITERAL
 literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);
 
-// T_PORT_DECL, T_SIGNAL_DECL, T_VAR_DECL, T_VAR_ASSIGN,
-// T_QUALIFIED, T_CONST_DECL, T_ASSERT, T_ATTR_SPEC
-// T_ARRAY_REF, T_IF, T_WHILE, T_REF, T_ALIAS, T_WAVEFORM
-// T_COND, T_SELECT, T_IF_GENERATE, T_FILE_DECL
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
 void tree_set_value(tree_t t, tree_t v);
 
-// T_SIGNAL_ASSIGN, T_COND
 unsigned tree_waveforms(tree_t t);
 tree_t tree_waveform(tree_t t, unsigned n);
 void tree_add_waveform(tree_t t, tree_t w);
 
-// T_ARCH, T_PROCESS, T_PACKAGE, T_FUNC_BODY, T_PROC_BODY, T_BLOCK,
-// T_IF_GENERATE, T_FOR_GENERATE
 unsigned tree_decls(tree_t t);
 tree_t tree_decl(tree_t t, unsigned n);
 void tree_add_decl(tree_t t, tree_t d);
 
-// T_ARCH, T_PROCESS, T_IF, T_WHILE, T_FOR, T_FUNC_BODY, T_BLOCK
-// T_PROC_BODY, T_IF_GENERATE, T_FOR_GENERATE
 unsigned tree_stmts(tree_t t);
 tree_t tree_stmt(tree_t t, unsigned n);
 void tree_add_stmt(tree_t t, tree_t d);
 
-// T_IF
 unsigned tree_else_stmts(tree_t t);
 tree_t tree_else_stmt(tree_t t, unsigned n);
 void tree_add_else_stmt(tree_t t, tree_t d);
 
-// T_CASSIGN
 unsigned tree_conds(tree_t t);
 tree_t tree_cond(tree_t t, unsigned n);
 void tree_add_cond(tree_t t, tree_t d);
 
-// T_WAIT
 bool tree_has_delay(tree_t t);
 tree_t tree_delay(tree_t t);
 void tree_set_delay(tree_t t, tree_t d);
 
-// T_WAIT, T_PROCESS
 unsigned tree_triggers(tree_t t);
 tree_t tree_trigger(tree_t t, unsigned n);
 void tree_add_trigger(tree_t t, tree_t s);
 
-// T_VAR_ASSIGN, T_SIGNAL_ASSIGN, T_CASSIGN
 tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
-// T_REF, T_FCALL, T_INSTANCE, T_PCALL, T_TYPE_CONV
 tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
-// T_ENTITY, T_ARCH, T_PACKAGE
 unsigned tree_contexts(tree_t t);
 context_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, context_t ctx);
 
-// T_AGGREGATE, T_CASE, T_SELECT
 unsigned tree_assocs(tree_t t);
 assoc_t tree_assoc(tree_t t, unsigned n);
 void tree_add_assoc(tree_t t, assoc_t a);
 void tree_change_assoc(tree_t t, unsigned i, assoc_t a);
 
-// T_ASSERT
 tree_t tree_severity(tree_t t);
 void tree_set_severity(tree_t t, tree_t s);
 
-// T_ASSERT
 tree_t tree_message(tree_t t);
 void tree_set_message(tree_t t, tree_t m);
 
-// T_ENUM_LIT
 unsigned tree_pos(tree_t t);
 void tree_set_pos(tree_t t, unsigned pos);
 
-// T_ARRAY_SLICE, T_FOR
 range_t tree_range(tree_t t);
 void tree_set_range(tree_t t, range_t r);
 
-// T_PORT_DECL
 class_t tree_class(tree_t t);
 void tree_set_class(tree_t t, class_t c);
 
-// T_CASSIGN, T_SIGNAL_ASSIGN
 tree_t tree_reject(tree_t t);
 void tree_set_reject(tree_t t, tree_t r);
 

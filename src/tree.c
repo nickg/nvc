@@ -25,18 +25,18 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1012
-#define MAX_ITEMS    8
+#define FILE_FMT_VER 0x1013
+#define MAX_ITEMS    6
 
-#define EXTRA_READ_CHECKS
+//#define EXTRA_READ_CHECKS
 
-typedef struct tree_array /* DELME */ {
+typedef struct {
    uint32_t  count;
    uint32_t  max;
    tree_t   *items;
 } tree_array_t;
 
-typedef struct param_array /* DELME */ {
+typedef struct {
    uint32_t  count;
    uint32_t  max;
    param_t  *items;
@@ -387,10 +387,8 @@ static void tree_one_time_init(void)
 {
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);
-      assert(nitems < MAX_ITEMS);
+      assert(nitems <= MAX_ITEMS);
    }
-
-   printf("sizeof(struct tree) = %d\n", (int)sizeof(struct tree));
 }
 
 static item_t *lookup_item(tree_t t, imask_t mask)
@@ -1394,7 +1392,7 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
    return l;
 }
 
-static void write_a(struct tree_array *a, tree_wr_ctx_t ctx)
+static void write_a(tree_array_t *a, tree_wr_ctx_t ctx)
 {
    write_u32(a->count, ctx->file);
    for (unsigned i = 0; i < a->count; i++)
@@ -1429,7 +1427,7 @@ static void write_s(assoc_array_t *a, tree_wr_ctx_t ctx)
    }
 }
 
-static void read_a(struct tree_array *a, tree_rd_ctx_t ctx)
+static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 {
    a->count = a->max = read_u32(ctx->file);
    a->items = xmalloc(a->count * sizeof(tree_t));
@@ -1466,7 +1464,7 @@ static void read_s(assoc_array_t *a, tree_rd_ctx_t ctx)
    }
 }
 
-static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
+static void write_p(param_array_t *a, tree_wr_ctx_t ctx)
 {
    write_u32(a->count, ctx->file);
    for (unsigned i = 0; i < a->count; i++) {
@@ -1489,7 +1487,7 @@ static void write_p(struct param_array *a, tree_wr_ctx_t ctx)
    }
 }
 
-static void read_p(struct param_array *a, tree_rd_ctx_t ctx)
+static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
 {
    a->max = a->count = read_u32(ctx->file);
    a->items = xmalloc(sizeof(param_t) * a->count);
@@ -1936,7 +1934,7 @@ struct rewrite_ctx {
 
 static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx);
 
-static void rewrite_a(struct tree_array *a, struct rewrite_ctx *ctx)
+static void rewrite_a(tree_array_t *a, struct rewrite_ctx *ctx)
 {
    for (size_t i = 0; i < a->count; i++)
       a->items[i] = tree_rewrite_aux(a->items[i], ctx);
@@ -1971,7 +1969,7 @@ static void rewrite_s(assoc_array_t *a, struct rewrite_ctx *ctx)
    }
 }
 
-static void rewrite_p(struct param_array *a, struct rewrite_ctx *ctx)
+static void rewrite_p(param_array_t *a, struct rewrite_ctx *ctx)
 {
    for (size_t i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
@@ -2104,7 +2102,7 @@ struct tree_copy_ctx {
 
 static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
 
-static void copy_a(struct tree_array *from, struct tree_array *to,
+static void copy_a(tree_array_t *from, tree_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
    to->count = to->max = from->count;
@@ -2141,7 +2139,7 @@ static void copy_s(assoc_array_t *from, assoc_array_t *to,
    }
 }
 
-static void copy_p(struct param_array *from, struct param_array *to,
+static void copy_p(param_array_t *from, param_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
    to->count = to->max = from->count;
