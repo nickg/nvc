@@ -377,6 +377,7 @@ static size_t max_trees = 128;   // Grows at runtime
 static size_t n_trees_alloc = 0;
 
 static uint32_t format_digest;
+static int      item_lookup[T_LAST_TREE_KIND][32];
 
 unsigned next_generation = 1;
 
@@ -397,7 +398,15 @@ static void tree_one_time_init(void)
       assert(nitems <= MAX_ITEMS);
 
       // Knuth's multiplicative hash
-      format_digest += has_map[i] * 2654435761;
+      format_digest += has_map[i] * 2654435761u;
+
+      int n = 0;
+      for (int j = 0; j < 32; j++) {
+         if (has_map[i] & (1 << j))
+            item_lookup[i][j] = n++;
+         else
+            item_lookup[i][j] = -1;
+      }
    }
 
    done = true;
@@ -419,13 +428,8 @@ static item_t *lookup_item(tree_t t, imask_t mask)
             kind_text_map[t->kind], item_text_map[item]);
    }
 
-   imask_t m = 1;
-   int n = 0;
-   while (!(m & mask)) {
-      if (has & m)
-         n++;
-      m <<= 1;
-   }
+   const int tzc = __builtin_ctz(mask);
+   const int n   = item_lookup[t->kind][tzc];
 
    return &(t->items[n]);
 }
