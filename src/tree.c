@@ -25,7 +25,6 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1013
 #define MAX_ITEMS    6
 
 //#define EXTRA_READ_CHECKS
@@ -377,6 +376,8 @@ static tree_t *all_trees = NULL;
 static size_t max_trees = 128;   // Grows at runtime
 static size_t n_trees_alloc = 0;
 
+static uint32_t format_digest;
+
 unsigned next_generation = 1;
 
 static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
@@ -385,10 +386,21 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
 
 static void tree_one_time_init(void)
 {
+   static bool done = false;
+   if (likely(done))
+      return;
+
+   format_digest = 0;
+
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);
       assert(nitems <= MAX_ITEMS);
+
+      // Knuth's multiplicative hash
+      format_digest += has_map[i] * 2654435761;
    }
+
+   done = true;
 }
 
 static item_t *lookup_item(tree_t t, imask_t mask)
@@ -489,13 +501,9 @@ static inline param_t param_array_nth(param_array_t *a, unsigned n)
 
 tree_t tree_new(tree_kind_t kind)
 {
-   static bool done_init = false;
-   if (!done_init) {
-      tree_one_time_init();
-      done_init = true;
-   }
-
    assert(kind < T_LAST_TREE_KIND);
+
+   tree_one_time_init();
 
    tree_t t = xmalloc(sizeof(struct tree));
    memset(t, '\0', sizeof(struct tree));
@@ -1513,7 +1521,7 @@ static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
 
 tree_wr_ctx_t tree_write_begin(FILE *f)
 {
-   write_u16(FILE_FMT_VER, f);
+   write_u32(format_digest, f);
 
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
    ctx->file       = f;
@@ -1772,10 +1780,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
 tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
 {
-   uint16_t ver = read_u16(f);
-   if (ver != FILE_FMT_VER)
-      fatal("%s: serialised version %x expected %x",
-            fname, ver, FILE_FMT_VER);
+   tree_one_time_init();
+
+   uint32_t ver = read_u32(f);
+   if (ver != format_digest)
+      fatal("%s: serialised format digest is %x expected %x",
+            fname, ver, format_digest);
 
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
    ctx->file      = f;
