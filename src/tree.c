@@ -25,7 +25,7 @@
 
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
-#define FILE_FMT_VER 0x1011
+#define FILE_FMT_VER 0x1012
 #define MAX_ITEMS    8
 
 #define EXTRA_READ_CHECKS
@@ -96,6 +96,7 @@ enum {
    I_TRIGGERS  = (1 << 24),
    I_ELSES     = (1 << 25),
    I_CLASS     = (1 << 26),
+   I_RANGE     = (1 << 27),
 };
 
 typedef union {
@@ -110,6 +111,7 @@ typedef union {
    assoc_array_t assoc_array;
    context_set_t context_set;
    class_t       class;
+   range_t       range;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -185,7 +187,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_PARAMS | I_TYPE),
 
    // T_ARRAY_SLICE
-   (I_VALUE | I_TYPE),
+   (I_VALUE | I_TYPE | I_RANGE),
 
    // T_INSTANCE
    (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS),
@@ -218,7 +220,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_FOR
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGE),
 
    // T_ATTR_DECL
    (I_IDENT | I_TYPE),
@@ -263,7 +265,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGE),
 
    // T_FILE_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE),
@@ -285,6 +287,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
 #define ITEM_CLASS       (I_CLASS)
+#define ITEM_RANGE       (I_RANGE)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -308,7 +311,7 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",
+   "I_ELSES",    "I_CLASS",     "I_RANGE",
 };
 
 struct tree {
@@ -317,10 +320,6 @@ struct tree {
    struct attr *attrs;
    unsigned    n_attrs;
    item_t      items[MAX_ITEMS];
-
-   union {
-      range_t           range;     // T_ARRAY_SLICE
-   };
 
    // Serialisation and GC bookkeeping
    uint32_t generation;
@@ -370,8 +369,6 @@ struct tree_rd_ctx {
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
-#define HAS_RANGE(t)                                                  \
-   (IS(t, T_ARRAY_SLICE) || IS(t, T_FOR) || IS(t, T_FOR_GENERATE))
 
 #define TREE_ARRAY_BASE_SZ  16
 
@@ -1015,18 +1012,12 @@ void tree_set_message(tree_t t, tree_t m)
 
 range_t tree_range(tree_t t)
 {
-   assert(t != NULL);
-   assert(HAS_RANGE(t));
-
-   return t->range;
+   return lookup_item(t, I_RANGE)->range;
 }
 
 void tree_set_range(tree_t t, range_t r)
 {
-   assert(t != NULL);
-   assert(HAS_RANGE(t));
-
-   t->range = r;
+   lookup_item(t, I_RANGE)->range = r;
 }
 
 unsigned tree_pos(tree_t t)
@@ -1287,19 +1278,18 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
             ;
          else if (ITEM_CLASS & mask)
             ;
+         else if (ITEM_RANGE & mask) {
+            n += tree_visit_aux(t->items[i].range.left, fn, context, kind,
+                                generation, deep);
+            n += tree_visit_aux(t->items[i].range.right, fn, context, kind,
+                                generation, deep);
+         }
          else
             item_without_type(mask);
       }
 
       if (has & mask)
          i++;
-   }
-
-   if (HAS_RANGE(t)) {
-      n += tree_visit_aux(t->range.left, fn, context, kind,
-                          generation, deep);
-      n += tree_visit_aux(t->range.right, fn, context, kind,
-                          generation, deep);
    }
 
    if (deep) {
@@ -1617,16 +1607,15 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          }
          else if (ITEM_CLASS & mask)
             write_u16(t->items[n].class, ctx->file);
+         else if (ITEM_RANGE & mask) {
+            write_u8(t->items[n].range.kind, ctx->file);
+            tree_write(t->items[n].range.left, ctx);
+            tree_write(t->items[n].range.right, ctx);
+         }
          else
             item_without_type(mask);
          n++;
       }
-   }
-
-   if (HAS_RANGE(t)) {
-      write_u16(t->range.kind, ctx->file);
-      tree_write(t->range.left, ctx);
-      tree_write(t->range.right, ctx);
    }
 
    write_u16(t->n_attrs, ctx->file);
@@ -1736,16 +1725,15 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          }
          else if (ITEM_CLASS & mask)
             t->items[n].class = read_u16(ctx->file);
+         else if (ITEM_RANGE & mask) {
+            t->items[n].range.kind  = read_u8(ctx->file);
+            t->items[n].range.left  = tree_read(ctx);
+            t->items[n].range.right = tree_read(ctx);
+         }
          else
             item_without_type(mask);
          n++;
       }
-   }
-
-   if (HAS_RANGE(t)) {
-      t->range.kind  = read_u16(ctx->file);
-      t->range.left  = tree_read(ctx);
-      t->range.right = tree_read(ctx);
    }
 
    t->n_attrs = read_u16(ctx->file);
@@ -2044,19 +2032,17 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_CLASS & mask)
             ;
+         else if (ITEM_RANGE & mask) {
+            range_t *r = &(t->items[n].range);
+            r->left  = tree_rewrite_aux(r->left, ctx);
+            r->right = tree_rewrite_aux(r->right, ctx);
+         }
          else
             item_without_type(mask);
       }
 
       if (has & mask)
          n++;
-   }
-
-   if (HAS_RANGE(t)) {
-      range_t r = tree_range(t);
-      r.left  = tree_rewrite_aux(r.left, ctx);
-      r.right = tree_rewrite_aux(r.right, ctx);
-      tree_set_range(t, r);
    }
 
    // Deleting the target deletes the statement
@@ -2238,16 +2224,17 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
          }
          else if (ITEM_CLASS & mask)
             copy->items[n].class = t->items[n].class;
+         else if (ITEM_RANGE & mask) {
+            copy->items[n].range.kind = t->items[n].range.kind;
+            copy->items[n].range.left =
+               tree_copy_aux(t->items[n].range.left, ctx);
+            copy->items[n].range.right =
+               tree_copy_aux(t->items[n].range.right, ctx);
+         }
          else
             item_without_type(mask);
          n++;
       }
-   }
-
-   if (HAS_RANGE(t)) {
-      copy->range.kind  = t->range.kind;
-      copy->range.left  = tree_copy_aux(t->range.left, ctx);
-      copy->range.right = tree_copy_aux(t->range.right, ctx);
    }
 
    for (unsigned i = 0; i < t->n_attrs; i++) {
