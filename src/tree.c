@@ -17,36 +17,22 @@
 
 #include "tree.h"
 #include "util.h"
+#include "array.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_CONTEXTS   16
-#define MAX_ATTRS      16
-#define MAX_ITEMS      6
-#define ARRAY_BASE_SZ  16
+#define MAX_CONTEXTS 16
+#define MAX_ATTRS    16
+#define MAX_ITEMS    6
 
 //#define EXTRA_READ_CHECKS
 
-typedef struct {
-   uint32_t  count;
-   uint32_t  max;
-   tree_t   *items;
-} tree_array_t;
-
-typedef struct {
-   uint32_t  count;
-   uint32_t  max;
-   param_t  *items;
-} param_array_t;
-
-typedef struct {
-   uint32_t  count;
-   uint32_t  max;
-   assoc_t  *items;
-} assoc_array_t;
+DEFINE_ARRAY(tree);
+DEFINE_ARRAY(param);
+DEFINE_ARRAY(assoc);
 
 typedef struct {
    context_t *items;
@@ -441,66 +427,6 @@ static void item_without_type(imask_t mask)
 
    assert(item < ARRAY_LEN(item_text_map));
    fatal("tree item %s does not have a type", item_text_map[item]);
-}
-
-static void tree_array_add(tree_array_t *a, tree_t t)
-{
-   if (a->max == 0) {
-      a->items = xmalloc(sizeof(tree_t) * ARRAY_BASE_SZ);
-      a->max   = ARRAY_BASE_SZ;
-   }
-   else if (a->count == a->max) {
-      a->max *= 2;
-      a->items = xrealloc(a->items, sizeof(tree_t) * a->max);
-   }
-
-   a->items[a->count++] = t;
-}
-
-static inline tree_t tree_array_nth(tree_array_t *a, unsigned n)
-{
-   assert(n < a->count);
-   return a->items[n];
-}
-
-static void assoc_array_add(assoc_array_t *a, assoc_t t)
-{
-   if (a->max == 0) {
-      a->items = xmalloc(sizeof(assoc_t) * ARRAY_BASE_SZ);
-      a->max   = ARRAY_BASE_SZ;
-   }
-   else if (a->count == a->max) {
-      a->max *= 2;
-      a->items = xrealloc(a->items, sizeof(assoc_t) * a->max);
-   }
-
-   a->items[a->count++] = t;
-}
-
-static inline assoc_t assoc_array_nth(assoc_array_t *a, unsigned n)
-{
-   assert(n < a->count);
-   return a->items[n];
-}
-
-static void param_array_add(param_array_t *a, param_t p)
-{
-   if (a->max == 0) {
-      a->items = xmalloc(sizeof(param_t) * ARRAY_BASE_SZ);
-      a->max   = ARRAY_BASE_SZ;
-   }
-   else if (a->count == a->max) {
-      a->max *= 2;
-      a->items = xrealloc(a->items, sizeof(param_t) * a->max);
-   }
-
-   a->items[a->count++] = p;
-}
-
-static inline param_t param_array_nth(param_array_t *a, unsigned n)
-{
-   assert(n < a->count);
-   return a->items[n];
 }
 
 tree_t tree_new(tree_kind_t kind)
