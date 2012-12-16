@@ -46,6 +46,7 @@ enum {
    I_UNITS        = (1 << 8),
    I_LITERALS     = (1 << 9),
    I_DIMS         = (1 << 10),
+   I_FIELDS       = (1 << 11),
 };
 
 typedef union {
@@ -85,7 +86,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_INDEX_CONSTR | I_ELEM),
 
    // T_RECORD
-   (0),
+   (I_FIELDS),
 
    // T_FILE
    (I_FILE),
@@ -107,7 +108,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 #define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
 #define ITEM_TREE        (I_RESOLUTION)
 #define ITEM_UNIT_ARRAY  (I_UNITS)
-#define ITEM_TREE_ARRAY  (I_LITERALS)
+#define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS)
 #define ITEM_RANGE_ARRAY (I_DIMS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
@@ -120,7 +121,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 static const char *item_text_map[] = {
    "I_PARAMS", "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
    "I_FILE",   "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",  "I_LITERALS",     "I_DIMS",
+   "I_UNITS",  "I_LITERALS",     "I_DIMS",       "I_FIELDS",
 };
 
 struct type {
@@ -495,6 +496,22 @@ type_t type_param(type_t t, unsigned n)
 void type_add_param(type_t t, type_t p)
 {
    type_array_add(&(lookup_item(t, I_PARAMS)->type_array), p);
+}
+
+unsigned type_fields(type_t t)
+{
+   return lookup_item(t, I_FIELDS)->tree_array.count;
+}
+
+tree_t type_field(type_t t, unsigned n)
+{
+   return tree_array_nth(&(lookup_item(t, I_FIELDS)->tree_array), n);
+}
+
+void type_add_field(type_t t, tree_t p)
+{
+   assert(tree_kind(p) == T_FIELD_DECL);
+   tree_array_add(&(lookup_item(t, I_FIELDS)->tree_array), p);
 }
 
 type_t type_result(type_t t)

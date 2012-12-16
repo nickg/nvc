@@ -171,6 +171,7 @@ ACCESS        {A}{C}{C}{E}{S}{S}
 FILE          {F}{I}{L}{E}
 OPEN          {O}{P}{E}{N}
 UNTIL         {U}{N}{T}{I}{L}
+RECORD        {R}{E}{C}{O}{R}{D}
 
 %%
 
@@ -256,6 +257,7 @@ UNTIL         {U}{N}{T}{I}{L}
 {FILE}          { TOKEN(tFILE); }
 {OPEN}          { TOKEN(tOPEN); }
 {UNTIL}         { TOKEN(tUNTIL); }
+{RECORD}        { TOKEN(tRECORD); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

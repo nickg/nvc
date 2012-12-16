@@ -27,6 +27,12 @@ architecture a of b is
     file f2 : f is "bar";
 
     file f3 : f;
+
+    type r1 is record
+        a : integer;
+        b : integer;
+        c : foo(1 to 5);
+    end record;
 begin
 
 end architecture;

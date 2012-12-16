@@ -65,61 +65,55 @@ type_t type_new(type_kind_t kind);
 type_kind_t type_kind(type_t t);
 bool type_eq(type_t a, type_t b);
 
-// T_UNRESOLVED, T_FUNC, T_PROC
+// See `has_map' in type.c for definition of which fields each type
+// kind contains
+
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
 
-// T_SUBTYPE
 type_t type_base(type_t t);
 void type_set_base(type_t t, type_t b);
 
-// T_UARRAY, T_CARRAY
 type_t type_elem(type_t t);
 void type_set_elem(type_t t, type_t e);
 
-// T_INTEGER, T_SUBTYPE, T_PHYSICAL, T_CARRAY
 unsigned type_dims(type_t t);
 range_t type_dim(type_t t, unsigned n);
 void type_add_dim(type_t t, range_t r);
 void type_change_dim(type_t t, unsigned n, range_t r);
 
-// T_ENUM
 unsigned type_enum_literals(type_t t);
 struct tree *type_enum_literal(type_t t, unsigned n);
 void type_enum_add_literal(type_t t, struct tree *lit);
 
-// T_PHYSICAL
 unsigned type_units(type_t t);
 unit_t type_unit(type_t t, unsigned n);
 void type_add_unit(type_t t, unit_t u);
 
-// T_FUNC, T_PROC
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);
 void type_add_param(type_t t, type_t p);
 
-// T_FUNC
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
 
-// T_ACCESS
 type_t type_access(type_t t);
 void type_set_access(type_t t, type_t a);
 
-// T_FILE
 type_t type_file(type_t t);
 void type_set_file(type_t t, type_t f);
 
-// T_UARRAY
 unsigned type_index_constrs(type_t t);
 void type_add_index_constr(type_t t, type_t c);
 void type_change_index_constr(type_t t, unsigned n, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
-// T_INCOMPLETE
+unsigned type_fields(type_t t);
+struct tree *type_field(type_t t, unsigned n);
+void type_add_field(type_t t, struct tree *e);
+
 void type_replace(type_t t, type_t a);
 
-// T_SUBTYPE, T_UNRESOLVED
 void type_set_resolution(type_t t, struct tree *r);
 bool type_has_resolution(type_t t);
 struct tree *type_resolution(type_t t);

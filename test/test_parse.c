@@ -553,7 +553,7 @@ START_TEST(test_types)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 13);
+   fail_unless(tree_decls(a) == 14);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -661,6 +661,16 @@ START_TEST(test_types)
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_ident(d) == ident_new("F3"));
    fail_if(tree_has_value(d));
+
+   d = tree_decl(a, 13);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("R1"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_RECORD);
+   fail_unless(type_fields(t) == 3);
+   f = type_field(t, 1);
+   fail_unless(tree_kind(f) == T_FIELD_DECL);
+   fail_unless(tree_ident(f) == ident_new("B"));
 
    a = parse();
    fail_unless(a == NULL);

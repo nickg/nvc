@@ -172,8 +172,8 @@
 %type <l> constant_decl formal_param_list subprogram_decl name_list
 %type <l> sensitivity_clause process_sensitivity_clause attr_decl
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
-%type <l> subprogram_decl_item waveform alias_decl attr_spec
-%type <l> conditional_waveforms component_decl file_decl
+%type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
+%type <l> conditional_waveforms component_decl file_decl elem_decl_list
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause selected_id_list use_clause
 %type <m> opt_mode
@@ -181,6 +181,7 @@
 %type <y> physical_type_def enum_type_def array_type_def
 %type <y> index_subtype_def access_type_def file_type_def
 %type <y> unconstrained_array_def constrained_array_def
+%type <y> record_type_def
 %type <r> range range_constraint constraint_elem
 %type <u> base_unit_decl
 %type <g> secondary_unit_decls constraint_list case_alt_list
@@ -200,7 +201,7 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE tOPEN tREAL tUNTIL
+%token tFILE tOPEN tREAL tUNTIL tRECORD
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -1586,7 +1587,7 @@ type_def
 | array_type_def
 | access_type_def
 | file_type_def
-  /* | record_type_def */
+| record_type_def
 ;
 
 file_type_def
@@ -1594,6 +1595,46 @@ file_type_def
   {
      $$ = type_new(T_FILE);
      type_set_file($$, $3);
+  }
+;
+
+elem_decl_list
+: elem_decl elem_decl_list
+  {
+     $$ = $1;
+     tree_list_concat(&$1, $2);
+  }
+| elem_decl
+  {
+     $$ = $1;
+  }
+;
+
+elem_decl
+: id_list tCOLON subtype_indication tSEMI
+  {
+     $$ = NULL;
+     for (list_t *it = $1; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_FIELD_DECL);
+        tree_set_ident(t, it->item.ident);
+        tree_set_type(t, $3);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     list_free($1);
+  }
+;
+
+record_type_def
+: tRECORD elem_decl_list tEND tRECORD
+  {
+     $$ = type_new(T_RECORD);
+
+     for (tree_list_t *it = $2; it != NULL; it = it->next)
+        type_add_field($$, it->value);
+     tree_list_free($2);
   }
 ;
 

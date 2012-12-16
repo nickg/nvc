@@ -258,6 +258,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_OPEN
    (I_TYPE),
+
+   // T_FIELD_DECL
+   (I_IDENT | I_TYPE),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -289,6 +292,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PCALL",        "T_CASE",          "T_BLOCK",      "T_COND",
    "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
+   "T_FIELD_DECL",
 };
 
 static const char *item_text_map[] = {
