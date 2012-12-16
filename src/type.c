@@ -44,21 +44,24 @@ enum {
    I_ELEM         = (1 << 3),
    I_FILE         = (1 << 4),
    I_ACCESS       = (1 << 5),
+   I_RESOLUTION   = (1 << 6),
+   I_RESULT       = (1 << 7),
 };
 
 typedef union {
    type_array_t type_array;
    type_t       type;
+   tree_t       tree;
 } item_t;
 
 typedef uint32_t imask_t;
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
-   (0),
+   (I_RESOLUTION),
 
    // T_SUBTYPE
-   (I_BASE),
+   (I_BASE | I_RESOLUTION),
 
    // T_INTEGER
    (0),
@@ -88,7 +91,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_ACCESS),
 
    // T_FUNC
-   (I_PARAMS),
+   (I_PARAMS | I_RESULT),
 
    // T_INCOMPLETE
    (0),
@@ -98,7 +101,8 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 #define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
-#define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS)
+#define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
+#define ITEM_TREE       (I_RESOLUTION)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -108,7 +112,8 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE", "I_ELEM", "I_FILE",
+   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
+   "I_FILE",   "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
 };
 
 struct type {
@@ -118,10 +123,6 @@ struct type {
    unsigned    n_dims;
    item_t      items[MAX_ITEMS];
 
-   union {
-      type_t result;     // T_FUNC
-      tree_t resolution; // T_SUBTYPE
-   };
    union {
       struct {   // T_ENUM
          tree_t   *literals;
@@ -158,8 +159,6 @@ struct type_rd_ctx {
 #define HAS_DIMS(t) \
    (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL)   \
     || IS(t, T_CARRAY) || IS(t, T_REAL))
-#define HAS_RESOLUTION(t) \
-   (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
 
 // Garbage collection
 static type_t *all_types = NULL;
@@ -206,7 +205,6 @@ static item_t *lookup_item(type_t t, imask_t mask)
          ;
 
       assert(item < ARRAY_LEN(item_text_map));
-      assert(false);
       fatal("tree kind %s does not have item %s",
             kind_text_map[t->kind], item_text_map[item]);
    }
@@ -581,19 +579,14 @@ void type_add_param(type_t t, type_t p)
 
 type_t type_result(type_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_FUNC));
-   assert(t->result != NULL);
-
-   return t->result;
+   item_t *item = lookup_item(t, I_RESULT);
+   assert(item->type != NULL);
+   return item->type;
 }
 
 void type_set_result(type_t t, type_t r)
 {
-   assert(t != NULL);
-   assert(IS(t, T_FUNC));
-
-   t->result = r;
+   lookup_item(t, I_RESULT)->type = r;
 }
 
 void type_replace(type_t t, type_t a)
@@ -665,27 +658,19 @@ type_t type_index_constr(type_t t, unsigned n)
 
 void type_set_resolution(type_t t, tree_t r)
 {
-   assert(t != NULL);
-   assert(HAS_RESOLUTION(t));
-
-   t->resolution = r;
+   lookup_item(t, I_RESOLUTION)->tree = r;
 }
 
 bool type_has_resolution(type_t t)
 {
-   assert(t != NULL);
-   assert(HAS_RESOLUTION(t));
-
-   return t->resolution != NULL;
+   return lookup_item(t, I_RESOLUTION)->tree != NULL;
 }
 
 tree_t type_resolution(type_t t)
 {
-   assert(t != NULL);
-   assert(HAS_RESOLUTION(t));
-   assert(t->resolution != NULL);
-
-   return t->resolution;
+   item_t *item = lookup_item(t, I_RESOLUTION);
+   assert(item->tree != NULL);
+   return item->tree;
 }
 
 type_t type_access(type_t t)
@@ -745,6 +730,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          }
          else if (ITEM_TYPE & mask)
             type_write(t->items[n].type, ctx);
+         else if (ITEM_TREE & mask)
+            tree_write(t->items[n].tree, ctx->tree_ctx);
          else
             item_without_type(mask);
          n++;
@@ -759,8 +746,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
-   if (HAS_RESOLUTION(t))
-      tree_write(t->resolution, ctx->tree_ctx);
 
    if (IS(t, T_PHYSICAL)) {
       write_u16(t->n_units, f);
@@ -774,8 +759,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       for (unsigned i = 0; i < t->n_literals; i++)
          tree_write(t->literals[i], ctx->tree_ctx);
    }
-   else if (IS(t, T_FUNC))
-      type_write(t->result, ctx);
 }
 
 type_t type_read(type_rd_ctx_t ctx)
@@ -822,6 +805,8 @@ type_t type_read(type_rd_ctx_t ctx)
          }
          else if (ITEM_TYPE & mask)
             t->items[n].type = type_read(ctx);
+         else if (ITEM_TREE & mask)
+            t->items[n].tree = tree_read(ctx->tree_ctx);
          else
             item_without_type(mask);
          n++;
@@ -840,8 +825,6 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_dims = ndims;
    }
-   if (HAS_RESOLUTION(t))
-      t->resolution = tree_read(ctx->tree_ctx);
 
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_u16(f);
@@ -866,8 +849,6 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_literals = nlits;
    }
-   else if (IS(t, T_FUNC))
-      t->result = type_read(ctx);
 
    return t;
 }
@@ -965,6 +946,8 @@ void type_sweep(unsigned generation)
                if (ITEM_TYPE_ARRAY & mask)
                   free(t->items[n].type_array.items);
                else if (ITEM_TYPE & mask)
+                  ;
+               else if (ITEM_TREE & mask)
                   ;
                else
                   item_without_type(mask);
