@@ -42,6 +42,8 @@ enum {
    I_INDEX_CONSTR = (1 << 1),
    I_BASE         = (1 << 2),
    I_ELEM         = (1 << 3),
+   I_FILE         = (1 << 4),
+   I_ACCESS       = (1 << 5),
 };
 
 typedef union {
@@ -80,10 +82,10 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_FILE
-   (0),
+   (I_FILE),
 
    // T_ACCESS
-   (0),
+   (I_ACCESS),
 
    // T_FUNC
    (I_PARAMS),
@@ -96,7 +98,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 #define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
-#define ITEM_TYPE       (I_BASE | I_ELEM)
+#define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -106,7 +108,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE", "I_ELEM",
+   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE", "I_ELEM", "I_FILE",
 };
 
 struct type {
@@ -116,10 +118,6 @@ struct type {
    unsigned    n_dims;
    item_t      items[MAX_ITEMS];
 
-   union {
-      type_t access;        // T_ACCESS
-      type_t file;          // T_FILE
-   };
    union {
       type_t result;     // T_FUNC
       tree_t resolution; // T_SUBTYPE
@@ -692,36 +690,22 @@ tree_t type_resolution(type_t t)
 
 type_t type_access(type_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ACCESS));
-
-   return t->access;
+   return lookup_item(t, I_ACCESS)->type;
 }
 
 void type_set_access(type_t t, type_t a)
 {
-   assert(t != NULL);
-   assert(a != NULL);
-   assert(IS(t, T_ACCESS));
-
-   t->access = a;
+   lookup_item(t, I_ACCESS)->type = a;
 }
 
 type_t type_file(type_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_FILE));
-
-   return t->file;
+   return lookup_item(t, I_FILE)->type;
 }
 
 void type_set_file(type_t t, type_t f)
 {
-   assert(t != NULL);
-   assert(f != NULL);
-   assert(IS(t, T_FILE));
-
-   t->file = f;
+   lookup_item(t, I_FILE)->type = f;
 }
 
 void type_write(type_t t, type_wr_ctx_t ctx)
@@ -792,10 +776,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    }
    else if (IS(t, T_FUNC))
       type_write(t->result, ctx);
-   else if (IS(t, T_ACCESS))
-      type_write(t->access, ctx);
-   else if (IS(t, T_FILE))
-      type_write(t->file, ctx);
 }
 
 type_t type_read(type_rd_ctx_t ctx)
@@ -888,10 +868,6 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    else if (IS(t, T_FUNC))
       t->result = type_read(ctx);
-   else if (IS(t, T_ACCESS))
-      t->access = type_read(ctx);
-   else if (IS(t, T_FILE))
-      t->file = type_read(ctx);
 
    return t;
 }
