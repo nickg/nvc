@@ -40,10 +40,12 @@ typedef struct {
 enum {
    I_PARAMS       = (1 << 0),
    I_INDEX_CONSTR = (1 << 1),
+   I_BASE         = (1 << 2),
 };
 
 typedef union {
    type_array_t type_array;
+   type_t       type;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -53,7 +55,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_SUBTYPE
-   (0),
+   (I_BASE),
 
    // T_INTEGER
    (0),
@@ -93,6 +95,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 #define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
+#define ITEM_TYPE       (I_BASE)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -102,7 +105,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS", "I_INDEX_CONSTR"
+   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE"
 };
 
 struct type {
@@ -113,7 +116,6 @@ struct type {
    item_t      items[MAX_ITEMS];
 
    union {
-      type_t base;          // T_SUBTYPE
       type_t elem;          // T_CARRAY, T_UARRAY
       type_t access;        // T_ACCESS
       type_t file;          // T_FILE
@@ -158,8 +160,6 @@ struct type_rd_ctx {
 #define HAS_DIMS(t) \
    (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL)   \
     || IS(t, T_CARRAY) || IS(t, T_REAL))
-#define HAS_BASE(t) \
-   (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 #define HAS_RESOLUTION(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
 #define HAS_ELEM(t) (IS(t, T_CARRAY) || IS(t, T_UARRAY))
@@ -209,6 +209,7 @@ static item_t *lookup_item(type_t t, imask_t mask)
          ;
 
       assert(item < ARRAY_LEN(item_text_map));
+      assert(false);
       fatal("tree kind %s does not have item %s",
             kind_text_map[t->kind], item_text_map[item]);
    }
@@ -412,20 +413,14 @@ void type_change_dim(type_t t, unsigned n, range_t r)
 
 type_t type_base(type_t t)
 {
-   assert(t != NULL);
-   assert(HAS_BASE(t));
-   assert(t->base != NULL);
-
-   return t->base;
+   item_t *item = lookup_item(t, I_BASE);
+   assert(item->type != NULL);
+   return item->type;
 }
 
 void type_set_base(type_t t, type_t b)
 {
-   assert(t != NULL);
-   assert(HAS_BASE(t));
-   assert(b != NULL);
-
-   t->base = b;
+   lookup_item(t, I_BASE)->type = b;
 }
 
 type_t type_elem(type_t t)
@@ -433,7 +428,7 @@ type_t type_elem(type_t t)
    assert(t != NULL);
 
    if (IS(t, T_SUBTYPE))
-      return type_elem(t->base);
+      return type_elem(type_base(t));
    else {
       assert(HAS_ELEM(t));
       assert(t->elem != NULL);
@@ -770,6 +765,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
             for (unsigned i = 0; i < a->count; i++)
                type_write(a->items[i], ctx);
          }
+         else if (ITEM_TYPE & mask)
+            type_write(t->items[n].type, ctx);
          else
             item_without_type(mask);
          n++;
@@ -783,10 +780,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].left, ctx->tree_ctx);
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
-   }
-   if (HAS_BASE(t)) {
-      if (write_b(t->base != NULL, f))
-         type_write(t->base, ctx);
    }
    if (HAS_ELEM(t))
       type_write(t->elem, ctx);
@@ -855,6 +848,8 @@ type_t type_read(type_rd_ctx_t ctx)
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = type_read(ctx);
          }
+         else if (ITEM_TYPE & mask)
+            t->items[n].type = type_read(ctx);
          else
             item_without_type(mask);
          n++;
@@ -872,10 +867,6 @@ type_t type_read(type_rd_ctx_t ctx)
          t->dims[i].right = tree_read(ctx->tree_ctx);
       }
       t->n_dims = ndims;
-   }
-   if (HAS_BASE(t)) {
-      if (read_b(f))
-         t->base = type_read(ctx);
    }
    if (HAS_ELEM(t))
       t->elem = type_read(ctx);
@@ -1007,6 +998,8 @@ void type_sweep(unsigned generation)
             if (has & mask) {
                if (ITEM_TYPE_ARRAY & mask)
                   free(t->items[n].type_array.items);
+               else if (ITEM_TYPE & mask)
+                  ;
                else
                   item_without_type(mask);
                n++;
@@ -1044,7 +1037,7 @@ void type_sweep(unsigned generation)
 bool type_is_array(type_t t)
 {
    if (t->kind == T_SUBTYPE)
-      return type_is_array(t->base);
+      return type_is_array(type_base(t));
    else
       return (t->kind == T_CARRAY || t->kind == T_UARRAY);
 }
@@ -1052,7 +1045,7 @@ bool type_is_array(type_t t)
 type_t type_base_recur(type_t t)
 {
    while (t->kind == T_SUBTYPE)
-      t = t->base;
+      t = type_base(t);
    return t;
 }
 

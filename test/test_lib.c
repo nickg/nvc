@@ -55,7 +55,7 @@ static tree_t str_to_agg(const char *p, const char *end)
 
    type_t type = type_new(T_CARRAY);
    type_set_ident(type, ident_new("string"));
-   type_set_base(type, type_universal_int());
+   type_set_elem(type, type_universal_int());
    range_t r = { .kind = RANGE_DOWNTO, .left = left, .right = right };
    type_add_dim(type, r);
 
@@ -280,4 +280,3 @@ int main(void)
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-

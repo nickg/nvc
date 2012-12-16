@@ -1016,7 +1016,7 @@ START_TEST(test_array)
    i = type_index_constr(t, 0);
    fail_unless(type_kind(i) == T_UNRESOLVED);
    fail_unless(type_ident(i) == ident_new("INTEGER"));
-   b = type_base(t);
+   b = type_elem(t);
    fail_unless(type_kind(b) == T_UNRESOLVED);
    fail_unless(type_ident(b) == ident_new("INTEGER"));
 
