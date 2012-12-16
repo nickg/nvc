@@ -390,7 +390,7 @@ static void tree_one_time_init(void)
    if (likely(done))
       return;
 
-   format_digest = 0;
+   format_digest = type_format_digest();
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);

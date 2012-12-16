@@ -38,7 +38,8 @@ typedef struct {
 } type_array_t;
 
 enum {
-   I_PARAMS = (1 << 0),
+   I_PARAMS       = (1 << 0),
+   I_INDEX_CONSTR = (1 << 1),
 };
 
 typedef union {
@@ -70,7 +71,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_UARRAY
-   (0),
+   (I_INDEX_CONSTR),
 
    // T_RECORD
    (0),
@@ -91,7 +92,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_PARAMS),
 };
 
-#define ITEM_TYPE_ARRAY (I_PARAMS)
+#define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -101,7 +102,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS"
+   "I_PARAMS", "I_INDEX_CONSTR"
 };
 
 struct type {
@@ -126,10 +127,6 @@ struct type {
          tree_t   *literals;
          unsigned n_literals;
          size_t   lit_alloc;
-      };
-      struct {   // T_UARRAY
-         unsigned n_index_constr;
-         type_t   index_constr[MAX_DIMS];
       };
       struct {   // T_PHYSICAL
          unit_t   *units;
@@ -172,6 +169,7 @@ static type_t *all_types = NULL;
 static size_t max_types = 128;   // Grows at runtime
 static size_t n_types_alloc = 0;
 
+static uint32_t format_digest;
 static int item_lookup[T_LAST_TREE_KIND][32];
 
 static void type_one_time_init(void)
@@ -183,6 +181,9 @@ static void type_one_time_init(void)
    for (int i = 0; i < T_LAST_TYPE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);
       assert(nitems <= MAX_ITEMS);
+
+      // Knuth's multiplicative hash
+      format_digest += has_map[i] * 2654435761u;
 
       int n = 0;
       for (int j = 0; j < 32; j++) {
@@ -655,38 +656,24 @@ void type_replace(type_t t, type_t a)
 
 unsigned type_index_constrs(type_t t)
 {
-   assert(t != NULL);
-   assert(type_kind(t) == T_UARRAY);
-
-   return t->n_index_constr;
+   return lookup_item(t, I_INDEX_CONSTR)->type_array.count;
 }
 
 void type_add_index_constr(type_t t, type_t c)
 {
-   assert(t != NULL);
-   assert(c != NULL);
-   assert(type_kind(t) == T_UARRAY);
-   assert(t->n_index_constr < MAX_DIMS);
-
-   t->index_constr[t->n_index_constr++] = c;
+   type_array_add(&(lookup_item(t, I_INDEX_CONSTR)->type_array), c);
 }
 
 void type_change_index_constr(type_t t, unsigned n, type_t c)
 {
-   assert(t != NULL);
-   assert(c != NULL);
-   assert(type_kind(t) == T_UARRAY);
-   assert(n < t->n_index_constr);
-
-   t->index_constr[n] = c;
+   type_array_t *a = &(lookup_item(t, I_INDEX_CONSTR)->type_array);
+   assert(n < a->count);
+   a->items[n] = c;
 }
 
 type_t type_index_constr(type_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(n < t->n_index_constr);
-
-   return t->index_constr[n];
+   return type_array_nth(&(lookup_item(t, I_INDEX_CONSTR)->type_array), n);
 }
 
 void type_set_resolution(type_t t, tree_t r)
@@ -820,11 +807,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    }
    else if (IS(t, T_FUNC))
       type_write(t->result, ctx);
-   else if (IS(t, T_UARRAY)) {
-      write_u16(t->n_index_constr, f);
-      for (unsigned i = 0; i < t->n_index_constr; i++)
-         type_write(t->index_constr[i], ctx);
-   }
    else if (IS(t, T_ACCESS))
       type_write(t->access, ctx);
    else if (IS(t, T_FILE))
@@ -925,14 +907,6 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    else if (IS(t, T_FUNC))
       t->result = type_read(ctx);
-   else if (IS(t, T_UARRAY)) {
-      unsigned short nconstr = read_u16(f);
-      assert(nconstr < MAX_DIMS);
-
-      for (unsigned i = 0; i < nconstr; i++)
-         t->index_constr[i] = type_read(ctx);
-      t->n_index_constr = nconstr;
-   }
    else if (IS(t, T_ACCESS))
       t->access = type_read(ctx);
    else if (IS(t, T_FILE))
@@ -1080,4 +1054,10 @@ type_t type_base_recur(type_t t)
    while (t->kind == T_SUBTYPE)
       t = t->base;
    return t;
+}
+
+uint32_t type_format_digest(void)
+{
+   type_one_time_init();
+   return format_digest;
 }
