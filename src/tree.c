@@ -23,9 +23,10 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_CONTEXTS 16
-#define MAX_ATTRS    16
-#define MAX_ITEMS    6
+#define MAX_CONTEXTS   16
+#define MAX_ATTRS      16
+#define MAX_ITEMS      6
+#define ARRAY_BASE_SZ  16
 
 //#define EXTRA_READ_CHECKS
 
@@ -369,8 +370,6 @@ struct tree_rd_ctx {
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
     || IS(t, T_FOR_GENERATE))
 
-#define TREE_ARRAY_BASE_SZ  16
-
 // Garbage collection
 static tree_t *all_trees = NULL;
 static size_t max_trees = 128;   // Grows at runtime
@@ -447,8 +446,8 @@ static void item_without_type(imask_t mask)
 static void tree_array_add(tree_array_t *a, tree_t t)
 {
    if (a->max == 0) {
-      a->items = xmalloc(sizeof(tree_t) * TREE_ARRAY_BASE_SZ);
-      a->max   = TREE_ARRAY_BASE_SZ;
+      a->items = xmalloc(sizeof(tree_t) * ARRAY_BASE_SZ);
+      a->max   = ARRAY_BASE_SZ;
    }
    else if (a->count == a->max) {
       a->max *= 2;
@@ -463,11 +462,12 @@ static inline tree_t tree_array_nth(tree_array_t *a, unsigned n)
    assert(n < a->count);
    return a->items[n];
 }
+
 static void assoc_array_add(assoc_array_t *a, assoc_t t)
 {
    if (a->max == 0) {
-      a->items = xmalloc(sizeof(assoc_t) * TREE_ARRAY_BASE_SZ);
-      a->max   = TREE_ARRAY_BASE_SZ;
+      a->items = xmalloc(sizeof(assoc_t) * ARRAY_BASE_SZ);
+      a->max   = ARRAY_BASE_SZ;
    }
    else if (a->count == a->max) {
       a->max *= 2;
@@ -486,8 +486,8 @@ static inline assoc_t assoc_array_nth(assoc_array_t *a, unsigned n)
 static void param_array_add(param_array_t *a, param_t p)
 {
    if (a->max == 0) {
-      a->items = xmalloc(sizeof(param_t) * TREE_ARRAY_BASE_SZ);
-      a->max   = TREE_ARRAY_BASE_SZ;
+      a->items = xmalloc(sizeof(param_t) * ARRAY_BASE_SZ);
+      a->max   = ARRAY_BASE_SZ;
    }
    else if (a->count == a->max) {
       a->max *= 2;

@@ -26,14 +26,90 @@
 #include <ctype.h>
 #include <float.h>
 
-#define MAX_DIMS     4
-#define MAX_UNITS    16
+#define MAX_DIMS      4
+#define MAX_UNITS     16
+#define MAX_ITEMS     4
+#define ARRAY_BASE_SZ 8
+
+typedef struct {
+   uint32_t  count;
+   uint32_t  max;
+   type_t   *items;
+} type_array_t;
+
+enum {
+   I_PARAMS = (1 << 0),
+};
+
+typedef union {
+   type_array_t type_array;
+} item_t;
+
+typedef uint32_t imask_t;
+
+static const imask_t has_map[T_LAST_TYPE_KIND] = {
+   // T_UNRESOLVED
+   (0),
+
+   // T_SUBTYPE
+   (0),
+
+   // T_INTEGER
+   (0),
+
+   // T_REAL
+   (0),
+
+   // T_ENUM
+   (0),
+
+   // T_PHYSICAL
+   (0),
+
+   // T_CARRAY
+   (0),
+
+   // T_UARRAY
+   (0),
+
+   // T_RECORD
+   (0),
+
+   // T_FILE
+   (0),
+
+   // T_ACCESS
+   (0),
+
+   // T_FUNC
+   (I_PARAMS),
+
+   // T_INCOMPLETE
+   (0),
+
+   // T_PROC
+   (I_PARAMS),
+};
+
+#define ITEM_TYPE_ARRAY (I_PARAMS)
+
+static const char *kind_text_map[T_LAST_TYPE_KIND] = {
+   "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
+   "T_ENUM",       "T_PHYSICAL", "T_CARRAY",  "T_UARRAY",
+   "T_RECORD",     "T_FILE",     "T_ACCESS",  "T_FUNC",
+   "T_INCOMPLETE", "T_PROC",
+};
+
+static const char *item_text_map[] = {
+   "I_PARAMS"
+};
 
 struct type {
    type_kind_t kind;
    ident_t     ident;
    range_t     *dims;
    unsigned    n_dims;
+   item_t      items[MAX_ITEMS];
 
    union {
       type_t base;          // T_SUBTYPE
@@ -58,11 +134,6 @@ struct type {
       struct {   // T_PHYSICAL
          unit_t   *units;
          unsigned n_units;
-      };
-      struct {   // T_FUNC, T_PROC
-         type_t   *params;
-         unsigned n_params;
-         unsigned params_alloc;
       };
    };
 
@@ -94,7 +165,6 @@ struct type_rd_ctx {
    (IS(t, T_SUBTYPE) || IS(t, T_CARRAY) || IS(t, T_UARRAY))
 #define HAS_RESOLUTION(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
-#define HAS_PARAMS(t) (IS(t, T_FUNC) || IS(t, T_PROC))
 #define HAS_ELEM(t) (IS(t, T_CARRAY) || IS(t, T_UARRAY))
 
 // Garbage collection
@@ -102,8 +172,86 @@ static type_t *all_types = NULL;
 static size_t max_types = 128;   // Grows at runtime
 static size_t n_types_alloc = 0;
 
+static int item_lookup[T_LAST_TREE_KIND][32];
+
+static void type_one_time_init(void)
+{
+   static bool done = false;
+   if (likely(done))
+      return;
+
+   for (int i = 0; i < T_LAST_TYPE_KIND; i++) {
+      const int nitems = __builtin_popcount(has_map[i]);
+      assert(nitems <= MAX_ITEMS);
+
+      int n = 0;
+      for (int j = 0; j < 32; j++) {
+         if (has_map[i] & (1 << j))
+            item_lookup[i][j] = n++;
+         else
+            item_lookup[i][j] = -1;
+      }
+   }
+
+   done = true;
+}
+
+static item_t *lookup_item(type_t t, imask_t mask)
+{
+   assert(t != NULL);
+   assert((mask & (mask - 1)) == 0);
+   const imask_t has = has_map[t->kind];
+
+   if (unlikely((has & mask) == 0)) {
+      int item;
+      for (item = 0; (mask & (1 << item)) == 0; item++)
+         ;
+
+      assert(item < ARRAY_LEN(item_text_map));
+      fatal("tree kind %s does not have item %s",
+            kind_text_map[t->kind], item_text_map[item]);
+   }
+
+   const int tzc = __builtin_ctz(mask);
+   const int n   = item_lookup[t->kind][tzc];
+
+   return &(t->items[n]);
+}
+
+static void item_without_type(imask_t mask)
+{
+   int item;
+   for (item = 0; (mask & (1 << item)) == 0; item++)
+      ;
+
+   assert(item < ARRAY_LEN(item_text_map));
+   fatal("tree item %s does not have a type", item_text_map[item]);
+}
+
+static void type_array_add(type_array_t *a, type_t t)
+{
+   if (a->max == 0) {
+      a->items = xmalloc(sizeof(type_t) * ARRAY_BASE_SZ);
+      a->max   = ARRAY_BASE_SZ;
+   }
+   else if (a->count == a->max) {
+      a->max *= 2;
+      a->items = xrealloc(a->items, sizeof(type_t) * a->max);
+   }
+
+   a->items[a->count++] = t;
+}
+
+static inline type_t type_array_nth(type_array_t *a, unsigned n)
+{
+   assert(n < a->count);
+   return a->items[n];
+}
+
 type_t type_new(type_kind_t kind)
 {
+   type_one_time_init();
+
    struct type *t = xmalloc(sizeof(struct type));
    memset(t, '\0', sizeof(struct type));
    t->kind = kind;
@@ -182,7 +330,7 @@ bool type_eq(type_t a, type_t b)
          return false;
    }
 
-   if (HAS_PARAMS(a)) {
+   if (has_map[a->kind] & I_PARAMS) {
       if (type_params(a) != type_params(b))
          return false;
 
@@ -430,37 +578,17 @@ void type_enum_add_literal(type_t t, tree_t lit)
 
 unsigned type_params(type_t t)
 {
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
-
-   return t->n_params;
+   return lookup_item(t, I_PARAMS)->type_array.count;
 }
 
 type_t type_param(type_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_PARAMS(t));
-   assert(n < t->n_params);
-
-   return t->params[n];
+   return type_array_nth(&(lookup_item(t, I_PARAMS)->type_array), n);
 }
 
 void type_add_param(type_t t, type_t p)
 {
-   assert(t != NULL);
-   assert(p != NULL);
-   assert(HAS_PARAMS(t));
-
-   if (t->params == NULL) {
-      t->params_alloc = 4;
-      t->params = xmalloc(t->params_alloc * sizeof(type_t));
-   }
-   else if (t->n_params == t->params_alloc) {
-      t->params_alloc *= 2;
-      t->params = xrealloc(t->params, t->params_alloc * sizeof(type_t));
-   }
-
-   t->params[t->n_params++] = p;
+   type_array_add(&(lookup_item(t, I_PARAMS)->type_array), p);
 }
 
 type_t type_result(type_t t)
@@ -644,6 +772,23 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    // Call type_ident here to generate an arbitrary name if needed
    ident_write(type_ident(t), ctx->ident_ctx);
 
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(t->items[n].type_array);
+            write_u16(a->count, f);
+            for (unsigned i = 0; i < a->count; i++)
+               type_write(a->items[i], ctx);
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
    if (HAS_DIMS(t)) {
       write_u16(t->n_dims, f);
       for (unsigned i = 0; i < t->n_dims; i++) {
@@ -651,11 +796,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].left, ctx->tree_ctx);
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
-   }
-   if (HAS_PARAMS(t)) {
-      write_u16(t->n_params, f);
-      for (unsigned i = 0; i < t->n_params; i++)
-         type_write(t->params[i], ctx);
    }
    if (HAS_BASE(t)) {
       if (write_b(t->base != NULL, f))
@@ -719,6 +859,26 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    ctx->store[ctx->n_types++] = t;
 
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(t->items[n].type_array);
+
+            a->count = a->max = read_u16(f);
+            a->items = xmalloc(a->count * sizeof(type_t));
+
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = type_read(ctx);
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
    if (HAS_DIMS(t)) {
       unsigned short ndims = read_u16(f);
       assert(ndims < MAX_DIMS);
@@ -739,16 +899,6 @@ type_t type_read(type_rd_ctx_t ctx)
       t->elem = type_read(ctx);
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
-   if (HAS_PARAMS(t)) {
-      unsigned short nparams = read_u16(f);
-
-      t->params = xmalloc(nparams * sizeof(type_t));
-      t->params_alloc = nparams;
-
-      for (unsigned i = 0; i < nparams; i++)
-         t->params[i] = type_read(ctx);
-      t->n_params = nparams;
-   }
 
    if (IS(t, T_PHYSICAL)) {
       unsigned short nunits = read_u16(f);
@@ -811,6 +961,8 @@ void type_write_end(type_wr_ctx_t ctx)
 
 type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx, ident_rd_ctx_t ident_ctx)
 {
+   type_one_time_init();
+
    struct type_rd_ctx *ctx = xmalloc(sizeof(struct type_rd_ctx));
    ctx->tree_ctx  = tree_ctx;
    ctx->ident_ctx = ident_ctx;
@@ -873,13 +1025,25 @@ void type_sweep(unsigned generation)
    for (unsigned i = 0; i < n_types_alloc; i++) {
       type_t t = all_types[i];
       if (t->generation < generation) {
+
+         const uint32_t has = has_map[t->kind];
+         const int nitems = __builtin_popcount(has);
+         uint32_t mask = 1;
+         for (int n = 0; n < nitems; mask <<= 1) {
+            if (has & mask) {
+               if (ITEM_TYPE_ARRAY & mask)
+                  free(t->items[n].type_array.items);
+               else
+                  item_without_type(mask);
+               n++;
+            }
+         }
+
          if (IS(t, T_PHYSICAL) && t->units != NULL)
             free(t->units);
          else if (IS(t, T_ENUM) && t->literals != NULL)
             free(t->literals);
 
-         if (HAS_PARAMS(t) && t->params != NULL)
-            free(t->params);
          if (HAS_DIMS(t) && t->dims != NULL)
             free(t->dims);
 
