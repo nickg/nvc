@@ -1460,7 +1460,7 @@ static bool sem_check_decl(tree_t t)
    if (!tree_has_value(t) && kind == T_CONST_DECL )
       sem_error(t, "constant declaration must have an initial value");
 
-   if (!tree_has_value(t) && (tree_kind(t) != T_PORT_DECL))
+   if (!tree_has_value(t) && (kind != T_PORT_DECL))
       tree_set_value(t, sem_default_value(type));
 
    if (tree_has_value(t)) {
@@ -1474,8 +1474,13 @@ static bool sem_check_decl(tree_t t)
                    istr(type_ident(type)));
    }
 
-   if (tree_kind(t) == T_PORT_DECL && tree_class(t) == C_DEFAULT)
+   if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
+
+   if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL)) {
+      if (type_kind(type) == T_RECORD)
+         sem_error(t, "sorry, records are not yet allowed as signals");
+   }
 
    sem_add_attributes(t);
 
