@@ -569,6 +569,11 @@ void type_replace(type_t t, type_t a)
          type_enum_add_literal(t, type_enum_literal(a, i));
       break;
 
+   case T_RECORD:
+      for (unsigned i = 0; i < type_fields(a); i++)
+         type_add_field(t, type_field(a, i));
+      break;
+
    default:
       assert(false);
    }

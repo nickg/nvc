@@ -143,6 +143,7 @@ typedef struct tree_rd_ctx *tree_rd_ctx_t;
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);
+const char *tree_kind_str(tree_kind_t t);
 
 const loc_t *tree_loc(tree_t t);
 void tree_set_loc(tree_t t, const loc_t *loc);

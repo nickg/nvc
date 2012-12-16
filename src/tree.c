@@ -2271,3 +2271,8 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
 
    return call;
 }
+
+const char *tree_kind_str(tree_kind_t t)
+{
+   return kind_text_map[t];
+}

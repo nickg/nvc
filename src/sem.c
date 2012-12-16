@@ -1295,6 +1295,30 @@ static bool sem_check_type_decl(tree_t t)
          return ok;
       }
 
+   case T_RECORD:
+      {
+         const int nfields = type_fields(type);
+         for (int i = 0; i < nfields; i++) {
+            tree_t f = type_field(type, i);
+
+            if (!sem_check(f))
+               return false;
+
+            // Each field name must be distinct
+            ident_t f_name = tree_ident(f);
+            for (int j = 0; j < i; j++) {
+               if (f_name == tree_ident(type_field(type, j)))
+                  sem_error(f, "duplicate field name %s", istr(f_name));
+            }
+
+            // Recursive record types are not allowed
+            if (type_eq(type, tree_type(f)))
+               sem_error(f, "recursive record types are not allowed");
+         }
+
+         return true;
+      }
+
    default:
       return true;
    }
@@ -1479,6 +1503,16 @@ static bool sem_check_port_decl(tree_t t)
    }
 
    sem_add_attributes(t);
+   return true;
+}
+
+static bool sem_check_field_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (!sem_check_type(t, &type))
+      return false;
+
+   tree_set_type(t, type);
    return true;
 }
 
@@ -3872,8 +3906,10 @@ bool sem_check(tree_t t)
       return sem_check_for_generate(t);
    case T_OPEN:
       return sem_check_open(t);
+   case T_FIELD_DECL:
+      return sem_check_field_decl(t);
    default:
-      sem_error(t, "cannot check tree kind %d", tree_kind(t));
+      sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
 }
 

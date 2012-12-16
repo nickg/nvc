@@ -862,6 +862,32 @@ START_TEST(test_generate)
 }
 END_TEST
 
+START_TEST(test_record)
+{
+   tree_t p, d;
+   type_t t;
+
+   fail_unless(input_from_file(TESTDIR "/sem/record.vhd"));
+
+   const error_t expect[] = {
+      {  9, "duplicate field name X" },
+      { 15, "recursive record types are not allowed" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -890,6 +916,7 @@ int main(void)
    tcase_add_test(tc_core, test_conv);
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_generate);
+   tcase_add_test(tc_core, test_record);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
