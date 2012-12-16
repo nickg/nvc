@@ -27,12 +27,12 @@
 #include <ctype.h>
 #include <float.h>
 
-#define MAX_DIMS      4
-#define MAX_ITEMS     4
+#define MAX_ITEMS 3
 
 DEFINE_ARRAY(type);
 DEFINE_ARRAY(unit);
 DEFINE_ARRAY(tree);
+DEFINE_ARRAY(range);
 
 enum {
    I_PARAMS       = (1 << 0),
@@ -45,14 +45,16 @@ enum {
    I_RESULT       = (1 << 7),
    I_UNITS        = (1 << 8),
    I_LITERALS     = (1 << 9),
+   I_DIMS         = (1 << 10),
 };
 
 typedef union {
-   type_array_t type_array;
-   type_t       type;
-   tree_t       tree;
-   unit_array_t unit_array;
-   tree_array_t tree_array;
+   type_array_t  type_array;
+   type_t        type;
+   tree_t        tree;
+   unit_array_t  unit_array;
+   tree_array_t  tree_array;
+   range_array_t range_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -62,22 +64,22 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_RESOLUTION),
 
    // T_SUBTYPE
-   (I_BASE | I_RESOLUTION),
+   (I_BASE | I_RESOLUTION | I_DIMS),
 
    // T_INTEGER
-   (0),
+   (I_DIMS),
 
    // T_REAL
-   (0),
+   (I_DIMS),
 
    // T_ENUM
    (I_LITERALS),
 
    // T_PHYSICAL
-   (I_UNITS),
+   (I_UNITS | I_DIMS),
 
    // T_CARRAY
-   (I_ELEM),
+   (I_ELEM | I_DIMS),
 
    // T_UARRAY
    (I_INDEX_CONSTR | I_ELEM),
@@ -101,11 +103,12 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_PARAMS),
 };
 
-#define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
-#define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
-#define ITEM_TREE       (I_RESOLUTION)
-#define ITEM_UNIT_ARRAY (I_UNITS)
-#define ITEM_TREE_ARRAY (I_LITERALS)
+#define ITEM_TYPE_ARRAY  (I_PARAMS | I_INDEX_CONSTR)
+#define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
+#define ITEM_TREE        (I_RESOLUTION)
+#define ITEM_UNIT_ARRAY  (I_UNITS)
+#define ITEM_TREE_ARRAY  (I_LITERALS)
+#define ITEM_RANGE_ARRAY (I_DIMS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -117,14 +120,12 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 static const char *item_text_map[] = {
    "I_PARAMS", "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
    "I_FILE",   "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",  "I_LITERALS",
+   "I_UNITS",  "I_LITERALS",     "I_DIMS",
 };
 
 struct type {
    type_kind_t kind;
    ident_t     ident;
-   range_t     *dims;
-   unsigned    n_dims;
    item_t      items[MAX_ITEMS];
 
    // Serialisation accounting
@@ -148,9 +149,6 @@ struct type_rd_ctx {
 };
 
 #define IS(t, k) ((t)->kind == (k))
-#define HAS_DIMS(t) \
-   (IS(t, T_INTEGER) || IS(t, T_SUBTYPE) || IS(t, T_PHYSICAL)   \
-    || IS(t, T_CARRAY) || IS(t, T_REAL))
 
 // Garbage collection
 static type_t *all_types = NULL;
@@ -291,7 +289,9 @@ bool type_eq(type_t a, type_t b)
    if (compare_c_u_arrays)
       return type_eq(type_elem(a), type_elem(b));
 
-   if (HAS_DIMS(a) && type_dims(a) != type_dims(b))
+   const imask_t has = has_map[a->kind];
+
+   if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
 
    if (type_kind(a) == T_FUNC) {
@@ -299,7 +299,7 @@ bool type_eq(type_t a, type_t b)
          return false;
    }
 
-   if (has_map[a->kind] & I_PARAMS) {
+   if (has & I_PARAMS) {
       if (type_params(a) != type_params(b))
          return false;
 
@@ -339,43 +339,24 @@ void type_set_ident(type_t t, ident_t id)
 
 unsigned type_dims(type_t t)
 {
-   assert(t != NULL);
-   assert(HAS_DIMS(t));
-
-   return t->n_dims;
+   return lookup_item(t, I_DIMS)->range_array.count;
 }
 
 range_t type_dim(type_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(HAS_DIMS(t));
-   assert(n < t->n_dims);
-
-   // TODO: need to check if this is a subtype and apply
-   // constraints up the chain
-
-   return t->dims[n];
+   return range_array_nth(&(lookup_item(t, I_DIMS)->range_array), n);
 }
 
 void type_add_dim(type_t t, range_t r)
 {
-   assert(t != NULL);
-   assert(HAS_DIMS(t));
-   assert(t->n_dims < MAX_DIMS);
-
-   if (t->dims == NULL)
-      t->dims = xmalloc(MAX_DIMS * sizeof(range_t));
-
-   t->dims[t->n_dims++] = r;
+   range_array_add(&(lookup_item(t, I_DIMS)->range_array), r);
 }
 
 void type_change_dim(type_t t, unsigned n, range_t r)
 {
-   assert(t != NULL);
-   assert(HAS_DIMS(t));
-   assert(n < t->n_dims);
-
-   t->dims[n] = r;
+   item_t *item = lookup_item(t, I_DIMS);
+   assert(n < item->range_array.count);
+   item->range_array.items[n] = r;
 }
 
 type_t type_base(type_t t)
@@ -536,8 +517,11 @@ void type_replace(type_t t, type_t a)
    t->kind  = a->kind;
    t->ident = a->ident;
 
-   if (HAS_DIMS(a)) {
-      for (unsigned i = 0; i < a->n_dims; i++)
+   const imask_t has = has_map[t->kind];
+
+   if (has & I_DIMS) {
+      const int ndims = type_dims(a);
+      for (int i = 0; i < ndims; i++)
          type_add_dim(t, type_dim(a, i));
    }
 
@@ -685,18 +669,18 @@ void type_write(type_t t, type_wr_ctx_t ctx)
             for (unsigned i = 0; i < a->count; i++)
                tree_write(a->items[i], ctx->tree_ctx);
          }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(t->items[n].range_array);
+            write_u16(a->count, f);
+            for (unsigned i = 0; i < a->count; i++) {
+               write_u8(a->items[i].kind, f);
+               tree_write(a->items[i].left, ctx->tree_ctx);
+               tree_write(a->items[i].right, ctx->tree_ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
-      }
-   }
-
-   if (HAS_DIMS(t)) {
-      write_u16(t->n_dims, f);
-      for (unsigned i = 0; i < t->n_dims; i++) {
-         write_u16(t->dims[i].kind, f);
-         tree_write(t->dims[i].left, ctx->tree_ctx);
-         tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
 }
@@ -767,23 +751,22 @@ type_t type_read(type_rd_ctx_t ctx)
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = tree_read(ctx->tree_ctx);
          }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(t->items[n].range_array);
+
+            a->count = a->max = read_u16(f);
+            a->items = xmalloc(a->count * sizeof(range_t));
+
+            for (unsigned i = 0; i < a->count; i++) {
+               a->items[i].kind  = read_u8(f);
+               a->items[i].left  = tree_read(ctx->tree_ctx);
+               a->items[i].right = tree_read(ctx->tree_ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
       }
-   }
-
-   if (HAS_DIMS(t)) {
-      unsigned short ndims = read_u16(f);
-      assert(ndims < MAX_DIMS);
-      t->dims = xmalloc(sizeof(range_t) * MAX_DIMS);
-
-      for (unsigned i = 0; i < ndims; i++) {
-         t->dims[i].kind  = read_u16(f);
-         t->dims[i].left  = tree_read(ctx->tree_ctx);
-         t->dims[i].right = tree_read(ctx->tree_ctx);
-      }
-      t->n_dims = ndims;
    }
 
    return t;
@@ -889,14 +872,13 @@ void type_sweep(unsigned generation)
                   free(t->items[n].unit_array.items);
                else if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
+               else if (ITEM_RANGE_ARRAY & mask)
+                  free(t->items[n].range_array.items);
                else
                   item_without_type(mask);
                n++;
             }
          }
-
-         if (HAS_DIMS(t) && t->dims != NULL)
-            free(t->dims);
 
          free(t);
 
