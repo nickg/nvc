@@ -32,6 +32,7 @@
 
 DEFINE_ARRAY(type);
 DEFINE_ARRAY(unit);
+DEFINE_ARRAY(tree);
 
 enum {
    I_PARAMS       = (1 << 0),
@@ -43,6 +44,7 @@ enum {
    I_RESOLUTION   = (1 << 6),
    I_RESULT       = (1 << 7),
    I_UNITS        = (1 << 8),
+   I_LITERALS     = (1 << 9),
 };
 
 typedef union {
@@ -50,6 +52,7 @@ typedef union {
    type_t       type;
    tree_t       tree;
    unit_array_t unit_array;
+   tree_array_t tree_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -68,7 +71,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_ENUM
-   (0),
+   (I_LITERALS),
 
    // T_PHYSICAL
    (I_UNITS),
@@ -102,6 +105,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 #define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
 #define ITEM_TREE       (I_RESOLUTION)
 #define ITEM_UNIT_ARRAY (I_UNITS)
+#define ITEM_TREE_ARRAY (I_LITERALS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -113,6 +117,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 static const char *item_text_map[] = {
    "I_PARAMS", "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
    "I_FILE",   "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
+   "I_UNITS",  "I_LITERALS",
 };
 
 struct type {
@@ -121,14 +126,6 @@ struct type {
    range_t     *dims;
    unsigned    n_dims;
    item_t      items[MAX_ITEMS];
-
-   union {
-      struct {   // T_ENUM
-         tree_t   *literals;
-         unsigned n_literals;
-         size_t   lit_alloc;
-      };
-   };
 
    // Serialisation accounting
    uint32_t generation;
@@ -490,37 +487,18 @@ void type_add_unit(type_t t, unit_t u)
 
 unsigned type_enum_literals(type_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ENUM));
-
-   return t->n_literals;
+   return lookup_item(t, I_LITERALS)->tree_array.count;
 }
 
 tree_t type_enum_literal(type_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ENUM));
-   assert(n < t->n_literals);
-
-   return t->literals[n];
+   return tree_array_nth(&(lookup_item(t, I_LITERALS)->tree_array), n);
 }
 
 void type_enum_add_literal(type_t t, tree_t lit)
 {
-   assert(t != NULL);
-   assert(IS(t, T_ENUM));
    assert(tree_kind(lit) == T_ENUM_LIT);
-
-   if (t->n_literals == 0) {
-      t->lit_alloc = 16;
-      t->literals = xmalloc(t->lit_alloc * sizeof(tree_t));
-   }
-   else if (t->n_literals == t->lit_alloc) {
-      t->lit_alloc *= 2;
-      t->literals = xrealloc(t->literals, t->lit_alloc * sizeof(tree_t));
-   }
-
-   t->literals[t->n_literals++] = lit;
+   tree_array_add(&(lookup_item(t, I_LITERALS)->tree_array), lit);
 }
 
 unsigned type_params(type_t t)
@@ -701,6 +679,12 @@ void type_write(type_t t, type_wr_ctx_t ctx)
                ident_write(a->items[i].name, ctx->ident_ctx);
             }
          }
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+            write_u16(a->count, f);
+            for (unsigned i = 0; i < a->count; i++)
+               tree_write(a->items[i], ctx->tree_ctx);
+         }
          else
             item_without_type(mask);
          n++;
@@ -714,12 +698,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].left, ctx->tree_ctx);
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
-   }
-
-   else if (IS(t, T_ENUM)) {
-      write_u16(t->n_literals, f);
-      for (unsigned i = 0; i < t->n_literals; i++)
-         tree_write(t->literals[i], ctx->tree_ctx);
    }
 }
 
@@ -780,6 +758,15 @@ type_t type_read(type_rd_ctx_t ctx)
                a->items[i].name = ident_read(ctx->ident_ctx);
             }
          }
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+
+            a->count = a->max = read_u16(f);
+            a->items = xmalloc(a->count * sizeof(tree_t));
+
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = tree_read(ctx->tree_ctx);
+         }
          else
             item_without_type(mask);
          n++;
@@ -797,18 +784,6 @@ type_t type_read(type_rd_ctx_t ctx)
          t->dims[i].right = tree_read(ctx->tree_ctx);
       }
       t->n_dims = ndims;
-   }
-
-   if (IS(t, T_ENUM)) {
-      unsigned short nlits = read_u16(f);
-
-      t->literals = xmalloc(nlits * sizeof(tree_t));
-      t->lit_alloc = nlits;
-
-      for (unsigned i = 0; i < nlits; i++) {
-         t->literals[i] = tree_read(ctx->tree_ctx);
-      }
-      t->n_literals = nlits;
    }
 
    return t;
@@ -912,14 +887,13 @@ void type_sweep(unsigned generation)
                   ;
                else if (ITEM_UNIT_ARRAY & mask)
                   free(t->items[n].unit_array.items);
+               else if (ITEM_TREE_ARRAY & mask)
+                  free(t->items[n].tree_array.items);
                else
                   item_without_type(mask);
                n++;
             }
          }
-
-         if (IS(t, T_ENUM) && t->literals != NULL)
-            free(t->literals);
 
          if (HAS_DIMS(t) && t->dims != NULL)
             free(t->dims);
