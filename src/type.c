@@ -41,6 +41,7 @@ enum {
    I_PARAMS       = (1 << 0),
    I_INDEX_CONSTR = (1 << 1),
    I_BASE         = (1 << 2),
+   I_ELEM         = (1 << 3),
 };
 
 typedef union {
@@ -70,10 +71,10 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_CARRAY
-   (0),
+   (I_ELEM),
 
    // T_UARRAY
-   (I_INDEX_CONSTR),
+   (I_INDEX_CONSTR | I_ELEM),
 
    // T_RECORD
    (0),
@@ -95,7 +96,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 #define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
-#define ITEM_TYPE       (I_BASE)
+#define ITEM_TYPE       (I_BASE | I_ELEM)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -105,7 +106,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE"
+   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE", "I_ELEM",
 };
 
 struct type {
@@ -116,7 +117,6 @@ struct type {
    item_t      items[MAX_ITEMS];
 
    union {
-      type_t elem;          // T_CARRAY, T_UARRAY
       type_t access;        // T_ACCESS
       type_t file;          // T_FILE
    };
@@ -162,7 +162,6 @@ struct type_rd_ctx {
     || IS(t, T_CARRAY) || IS(t, T_REAL))
 #define HAS_RESOLUTION(t) \
    (IS(t, T_SUBTYPE) || IS(t, T_UNRESOLVED))
-#define HAS_ELEM(t) (IS(t, T_CARRAY) || IS(t, T_UARRAY))
 
 // Garbage collection
 static type_t *all_types = NULL;
@@ -430,20 +429,15 @@ type_t type_elem(type_t t)
    if (IS(t, T_SUBTYPE))
       return type_elem(type_base(t));
    else {
-      assert(HAS_ELEM(t));
-      assert(t->elem != NULL);
-
-      return t->elem;
+      item_t *item = lookup_item(t, I_ELEM);
+      assert(item->type != NULL);
+      return item->type;
    }
 }
 
 void type_set_elem(type_t t, type_t e)
 {
-   assert(t != NULL);
-   assert(HAS_ELEM(t));
-   assert(e != NULL);
-
-   t->elem = e;
+   lookup_item(t, I_ELEM)->type = e;
 }
 
 static type_t type_make_universal(type_kind_t kind, const char *name,
@@ -781,8 +775,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          tree_write(t->dims[i].right, ctx->tree_ctx);
       }
    }
-   if (HAS_ELEM(t))
-      type_write(t->elem, ctx);
    if (HAS_RESOLUTION(t))
       tree_write(t->resolution, ctx->tree_ctx);
 
@@ -868,8 +860,6 @@ type_t type_read(type_rd_ctx_t ctx)
       }
       t->n_dims = ndims;
    }
-   if (HAS_ELEM(t))
-      t->elem = type_read(ctx);
    if (HAS_RESOLUTION(t))
       t->resolution = tree_read(ctx->tree_ctx);
 
