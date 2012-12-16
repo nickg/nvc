@@ -18,6 +18,7 @@
 #include "type.h"
 #include "tree.h"
 #include "util.h"
+#include "array.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -27,15 +28,10 @@
 #include <float.h>
 
 #define MAX_DIMS      4
-#define MAX_UNITS     16
 #define MAX_ITEMS     4
-#define ARRAY_BASE_SZ 8
 
-typedef struct {
-   uint32_t  count;
-   uint32_t  max;
-   type_t   *items;
-} type_array_t;
+DEFINE_ARRAY(type);
+DEFINE_ARRAY(unit);
 
 enum {
    I_PARAMS       = (1 << 0),
@@ -46,12 +42,14 @@ enum {
    I_ACCESS       = (1 << 5),
    I_RESOLUTION   = (1 << 6),
    I_RESULT       = (1 << 7),
+   I_UNITS        = (1 << 8),
 };
 
 typedef union {
    type_array_t type_array;
    type_t       type;
    tree_t       tree;
+   unit_array_t unit_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -73,7 +71,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0),
 
    // T_PHYSICAL
-   (0),
+   (I_UNITS),
 
    // T_CARRAY
    (I_ELEM),
@@ -103,6 +101,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 #define ITEM_TYPE_ARRAY (I_PARAMS | I_INDEX_CONSTR)
 #define ITEM_TYPE       (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
 #define ITEM_TREE       (I_RESOLUTION)
+#define ITEM_UNIT_ARRAY (I_UNITS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -128,10 +127,6 @@ struct type {
          tree_t   *literals;
          unsigned n_literals;
          size_t   lit_alloc;
-      };
-      struct {   // T_PHYSICAL
-         unit_t   *units;
-         unsigned n_units;
       };
    };
 
@@ -223,26 +218,6 @@ static void item_without_type(imask_t mask)
 
    assert(item < ARRAY_LEN(item_text_map));
    fatal("tree item %s does not have a type", item_text_map[item]);
-}
-
-static void type_array_add(type_array_t *a, type_t t)
-{
-   if (a->max == 0) {
-      a->items = xmalloc(sizeof(type_t) * ARRAY_BASE_SZ);
-      a->max   = ARRAY_BASE_SZ;
-   }
-   else if (a->count == a->max) {
-      a->max *= 2;
-      a->items = xrealloc(a->items, sizeof(type_t) * a->max);
-   }
-
-   a->items[a->count++] = t;
-}
-
-static inline type_t type_array_nth(type_array_t *a, unsigned n)
-{
-   assert(n < a->count);
-   return a->items[n];
 }
 
 type_t type_new(type_kind_t kind)
@@ -500,31 +475,17 @@ bool type_is_universal(type_t t)
 
 unsigned type_units(type_t t)
 {
-   assert(t != NULL);
-   assert(IS(t, T_PHYSICAL));
-
-   return t->n_units;
+   return lookup_item(t, I_UNITS)->unit_array.count;
 }
 
 unit_t type_unit(type_t t, unsigned n)
 {
-   assert(t != NULL);
-   assert(IS(t, T_PHYSICAL));
-   assert(n < t->n_units);
-
-   return t->units[n];
+   return unit_array_nth(&(lookup_item(t, I_UNITS)->unit_array), n);
 }
 
 void type_add_unit(type_t t, unit_t u)
 {
-   assert(t != NULL);
-   assert(IS(t, T_PHYSICAL));
-   assert(t->n_units < MAX_UNITS);
-
-   if (t->n_units == 0)
-      t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
-
-   t->units[t->n_units++] = u;
+   unit_array_add(&(lookup_item(t, I_UNITS)->unit_array), u);
 }
 
 unsigned type_enum_literals(type_t t)
@@ -732,6 +693,14 @@ void type_write(type_t t, type_wr_ctx_t ctx)
             type_write(t->items[n].type, ctx);
          else if (ITEM_TREE & mask)
             tree_write(t->items[n].tree, ctx->tree_ctx);
+         else if (ITEM_UNIT_ARRAY & mask) {
+            unit_array_t *a = &(t->items[n].unit_array);
+            write_u16(a->count, f);
+            for (unsigned i = 0; i < a->count; i++) {
+               tree_write(a->items[i].multiplier, ctx->tree_ctx);
+               ident_write(a->items[i].name, ctx->ident_ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
@@ -747,13 +716,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       }
    }
 
-   if (IS(t, T_PHYSICAL)) {
-      write_u16(t->n_units, f);
-      for (unsigned i = 0; i < t->n_units; i++) {
-         tree_write(t->units[i].multiplier, ctx->tree_ctx);
-         ident_write(t->units[i].name, ctx->ident_ctx);
-      }
-   }
    else if (IS(t, T_ENUM)) {
       write_u16(t->n_literals, f);
       for (unsigned i = 0; i < t->n_literals; i++)
@@ -807,6 +769,17 @@ type_t type_read(type_rd_ctx_t ctx)
             t->items[n].type = type_read(ctx);
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_read(ctx->tree_ctx);
+         else if (ITEM_UNIT_ARRAY & mask) {
+            unit_array_t *a = &(t->items[n].unit_array);
+
+            a->count = a->max = read_u16(f);
+            a->items = xmalloc(a->count * sizeof(unit_t));
+
+            for (unsigned i = 0; i < a->count; i++) {
+               a->items[i].multiplier = tree_read(ctx->tree_ctx);
+               a->items[i].name = ident_read(ctx->ident_ctx);
+            }
+         }
          else
             item_without_type(mask);
          n++;
@@ -826,19 +799,7 @@ type_t type_read(type_rd_ctx_t ctx)
       t->n_dims = ndims;
    }
 
-   if (IS(t, T_PHYSICAL)) {
-      unsigned short nunits = read_u16(f);
-      assert(nunits < MAX_UNITS);
-
-      t->units = xmalloc(MAX_UNITS * sizeof(unit_t));
-
-      for (unsigned i = 0; i < nunits; i++) {
-         t->units[i].multiplier = tree_read(ctx->tree_ctx);
-         t->units[i].name = ident_read(ctx->ident_ctx);
-      }
-      t->n_units = nunits;
-   }
-   else if (IS(t, T_ENUM)) {
+   if (IS(t, T_ENUM)) {
       unsigned short nlits = read_u16(f);
 
       t->literals = xmalloc(nlits * sizeof(tree_t));
@@ -949,15 +910,15 @@ void type_sweep(unsigned generation)
                   ;
                else if (ITEM_TREE & mask)
                   ;
+               else if (ITEM_UNIT_ARRAY & mask)
+                  free(t->items[n].unit_array.items);
                else
                   item_without_type(mask);
                n++;
             }
          }
 
-         if (IS(t, T_PHYSICAL) && t->units != NULL)
-            free(t->units);
-         else if (IS(t, T_ENUM) && t->literals != NULL)
+         if (IS(t, T_ENUM) && t->literals != NULL)
             free(t->literals);
 
          if (HAS_DIMS(t) && t->dims != NULL)
