@@ -33,6 +33,13 @@ static void tab(int indent)
       fputc(' ', stdout);
 }
 
+static void cannot_dump(tree_t t, const char *hint)
+{
+   printf("\n");
+   fflush(stdout);
+   fatal("cannot dump %s kind %s", hint, tree_kind_str(tree_kind(t)));
+}
+
 static void dump_params(tree_t t)
 {
    if (tree_params(t) > 0) {
@@ -143,6 +150,11 @@ static void dump_expr(tree_t t)
       printf(")");
       break;
 
+   case T_RECORD_REF:
+      dump_expr(tree_value(t));
+      printf(".%s", istr(tree_ident(t)));
+      break;
+
    case T_TYPE_CONV:
       printf("%s(", istr(tree_ident(tree_ref(t))));
       dump_expr(tree_param(t, 0).value);
@@ -158,7 +170,7 @@ static void dump_expr(tree_t t)
       break;
 
    default:
-      assert(false);
+      cannot_dump(t, "expr");
    }
 }
 
@@ -302,7 +314,7 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    default:
-      assert(false);
+      cannot_dump(t, "decl");
    }
 
    dump_type(tree_type(t));
@@ -480,7 +492,7 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    default:
-      assert(false);
+      cannot_dump(t, "stmt");
    }
 
    printf(";\n");
@@ -604,6 +616,6 @@ void dump(tree_t t)
       printf("\n");
       break;
    default:
-      assert(false);
+      cannot_dump(t, "tree");
    }
 }
