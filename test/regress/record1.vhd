@@ -19,6 +19,8 @@ begin
         assert (b.x = 1) and (b.y = 2);
         assert (c.x / c.y) = 5;
         assert (d.x = 99) and (d.y = 99);
+        a.x := 5;
+        assert a.x = 5;
         wait;
     end process;
 

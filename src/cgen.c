@@ -1968,6 +1968,15 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          return cgen_get_slice(array, ty, tree_range(t), ctx);
       }
 
+   case T_RECORD_REF:
+      {
+         tree_t value = tree_value(t);
+         int index    = cgen_field_index(tree_type(value), tree_ident(t));
+
+         LLVMValueRef rec = cgen_var_lvalue(value, ctx);
+         return LLVMBuildStructGEP(builder, rec, index, "");
+      }
+
    default:
       assert(false);
    }
