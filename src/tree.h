@@ -98,6 +98,7 @@ typedef enum tree_kind {
    T_FILE_DECL,
    T_OPEN,
    T_FIELD_DECL,
+   T_RECORD_REF,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

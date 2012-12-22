@@ -23,7 +23,7 @@ end package;
 
 package body p is
 
-    procedure p is
+    procedure p1 is
         variable v1 : r1 := (1, 2);
         variable v2 : r4 := (1, 2);        -- Error
         variable v3 : r1 := (1, v1);       -- Error
@@ -38,6 +38,13 @@ package body p is
         variable v12 : r1 := (1, y => 4);
         variable v13 : r1;
     begin
+    end procedure;
+
+    procedure p2 is
+        variable v1 : r1;
+    begin
+        v1.x := 2;
+        v1.y := v1.x + 5;
     end procedure;
 
 end package body;

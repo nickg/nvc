@@ -226,7 +226,9 @@ static struct btree *scope_btree_new(tree_t t, ident_t name)
 
 static void scope_insert_at(tree_t t, ident_t name, struct btree *where)
 {
-   if (scope_hides(where->tree, t))
+   if (where == NULL)
+      top_scope->decls = scope_btree_new(t, name);
+   else if (scope_hides(where->tree, t))
       where->tree = t;
    else {
       struct btree **nextp =
@@ -263,10 +265,7 @@ static bool scope_insert(tree_t t)
       sem_error(t, "%s already declared in this scope",
                 istr(tree_ident(t)));
 
-   if (top_scope->decls == NULL)
-      top_scope->decls = scope_btree_new(t, tree_ident(t));
-   else
-      scope_insert_at(t, tree_ident(t), top_scope->decls);
+   scope_insert_at(t, tree_ident(t), top_scope->decls);
    return true;
 }
 
@@ -1492,9 +1491,17 @@ static bool sem_check_decl(tree_t t)
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
 
-   if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL)) {
-      if (type_kind(type) == T_RECORD)
+   if (type_kind(type) == T_RECORD) {
+      if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL))
          sem_error(t, "sorry, records are not yet allowed as signals");
+
+      // Insert a name into the scope for each field
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         tree_t field = type_field(type, i);
+         ident_t qual = ident_prefix(tree_ident(t), tree_ident(field), '.');
+         scope_insert_alias(field, qual);
+      }
    }
 
    sem_add_attributes(t);
@@ -2033,6 +2040,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_ARRAY_SLICE:
    case T_ARRAY_REF:
    case T_ALIAS:
+   case T_RECORD_REF:
       return sem_check_lvalue(tree_value(t));
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
@@ -3263,6 +3271,20 @@ static bool sem_check_ref(tree_t t)
       tree_change_kind(t, T_FCALL);
       tree_set_type(t, type_result(tree_type(decl)));
       break;
+
+   case T_FIELD_DECL:
+      {
+         // The prefix of the name must be the record
+         tree_t rec = scope_find(ident_runtil(tree_ident(t), '.'));
+         assert(rec != NULL);
+         assert(type_kind(tree_type(rec)) == T_RECORD);
+
+         tree_change_kind(t, T_RECORD_REF);
+         tree_set_value(t, sem_make_ref(rec));
+         tree_set_ident(t, tree_ident(decl));
+         tree_set_type(t, tree_type(decl));
+      }
+      return true;
 
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
