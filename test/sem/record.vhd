@@ -36,6 +36,7 @@ package body p is
         variable v10 : r1 := (x => 1, x => 2, y => 3);  -- Error
         variable v11 : r1 := (1, x => 4, y => 2);  -- Error
         variable v12 : r1 := (1, y => 4);
+        variable v13 : r1;
     begin
     end procedure;
 

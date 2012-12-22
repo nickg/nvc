@@ -1426,7 +1426,7 @@ static tree_t sem_default_value(type_t type)
             tree_t val = (def ? def : sem_default_value(type_elem(base)));
             def = tree_new(T_AGGREGATE);
             assoc_t a = {
-               .kind = A_OTHERS,
+               .kind  = A_OTHERS,
                .value = val
             };
             tree_add_assoc(def, a);
@@ -1441,6 +1441,21 @@ static tree_t sem_default_value(type_t type)
 
    case T_ENUM:
       return sem_make_ref(type_enum_literal(base, 0));
+
+   case T_RECORD:
+      {
+         tree_t def = tree_new(T_AGGREGATE);
+         const int nfields = type_fields(base);
+         for (int i = 0; i < nfields; i++) {
+            tree_t field = type_field(base, i);
+            assoc_t a = {
+               .kind  = A_POS,
+               .value = sem_default_value(tree_type(field))
+            };
+            tree_add_assoc(def, a);
+         }
+         return def;
+      }
 
    default:
       assert(false);
