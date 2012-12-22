@@ -933,77 +933,51 @@ uint32_t type_format_digest(void)
    return format_digest;
 }
 
-void type_visit_trees(type_t type, unsigned generation,
+void type_visit_trees(type_t t, unsigned generation,
                       tree_visit_fn_t fn, void *context)
 {
-   if (type == NULL)
+   if (t == NULL)
       return;
 
-   if (type->generation == generation)
+   if (t->generation == generation)
       return;
    else
-      type->generation = generation;
+      t->generation = generation;
 
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-   case T_INTEGER:
-   case T_REAL:
-   case T_PHYSICAL:
-   case T_CARRAY:
-      for (unsigned i = 0; i < type_dims(type); i++) {
-         range_t r = type_dim(type, i);
-         (*fn)(r.left, context);
-         (*fn)(r.right, context);
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(t->items[n].type_array);
+            for (unsigned i = 0; i < a->count; i++)
+               type_visit_trees(a->items[i], generation, fn, context);
+         }
+         else if (ITEM_TYPE & mask)
+            type_visit_trees(t->items[n].type, generation, fn, context);
+         else if (ITEM_TREE & mask)
+            (*fn)(t->items[n].tree, context);
+         else if (ITEM_UNIT_ARRAY & mask) {
+            unit_array_t *a = &(t->items[n].unit_array);
+            for (unsigned i = 0; i < a->count; i++)
+               (*fn)(a->items[i].multiplier, context);
+         }
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+            for (unsigned i = 0; i < a->count; i++)
+               (*fn)(a->items[i], context);
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(t->items[n].range_array);
+            for (unsigned i = 0; i < a->count; i++) {
+               (*fn)(a->items[i].left, context);
+               (*fn)(a->items[i].right, context);
+            }
+         }
+         else
+            item_without_type(mask);
+         n++;
       }
-      break;
-
-   default:
-      break;
-   }
-
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-      type_visit_trees(type_base(type), generation, fn, context);
-      break;
-   case T_CARRAY:
-   case T_UARRAY:
-      type_visit_trees(type_elem(type), generation, fn, context);
-      break;
-   default:
-      break;
-   }
-
-   switch (type_kind(type)) {
-   case T_UNRESOLVED:
-      break;
-
-   case T_SUBTYPE:
-      if (type_has_resolution(type))
-         (*fn)(type_resolution(type), context);
-      break;
-
-   case T_PHYSICAL:
-      for (unsigned i = 0; i < type_units(type); i++)
-         (*fn)(type_unit(type, i).multiplier, context);
-      break;
-
-   case T_FUNC:
-      for (unsigned i = 0; i < type_params(type); i++)
-         type_visit_trees(type_param(type, i), generation, fn, context);
-      type_visit_trees(type_result(type), generation, fn, context);
-      break;
-
-   case T_ENUM:
-      for (unsigned i = 0; i < type_enum_literals(type); i++)
-         (*fn)(type_enum_literal(type, i), context);
-      break;
-
-   case T_UARRAY:
-      for (unsigned i = 0; i < type_index_constrs(type); i++)
-         type_visit_trees(type_index_constr(type, i), generation, fn, context);
-      break;
-
-   default:
-      break;
    }
 }
