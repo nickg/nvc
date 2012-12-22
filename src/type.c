@@ -863,16 +863,6 @@ const char *type_pp(type_t t)
    }
 }
 
-bool type_update_generation(type_t t, unsigned generation)
-{
-   if (t->generation == generation)
-      return false;
-   else {
-      t->generation = generation;
-      return true;
-   }
-}
-
 void type_sweep(unsigned generation)
 {
    for (unsigned i = 0; i < n_types_alloc; i++) {
@@ -941,4 +931,79 @@ uint32_t type_format_digest(void)
 {
    type_one_time_init();
    return format_digest;
+}
+
+void type_visit_trees(type_t type, unsigned generation,
+                      tree_visit_fn_t fn, void *context)
+{
+   if (type == NULL)
+      return;
+
+   if (type->generation == generation)
+      return;
+   else
+      type->generation = generation;
+
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_CARRAY:
+      for (unsigned i = 0; i < type_dims(type); i++) {
+         range_t r = type_dim(type, i);
+         (*fn)(r.left, context);
+         (*fn)(r.right, context);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      type_visit_trees(type_base(type), generation, fn, context);
+      break;
+   case T_CARRAY:
+   case T_UARRAY:
+      type_visit_trees(type_elem(type), generation, fn, context);
+      break;
+   default:
+      break;
+   }
+
+   switch (type_kind(type)) {
+   case T_UNRESOLVED:
+      break;
+
+   case T_SUBTYPE:
+      if (type_has_resolution(type))
+         (*fn)(type_resolution(type), context);
+      break;
+
+   case T_PHYSICAL:
+      for (unsigned i = 0; i < type_units(type); i++)
+         (*fn)(type_unit(type, i).multiplier, context);
+      break;
+
+   case T_FUNC:
+      for (unsigned i = 0; i < type_params(type); i++)
+         type_visit_trees(type_param(type, i), generation, fn, context);
+      type_visit_trees(type_result(type), generation, fn, context);
+      break;
+
+   case T_ENUM:
+      for (unsigned i = 0; i < type_enum_literals(type); i++)
+         (*fn)(type_enum_literal(type, i), context);
+      break;
+
+   case T_UARRAY:
+      for (unsigned i = 0; i < type_index_constrs(type); i++)
+         type_visit_trees(type_index_constr(type, i), generation, fn, context);
+      break;
+
+   default:
+      break;
+   }
 }

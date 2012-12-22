@@ -1065,83 +1065,15 @@ static void tree_visit_p(param_array_t *a, tree_visit_ctx_t *ctx)
    }
 }
 
-static void tree_visit_type(type_t type, tree_visit_ctx_t *ctx)
-{
-   if (type == NULL)
-      return;
-
-   if (!type_update_generation(type, ctx->generation))
-      return;
-
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-   case T_INTEGER:
-   case T_REAL:
-   case T_PHYSICAL:
-   case T_CARRAY:
-      for (unsigned i = 0; i < type_dims(type); i++) {
-         range_t r = type_dim(type, i);
-         tree_visit_aux(r.left, ctx);
-         tree_visit_aux(r.right, ctx);
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-      tree_visit_type(type_base(type), ctx);
-      break;
-   case T_CARRAY:
-   case T_UARRAY:
-      tree_visit_type(type_elem(type), ctx);
-      break;
-   default:
-      break;
-   }
-
-   switch (type_kind(type)) {
-   case T_UNRESOLVED:
-      break;
-
-   case T_SUBTYPE:
-      if (type_has_resolution(type))
-         tree_visit_aux(type_resolution(type), ctx);
-      break;
-
-   case T_PHYSICAL:
-      for (unsigned i = 0; i < type_units(type); i++)
-         tree_visit_aux(type_unit(type, i).multiplier, ctx);
-      break;
-
-   case T_FUNC:
-      for (unsigned i = 0; i < type_params(type); i++)
-         tree_visit_type(type_param(type, i), ctx);
-      tree_visit_type(type_result(type), ctx);
-      break;
-
-   case T_ENUM:
-      for (unsigned i = 0; i < type_enum_literals(type); i++)
-         tree_visit_aux(type_enum_literal(type, i), ctx);
-      break;
-
-   case T_UARRAY:
-      for (unsigned i = 0; i < type_index_constrs(type); i++)
-         tree_visit_type(type_index_constr(type, i), ctx);
-      break;
-
-   default:
-      break;
-   }
-}
-
 static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
    // to tree_visit - e.g. following references back to their declarations
    // Outside the garbage collector this is usually not what is required
+
+   // Helper from type.c
+   void type_visit_trees(type_t t, unsigned generation,
+                         tree_visit_fn_t fn, void *context);
 
    if (t == NULL || t->generation == ctx->generation)
       return;
@@ -1168,7 +1100,8 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_PARAM_ARRAY & mask)
             tree_visit_p(&(t->items[i].param_array), ctx);
          else if (ITEM_TYPE & mask)
-            tree_visit_type(t->items[i].type, ctx);
+            type_visit_trees(t->items[i].type, ctx->generation,
+                             (tree_visit_fn_t)tree_visit_aux, ctx);
          else if (ITEM_PORT_MODE & mask)
             ;
          else if (ITEM_UINT & mask)
