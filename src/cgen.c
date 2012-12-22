@@ -238,6 +238,19 @@ static LLVMTypeRef llvm_type(type_t t)
          }
       }
 
+   case T_RECORD:
+      {
+         const int nfields = type_fields(t);
+         LLVMTypeRef llfields[nfields];
+
+         for (int i = 0; i < nfields; i++) {
+            tree_t field = type_field(t, i);
+            llfields[i] = llvm_type(tree_type(field));
+         }
+
+         return LLVMStructType(llfields, nfields, false);
+      }
+
    default:
       assert(false);
    }
@@ -1659,28 +1672,95 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    return a;
 }
 
+static int cgen_field_index(type_t type, ident_t field)
+{
+   // Lookup the position of this field in the record type
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      if (tree_ident(type_field(type, i)) == field)
+         return i;
+   }
+   assert(false);
+}
+
+static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
+{
+   type_t type = tree_type(t);
+   const int nfields = type_fields(type);
+   const int nassocs = tree_assocs(t);
+
+   LLVMValueRef vals[nfields];
+   for (int i = 0; i < nfields; i++)
+      vals[i] = NULL;
+
+   for (int i = 0; i < nassocs; i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      LLVMValueRef v = cgen_expr(a.value, ctx);
+
+      switch (a.kind) {
+      case A_POS:
+         vals[a.pos] = v;
+         break;
+
+      case A_NAMED:
+         {
+            int index = cgen_field_index(type, tree_ident(a.name));
+            vals[index] = v;
+         }
+         break;
+
+      case A_OTHERS:
+         for (int j = 0; j < nfields; j++) {
+            if (vals[j] == NULL)
+               vals[j] = v;
+         }
+         break;
+
+      case A_RANGE:
+         assert(false);
+      }
+   }
+
+   for (int i = 0; i < nfields; i++)
+      assert(vals[i] != NULL);
+
+   return LLVMConstStruct(vals, nfields, false);
+}
+
 static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
 {
-   bool is_const = (cgen_const_bounds(tree_type(t))
-                    && cgen_is_const(t));
+   type_t type = tree_type(t);
 
-   if (is_const) {
-      unsigned nvals;
-      LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
+   if (type_is_array(type)) {
+      if (cgen_const_bounds(type) && cgen_is_const(t)) {
+         unsigned nvals;
+         LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
 
-      LLVMTypeRef ltype = llvm_type(type_elem(tree_type(t)));
+         LLVMTypeRef ltype = llvm_type(type_elem(type));
 
-      LLVMTypeRef at = LLVMArrayType(ltype, nvals);
-      LLVMValueRef g = LLVMAddGlobal(module, at, "");
-      LLVMSetGlobalConstant(g, true);
-      LLVMSetLinkage(g, LLVMInternalLinkage);
-      LLVMSetInitializer(g, LLVMConstArray(ltype, vals, nvals));
+         LLVMTypeRef at = LLVMArrayType(ltype, nvals);
+         LLVMValueRef g = LLVMAddGlobal(module, at, "");
+         LLVMSetGlobalConstant(g, true);
+         LLVMSetLinkage(g, LLVMInternalLinkage);
+         LLVMSetInitializer(g, LLVMConstArray(ltype, vals, nvals));
 
-      free(vals);
-      return g;
+         free(vals);
+         return g;
+      }
+      else
+         return cgen_dyn_aggregate(t, ctx);
+   }
+   else if (type_kind(type) == T_RECORD) {
+      if (cgen_is_const(t))
+         return cgen_const_record(t, ctx);
+      else
+         fatal_at(tree_loc(t), "sorry, non-constant record aggregates "
+                  "are not supported yet");
    }
    else
-      return cgen_dyn_aggregate(t, ctx);
+      assert(false);
 }
 
 static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
@@ -1731,6 +1811,15 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
    return cgen_expr(tree_param(t, 0).value, ctx);
 }
 
+static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)
+{
+   tree_t value = tree_value(t);
+   int index    = cgen_field_index(tree_type(value), tree_ident(t));
+
+   LLVMValueRef rec = cgen_expr(tree_value(t), ctx);
+   return LLVMBuildExtractValue(builder, rec, index, "rec");
+}
+
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -1752,8 +1841,10 @@ static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
       return cgen_concat(t, ctx);
    case T_TYPE_CONV:
       return cgen_type_conv(t, ctx);
+   case T_RECORD_REF:
+      return cgen_record_ref(t, ctx);
    default:
-      fatal("missing cgen_expr for kind %d", tree_kind(t));
+      fatal("missing cgen_expr for %s", tree_kind_str(tree_kind(t)));
    }
 }
 
