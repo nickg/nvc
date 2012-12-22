@@ -7,6 +7,8 @@ architecture test of record1 is
         x, y : integer;
     end record;
 
+    constant k : r1 := (62, 75);
+
 begin
 
     process is
@@ -21,6 +23,10 @@ begin
         assert (d.x = 99) and (d.y = 99);
         a.x := 5;
         assert a.x = 5;
+        a := b;
+        assert (a.x = 1) and (a.y = 2);
+        a := k;
+        assert (a.x = k.x) and (a.y = k.y);
         wait;
     end process;
 
