@@ -136,7 +136,7 @@ type_t type_universal_int(void);
 type_t type_universal_real(void);
 bool type_is_universal(type_t t);
 
-// Tree visit helper
+// Tree visit helpers: never call these directly
 bool type_update_generation(type_t t, unsigned generation);
 
 // Garbage collection

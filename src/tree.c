@@ -339,6 +339,15 @@ struct tree_rd_ctx {
    const char     *file_names[256];
 };
 
+typedef struct {
+   unsigned         count;
+   tree_visit_fn_t  fn;
+   void            *context;
+   tree_kind_t      kind;
+   unsigned         generation;
+   bool             deep;
+} tree_visit_ctx_t;
+
 #define IS(t, k) ((t)->kind == (k))
 #define IS_TOP_LEVEL(t)                                               \
    (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
@@ -374,9 +383,7 @@ static int      item_lookup[T_LAST_TREE_KIND][32];
 
 unsigned next_generation = 1;
 
-static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
-                               tree_kind_t kind, unsigned generation,
-                               bool deep);
+static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx);
 
 static void tree_one_time_init(void)
 {
@@ -468,11 +475,18 @@ void tree_gc(void)
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       assert(all_trees[i] != NULL);
 
-      if (IS_TOP_LEVEL(all_trees[i]))
-         tree_visit_aux(all_trees[i], NULL, NULL,
-                        (tree_kind_t)T_LAST_TREE_KIND,
-                        next_generation++,
-                        true);
+      if (IS_TOP_LEVEL(all_trees[i])) {
+         tree_visit_ctx_t ctx = {
+            .count      = 0,
+            .fn         = NULL,
+            .context    = NULL,
+            .kind       = T_LAST_TREE_KIND,
+            .generation = next_generation++,
+            .deep       = true
+         };
+
+         tree_visit_aux(all_trees[i], &ctx);
+      }
    }
 
    // Sweep
@@ -1015,86 +1029,49 @@ uint32_t tree_index(tree_t t)
    return t->index;
 }
 
-static unsigned tree_visit_a(tree_array_t *a,
-                             tree_visit_fn_t fn, void *context,
-                             tree_kind_t kind, unsigned generation,
-                             bool deep)
+static void tree_visit_s(assoc_array_t *a, tree_visit_ctx_t *ctx)
 {
-   unsigned n = 0;
-   for (unsigned i = 0; i < a->count; i++)
-      n += tree_visit_aux(a->items[i], fn, context, kind,
-                          generation, deep);
-
-   return n;
-}
-
-static unsigned tree_visit_s(assoc_array_t *a,
-                             tree_visit_fn_t fn, void *context,
-                             tree_kind_t kind, unsigned generation,
-                             bool deep)
-{
-   unsigned n = 0;
    for (unsigned i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
          case A_NAMED:
-            n += tree_visit_aux(a->items[i].name, fn, context,
-                                kind, generation, deep);
+            tree_visit_aux(a->items[i].name, ctx);
             break;
          case A_RANGE:
-            n += tree_visit_aux(a->items[i].range.left, fn, context,
-                                kind, generation, deep);
-            n += tree_visit_aux(a->items[i].range.right, fn, context,
-                                kind, generation, deep);
+            tree_visit_aux(a->items[i].range.left, ctx);
+            tree_visit_aux(a->items[i].range.right, ctx);
             break;
          default:
             break;
-         }
+      }
 
-         n += tree_visit_aux(a->items[i].value, fn, context,
-                             kind, generation, deep);
+      tree_visit_aux(a->items[i].value, ctx);
    }
-
-   return n;
 }
 
-static unsigned tree_visit_p(param_array_t *a,
-                             tree_visit_fn_t fn, void *context,
-                             tree_kind_t kind, unsigned generation,
-                             bool deep)
+static void tree_visit_p(param_array_t *a, tree_visit_ctx_t *ctx)
 {
-   unsigned n = 0;
    for (unsigned i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
       case P_RANGE:
-         n += tree_visit_aux(a->items[i].range.left,
-                             fn, context, kind, generation, deep);
-         n += tree_visit_aux(a->items[i].range.right,
-                             fn, context, kind, generation, deep);
+         tree_visit_aux(a->items[i].range.left, ctx);
+         tree_visit_aux(a->items[i].range.right, ctx);
          break;
 
       case P_POS:
       case P_NAMED:
-         n += tree_visit_aux(a->items[i].value,
-                             fn, context, kind, generation, deep);
+         tree_visit_aux(a->items[i].value, ctx);
          break;
       }
    }
-
-   return n;
 }
 
-static unsigned tree_visit_type(type_t type,
-                                tree_visit_fn_t fn, void *context,
-                                tree_kind_t kind, unsigned generation,
-                                bool deep)
+static void tree_visit_type(type_t type, tree_visit_ctx_t *ctx)
 {
    if (type == NULL)
-      return 0;
+      return;
 
-   if (!type_update_generation(type, generation))
-      return 0;
-
-   unsigned n = 0;
+   if (!type_update_generation(type, ctx->generation))
+      return;
 
    switch (type_kind(type)) {
    case T_SUBTYPE:
@@ -1104,10 +1081,8 @@ static unsigned tree_visit_type(type_t type,
    case T_CARRAY:
       for (unsigned i = 0; i < type_dims(type); i++) {
          range_t r = type_dim(type, i);
-         n += tree_visit_aux(r.left, fn, context, kind,
-                             generation, deep);
-         n += tree_visit_aux(r.right, fn, context, kind,
-                             generation, deep);
+         tree_visit_aux(r.left, ctx);
+         tree_visit_aux(r.right, ctx);
       }
       break;
 
@@ -1117,14 +1092,11 @@ static unsigned tree_visit_type(type_t type,
 
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      n += tree_visit_type(type_base(type), fn, context, kind,
-                           generation, deep);
+      tree_visit_type(type_base(type), ctx);
       break;
-
    case T_CARRAY:
    case T_UARRAY:
-      n += tree_visit_type(type_elem(type), fn, context, kind,
-                           generation, deep);
+      tree_visit_type(type_elem(type), ctx);
       break;
    default:
       break;
@@ -1136,57 +1108,45 @@ static unsigned tree_visit_type(type_t type,
 
    case T_SUBTYPE:
       if (type_has_resolution(type))
-         n += tree_visit_aux(type_resolution(type), fn, context,
-                             kind, generation, deep);
+         tree_visit_aux(type_resolution(type), ctx);
       break;
 
    case T_PHYSICAL:
       for (unsigned i = 0; i < type_units(type); i++)
-         n += tree_visit_aux(type_unit(type, i).multiplier, fn, context,
-                             kind, generation, deep);
+         tree_visit_aux(type_unit(type, i).multiplier, ctx);
       break;
 
    case T_FUNC:
       for (unsigned i = 0; i < type_params(type); i++)
-         n += tree_visit_type(type_param(type, i), fn, context,
-                              kind, generation, deep);
-      n += tree_visit_type(type_result(type), fn, context,
-                           kind, generation, deep);
+         tree_visit_type(type_param(type, i), ctx);
+      tree_visit_type(type_result(type), ctx);
       break;
 
    case T_ENUM:
       for (unsigned i = 0; i < type_enum_literals(type); i++)
-         n += tree_visit_aux(type_enum_literal(type, i), fn, context,
-                             kind, generation, deep);
+         tree_visit_aux(type_enum_literal(type, i), ctx);
       break;
 
    case T_UARRAY:
       for (unsigned i = 0; i < type_index_constrs(type); i++)
-         n += tree_visit_type(type_index_constr(type, i),
-                              fn, context, kind, generation, deep);
+         tree_visit_type(type_index_constr(type, i), ctx);
       break;
 
    default:
       break;
    }
-
-   return n;
 }
 
-static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
-                               tree_kind_t kind, unsigned generation,
-                               bool deep)
+static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
    // to tree_visit - e.g. following references back to their declarations
    // Outside the garbage collector this is usually not what is required
 
-   if (t == NULL || t->generation == generation)
-      return 0;
+   if (t == NULL || t->generation == ctx->generation)
+      return;
 
-   t->generation = generation;
-
-   unsigned n = 0;
+   t->generation = ctx->generation;
 
    const imask_t deep_mask = I_TYPE | I_REF;
 
@@ -1194,39 +1154,34 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
    const int nitems = __builtin_popcount(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask & ~(deep ? 0 : deep_mask)) {
+      if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
-            n += tree_visit_aux(t->items[i].tree, fn, context,
-                                kind, generation, deep);
+            tree_visit_aux(t->items[i].tree, ctx);
          else if (ITEM_LITERAL & mask)
             ;
-         else if (ITEM_TREE_ARRAY & mask)
-            n += tree_visit_a(&(t->items[i].tree_array), fn, context,
-                              kind, generation, deep);
+         else if (ITEM_TREE_ARRAY & mask) {
+            for (unsigned j = 0; j < t->items[i].tree_array.count; j++)
+               tree_visit_aux(t->items[i].tree_array.items[j], ctx);
+         }
          else if (ITEM_PARAM_ARRAY & mask)
-            n += tree_visit_p(&(t->items[i].param_array), fn, context,
-                              kind, generation, deep);
+            tree_visit_p(&(t->items[i].param_array), ctx);
          else if (ITEM_TYPE & mask)
-            n += tree_visit_type(t->items[i].type, fn, context, kind,
-                                 generation, deep);
+            tree_visit_type(t->items[i].type, ctx);
          else if (ITEM_PORT_MODE & mask)
             ;
          else if (ITEM_UINT & mask)
             ;
          else if (ITEM_ASSOC_ARRAY & mask)
-            n += tree_visit_s(&(t->items[i].assoc_array), fn, context, kind,
-                              generation, deep);
+            tree_visit_s(&(t->items[i].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask)
             ;
          else if (ITEM_CLASS & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            n += tree_visit_aux(t->items[i].range.left, fn, context, kind,
-                                generation, deep);
-            n += tree_visit_aux(t->items[i].range.right, fn, context, kind,
-                                generation, deep);
+            tree_visit_aux(t->items[i].range.left, ctx);
+            tree_visit_aux(t->items[i].range.right, ctx);
          }
          else
             item_without_type(mask);
@@ -1236,12 +1191,11 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
          i++;
    }
 
-   if (deep) {
+   if (ctx->deep) {
       for (unsigned i = 0; i < t->n_attrs; i++) {
          switch (t->attrs[i].kind) {
          case A_TREE:
-            n += tree_visit_aux(t->attrs[i].tval, fn, context,
-                                kind, generation, deep);
+            tree_visit_aux(t->attrs[i].tval, ctx);
             break;
 
          default:
@@ -1250,23 +1204,29 @@ static unsigned tree_visit_aux(tree_t t, tree_visit_fn_t fn, void *context,
       }
    }
 
-   if (t->kind == kind || kind == T_LAST_TREE_KIND) {
-      if (fn)
-         (*fn)(t, context);
-      ++n;
+   if ((t->kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
+      if (ctx->fn)
+         (*ctx->fn)(t, ctx->context);
+      ctx->count++;
    }
-
-   return n;
 }
 
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
    assert(t != NULL);
 
-   return tree_visit_aux(t, fn, context,
-                         (tree_kind_t)T_LAST_TREE_KIND,
-                         next_generation++,
-                         false);
+   tree_visit_ctx_t ctx = {
+      .count      = 0,
+      .fn         = fn,
+      .context    = context,
+      .kind       = T_LAST_TREE_KIND,
+      .generation = next_generation++,
+      .deep       = false
+   };
+
+   tree_visit_aux(t, &ctx);
+
+   return ctx.count;
 }
 
 unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
@@ -1274,8 +1234,18 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 {
    assert(t != NULL);
 
-   return tree_visit_aux(t, fn, context, kind,
-                         next_generation++, false);
+   tree_visit_ctx_t ctx = {
+      .count      = 0,
+      .fn         = fn,
+      .context    = context,
+      .kind       = kind,
+      .generation = next_generation++,
+      .deep       = false
+   };
+
+   tree_visit_aux(t, &ctx);
+
+   return ctx.count;
 }
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
