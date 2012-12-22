@@ -3252,7 +3252,7 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    tree_t value;
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);
-      tree_set_loc(t, tree_loc(t));
+      tree_set_loc(value, tree_loc(t));
       tree_set_ident(value, base);
       sem_convert_to_record_ref(value, rec);
    }
