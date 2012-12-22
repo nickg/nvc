@@ -26,6 +26,11 @@ package func is
 
     function default(x : in uenum := 6) return uenum;  -- Error
 
+    function foo return integer is      -- Error
+    begin
+        return 4;
+    end function;
+
 end package;
 
 package body bad is                     -- Error

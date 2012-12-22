@@ -1783,10 +1783,12 @@ static bool sem_check_package(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
+   const int ndecls = tree_decls(t);
+
    bool ok = sem_check_context(t);
    if (ok) {
       scope_push(qual);
-      for (unsigned n = 0; n < tree_decls(t); n++) {
+      for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
 
@@ -1804,6 +1806,14 @@ static bool sem_check_package(tree_t t)
 
    tree_set_ident(t, qual);
    lib_put(lib_work(), t);
+
+   // Subprogram bodies are not allowed in package specification
+   for (int i = 0; i < ndecls; i++) {
+     tree_t d = tree_decl(t, i);
+     tree_kind_t kind = tree_kind(d);
+     if ((kind == T_FUNC_BODY) || (kind == T_PROC_BODY))
+       sem_error(d, "subprogram body is not allowed in package specification");
+   }
 
    return ok;
 }

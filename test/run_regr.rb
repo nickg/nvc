@@ -95,6 +95,8 @@ def mkdir_p(n)
   end
 end
 
+exit if ENV['QUICK']
+
 mkdir_p 'logs'
 Dir.chdir 'logs'
 

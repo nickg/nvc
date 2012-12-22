@@ -448,11 +448,12 @@ START_TEST(test_func)
       { 21, "resolution function must have single argument" },
       { 25, "declaration UENUM is not a function" },
       { 27, "type of default value universal integer does not" },
-      { 31, "unit WORK.BAD not found in library WORK" },
-      { 43, "no suitable overload for identifier A" },
-      { 46, "function arguments must have mode IN" },
-      { 51, "function must contain a return statement" },
-      { 57, "duplicate declaration of function FOO" },
+      { 29, "subprogram body is not allowed in package specification" },
+      { 36, "unit WORK.BAD not found in library WORK" },
+      { 48, "no suitable overload for identifier A" },
+      { 51, "function arguments must have mode IN" },
+      { 56, "function must contain a return statement" },
+      { 62, "duplicate declaration of function FOO" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -710,9 +711,10 @@ START_TEST(test_procedure)
    fail_unless(input_from_file(TESTDIR "/sem/procedure.vhd"));
 
    const error_t expect[] = {
-      { 23, "cannot return a value from a procedure" },
-      { 40, "type of default value universal integer does not match" },
-      { 44, "argument Y without default follows arguments with" },
+      {  5, "subprogram body is not allowed in package specification" },
+      { 28, "cannot return a value from a procedure" },
+      { 45, "type of default value universal integer does not match" },
+      { 49, "argument Y without default follows arguments with" },
       { -1, NULL }
    };
    expect_errors(expect);

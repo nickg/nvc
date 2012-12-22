@@ -2,6 +2,11 @@ package p is
 
     procedure foo(x : in integer; y : out integer);
 
+    procedure yah is                    -- Error
+    begin
+        null;
+    end procedure;
+
 end package;
 
 package body p is
