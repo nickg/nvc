@@ -611,6 +611,12 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "ageq");
       break;
 
+   case T_RECORD:
+      // Operators on records
+      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "req");
+      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "rneq");
+      break;
+
    case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, std_int, t, "mul");
