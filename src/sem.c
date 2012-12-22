@@ -411,7 +411,7 @@ static void type_set_force_composite(void)
    int j = 0;
    for (int i = 0; i < top_type_set->n_members; i++) {
       type_t type = top_type_set->members[i];
-      if (type_is_array(type))
+      if (type_is_array(type) || (type_kind(type) == T_RECORD))
          top_type_set->members[j++] = type;
    }
    top_type_set->n_members = j;
@@ -2975,7 +2975,9 @@ static bool sem_check_aggregate(tree_t t)
    bool have_named = false;
    bool have_pos = false;
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
 
       switch (a.kind) {
@@ -3009,9 +3011,7 @@ static bool sem_check_aggregate(tree_t t)
    // Named and positional associations cannot be mixed in array
    // aggregates
 
-   bool array = (type_kind(base_type) == T_CARRAY
-                 || type_kind(base_type) == T_UARRAY);
-   if (array && have_named && have_pos)
+   if (type_is_array(base_type) && have_named && have_pos)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
 
@@ -3058,46 +3058,138 @@ static bool sem_check_aggregate(tree_t t)
    // a one-dimensional array otherwise construct an array type
    // with n-1 dimensions.
 
-   type_t elem_type = NULL;
-   if (type_dims(composite_type) == 1)
-      elem_type = type_elem(base_type);
-   else {
-      elem_type = type_new(T_CARRAY);
-      type_set_ident(elem_type, type_ident(composite_type));
-      type_set_elem(elem_type, type_elem(base_type));
+   if (type_is_array(base_type)) {
+      type_t elem_type = NULL;
+      if (type_dims(composite_type) == 1)
+         elem_type = type_elem(base_type);
+      else {
+         elem_type = type_new(T_CARRAY);
+         type_set_ident(elem_type, type_ident(composite_type));
+         type_set_elem(elem_type, type_elem(base_type));
 
-      for (unsigned i = 1; i < type_dims(composite_type); i++)
-         type_add_dim(elem_type, type_dim(composite_type, i));
-   }
-
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      assoc_t a = tree_assoc(t, i);
-
-      switch (a.kind) {
-      case A_RANGE:
-         if (!sem_check_range(&a.range))
-            return false;
-         tree_change_assoc(t, i, a);
-         break;
-
-      case A_NAMED:
-         if (!sem_check(a.name))  // TODO: constrained by index type
-            return false;
-         break;
-
-      default:
-         break;
+         for (unsigned i = 1; i < type_dims(composite_type); i++)
+            type_add_dim(elem_type, type_dim(composite_type, i));
       }
 
-      if (!sem_check_constrained(a.value, elem_type))
-         return false;
+      for (int i = 0; i < nassocs; i++) {
+         assoc_t a = tree_assoc(t, i);
 
-      if (!type_eq(elem_type, tree_type(a.value)))
-         sem_error(a.value, "type of element %s does not match base "
-                   "type of aggregate %s",
-                   istr(type_ident(tree_type(a.value))),
-                   istr(type_ident(elem_type)));
+         switch (a.kind) {
+         case A_RANGE:
+            if (!sem_check_range(&a.range))
+               return false;
+            tree_change_assoc(t, i, a);
+            break;
 
+         case A_NAMED:
+            if (!sem_check(a.name))  // TODO: constrained by index type
+               return false;
+            break;
+
+         default:
+            break;
+         }
+
+         if (!sem_check_constrained(a.value, elem_type))
+            return false;
+
+         if (!type_eq(elem_type, tree_type(a.value)))
+            sem_error(a.value, "type of element %s does not match base "
+                      "type of aggregate %s",
+                      istr(type_ident(tree_type(a.value))),
+                      istr(type_ident(elem_type)));
+      }
+   }
+
+   // Checks for record aggregates are given in LRM 93 section 7.3.2.1
+
+   if (type_kind(base_type) == T_RECORD) {
+      const int nfields = type_fields(base_type);
+      bool have[nfields];
+      int pos = 0;
+      for (int i = 0; i < nfields; i++)
+         have[i] = false;
+
+      for (int i = 0; i < nassocs; i++) {
+         assoc_t a = tree_assoc(t, i);
+         int f = -1;
+
+         switch (a.kind) {
+         case A_NAMED:
+            {
+               if (tree_kind(a.name) != T_REF)
+                  sem_error(a.name, "association name must be a field "
+                            "identifier");
+
+               ident_t name_i = tree_ident(a.name);
+               for (f = 0; f < nfields; f++) {
+                  tree_t field = type_field(base_type, f);
+                  if (tree_ident(field) == name_i) {
+                     tree_set_type(a.name, tree_type(field));
+                     tree_set_ref(a.name, field);
+                     break;
+                  }
+               }
+
+               if (f == nfields)
+                  sem_error(a.name, "type %s does not have field named %s",
+                            type_pp(composite_type), istr(name_i));
+            }
+            break;
+
+         case A_POS:
+            {
+               if (pos >= nfields)
+                  sem_error(t, "too many positional associations");
+
+               f = pos++;
+            }
+            break;
+
+         case A_OTHERS:
+            f = -1;
+            break;
+
+         case A_RANGE:
+            sem_error(a.value, "range is not allowed here");
+         }
+
+         for (int j = 0; j < nfields; j++) {
+            if ((f != -1) && (f != j))
+               continue;
+
+            tree_t field = type_field(base_type, j);
+            type_t field_type = tree_type(field);
+
+            if (have[j]) {
+               if (f == -1)
+                  continue;
+               else
+                  sem_error(a.value, "field %s already has a value",
+                            istr(tree_ident(field)));
+            }
+
+            if (!sem_check_constrained(a.value, field_type))
+               return false;
+
+            if (!type_eq(field_type, tree_type(a.value)))
+               sem_error(a.value, "type of value %s does not match type "
+                         "of field %s %s",
+                         istr(type_ident(tree_type(a.value))),
+                         istr(tree_ident(field)),
+                         istr(type_ident(field_type)));
+
+            have[j] = true;
+         }
+      }
+
+      for (int i = 0; i < nfields; i++) {
+         if (!have[i]) {
+            tree_t field = type_field(base_type, i);
+            sem_error(t, "field %s does not have a value",
+                      istr(tree_ident(field)));
+         }
+      }
    }
 
    // If a named choice is not locally static then it must be the
@@ -3493,6 +3585,10 @@ static bool sem_locally_static(tree_t t)
 
       return true;
    }
+
+   // A record field name
+   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_FIELD_DECL))
+      return true;
 
    return false;
 }

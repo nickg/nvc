@@ -345,7 +345,8 @@ struct tree_rd_ctx {
     || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL)                      \
     || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY) || IS(t, T_ALIAS)     \
     || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC) || IS(t, T_PROC_DECL) \
-    || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT) || IS(t, T_FILE_DECL))
+    || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT) || IS(t, T_FILE_DECL) \
+    || IS(t, T_FIELD_DECL))
 #define IS_EXPR(t)                                                    \
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF)                \
     || IS(t, T_QUALIFIED) || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF)  \
