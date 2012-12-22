@@ -874,13 +874,13 @@ START_TEST(test_record)
    const error_t expect[] = {
       {  9, "duplicate field name X" },
       { 15, "recursive record types are not allowed" },
-      { 28, "field Z does not have a value" },
-      { 29, "does not match type of field Y" },
-      { 31, "field Y does not have a value" },
-      { 32, "type WORK.P.R1 does not have field named Q" },
-      { 33, "type of value WORK.P.R1 does not match type of" },
-      { 36, "field X already has a value" },
-      { 37, "field X already has a value" },
+      { 35, "field Z does not have a value" },
+      { 36, "does not match type of field Y" },
+      { 38, "field Y does not have a value" },
+      { 39, "type WORK.P.R1 does not have field named Q" },
+      { 40, "type of value WORK.P.R1 does not match type of" },
+      { 43, "field X already has a value" },
+      { 44, "field X already has a value" },
       { -1, NULL }
    };
    expect_errors(expect);

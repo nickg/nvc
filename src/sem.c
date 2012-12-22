@@ -1461,6 +1461,21 @@ static tree_t sem_default_value(type_t type)
    }
 }
 
+static void sem_declare_fields(type_t type, ident_t prefix)
+{
+   // Insert a name into the scope for each field
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t field = type_field(type, i);
+      ident_t qual = ident_prefix(prefix, tree_ident(field), '.');
+      scope_insert_alias(field, qual);
+
+      type_t field_type = tree_type(field);
+      if (type_kind(field_type) == T_RECORD)
+         sem_declare_fields(field_type, qual);
+   }
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1495,13 +1510,7 @@ static bool sem_check_decl(tree_t t)
       if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL))
          sem_error(t, "sorry, records are not yet allowed as signals");
 
-      // Insert a name into the scope for each field
-      const int nfields = type_fields(type);
-      for (int i = 0; i < nfields; i++) {
-         tree_t field = type_field(type, i);
-         ident_t qual = ident_prefix(tree_ident(t), tree_ident(field), '.');
-         scope_insert_alias(field, qual);
-      }
+      sem_declare_fields(type, tree_ident(t));
    }
 
    sem_add_attributes(t);
@@ -3231,6 +3240,31 @@ static bool sem_check_aggregate(tree_t t)
    return true;
 }
 
+static void sem_convert_to_record_ref(tree_t t, tree_t decl)
+{
+   // Convert an ordinary reference to a record reference
+   // The prefix of the name must be the record
+   ident_t base = ident_runtil(tree_ident(t), '.');
+   tree_t rec = scope_find(base);
+   assert(rec != NULL);
+   assert(type_kind(tree_type(rec)) == T_RECORD);
+
+   tree_t value;
+   if (tree_kind(rec) == T_FIELD_DECL) {
+      value = tree_new(T_REF);
+      tree_set_loc(t, tree_loc(t));
+      tree_set_ident(value, base);
+      sem_convert_to_record_ref(value, rec);
+   }
+   else
+      value = sem_make_ref(rec);
+
+   tree_change_kind(t, T_RECORD_REF);
+   tree_set_value(t, value);
+   tree_set_ident(t, tree_ident(decl));
+   tree_set_type(t, tree_type(decl));
+}
+
 static bool sem_check_ref(tree_t t)
 {
    tree_t decl;
@@ -3273,17 +3307,7 @@ static bool sem_check_ref(tree_t t)
       break;
 
    case T_FIELD_DECL:
-      {
-         // The prefix of the name must be the record
-         tree_t rec = scope_find(ident_runtil(tree_ident(t), '.'));
-         assert(rec != NULL);
-         assert(type_kind(tree_type(rec)) == T_RECORD);
-
-         tree_change_kind(t, T_RECORD_REF);
-         tree_set_value(t, sem_make_ref(rec));
-         tree_set_ident(t, tree_ident(decl));
-         tree_set_type(t, tree_type(decl));
-      }
+      sem_convert_to_record_ref(t, decl);
       return true;
 
    default:

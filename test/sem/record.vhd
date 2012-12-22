@@ -19,6 +19,13 @@ package p is
         x, y, z : integer;
     end record;
 
+    type r5 is record
+        x : r1;
+        y : integer;
+    end record;
+
+    type r1_vec is array (integer range <>) of r1;
+
 end package;
 
 package body p is
@@ -42,9 +49,11 @@ package body p is
 
     procedure p2 is
         variable v1 : r1;
+        variable v2 : r5;
     begin
         v1.x := 2;
         v1.y := v1.x + 5;
+        v2.x.x := 3;
     end procedure;
 
 end package body;
