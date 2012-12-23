@@ -169,9 +169,39 @@ static void opt_delete_wait_only(tree_t top)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Tag procedures that never wait.
+//
+// This avoids generating lots of unnecessary resumption code in the simple
+// case where a procedure never waits
+//
+
+static void opt_may_wait_fn(tree_t t, void *ctx)
+{
+   bool *may_wait = ctx;
+
+   tree_kind_t kind = tree_kind(t);
+   if (kind == T_WAIT || kind == T_PCALL)
+      *may_wait = true;
+}
+
+static void opt_tag_simple_procedure_fn(tree_t t, void *ctx)
+{
+   bool may_wait = false;
+   tree_visit(t, opt_may_wait_fn, &may_wait);
+   if (!may_wait)
+      tree_add_attr_int(t, ident_new("never_waits"), 1);
+}
+
+static void opt_tag_simple_procedures(tree_t top)
+{
+   tree_visit_only(top, opt_tag_simple_procedure_fn, NULL, T_PROC_BODY);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void opt(tree_t top)
 {
    opt_collapse(top);
    opt_delete_wait_only(top);
+   opt_tag_simple_procedures(top);
 }

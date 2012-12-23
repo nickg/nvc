@@ -76,3 +76,4 @@ driver1         normal
 driver2         normal
 delay1          normal
 record1         normal
+proc3           normal

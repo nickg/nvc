@@ -41,6 +41,7 @@ static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
 static ident_t sig_struct_i = NULL;
 static ident_t foreign_i = NULL;
+static ident_t never_waits_i = NULL;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -695,7 +696,8 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
 
 static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
 {
-   for (unsigned i = 0; i < tree_ports(t); i++) {
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
       switch (tree_class(p)) {
       case C_SIGNAL:
@@ -723,6 +725,11 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       default:
          assert(false);
       }
+   }
+
+   if (procedure) {
+      // Last parameter is context
+      args[nports] = llvm_void_ptr();
    }
 }
 
@@ -755,9 +762,8 @@ static LLVMValueRef cgen_pdecl(tree_t t)
    if (fn != NULL)
       return fn;
    else {
-      type_t ptype = tree_type(t);
-
-      LLVMTypeRef atypes[tree_ports(t)];
+      const int nports = tree_ports(t);
+      LLVMTypeRef atypes[nports + 1];
       cgen_prototype(t, atypes, true);
 
       return LLVMAddFunction(
@@ -765,7 +771,7 @@ static LLVMValueRef cgen_pdecl(tree_t t)
          cgen_mangle_func_name(t),
          LLVMFunctionType(llvm_void_ptr(),
                           atypes,
-                          type_params(ptype),
+                          nports + 1,
                           false));
    }
 }
@@ -1934,7 +1940,13 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
    LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
-   LLVMBuildRetVoid(builder);
+
+   if (ctx->proc == NULL) {
+      // We are inside a procedure so return a pointer to the dynamic context
+      LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+   }
+   else
+      LLVMBuildRetVoid(builder);
 
    LLVMPositionBuilderAtEnd(builder, it->bb);
 }
@@ -2405,10 +2417,66 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
 
-   LLVMValueRef args[tree_params(t)];
+   const int nparams = tree_params(t);
+   LLVMValueRef args[nparams + 1];
    cgen_call_args(t, args, ctx);
 
-   LLVMBuildCall(builder, cgen_pdecl(decl), args, tree_params(t), "");
+   // Final parameter to a procedure is its dynamic context
+   args[nparams] = NULL;
+
+   if (tree_attr_int(decl, never_waits_i, 0)) {
+      // Simple case where the called procedure never waits so we can ignore
+      // the return value
+      args[nparams] = LLVMConstNull(llvm_void_ptr());
+      LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+   }
+   else {
+      // Find the basic block to jump to when the procedure resumes
+      struct proc_entry *it;
+      for (it = ctx->entry_list; it && it->wait != t; it = it->next)
+         ;
+      assert(it != NULL);
+
+      LLVMBuildBr(builder, it->bb);
+      LLVMPositionBuilderAtEnd(builder, it->bb);
+
+      // If we wait as a result of executing the procedure we want
+      // to jump back here when awoken
+      LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, ctx->state, 0, "");
+      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+      LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
+
+      args[nparams] = LLVMBuildLoad(builder, context_ptr, "context");
+      LLVMValueRef ret =
+         LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+
+      LLVMValueRef waited = LLVMBuildICmp(builder, LLVMIntNE, ret,
+                                          LLVMConstNull(llvm_void_ptr()),
+                                          "waited");
+
+      LLVMBasicBlockRef wait_bb = LLVMAppendBasicBlock(ctx->fn, "wait");
+      LLVMBasicBlockRef cont_bb = LLVMAppendBasicBlock(ctx->fn, "cont");
+
+      LLVMBuildCondBr(builder, waited, wait_bb, cont_bb);
+
+      LLVMPositionBuilderAtEnd(builder, wait_bb);
+
+      // Stash the returned pointer in the process/procedure context
+      LLVMBuildStore(builder, ret, context_ptr);
+
+      if (ctx->proc == NULL) {
+         // We are inside a procedure so return a pointer to the dynamic context
+         LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+      }
+      else
+         LLVMBuildRetVoid(builder);
+
+      LLVMPositionBuilderAtEnd(builder, cont_bb);
+
+      // Clear the dynamic context pointer so the next procedure call
+      // starts fresh
+      LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), context_ptr);
+   }
 }
 
 static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
@@ -2454,7 +2522,13 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_jump_table_fn(tree_t t, void *arg)
 {
-   assert(tree_kind(t) == T_WAIT);
+   tree_kind_t kind = tree_kind(t);
+
+   if ((kind != T_WAIT) && (kind != T_PCALL))
+      return;
+
+   if ((kind == T_PCALL) && tree_attr_int(tree_ref(t), never_waits_i, 0))
+      return;
 
    cgen_ctx_t *ctx = arg;
 
@@ -2495,12 +2569,13 @@ static LLVMTypeRef cgen_process_state_type(tree_t t)
 {
    unsigned nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
 
-   LLVMTypeRef fields[nvars + 1];
+   LLVMTypeRef fields[nvars + 2];
    fields[0] = LLVMInt32Type();   // State
+   fields[1] = llvm_void_ptr();   // Procedure dynamic context
 
    struct cgen_proc_var_ctx ctx = {
       .types  = fields,
-      .offset = 1
+      .offset = 2
    };
    tree_visit_only(t, cgen_visit_proc_vars, &ctx, T_VAR_DECL);
 
@@ -2512,6 +2587,21 @@ static LLVMTypeRef cgen_process_state_type(tree_t t)
    LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
 
    return ty;
+}
+
+static void cgen_jump_table(cgen_ctx_t *ctx, LLVMBasicBlockRef default_bb)
+{
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
+   LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
+   LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget, default_bb, 10);
+
+   LLVMAddCase(jswitch, llvm_int32(0), default_bb);
+
+   struct proc_entry *it;
+   for (it = ctx->entry_list; it != NULL; it = it->next) {
+      it->bb = LLVMAppendBasicBlock(ctx->fn, istr(tree_ident(it->wait)));
+      LLVMAddCase(jswitch, llvm_int32(it->state_num), it->bb);
+   }
 }
 
 static void cgen_process(tree_t t)
@@ -2558,26 +2648,12 @@ static void cgen_process(tree_t t)
 
    LLVMPositionBuilderAtEnd(builder, jt_bb);
 
-   tree_visit_only(t, cgen_jump_table_fn, &ctx, T_WAIT);
+   tree_visit(t, cgen_jump_table_fn, &ctx);
 
    if (ctx.entry_list == NULL)
       warn_at(tree_loc(t), "no wait statement in process");
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
-   LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
-
-   // TODO: if none of the cases match should jump to unreachable
-   // block rather than init
-   LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget, init_bb, 10);
-
-   LLVMAddCase(jswitch, llvm_int32(0), start_bb);
-
-   struct proc_entry *it;
-   for (it = ctx.entry_list; it != NULL; it = it->next) {
-      it->bb = LLVMAppendBasicBlock(ctx.fn, istr(tree_ident(it->wait)));
-
-      LLVMAddCase(jswitch, llvm_int32(it->state_num), it->bb);
-   }
+   cgen_jump_table(&ctx, start_bb);
 
    LLVMPositionBuilderAtEnd(builder, init_bb);
 
@@ -2600,6 +2676,8 @@ static void cgen_process(tree_t t)
    }
 
    // Return to simulation kernel after initialisation
+
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
 
    cgen_sched_process(llvm_int64(0));
    LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
@@ -2991,14 +3069,13 @@ static void cgen_proc_body(tree_t t)
 {
    // Procedures take an extra "context" parameter which is used to support
    // suspending and resuming. If the procedure returns non-NULL then this
-   // pointer should be saved, the caller should suspend, and we it resumes
-   // call the procedure again with the saved pointer as the first argument.
-   // If the procedure returns NULL execution continues as normal.
-   // TODO: implement this
+   // pointer should be saved, the caller should suspend, and when it
+   // resumes call the procedure again with the saved pointer as the first
+   // argument. If the procedure returns NULL execution continues as
+   // normal.
 
-   type_t ptype = tree_type(t);
-
-   LLVMTypeRef args[tree_ports(t)];
+   const int nports = tree_ports(t);
+   LLVMTypeRef args[nports + 1];
    cgen_prototype(t, args, true);
 
    const char *mangled = cgen_mangle_func_name(t);
@@ -3006,18 +3083,70 @@ static void cgen_proc_body(tree_t t)
    if (fn == NULL) {
       fn = LLVMAddFunction(module, mangled,
                            LLVMFunctionType(llvm_void_ptr(),
-                                            args, type_params(ptype), false));
+                                            args, nports + 1, false));
    }
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
+   // Generate a jump table to handle resuming from a wait statement
+
    struct cgen_ctx ctx = {
       .entry_list = NULL,
       .proc       = NULL,
       .fdecl      = t,
-      .fn         = fn
+      .fn         = fn,
+      .state      = NULL
    };
+
+   tree_visit(t, cgen_jump_table_fn, &ctx);
+
+   if (ctx.entry_list != NULL) {
+      // Only allocate a dynamic context if there are no wait statements
+
+      LLVMTypeRef fields[] = {
+         LLVMInt32Type(),     // State
+         llvm_void_ptr()      // Called procedure dynamic context
+      };
+      LLVMTypeRef state_type = LLVMStructType(fields, ARRAY_LEN(fields), false);
+
+      LLVMBasicBlockRef init_bb   = LLVMAppendBasicBlock(fn, "init");
+      LLVMBasicBlockRef resume_bb = LLVMAppendBasicBlock(fn, "resume");
+      LLVMBasicBlockRef start_bb  = LLVMAppendBasicBlock(fn, "start");
+
+      // We are resuming the procedure if the context is non-NULL
+      LLVMValueRef resume = LLVMBuildICmp(
+         builder, LLVMIntNE, LLVMGetParam(fn, nports),
+         LLVMConstNull(llvm_void_ptr()), "resume");
+
+      LLVMValueRef new = LLVMBuildMalloc(builder, state_type, "new");
+      LLVMValueRef old = LLVMBuildPointerCast(
+         builder, LLVMGetParam(fn, nports),
+         LLVMPointerType(state_type, 0), "");
+
+      ctx.state = LLVMBuildSelect(builder, resume, old, new, "state");
+
+      LLVMBuildCondBr(builder, resume, resume_bb, init_bb);
+
+      // Build a jump table for resuming
+
+      LLVMPositionBuilderAtEnd(builder, resume_bb);
+
+      cgen_jump_table(&ctx, start_bb);
+
+      // Initialise the dynamic context on the first activation
+
+      LLVMPositionBuilderAtEnd(builder, init_bb);
+
+      LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+      LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
+
+      LLVMBuildBr(builder, start_bb);
+
+      LLVMPositionBuilderAtEnd(builder, start_bb);
+   }
+   else
+      tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
@@ -3036,10 +3165,6 @@ static void cgen_proc_body(tree_t t)
          assert(false);
       }
    }
-
-   // TODO: for procedures these should be placed in a dynamically
-   //       allocated context struct
-   tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
@@ -3371,10 +3496,11 @@ static void cgen_module_name(tree_t top)
 
 void cgen(tree_t top)
 {
-   var_offset_i = ident_new("var_offset");
-   local_var_i  = ident_new("local_var");
-   sig_struct_i = ident_new("sig_struct");
-   foreign_i    = ident_new("FOREIGN");
+   var_offset_i  = ident_new("var_offset");
+   local_var_i   = ident_new("local_var");
+   sig_struct_i  = ident_new("sig_struct");
+   foreign_i     = ident_new("FOREIGN");
+   never_waits_i = ident_new("never_waits");
 
    tree_kind_t kind = tree_kind(top);
    if (kind != T_ELAB && kind != T_PACK_BODY)
