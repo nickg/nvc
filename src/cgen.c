@@ -2677,10 +2677,12 @@ static void cgen_process(tree_t t)
 
    // Return to simulation kernel after initialisation
 
-   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+   LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 1, "");
 
    cgen_sched_process(llvm_int64(0));
    LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
+   LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), context_ptr);
    LLVMBuildRetVoid(builder);
 
    // Sequential statements
@@ -3138,8 +3140,10 @@ static void cgen_proc_body(tree_t t)
 
       LLVMPositionBuilderAtEnd(builder, init_bb);
 
-      LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+      LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, ctx.state, 0, "");
+      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 1, "");
       LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
+      LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), context_ptr);
 
       LLVMBuildBr(builder, start_bb);
 
