@@ -15,6 +15,16 @@ architecture test of proc3 is
         p1;
     end procedure;
 
+    procedure p3(t : in time) is
+    begin
+        loop
+            wait for t;
+            if now >= 100 ns then
+                return;
+            end if;
+        end loop;
+    end procedure;
+
 begin
 
     process is
@@ -23,6 +33,8 @@ begin
         assert now = 15 ns;
         p2;
         assert now = 45 ns;
+        p3(5 ns);
+        assert now = 100 ns;
         wait;
     end process;
 
