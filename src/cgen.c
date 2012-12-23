@@ -3111,41 +3111,53 @@ static void cgen_proc_body(tree_t t)
          llvm_void_ptr()      // Called procedure dynamic context
       };
       LLVMTypeRef state_type = LLVMStructType(fields, ARRAY_LEN(fields), false);
+      LLVMTypeRef state_ptr_type = LLVMPointerType(state_type, 0);
 
       LLVMBasicBlockRef init_bb   = LLVMAppendBasicBlock(fn, "init");
       LLVMBasicBlockRef resume_bb = LLVMAppendBasicBlock(fn, "resume");
       LLVMBasicBlockRef start_bb  = LLVMAppendBasicBlock(fn, "start");
+      LLVMBasicBlockRef jump_bb   = LLVMAppendBasicBlock(fn, "jump");
 
       // We are resuming the procedure if the context is non-NULL
       LLVMValueRef resume = LLVMBuildICmp(
          builder, LLVMIntNE, LLVMGetParam(fn, nports),
          LLVMConstNull(llvm_void_ptr()), "resume");
 
-      LLVMValueRef new = LLVMBuildMalloc(builder, state_type, "new");
-      LLVMValueRef old = LLVMBuildPointerCast(
-         builder, LLVMGetParam(fn, nports),
-         LLVMPointerType(state_type, 0), "");
-
-      ctx.state = LLVMBuildSelect(builder, resume, old, new, "state");
-
       LLVMBuildCondBr(builder, resume, resume_bb, init_bb);
 
-      // Build a jump table for resuming
+      // When resuming get the state from the final argument
 
       LLVMPositionBuilderAtEnd(builder, resume_bb);
 
-      cgen_jump_table(&ctx, start_bb);
+      LLVMValueRef old = LLVMBuildPointerCast(
+         builder, LLVMGetParam(fn, nports),
+         state_ptr_type, "old");
+
+      LLVMBuildBr(builder, jump_bb);
 
       // Initialise the dynamic context on the first activation
 
       LLVMPositionBuilderAtEnd(builder, init_bb);
 
-      LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, ctx.state, 0, "");
-      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 1, "");
+      LLVMValueRef new = LLVMBuildMalloc(builder, state_type, "new");
+
+      LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, new, 0, "");
+      LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, new, 1, "");
       LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
       LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), context_ptr);
 
-      LLVMBuildBr(builder, start_bb);
+      LLVMBuildBr(builder, jump_bb);
+
+      // Build a jump table
+
+      LLVMPositionBuilderAtEnd(builder, jump_bb);
+
+      ctx.state = LLVMBuildPhi(builder, state_ptr_type, "state");
+      LLVMValueRef phi_values[]   = { old,       new };
+      LLVMBasicBlockRef phi_bbs[] = { resume_bb, init_bb };
+      LLVMAddIncoming(ctx.state, phi_values, phi_bbs, 2);
+
+      cgen_jump_table(&ctx, start_bb);
 
       LLVMPositionBuilderAtEnd(builder, start_bb);
    }
