@@ -2244,8 +2244,14 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
       else
          LLVMBuildRet(builder, rval);
    }
-   else
+   else {
+      if (ctx->state != NULL) {
+         // Free the dynamic context
+         LLVMBuildFree(builder, LLVMBuildStructGEP(builder, ctx->state, 0, ""));
+      }
+
       LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+   }
 
    LLVMBasicBlockRef unreach_bb = LLVMAppendBasicBlock(ctx->fn, "unreach");
    LLVMPositionBuilderAtEnd(builder, unreach_bb);
@@ -3197,6 +3203,11 @@ static void cgen_proc_body(tree_t t)
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
+
+   if (ctx.state != NULL) {
+      // Free the dynamic context
+      LLVMBuildFree(builder, LLVMBuildStructGEP(builder, ctx.state, 0, ""));
+   }
 
    LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
 }
