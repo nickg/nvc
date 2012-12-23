@@ -25,9 +25,21 @@ architecture test of proc3 is
         end loop;
     end procedure;
 
+    procedure p4(x : in integer; y : out integer) is
+        variable k : integer;
+    begin
+        k := x;
+        for i in 1 to 5 loop
+            k := k + 1;
+            wait for 1 ns;
+        end loop;
+        y := k;
+    end procedure;
+
 begin
 
     process is
+        variable x : integer;
     begin
         p1;
         assert now = 15 ns;
@@ -35,6 +47,9 @@ begin
         assert now = 45 ns;
         p3(5 ns);
         assert now = 100 ns;
+        p4(5, x);
+        assert x = 10;
+        assert now = 105 ns;
         wait;
     end process;
 

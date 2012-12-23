@@ -3111,10 +3111,18 @@ static void cgen_proc_body(tree_t t)
    if (ctx.entry_list != NULL) {
       // Only allocate a dynamic context if there are no wait statements
 
-      LLVMTypeRef fields[] = {
-         LLVMInt32Type(),     // State
-         llvm_void_ptr()      // Called procedure dynamic context
+      const int nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
+
+      LLVMTypeRef fields[nvars + 2];
+      fields[0] = LLVMInt32Type();   // State
+      fields[1] = llvm_void_ptr();   // Called procedure dynamic context
+
+      struct cgen_proc_var_ctx var_ctx = {
+         .types  = fields,
+         .offset = 2
       };
+      tree_visit_only(t, cgen_visit_proc_vars, &var_ctx, T_VAR_DECL);
+
       LLVMTypeRef state_type = LLVMStructType(fields, ARRAY_LEN(fields), false);
       LLVMTypeRef state_ptr_type = LLVMPointerType(state_type, 0);
 
