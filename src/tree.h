@@ -126,11 +126,10 @@ typedef struct assoc {
 typedef struct param {
    tree_t value;
    union {
-      range_t  range;   // P_RANGE
       ident_t  name;    // P_NAME
       unsigned pos;     // P_POS
    };
-   enum { P_POS, P_NAMED, P_RANGE } kind;
+   enum { P_POS, P_NAMED } kind;
 } param_t;
 
 typedef struct context {

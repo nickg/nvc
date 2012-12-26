@@ -51,8 +51,6 @@ static void dump_params(tree_t t)
          switch (p.kind) {
          case P_POS:
             break;
-         case P_RANGE:
-            assert(false);
          case P_NAMED:
             printf("%s => ", istr(p.name));
             break;

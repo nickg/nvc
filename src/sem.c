@@ -2304,36 +2304,66 @@ static bool sem_maybe_ambiguous(tree_t t)
    }
 }
 
+static type_t sem_find_param_type(param_t param, tree_t decl)
+{
+   type_t decl_type = tree_type(decl);
+
+   switch (param.kind) {
+   case P_POS:
+      // Simple case of positional parameters is just the same index
+      // into the port list
+      return type_param(decl_type, param.pos);
+
+   case P_NAMED:
+      // Need to search through the port list for a matching name
+      {
+         const int nports = tree_ports(decl);
+         for (int i = 0; i < nports; i++) {
+            if (tree_ident(tree_port(decl, i)) == param.name)
+               return type_param(decl_type, i);
+         }
+
+         return NULL;
+      }
+
+   default:
+      assert(false);
+   }
+}
+
 static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
                                  tree_t *overloads, int n_overloads)
 {
    *pick    = NULL;
    *matches = 0;
 
-   const unsigned nparams = tree_params(t);
+   const int nparams = tree_params(t);
 
    // Work out which parameters have ambiguous interpretations
    bool ambiguous[nparams];
-   for (unsigned i = 0; i < nparams; i++) {
+   for (int i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
       ambiguous[i] = sem_maybe_ambiguous(p.value);
    }
 
    // First pass: only check those parameters which are unambiguous
-   for (unsigned i = 0; i < nparams; i++) {
+   for (int i = 0; i < nparams; i++) {
       if (ambiguous[i])
          continue;
 
       type_set_push();
 
+      param_t p = tree_param(t, i);
+      type_t param_types[n_overloads];
+
       for (int j = 0; j < n_overloads; j++) {
-         if (overloads[j] != NULL)
-            type_set_add(type_param(tree_type(overloads[j]), i));
+         if (overloads[j] != NULL) {
+            param_types[j] = sem_find_param_type(p, overloads[j]);
+            if (param_types[j] != NULL)
+               type_set_add(param_types[j]);
+         }
       }
 
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
       bool ok = sem_check(p.value);
 
       type_set_pop();
@@ -2343,8 +2373,8 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          type_t ptype = tree_type(p.value);
          for (int j = 0; j < n_overloads; j++) {
             if (overloads[j] != NULL) {
-               if (!type_eq(type_param(tree_type(overloads[j]), i),
-                            ptype))
+               if ((param_types[j] == NULL)
+                   || !type_eq(param_types[j], ptype))
                   overloads[j] = NULL;
             }
          }
@@ -2355,19 +2385,23 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
 
    // Second pass: now the set of overloads has been constrained check
    // those parameters which might be ambiguous
-   for (unsigned i = 0; i < nparams; i++) {
+   for (int i = 0; i < nparams; i++) {
       if (!ambiguous[i])
          continue;
 
       type_set_push();
 
+      param_t p = tree_param(t, i);
+      type_t param_types[n_overloads];
+
       for (int j = 0; j < n_overloads; j++) {
-         if (overloads[j] != NULL)
-            type_set_add(type_param(tree_type(overloads[j]), i));
+         if (overloads[j] != NULL) {
+            param_types[j] = sem_find_param_type(p, overloads[j]);
+            if (param_types[j] != NULL)
+               type_set_add(param_types[j]);
+         }
       }
 
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
       bool ok = sem_check(p.value);
 
       type_set_pop();
@@ -2383,10 +2417,11 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
       // Did argument types match for this overload?
       bool match = true;
       bool all_universal = true;
-      type_t func_type = tree_type(overloads[n]);
-      for (unsigned i = 0; i < tree_params(t); i++) {
-         type_t ptype = tree_type(tree_param(t, i).value);
-         match = match && type_eq(type_param(func_type, i), ptype);
+      for (int i = 0; i < nparams; i++) {
+         param_t p = tree_param(t, i);
+         type_t ptype = tree_type(p.value);
+         type_t mtype = sem_find_param_type(p, overloads[n]);
+         match = match && type_eq(mtype, ptype);
          all_universal = all_universal && type_is_universal(ptype);
       }
 
@@ -2397,7 +2432,7 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
             // If all the arguments are universal integer or real and
             // this is a builtin function then it doesn't matter which
             // overload we pick as it will be constant-folded later
-            type_t f_result = type_result(func_type);
+            type_t f_result = type_result(tree_type(overloads[n]));
             switch (type_kind(f_result)) {
             case T_INTEGER:
                tree_set_type(t, type_universal_int());
@@ -2465,18 +2500,51 @@ static void sem_copy_default_args(tree_t call, tree_t decl)
    }
 }
 
+static bool sem_check_params(tree_t t)
+{
+   bool have_named = false;
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      param_t p = tree_param(t, i);
+
+      switch (p.kind) {
+      case P_POS:
+         if (have_named)
+            sem_error(p.value, "positional parameters must precede named "
+                      "parameters");
+         break;
+
+      case P_NAMED:
+         for (int j = 0; j < i; j++) {
+            param_t q = tree_param(t, j);
+            if ((q.kind == P_NAMED) && (q.name == p.name))
+               sem_error(p.value, "duplicate parameter name %s", istr(p.name));
+         }
+
+         have_named = true;
+         break;
+      }
+   }
+
+   return true;
+}
+
 static bool sem_check_fcall(tree_t t)
 {
+   if (!sem_check_params(t))
+      return false;
+
    tree_t overloads[MAX_OVERLOADS];
    int n_overloads = 0;
 
    tree_t decl;
-   int n = 0;
+   int n = 0, found_func = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
          switch (tree_kind(decl)) {
          case T_FUNC_DECL:
          case T_FUNC_BODY:
+            found_func++;
             break;
          case T_TYPE_DECL:
             tree_change_kind(t, T_TYPE_CONV);
@@ -2521,7 +2589,10 @@ static bool sem_check_fcall(tree_t t)
    } while (decl != NULL);
 
    if (n_overloads == 0)
-      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+      sem_error(t, (found_func > 0
+                    ? "no matching function %s"
+                    : "undefined identifier %s"),
+                istr(tree_ident(t)));
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
@@ -2590,16 +2661,20 @@ static bool sem_check_fcall(tree_t t)
 
 static bool sem_check_pcall(tree_t t)
 {
+   if (!sem_check_params(t))
+      return false;
+
    tree_t overloads[MAX_OVERLOADS];
    int n_overloads = 0;
 
    tree_t decl;
-   int n = 0;
+   int n = 0, found_proc = 0;
    do {
       if ((decl = scope_find_nth(tree_ident2(t), n++))) {
          switch (tree_kind(decl)) {
          case T_PROC_DECL:
          case T_PROC_BODY:
+            found_proc++;
             break;
          default:
             continue;   // Look for the next matching name
@@ -2615,7 +2690,10 @@ static bool sem_check_pcall(tree_t t)
    } while (decl != NULL);
 
    if (n_overloads == 0)
-      sem_error(t, "undefined procedure %s", istr(tree_ident2(t)));
+      sem_error(t, (found_proc > 0
+                    ? "no matching procedure %s"
+                    : "undefined procedure %s"),
+                istr(tree_ident2(t)));
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
@@ -2629,7 +2707,7 @@ static bool sem_check_pcall(tree_t t)
       char *p = buf;
       const char *end = buf + sizeof(buf);
 
-      for (int n = 0; n < n_overloads; n++) {
+      for (int n = 0; (n < n_overloads) && (p < end); n++) {
          if (overloads[n] != NULL)
             p += snprintf(p, end - p, "\n    %s",
                           type_pp(tree_type(overloads[n])));
@@ -3520,9 +3598,6 @@ static bool sem_check_map(tree_t t, tree_t unit,
             sem_error(p.value, "%s has no formal %s",
                       istr(tree_ident(unit)), istr(p.name));
          break;
-
-      case P_RANGE:
-         sem_error(p.value, "ranges cannot be used here");
       }
 
       ok = sem_check_constrained(p.value, tree_type(decl)) && ok;

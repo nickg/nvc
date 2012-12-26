@@ -686,7 +686,7 @@ param_t tree_param(tree_t t, unsigned n)
 
 void tree_add_param(tree_t t, param_t e)
 {
-   assert(e.kind == P_RANGE || IS_EXPR(e.value));
+   assert(IS_EXPR(e.value));
 
    if (e.kind == P_POS)
       e.pos = tree_params(t);
@@ -706,7 +706,7 @@ param_t tree_genmap(tree_t t, unsigned n)
 
 void tree_add_genmap(tree_t t, param_t e)
 {
-   assert(e.kind == P_RANGE || IS_EXPR(e.value));
+   assert(IS_EXPR(e.value));
 
    if (e.kind == P_POS)
       e.pos = tree_genmaps(t);
@@ -1052,11 +1052,6 @@ static void tree_visit_p(param_array_t *a, tree_visit_ctx_t *ctx)
 {
    for (unsigned i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
-      case P_RANGE:
-         tree_visit_aux(a->items[i].range.left, ctx);
-         tree_visit_aux(a->items[i].range.right, ctx);
-         break;
-
       case P_POS:
       case P_NAMED:
          tree_visit_aux(a->items[i].value, ctx);
@@ -1323,11 +1318,6 @@ static void write_p(param_array_t *a, tree_wr_ctx_t ctx)
          write_u16(a->items[i].pos, ctx->file);
          tree_write(a->items[i].value, ctx);
          break;
-      case P_RANGE:
-         write_u16(a->items[i].range.kind, ctx->file);
-         tree_write(a->items[i].range.left, ctx);
-         tree_write(a->items[i].range.right, ctx);
-         break;
       case P_NAMED:
          ident_write(a->items[i].name, ctx->ident_ctx);
          tree_write(a->items[i].value, ctx);
@@ -1346,11 +1336,6 @@ static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
       case P_POS:
          a->items[i].pos   = read_u16(ctx->file);
          a->items[i].value = tree_read(ctx);
-         break;
-      case P_RANGE:
-         a->items[i].range.kind  = read_u16(ctx->file);
-         a->items[i].range.left  = tree_read(ctx);
-         a->items[i].range.right = tree_read(ctx);
          break;
       case P_NAMED:
          a->items[i].name  = ident_read(ctx->ident_ctx);
@@ -1824,13 +1809,6 @@ static void rewrite_p(param_array_t *a, struct rewrite_ctx *ctx)
 {
    for (size_t i = 0; i < a->count; i++) {
       switch (a->items[i].kind) {
-      case P_RANGE:
-         a->items[i].range.left =
-            tree_rewrite_aux(a->items[i].range.left, ctx);
-         a->items[i].range.right =
-            tree_rewrite_aux(a->items[i].range.right, ctx);
-         break;
-
       case P_POS:
       case P_NAMED:
          a->items[i].value = tree_rewrite_aux(a->items[i].value, ctx);
@@ -2004,11 +1982,6 @@ static void copy_p(param_array_t *from, param_array_t *to,
       case P_POS:
          tp->pos   = fp->pos;
          tp->value = tree_copy_aux(fp->value, ctx);
-         break;
-      case P_RANGE:
-         tp->range.kind  = fp->range.kind;
-         tp->range.left  = tree_copy_aux(fp->range.left, ctx);
-         tp->range.right = tree_copy_aux(fp->range.right, ctx);
          break;
       case P_NAMED:
          tp->name  = fp->name;

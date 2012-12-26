@@ -50,4 +50,18 @@ package body p is
     begin
     end procedure;
 
+    procedure diff_types(x : in integer; y : in string) is
+    begin
+    end procedure;
+
+    procedure test_named is
+    begin
+        diff_types(1, "foo");            -- OK
+        diff_types(1, y => "bar");       -- OK
+        diff_types(x => 1, y => "foo");  -- OK
+        diff_types(y => "la", x => 6);   -- OK
+        diff_types(y => "foo");          -- Error
+        diff_types(y => "f", 6);         -- Error
+    end procedure;
+
 end package body;

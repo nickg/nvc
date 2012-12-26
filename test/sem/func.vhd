@@ -107,4 +107,16 @@ package body func is
         return default2;
     end function;
 
+    function test10(k : in integer) return integer is
+        variable v : integer;
+        variable u : uenum;
+    begin
+        v := sum(x => 4, 1);            -- Error
+        v := sum(1, x => 4, x => 4);    -- Error
+        v := sum(1, y => k, x => 4);    -- OK
+        u := resolved3(A, x => 4);      -- OK
+        u := resolved3(x => 3, v => B);  -- OK
+        return v;
+    end function;
+
 end package body;

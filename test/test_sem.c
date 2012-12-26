@@ -443,17 +443,19 @@ START_TEST(test_func)
    fail_unless(input_from_file(TESTDIR "/sem/func.vhd"));
 
    const error_t expect[] = {
-      {  5, "function arguments must have mode IN" },
-      { 17, "must be an unconstrained array type" },
-      { 21, "resolution function must have single argument" },
-      { 25, "declaration UENUM is not a function" },
-      { 27, "type of default value universal integer does not" },
-      { 29, "subprogram body is not allowed in package specification" },
-      { 36, "unit WORK.BAD not found in library WORK" },
-      { 48, "no suitable overload for identifier A" },
-      { 51, "function arguments must have mode IN" },
-      { 56, "function must contain a return statement" },
-      { 62, "duplicate declaration of function FOO" },
+      {   5, "function arguments must have mode IN" },
+      {  17, "must be an unconstrained array type" },
+      {  21, "resolution function must have single argument" },
+      {  25, "declaration UENUM is not a function" },
+      {  27, "type of default value universal integer does not" },
+      {  29, "subprogram body is not allowed in package specification" },
+      {  36, "unit WORK.BAD not found in library WORK" },
+      {  48, "no suitable overload for identifier A" },
+      {  51, "function arguments must have mode IN" },
+      {  56, "function must contain a return statement" },
+      {  62, "duplicate declaration of function FOO" },
+      { 114, "positional parameters must precede named parameters" },
+      { 115, "duplicate parameter name X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -715,6 +717,8 @@ START_TEST(test_procedure)
       { 28, "cannot return a value from a procedure" },
       { 45, "type of default value universal integer does not match" },
       { 49, "argument Y without default follows arguments with" },
+      { 63, "no matching procedure DIFF_TYPES" },
+      { 64, "positional parameters must precede named parameters" },
       { -1, NULL }
    };
    expect_errors(expect);
