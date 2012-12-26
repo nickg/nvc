@@ -84,6 +84,20 @@ if ! test x$_cv_gnu_make_command = x ; then
 fi
 AC_SUBST(MAKEFLAGS)
 
+# Optional code coverage statistics
+AC_ARG_ENABLE([coverage],
+  [AS_HELP_STRING([--enable-coverage],
+    [Enable gcov for code coverage statistics])],
+    [enable_coverage=yes],
+    [])
+if test x$enable_coverage = xyes ; then
+  COV_CFLAGS="--coverage --no-inline"
+  COV_LDFLAGS="--coverage"
+fi
+AC_SUBST(COV_CFLAGS)
+AC_SUBST(COV_LDFLAGS)
+AM_CONDITIONAL([ENABLE_COVERAGE], [test "$enable_coverage" = yes])
+
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
