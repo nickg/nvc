@@ -841,18 +841,18 @@ const char *type_pp(type_t t)
    case T_PROC:
       {
          static char fn[256];
-         char *p = fn;
-         const char *end = fn + sizeof(fn);
+         static_printf_begin(fn, sizeof(fn));
+
          const char *fname = istr(type_ident(t));
 
-         p += snprintf(p, end - p, "%s(", fname);
+         static_printf("%s(", fname);
          for (unsigned i = 0; i < type_params(t); i++)
-            p += snprintf(p, end - p, "%s%s",
+            static_printf("%s%s",
                           (i == 0 ? "" : ", "),
                           istr(type_ident(type_param(t, i))));
-         p += snprintf(p, end - p, ")");
+         static_printf(")");
          if (type_kind(t) == T_FUNC)
-            p += snprintf(p, end - p, " return %s",
+            static_printf(" return %s",
                           istr(type_ident(type_result(t))));
 
          return fn;
