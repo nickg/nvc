@@ -36,6 +36,12 @@ architecture test of proc3 is
         y := k;
     end procedure;
 
+    procedure p5(x : in integer; y : out integer) is
+        variable k : integer := x + 1;
+    begin
+        y := k;
+    end procedure;
+
 begin
 
     process is

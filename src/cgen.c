@@ -3102,6 +3102,24 @@ static void cgen_proc_body(tree_t t)
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(t, i);
+      switch (tree_class(p)) {
+      case C_SIGNAL:
+         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
+         break;
+
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
+         break;
+
+      default:
+         assert(false);
+      }
+   }
+
    // Generate a jump table to handle resuming from a wait statement
 
    struct cgen_ctx ctx = {
@@ -3182,24 +3200,6 @@ static void cgen_proc_body(tree_t t)
    }
    else
       tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
-
-   for (unsigned i = 0; i < tree_ports(t); i++) {
-      tree_t p = tree_port(t, i);
-      switch (tree_class(p)) {
-      case C_SIGNAL:
-         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
-         break;
-
-      case C_VARIABLE:
-      case C_DEFAULT:
-      case C_CONSTANT:
-         tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
-         break;
-
-      default:
-         assert(false);
-      }
-   }
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
