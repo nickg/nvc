@@ -2435,7 +2435,10 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
    // Final parameter to a procedure is its dynamic context
    args[nparams] = NULL;
 
-   if (tree_attr_int(decl, never_waits_i, 0)) {
+   const bool in_function =
+      (ctx->fdecl != NULL) && (tree_kind(ctx->fdecl) == T_FUNC_BODY);
+
+   if (tree_attr_int(decl, never_waits_i, 0) || in_function) {
       // Simple case where the called procedure never waits so we can ignore
       // the return value
       args[nparams] = LLVMConstNull(llvm_void_ptr());

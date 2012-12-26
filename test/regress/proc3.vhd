@@ -1,5 +1,30 @@
+package pack is
+    function func(x : in integer) return integer;
+end package;
+
+package body pack is
+
+    procedure p5(x : in integer; y : out integer) is
+        variable k : integer := x + 1;
+    begin
+        y := k;
+    end procedure;
+
+    function func(x : in integer) return integer is
+        variable y : integer;
+    begin
+        p5(x, y);
+        return y;
+    end function;
+
+end package body;
+
+-------------------------------------------------------------------------------
+
 entity proc3 is
 end entity;
+
+use work.pack.all;
 
 architecture test of proc3 is
 
@@ -36,12 +61,6 @@ architecture test of proc3 is
         y := k;
     end procedure;
 
-    procedure p5(x : in integer; y : out integer) is
-        variable k : integer := x + 1;
-    begin
-        y := k;
-    end procedure;
-
 begin
 
     process is
@@ -56,6 +75,8 @@ begin
         p4(5, x);
         assert x = 10;
         assert now = 105 ns;
+        x := func(9);
+        assert x = 10;
         wait;
     end process;
 
