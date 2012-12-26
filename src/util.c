@@ -38,6 +38,7 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <assert.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -113,9 +114,11 @@ struct option {
    int           value;
 };
 
-static error_fn_t    error_fn   = def_error_fn;
-static bool          want_color = false;
+static error_fn_t     error_fn   = def_error_fn;
+static bool           want_color = false;
 static struct option *options = NULL;
+static char          *printf_buf = NULL;
+static size_t         printf_remain = 0;
 
 static void paginate_msg(const char *fmt, va_list ap, int left, int right)
 {
@@ -720,4 +723,32 @@ char *get_fmt_buf(size_t len)
    }
 
    return *bufp;
+}
+
+void static_printf_begin(char *buf, size_t len)
+{
+   printf_buf = buf;
+   printf_remain = len - 1;
+   buf[len - 1] = '\0';
+}
+
+void static_printf(const char *fmt, ...)
+{
+   assert(printf_buf != NULL);
+
+   if (printf_remain == 0)
+      return;
+
+   va_list ap;
+   va_start(ap, fmt);
+
+   int n = vsnprintf(printf_buf, printf_remain, fmt, ap);
+   if ((n < 0) || (n > printf_remain))
+      printf_remain = 0;
+   else {
+      printf_remain -= n;
+      printf_buf    += n;
+   }
+
+   va_end(ap);
 }

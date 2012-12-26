@@ -22,9 +22,15 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 
 static bool pp_char_enum(type_t type)
 {
+   if (type_kind(type) != T_ENUM)
+      return false;
+
    bool all_char = true;
    unsigned nlit = type_enum_literals(type);
    for (unsigned i = 0; i < nlit; i++) {
@@ -34,60 +40,70 @@ static bool pp_char_enum(type_t type)
    return all_char;
 }
 
-static size_t pp_one(char *p, size_t len, type_t type, uint64_t value)
+static void pp_one(type_t type, uint64_t value)
 {
    switch (type_kind(type)) {
    case T_INTEGER:
-      return snprintf(p, len, "%"PRIu64, value);
+      static_printf("%"PRIu64, value);
+      break;
 
    case T_ENUM:
       {
          assert(value < type_enum_literals(type));
          const char *s = istr(tree_ident(type_enum_literal(type, value)));
          if (*s == '\'')
-            return snprintf(p, len, "%c", *(s + 1));
+            static_printf("%c", *(s + 1));
          else
-            return snprintf(p, len, "%s", s);
+            static_printf("%s", s);
       }
+      break;
 
    default:
-      return snprintf(p, len, "%"PRIx64, value);
+      static_printf("%"PRIx64, value);
    }
 }
 
-const char *pprint(tree_t t, uint64_t *values, unsigned len)
+static const uint64_t *pp_array(type_t type, const uint64_t *values)
+{
+   type_t elem = type_base_recur(type_elem(type));
+   bool all_char = pp_char_enum(elem);
+
+   static_printf(all_char ? "\"" : "(");
+
+   range_t r = type_dim(type, 0);
+   const int left  = assume_int(r.left);
+   const int right = assume_int(r.right);
+   const int step  = (r.kind == RANGE_TO) ? 1 : -1;
+
+   for (int i = left; i != right + step; i += step) {
+      if (!all_char && (i != left))
+         static_printf(",");
+      if (type_is_array(elem))
+         values = pp_array(elem, values);
+      else
+         pp_one(elem, *values++);
+   }
+
+   static_printf(all_char ? "\"" : ")");
+
+   return values;
+}
+
+const char *pprint(tree_t t, const uint64_t *values, size_t len)
 {
    static char buf[1024];
 
-   char *p = buf;
-   const char *end = buf + sizeof(buf);
+   static_printf_begin(buf, sizeof(buf));
 
    type_t type = tree_type(t);
 
-   if (type_is_array(type)) {
-      type_t elem = type_base_recur(type_elem(type));
-      bool all_char = pp_char_enum(elem);
-
-      p += snprintf(p, end - p, all_char ? "\"" : "(");
-
-      unsigned left = 0, right = len - 1;
-      int step = 1;
-      if (type_dim(type, 0).kind == RANGE_DOWNTO) {
-         left  = len - 1;
-         right = 0;
-         step  = -1;
-      }
-
-      for (unsigned i = left; i != right + step; i += step) {
-         if (!all_char && (i != left))
-            p += snprintf(p, end - p, ",");
-         p += pp_one(p, end - p, elem, values[i]);
-      }
-
-      p += snprintf(p, end - p, all_char ? "\"" : ")");
-   }
+   if (type_is_array(type))
+      pp_array(type, values);
    else
-      pp_one(p, end - p, type_base_recur(type), values[0]);
+      pp_one(type_base_recur(type), values[0]);
+
+   for (int i = 0; i < 3; i++)
+      *(buf + sizeof(buf) - 2 - i) = '.';
 
    return buf;
 }

@@ -1200,12 +1200,15 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
    type_t type = tree_type(t);
-
-   int64_t low = 0, high = 0;
-   if (type_kind(type) == T_CARRAY)
+   size_t len = 1;
+   while (type_is_array(type)) {
+      int64_t low = 0, high = 0;
       range_bounds(type_dim(type, 0), &low, &high);
+      len *= (high - low + 1);
 
-   assert(msg->len <= high - low + 1);
+      type = type_elem(type);
+   }
+   assert(len <= msg->len);
 
    struct signal *sig = tree_attr_ptr(t, i_signal);
 

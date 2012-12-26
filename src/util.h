@@ -32,6 +32,9 @@
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+
 void *xmalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 
@@ -89,5 +92,9 @@ void opt_set_int(const char *name, int val);
 int opt_get_int(const char *name);
 
 char *get_fmt_buf(size_t len);
+
+void static_printf_begin(char *buf, size_t len);
+void static_printf(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
 
 #endif // _UTIL_H

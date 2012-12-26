@@ -116,13 +116,19 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          if (tree_kind(d) != T_SIGNAL_DECL)
             continue;
 
-         int64_t low = 0, high = 0;
-         if (type_kind(tree_type(d)) == T_CARRAY)
-            range_bounds(type_dim(tree_type(d), 0), &low, &high);
+         size_t len = 1;
+         type_t type = tree_type(d);
+         while (type_is_array(type)) {
+            int64_t low = 0, high = 0;
+            range_bounds(type_dim(type, 0), &low, &high);
+            len *= (high - low + 1);
+
+            type = type_elem(type);
+         }
 
          slave_read_signal_msg_t msg = {
             .index = tree_index(d),
-            .len   = high - low + 1
+            .len   = len
          };
          slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
 

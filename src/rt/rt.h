@@ -41,7 +41,7 @@ void jit_bind_fn(const char *name, void *ptr);
 
 void shell_run(struct tree *e);
 
-const char *pprint(struct tree *t, uint64_t *values, unsigned len);
+const char *pprint(struct tree *t, const uint64_t *values, size_t len);
 
 void vcd_init(const char *file, struct tree *top);
 void vcd_restart(void);
