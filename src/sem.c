@@ -843,9 +843,7 @@ static void sem_declare_predefined_ops(tree_t decl)
    if (type_is_array(t)) {
       ident_t length_i = ident_new("LENGTH");
       tree_add_attr_tree(decl, length_i,
-                         sem_builtin_fn(length_i,
-                                        sem_std_type("INTEGER"),
-                                        "length", t, NULL));
+                         sem_builtin_fn(length_i, std_int, "length", t, NULL));
    }
 
    switch (type_kind(t)) {
