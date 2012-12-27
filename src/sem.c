@@ -195,9 +195,12 @@ static tree_t scope_find_nth(ident_t i, int n)
 
 static bool scope_can_overload(tree_t t)
 {
-   return tree_kind(t) == T_ENUM_LIT
-      || tree_kind(t) == T_FUNC_DECL
-      || tree_kind(t) == T_FUNC_BODY;
+   tree_kind_t kind = tree_kind(t);
+   return (kind == T_ENUM_LIT)
+      || (kind == T_FUNC_DECL)
+      || (kind == T_FUNC_BODY)
+      || (kind == T_PROC_DECL)
+      || (kind == T_PROC_BODY);
 }
 
 static bool scope_hides(tree_t a, tree_t b)

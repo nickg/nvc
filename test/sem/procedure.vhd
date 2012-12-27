@@ -64,4 +64,18 @@ package body p is
         diff_types(y => "f", 6);         -- Error
     end procedure;
 
+    procedure overload(x : in bit) is
+    begin
+    end procedure;
+
+    procedure overload(x : in integer) is
+    begin
+    end procedure;
+
+    procedure test_overload is
+    begin
+        overload('1');
+        overload(1);
+    end procedure;
+
 end package body;
