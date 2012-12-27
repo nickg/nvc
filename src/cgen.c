@@ -241,6 +241,15 @@ static LLVMTypeRef llvm_type(type_t t)
 
    case T_RECORD:
       {
+         const char *rec_name = istr(type_ident(t));
+         LLVMTypeRef lltype = LLVMGetTypeByName(module, rec_name);
+         if (lltype != NULL)
+            return lltype;
+
+         lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), rec_name);
+         if (lltype == NULL)
+            fatal("failed to add record type %s", rec_name);
+
          const int nfields = type_fields(t);
          LLVMTypeRef llfields[nfields];
 
@@ -249,7 +258,8 @@ static LLVMTypeRef llvm_type(type_t t)
             llfields[i] = llvm_type(tree_type(field));
          }
 
-         return LLVMStructType(llfields, nfields, false);
+         LLVMStructSetBody(lltype, llfields, nfields, false);
+         return lltype;
       }
 
    case T_ACCESS:
@@ -1738,7 +1748,7 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
    for (int i = 0; i < nfields; i++)
       assert(vals[i] != NULL);
 
-   return LLVMConstStruct(vals, nfields, false);
+   return LLVMConstNamedStruct(llvm_type(type), vals, nfields);
 }
 
 static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
@@ -1925,8 +1935,8 @@ static LLVMValueRef cgen_until_func(tree_t wait, cgen_ctx_t *ctx)
    else {
       tree_t expr = tree_value(wait);
 
-      char name[128];
-      snprintf(name, sizeof(name), "until_%p", expr);
+      char name[256];
+      snprintf(name, sizeof(name), "until_%s", istr(tree_ident(wait)));
 
       LLVMValueRef fn = LLVMAddFunction(module, name,
                                         cgen_until_func_type());
