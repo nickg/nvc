@@ -285,6 +285,37 @@ static void scope_replace(tree_t t, tree_t with)
    scope_replace_at(t, with, top_scope->decls);
 }
 
+static const char *sem_type_minify(const char *name)
+{
+   // If name without its fully qualified prefix is unique in the
+   // current scope then drop the prefix to make messages easier
+   // to read.
+   // E.g. IEEE.STD_LOGIC_1164.STD_LOGIC -> STD_LOGIC if no other
+   //      STD_LOGIC type is visible
+
+   const char *suffix = strrchr(name, '.');
+   if (suffix == NULL)
+      return name;
+
+   ident_t suffix_i = ident_new(suffix + 1);
+
+   int matches = 0;
+   for (struct scope *s = top_scope; s != NULL; s = s->down) {
+      for (struct ident_list *i = s->imported; i != NULL; i = i->next) {
+         ident_t search = ident_prefix(i->ident, suffix_i, '.');
+         if (scope_find_in(search, s, false, 0) != NULL)
+            matches++;
+      }
+   }
+
+   return (matches == 1) ? suffix + 1 : name;
+}
+
+static const char *sem_type_str(type_t type)
+{
+   return type_pp_minify(type, sem_type_minify);
+}
+
 static bool sem_check_stale(lib_t lib, tree_t t)
 {
    // Check if the source file corresponding to t has been modified
@@ -449,7 +480,7 @@ static void type_set_dump(void)
    printf("type_set: { ");
    if (top_type_set) {
       for (unsigned n = 0; n < top_type_set->n_members; n++)
-         printf("%s ", istr(type_ident(top_type_set->members[n])));
+         printf("%s ", sem_type_str(top_type_set->members[n]));
    }
    printf("}\n");
 }
@@ -463,7 +494,7 @@ static const char *type_set_fmt(void)
       for (unsigned n = 0; n < top_type_set->n_members; n++)
          static_printf("%s    %s",
                        (n == 0) ? "" : "\n",
-                       istr(type_ident(top_type_set->members[n])));
+                       sem_type_str(top_type_set->members[n]));
    }
    return buf;
 }
@@ -884,7 +915,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       if (type_kind(base) == T_UNRESOLVED) {
          tree_t base_decl = scope_find(type_ident(base));
          if (base_decl == NULL)
-            sem_error(t, "type %s is not defined", type_pp(base));
+            sem_error(t, "type %s is not defined", sem_type_str(base));
 
          base = tree_type(base_decl);
          type_set_base(type, base);
@@ -1150,7 +1181,7 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
 
          if (error)
             sem_error(error, "type of bound does not match type of index %s",
-                      type_pp(index_type));
+                      sem_type_str(index_type));
 
          tree_set_type(r.left, index_type);
          tree_set_type(r.right, index_type);
@@ -1207,7 +1238,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
       {
          tree_t type_decl = scope_find(type_ident(*ptype));
          if (type_decl == NULL)
-            sem_error(t, "type %s is not defined", type_pp(*ptype));
+            sem_error(t, "type %s is not defined", sem_type_str(*ptype));
 
          *ptype = tree_type(type_decl);
       }
@@ -1250,13 +1281,13 @@ static bool sem_check_resolution(type_t type)
 
    if (!type_eq(type_elem(param), type))
       sem_error(fdecl, "parameter of resolution function must be "
-                "array of %s", type_pp(type));
+                "array of %s", sem_type_str(type));
 
    // Return type must be the resolved type
 
    if (!type_eq(type_result(ftype), type))
       sem_error(fdecl, "result of resolution function must %s",
-                type_pp(type));
+                sem_type_str(type));
 
    tree_set_ref(ref, fdecl);
    return true;
@@ -1621,8 +1652,8 @@ static bool sem_check_decl(tree_t t)
 
       if (!type_eq(type, tree_type(value)))
          sem_error(value, "type of initial value %s does not match type "
-                   "of declaration %s", type_pp(tree_type(value)),
-                   type_pp(type));
+                   "of declaration %s", sem_type_str(tree_type(value)),
+                   sem_type_str(type));
    }
 
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
@@ -1663,8 +1694,8 @@ static bool sem_check_port_decl(tree_t t)
 
       if (!type_eq(type, tree_type(value)))
          sem_error(value, "type of default value %s does not match type "
-                   "of declaration %s", type_pp(tree_type(value)),
-                   type_pp(type));
+                   "of declaration %s", sem_type_str(tree_type(value)),
+                   sem_type_str(type));
    }
 
    sem_add_attributes(t);
@@ -2222,8 +2253,8 @@ static bool sem_check_var_assign(tree_t t)
 
    if (!type_eq(tree_type(target), tree_type(value)))
       sem_error(t, "type of value %s does not match type of target %s",
-                type_pp(tree_type(value)),
-                type_pp(tree_type(target)));
+                sem_type_str(tree_type(value)),
+                sem_type_str(tree_type(target)));
 
    return ok;
 }
@@ -2244,7 +2275,7 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
 
       if (!type_eq(expect, tree_type(value)))
          sem_error(t, "type of value %s does not match type of target %s",
-                   type_pp(tree_type(value)),
+                   sem_type_str(tree_type(value)),
                    istr(type_ident(expect)));
 
       if (tree_has_delay(waveform)) {
@@ -2253,7 +2284,7 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
             return false;
 
          if (!type_eq(tree_type(delay), std_time))
-            sem_error(delay, "type of delay must be %s", type_pp(std_time));
+            sem_error(delay, "type of delay must be %s", sem_type_str(std_time));
       }
    }
 
@@ -2733,7 +2764,7 @@ static bool sem_check_fcall(tree_t t)
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
             p += snprintf(p, end - p, "\n%s",
-                          type_pp(tree_type(overloads[n])));
+                          sem_type_str(tree_type(overloads[n])));
       }
 
       sem_error(t, "ambiguous %s %s%s",
@@ -2753,7 +2784,7 @@ static bool sem_check_fcall(tree_t t)
       for (unsigned i = 0; i < tree_params(t); i++)
          p += snprintf(p, end - p, "%s%s",
                        (i == 0 ? "" : ", "),
-                       istr(type_ident(tree_type(tree_param(t, i).value))));
+                       sem_type_str(tree_type(tree_param(t, i).value)));
       p += snprintf(p, end - p, ")");
 
       if (top_type_set != NULL && top_type_set->n_members > 0) {
@@ -2761,7 +2792,7 @@ static bool sem_check_fcall(tree_t t)
          for (int i = 0; i < top_type_set->n_members; i++)
             p += snprintf(p, end - p, "%s %s",
                           (i > 0 ? " |" : ""),
-                          type_pp(top_type_set->members[i]));
+                          sem_type_str(top_type_set->members[i]));
       }
 
       sem_error(t, (n == 1 ? "undefined %s %s"
@@ -2773,7 +2804,7 @@ static bool sem_check_fcall(tree_t t)
    sem_copy_default_args(t, decl);
 
 #if 0
-   printf("pick: %s\n", type_pp(tree_type(decl)));
+   printf("pick: %s\n", sem_type_str(tree_type(decl)));
    fmt_loc(stdout, tree_loc(t));
 #endif
 
@@ -2833,7 +2864,7 @@ static bool sem_check_pcall(tree_t t)
       for (int n = 0; (n < n_overloads) && (p < end); n++) {
          if (overloads[n] != NULL)
             p += snprintf(p, end - p, "\n    %s",
-                          type_pp(tree_type(overloads[n])));
+                          sem_type_str(tree_type(overloads[n])));
       }
 
       sem_error(t, "ambiguous call to procedure %s%s",
@@ -2876,7 +2907,7 @@ static bool sem_check_pcall(tree_t t)
    sem_copy_default_args(t, decl);
 
 #if 0
-   printf("pick: %s\n", type_pp(tree_type(decl)));
+   printf("pick: %s\n", sem_type_str(tree_type(decl)));
    fmt_loc(stdout, tree_loc(t));
 #endif
 
@@ -2934,18 +2965,18 @@ static bool sem_check_assert(tree_t t)
 
    if (!type_eq(tree_type(value), std_bool))
       sem_error(value, "type of assertion expression must "
-                "be %s but is %s", type_pp(std_bool),
-                type_pp(tree_type(value)));
+                "be %s but is %s", sem_type_str(std_bool),
+                sem_type_str(tree_type(value)));
 
    if (!type_eq(tree_type(severity), std_severity))
       sem_error(severity, "type of severity must be %s but is %s",
-                type_pp(std_severity),
-                type_pp(tree_type(severity)));
+                sem_type_str(std_severity),
+                sem_type_str(tree_type(severity)));
 
    if (!type_eq(tree_type(message), std_string))
       sem_error(message, "type of message be %s but is %s",
-                type_pp(std_string),
-                type_pp(tree_type(message)));
+                sem_type_str(std_string),
+                sem_type_str(tree_type(message)));
 
    return true;
 }
@@ -3350,8 +3381,8 @@ static bool sem_check_aggregate(tree_t t)
          if (!type_eq(elem_type, tree_type(a.value)))
             sem_error(a.value, "type of element %s does not match base "
                       "type of aggregate %s",
-                      type_pp(tree_type(a.value)),
-                      type_pp(elem_type));
+                      sem_type_str(tree_type(a.value)),
+                      sem_type_str(elem_type));
       }
    }
 
@@ -3387,7 +3418,7 @@ static bool sem_check_aggregate(tree_t t)
 
                if (f == nfields)
                   sem_error(a.name, "type %s does not have field named %s",
-                            type_pp(composite_type), istr(name_i));
+                            sem_type_str(composite_type), istr(name_i));
             }
             break;
 
@@ -3429,9 +3460,9 @@ static bool sem_check_aggregate(tree_t t)
             if (!type_eq(field_type, tree_type(a.value)))
                sem_error(a.value, "type of value %s does not match type "
                          "of field %s %s",
-                         type_pp(tree_type(a.value)),
+                         sem_type_str(tree_type(a.value)),
                          istr(tree_ident(field)),
-                         type_pp(field_type));
+                         sem_type_str(field_type));
 
             have[j] = true;
          }
@@ -3561,7 +3592,7 @@ static bool sem_check_record_ref(tree_t t)
    type_t value_type = tree_type(value);
    if (type_kind(value_type) != T_RECORD)
       sem_error(value, "expected record type but found %s",
-                type_pp(value_type));
+                sem_type_str(value_type));
 
    ident_t fname = tree_ident(t);
 
@@ -3575,7 +3606,7 @@ static bool sem_check_record_ref(tree_t t)
 
    if (field == NULL)
       sem_error(t, "record type %s has no field %s",
-                type_pp(value_type), istr(fname));
+                sem_type_str(value_type), istr(fname));
 
    tree_set_type(t, tree_type(field));
    return true;
@@ -3613,8 +3644,8 @@ static bool sem_check_array_ref(tree_t t)
       if (ok && !type_eq(expect, tree_type(p.value)))
          sem_error(p.value, "type of index %s does not match type of "
                    "array dimension %s",
-                   type_pp(tree_type(p.value)),
-                   type_pp(expect));
+                   sem_type_str(tree_type(p.value)),
+                   sem_type_str(expect));
    }
 
    tree_set_type(t, type_elem(type));
@@ -3702,7 +3733,7 @@ static bool sem_check_attr_ref(tree_t t)
 
          if (!type_eq(tree_type(p.value), expect_type))
             sem_error(t, "expected type %s for attribute %s",
-                      type_pp(expect_type), istr(tree_ident2(t)));
+                      sem_type_str(expect_type), istr(tree_ident2(t)));
       }
 
       tree_set_ref(t, a);
@@ -3825,8 +3856,8 @@ static bool sem_check_if(tree_t t)
 
    if (!type_eq(tree_type(value), std_bool))
       sem_error(value, "type of test must be %s but is %s",
-                type_pp(std_bool),
-                type_pp(tree_type(value)));
+                sem_type_str(std_bool),
+                sem_type_str(tree_type(value)));
 
    bool ok = true;
    for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -3935,7 +3966,7 @@ static bool sem_check_case(tree_t t)
          if (ok) {
             if (!type_eq(tree_type(a.name), type))
                sem_error(a.name, "case choice must have type %s",
-                         type_pp(type));
+                         sem_type_str(type));
             if (!sem_locally_static(a.name))
                sem_error(a.name, "case choice must be locally static");
          }
@@ -4011,7 +4042,7 @@ static bool sem_check_return(tree_t t)
          return false;
 
       if (!type_eq(tree_type(tree_value(t)), expect))
-         sem_error(t, "expected return type %s", type_pp(expect));
+         sem_error(t, "expected return type %s", sem_type_str(expect));
    }
 
    return true;
@@ -4027,8 +4058,8 @@ static bool sem_check_while(tree_t t)
 
    if (!type_eq(tree_type(value), std_bool))
       sem_error(value, "type of loop condition must be %s but is %s",
-                type_pp(std_bool),
-                type_pp(tree_type(value)));
+                sem_type_str(std_bool),
+                sem_type_str(tree_type(value)));
 
    bool ok = true;
    for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -4088,8 +4119,8 @@ static bool sem_check_exit(tree_t t)
       type_t std_bool = sem_std_type("BOOLEAN");
       if (!type_eq(tree_type(value), std_bool))
          sem_error(value, "type of exit condition must be %s but is %s",
-                   type_pp(std_bool),
-                   type_pp(tree_type(value)));
+                   sem_type_str(std_bool),
+                   sem_type_str(tree_type(value)));
    }
 
    return true;
@@ -4108,7 +4139,7 @@ static bool sem_check_select(tree_t t)
          if (!sem_check_constrained(a.name, value_type))
             return false;
          else if (!type_eq(tree_type(a.name), value_type))
-            sem_error(a.name, "choice must have type %s", type_pp(value_type));
+            sem_error(a.name, "choice must have type %s", sem_type_str(value_type));
          else if (!sem_locally_static(a.name))
             sem_error(a.name, "choice must be locally static");
       }
@@ -4153,7 +4184,7 @@ static bool sem_check_attr_spec(tree_t t)
       return false;
 
    if (!type_eq(type, tree_type(value)))
-      sem_error(t, "expected attribute type %s", type_pp(type));
+      sem_error(t, "expected attribute type %s", sem_type_str(type));
 
    tree_add_attr_tree(obj_decl, tree_ident(t), value);
 
@@ -4311,7 +4342,7 @@ static bool sem_check_all(tree_t t)
 
    if (type_kind(value_type) != T_ACCESS)
       sem_error(value, "expression type %s is not access",
-                type_pp(value_type));
+                sem_type_str(value_type));
 
    tree_set_type(t, type_access(value_type));
    return true;

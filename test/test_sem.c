@@ -494,8 +494,8 @@ START_TEST(test_array)
       { 39, "only a single others association allowed" },
       { 46, "type of initial value universal integer does not match" },
       { 55, "type of value universal integer does not match type of" },
-      { 57, "type of value WORK.P.INT_ARRAY does not match type" },
-      { 65, "for operator \"=\"(WORK.P.INT_ARRAY, WORK.P.TEN_INTS)" },
+      { 57, "type of value INT_ARRAY does not match type" },
+      { 65, "for operator \"=\"(INT_ARRAY, TEN_INTS)" },
       { 88, "array W has 2 dimensions but 1 indices given" },
       { 89, "array W has 2 dimensions but 3 indices given" },
       { 98, "type of index universal integer does not match type" },
@@ -538,9 +538,9 @@ START_TEST(test_assert)
    fail_unless(input_from_file(TESTDIR "/sem/assert.vhd"));
 
    const error_t expect[] = {
-      { 17, "type of assertion expression must be STD.STANDARD.BOOLEAN" },
-      { 22, "type of message be STD.STANDARD.STRING" },
-      { 27, "type of severity must be STD.STANDARD.SEVERITY_LEVEL" },
+      { 17, "type of assertion expression must be BOOLEAN" },
+      { 22, "type of message be STRING" },
+      { 27, "type of severity must be SEVERITY_LEVEL" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -636,20 +636,20 @@ START_TEST(test_seq)
    fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
 
    const error_t expect[] = {
-      {  15, "type of test must be STD.STANDARD.BOOLEAN" },
+      {  15, "type of test must be BOOLEAN" },
       {  19, "undefined identifier X" },
       {  25, "no suitable overload for identifier TRUE" },
       {  32, "undefined identifier X" },
       {  48, "return statement not allowed outside subprogram" },
       {  62, "return statement not allowed outside subprogram" },
-      {  64, "type of loop condition must be STD.STANDARD.BOOLEAN" },
+      {  64, "type of loop condition must be BOOLEAN" },
       {  79, "undefined identifier X" },
       { 106, "others choice must appear last" },
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
       { 136, "case choice must be locally static" },
       { 139, "missing choice C in case statement" },
-      { 152, "type of exit condition must be STD.STANDARD.BOOLEAN" },
+      { 152, "type of exit condition must be BOOLEAN" },
       { 167, "parameter must be a variable" },
       { -1, NULL }
    };
@@ -809,8 +809,8 @@ START_TEST(test_attr)
 
    const error_t expect[] = {
       { 23, "Z has no attribute FOO" },
-      { 34, "expected attribute type STD.STANDARD.INTEGER" },
-      { 35, "expected attribute type STD.STANDARD.STRING" },
+      { 34, "expected attribute type INTEGER" },
+      { 35, "expected attribute type STRING" },
       { 36, "undefined identifier Q" },
       { -1, NULL }
    };
@@ -881,8 +881,8 @@ START_TEST(test_record)
       { 35, "field Z does not have a value" },
       { 36, "does not match type of field Y" },
       { 38, "field Y does not have a value" },
-      { 39, "type WORK.P.R1 does not have field named Q" },
-      { 40, "type of value WORK.P.R1 does not match type of" },
+      { 39, "type R1 does not have field named Q" },
+      { 40, "type of value R1 does not match type of" },
       { 43, "field X already has a value" },
       { 44, "field X already has a value" },
       { -1, NULL }
@@ -953,8 +953,8 @@ START_TEST(test_access)
       { 26, "null expression must have access type" },
       { 30, "invalid allocator expression" },
       { 31, "I does not name a type" },
-      { 33, "does not match type of target WORK.P.INT_PTR" },
-      { 39, "type of value WORK.P.REC does not match type of" },
+      { 33, "does not match type of target INT_PTR" },
+      { 39, "type of value REC does not match type of" },
       { -1, NULL }
    };
    expect_errors(expect);

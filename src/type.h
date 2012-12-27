@@ -131,7 +131,9 @@ type_t type_read(type_rd_ctx_t ctx);
 void type_read_end(type_rd_ctx_t ctx);
 
 // Pretty printing
+typedef const char *(*minify_fn_t)(const char *);
 const char *type_pp(type_t t);
+const char *type_pp_minify(type_t t, minify_fn_t fn);
 
 // Predefined types
 type_t type_universal_int(void);

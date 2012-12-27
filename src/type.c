@@ -850,7 +850,7 @@ void type_read_end(type_rd_ctx_t ctx)
    free(ctx);
 }
 
-const char *type_pp(type_t t)
+const char *type_pp_minify(type_t t, minify_fn_t fn)
 {
    assert(t != NULL);
 
@@ -858,27 +858,38 @@ const char *type_pp(type_t t)
    case T_FUNC:
    case T_PROC:
       {
-         char *fn = get_fmt_buf(256);
-         static_printf_begin(fn, 256);
+         char *buf = get_fmt_buf(256);
+         static_printf_begin(buf, 256);
 
-         const char *fname = istr(type_ident(t));
+         const char *fname = (*fn)(istr(type_ident(t)));
 
          static_printf("%s(", fname);
-         for (unsigned i = 0; i < type_params(t); i++)
+         const int nparams = 0;
+         for (int i = 0; i < nparams; i++)
             static_printf("%s%s",
                           (i == 0 ? "" : ", "),
-                          istr(type_ident(type_param(t, i))));
+                          (*fn)(istr(type_ident(type_param(t, i)))));
          static_printf(")");
          if (type_kind(t) == T_FUNC)
             static_printf(" return %s",
-                          istr(type_ident(type_result(t))));
+                          (*fn)(istr(type_ident(type_result(t)))));
 
-         return fn;
+         return buf;
       }
 
    default:
-      return istr(type_ident(t));
+      return (*fn)(istr(type_ident(t)));
    }
+}
+
+static const char *type_minify_identity(const char *s)
+{
+   return s;
+}
+
+const char *type_pp(type_t t)
+{
+   return type_pp_minify(t, type_minify_identity);
 }
 
 void type_sweep(unsigned generation)
