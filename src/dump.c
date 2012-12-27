@@ -81,11 +81,8 @@ static void dump_expr(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_FCALL:
-      {
-         const char *name = istr(tree_ident(tree_ref(t)));
-         printf("%s", name);
-         dump_params(t);
-      }
+      printf("%s", istr(tree_ident(tree_ref(t))));
+      dump_params(t);
       break;
 
    case T_LITERAL:
@@ -95,10 +92,23 @@ static void dump_expr(tree_t t)
          case L_INT:
             printf("%"PRIi64, l.i);
             break;
+         case L_NULL:
+            printf("null");
+            break;
          default:
             assert(false);
          }
       }
+      break;
+
+   case T_NEW:
+      printf("new ");
+      dump_expr(tree_value(t));
+      break;
+
+   case T_ALL:
+      dump_expr(tree_value(t));
+      printf(".all");
       break;
 
    case T_AGGREGATE:
@@ -487,6 +497,11 @@ static void dump_stmt(tree_t t, int indent)
       printf("...\n");
       tab(indent);
       printf("end for");
+      break;
+
+   case T_PCALL:
+      printf("%s", istr(tree_ident(tree_ref(t))));
+      dump_params(t);
       break;
 
    default:

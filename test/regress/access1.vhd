@@ -30,6 +30,16 @@ architecture test of access1 is
         end if;
     end procedure;
 
+    procedure list_free(l : inout list_ptr) is
+        variable tmp : list_ptr;
+    begin
+        while l /= null loop
+            tmp := l.all.link;
+            deallocate(l);
+            l := tmp;
+        end loop;
+    end procedure;
+
     signal p1_done : boolean := false;
 
 begin
@@ -46,7 +56,7 @@ begin
         q.all := 6;
         assert p.all = 6;
         deallocate(p);
-        --assert p = null;
+        assert p = null;
         p1_done <= true;
         wait;
     end process;
@@ -61,7 +71,7 @@ begin
         end loop;
 
         list_print(l);
-        --list_free(l);
+        list_free(l);
 
         wait;
     end process;

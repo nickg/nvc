@@ -933,7 +933,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, cgen_ctx_t *ctx)
 
          // If this is a scalar out or inout parameter then we need
          // to pass a pointer rather than the value
-         if (builtin == NULL) {
+         if ((builtin == NULL) || (i < tree_ports(decl))) {
             tree_t port = tree_port(decl, i);
             port_mode_t mode = tree_port_mode(port);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
@@ -2474,9 +2474,9 @@ static void cgen_case(tree_t t, cgen_ctx_t *ctx)
 static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args)
 {
    if (icmp(builtin, "deallocate")) {
-      LLVMBuildFree(builder, args[0]);
-      // XXX: setting pointer to NULL broken until inout parameters work
-      //LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(args[0])), args[0]);
+      LLVMValueRef ptr = LLVMBuildLoad(builder, args[0], "");
+      LLVMBuildFree(builder, ptr);
+      LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(ptr)), args[0]);
    }
    else
       fatal("cannot generate code for builtin %s", istr(builtin));
