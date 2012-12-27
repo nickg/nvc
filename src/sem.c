@@ -1100,7 +1100,8 @@ static bool sem_check_context(tree_t t)
 static bool sem_check_constrained(tree_t t, type_t type)
 {
    type_set_push();
-   type_set_add(type);
+   if (type != NULL)
+      type_set_add(type);
    bool ok = sem_check(t);
    type_set_pop();
    return ok;
@@ -2172,6 +2173,7 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_ARRAY_REF:
    case T_ALIAS:
    case T_RECORD_REF:
+   case T_ALL:
       return sem_check_lvalue(tree_value(t));
    case T_VAR_DECL:
    case T_SIGNAL_DECL:
@@ -4218,6 +4220,58 @@ static bool sem_check_file_decl(tree_t t)
    return true;
 }
 
+static bool sem_check_new(tree_t t)
+{
+   // Rules for allocators are in LRM 93 section 7.3.6
+
+   tree_t value = tree_value(t);
+
+   if (!sem_check_constrained(value, NULL))
+      return false;
+
+   switch (tree_kind(value)) {
+   case T_REF:
+      {
+         tree_t decl = tree_ref(value);
+         if (tree_kind(decl) != T_TYPE_DECL)
+            sem_error(value, "%s does not name a type",
+                      istr(tree_ident(value)));
+      }
+      break;
+
+   case T_QUALIFIED:
+      break;
+
+   case T_ARRAY_SLICE:
+      sem_error(t, "sorry, this form of allocator expression is not "
+                "supported yet");
+
+   default:
+      sem_error(t, "invalid allocator expression");
+   }
+
+   type_t type = type_new(T_ACCESS);
+   type_set_access(type, tree_type(value));
+
+   tree_set_type(t, type);
+   return true;
+}
+
+static bool sem_check_all(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (!sem_check_constrained(value, NULL))
+      return false;
+
+   type_t value_type = tree_type(value);
+
+   if (type_kind(value_type) != T_ACCESS)
+      sem_error(value, "expression must have access type");
+
+   tree_set_type(t, type_access(value_type));
+   return true;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -4329,6 +4383,10 @@ bool sem_check(tree_t t)
       return sem_check_field_decl(t);
    case T_FILE_DECL:
       return sem_check_file_decl(t);
+   case T_NEW:
+      return sem_check_new(t);
+   case T_ALL:
+      return sem_check_all(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

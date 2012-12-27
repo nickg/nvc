@@ -247,38 +247,45 @@ bool type_eq(type_t a, type_t b)
    assert(a != NULL);
    assert(b != NULL);
 
-   assert(type_kind(a) != T_UNRESOLVED);
-   assert(type_kind(b) != T_UNRESOLVED);
+   type_kind_t kind_a = type_kind(a);
+   type_kind_t kind_b = type_kind(b);
+
+   if ((kind_a == T_UNRESOLVED) || (kind_b == T_UNRESOLVED))
+      return false;
 
    if (a == b)
       return true;
 
    // Subtypes are convertible to the base type
-   while (type_kind(a) == T_SUBTYPE)
+   while ((kind_a = type_kind(a)) == T_SUBTYPE)
       a = type_base(a);
-   while (type_kind(b) == T_SUBTYPE)
+   while ((kind_b = type_kind(b)) == T_SUBTYPE)
       b = type_base(b);
 
    const bool compare_c_u_arrays =
-      (type_kind(a) == T_CARRAY && type_kind(b) == T_UARRAY)
-      || (type_kind(a) == T_UARRAY && type_kind(b) == T_CARRAY);
+      (kind_a == T_CARRAY && kind_b == T_UARRAY)
+      || (kind_a == T_UARRAY && kind_b == T_CARRAY);
 
-   if ((type_kind(a) != type_kind(b)) && !compare_c_u_arrays)
+   if ((kind_a != kind_b) && !compare_c_u_arrays)
       return false;
 
    // Universal integer type is equal to any other integer type
    type_t universal_int = type_universal_int();
    ident_t uint_i = type_ident(universal_int);
-   if (type_kind(a) == T_INTEGER
+   if (kind_a == T_INTEGER
        && (type_ident(a) == uint_i || type_ident(b) == uint_i))
       return true;
 
    // Universal real type is equal to any other real type
    type_t universal_real = type_universal_real();
    ident_t ureal_i = type_ident(universal_real);
-   if (type_kind(a) == T_REAL
+   if (kind_a == T_REAL
        && (type_ident(a) == ureal_i || type_ident(b) == ureal_i))
       return true;
+
+   // Access types are equal if the pointed to type is the same
+   if (kind_a == T_ACCESS)
+      return type_eq(type_access(a), type_access(b));
 
    // XXX: this is not quite right as structurally equivalent types
    // may be declared in different scopes with the same name but
@@ -319,16 +326,27 @@ ident_t type_ident(type_t t)
 {
    assert(t != NULL);
 
-   if (t->ident == NULL && t->kind == T_SUBTYPE) {
+   if (t->ident == NULL) {
       char buf[128];
-      snprintf(buf, sizeof(buf), "anonymous subtype of %s",
-               istr(type_ident(type_base(t))));
+      switch (t->kind) {
+      case T_SUBTYPE:
+         snprintf(buf, sizeof(buf), "anonymous subtype of %s",
+                  istr(type_ident(type_base(t))));
+         break;
+
+      case T_ACCESS:
+         snprintf(buf, sizeof(buf), "access to %s",
+                  istr(type_ident(type_access(t))));
+         break;
+
+      default:
+         assert(false);
+      }
+
       return ident_new(buf);
    }
-   else {
-      assert(t->ident != NULL);
+   else
       return t->ident;
-   }
 }
 
 void type_set_ident(type_t t, ident_t id)

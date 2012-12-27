@@ -15,6 +15,13 @@ package body p is
         v := null;                      -- OK
         i := null;                      -- Error
         deallocate(v);                  -- OK
+        v := new integer;               -- OK
+        v := new integer'(5);           -- OK
+        v := new 5;                     -- Error
+        v := new i;                     -- Error
+        v.all := 5;                     -- OK
+        v := 5;                         -- Error
+        i := v.all + 5;                 -- OK
     end procedure;
 
 end package body;

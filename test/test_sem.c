@@ -951,6 +951,9 @@ START_TEST(test_access)
    const error_t expect[] = {
       {  5, "type FOO is not defined" },
       { 16, "NULL expression must have access type" },
+      { 20, "invalid allocator expression" },
+      { 21, "I does not name a type" },
+      { 23, "does not match type of target WORK.P.INT_PTR" },
       { -1, NULL }
    };
    expect_errors(expect);
