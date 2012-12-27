@@ -10,7 +10,12 @@ synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
 	$(ieee)/IEEE.STD_LOGIC_UNSIGNED $(ieee)/IEEE.STD_LOGIC_UNSIGNED-body \
 	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.bc
 
-lib = NVC_LIBPATH=../std
+# XXX: add -L argument and move $(nvc_verbose) to $(nvc)
+lib = $(nvc_verbose) NVC_LIBPATH=../std
+
+nvc_verbose = $(nvc_verbose_@AM_V@)
+nvc_verbose_ = $(nvc_verbose_@AM_DEFAULT_V@)
+nvc_verbose_0 = @echo "  NVC   " $@;
 
 bootstrap: $(synopsys_DATA)
 
