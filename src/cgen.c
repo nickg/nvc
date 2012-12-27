@@ -571,8 +571,6 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 {
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
-
    LLVMValueRef indexes[] = { llvm_int32(0), elem };
    return LLVMBuildGEP(builder, tree_attr_ptr(decl, sig_struct_i),
                        indexes, ARRAY_LEN(indexes), "");
@@ -1332,6 +1330,7 @@ static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, cgen_ctx_t *ctx)
 static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
+   bool needs_load = false;
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
@@ -1350,6 +1349,10 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       }
 
    case T_PORT_DECL:
+      needs_load = ((tree_port_mode(decl) == PORT_INOUT)
+                    && !type_is_array(tree_type(decl)));
+      // Fall-through
+
    case T_SIGNAL_DECL:
       if (cgen_get_class(decl) == C_SIGNAL) {
          type_t type = tree_type(decl);
@@ -1358,8 +1361,10 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
          else
             return cgen_scalar_signal_ref(decl, ctx);
       }
-      else
-         return cgen_get_var(decl, ctx);
+      else {
+         LLVMValueRef var = cgen_get_var(decl, ctx);
+         return needs_load ? LLVMBuildLoad(builder, var, "") : var;
+      }
 
    default:
       assert(false);
