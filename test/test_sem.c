@@ -906,6 +906,41 @@ START_TEST(test_record)
 }
 END_TEST
 
+START_TEST(test_file)
+{
+   tree_t p, d;
+   type_t t;
+
+   fail_unless(input_from_file(TESTDIR "/sem/file.vhd"));
+
+   const error_t expect[] = {
+      {  6, "files may not be of access type" },
+      {  8, "files may not be of file type" },
+      { 12, "file declarations must have file type" },
+      { 16, "open mode must have type FILE_OPEN_KIND" },
+      { 20, "file name must have type STRING" },
+      { 36, "no suitable overload for procedure FILE_READ" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -935,6 +970,7 @@ int main(void)
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_record);
+   tcase_add_test(tc_core, test_file);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

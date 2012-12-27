@@ -981,3 +981,8 @@ void type_visit_trees(type_t t, unsigned generation,
       }
    }
 }
+
+const char *type_kind_str(type_kind_t t)
+{
+   return kind_text_map[t];
+}

@@ -515,6 +515,34 @@ static tree_t sem_make_ref(tree_t to)
    return t;
 }
 
+static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
+{
+   tree_t port = tree_new(T_PORT_DECL);
+   tree_set_ident(port, ident_new("arg"));
+   tree_set_type(port, type);
+   tree_set_port_mode(port, mode);
+   if (def != NULL)
+      tree_set_value(port, def);
+
+   tree_add_port(d, port);
+
+   type_t ftype = tree_type(d);
+   type_add_param(ftype, type);
+}
+
+static tree_t sem_builtin_proc(ident_t name, const char *builtin, ...)
+{
+   type_t f = type_new(T_PROC);
+   type_set_ident(f, name);
+
+   tree_t d = tree_new(T_PROC_DECL);
+   tree_set_ident(d, name);
+   tree_set_type(d, f);
+   tree_add_attr_str(d, builtin_i, ident_new(builtin));
+
+   return d;
+}
+
 static tree_t sem_builtin_fn(ident_t name, type_t result,
                              const char *builtin, ...)
 {
@@ -527,21 +555,11 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
    tree_set_type(d, f);
    tree_add_attr_str(d, builtin_i, ident_new(builtin));
 
-   ident_t arg_name = ident_new("_a");
-
    va_list ap;
    va_start(ap, builtin);
    type_t arg;
-   while ((arg = va_arg(ap, type_t))) {
-      type_add_param(f, arg);
-
-      tree_t port = tree_new(T_PORT_DECL);
-      tree_set_ident(port, arg_name);
-      tree_set_type(port, arg);
-      tree_set_port_mode(port, PORT_IN);
-
-      tree_add_port(d, port);
-   }
+   while ((arg = va_arg(ap, type_t)))
+      sem_add_port(d, arg, PORT_IN, NULL);
    va_end(ap);
 
    return d;
@@ -593,8 +611,9 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    // Predefined operators
 
-   type_t std_bool = sem_std_type("BOOLEAN");
-   type_t std_int  = sem_std_type("INTEGER");
+   type_t std_bool   = sem_std_type("BOOLEAN");
+   type_t std_int    = sem_std_type("INTEGER");
+   type_t std_string = sem_std_type("STRING");
 
    type_kind_t kind = type_kind(t);
 
@@ -738,8 +757,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          }
 
          tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       sem_std_type("STRING"),
-                                       "image", t, NULL);
+                                       std_string, "image", t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
@@ -754,9 +772,57 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
 
          tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       sem_std_type("STRING"),
-                                       "image", t, NULL);
+                                       std_string, "image", t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
+      }
+      break;
+
+   case T_FILE:
+      {
+         tree_t read_mode = scope_find(ident_new("READ_MODE"));
+         assert(read_mode != NULL);
+
+         type_t of = type_file(t);
+
+         ident_t file_open_i  = ident_new("FILE_OPEN");
+         ident_t file_close_i = ident_new("FILE_CLOSE");
+         ident_t file_read_i  = ident_new("FILE_READ");
+         ident_t file_write_i = ident_new("FILE_WRITE");
+         ident_t endfile_i    = ident_new("ENDFILE");
+
+         type_t open_kind   = sem_std_type("FILE_OPEN_KIND");
+         type_t open_status = sem_std_type("FILE_OPEN_STATUS");
+
+         tree_t file_open1 = sem_builtin_proc(file_open_i, "file_open1");
+         sem_add_port(file_open1, t, PORT_INOUT, NULL);
+         sem_add_port(file_open1, std_string, PORT_IN, NULL);
+         sem_add_port(file_open1, open_kind,
+                      PORT_IN, sem_make_ref(read_mode));
+         scope_insert(file_open1);
+
+         tree_t file_open2 = sem_builtin_proc(file_open_i, "file_open2");
+         sem_add_port(file_open2, open_status, PORT_OUT, NULL);
+         sem_add_port(file_open2, t, PORT_INOUT, NULL);
+         sem_add_port(file_open2, std_string, PORT_IN, NULL);
+         sem_add_port(file_open2, open_kind,
+                      PORT_IN, sem_make_ref(read_mode));
+         scope_insert(file_open2);
+
+         tree_t file_close = sem_builtin_proc(file_close_i, "file_close");
+         sem_add_port(file_close, t, PORT_INOUT, NULL);
+         scope_insert(file_close);
+
+         tree_t file_read = sem_builtin_proc(file_read_i, "file_read");
+         sem_add_port(file_read, t, PORT_INOUT, NULL);
+         sem_add_port(file_read, of, PORT_OUT, NULL);
+         scope_insert(file_read);
+
+         tree_t file_write = sem_builtin_proc(file_write_i, "file_write");
+         sem_add_port(file_write, t, PORT_INOUT, NULL);
+         sem_add_port(file_write, of, PORT_IN, NULL);
+         scope_insert(file_write);
+
+         sem_declare_unary(endfile_i, t, std_bool, "endfile");
       }
       break;
 
@@ -834,6 +900,8 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             }
             break;
 
+         case T_RECORD:
+         case T_FILE:
          case T_UARRAY:
             sem_error(t, "sorry, this form of subtype is not supported");
 
@@ -1323,6 +1391,24 @@ static bool sem_check_type_decl(tree_t t)
             if (type_eq(type, tree_type(f)))
                sem_error(f, "recursive record types are not allowed");
          }
+
+         return true;
+      }
+
+   case T_FILE:
+      // Rules for file types are in LRM 93 section 3.4
+      {
+         type_t f = type_file(base);
+
+         if (!sem_check_type(t, &f))
+            return false;
+         type_set_file(base, f);
+
+         if (type_kind(f) == T_ACCESS)
+            sem_error(t, "files may not be of access type");
+
+         if (type_kind(f) == T_FILE)
+            sem_error(t, "files may not be of file type");
 
          return true;
       }
@@ -3384,6 +3470,7 @@ static bool sem_check_ref(tree_t t)
    case T_ENUM_LIT:
    case T_ALIAS:
    case T_TYPE_DECL:
+   case T_FILE_DECL:
       tree_set_type(t, tree_type(decl));
       break;
 
@@ -4055,6 +4142,40 @@ static bool sem_check_open(tree_t t)
       sem_error(t, "OPEN cannot be used here");
 }
 
+static bool sem_check_file_decl(tree_t t)
+{
+   // Rules for file declarations are in LRM 93 section 4.3.1.4
+
+   type_t type = tree_type(t);
+   if (!sem_check_type(t, &type))
+      return false;
+
+   tree_set_type(t, type);
+
+   if (type_kind(type) != T_FILE)
+      sem_error(t, "file declarations must have file type");
+
+   if (tree_has_value(t)) {
+      type_t string = sem_std_type("STRING");
+      tree_t value = tree_value(t);
+      if (!sem_check_constrained(value, string))
+         return false;
+
+      if (!type_eq(tree_type(value), string))
+         sem_error(value, "file name must have type STRING");
+
+      type_t open_kind = sem_std_type("FILE_OPEN_KIND");
+      tree_t mode = tree_file_mode(t);
+      if (!sem_check_constrained(mode, open_kind))
+         return false;
+
+      if (!type_eq(tree_type(mode), open_kind))
+         sem_error(mode, "open mode must have type FILE_OPEN_KIND");
+   }
+
+   return true;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -4164,6 +4285,8 @@ bool sem_check(tree_t t)
       return sem_check_open(t);
    case T_FIELD_DECL:
       return sem_check_field_decl(t);
+   case T_FILE_DECL:
+      return sem_check_file_decl(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
