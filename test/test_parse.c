@@ -1634,6 +1634,33 @@ START_TEST(test_generate)
 }
 END_TEST
 
+START_TEST(test_access)
+{
+   tree_t a, p, s;
+
+   fail_unless(input_from_file(TESTDIR "/parse/access.vhd"));
+
+   a = parse();
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 1);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 3);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(tree_target(s)) == T_ALL);
+
+   s = tree_stmt(p, 2);
+   fail_unless(tree_kind(tree_value(s)) == T_NEW);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1665,6 +1692,7 @@ int main(void)
    tcase_add_test(tc_core, test_block);
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_generate);
+   tcase_add_test(tc_core, test_access);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

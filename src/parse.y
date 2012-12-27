@@ -153,6 +153,7 @@
    unit_t       u;
    list_t       *g;
    class_t      c;
+   context_t    d;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -176,7 +177,8 @@
 %type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
 %type <p> entity_header generate_body
-%type <g> id_list context_item context_clause selected_id_list use_clause
+%type <g> id_list context_item context_clause use_clause
+%type <g> use_clause_item_list
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
 %type <y> physical_type_def enum_type_def array_type_def
@@ -190,6 +192,7 @@
 %type <b> element_assoc choice
 %type <g> param_list generic_map port_map selected_waveforms
 %type <c> object_class
+%type <d> use_clause_item
 
 %token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
 %token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
@@ -202,7 +205,7 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE tOPEN tREAL tUNTIL tRECORD
+%token tFILE tOPEN tREAL tUNTIL tRECORD tNEW
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
@@ -210,7 +213,7 @@
 %left tPLUS tMINUS tAMP
 %left tTIMES tOVER tMOD tREM
 %left tPOWER
-%nonassoc tABS tNOT
+%nonassoc tABS tNOT tNEW
 
 %error-verbose
 %expect 0
@@ -248,17 +251,38 @@ library_clause
 ;
 
 use_clause
-: tUSE selected_id_list tSEMI
+: tUSE use_clause_item_list tSEMI
   {
-     $$ = NULL;
-     for (list_t *it = $2; it != NULL; it = it->next) {
-        context_t c = {
-           .name = it->item.ident,
-           .loc  = @2
-        };
-        $$ = list_add($$, LISTVAL(c));
-     }
-     list_free($2);
+     $$ = $2;
+  }
+;
+
+use_clause_item_list
+: use_clause_item
+  {
+     $$ = list_add(NULL, LISTVAL($1));
+  }
+| use_clause_item tCOMMA use_clause_item_list
+  {
+     $$ = list_add($3, LISTVAL($1));
+  }
+;
+
+use_clause_item
+: id
+  {
+     $$.name = $1;
+     $$.loc  = @1;
+  }
+| id tALL
+  {
+     $$.name = ident_prefix($1, ident_new("all"), '.');
+     $$.loc  = @$;
+  }
+| id tDOT use_clause_item
+  {
+     $$.name = ident_prefix($1, $3.name, '.');
+     $$.loc  = @$;
   }
 ;
 
@@ -278,7 +302,6 @@ selected_id
      $$ = ident_prefix($1, $3, '.');
   }
 | id
-| tALL { $$ = ident_new("all"); }
 ;
 
 id_list
@@ -287,17 +310,6 @@ id_list
      $$ = list_add(NULL, LISTVAL($1));
   }
 | id tCOMMA id_list
-  {
-     $$ = list_add($3, LISTVAL($1));
-  }
-;
-
-selected_id_list
-: selected_id
-  {
-     $$ = list_add(NULL, LISTVAL($1));
-  }
-| selected_id tCOMMA selected_id_list
   {
      $$ = list_add($3, LISTVAL($1));
   }
@@ -1879,10 +1891,12 @@ expr
      tree_set_loc($$, &@$);
   }
 | aggregate
-/*
-  | type_conversion
-  | allocator
-*/
+| tNEW expr
+  {
+     $$ = tree_new(T_NEW);
+     tree_set_value($$, $2);
+     tree_set_loc($$, &@$);
+  }
 ;
 
 param_list
@@ -2117,10 +2131,12 @@ name
      tree_set_range($$, $3);
      tree_set_loc($$, &@$);
   }
-  /* | operator_symbol
-     | character_literal
-     | indexed_name
-     | external_name */
+| name tALL
+  {
+     $$ = tree_new(T_ALL);
+     tree_set_value($$, $1);
+     tree_set_loc($$, &@$);
+  }
 ;
 
 name_list

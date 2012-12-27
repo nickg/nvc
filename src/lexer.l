@@ -172,6 +172,7 @@ FILE          {F}{I}{L}{E}
 OPEN          {O}{P}{E}{N}
 UNTIL         {U}{N}{T}{I}{L}
 RECORD        {R}{E}{C}{O}{R}{D}
+NEW           {N}{E}{W}
 
 %%
 
@@ -196,7 +197,7 @@ RECORD        {R}{E}{C}{O}{R}{D}
 {NOR}           { TOKEN(tNOR); }
 {ABS}           { TOKEN(tABS); }
 {NOT}           { TOKEN(tNOT); }
-{ALL}           { TOKEN(tALL); }
+"."{ALL}        { TOKEN(tALL); }  // Dot here to resolve parser ambiguity
 {IN}            { TOKEN(tIN); }
 {OUT}           { TOKEN(tOUT); }
 {BUFFER}        { TOKEN(tBUFFER); }
@@ -258,6 +259,7 @@ RECORD        {R}{E}{C}{O}{R}{D}
 {OPEN}          { TOKEN(tOPEN); }
 {UNTIL}         { TOKEN(tUNTIL); }
 {RECORD}        { TOKEN(tRECORD); }
+{NEW}           { TOKEN(tNEW); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

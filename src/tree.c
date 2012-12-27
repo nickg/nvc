@@ -264,6 +264,12 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_RECORD_REF
    (I_IDENT | I_VALUE | I_TYPE),
+
+   // T_ALL
+   (I_VALUE),
+
+   // T_NEW
+   (I_VALUE | I_TYPE),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -295,7 +301,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_PCALL",        "T_CASE",          "T_BLOCK",      "T_COND",
    "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
-   "T_FIELD_DECL",   "T_RECORD_REF",
+   "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
 };
 
 static const char *item_text_map[] = {
@@ -363,7 +369,8 @@ typedef struct {
    (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF)                \
     || IS(t, T_QUALIFIED) || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF)  \
     || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) || IS(t, T_CONCAT)  \
-    || IS(t, T_TYPE_CONV) || IS(t, T_OPEN) | IS(t, T_RECORD_REF))
+    || IS(t, T_TYPE_CONV) || IS(t, T_OPEN) || IS(t, T_RECORD_REF)     \
+    || IS(t, T_ALL) || IS(t, T_NEW))
 #define IS_STMT(t)                                                    \
    (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
     || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \

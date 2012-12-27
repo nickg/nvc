@@ -12,7 +12,7 @@ begin
     begin
         z := x;
     end process;
-    
+
     process is
         variable y : my_int2;
     begin
@@ -25,7 +25,7 @@ begin
         variable yy  : my_int2_sub;
     begin
         yy := 6;                        -- OK
-        
+
         -- Should fail even though the range is the same
         yy := x;
     end process;
@@ -56,5 +56,5 @@ begin
         b := my_int2'right;
         b := my_int2'cake;              -- Error
     end process;
-    
+
 end architecture;
