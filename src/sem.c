@@ -1671,6 +1671,9 @@ static bool sem_check_decl(tree_t t)
          // Pointers to records can be dereferenced implicitly
          sem_declare_fields(deref_type, tree_ident(t));
       }
+
+      if (kind == T_SIGNAL_DECL)
+         sem_error(t, "signals may not have access type");
    }
 
    sem_add_attributes(t);

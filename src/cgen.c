@@ -252,6 +252,9 @@ static LLVMTypeRef llvm_type(type_t t)
          return LLVMStructType(llfields, nfields, false);
       }
 
+   case T_ACCESS:
+      return LLVMPointerType(llvm_type(type_access(t)), 0);
+
    default:
       assert(false);
    }
@@ -779,11 +782,14 @@ static LLVMValueRef cgen_pdecl(tree_t t)
 static LLVMValueRef cgen_literal(tree_t t)
 {
    literal_t l = tree_literal(t);
+   LLVMTypeRef lltype = llvm_type(tree_type(t));
    switch (l.kind) {
    case L_INT:
-      return LLVMConstInt(llvm_type(tree_type(t)), l.i, false);
+      return LLVMConstInt(lltype, l.i, false);
+   case L_NULL:
+      return LLVMConstNull(lltype);
    default:
-      abort();
+      assert(false);
    }
 }
 
@@ -1826,6 +1832,18 @@ static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)
    return LLVMBuildExtractValue(builder, rec, index, "rec");
 }
 
+static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
+{
+   LLVMTypeRef deref_type = llvm_type(type_access(tree_type(t)));
+   return LLVMBuildMalloc(builder, deref_type, "");
+}
+
+static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
+{
+   LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
+   return LLVMBuildLoad(builder, ptr, "all");
+}
+
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -1849,6 +1867,10 @@ static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
       return cgen_type_conv(t, ctx);
    case T_RECORD_REF:
       return cgen_record_ref(t, ctx);
+   case T_NEW:
+      return cgen_new(t, ctx);
+   case T_ALL:
+      return cgen_all(t, ctx);
    default:
       fatal("missing cgen_expr for %s", tree_kind_str(tree_kind(t)));
    }
@@ -1989,8 +2011,18 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          return LLVMBuildStructGEP(builder, rec, index, "");
       }
 
+   case T_ALL:
+      {
+         LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
+
+         LLVMValueRef indexes[] = {
+            llvm_int32(0)
+         };
+         return LLVMBuildGEP(builder, ptr, indexes, ARRAY_LEN(indexes), "all");
+      }
+
    default:
-      assert(false);
+      fatal("missing cgen_var_lvalue for %s", tree_kind_str(tree_kind(t)));
    }
 }
 
@@ -2438,6 +2470,19 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
    const bool in_function =
       (ctx->fdecl != NULL) && (tree_kind(ctx->fdecl) == T_FUNC_BODY);
 
+   ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
+   if (builtin != NULL) {
+      if (icmp(builtin, "deallocate")) {
+         LLVMBuildFree(builder, args[0]);
+         // XXX: setting pointer to NULL broken until inout parameters work
+         //LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(args[0])), args[0]);
+      }
+      else
+         fatal_at(tree_loc(t), "cannot generate code for builtin %s",
+                  istr(builtin));
+      return;
+   }
+
    if (tree_attr_int(decl, never_waits_i, 0) || in_function) {
       // Simple case where the called procedure never waits so we can ignore
       // the return value
@@ -2541,8 +2586,13 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
    if ((kind != T_WAIT) && (kind != T_PCALL))
       return;
 
-   if ((kind == T_PCALL) && tree_attr_int(tree_ref(t), never_waits_i, 0))
-      return;
+   if (kind == T_PCALL) {
+      tree_t decl = tree_ref(t);
+      if (tree_attr_int(decl, never_waits_i, 0))
+         return;
+      else if (tree_attr_str(decl, ident_new("builtin")))
+         return;
+   }
 
    cgen_ctx_t *ctx = arg;
 

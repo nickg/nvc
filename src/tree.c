@@ -1420,6 +1420,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             case L_INT:
                write_i64(l->i, ctx->file);
                break;
+            case L_NULL:
+               break;
             default:
                assert(false);
             }
@@ -1534,6 +1536,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             case L_INT:
             case L_REAL:
                l->i = read_i64(ctx->file);
+               break;
+            case L_NULL:
                break;
             default:
                assert(false);
