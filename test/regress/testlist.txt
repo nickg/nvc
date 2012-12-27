@@ -77,4 +77,4 @@ driver2         normal
 delay1          normal
 record1         normal
 proc3           normal
-access1         normal
+access1         normal,gold

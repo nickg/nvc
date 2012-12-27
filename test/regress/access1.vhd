@@ -22,13 +22,13 @@ architecture test of access1 is
         return n;
     end function;
 
-    --procedure list_print(l : in list_ptr) is
-    --begin
-    --    if l /= null then
-    --        report integer'image(l.all.value);
-    --        list_print(l.all.link);
-    --    end if;
-    --end procedure;
+    procedure list_print(l : in list_ptr) is
+    begin
+        if l /= null then
+            report integer'image(l.all.value);
+            list_print(l.all.link);
+        end if;
+    end procedure;
 
     signal p1_done : boolean := false;
 
@@ -60,13 +60,7 @@ begin
             l := list_add(l, i);
         end loop;
 
-        --p := l;
-        --while p /= null loop
-        --    --report integer'image(p.value);
-        --    p := p.link;
-        --end loop;
-
-        --list_print(l);
+        list_print(l);
         --list_free(l);
 
         wait;

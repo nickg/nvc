@@ -2466,38 +2466,44 @@ static void cgen_case(tree_t t, cgen_ctx_t *ctx)
       cgen_case_scalar(t, ctx);
 }
 
+static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args)
+{
+   if (icmp(builtin, "deallocate")) {
+      LLVMBuildFree(builder, args[0]);
+      // XXX: setting pointer to NULL broken until inout parameters work
+      //LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(args[0])), args[0]);
+   }
+   else
+      fatal("cannot generate code for builtin %s", istr(builtin));
+}
+
 static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
 
-   const int nparams = tree_params(t);
-   LLVMValueRef args[nparams + 1];
-   cgen_call_args(t, args, ctx);
-
-   // Final parameter to a procedure is its dynamic context
-   args[nparams] = NULL;
-
    const bool in_function =
       (ctx->fdecl != NULL) && (tree_kind(ctx->fdecl) == T_FUNC_BODY);
 
-   ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
-   if (builtin != NULL) {
-      if (icmp(builtin, "deallocate")) {
-         LLVMBuildFree(builder, args[0]);
-         // XXX: setting pointer to NULL broken until inout parameters work
-         //LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(args[0])), args[0]);
-      }
-      else
-         fatal_at(tree_loc(t), "cannot generate code for builtin %s",
-                  istr(builtin));
-      return;
-   }
+   const int nparams = tree_params(t);
 
-   if (tree_attr_int(decl, never_waits_i, 0) || in_function) {
+   ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
+
+   if (tree_attr_int(decl, never_waits_i, 0) || in_function || builtin) {
       // Simple case where the called procedure never waits so we can ignore
       // the return value
+
+      LLVMValueRef args[nparams + 1];
+      cgen_call_args(t, args, ctx);
+
+      // Final parameter to a procedure is its dynamic context
       args[nparams] = LLVMConstNull(llvm_void_ptr());
-      LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+
+      if (builtin != NULL)
+         cgen_builtin_pcall(builtin, args);
+      else {
+         // Regular procedure call
+         LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+      }
    }
    else {
       // Find the basic block to jump to when the procedure resumes
@@ -2515,7 +2521,10 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
       LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
 
+      LLVMValueRef args[nparams + 1];
+      cgen_call_args(t, args, ctx);
       args[nparams] = LLVMBuildLoad(builder, context_ptr, "context");
+
       LLVMValueRef ret =
          LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
 
