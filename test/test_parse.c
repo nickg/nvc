@@ -689,7 +689,7 @@ START_TEST(test_literal)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 12);
+   fail_unless(tree_decls(a) == 13);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("POS"));
@@ -785,6 +785,13 @@ START_TEST(test_literal)
    l = tree_literal(v);
    fail_unless(l.kind == L_REAL);
    fail_unless(l.r == 567.123);
+
+   d = tree_decl(a, 12);
+   fail_unless(tree_ident(d) == ident_new("K"));
+   v = tree_value(d);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   l = tree_literal(v);
+   fail_unless(l.kind == L_NULL);
 
    a = parse();
    fail_unless(a == NULL);

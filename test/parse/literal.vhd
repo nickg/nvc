@@ -11,6 +11,7 @@ architecture a of e is
     constant h : real := 235.1e-2;
     constant i : integer := 1_2_3_4;
     constant j : real := 5_6_7.12_3;
+    constant k : ptr := null;
 begin
 
 end architecture;

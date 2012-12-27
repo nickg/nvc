@@ -941,6 +941,37 @@ START_TEST(test_file)
 }
 END_TEST
 
+START_TEST(test_access)
+{
+   tree_t p, d;
+   type_t t;
+
+   fail_unless(input_from_file(TESTDIR "/sem/access.vhd"));
+
+   const error_t expect[] = {
+      {  5, "type FOO is not defined" },
+      { 16, "NULL expression must have access type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -971,6 +1002,7 @@ int main(void)
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_record);
    tcase_add_test(tc_core, test_file);
+   tcase_add_test(tc_core, test_access);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

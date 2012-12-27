@@ -163,6 +163,7 @@
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
+%type <t> null_literal
 %type <i> id opt_id selected_id func_name
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -242,7 +243,6 @@ context_item : library_clause { $$ = NULL; } | use_clause ;
 library_clause
 : tLIBRARY id_list tSEMI
   {
-     // TODO: foreach(id_list) { load_library(..); }
      list_free($2);
   }
 ;
@@ -1492,7 +1492,6 @@ waveform_element
      tree_set_value($$, $1);
      tree_set_delay($$, $3);
   }
-| tNULL { $$ = NULL; }
 ;
 
 condition_clause
@@ -1980,8 +1979,17 @@ literal
 : numeric_literal
 | string_literal
 | bit_string_literal
-/*   | null
- */
+| null_literal
+;
+
+null_literal
+: tNULL
+  {
+     $$ = tree_new(T_LITERAL);
+     tree_set_loc($$, &@$);
+     literal_t l = { .kind = L_NULL };
+     tree_set_literal($$, l);
+  }
 ;
 
 string_literal

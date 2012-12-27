@@ -826,6 +826,16 @@ static void sem_declare_predefined_ops(tree_t decl)
       }
       break;
 
+   case T_ACCESS:
+      {
+         ident_t deallocate_i = ident_new("DEALLOCATE");
+
+         tree_t deallocate = sem_builtin_proc(deallocate_i, "deallocate");
+         sem_add_port(deallocate, t, PORT_INOUT, NULL);
+         scope_insert(deallocate);
+      }
+      break;
+
    default:
       break;
    }
@@ -1413,6 +1423,18 @@ static bool sem_check_type_decl(tree_t t)
          return true;
       }
 
+   case T_ACCESS:
+      // Rules for access types are in LRM 93 section 3.3
+      {
+         type_t a = type_access(base);
+
+         if (!sem_check_type(t, &a))
+            return false;
+         type_set_access(base, a);
+
+         return true;
+      }
+
    default:
       return true;
    }
@@ -1549,6 +1571,15 @@ static tree_t sem_default_value(type_t type)
             tree_add_assoc(def, a);
          }
          return def;
+      }
+
+   case T_ACCESS:
+      {
+         tree_t null = tree_new(T_LITERAL);
+         literal_t l = { .kind = L_NULL };
+         tree_set_literal(null, l);
+         tree_set_type(null, type);
+         return null;
       }
 
    default:
@@ -3146,9 +3177,24 @@ static bool sem_check_literal(tree_t t)
    case L_INT:
       tree_set_type(t, type_universal_int());
       break;
+
    case L_REAL:
       tree_set_type(t, type_universal_real());
       break;
+
+   case L_NULL:
+      {
+         type_t access_type;
+         if (!type_set_uniq(&access_type))
+            sem_error(t, "invalid use of NULL expression");
+
+         if (type_kind(access_type) != T_ACCESS)
+            sem_error(t, "NULL expression must have access type");
+
+         tree_set_type(t, access_type);
+      }
+      break;
+
    default:
       assert(false);
    }

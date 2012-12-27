@@ -110,7 +110,7 @@ typedef struct literal {
       int64_t i;
       double  r;
    };
-   enum { L_INT, L_REAL } kind;
+   enum { L_INT, L_REAL, L_NULL } kind;
 } literal_t;
 
 typedef struct assoc {
