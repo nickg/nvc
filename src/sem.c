@@ -1635,6 +1635,13 @@ static bool sem_check_decl(tree_t t)
 
       sem_declare_fields(type, tree_ident(t));
    }
+   else if (type_kind(type) == T_ACCESS) {
+      type_t deref_type = type_access(type);
+      if (type_kind(deref_type) == T_RECORD) {
+         // Pointers to records can be dereferenced implicitly
+         sem_declare_fields(deref_type, tree_ident(t));
+      }
+   }
 
    sem_add_attributes(t);
 
@@ -3184,10 +3191,10 @@ static bool sem_check_literal(tree_t t)
       {
          type_t access_type;
          if (!type_set_uniq(&access_type))
-            sem_error(t, "invalid use of NULL expression");
+            sem_error(t, "invalid use of null expression");
 
          if (type_kind(access_type) != T_ACCESS)
-            sem_error(t, "NULL expression must have access type");
+            sem_error(t, "null expression must have access type");
 
          tree_set_type(t, access_type);
       }
@@ -3464,16 +3471,26 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    ident_t base = ident_runtil(tree_ident(t), '.');
    tree_t rec = scope_find(base);
    assert(rec != NULL);
-   assert(type_kind(tree_type(rec)) == T_RECORD);
 
-   tree_t value;
+   tree_t value = NULL;
+
+   type_kind_t kind = type_kind(tree_type(rec));
+   if (kind == T_ACCESS) {
+      // Record fields can be dereferenced implicitly
+      value = tree_new(T_ALL);
+      tree_set_value(value, sem_make_ref(rec));
+      tree_set_type(value, type_access(tree_type(rec)));
+   }
+   else
+      assert(kind == T_RECORD);
+
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);
       tree_set_loc(value, tree_loc(t));
       tree_set_ident(value, base);
       sem_convert_to_record_ref(value, rec);
    }
-   else
+   else if (value == NULL)
       value = sem_make_ref(rec);
 
    tree_change_kind(t, T_RECORD_REF);
@@ -3534,6 +3551,35 @@ static bool sem_check_ref(tree_t t)
 
    tree_set_ref(t, decl);
 
+   return true;
+}
+
+static bool sem_check_record_ref(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (!sem_check_constrained(value, NULL))
+      return false;
+
+   type_t value_type = tree_type(value);
+   if (type_kind(value_type) != T_RECORD)
+      sem_error(value, "expected record type but found %s",
+                type_pp(value_type));
+
+   ident_t fname = tree_ident(t);
+
+   const int nfields = type_fields(value_type);
+   tree_t field = NULL;
+   for (int i = 0; i < nfields; i++) {
+      field = type_field(value_type, i);
+      if (tree_ident(field) == fname)
+         break;
+   }
+
+   if (field == NULL)
+      sem_error(t, "record type %s has no field %s",
+                type_pp(value_type), istr(fname));
+
+   tree_set_type(t, tree_type(field));
    return true;
 }
 
@@ -4266,7 +4312,8 @@ static bool sem_check_all(tree_t t)
    type_t value_type = tree_type(value);
 
    if (type_kind(value_type) != T_ACCESS)
-      sem_error(value, "expression must have access type");
+      sem_error(value, "expression type %s is not access",
+                type_pp(value_type));
 
    tree_set_type(t, type_access(value_type));
    return true;
@@ -4387,6 +4434,8 @@ bool sem_check(tree_t t)
       return sem_check_new(t);
    case T_ALL:
       return sem_check_all(t);
+   case T_RECORD_REF:
+      return sem_check_record_ref(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

@@ -2137,6 +2137,17 @@ name
      tree_set_value($$, $1);
      tree_set_loc($$, &@$);
   }
+| name tALL tDOT selected_id
+  {
+     tree_t all = tree_new(T_ALL);
+     tree_set_value(all, $1);
+     tree_set_loc(all, &@$);
+
+     $$ = tree_new(T_RECORD_REF);
+     tree_set_value($$, all);
+     tree_set_ident($$, $4);
+     tree_set_loc($$, &@$);
+  }
 ;
 
 name_list
