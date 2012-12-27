@@ -858,8 +858,8 @@ const char *type_pp(type_t t)
    case T_FUNC:
    case T_PROC:
       {
-         static char fn[256];
-         static_printf_begin(fn, sizeof(fn));
+         char *fn = get_fmt_buf(256);
+         static_printf_begin(fn, 256);
 
          const char *fname = istr(type_ident(t));
 
