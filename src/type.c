@@ -105,7 +105,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 };
 
 #define ITEM_TYPE_ARRAY  (I_PARAMS | I_INDEX_CONSTR)
-#define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT)
+#define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT | I_FILE)
 #define ITEM_TREE        (I_RESOLUTION)
 #define ITEM_UNIT_ARRAY  (I_UNITS)
 #define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS)
@@ -213,7 +213,7 @@ static void item_without_type(imask_t mask)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));
-   fatal("tree item %s does not have a type", item_text_map[item]);
+   fatal("type item %s does not have a type", item_text_map[item]);
 }
 
 type_t type_new(type_kind_t kind)
