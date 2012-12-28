@@ -1562,7 +1562,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
    type_t type = tree_type(value);
 
    LLVMValueRef idx = llvm_int32(0);
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
       assert(p.kind == P_POS);
       LLVMValueRef offset = cgen_expr(p.value, ctx);
@@ -1658,7 +1659,8 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
    type_t type = tree_type(t);
 
    *n_elems = 1;
-   for (unsigned i = dim; i < type_dims(type); i++) {
+   const int ndims = type_dims(type);
+   for (int i = dim; i < ndims; i++) {
       range_t r = type_dim(type, i);
 
       int64_t low, high;
@@ -1678,7 +1680,8 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
    for (unsigned i = 0; i < *n_elems; i++)
       vals[i] = NULL;
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
 
       LLVMValueRef *sub;
@@ -1766,7 +1769,8 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef len = cgen_array_len(type, a);
 
    LLVMValueRef def = NULL;
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
       if (a.kind == A_OTHERS) {
          def = cgen_expr(a.value, ctx);
@@ -1790,7 +1794,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
    LLVMValueRef what = def;
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
       switch (a.kind) {
       case A_POS:
