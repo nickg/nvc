@@ -27,12 +27,12 @@ architecture rtl of proc4 is
         x <= x + 1;
     end procedure;
 
-    --procedure test5(signal x : inout bit_vector) is
-    --begin
+    procedure test5(signal x : inout bit_vector) is
+    begin
         --for i in x'range loop
             --x(i) <= not x(i);
         --end loop;
-    --end procedure;
+    end procedure;
 
     signal s : integer;
     signal k : bit_vector(1 downto 0);

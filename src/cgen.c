@@ -710,18 +710,23 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
+      type_t type = tree_type(p);
+
+      port_mode_t mode = tree_port_mode(p);
+      const bool array = type_is_array(type);
+
       switch (tree_class(p)) {
       case C_SIGNAL:
-         args[i] = LLVMPointerType(cgen_signal_type(tree_type(t)), 0);
+         {
+            LLVMTypeRef base_type = cgen_signal_type(type);
+            args[i] = array ? base_type : LLVMPointerType(base_type, 0);
+         }
          break;
 
       case C_VARIABLE:
       case C_DEFAULT:
       case C_CONSTANT:
          {
-            type_t type = tree_type(p);
-            port_mode_t mode = tree_port_mode(p);
-            bool array = type_is_array(type);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !array);
             if (need_ptr)
@@ -2934,14 +2939,19 @@ static void cgen_array_signal_load_fn(type_t elem_type)
 static LLVMTypeRef cgen_signal_type(type_t type)
 {
    if (type_is_array(type)) {
-      range_t r = type_dim(type, 0);
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-
-      const unsigned n_elems = high - low + 1;
-
       LLVMTypeRef base_type = cgen_signal_type(type_elem(type));
-      return LLVMArrayType(base_type, n_elems);
+
+      if (type_kind(type) == T_UARRAY)
+         return llvm_uarray_type(base_type);
+      else {
+         range_t r = type_dim(type, 0);
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+
+         const unsigned n_elems = high - low + 1;
+
+         return LLVMArrayType(base_type, n_elems);
+      }
    }
    else {
       LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
