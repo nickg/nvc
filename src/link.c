@@ -204,7 +204,7 @@ void link_bc(tree_t top)
       link_args_begin();
 
       link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
-      link_arg_f("-std-compile-opts");
+      link_arg_f("-O2");
       link_arg_f("-o");
       link_output(top, "bc");
       link_arg_f("%s", tmp);
