@@ -27,11 +27,12 @@ architecture rtl of proc4 is
         x <= x + 1;
     end procedure;
 
-    procedure test5(signal x : inout bit_vector) is
+    procedure test5(signal x : inout bit_vector; l : out integer) is
     begin
-        --for i in x'range loop
+        l := x'length;
+        for i in x'range loop
             --x(i) <= not x(i);
-        --end loop;
+        end loop;
     end procedure;
 
     signal s : integer;
@@ -56,6 +57,8 @@ begin
         test4(s);
         wait for 1 ns;
         assert s = 6;
+        test5(k, v);
+        assert v = 2;
         wait;
     end process;
 

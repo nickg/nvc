@@ -115,7 +115,8 @@ static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
 static LLVMValueRef llvm_fn(const char *name)
 {
    LLVMValueRef fn = LLVMGetNamedFunction(module, name);
-   assert(fn != NULL);
+   if (fn == NULL)
+      fatal("cannot find named function %s", name);
    return fn;
 }
 
@@ -349,7 +350,12 @@ static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef left, LLVMValueRef right,
                                     LLVMValueRef kind, LLVMValueRef ptr)
 {
-   LLVMTypeRef base = llvm_type(type_elem(type));
+   LLVMTypeRef base;
+   if (type == NULL)   // NULL means generic signal type
+      base = cgen_signal_type(NULL);
+   else
+      base = llvm_type(type_elem(type));
+
    LLVMValueRef var = LLVMGetUndef(llvm_uarray_type(base));
    var = LLVMBuildInsertValue(builder, var, ptr, 0, "");
    var = LLVMBuildInsertValue(builder, var, left, 1, "");
@@ -417,8 +423,8 @@ static LLVMValueRef cgen_array_len(type_t type, LLVMValueRef data)
       return llvm_int32(n_elems);
    }
    else {
-      // Argument must be a structure where the first two fields are the
-      // left and right indices
+      // Argument must be a structure where the second and third fields
+      // are the left and right indices
       LLVMValueRef downto = LLVMBuildICmp(
          builder, LLVMIntEQ,
          LLVMBuildExtractValue(builder, data, 3, "dir"),
@@ -457,10 +463,8 @@ static LLVMValueRef cgen_array_elem_size(type_t type)
    return llvm_sizeof(llvm_type(type));
 }
 
-static LLVMValueRef cgen_tmp_var(tree_t d, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
 {
-   type_t type = tree_type(d);
-
    // Handle case where array size is not known until run time
    if (type_is_array(type) && !cgen_const_bounds(type)) {
       // Allocate the array for the process temporary heap and
@@ -485,8 +489,8 @@ static LLVMValueRef cgen_tmp_var(tree_t d, cgen_ctx_t *ctx)
          LLVMBuildICmp(builder, LLVMIntEQ,
                        kind_ll, llvm_int8(RANGE_DOWNTO), "downto");
 
-      LLVMValueRef left   = cgen_expr(r.left, ctx);
-      LLVMValueRef right  = cgen_expr(r.right, ctx);
+      LLVMValueRef left  = cgen_expr(r.left, ctx);
+      LLVMValueRef right = cgen_expr(r.right, ctx);
 
       LLVMValueRef diff =
          LLVMBuildSelect(builder, downto,
@@ -507,8 +511,6 @@ static LLVMValueRef cgen_tmp_var(tree_t d, cgen_ctx_t *ctx)
       return cgen_array_meta(type, left, right, kind_ll, ptr);
    }
    else {
-      const char *name =
-         (tree_kind(d) == T_VAR_DECL ? istr(tree_ident(d)) : "");
       LLVMValueRef var = LLVMBuildAlloca(builder, llvm_type(type), name);
 
       if (type_is_array(type)) {
@@ -690,11 +692,11 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
 
 static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
 {
-   LLVMValueRef var = cgen_tmp_var(d, ctx);
+   type_t type = tree_type(d);
+   LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), ctx);
 
    if (tree_has_value(d)) {
-      if (type_is_array(tree_type(d))) {
-         type_t type = tree_type(d);
+      if (type_is_array(type)) {
          LLVMValueRef init = cgen_expr(tree_value(d), ctx);
          cgen_array_copy(type, type, init, var, NULL, ctx);
       }
@@ -806,39 +808,170 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
+static LLVMValueRef cgen_array_signal_load_fn(type_t elem_type)
+{
+   // Build a function to load the array into a temporary
+
+   while (type_is_array(elem_type))
+      elem_type = type_elem(elem_type);
+
+   int width = bit_width(elem_type);
+
+   char name[256];
+   snprintf(name, sizeof(name), "vec_load.i%d", width);
+
+   LLVMValueRef fn;
+   if ((fn = LLVMGetNamedFunction(module, name)))
+      return fn;
+
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
+
+   LLVMTypeRef args[] = {
+      LLVMPointerType(cgen_signal_type(elem_type), 0),
+      LLVMPointerType(llvm_type(elem_type), 0),
+      LLVMInt32Type(),    // Left
+      LLVMInt32Type(),    // Right
+      LLVMInt1Type()      // Last value
+   };
+   fn = LLVMAddFunction(module, name,
+                        LLVMFunctionType(LLVMVoidType(),
+                                         args, ARRAY_LEN(args), false));
+   LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
+   LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(fn, "body");
+   LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(fn, "merge");
+   LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(fn, "exit");
+
+   LLVMBasicBlockRef norm_bb  = LLVMAppendBasicBlock(fn, "normal");
+   LLVMBasicBlockRef last_bb  = LLVMAppendBasicBlock(fn, "last");
+
+   // Prelude
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
+   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
+                                   LLVMGetParam(fn, 3),
+                                   i_loaded, "ge");
+   LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
+
+   // Loop body
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef index[] = { i_loaded };
+   LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
+                                      index, ARRAY_LEN(index),
+                                      "signal");
+
+   // Select either the current or last value
+
+   LLVMBuildCondBr(builder, LLVMGetParam(fn, 4), last_bb, norm_bb);
+
+   LLVMPositionBuilderAtEnd(builder, last_bb);
+   LLVMValueRef ptr_last =
+      LLVMBuildStructGEP(builder, signal, SIGNAL_LAST_VALUE, "last_value");
+   LLVMBuildBr(builder, merge_bb);
+
+   LLVMPositionBuilderAtEnd(builder, norm_bb);
+   LLVMValueRef ptr_resolved =
+      LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "resolved");
+   LLVMBuildBr(builder, merge_bb);
+
+   LLVMPositionBuilderAtEnd(builder, merge_bb);
+   LLVMValueRef phi = LLVMBuildPhi(builder, LLVMTypeOf(ptr_last), "ptr");
+
+   LLVMValueRef      values[] = { ptr_last, ptr_resolved };
+   LLVMBasicBlockRef bbs[]    = { last_bb,  norm_bb      };
+   LLVMAddIncoming(phi, values, bbs, 2);
+
+   LLVMValueRef deref = LLVMBuildLoad(builder, phi, "deref");
+   LLVMValueRef val = LLVMBuildIntCast(builder, deref,
+                                       llvm_type(elem_type), "val");
+   LLVMValueRef dst_index[] = {
+      LLVMBuildSub(builder, i_loaded, LLVMGetParam(fn, 2), "")
+   };
+   LLVMValueRef dst = LLVMBuildGEP(builder, LLVMGetParam(fn, 1),
+                                   dst_index, ARRAY_LEN(dst_index),
+                                   "dst");
+   LLVMBuildStore(builder, val, dst);
+
+   LLVMValueRef inc =
+      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+   LLVMBuildStore(builder, inc, i);
+   LLVMBuildBr(builder, test_bb);
+
+   // Epilogue
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+   LLVMBuildRetVoid(builder);
+
+   LLVMPositionBuilderAtEnd(builder, saved_bb);
+   return fn;
+}
+
 static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
                                   type_t slice_type, bool last_value,
                                   cgen_ctx_t *ctx)
 {
    // Copy the resolved signal into a temporary array
 
-   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(slice_type),
-                                      "vec_load_tmp");
+   const bool src_uarray = !cgen_const_bounds(type);
+   const bool dst_uarray = !cgen_const_bounds(slice_type);
 
-   char name[256];
-   snprintf(name, sizeof(name), "vec_load.i%d", bit_width(type_elem(type)));
+   LLVMValueRef fn = cgen_array_signal_load_fn(type_elem(type));
 
-   range_t r = type_dim(slice_type, 0);
+   LLVMValueRef left  = cgen_array_left(slice_type, signal);
+   LLVMValueRef right = cgen_array_right(slice_type, signal);
+   LLVMValueRef dir   = cgen_array_dir(slice_type, signal);
 
-   LLVMValueRef left_off =
-      cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
-   LLVMValueRef right_off =
-      cgen_expr(r.kind == RANGE_TO ? r.right : r.left, ctx);
+   LLVMValueRef dir_to =
+      LLVMBuildICmp(builder, LLVMIntEQ, dir, llvm_int8(RANGE_TO), "to");
 
-   LLVMValueRef left_abs = cgen_array_off(left_off, NULL, type, ctx, 0);
-   LLVMValueRef right_abs = cgen_array_off(right_off, NULL, type, ctx, 0);
+   LLVMValueRef low  = LLVMBuildSelect(builder, dir_to, left, right, "");
+   LLVMValueRef high = LLVMBuildSelect(builder, dir_to, right, left, "");
+
+   LLVMValueRef low_abs  = cgen_array_off(low, signal, type, ctx, 0);
+   LLVMValueRef high_abs = cgen_array_off(high, signal, type, ctx, 0);
+
+   LLVMValueRef tmp;
+   if (dst_uarray) {
+      LLVMValueRef length =
+         LLVMBuildAdd(builder,
+                      LLVMBuildSub(builder, high, low, ""),
+                      llvm_int32(1),
+                      "length");
+      tmp = LLVMBuildArrayAlloca(builder, llvm_type(type_elem(type)),
+                                 length, "tmp");
+   }
+   else
+      tmp = LLVMBuildAlloca(builder, llvm_type(slice_type), "tmp");
 
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-   LLVMValueRef p_signal = LLVMBuildGEP(builder, signal,
-                                        indexes, ARRAY_LEN(indexes), "");
-   LLVMValueRef p_tmp = LLVMBuildGEP(builder, tmp,
-                                     indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef p_signal =
+      src_uarray
+      ? LLVMBuildExtractValue(builder, signal, 0, "")
+      : LLVMBuildGEP(builder, signal, indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef p_tmp =
+      dst_uarray
+      ? tmp
+      : LLVMBuildGEP(builder, tmp, indexes, ARRAY_LEN(indexes), "");
 
    LLVMValueRef args[] = {
-      p_signal, p_tmp, left_abs, right_abs, llvm_int1(last_value)
+      p_signal, p_tmp, low_abs, high_abs, llvm_int1(last_value)
    };
-   LLVMBuildCall(builder, llvm_fn(name), args, ARRAY_LEN(args), "");
-   return tmp;
+   LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+
+   if (dst_uarray)
+      return cgen_array_meta(slice_type, left, right, dir, tmp);
+   else
+      return tmp;
 }
 
 static LLVMValueRef cgen_sig_struct(tree_t decl)
@@ -922,72 +1055,87 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, cgen_ctx_t *ctx)
    tree_t decl = tree_ref(t);
    ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
 
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   const int nparams = tree_params(t);
+   const int nports  = tree_ports(decl);
+
+   for (int i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
-      if (builtin == NULL && tree_class(tree_port(decl, i)) == C_SIGNAL) {
+      type_t type = tree_type(p.value);
+      class_t class = (builtin == NULL)
+         ? tree_class(tree_port(decl, i))
+         : C_DEFAULT;
+
+      if ((builtin == NULL) && (class == C_SIGNAL)) {
          // Pass a pointer to the global signal structure
          assert(tree_kind(p.value) == T_REF);
-         tree_t decl = tree_ref(p.value);
-         args[i] = tree_attr_ptr(decl, sig_struct_i);
+         tree_t sig_decl = tree_ref(p.value);
+         args[i] = tree_attr_ptr(sig_decl, sig_struct_i);
          assert(args[i] != NULL);
       }
       else {
          args[i] = NULL;
 
-         type_t type = tree_type(p.value), formal_type;
-
          // If this is a scalar out or inout parameter then we need
          // to pass a pointer rather than the value
-         if ((builtin == NULL) || (i < tree_ports(decl))) {
+         if ((builtin == NULL) || (i < nports)) {
             tree_t port = tree_port(decl, i);
             port_mode_t mode = tree_port_mode(port);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !type_is_array(type));
             if (need_ptr)
                args[i] = cgen_get_var(tree_ref(p.value), ctx);
-
-            formal_type = tree_type(port);
          }
-         else
-            formal_type = type;
 
          if (args[i] == NULL)
             args[i] = cgen_expr(p.value, ctx);
+      }
 
-         // If we are passing a constrained array argument wrap it in
-         // a structure with its metadata. Note we don't need to do
-         // this for unconstrained arrays as they are already wrapped.
-         bool need_wrap =
-            (type_kind(formal_type) == T_UARRAY)
-            && cgen_const_bounds(type)
-            && (builtin == NULL);
+      type_t formal_type;
+      if ((builtin == NULL) || (i < nports))
+         formal_type = tree_type(tree_port(decl, i));
+      else
+         formal_type = tree_type(p.value);
 
-         if (need_wrap) {
-            range_t r = type_dim(type, 0);
+      // If we are passing a constrained array argument wrap it in
+      // a structure with its metadata. Note we don't need to do
+      // this for unconstrained arrays as they are already wrapped.
+      bool need_wrap =
+         (type_kind(formal_type) == T_UARRAY)
+         && cgen_const_bounds(type)
+         && (builtin == NULL);
 
+      if (need_wrap) {
+         range_t r = type_dim(type, 0);
+
+         LLVMValueRef data;
+         if (class == C_SIGNAL) {
+            LLVMValueRef indexes[] = { llvm_int32(0) };
+            data = LLVMBuildGEP(builder, args[i],
+                                indexes, ARRAY_LEN(indexes), "");
+         }
+         else {
             LLVMTypeRef ptr_type =
                LLVMPointerType(llvm_type(type_elem(type)), 0);
-
-            args[i] = cgen_array_meta(
-               type,
-               llvm_int32(assume_int(r.left)),
-               llvm_int32(assume_int(r.right)),
-               llvm_int8(r.kind),
-               LLVMBuildPointerCast(builder, args[i], ptr_type, ""));
+            data = LLVMBuildPointerCast(builder, args[i], ptr_type, "");
          }
 
-         // If we are passing an unconstrained array actual to a
-         // constrained formal then we need to unwrap the array
-         if ((type_kind(formal_type) == T_CARRAY) && (builtin == NULL)) {
-            LLVMValueRef ptr = args[i];
-            if (!cgen_const_bounds(type)) {
-               // XXX: insert bounds checking here
-               ptr = LLVMBuildExtractValue(builder, args[i], 0, "aptr");
-            }
+         args[i] = cgen_array_meta(
+            (class == C_SIGNAL) ? NULL : type,
+            llvm_int32(assume_int(r.left)),
+            llvm_int32(assume_int(r.right)),
+            llvm_int8(r.kind),
+            data);
+      }
 
-            LLVMTypeRef lt = LLVMPointerType(llvm_type(formal_type), 0);
-            args[i] = LLVMBuildPointerCast(builder, ptr, lt, "");
-         }
+      // If we are passing an unconstrained array actual to a
+      // constrained formal then we need to unwrap the array
+      if ((type_kind(formal_type) == T_CARRAY) && (builtin == NULL)) {
+         LLVMValueRef ptr = args[i];
+         if (!cgen_const_bounds(type))
+            ptr = LLVMBuildExtractValue(builder, args[i], 0, "aptr");
+
+         LLVMTypeRef lt = LLVMPointerType(llvm_type(formal_type), 0);
+         args[i] = LLVMBuildPointerCast(builder, ptr, lt, "");
       }
    }
 }
@@ -1610,7 +1758,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(ctx->fn, "da_exit");
 
    // Prelude
-   LLVMValueRef a = cgen_tmp_var(t, ctx);
+   LLVMValueRef a = cgen_tmp_var(type, "", ctx);
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -1797,7 +1945,8 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 {
-   LLVMValueRef var = cgen_tmp_var(t, ctx);
+   type_t type = tree_type(t);
+   LLVMValueRef var = cgen_tmp_var(tree_type(t), "", ctx);
 
    assert(tree_params(t) == 2);
    tree_t args[] = {
@@ -1811,7 +1960,6 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
    };
 
    LLVMValueRef off = NULL;
-   type_t type = tree_type(t);
 
    if (type_is_array(tree_type(args[0]))) {
       cgen_array_copy(tree_type(args[0]), type, args_ll[0], var, NULL, ctx);
@@ -2831,114 +2979,9 @@ static LLVMValueRef cgen_signal_init(type_t type, LLVMValueRef resolution)
    }
 }
 
-static void cgen_array_signal_load_fn(type_t elem_type)
-{
-   // Build a function to load the array into a temporary
-
-   while (type_is_array(elem_type))
-      elem_type = type_elem(elem_type);
-
-   int width = bit_width(elem_type);
-
-   char name[256];
-   snprintf(name, sizeof(name), "vec_load.i%d", width);
-
-   LLVMValueRef fn;
-   if ((fn = LLVMGetNamedFunction(module, name)))
-      return;
-
-   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
-
-   LLVMTypeRef args[] = {
-      LLVMPointerType(cgen_signal_type(elem_type), 0),
-      LLVMPointerType(llvm_type(elem_type), 0),
-      LLVMInt32Type(),    // Left
-      LLVMInt32Type(),    // Right
-      LLVMInt1Type()      // Last value
-   };
-   fn = LLVMAddFunction(module, name,
-                        LLVMFunctionType(LLVMVoidType(),
-                                         args, ARRAY_LEN(args), false));
-   LLVMSetLinkage(fn, LLVMLinkOnceAnyLinkage);
-
-   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
-   LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(fn, "test");
-   LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(fn, "body");
-   LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(fn, "merge");
-   LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(fn, "exit");
-
-   LLVMBasicBlockRef norm_bb  = LLVMAppendBasicBlock(fn, "normal");
-   LLVMBasicBlockRef last_bb  = LLVMAppendBasicBlock(fn, "last");
-
-   // Prelude
-   LLVMPositionBuilderAtEnd(builder, entry_bb);
-   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-   LLVMBuildStore(builder, LLVMGetParam(fn, 2), i);
-   LLVMBuildBr(builder, test_bb);
-
-   // Loop test
-   LLVMPositionBuilderAtEnd(builder, test_bb);
-   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "");
-   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE,
-                                   LLVMGetParam(fn, 3),
-                                   i_loaded, "ge");
-   LLVMBuildCondBr(builder, ge, body_bb, exit_bb);
-
-   // Loop body
-   LLVMPositionBuilderAtEnd(builder, body_bb);
-
-   LLVMValueRef index[] = { i_loaded };
-   LLVMValueRef signal = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
-                                      index, ARRAY_LEN(index),
-                                      "signal");
-
-   // Select either the current or last value
-
-   LLVMBuildCondBr(builder, LLVMGetParam(fn, 4), last_bb, norm_bb);
-
-   LLVMPositionBuilderAtEnd(builder, last_bb);
-   LLVMValueRef ptr_last =
-      LLVMBuildStructGEP(builder, signal, SIGNAL_LAST_VALUE, "last_value");
-   LLVMBuildBr(builder, merge_bb);
-
-   LLVMPositionBuilderAtEnd(builder, norm_bb);
-   LLVMValueRef ptr_resolved =
-      LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "resolved");
-   LLVMBuildBr(builder, merge_bb);
-
-   LLVMPositionBuilderAtEnd(builder, merge_bb);
-   LLVMValueRef phi = LLVMBuildPhi(builder, LLVMTypeOf(ptr_last), "ptr");
-
-   LLVMValueRef      values[] = { ptr_last, ptr_resolved };
-   LLVMBasicBlockRef bbs[]    = { last_bb,  norm_bb      };
-   LLVMAddIncoming(phi, values, bbs, 2);
-
-   LLVMValueRef deref = LLVMBuildLoad(builder, phi, "deref");
-   LLVMValueRef val = LLVMBuildIntCast(builder, deref,
-                                       llvm_type(elem_type), "val");
-   LLVMValueRef dst_index[] = {
-      LLVMBuildSub(builder, i_loaded, LLVMGetParam(fn, 2), "")
-   };
-   LLVMValueRef dst = LLVMBuildGEP(builder, LLVMGetParam(fn, 1),
-                                   dst_index, ARRAY_LEN(dst_index),
-                                   "dst");
-   LLVMBuildStore(builder, val, dst);
-
-   LLVMValueRef inc =
-      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
-   LLVMBuildStore(builder, inc, i);
-   LLVMBuildBr(builder, test_bb);
-
-   // Epilogue
-   LLVMPositionBuilderAtEnd(builder, exit_bb);
-   LLVMBuildRetVoid(builder);
-
-   LLVMPositionBuilderAtEnd(builder, saved_bb);
-}
-
 static LLVMTypeRef cgen_signal_type(type_t type)
 {
-   if (type_is_array(type)) {
+   if ((type != NULL) && type_is_array(type)) {
       LLVMTypeRef base_type = cgen_signal_type(type_elem(type));
 
       if (type_kind(type) == T_UARRAY)
@@ -3098,9 +3141,6 @@ static void cgen_signal(tree_t t)
    LLVMValueRef r = cgen_resolution_func(type);
 
    LLVMSetInitializer(v, cgen_signal_init(type, r));
-
-   if (type_is_array(type))
-      cgen_array_signal_load_fn(type_elem(type));
 
    tree_add_attr_ptr(t, sig_struct_i, v);
 }
