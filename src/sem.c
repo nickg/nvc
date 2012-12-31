@@ -763,51 +763,9 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_unary(ident_new("\"not\""), t, t, "v_not");
    }
 
-   // Predefined attributes
+   // Predefined procedures
 
    switch (kind) {
-   case T_INTEGER:
-   case T_REAL:
-   case T_PHYSICAL:
-   case T_SUBTYPE:
-      {
-         range_t r = type_dim(t, 0);
-
-         tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
-         tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
-         tree_add_attr_tree(decl, ident_new("ASCENDING"),
-                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
-
-         if (r.kind == RANGE_TO) {
-            tree_add_attr_tree(decl, ident_new("LOW"), r.left);
-            tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
-         }
-         else {
-            tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
-            tree_add_attr_tree(decl, ident_new("LOW"), r.right);
-         }
-
-         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       std_string, "image", t, NULL);
-         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
-      }
-      break;
-
-   case T_ENUM:
-      {
-         tree_t left  = type_enum_literal(t, 0);
-         tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
-         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_ref(left));
-         tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
-         tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
-         tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
-
-         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       std_string, "image", t, NULL);
-         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
-      }
-      break;
-
    case T_FILE:
       {
          tree_t read_mode = scope_find(ident_new("READ_MODE"));
@@ -869,6 +827,55 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t deallocate = sem_builtin_proc(deallocate_i, "deallocate");
          sem_add_port(deallocate, t, PORT_INOUT, NULL);
          scope_insert(deallocate);
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   // Predefined attributes
+
+   switch (kind) {
+   case T_INTEGER:
+   case T_REAL:
+   case T_PHYSICAL:
+   case T_SUBTYPE:
+      {
+         range_t r = type_dim(t, 0);
+
+         tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
+         tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
+         tree_add_attr_tree(decl, ident_new("ASCENDING"),
+                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
+
+         if (r.kind == RANGE_TO) {
+            tree_add_attr_tree(decl, ident_new("LOW"), r.left);
+            tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
+         }
+         else {
+            tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
+            tree_add_attr_tree(decl, ident_new("LOW"), r.right);
+         }
+
+         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
+                                       std_string, "image", t, NULL);
+         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
+      }
+      break;
+
+   case T_ENUM:
+      {
+         tree_t left  = type_enum_literal(t, 0);
+         tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
+         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_ref(left));
+         tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
+         tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
+         tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
+
+         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
+                                       std_string, "image", t, NULL);
+         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
 
