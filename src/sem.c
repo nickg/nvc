@@ -437,7 +437,7 @@ static void type_set_force(type_t t)
    top_type_set->universal  = false;
 }
 
-static void type_set_force_composite(void)
+static bool type_set_force_composite(void)
 {
    assert(top_type_set != NULL);
 
@@ -447,7 +447,13 @@ static void type_set_force_composite(void)
       if (type_is_array(type) || (type_kind(type) == T_RECORD))
          top_type_set->members[j++] = type;
    }
-   top_type_set->n_members = j;
+
+   if (j > 0) {
+      top_type_set->n_members = j;
+      return true;
+   }
+   else
+      return false;
 }
 
 static bool type_set_uniq(type_t *pt)
@@ -492,8 +498,7 @@ static const char *type_set_fmt(void)
    static_printf_begin(buf, sizeof(buf));
    if (top_type_set != NULL) {
       for (unsigned n = 0; n < top_type_set->n_members; n++)
-         static_printf("%s    %s",
-                       (n == 0) ? "" : "\n",
+         static_printf("\n    %s",
                        sem_type_str(top_type_set->members[n]));
    }
    return buf;
@@ -780,8 +785,8 @@ static void sem_declare_predefined_ops(tree_t decl)
 
          ident_t file_open_i  = ident_new("FILE_OPEN");
          ident_t file_close_i = ident_new("FILE_CLOSE");
-         ident_t file_read_i  = ident_new("FILE_READ");
-         ident_t file_write_i = ident_new("FILE_WRITE");
+         ident_t read_i       = ident_new("READ");
+         ident_t write_i      = ident_new("WRITE");
          ident_t endfile_i    = ident_new("ENDFILE");
 
          type_t open_kind   = sem_std_type("FILE_OPEN_KIND");
@@ -806,15 +811,17 @@ static void sem_declare_predefined_ops(tree_t decl)
          sem_add_port(file_close, t, PORT_INOUT, NULL);
          scope_insert(file_close);
 
-         tree_t file_read = sem_builtin_proc(file_read_i, "file_read");
-         sem_add_port(file_read, t, PORT_INOUT, NULL);
-         sem_add_port(file_read, of, PORT_OUT, NULL);
-         scope_insert(file_read);
+         tree_t read = sem_builtin_proc(read_i, "file_read");
+         sem_add_port(read, t, PORT_INOUT, NULL);
+         sem_add_port(read, of, PORT_OUT, NULL);
+         if (type_is_array(of))
+            sem_add_port(read, std_int, PORT_OUT, NULL);
+         scope_insert(read);
 
-         tree_t file_write = sem_builtin_proc(file_write_i, "file_write");
-         sem_add_port(file_write, t, PORT_INOUT, NULL);
-         sem_add_port(file_write, of, PORT_IN, NULL);
-         scope_insert(file_write);
+         tree_t write = sem_builtin_proc(write_i, "file_write");
+         sem_add_port(write, t, PORT_INOUT, NULL);
+         sem_add_port(write, of, PORT_IN, NULL);
+         scope_insert(write);
 
          sem_declare_unary(endfile_i, t, std_bool, "endfile");
       }
@@ -2544,8 +2551,9 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          for (int j = 0; j < n_overloads; j++) {
             if (overloads[j] != NULL) {
                if ((param_types[j] == NULL)
-                   || !type_eq(param_types[j], ptype))
+                   || !type_eq(param_types[j], ptype)) {
                   overloads[j] = NULL;
+               }
             }
          }
       }
@@ -2562,13 +2570,12 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
       type_set_push();
 
       param_t p = tree_param(t, i);
-      type_t param_types[n_overloads];
 
       for (int j = 0; j < n_overloads; j++) {
          if (overloads[j] != NULL) {
-            param_types[j] = sem_find_param_type(p, overloads[j]);
-            if (param_types[j] != NULL)
-               type_set_add(param_types[j]);
+            type_t ptype = sem_find_param_type(p, overloads[j]);
+            if (ptype != NULL)
+               type_set_add(ptype);
          }
       }
 
@@ -2897,7 +2904,7 @@ static bool sem_check_pcall(tree_t t)
       for (unsigned i = 0; i < tree_params(t); i++)
          p += snprintf(p, end - p, "%s%s",
                        (i == 0 ? "" : ", "),
-                       istr(type_ident(tree_type(tree_param(t, i).value))));
+                       sem_type_str(tree_type(tree_param(t, i).value)));
       p += snprintf(p, end - p, ")");
 
       sem_error(t, (n == 1 ? "undefined procedure %s"
@@ -3061,7 +3068,8 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   type_set_force_composite();
+   if (!type_set_force_composite())
+      sem_error(t, "no composite type in context%s", type_set_fmt());
 
    type_t composite;
    bool uniq_comp = type_set_uniq(&composite);
@@ -3075,7 +3083,7 @@ static bool sem_check_concat(tree_t t)
 
    if (left_ambig && right_ambig) {
       if (!uniq_comp)
-         sem_error(t, "type of concatenation is ambiguous\n%s", type_set_fmt());
+         sem_error(t, "type of concatenation is ambiguous%s", type_set_fmt());
       ok = sem_check_concat_param(left, expect);
       other = right;
    }
@@ -3259,11 +3267,12 @@ static bool sem_check_aggregate(tree_t t)
    // The type of an aggregate must be determinable solely from the
    // context in which the aggregate appears
 
-   type_set_force_composite();
+   if (!type_set_force_composite())
+      sem_error(t, "no composite type in context%s", type_set_fmt());
 
    type_t composite_type;
    if (!type_set_uniq(&composite_type))
-      sem_error(t, "type of aggregate is ambiguous\n%s", type_set_fmt());
+      sem_error(t, "type of aggregate is ambiguous%s", type_set_fmt());
 
    type_t base_type = composite_type;
    while (type_kind(base_type) == T_SUBTYPE)

@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <errno.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -532,11 +533,20 @@ void _name_attr(void *_sig, int which, struct uarray *u)
    u->dir   = RANGE_TO;
 }
 
-void _file_open(void **_fp, uint8_t *name_bytes, int32_t name_len, int8_t mode)
+void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
+                int32_t name_len, int8_t mode)
 {
    FILE **fp = (FILE **)_fp;
-   if (*fp != NULL)
-      fclose(*fp);
+   if (*fp != NULL) {
+      if (status != NULL) {
+         *status = 1;   // STATUS_ERROR
+         return;
+      }
+      else
+         // This is to support closing a file implicitly when the
+         // design is reset
+         fclose(*fp);
+   }
 
    char *fname = xmalloc(name_len + 1);
    memcpy(fname, name_bytes, name_len);
@@ -549,10 +559,26 @@ void _file_open(void **_fp, uint8_t *name_bytes, int32_t name_len, int8_t mode)
    };
    assert(mode < ARRAY_LEN(mode_str));
 
+   if (status != NULL)
+      *status = 0;   // OPEN_OK
+
    *fp = fopen(fname, mode_str[mode]);
 
    if (*fp == NULL) {
-      fatal_errno("failed to open %s", fname);
+      if (status == NULL)
+         fatal_errno("failed to open %s", fname);
+      else {
+         switch (errno) {
+         case ENOENT:
+            *status = 2;   // NAME_ERROR
+            break;
+         case EPERM:
+            *status = 3;   // MODE_ERROR
+            break;
+         default:
+            fatal_errno("%s", fname);
+         }
+      }
    }
 
    free(fname);
@@ -567,7 +593,21 @@ void _file_write(void **_fp, uint8_t *data, int32_t len)
    if (*fp == NULL)
       fatal("write to closed file");
 
-   fwrite(data, len, 1, *fp);
+   fwrite(data, 1, len, *fp);
+}
+
+void _file_read(void **_fp, uint8_t *data, int32_t len, int32_t *out)
+{
+   FILE **fp = (FILE **)_fp;
+
+   TRACE("_file_read fp=%p data=%p len=%d", fp, data, len);
+
+   if (*fp == NULL)
+      fatal("read from closed file");
+
+   size_t n = fread(data, 1, len, *fp);
+   if (out != NULL)
+      *out = n;
 }
 
 void _file_close(void **_fp)
@@ -581,6 +621,22 @@ void _file_close(void **_fp)
 
    fclose(*fp);
    *fp = NULL;
+}
+
+int8_t _endfile(void *_f)
+{
+   FILE *f = _f;
+
+   if (f == NULL)
+      fatal("ENDFILE called on closed file");
+
+   int c = fgetc(f);
+   if (c == EOF)
+      return 1;
+   else {
+      ungetc(c, f);
+      return 0;
+   }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1127,6 +1183,8 @@ static void rt_one_time_init(void)
    jit_bind_fn("_file_open", _file_open);
    jit_bind_fn("_file_close", _file_close);
    jit_bind_fn("_file_open", _file_open);
+   jit_bind_fn("_file_read", _file_read);
+   jit_bind_fn("_endfile", _endfile);
 
    trace_on = opt_get_int("rt_trace_en");
 

@@ -31,9 +31,9 @@ package body p is
         file_open(f5, "bar.txt");       -- OK
         file_open(status, f5, "x.txt");  -- OK
         file_close(f1);                 -- OK
-        file_write(f1, 5);              -- OK
-        file_read(f1, n);               -- OK
-        file_read(f1, status);          -- Error
+        write(f1, 5);              -- OK
+        read(f1, n);               -- OK
+        read(f1, status);          -- Error
         assert endfile(f1);             -- OK
     end procedure;
 

@@ -919,7 +919,7 @@ START_TEST(test_file)
       { 12, "file declarations must have file type" },
       { 16, "open mode must have type FILE_OPEN_KIND" },
       { 20, "file name must have type STRING" },
-      { 36, "no suitable overload for procedure FILE_READ" },
+      { 36, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);
