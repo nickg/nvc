@@ -1050,7 +1050,8 @@ static LLVMValueRef cgen_uarray_asc(LLVMValueRef uarray)
       "ascending");
 }
 
-static void cgen_call_args(tree_t t, LLVMValueRef *args, cgen_ctx_t *ctx)
+static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
+                           cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
    ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
@@ -1064,6 +1065,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, cgen_ctx_t *ctx)
       class_t class = (builtin == NULL)
          ? tree_class(tree_port(decl, i))
          : C_DEFAULT;
+
+      arg_types[i] = type;
 
       if ((builtin == NULL) && (class == C_SIGNAL)) {
          // Pass a pointer to the global signal structure
@@ -1303,13 +1306,13 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_name_attr(tree_param(t, 0).value, 0);
    }
 
-   LLVMValueRef args[tree_params(t)];
-   cgen_call_args(t, args, ctx);
+   const int nparams = tree_params(t);
+   LLVMValueRef args[nparams];
+   type_t arg_types[nparams];
+   cgen_call_args(t, args, arg_types, ctx);
 
    // Regular builtin functions
    if (builtin) {
-      type_t arg_type = tree_type(tree_param(t, 0).value);
-
       if (icmp(builtin, "mul"))
          return LLVMBuildMul(builder, args[0], args[1], "");
       else if (icmp(builtin, "add"))
@@ -1366,15 +1369,14 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             args[0], "abs");
       }
       else if (icmp(builtin, "aeq"))
-         return cgen_array_rel(args[0], args[1], arg_type,
-                               tree_type(tree_param(t, 1).value),
+         return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntEQ, ctx);
       else if (icmp(builtin, "aneq"))
-         return cgen_array_rel(args[0], args[1], arg_type,
-                               tree_type(tree_param(t, 1).value),
+         return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
-         bool is_signed = (type_kind(type_base_recur(arg_type)) == T_INTEGER);
+         const bool is_signed =
+            (type_kind(type_base_recur(arg_types[0])) == T_INTEGER);
          LLVMOpcode op = (is_signed ? LLVMSExt : LLVMZExt);
          LLVMValueRef res = LLVMBuildAlloca(builder,
                                             llvm_uarray_type(LLVMInt8Type()),
@@ -1391,27 +1393,31 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       }
       else if (icmp(builtin, "succ")) {
          return LLVMBuildAdd(builder, args[0],
-                             LLVMConstInt(llvm_type(arg_type), 1, false), "");
+                             LLVMConstInt(llvm_type(arg_types[0]), 1, false),
+                             "succ");
       }
       else if (icmp(builtin, "pred")) {
          return LLVMBuildAdd(builder, args[0],
-                             LLVMConstInt(llvm_type(arg_type), -1, false), "");
+                             LLVMConstInt(llvm_type(arg_types[0]), -1, false),
+                             "pred");
       }
       else if (icmp(builtin, "leftof")) {
          range_t r = type_dim(tree_type(t), 0);
          int dir = (r.kind == RANGE_TO ? -1 : 1);
          return LLVMBuildAdd(builder, args[0],
-                             LLVMConstInt(llvm_type(arg_type), dir, false), "");
+                             LLVMConstInt(llvm_type(arg_types[0]), dir, false),
+                             "leftof");
       }
       else if (icmp(builtin, "rightof")) {
          range_t r = type_dim(tree_type(t), 0);
          int dir = (r.kind == RANGE_TO ? 1 : -1);
          return LLVMBuildAdd(builder, args[0],
-                             LLVMConstInt(llvm_type(arg_type), dir, false), "");
+                             LLVMConstInt(llvm_type(arg_types[0]), dir, false),
+                             "rightof");
       }
       else if (icmp(builtin, "length")) {
-         assert(!cgen_const_bounds(arg_type));
-         return cgen_array_len(arg_type, args[0]);
+         assert(!cgen_const_bounds(arg_types[0]));
+         return cgen_array_len(arg_types[0], args[0]);
       }
       else if (icmp(builtin, "uarray_left")) {
          return LLVMBuildExtractValue(builder, args[0], 1, "left");
@@ -1446,27 +1452,26 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             "high");
       }
       else if (icmp(builtin, "alt"))
-         return cgen_array_rel(args[0], args[1], arg_type,
+         return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSLT, ctx);
       else if (icmp(builtin, "agt"))
-         return cgen_array_rel(args[0], args[1], arg_type,
+         return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSGT, ctx);
       else if (icmp(builtin, "aleq"))
-         return cgen_array_rel(args[0], args[1], arg_type,
+         return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSLE, ctx);
       else if (icmp(builtin, "ageq"))
-         return cgen_array_rel(args[0], args[1], arg_type,
+         return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_param(t, 1).value),
                                LLVMIntSGE, ctx);
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
    else {
-      return LLVMBuildCall(builder, cgen_fdecl(decl),
-                           args, tree_params(t), "");
+      return LLVMBuildCall(builder, cgen_fdecl(decl), args, nparams, "");
    }
 }
 
@@ -2628,13 +2633,48 @@ static void cgen_case(tree_t t, cgen_ctx_t *ctx)
       cgen_case_scalar(t, ctx);
 }
 
-static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args)
+static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args,
+                               type_t *arg_types)
 {
    if (icmp(builtin, "deallocate")) {
       LLVMValueRef ptr = LLVMBuildLoad(builder, args[0], "");
       LLVMBuildFree(builder, ptr);
       LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(ptr)), args[0]);
    }
+   else if (icmp(builtin, "file_open1")) {
+      LLVMValueRef args2[] = {
+         args[0],
+         cgen_array_data_ptr(arg_types[1], args[1]),
+         cgen_array_len(arg_types[1], args[1]),
+         args[2],
+      };
+      LLVMBuildCall(builder, llvm_fn("_file_open"),
+                    args2, ARRAY_LEN(args2), "");
+   }
+   else if (icmp(builtin, "file_write")) {
+      LLVMValueRef data, len;
+      if (type_is_array(arg_types[1])) {
+         data = cgen_array_data_ptr(arg_types[1], args[1]);
+         len  = cgen_array_len(arg_types[1], args[1]);
+      }
+      else {
+         LLVMTypeRef lltype = llvm_type(arg_types[1]);
+         data = LLVMBuildAlloca(builder, lltype, "");
+         len  = LLVMBuildIntCast(builder, LLVMSizeOf(lltype),
+                                 LLVMInt32Type(), "");
+         LLVMBuildStore(builder, args[1], data);
+      }
+
+      LLVMValueRef args2[] = {
+         args[0],
+         llvm_void_cast(data),
+         len
+      };
+      LLVMBuildCall(builder, llvm_fn("_file_write"),
+                    args2, ARRAY_LEN(args2), "");
+   }
+   else if (icmp(builtin, "file_close"))
+      LLVMBuildCall(builder, llvm_fn("_file_close"), args, 1, "");
    else
       fatal("cannot generate code for builtin %s", istr(builtin));
 }
@@ -2655,13 +2695,14 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       // the return value
 
       LLVMValueRef args[nparams + 1];
-      cgen_call_args(t, args, ctx);
+      type_t arg_types[nparams + 1];
+      cgen_call_args(t, args, arg_types, ctx);
 
       // Final parameter to a procedure is its dynamic context
       args[nparams] = LLVMConstNull(llvm_void_ptr());
 
       if (builtin != NULL)
-         cgen_builtin_pcall(builtin, args);
+         cgen_builtin_pcall(builtin, args, arg_types);
       else {
          // Regular procedure call
          LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
@@ -2684,7 +2725,8 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
 
       LLVMValueRef args[nparams + 1];
-      cgen_call_args(t, args, ctx);
+      type_t arg_types[nparams + 1];
+      cgen_call_args(t, args, arg_types, ctx);
       args[nparams] = LLVMBuildLoad(builder, context_ptr, "context");
 
       LLVMValueRef ret =
@@ -3364,7 +3406,7 @@ static void cgen_reset_function(tree_t t)
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
    struct cgen_ctx ctx = {
-      .fn        = fn
+      .fn = fn
    };
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
@@ -3408,9 +3450,19 @@ static void cgen_reset_function(tree_t t)
    LLVMBuildRetVoid(builder);
 }
 
+static void cgen_file_decl(tree_t t)
+{
+   LLVMTypeRef file_type = llvm_void_ptr();
+   LLVMValueRef f = LLVMAddGlobal(module, file_type, istr(tree_ident(t)));
+   LLVMSetInitializer(f, LLVMConstNull(file_type));
+
+   tree_add_attr_ptr(t, local_var_i, f);
+}
+
 static void cgen_top(tree_t t)
 {
-   for (unsigned i = 0; i < tree_decls(t); i++) {
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
       tree_t decl = tree_decl(t, i);
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
@@ -3430,6 +3482,9 @@ static void cgen_top(tree_t t)
          break;
       case T_PROC_BODY:
          cgen_proc_body(decl);
+         break;
+      case T_FILE_DECL:
+         cgen_file_decl(decl);
          break;
       default:
          assert(false);
@@ -3646,6 +3701,38 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _name_attr_args,
                                     ARRAY_LEN(_name_attr_args),
+                                    false));
+
+   LLVMTypeRef _file_open_args[] = {
+      LLVMPointerType(llvm_void_ptr(), 0),
+      LLVMPointerType(LLVMInt8Type(), 0),
+      LLVMInt32Type(),
+      LLVMInt8Type()
+   };
+   LLVMAddFunction(module, "_file_open",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _file_open_args,
+                                    ARRAY_LEN(_file_open_args),
+                                    false));
+
+   LLVMTypeRef _file_write_args[] = {
+      LLVMPointerType(llvm_void_ptr(), 0),
+      llvm_void_ptr(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_file_write",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _file_write_args,
+                                    ARRAY_LEN(_file_write_args),
+                                    false));
+
+   LLVMTypeRef _file_close_args[] = {
+      LLVMPointerType(llvm_void_ptr(), 0)
+   };
+   LLVMAddFunction(module, "_file_close",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _file_close_args,
+                                    ARRAY_LEN(_file_close_args),
                                     false));
 }
 

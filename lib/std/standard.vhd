@@ -6,30 +6,30 @@ package STANDARD is
 
     type INTEGER;
     type STRING;
-    
+
     type BOOLEAN is (FALSE, TRUE);
 
     type BIT is ('0', '1');
 
     type CHARACTER is (
-        NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL, 
-        BS,  HT,  LF,  VT,  FF,  CR,  SO,  SI, 
-        DLE, DC1, DC2, DC3, DC4, NAK, SYN, ETB, 
-        CAN, EM,  SUB, ESC, FSP, GSP, RSP, USP, 
-        
-        ' ', '!', '"', '#', '$', '%', '&', ''', 
-        '(', ')', '*', '+', ',', '-', '.', '/', 
-        '0', '1', '2', '3', '4', '5', '6', '7', 
-        '8', '9', ':', ';', '<', '=', '>', '?', 
+        NUL, SOH, STX, ETX, EOT, ENQ, ACK, BEL,
+        BS,  HT,  LF,  VT,  FF,  CR,  SO,  SI,
+        DLE, DC1, DC2, DC3, DC4, NAK, SYN, ETB,
+        CAN, EM,  SUB, ESC, FSP, GSP, RSP, USP,
 
-        '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 
-        'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 
-        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 
-        'X', 'Y', 'Z', '[', '\', ']', '^', '_', 
+        ' ', '!', '"', '#', '$', '%', '&', ''',
+        '(', ')', '*', '+', ',', '-', '.', '/',
+        '0', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9', ':', ';', '<', '=', '>', '?',
 
-        '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 
-        'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
-        'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 
+        '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G',
+        'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O',
+        'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W',
+        'X', 'Y', 'Z', '[', '\', ']', '^', '_',
+
+        '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g',
+        'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
+        'p', 'q', 'r', 's', 't', 'u', 'v', 'w',
         'x', 'y', 'z', '{', '|', '}', '~', DEL,
 
         C128, C129, C130, C131, C132, C133, C134,
@@ -41,13 +41,13 @@ package STANDARD is
         ' ', '¡', '¢', '£', '¤', '¥', '¦', '§',
         '¨', '©', 'ª', '«', '¬', '­', '®', '¯',
         '°', '±', '²', '³', '´', 'µ', '¶', '¹'
-                         -- TODO: 0xba onwards          
+                         -- TODO: 0xba onwards
         );
 
     type SEVERITY_LEVEL is (NOTE, WARNING, ERROR, FAILURE);
 
     type INTEGER is range -2147483648 to 2147483647;
-    
+
     type REAL is range -1.0E307 to 1.0E307;
 
     type TIME is range -9223372036854775808 to 9223372036854775807
@@ -65,7 +65,7 @@ package STANDARD is
     subtype DELAY_LENGTH is TIME range 0 fs to TIME'HIGH;
 
     impure function NOW return DELAY_LENGTH;
-    
+
     subtype NATURAL is INTEGER range 0 to INTEGER'HIGH;
 
     subtype POSITIVE is INTEGER range 1 to INTEGER'HIGH;
@@ -74,7 +74,7 @@ package STANDARD is
 
     type BIT_VECTOR is array (NATURAL range <>) of BIT;
 
-    type FILE_OPEN_KIND is (READ_MODE,WRITE_MODE, APPEND_MODE);
+    type FILE_OPEN_KIND is (READ_MODE, WRITE_MODE, APPEND_MODE);
 
     type FILE_OPEN_STATUS is (OPEN_OK, STATUS_ERROR, NAME_ERROR,
                               MODE_ERROR);
@@ -82,5 +82,5 @@ package STANDARD is
     attribute FOREIGN : STRING;
 
     attribute FOREIGN of NOW : function is "_std_standard_now";
-    
+
 end package;

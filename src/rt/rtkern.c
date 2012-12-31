@@ -532,6 +532,57 @@ void _name_attr(void *_sig, int which, struct uarray *u)
    u->dir   = RANGE_TO;
 }
 
+void _file_open(void **_fp, uint8_t *name_bytes, int32_t name_len, int8_t mode)
+{
+   FILE **fp = (FILE **)_fp;
+   if (*fp != NULL)
+      fclose(*fp);
+
+   char *fname = xmalloc(name_len + 1);
+   memcpy(fname, name_bytes, name_len);
+   fname[name_len] = '\0';
+
+   TRACE("_file_open %s fp=%p mode=%d", fname, fp, mode);
+
+   const char *mode_str[] = {
+      "r", "w", "w+"
+   };
+   assert(mode < ARRAY_LEN(mode_str));
+
+   *fp = fopen(fname, mode_str[mode]);
+
+   if (*fp == NULL) {
+      fatal_errno("failed to open %s", fname);
+   }
+
+   free(fname);
+}
+
+void _file_write(void **_fp, uint8_t *data, int32_t len)
+{
+   FILE **fp = (FILE **)_fp;
+
+   TRACE("_file_write fp=%p data=%p len=%d", fp, data, len);
+
+   if (*fp == NULL)
+      fatal("write to closed file");
+
+   fwrite(data, len, 1, *fp);
+}
+
+void _file_close(void **_fp)
+{
+   FILE **fp = (FILE **)_fp;
+
+   TRACE("_file_close fp=%p", fp);
+
+   if (*fp == NULL)
+      fatal("attempt to close already closed file");
+
+   fclose(*fp);
+   *fp = NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Simulation kernel
 
@@ -1073,6 +1124,9 @@ static void rt_one_time_init(void)
    jit_bind_fn("_name_attr", _name_attr);
    jit_bind_fn("_set_initial", _set_initial);
    jit_bind_fn("_set_initial_vec", _set_initial_vec);
+   jit_bind_fn("_file_open", _file_open);
+   jit_bind_fn("_file_close", _file_close);
+   jit_bind_fn("_file_open", _file_open);
 
    trace_on = opt_get_int("rt_trace_en");
 

@@ -306,6 +306,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_FUNC_BODY:
       case T_PROC_BODY:
       case T_ALIAS:
+      case T_FILE_DECL:
          tree_set_ident(d, npath);
          tree_add_decl(ctx->out, d);
          tree_add_attr_str(d, inst_name_i, ninst);

@@ -646,6 +646,7 @@ static void sem_declare_predefined_ops(tree_t decl)
    type_t std_string = sem_std_type("STRING");
 
    type_kind_t kind = type_kind(t);
+   assert(kind != T_UNRESOLVED);
 
    switch (kind) {
    case T_SUBTYPE:
@@ -812,7 +813,12 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t read_mode = scope_find(ident_new("READ_MODE"));
          assert(read_mode != NULL);
 
+         // The underlying type of the file may not have been checked yet
          type_t of = type_file(t);
+         tree_t type_decl = scope_find(type_ident(of));
+         if (type_decl == NULL)
+            break;    // Will generate error later
+         of = tree_type(type_decl);
 
          ident_t file_open_i  = ident_new("FILE_OPEN");
          ident_t file_close_i = ident_new("FILE_CLOSE");
@@ -4295,7 +4301,8 @@ static bool sem_check_file_decl(tree_t t)
          sem_error(mode, "open mode must have type FILE_OPEN_KIND");
    }
 
-   return true;
+   scope_apply_prefix(t);
+   return scope_insert(t);
 }
 
 static bool sem_check_new(tree_t t)
