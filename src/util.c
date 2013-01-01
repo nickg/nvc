@@ -121,11 +121,77 @@ struct prbuf {
    size_t      remain;
 };
 
+struct color_escape {
+   const char *name;
+   int         value;
+};
+
 static error_fn_t     error_fn   = def_error_fn;
 static bool           want_color = false;
 static struct option *options = NULL;
 static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
 static int            next_printf_buf = 0;
+
+static const struct color_escape escapes[] = {
+   { "",        ANSI_RESET },
+   { "bold",    ANSI_BOLD },
+   { "black",   ANSI_FG_BLACK },
+   { "red",     ANSI_FG_RED },
+   { "green",   ANSI_FG_GREEN },
+   { "yellow",  ANSI_FG_YELLOW },
+   { "blue",    ANSI_FG_BLUE },
+   { "magenta", ANSI_FG_MAGENTA },
+   { "cyan",    ANSI_FG_CYAN },
+   { "white",   ANSI_FG_WHITE },
+};
+
+static char *filter_color(const char *str)
+{
+   // Replace color strings like "$red$foo$$bar" with ANSI escaped
+   // strings like "\033[31mfoo\033[0mbar"
+
+   char *copy = xmalloc(strlen(str) * 2);
+   char *p = copy;
+
+   const char *escape_start = NULL;
+
+   while (*str != '\0') {
+      if (*str == '$') {
+         if (escape_start == NULL)
+            escape_start = str;
+         else {
+            const char *e = escape_start + 1;
+            const size_t len = str - e;
+
+            if (want_color) {
+               bool found = false;
+               for (int i = 0; i < ARRAY_LEN(escapes); i++) {
+                  if (strncmp(e, escapes[i].name, len) == 0) {
+                     p += sprintf(p, "\033[%dm", escapes[i].value);
+                     found = true;
+                     break;
+                  }
+               }
+
+               if (!found) {
+                  strncpy(p, escape_start, len + 2);
+                  p += len + 2;
+               }
+            }
+
+            escape_start = NULL;
+         }
+      }
+      else if (escape_start == NULL)
+         *p++ = *str;
+
+      ++str;
+   }
+
+   *p = '\0';
+
+   return copy;
+}
 
 static void paginate_msg(const char *fmt, va_list ap, int left, int right)
 {
@@ -133,7 +199,9 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    if (vasprintf(&strp, fmt, ap) < 0)
       abort();
 
-   const char *p = strp;
+   char *filtered = filter_color(strp);
+
+   const char *p = filtered;
    int col = left;
    while (*p != '\0') {
       if ((*p == '\n') || (isspace((uint8_t)*p) && col >= right)) {
@@ -150,6 +218,7 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    }
    fputc('\n', stderr);
 
+   free(filtered);
    free(strp);
 }
 
@@ -181,7 +250,9 @@ static void fmt_color(int color, const char *prefix,
    set_attr(color);
    fprintf(stderr, "** %s: ", prefix);
    set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
+   char *filtered_fmt = filter_color(fmt);
+   paginate_msg(filtered_fmt, ap, 10, PAGINATE_RIGHT);
+   free(filtered_fmt);
 }
 
 void errorf(const char *fmt, ...)
