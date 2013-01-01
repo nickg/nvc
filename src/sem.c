@@ -2975,7 +2975,7 @@ static bool sem_check_pcall(tree_t t)
          else if (decl_kind == T_FILE_DECL)
             sem_error(param.value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
-         else if ((decl_kind == T_PORT_DECL)) {
+         else if (decl_kind == T_PORT_DECL) {
             if ((mode == PORT_OUT) && (tree_port_mode(decl) != PORT_OUT))
                sem_error(param.value, "cannot read parameter %s with mode OUT",
                          istr(tree_ident(decl)));
