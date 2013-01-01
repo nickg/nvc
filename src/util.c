@@ -250,9 +250,7 @@ static void fmt_color(int color, const char *prefix,
    set_attr(color);
    fprintf(stderr, "** %s: ", prefix);
    set_attr(ANSI_RESET);
-   char *filtered_fmt = filter_color(fmt);
-   paginate_msg(filtered_fmt, ap, 10, PAGINATE_RIGHT);
-   free(filtered_fmt);
+   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
 }
 
 void errorf(const char *fmt, ...)
@@ -285,11 +283,19 @@ static void def_error_fn(const char *msg, const loc_t *loc)
    fmt_loc(stderr, loc);
 }
 
+static char *prepare_msg(const char *fmt, va_list ap)
+{
+   char *color_fmt = filter_color(fmt);
+   char *strp = NULL;
+   if (vasprintf(&strp, color_fmt, ap) < 0)
+      abort();
+   free(color_fmt);
+   return strp;
+}
+
 static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
 {
-   char *strp = NULL;
-   if (vasprintf(&strp, fmt, ap) < 0)
-      abort();
+   char *strp = prepare_msg(fmt, ap);
    (*fn)("%s", strp);
    fmt_loc(stderr, loc);
    free(strp);
@@ -300,9 +306,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char *strp = NULL;
-   if (vasprintf(&strp, fmt, ap) < 0)
-      abort();
+   char *strp = prepare_msg(fmt, ap);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    free(strp);
 
@@ -334,15 +338,6 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    va_end(ap);
 
    exit(EXIT_FAILURE);
-}
-
-void error_at_v(const loc_t *loc, const char *fmt, va_list ap)
-{
-   char *strp = NULL;
-   if (vasprintf(&strp, fmt, ap) < 0)
-      abort();
-   error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
-   free(strp);
 }
 
 error_fn_t set_error_fn(error_fn_t fn)

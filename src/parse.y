@@ -133,9 +133,13 @@
    static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
    static bool to_range_expr(tree_t t, range_t *r);
    static ident_t loc_to_ident(const loc_t *loc);
-   static void parse_error(const loc_t *loc, const char *fmt, ...);
    static tree_t get_time(int64_t fs);
    static void set_delay_mechanism(tree_t t, tree_t reject);
+
+#define parse_error(loc, ...) do {         \
+      error_at(loc, __VA_ARGS__);          \
+      n_errors++;                          \
+   } while (0)
 }
 
 %union {
@@ -2408,16 +2412,6 @@ static ident_t loc_to_ident(const loc_t *loc)
    char buf[128];
    snprintf(buf, sizeof(buf), "line_%d", loc->first_line);
    return ident_uniq(buf);
-}
-
-static void parse_error(const loc_t *loc, const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   error_at_v(loc, fmt, ap);
-   va_end(ap);
-
-   n_errors++;
 }
 
 static void yyerror(const char *s)
