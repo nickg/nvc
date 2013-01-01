@@ -198,7 +198,7 @@
 %type <c> object_class
 %type <d> use_clause_item
 
-%token tID "$yellow$id$$"
+%token tID "$yellow$identifier$$"
 %token tENTITY "$yellow$entity$$"
 %token tIS "$yellow$is$$"
 %token tEND "$yellow$end$$"
@@ -214,7 +214,13 @@
 %token tTYPE "$yellow$type$$"
 %token tTO "$yellow$to$$"
 %token tALL "$yellow$all$$"
-%token tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
+%token tIN "$yellow$in$$"
+%token tOUT "$yellow$out$$"
+%token tBUFFER "$yellow$buffer$$"
+%token tBUS "$yellow$bus$$"
+%token tUNAFFECTED "$yellow$unaffected$$"
+%token tSIGNAL "$yellow$signal$$"
+%token tDOWNTO "$yellow$downto$$"
 %token tPROCESS tWAIT tREPORT tLPAREN tRPAREN
 %token tSEMI ";"
 %token tASSIGN ":="
@@ -232,7 +238,12 @@
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
 %token tWHEN tCASE tBAR tLSQUARE tRSQUARE tINERTIAL tTRANSPORT
 %token tREJECT tBITSTRING tBLOCK tWITH tSELECT tGENERATE tACCESS
-%token tFILE tOPEN tREAL tUNTIL tRECORD tNEW
+%token tFILE tOPEN
+%token tREAL "$yellow$real literal$$"
+%token tUNTIL "$yellow$until$$"
+%token tRECORD "$yellow$record$$"
+%token tNEW "$yellow$new$$"
+%token tEOF 0 "end of file"
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
 %left tEQ tNEQ tLT tLE tGT tGE
