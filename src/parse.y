@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -165,7 +165,7 @@
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal
-%type <i> id opt_id selected_id func_name
+%type <i> id opt_id selected_id func_name func_type
 %type <l> interface_object_decl interface_list
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item block_decl_part conc_stmt_list process_decl_part
@@ -964,6 +964,9 @@ subprogram_decl
 
      copy_trees($3, tree_add_port, f);
 
+     if ($1 != NULL)
+        tree_add_attr_int(f, $1, 1);
+
      $$ = NULL;
      tree_list_append(&$$, f);
   }
@@ -983,6 +986,9 @@ subprogram_decl
      copy_trees($3, tree_add_port, f);
      copy_trees($7, tree_add_decl, f);
      copy_trees($9, tree_add_stmt, f);
+
+     if ($1 != NULL)
+        tree_add_attr_int(f, $1, 1);
 
      $$ = NULL;
      tree_list_append(&$$, f);
@@ -1022,7 +1028,11 @@ subprogram_decl
   }
 ;
 
-func_type : tPURE tFUNCTION | tIMPURE tFUNCTION | tFUNCTION ;
+func_type
+: tPURE tFUNCTION { $$ = NULL; }
+| tIMPURE tFUNCTION { $$ = ident_new("impure"); }
+| tFUNCTION { $$ = NULL; }
+;
 
 opt_func : tFUNCTION | /* empty */ ;
 

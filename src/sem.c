@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -1756,19 +1756,40 @@ static bool sem_check_alias(tree_t t)
    return scope_insert(t);
 }
 
+static bool sem_check_access_class(tree_t port)
+{
+   // Access types must have variable class in LRM section 3.3
+
+   type_kind_t kind = type_kind(tree_type(port));
+
+   if ((tree_class(port) != C_VARIABLE) && (kind == T_ACCESS))
+      sem_error(port, "object %s with access type must have class VARIABLE",
+                istr(tree_ident(port)));
+
+   return true;
+}
+
 static bool sem_check_func_ports(tree_t t)
 {
    type_t ftype = tree_type(t);
 
-   for (unsigned i = 0; i < tree_ports(t); i++) {
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
       if (tree_port_mode(p) != PORT_IN)
          sem_error(p, "function arguments must have mode IN");
 
-      if (tree_class(p) == C_DEFAULT)
-         tree_set_class(p, C_VARIABLE);
+      // See LRM 93 section 2.1.1 for default class
+      class_t class = tree_class(p);
+      if (class == C_DEFAULT)
+         tree_set_class(p, (class = C_CONSTANT));
+      else if (class == C_VARIABLE)
+         sem_error(p, "function arguments may not have VARIABLE class");
 
       if (!sem_check(p))
+         return false;
+
+      if (!sem_check_access_class(p))
          return false;
 
       type_add_param(ftype, tree_type(p));
@@ -1865,6 +1886,7 @@ static bool sem_check_proc_ports(tree_t t)
    for (unsigned i = 0; i < tree_ports(t); i++) {
       tree_t p = tree_port(t, i);
 
+      // See LRM 93 section 2.1.1 for default class
       if (tree_class(p) == C_DEFAULT) {
          switch (tree_port_mode(p)) {
          case PORT_OUT:
@@ -1877,6 +1899,9 @@ static bool sem_check_proc_ports(tree_t t)
       }
 
       if (!sem_check(p))
+         return false;
+
+      if (!sem_check_access_class(p))
          return false;
 
       if (tree_has_value(p))
@@ -2824,6 +2849,16 @@ static bool sem_check_fcall(tree_t t)
                 fn);
    }
 
+   // Pure function may not call an impure function
+   tree_t sub = top_scope->subprog;
+   if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
+      ident_t impure_i = ident_new("impure");
+      if ((tree_attr_int(sub, impure_i, 0) == 0)
+          && (tree_attr_int(decl, impure_i, 0) == 1))
+         sem_error(t, "pure function %s cannot call impure function %s",
+                   istr(tree_ident(sub)), istr(tree_ident(decl)));
+   }
+
    sem_copy_default_args(t, decl);
 
 #if 0
@@ -2912,18 +2947,48 @@ static bool sem_check_pcall(tree_t t)
                 fn);
    }
 
-   for (unsigned i = 0; i < tree_params(t); i++) {
-      param_t param = tree_param(t, i);
-      tree_t  port  = tree_port(decl, i);
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      param_t param    = tree_param(t, i);
+      tree_t  port     = tree_port(decl, i);
+      class_t class    = tree_class(port);
+      port_mode_t mode = tree_port_mode(port);
 
-      if (tree_class(port) == C_VARIABLE) {
-         switch (tree_kind(param.value)) {
-         case T_REF:
-         case T_ARRAY_REF:
-            break;
-         default:
-            sem_error(param.value, "parameter must be a variable");
+      tree_t value = param.value;
+      tree_kind_t kind = tree_kind(value);
+      while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)
+             || (kind == T_ALL) || (kind == T_RECORD_REF)) {
+         value = tree_value(value);
+         kind  = tree_kind(value);
+      }
+
+      if (class == C_VARIABLE) {
+         if (kind != T_REF)
+            sem_error(param.value, "cannot associate this expression with "
+                      "parameter class VARIABLE");
+
+         tree_t decl = tree_ref(value);
+         tree_kind_t decl_kind = tree_kind(decl);
+
+         if (decl_kind == T_SIGNAL_DECL)
+            sem_error(param.value, "cannot associate signal %s with parameter "
+                      "class VARIABLE", istr(tree_ident(decl)));
+         else if (decl_kind == T_FILE_DECL)
+            sem_error(param.value, "cannot associate file %s with parameter "
+                      "class VARIABLE", istr(tree_ident(decl)));
+         else if ((decl_kind == T_PORT_DECL)) {
+            if ((mode == PORT_OUT) && (tree_port_mode(decl) != PORT_OUT))
+               sem_error(param.value, "cannot read parameter %s with mode OUT",
+                         istr(tree_ident(decl)));
+            else if (((mode == PORT_OUT) || (mode == PORT_INOUT))
+                     && (tree_class(decl) == C_CONSTANT))
+               sem_error(param.value, "object %s has class CONSTANT and "
+                         "cannot be associated with OUT or INOUT parameters",
+                         istr(tree_ident(decl)));
          }
+         else if (decl_kind != T_VAR_DECL)
+            sem_error(param.value, "invalid use of name %s",
+                      istr(tree_ident(decl)));
       }
    }
 
@@ -3721,13 +3786,32 @@ static bool sem_check_attr_ref(tree_t t)
    if (decl == NULL)
       sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
 
-   if (icmp(tree_ident2(t), "range"))
+   ident_t attr = tree_ident2(t);
+
+   if (icmp(attr, "range"))
       sem_error(t, "range expression not allowed here");
 
-   tree_t a = tree_attr_tree(decl, tree_ident2(t));
+   if (top_scope->subprog != NULL) {
+      // The following attributes are illegal inside a subprogram
+      // according to LRM 93 section 2.1.1.2
+      ident_t illegal[] = {
+         ident_new("DELAYED"),
+         ident_new("STABLE"),
+         ident_new("QUIET"),
+         ident_new("TRANSACTION")
+      };
+
+      for (int i = 0; i < ARRAY_LEN(illegal); i++) {
+         if (illegal[i] == attr)
+            sem_error(t, "implicit signal %s cannot be used in a "
+                      "subprogram body", istr(attr));
+      }
+   }
+
+   tree_t a = tree_attr_tree(decl, attr);
    if (a == NULL)
-      sem_error(t, "%s has no attribute %s",
-                istr(tree_ident(t)), istr(tree_ident2(t)));
+      sem_error(t, "object %s has no attribute %s",
+                istr(tree_ident(t)), istr(attr));
 
    if (tree_kind(a) == T_FUNC_DECL) {
       type_t ftype = tree_type(a);
@@ -3745,7 +3829,7 @@ static bool sem_check_attr_ref(tree_t t)
       if (tree_params(t) != type_params(ftype))
          sem_error(t, "expected %d parameters for attribute %s "
                    "but have %d", type_params(ftype),
-                   istr(tree_ident2(t)), tree_params(t));
+                   istr(attr), tree_params(t));
 
       for (unsigned i = 0; i < tree_params(t); i++) {
          param_t p = tree_param(t, i);
@@ -3758,7 +3842,7 @@ static bool sem_check_attr_ref(tree_t t)
 
          if (!type_eq(tree_type(p.value), expect_type))
             sem_error(t, "expected type %s for attribute %s",
-                      sem_type_str(expect_type), istr(tree_ident2(t)));
+                      sem_type_str(expect_type), istr(attr));
       }
 
       tree_set_ref(t, a);

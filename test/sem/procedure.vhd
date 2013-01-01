@@ -78,4 +78,26 @@ package body p is
         overload(1);
     end procedure;
 
+    procedure test1(x : in integer; y : out integer) is
+    begin
+        y := y + 1;                     -- Error
+        x := 6;
+    end procedure;
+
+    procedure test2(signal x : in bit) is
+    begin
+        -- These are errors according to LRM 93 section 2.1.1.2
+        assert x'stable;
+        assert x'quiet;
+        assert x'transaction = '1';
+        assert x'delayed(1 ns) = '1';
+    end procedure;
+
+    type int_ptr is access integer;
+
+    procedure test3(constant x : inout int_ptr);  -- Error
+    procedure test4(x : in int_ptr);  -- Error
+    procedure test4(x : int_ptr);  -- Error
+    procedure test4(x : out int_ptr);  -- OK
+
 end package body;

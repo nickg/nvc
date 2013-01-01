@@ -13,16 +13,16 @@ architecture test of access1 is
         value : integer;
     end record;
 
-    function list_add(l : list_ptr; v : integer) return list_ptr is
+    procedure list_add(l : inout list_ptr; v : integer) is
         variable n : list_ptr;
     begin
         n := new list;
         n.link  := l;
         n.value := v;
-        return n;
-    end function;
+        l := n;
+    end procedure;
 
-    procedure list_print(l : in list_ptr) is
+    procedure list_print(variable l : in list_ptr) is
     begin
         if l /= null then
             report integer'image(l.all.value);
@@ -41,6 +41,8 @@ architecture test of access1 is
     end procedure;
 
     signal p1_done : boolean := false;
+
+    type str_ptr is access string;
 
 begin
 
@@ -67,7 +69,7 @@ begin
         wait until p1_done;
 
         for i in 1 to 10 loop
-            l := list_add(l, i);
+            list_add(l, i);
         end loop;
 
         list_print(l);

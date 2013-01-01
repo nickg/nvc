@@ -456,6 +456,10 @@ START_TEST(test_func)
       {  62, "duplicate declaration of function FOO" },
       { 114, "positional parameters must precede named parameters" },
       { 115, "duplicate parameter name X" },
+      { 124, "function arguments may not have VARIABLE class" },
+      { 146, "object X has class CONSTANT and cannot be associated" },
+      { 161, "pure function WORK.FUNC.TEST18 cannot call impure function" },
+      { 166, "object X with access type must have class VARIABLE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -650,7 +654,7 @@ START_TEST(test_seq)
       { 136, "case choice must be locally static" },
       { 139, "missing choice C in case statement" },
       { 152, "type of exit condition must be BOOLEAN" },
-      { 167, "parameter must be a variable" },
+      { 167, "cannot associate this expression with parameter" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -713,12 +717,20 @@ START_TEST(test_procedure)
    fail_unless(input_from_file(TESTDIR "/sem/procedure.vhd"));
 
    const error_t expect[] = {
-      {  5, "subprogram body is not allowed in package specification" },
-      { 28, "cannot return a value from a procedure" },
-      { 45, "type of default value universal integer does not match" },
-      { 49, "argument Y without default follows arguments with" },
-      { 63, "no matching procedure DIFF_TYPES" },
-      { 64, "positional parameters must precede named parameters" },
+      {   5, "subprogram body is not allowed in package specification" },
+      {  28, "cannot return a value from a procedure" },
+      {  45, "type of default value universal integer does not match" },
+      {  49, "argument Y without default follows arguments with" },
+      {  63, "no matching procedure DIFF_TYPES" },
+      {  64, "positional parameters must precede named parameters" },
+      {  84, "invalid target of variable assignment" },
+      {  90, "implicit signal STABLE cannot be used in a subprogram body" },
+      {  91, "implicit signal QUIET cannot be used in a subprogram body" },
+      {  92, "implicit signal TRANSACTION cannot be used in a subprogram" },
+      {  93, "implicit signal DELAYED cannot be used in a subprogram" },
+      {  98, "object X with access type must have class VARIABLE" },
+      {  99, "object X with access type must have class VARIABLE" },
+      { 100, "object X with access type must have class VARIABLE" },
       { -1, NULL }
    };
    expect_errors(expect);

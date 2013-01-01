@@ -119,4 +119,50 @@ package body func is
         return v;
     end function;
 
+    function test11(constant c : in bit) return bit;  -- OK
+
+    function test12(variable v : in bit) return bit;  -- Error
+
+    type ft is file of bit;
+
+    function test13(file f : ft) return bit;  -- OK
+
+    function test14(signal s : bit) return bit;  -- OK
+
+    procedure modify(variable b : inout bit) is
+    begin
+        b := '1';
+    end procedure;
+
+    function test15(file f : ft) return bit is
+        variable b : bit;
+    begin
+        read(f, b);                     -- OK
+        return b;
+    end function;
+
+    function test16(x : in bit) return bit is
+    begin
+        modify(x);  -- Error
+        return x;
+    end function;
+
+    impure function test17(x : in bit) return bit is
+    begin
+        if now = 10 ns then
+            return '1';
+        else
+            return '0';
+        end if;
+    end function;
+
+    function test18(x : in bit) return bit is
+    begin
+        return not test17(x);           -- Error, test18 not impure
+    end function;
+
+    type int_ptr is access integer;
+
+    function test19(x : in int_ptr) return integer;  -- Error
+
 end package body;
