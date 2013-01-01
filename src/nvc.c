@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -395,7 +395,7 @@ static void usage(void)
 static void version(void)
 {
    static const char *copy =
-      "Copyright (C) 2011-2012  Nick Gasson\n"
+      "Copyright (C) 2011-2013  Nick Gasson\n"
       "This program comes with ABSOLUTELY NO WARRANTY. This is free software, and\n"
       "you are welcome to redistribute it under certain conditions. See the GNU\n"
       "General Public Licence for details.";
