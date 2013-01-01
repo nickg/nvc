@@ -198,12 +198,35 @@
 %type <c> object_class
 %type <d> use_clause_item
 
-%token tID tENTITY tIS tEND tGENERIC tPORT tCONSTANT tCOMPONENT
-%token tCONFIGURATION tARCHITECTURE tOF tBEGIN tFOR tTYPE tTO
-%token tALL tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
-%token tPROCESS tWAIT tREPORT tLPAREN tRPAREN tSEMI tASSIGN tCOLON
-%token tCOMMA tINT tSTRING tERROR tINOUT tLINKAGE tVARIABLE tIF
-%token tRANGE tSUBTYPE tUNITS tPACKAGE tLIBRARY tUSE tDOT tNULL
+%token tID "$yellow$id$$"
+%token tENTITY "$yellow$entity$$"
+%token tIS "$yellow$is$$"
+%token tEND "$yellow$end$$"
+%token tGENERIC "$yellow$generic$$"
+%token tPORT "$yellow$port$$"
+%token tCONSTANT "$yellow$constant$$"
+%token tCOMPONENT "$yellow$component$$"
+%token tCONFIGURATION "$yellow$configuration$$"
+%token tARCHITECTURE "$yellow$architecture$$"
+%token tOF "$yellow$of$$"
+%token tBEGIN "$yellow$begin$$"
+%token tFOR "$yellow$for$$"
+%token tTYPE "$yellow$type$$"
+%token tTO "$yellow$to$$"
+%token tALL "$yellow$all$$"
+%token tIN tOUT tBUFFER tBUS tUNAFFECTED tSIGNAL tDOWNTO
+%token tPROCESS tWAIT tREPORT tLPAREN tRPAREN
+%token tSEMI ";"
+%token tASSIGN ":="
+%token tCOLON ":"
+%token tCOMMA ","
+%token tINT "$yellow$integer literal$$"
+%token tSTRING "$yellow$string literal$$"
+%token tERROR "$yellow$error token$$"
+%token tINOUT tLINKAGE tVARIABLE tIF
+%token tRANGE tSUBTYPE tUNITS
+%token tPACKAGE "$yellow$package$$"
+%token tLIBRARY tUSE tDOT tNULL
 %token tTICK tFUNCTION tIMPURE tRETURN tPURE tARRAY tBOX tASSOC
 %token tOTHERS tASSERT tSEVERITY tON tMAP tTHEN tELSE tELSIF tBODY
 %token tWHILE tLOOP tAFTER tALIAS tATTRIBUTE tPROCEDURE tEXIT
