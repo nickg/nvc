@@ -94,7 +94,7 @@ int opt_get_int(const char *name);
 char *get_fmt_buf(size_t len);
 
 void static_printf_begin(char *buf, size_t len);
-void static_printf(const char *fmt, ...)
-   __attribute__((format(printf, 1, 2)));
+void static_printf(char *buf, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
 
 #endif // _UTIL_H

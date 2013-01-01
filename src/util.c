@@ -103,6 +103,7 @@
 #define ANSI_FG_WHITE   37
 
 #define MAX_FMT_BUFS    8
+#define MAX_PRINTF_BUFS 8
 
 typedef void (*print_fn_t)(const char *fmt, ...);
 
@@ -114,11 +115,17 @@ struct option {
    int           value;
 };
 
+struct prbuf {
+   const char *buf;
+   char       *wptr;
+   size_t      remain;
+};
+
 static error_fn_t     error_fn   = def_error_fn;
 static bool           want_color = false;
 static struct option *options = NULL;
-static char          *printf_buf = NULL;
-static size_t         printf_remain = 0;
+static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
+static int            next_printf_buf = 0;
 
 static void paginate_msg(const char *fmt, va_list ap, int left, int right)
 {
@@ -727,27 +734,39 @@ char *get_fmt_buf(size_t len)
 
 void static_printf_begin(char *buf, size_t len)
 {
-   printf_buf = buf;
-   printf_remain = len - 1;
+   struct prbuf *p = &(printf_bufs[next_printf_buf]);
+   p->buf    = buf;
+   p->wptr   = buf;
+   p->remain = len - 1;
+
    buf[len - 1] = '\0';
+
+   next_printf_buf = (next_printf_buf + 1) % MAX_PRINTF_BUFS;
 }
 
-void static_printf(const char *fmt, ...)
+void static_printf(char *buf, const char *fmt, ...)
 {
-   assert(printf_buf != NULL);
+   struct prbuf *p = NULL;
+   for (int i = 0; i < MAX_PRINTF_BUFS; i++) {
+      if (printf_bufs[i].buf == buf) {
+         p = &(printf_bufs[i]);
+         break;
+      }
+   }
+   assert(p != NULL);
 
-   if (printf_remain == 0)
+   if (p->remain == 0)
       return;
 
    va_list ap;
    va_start(ap, fmt);
 
-   int n = vsnprintf(printf_buf, printf_remain, fmt, ap);
-   if ((n < 0) || (n > printf_remain))
-      printf_remain = 0;
+   int n = vsnprintf(p->wptr, p->remain, fmt, ap);
+   if ((n < 0) || (n > p->remain))
+      p->remain = 0;
    else {
-      printf_remain -= n;
-      printf_buf    += n;
+      p->remain -= n;
+      p->wptr   += n;
    }
 
    va_end(ap);

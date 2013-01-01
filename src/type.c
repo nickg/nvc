@@ -863,15 +863,15 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
 
          const char *fname = (*fn)(istr(type_ident(t)));
 
-         static_printf("%s(", fname);
+         static_printf(buf, "%s(", fname);
          const int nparams = 0;
          for (int i = 0; i < nparams; i++)
-            static_printf("%s%s",
+            static_printf(buf, "%s%s",
                           (i == 0 ? "" : ", "),
                           (*fn)(istr(type_ident(type_param(t, i)))));
-         static_printf(")");
+         static_printf(buf, ")");
          if (type_kind(t) == T_FUNC)
-            static_printf(" return %s",
+            static_printf(buf, " return %s",
                           (*fn)(istr(type_ident(type_result(t)))));
 
          return buf;

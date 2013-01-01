@@ -498,7 +498,7 @@ static const char *type_set_fmt(void)
    static_printf_begin(buf, sizeof(buf));
    if (top_type_set != NULL) {
       for (unsigned n = 0; n < top_type_set->n_members; n++)
-         static_printf("\n    %s",
+         static_printf(buf, "\n    %s",
                        sem_type_str(top_type_set->members[n]));
    }
    return buf;
@@ -2805,13 +2805,13 @@ static bool sem_check_fcall(tree_t t)
 
    if (matches > 1) {
       char buf[1024];
-      char *p = buf;
-      const char *end = buf + sizeof(buf);
+      static_printf_begin(buf, sizeof(buf));
+
       const bool operator = !isalpha((uint8_t)*istr(tree_ident(t)));
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-            p += snprintf(p, end - p, "\n%s",
+            static_printf(buf, "\n%s",
                           sem_type_str(tree_type(overloads[n])));
       }
 
@@ -2822,23 +2822,23 @@ static bool sem_check_fcall(tree_t t)
 
    if (decl == NULL) {
       char fn[512];
-      char *p = fn;
-      const char *end = fn + sizeof(fn);
+      static_printf_begin(fn, sizeof(fn));
+
       const char *fname = istr(tree_ident(t));
       const bool operator = !isalpha((uint8_t)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
-      p += snprintf(p, end - p, "%s%s%s(", quote, fname, quote);
+      static_printf(fn, "%s%s%s(", quote, fname, quote);
       for (unsigned i = 0; i < tree_params(t); i++)
-         p += snprintf(p, end - p, "%s%s",
+         static_printf(fn, "%s%s",
                        (i == 0 ? "" : ", "),
                        sem_type_str(tree_type(tree_param(t, i).value)));
-      p += snprintf(p, end - p, ")");
+      static_printf(fn, ")");
 
-      if (top_type_set != NULL && top_type_set->n_members > 0) {
-         p += snprintf(p, end - p, " return");
+      if ((top_type_set != NULL) && (top_type_set->n_members > 0)) {
+         static_printf(fn, " return");
          for (int i = 0; i < top_type_set->n_members; i++)
-            p += snprintf(p, end - p, "%s %s",
+            static_printf(fn, "%s %s",
                           (i > 0 ? " |" : ""),
                           sem_type_str(top_type_set->members[i]));
       }
@@ -2916,12 +2916,11 @@ static bool sem_check_pcall(tree_t t)
 
    if (matches > 1) {
       char buf[1024];
-      char *p = buf;
-      const char *end = buf + sizeof(buf);
+      static_printf_begin(buf, sizeof(buf));
 
-      for (int n = 0; (n < n_overloads) && (p < end); n++) {
+      for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-            p += snprintf(p, end - p, "\n    %s",
+            static_printf(buf, "\n    %s",
                           sem_type_str(tree_type(overloads[n])));
       }
 
@@ -2931,16 +2930,16 @@ static bool sem_check_pcall(tree_t t)
 
    if (decl == NULL) {
       char fn[512];
-      char *p = fn;
-      const char *end = fn + sizeof(fn);
+      static_printf_begin(fn, sizeof(fn));
+
       const char *fname = istr(tree_ident2(t));
 
-      p += snprintf(p, end - p, "%s(", fname);
+      static_printf(fn, "%s(", fname);
       for (unsigned i = 0; i < tree_params(t); i++)
-         p += snprintf(p, end - p, "%s%s",
+         static_printf(fn, "%s%s",
                        (i == 0 ? "" : ", "),
                        sem_type_str(tree_type(tree_param(t, i).value)));
-      p += snprintf(p, end - p, ")");
+      static_printf(fn, ")");
 
       sem_error(t, (n == 1 ? "undefined procedure %s"
                     : "no suitable overload for procedure %s"),

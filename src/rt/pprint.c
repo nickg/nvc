@@ -40,11 +40,11 @@ static bool pp_char_enum(type_t type)
    return all_char;
 }
 
-static void pp_one(type_t type, uint64_t value)
+static void pp_one(char *buf, type_t type, uint64_t value)
 {
    switch (type_kind(type)) {
    case T_INTEGER:
-      static_printf("%"PRIu64, value);
+      static_printf(buf, "%"PRIu64, value);
       break;
 
    case T_ENUM:
@@ -52,23 +52,23 @@ static void pp_one(type_t type, uint64_t value)
          assert(value < type_enum_literals(type));
          const char *s = istr(tree_ident(type_enum_literal(type, value)));
          if (*s == '\'')
-            static_printf("%c", *(s + 1));
+            static_printf(buf, "%c", *(s + 1));
          else
-            static_printf("%s", s);
+            static_printf(buf, "%s", s);
       }
       break;
 
    default:
-      static_printf("%"PRIx64, value);
+      static_printf(buf, "%"PRIx64, value);
    }
 }
 
-static const uint64_t *pp_array(type_t type, const uint64_t *values)
+static const uint64_t *pp_array(char *buf, type_t type, const uint64_t *values)
 {
    type_t elem = type_base_recur(type_elem(type));
    bool all_char = pp_char_enum(elem);
 
-   static_printf(all_char ? "\"" : "(");
+   static_printf(buf, all_char ? "\"" : "(");
 
    range_t r = type_dim(type, 0);
    const int left  = assume_int(r.left);
@@ -77,14 +77,14 @@ static const uint64_t *pp_array(type_t type, const uint64_t *values)
 
    for (int i = left; i != right + step; i += step) {
       if (!all_char && (i != left))
-         static_printf(",");
+         static_printf(buf, ",");
       if (type_is_array(elem))
-         values = pp_array(elem, values);
+         values = pp_array(buf, elem, values);
       else
-         pp_one(elem, *values++);
+         pp_one(buf, elem, *values++);
    }
 
-   static_printf(all_char ? "\"" : ")");
+   static_printf(buf, all_char ? "\"" : ")");
 
    return values;
 }
@@ -98,9 +98,9 @@ const char *pprint(tree_t t, const uint64_t *values, size_t len)
    type_t type = tree_type(t);
 
    if (type_is_array(type))
-      pp_array(type, values);
+      pp_array(buf, type, values);
    else
-      pp_one(type_base_recur(type), values[0]);
+      pp_one(buf, type_base_recur(type), values[0]);
 
    for (int i = 0; i < 3; i++)
       *(buf + sizeof(buf) - 2 - i) = '.';
