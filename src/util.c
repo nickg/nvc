@@ -188,6 +188,12 @@ static char *filter_color(const char *str)
       ++str;
    }
 
+   if (escape_start != NULL) {
+      const size_t len = str - escape_start;
+      strncpy(p, escape_start, len + 1);
+      p += len + 1;
+   }
+
    *p = '\0';
 
    return copy;
