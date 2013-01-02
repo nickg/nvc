@@ -956,21 +956,20 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             }
             break;
 
-         case T_RECORD:
-         case T_FILE:
-         case T_UARRAY:
-            sem_error(t, "sorry, this form of subtype is not supported");
-
          case T_CARRAY:
          case T_SUBTYPE:
          case T_INTEGER:
          case T_REAL:
-            for (unsigned i = 0; i < type_dims(base); i++)
-               type_add_dim(type, type_dim(base, i));
+         case T_PHYSICAL:
+            {
+               const int ndims = type_dims(base);
+               for (int i = 0; i < ndims; i++)
+                  type_add_dim(type, type_dim(base, i));
+            }
             break;
 
          default:
-            assert(false);
+            sem_error(t, "sorry, this form of subtype is not supported");
          }
       }
 
