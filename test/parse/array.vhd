@@ -8,7 +8,9 @@ package p is
     type char_counts is array (chars) of integer;
 
     type two_d is array (1 to 3, 4 to 6) of integer;
-        
+
+    type ab_chars is array (chars range A to B) of integer;
+
 end package;
 
 architecture a of e is

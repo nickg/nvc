@@ -1022,7 +1022,7 @@ START_TEST(test_array)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 5);
+   fail_unless(tree_decls(p) == 6);
 
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);

@@ -1800,6 +1800,10 @@ constraint_elem
      $$.left  = $1;
      $$.right = NULL;
   }
+| type_mark range_constraint
+  {
+     $$ = $2;
+  }
 ;
 
 unconstrained_array_def
