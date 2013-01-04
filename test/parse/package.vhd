@@ -21,5 +21,7 @@ package body one is
     begin
         null;
     end function add_one;
-    
+
+    shared variable x : integer;
+
 end package body;

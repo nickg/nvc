@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
 
 /*
- *  Copyright (C) 2011-2012  Nick Gasson
+ *  Copyright (C) 2011-2013  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -49,8 +49,6 @@ static int resolve_ir1045(void);
 static int last_token = -1;
 lvals_t lvals;
 %}
-
-/* TODO: look at string_literal and character_literal */
 
 ID         [a-zA-Z][a-zA-Z_0-9]*
 EXID       \\.*\\
@@ -173,6 +171,7 @@ OPEN          {O}{P}{E}{N}
 UNTIL         {U}{N}{T}{I}{L}
 RECORD        {R}{E}{C}{O}{R}{D}
 NEW           {N}{E}{W}
+SHARED        {S}{H}{A}{R}{E}{D}
 
 %%
 
@@ -260,6 +259,7 @@ NEW           {N}{E}{W}
 {UNTIL}         { TOKEN(tUNTIL); }
 {RECORD}        { TOKEN(tRECORD); }
 {NEW}           { TOKEN(tNEW); }
+{SHARED}        { TOKEN(tSHARED); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

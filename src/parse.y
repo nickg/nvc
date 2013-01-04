@@ -170,7 +170,7 @@
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal
 %type <i> id opt_id selected_id func_name func_type
-%type <l> interface_object_decl interface_list
+%type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item block_decl_part conc_stmt_list process_decl_part
 %type <l> variable_decl process_decl_item seq_stmt_list type_decl
@@ -289,6 +289,7 @@
 %token tUNTIL "$yellow$until$$"
 %token tRECORD "$yellow$record$$"
 %token tNEW "$yellow$new$$"
+%token tSHARED "$yellow$shared$$"
 %token tEOF 0 "end of file"
 
 %left tAND tOR tNAND tNOR tXOR tXNOR
@@ -484,8 +485,8 @@ package_decl_item
 | attr_spec
 | component_decl
 | file_decl
+| shared_variable_decl
 /* | signal_declaration
-   | shared_variable_declaration
    | disconnection_specification
    | use_clause
    | group_template_declaration
@@ -506,6 +507,7 @@ package_body_decl_item
 | subtype_decl
 | constant_decl
 | subprogram_decl
+| shared_variable_decl
 ;
 
 port_clause
@@ -542,8 +544,8 @@ block_decl_item
 | attr_spec
 | component_decl
 | file_decl
+| shared_variable_decl
 /* | subprogram_body
-   | shared_variable_declaration
    | configuration_specification
    | disconnection_specification
    | use_clause
@@ -1164,9 +1166,15 @@ formal_param_list
 | /* empty */ { $$ = NULL; }
 ;
 
+shared_variable_decl
+: tSHARED variable_decl
+  {
+     $$ = $2;
+  }
+;
+
 variable_decl
-: /* [ shared ] */ tVARIABLE id_list tCOLON subtype_indication
-  opt_static_expr tSEMI
+: tVARIABLE id_list tCOLON subtype_indication opt_static_expr tSEMI
   {
      $$ = NULL;
      for (list_t *it = $2; it != NULL; it = it->next) {
