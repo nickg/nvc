@@ -375,7 +375,6 @@ START_TEST(test_std)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 3);
    sem_check(a);
 
    fail_unless(parse() == NULL);

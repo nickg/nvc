@@ -991,7 +991,7 @@ static bool sem_declare(tree_t decl)
    if (!sem_check_subtype(decl, tree_type(decl), NULL))
       return false;
 
-   // If this is full type declarataion then replace any previous
+   // If this is a full type declarataion then replace any previous
    // incomplete type declaration
    tree_t forward = scope_find(tree_ident(decl));
    if (forward != NULL && tree_kind(forward) == T_TYPE_DECL) {
@@ -1014,13 +1014,19 @@ static bool sem_declare(tree_t decl)
    else if (!scope_insert(decl))
       return false;
 
+   type_kind_t type_k = type_kind(tree_type(decl));
+
    // Incomplete types cannot be checked any further
-   if (type_kind(tree_type(decl)) == T_INCOMPLETE)
+   if (type_k == T_INCOMPLETE)
       return true;
 
    // Declare any predefined operators and attributes
    if (tree_kind(decl) == T_TYPE_DECL)
       sem_declare_predefined_ops(decl);
+
+   // No futher processing needed for subtypes
+   if (type_k == T_SUBTYPE)
+      return true;
 
    bool ok = true;
 
@@ -1394,8 +1400,12 @@ static bool sem_check_type_decl(tree_t t)
    case T_SUBTYPE:
       {
          bool ok = true;
-         for (unsigned i = 0; i < type_dims(type); i++) {
+         const int ndims = type_dims(type);
+         assert(ndims > 0);
+         for (int i = 0; i < ndims; i++) {
             range_t r = type_dim(type, i);
+
+            type_set_push();
 
             type_t index = NULL;
             switch (type_kind(base)) {
@@ -1405,13 +1415,16 @@ static bool sem_check_type_decl(tree_t t)
             case T_UARRAY:
                index = type_index_constr(base, i);
                break;
+            case T_PHYSICAL:
+               type_set_add(sem_std_type("INTEGER"));
+               // Fall-through
             default:
                index = base;
                break;
             }
 
-            type_set_push();
             type_set_add(index);
+
             ok = sem_check(r.left) && sem_check(r.right) && ok;
             type_set_pop();
 
