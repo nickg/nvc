@@ -1083,6 +1083,7 @@ static bool sem_check_range(range_t *r)
          return true;
       case T_ENUM:
       case T_UARRAY:
+      case T_SUBTYPE:
          {
             tree_t a = tree_new(T_ATTR_REF);
             tree_set_ident(a, tree_ident(r->left));
@@ -1100,7 +1101,7 @@ static bool sem_check_range(range_t *r)
          }
          break;
       default:
-         sem_error(r->left, "%s does not have range",
+         sem_error(r->left, "object %s does not have a range",
                    istr(tree_ident(r->left)));
       }
    }

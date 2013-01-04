@@ -3,7 +3,7 @@ package p is
     type int_array is array (integer range <>) of integer;
 
     type ten_ints is array (1 to 10) of integer;
-    
+
 end package;
 
 entity e is
@@ -18,7 +18,7 @@ architecture a of e is
     signal z : int_array(1 to 3) := ( 0, 1, 2 );
     signal m : int_array(1 to 3) := ( 1 to 3 => 0 );
     alias a : int_array(2 to 3) is x(2 to 3);
-    
+
 begin
 
     process is
@@ -129,7 +129,7 @@ begin
         x(2) := 1;                      -- OK
         x(3 downto 1) := (others => '0');  -- Error
         assert x(2) = 5;                -- OK
-    end process;       
+    end process;
 
     process is
         function foo(size: integer) return int_array is
@@ -159,6 +159,15 @@ begin
     begin
         assert int4_t'length = 4;
         assert foo_t'length = 50;
+    end process;
+
+    process is
+        subtype a_to_c is character range 'a' to 'c';
+        type abc_ints is array (a_to_c) of integer;
+        variable v : abc_ints;
+    begin
+        assert abc_ints'length = 3;
+        v('b') := 2;
     end process;
 
 end architecture;
