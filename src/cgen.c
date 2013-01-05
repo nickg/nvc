@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -214,6 +214,9 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_PHYSICAL:
    case T_ENUM:
       return LLVMIntType(bit_width(t));
+
+   case T_REAL:
+      return LLVMDoubleType();
 
    case T_SUBTYPE:
       if (!type_is_array(t))
@@ -801,6 +804,8 @@ static LLVMValueRef cgen_literal(tree_t t)
    switch (l.kind) {
    case L_INT:
       return LLVMConstInt(lltype, l.i, false);
+   case L_REAL:
+      return LLVMConstReal(lltype, l.r);
    case L_NULL:
       return LLVMConstNull(lltype);
    default:
@@ -1313,26 +1318,69 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
    // Regular builtin functions
    if (builtin) {
-      if (icmp(builtin, "mul"))
-         return LLVMBuildMul(builder, args[0], args[1], "");
-      else if (icmp(builtin, "add"))
-         return LLVMBuildAdd(builder, args[0], args[1], "");
-      else if (icmp(builtin, "sub"))
-         return LLVMBuildSub(builder, args[0], args[1], "");
-      else if (icmp(builtin, "div"))
-         return LLVMBuildSDiv(builder, args[0], args[1], "");
-      else if (icmp(builtin, "eq"))
-         return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
-      else if (icmp(builtin, "neq"))
-         return LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
-      else if (icmp(builtin, "lt"))
-         return LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
-      else if (icmp(builtin, "gt"))
-         return LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
-      else if (icmp(builtin, "leq"))
-         return LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
-      else if (icmp(builtin, "geq"))
-         return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+      assert(nparams > 0);
+      const bool real = (type_kind(type_base_recur(arg_types[0])) == T_REAL);
+
+      if (icmp(builtin, "mul")) {
+         if (real)
+            return LLVMBuildFMul(builder, args[0], args[1], "");
+         else
+            return LLVMBuildMul(builder, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "add")) {
+         if (real)
+            return LLVMBuildFAdd(builder, args[0], args[1], "");
+         else
+            return LLVMBuildAdd(builder, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "sub")) {
+         if (real)
+            return LLVMBuildFSub(builder, args[0], args[1], "");
+         else
+            return LLVMBuildSub(builder, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "div")) {
+         if (real)
+            return LLVMBuildFDiv(builder, args[0], args[1], "");
+         else
+            return LLVMBuildSDiv(builder, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "eq")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealUEQ, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "neq")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealUNE, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "lt")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealULT, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "gt")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealUGT, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "leq")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealULE, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
+      }
+      else if (icmp(builtin, "geq")) {
+         if (real)
+            return LLVMBuildFCmp(builder, LLVMRealUGE, args[0], args[1], "");
+         else
+            return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+      }
       else if (icmp(builtin, "neg"))
          return LLVMBuildNeg(builder, args[0], "");
       else if (icmp(builtin, "not"))
@@ -1377,7 +1425,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "image")) {
          const bool is_signed =
             (type_kind(type_base_recur(arg_types[0])) == T_INTEGER);
-         LLVMOpcode op = (is_signed ? LLVMSExt : LLVMZExt);
+         LLVMOpcode op = real ? LLVMFPToSI : (is_signed ? LLVMSExt : LLVMZExt);
          LLVMValueRef res = LLVMBuildAlloca(builder,
                                             llvm_uarray_type(LLVMInt8Type()),
                                             "image");
@@ -1999,8 +2047,24 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
 {
-   // TODO: fix this for real<->integer conversion
-   return cgen_expr(tree_param(t, 0).value, ctx);
+   tree_t value = tree_param(t, 0).value;
+
+   type_t from = type_base_recur(tree_type(value));
+   type_t to   = type_base_recur(tree_type(t));
+
+   type_kind_t from_k = type_kind(from);
+   type_kind_t to_k   = type_kind(to);
+
+   LLVMValueRef value_ll = cgen_expr(value, ctx);
+
+   if ((from_k == T_REAL) && (to_k == T_INTEGER))
+      return LLVMBuildFPToSI(builder, value_ll, llvm_type(to), "");
+   else if ((from_k == T_INTEGER) && (to_k == T_REAL))
+      return LLVMBuildSIToFP(builder, value_ll, llvm_type(to), "");
+   else {
+      // No conversion to perform
+      return value_ll;
+   }
 }
 
 static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)

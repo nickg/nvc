@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -479,6 +479,10 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
    case T_ENUM:
       len = snprintf(buf, max, "%s",
                      istr(tree_ident(type_enum_literal(type, val))));
+      break;
+
+   case T_REAL:
+      len = snprintf(buf, max, "%lf", (double)val);
       break;
 
    default:

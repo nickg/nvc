@@ -80,3 +80,4 @@ proc3           normal
 access1         normal,gold
 proc4           normal
 file1           normal
+real1           normal,gold
