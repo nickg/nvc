@@ -2337,7 +2337,7 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
       if (!type_eq(expect, tree_type(value)))
          sem_error(t, "type of value %s does not match type of target %s",
                    sem_type_str(tree_type(value)),
-                   istr(type_ident(expect)));
+                   sem_type_str(expect));
 
       if (tree_has_delay(waveform)) {
          tree_t delay = tree_delay(waveform);
@@ -2473,20 +2473,21 @@ static bool sem_check_conversion(tree_t t)
    tree_set_type(t, to);
 
    // Resolve both types to their base types
-   while (type_kind(from) == T_SUBTYPE)
-      from = type_base(from);
-   while (type_kind(to) == T_SUBTYPE)
-      to = type_base(to);
+   from = type_base_recur(from);
+   to   = type_base_recur(to);
 
    type_kind_t from_k = type_kind(from);
    type_kind_t to_k   = type_kind(to);
 
+   const bool from_num = (from_k == T_INTEGER) || (from_k == T_REAL);
+   const bool to_num   = (to_k == T_INTEGER) || (to_k == T_REAL);
+
    // Conversions are allowed between any abstract numeric types
-   if (from_k == T_INTEGER && to_k == T_INTEGER)
+   if (from_num && to_num)
       return true;
 
-   bool from_array = (from_k == T_CARRAY || from_k == T_UARRAY);
-   bool to_array   = (to_k == T_CARRAY || to_k == T_UARRAY);
+   const bool from_array = (from_k == T_CARRAY || from_k == T_UARRAY);
+   const bool to_array   = (to_k == T_CARRAY || to_k == T_UARRAY);
 
    if (from_array && to_array) {
       // Types must have same dimensionality
