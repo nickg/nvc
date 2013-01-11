@@ -3718,7 +3718,7 @@ static bool sem_check_record_ref(tree_t t)
 static bool sem_check_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
-   if (!sem_check(value))
+   if (!sem_check_constrained(value, NULL))
       return false;
 
    type_t type = tree_type(tree_value(t));
@@ -3726,16 +3726,18 @@ static bool sem_check_array_ref(tree_t t)
    if (!type_is_array(type))
       sem_error(t, "invalid array reference");
 
-   unsigned nindex = (type_kind(type) == T_UARRAY
-                      ? type_index_constrs(type)
-                      : type_dims(type));
+   const int nindex = (type_kind(type) == T_UARRAY
+                       ? type_index_constrs(type)
+                       : type_dims(type));
 
-   if (tree_params(t) != nindex)
+   const int nparams = tree_params(t);
+
+   if (nparams != nindex)
       sem_error(t, "array %s has %d dimensions but %d indices given",
-                istr(tree_ident(value)), nindex, tree_params(t));
+                istr(tree_ident(value)), nindex, nparams);
 
    bool ok = true;
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   for (int i = 0; i < nparams; i++) {
       param_t p = tree_param(t, i);
       if (p.kind != P_POS)
          sem_error(t, "only scalar references supported");
