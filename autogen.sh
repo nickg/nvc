@@ -1,3 +1,2 @@
-aclocal -I m4
-autoconf
-automake -a
+#!/bin/sh
+autoreconf --force --install -I m4
