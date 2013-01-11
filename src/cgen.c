@@ -165,6 +165,10 @@ static unsigned bit_width(type_t t)
             return 64;
       }
 
+   case T_REAL:
+       // All real types are doubles at the moment
+       return 64;
+
    case T_SUBTYPE:
       return bit_width(type_base(t));
 
