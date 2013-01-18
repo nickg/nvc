@@ -1298,6 +1298,20 @@ static LLVMValueRef cgen_name_attr(tree_t ref, int which)
    return LLVMBuildLoad(builder, res, "");
 }
 
+static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
+{
+   // Ensure all arguments to arithmetic operators are the same width
+
+   LLVMTypeRef lltype = llvm_type(result);
+   unsigned width = LLVMGetIntTypeWidth(lltype);
+
+   for (int i = 0; i < nargs; i++) {
+      LLVMTypeRef arg_type = LLVMTypeOf(args[i]);
+      if (LLVMGetIntTypeWidth(arg_type) != width)
+         args[i] = LLVMBuildIntCast(builder, args[i], lltype, "promote");
+   }
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -1335,24 +1349,28 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       const bool real = (type_kind(type_base_recur(arg_types[0])) == T_REAL);
 
       if (icmp(builtin, "mul")) {
+         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFMul(builder, args[0], args[1], "");
          else
             return LLVMBuildMul(builder, args[0], args[1], "");
       }
       else if (icmp(builtin, "add")) {
+         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFAdd(builder, args[0], args[1], "");
          else
             return LLVMBuildAdd(builder, args[0], args[1], "");
       }
       else if (icmp(builtin, "sub")) {
+         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFSub(builder, args[0], args[1], "");
          else
             return LLVMBuildSub(builder, args[0], args[1], "");
       }
       else if (icmp(builtin, "div")) {
+         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFDiv(builder, args[0], args[1], "");
          else

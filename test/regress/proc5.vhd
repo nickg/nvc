@@ -14,13 +14,26 @@ architecture test of proc5 is
         end loop;
     end procedure;
 
+    procedure create_clock
+        ( signal clk     : inout std_logic;
+          period         : in delay_length;
+          signal running : in boolean ) is
+    begin
+        if running then
+            clk <= not clk after period / 2;
+        end if;
+    end procedure;
+
     signal running : boolean := true;
 
     signal clk : std_logic := '1';
 
 begin
 
-    clk <= not clk after 10 ns when running else '0';
+    process (clk, running) is
+    begin
+        create_clock(clk, 20 ns, running);
+    end process;
 
     process is
     begin
