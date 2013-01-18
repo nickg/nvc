@@ -806,25 +806,25 @@ char *get_fmt_buf(size_t len)
 
 void static_printf_begin(char *buf, size_t len)
 {
+   next_printf_buf = (next_printf_buf + 1) % MAX_PRINTF_BUFS;
+
    struct prbuf *p = &(printf_bufs[next_printf_buf]);
    p->buf    = buf;
    p->wptr   = buf;
    p->remain = len - 1;
 
    buf[len - 1] = '\0';
-
-   next_printf_buf = (next_printf_buf + 1) % MAX_PRINTF_BUFS;
 }
 
 void static_printf(char *buf, const char *fmt, ...)
 {
    struct prbuf *p = NULL;
-   for (int i = 0; i < MAX_PRINTF_BUFS; i++) {
-      if (printf_bufs[i].buf == buf) {
+   int i = next_printf_buf;
+   do {
+      if (printf_bufs[i].buf == buf)
          p = &(printf_bufs[i]);
-         break;
-      }
-   }
+      i = (i + 1) % MAX_PRINTF_BUFS;
+   } while ((p == NULL) && (i != next_printf_buf));
    assert(p != NULL);
 
    if (p->remain == 0)
