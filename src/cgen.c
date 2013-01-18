@@ -2139,7 +2139,7 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
-static void cgen_sched_event(tree_t on, LLVMValueRef until)
+static void cgen_sched_event(tree_t on)
 {
    if (tree_kind(on) != T_REF) {
       // It is possible for constant folding to replace a signal with
@@ -2161,44 +2161,10 @@ static void cgen_sched_event(tree_t on, LLVMValueRef until)
    LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
    LLVMValueRef args[] = {
       llvm_void_cast(signal),
-      llvm_int32(n),
-      until
+      llvm_int32(n)
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
-}
-
-static LLVMTypeRef cgen_until_func_type(void)
-{
-   return LLVMFunctionType(LLVMInt1Type(), NULL, 0, false);
-}
-
-static LLVMValueRef cgen_until_func(tree_t wait, cgen_ctx_t *ctx)
-{
-   // Generate a function to evaluate a condition clause
-
-   if (!tree_has_value(wait))
-      return LLVMConstNull(LLVMPointerType(cgen_until_func_type(), 0));
-   else {
-      tree_t expr = tree_value(wait);
-
-      char name[256];
-      snprintf(name, sizeof(name), "until_%s", istr(tree_ident(wait)));
-
-      LLVMValueRef fn = LLVMAddFunction(module, name,
-                                        cgen_until_func_type());
-      LLVMSetLinkage(fn, LLVMInternalLinkage);
-
-      LLVMBasicBlockRef bb = LLVMAppendBasicBlock(fn, "body");
-      LLVMBasicBlockRef save = LLVMGetInsertBlock(builder);
-
-      LLVMPositionBuilderAtEnd(builder, bb);
-      LLVMBuildRet(builder, cgen_expr(expr, ctx));
-
-      LLVMPositionBuilderAtEnd(builder, save);
-
-      return fn;
-   }
 }
 
 static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
@@ -2206,10 +2172,8 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
    if (tree_has_delay(t))
       cgen_sched_process(cgen_expr(tree_delay(t), ctx));
 
-   LLVMValueRef until = cgen_until_func(t, ctx);
-
    for (unsigned i = 0; i < tree_triggers(t); i++)
-      cgen_sched_event(tree_trigger(t, i), until);
+      cgen_sched_event(tree_trigger(t, i));
 
    // Find the basic block to jump to when the process is next scheduled
    struct proc_entry *it;
@@ -3701,8 +3665,7 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _sched_event_args[] = {
       llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMPointerType(cgen_until_func_type(), 0)
+      LLVMInt32Type()
    };
    LLVMAddFunction(module, "_sched_event",
                    LLVMFunctionType(LLVMVoidType(),

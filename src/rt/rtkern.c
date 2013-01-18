@@ -39,7 +39,6 @@
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
-typedef int8_t (*until_fn_t)(void);
 typedef uint64_t (*resolution_fn_t)(uint64_t *vals, int32_t n);
 
 struct tmp_chunk_hdr {
@@ -82,7 +81,6 @@ struct waveform {
 struct sens_list {
    struct rt_proc   *proc;
    unsigned         wakeup_gen;
-   until_fn_t       until;
    struct sens_list *next;
 };
 
@@ -289,12 +287,12 @@ void _sched_waveform(void *_sig, int64_t value, int64_t after, int64_t reject)
    deltaq_insert_driver(after, sig, 1, active_proc);
 }
 
-void _sched_event(void *_sig, int32_t n, until_fn_t until)
+void _sched_event(void *_sig, int32_t n)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_event %s n=%d until=%p proc %s", fmt_sig(sig), n,
-         until, istr(tree_ident(active_proc->source)));
+   TRACE("_sched_event %s n=%d proc %s", fmt_sig(sig), n,
+         istr(tree_ident(active_proc->source)));
 
    for (int i = 0; i < n; i++) {
       // See if there is already a stale entry in the sensitvity
@@ -307,7 +305,6 @@ void _sched_event(void *_sig, int32_t n, until_fn_t until)
          struct sens_list *node = rt_alloc(sens_list_stack);
          node->proc       = active_proc;
          node->wakeup_gen = active_proc->wakeup_gen;
-         node->until      = until;
          node->next       = sig[i].sensitive;
 
          sig[i].sensitive = node;
@@ -315,7 +312,6 @@ void _sched_event(void *_sig, int32_t n, until_fn_t until)
       else {
          // Reuse the stale entry
          it->wakeup_gen = active_proc->wakeup_gen;
-         it->until      = until;
       }
    }
 }
@@ -858,17 +854,11 @@ static bool rt_wakeup(struct sens_list *sl)
       pstr = istr(tree_ident(sl->proc->source));
 
    if (sl->wakeup_gen == sl->proc->wakeup_gen) {
-      if (unlikely((sl->until != NULL) && ((*sl->until)() == 0))) {
-         TRACE("process %s condition check failed", pstr);
-         return false;
-      }
-      else {
-         TRACE("wakeup process %s", pstr);
-         ++(sl->proc->wakeup_gen);
-         sl->next = resume;
-         resume = sl;
-         return true;
-      }
+      TRACE("wakeup process %s", pstr);
+      ++(sl->proc->wakeup_gen);
+      sl->next = resume;
+      resume = sl;
+      return true;
    }
    else {
       rt_free(sens_list_stack, sl);
