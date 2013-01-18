@@ -594,7 +594,16 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    assert(tree_kind(decl) == T_VAR_DECL);
 
    int offset = tree_attr_int(decl, var_offset_i, -1);
-   assert(offset != -1);
+   if (offset == -1) {
+      // This variable is not defined anywhere in this translation unit
+      // so make it an external symbol and hope the linker fixes it up
+      LLVMTypeRef lltype = llvm_type(tree_type(decl));
+      LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(decl)));
+      LLVMSetLinkage(var, LLVMExternalLinkage);
+
+      tree_add_attr_ptr(decl, local_var_i, var);
+      return var;
+   }
 
    LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
    if (type_is_array(tree_type(decl))) {
@@ -3585,6 +3594,19 @@ static void cgen_file_decl(tree_t t)
    tree_add_attr_ptr(t, local_var_i, f);
 }
 
+static void cgen_shared_var(tree_t t)
+{
+   LLVMTypeRef lltype = llvm_type(tree_type(t));
+   LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
+
+   struct cgen_ctx ctx;
+   memset(&ctx, '\0', sizeof(ctx));
+   LLVMValueRef init = cgen_expr(tree_value(t), &ctx);
+   LLVMSetInitializer(var, init);
+
+   tree_add_attr_ptr(t, local_var_i, var);
+}
+
 static void cgen_top(tree_t t)
 {
    const int ndecls = tree_decls(t);
@@ -3611,6 +3633,9 @@ static void cgen_top(tree_t t)
          break;
       case T_FILE_DECL:
          cgen_file_decl(decl);
+         break;
+      case T_VAR_DECL:
+         cgen_shared_var(decl);
          break;
       default:
          assert(false);
@@ -3909,8 +3934,8 @@ void cgen(tree_t top)
    never_waits_i = ident_new("never_waits");
 
    tree_kind_t kind = tree_kind(top);
-   if (kind != T_ELAB && kind != T_PACK_BODY)
-      fatal("cannot generate code for tree kind %d", kind);
+   if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
+      fatal("cannot generate code for %s", tree_kind_str(kind));
 
    module = LLVMModuleCreateWithName(istr(tree_ident(top)));
    builder = LLVMCreateBuilder();

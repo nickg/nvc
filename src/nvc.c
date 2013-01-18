@@ -104,7 +104,12 @@ static int analyse(int argc, char **argv)
             unalias(unit);
             simplify(unit);
 
-            if (tree_kind(unit) == T_PACK_BODY) {
+            tree_kind_t kind = tree_kind(unit);
+            const bool need_cgen =
+               (kind == T_PACK_BODY)
+               || ((kind == T_PACKAGE) && pack_needs_cgen(unit));
+
+            if (need_cgen) {
                assert(n_cgen < ARRAY_LEN(to_cgen));
                to_cgen[n_cgen++] = unit;
             }

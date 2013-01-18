@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -50,5 +50,9 @@ void opt(tree_t top);
 
 // Link together bitcode packages with elaborated design
 void link_bc(tree_t top);
+
+// True if the package contains shared variables or signals which
+// must be run through code generation
+bool pack_needs_cgen(tree_t t);
 
 #endif  // _PHASE_H

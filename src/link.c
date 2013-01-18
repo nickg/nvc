@@ -77,6 +77,9 @@ static void link_context(context_t ctx)
    else if (tree_kind(unit) != T_PACKAGE)
       return;
 
+   if (pack_needs_cgen(unit))
+      link_arg_bc(lib, all);
+
    ident_t body_i = ident_prefix(all, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
    if (body == NULL) {
@@ -218,4 +221,20 @@ void link_bc(tree_t top)
 
    if (opt_get_int("native"))
       link_native(top);
+}
+
+bool pack_needs_cgen(tree_t t)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      switch (tree_kind(tree_decl(t, i))) {
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+         return true;
+      default:
+         break;
+      }
+   }
+
+   return false;
 }

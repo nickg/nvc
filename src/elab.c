@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -295,7 +295,8 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
    ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
-   for (unsigned i = 0; i < tree_decls(t); i++) {
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
       const char *label = simple_name(istr(tree_ident(d)));
       ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
@@ -307,6 +308,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       case T_PROC_BODY:
       case T_ALIAS:
       case T_FILE_DECL:
+      case T_VAR_DECL:
          tree_set_ident(d, npath);
          tree_add_decl(ctx->out, d);
          tree_add_attr_str(d, inst_name_i, ninst);
