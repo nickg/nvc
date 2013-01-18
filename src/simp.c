@@ -934,7 +934,26 @@ static tree_t simp_cpcall(tree_t t)
 
 static tree_t simp_cassert(tree_t t)
 {
-   return t;
+   tree_t process = tree_new(T_PROCESS);
+   tree_set_ident(process, tree_ident(t));
+   tree_set_loc(process, tree_loc(t));
+
+   tree_t wait = tree_new(T_WAIT);
+   tree_set_ident(wait, ident_new("assert_wait"));
+
+   tree_t a = tree_new(T_ASSERT);
+   tree_set_ident(a, ident_new("assert_wrap"));
+   tree_set_loc(a, tree_loc(t));
+   tree_set_value(a, tree_value(t));
+   tree_set_severity(a, tree_severity(t));
+   tree_set_message(a, tree_message(t));
+
+   tree_visit_only(tree_value(t), simp_build_wait, wait, T_REF);
+
+   tree_add_stmt(process, a);
+   tree_add_stmt(process, wait);
+
+   return process;
 }
 
 static tree_t simp_tree(tree_t t, void *context)
