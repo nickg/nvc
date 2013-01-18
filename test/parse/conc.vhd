@@ -11,5 +11,9 @@ begin
         1 when a,
         2 when b,
         3 when others;
-    
+
+    pcall(x, y);
+
+    assert x = 5;
+
 end architecture;

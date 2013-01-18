@@ -168,7 +168,7 @@
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
-%type <t> null_literal
+%type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
 %type <i> id opt_id selected_id func_name func_type
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -845,8 +845,8 @@ conc_stmt_without_label
 : process_stmt
 | conc_assign_stmt
 | conc_select_assign_stmt
-  /* | concurrent_procedure_call_statement
-     | concurrent_assertion_statement */
+| conc_procedure_call_stmt
+| conc_assertion_stmt
 ;
 
 generate_stmt
@@ -1233,6 +1233,32 @@ conditional_waveforms
 
      $$ = $5;
      tree_list_prepend(&$$, c);
+  }
+;
+
+conc_procedure_call_stmt
+: /* [ postponed ] */ name tLPAREN param_list tRPAREN tSEMI
+  {
+     $$ = tree_new(T_PCALL);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, tree_ident($1));
+     copy_params($3, tree_add_param, $$);
+  }
+;
+
+conc_assertion_stmt
+: /* [ postponed ] */ tASSERT expr report severity tSEMI
+  {
+     if ($4 == NULL) {
+        $4 = tree_new(T_REF);
+        tree_set_ident($4, ident_new("ERROR"));
+     }
+
+     $$ = tree_new(T_ASSERT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $2);
+     tree_set_severity($$, $4);
+     tree_set_message($$, $3);
   }
 ;
 
