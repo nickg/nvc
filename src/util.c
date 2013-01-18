@@ -823,7 +823,7 @@ void static_printf(char *buf, const char *fmt, ...)
    do {
       if (printf_bufs[i].buf == buf)
          p = &(printf_bufs[i]);
-      i = (i + 1) % MAX_PRINTF_BUFS;
+      i = (i == 0) ? (MAX_PRINTF_BUFS - 1) : (i - 1);
    } while ((p == NULL) && (i != next_printf_buf));
    assert(p != NULL);
 
