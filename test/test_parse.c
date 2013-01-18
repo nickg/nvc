@@ -574,8 +574,8 @@ START_TEST(test_types)
    fail_unless(type_dims(t) == 1);
    r = type_dim(t, 0);
    fail_unless(r.kind == RANGE_TO);
-   fail_unless(tree_kind(r.left) == T_LITERAL);
-   fail_unless(tree_kind(r.right) == T_LITERAL);
+   fail_unless(tree_kind(r.left) == T_FCALL);
+   fail_unless(tree_kind(r.right) == T_FCALL);
    fail_unless(type_units(t) == 3);
    u = type_unit(t, 0);
    fail_unless(u.name == ident_new("OHM"));

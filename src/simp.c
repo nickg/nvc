@@ -393,13 +393,7 @@ static tree_t simp_ref(tree_t t)
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (type_kind(type) == T_PHYSICAL) {
-         // Slight hack to constant-fold the definitions of
-         // physical units that and generated during the sem phase
-         tree_t copy = tree_copy(tree_value(decl));
-         return tree_rewrite(copy, simp_tree, NULL);
-      }
-      else if (type_is_array(type))
+      if (type_is_array(type))
          return t;
       else
          return tree_value(decl);

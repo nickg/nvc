@@ -135,6 +135,7 @@
    static ident_t loc_to_ident(const loc_t *loc);
    static tree_t get_time(int64_t fs);
    static void set_delay_mechanism(tree_t t, tree_t reject);
+   static tree_t int_to_physical(tree_t t, unit_t unit);
 
 #define parse_error(loc, ...) do {         \
       error_at(loc, __VA_ARGS__);          \
@@ -1916,6 +1917,9 @@ physical_type_def
 : range_constraint tUNITS base_unit_decl secondary_unit_decls tEND
   tUNITS opt_id
   {
+     $1.left  = int_to_physical($1.left, $3);
+     $1.right = int_to_physical($1.right, $3);
+
      $$ = type_new(T_PHYSICAL);
      type_add_dim($$, $1);
      type_add_unit($$, $3);
@@ -2506,6 +2510,22 @@ static tree_t get_time(int64_t fs)
    tree_add_param(f, right);
 
    return f;
+}
+
+static tree_t int_to_physical(tree_t t, unit_t unit)
+{
+   tree_t ref = tree_new(T_REF);
+   tree_set_ident(ref, unit.name);
+
+   tree_t fcall = tree_new(T_FCALL);
+   tree_set_loc(fcall, tree_loc(t));
+   tree_set_ident(fcall, ident_new("\"*\""));
+   param_t a = { .kind = P_POS, .value = t };
+   tree_add_param(fcall, a);
+   param_t b = { .kind = P_POS, .value = ref };
+   tree_add_param(fcall, b);
+
+   return fcall;
 }
 
 static void set_delay_mechanism(tree_t t, tree_t reject)

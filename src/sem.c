@@ -1374,28 +1374,24 @@ static bool sem_check_type_decl(tree_t t)
       }
       return true;
 
-   case T_INTEGER:
    case T_PHYSICAL:
+   case T_INTEGER:
    case T_REAL:
       {
          range_t r = type_dim(type, 0);
 
-         // Check the range expressions as if they were INTEGERs
-         // when there is no base type
-         type_set_push();
-         type_set_add(sem_std_type(type_kind(type) == T_REAL
-                                   ? "REAL" : "INTEGER"));
-         bool ok = sem_check(r.left) && sem_check(r.right);
-         type_set_pop();
+         if (!sem_check_constrained(r.left, type))
+            return false;
 
-         if (ok) {
-            // Standard specifies type of 'LEFT and 'RIGHT are same
-            // as the declared type
-            tree_set_type(r.left, type);
-            tree_set_type(r.right, type);
-         }
+         if (!sem_check_constrained(r.right, type))
+            return false;
 
-         return ok;
+         // Standard specifies type of 'LEFT and 'RIGHT are same
+         // as the declared type
+         tree_set_type(r.left, type);
+         tree_set_type(r.right, type);
+
+         return true;
       }
 
    case T_SUBTYPE:

@@ -17,4 +17,11 @@ begin
         t <= now;
     end process;
 
+    process is
+        -- Default values
+        variable a : time;
+        variable b : my_time;
+    begin
+    end process;
+
 end architecture;
