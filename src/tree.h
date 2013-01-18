@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -101,6 +101,8 @@ typedef enum tree_kind {
    T_RECORD_REF,
    T_ALL,
    T_NEW,
+   T_CASSERT,
+   T_CPCALL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

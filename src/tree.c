@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -270,6 +270,12 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_NEW
    (I_VALUE | I_TYPE),
+
+   // T_CASSERT
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
+
+   // T_CPCALL
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -302,6 +308,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
+   "T_CASSERT",      "T_CPCALL",
 };
 
 static const char *item_text_map[] = {
@@ -378,7 +385,7 @@ typedef struct {
     || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
     || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
     || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
-    || IS(t, T_FOR_GENERATE))
+    || IS(t, T_FOR_GENERATE) || IS(t, T_CPCALL) || IS(t, T_CASSERT))
 
 // Garbage collection
 static tree_t *all_trees = NULL;

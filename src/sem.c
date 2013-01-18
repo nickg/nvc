@@ -4519,6 +4519,7 @@ bool sem_check(tree_t t)
    case T_WAIT:
       return sem_check_wait(t);
    case T_ASSERT:
+   case T_CASSERT:
       return sem_check_assert(t);
    case T_QUALIFIED:
       return sem_check_qualified(t);
@@ -4565,6 +4566,7 @@ bool sem_check(tree_t t)
    case T_CONCAT:
       return sem_check_concat(t);
    case T_PCALL:
+   case T_CPCALL:
       return sem_check_pcall(t);
    case T_SELECT:
       return sem_check_select(t);

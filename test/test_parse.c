@@ -1276,11 +1276,11 @@ START_TEST(test_conc)
    fail_unless(tree_assocs(s) == 3);
 
    s = tree_stmt(a, 3);
-   fail_unless(tree_kind(s) == T_PCALL);
+   fail_unless(tree_kind(s) == T_CPCALL);
    fail_unless(tree_params(s) == 2);
 
    s = tree_stmt(a, 4);
-   fail_unless(tree_kind(s) == T_ASSERT);
+   fail_unless(tree_kind(s) == T_CASSERT);
 
    a = parse();
    fail_unless(a == NULL);

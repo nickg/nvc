@@ -2896,7 +2896,7 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
       cgen_pcall(t, ctx);
       break;
    default:
-      assert(false);
+      fatal("missing cgen_stmt for %s", tree_kind_str(tree_kind(t)));
    }
 }
 

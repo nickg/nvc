@@ -1239,7 +1239,7 @@ conditional_waveforms
 conc_procedure_call_stmt
 : /* [ postponed ] */ name tLPAREN param_list tRPAREN tSEMI
   {
-     $$ = tree_new(T_PCALL);
+     $$ = tree_new(T_CPCALL);
      tree_set_loc($$, &@$);
      tree_set_ident2($$, tree_ident($1));
      copy_params($3, tree_add_param, $$);
@@ -1254,7 +1254,7 @@ conc_assertion_stmt
         tree_set_ident($4, ident_new("ERROR"));
      }
 
-     $$ = tree_new(T_ASSERT);
+     $$ = tree_new(T_CASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
      tree_set_severity($$, $4);

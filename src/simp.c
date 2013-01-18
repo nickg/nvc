@@ -892,6 +892,51 @@ static tree_t simp_select(tree_t t)
    return p;
 }
 
+static tree_t simp_cpcall(tree_t t)
+{
+   t = simp_call_args(t);
+
+   tree_t process = tree_new(T_PROCESS);
+   tree_set_ident(process, tree_ident(t));
+   tree_set_loc(process, tree_loc(t));
+
+   tree_t wait = tree_new(T_WAIT);
+   tree_set_ident(wait, ident_new("pcall_wait"));
+
+   tree_t pcall = tree_new(T_PCALL);
+   tree_set_ident(pcall, ident_new("pcall"));
+   tree_set_ident2(pcall, tree_ident2(t));
+   tree_set_loc(pcall, tree_loc(t));
+   tree_set_ref(pcall, tree_ref(t));
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      param_t p = tree_param(t, i);
+      assert(p.kind == P_POS);
+
+      // Only add IN and INOUT parameters to sensitivity list
+      tree_t port = tree_port(tree_ref(t), i);
+      const bool sensitive =
+         (tree_class(port) == C_SIGNAL)
+         && ((tree_port_mode(port) == PORT_IN)
+             || (tree_port_mode(port) == PORT_INOUT));
+      if (sensitive)
+         tree_visit_only(p.value, simp_build_wait, wait, T_REF);
+
+      tree_add_param(pcall, p);
+   }
+
+   tree_add_stmt(process, pcall);
+   tree_add_stmt(process, wait);
+
+   return process;
+}
+
+static tree_t simp_cassert(tree_t t)
+{
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -923,6 +968,10 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_wait(t);
    case T_NULL:
       return NULL;   // Delete it
+   case T_CPCALL:
+      return simp_cpcall(t);
+   case T_CASSERT:
+      return simp_cassert(t);
    default:
       return t;
    }
