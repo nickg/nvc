@@ -4,7 +4,7 @@ ieeedir = $(pkgdatadir)/ieee
 ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
 	ieee/IEEE.NUMERIC_STD ieee/IEEE.STD_LOGIC_1164-body \
 	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
-	ieee/_IEEE.NUMERIC_STD-body.bc ieee/IEEE.MATH_REAL
+	ieee/_IEEE.NUMERIC_STD-body.bc ieee/IEEE.MATH_REAL #ieee/IEEE.MATH_REAL-body
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
 lib = $(nvc_verbose) NVC_LIBPATH=../std
@@ -34,6 +34,9 @@ ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl ieee/IEEE.NUMERIC_ST
 	$(lib) $(nvc) --work=ieee -a $<
 
 ieee/IEEE.MATH_REAL: $(srcdir)/math_real.vhdl
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.MATH_REAL-body: $(srcdir)/math_real-body.vhdl
 	$(lib) $(nvc) --work=ieee -a $<
 
 clean-local:
