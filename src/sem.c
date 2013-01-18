@@ -687,7 +687,24 @@ static void sem_declare_predefined_ops(tree_t decl)
       //sem_declare_binary(div, t, std_real, t, "div");
       sem_declare_binary(div, t, t, std_int, "div");
 
-      // Fall-through
+      // Addition
+      sem_declare_binary(plus, t, t, t, "add");
+
+      // Subtraction
+      sem_declare_binary(minus, t, t, t, "sub");
+
+      // Comparison
+      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");
+      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "leq");
+      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "gt");
+      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "geq");
+
+      // Equality
+      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "eq");
+      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "neq");
+
+      break;
+
    case T_INTEGER:
       // Modulus
       sem_declare_binary(ident_new("\"mod\""), t, t, t, "mod");

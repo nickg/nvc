@@ -12,7 +12,7 @@ architecture test of conv is
     begin
         return x = a(y);
     end function;
-    
+
 begin
 
     process is
@@ -21,6 +21,8 @@ begin
         variable z : b(1 to 3);
         variable w : c(1 to 3);
         variable u : d;
+        variable t : time;
+        variable r : real;
     begin
         x := integer(2);                -- OK
         x := integer(y);                -- Error
@@ -31,6 +33,7 @@ begin
         assert eq(y, b(y));             -- OK
         assert eq(u, z);                -- OK
         assert eq(a(u), z);             -- OK
+        r := real(sec / t);             -- OK
         wait;
     end process;
 

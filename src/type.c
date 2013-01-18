@@ -864,7 +864,7 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
          const char *fname = (*fn)(istr(type_ident(t)));
 
          static_printf(buf, "%s(", fname);
-         const int nparams = 0;
+         const int nparams = type_params(t);
          for (int i = 0; i < nparams; i++)
             static_printf(buf, "%s%s",
                           (i == 0 ? "" : ", "),
