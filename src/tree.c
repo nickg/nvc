@@ -1759,7 +1759,8 @@ int64_t assume_int(tree_t t)
       }
 
    default:
-      assert(false);
+      fatal_at(tree_loc(t), "expression cannot be folded to "
+               "an integer constant");
    }
 }
 
