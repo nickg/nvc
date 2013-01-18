@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -287,8 +287,62 @@ static tree_t simp_fcall_agg(tree_t t, ident_t builtin)
       return t;
 }
 
+static tree_t simp_call_args(tree_t t)
+{
+   // Replace named arguments with positional ones
+
+   tree_t decl = tree_ref(t);
+
+   const int nparams = tree_params(t);
+   const int nports  = tree_ports(decl);
+
+   int last_pos = -1;
+   for (int i = 0; i < nparams; i++) {
+      if (tree_param(t, i).kind == P_POS)
+         last_pos = i;
+   }
+
+   if (last_pos == nparams - 1)
+      return t;    // No named arguments
+
+   tree_t new = tree_new(tree_kind(t));
+   tree_set_loc(new, tree_loc(t));
+   tree_set_ident(new, tree_ident(t));
+   tree_set_ref(new, tree_ref(t));
+
+   if (tree_kind(t) == T_FCALL)
+      tree_set_type(new, tree_type(t));
+   else if (tree_kind(t) == T_PCALL)
+      tree_set_ident2(new, tree_ident2(t));
+
+   for (int i = 0; i <= last_pos; i++)
+      tree_add_param(new, tree_param(t, i));
+
+   for (int i = last_pos + 1; i < nports; i++) {
+      tree_t port  = tree_port(decl, i);
+      ident_t name = tree_ident(port);
+
+      bool found = false;
+      for (int j = last_pos + 1; (j < nparams) && !found; j++) {
+         param_t p = tree_param(t, j);
+         assert(p.kind == P_NAMED);
+
+         if (name == p.name) {
+            p.kind = P_POS;
+            tree_add_param(new, p);
+            found = true;
+         }
+      }
+      assert(found);
+   }
+
+   return new;
+}
+
 static tree_t simp_fcall(tree_t t)
 {
+   t = simp_call_args(t);
+
    tree_t decl = tree_ref(t);
    assert(tree_kind(decl) == T_FUNC_DECL
           || tree_kind(decl) == T_FUNC_BODY);
@@ -325,6 +379,11 @@ static tree_t simp_fcall(tree_t t)
       return simp_fcall_real(t, builtin, largs);
    else
       return t;
+}
+
+static tree_t simp_pcall(tree_t t)
+{
+   return simp_call_args(t);
 }
 
 static tree_t simp_ref(tree_t t)
@@ -827,6 +886,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_attr_ref(t);
    case T_FCALL:
       return simp_fcall(t);
+   case T_PCALL:
+      return simp_pcall(t);
    case T_REF:
       return simp_ref(t);
    case T_IF:

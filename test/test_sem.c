@@ -338,8 +338,8 @@ START_TEST(test_const)
    fail_unless(input_from_file(TESTDIR "/sem/const.vhd"));
 
    const error_t expect[] = {
-      { 12, "invalid target of variable assignment" },
-      { 16, "constant declaration must have an initial value" },
+      { 19, "invalid target of variable assignment" },
+      { 23, "constant declaration must have an initial value" },
       { -1, NULL }
    };
    expect_errors(expect);

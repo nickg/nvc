@@ -3,6 +3,13 @@ end entity;
 
 architecture a of e is
     constant x : integer := 5;
+
+    function f_pure(n : in integer) return integer is
+    begin
+        return n + 1;
+    end function;
+
+
 begin
 
     process is
@@ -14,6 +21,11 @@ begin
 
     process is
         constant c : integer;           -- Error
+    begin
+    end process;
+
+    process is
+        constant c : integer := f_pure(5);  -- OK
     begin
     end process;
 

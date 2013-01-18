@@ -258,6 +258,57 @@ START_TEST(test_proc)
 }
 END_TEST
 
+START_TEST(test_args)
+{
+   tree_t e, a, p, s, c;
+
+   fail_unless(input_from_file(TESTDIR "/simp/args.vhd"));
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+
+   ////////
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+
+   for (int i = 0; i < 3; i++) {
+      s = tree_stmt(p, i);
+      fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+      c = tree_value(s);
+      fail_unless(tree_kind(c) == T_FCALL);
+      fail_unless(tree_params(c) == 2);
+      fail_unless(tree_param(c, 0).kind == P_POS);
+      fail_unless(icmp(tree_ident(tree_param(c, 0).value), "A"));
+      fail_unless(tree_param(c, 1).kind == P_POS);
+      fail_unless(icmp(tree_ident(tree_param(c, 1).value), "B"));
+   }
+
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(s) == T_PCALL);
+   fail_unless(tree_params(s) == 2);
+   fail_unless(tree_param(s, 0).kind == P_POS);
+   fail_unless(icmp(tree_ident(tree_param(s, 0).value), "A"));
+   fail_unless(tree_param(s, 1).kind == P_POS);
+   fail_unless(icmp(tree_ident(tree_param(s, 1).value), "B"));
+
+   fail_unless(simplify_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -270,6 +321,7 @@ int main(void)
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_cfold);
    tcase_add_test(tc_core, test_proc);
+   tcase_add_test(tc_core, test_args);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
@@ -281,4 +333,3 @@ int main(void)
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-
