@@ -1450,6 +1450,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
                context_t *c = &(t->items[n].context_set.items[i]);
                ident_write(c->name, ctx->ident_ctx);
+               write_u8(c->all, ctx->file);
                write_loc(&(c->loc), ctx);
             }
          }
@@ -1570,6 +1571,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
                context_t *c = &(t->items[n].context_set.items[i]);
                c->name = ident_read(ctx->ident_ctx);
+               c->all  = read_u8(ctx->file);
                c->loc  = read_loc(ctx);
             }
          }

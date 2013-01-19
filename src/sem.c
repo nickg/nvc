@@ -1147,7 +1147,8 @@ static bool sem_check_context(tree_t t)
 
       context_t c = {
          .name = std_standard_i,
-         .loc  = LOC_INVALID
+         .loc  = LOC_INVALID,
+         .all  = true
       };
       if (!scope_import_unit(c, std, true))
          return false;
@@ -2098,7 +2099,8 @@ static bool sem_check_package_body(tree_t t)
    // Look up package declaration
    context_t c = {
       .name = qual,
-      .loc  = *tree_loc(t)
+      .loc  = *tree_loc(t),
+      .all  = true
    };
    ok = ok && scope_import_unit(c, lib_work(), true);
 
