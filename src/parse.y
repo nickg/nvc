@@ -358,16 +358,19 @@ use_clause_item
 : id
   {
      $$.name = $1;
+     $$.all  = false;
      $$.loc  = @1;
   }
 | id tALL
   {
-     $$.name = ident_prefix($1, ident_new("all"), '.');
+     $$.name = $1;
+     $$.all  = true;
      $$.loc  = @$;
   }
 | id tDOT use_clause_item
   {
      $$.name = ident_prefix($1, $3.name, '.');
+     $$.all  = $3.all;
      $$.loc  = @$;
   }
 ;

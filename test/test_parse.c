@@ -848,7 +848,8 @@ START_TEST(test_package)
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_contexts(p) == 1);
-   fail_unless(tree_context(p, 0).name == ident_new("WORK.ONE.all"));
+   fail_unless(tree_context(p, 0).name == ident_new("WORK.ONE"));
+   fail_unless(tree_context(p, 0).all);
    fail_unless(tree_ident(p) == ident_new("TWO"));
 
    p = parse();

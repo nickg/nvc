@@ -138,6 +138,7 @@ typedef struct param {
 
 typedef struct context {
    ident_t name;
+   bool    all;
    loc_t   loc;
 } context_t;
 

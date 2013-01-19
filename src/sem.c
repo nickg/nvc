@@ -1156,13 +1156,10 @@ static bool sem_check_context(tree_t t)
    bool ok = true;
    for (unsigned n = 0; n < tree_contexts(t); n++) {
       context_t c = tree_context(t, n);
-      ident_t all = ident_strip(c.name, ident_new(".all"));
-      if (all)
-         c.name = all;
 
       lib_t lib = lib_find(istr(ident_until(c.name, '.')), true, true);
       if (lib != NULL)
-         ok = scope_import_unit(c, lib, all != NULL) && ok;
+         ok = scope_import_unit(c, lib, c.all) && ok;
       else
          ok = false;
    }
