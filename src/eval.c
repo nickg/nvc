@@ -46,10 +46,17 @@ struct vtframe {
 
 struct vtable {
    vtframe_t *top;
+   bool       failed;
 };
 
 static void eval_stmt(tree_t t, vtable_t *v);
 static tree_t eval_expr(tree_t t, vtable_t *v);
+
+#define eval_error(t, ...) do {                 \
+      warn_at(tree_loc(t),  __VA_ARGS__);       \
+      v->failed = true;                         \
+      return;                                   \
+   } while (0);
 
 static void vtable_push(vtable_t *v)
 {
@@ -217,17 +224,29 @@ static tree_t get_bool_lit(tree_t t, bool v)
    tree_t fdecl = tree_ref(t);
    assert(tree_kind(fdecl) == T_FUNC_DECL);
 
-   type_t std_bool = type_result(tree_type(fdecl));
+   static type_t bool_type = NULL;
+   if (bool_type == NULL) {
+      lib_t std = lib_find("std", true, true);
+      assert(std != NULL);
 
-   assert(type_ident(std_bool) == std_bool_i);
-   assert(type_enum_literals(std_bool) == 2);
+      tree_t standard = lib_get(std, ident_new("STD.STANDARD"));
+      assert(standard != NULL);
 
-   tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
+      const int ndecls = tree_decls(standard);
+      for (int i = 0; (i < ndecls) && (bool_type == NULL); i++) {
+         tree_t d = tree_decl(standard, i);
+         if (tree_ident(d) == std_bool_i)
+            bool_type = tree_type(d);
+      }
+      assert(bool_type != NULL);
+   }
+
+   tree_t lit = type_enum_literal(bool_type, v ? 1 : 0);
 
    tree_t b = tree_new(T_REF);
    tree_set_loc(b, tree_loc(t));
    tree_set_ref(b, lit);
-   tree_set_type(b, std_bool);
+   tree_set_type(b, bool_type);
    tree_set_ident(b, tree_ident(lit));
 
    return b;
@@ -376,8 +395,6 @@ static tree_t simp_fcall_agg(tree_t t, ident_t builtin)
 
 static void eval_func_body(tree_t t, vtable_t *v)
 {
-   printf("eval_func_body %s\n", istr(tree_ident(t)));
-
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t decl = tree_decl(t, i);
@@ -388,7 +405,7 @@ static void eval_func_body(tree_t t, vtable_t *v)
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
       eval_stmt(tree_stmt(t, i), v);
-      if (vtable_get(v, result_i))
+      if (v->failed || vtable_get(v, result_i))
          return;
    }
 }
@@ -411,8 +428,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
          tree_t port  = tree_port(decl, i);
          tree_t value = tree_param(t, i).value;
 
-         tree_kind_t value_kind = tree_kind(value);
-         if (value_kind != T_LITERAL) {
+         if (!folded(value)) {
             vtable_pop(v);
             return t;    // Cannot fold this
          }
@@ -446,8 +462,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       can_fold_real = can_fold_real && folded_real(val, &largs[i]);
    }
 
-   printf("can_fold_int=%d\n", can_fold_int);
-
    if (can_fold_int)
       return simp_fcall_int(t, builtin, largs);
    else if (can_fold_log)
@@ -462,24 +476,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
 static tree_t eval_ref(tree_t t, vtable_t *v)
 {
-   tree_t binding;
-   if (folded_bool(t, NULL))
-      binding = t;
-   else
-      binding = vtable_get(v, tree_ident(tree_ref(t)));
-
-   if (binding == NULL)
-      fatal_at(tree_loc(t), "cannot constant fold reference");
-
-   return binding;
-}
-
-static tree_t eval_aggregate(tree_t t, vtable_t *v)
-{
-   if (folded_agg(t))
-      return t;
-   else
-      fatal_at(tree_loc(t), "aggregate is not constant");
+   tree_t binding = vtable_get(v, tree_ident(tree_ref(t)));
+   return (binding != NULL) ? binding : t;
 }
 
 static tree_t eval_expr(tree_t t, vtable_t *v)
@@ -489,19 +487,13 @@ static tree_t eval_expr(tree_t t, vtable_t *v)
       return eval_fcall(t, v);
    case T_REF:
       return eval_ref(t, v);
-   case T_AGGREGATE:
-      return eval_aggregate(t, v);
-   case T_LITERAL:
-      return t;
    default:
-      fatal_at(tree_loc(t), "cannot evaluate expression %s",
-               tree_kind_str(tree_kind(t)));
+      return t;
    }
 }
 
 static void eval_return(tree_t t, vtable_t *v)
 {
-   printf("eval_return\n");
    if (tree_has_value(t))
       vtable_bind(v, result_i, eval_expr(tree_value(t), v));
 }
@@ -511,9 +503,7 @@ static void eval_if(tree_t t, vtable_t *v)
    tree_t cond = eval_expr(tree_value(t), v);
    bool cond_b;
    if (!folded_bool(cond, &cond_b))
-      fatal_at(tree_loc(cond), "cannot constant fold expression");
-
-   printf("eval_if cond=%d\n", cond_b);
+      eval_error(cond, "cannot constant fold expression");
 
    if (cond_b) {
       const int nstmts = tree_stmts(t);
@@ -535,14 +525,12 @@ static void eval_while(tree_t t, vtable_t *v)
       tree_t cond = eval_expr(value, v);
       bool cond_b;
       if (!folded_bool(cond, &cond_b))
-         fatal_at(tree_loc(value), "cannot constant fold expression");
-
-      printf("eval_while cond=%d\n", cond_b);
+         eval_error(value, "cannot constant fold expression");
 
       if (!cond_b)
          break;
       else if (++iters == MAX_ITERS)
-         fatal_at(tree_loc(t), "iteration limit exceeded");
+         eval_error(t, "iteration limit exceeded");
 
       const int nstmts = tree_stmts(t);
       for (int i = 0; i < nstmts; i++)
@@ -554,12 +542,12 @@ static void eval_var_assign(tree_t t, vtable_t *v)
 {
    tree_t target = tree_target(t);
    if (tree_kind(target) != T_REF)
-      fatal_at(tree_loc(target), "cannot evaluate this target");
+      eval_error(target, "cannot evaluate this target");
 
    tree_t value = tree_value(t);
    tree_t updated = eval_expr(value, v);
    if (!folded(updated))
-      fatal_at(tree_loc(value), "cannot constant fold expression");
+      eval_error(value, "cannot constant fold expression");
 
    vtable_bind(v, tree_ident(tree_ref(target)), updated);
 }
@@ -580,8 +568,9 @@ static void eval_stmt(tree_t t, vtable_t *v)
       eval_var_assign(t, v);
       break;
    default:
-      fatal_at(tree_loc(t), "cannot evaluate statement %s",
-               tree_kind_str(tree_kind(t)));
+      warn_at(tree_loc(t), "cannot evaluate statement %s",
+              tree_kind_str(tree_kind(t)));
+      v->failed = true;
    }
 }
 
@@ -604,7 +593,9 @@ tree_t eval(tree_t fcall)
    }
 
    vtable_t vt = {
-      .top = NULL
+      .top    = NULL,
+      .failed = false
    };
-   return eval_fcall(fcall, &vt);
+   tree_t r = eval_fcall(fcall, &vt);
+   return vt.failed ? fcall : r;
 }

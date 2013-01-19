@@ -45,16 +45,6 @@ static bool folded_int(tree_t t, literal_t *l)
       return false;
 }
 
-static bool folded_real(tree_t t, literal_t *l)
-{
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_REAL);
-   }
-   else
-      return false;
-}
-
 static bool folded_bool(tree_t t, bool *b)
 {
    if (tree_kind(t) == T_REF) {
@@ -67,32 +57,6 @@ static bool folded_bool(tree_t t, bool *b)
    }
 
    return false;
-}
-
-static bool folded_agg(tree_t t)
-{
-   if (tree_kind(t) == T_AGGREGATE) {
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
-         assoc_t a = tree_assoc(t, i);
-         literal_t dummy;
-         switch (a.kind) {
-         case A_NAMED:
-            if (!folded_int(a.name, &dummy))
-               return false;
-            break;
-         case A_RANGE:
-            if (!folded_int(a.range.left, &dummy)
-                || !folded_int(a.range.right, &dummy))
-               return false;
-            break;
-         default:
-            break;
-         }
-      }
-      return true;
-   }
-   else
-      return false;
 }
 
 static tree_t get_int_lit(tree_t t, int64_t i)
@@ -110,181 +74,6 @@ static tree_t get_int_lit(tree_t t, int64_t i)
    tree_set_type(f, tree_type(t));
 
    return f;
-}
-
-static tree_t get_real_lit(tree_t t, double r)
-{
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
-   literal_t l;
-   l.kind = L_REAL;
-   l.r = r;
-
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, tree_type(t));
-
-   return f;
-}
-
-static tree_t get_bool_lit(tree_t t, bool v)
-{
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
-   type_t std_bool = type_result(tree_type(fdecl));
-
-   assert(type_ident(std_bool) == std_bool_i);
-   assert(type_enum_literals(std_bool) == 2);
-
-   tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
-
-   tree_t b = tree_new(T_REF);
-   tree_set_loc(b, tree_loc(t));
-   tree_set_ref(b, lit);
-   tree_set_type(b, std_bool);
-   tree_set_ident(b, tree_ident(lit));
-
-   return b;
-}
-
-static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
-{
-   if (icmp(builtin, "not"))
-      return get_bool_lit(t, !args[0]);
-   else if (icmp(builtin, "and"))
-      return get_bool_lit(t, args[0] && args[1]);
-   else if (icmp(builtin, "nand"))
-      return get_bool_lit(t, !(args[0] && args[1]));
-   else if (icmp(builtin, "or"))
-      return get_bool_lit(t, args[0] || args[1]);
-   else if (icmp(builtin, "nor"))
-      return get_bool_lit(t, !(args[0] || args[1]));
-   else if (icmp(builtin, "xor"))
-      return get_bool_lit(t, args[0] ^ args[1]);
-   else if (icmp(builtin, "xnor"))
-      return get_bool_lit(t, !(args[0] ^ args[1]));
-   else
-      return t;
-}
-
-static tree_t simp_fcall_real(tree_t t, ident_t builtin, literal_t *args)
-{
-   const int lkind = args[0].kind;  // Assume all types checked same
-   assert(lkind == L_REAL);
-
-   if (icmp(builtin, "mul")) {
-      return get_real_lit(t, args[0].r * args[1].r);
-   }
-   else if (icmp(builtin, "div")) {
-      return get_real_lit(t, args[0].r / args[1].r);
-   }
-   else if (icmp(builtin, "add")) {
-      return get_real_lit(t, args[0].r + args[1].r);
-   }
-   else if (icmp(builtin, "sub")) {
-      return get_real_lit(t, args[0].r - args[1].r);
-   }
-   else if (icmp(builtin, "neg")) {
-      return get_real_lit(t, -args[0].r);
-   }
-   else if (icmp(builtin, "identity")) {
-      return get_real_lit(t, args[0].r);
-   }
-   else if (icmp(builtin, "eq")) {
-      return get_bool_lit(t, args[0].r == args[1].r);
-   }
-   else if (icmp(builtin, "neq")) {
-      return get_bool_lit(t, args[0].r != args[1].r);
-   }
-   else if (icmp(builtin, "gt")) {
-      return get_bool_lit(t, args[0].r > args[1].r);
-   }
-   else if (icmp(builtin, "lt")) {
-      return get_bool_lit(t, args[0].r < args[1].r);
-   }
-   else
-      return t;
-}
-
-static tree_t simp_fcall_int(tree_t t, ident_t builtin, literal_t *args)
-{
-   const int lkind = args[0].kind;  // Assume all types checked same
-   assert(lkind == L_INT);
-
-   if (icmp(builtin, "mul")) {
-      return get_int_lit(t, args[0].i * args[1].i);
-   }
-   else if (icmp(builtin, "div")) {
-      return get_int_lit(t, args[0].i / args[1].i);
-   }
-   else if (icmp(builtin, "add")) {
-      return get_int_lit(t, args[0].i + args[1].i);
-   }
-   else if (icmp(builtin, "sub")) {
-      return get_int_lit(t, args[0].i - args[1].i);
-   }
-   else if (icmp(builtin, "neg")) {
-      return get_int_lit(t, -args[0].i);
-   }
-   else if (icmp(builtin, "identity")) {
-      return get_int_lit(t, args[0].i);
-   }
-   else if (icmp(builtin, "eq")) {
-      return get_bool_lit(t, args[0].i == args[1].i);
-   }
-   else if (icmp(builtin, "neq")) {
-      return get_bool_lit(t, args[0].i != args[1].i);
-   }
-   else if (icmp(builtin, "gt")) {
-      return get_bool_lit(t, args[0].i > args[1].i);
-   }
-   else if (icmp(builtin, "lt")) {
-      return get_bool_lit(t, args[0].i < args[1].i);
-   }
-   else
-      return t;
-}
-
-static tree_t simp_fcall_agg(tree_t t, ident_t builtin)
-{
-   bool agg_low  = icmp(builtin, "agg_low");
-   bool agg_high = icmp(builtin, "agg_high");
-
-   if (agg_low || agg_high) {
-      int64_t low = INT64_MAX, high = INT64_MIN;
-      param_t p = tree_param(t, 0);
-      for (unsigned i = 0; i < tree_assocs(p.value); i++) {
-         assoc_t a = tree_assoc(p.value, i);
-         switch (a.kind) {
-         case A_NAMED:
-            {
-               int64_t tmp = assume_int(a.name);
-               if (tmp < low) low = tmp;
-               if (tmp > high) high = tmp;
-            }
-            break;
-
-         case A_RANGE:
-            {
-               int64_t low_r, high_r;
-               range_bounds(a.range, &low_r, &high_r);
-               if (low_r < low) low = low_r;
-               if (high_r > high) high = high_r;
-            }
-            break;
-
-         default:
-            assert(false);
-         }
-      }
-
-      return get_int_lit(t, agg_low ? low : high);
-   }
-   else
-      return t;
 }
 
 static tree_t simp_call_args(tree_t t)
@@ -341,44 +130,7 @@ static tree_t simp_call_args(tree_t t)
 
 static tree_t simp_fcall(tree_t t)
 {
-   t = simp_call_args(t);
-
-   tree_t decl = tree_ref(t);
-   assert(tree_kind(decl) == T_FUNC_DECL
-          || tree_kind(decl) == T_FUNC_BODY);
-
-   ident_t builtin = tree_attr_str(decl, builtin_i);
-   if (builtin == NULL)
-      return eval(t);
-
-   if (tree_params(t) > MAX_BUILTIN_ARGS)
-      return t;
-
-   bool can_fold_int  = true;
-   bool can_fold_log  = true;
-   bool can_fold_agg  = true;
-   bool can_fold_real = true;
-   literal_t largs[MAX_BUILTIN_ARGS];
-   bool bargs[MAX_BUILTIN_ARGS];
-   for (unsigned i = 0; i < tree_params(t); i++) {
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
-      can_fold_int  = can_fold_int && folded_int(p.value, &largs[i]);
-      can_fold_log  = can_fold_log && folded_bool(p.value, &bargs[i]);
-      can_fold_agg  = can_fold_agg && folded_agg(p.value);
-      can_fold_real = can_fold_real && folded_real(p.value, &largs[i]);
-   }
-
-   if (can_fold_int)
-      return simp_fcall_int(t, builtin, largs);
-   else if (can_fold_log)
-      return simp_fcall_log(t, builtin, bargs);
-   else if (can_fold_agg)
-      return simp_fcall_agg(t, builtin);
-   else if (can_fold_real)
-      return simp_fcall_real(t, builtin, largs);
-   else
-      return t;
+   return eval(simp_call_args(t));
 }
 
 static tree_t simp_pcall(tree_t t)
