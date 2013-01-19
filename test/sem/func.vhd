@@ -165,4 +165,19 @@ package body func is
 
     function test19(x : in int_ptr) return integer;  -- Error
 
+    function recur(x : in integer) return integer is
+    begin
+        if x = 0 then
+            return 1;
+        else
+            return x * recur(x - 1);
+        end if;
+    end function;
+
+    function test20(x : integer := 5; y : real) return integer is
+        variable k : integer;
+    begin
+        k := test20(5, 1.5);                 -- Error
+    end function;
+
 end package body;
