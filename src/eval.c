@@ -25,6 +25,7 @@
 
 #define MAX_BUILTIN_ARGS 2
 #define VTABLE_SZ        16
+#define MAX_ITERS        1000
 
 static ident_t std_bool_i = NULL;
 static ident_t builtin_i  = NULL;
@@ -461,9 +462,15 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
 static tree_t eval_ref(tree_t t, vtable_t *v)
 {
-   tree_t binding = vtable_get(v, tree_ident(tree_ref(t)));
+   tree_t binding;
+   if (folded_bool(t, NULL))
+      binding = t;
+   else
+      binding = vtable_get(v, tree_ident(tree_ref(t)));
+
    if (binding == NULL)
       fatal_at(tree_loc(t), "cannot constant fold reference");
+
    return binding;
 }
 
@@ -522,6 +529,7 @@ static void eval_if(tree_t t, vtable_t *v)
 
 static void eval_while(tree_t t, vtable_t *v)
 {
+   int iters = 0;
    tree_t value = tree_value(t);
    for (;;) {
       tree_t cond = eval_expr(value, v);
@@ -533,6 +541,8 @@ static void eval_while(tree_t t, vtable_t *v)
 
       if (!cond_b)
          break;
+      else if (++iters == MAX_ITERS)
+         fatal_at(tree_loc(t), "iteration limit exceeded");
 
       const int nstmts = tree_stmts(t);
       for (int i = 0; i < nstmts; i++)
