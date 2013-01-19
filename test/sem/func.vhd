@@ -113,7 +113,7 @@ package body func is
     begin
         v := sum(x => 4, 1);            -- Error
         v := sum(1, x => 4, x => 4);    -- Error
-        v := sum(1, y => k, x => 4);    -- OK
+        v := sum(1, y => k, z => 4);    -- OK
         u := resolved3(A, x => 4);      -- OK
         u := resolved3(x => 3, v => B);  -- OK
         return v;
@@ -177,7 +177,10 @@ package body func is
     function test20(x : integer := 5; y : real) return integer is
         variable k : integer;
     begin
-        k := test20(5, 1.5);                 -- Error
+        k := test20(6.5);               -- Error
+        k := test20(5);                 -- Error
+        k := test20(y => 7);            -- Error
+        return k;
     end function;
 
 end package body;

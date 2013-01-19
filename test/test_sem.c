@@ -459,6 +459,9 @@ START_TEST(test_func)
       { 146, "object X has class CONSTANT and cannot be associated" },
       { 161, "pure function WORK.FUNC.TEST18 cannot call impure function" },
       { 166, "object X with access type must have class VARIABLE" },
+      { 180, "no suitable overload for function TEST20" },
+      { 181, "missing actual for formal Y without default value" },
+      { 182, "no suitable overload for function TEST20" },
       { -1, NULL }
    };
    expect_errors(expect);

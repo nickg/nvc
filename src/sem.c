@@ -1880,9 +1880,6 @@ static bool sem_check_func_body(tree_t t)
    scope_push(NULL);
    top_scope->subprog = t;
 
-   // If the current scope has a prefix, add a local alias so the
-   // function may be called recursively without the prefix (e.g.
-   // in a package body)
    if (unqual != NULL)
       scope_insert_alias(t, unqual);
 
@@ -2695,14 +2692,13 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
 static int sem_required_args(tree_t decl)
 {
    // Count the number of non-default arguments
-   // This assumes we have already checked that no non-default
-   // rguments follow the first default argument
-   int n;
-   for (n = 0;
-        (n < tree_ports(decl))
-           && !tree_has_value(tree_port(decl, n));
-        n++)
-      ;
+   const int ndecls = tree_ports(decl);
+   int n = 0;
+   for (int i = 0; i < ndecls; i++) {
+      if (!tree_has_value(tree_port(decl, i)))
+         n++;
+   }
+
    return n;
 }
 
@@ -2718,22 +2714,47 @@ static bool sem_check_arity(tree_t call, tree_t decl)
       return (nparams == nports) || (nparams >= nreq);
 }
 
-static void sem_copy_default_args(tree_t call, tree_t decl)
+static bool sem_copy_default_args(tree_t call, tree_t decl)
 {
    const int nparams = tree_params(call);
    const int nports  = tree_ports(decl);
 
    // Copy the default values for any unspecified arguments
-   for (int i = nparams; i < nports; i++) {
-      tree_t port = tree_port(decl, i);
-      assert(tree_has_value(port));
+   for (int i = 0; i < nports; i++) {
+      tree_t port  = tree_port(decl, i);
+      ident_t name = tree_ident(port);
 
-      param_t param = {
-         .value = tree_value(port),
-         .kind  = P_POS
-      };
-      tree_add_param(call, param);
+      bool found = false;
+      for (int j = 0; (j < nparams) && !found; j++) {
+         param_t p = tree_param(call, j);
+         switch (p.kind) {
+         case P_POS:
+            found = (p.pos == i);
+            break;
+         case P_NAMED:
+            found = (p.name == name);
+            break;
+         default:
+            assert(false);
+         }
+      }
+
+      if (!found) {
+         if (tree_has_value(port)) {
+            param_t param = {
+               .value = tree_value(port),
+               .kind  = P_NAMED,
+               .name  = name,
+            };
+            tree_add_param(call, param);
+         }
+         else
+            sem_error(call, "missing actual for formal %s without "
+                      "default value", istr(name));
+      }
    }
+
+   return true;
 }
 
 static bool sem_check_params(tree_t t)
@@ -2893,7 +2914,8 @@ static bool sem_check_fcall(tree_t t)
                    istr(tree_ident(sub)), istr(tree_ident(decl)));
    }
 
-   sem_copy_default_args(t, decl);
+   if (!sem_copy_default_args(t, decl))
+      return false;
 
 #if 0
    printf("pick: %s\n", sem_type_str(tree_type(decl)));
@@ -3025,7 +3047,8 @@ static bool sem_check_pcall(tree_t t)
       }
    }
 
-   sem_copy_default_args(t, decl);
+   if (!sem_copy_default_args(t, decl))
+      return false;
 
 #if 0
    printf("pick: %s\n", sem_type_str(tree_type(decl)));
