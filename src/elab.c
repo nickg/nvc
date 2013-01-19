@@ -23,6 +23,8 @@
 #include <string.h>
 #include <stdarg.h>
 
+#define FUNC_REPLACE_MAX 32
+
 typedef struct {
    tree_t  out;
    ident_t path;    // Current 'PATH_NAME
@@ -396,6 +398,71 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
    elab_arch(arch, &new_ctx);
 }
 
+static tree_t rewrite_funcs(tree_t t, void *context)
+{
+   if (tree_kind(t) != T_FCALL)
+      return t;
+
+   tree_t decl = tree_ref(t);
+
+   ident_t name = tree_ident(decl);
+   for (tree_t *rlist = context; *rlist != NULL; ++rlist) {
+      const bool match =
+         (tree_ident(*rlist) == name)
+         && (type_eq(tree_type(*rlist), tree_type(decl)));
+
+      if (match) {
+         tree_set_ref(t, *rlist);
+         break;
+      }
+   }
+
+   return t;
+}
+
+static void elab_funcs(tree_t t)
+{
+   // Look through all the package bodies required by the context and
+   // rewrite references to function declarations with references to
+   // the function body.  This allows these functions to be folded by
+   // the simplify phase
+
+   int nreplace = 0;
+   tree_t rlist[FUNC_REPLACE_MAX];
+
+   const int ncontext = tree_contexts(t);
+   for (int i = 0; i < ncontext; i++) {
+      context_t ctx = tree_context(t, i);
+
+      lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
+      if (lib == NULL)
+         fatal("cannot link library %s", istr(ctx.name));
+
+      ident_t body_i = ident_prefix(ctx.name, ident_new("body"), '-');
+      tree_t body = lib_get(lib, body_i);
+      if (body == NULL)
+         continue;
+
+      const int ndecls = tree_decls(body);
+      for (int j = 0; j < ndecls; j++) {
+         tree_t decl = tree_decl(body, j);
+         if (tree_kind(decl) != T_FUNC_BODY)
+            continue;
+
+         if (nreplace + 1 == FUNC_REPLACE_MAX) {
+            tree_rewrite(t, rewrite_funcs, rlist);
+            nreplace = 0;
+         }
+
+         rlist[nreplace++] = decl;
+         rlist[nreplace] = NULL;
+      }
+   }
+
+   if (nreplace > 0)
+      tree_rewrite(t, rewrite_funcs, rlist);
+}
+
 tree_t elab(tree_t top)
 {
    lib_load_all(lib_work());
@@ -417,6 +484,8 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+
+   elab_funcs(e);
 
    simplify(e);
    if (simplify_errors() == 0) {
