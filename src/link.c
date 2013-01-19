@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -64,27 +64,24 @@ static bool link_needs_body(tree_t pack)
 
 static void link_context(context_t ctx)
 {
-   ident_t all = ident_strip(ctx.name, ident_new(".all"));
-   assert(all != NULL);
-
    lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
    if (lib == NULL)
-      fatal("cannot link library %s", istr(all));
+      fatal("cannot link library %s", istr(ctx.name));
 
-   tree_t unit = lib_get(lib, all);
+   tree_t unit = lib_get(lib, ctx.name);
    if (unit == NULL)
-      fatal("cannot find unit %s", istr(all));
+      fatal("cannot find unit %s", istr(ctx.name));
    else if (tree_kind(unit) != T_PACKAGE)
       return;
 
    if (pack_needs_cgen(unit))
-      link_arg_bc(lib, all);
+      link_arg_bc(lib, ctx.name);
 
-   ident_t body_i = ident_prefix(all, ident_new("body"), '-');
+   ident_t body_i = ident_prefix(ctx.name, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
    if (body == NULL) {
       if (link_needs_body(unit))
-         fatal("missing body for package %s", istr(all));
+         fatal("missing body for package %s", istr(ctx.name));
       else
          return;
    }
