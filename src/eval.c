@@ -252,7 +252,7 @@ static tree_t get_bool_lit(tree_t t, bool v)
    return b;
 }
 
-static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
+static tree_t eval_fcall_log(tree_t t, ident_t builtin, bool *args)
 {
    if (icmp(builtin, "not"))
       return get_bool_lit(t, !args[0]);
@@ -272,7 +272,7 @@ static tree_t simp_fcall_log(tree_t t, ident_t builtin, bool *args)
       return t;
 }
 
-static tree_t simp_fcall_real(tree_t t, ident_t builtin, literal_t *args)
+static tree_t eval_fcall_real(tree_t t, ident_t builtin, literal_t *args)
 {
    const int lkind = args[0].kind;  // Assume all types checked same
    assert(lkind == L_REAL);
@@ -311,7 +311,7 @@ static tree_t simp_fcall_real(tree_t t, ident_t builtin, literal_t *args)
       return t;
 }
 
-static tree_t simp_fcall_int(tree_t t, ident_t builtin, literal_t *args)
+static tree_t eval_fcall_int(tree_t t, ident_t builtin, literal_t *args)
 {
    const int lkind = args[0].kind;  // Assume all types checked same
    assert(lkind == L_INT);
@@ -354,7 +354,7 @@ static tree_t simp_fcall_int(tree_t t, ident_t builtin, literal_t *args)
       return t;
 }
 
-static tree_t simp_fcall_agg(tree_t t, ident_t builtin)
+static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
 {
    bool agg_low  = icmp(builtin, "agg_low");
    bool agg_high = icmp(builtin, "agg_high");
@@ -463,13 +463,13 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    }
 
    if (can_fold_int)
-      return simp_fcall_int(t, builtin, largs);
+      return eval_fcall_int(t, builtin, largs);
    else if (can_fold_log)
-      return simp_fcall_log(t, builtin, bargs);
+      return eval_fcall_log(t, builtin, bargs);
    else if (can_fold_agg)
-      return simp_fcall_agg(t, builtin);
+      return eval_fcall_agg(t, builtin);
    else if (can_fold_real)
-      return simp_fcall_real(t, builtin, largs);
+      return eval_fcall_real(t, builtin, largs);
    else
       return t;
 }
