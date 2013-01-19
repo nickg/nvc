@@ -10,7 +10,7 @@ AM_LDFLAGS = -rdynamic $(LLVM_LDFLAGS) $(COV_LDFLAGS)
 BUILT_SOURCES = parse.h
 
 libnvc_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c \
-	sem.c elab.c simp.c dump.c opt.c link.c unalias.c
+	sem.c elab.c simp.c dump.c opt.c link.c unalias.c eval.c
 
 libcgen_a_SOURCES = cgen.c
 libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

@@ -349,7 +349,7 @@ static tree_t simp_fcall(tree_t t)
 
    ident_t builtin = tree_attr_str(decl, builtin_i);
    if (builtin == NULL)
-      return t;     // TODO: expand pure function calls
+      return eval(t);
 
    if (tree_params(t) > MAX_BUILTIN_ARGS)
       return t;

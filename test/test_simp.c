@@ -309,6 +309,51 @@ START_TEST(test_args)
 }
 END_TEST
 
+START_TEST(test_ffold)
+{
+   tree_t e, a, p, s;
+   range_t r;
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   fail_unless(input_from_file(TESTDIR "/simp/ffold.vhd"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+
+   fail_unless(folded_i(tree_value(tree_decl(a, 2)), 6));
+   fail_unless(folded_i(tree_value(tree_decl(a, 4)), 4));
+
+   fail_unless(simplify_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -322,6 +367,7 @@ int main(void)
    tcase_add_test(tc_core, test_cfold);
    tcase_add_test(tc_core, test_proc);
    tcase_add_test(tc_core, test_args);
+   tcase_add_test(tc_core, test_ffold);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -36,6 +36,9 @@ void simplify(tree_t top);
 // Number of errors found during simplification
 int simplify_errors(void);
 
+// Evaluate a function call at compile time
+tree_t eval(tree_t fcall);
+
 // Elaborate a top level entity
 tree_t elab(tree_t top);
 
