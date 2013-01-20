@@ -23,6 +23,7 @@
 #include "slave.h"
 #include "alloc.h"
 #include "heap.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdint.h>

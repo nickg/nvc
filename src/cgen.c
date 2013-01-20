@@ -18,6 +18,7 @@
 #include "util.h"
 #include "phase.h"
 #include "lib.h"
+#include "common.h"
 #include "rt/signal.h"
 
 #include <stdlib.h>

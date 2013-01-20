@@ -17,6 +17,7 @@
 
 #include "phase.h"
 #include "util.h"
+#include "common.h"
 
 #include <assert.h>
 #include <string.h>
@@ -114,41 +115,6 @@ static tree_t vtable_get(vtable_t *v, ident_t name)
    return vtframe_get(v->top, name);
 }
 
-static bool folded_int(tree_t t, literal_t *l)
-{
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_INT);
-   }
-   else
-      return false;
-}
-
-static bool folded_real(tree_t t, literal_t *l)
-{
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_REAL);
-   }
-   else
-      return false;
-}
-
-static bool folded_bool(tree_t t, bool *b)
-{
-   if (tree_kind(t) == T_REF) {
-      tree_t decl = tree_ref(t);
-      if (tree_kind(decl) == T_ENUM_LIT
-          && type_ident(tree_type(decl)) == std_bool_i) {
-         if (b != NULL)
-            *b = (tree_pos(decl) == 1);
-         return true;
-      }
-   }
-
-   return false;
-}
-
 static bool folded_agg(tree_t t)
 {
    if (tree_kind(t) == T_AGGREGATE) {
@@ -186,40 +152,6 @@ static bool folded(tree_t t)
       return folded_bool(t, NULL);
    else
       return false;
-}
-
-static tree_t get_int_lit(tree_t t, int64_t i)
-{
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
-   literal_t l;
-   l.kind = L_INT;
-   l.i = i;
-
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, tree_type(t));
-
-   return f;
-}
-
-static tree_t get_real_lit(tree_t t, double r)
-{
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
-   literal_t l;
-   l.kind = L_REAL;
-   l.r = r;
-
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, tree_type(t));
-
-   return f;
 }
 
 static tree_t get_bool_lit(tree_t t, bool v)

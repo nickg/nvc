@@ -1746,44 +1746,6 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
    tree_add_attr(t, name, A_TREE)->tval = val;
 }
 
-int64_t assume_int(tree_t t)
-{
-   switch (tree_kind(t)) {
-   case T_LITERAL:
-      {
-         literal_t l = tree_literal(t);
-         assert(l.kind == L_INT);
-         return l.i;
-      }
-
-   case T_REF:
-      {
-         tree_t ref = tree_ref(t);
-         assert(tree_kind(ref) == T_ENUM_LIT);
-         return tree_pos(ref);
-      }
-
-   default:
-      fatal_at(tree_loc(t), "expression cannot be folded to "
-               "an integer constant");
-   }
-}
-
-void range_bounds(range_t r, int64_t *low, int64_t *high)
-{
-   int64_t left  = assume_int(r.left);
-   int64_t right = assume_int(r.right);
-
-   if (r.kind == RANGE_TO) {
-      *low  = left;
-      *high = right;
-   }
-   else {
-      *low  = right;
-      *high = left;
-   }
-}
-
 struct rewrite_ctx {
    tree_t            *cache;
    uint32_t          index;
@@ -2116,64 +2078,6 @@ tree_t tree_copy(tree_t t)
    tree_t copy = tree_copy_aux(t, &ctx);
    free(ctx.copied);
    return copy;
-}
-
-tree_t call_builtin(const char *builtin, type_t type, ...)
-{
-   struct decl_cache {
-      struct decl_cache *next;
-      ident_t bname;
-      tree_t  decl;
-   };
-
-   char name[64];
-   snprintf(name, sizeof(name), "NVC.BUILTIN.%s", builtin);
-   for (char *p = name; *p != '\0'; p++)
-      *p = toupper((uint8_t)*p);
-
-   static struct decl_cache *cache = NULL;
-
-   ident_t bname = ident_new(builtin);
-   ident_t name_i = ident_new(name);
-
-   struct decl_cache *it;
-   tree_t decl = NULL;
-   for (it = cache; it != NULL; it = it->next) {
-      if (it->bname == bname) {
-         decl = it->decl;
-         break;
-      }
-   }
-
-   if (decl == NULL) {
-      decl = tree_new(T_FUNC_DECL);
-      tree_set_ident(decl, name_i);
-      tree_add_attr_str(decl, ident_new("builtin"), ident_new(builtin));
-   }
-
-   struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
-   c->next  = cache;
-   c->bname = bname;
-   c->decl  = decl;
-
-   cache = c;
-
-   tree_t call = tree_new(T_FCALL);
-   tree_set_ident(call, name_i);
-   tree_set_ref(call, decl);
-   if (type != NULL)
-      tree_set_type(call, type);
-
-   va_list ap;
-   va_start(ap, type);
-   tree_t arg;
-   while ((arg = va_arg(ap, tree_t))) {
-      param_t p = { .value = arg, { .pos = 0 }, .kind = P_POS };
-      tree_add_param(call, p);
-   }
-   va_end(ap);
-
-   return call;
 }
 
 const char *tree_kind_str(tree_kind_t t)

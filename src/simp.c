@@ -17,6 +17,7 @@
 
 #include "phase.h"
 #include "util.h"
+#include "common.h"
 
 #include <assert.h>
 #include <string.h>
@@ -34,68 +35,6 @@ static int errors = 0;
 
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
-
-static bool folded_int(tree_t t, literal_t *l)
-{
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_INT);
-   }
-   else
-      return false;
-}
-
-static bool folded_real(tree_t t, literal_t *l)
-{
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_REAL);
-   }
-   else
-      return false;
-}
-
-static bool folded_bool(tree_t t, bool *b)
-{
-   if (tree_kind(t) == T_REF) {
-      tree_t decl = tree_ref(t);
-      if (tree_kind(decl) == T_ENUM_LIT
-          && type_ident(tree_type(decl)) == std_bool_i) {
-         *b = (tree_pos(decl) == 1);
-         return true;
-      }
-   }
-
-   return false;
-}
-
-static tree_t get_int_lit(tree_t t, int64_t i)
-{
-   literal_t l;
-   l.kind = L_INT;
-   l.i = i;
-
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, tree_type(t));
-
-   return f;
-}
-
-static tree_t get_real_lit(tree_t t, double r)
-{
-   literal_t l;
-   l.kind = L_REAL;
-   l.r = r;
-
-   tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
-   tree_set_type(f, tree_type(t));
-
-   return f;
-}
 
 static tree_t simp_call_args(tree_t t)
 {
