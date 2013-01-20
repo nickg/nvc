@@ -2306,13 +2306,20 @@ static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
    LLVMValueRef n_elems = cgen_array_len_recur(rhs_type, rhs);
 
+   LLVMValueRef ldir = cgen_array_dir(lhs_type, lhs);
+   LLVMValueRef rdir = cgen_array_dir(rhs_type, rhs);
+
+   LLVMValueRef reverse = LLVMBuildICmp(builder, LLVMIntNE,
+                                        ldir, rdir, "reverse");
+
    LLVMValueRef args[] = {
       llvm_void_cast(lhs),
       llvm_void_cast(rhs_data),
       n_elems,
       cgen_array_elem_size(rhs_type),
       after,
-      reject
+      reject,
+      reverse
    };
    LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
                  args, ARRAY_LEN(args), "");
@@ -3674,7 +3681,8 @@ static void cgen_support_fns(void)
       LLVMInt32Type(),
       LLVMInt32Type(),
       LLVMInt64Type(),
-      LLVMInt64Type()
+      LLVMInt64Type(),
+      LLVMInt1Type()
    };
    LLVMAddFunction(module, "_sched_waveform_vec",
                    LLVMFunctionType(LLVMVoidType(),

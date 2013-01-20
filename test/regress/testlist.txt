@@ -85,3 +85,4 @@ shared1         normal
 proc5           normal
 proc6           normal
 assert2         normal,gold
+concat3         normal

@@ -239,35 +239,39 @@ void _sched_process(int64_t delay)
    deltaq_insert_proc(delay, active_proc);
 }
 
-void _sched_waveform_vec(void *_sig, void *values, int32_t n,
-                         int32_t size, int64_t after, int64_t reject)
+void _sched_waveform_vec(void *_sig, void *values, int32_t n, int32_t size,
+                         int64_t after, int64_t reject, int32_t reverse)
 {
    struct signal *sig = _sig;
 
-   TRACE("_sched_waveform_vec %p values=%p n=%d size=%d after=%s reject=%s",
-         sig, values, n, size, fmt_time(after), fmt_time(reject));
+   TRACE("_sched_waveform_vec %p values=%p n=%d size=%d after=%s "
+         "reject=%s reverse=%d", sig, values, n, size, fmt_time(after),
+         fmt_time(reject), reverse);
 
-   const uint8_t  *v8  = values;
-   const uint16_t *v16 = values;
-   const uint32_t *v32 = values;
-   const uint64_t *v64 = values;
+   const int v_start = reverse ? (n - 1) : 0;
+   const int v_inc   = reverse ? -1 : 1;
+
+   const uint8_t  *v8  = (uint8_t *)values + v_start;
+   const uint16_t *v16 = (uint16_t *)values + v_start;
+   const uint32_t *v32 = (uint32_t *)values + v_start;
+   const uint64_t *v64 = (uint64_t *)values + v_start;
 
    switch (size) {
       case 1:
-         for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], after, reject, v8[i]);
+         for (int i = 0; i < n; i++, v8 += v_inc)
+            rt_alloc_driver(&sig[i], after, reject, *v8);
          break;
       case 2:
-         for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], after, reject, v16[i]);
+         for (int i = 0; i < n; i++, v16+= v_inc)
+            rt_alloc_driver(&sig[i], after, reject, *v16);
          break;
       case 4:
-         for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], after, reject, v32[i]);
+         for (int i = 0; i < n; i++, v32 += v_inc)
+            rt_alloc_driver(&sig[i], after, reject, *v32);
          break;
       case 8:
-         for (int i = 0; i < n; i++)
-            rt_alloc_driver(&sig[i], after, reject, v64[i]);
+         for (int i = 0; i < n; i++, v64 += v_inc)
+            rt_alloc_driver(&sig[i], after, reject, *v64);
          break;
       default:
          assert(false);
