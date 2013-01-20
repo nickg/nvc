@@ -157,6 +157,19 @@ static void _tracef(const char *fmt, ...);
 
 #define TRACE(...) if (unlikely(trace_on)) _tracef(__VA_ARGS__)
 
+#define FOR_ALL_SIZES(size, macro) do {                 \
+      switch (size) {                                   \
+      case 1:                                           \
+         macro(uint8_t); break;                         \
+      case 2:                                           \
+         macro(uint16_t); break;                        \
+      case 4:                                           \
+         macro(uint32_t); break;                        \
+      case 8:                                           \
+         macro(uint64_t); break;                        \
+      }                                                 \
+   } while (0)
+
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
@@ -251,31 +264,13 @@ void _sched_waveform_vec(void *_sig, void *values, int32_t n, int32_t size,
    const int v_start = reverse ? (n - 1) : 0;
    const int v_inc   = reverse ? -1 : 1;
 
-   const uint8_t  *v8  = (uint8_t *)values + v_start;
-   const uint16_t *v16 = (uint16_t *)values + v_start;
-   const uint32_t *v32 = (uint32_t *)values + v_start;
-   const uint64_t *v64 = (uint64_t *)values + v_start;
+#define SCHED_WAVEFORM_VEC(type) do {                           \
+      const type *vp  = (type *)values + v_start;               \
+      for (int i = 0; i < n; i++, vp += v_inc)                  \
+         rt_alloc_driver(&sig[i], after, reject, *vp);          \
+   } while (0)
 
-   switch (size) {
-      case 1:
-         for (int i = 0; i < n; i++, v8 += v_inc)
-            rt_alloc_driver(&sig[i], after, reject, *v8);
-         break;
-      case 2:
-         for (int i = 0; i < n; i++, v16+= v_inc)
-            rt_alloc_driver(&sig[i], after, reject, *v16);
-         break;
-      case 4:
-         for (int i = 0; i < n; i++, v32 += v_inc)
-            rt_alloc_driver(&sig[i], after, reject, *v32);
-         break;
-      case 8:
-         for (int i = 0; i < n; i++, v64 += v_inc)
-            rt_alloc_driver(&sig[i], after, reject, *v64);
-         break;
-      default:
-         assert(false);
-   }
+   FOR_ALL_SIZES(size, SCHED_WAVEFORM_VEC);
 
    deltaq_insert_driver(after, sig, n, active_proc);
 }
@@ -327,31 +322,13 @@ void _set_initial_vec(void *_sig, void *values, int32_t n, int32_t size)
 
    TRACE("_set_initial_vec %p values=%p n=%d size=%d", sig, values, n, size);
 
-   const uint8_t  *v8  = values;
-   const uint16_t *v16 = values;
-   const uint32_t *v32 = values;
-   const uint64_t *v64 = values;
+#define SET_INITIAL_VEC(type) do {                      \
+      const type *vp = values;                          \
+      for (int i = 0; i < n; i++)                       \
+         sig[i].resolved = sig[i].last_value = vp[i];   \
+   } while (0)
 
-   switch (size) {
-      case 1:
-         for (int i = 0; i < n; i++)
-            sig[i].resolved = sig[i].last_value = v8[i];
-         break;
-      case 2:
-         for (int i = 0; i < n; i++)
-            sig[i].resolved = sig[i].last_value = v16[i];
-         break;
-      case 4:
-         for (int i = 0; i < n; i++)
-            sig[i].resolved = sig[i].last_value = v32[i];
-         break;
-      case 8:
-         for (int i = 0; i < n; i++)
-            sig[i].resolved = sig[i].last_value = v64[i];
-         break;
-      default:
-         assert(false);
-   }
+   FOR_ALL_SIZES(size, SET_INITIAL_VEC);
 }
 
 void _set_initial(void *_sig, int64_t value)
@@ -431,36 +408,14 @@ void _array_reverse(void *restrict dst, const void *restrict src,
    TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
          dst, src, off, n, sz);
 
-   const uint8_t  *restrict s8  = src;
-   const uint16_t *restrict s16 = src;
-   const uint32_t *restrict s32 = src;
-   const uint64_t *restrict s64 = src;
+#define ARRAY_REVERSE(type) do {                \
+      const type *restrict sp = src;            \
+      type *restrict dp = dst;                  \
+      for (int i = n - 1; i >= 0; i--)          \
+         *(dp + off + i) = *sp++;               \
+   } while (0)
 
-   uint8_t  *restrict d8  = dst;
-   uint16_t *restrict d16 = dst;
-   uint32_t *restrict d32 = dst;
-   uint64_t *restrict d64 = dst;
-
-   switch (sz) {
-   case 1:
-      for (int i = n - 1; i >= 0; i--)
-         *(d8 + off + i) = *s8++;
-      break;
-   case 2:
-      for (int i = n - 1; i >= 0; i--)
-         *(d16 + off + i) = *s16++;
-      break;
-   case 4:
-      for (int i = n - 1; i >= 0; i--)
-         *(d32 + off + i) = *s32++;
-      break;
-   case 8:
-      for (int i = n - 1; i >= 0; i--)
-         *(d64 + off + i) = *s64++;
-      break;
-   default:
-      assert(false);
-   }
+   FOR_ALL_SIZES(sz, ARRAY_REVERSE);
 }
 
 void _vec_load(void *_sig, void *where, int32_t size, int32_t low,
@@ -471,31 +426,13 @@ void _vec_load(void *_sig, void *where, int32_t size, int32_t low,
    TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
          fmt_sig(sig), where, size, low, high, last);
 
-   uint8_t  *p8  = where;
-   uint16_t *p16 = where;
-   uint32_t *p32 = where;
-   uint64_t *p64 = where;
+#define VEC_LOAD(type) do {                                          \
+      type *p = where;                                               \
+      for (int i = low; i <= high; i++)                              \
+         *p++ = (last ? sig[i].last_value : sig[i].resolved);        \
+   } while (0)
 
-   switch (size) {
-      case 1:
-         for (int i = low; i <= high; i++)
-            *p8++ = (last ? sig[i].last_value : sig[i].resolved);
-         break;
-      case 2:
-         for (int i = low; i <= high; i++)
-            *p16++ = (last ? sig[i].last_value : sig[i].resolved);
-         break;
-      case 4:
-         for (int i = low; i <= high; i++)
-            *p32++ = (last ? sig[i].last_value : sig[i].resolved);
-         break;
-      case 8:
-         for (int i = low; i <= high; i++)
-            *p64++ = (last ? sig[i].last_value : sig[i].resolved);
-         break;
-      default:
-         assert(false);
-   }
+   FOR_ALL_SIZES(size, VEC_LOAD);
 }
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
