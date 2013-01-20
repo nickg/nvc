@@ -95,7 +95,7 @@ static bool folded_b(tree_t t, bool b)
 
 START_TEST(test_cfold)
 {
-   tree_t e, a, b, p, s;
+   tree_t e, a, p, s;
    range_t r;
 
    const error_t expect[] = {
@@ -118,16 +118,11 @@ START_TEST(test_cfold)
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
 
-   simplify(a);
-
-   b = parse();
-   fail_if(b == NULL);
-   fail_unless(tree_kind(b) == T_ARCH);
-   sem_check(b);
-
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
+
+   simplify(a);
 
    fail_unless(folded_i(tree_value(tree_decl(a, 0)), -10));
 
@@ -181,8 +176,6 @@ START_TEST(test_cfold)
    fail_unless(folded_r(tree_value(tree_stmt(p, 1)), 6.0));
    fail_unless(folded_r(tree_value(tree_stmt(p, 2)), 1.0));
    fail_unless(folded_b(tree_value(tree_stmt(p, 3)), true));
-
-   simplify(b);
 
    fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }

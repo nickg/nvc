@@ -90,44 +90,42 @@ static int analyse(int argc, char **argv)
       }
    }
 
-   tree_t to_cgen[16];
-   int n_cgen = 0;
+   tree_t units[32];
+   int n_units = 0;
 
    for (int i = optind; i < argc; i++) {
       if (!input_from_file(argv[i]))
          return EXIT_FAILURE;
 
       tree_t unit;
-      while ((unit = parse())) {
-         if (sem_check(unit)) {
-            assert(sem_errors() == 0);
-            unalias(unit);
-            simplify(unit);
-
-            tree_kind_t kind = tree_kind(unit);
-            const bool need_cgen =
-               (kind == T_PACK_BODY)
-               || ((kind == T_PACKAGE) && pack_needs_cgen(unit));
-
-            if (need_cgen) {
-               assert(n_cgen < ARRAY_LEN(to_cgen));
-               to_cgen[n_cgen++] = unit;
-            }
-         }
-         else
-            break;
+      while ((unit = parse()) && sem_check(unit)) {
+         assert(sem_errors() == 0);
+         assert(n_units < ARRAY_LEN(units));
+         units[n_units++] = unit;
       }
-
-      tree_gc();
-
-      if (parse_errors() + sem_errors() + simplify_errors() > 0)
-         return EXIT_FAILURE;
-
-      lib_save(lib_work());
    }
 
-   for (int i = 0; i < n_cgen; i++)
-      cgen(to_cgen[i]);
+   for (int i = 0; i < n_units; i++) {
+      unalias(units[i]);
+      simplify(units[i]);
+   }
+
+   tree_gc();
+
+   if (parse_errors() + sem_errors() + simplify_errors() > 0)
+      return EXIT_FAILURE;
+
+   lib_save(lib_work());
+
+   for (int i = 0; i < n_units; i++) {
+      tree_kind_t kind = tree_kind(units[i]);
+      const bool need_cgen =
+         (kind == T_PACK_BODY)
+         || ((kind == T_PACKAGE) && pack_needs_cgen(units[i]));
+
+      if (need_cgen)
+         cgen(units[i]);
+   }
 
    return EXIT_SUCCESS;
 }

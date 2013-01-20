@@ -86,8 +86,3 @@ begin
     end process;
 
 end architecture;
-
-architecture b of e is
-    signal k : time;
-begin
-end architecture;
