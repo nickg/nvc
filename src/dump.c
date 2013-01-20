@@ -240,6 +240,25 @@ static void dump_decl(tree_t t, int indent)
             printf("range ");
             dump_range(type_dim(type, 0));
             break;
+         case T_PHYSICAL:
+            printf("range ");
+            dump_range(type_dim(type, 0));
+            printf("\n");
+            tab(indent + 2);
+            printf("units\n");
+            {
+               const int nunits = type_units(type);
+               for (int i = 0; i < nunits; i++) {
+                  tree_t u = type_unit(type, i);
+                  tab(indent + 4);
+                  printf("%s = ", istr(tree_ident(u)));
+                  dump_expr(tree_value(u));
+                  printf(";\n");
+               }
+            }
+            tab(indent + 2);
+            printf("end units\n");
+            break;
          default:
             dump_type(type);
          }
@@ -255,21 +274,27 @@ static void dump_decl(tree_t t, int indent)
 
    case T_ATTR_SPEC:
       printf("TODO: T_ATTR_SPEC\n");
-      break;
+      return;
 
    case T_ATTR_DECL:
       printf("TODO: T_ATTR_DECL\n");
-      break;
+      return;
 
    case T_FUNC_DECL:
-      printf("function %s (\n", istr(tree_ident(t)));
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i), indent + 4);
+      printf("function %s ", istr(tree_ident(t)));
+      {
+         const int nports = tree_ports(t);
+         if (nports > 0) {
+            printf("(\n");
+            for (int i = 0; i < nports; i++) {
+               if (i > 0)
+                  printf(";\n");
+               dump_port(tree_port(t, i), indent + 4);
+            }
+            printf(" )\n");
+            tab(indent + 2);
+         }
       }
-      printf(" )\n");
-      tab(indent + 2);
       printf("return %s;\n", type_pp(type_result(tree_type(t))));
       return;
 
