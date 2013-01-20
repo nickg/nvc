@@ -172,8 +172,7 @@ static void vcd_enter_scope(tree_t decl)
          if (strcmp(p, scopes[n]) != 0) {
             while (n <= n_scopes) {
                fprintf(vcd_file, "$upscope $end\n");
-               free(scopes[n]);
-               n_scopes--;
+               free(scopes[--n_scopes]);
             }
          }
       }
@@ -209,7 +208,8 @@ void vcd_restart(void)
 
    n_scopes = 0;
    int next_key = 0;
-   for (unsigned i = 0; i < tree_decls(vcd_top); i++) {
+   const int ndecls = tree_decls(vcd_top);
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(vcd_top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
