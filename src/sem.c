@@ -1762,7 +1762,12 @@ static bool sem_check_field_decl(tree_t t)
 
 static bool sem_check_unit_decl(tree_t t)
 {
-   return sem_check(tree_value(t));
+   tree_t value = tree_value(t);
+   if (!sem_check(value))
+      return false;
+
+   tree_set_type(value, tree_type(t));
+   return true;
 }
 
 static bool sem_check_alias(tree_t t)
