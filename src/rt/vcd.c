@@ -168,19 +168,16 @@ static void vcd_enter_scope(tree_t decl)
    const char *last = strrchr(str, ':');
    char *p = strtok(str, ":");
    do {
-      if (n < n_scopes) {
-         if (strcmp(p, scopes[n]) != 0) {
-            while (n <= n_scopes) {
-               fprintf(vcd_file, "$upscope $end\n");
-               free(scopes[--n_scopes]);
-            }
+      if ((n >= n_scopes)
+          || ((n < n_scopes) && (strcmp(p, scopes[n]) != 0))) {
+         while (n < n_scopes) {
+            fprintf(vcd_file, "$upscope $end\n");
+            free(scopes[--n_scopes]);
          }
-      }
-      else {
          fprintf(vcd_file, "$scope module %s $end\n", p);
          scopes[n_scopes++] = strdup(p);
       }
-   } while (++n, (p = strtok(NULL, ":")) && p < last);
+   } while (++n, (p = strtok(NULL, ":")) && (p < last));
 
    free(str);
 }
