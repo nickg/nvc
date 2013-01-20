@@ -428,6 +428,9 @@ char *_tmp_alloc(int32_t n, int32_t sz)
 void _array_reverse(void *restrict dst, const void *restrict src,
                     int32_t off, int32_t n, int32_t sz)
 {
+   TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
+         dst, src, off, n, sz);
+
    const uint8_t  *restrict s8  = src;
    const uint16_t *restrict s16 = src;
    const uint32_t *restrict s32 = src;
@@ -457,6 +460,41 @@ void _array_reverse(void *restrict dst, const void *restrict src,
       break;
    default:
       assert(false);
+   }
+}
+
+void _vec_load(void *_sig, void *where, int32_t size, int32_t low,
+               int32_t high, int32_t last)
+{
+   struct signal *sig = _sig;
+
+   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+         fmt_sig(sig), where, size, low, high, last);
+
+   uint8_t  *p8  = where;
+   uint16_t *p16 = where;
+   uint32_t *p32 = where;
+   uint64_t *p64 = where;
+
+   switch (size) {
+      case 1:
+         for (int i = low; i <= high; i++)
+            *p8++ = (last ? sig[i].last_value : sig[i].resolved);
+         break;
+      case 2:
+         for (int i = low; i <= high; i++)
+            *p16++ = (last ? sig[i].last_value : sig[i].resolved);
+         break;
+      case 4:
+         for (int i = low; i <= high; i++)
+            *p32++ = (last ? sig[i].last_value : sig[i].resolved);
+         break;
+      case 8:
+         for (int i = low; i <= high; i++)
+            *p64++ = (last ? sig[i].last_value : sig[i].resolved);
+         break;
+      default:
+         assert(false);
    }
 }
 
@@ -1174,6 +1212,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_assert_fail", _assert_fail);
    jit_bind_fn("_tmp_alloc", _tmp_alloc);
    jit_bind_fn("_array_reverse", _array_reverse);
+   jit_bind_fn("_vec_load", _vec_load);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
    jit_bind_fn("_name_attr", _name_attr);
