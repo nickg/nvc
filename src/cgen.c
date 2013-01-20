@@ -3815,22 +3815,6 @@ static void cgen_support_fns(void)
                                        llvm_memcpy_args,
                                        ARRAY_LEN(llvm_memcpy_args),
                                        false));
-
-      char reverse_name[128];
-      snprintf(reverse_name, sizeof(reverse_name), "_reverse_i%d", w);
-
-      LLVMTypeRef reverse_args[] = {
-         LLVMPointerType(LLVMIntType(w), 0),
-         LLVMPointerType(LLVMIntType(w), 0),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt1Type()
-      };
-      LLVMAddFunction(module, reverse_name,
-                      LLVMFunctionType(LLVMVoidType(),
-                                       reverse_args,
-                                       ARRAY_LEN(reverse_args),
-                                       false));
    }
 
    LLVMTypeRef _name_attr_args[] = {
