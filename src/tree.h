@@ -103,6 +103,7 @@ typedef enum tree_kind {
    T_NEW,
    T_CASSERT,
    T_CPCALL,
+   T_UNIT_DECL,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

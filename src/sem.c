@@ -1056,20 +1056,11 @@ static bool sem_declare(tree_t decl)
       break;
 
    case T_PHYSICAL:
-      // Create constant declarations for each unit
-      for (unsigned i = 0; i < type_units(type); i++) {
-         unit_t u = type_unit(type, i);
-         ok = ok && sem_check_constrained(u.multiplier, type);
-
-         tree_set_type(u.multiplier, type);
-
-         tree_t c = tree_new(T_CONST_DECL);
-         tree_set_loc(c, tree_loc(u.multiplier));
-         tree_set_ident(c, u.name);
-         tree_set_type(c, type);
-         tree_set_value(c, u.multiplier);
-
-         ok = ok && scope_insert(c);
+      // Add each unit to the scope
+      {
+         const int nunits = type_units(type);
+         for (int i = 0; i < nunits; i++)
+            ok = ok && scope_insert(type_unit(type, i));
       }
       break;
 
@@ -1390,6 +1381,16 @@ static bool sem_check_type_decl(tree_t t)
       return true;
 
    case T_PHYSICAL:
+      {
+         // Check the units
+         const int nunits = type_units(type);
+         for (int i = 0; i < nunits; i++) {
+            if (!sem_check_constrained(type_unit(type, i), type))
+               return false;
+         }
+      }
+
+      // Fall-through
    case T_INTEGER:
    case T_REAL:
       {
@@ -1757,6 +1758,11 @@ static bool sem_check_field_decl(tree_t t)
 
    tree_set_type(t, type);
    return true;
+}
+
+static bool sem_check_unit_decl(tree_t t)
+{
+   return sem_check(tree_value(t));
 }
 
 static bool sem_check_alias(tree_t t)
@@ -3706,6 +3712,7 @@ static bool sem_check_ref(tree_t t)
    case T_ALIAS:
    case T_TYPE_DECL:
    case T_FILE_DECL:
+   case T_UNIT_DECL:
       tree_set_type(t, tree_type(decl));
       break;
 
@@ -4634,6 +4641,8 @@ bool sem_check(tree_t t)
       return sem_check_all(t);
    case T_RECORD_REF:
       return sem_check_record_ref(t);
+   case T_UNIT_DECL:
+      return sem_check_unit_decl(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

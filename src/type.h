@@ -55,11 +55,6 @@ typedef struct range {
    enum { RANGE_TO, RANGE_DOWNTO, RANGE_EXPR, RANGE_DYN } kind;
 } range_t;
 
-typedef struct unit {
-   struct tree *multiplier;
-   ident_t     name;
-} unit_t;
-
 type_t type_new(type_kind_t kind);
 
 type_kind_t type_kind(type_t t);
@@ -89,8 +84,8 @@ struct tree *type_enum_literal(type_t t, unsigned n);
 void type_enum_add_literal(type_t t, struct tree *lit);
 
 unsigned type_units(type_t t);
-unit_t type_unit(type_t t, unsigned n);
-void type_add_unit(type_t t, unit_t u);
+struct tree *type_unit(type_t t, unsigned n);
+void type_add_unit(type_t t, struct tree *u);
 
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);

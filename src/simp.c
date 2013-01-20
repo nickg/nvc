@@ -150,6 +150,7 @@ static tree_t simp_ref(tree_t t)
       else
          return tree_value(decl);
 
+   case T_UNIT_DECL:
    case T_ALIAS:
       return tree_value(decl);
 

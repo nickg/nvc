@@ -30,7 +30,6 @@
 #define MAX_ITEMS 3
 
 DEFINE_ARRAY(type);
-DEFINE_ARRAY(unit);
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(range);
 
@@ -53,7 +52,6 @@ typedef union {
    type_array_t  type_array;
    type_t        type;
    tree_t        tree;
-   unit_array_t  unit_array;
    tree_array_t  tree_array;
    range_array_t range_array;
 } item_t;
@@ -107,8 +105,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 #define ITEM_TYPE_ARRAY  (I_PARAMS | I_INDEX_CONSTR)
 #define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT | I_FILE)
 #define ITEM_TREE        (I_RESOLUTION)
-#define ITEM_UNIT_ARRAY  (I_UNITS)
-#define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS)
+#define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS | I_UNITS)
 #define ITEM_RANGE_ARRAY (I_DIMS)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
@@ -472,17 +469,17 @@ bool type_is_universal(type_t t)
 
 unsigned type_units(type_t t)
 {
-   return lookup_item(t, I_UNITS)->unit_array.count;
+   return lookup_item(t, I_UNITS)->tree_array.count;
 }
 
-unit_t type_unit(type_t t, unsigned n)
+tree_t type_unit(type_t t, unsigned n)
 {
-   return unit_array_nth(&(lookup_item(t, I_UNITS)->unit_array), n);
+   return tree_array_nth(&(lookup_item(t, I_UNITS)->tree_array), n);
 }
 
-void type_add_unit(type_t t, unit_t u)
+void type_add_unit(type_t t, tree_t u)
 {
-   unit_array_add(&(lookup_item(t, I_UNITS)->unit_array), u);
+   tree_array_add(&(lookup_item(t, I_UNITS)->tree_array), u);
 }
 
 unsigned type_enum_literals(type_t t)
@@ -695,14 +692,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
             type_write(t->items[n].type, ctx);
          else if (ITEM_TREE & mask)
             tree_write(t->items[n].tree, ctx->tree_ctx);
-         else if (ITEM_UNIT_ARRAY & mask) {
-            unit_array_t *a = &(t->items[n].unit_array);
-            write_u16(a->count, f);
-            for (unsigned i = 0; i < a->count; i++) {
-               tree_write(a->items[i].multiplier, ctx->tree_ctx);
-               ident_write(a->items[i].name, ctx->ident_ctx);
-            }
-         }
          else if (ITEM_TREE_ARRAY & mask) {
             tree_array_t *a = &(t->items[n].tree_array);
             write_u16(a->count, f);
@@ -771,17 +760,6 @@ type_t type_read(type_rd_ctx_t ctx)
             t->items[n].type = type_read(ctx);
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_read(ctx->tree_ctx);
-         else if (ITEM_UNIT_ARRAY & mask) {
-            unit_array_t *a = &(t->items[n].unit_array);
-
-            a->count = a->max = read_u16(f);
-            a->items = xmalloc(a->count * sizeof(unit_t));
-
-            for (unsigned i = 0; i < a->count; i++) {
-               a->items[i].multiplier = tree_read(ctx->tree_ctx);
-               a->items[i].name = ident_read(ctx->ident_ctx);
-            }
-         }
          else if (ITEM_TREE_ARRAY & mask) {
             tree_array_t *a = &(t->items[n].tree_array);
 
@@ -909,8 +887,6 @@ void type_sweep(unsigned generation)
                   ;
                else if (ITEM_TREE & mask)
                   ;
-               else if (ITEM_UNIT_ARRAY & mask)
-                  free(t->items[n].unit_array.items);
                else if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
                else if (ITEM_RANGE_ARRAY & mask)
@@ -987,11 +963,6 @@ void type_visit_trees(type_t t, unsigned generation,
             type_visit_trees(t->items[n].type, generation, fn, context);
          else if (ITEM_TREE & mask)
             (*fn)(t->items[n].tree, context);
-         else if (ITEM_UNIT_ARRAY & mask) {
-            unit_array_t *a = &(t->items[n].unit_array);
-            for (unsigned i = 0; i < a->count; i++)
-               (*fn)(a->items[i].multiplier, context);
-         }
          else if (ITEM_TREE_ARRAY & mask) {
             tree_array_t *a = &(t->items[n].tree_array);
             for (unsigned i = 0; i < a->count; i++)

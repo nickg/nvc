@@ -80,4 +80,14 @@ begin
         b := 4.6 > 1.2;
     end process;
 
+    process
+        variable k  : time;
+    begin
+    end process;
+
+end architecture;
+
+architecture b of e is
+    signal k : time;
+begin
 end architecture;

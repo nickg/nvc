@@ -64,7 +64,6 @@
    } lvals_t;
 
    union listval {
-      unit_t    unit;
       ident_t   ident;
       assoc_t   assoc;
       param_t   param;
@@ -135,7 +134,7 @@
    static ident_t loc_to_ident(const loc_t *loc);
    static tree_t get_time(int64_t fs);
    static void set_delay_mechanism(tree_t t, tree_t reject);
-   static tree_t int_to_physical(tree_t t, unit_t unit);
+   static tree_t int_to_physical(tree_t t, tree_t unit);
 
 #define parse_error(loc, ...) do {         \
       error_at(loc, __VA_ARGS__);          \
@@ -155,7 +154,6 @@
    port_mode_t  m;
    type_t       y;
    range_t      r;
-   unit_t       u;
    list_t       *g;
    class_t      c;
    context_t    d;
@@ -170,6 +168,7 @@
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
+%type <t> base_unit_decl
 %type <i> id opt_id selected_id func_name func_type
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -181,6 +180,7 @@
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
+%type <l> secondary_unit_decls
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause use_clause
 %type <g> use_clause_item_list
@@ -191,8 +191,7 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <y> record_type_def
 %type <r> range range_constraint constraint_elem
-%type <u> base_unit_decl
-%type <g> secondary_unit_decls constraint_list case_alt_list
+%type <g> constraint_list case_alt_list
 %type <g> element_assoc_list index_constraint constraint choice_list
 %type <b> element_assoc choice
 %type <g> param_list generic_map port_map selected_waveforms
@@ -1925,22 +1924,29 @@ physical_type_def
 
      $$ = type_new(T_PHYSICAL);
      type_add_dim($$, $1);
+
+     tree_set_type($3, $$);
      type_add_unit($$, $3);
 
-     for (list_t *it = $4; it != NULL; it = it->next)
-        type_add_unit($$, it->item.unit);
-
-     list_free($4);
+     for (tree_list_t *it = $4; it != NULL; it = it->next) {
+        tree_set_type(it->value, $$);
+        type_add_unit($$, it->value);
+     }
+     tree_list_free($4);
   }
 ;
 
 base_unit_decl
 : id tSEMI
   {
-     $$.multiplier = tree_new(T_LITERAL);
+     tree_t mult = tree_new(T_LITERAL);
      literal_t l = { { .i = 1 }, .kind = L_INT };
-     tree_set_literal($$.multiplier, l);
-     $$.name = $1;
+     tree_set_literal(mult, l);
+
+     $$ = tree_new(T_UNIT_DECL);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, mult);
+     tree_set_ident($$, $1);
   }
 ;
 
@@ -1948,12 +1954,13 @@ secondary_unit_decls
 : /* empty */ { $$ = NULL; }
 | id tEQ physical_literal tSEMI secondary_unit_decls
   {
-     unit_t u = {
-        .name       = $1,
-        .multiplier = $3
-     };
+     tree_t u = tree_new(T_UNIT_DECL);
+     tree_set_loc(u, &@$);
+     tree_set_ident(u, $1);
+     tree_set_value(u, $3);
 
-     $$ = list_add($5, LISTVAL(u));
+     $$ = $5;
+     tree_list_prepend(&$$, u);
   }
 ;
 
@@ -2515,10 +2522,10 @@ static tree_t get_time(int64_t fs)
    return f;
 }
 
-static tree_t int_to_physical(tree_t t, unit_t unit)
+static tree_t int_to_physical(tree_t t, tree_t unit)
 {
    tree_t ref = tree_new(T_REF);
-   tree_set_ident(ref, unit.name);
+   tree_set_ident(ref, tree_ident(unit));
 
    tree_t fcall = tree_new(T_FCALL);
    tree_set_loc(fcall, tree_loc(t));

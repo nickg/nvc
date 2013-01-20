@@ -543,10 +543,9 @@ END_TEST
 
 START_TEST(test_types)
 {
-   tree_t a, d, f;
+   tree_t a, d, f, u;
    type_t t;
    range_t r;
-   unit_t u;
 
    fail_unless(input_from_file(TESTDIR "/parse/types.vhd"));
 
@@ -578,14 +577,14 @@ START_TEST(test_types)
    fail_unless(tree_kind(r.right) == T_FCALL);
    fail_unless(type_units(t) == 3);
    u = type_unit(t, 0);
-   fail_unless(u.name == ident_new("OHM"));
-   fail_unless(tree_kind(u.multiplier) == T_LITERAL);
+   fail_unless(tree_ident(u) == ident_new("OHM"));
+   fail_unless(tree_kind(tree_value(u)) == T_LITERAL);
    u = type_unit(t, 1);
-   fail_unless(u.name == ident_new("KOHM"));
-   fail_unless(tree_kind(u.multiplier) == T_FCALL);
+   fail_unless(tree_ident(u) == ident_new("KOHM"));
+   fail_unless(tree_kind(tree_value(u)) == T_FCALL);
    u = type_unit(t, 2);
-   fail_unless(u.name == ident_new("MOHM"));
-   fail_unless(tree_kind(u.multiplier) == T_FCALL);
+   fail_unless(tree_ident(u) == ident_new("MOHM"));
+   fail_unless(tree_kind(tree_value(u)) == T_FCALL);
 
    d = tree_decl(a, 4);
    fail_unless(tree_kind(d) == T_TYPE_DECL);

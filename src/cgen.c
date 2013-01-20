@@ -1571,8 +1571,10 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    tree_t decl = tree_ref(t);
    bool needs_load = false;
 
-   switch (tree_kind(decl)) {
+   tree_kind_t kind = tree_kind(decl);
+   switch (kind) {
    case T_CONST_DECL:
+   case T_UNIT_DECL:
       return cgen_expr(tree_value(decl), ctx);
 
    case T_ENUM_LIT:
@@ -1607,7 +1609,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       }
 
    default:
-      assert(false);
+      fatal("cannot generate code for %s", tree_kind_str(kind));
    }
 }
 
