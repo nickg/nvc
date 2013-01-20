@@ -405,8 +405,8 @@ char *_tmp_alloc(int32_t n, int32_t sz)
 void _array_reverse(void *restrict dst, const void *restrict src,
                     int32_t off, int32_t n, int32_t sz)
 {
-   TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
-         dst, src, off, n, sz);
+   //TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
+   //      dst, src, off, n, sz);
 
 #define ARRAY_REVERSE(type) do {                \
       const type *restrict sp = src;            \
@@ -423,13 +423,17 @@ void _vec_load(void *_sig, void *where, int32_t size, int32_t low,
 {
    struct signal *sig = _sig;
 
-   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-         fmt_sig(sig), where, size, low, high, last);
+   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+   //      fmt_sig(sig), where, size, low, high, last);
 
 #define VEC_LOAD(type) do {                                          \
       type *p = where;                                               \
-      for (int i = low; i <= high; i++)                              \
-         *p++ = (last ? sig[i].last_value : sig[i].resolved);        \
+      if (unlikely(last))                                            \
+         for (int i = low; i <= high; i++)                           \
+            *p++ = sig[i].last_value;                                \
+      else                                                           \
+         for (int i = low; i <= high; i++)                           \
+            *p++ = sig[i].resolved;                                  \
    } while (0)
 
    FOR_ALL_SIZES(size, VEC_LOAD);
