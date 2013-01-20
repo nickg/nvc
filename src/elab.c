@@ -185,8 +185,8 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
       return NULL;
 
    default:
-      fatal_at(tree_loc(actual), "tree kind %d not supported as actual",
-               tree_kind(actual));
+      fatal_at(tree_loc(actual), "tree %s not supported as actual",
+               tree_kind_str(tree_kind(actual)));
    }
 }
 
