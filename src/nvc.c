@@ -202,11 +202,12 @@ static uint64_t parse_time(const char *str)
    if (sscanf(str, "%u%3s", &base, unit) != 2)
       fatal("invalid time format: %s", str);
 
-   if      (strcmp(unit, "fs") == 0) mult = 1;
-   else if (strcmp(unit, "ps") == 0) mult = 1000;
-   else if (strcmp(unit, "ns") == 0) mult = 1000000;
-   else if (strcmp(unit, "us") == 0) mult = 1000000000;
-   else if (strcmp(unit, "ms") == 0) mult = 1000000000000;
+   if      (strcmp(unit, "fs") == 0)  mult = 1;
+   else if (strcmp(unit, "ps") == 0)  mult = 1000;
+   else if (strcmp(unit, "ns") == 0)  mult = 1000000;
+   else if (strcmp(unit, "us") == 0)  mult = 1000000000;
+   else if (strcmp(unit, "ms") == 0)  mult = 1000000000000;
+   else if (strcmp(unit, "sec") == 0) mult = 1000000000000000;
    else
       fatal("invalid unit: %s", unit);
 

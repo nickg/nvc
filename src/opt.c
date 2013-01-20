@@ -31,6 +31,8 @@
 //
 // Where x and y are references to signals with an alias.
 
+#if 0   // XXX: this produces incorrect code in many cases
+
 struct collapse_list {
    tree_t old, new;
    struct collapse_list *next;
@@ -141,6 +143,8 @@ static void opt_collapse(tree_t top)
    }
 }
 
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 // Delete processes that contain just a single wait statement
 //
@@ -201,7 +205,7 @@ static void opt_tag_simple_procedures(tree_t top)
 
 void opt(tree_t top)
 {
-   opt_collapse(top);
+   //opt_collapse(top);
    opt_delete_wait_only(top);
    opt_tag_simple_procedures(top);
 }
