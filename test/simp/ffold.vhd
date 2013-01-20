@@ -47,6 +47,7 @@ architecture a of ffold is
     signal s1 : integer := add1(5);
     signal s2 : integer := add4(1);
     signal s3 : integer := log2(11);
+    signal s4 : integer := log2(integer(real'(5.5)));
 
 begin
 

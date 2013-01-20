@@ -45,6 +45,16 @@ static bool folded_int(tree_t t, literal_t *l)
       return false;
 }
 
+static bool folded_real(tree_t t, literal_t *l)
+{
+   if (tree_kind(t) == T_LITERAL) {
+      *l = tree_literal(t);
+      return (l->kind == L_REAL);
+   }
+   else
+      return false;
+}
+
 static bool folded_bool(tree_t t, bool *b)
 {
    if (tree_kind(t) == T_REF) {
@@ -61,12 +71,23 @@ static bool folded_bool(tree_t t, bool *b)
 
 static tree_t get_int_lit(tree_t t, int64_t i)
 {
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
    literal_t l;
    l.kind = L_INT;
    l.i = i;
+
+   tree_t f = tree_new(T_LITERAL);
+   tree_set_loc(f, tree_loc(t));
+   tree_set_literal(f, l);
+   tree_set_type(f, tree_type(t));
+
+   return f;
+}
+
+static tree_t get_real_lit(tree_t t, double r)
+{
+   literal_t l;
+   l.kind = L_REAL;
+   l.r = r;
 
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
@@ -703,6 +724,38 @@ static tree_t simp_cassert(tree_t t)
    return process;
 }
 
+static tree_t simp_qualified(tree_t t)
+{
+   // Not needed by the code generator
+   return tree_value(t);
+}
+
+static tree_t simp_type_conv(tree_t t)
+{
+   // Simple conversions performed at compile time
+
+   tree_t value = tree_param(t, 0).value;
+
+   type_t from = tree_type(value);
+   type_t to   = tree_type(t);
+
+   type_kind_t from_k = type_kind(from);
+   type_kind_t to_k   = type_kind(to);
+
+   if ((from_k == T_INTEGER) && (to_k == T_REAL)) {
+      literal_t l;
+      if (folded_int(value, &l))
+         return get_real_lit(t, (double)l.i);
+   }
+   else if ((from_k == T_REAL) && (to_k == T_INTEGER)) {
+      literal_t l;
+      if (folded_real(value, &l))
+         return get_int_lit(t, (int)l.r);
+   }
+
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -738,6 +791,10 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_cpcall(t);
    case T_CASSERT:
       return simp_cassert(t);
+   case T_QUALIFIED:
+      return simp_qualified(t);
+   case T_TYPE_CONV:
+      return simp_type_conv(t);
    default:
       return t;
    }

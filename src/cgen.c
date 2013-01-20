@@ -2136,8 +2136,6 @@ static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
       return cgen_array_slice(t, ctx);
    case T_AGGREGATE:
       return cgen_aggregate(t, ctx);
-   case T_QUALIFIED:
-      return cgen_expr(tree_value(t), ctx);
    case T_CONCAT:
       return cgen_concat(t, ctx);
    case T_TYPE_CONV:

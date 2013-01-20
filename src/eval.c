@@ -52,8 +52,11 @@ struct vtable {
 static void eval_stmt(tree_t t, vtable_t *v);
 static tree_t eval_expr(tree_t t, vtable_t *v);
 
+static bool debug = false;
+
 #define eval_error(t, ...) do {                 \
-      warn_at(tree_loc(t),  __VA_ARGS__);       \
+      if (debug)                                \
+         warn_at(tree_loc(t),  __VA_ARGS__);    \
       v->failed = true;                         \
       return;                                   \
    } while (0);
@@ -421,6 +424,10 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       if (tree_kind(decl) != T_FUNC_BODY)
          return t;
 
+      // Only evaluating scalar functions is supported at the moment
+      if (type_is_array(tree_type(t)))
+         return t;
+
       vtable_push(v);
 
       const int nports = tree_ports(decl);
@@ -529,8 +536,11 @@ static void eval_while(tree_t t, vtable_t *v)
 
       if (!cond_b)
          break;
-      else if (++iters == MAX_ITERS)
-         eval_error(t, "iteration limit exceeded");
+      else if (++iters == MAX_ITERS) {
+         warn_at(tree_loc(t), "iteration limit exceeded");
+         v->failed = true;
+         return;
+      }
 
       const int nstmts = tree_stmts(t);
       for (int i = 0; i < nstmts; i++)
@@ -568,9 +578,8 @@ static void eval_stmt(tree_t t, vtable_t *v)
       eval_var_assign(t, v);
       break;
    default:
-      warn_at(tree_loc(t), "cannot evaluate statement %s",
-              tree_kind_str(tree_kind(t)));
-      v->failed = true;
+      eval_error(t, "cannot evaluate statement %s",
+                 tree_kind_str(tree_kind(t)));
    }
 }
 
@@ -590,6 +599,8 @@ tree_t eval(tree_t fcall)
    if (!have_interned) {
       eval_intern_strings();
       have_interned = true;
+
+      debug = (getenv("NVC_EVAL_DEBUG") != NULL);
    }
 
    vtable_t vt = {

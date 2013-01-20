@@ -92,6 +92,9 @@ static void dump_expr(tree_t t)
          case L_INT:
             printf("%"PRIi64, l.i);
             break;
+         case L_REAL:
+            printf("%lf", l.r);
+            break;
          case L_NULL:
             printf("null");
             break;
@@ -174,6 +177,12 @@ static void dump_expr(tree_t t)
       dump_expr(tree_param(t, 0).value);
       printf(" & ");
       dump_expr(tree_param(t, 1).value);
+      printf(")");
+      break;
+
+   case T_QUALIFIED:
+      printf("%s'(", istr(type_ident(tree_type(t))));
+      dump_expr(tree_value(t));
       printf(")");
       break;
 
