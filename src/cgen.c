@@ -40,6 +40,7 @@ static LLVMValueRef   mod_name = NULL;
 
 static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
+static ident_t global_const_i = NULL;
 static ident_t sig_struct_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
@@ -330,6 +331,11 @@ static bool cgen_is_const(tree_t t)
                   && tree_kind(tree_ref(t)) == T_ENUM_LIT));
 }
 
+static bool cgen_is_real(type_t type)
+{
+   return type_kind(type_base_recur(type)) == T_REAL;
+}
+
 static bool cgen_const_bounds(type_t type)
 {
    if (type_kind(type) == T_UARRAY)
@@ -592,6 +598,10 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    if (local != NULL)
       return (LLVMValueRef)local;
 
+   void *global = tree_attr_ptr(decl, global_const_i);
+   if (global != NULL)
+      return LLVMBuildLoad(builder, (LLVMValueRef)global, "global");
+
    assert(tree_kind(decl) == T_VAR_DECL);
 
    int offset = tree_attr_int(decl, var_offset_i, -1);
@@ -657,6 +667,14 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef indexes[] = { offset };
    LLVMValueRef dst_ptr = LLVMBuildGEP(builder, dst, indexes,
                                        ARRAY_LEN(indexes), "dst_ptr");
+
+   // Cast real values to 64-bit integers
+   const bool real = cgen_is_real(type_elem(src_type));
+   if (real) {
+      LLVMTypeRef pi64 = LLVMPointerType(LLVMInt64Type(), 0);
+      src_ptr = LLVMBuildPointerCast(builder, src_ptr, pi64, "src_pi64");
+      dst_ptr = LLVMBuildPointerCast(builder, dst_ptr, pi64, "dst_pi64");
+   }
 
    LLVMValueRef memcpy_args[] = {
       dst_ptr,
@@ -1249,7 +1267,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    // Regular builtin functions
    if (builtin) {
       assert(nparams > 0);
-      const bool real = (type_kind(type_base_recur(arg_types[0])) == T_REAL);
+      const bool real = cgen_is_real(arg_types[0]);
 
       if (icmp(builtin, "mul")) {
          cgen_promote_arith(tree_type(t), args, nparams);
@@ -3406,8 +3424,7 @@ static void cgen_global_const(tree_t t)
          LLVMTypeRef lltype = llvm_type(tree_type(t));
          LLVMValueRef v = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
          LLVMSetInitializer(v, LLVMGetUndef(lltype));
-         tree_add_attr_ptr(t, local_var_i, v);
-         LLVMDumpModule(module);
+         tree_add_attr_ptr(t, global_const_i, v);
       }
    }
 }
@@ -3447,6 +3464,14 @@ static void cgen_reset_function(tree_t t)
          };
          LLVMBuildCall(builder, llvm_fn("_file_open"),
                        args, ARRAY_LEN(args), "");
+      }
+
+      void *global = tree_attr_ptr(d, global_const_i);
+      if (global != NULL) {
+         // A global constant whose value cannot be determined at
+         // compile time
+         LLVMValueRef init = cgen_expr(tree_value(d), &ctx);
+         LLVMBuildStore(builder, init, (LLVMValueRef)global);
       }
 
       if (tree_kind(d) != T_SIGNAL_DECL)
@@ -3825,11 +3850,12 @@ static void cgen_module_name(tree_t top)
 
 void cgen(tree_t top)
 {
-   var_offset_i  = ident_new("var_offset");
-   local_var_i   = ident_new("local_var");
-   sig_struct_i  = ident_new("sig_struct");
-   foreign_i     = ident_new("FOREIGN");
-   never_waits_i = ident_new("never_waits");
+   var_offset_i   = ident_new("var_offset");
+   local_var_i    = ident_new("local_var");
+   global_const_i = ident_new("global_const");
+   sig_struct_i   = ident_new("sig_struct");
+   foreign_i      = ident_new("FOREIGN");
+   never_waits_i  = ident_new("never_waits");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

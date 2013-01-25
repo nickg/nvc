@@ -690,6 +690,13 @@ static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed when the process suspends
 
+   if (unlikely(active_proc == NULL)) {
+      // It is possible for the module reset functions to call _tmp_alloc
+      // without an active process
+      // XXX: this can leak memory when result is not used for a global
+      return xmalloc(sz);
+   }
+
    struct tmp_chunk *c = active_proc->tmp_chunks;
 
    bool reuse =
@@ -761,7 +768,7 @@ static void rt_setup(tree_t top)
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
-      struct signal *s = jit_var_ptr(istr(tree_ident(d)));
+      struct signal *s = jit_var_ptr(istr(tree_ident(d)), true);
       tree_add_attr_ptr(d, i_signal, s);
 
       type_t type = tree_type(d);
@@ -783,7 +790,7 @@ static void rt_setup(tree_t top)
       assert(tree_kind(p) == T_PROCESS);
 
       procs[i].source     = p;
-      procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)));
+      procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
       procs[i].tmp_chunks = NULL;
 
@@ -809,15 +816,30 @@ static void rt_run(struct rt_proc *proc, bool reset)
    }
 }
 
+static void rt_call_module_reset(ident_t name)
+{
+   char buf[128];
+   snprintf(buf, sizeof(buf), "%s_reset", istr(name));
+
+   void (*reset_fn)(void) = jit_fun_ptr(buf, false);
+   if (reset_fn != NULL)
+      (*reset_fn)();
+}
+
 static void rt_initial(tree_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
 
-   char name[128];
-   snprintf(name, sizeof(name), "%s_reset", istr(tree_ident(top)));
+   const int ncontext = tree_contexts(top);
+   for (int i = 0; i < ncontext; i++) {
+      context_t c = tree_context(top, i);
+      rt_call_module_reset(c.name);
 
-   void (*reset_fn)(void) = jit_fun_ptr(name);
-   (*reset_fn)();
+      ident_t body = ident_prefix(c.name, ident_new("body"), '-');
+      rt_call_module_reset(body);
+   }
+
+   rt_call_module_reset(tree_ident(top));
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);

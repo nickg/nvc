@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -37,17 +37,21 @@ static LLVMExecutionEngineRef exec_engine = NULL;
 static bool using_jit = true;
 static void *dl_handle = NULL;
 
-void *jit_fun_ptr(const char *name)
+void *jit_fun_ptr(const char *name, bool required)
 {
    if (using_jit) {
       LLVMValueRef fn;
-      if (LLVMFindFunction(exec_engine, name, &fn))
-         fatal("cannot find function %s", name);
+      if (LLVMFindFunction(exec_engine, name, &fn)) {
+         if (required)
+            fatal("cannot find function %s", name);
+         else
+            return NULL;
+      }
 
       return LLVMGetPointerToGlobal(exec_engine, fn);
    }
    else
-      return jit_var_ptr(name);
+      return jit_var_ptr(name, required);
 }
 
 static char *jit_str_add(char *p, const char *s)
@@ -75,6 +79,9 @@ static void jit_native_name(const char *name, char *buf, size_t len)
       case '@':
          p = jit_str_add(p, "_40_");
          break;
+      case '-':
+         p = jit_str_add(p, "_2D_");
+         break;
       default:
          *p++ = ch;
       }
@@ -82,12 +89,16 @@ static void jit_native_name(const char *name, char *buf, size_t len)
    *p = '\0';
 }
 
-void *jit_var_ptr(const char *name)
+void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
       LLVMValueRef var = LLVMGetNamedGlobal(module, name);
-      if (var == NULL)
-         fatal("cannot find global %s", name);
+      if (var == NULL) {
+         if (required)
+            fatal("cannot find global %s", name);
+         else
+            return NULL;
+      }
 
       return LLVMGetPointerToGlobal(exec_engine, var);
    }
@@ -97,7 +108,7 @@ void *jit_var_ptr(const char *name)
       jit_native_name(name, dlname, sizeof(dlname));
       void *sym = dlsym(dl_handle, dlname);
       const char *error = dlerror();
-      if (error != NULL)
+      if ((error != NULL) && required)
          fatal("%s", error);
       return sym;
    }

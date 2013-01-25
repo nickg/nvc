@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,8 +35,8 @@ size_t rt_signal_value(struct tree *s, uint64_t *buf, size_t max);
 
 void jit_init(ident_t top);
 void jit_shutdown(void);
-void *jit_fun_ptr(const char *name);
-void *jit_var_ptr(const char *name);
+void *jit_fun_ptr(const char *name, bool required);
+void *jit_var_ptr(const char *name, bool required);
 void jit_bind_fn(const char *name, void *ptr);
 
 void shell_run(struct tree *e);
