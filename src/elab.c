@@ -320,7 +320,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          tree_set_ident(d, npath);
          break;
       case T_CONST_DECL:
-         if (type_kind(tree_type(d)) == T_CARRAY) {
+         if (type_is_array(tree_type(d))) {
             tree_set_ident(d, npath);
             tree_add_attr_str(d, inst_name_i, ninst);
             tree_add_decl(ctx->out, d);

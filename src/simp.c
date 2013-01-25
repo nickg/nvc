@@ -187,7 +187,9 @@ static tree_t simp_array_ref(tree_t t)
    case T_CONST_DECL:
       {
          tree_t v = tree_value(decl);
-         assert(tree_kind(v) == T_AGGREGATE);
+         if (tree_kind(v) != T_AGGREGATE)
+            return t;
+
          assert(indexes[0].kind == L_INT);
 
          range_t bounds = type_dim(tree_type(decl), 0);

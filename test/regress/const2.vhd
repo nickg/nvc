@@ -36,11 +36,22 @@ architecture test of const2 is
         return integer(foo(integer'left + 1));
     end function;
 
+    function get_bits return bit_vector is
+    begin
+        return "110101";
+    end function;
+
+    constant some_bits : bit_vector := get_bits;
+
+    constant a_bit : bit := some_bits(2);
+
 begin
 
     process is
     begin
         assert get_it = 16;
+        assert some_bits(some_bits'right) = '1';
+        assert a_bit = '0';
         wait;
     end process;
 
