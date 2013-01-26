@@ -3238,6 +3238,28 @@ static void cgen_func_vars(tree_t d, void *context)
    tree_add_attr_ptr(d, local_var_i, var);
 }
 
+static void cgen_func_constants(tree_t d, void *context)
+{
+   cgen_ctx_t *ctx = context;
+
+   tree_t value = tree_value(d);
+   type_t value_type = tree_type(value);
+   if (type_is_array(value_type)) {
+      LLVMValueRef var = cgen_expr(value, ctx);
+
+      type_t decl_type = tree_type(d);
+      if (!cgen_const_bounds(decl_type)) {
+         var = cgen_array_meta(decl_type,
+                               cgen_array_left(value_type, var),
+                               cgen_array_right(value_type, var),
+                               cgen_array_dir(value_type, var),
+                               cgen_array_data_ptr(value_type, var));
+      }
+
+      tree_add_attr_ptr(d, local_var_i, var);
+   }
+}
+
 static void cgen_func_body(tree_t t)
 {
    type_t ftype = tree_type(t);
@@ -3288,6 +3310,7 @@ static void cgen_func_body(tree_t t)
       }
    }
 
+   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
@@ -3418,6 +3441,8 @@ static void cgen_proc_body(tree_t t)
    }
    else
       tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
+
+   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       cgen_stmt(tree_stmt(t, i), &ctx);

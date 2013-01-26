@@ -88,3 +88,4 @@ assert2         normal,gold
 concat3         normal
 const2          normal
 func7           normal
+func8           normal
