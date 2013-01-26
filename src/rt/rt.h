@@ -27,6 +27,11 @@ struct tree_rd_ctx;
 
 typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 
+typedef enum {
+   BOUNDS_ARRAY_TO,
+   BOUNDS_ARRAY_DOWNTO,
+} bounds_kind_t;
+
 void rt_batch_exec(struct tree *e, uint64_t stop_time,
                    struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);

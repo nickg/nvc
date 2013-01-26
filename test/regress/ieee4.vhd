@@ -41,6 +41,10 @@ begin
         --report real'image(sqrt(4.0));
         --assert approx(sqrt(4.0), 2.0);
 
+        assert approx(log(1.0), 0.0);
+        assert approx(log(MATH_E), 1.0);
+        --report real'image(log(5216.72));
+
         assert approx(sin(MATH_PI), 0.0);
 
         wait;

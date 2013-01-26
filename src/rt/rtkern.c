@@ -391,6 +391,24 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       free(copy);
 }
 
+void _bounds_fail(int32_t where, const char *module, int32_t value,
+                  int32_t min, int32_t max, int32_t kind)
+{
+   tree_t t = rt_recall_tree(module, where);
+   const loc_t *loc = tree_loc(t);
+
+   switch ((bounds_kind_t)kind) {
+   case BOUNDS_ARRAY_TO:
+      fatal_at(loc, "array index %d outside bounds %d to %d",
+               value, min, max);
+      break;
+   case BOUNDS_ARRAY_DOWNTO:
+      fatal_at(loc, "array index %d outside bounds %d downto %d",
+               value, max, min);
+      break;
+   }
+}
+
 uint64_t _std_standard_now(void)
 {
    return now;
@@ -1192,6 +1210,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_file_open", _file_open);
    jit_bind_fn("_file_read", _file_read);
    jit_bind_fn("_endfile", _endfile);
+   jit_bind_fn("_bounds_fail", _bounds_fail);
 
    trace_on = opt_get_int("rt_trace_en");
 

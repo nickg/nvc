@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "common.h"
 #include "rt/signal.h"
+#include "rt/rt.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -563,6 +564,64 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
    // Array offsets are always 32-bit
    return LLVMBuildIntCast(builder, zero_based, LLVMInt32Type(), "");
 }
+static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
+                              LLVMValueRef min, LLVMValueRef max,
+                              cgen_ctx_t *ctx)
+{
+   LLVMValueRef value32 = LLVMBuildIntCast(builder, value,
+                                           LLVMInt32Type(), "value32");
+
+   LLVMValueRef above =
+      LLVMBuildICmp(builder, LLVMIntUGE, value32, min, "above");
+   LLVMValueRef below =
+      LLVMBuildICmp(builder, LLVMIntULE, value32, max, "below");
+
+   LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
+
+   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+
+   LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef args[] = {
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      value32,
+      min,
+      max,
+      kind
+   };
+
+   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
+static void cgen_check_array_bounds(tree_t t, type_t type, LLVMValueRef array,
+                                    LLVMValueRef value, cgen_ctx_t *ctx)
+{
+   LLVMValueRef left  = cgen_array_left(type, array);
+   LLVMValueRef right = cgen_array_right(type, array);
+   LLVMValueRef dir   = cgen_array_dir(type, array);
+
+   LLVMValueRef to = LLVMBuildICmp(builder, LLVMIntEQ, dir,
+                                   llvm_int8(RANGE_TO), "to");
+
+   LLVMValueRef min = LLVMBuildSelect(builder, to, left, right, "min");
+   LLVMValueRef max = LLVMBuildSelect(builder, to, right, left, "max");
+
+   LLVMValueRef kind = LLVMBuildSelect(builder, to,
+                                       llvm_int32(BOUNDS_ARRAY_TO),
+                                       llvm_int32(BOUNDS_ARRAY_DOWNTO),
+                                       "kind");
+
+   cgen_check_bounds(t, kind, value, min, max, ctx);
+}
 
 static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
                                    range_t r, cgen_ctx_t *ctx)
@@ -572,22 +631,44 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    assert(type_is_array(type));
 
-   LLVMValueRef low = cgen_range_low(r, ctx);
+   LLVMValueRef left  = cgen_expr(r.left, ctx);
+   LLVMValueRef right = cgen_expr(r.right, ctx);
+
+   LLVMValueRef low  = (r.kind == RANGE_TO) ? left : right;
+   LLVMValueRef high = (r.kind == RANGE_TO) ? right : left;
+
+   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
+
+   LLVMBasicBlockRef check_bb = LLVMAppendBasicBlock(ctx->fn, "check");
+   LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(ctx->fn, "merge");
+
+   LLVMBuildCondBr(builder, null, merge_bb, check_bb);
+
+   LLVMPositionBuilderAtEnd(builder, check_bb);
+
+   cgen_check_array_bounds(r.left, type, array, left, ctx);
+   cgen_check_array_bounds(r.right, type, array, right, ctx);
+
+   LLVMBuildBr(builder, merge_bb);
+
+   LLVMPositionBuilderAtEnd(builder, merge_bb);
+
    LLVMValueRef off = cgen_array_off(low, array, type, ctx, 0);
    LLVMValueRef data = cgen_array_data_ptr(type, array);
 
-   LLVMValueRef ptr = LLVMBuildGEP(builder, data, &off, 1, "");
+   LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type_elem(type)), 0);
+
+   LLVMValueRef ptr_norm = LLVMBuildGEP(builder, data, &off, 1, "");
+   LLVMValueRef ptr_null = LLVMConstNull(ptr_type);
+
+   LLVMValueRef ptr = LLVMBuildSelect(builder, null, ptr_null, ptr_norm, "ptr");
 
    bool unwrap = cgen_is_const(r.left) && cgen_is_const(r.right);
 
    if (unwrap)
       return ptr;
    else
-      return cgen_array_meta(type,
-                             cgen_expr(r.left, ctx),
-                             cgen_expr(r.right, ctx),
-                             llvm_int8(r.kind),
-                             ptr);
+      return cgen_array_meta(type, left, right, llvm_int8(r.kind), ptr);
 }
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
@@ -1594,9 +1675,16 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          int64_t low, high;
          range_bounds(r, &low, &high);
 
+         bounds_kind_t kind =
+            (r.kind == RANGE_TO) ? BOUNDS_ARRAY_TO : BOUNDS_ARRAY_DOWNTO;
+         cgen_check_bounds(p.value, llvm_int32(kind), offset,
+                           llvm_int32(low), llvm_int32(high), ctx);
+
          LLVMValueRef stride = llvm_int32(high - low + 1);
          idx = LLVMBuildMul(builder, idx, stride, "");
       }
+      else
+         cgen_check_array_bounds(p.value, type, array, offset, ctx);
 
       idx = LLVMBuildAdd(builder, idx,
                          cgen_array_off(offset, array, type, ctx, 0), "idx");
@@ -2158,11 +2246,13 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          assert(p.kind == P_POS);
 
          LLVMValueRef var = cgen_var_lvalue(tree_value(t), ctx);
-         LLVMValueRef idx =
-            cgen_array_off(cgen_expr(p.value, ctx), var, type, ctx, 0);
+         LLVMValueRef idx = cgen_expr(p.value, ctx);
 
+         cgen_check_array_bounds(p.value, type, var, idx, ctx);
+
+         LLVMValueRef off = cgen_array_off(idx, var, type, ctx, 0);
          LLVMValueRef data = cgen_array_data_ptr(type, var);
-         return LLVMBuildGEP(builder, data, &idx, 1, "");
+         return LLVMBuildGEP(builder, data, &off, 1, "");
       }
 
    case T_ARRAY_SLICE:
@@ -2269,14 +2359,24 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          type_t type = tree_type(tree_value(t));
 
-         LLVMValueRef idx =
-            cgen_array_off(cgen_expr(p.value, ctx), NULL, type, ctx, 0);
+         LLVMValueRef idx = cgen_expr(p.value, ctx);
+
+         int64_t low, high;
+         range_t r = type_dim(type, 0);
+         range_bounds(r, &low, &high);
+
+         bounds_kind_t kind =
+            (r.kind == RANGE_TO) ? BOUNDS_ARRAY_TO : BOUNDS_ARRAY_DOWNTO;
+         cgen_check_bounds(p.value, llvm_int32(kind), idx,
+                           llvm_int32(low), llvm_int32(high), ctx);
+
+         LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
 
          if (tree_kind(tree_value(t)) == T_REF) {
             tree_t decl = tree_ref(tree_value(t));
             assert(type_is_array(tree_type(decl)));
 
-            LLVMValueRef signal = cgen_array_signal_ptr(decl, idx);
+            LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
             if (type_is_array(type_elem(type))) {
                LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
                return LLVMBuildGEP(builder, signal,
@@ -2288,7 +2388,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
 
-            LLVMValueRef indexes[] = {idx };
+            LLVMValueRef indexes[] = { off };
             return LLVMBuildGEP(builder, p_base,
                                 indexes, ARRAY_LEN(indexes), "");
          }
@@ -3884,6 +3984,20 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMInt1Type(),
                                     _endfile_args,
                                     ARRAY_LEN(_endfile_args),
+                                    false));
+
+   LLVMTypeRef _bounds_fail_args[] = {
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0),
+      LLVMInt32Type(),
+      LLVMInt32Type(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_bounds_fail",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _bounds_fail_args,
+                                    ARRAY_LEN(_bounds_fail_args),
                                     false));
 }
 
