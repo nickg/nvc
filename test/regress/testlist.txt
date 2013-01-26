@@ -89,3 +89,4 @@ concat3         normal
 const2          normal
 func7           normal
 func8           normal
+ieee4           normal

@@ -98,6 +98,11 @@ static LLVMValueRef llvm_int64(int64_t i)
    return LLVMConstInt(LLVMInt64Type(), i, false);
 }
 
+static LLVMValueRef llvm_real(double r)
+{
+   return LLVMConstReal(LLVMDoubleType(), r);
+}
+
 static LLVMTypeRef llvm_void_ptr(void)
 {
    return LLVMPointerType(LLVMInt8Type(), 0);
@@ -1333,8 +1338,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          else
             return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
       }
-      else if (icmp(builtin, "neg"))
-         return LLVMBuildNeg(builder, args[0], "");
+      else if (icmp(builtin, "neg")) {
+         if (real)
+            return LLVMBuildFNeg(builder, args[0], "neg");
+         else
+            return LLVMBuildNeg(builder, args[0], "neg");
+      }
       else if (icmp(builtin, "not"))
          return LLVMBuildNot(builder, args[0], "");
       else if (icmp(builtin, "and"))
@@ -1362,10 +1371,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             "pow");
       }
       else if (icmp(builtin, "abs")) {
+         LLVMValueRef cmp = real
+            ? LLVMBuildFCmp(builder, LLVMRealULT, args[0], llvm_real(0.0), "")
+            : LLVMBuildICmp(builder, LLVMIntSLT, args[0], llvm_int32(0), "");
          return LLVMBuildSelect(
-            builder,
-            LLVMBuildICmp(builder, LLVMIntSLT, args[0], llvm_int32(0), ""),
-            LLVMBuildNeg(builder, args[0], ""),
+            builder, cmp,
+            (real ? LLVMBuildFNeg : LLVMBuildNeg)(builder, args[0], ""),
             args[0], "abs");
       }
       else if (icmp(builtin, "aeq"))
@@ -1377,7 +1388,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "image")) {
          const bool is_signed =
             (type_kind(type_base_recur(arg_types[0])) == T_INTEGER);
-         LLVMOpcode op = real ? LLVMFPToSI : (is_signed ? LLVMSExt : LLVMZExt);
+         LLVMOpcode op = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
          LLVMValueRef res = LLVMBuildAlloca(builder,
                                             llvm_uarray_type(LLVMInt8Type()),
                                             "image");

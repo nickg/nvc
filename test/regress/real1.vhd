@@ -23,6 +23,7 @@ begin
         r := real(5);
         report real'image(r);
         report real'image(-5.262e2);
+        report real'image(1.23456);
         wait;
     end process;
 

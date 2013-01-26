@@ -462,7 +462,13 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
       break;
 
    case T_REAL:
-      len = snprintf(buf, max, "%lf", (double)val);
+      {
+         union {
+            double  d;
+            int64_t i;
+         } u = { .i = val };
+         len = snprintf(buf, max, "%lf", u.d);
+      }
       break;
 
    default:
