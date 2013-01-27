@@ -2753,10 +2753,10 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
       if (!found) {
          if (tree_has_value(port)) {
             param_t param = {
-               .value = tree_value(port),
                .kind  = P_NAMED,
-               .name  = name,
+               .value = tree_value(port)
             };
+            param.name = name;
             tree_add_param(call, param);
          }
          else
