@@ -722,7 +722,6 @@ START_TEST(test_procedure)
       {   5, "subprogram body is not allowed in package specification" },
       {  28, "cannot return a value from a procedure" },
       {  45, "type of default value universal integer does not match" },
-      {  49, "argument Y without default follows arguments with" },
       {  63, "no matching procedure DIFF_TYPES" },
       {  64, "positional parameters must precede named parameters" },
       {  84, "invalid target of variable assignment" },
