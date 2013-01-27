@@ -37,15 +37,18 @@ begin
         assert approx(r, 0.472620);
         uniform(s1, s2, r);
         assert approx(r, 0.582179);
-
-        --report real'image(sqrt(4.0));
-        --assert approx(sqrt(4.0), 2.0);
-
+        assert approx(sqrt(4.0), 2.0);
+        assert approx(sqrt(4.3), 2.0736);
+        assert approx(cbrt(612.8), 8.49388);
+        assert approx(5 ** 1.2, 6.8986);
+        assert approx(2.0 ** (-1.0), 0.5);
+        assert approx(exp(2.0), 7.389056);
         assert approx(log(1.0), 0.0);
         assert approx(log(MATH_E), 1.0);
-        --report real'image(log(5216.72));
-
+        assert approx(log(5216.72), 8.5596);
         assert approx(sin(MATH_PI), 0.0);
+        assert approx(cos(1.15251), 0.406195);
+        assert approx(arctan(0.5), 0.463648);
 
         wait;
     end process;
