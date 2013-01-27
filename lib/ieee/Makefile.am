@@ -5,7 +5,8 @@ ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
 	ieee/IEEE.NUMERIC_STD ieee/IEEE.STD_LOGIC_1164-body \
 	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
 	ieee/_IEEE.NUMERIC_STD-body.bc ieee/IEEE.MATH_REAL \
-	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc
+	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
+	ieee/IEEE.VITAL_TIMING
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
 lib = $(nvc_verbose) NVC_LIBPATH=../std
@@ -37,7 +38,26 @@ ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl ieee/IEEE.NUMERIC_ST
 ieee/IEEE.MATH_REAL: $(srcdir)/math_real.vhdl
 	$(lib) $(nvc) --work=ieee -a $<
 
-ieee/IEEE.MATH_REAL-body: $(srcdir)/math_real-body.vhdl
+ieee/IEEE.MATH_REAL-body: $(srcdir)/math_real-body.vhdl ieee/IEEE.MATH_REAL
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_TIMING: $(srcdir)/timing_p.vhdl
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_TIMING-body: $(srcdir)/timing_b.vhdl ieee/IEEE.VITAL_TIMING
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_PRIMITIVES: $(srcdir)/prmtvs_p.vhdl
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/prmtvs_b.vhdl \
+	ieee/IEEE.VITAL_PRIMITIVES
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_MEMORY: $(srcdir)/memory_p.vhdl
+	$(lib) $(nvc) --work=ieee -a $<
+
+ieee/IEEE.VITAL_MEMORY-body: $(srcdir)/memory_b.vhdl ieee/IEEE.VITAL_MEMORY
 	$(lib) $(nvc) --work=ieee -a $<
 
 clean-local:
@@ -65,6 +85,24 @@ $(srcdir)/math_real.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
 
 $(srcdir)/math_real-body.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/timing_p.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/timing_b.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/prmtvs_p.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/prmtvs_b.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/memory_p.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/memory_b.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
 
 missing-ieee:
