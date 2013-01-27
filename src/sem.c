@@ -1921,9 +1921,9 @@ static bool sem_check_func_body(tree_t t)
 static bool sem_check_proc_ports(tree_t t)
 {
    type_t ptype = tree_type(t);
-   bool seen_default = false;
 
-   for (unsigned i = 0; i < tree_ports(t); i++) {
+   const int nports = tree_ports(t);
+   for (unsigned i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
 
       // See LRM 93 section 2.1.1 for default class
@@ -1943,12 +1943,6 @@ static bool sem_check_proc_ports(tree_t t)
 
       if (!sem_check_access_class(p))
          return false;
-
-      if (tree_has_value(p))
-         seen_default = true;
-      else if (seen_default)
-         sem_error(t, "argument %s without default follows arguments with "
-                   "default values", istr(tree_ident(p)));
 
       type_add_param(ptype, tree_type(p));
    }
