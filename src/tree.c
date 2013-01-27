@@ -1935,7 +1935,7 @@ static void copy_s(assoc_array_t *from, assoc_array_t *to,
 
    for (unsigned i = 0; i < from->count; i++) {
       to->items[i].kind = from->items[i].kind;
-      to->items[i].value = from->items[i].value;
+      to->items[i].value = tree_copy_aux(from->items[i].value, ctx);
 
       switch (from->items[i].kind) {
       case A_POS:
