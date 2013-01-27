@@ -982,6 +982,52 @@ void type_visit_trees(type_t t, unsigned generation,
    }
 }
 
+void type_rewrite_trees(type_t t, unsigned generation,
+                        tree_rewrite_fn_t fn, void *context)
+{
+   if (t == NULL)
+      return;
+
+   if (t->generation == generation)
+      return;
+   else
+      t->generation = generation;
+
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(t->items[n].type_array);
+            for (unsigned i = 0; i < a->count; i++)
+               type_rewrite_trees(a->items[i], generation, fn, context);
+         }
+         else if (ITEM_TYPE & mask)
+            type_rewrite_trees(t->items[n].type, generation, fn, context);
+         else if (ITEM_TREE & mask)
+            t->items[n].tree = (*fn)(t->items[n].tree, context);
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = (*fn)(a->items[i], context);
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(t->items[n].range_array);
+            for (unsigned i = 0; i < a->count; i++) {
+               a->items[i].left  = (*fn)(a->items[i].left, context);
+               a->items[i].right = (*fn)(a->items[i].right, context);
+               assert(a->items[i].left);
+               assert(a->items[i].right);
+            }
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+}
+
 const char *type_kind_str(type_kind_t t)
 {
    return kind_text_map[t];

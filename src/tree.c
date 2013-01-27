@@ -1805,6 +1805,10 @@ static void rewrite_p(param_array_t *a, struct rewrite_ctx *ctx)
 
 static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 {
+   // Helper from type.c
+   void type_rewrite_trees(type_t t, unsigned generation,
+                           tree_rewrite_fn_t fn, void *context);
+
    if (t == NULL)
       return NULL;
 
@@ -1820,6 +1824,7 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
+   int type_item = -1;
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask & ~skip_mask) {
@@ -1834,7 +1839,7 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
          else if (ITEM_PARAM_ARRAY & mask)
             rewrite_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
-            ;
+            type_item = n;
          else if (ITEM_PORT_MODE & mask)
             ;
          else if (ITEM_UINT & mask)
@@ -1866,26 +1871,9 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    // be a circular reference
    ctx->cache[t->index] = (*ctx->fn)(t, ctx->context);
 
-   type_t type;
-   if ((has & I_TYPE) && (type = lookup_item(t, I_TYPE)->type)) {
-      switch (type_kind(type)) {
-      case T_INTEGER:
-      case T_REAL:
-      case T_SUBTYPE:
-      case T_PHYSICAL:
-      case T_CARRAY:
-         for (unsigned i = 0; i < type_dims(type); i++) {
-            range_t r = type_dim(type, i);
-            r.left  = tree_rewrite_aux(r.left, ctx);
-            r.right = tree_rewrite_aux(r.right, ctx);
-            type_change_dim(type, i, r);
-         }
-         break;
-
-      default:
-         break;
-      }
-   }
+   if (type_item != -1)
+      type_rewrite_trees(t->items[type_item].type, ctx->generation,
+                         (tree_rewrite_fn_t)tree_rewrite_aux, ctx);
 
    return ctx->cache[t->index];
 }
