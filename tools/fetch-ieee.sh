@@ -46,6 +46,8 @@ for f in $files; do
 done
 
 # Uncomment operator XNOR
-sed -e '119,120 s/^--/  /' -e '89 s/^--/  /' -i'' std_logic_1164.vhdl
-sed -e '367,382 s/^--/  /' -e '384,399 s/^--/  /' \
-    -e '165,168 s/^--/  /' -i'' std_logic_1164-body.vhdl
+sed -i.bak -e '119,120 s/^--/  /' -e '89 s/^--/  /' std_logic_1164.vhdl
+sed -i.bak -e '367,382 s/^--/  /' -e '384,399 s/^--/  /' \
+    -e '165,168 s/^--/  /' std_logic_1164-body.vhdl
+
+rm *.vhdl.bak
