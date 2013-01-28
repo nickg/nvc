@@ -1232,7 +1232,8 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
 
    LLVMValueRef cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
-   LLVMValueRef eq  = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+   LLVMValueRef eq  = (pred == LLVMIntEQ) ? cmp
+      : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
 
    LLVMValueRef inc =
       LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
@@ -2123,6 +2124,15 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
       return LLVMBuildFPToSI(builder, value_ll, llvm_type(to), "");
    else if ((from_k == T_INTEGER) && (to_k == T_REAL))
       return LLVMBuildSIToFP(builder, value_ll, llvm_type(to), "");
+   else if (!cgen_const_bounds(to)) {
+      // Need to wrap in metadata
+      return cgen_array_meta(
+         to,
+         cgen_array_left(from, value_ll),
+         cgen_array_right(from, value_ll),
+         cgen_array_dir(from, value_ll),
+         cgen_array_data_ptr(from, value_ll));
+   }
    else {
       // No conversion to perform
       return value_ll;

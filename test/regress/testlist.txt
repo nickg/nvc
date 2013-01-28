@@ -94,3 +94,4 @@ bounds1         gold,fail
 bounds2         gold,fail
 bounds3         gold,fail
 bounds4         gold,fail
+signal9         normal
