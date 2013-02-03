@@ -57,8 +57,9 @@ struct proc_entry {
 
 // Linked list of named blocks such as loops
 struct block_list {
-   ident_t           name;
-   LLVMBasicBlockRef exit_bb;
+   ident_t            name;
+   LLVMBasicBlockRef  exit_bb;
+   LLVMBasicBlockRef  entry_bb;
    struct block_list *next;
 };
 
@@ -2616,9 +2617,10 @@ static void cgen_while(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildBr(builder, body_bb);
 
    struct block_list *bl = xmalloc(sizeof(struct block_list));
-   bl->exit_bb = exit_bb;
-   bl->name    = tree_ident(t);
-   bl->next    = ctx->blocks;
+   bl->exit_bb  = exit_bb;
+   bl->entry_bb = test_bb;
+   bl->name     = tree_ident(t);
+   bl->next     = ctx->blocks;
 
    ctx->blocks = bl;
 
@@ -2639,27 +2641,26 @@ static void cgen_block(tree_t t, cgen_ctx_t *ctx)
       cgen_stmt(tree_stmt(t, i), ctx);
 }
 
-static void cgen_exit(tree_t t, cgen_ctx_t *ctx)
+static void cgen_loop_control(tree_t t, cgen_ctx_t *ctx)
 {
-   LLVMBasicBlockRef not_bb = LLVMAppendBasicBlock(ctx->fn, "not_exit");
+   LLVMBasicBlockRef false_bb = LLVMAppendBasicBlock(ctx->fn, "c_false");
 
    if (tree_has_value(t)) {
-      LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "exit");
+      LLVMBasicBlockRef true_bb = LLVMAppendBasicBlock(ctx->fn, "c_true");
       LLVMValueRef test = cgen_expr(tree_value(t), ctx);
-      LLVMBuildCondBr(builder, test, exit_bb, not_bb);
-      LLVMPositionBuilderAtEnd(builder, exit_bb);
+      LLVMBuildCondBr(builder, test, true_bb, false_bb);
+      LLVMPositionBuilderAtEnd(builder, true_bb);
    }
 
-   // TODO: check ident2 -> if NULL then most closely nested block
-   // else search through block_list
+   ident_t label = tree_ident2(t);
+   struct block_list *bl;
+   for (bl = ctx->blocks; (bl != NULL) && (bl->name != label); bl = bl->next)
+      ;
+   assert(bl != NULL);
 
-   assert(ctx->blocks != NULL);
+   LLVMBuildBr(builder, (tree_kind(t) == T_EXIT) ? bl->exit_bb : bl->entry_bb);
 
-   struct block_list *bl = ctx->blocks;
-
-   LLVMBuildBr(builder, bl->exit_bb);
-
-   LLVMPositionBuilderAtEnd(builder, not_bb);
+   LLVMPositionBuilderAtEnd(builder, false_bb);
 }
 
 static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
@@ -2958,7 +2959,8 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
       cgen_block(t, ctx);
       break;
    case T_EXIT:
-      cgen_exit(t, ctx);
+   case T_NEXT:
+      cgen_loop_control(t, ctx);
       break;
    case T_CASE:
       cgen_case(t, ctx);
