@@ -104,6 +104,7 @@ typedef enum tree_kind {
    T_CASSERT,
    T_CPCALL,
    T_UNIT_DECL,
+   T_NEXT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -291,11 +292,5 @@ tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
 FILE *tree_read_file(tree_rd_ctx_t ctx);
 tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index);
-
-// Utility typedefs
-typedef unsigned (*tree_formals_t)(tree_t t);
-typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
-typedef unsigned (*tree_actuals_t)(tree_t t);
-typedef param_t (*tree_actual_t)(tree_t t, unsigned n);
 
 #endif  // _TREE_H

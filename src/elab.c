@@ -17,6 +17,7 @@
 
 #include "phase.h"
 #include "util.h"
+#include "common.h"
 
 #include <ctype.h>
 #include <assert.h>

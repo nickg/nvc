@@ -33,4 +33,13 @@ bool folded_bool(tree_t t, bool *b);
 tree_t get_int_lit(tree_t t, int64_t i);
 tree_t get_real_lit(tree_t t, double r);
 
+//
+// Utility typedefs
+//
+
+typedef unsigned (*tree_formals_t)(tree_t t);
+typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
+typedef unsigned (*tree_actuals_t)(tree_t t);
+typedef param_t (*tree_actual_t)(tree_t t, unsigned n);
+
 #endif  // _COMMON_H

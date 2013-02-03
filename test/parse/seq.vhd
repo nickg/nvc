@@ -133,8 +133,15 @@ begin
             when 3 | 4 =>
                 null;
             when others =>
-                null;                
+                null;
         end case;
     end process;
-    
+
+    -- Next
+    process is
+    begin
+        next;
+        next when foo = 5;
+    end process;
+
 end architecture;

@@ -279,6 +279,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_UNIT_DECL
    (I_IDENT | I_VALUE | I_TYPE),
+
+   // T_NEXT
+   (I_IDENT | I_VALUE),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -311,7 +314,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CONCAT",       "T_TYPE_CONV",     "T_SELECT",     "T_COMPONENT",
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
-   "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",
+   "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
 };
 
 static const char *item_text_map[] = {
@@ -337,20 +340,20 @@ struct tree {
 
 struct tree_wr_ctx {
    FILE           *file;
-   type_wr_ctx_t  type_ctx;
-   ident_wr_ctx_t ident_ctx;
-   unsigned       generation;
-   unsigned       n_trees;
+   type_wr_ctx_t   type_ctx;
+   ident_wr_ctx_t  ident_ctx;
+   unsigned        generation;
+   unsigned        n_trees;
    const char     *file_names[256];
 };
 
 struct tree_rd_ctx {
    FILE           *file;
-   type_rd_ctx_t  type_ctx;
-   ident_rd_ctx_t ident_ctx;
-   unsigned       n_trees;
+   type_rd_ctx_t   type_ctx;
+   ident_rd_ctx_t  ident_ctx;
+   unsigned        n_trees;
    tree_t         *store;
-   unsigned       store_sz;
+   unsigned        store_sz;
    char           *db_fname;
    const char     *file_names[256];
 };
@@ -364,31 +367,32 @@ typedef struct {
    bool             deep;
 } tree_visit_ctx_t;
 
-#define IS(t, k) ((t)->kind == (k))
-#define IS_TOP_LEVEL(t)                                               \
-   (IS(t, T_ARCH) || IS(t, T_ENTITY) || IS(t, T_PACKAGE)              \
-    || IS(t, T_ELAB) || IS(t, T_PACK_BODY))
-#define IS_DECL(t)                                                    \
-   (IS(t, T_PORT_DECL) || IS(t, T_SIGNAL_DECL) || IS(t, T_VAR_DECL)   \
-    || IS(t, T_TYPE_DECL) || IS(t, T_CONST_DECL)                      \
-    || IS(t, T_FUNC_DECL) || IS(t, T_FUNC_BODY) || IS(t, T_ALIAS)     \
-    || IS(t, T_ATTR_DECL) || IS(t, T_ATTR_SPEC) || IS(t, T_PROC_DECL) \
-    || IS(t, T_PROC_BODY) || IS(t, T_COMPONENT) || IS(t, T_FILE_DECL) \
-    || IS(t, T_FIELD_DECL) || IS(t, T_UNIT_DECL))
-#define IS_EXPR(t)                                                    \
-   (IS(t, T_FCALL) || IS(t, T_LITERAL) || IS(t, T_REF)                \
-    || IS(t, T_QUALIFIED) || IS(t, T_AGGREGATE) || IS(t, T_ATTR_REF)  \
-    || IS(t, T_ARRAY_REF) || IS(t, T_ARRAY_SLICE) || IS(t, T_CONCAT)  \
-    || IS(t, T_TYPE_CONV) || IS(t, T_OPEN) || IS(t, T_RECORD_REF)     \
-    || IS(t, T_ALL) || IS(t, T_NEW))
-#define IS_STMT(t)                                                    \
-   (IS(t, T_PROCESS) || IS(t, T_WAIT) || IS(t, T_VAR_ASSIGN)          \
-    || IS(t, T_SIGNAL_ASSIGN) || IS(t, T_ASSERT) || IS(t, T_INSTANCE) \
-    || IS(t, T_IF) || IS(t, T_NULL) || IS(t, T_RETURN)                \
-    || IS(t, T_CASSIGN) || IS(t, T_WHILE) || IS(t, T_FOR)             \
-    || IS(t, T_EXIT) || IS(t, T_PCALL) || IS(t, T_CASE)               \
-    || IS(t, T_BLOCK) || IS(t, T_SELECT) || IS(t, T_IF_GENERATE)      \
-    || IS(t, T_FOR_GENERATE) || IS(t, T_CPCALL) || IS(t, T_CASSERT))
+static const tree_kind_t stmt_kinds[] = {
+   T_PROCESS, T_WAIT,        T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
+   T_ASSERT,  T_INSTANCE,    T_IF,           T_NULL,
+   T_RETURN,  T_CASSIGN,     T_WHILE,        T_FOR,
+   T_EXIT,    T_PCALL,       T_CASE,         T_BLOCK,
+   T_SELECT,  T_IF_GENERATE, T_FOR_GENERATE, T_CPCALL,
+   T_CASSERT, T_NEXT
+};
+
+static tree_kind_t expr_kinds[] = {
+   T_FCALL,     T_LITERAL,   T_REF,       T_QUALIFIED,
+   T_AGGREGATE, T_ATTR_REF,  T_ARRAY_REF, T_ARRAY_SLICE,
+   T_CONCAT,    T_TYPE_CONV, T_OPEN,      T_RECORD_REF,
+   T_ALL,       T_NEW
+};
+
+static tree_kind_t decl_kinds[] = {
+   T_PORT_DECL,  T_SIGNAL_DECL, T_VAR_DECL,   T_TYPE_DECL,
+   T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,  T_ALIAS,
+   T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
+   T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL
+};
+
+static tree_kind_t top_level_kinds[] = {
+   T_ARCH, T_ENTITY, T_PACKAGE,  T_ELAB, T_PACK_BODY
+};
 
 // Garbage collection
 static tree_t *all_trees = NULL;
@@ -461,6 +465,38 @@ static void item_without_type(imask_t mask)
    fatal("tree item %s does not have a type", item_text_map[item]);
 }
 
+static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
+{
+   for (size_t i = 0; i < len; i++) {
+      if (t->kind == list[i])
+         return true;
+   }
+
+   return false;
+}
+
+static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
+                             const char *what)
+{
+   if (!tree_kind_in(t, list, len))
+      fatal("tree kind %s is not %s", tree_kind_str(t->kind), what);
+}
+
+static void tree_assert_stmt(tree_t t)
+{
+   tree_assert_kind(t, stmt_kinds, ARRAY_LEN(stmt_kinds), "a statement");
+}
+
+static void tree_assert_expr(tree_t t)
+{
+   tree_assert_kind(t, expr_kinds, ARRAY_LEN(expr_kinds), "an expression");
+}
+
+static void tree_assert_decl(tree_t t)
+{
+   tree_assert_kind(t, decl_kinds, ARRAY_LEN(decl_kinds), "a declaration");
+}
+
 tree_t tree_new(tree_kind_t kind)
 {
    assert(kind < T_LAST_TREE_KIND);
@@ -492,7 +528,10 @@ void tree_gc(void)
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       assert(all_trees[i] != NULL);
 
-      if (IS_TOP_LEVEL(all_trees[i])) {
+      bool top_level = tree_kind_in(all_trees[i], top_level_kinds,
+                                    ARRAY_LEN(top_level_kinds));
+
+      if (top_level) {
          tree_visit_ctx_t ctx = {
             .count      = 0,
             .fn         = NULL,
@@ -642,7 +681,7 @@ tree_t tree_port(tree_t t, unsigned n)
 
 void tree_add_port(tree_t t, tree_t d)
 {
-   assert(IS_DECL(d));
+   tree_assert_decl(d);
    tree_array_add(&(lookup_item(t, I_PORTS)->tree_array), d);
 }
 
@@ -670,7 +709,7 @@ tree_t tree_generic(tree_t t, unsigned n)
 
 void tree_add_generic(tree_t t, tree_t d)
 {
-   assert(IS_DECL(d));
+   tree_assert_decl(d);
    tree_array_add(&(lookup_item(t, I_GENERICS)->tree_array), d);
 }
 
@@ -703,7 +742,7 @@ param_t tree_param(tree_t t, unsigned n)
 
 void tree_add_param(tree_t t, param_t e)
 {
-   assert(IS_EXPR(e.value));
+   tree_assert_expr(e.value);
 
    if (e.kind == P_POS)
       e.pos = tree_params(t);
@@ -723,7 +762,7 @@ param_t tree_genmap(tree_t t, unsigned n)
 
 void tree_add_genmap(tree_t t, param_t e)
 {
-   assert(IS_EXPR(e.value));
+   tree_assert_expr(e.value);
 
    if (e.kind == P_POS)
       e.pos = tree_genmaps(t);
@@ -755,7 +794,8 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   assert(v == NULL || IS_EXPR(v));
+   if (v != NULL)
+      tree_assert_expr(v);
    lookup_item(t, I_VALUE)->tree = v;
 }
 
@@ -771,7 +811,7 @@ tree_t tree_decl(tree_t t, unsigned n)
 
 void tree_add_decl(tree_t t, tree_t d)
 {
-   assert(IS_DECL(d));
+   tree_assert_decl(d);
    tree_array_add(&(lookup_item(t, I_DECLS)->tree_array), d);
 }
 
@@ -787,7 +827,7 @@ tree_t tree_stmt(tree_t t, unsigned n)
 
 void tree_add_stmt(tree_t t, tree_t s)
 {
-   assert(IS_STMT(s));
+   tree_assert_stmt(s);
    tree_array_add(&(lookup_item(t, I_STMTS)->tree_array), s);
 }
 
@@ -803,7 +843,7 @@ tree_t tree_waveform(tree_t t, unsigned n)
 
 void tree_add_waveform(tree_t t, tree_t w)
 {
-   assert(IS(w, T_WAVEFORM));
+   assert(w->kind == T_WAVEFORM);
    tree_array_add(&(lookup_item(t, I_WAVES)->tree_array), w);
 }
 
@@ -819,7 +859,7 @@ tree_t tree_else_stmt(tree_t t, unsigned n)
 
 void tree_add_else_stmt(tree_t t, tree_t s)
 {
-   assert(IS_STMT(s));
+   tree_assert_stmt(s);
    tree_array_add(&(lookup_item(t, I_ELSES)->tree_array), s);
 }
 
@@ -835,7 +875,7 @@ tree_t tree_cond(tree_t t, unsigned n)
 
 void tree_add_cond(tree_t t, tree_t c)
 {
-   assert(IS(c, T_COND));
+   assert(c->kind == T_COND);
    tree_array_add(&(lookup_item(t, I_CONDS)->tree_array), c);
 }
 
@@ -853,7 +893,7 @@ tree_t tree_delay(tree_t t)
 
 void tree_set_delay(tree_t t, tree_t d)
 {
-   assert(IS_EXPR(d));
+   tree_assert_expr(d);
    lookup_item(t, I_DELAY)->tree = d;
 }
 
@@ -869,7 +909,7 @@ tree_t tree_trigger(tree_t t, unsigned n)
 
 void tree_add_trigger(tree_t t, tree_t s)
 {
-   assert(IS_EXPR(s));
+   tree_assert_expr(s);
    tree_array_add(&(lookup_item(t, I_TRIGGERS)->tree_array), s);
 }
 
@@ -894,7 +934,9 @@ tree_t tree_ref(tree_t t)
 
 void tree_set_ref(tree_t t, tree_t decl)
 {
-   assert(IS_DECL(decl) || IS(decl, T_ENUM_LIT) || IS_TOP_LEVEL(decl));
+   assert(tree_kind_in(decl, decl_kinds, ARRAY_LEN(decl_kinds))
+          || (decl->kind == T_ENUM_LIT)
+          || tree_kind_in(decl, top_level_kinds, ARRAY_LEN(top_level_kinds)));
    lookup_item(t, I_REF)->tree = decl;
 }
 
@@ -968,7 +1010,7 @@ tree_t tree_severity(tree_t t)
 
 void tree_set_severity(tree_t t, tree_t s)
 {
-   assert(IS_EXPR(s));
+   tree_assert_expr(s);
    lookup_item(t, I_SEVERITY)->tree = s;
 }
 
@@ -981,7 +1023,7 @@ tree_t tree_message(tree_t t)
 
 void tree_set_message(tree_t t, tree_t m)
 {
-   assert(IS_EXPR(m));
+   tree_assert_expr(m);
    lookup_item(t, I_MESSAGE)->tree = m;
 }
 
@@ -1024,7 +1066,7 @@ tree_t tree_reject(tree_t t)
 
 void tree_set_reject(tree_t t, tree_t r)
 {
-   assert(IS_EXPR(r));
+   tree_assert_expr(r);
    lookup_item(t, I_REJECT)->tree = r;
 }
 

@@ -269,6 +269,7 @@
 %token tATTRIBUTE "$yellow$attribute$$"
 %token tPROCEDURE "$yellow$procedure$$"
 %token tEXIT "$yellow$exit$$"
+%token tNEXT "$yellow$next$$"
 %token tWHEN "$yellow$when$$"
 %token tCASE "$yellow$case$$"
 %token tBAR "|"
@@ -1520,6 +1521,17 @@ seq_stmt_without_label
 | tEXIT tWHEN expr tSEMI
   {
      $$ = tree_new(T_EXIT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $3);
+  }
+| tNEXT tSEMI
+  {
+     $$ = tree_new(T_NEXT);
+     tree_set_loc($$, &@$);
+  }
+| tNEXT tWHEN expr tSEMI
+  {
+     $$ = tree_new(T_NEXT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $3);
   }

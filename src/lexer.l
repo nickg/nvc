@@ -172,6 +172,7 @@ UNTIL         {U}{N}{T}{I}{L}
 RECORD        {R}{E}{C}{O}{R}{D}
 NEW           {N}{E}{W}
 SHARED        {S}{H}{A}{R}{E}{D}
+NEXT          {N}{E}{X}{T}
 
 %%
 
@@ -260,6 +261,7 @@ SHARED        {S}{H}{A}{R}{E}{D}
 {RECORD}        { TOKEN(tRECORD); }
 {NEW}           { TOKEN(tNEW); }
 {SHARED}        { TOKEN(tSHARED); }
+{NEXT}          { TOKEN(tNEXT); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }
