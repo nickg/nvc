@@ -3999,16 +3999,37 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
 static bool sem_check_instance(tree_t t)
 {
-   // Find the referenced design unit
-   tree_t unit = lib_get(lib_work(), tree_ident2(t));
-   if (unit == NULL)
-      sem_error(t, "cannot find unit %s", istr(tree_ident2(t)));
+   tree_t unit = NULL;
+   ident_t name = tree_ident2(t);
 
-   if (tree_kind(unit) == T_ARCH) {
-      unit = lib_get(lib_work(), ident_until(tree_ident2(t), '-'));
-      if (unit == NULL)
-         sem_error(t, "no entity corresponding to architecture %s",
-                   istr(tree_ident2(t)));
+   switch (tree_class(t)) {
+   case C_ENTITY:
+      {
+         // Find the referenced design unit
+         unit = lib_get(lib_work(), name);
+         if (unit == NULL)
+            sem_error(t, "cannot find unit %s", istr(name));
+
+         if (tree_kind(unit) == T_ARCH) {
+            unit = lib_get(lib_work(), ident_until(name, '-'));
+            if (unit == NULL)
+               sem_error(t, "no entity corresponding to architecture %s",
+                         istr(name));
+         }
+      }
+      break;
+
+   case C_COMPONENT:
+      {
+         // Find the component declaration
+         unit = scope_find(name);
+         if (unit == NULL)
+            sem_error(t, "no declaration for component %s", istr(name));
+      }
+      break;
+
+   default:
+      sem_error(t, "sorry, this form of instance is not supported yet");
    }
 
    tree_set_ref(t, unit);

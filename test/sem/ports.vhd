@@ -23,7 +23,7 @@ begin
     begin
         x := i;                         -- OK
     end process;
-    
+
     process is
         variable x : my_int;
     begin
@@ -41,7 +41,7 @@ begin
         -- Cannot assign input
         i <= 23;
     end process;
-    
+
 end architecture;
 
 -------------------------------------------------------------------------------
@@ -52,6 +52,14 @@ end entity;
 use work.foo_pkg.all;
 
 architecture test of top is
+
+    component foo is
+        port (
+            o : out my_int;
+            i : in my_int );
+    end component;
+
+
     signal x, y : my_int;
 begin
 
@@ -76,7 +84,7 @@ begin
     foo6: entity work.foo               -- No port cake
         port map ( cake => 4 );
 
-    bad1: entity work.bad;              -- No such entity   
+    bad1: entity work.bad;              -- No such entity
 
     open1: entity work.foo              -- OK
         port map (
@@ -87,5 +95,15 @@ begin
         port map (
             i => open,
             o => open );
-    
+
+    foo7: foo                           -- OK
+        port map (
+            o => x,
+            i => y );
+
+    foo8: component foo                 -- OK
+        port map (
+            o => x,
+            i => y );
+
 end architecture;

@@ -143,12 +143,12 @@ START_TEST(test_ports)
    const error_t expect[] = {
       { 31, "cannot read output port O" },
       { 42, "cannot assign to input port I" },
-      { 66, "missing actual for formal O" },
-      { 70, "formal I already has an actual" },
-      { 74, "too many positional actuals" },
-      { 77, "WORK.FOO has no formal CAKE" },
-      { 79, "cannot find unit WORK.BAD" },
-      { 88, "OPEN can only be used with OUT ports" },
+      { 74, "missing actual for formal O" },
+      { 78, "formal I already has an actual" },
+      { 82, "too many positional actuals" },
+      { 85, "WORK.FOO has no formal CAKE" },
+      { 87, "cannot find unit WORK.BAD" },
+      { 96, "OPEN can only be used with OUT ports" },
       { -1, NULL }
    };
    expect_errors(expect);
