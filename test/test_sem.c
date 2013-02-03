@@ -141,14 +141,15 @@ START_TEST(test_ports)
    fail_unless(input_from_file(TESTDIR "/sem/ports.vhd"));
 
    const error_t expect[] = {
-      { 31, "cannot read output port O" },
-      { 42, "cannot assign to input port I" },
-      { 74, "missing actual for formal O" },
-      { 78, "formal I already has an actual" },
-      { 82, "too many positional actuals" },
-      { 85, "WORK.FOO has no formal CAKE" },
-      { 87, "cannot find unit WORK.BAD" },
-      { 96, "OPEN can only be used with OUT ports" },
+      { 31,  "cannot read output port O" },
+      { 42,  "cannot assign to input port I" },
+      { 74,  "missing actual for formal O" },
+      { 78,  "formal I already has an actual" },
+      { 82,  "too many positional actuals" },
+      { 85,  "WORK.FOO has no formal CAKE" },
+      { 87,  "cannot find unit WORK.BAD" },
+      { 96,  "OPEN can only be used with OUT ports" },
+      { 109, "object X is not a component declaration" },
       { -1, NULL }
    };
    expect_errors(expect);

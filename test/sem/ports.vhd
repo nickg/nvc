@@ -106,4 +106,9 @@ begin
             o => x,
             i => y );
 
+    bad2: component x                   -- Not component
+        port map (
+            a => 1,
+            b => 2 );
+
 end architecture;

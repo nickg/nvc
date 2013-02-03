@@ -4025,6 +4025,10 @@ static bool sem_check_instance(tree_t t)
          unit = scope_find(name);
          if (unit == NULL)
             sem_error(t, "no declaration for component %s", istr(name));
+
+         if (tree_kind(unit) != T_COMPONENT)
+            sem_error(t, "object %s is not a component declaration",
+                      istr(name));
       }
       break;
 
