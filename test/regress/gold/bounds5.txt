@@ -1,0 +1,1 @@
+array index 9 outside bounds 8 downto 0

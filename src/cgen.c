@@ -2421,7 +2421,17 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          tree_t decl = tree_ref(tree_value(t));
          assert(type_kind(tree_type(decl)) == T_CARRAY);
 
-         LLVMValueRef low = cgen_range_low(tree_range(t), ctx);
+         range_t r = tree_range(t);
+
+         LLVMValueRef left  = cgen_expr(r.left, ctx);
+         LLVMValueRef right = cgen_expr(r.right, ctx);
+
+         type_t val_type = tree_type(tree_value(t));
+
+         cgen_check_array_bounds(r.left, val_type, NULL, left, ctx);
+         cgen_check_array_bounds(r.right, val_type, NULL, right, ctx);
+
+         LLVMValueRef low = (r.kind == RANGE_TO ? left : right);
          return cgen_array_signal_ptr(decl, low);
       }
       break;
