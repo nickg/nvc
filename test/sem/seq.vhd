@@ -65,7 +65,7 @@ begin
             null;
         end loop;
     end process;
-    
+
     -- For
     process is
         variable v : integer;
@@ -166,5 +166,26 @@ begin
         add1(1, b);                     -- OK
         add1(3, 6);                     -- Error
     end process;
-    
+
+    -- Next
+    process is
+    begin
+        loop
+            next when false;            -- OK
+            next when 1;                -- Not boolean
+            next;                       -- OK
+        end loop;
+        next;                           -- Not in loop
+        l1: loop
+            next foo;                   -- Not a label
+        end loop;
+        l2: loop
+            l3: loop
+                l4: loop
+                    next l2;            -- OK
+                end loop;
+            end loop;
+        end loop;
+    end process;
+
 end architecture;

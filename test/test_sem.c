@@ -658,6 +658,9 @@ START_TEST(test_seq)
       { 139, "missing choice C in case statement" },
       { 152, "type of exit condition must be BOOLEAN" },
       { 167, "cannot associate this expression with parameter" },
+      { 175, "type of next condition must be BOOLEAN" },
+      { 178, "cannot use next outside loop" },
+      { 180, "no nested loop with label FOO" },
       { -1, NULL }
    };
    expect_errors(expect);

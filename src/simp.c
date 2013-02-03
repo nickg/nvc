@@ -271,14 +271,17 @@ static tree_t simp_wait(tree_t t)
       tree_t until = tree_value(t);
       tree_set_value(t, NULL);
 
+      ident_t label = ident_uniq("until_loop");
+
       tree_t exit = tree_new(T_EXIT);
       tree_set_ident(exit, ident_uniq("until_exit"));
       tree_set_value(exit, until);
+      tree_set_ident2(exit, label);
 
       tree_t loop = tree_new(T_WHILE);
       tree_add_stmt(loop, t);
       tree_add_stmt(loop, exit);
-      tree_set_ident(loop, ident_uniq("until_loop"));
+      tree_set_ident(loop, label);
 
       return loop;
    }
@@ -379,8 +382,9 @@ static tree_t simp_for(tree_t t)
    tree_set_target(init, var);
    tree_set_value(init, r.left);
 
+   ident_t label = ident_uniq("loop");
    tree_t wh = tree_new(T_WHILE);
-   tree_set_ident(wh, ident_uniq("loop"));
+   tree_set_ident(wh, label);
 
    for (unsigned i = 0; i < tree_stmts(t); i++)
       tree_add_stmt(wh, tree_stmt(t, i));
@@ -390,6 +394,7 @@ static tree_t simp_for(tree_t t)
    tree_t exit = tree_new(T_EXIT);
    tree_set_ident(exit, ident_uniq("for_exit"));
    tree_set_value(exit, cmp);
+   tree_set_ident2(exit, label);
 
    tree_t next;
    if (r.kind == RANGE_DYN) {

@@ -51,6 +51,11 @@ struct scope {
    struct scope      *down;
 };
 
+struct loop_stack {
+   struct loop_stack *up;
+   ident_t            name;
+};
+
 #define MAX_OVERLOADS 32
 
 #define MAX_TS_MEMBERS 32
@@ -68,11 +73,12 @@ static bool sem_declare(tree_t decl);
 static bool sem_locally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 
-static struct scope    *top_scope = NULL;
-static int             errors = 0;
-static struct type_set *top_type_set = NULL;
-static ident_t         builtin_i;
-static ident_t         std_standard_i;
+static struct scope      *top_scope = NULL;
+static int                errors = 0;
+static struct type_set   *top_type_set = NULL;
+static struct loop_stack *loop_stack = NULL;
+static ident_t            builtin_i;
+static ident_t            std_standard_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -284,6 +290,22 @@ static void scope_replace(tree_t t, tree_t with)
    assert(top_scope != NULL);
 
    scope_replace_at(t, with, top_scope->decls);
+}
+
+static void loop_push(ident_t name)
+{
+   struct loop_stack *ls = xmalloc(sizeof(struct loop_stack));
+   ls->up   = loop_stack;
+   ls->name = name;
+
+   loop_stack = ls;
+}
+
+static void loop_pop(void)
+{
+   struct loop_stack *tmp = loop_stack->up;
+   free(loop_stack);
+   loop_stack = tmp;
 }
 
 static const char *sem_type_minify(const char *name)
@@ -4259,9 +4281,14 @@ static bool sem_check_while(tree_t t)
                 sem_type_str(std_bool),
                 sem_type_str(tree_type(value)));
 
+   loop_push(tree_ident(t));
+
    bool ok = true;
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       ok = sem_check(tree_stmt(t, i)) && ok;
+
+   loop_pop();
 
    return ok;
 }
@@ -4282,11 +4309,13 @@ static bool sem_check_for(tree_t t)
 
    scope_push(NULL);
    scope_insert(idecl);
+   loop_push(tree_ident(t));
 
    bool ok = true;
    for (unsigned i = 0; i < tree_stmts(t); i++)
       ok = sem_check(tree_stmt(t, i)) && ok;
 
+   loop_pop();
    scope_pop();
    return ok;
 }
@@ -4307,8 +4336,24 @@ static bool sem_check_block(tree_t t)
    return ok;
 }
 
-static bool sem_check_exit(tree_t t)
+static bool sem_check_loop_control(tree_t t)
 {
+   if (loop_stack == NULL)
+      sem_error(t, "cannot use %s outside loop",
+                (tree_kind(t) == T_EXIT) ? "exit" : "next");
+
+   if (tree_has_ident2(t)) {
+      ident_t label = tree_ident2(t);
+      struct loop_stack *it;
+      for (it = loop_stack; (it != NULL) && (it->name != label); it = it->up)
+         ;
+
+      if (it == NULL)
+         sem_error(t, "no nested loop with label %s", istr(label));
+   }
+   else
+      tree_set_ident2(t, loop_stack->name);
+
    if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check(value))
@@ -4316,7 +4361,8 @@ static bool sem_check_exit(tree_t t)
 
       type_t std_bool = sem_std_type("BOOLEAN");
       if (!type_eq(tree_type(value), std_bool))
-         sem_error(value, "type of exit condition must be %s but is %s",
+         sem_error(value, "type of %s condition must be %s but is %s",
+                   (tree_kind(t) == T_EXIT) ? "exit" : "next",
                    sem_type_str(std_bool),
                    sem_type_str(tree_type(value)));
    }
@@ -4636,7 +4682,8 @@ bool sem_check(tree_t t)
    case T_CASE:
       return sem_check_case(t);
    case T_EXIT:
-      return sem_check_exit(t);
+   case T_NEXT:
+      return sem_check_loop_control(t);
    case T_CONCAT:
       return sem_check_concat(t);
    case T_PCALL:

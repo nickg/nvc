@@ -221,7 +221,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE),
 
    // T_EXIT
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_IDENT2),
 
    // T_PCALL
    (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
@@ -281,7 +281,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_NEXT
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_IDENT2),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -634,6 +634,11 @@ ident_t tree_ident2(tree_t t)
 void tree_set_ident2(tree_t t, ident_t i)
 {
    lookup_item(t, I_IDENT2)->ident = i;
+}
+
+bool tree_has_ident2(tree_t t)
+{
+   return lookup_item(t, I_IDENT2)->ident != NULL;
 }
 
 tree_kind_t tree_kind(tree_t t)

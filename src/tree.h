@@ -168,6 +168,7 @@ bool tree_has_ident(tree_t t);
 
 ident_t tree_ident2(tree_t t);
 void tree_set_ident2(tree_t t, ident_t i);
+bool tree_has_ident2(tree_t t);
 
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);

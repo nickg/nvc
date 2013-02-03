@@ -1524,6 +1524,19 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      tree_set_value($$, $3);
   }
+| tEXIT id tSEMI
+  {
+     $$ = tree_new(T_EXIT);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+  }
+| tEXIT id tWHEN expr tSEMI
+  {
+     $$ = tree_new(T_EXIT);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+     tree_set_value($$, $4);
+  }
 | tNEXT tSEMI
   {
      $$ = tree_new(T_NEXT);
@@ -1535,6 +1548,19 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      tree_set_value($$, $3);
   }
+| tNEXT id tSEMI
+  {
+     $$ = tree_new(T_NEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+  }
+| tNEXT id tWHEN expr tSEMI
+  {
+     $$ = tree_new(T_NEXT);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, $4);
+     tree_set_ident2($$, $2);
+  }
 | tCASE expr tIS case_alt_list tEND tCASE opt_id tSEMI
   {
      $$ = tree_new(T_CASE);
@@ -1545,7 +1571,6 @@ seq_stmt_without_label
         tree_add_assoc($$, it->item.assoc);
      list_free($4);
   }
-/* | next_statement */
 ;
 
 case_alt_list
