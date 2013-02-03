@@ -384,25 +384,6 @@ static LLVMValueRef cgen_array_meta(type_t type,
    return var;
 }
 
-static LLVMValueRef cgen_range_low(range_t r, cgen_ctx_t *ctx)
-{
-   return cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
-}
-
-static LLVMValueRef cgen_uarray_low(LLVMValueRef array)
-{
-   LLVMValueRef dir =
-      LLVMBuildExtractValue(builder, array, 3, "dir");
-   LLVMValueRef is_downto =
-      LLVMBuildICmp(builder, LLVMIntEQ, dir,
-                    llvm_int8(RANGE_DOWNTO), "is_downto");
-   LLVMValueRef left =
-      LLVMBuildExtractValue(builder, array, 1, "left");
-   LLVMValueRef right =
-      LLVMBuildExtractValue(builder, array, 2, "right");
-   return LLVMBuildSelect(builder, is_downto, right, left, "low");
-}
-
 static LLVMValueRef cgen_array_dir(type_t type, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type))
@@ -552,11 +533,21 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
    LLVMValueRef low;
    if (!cgen_const_bounds(type)) {
       assert(array != NULL);
-      low = cgen_uarray_low(array);
+
+      LLVMValueRef dir =
+         LLVMBuildExtractValue(builder, array, 3, "dir");
+      LLVMValueRef is_downto =
+         LLVMBuildICmp(builder, LLVMIntEQ, dir,
+                       llvm_int8(RANGE_DOWNTO), "is_downto");
+      LLVMValueRef left =
+         LLVMBuildExtractValue(builder, array, 1, "left");
+      LLVMValueRef right =
+         LLVMBuildExtractValue(builder, array, 2, "right");
+      low = LLVMBuildSelect(builder, is_downto, right, left, "low");
    }
    else {
       range_t r = type_dim(type, dim);
-      low = cgen_range_low(r, ctx);
+      low = cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
    }
 
    LLVMValueRef zero_based = LLVMBuildSub(builder, off, low, "");
