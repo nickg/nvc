@@ -191,9 +191,9 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <y> record_type_def
 %type <r> range range_constraint constraint_elem
-%type <g> constraint_list case_alt_list
+%type <g> constraint_list case_alt_list element_assoc
 %type <g> element_assoc_list index_constraint constraint choice_list
-%type <b> element_assoc choice
+%type <b> choice
 %type <g> param_list generic_map port_map selected_waveforms
 %type <c> object_class
 %type <d> use_clause_item
@@ -1575,6 +1575,12 @@ choice
      $$.name  = $1;
      $$.value = NULL;
   }
+| range
+  {
+     $$.kind  = A_RANGE;
+     $$.range = $1;
+     $$.value = NULL;
+  }
 | tOTHERS
   {
      $$.kind  = A_OTHERS;
@@ -2128,36 +2134,28 @@ aggregate
 element_assoc_list
 : element_assoc
   {
-     $$ = list_add(NULL, LISTVAL($1));
+     $$ = $1;
   }
 | element_assoc tCOMMA element_assoc_list
   {
-     $$ = list_add($3, LISTVAL($1));
+     $$ = list_append($1, $3);
   }
 ;
 
 element_assoc
 : expr
   {
-     $$.kind  = A_POS;
-     $$.value = $1;
+     assoc_t a = {
+        .kind  = A_POS,
+        .value = $1
+     };
+     $$ = list_add(NULL, LISTVAL(a));
   }
-| expr tASSOC expr
+| choice_list tASSOC expr
   {
-     $$.kind  = A_NAMED;
-     $$.name  = $1;
-     $$.value = $3;
-  }
-| range tASSOC expr
-  {
-     $$.kind  = A_RANGE;
-     $$.range = $1;
-     $$.value = $3;
-  }
-| tOTHERS tASSOC expr
-  {
-     $$.kind  = A_OTHERS;
-     $$.value = $3;
+     $$ = $1;
+     for (list_t *it = $1; it != NULL; it = it->next)
+        it->item.assoc.value = $3;
   }
 ;
 
