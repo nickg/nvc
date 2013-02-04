@@ -486,7 +486,7 @@ static void dump_stmt(tree_t t, int indent)
       break;
 
    case T_EXIT:
-      printf("exit");
+      printf("exit %s", istr(tree_ident2(t)));
       if (tree_has_value(t)) {
          printf(" when ");
          dump_expr(tree_value(t));

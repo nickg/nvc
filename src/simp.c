@@ -382,7 +382,7 @@ static tree_t simp_for(tree_t t)
    tree_set_target(init, var);
    tree_set_value(init, r.left);
 
-   ident_t label = ident_uniq("loop");
+   ident_t label = tree_ident(t);
    tree_t wh = tree_new(T_WHILE);
    tree_set_ident(wh, label);
 
