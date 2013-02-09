@@ -430,6 +430,8 @@ static void tree_one_time_init(void)
       }
    }
 
+   printf("sizeof(struct_tree) = %d\n", (int)sizeof(struct tree));
+
    done = true;
 }
 
@@ -1337,16 +1339,14 @@ static void write_s(assoc_array_t *a, tree_wr_ctx_t ctx)
 
 static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 {
-   a->count = a->max = read_u32(ctx->file);
-   a->items = xmalloc(a->count * sizeof(tree_t));
+   tree_array_resize(a, read_u32(ctx->file));
    for (unsigned i = 0; i < a->count; i++)
       a->items[i] = tree_read(ctx);
 }
 
 static void read_s(assoc_array_t *a, tree_rd_ctx_t ctx)
 {
-   a->count = a->max = read_u16(ctx->file);
-   a->items = xmalloc(sizeof(assoc_t) * a->count);
+   assoc_array_resize(a, read_u16(ctx->file));
 
    for (unsigned i = 0; i < a->count; i++) {
       a->items[i].kind  = read_u8(ctx->file);
@@ -1392,8 +1392,7 @@ static void write_p(param_array_t *a, tree_wr_ctx_t ctx)
 
 static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
 {
-   a->max = a->count = read_u32(ctx->file);
-   a->items = xmalloc(sizeof(param_t) * a->count);
+   param_array_resize(a, read_u32(ctx->file));
 
    for (unsigned i = 0; i < a->count; i++) {
       switch ((a->items[i].kind = read_u16(ctx->file))) {
@@ -1952,21 +1951,19 @@ struct tree_copy_ctx {
 
 static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
 
-static void copy_a(tree_array_t *from, tree_array_t *to,
+static void copy_a(const tree_array_t *from, tree_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
-   to->count = to->max = from->count;
-   to->items = xmalloc(to->count * sizeof(param_t));
+   tree_array_resize(to, from->count);
 
    for (size_t i = 0; i < from->count; i++)
       to->items[i] = tree_copy_aux(from->items[i], ctx);
 }
 
-static void copy_s(assoc_array_t *from, assoc_array_t *to,
+static void copy_s(const assoc_array_t *from, assoc_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
-   to->count = to->max = from->count;
-   to->items = xmalloc(to->count * sizeof(assoc_t));
+   assoc_array_resize(to, from->count);
 
    for (unsigned i = 0; i < from->count; i++) {
       to->items[i].kind = from->items[i].kind;
@@ -1989,11 +1986,10 @@ static void copy_s(assoc_array_t *from, assoc_array_t *to,
    }
 }
 
-static void copy_p(param_array_t *from, param_array_t *to,
+static void copy_p(const param_array_t *from, param_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
-   to->count = to->max = from->count;
-   to->items = xmalloc(to->count * sizeof(param_t));
+   param_array_resize(to, from->count);
 
    for (size_t i = 0; i < from->count; i++) {
       param_t *fp = &from->items[i];

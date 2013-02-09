@@ -749,9 +749,7 @@ type_t type_read(type_rd_ctx_t ctx)
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
             type_array_t *a = &(t->items[n].type_array);
-
-            a->count = a->max = read_u16(f);
-            a->items = xmalloc(a->count * sizeof(type_t));
+            type_array_resize(a, read_u16(f));
 
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = type_read(ctx);
@@ -762,18 +760,14 @@ type_t type_read(type_rd_ctx_t ctx)
             t->items[n].tree = tree_read(ctx->tree_ctx);
          else if (ITEM_TREE_ARRAY & mask) {
             tree_array_t *a = &(t->items[n].tree_array);
-
-            a->count = a->max = read_u16(f);
-            a->items = xmalloc(a->count * sizeof(tree_t));
+            tree_array_resize(a, read_u16(f));
 
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = tree_read(ctx->tree_ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
             range_array_t *a = &(t->items[n].range_array);
-
-            a->count = a->max = read_u16(f);
-            a->items = xmalloc(a->count * sizeof(range_t));
+            range_array_resize(a, read_u16(f));
 
             for (unsigned i = 0; i < a->count; i++) {
                a->items[i].kind  = read_u8(f);
