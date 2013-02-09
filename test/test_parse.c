@@ -1354,7 +1354,7 @@ START_TEST(test_attr)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 0);
-   fail_unless(tree_decls(a) == 2);
+   fail_unless(tree_decls(a) == 3);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_ATTR_DECL);
@@ -1363,6 +1363,12 @@ START_TEST(test_attr)
    fail_unless(type_ident(tree_type(d)) == ident_new("INTEGER"));
 
    d = tree_decl(a, 1);
+   fail_unless(tree_kind(d) == T_ATTR_SPEC);
+   fail_unless(tree_ident(d) == ident_new("FOO"));
+   fail_unless(tree_ident2(d) == ident_new("X"));
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+
+   d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_ATTR_SPEC);
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_ident2(d) == ident_new("X"));
