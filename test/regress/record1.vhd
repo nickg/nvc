@@ -27,7 +27,8 @@ begin
         assert (a.x = 1) and (a.y = 2);
         a := k;
         assert (a.x = k.x) and (a.y = k.y);
-        --assert a = k;
+        assert a = k;
+        assert a /= b;
         wait;
     end process;
 

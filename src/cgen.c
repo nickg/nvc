@@ -1298,6 +1298,33 @@ static LLVMValueRef cgen_name_attr(tree_t ref, int which)
    return LLVMBuildLoad(builder, res, "");
 }
 
+static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
+                                   type_t left_type, type_t right_type,
+                                   LLVMIntPredicate pred, cgen_ctx_t *ctx)
+{
+   // We need to get the address of the records to pass to memcmp so
+   // copy them into temporaries on the stack: this should be optimised
+   // away by LLVM
+
+   LLVMValueRef left_tmp =
+      LLVMBuildAlloca(builder, llvm_type(left_type), "left_tmp");
+   LLVMValueRef right_tmp =
+      LLVMBuildAlloca(builder, llvm_type(right_type), "right_tmp");
+
+   LLVMBuildStore(builder, left, left_tmp);
+   LLVMBuildStore(builder, right, right_tmp);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(left_tmp),
+      llvm_void_cast(right_tmp),
+      llvm_sizeof(llvm_type(left_type))
+   };
+   LLVMValueRef cmp = LLVMBuildCall(builder, llvm_fn("memcmp"),
+                                    args, ARRAY_LEN(args), "cmp");
+
+   return LLVMBuildICmp(builder, pred, cmp, llvm_int32(0), "");
+}
+
 static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
 {
    // Ensure all arguments to arithmetic operators are the same width
@@ -1467,6 +1494,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                                LLVMIntEQ, ctx);
       else if (icmp(builtin, "aneq"))
          return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
+                               LLVMIntNE, ctx);
+      else if (icmp(builtin, "req"))
+         return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
+                               LLVMIntEQ, ctx);
+      else if (icmp(builtin, "rneq"))
+         return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
          const bool is_signed =
@@ -4020,6 +4053,17 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _bounds_fail_args,
                                     ARRAY_LEN(_bounds_fail_args),
+                                    false));
+
+   LLVMTypeRef memcmp_args[] = {
+      llvm_void_ptr(),
+      llvm_void_ptr(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "memcmp",
+                   LLVMFunctionType(LLVMInt32Type(),
+                                    memcmp_args,
+                                    ARRAY_LEN(memcmp_args),
                                     false));
 }
 
