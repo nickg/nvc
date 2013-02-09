@@ -25,3 +25,11 @@ package body one is
     shared variable x : integer;
 
 end package body;
+
+-------------------------------------------------------------------------------
+
+package three is
+
+    signal s : integer;
+
+end package;

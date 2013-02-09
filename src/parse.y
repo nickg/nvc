@@ -516,8 +516,8 @@ package_decl_item
 | component_decl
 | file_decl
 | shared_variable_decl
-/* | signal_declaration
-   | disconnection_specification
+| signal_decl
+/* | disconnection_specification
    | use_clause
    | group_template_declaration
    | group_declaration */
