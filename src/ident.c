@@ -15,8 +15,9 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#include "ident.h"
 #include "util.h"
+#include "fbuf.h"
+#include "ident.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -41,18 +42,18 @@ struct trie {
 };
 
 struct ident_rd_ctx {
-   FILE    *file;
-   size_t  n_idents;
+   fbuf_t  *file;
+   size_t   n_idents;
    ident_t *idents;
 };
 
 struct ident_wr_ctx {
-   FILE    *file;
-   long    start_off;
+   fbuf_t  *file;
+   long     start_off;
    ident_t *pending;
-   size_t  n_pending;
-   size_t  pend_alloc;
-   uint8_t generation;
+   size_t   n_pending;
+   size_t   pend_alloc;
+   uint8_t  generation;
 };
 
 static struct trie root = {
@@ -166,14 +167,14 @@ const char *istr(ident_t ident)
    return p;
 }
 
-ident_wr_ctx_t ident_write_begin(FILE *f)
+ident_wr_ctx_t ident_write_begin(fbuf_t *f)
 {
    static uint8_t ident_wr_gen = 1;
    assert(ident_wr_gen > 0);
 
    struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));
    ctx->file       = f;
-   ctx->start_off  = ftell(f);
+   ctx->start_off  = fbuf_tell(f);
    ctx->pend_alloc = 512;
    ctx->pending    = xmalloc(sizeof(ident_t) * ctx->pend_alloc);
    ctx->n_pending  = 0;
@@ -188,17 +189,16 @@ ident_wr_ctx_t ident_write_begin(FILE *f)
 
 void ident_write_end(ident_wr_ctx_t ctx)
 {
-   long table_off = ftell(ctx->file);
+   long table_off = fbuf_tell(ctx->file);
 
    write_u16(ctx->n_pending, ctx->file);
 
    for (size_t i = 0; i < ctx->n_pending; i++) {
       ident_t ident = ctx->pending[i];
-      if (fwrite(istr(ident), ident->depth, 1, ctx->file) != 1)
-         fatal("fwrite failed");
+      write_raw(istr(ident), ident->depth, ctx->file);
    }
 
-   fseek(ctx->file, ctx->start_off, SEEK_SET);
+   fbuf_seek(ctx->file, ctx->start_off, SEEK_SET);
    write_u32(table_off, ctx->file);
 
    free(ctx->pending);
@@ -231,12 +231,12 @@ void ident_write(ident_t ident, ident_wr_ctx_t ctx)
    write_u16(index, ctx->file);
 }
 
-ident_rd_ctx_t ident_read_begin(FILE *f)
+ident_rd_ctx_t ident_read_begin(fbuf_t *f)
 {
    long ident_off = read_u32(f);
-   long save_off = ftell(f);
+   long save_off = fbuf_tell(f);
 
-   fseek(f, ident_off, SEEK_SET);
+   fbuf_seek(f, ident_off, SEEK_SET);
 
    struct ident_rd_ctx *ctx = xmalloc(sizeof(struct ident_rd_ctx));
    ctx->file     = f;
@@ -246,7 +246,7 @@ ident_rd_ctx_t ident_read_begin(FILE *f)
    for (size_t i = 0; i < ctx->n_idents; i++) {
       struct trie *p = &root;
       char ch;
-      while ((ch = fgetc(ctx->file)) != '\0') {
+      while ((ch = read_u8(ctx->file)) != '\0') {
          struct clist *it = search_node(p, ch);
          if (it != NULL)
             p = it->down;
@@ -256,7 +256,7 @@ ident_rd_ctx_t ident_read_begin(FILE *f)
       ctx->idents[i] = p;
    }
 
-   fseek(ctx->file, save_off, SEEK_SET);
+   fbuf_seek(ctx->file, save_off, SEEK_SET);
    return ctx;
 }
 

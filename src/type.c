@@ -655,7 +655,7 @@ void type_set_file(type_t t, type_t f)
 
 void type_write(type_t t, type_wr_ctx_t ctx)
 {
-   FILE *f = tree_write_file(ctx->tree_ctx);
+   fbuf_t *f = tree_write_file(ctx->tree_ctx);
 
    if (t == NULL) {
       write_u16(0xffff, f);   // Null marker
@@ -716,7 +716,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
 
 type_t type_read(type_rd_ctx_t ctx)
 {
-   FILE *f = tree_read_file(ctx->tree_ctx);
+   fbuf_t *f = tree_read_file(ctx->tree_ctx);
 
    unsigned short marker = read_u16(f);
    if (marker == 0xffff)

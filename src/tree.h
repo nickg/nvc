@@ -283,15 +283,15 @@ tree_t tree_copy(tree_t t);
 
 void tree_gc(void);
 
-tree_wr_ctx_t tree_write_begin(FILE *f);
+tree_wr_ctx_t tree_write_begin(fbuf_t *f);
 void tree_write(tree_t t, tree_wr_ctx_t ctx);
 void tree_write_end(tree_wr_ctx_t ctx);
-FILE *tree_write_file(tree_wr_ctx_t ctx);
+fbuf_t *tree_write_file(tree_wr_ctx_t ctx);
 
-tree_rd_ctx_t tree_read_begin(FILE *f, const char *name);
+tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *name);
 tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
-FILE *tree_read_file(tree_rd_ctx_t ctx);
+fbuf_t *tree_read_file(tree_rd_ctx_t ctx);
 tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index);
 
 #endif  // _TREE_H

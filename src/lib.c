@@ -238,6 +238,12 @@ FILE *lib_fopen(lib_t lib, const char *name, const char *mode)
    return fopen(lib_file_path(lib, name), mode);
 }
 
+fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode)
+{
+   assert(lib != NULL);
+   return fbuf_open(lib_file_path(lib, name), mode);
+}
+
 void lib_free(lib_t lib)
 {
    assert(lib != NULL);
@@ -334,13 +340,16 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
    struct dirent *e;
    while ((e = readdir(d))) {
       if (strcmp(e->d_name, search) == 0) {
-         FILE *f = lib_fopen(lib, e->d_name, "r");
+         fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
          tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
          tree_t top = tree_read(ctx);
 
+         // XXX: improve this - lib_fstat()
+         FILE *tmp = lib_fopen(lib, e->d_name, "r");
          struct stat st;
-         if (fstat(fileno(f), &st) < 0)
+         if (fstat(fileno(tmp), &st) < 0)
             fatal_errno("%s", e->d_name);
+         fclose(tmp);
 
          lib_mtime_t mt = lib_time_to_usecs(st.st_mtime);
 #if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
@@ -423,11 +432,11 @@ void lib_save(lib_t lib)
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (lib->units[n].dirty) {
          const char *name = istr(tree_ident(lib->units[n].top));
-         FILE *f = lib_fopen(lib, name, "w");
+         fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
          tree_wr_ctx_t ctx = tree_write_begin(f);
          tree_write(lib->units[n].top, ctx);
          tree_write_end(ctx);
-         fclose(f);
+         fbuf_close(f);
 
          lib->units[n].dirty = false;
       }

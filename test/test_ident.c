@@ -68,7 +68,7 @@ START_TEST(test_read_write)
    i2 = ident_new("foo");
    i3 = ident_new("foo");
 
-   FILE *f = tmpfile();
+   fbuf_t *f = fbuf_open("test.ident", FBUF_OUT);
    fail_if(f == NULL);
 
    ident_wr_ctx_t wctx = ident_write_begin(f);
@@ -79,7 +79,9 @@ START_TEST(test_read_write)
 
    ident_write_end(wctx);
 
-   rewind(f);
+   fbuf_close(f);
+   f = fbuf_open("test.ident", FBUF_IN);
+   fail_if(f == NULL);
 
    ident_rd_ctx_t rctx = ident_read_begin(f);
 
@@ -96,7 +98,9 @@ START_TEST(test_read_write)
 
    fail_unless(j2 == j3);
 
-   fclose(f);
+   fbuf_close(f);
+
+   remove("test.ident");
 }
 END_TEST
 
@@ -213,4 +217,3 @@ int main(void)
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
-

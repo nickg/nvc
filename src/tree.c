@@ -339,7 +339,7 @@ struct tree {
 };
 
 struct tree_wr_ctx {
-   FILE           *file;
+   fbuf_t         *file;
    type_wr_ctx_t   type_ctx;
    ident_wr_ctx_t  ident_ctx;
    unsigned        generation;
@@ -348,7 +348,7 @@ struct tree_wr_ctx {
 };
 
 struct tree_rd_ctx {
-   FILE           *file;
+   fbuf_t         *file;
    type_rd_ctx_t   type_ctx;
    ident_rd_ctx_t  ident_ctx;
    unsigned        n_trees;
@@ -1261,8 +1261,7 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
       write_u8(0xff, ctx->file);
       write_u8(findex, ctx->file);
       write_u16(len, ctx->file);
-      if (fwrite(fname, 1, len, ctx->file) != len)
-         fatal("fwrite failed");
+      write_raw(fname, len, ctx->file);
    }
    else
       write_u8(findex, ctx->file);
@@ -1281,8 +1280,7 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
       uint8_t index = read_u8(ctx->file);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
-      if (fread(buf, len, 1, ctx->file) != 1)
-         fatal("premature end of file");
+      read_raw(buf, len, ctx->file);
 
       ctx->file_names[index] = buf;
       fname = buf;
@@ -1406,7 +1404,7 @@ static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
    }
 }
 
-tree_wr_ctx_t tree_write_begin(FILE *f)
+tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
    write_u32(format_digest, f);
 
@@ -1428,7 +1426,7 @@ void tree_write_end(tree_wr_ctx_t ctx)
    free(ctx);
 }
 
-FILE *tree_write_file(tree_wr_ctx_t ctx)
+fbuf_t *tree_write_file(tree_wr_ctx_t ctx)
 {
    return ctx->file;
 }
@@ -1671,7 +1669,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    return t;
 }
 
-tree_rd_ctx_t tree_read_begin(FILE *f, const char *fname)
+tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 {
    tree_one_time_init();
 
@@ -1697,13 +1695,13 @@ void tree_read_end(tree_rd_ctx_t ctx)
 {
    ident_read_end(ctx->ident_ctx);
    type_read_end(ctx->type_ctx);
-   fclose(ctx->file);
+   fbuf_close(ctx->file);
    free(ctx->store);
    free(ctx->db_fname);
    free(ctx);
 }
 
-FILE *tree_read_file(tree_rd_ctx_t ctx)
+fbuf_t *tree_read_file(tree_rd_ctx_t ctx)
 {
    return ctx->file;
 }

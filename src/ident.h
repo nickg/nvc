@@ -19,6 +19,7 @@
 #define _IDENT_H
 
 #include "lib.h"
+#include "fbuf.h"
 
 typedef struct trie *ident_t;
 typedef struct ident_wr_ctx *ident_wr_ctx_t;
@@ -55,11 +56,11 @@ bool icmp(ident_t i, const char *s);
 // for printing.
 const char *istr(ident_t ident);
 
-ident_wr_ctx_t ident_write_begin(FILE *f);
+ident_wr_ctx_t ident_write_begin(fbuf_t *f);
 void ident_write(ident_t ident, ident_wr_ctx_t ctx);
 void ident_write_end(ident_wr_ctx_t ctx);
 
-ident_rd_ctx_t ident_read_begin(FILE *f);
+ident_rd_ctx_t ident_read_begin(fbuf_t *f);
 ident_t ident_read(ident_rd_ctx_t ctx);
 void ident_read_end(ident_rd_ctx_t ctx);
 
