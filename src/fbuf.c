@@ -27,15 +27,36 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#define WBUF_SIZE 8192
+
 struct fbuf {
-   fbuf_mode_t    mode;
-   FILE          *file;
-   const uint8_t *rbuf;
-   size_t         maplen;
+   fbuf_mode_t  mode;
+   char        *fname;
+   FILE        *file;
+   uint8_t     *wbuf;
+   size_t       wpend;
+   uint8_t     *rbuf;
+   size_t       maplen;
+   fbuf_t      *next;
+   fbuf_t      *prev;
 };
+
+static fbuf_t *open_list = NULL;
+
+void fbuf_cleanup(void)
+{
+   while (open_list != NULL) {
+      fbuf_t *next = open_list->next;
+      if (open_list->mode == FBUF_OUT)
+         remove(open_list->fname);
+      open_list = next;
+   }
+}
 
 fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 {
+   fbuf_t *f = NULL;
+
    switch (mode) {
    case FBUF_OUT:
       {
@@ -43,13 +64,14 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          if (h == NULL)
             return NULL;
 
-         fbuf_t *f = xmalloc(sizeof(struct fbuf));
-         f->file = h;
-         f->mode = mode;
-         f->rbuf = NULL;
+         f = xmalloc(sizeof(struct fbuf));
 
-         return f;
+         f->file  = h;
+         f->rbuf  = NULL;
+         f->wbuf  = xmalloc(WBUF_SIZE);
+         f->wpend = 0;
       }
+      break;
 
    case FBUF_IN:
       {
@@ -67,59 +89,102 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 
          close(fd);
 
-         fbuf_t *f = xmalloc(sizeof(struct fbuf));
+         f = xmalloc(sizeof(struct fbuf));
+
          f->file   = NULL;
-         f->mode   = mode;
          f->rbuf   = rbuf;
          f->maplen = buf.st_size;
-
-         return f;
+         f->wbuf   = NULL;
       }
+      break;
+   }
 
-   default:
-      assert(false);
+   f->fname = strdup(file);
+   f->mode  = mode;
+   f->next  = open_list;
+   f->prev  = NULL;
+
+   if (open_list != NULL)
+      open_list->prev = f;
+
+   return (open_list = f);
+}
+
+static void fbuf_maybe_flush(fbuf_t *f, size_t more)
+{
+   assert(more <= WBUF_SIZE);
+   if (f->wpend + more > WBUF_SIZE) {
+      if (fwrite(f->wbuf, f->wpend, 1, f->file) != 1)
+         fatal_errno("fwrite failed");
+
+      f->wpend = 0;
    }
 }
 
 void fbuf_close(fbuf_t *f)
 {
-   if (f->file != NULL)
-      fclose(f->file);
-
    if (f->rbuf != NULL)
       munmap((void *)f->rbuf, f->maplen);
 
+   if (f->wbuf != NULL) {
+      fbuf_maybe_flush(f, WBUF_SIZE);
+      free(f->wbuf);
+   }
+
+   if (f->file != NULL)
+      fclose(f->file);
+
+   if (f->prev == NULL) {
+      assert(f == open_list);
+      open_list = f->next;
+   }
+   else
+      f->prev->next = f->next;
+
+   free(f->fname);
    free(f);
 }
 
 void write_u32(uint32_t u, fbuf_t *f)
 {
-   if (fwrite(&u, sizeof(uint32_t), 1, f->file) != 1)
-      fatal("fwrite failed");
+   fbuf_maybe_flush(f, 4);
+   *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 24) & 0xff;
 }
 
-void write_u64(uint64_t i, fbuf_t *f)
+void write_u64(uint64_t u, fbuf_t *f)
 {
-   if (fwrite(&i, sizeof(uint64_t), 1, f->file) != 1)
-      fatal("fwrite failed");
+   fbuf_maybe_flush(f, 8);
+   *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 24) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 32) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 40) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 48) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >> 56) & 0xff;
 }
 
 void write_u16(uint16_t s, fbuf_t *f)
 {
-   if (fwrite(&s, sizeof(uint16_t), 1, f->file) != 1)
-      fatal("fwrite failed");
+   fbuf_maybe_flush(f, 2);
+   *(f->wbuf + f->wpend++) = (s >> 0) & 0xff;
+   *(f->wbuf + f->wpend++) = (s >> 8) & 0xff;
 }
 
 void write_u8(uint8_t u, fbuf_t *f)
 {
-   if (fwrite(&u, sizeof(uint8_t), 1, f->file) != 1)
-      fatal("fwrite failed");
+   fbuf_maybe_flush(f, 1);
+   *(f->wbuf + f->wpend++) = u;
 }
 
 void write_raw(const void *buf, size_t len, fbuf_t *f)
 {
-   if (fwrite(buf, len, 1, f->file) != 1)
-      fatal("fwrite failed");
+   fbuf_maybe_flush(f, len);
+   memcpy(f->wbuf + f->wpend, buf, len);
+   f->wpend += len;
 }
 
 uint32_t read_u32(fbuf_t *f)

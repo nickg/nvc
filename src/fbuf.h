@@ -33,6 +33,7 @@ typedef enum {
 
 fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode);
 void fbuf_close(fbuf_t *f);
+void fbuf_cleanup(void);
 
 void write_u32(uint32_t u, fbuf_t *f);
 void write_u16(uint16_t s, fbuf_t *f);

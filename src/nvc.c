@@ -422,6 +422,8 @@ int main(int argc, char **argv)
    else
       register_trace_signal_handlers();
 
+   atexit(fbuf_cleanup);
+
    static struct option long_options[] = {
       {"help",    no_argument,       0, 'h'},
       {"version", no_argument,       0, 'v'},
