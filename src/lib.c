@@ -344,12 +344,9 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
          tree_t top = tree_read(ctx);
 
-         // XXX: improve this - lib_fstat()
-         FILE *tmp = lib_fopen(lib, e->d_name, "r");
          struct stat st;
-         if (fstat(fileno(tmp), &st) < 0)
+         if (stat(lib_file_path(lib, e->d_name), &st) < 0)
             fatal_errno("%s", e->d_name);
-         fclose(tmp);
 
          lib_mtime_t mt = lib_time_to_usecs(st.st_mtime);
 #if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
