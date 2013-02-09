@@ -32,7 +32,7 @@
    {                                                           \
       if (a->_max == 0) {                                      \
          a->items = xmalloc(sizeof(what##_t) * ARRAY_BASE_SZ); \
-         a->_max   = ARRAY_BASE_SZ;                            \
+         a->_max  = ARRAY_BASE_SZ;                             \
       }                                                        \
       else if (a->count == a->_max) {                          \
          a->_max *= 2;                                         \

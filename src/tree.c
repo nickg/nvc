@@ -430,8 +430,6 @@ static void tree_one_time_init(void)
       }
    }
 
-   printf("sizeof(struct_tree) = %d\n", (int)sizeof(struct tree));
-
    done = true;
 }
 
