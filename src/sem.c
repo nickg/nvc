@@ -1027,6 +1027,11 @@ static bool sem_declare(tree_t decl)
    // Handle special cases of scope insertion such as enumeration
    // literals, physical unit names, and predefined types
 
+   // Certain kinds of declarations like components do not have
+   // a type
+   if (tree_kind(decl) == T_COMPONENT)
+      return true;
+
    // Resolve the base type if necessary
    if (!sem_check_subtype(decl, tree_type(decl), NULL))
       return false;
