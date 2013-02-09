@@ -43,17 +43,15 @@ struct trie {
 
 struct ident_rd_ctx {
    fbuf_t  *file;
-   size_t   n_idents;
-   ident_t *idents;
+   size_t   cache_sz;
+   size_t   cache_alloc;
+   ident_t *cache;
 };
 
 struct ident_wr_ctx {
-   fbuf_t  *file;
-   long     start_off;
-   ident_t *pending;
-   size_t   n_pending;
-   size_t   pend_alloc;
-   uint8_t  generation;
+   fbuf_t   *file;
+   uint16_t  next_index;
+   uint8_t   generation;
 };
 
 static struct trie root = {
@@ -174,34 +172,14 @@ ident_wr_ctx_t ident_write_begin(fbuf_t *f)
 
    struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));
    ctx->file       = f;
-   ctx->start_off  = fbuf_tell(f);
-   ctx->pend_alloc = 512;
-   ctx->pending    = xmalloc(sizeof(ident_t) * ctx->pend_alloc);
-   ctx->n_pending  = 0;
    ctx->generation = ident_wr_gen++;
-
-   // Write a placeholder that will later be overwritten with the
-   // offset of the identifier table
-   write_u32(UINT32_MAX, ctx->file);
+   ctx->next_index = 0;
 
    return ctx;
 }
 
 void ident_write_end(ident_wr_ctx_t ctx)
 {
-   long table_off = fbuf_tell(ctx->file);
-
-   write_u16(ctx->n_pending, ctx->file);
-
-   for (size_t i = 0; i < ctx->n_pending; i++) {
-      ident_t ident = ctx->pending[i];
-      write_raw(istr(ident), ident->depth, ctx->file);
-   }
-
-   fbuf_seek(ctx->file, ctx->start_off, SEEK_SET);
-   write_u32(table_off, ctx->file);
-
-   free(ctx->pending);
    free(ctx);
 }
 
@@ -209,41 +187,45 @@ void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
    assert(ident != NULL);
 
-   uint16_t index;
    if (ident->write_gen == ctx->generation)
-      index = ident->write_index;
+      write_u16(ident->write_index, ctx->file);
    else {
-      index = ctx->n_pending;
-
-      if (ctx->n_pending == ctx->pend_alloc) {
-         ctx->pend_alloc *= 2;
-         ctx->pending = xrealloc(
-            ctx->pending, sizeof(ident_t) * ctx->pend_alloc);
-      }
-
-      ctx->pending[ctx->n_pending++] = ident;
-      assert(ctx->n_pending != UINT16_MAX);
+      write_u16(UINT16_MAX, ctx->file);
+      write_raw(istr(ident), ident->depth, ctx->file);
 
       ident->write_gen   = ctx->generation;
-      ident->write_index = index;
-   }
+      ident->write_index = ctx->next_index++;
 
-   write_u16(index, ctx->file);
+      assert(ctx->next_index != UINT16_MAX);
+   }
 }
 
 ident_rd_ctx_t ident_read_begin(fbuf_t *f)
 {
-   long ident_off = read_u32(f);
-   long save_off = fbuf_tell(f);
-
-   fbuf_seek(f, ident_off, SEEK_SET);
-
    struct ident_rd_ctx *ctx = xmalloc(sizeof(struct ident_rd_ctx));
-   ctx->file     = f;
-   ctx->n_idents = read_u16(ctx->file);
-   ctx->idents   = xmalloc(sizeof(ident_t) * ctx->n_idents);
+   ctx->file        = f;
+   ctx->cache_alloc = 256;
+   ctx->cache_sz    = 0;
+   ctx->cache       = xmalloc(ctx->cache_alloc * sizeof(ident_t));
 
-   for (size_t i = 0; i < ctx->n_idents; i++) {
+   return ctx;
+}
+
+void ident_read_end(ident_rd_ctx_t ctx)
+{
+   free(ctx->cache);
+   free(ctx);
+}
+
+ident_t ident_read(ident_rd_ctx_t ctx)
+{
+   uint16_t index = read_u16(ctx->file);
+   if (index == UINT16_MAX) {
+      if (ctx->cache_sz == ctx->cache_alloc) {
+         ctx->cache_alloc *= 2;
+         ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
+      }
+
       struct trie *p = &root;
       char ch;
       while ((ch = read_u8(ctx->file)) != '\0') {
@@ -253,24 +235,14 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f)
          else
             p = alloc_node(ch, p);
       }
-      ctx->idents[i] = p;
+
+      ctx->cache[ctx->cache_sz++] = p;
+      return (p);
    }
-
-   fbuf_seek(ctx->file, save_off, SEEK_SET);
-   return ctx;
-}
-
-void ident_read_end(ident_rd_ctx_t ctx)
-{
-   free(ctx->idents);
-   free(ctx);
-}
-
-ident_t ident_read(ident_rd_ctx_t ctx)
-{
-   uint16_t index = read_u16(ctx->file);
-   assert(index < ctx->n_idents);
-   return ctx->idents[index];
+   else {
+      assert(index < ctx->cache_sz);
+      return ctx->cache[index];
+   }
 }
 
 ident_t ident_uniq(const char *prefix)

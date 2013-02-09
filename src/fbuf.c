@@ -43,22 +43,6 @@ void fbuf_close(fbuf_t *f)
    free(f);
 }
 
-void fbuf_flush(fbuf_t *f)
-{
-
-}
-
-long fbuf_tell(fbuf_t *f)
-{
-   fbuf_flush(f);
-   return ftell(f->file);
-}
-
-void fbuf_seek(fbuf_t *f, long offset, int whence)
-{
-   fseek(f->file, offset, whence);
-}
-
 void write_u32(uint32_t u, fbuf_t *f)
 {
    if (fwrite(&u, sizeof(uint32_t), 1, f->file) != 1)
