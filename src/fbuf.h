@@ -36,15 +36,13 @@ void fbuf_close(fbuf_t *f);
 
 void write_u32(uint32_t u, fbuf_t *f);
 void write_u16(uint16_t s, fbuf_t *f);
-void write_i32(int32_t i, fbuf_t *f);
-void write_i64(int64_t i, fbuf_t *f);
+void write_u64(uint64_t i, fbuf_t *f);
 void write_u8(uint8_t u, fbuf_t *f);
 void write_raw(const void *buf, size_t len, fbuf_t *f);
 
 uint32_t read_u32(fbuf_t *f);
 uint16_t read_u16(fbuf_t *f);
-int32_t read_i32(fbuf_t *f);
-int64_t read_i64(fbuf_t *f);
+uint64_t read_u64(fbuf_t *f);
 uint8_t read_u8(fbuf_t *f);
 void read_raw(void *buf, size_t len, fbuf_t *f);
 

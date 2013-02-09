@@ -1470,7 +1470,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             switch (l->kind) {
             case L_REAL:
             case L_INT:
-               write_i64(l->i, ctx->file);
+               write_u64(l->i, ctx->file);
                break;
             case L_NULL:
                break;
@@ -1523,7 +1523,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          break;
 
       case A_INT:
-         write_i32(t->attrs[i].ival, ctx->file);
+         write_u32(t->attrs[i].ival, ctx->file);
          break;
 
       case A_TREE:
@@ -1588,7 +1588,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             switch (l->kind) {
             case L_INT:
             case L_REAL:
-               l->i = read_i64(ctx->file);
+               l->i = read_u64(ctx->file);
                break;
             case L_NULL:
                break;
@@ -1647,7 +1647,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          break;
 
       case A_INT:
-         t->attrs[i].ival = read_i32(ctx->file);
+         t->attrs[i].ival = read_u32(ctx->file);
          break;
 
       case A_TREE:
