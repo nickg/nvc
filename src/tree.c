@@ -1242,26 +1242,29 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
-   const char *fname = (l->file != NULL ? l->file : "(none)");
+   if (l->file == NULL) {
+      write_u8(0xfe, ctx->file);  // Invalid location marker
+      return;
+   }
 
    uint8_t findex;
    for (findex = 0;
-        (findex < 0xff)
+        (findex < 0xfe)
            && (ctx->file_names[findex] != NULL)
-           && (strcmp(ctx->file_names[findex], fname) != 0);
+           && (strcmp(ctx->file_names[findex], l->file) != 0);
         findex++)
       ;
-   assert(findex != 0xff);
+   assert(findex != 0xfe);
 
    if (ctx->file_names[findex] == NULL) {
-      const size_t len = strlen(fname) + 1;
+      const size_t len = strlen(l->file) + 1;
 
-      ctx->file_names[findex] = fname;
+      ctx->file_names[findex] = l->file;
 
       write_u8(0xff, ctx->file);
       write_u8(findex, ctx->file);
       write_u16(len, ctx->file);
-      write_raw(fname, len, ctx->file);
+      write_raw(l->file, len, ctx->file);
    }
    else
       write_u8(findex, ctx->file);
@@ -1276,7 +1279,9 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
 {
    const char *fname;
    uint8_t fmarker = read_u8(ctx->file);
-   if (fmarker == 0xff) {
+   if (fmarker == 0xfe)
+      return LOC_INVALID;
+   else if (fmarker == 0xff) {
       uint8_t index = read_u8(ctx->file);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);

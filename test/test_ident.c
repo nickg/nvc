@@ -80,6 +80,7 @@ START_TEST(test_read_write)
    ident_write_end(wctx);
 
    fbuf_close(f);
+
    f = fbuf_open("test.ident", FBUF_IN);
    fail_if(f == NULL);
 

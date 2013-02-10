@@ -26,8 +26,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <zlib.h>
 
-#define WBUF_SIZE 8192
+#define WBUF_SIZE     8192
+#define RBUF_SIZE     8192
+#define DEFLATE_LEVEL 4
 
 struct fbuf {
    fbuf_mode_t  mode;
@@ -36,7 +39,10 @@ struct fbuf {
    uint8_t     *wbuf;
    size_t       wpend;
    uint8_t     *rbuf;
+   size_t       rptr;
+   uint8_t     *rmap;
    size_t       maplen;
+   z_stream     strm;
    fbuf_t      *next;
    fbuf_t      *prev;
 };
@@ -67,9 +73,16 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          f = xmalloc(sizeof(struct fbuf));
 
          f->file  = h;
+         f->rmap  = NULL;
          f->rbuf  = NULL;
          f->wbuf  = xmalloc(WBUF_SIZE);
          f->wpend = 0;
+
+         f->strm.zalloc = Z_NULL;
+         f->strm.zfree  = Z_NULL;
+         f->strm.opaque = Z_NULL;
+         if (deflateInit(&(f->strm), DEFLATE_LEVEL) != Z_OK)
+            fatal("deflateInit failed");
       }
       break;
 
@@ -83,8 +96,8 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          if (fstat(fd, &buf) != 0)
             fatal_errno("fstat");
 
-         void *rbuf = mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-         if (rbuf == MAP_FAILED)
+         void *rmap = mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+         if (rmap == MAP_FAILED)
             fatal_errno("mmap");
 
          close(fd);
@@ -92,9 +105,19 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          f = xmalloc(sizeof(struct fbuf));
 
          f->file   = NULL;
-         f->rbuf   = rbuf;
+         f->rmap   = rmap;
+         f->rbuf   = xmalloc(RBUF_SIZE);
+         f->rptr   = RBUF_SIZE;
          f->maplen = buf.st_size;
          f->wbuf   = NULL;
+
+         f->strm.zalloc   = Z_NULL;
+         f->strm.zfree    = Z_NULL;
+         f->strm.opaque   = Z_NULL;
+         f->strm.avail_in = buf.st_size;
+         f->strm.next_in  = rmap;
+         if (inflateInit(&(f->strm)) != Z_OK)
+            fatal("inflateInit failed");
       }
       break;
    }
@@ -110,24 +133,65 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
    return (open_list = f);
 }
 
-static void fbuf_maybe_flush(fbuf_t *f, size_t more)
+static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
 {
    assert(more <= WBUF_SIZE);
    if (f->wpend + more > WBUF_SIZE) {
-      if (fwrite(f->wbuf, f->wpend, 1, f->file) != 1)
-         fatal_errno("fwrite failed");
+      const int zflush = finish ? Z_FINISH : Z_NO_FLUSH;
+      f->strm.avail_in = f->wpend;
+      f->strm.next_in  = f->wbuf;
+
+      do {
+         uint8_t out[WBUF_SIZE];
+         f->strm.avail_out = sizeof(out);
+         f->strm.next_out  = out;
+
+         const int ret = deflate(&(f->strm), zflush);
+         assert(ret != Z_STREAM_ERROR);
+
+         const int have = sizeof(out) - f->strm.avail_out;
+         if ((have > 0) && (fwrite(out, have, 1, f->file) != 1))
+            fatal("fwrite failed");
+
+      } while (f->strm.avail_out == 0);
 
       f->wpend = 0;
    }
 }
 
+static void fbuf_maybe_read(fbuf_t *f, size_t more)
+{
+   assert(more <= RBUF_SIZE);
+   if (f->rptr + more > RBUF_SIZE) {
+      const size_t overlap = RBUF_SIZE - f->rptr;
+      memcpy(f->rbuf, f->rbuf + f->rptr, overlap);
+
+      f->strm.avail_out = RBUF_SIZE - overlap;
+      f->strm.next_out  = f->rbuf + overlap;
+
+      do {
+         const int ret = inflate(&(f->strm), Z_NO_FLUSH);
+         if (ret == Z_STREAM_END)
+            break;
+         else if (ret != Z_OK)
+            fatal("inflate failed");
+      } while (f->strm.avail_out != 0);
+
+      f->rptr = 0;
+   }
+}
+
 void fbuf_close(fbuf_t *f)
 {
-   if (f->rbuf != NULL)
-      munmap((void *)f->rbuf, f->maplen);
+   if (f->rmap != NULL) {
+      munmap((void *)f->rmap, f->maplen);
+      inflateEnd(&(f->strm));
+      free(f->rbuf);
+   }
 
    if (f->wbuf != NULL) {
-      fbuf_maybe_flush(f, WBUF_SIZE);
+      fbuf_maybe_flush(f, WBUF_SIZE, true);
+      deflateEnd(&(f->strm));
       free(f->wbuf);
    }
 
@@ -147,7 +211,7 @@ void fbuf_close(fbuf_t *f)
 
 void write_u32(uint32_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 4);
+   fbuf_maybe_flush(f, 4, false);
    *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
    *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
    *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
@@ -156,7 +220,7 @@ void write_u32(uint32_t u, fbuf_t *f)
 
 void write_u64(uint64_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 8);
+   fbuf_maybe_flush(f, 8, false);
    *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
    *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
    *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
@@ -169,63 +233,71 @@ void write_u64(uint64_t u, fbuf_t *f)
 
 void write_u16(uint16_t s, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 2);
+   fbuf_maybe_flush(f, 2, false);
    *(f->wbuf + f->wpend++) = (s >> 0) & 0xff;
    *(f->wbuf + f->wpend++) = (s >> 8) & 0xff;
 }
 
 void write_u8(uint8_t u, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, 1);
+   fbuf_maybe_flush(f, 1, false);
    *(f->wbuf + f->wpend++) = u;
 }
 
 void write_raw(const void *buf, size_t len, fbuf_t *f)
 {
-   fbuf_maybe_flush(f, len);
+   fbuf_maybe_flush(f, len, false);
    memcpy(f->wbuf + f->wpend, buf, len);
    f->wpend += len;
 }
 
 uint32_t read_u32(fbuf_t *f)
 {
+   fbuf_maybe_read(f, 4);
+
    uint32_t val = 0;
-   val |= (uint32_t)*(f->rbuf++) << 0;
-   val |= (uint32_t)*(f->rbuf++) << 8;
-   val |= (uint32_t)*(f->rbuf++) << 16;
-   val |= (uint32_t)*(f->rbuf++) << 24;
+   val |= (uint32_t)*(f->rbuf + f->rptr++) << 0;
+   val |= (uint32_t)*(f->rbuf + f->rptr++) << 8;
+   val |= (uint32_t)*(f->rbuf + f->rptr++) << 16;
+   val |= (uint32_t)*(f->rbuf + f->rptr++) << 24;
    return val;
 }
 
 uint16_t read_u16(fbuf_t *f)
 {
+   fbuf_maybe_read(f, 2);
+
    uint16_t val = 0;
-   val |= (uint16_t)*(f->rbuf++) << 0;
-   val |= (uint16_t)*(f->rbuf++) << 8;
+   val |= (uint16_t)*(f->rbuf + f->rptr++) << 0;
+   val |= (uint16_t)*(f->rbuf + f->rptr++) << 8;
    return val;
 }
 
 uint8_t read_u8(fbuf_t *f)
 {
-   return *(f->rbuf++);
+   fbuf_maybe_read(f, 1);
+   return *(f->rbuf + f->rptr++);
 }
 
 uint64_t read_u64(fbuf_t *f)
 {
+   fbuf_maybe_read(f, 8);
+
    uint64_t val = 0;
-   val |= (uint64_t)*(f->rbuf++) << 0;
-   val |= (uint64_t)*(f->rbuf++) << 8;
-   val |= (uint64_t)*(f->rbuf++) << 16;
-   val |= (uint64_t)*(f->rbuf++) << 24;
-   val |= (uint64_t)*(f->rbuf++) << 32;
-   val |= (uint64_t)*(f->rbuf++) << 40;
-   val |= (uint64_t)*(f->rbuf++) << 48;
-   val |= (uint64_t)*(f->rbuf++) << 56;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 0;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 8;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 16;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 24;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 32;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 40;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 48;
+   val |= (uint64_t)*(f->rbuf + f->rptr++) << 56;
    return val;
 }
 
 void read_raw(void *buf, size_t len, fbuf_t *f)
 {
-   memcpy(buf, f->rbuf, len);
-   f->rbuf += len;
+   fbuf_maybe_read(f, len);
+   memcpy(buf, f->rbuf + f->rptr, len);
+   f->rptr += len;
 }

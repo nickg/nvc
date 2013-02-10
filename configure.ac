@@ -66,6 +66,8 @@ AX_WITH_CURSES
 
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
+PKG_CHECK_MODULES([ZLIB], [zlib])
+
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 
 # On cygwin local headers can sometimes be included instead
