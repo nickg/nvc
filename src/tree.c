@@ -27,6 +27,7 @@
 #define MAX_CONTEXTS 16
 #define MAX_ATTRS    16
 #define MAX_ITEMS    6
+#define MAX_FILES    256
 
 //#define EXTRA_READ_CHECKS
 
@@ -344,7 +345,7 @@ struct tree_wr_ctx {
    ident_wr_ctx_t  ident_ctx;
    unsigned        generation;
    unsigned        n_trees;
-   const char     *file_names[256];
+   const char     *file_names[MAX_FILES];
 };
 
 struct tree_rd_ctx {
@@ -355,7 +356,7 @@ struct tree_rd_ctx {
    tree_t         *store;
    unsigned        store_sz;
    char           *db_fname;
-   const char     *file_names[256];
+   const char     *file_names[MAX_FILES];
 };
 
 typedef struct {
@@ -1243,31 +1244,30 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
    if (l->file == NULL) {
-      write_u8(0xfe, ctx->file);  // Invalid location marker
+      write_u16(0xfffe, ctx->file);  // Invalid location marker
       return;
    }
 
-   uint8_t findex;
+   uint16_t findex;
    for (findex = 0;
-        (findex < 0xfe)
+        (findex < MAX_FILES)
            && (ctx->file_names[findex] != NULL)
            && (strcmp(ctx->file_names[findex], l->file) != 0);
         findex++)
       ;
-   assert(findex != 0xfe);
+   assert(findex != MAX_FILES);
 
    if (ctx->file_names[findex] == NULL) {
       const size_t len = strlen(l->file) + 1;
 
       ctx->file_names[findex] = l->file;
 
-      write_u8(0xff, ctx->file);
-      write_u8(findex, ctx->file);
+      write_u16(findex | 0x8000, ctx->file);
       write_u16(len, ctx->file);
       write_raw(l->file, len, ctx->file);
    }
    else
-      write_u8(findex, ctx->file);
+      write_u16(findex, ctx->file);
 
    write_u16(l->first_line, ctx->file);
    write_u16(l->first_column, ctx->file);
@@ -1278,11 +1278,12 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 static loc_t read_loc(tree_rd_ctx_t ctx)
 {
    const char *fname;
-   uint8_t fmarker = read_u8(ctx->file);
-   if (fmarker == 0xfe)
+   uint16_t fmarker = read_u16(ctx->file);
+   if (fmarker == 0xfffe)
       return LOC_INVALID;
-   else if (fmarker == 0xff) {
-      uint8_t index = read_u8(ctx->file);
+   else if (fmarker & 0x8000) {
+      uint8_t index = fmarker & 0x7fff;
+      assert(index < MAX_FILES);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
       read_raw(buf, len, ctx->file);
@@ -1291,6 +1292,7 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
       fname = buf;
    }
    else {
+      assert(fmarker < MAX_FILES);
       fname = ctx->file_names[fmarker];
       assert(fname != NULL);
    }
