@@ -9,9 +9,9 @@ shared = $(src)/util.c
 covdir = $(top_builddir)/coverage
 
 AM_CFLAGS = -I $(src) -I $(build) -DTESTDIR=\"$(top_srcdir)/test\" \
-	$(CHECK_CFLAGS) $(ZLIB_CFLAGS)
+	$(CHECK_CFLAGS)
 LDADD = -lcheck $(build)/rt/libnvc-rt.a $(build)/libnvc.a $(CHECK_LIBS) \
-	$(CURSES_LIB) $(ZLIB_LIBS)
+	$(CURSES_LIB)
 AM_LDFLAGS = -rdynamic $(COV_LDFLAGS)
 
 clean-local:

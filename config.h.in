@@ -54,6 +54,9 @@
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
 
+/* Define to 1 if you have the `z' library (-lz). */
+#undef HAVE_LIBZ
+
 /* Define to 1 if you have the <limits.h> header file. */
 #undef HAVE_LIMITS_H
 

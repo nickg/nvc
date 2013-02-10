@@ -60,13 +60,13 @@ if test "$vl_cv_lib_readline" = "no"; then
   AC_WARN(terminal line editing will not be supported)
 fi
 
+AC_CHECK_LIB([z], [deflate], [], [AC_ERROR([zlib not found])])
+
 AX_LLVM_C([engine bitreader bitwriter])
 
 AX_WITH_CURSES
 
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
-
-PKG_CHECK_MODULES([ZLIB], [zlib])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 
