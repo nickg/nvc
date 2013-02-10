@@ -173,8 +173,10 @@ static void fbuf_maybe_read(fbuf_t *f, size_t more)
          const int ret = inflate(&(f->strm), Z_NO_FLUSH);
          if (ret == Z_STREAM_END)
             break;
+         else if (ret == Z_DATA_ERROR)
+            fatal("file is not compressed");
          else if (ret != Z_OK)
-            fatal("inflate failed");
+            fatal("inflate failed %d", ret);
       } while (f->strm.avail_out != 0);
 
       f->rptr = 0;
