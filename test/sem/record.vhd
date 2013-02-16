@@ -56,4 +56,10 @@ package body p is
         v2.x.x := 3;
     end procedure;
 
+    procedure p3 is
+        variable a1 : r1_vec;           -- Error
+    begin
+
+    end procedure;
+
 end package body;

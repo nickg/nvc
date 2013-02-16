@@ -1715,6 +1715,9 @@ static bool sem_check_decl(tree_t t)
    if (!tree_has_value(t) && kind == T_CONST_DECL )
       sem_error(t, "constant declaration must have an initial value");
 
+   if ((type_kind(type) == T_UARRAY) && (kind != T_CONST_DECL))
+      sem_error(t, "type %s is unconstrained", sem_type_str(type));
+
    if (!tree_has_value(t) && (kind != T_PORT_DECL))
       tree_set_value(t, sem_default_value(type));
 

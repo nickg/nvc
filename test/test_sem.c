@@ -902,6 +902,7 @@ START_TEST(test_record)
       { 40, "type of value R1 does not match type of" },
       { 43, "field X already has a value" },
       { 44, "field X already has a value" },
+      { 60, "type R1_VEC is unconstrained" },
       { -1, NULL }
    };
    expect_errors(expect);
