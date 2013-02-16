@@ -2504,20 +2504,21 @@ static tree_t handle_param_expr(tree_t name, list_t *params)
       return s;
    }
    else {
+      tree_t a;
       if (tree_kind(name) == T_ATTR_REF)
-         return name;
+         a = name;
       else {
-         tree_t a = tree_new(T_ARRAY_REF);
+         a = tree_new(T_ARRAY_REF);
          tree_set_value(a, name);
 
          if (tree_kind(name) == T_REF) {
             tree_change_kind(a, T_FCALL);
             tree_set_ident(a, tree_ident(name));
          }
-
-         copy_params(params, tree_add_param, a);
-         return a;
       }
+
+      copy_params(params, tree_add_param, a);
+      return a;
    }
 }
 
