@@ -903,6 +903,7 @@ START_TEST(test_record)
       { 43, "field X already has a value" },
       { 44, "field X already has a value" },
       { 60, "type R1_VEC is unconstrained" },
+      { 68, "record type R1 has no field F" },
       { -1, NULL }
    };
    expect_errors(expect);

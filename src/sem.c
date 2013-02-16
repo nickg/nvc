@@ -3779,8 +3779,8 @@ static bool sem_check_record_ref(tree_t t)
    ident_t fname = tree_ident(t);
 
    const int nfields = type_fields(value_type);
-   tree_t field = NULL;
-   for (int i = 0; i < nfields; i++) {
+   tree_t field;
+   for (int i = 0; i < nfields; i++, field = NULL) {
       field = type_field(value_type, i);
       if (tree_ident(field) == fname)
          break;

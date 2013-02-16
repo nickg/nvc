@@ -59,7 +59,14 @@ package body p is
     procedure p3 is
         variable a1 : r1_vec;           -- Error
     begin
+    end procedure;
 
+    procedure p4 is
+        variable a2 : r1_vec(0 to 3);   -- OK
+    begin
+        a2(2).x := 5;                   -- OK
+        a2(1).f := 2;                   -- Error
+        a2(0).x := a2(1).y;             -- OK
     end procedure;
 
 end package body;

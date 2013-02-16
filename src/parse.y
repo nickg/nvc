@@ -135,6 +135,7 @@
    static tree_t get_time(int64_t fs);
    static void set_delay_mechanism(tree_t t, tree_t reject);
    static tree_t int_to_physical(tree_t t, tree_t unit);
+   static tree_t handle_param_expr(tree_t name, list_t *params);
 
 #define parse_error(loc, ...) do {         \
       error_at(loc, __VA_ARGS__);          \
@@ -2298,38 +2299,15 @@ name
   }
 | name tLPAREN param_list tRPAREN
   {
-     // This is ambiguous between an array reference and a function
-     // call: in the case where $1 is a simple reference assume it
-     // is a function call for now and the semantic checker will
-     // fix things up later. We stash the value $1 in the tree
-     // anyway to make changing the kind easier.
-
-     range_t r;
-     if ($3->next == NULL && to_range_expr($3->item.param.value, &r)) {
-        // Convert range parameters into array slices
-        $$ = tree_new(T_ARRAY_SLICE);
-        tree_set_value($$, $1);
-        tree_set_loc($$, &@$);
-        tree_set_range($$, r);
-        free($3);
-     }
-     else {
-        if (tree_kind($1) == T_ATTR_REF) {
-           $$ = $1;
-        }
-        else {
-           $$ = tree_new(T_ARRAY_REF);
-           tree_set_value($$, $1);
-
-           if (tree_kind($1) == T_REF) {
-              tree_change_kind($$, T_FCALL);
-              tree_set_ident($$, tree_ident($1));
-           }
-        }
-
-        tree_set_loc($$, &@$);
-        copy_params($3, tree_add_param, $$);
-     }
+     $$ = handle_param_expr($1, $3);
+     tree_set_loc($$, &@$);
+  }
+| name tLPAREN param_list tRPAREN tDOT selected_id
+  {
+     $$ = tree_new(T_RECORD_REF);
+     tree_set_loc($$, &@$);
+     tree_set_value($$, handle_param_expr($1, $3));
+     tree_set_ident($$, $6);
   }
 | name tLPAREN range tRPAREN
   {
@@ -2506,6 +2484,41 @@ static tree_t str_to_agg(const char *start, const char *end)
    }
 
    return t;
+}
+
+static tree_t handle_param_expr(tree_t name, list_t *params)
+{
+   // This is ambiguous between an array reference and a function
+   // call: in the case where $1 is a simple reference assume it
+   // is a function call for now and the semantic checker will
+   // fix things up later. We stash the value $1 in the tree
+   // anyway to make changing the kind easier.
+
+   range_t r;
+   if (params->next == NULL && to_range_expr(params->item.param.value, &r)) {
+      // Convert range parameters into array slices
+      tree_t s = tree_new(T_ARRAY_SLICE);
+      tree_set_value(s, name);
+      tree_set_range(s, r);
+      free(params);
+      return s;
+   }
+   else {
+      if (tree_kind(name) == T_ATTR_REF)
+         return name;
+      else {
+         tree_t a = tree_new(T_ARRAY_REF);
+         tree_set_value(a, name);
+
+         if (tree_kind(name) == T_REF) {
+            tree_change_kind(a, T_FCALL);
+            tree_set_ident(a, tree_ident(name));
+         }
+
+         copy_params(params, tree_add_param, a);
+         return a;
+      }
+   }
 }
 
 static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
