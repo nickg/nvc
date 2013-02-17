@@ -3397,6 +3397,9 @@ static bool sem_check_concat(tree_t t)
 
 static bool sem_check_literal(tree_t t)
 {
+   if (tree_has_type(t))
+      return true;
+
    literal_t l = tree_literal(t);
 
    switch (l.kind) {
