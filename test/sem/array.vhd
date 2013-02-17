@@ -170,4 +170,16 @@ begin
         v('b') := 2;
     end process;
 
+    process is
+        type bit_map is array (bit) of integer;
+        variable b : bit_map := ( '0' => 5, '1' => 6 );
+        type bit_map2 is array (bit, 0 to 1) of integer;
+        variable c : bit_map2 := (
+            '0' => (0 => 0, 1 => 1),
+            '1' => (0 => 2, 1 => 3) );
+    begin
+        b('0') := 6;
+        c('1', 1) := 5;
+    end process;
+
 end architecture;

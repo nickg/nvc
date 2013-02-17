@@ -3211,12 +3211,12 @@ static bool sem_check_concat_param(tree_t t, type_t expect)
    return ok;
 }
 
-static type_t sem_index_type(type_t type)
+static type_t sem_index_type(type_t type, int dim)
 {
    if (type_kind(type) == T_UARRAY)
-      return type_index_constr(type, 0);
+      return type_index_constr(type, dim);
    else
-      return tree_type(type_dim(type, 0).left);
+      return tree_type(type_dim(type, dim).left);
 }
 
 static bool sem_check_concat(tree_t t)
@@ -3279,7 +3279,7 @@ static bool sem_check_concat(tree_t t)
       if (sem_array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
-      type_t index_type = sem_index_type(ltype);
+      type_t index_type = sem_index_type(ltype, 0);
       range_t index_r = type_dim(index_type, 0);
 
       type_t std_int = sem_std_type("INTEGER");
@@ -3332,7 +3332,7 @@ static bool sem_check_concat(tree_t t)
       if (!type_eq(stype, type_elem(atype)))
          sem_error(t, "type of scalar does not match element type of array");
 
-      type_t index_type = sem_index_type(atype);
+      type_t index_type = sem_index_type(atype, 0);
       range_t index_r = type_dim(index_type, 0);
 
       type_t std_int = sem_std_type("INTEGER");
@@ -3364,7 +3364,7 @@ static bool sem_check_concat(tree_t t)
       if (!type_eq(ltype, rtype))
          sem_error(t, "cannot concatenate values of different types");
 
-      type_t index_type = sem_index_type(composite);
+      type_t index_type = sem_index_type(composite, 0);
       range_t index_r = type_dim(index_type, 0);
 
       tree_t result_right = call_builtin(
@@ -3541,6 +3541,8 @@ static bool sem_check_aggregate(tree_t t)
             type_add_dim(elem_type, type_dim(composite_type, i));
       }
 
+      type_t index_type = sem_index_type(composite_type, 0);
+
       for (int i = 0; i < nassocs; i++) {
          assoc_t a = tree_assoc(t, i);
 
@@ -3552,7 +3554,7 @@ static bool sem_check_aggregate(tree_t t)
             break;
 
          case A_NAMED:
-            if (!sem_check(a.name))  // TODO: constrained by index type
+            if (!sem_check_constrained(a.name, index_type))
                return false;
             break;
 
@@ -3825,7 +3827,7 @@ static bool sem_check_array_ref(tree_t t)
       if (p.kind != P_POS)
          sem_error(t, "only scalar references supported");
 
-      type_t expect = sem_index_type(type);
+      type_t expect = sem_index_type(type, i);
 
       ok = sem_check_constrained(p.value, expect) && ok;
 
