@@ -1794,6 +1794,9 @@ static bool sem_check_port_decl(tree_t t)
                    sem_type_str(type));
    }
 
+   if (type_kind(type) == T_RECORD)
+      sem_declare_fields(type, tree_ident(t));
+
    sem_add_attributes(t);
    return true;
 }
