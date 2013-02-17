@@ -716,6 +716,10 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Subtraction
       sem_declare_binary(minus, t, t, t, "sub");
 
+      // Sign operators
+      sem_declare_unary(plus, t, t, "identity");
+      sem_declare_unary(minus, t, t, "neg");
+
       // Comparison
       sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");
       sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "leq");

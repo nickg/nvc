@@ -24,4 +24,9 @@ begin
     begin
     end process;
 
+    process is
+        variable t : time := -1 ns;
+    begin
+    end process;
+
 end architecture;
