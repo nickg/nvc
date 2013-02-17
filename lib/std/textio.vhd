@@ -47,11 +47,11 @@ package TEXTIO is
     procedure READ (L     : inout LINE;
                     VALUE : out INTEGER );
 
-    --procedure READ (L     : inout LINE;
-    --                VALUE : out REAL;
-    --                GOOD  : out BOOLEAN );
-    --procedure READ (L     : inout LINE;
-    --                VALUE : out REAL );
+    procedure READ (L     : inout LINE;
+                    VALUE : out REAL;
+                    GOOD  : out BOOLEAN );
+    procedure READ (L     : inout LINE;
+                    VALUE : out REAL );
 
     procedure READ (L     : inout LINE;
                     VALUE : out STRING;
@@ -64,5 +64,49 @@ package TEXTIO is
                     GOOD  : out BOOLEAN );
     procedure READ (L     : inout LINE;
                     VALUE : out TIME );
+
+    procedure WRITELINE (file F : TEXT; L : inout LINE);
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in BIT;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in BIT_VECTOR;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in BOOLEAN;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in CHARACTER;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in INTEGER;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in REAL;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0;
+                     DIGITS    : in NATURAL:= 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in STRING;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0 );
+
+    procedure WRITE (L         : inout LINE;
+                     VALUE     : in TIME;
+                     JUSTIFIED : in SIDE:= RIGHT;
+                     FIELD     : in WIDTH := 0;
+                     UNIT      : in TIME:= ns );
 
 end package;
