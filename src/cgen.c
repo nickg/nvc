@@ -1325,6 +1325,14 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
    return LLVMBuildICmp(builder, pred, cmp, llvm_int32(0), "");
 }
 
+static LLVMValueRef cgen_last_event(tree_t t)
+{
+   LLVMValueRef signal_struct = tree_attr_ptr(tree_ref(t), sig_struct_i);
+   LLVMValueRef ptr =
+      LLVMBuildStructGEP(builder, signal_struct, SIGNAL_LAST_EVENT, "");
+   return LLVMBuildLoad(builder, ptr, "");
+}
+
 static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
 {
    // Ensure all arguments to arithmetic operators are the same width
@@ -1363,6 +1371,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_name_attr(tree_param(t, 0).value, 1);
       else if (icmp(builtin, "path_name"))
          return cgen_name_attr(tree_param(t, 0).value, 0);
+      else if (icmp(builtin, "last_event"))
+         return cgen_last_event(tree_param(t, 0).value);
    }
 
    const int nparams = tree_params(t);
@@ -3221,6 +3231,7 @@ static LLVMValueRef cgen_signal_init(type_t type, LLVMValueRef resolution)
       init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_RESOLUTION] = resolution;
+      init[SIGNAL_LAST_EVENT] = LLVMConstInt(LLVMInt64Type(), INT64_MAX, false);
 
       LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
       assert(signal_s != NULL);
@@ -3260,6 +3271,7 @@ static LLVMTypeRef cgen_signal_type(type_t type)
          fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
          fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
          fields[SIGNAL_RESOLUTION] = llvm_void_ptr();
+         fields[SIGNAL_LAST_EVENT] = LLVMInt64Type();
 
          if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
             fatal("failed to add type name signal_s");

@@ -1613,12 +1613,14 @@ static void sem_add_attributes(tree_t decl)
    if ((tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
        || (tree_kind(decl) == T_SIGNAL_DECL)) {
       type_t std_string = sem_std_type("STRING");
+      type_t std_time   = sem_std_type("TIME");
 
       ident_t event_i      = ident_new("EVENT");
       ident_t last_value_i = ident_new("LAST_VALUE");
       ident_t active_i     = ident_new("ACTIVE");
       ident_t inst_name_i  = ident_new("INSTANCE_NAME");
       ident_t path_name_i  = ident_new("PATH_NAME");
+      ident_t last_event_i = ident_new("LAST_EVENT");
 
       tree_add_attr_tree(decl, event_i,
                          sem_builtin_fn(event_i, std_bool, "event",
@@ -1635,6 +1637,9 @@ static void sem_add_attributes(tree_t decl)
       tree_add_attr_tree(decl, path_name_i,
                          sem_builtin_fn(path_name_i, std_string,
                                         "path_name", type, NULL));
+      tree_add_attr_tree(decl, last_event_i,
+                         sem_builtin_fn(last_event_i, std_time,
+                                        "last_event", type, NULL));
    }
 }
 

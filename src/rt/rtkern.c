@@ -91,16 +91,17 @@ struct driver {
 };
 
 struct signal {
-   uint64_t         resolved;
-   uint64_t         last_value;
-   tree_t           decl;
-   uint8_t          flags;
-   uint8_t          n_drivers;
-   uint16_t         offset;
+   uint64_t          resolved;
+   uint64_t          last_value;
+   tree_t            decl;
+   uint8_t           flags;
+   uint8_t           n_drivers;
+   uint16_t          offset;
    struct driver    *drivers;
    struct sens_list *sensitive;
-   sig_event_fn_t   event_cb;
-   resolution_fn_t  resolution;
+   sig_event_fn_t    event_cb;
+   resolution_fn_t   resolution;
+   uint64_t          last_event;
 };
 
 struct uarray {
@@ -1005,8 +1006,10 @@ static void rt_update_signal(struct signal *s, int driver, uint64_t value)
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
-   if (new_flags & SIGNAL_F_EVENT)
+   if (new_flags & SIGNAL_F_EVENT) {
       s->last_value = s->resolved;
+      s->last_event = now;
+   }
 
    s->resolved  = resolved;
    s->flags    |= new_flags;
