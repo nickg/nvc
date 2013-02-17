@@ -58,11 +58,11 @@ struct loop_stack {
 
 #define MAX_OVERLOADS 32
 
-#define MAX_TS_MEMBERS 32
 struct type_set {
-   type_t          members[MAX_TS_MEMBERS];
-   unsigned        n_members;
-   bool            universal;
+   type_t   *members;
+   unsigned  n_members;
+   unsigned  alloc;
+   bool      universal;
 
    struct type_set *down;
 };
@@ -413,6 +413,8 @@ static void type_set_push(void)
 {
    struct type_set *t = xmalloc(sizeof(struct type_set));
    t->n_members = 0;
+   t->alloc     = 32;
+   t->members   = xmalloc(t->alloc * sizeof(type_t));
    t->down      = top_type_set;
    t->universal = false;
 
@@ -431,19 +433,25 @@ static void type_set_pop(void)
 
    struct type_set *old = top_type_set;
    top_type_set = old->down;
+   free(old->members);
    free(old);
 }
 
 static void type_set_add(type_t t)
 {
    assert(top_type_set != NULL);
-   assert(top_type_set->n_members < MAX_TS_MEMBERS);
    assert(t != NULL);
    assert(type_kind(t) != T_UNRESOLVED);
 
    for (unsigned i = 0; i < top_type_set->n_members; i++) {
       if (type_eq(top_type_set->members[i], t))
          return;
+   }
+
+   if (top_type_set->n_members == top_type_set->alloc) {
+      top_type_set->alloc *= 2;
+      top_type_set->members =
+         xrealloc(top_type_set->members, top_type_set->alloc * sizeof(type_t));
    }
 
    top_type_set->members[top_type_set->n_members++] = t;
