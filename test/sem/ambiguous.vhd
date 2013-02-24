@@ -79,7 +79,7 @@ begin
         y := '¢';
         report "foo¥bar";
     end process;
-    
+
 end architecture;
 
 -- -*- coding: latin-1; -*-

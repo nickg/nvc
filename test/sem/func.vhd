@@ -183,4 +183,12 @@ package body func is
         return k;
     end function;
 
+    function test21a(x : string) return integer;
+    function test21a(x : bit_vector) return integer;
+
+    function test21 return integer is
+    begin
+        return test21a(';' & LF);       -- OK
+    end function;
+
 end package body;

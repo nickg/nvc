@@ -3246,32 +3246,14 @@ static bool sem_check_concat(tree_t t)
    if (!type_set_force_composite())
       sem_error(t, "no composite type in context%s", type_set_fmt());
 
-   type_t composite;
-   bool uniq_comp = type_set_uniq(&composite);
-
-   bool ok;
-   tree_t other;
-
-   bool left_ambig  = sem_maybe_ambiguous(left);
-   bool right_ambig = sem_maybe_ambiguous(right);
-
-   if (left_ambig && right_ambig) {
-      if (!uniq_comp)
-         sem_error(t, "type of concatenation is ambiguous%s", type_set_fmt());
-      ok = sem_check_concat_param(left);
-      other = right;
-   }
-   else if (left_ambig) {
-      if ((ok = sem_check_concat_param(right)))
-         other  = left;
+   if (sem_maybe_ambiguous(left)) {
+      if (!sem_check_concat_param(right) || !sem_check_concat_param(left))
+         return false;
    }
    else {
-      if ((ok = sem_check_concat_param(left)))
-         other  = right;
+      if (!sem_check_concat_param(right) || !sem_check_concat_param(left))
+         return false;
    }
-
-   if (!(ok && sem_check_concat_param(other)))
-      return false;
 
    type_t ltype = tree_type(left);
    type_t rtype = tree_type(right);
@@ -3373,6 +3355,15 @@ static bool sem_check_concat(tree_t t)
 
       if (!type_eq(ltype, rtype))
          sem_error(t, "cannot concatenate values of different types");
+
+      // Match the element type to a composite in the type set
+      type_t composite = NULL;
+      for (unsigned i = 0; i < top_type_set->n_members; i++) {
+         type_t this = top_type_set->members[i];
+         if (type_is_array(this) && type_eq(type_elem(this), ltype))
+            composite = this;
+      }
+      assert(composite != NULL);
 
       type_t index_type = sem_index_type(composite, 0);
       range_t index_r = type_dim(index_type, 0);
