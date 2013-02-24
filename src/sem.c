@@ -4584,6 +4584,13 @@ static bool sem_check_new(tree_t t)
       return false;
 
    switch (tree_kind(value)) {
+   case T_ARRAY_SLICE:
+      value = tree_value(value);
+      if (tree_kind(value) != T_REF)
+         sem_error(t, "invalid array allocator expression");
+
+      // Fall-through
+
    case T_REF:
       {
          tree_t decl = tree_ref(value);
@@ -4594,22 +4601,6 @@ static bool sem_check_new(tree_t t)
       break;
 
    case T_QUALIFIED:
-      break;
-
-   case T_ARRAY_SLICE:
-      {
-         // The checking code for slices will have generated an
-         // implicit dereference
-         tree_t all = tree_value(value), ref;
-         if ((tree_kind(all) != T_ALL)
-             || (ref = tree_value(all), tree_kind(ref) != T_REF))
-            sem_error(t, "invalid array allocator expression");
-
-         tree_t decl = tree_ref(ref);
-         if (tree_kind(decl) != T_TYPE_DECL)
-            sem_error(value, "%s does not name a type",
-                      istr(tree_ident(ref)));
-      }
       break;
 
    default:
