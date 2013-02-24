@@ -3192,6 +3192,14 @@ static tree_t sem_array_len(type_t type)
    return call_builtin("add", index_type, tmp, one, NULL);
 }
 
+static type_t sem_index_type(type_t type, int dim)
+{
+   if (type_kind(type) == T_UARRAY)
+      return type_index_constr(type, dim);
+   else
+      return tree_type(type_dim(type, dim).left);
+}
+
 static bool sem_check_concat_param(tree_t t)
 {
    struct type_set *old = top_type_set;
@@ -3224,14 +3232,6 @@ static bool sem_check_concat_param(tree_t t)
    type_set_pop();
 
    return ok;
-}
-
-static type_t sem_index_type(type_t type, int dim)
-{
-   if (type_kind(type) == T_UARRAY)
-      return type_index_constr(type, dim);
-   else
-      return tree_type(type_dim(type, dim).left);
 }
 
 static bool sem_check_concat(tree_t t)
