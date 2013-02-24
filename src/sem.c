@@ -3192,7 +3192,7 @@ static tree_t sem_array_len(type_t type)
    return call_builtin("add", index_type, tmp, one, NULL);
 }
 
-static bool sem_check_concat_param(tree_t t, type_t expect1)
+static bool sem_check_concat_param(tree_t t)
 {
    struct type_set *old = top_type_set;
 
@@ -3248,7 +3248,6 @@ static bool sem_check_concat(tree_t t)
 
    type_t composite;
    bool uniq_comp = type_set_uniq(&composite);
-   type_t expect = composite;
 
    bool ok;
    tree_t other;
@@ -3259,23 +3258,19 @@ static bool sem_check_concat(tree_t t)
    if (left_ambig && right_ambig) {
       if (!uniq_comp)
          sem_error(t, "type of concatenation is ambiguous%s", type_set_fmt());
-      ok = sem_check_concat_param(left, expect);
+      ok = sem_check_concat_param(left);
       other = right;
    }
    else if (left_ambig) {
-      if ((ok = sem_check_concat_param(right, NULL))) {
-         expect = tree_type(right);
+      if ((ok = sem_check_concat_param(right)))
          other  = left;
-      }
    }
    else {
-      if ((ok = sem_check_concat_param(left, NULL))) {
-         expect = tree_type(left);
+      if ((ok = sem_check_concat_param(left)))
          other  = right;
-      }
    }
 
-   if (!(ok && sem_check_concat_param(other, expect)))
+   if (!(ok && sem_check_concat_param(other)))
       return false;
 
    type_t ltype = tree_type(left);
