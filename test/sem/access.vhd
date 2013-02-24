@@ -13,6 +13,10 @@ package p is
         link  : rec_ptr;
     end record;
 
+    type int_vec is array (integer range <>) of integer;
+
+    type int_vec_ptr is access int_vec;
+
 end package;
 
 package body p is
@@ -21,6 +25,7 @@ package body p is
         variable v : int_ptr;
         variable i : integer;
         variable r : rec_ptr;
+        variable a : int_vec_ptr;
     begin
         v := null;                      -- OK
         i := null;                      -- Error
@@ -39,6 +44,7 @@ package body p is
         r.link := r.all;                -- Error
         i := r.value;                   -- OK
         r := r.all.link;                -- OK
+        a := new int_vec_ptr(1 to 3);   -- OK
     end procedure;
 
 end package body;

@@ -3853,6 +3853,9 @@ static bool sem_check_array_slice(tree_t t)
 
    type_t array_type = tree_type(tree_value(t));
 
+   if (type_kind(array_type) == T_ACCESS)
+      array_type = type_access(array_type);
+
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
 
@@ -4581,8 +4584,17 @@ static bool sem_check_new(tree_t t)
       break;
 
    case T_ARRAY_SLICE:
-      sem_error(t, "sorry, this form of allocator expression is not "
-                "supported yet");
+      {
+         tree_t ref = tree_value(value);
+         if (tree_kind(ref) != T_REF)
+            sem_error(t, "invalid form of allocator expression");
+
+         tree_t decl = tree_ref(ref);
+         if (tree_kind(decl) != T_TYPE_DECL)
+            sem_error(value, "%s does not name a type",
+                      istr(tree_ident(ref)));
+      }
+      break;
 
    default:
       sem_error(t, "invalid allocator expression");
