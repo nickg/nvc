@@ -2849,6 +2849,8 @@ static bool sem_check_fcall(tree_t t)
    int n = 0, found_func = 0;
    do {
       if ((decl = scope_find_nth(tree_ident(t), n++))) {
+         type_t func_type = tree_type(decl);
+
          switch (tree_kind(decl)) {
          case T_FUNC_DECL:
          case T_FUNC_BODY:
@@ -2859,7 +2861,9 @@ static bool sem_check_fcall(tree_t t)
             tree_set_ref(t, decl);
             return sem_check_conversion(t);
          default:
-            if (type_is_array(tree_type(decl))) {
+            if (type_is_array(func_type)
+                || ((type_kind(func_type) == T_ACCESS)
+                    && type_is_array(type_access(func_type)))) {
                // The grammar is ambiguous between function calls and
                // array references so must be an array reference
                tree_t ref = tree_new(T_REF);
@@ -2874,7 +2878,6 @@ static bool sem_check_fcall(tree_t t)
                continue;   // Look for the next matching name
          }
 
-         type_t func_type = tree_type(decl);
          if (type_set_member(type_result(func_type))) {
             // Number of arguments must match
             if (!sem_check_arity(t, decl))
@@ -3804,6 +3807,28 @@ static bool sem_check_record_ref(tree_t t)
    return true;
 }
 
+static type_t sem_implicit_dereference(tree_t t)
+{
+   // Construct the implicit dereference when slicing or indexing arrays
+   // through accesses
+
+   tree_t value = tree_value(t);
+
+   type_t type = tree_type(value);
+   assert(type_kind(type) == T_ACCESS);
+
+   type_t access = type_access(type);
+
+   tree_t all = tree_new(T_ALL);
+   tree_set_loc(all, tree_loc(value));
+   tree_set_value(all, value);
+   tree_set_type(all, access);
+
+   tree_set_value(t, all);
+
+   return access;
+}
+
 static bool sem_check_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
@@ -3811,6 +3836,9 @@ static bool sem_check_array_ref(tree_t t)
       return false;
 
    type_t type = tree_type(tree_value(t));
+
+   if (type_kind(type) == T_ACCESS)
+      type = sem_implicit_dereference(t);
 
    if (!type_is_array(type))
       sem_error(t, "invalid array reference");
@@ -3854,7 +3882,7 @@ static bool sem_check_array_slice(tree_t t)
    type_t array_type = tree_type(tree_value(t));
 
    if (type_kind(array_type) == T_ACCESS)
-      array_type = type_access(array_type);
+      array_type = sem_implicit_dereference(t);
 
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
@@ -4585,9 +4613,12 @@ static bool sem_check_new(tree_t t)
 
    case T_ARRAY_SLICE:
       {
-         tree_t ref = tree_value(value);
-         if (tree_kind(ref) != T_REF)
-            sem_error(t, "invalid form of allocator expression");
+         // The checking code for slices will have generated an
+         // implicit dereference
+         tree_t all = tree_value(value), ref;
+         if ((tree_kind(all) != T_ALL)
+             || (ref = tree_value(all), tree_kind(ref) != T_REF))
+            sem_error(t, "invalid array allocator expression");
 
          tree_t decl = tree_ref(ref);
          if (tree_kind(decl) != T_TYPE_DECL)

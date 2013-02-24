@@ -45,6 +45,9 @@ package body p is
         i := r.value;                   -- OK
         r := r.all.link;                -- OK
         a := new int_vec_ptr(1 to 3);   -- OK
+        a.all(5) := 2;                  -- OK
+        a(5) := 2;                      -- OK
+        a(1 to 2) := (1, 2);            -- OK
     end procedure;
 
 end package body;
