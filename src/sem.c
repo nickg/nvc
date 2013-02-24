@@ -478,13 +478,9 @@ static bool type_set_force_composite(void)
       if (type_is_array(type) || (type_kind(type) == T_RECORD))
          top_type_set->members[j++] = type;
    }
+   top_type_set->n_members = j;
 
-   if (j > 0) {
-      top_type_set->n_members = j;
-      return true;
-   }
-   else
-      return false;
+   return j > 0;
 }
 
 static bool type_set_uniq(type_t *pt)
@@ -3196,30 +3192,33 @@ static tree_t sem_array_len(type_t type)
    return call_builtin("add", index_type, tmp, one, NULL);
 }
 
-static bool sem_check_concat_param(tree_t t, type_t expect)
+static bool sem_check_concat_param(tree_t t, type_t expect1)
 {
-   while (type_kind(expect) == T_SUBTYPE)
-      expect = type_base(expect);
+   struct type_set *old = top_type_set;
 
    type_set_push();
 
-   type_kind_t expect_k = type_kind(expect);
+   for (unsigned i = 0; i < old->n_members; i++) {
+      type_t this = type_base_recur(old->members[i]);
 
-   if (expect_k == T_CARRAY) {
-      // The bounds of one side should not be used to determine
-      // those of the other side
-      type_t u = type_new(T_UARRAY);
-      type_set_elem(u, type_elem(expect));
-      type_set_ident(u, type_ident(expect));
-      for (unsigned i = 0; i < type_dims(expect); i++)
-         type_add_index_constr(u, tree_type(type_dim(expect, i).left));
-      type_set_add(u);
+      type_kind_t kind = type_kind(this);
+
+      if (kind == T_CARRAY) {
+         // The bounds of one side should not be used to determine
+         // those of the other side
+         type_t u = type_new(T_UARRAY);
+         type_set_elem(u, type_elem(this));
+         type_set_ident(u, type_ident(this));
+         for (unsigned i = 0; i < type_dims(this); i++)
+            type_add_index_constr(u, tree_type(type_dim(this, i).left));
+         type_set_add(u);
+      }
+      else
+         type_set_add(this);
+
+      if (type_is_array(this))
+         type_set_add(type_elem(this));
    }
-   else
-      type_set_add(expect);
-
-   if (expect_k == T_CARRAY || expect_k == T_UARRAY)
-      type_set_add(type_elem(expect));
 
    bool ok = sem_check(t);
    type_set_pop();
@@ -3264,13 +3263,13 @@ static bool sem_check_concat(tree_t t)
       other = right;
    }
    else if (left_ambig) {
-      if ((ok = sem_check(right))) {
+      if ((ok = sem_check_concat_param(right, NULL))) {
          expect = tree_type(right);
          other  = left;
       }
    }
    else {
-      if ((ok = sem_check(left))) {
+      if ((ok = sem_check_concat_param(left, NULL))) {
          expect = tree_type(left);
          other  = right;
       }
