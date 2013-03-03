@@ -98,3 +98,4 @@ signal9         normal
 bounds5         gold,fail
 loop1           normal
 record2         normal
+access2         normal

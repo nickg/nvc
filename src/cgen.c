@@ -280,7 +280,13 @@ static LLVMTypeRef llvm_type(type_t t)
       }
 
    case T_ACCESS:
-      return LLVMPointerType(llvm_type(type_access(t)), 0);
+      {
+         type_t access = type_access(t);
+         if (type_is_array(access))
+            return llvm_uarray_type(llvm_type(type_elem(access)));
+         else
+            return LLVMPointerType(llvm_type(access), 0);
+      }
 
    default:
       assert(false);
@@ -1675,7 +1681,6 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
       // Unwrap array to get data pointer
-      // TODO: insert bounds checking here
       return LLVMBuildExtractValue(builder, var, 0, "aptr");
    }
    else {
@@ -2185,14 +2190,39 @@ static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
 {
-   LLVMTypeRef deref_type = llvm_type(type_access(tree_type(t)));
-   return LLVMBuildMalloc(builder, deref_type, "");
+   type_t type = type_access(tree_type(t));
+   if (type_is_array(type)) {
+      // Need to allocate memory for both the array and its metadata
+
+      range_t r = tree_range(tree_value(t));
+
+      LLVMTypeRef elem = llvm_type(type_elem(type));
+
+      LLVMValueRef meta =
+         cgen_array_meta(type,
+                         cgen_expr(r.left, ctx),
+                         cgen_expr(r.right, ctx),
+                         llvm_int8(r.kind),
+                         LLVMConstNull(LLVMPointerType(elem, 0)));
+
+      LLVMValueRef len  = cgen_array_len(type, meta);
+      LLVMValueRef data = LLVMBuildArrayMalloc(builder, elem, len, "data");
+
+      return LLVMBuildInsertValue(builder, meta, data, 0, "");
+   }
+   else {
+      LLVMTypeRef deref_type = llvm_type(type);
+      return LLVMBuildMalloc(builder, deref_type, "");
+   }
 }
 
 static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
 {
    LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
-   return LLVMBuildLoad(builder, ptr, "all");
+   if (type_is_array(tree_type(t)))
+      return ptr;
+   else
+      return LLVMBuildLoad(builder, ptr, "all");
 }
 
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
@@ -2330,10 +2360,16 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
       {
          LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
 
-         LLVMValueRef indexes[] = {
-            llvm_int32(0)
-         };
-         return LLVMBuildGEP(builder, ptr, indexes, ARRAY_LEN(indexes), "all");
+         type_t type = tree_type(t);
+         if (type_is_array(type))
+            return ptr;
+         else {
+            LLVMValueRef indexes[] = {
+               llvm_int32(0)
+            };
+            return LLVMBuildGEP(builder, ptr, indexes,
+                                ARRAY_LEN(indexes), "all");
+         }
       }
 
    default:
@@ -2815,8 +2851,17 @@ static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args,
 {
    if (icmp(builtin, "deallocate")) {
       LLVMValueRef ptr = LLVMBuildLoad(builder, args[0], "");
-      LLVMBuildFree(builder, ptr);
-      LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(ptr)), args[0]);
+
+      type_t access = type_access(arg_types[0]);
+      if (type_is_array(access)) {
+         LLVMValueRef data = cgen_array_data_ptr(access, ptr);
+         LLVMDumpModule(module);
+         LLVMBuildFree(builder, data);
+      }
+      else {
+         LLVMBuildFree(builder, ptr);
+         LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(ptr)), args[0]);
+      }
    }
    else if (icmp(builtin, "file_open1")) {
       LLVMValueRef args2[] = {
