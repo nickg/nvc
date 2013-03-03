@@ -2188,7 +2188,7 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
 
    LLVMValueRef ptr = LLVMBuildMalloc(builder, llvm_type(type), "");
 
-   if (type_is_array(type)) {
+   if (type_is_array(type) && !cgen_const_bounds(type)) {
       // Need to allocate memory for both the array and its metadata
 
       range_t r = tree_range(tree_value(t));
@@ -2215,8 +2215,12 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
 {
+   type_t type = tree_type(t);
    LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
-   return LLVMBuildLoad(builder, ptr, "all");
+   if (type_is_array(type) && cgen_const_bounds(type))
+      return ptr;
+   else
+      return LLVMBuildLoad(builder, ptr, "all");
 }
 
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
@@ -2355,7 +2359,7 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
 
          type_t type = tree_type(t);
-         if (type_is_array(type))
+         if (type_is_array(type) && !cgen_const_bounds(type))
             return LLVMBuildLoad(builder, ptr, "all");
          else {
             LLVMValueRef indexes[] = {
@@ -2847,7 +2851,7 @@ static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args,
       LLVMValueRef ptr = LLVMBuildLoad(builder, args[0], "");
 
       type_t access = type_access(arg_types[0]);
-      if (type_is_array(access)) {
+      if (type_is_array(access) && !cgen_const_bounds(access)) {
          LLVMValueRef meta = LLVMBuildLoad(builder, ptr, "meta");
 
          LLVMValueRef data = cgen_array_data_ptr(access, meta);

@@ -7,16 +7,27 @@ architecture test of access2 is
 
     type int_vec_ptr is access int_vec;
 
+    subtype int_vec10 is int_vec(1 to 10);
+
+    type int_vec10_ptr is access int_vec10;
+
 begin
 
     process is
         variable p : int_vec_ptr;
+        variable q : int_vec10_ptr;
     begin
         p := new int_vec(1 to 5);
         p(1) := 2;
         assert p(1) = 2;
         deallocate(p);
-        --assert p = null;
+        assert p = null;
+
+        q := new int_vec10;
+        q(3) := 5;
+        assert q(3) = 5;
+        deallocate(q);
+
         wait;
     end process;
 

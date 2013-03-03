@@ -280,16 +280,16 @@ bool type_eq(type_t a, type_t b)
        && (type_ident(a) == ureal_i || type_ident(b) == ureal_i))
       return true;
 
-   // Access types are equal if the pointed to type is the same
-   if (kind_a == T_ACCESS)
-      return type_eq(type_access(a), type_access(b));
-
    // XXX: this is not quite right as structurally equivalent types
    // may be declared in different scopes with the same name but
    // shouldn't compare equal
 
    if (type_ident(a) != type_ident(b))
       return false;
+
+   // Access types are equal if the pointed to type is the same
+   if (kind_a == T_ACCESS)
+      return type_eq(type_access(a), type_access(b));
 
    if (compare_c_u_arrays)
       return type_eq(type_elem(a), type_elem(b));

@@ -459,14 +459,14 @@ static void type_set_force(type_t t)
    top_type_set->n_members  = 1;
 }
 
-static bool type_set_force_composite(void)
+static bool type_set_restrict(bool (*pred)(type_t))
 {
    assert(top_type_set != NULL);
 
    int j = 0;
    for (int i = 0; i < top_type_set->n_members; i++) {
       type_t type = top_type_set->members[i];
-      if (type_is_array(type) || (type_kind(type) == T_RECORD))
+      if ((*pred)(type))
          top_type_set->members[j++] = type;
    }
    top_type_set->n_members = j;
@@ -3222,6 +3222,11 @@ static bool sem_check_concat_param(tree_t t)
    return ok;
 }
 
+static bool sem_is_composite(type_t t)
+{
+   return type_is_array(t) || (type_kind(t) == T_RECORD);
+}
+
 static bool sem_check_concat(tree_t t)
 {
    // Concatenation expressions are treated differently to other operators
@@ -3231,7 +3236,7 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_param(t, 0).value;
    tree_t right = tree_param(t, 1).value;
 
-   if (!type_set_force_composite())
+   if (!type_set_restrict(sem_is_composite))
       sem_error(t, "no composite type in context%s", type_set_fmt());
 
    if (sem_maybe_ambiguous(left)) {
@@ -3419,7 +3424,7 @@ static bool sem_check_aggregate(tree_t t)
    // The type of an aggregate must be determinable solely from the
    // context in which the aggregate appears
 
-   if (!type_set_force_composite())
+   if (!type_set_restrict(sem_is_composite))
       sem_error(t, "no composite type in context%s", type_set_fmt());
 
    type_t composite_type;
@@ -4574,6 +4579,11 @@ static bool sem_check_file_decl(tree_t t)
    return scope_insert(t);
 }
 
+static bool sem_is_access(type_t t)
+{
+   return type_kind(t) == T_ACCESS;
+}
+
 static bool sem_check_new(tree_t t)
 {
    // Rules for allocators are in LRM 93 section 7.3.6
@@ -4607,8 +4617,12 @@ static bool sem_check_new(tree_t t)
       sem_error(t, "invalid allocator expression");
    }
 
-   type_t type = type_new(T_ACCESS);
-   type_set_access(type, tree_type(value));
+   if (!type_set_restrict(sem_is_access))
+      sem_error(t, "no access type in context");
+
+   type_t type;
+   if (!type_set_uniq(&type))
+      sem_error(t, "context does not contain unique access type");
 
    tree_set_type(t, type);
    return true;

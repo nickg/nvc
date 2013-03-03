@@ -446,6 +446,7 @@ static item_t *lookup_item(tree_t t, imask_t mask)
          ;
 
       assert(item < ARRAY_LEN(item_text_map));
+      assert(false);
       fatal("tree kind %s does not have item %s",
             kind_text_map[t->kind], item_text_map[item]);
    }
