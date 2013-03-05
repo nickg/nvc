@@ -189,4 +189,13 @@ begin
         v := (v'range => 6);            -- OK
     end process;
 
+    process is
+        type mybit is ('0', '1');
+        type bit_map is array (bit range '0' to '1') of integer;
+        variable v : bit_map;
+        variable b : bit;
+    begin
+        v(b) := 1;                      -- OK
+    end process;
+
 end architecture;

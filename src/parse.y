@@ -1914,6 +1914,8 @@ constraint_elem
 | type_mark range_constraint
   {
      $$ = $2;
+     tree_set_type($$.left, $1);
+     tree_set_type($$.right, $1);
   }
 ;
 

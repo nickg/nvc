@@ -71,6 +71,7 @@ static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
 static bool sem_locally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
+static bool sem_check_type(tree_t t, type_t *ptype);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -1098,7 +1099,7 @@ static bool sem_declare(tree_t decl)
    return ok;
 }
 
-static bool sem_check_range(range_t *r)
+static bool sem_check_range(range_t *r, type_t context)
 {
    if (r->kind == RANGE_EXPR) {
       assert(r->right == NULL);
@@ -1141,11 +1142,10 @@ static bool sem_check_range(range_t *r)
       }
    }
 
-   type_set_push();
-   bool ok = sem_check(r->left) && sem_check(r->right);
-   type_set_pop();
+   if (!sem_check_constrained(r->left, context))
+      return false;
 
-   if (!ok)
+   if (!sem_check_constrained(r->right, context))
       return false;
 
    if (!type_eq(tree_type(r->left), tree_type(r->right)))
@@ -1219,16 +1219,18 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
    for (unsigned i = 0; i < type_dims(type); i++) {
       range_t r = type_dim(type, i);
 
-      type_t index_type =
-         constraint ? type_index_constr(constraint, i) : NULL;
+      type_t index_type = NULL;
+      if (constraint != NULL)
+         index_type = type_index_constr(constraint, i);
+      else if (tree_has_type(r.left)) {
+         // Index constraint of the form (FOO range A to B)
+         // In this case the parser stores the type FOO with A and B
+         index_type = tree_type(r.left);
+         if (!sem_check_type(r.left, &index_type))
+            return false;
+      }
 
-      type_set_push();
-      if (index_type)
-         type_set_add(index_type);
-      bool ok = sem_check_range(&r);
-      type_set_pop();
-
-      if (!ok)
+      if (!sem_check_range(&r, index_type))
          return false;
 
       if (index_type) {
@@ -1239,7 +1241,8 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
             error = r.right;
 
          if (error)
-            sem_error(error, "type of bound does not match type of index %s",
+            sem_error(error, "type of bound %s does not match type of index %s",
+                      sem_type_str(tree_type(error)),
                       sem_type_str(index_type));
 
          tree_set_type(r.left, index_type);
@@ -3545,7 +3548,7 @@ static bool sem_check_aggregate(tree_t t)
 
          switch (a.kind) {
          case A_RANGE:
-            if (!sem_check_range(&a.range))
+            if (!sem_check_range(&a.range, index_type))
                return false;
             tree_change_assoc(t, i, a);
             break;
@@ -3877,15 +3880,11 @@ static bool sem_check_array_slice(tree_t t)
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
 
-   type_set_push();
-   type_set_add(sem_std_type("INTEGER"));
    range_t r = tree_range(t);
-   bool ok = sem_check_range(&r);
-   tree_set_range(t, r);
-   type_set_pop();
-
-   if (!ok)
+   if (!sem_check_range(&r, sem_std_type("INTEGER")))
       return false;
+
+   tree_set_range(t, r);
 
    bool wrong_dir =
       (type_kind(array_type) != T_UARRAY)
@@ -4335,7 +4334,7 @@ static bool sem_check_while(tree_t t)
 static bool sem_check_for(tree_t t)
 {
    range_t r = tree_range(t);
-   if (!sem_check_range(&r))
+   if (!sem_check_range(&r, NULL))
       return false;
    tree_set_range(t, r);
 
@@ -4503,9 +4502,8 @@ static bool sem_check_if_generate(tree_t t)
 
 static bool sem_check_for_generate(tree_t t)
 {
-
    range_t r = tree_range(t);
-   if (!sem_check_range(&r))
+   if (!sem_check_range(&r, NULL))
       return false;
    tree_set_range(t, r);
 
