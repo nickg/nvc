@@ -182,4 +182,11 @@ begin
         c('1', 1) := 5;
     end process;
 
+    process is
+        constant c : ten_ints := (ten_ints'range => 5);
+        variable v : ten_ints;
+    begin
+        v := (v'range => 6);            -- OK
+    end process;
+
 end architecture;

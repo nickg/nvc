@@ -1609,8 +1609,12 @@ choice_list
 choice
 : expr
   {
-     $$.kind  = A_NAMED;
-     $$.name  = $1;
+     if (to_range_expr($1, &$$.range))
+        $$.kind = A_RANGE;
+     else {
+        $$.kind = A_NAMED;
+        $$.name = $1;
+     }
      $$.value = NULL;
   }
 | range
