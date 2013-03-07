@@ -6,7 +6,8 @@ ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
 	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
 	ieee/_IEEE.NUMERIC_STD-body.bc ieee/IEEE.MATH_REAL \
 	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
-	ieee/IEEE.VITAL_TIMING
+	ieee/IEEE.VITAL_TIMING ieee/IEEE.VITAL_PRIMITIVES \
+	ieee/IEEE.VITAL_MEMORY
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
 lib = $(nvc_verbose) NVC_LIBPATH=../std
