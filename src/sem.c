@@ -41,14 +41,15 @@ struct btree {
 };
 
 struct scope {
-   struct btree      *decls;
-   tree_t            subprog;
+   struct scope      *down;
+
+   struct btree       *decls;
+   tree_t             subprog;
 
    // For design unit scopes
-   ident_t           prefix;
+   ident_t            prefix;
    struct ident_list *imported;
-
-   struct scope      *down;
+   bool               is_package;
 };
 
 struct loop_stack {
@@ -89,11 +90,12 @@ static ident_t            std_standard_i;
 static void scope_push(ident_t prefix)
 {
    struct scope *s = xmalloc(sizeof(struct scope));
-   s->decls    = NULL;
-   s->prefix   = prefix;
-   s->imported = NULL;
-   s->down     = top_scope;
-   s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
+   s->decls      = NULL;
+   s->prefix     = prefix;
+   s->imported   = NULL;
+   s->down       = top_scope;
+   s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
+   s->is_package = false;
 
    top_scope = s;
 }
@@ -1719,13 +1721,14 @@ static bool sem_check_decl(tree_t t)
 
    tree_kind_t kind = tree_kind(t);
 
-   if (!tree_has_value(t) && kind == T_CONST_DECL )
-      sem_error(t, "constant declaration must have an initial value");
+   if (!tree_has_value(t) && (kind == T_CONST_DECL) && !top_scope->is_package)
+      sem_error(t, "deferred constant declarations are only permitted "
+                "in packages");
 
    if ((type_kind(type) == T_UARRAY) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
 
-   if (!tree_has_value(t) && (kind != T_PORT_DECL))
+   if (!tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL))
       tree_set_value(t, sem_default_value(type));
 
    if (tree_has_value(t)) {
@@ -1760,9 +1763,27 @@ static bool sem_check_decl(tree_t t)
    }
 
    sem_add_attributes(t);
-
    scope_apply_prefix(t);
-   return scope_insert(t);
+
+   // Check if we are giving a value to a deferred constant
+   tree_t deferred;
+   if ((kind == T_CONST_DECL)
+       && (deferred = scope_find_in(tree_ident(t), top_scope, false, 0))) {
+
+      if (tree_has_value(deferred))
+         sem_error(t, "constant %s already has a value",
+                   istr(tree_ident(deferred)));
+
+      if (!type_eq(tree_type(deferred), type))
+         sem_error(t, "expected type %s for deferred constant %s but found %s",
+                   sem_type_str(tree_type(deferred)), istr(tree_ident(t)),
+                   sem_type_str(type));
+
+      tree_set_value(deferred, tree_value(t));
+      return true;
+   }
+   else
+      return scope_insert(t);
 }
 
 static bool sem_check_port_decl(tree_t t)
@@ -2101,6 +2122,10 @@ static bool sem_check_package(tree_t t)
    bool ok = sem_check_context(t);
    if (ok) {
       scope_push(qual);
+
+      // Allow constant declarations without initial values
+      top_scope->is_package = true;
+
       for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
@@ -2150,13 +2175,15 @@ static bool sem_check_package_body(tree_t t)
    };
    ok = ok && scope_import_unit(c, lib_work(), true);
 
+   tree_t pack = NULL;
    if (ok) {
-      tree_t pack = lib_get(lib_work(), c.name);
+      pack = lib_get(lib_work(), c.name);
       assert(pack != NULL);
       // XXX: this call should be in the outer scope above
       ok = ok && sem_check_context(pack);
 
-      for (unsigned n = 0; n < tree_decls(t); n++) {
+      const int ndecls = tree_decls(t);
+      for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
 
@@ -2181,8 +2208,21 @@ static bool sem_check_package_body(tree_t t)
    scope_pop();
    scope_pop();
 
-   tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
-   lib_put(lib_work(), t);
+   if (pack != NULL) {
+      // Check for any deferred constants which were not given values
+      const int ndecls = tree_decls(pack);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(pack, i);
+         if ((tree_kind(d) == T_CONST_DECL) && !tree_has_value(d))
+            sem_error(d, "deferred constant %s was not given a value in the "
+                      "package body", istr(tree_ident(d)));
+      }
+   }
+
+   if (ok) {
+      tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
+      lib_put(lib_work(), t);
+   }
 
    return ok;
 }

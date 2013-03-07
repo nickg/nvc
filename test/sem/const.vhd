@@ -30,3 +30,23 @@ begin
     end process;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package p is
+
+    constant c : integer;               -- OK
+    constant d : integer;
+    constant e : integer := c + 1;      -- OK
+    constant f : integer;
+
+end package;
+
+package body p is
+
+    constant c : integer := 6;          -- OK
+    constant c : integer := 6;          -- Error
+    constant f : bit := '1';            -- Error
+
+    -- Missing definition for d
+end package body;

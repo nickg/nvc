@@ -334,13 +334,16 @@ END_TEST
 
 START_TEST(test_const)
 {
-   tree_t a, e;
+   tree_t a, e, p;
 
    fail_unless(input_from_file(TESTDIR "/sem/const.vhd"));
 
    const error_t expect[] = {
       { 19, "invalid target of variable assignment" },
-      { 23, "constant declaration must have an initial value" },
+      { 23, "deferred constant declarations are only permitted" },
+      { 48, "constant WORK.P.C already has a value" },
+      { 49, "expected type INTEGER for deferred constant WORK.P.F" },
+      { 39, "deferred constant WORK.P.D was not given a value" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -354,6 +357,16 @@ START_TEST(test_const)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
