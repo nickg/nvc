@@ -4663,6 +4663,7 @@ static bool sem_check_new(tree_t t)
          range_t r = tree_range(value);
          if (!sem_check_range(&r, sem_std_type("INTEGER")))
             return false;
+         tree_set_range(value, r);
 
          value = tree_value(value);
          if (tree_kind(value) != T_REF)
