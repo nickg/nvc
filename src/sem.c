@@ -1743,6 +1743,11 @@ static bool sem_check_decl(tree_t t)
          sem_error(value, "type of initial value %s does not match type "
                    "of declaration %s", sem_type_str(tree_type(value)),
                    sem_type_str(type));
+
+      // Constant array declarations can be unconstrained and the size
+      // is determined by the initialiser
+      if ((kind == T_CONST_DECL) && (type_kind(type) == T_UARRAY))
+         tree_set_type(t, (type = tree_type(value)));
    }
 
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)

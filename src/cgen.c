@@ -1631,13 +1631,11 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 
    tree_kind_t kind = tree_kind(decl);
    switch (kind) {
-   case T_CONST_DECL:
-   case T_UNIT_DECL:
-      return cgen_expr(tree_value(decl), ctx);
-
    case T_ENUM_LIT:
       return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
 
+   case T_CONST_DECL:
+   case T_UNIT_DECL:
    case T_VAR_DECL:
    case T_FILE_DECL:
       {
