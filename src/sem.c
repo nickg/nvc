@@ -573,16 +573,19 @@ static tree_t sem_make_ref(tree_t to)
 
 static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 {
+   type_t ftype = tree_type(d);
+
+   char argname[16];
+   snprintf(argname, sizeof(argname), "_arg%d", type_params(ftype));
+
    tree_t port = tree_new(T_PORT_DECL);
-   tree_set_ident(port, ident_new("arg"));
+   tree_set_ident(port, ident_new(argname));
    tree_set_type(port, type);
    tree_set_port_mode(port, mode);
    if (def != NULL)
       tree_set_value(port, def);
 
    tree_add_port(d, port);
-
-   type_t ftype = tree_type(d);
    type_add_param(ftype, type);
 }
 
@@ -3980,7 +3983,7 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      ident_t pname = ident_new("_attr");
+      ident_t pname = ident_new("_arg0");
 
       // For an expression X'A add X as a hidden parameter
       bool already_added = false;
