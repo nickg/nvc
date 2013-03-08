@@ -3786,7 +3786,6 @@ static bool sem_check_ref(tree_t t)
    case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_ALIAS:
-   case T_TYPE_DECL:
    case T_FILE_DECL:
    case T_UNIT_DECL:
       tree_set_type(t, tree_type(decl));
@@ -3981,22 +3980,37 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      if (tree_params(t) == 0) {
-         // For an expression X'A add X as the final parameter
+      ident_t pname = ident_new("_attr");
+
+      // For an expression X'A add X as a hidden parameter
+      bool already_added = false;
+      for (unsigned i = 0; (i < tree_params(t)) && !already_added; i++) {
+         param_t p = tree_param(t, i);
+         if ((p.kind == P_NAMED) && (p.name == pname))
+            already_added = true;
+      }
+
+      if (!already_added && (tree_params(t) == 0)) {
          tree_t ref = sem_make_ref(decl);
          tree_set_loc(ref, tree_loc(t));
 
-         param_t p = { .kind = P_POS, .value = ref };
+         param_t p = { .kind = P_NAMED, .value = ref };
+         p.name = pname;
          tree_add_param(t, p);
       }
 
-      if (tree_params(t) != type_params(ftype))
-         sem_error(t, "expected %d parameters for attribute %s "
-                   "but have %d", type_params(ftype),
-                   istr(attr), tree_params(t));
+      const int nparams = tree_params(t);
 
-      for (unsigned i = 0; i < tree_params(t); i++) {
+      if (nparams != type_params(ftype))
+         sem_error(t, "expected %d parameters for attribute %s "
+                   "but have %d", type_params(ftype), istr(attr), nparams);
+
+      for (int i = 0; i < nparams; i++) {
          param_t p = tree_param(t, i);
+
+         if ((p.kind == P_NAMED) && (p.name == pname))
+            continue;
+
          if (p.kind != P_POS)
             sem_error(t, "only positional arguments supported here");
 
@@ -4628,23 +4642,35 @@ static bool sem_check_new(tree_t t)
 
    tree_t value = tree_value(t);
 
-   if (!sem_check_constrained(value, NULL))
-      return false;
+   if (!type_set_restrict(sem_is_access))
+      sem_error(t, "no access type in context");
+
+   type_t type;
+   if (!type_set_uniq(&type))
+      sem_error(t, "context does not contain unique access type");
 
    switch (tree_kind(value)) {
    case T_ARRAY_SLICE:
-      value = tree_value(value);
-      if (tree_kind(value) != T_REF)
-         sem_error(t, "invalid array allocator expression");
+      {
+         range_t r = tree_range(value);
+         if (!sem_check_range(&r, sem_std_type("INTEGER")))
+            return false;
 
+         value = tree_value(value);
+         if (tree_kind(value) != T_REF)
+            sem_error(t, "invalid array allocator expression");
+      }
       // Fall-through
 
    case T_REF:
       {
-         tree_t decl = tree_ref(value);
-         if (tree_kind(decl) != T_TYPE_DECL)
+         tree_t decl = scope_find(tree_ident(value));
+         if ((decl == NULL) || (tree_kind(decl) != T_TYPE_DECL))
             sem_error(value, "%s does not name a type",
                       istr(tree_ident(value)));
+
+         tree_set_ref(value, decl);
+         tree_set_type(value, tree_type(decl));
       }
       break;
 
@@ -4654,13 +4680,6 @@ static bool sem_check_new(tree_t t)
    default:
       sem_error(t, "invalid allocator expression");
    }
-
-   if (!type_set_restrict(sem_is_access))
-      sem_error(t, "no access type in context");
-
-   type_t type;
-   if (!type_set_uniq(&type))
-      sem_error(t, "context does not contain unique access type");
 
    tree_set_type(t, type);
    return true;

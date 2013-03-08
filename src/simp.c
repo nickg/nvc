@@ -67,6 +67,14 @@ static tree_t simp_call_args(tree_t t)
    for (int i = 0; i <= last_pos; i++)
       tree_add_param(new, tree_param(t, i));
 
+   // Hidden parameter added for attribute references
+   param_t p = tree_param(t, last_pos + 1);
+   if ((p.kind == P_NAMED) && (p.name == ident_new("_attr"))) {
+      p.kind = P_POS;
+      tree_add_param(new, p);
+      last_pos++;
+   }
+
    for (int i = last_pos + 1; i < nports; i++) {
       tree_t port  = tree_port(decl, i);
       ident_t name = tree_ident(port);

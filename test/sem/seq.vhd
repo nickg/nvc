@@ -142,6 +142,10 @@ begin
             when b =>
                 null;
         end case;
+        case bit is                     -- Error
+            when '1' => null;
+            when '0' => null;
+        end case;
     end process;
 
     -- Exit

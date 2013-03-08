@@ -393,7 +393,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
       param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
       tree_t val = eval_expr(p.value, v);
       can_fold_int  = can_fold_int && folded_int(val, &largs[i]);
       can_fold_log  = can_fold_log && folded_bool(val, &bargs[i]);
