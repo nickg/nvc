@@ -1698,8 +1698,18 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
       class = cgen_get_class(decl);
 
-      if (class == C_VARIABLE || class == C_CONSTANT || class == C_DEFAULT)
+      switch (class) {
+      case C_VARIABLE:
+      case C_CONSTANT:
+      case C_DEFAULT:
          array = cgen_get_var(decl, ctx);
+         break;
+      case C_SIGNAL:
+         array = tree_attr_ptr(decl, sig_struct_i);
+         break;
+      default:
+         assert(false);
+      }
    }
    else
       array = cgen_expr(value, ctx);
@@ -1747,10 +1757,21 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       {
          assert(decl != NULL);
 
-         LLVMValueRef signal_array = tree_attr_ptr(decl, sig_struct_i);
-         LLVMValueRef indexes[] = { llvm_int32(0), idx };
-         LLVMValueRef signal = LLVMBuildGEP(builder, signal_array,
-                                            indexes, ARRAY_LEN(indexes), "");
+         LLVMValueRef signal;
+         if (type_kind(type) == T_UARRAY) {
+            // Unwrap array to signal array
+            array = LLVMBuildExtractValue(builder, array, 0, "aptr");
+
+            LLVMValueRef indexes[] = { idx };
+            signal = LLVMBuildGEP(builder, array,
+                                  indexes, ARRAY_LEN(indexes), "");
+         }
+         else {
+            LLVMValueRef indexes[] = { llvm_int32(0), idx };
+            signal = LLVMBuildGEP(builder, array,
+                                  indexes, ARRAY_LEN(indexes), "");
+         }
+
          type_t elem_type = type_elem(type);
          if (type_is_array(elem_type)) {
             // Load this sub-array into a temporary variable
