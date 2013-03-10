@@ -100,3 +100,4 @@ loop1           normal
 record2         normal
 access2         normal
 func9           normal
+record3         normal

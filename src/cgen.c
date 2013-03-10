@@ -79,6 +79,7 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMTypeRef cgen_signal_type(type_t type);
+static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1103,7 +1104,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !type_is_array(type));
             if (need_ptr)
-               args[i] = cgen_get_var(tree_ref(p.value), ctx);
+               args[i] = cgen_var_lvalue(p.value, ctx);
          }
 
          if (args[i] == NULL)
