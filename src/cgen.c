@@ -1387,32 +1387,36 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       const bool real = cgen_is_real(arg_types[0]);
 
       if (icmp(builtin, "mul")) {
-         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFMul(builder, args[0], args[1], "");
-         else
+         else {
+            cgen_promote_arith(tree_type(t), args, nparams);
             return LLVMBuildMul(builder, args[0], args[1], "");
+         }
       }
       else if (icmp(builtin, "add")) {
-         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFAdd(builder, args[0], args[1], "");
-         else
+         else {
+            cgen_promote_arith(tree_type(t), args, nparams);
             return LLVMBuildAdd(builder, args[0], args[1], "");
+         }
       }
       else if (icmp(builtin, "sub")) {
-         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFSub(builder, args[0], args[1], "");
-         else
+         else {
+            cgen_promote_arith(tree_type(t), args, nparams);
             return LLVMBuildSub(builder, args[0], args[1], "");
+         }
       }
       else if (icmp(builtin, "div")) {
-         cgen_promote_arith(tree_type(t), args, nparams);
          if (real)
             return LLVMBuildFDiv(builder, args[0], args[1], "");
-         else
+         else {
+            cgen_promote_arith(tree_type(t), args, nparams);
             return LLVMBuildSDiv(builder, args[0], args[1], "");
+         }
       }
       else if (icmp(builtin, "eq")) {
          if (real)
