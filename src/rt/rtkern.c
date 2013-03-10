@@ -1210,7 +1210,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_set_initial_vec", _set_initial_vec);
    jit_bind_fn("_file_open", _file_open);
    jit_bind_fn("_file_close", _file_close);
-   jit_bind_fn("_file_open", _file_open);
+   jit_bind_fn("_file_write", _file_write);
    jit_bind_fn("_file_read", _file_read);
    jit_bind_fn("_endfile", _endfile);
    jit_bind_fn("_bounds_fail", _bounds_fail);
