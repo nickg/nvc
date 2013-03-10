@@ -446,9 +446,8 @@ static item_t *lookup_item(tree_t t, imask_t mask)
          ;
 
       assert(item < ARRAY_LEN(item_text_map));
-      assert(false);
-      fatal("tree kind %s does not have item %s",
-            kind_text_map[t->kind], item_text_map[item]);
+      fatal_trace("tree kind %s does not have item %s",
+                  kind_text_map[t->kind], item_text_map[item]);
    }
 
    const int tzc = __builtin_ctz(mask);
@@ -464,7 +463,7 @@ static void item_without_type(imask_t mask)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));
-   fatal("tree item %s does not have a type", item_text_map[item]);
+   fatal_trace("tree item %s does not have a type", item_text_map[item]);
 }
 
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
@@ -481,7 +480,7 @@ static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
    if (!tree_kind_in(t, list, len))
-      fatal("tree kind %s is not %s", tree_kind_str(t->kind), what);
+      fatal_trace("tree kind %s is not %s", tree_kind_str(t->kind), what);
 }
 
 static void tree_assert_stmt(tree_t t)

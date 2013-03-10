@@ -363,6 +363,20 @@ void fatal(const char *fmt, ...)
    exit(EXIT_FAILURE);
 }
 
+void fatal_trace(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
+   va_end(ap);
+
+#ifndef NO_STACK_TRACE
+   show_stacktrace();
+#endif  // !NO_STACK_TRACE
+
+   exit(EXIT_FAILURE);
+}
+
 void fatal_errno(const char *fmt, ...)
 {
    va_list ap;

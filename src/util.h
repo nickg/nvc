@@ -46,6 +46,8 @@ void notef(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void fatal(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
+void fatal_trace(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2), noreturn));
 void fatal_errno(const char *fmt, ...)
    __attribute__((format(printf, 1, 2), noreturn));
 

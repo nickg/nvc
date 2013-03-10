@@ -193,8 +193,8 @@ static item_t *lookup_item(type_t t, imask_t mask)
          ;
 
       assert(item < ARRAY_LEN(item_text_map));
-      fatal("type kind %s does not have item %s",
-            kind_text_map[t->kind], item_text_map[item]);
+      fatal_trace("type kind %s does not have item %s",
+                  kind_text_map[t->kind], item_text_map[item]);
    }
 
    const int tzc = __builtin_ctz(mask);
@@ -210,7 +210,7 @@ static void item_without_type(imask_t mask)
       ;
 
    assert(item < ARRAY_LEN(item_text_map));
-   fatal("type item %s does not have a type", item_text_map[item]);
+   fatal_trace("type item %s does not have a type", item_text_map[item]);
 }
 
 type_t type_new(type_kind_t kind)
