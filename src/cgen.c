@@ -2473,31 +2473,47 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          LLVMValueRef idx = cgen_expr(p.value, ctx);
 
-         int64_t low, high;
-         range_t r = type_dim(type, 0);
-         range_bounds(r, &low, &high);
-
-         bounds_kind_t kind =
-            (r.kind == RANGE_TO) ? BOUNDS_ARRAY_TO : BOUNDS_ARRAY_DOWNTO;
-         cgen_check_bounds(p.value, llvm_int32(kind), idx,
-                           llvm_int32(low), llvm_int32(high), ctx);
-
-         LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
-
          if (tree_kind(tree_value(t)) == T_REF) {
-            tree_t decl = tree_ref(tree_value(t));
-            assert(type_is_array(tree_type(decl)));
+            if (type_kind(type) == T_UARRAY) {
+               tree_t decl = tree_ref(tree_value(t));
+               assert(type_is_array(tree_type(decl)));
 
-            LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
-            if (type_is_array(type_elem(type))) {
-               LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-               return LLVMBuildGEP(builder, signal,
+               LLVMValueRef meta = tree_attr_ptr(decl, sig_struct_i);
+               assert(meta != NULL);
+
+               cgen_check_array_bounds(p.value, type, meta, idx, ctx);
+
+               LLVMValueRef sig_array = cgen_array_data_ptr(type, meta);
+               LLVMValueRef off = cgen_array_off(idx, meta, type, ctx, 0);
+
+               LLVMValueRef indexes[] = { off };
+               return LLVMBuildGEP(builder, sig_array,
                                    indexes, ARRAY_LEN(indexes), "");
             }
-            else
-               return signal;
+            else {
+               LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
+
+               tree_t decl = tree_ref(tree_value(t));
+               assert(type_is_array(tree_type(decl)));
+
+               cgen_check_array_bounds(p.value, type, NULL, idx, ctx);
+
+               LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
+               if (type_is_array(type_elem(type))) {
+                  LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+                  return LLVMBuildGEP(builder, signal,
+                                      indexes, ARRAY_LEN(indexes), "");
+               }
+               else
+                  return signal;
+            }
          }
          else {
+            assert(type_kind(type) != T_UARRAY);
+
+            cgen_check_array_bounds(p.value, type, NULL, idx, ctx);
+
+            LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
 
             LLVMValueRef indexes[] = { off };

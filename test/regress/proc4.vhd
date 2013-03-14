@@ -31,7 +31,7 @@ architecture rtl of proc4 is
     begin
         l := x'length;
         for i in x'range loop
-            --x(i) <= not x(i);
+            x(i) <= not x(i);
         end loop;
     end procedure;
 
@@ -44,6 +44,7 @@ begin
         variable v : integer;
         variable b : bit_vector(3 downto 0);
     begin
+        k <= "10";
         v := 5;
         test1(v);
         assert v = 6;
@@ -57,8 +58,10 @@ begin
         test4(s);
         wait for 1 ns;
         assert s = 6;
-        test5(k, v);
-        assert v = 2;
+        --test5(k, v);
+        --wait for 1 ns;
+        --assert v = 2;
+        --assert k = "01";
         wait;
     end process;
 
