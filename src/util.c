@@ -771,3 +771,15 @@ void static_printf(char *buf, const char *fmt, ...)
 
    va_end(ap);
 }
+
+int next_power_of_2(int n)
+{
+   n--;
+   n |= n >> 1;
+   n |= n >> 2;
+   n |= n >> 4;
+   n |= n >> 8;
+   n |= n >> 16;
+   n++;
+   return n;
+}

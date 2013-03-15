@@ -85,4 +85,6 @@ void static_printf_begin(char *buf, size_t len);
 void static_printf(char *buf, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 
+int next_power_of_2(int n);
+
 #endif // _UTIL_H

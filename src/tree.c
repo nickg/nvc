@@ -25,7 +25,6 @@
 #include <ctype.h>
 
 #define MAX_CONTEXTS 16
-#define MAX_ATTRS    16
 #define MAX_ITEMS    6
 #define MAX_FILES    256
 
@@ -44,7 +43,7 @@ typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
 } attr_kind_t;
 
-struct attr {
+typedef struct {
    attr_kind_t kind;
    ident_t     name;
    union {
@@ -53,7 +52,13 @@ struct attr {
       void    *pval;
       tree_t  tval;
    };
-};
+} attr_t;
+
+typedef struct {
+   uint16_t  alloc;
+   uint16_t  num;
+   attr_t   *table;
+} attr_tab_t;
 
 enum {
    I_IDENT     = (1 << 0),
@@ -330,8 +335,7 @@ static const char *item_text_map[] = {
 struct tree {
    tree_kind_t kind;
    loc_t       loc;
-   struct attr *attrs;
-   unsigned    n_attrs;
+   attr_tab_t  attrs;
    item_t      items[MAX_ITEMS];
 
    // Serialisation and GC bookkeeping
@@ -568,8 +572,8 @@ void tree_gc(void)
             }
          }
 
-         if (t->attrs != NULL)
-            free(t->attrs);
+         if (t->attrs.table != NULL)
+            free(t->attrs.table);
 
          free(t);
 
@@ -1185,10 +1189,10 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
    }
 
    if (ctx->deep) {
-      for (unsigned i = 0; i < t->n_attrs; i++) {
-         switch (t->attrs[i].kind) {
+      for (unsigned i = 0; i < t->attrs.num; i++) {
+         switch (t->attrs.table[i].kind) {
          case A_TREE:
-            tree_visit_aux(t->attrs[i].tval, ctx);
+            tree_visit_aux(t->attrs.table[i].tval, ctx);
             break;
 
          default:
@@ -1519,22 +1523,22 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       }
    }
 
-   write_u16(t->n_attrs, ctx->file);
-   for (unsigned i = 0; i < t->n_attrs; i++) {
-      write_u16(t->attrs[i].kind, ctx->file);
-      ident_write(t->attrs[i].name, ctx->ident_ctx);
+   write_u16(t->attrs.num, ctx->file);
+   for (unsigned i = 0; i < t->attrs.num; i++) {
+      write_u16(t->attrs.table[i].kind, ctx->file);
+      ident_write(t->attrs.table[i].name, ctx->ident_ctx);
 
-      switch (t->attrs[i].kind) {
+      switch (t->attrs.table[i].kind) {
       case A_STRING:
-         ident_write(t->attrs[i].sval, ctx->ident_ctx);
+         ident_write(t->attrs.table[i].sval, ctx->ident_ctx);
          break;
 
       case A_INT:
-         write_u32(t->attrs[i].ival, ctx->file);
+         write_u32(t->attrs.table[i].ival, ctx->file);
          break;
 
       case A_TREE:
-         tree_write(t->attrs[i].tval, ctx);
+         tree_write(t->attrs.table[i].tval, ctx);
          break;
 
       case A_PTR:
@@ -1640,25 +1644,27 @@ tree_t tree_read(tree_rd_ctx_t ctx)
       }
    }
 
-   t->n_attrs = read_u16(ctx->file);
-   assert(t->n_attrs <= MAX_ATTRS);
-   t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
+   t->attrs.num = read_u16(ctx->file);
+   if (t->attrs.num > 0) {
+      t->attrs.alloc = next_power_of_2(t->attrs.num);
+      t->attrs.table = xmalloc(sizeof(attr_t) * t->attrs.alloc);
+   }
 
-   for (unsigned i = 0; i < t->n_attrs; i++) {
-      t->attrs[i].kind = read_u16(ctx->file);
-      t->attrs[i].name = ident_read(ctx->ident_ctx);
+   for (unsigned i = 0; i < t->attrs.num; i++) {
+      t->attrs.table[i].kind = read_u16(ctx->file);
+      t->attrs.table[i].name = ident_read(ctx->ident_ctx);
 
-      switch (t->attrs[i].kind) {
+      switch (t->attrs.table[i].kind) {
       case A_STRING:
-         t->attrs[i].sval = ident_read(ctx->ident_ctx);
+         t->attrs.table[i].sval = ident_read(ctx->ident_ctx);
          break;
 
       case A_INT:
-         t->attrs[i].ival = read_u32(ctx->file);
+         t->attrs.table[i].ival = read_u32(ctx->file);
          break;
 
       case A_TREE:
-         t->attrs[i].tval = tree_read(ctx);
+         t->attrs.table[i].tval = tree_read(ctx);
          break;
 
       default:
@@ -1719,36 +1725,42 @@ tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index)
    return ctx->store[index];
 }
 
-static struct attr *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
+static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
 
-   for (unsigned i = 0; i < t->n_attrs; i++) {
-      if (t->attrs[i].kind == kind && t->attrs[i].name == name)
-         return &t->attrs[i];
+   for (unsigned i = 0; i < t->attrs.num; i++) {
+      if (t->attrs.table[i].kind == kind && t->attrs.table[i].name == name)
+         return &(t->attrs.table[i]);
    }
 
    return NULL;
 }
 
-static struct attr *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
+static attr_t *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
-   assert(t->n_attrs < MAX_ATTRS);
    assert(name != NULL);
 
-   struct attr *a = tree_find_attr(t, name, kind);
+   attr_t *a = tree_find_attr(t, name, kind);
    if (a != NULL)
       return a;
 
-   if (t->attrs == NULL)
-      t->attrs = xmalloc(sizeof(struct attr) * MAX_ATTRS);
+   if (t->attrs.table == NULL) {
+      t->attrs.alloc = 8;
+      t->attrs.table = xmalloc(sizeof(attr_t) * t->attrs.alloc);
+   }
+   else if (t->attrs.alloc == t->attrs.num) {
+      t->attrs.alloc *= 2;
+      t->attrs.table = xrealloc(t->attrs.table,
+                                sizeof(attr_t) * t->attrs.alloc);
+   }
 
-   unsigned i = t->n_attrs++;
-   t->attrs[i].kind = kind;
-   t->attrs[i].name = name;
+   unsigned i = t->attrs.num++;
+   t->attrs.table[i].kind = kind;
+   t->attrs.table[i].name = name;
 
-   return &t->attrs[i];
+   return &(t->attrs.table[i]);
 }
 
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
@@ -1758,7 +1770,7 @@ void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
 
 ident_t tree_attr_str(tree_t t, ident_t name)
 {
-   struct attr *a = tree_find_attr(t, name, A_STRING);
+   attr_t *a = tree_find_attr(t, name, A_STRING);
    return a ? a->sval : NULL;
 }
 
@@ -1769,7 +1781,7 @@ void tree_add_attr_int(tree_t t, ident_t name, int n)
 
 int tree_attr_int(tree_t t, ident_t name, int def)
 {
-   struct attr *a = tree_find_attr(t, name, A_INT);
+   attr_t *a = tree_find_attr(t, name, A_INT);
    return a ? a->ival : def;
 }
 
@@ -1780,13 +1792,13 @@ void tree_add_attr_ptr(tree_t t, ident_t name, void *ptr)
 
 void *tree_attr_ptr(tree_t t, ident_t name)
 {
-   struct attr *a = tree_find_attr(t, name, A_PTR);
+   attr_t *a = tree_find_attr(t, name, A_PTR);
    return a ? a->pval : NULL;
 }
 
 tree_t tree_attr_tree(tree_t t, ident_t name)
 {
-   struct attr *a = tree_find_attr(t, name, A_TREE);
+   attr_t *a = tree_find_attr(t, name, A_TREE);
    return a ? a->tval : NULL;
 }
 
@@ -2079,24 +2091,11 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
       }
    }
 
-   for (unsigned i = 0; i < t->n_attrs; i++) {
-      switch (t->attrs[i].kind) {
-      case A_STRING:
-         tree_add_attr_str(copy, t->attrs[i].name, t->attrs[i].sval);
-         break;
-
-      case A_INT:
-         tree_add_attr_int(copy, t->attrs[i].name, t->attrs[i].ival);
-         break;
-
-      case A_TREE:
-         tree_add_attr_tree(copy, t->attrs[i].name, t->attrs[i].tval);
-         break;
-
-      case A_PTR:
-         tree_add_attr_ptr(copy, t->attrs[i].name, t->attrs[i].pval);
-         break;
-      }
+   if ((copy->attrs.num = t->attrs.num) > 0) {
+      copy->attrs.alloc = t->attrs.alloc;
+      copy->attrs.table = xmalloc(sizeof(attr_t) * copy->attrs.alloc);
+      for (unsigned i = 0; i < t->attrs.num; i++)
+         copy->attrs.table[i] = t->attrs.table[i];
    }
 
    return copy;
