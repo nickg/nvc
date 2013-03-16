@@ -3313,7 +3313,7 @@ static LLVMValueRef cgen_signal_init(type_t type, LLVMValueRef resolution)
       init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
       init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
-      init[SIGNAL_RESOLUTION] = resolution;
+      init[SIGNAL_RESOLUTION] = llvm_void_cast(resolution);
       init[SIGNAL_LAST_EVENT] = LLVMConstInt(LLVMInt64Type(), INT64_MAX, false);
 
       LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
