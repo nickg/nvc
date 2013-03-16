@@ -864,53 +864,6 @@ const char *type_pp(type_t t)
    return type_pp_minify(t, type_minify_identity);
 }
 
-void type_sweep(unsigned generation)
-{
-   for (unsigned i = 0; i < n_types_alloc; i++) {
-      type_t t = all_types[i];
-      if (t->generation < generation) {
-
-         const uint32_t has = has_map[t->kind];
-         const int nitems = __builtin_popcount(has);
-         uint32_t mask = 1;
-         for (int n = 0; n < nitems; mask <<= 1) {
-            if (has & mask) {
-               if (ITEM_TYPE_ARRAY & mask)
-                  free(t->items[n].type_array.items);
-               else if (ITEM_TYPE & mask)
-                  ;
-               else if (ITEM_TREE & mask)
-                  ;
-               else if (ITEM_TREE_ARRAY & mask)
-                  free(t->items[n].tree_array.items);
-               else if (ITEM_RANGE_ARRAY & mask)
-                  free(t->items[n].range_array.items);
-               else
-                  item_without_type(mask);
-               n++;
-            }
-         }
-
-         free(t);
-
-         all_types[i] = NULL;
-      }
-   }
-
-   // Compact
-   size_t p = 0;
-   for (unsigned i = 0; i < n_types_alloc; i++) {
-      if (all_types[i] != NULL)
-         all_types[p++] = all_types[i];
-   }
-
-   if (getenv("NVC_GC_VERBOSE") != NULL)
-      printf("[gc: freed %zu types; %zu allocated]\n",
-             n_types_alloc - p, p);
-
-   n_types_alloc = p;
-}
-
 bool type_is_array(type_t t)
 {
    if (t->kind == T_SUBTYPE)
@@ -930,50 +883,6 @@ uint32_t type_format_digest(void)
 {
    type_one_time_init();
    return format_digest;
-}
-
-void type_visit_trees(type_t t, unsigned generation,
-                      tree_visit_fn_t fn, void *context)
-{
-   if (t == NULL)
-      return;
-
-   if (t->generation == generation)
-      return;
-   else
-      t->generation = generation;
-
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
-            for (unsigned i = 0; i < a->count; i++)
-               type_visit_trees(a->items[i], generation, fn, context);
-         }
-         else if (ITEM_TYPE & mask)
-            type_visit_trees(t->items[n].type, generation, fn, context);
-         else if (ITEM_TREE & mask)
-            (*fn)(t->items[n].tree, context);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
-            for (unsigned i = 0; i < a->count; i++)
-               (*fn)(a->items[i], context);
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
-            for (unsigned i = 0; i < a->count; i++) {
-               (*fn)(a->items[i].left, context);
-               (*fn)(a->items[i].right, context);
-            }
-         }
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
 }
 
 void type_rewrite_trees(type_t t, unsigned generation,

@@ -174,8 +174,6 @@ START_TEST(test_lib_save)
       lib_put(work, ent);
    }
 
-   tree_gc();
-
    lib_save(work);
    lib_free(work);
 

@@ -135,9 +135,6 @@ type_t type_universal_int(void);
 type_t type_universal_real(void);
 bool type_is_universal(type_t t);
 
-// Garbage collection
-void type_sweep(unsigned generation);
-
 // Type or its parent type is an array
 bool type_is_array(type_t t);
 
