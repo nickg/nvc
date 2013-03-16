@@ -1130,7 +1130,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
 
          LLVMValueRef data;
          if (class == C_SIGNAL) {
-            LLVMValueRef indexes[] = { llvm_int32(0) };
+            LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
             data = LLVMBuildGEP(builder, args[i],
                                 indexes, ARRAY_LEN(indexes), "");
          }

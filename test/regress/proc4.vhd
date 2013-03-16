@@ -58,10 +58,10 @@ begin
         test4(s);
         wait for 1 ns;
         assert s = 6;
-        --test5(k, v);
-        --wait for 1 ns;
-        --assert v = 2;
-        --assert k = "01";
+        test5(k, v);
+        wait for 1 ns;
+        assert v = 2;
+        assert k = "01";
         wait;
     end process;
 
