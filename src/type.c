@@ -148,10 +148,10 @@ struct type_rd_ctx {
 
 #define IS(t, k) ((t)->kind == (k))
 
-// Garbage collection
-static type_t *all_types = NULL;
-static size_t max_types = 128;   // Grows at runtime
-static size_t n_types_alloc = 0;
+#define TYPE_HEAP_SIZE (1024 * 16)
+
+static void   *type_heap = NULL;
+static size_t  heap_used = 0;
 
 static uint32_t format_digest;
 static int item_lookup[T_LAST_TREE_KIND][32];
@@ -217,17 +217,14 @@ type_t type_new(type_kind_t kind)
 {
    type_one_time_init();
 
-   struct type *t = xmalloc(sizeof(struct type));
+   if ((type_heap == NULL) || (heap_used == TYPE_HEAP_SIZE)) {
+      type_heap = xmalloc(TYPE_HEAP_SIZE * sizeof(struct type));
+      heap_used = 0;
+   }
+
+   type_t t = &(((struct type *)type_heap)[heap_used++]);
    memset(t, '\0', sizeof(struct type));
    t->kind = kind;
-
-   if (all_types == NULL)
-      all_types = xmalloc(sizeof(tree_t) * max_types);
-   else if (n_types_alloc == max_types) {
-      max_types *= 2;
-      all_types = xrealloc(all_types, sizeof(tree_t) * max_types);
-   }
-   all_types[n_types_alloc++] = t;
 
    return t;
 }
