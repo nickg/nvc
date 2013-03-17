@@ -218,7 +218,7 @@ type_t type_new(type_kind_t kind)
    type_one_time_init();
 
    if ((type_heap == NULL) || (heap_used == TYPE_HEAP_SIZE)) {
-      type_heap = xmalloc(TYPE_HEAP_SIZE * sizeof(struct type));
+      type_heap = immortal_alloc(TYPE_HEAP_SIZE * sizeof(struct type));
       heap_used = 0;
    }
 
