@@ -18,8 +18,9 @@ libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 nvc_SOURCES = nvc.c
 
-# Force C++ linking
+if FORCE_CXX_LINK
 nodist_EXTRA_nvc_SOURCES = dummy.cxx
+endif
 
 nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a $(LLVM_LIBS) \
 	$(CURSES_LIB)
