@@ -80,6 +80,7 @@ static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMTypeRef cgen_signal_type(type_t type);
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
+static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1866,13 +1867,22 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
       if (dim < type_dims(type) - 1)
          sub = cgen_const_aggregate(a.value, ctx, 0 /* XXX */, &nsub);
       else if (tree_kind(a.value) == T_AGGREGATE) {
-         unsigned nvals;
-         LLVMValueRef *v = cgen_const_aggregate(a.value, ctx, 0, &nvals);
-         LLVMTypeRef ltype = llvm_type(type_elem(tree_type(a.value)));
-
          sub  = xmalloc(sizeof(LLVMValueRef));
-         *sub = LLVMConstArray(ltype, v, nvals);
          nsub = 1;
+
+         type_t sub_type = tree_type(a.value);
+         if (type_is_array(sub_type)) {
+            unsigned nvals;
+            LLVMValueRef *v = cgen_const_aggregate(a.value, ctx, 0, &nvals);
+            LLVMTypeRef ltype = llvm_type(type_elem(tree_type(a.value)));
+
+            *sub = LLVMConstArray(ltype, v, nvals);
+         }
+         else if (type_kind(sub_type) == T_RECORD) {
+            *sub = cgen_const_record(a.value, ctx);
+         }
+         else
+            assert(false);
       }
       else {
          sub  = xmalloc(sizeof(LLVMValueRef));
