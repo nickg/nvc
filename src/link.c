@@ -224,10 +224,15 @@ bool pack_needs_cgen(tree_t t)
 {
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
-      switch (tree_kind(tree_decl(t, i))) {
+      tree_t decl = tree_decl(t, i);
+      switch (tree_kind(decl)) {
       case T_VAR_DECL:
       case T_SIGNAL_DECL:
          return true;
+      case T_CONST_DECL:
+         if (type_is_array(tree_type(decl)))
+            return true;
+         break;
       default:
          break;
       }

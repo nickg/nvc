@@ -682,7 +682,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    if (global != NULL)
       return LLVMBuildLoad(builder, (LLVMValueRef)global, "global");
 
-   assert(tree_kind(decl) == T_VAR_DECL);
+   tree_kind_t kind = tree_kind(decl);
+   assert((kind == T_VAR_DECL) || (kind == T_CONST_DECL));
 
    int offset = tree_attr_int(decl, var_offset_i, -1);
    if (offset == -1) {
@@ -3728,10 +3729,12 @@ static void cgen_proc_body(tree_t t)
 
 static void cgen_global_const(tree_t t)
 {
-   if (type_is_array(tree_type(t))) {
+   if (type_is_array(tree_type(t)) && tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (cgen_is_const(value)) {
          LLVMValueRef llvalue = cgen_expr(value, NULL);
+         LLVMSetValueName(llvalue, istr(tree_ident(t)));
+         LLVMSetLinkage(llvalue, LLVMExternalLinkage);
          tree_add_attr_ptr(t, local_var_i, llvalue);
       }
       else {
@@ -3877,8 +3880,12 @@ static void cgen_top(tree_t t)
       case T_VAR_DECL:
          cgen_shared_var(decl);
          break;
+      case T_ATTR_DECL:
+      case T_ATTR_SPEC:
+         break;
       default:
-         assert(false);
+         fatal("cannot generate code for top level declaration %s",
+               tree_kind_str(tree_kind(decl)));
       }
    }
 
