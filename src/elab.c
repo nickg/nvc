@@ -138,6 +138,7 @@ static tree_t rewrite_ports(tree_t t, void *context)
 
          switch (tree_kind(params->actual)) {
          case T_SIGNAL_DECL:
+         case T_ENUM_LIT:
             tree_set_ref(t, params->actual);
             break;
          case T_LITERAL:

@@ -2304,6 +2304,14 @@ static void cgen_sched_event(tree_t on)
    }
 
    tree_t decl = tree_ref(on);
+
+   if (tree_kind(decl) != T_SIGNAL_DECL) {
+      // As above, a port could have been rewritten to reference a
+      // constant declaration or enumeration literal, in which case
+      // just ignore it too
+      return;
+   }
+
    type_t type = tree_type(decl);
 
    int32_t n = 1;
