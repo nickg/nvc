@@ -927,6 +927,7 @@ static void rt_alloc_driver(struct signal *sig, uint64_t after,
       struct waveform *dummy = rt_alloc(waveform_stack);
       dummy->when  = 0;
       dummy->next  = NULL;
+      dummy->value = value;
 
       d->waveforms = dummy;
       d->proc      = active_proc;
