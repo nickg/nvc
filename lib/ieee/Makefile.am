@@ -1,12 +1,15 @@
 nvc = $(top_builddir)/src/nvc
 
 ieeedir = $(pkgdatadir)/ieee
-ieee_DATA = ieee/_NVC_LIB ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
-	ieee/IEEE.NUMERIC_STD ieee/IEEE.STD_LOGIC_1164-body \
-	ieee/_IEEE.STD_LOGIC_1164-body.bc ieee/IEEE.NUMERIC_STD-body \
-	ieee/_IEEE.NUMERIC_STD-body.bc ieee/IEEE.MATH_REAL \
+ieee_DATA = ieee/_NVC_LIB \
+	ieee/IEEE.STD_LOGIC_1164 ieee/IEEE.NUMERIC_BIT \
+	ieee/IEEE.NUMERIC_STD ieee/_IEEE.NUMERIC_STD.bc \
+	ieee/IEEE.STD_LOGIC_1164-body ieee/_IEEE.STD_LOGIC_1164-body.bc \
+	ieee/IEEE.NUMERIC_STD-body ieee/_IEEE.NUMERIC_STD-body.bc \
+	ieee/IEEE.MATH_REAL ieee/_IEEE.MATH_REAL.bc \
 	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
-	ieee/IEEE.VITAL_TIMING ieee/IEEE.VITAL_PRIMITIVES \
+	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
+	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
 	ieee/IEEE.VITAL_MEMORY
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
