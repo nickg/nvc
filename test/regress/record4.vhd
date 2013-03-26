@@ -19,6 +19,15 @@ architecture test of record4 is
         return x * 2;
     end function;
 
+    function sum_all(a : in rec_array) return integer is
+        variable s : integer := 0;
+    begin
+        for i in a'range loop
+            s := s + sum(a(i));
+        end loop;
+        return s;
+    end function;
+
 begin
 
     process is
@@ -28,6 +37,7 @@ begin
     begin
         assert sum(ra(0)) = 3;
         assert double(ra(0).x) = 2;
+        assert sum_all(ra) = 10;
         wait;
     end process;
 
