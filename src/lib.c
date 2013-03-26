@@ -58,7 +58,9 @@ static struct lib_list *loaded = NULL;
 
 static ident_t upcase_name(const char *name)
 {
-   char *name_up = strdup(name);
+   const char *last_slash = strrchr(name, '/');
+
+   char *name_up = strdup((last_slash != NULL) ? last_slash + 1 : name);
    for (char *p = name_up; *p != '\0'; p++)
       *p = toupper((uint8_t)*p);
 
@@ -430,6 +432,8 @@ void lib_save(lib_t lib)
       if (lib->units[n].dirty) {
          const char *name = istr(tree_ident(lib->units[n].top));
          fbuf_t *f = lib_fbuf_open(lib, name, FBUF_OUT);
+         if (f == NULL)
+            fatal("failed to create %s in library %s", name, istr(lib->name));
          tree_wr_ctx_t ctx = tree_write_begin(f);
          tree_write(lib->units[n].top, ctx);
          tree_write_end(ctx);
