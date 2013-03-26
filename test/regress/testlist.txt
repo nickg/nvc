@@ -102,3 +102,5 @@ access2         normal
 func9           normal
 record3         normal
 issue8          normal
+issue9          normal
+record4         normal

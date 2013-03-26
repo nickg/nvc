@@ -732,6 +732,10 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    if (offset == NULL)
       offset = llvm_int32(0);
 
+   LLVMValueRef indexes[] = { offset };
+   LLVMValueRef dst_ptr = LLVMBuildGEP(builder, dst, indexes,
+                                       ARRAY_LEN(indexes), "dst_ptr");
+
    LLVMValueRef opposite_dir =
       LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
@@ -739,29 +743,41 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
       (cgen_const_bounds(src_type) && cgen_const_bounds(dest_type)
        && (type_dim(src_type, 0).kind == type_dim(dest_type, 0).kind));
 
-   int width = bit_width(src_type);
+   type_t elem_type = type_elem(src_type);
 
-   int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
-   LLVMValueRef size = LLVMBuildMul(builder, ll_n_elems,
-                                    llvm_int32(bytes), "size");
+   int align, width;
+   LLVMValueRef bytes;
+   if (type_kind(elem_type) == T_RECORD) {
+      width = 8;
+      align = 1;
+      bytes = LLVMBuildIntCast(builder, LLVMSizeOf(llvm_type(elem_type)),
+                               LLVMInt32Type(), "");
 
-   LLVMValueRef indexes[] = { offset };
-   LLVMValueRef dst_ptr = LLVMBuildGEP(builder, dst, indexes,
-                                       ARRAY_LEN(indexes), "dst_ptr");
+      src_ptr = llvm_void_cast(src_ptr);
+      dst_ptr = llvm_void_cast(dst_ptr);
+   }
+   else {
+      width = bit_width(src_type);
+      const int b = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+      bytes = llvm_int32(b);
+      align = b;
+   }
 
    // Cast real values to 64-bit integers
-   const bool real = cgen_is_real(type_elem(src_type));
+   const bool real = cgen_is_real(elem_type);
    if (real) {
       LLVMTypeRef pi64 = LLVMPointerType(LLVMInt64Type(), 0);
       src_ptr = LLVMBuildPointerCast(builder, src_ptr, pi64, "src_pi64");
       dst_ptr = LLVMBuildPointerCast(builder, dst_ptr, pi64, "dst_pi64");
    }
 
+   LLVMValueRef size = LLVMBuildMul(builder, ll_n_elems, bytes, "size");
+
    LLVMValueRef memcpy_args[] = {
       dst_ptr,
       src_ptr,
       size,
-      llvm_int32(bytes),
+      llvm_int32(align),
       llvm_int1(0)
    };
 
@@ -795,7 +811,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
          llvm_void_cast(src_ptr),
          offset,
          ll_n_elems,
-         llvm_sizeof(llvm_type(type_elem(dest_type)))
+         llvm_sizeof(llvm_type(elem_type))
       };
       LLVMBuildCall(builder, llvm_fn("_array_reverse"),
                     reverse_args, ARRAY_LEN(reverse_args), "");
