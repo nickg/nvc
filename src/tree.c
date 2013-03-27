@@ -509,7 +509,7 @@ tree_t tree_new(tree_kind_t kind)
    tree_one_time_init();
 
    if ((tree_heap == NULL) || (heap_used == TREE_HEAP_SIZE)) {
-      tree_heap = immortal_alloc(TREE_HEAP_SIZE * sizeof(struct tree));
+      tree_heap = xmalloc(TREE_HEAP_SIZE * sizeof(struct tree));
       heap_used = 0;
    }
 

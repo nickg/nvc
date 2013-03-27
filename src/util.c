@@ -126,17 +126,11 @@ struct color_escape {
    int         value;
 };
 
-struct immortal {
-   void            *ptr;
-   struct immortal *next;
-};
-
-static error_fn_t       error_fn   = def_error_fn;
-static bool             want_color = false;
-static struct option   *options = NULL;
-static struct prbuf     printf_bufs[MAX_PRINTF_BUFS];
-static int              next_printf_buf = 0;
-static struct immortal *immortal = NULL;
+static error_fn_t     error_fn   = def_error_fn;
+static bool           want_color = false;
+static struct option *options = NULL;
+static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
+static int            next_printf_buf = 0;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -254,19 +248,6 @@ void *xrealloc(void *ptr, size_t size)
    if (ptr == NULL)
       abort();
    return ptr;
-}
-
-void *immortal_alloc(size_t size)
-{
-   // Allocate some memory that will only be freed when the program
-   // exits: this is mostly to keep Valgrid happy
-
-   struct immortal *i = xmalloc(sizeof(struct immortal));
-   i->ptr  = xmalloc(size);
-   i->next = immortal;
-
-   immortal = i;
-   return i->ptr;
 }
 
 static void fmt_color(int color, const char *prefix,
