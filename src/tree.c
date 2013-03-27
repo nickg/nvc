@@ -659,7 +659,7 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
    const uint32_t old_has = has_map[t->kind];
    const uint32_t new_has = has_map[kind];
 
-   item_t *tmp = xmalloc(sizeof(item_t) * MAX_ITEMS);
+   item_t tmp[MAX_ITEMS];
    memcpy(tmp, t->items, sizeof(item_t) * MAX_ITEMS);
 
    const int nitems = __builtin_popcount(new_has);
@@ -673,8 +673,6 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
       else if (new_has & mask)
          memset(&(t->items[np++]), '\0', sizeof(item_t));
    }
-
-   free(tmp);
 
    t->kind = kind;
 }
