@@ -110,6 +110,8 @@ static int analyse(int argc, char **argv)
       simplify(units[i]);
    }
 
+   tree_gc();
+
    if (parse_errors() + sem_errors() + simplify_errors() > 0)
       return EXIT_FAILURE;
 
@@ -178,6 +180,8 @@ static int elaborate(int argc, char **argv)
       return EXIT_FAILURE;
 
    opt(e);
+
+   tree_gc();
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees

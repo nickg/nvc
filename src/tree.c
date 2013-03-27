@@ -338,7 +338,7 @@ struct tree {
    attr_tab_t  attrs;
    item_t      items[MAX_ITEMS];
 
-   // Serialisation bookkeeping
+   // Serialisation and GC bookkeeping
    uint32_t generation;
    uint32_t index;
 };
@@ -369,6 +369,7 @@ typedef struct {
    void            *context;
    tree_kind_t      kind;
    unsigned         generation;
+   bool             deep;
 } tree_visit_ctx_t;
 
 static const tree_kind_t stmt_kinds[] = {
@@ -398,11 +399,10 @@ static tree_kind_t top_level_kinds[] = {
    T_ARCH, T_ENTITY, T_PACKAGE,  T_ELAB, T_PACK_BODY
 };
 
-#define TREE_HEAP_SIZE (1024 * 128)
-
-static void   *tree_heap = NULL;
-static size_t  heap_used = 0;
-static size_t  n_trees_alloc = 0;
+// Garbage collection
+static tree_t *all_trees = NULL;
+static size_t max_trees = 128;   // Grows at runtime
+static size_t n_trees_alloc = 0;
 
 static uint32_t format_digest;
 static int      item_lookup[T_LAST_TREE_KIND][32];
@@ -508,19 +508,93 @@ tree_t tree_new(tree_kind_t kind)
 
    tree_one_time_init();
 
-   if ((tree_heap == NULL) || (heap_used == TREE_HEAP_SIZE)) {
-      tree_heap = xmalloc(TREE_HEAP_SIZE * sizeof(struct tree));
-      heap_used = 0;
-   }
-
-   tree_t t = &(((struct tree *)tree_heap)[heap_used++]);
+   tree_t t = xmalloc(sizeof(struct tree));
    memset(t, '\0', sizeof(struct tree));
    t->kind  = kind;
    t->index = UINT32_MAX;
 
-   n_trees_alloc++;
+   if (all_trees == NULL)
+      all_trees = xmalloc(sizeof(tree_t) * max_trees);
+   else if (n_trees_alloc == max_trees) {
+      max_trees *= 2;
+      all_trees = xrealloc(all_trees, sizeof(tree_t) * max_trees);
+   }
+   all_trees[n_trees_alloc++] = t;
 
    return t;
+}
+
+void tree_gc(void)
+{
+   // Generation will be updated by tree_visit
+   const unsigned base_gen = next_generation;
+
+   // Mark
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      assert(all_trees[i] != NULL);
+
+      bool top_level = tree_kind_in(all_trees[i], top_level_kinds,
+                                    ARRAY_LEN(top_level_kinds));
+
+      if (top_level) {
+         tree_visit_ctx_t ctx = {
+            .count      = 0,
+            .fn         = NULL,
+            .context    = NULL,
+            .kind       = T_LAST_TREE_KIND,
+            .generation = next_generation++,
+            .deep       = true
+         };
+
+         tree_visit_aux(all_trees[i], &ctx);
+      }
+   }
+
+   // Sweep
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      tree_t t = all_trees[i];
+      if (t->generation < base_gen) {
+
+         const imask_t has = has_map[t->kind];
+         const int nitems = __builtin_popcount(has);
+         imask_t mask = 1;
+         for (int n = 0; n < nitems; mask <<= 1) {
+            if (has & mask) {
+               if (ITEM_TREE_ARRAY & mask)
+                  free(t->items[n].tree_array.items);
+               else if (ITEM_PARAM_ARRAY & mask)
+                  free(t->items[n].param_array.items);
+               else if (ITEM_ASSOC_ARRAY & mask)
+                  free(t->items[n].assoc_array.items);
+               else if (ITEM_CONTEXT & mask)
+                  free(t->items[n].context_set.items);
+               n++;
+            }
+         }
+
+         if (t->attrs.table != NULL)
+            free(t->attrs.table);
+
+         free(t);
+
+         all_trees[i] = NULL;
+      }
+   }
+
+   // Compact
+   size_t p = 0;
+   for (unsigned i = 0; i < n_trees_alloc; i++) {
+      if (all_trees[i] != NULL)
+         all_trees[p++] = all_trees[i];
+   }
+
+   if (getenv("NVC_GC_VERBOSE") != NULL)
+      printf("[gc: freed %zu trees; %zu allocated]\n",
+             n_trees_alloc - p, p);
+
+   n_trees_alloc = p;
+
+   type_sweep(base_gen);
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -1057,18 +1131,26 @@ static void tree_visit_p(param_array_t *a, tree_visit_ctx_t *ctx)
 
 static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
 {
+   // If `deep' then will follow links above the tree originally passed
+   // to tree_visit - e.g. following references back to their declarations
+   // Outside the garbage collector this is usually not what is required
+
+   // Helper from type.c
+   void type_visit_trees(type_t t, unsigned generation,
+                         tree_visit_fn_t fn, void *context);
+
    if (t == NULL || t->generation == ctx->generation)
       return;
 
    t->generation = ctx->generation;
 
-   const imask_t nofollow_mask = I_TYPE | I_REF;
+   const imask_t deep_mask = I_TYPE | I_REF;
 
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask & ~nofollow_mask) {
+      if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
@@ -1082,7 +1164,8 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_PARAM_ARRAY & mask)
             tree_visit_p(&(t->items[i].param_array), ctx);
          else if (ITEM_TYPE & mask)
-            ;
+            type_visit_trees(t->items[i].type, ctx->generation,
+                             (tree_visit_fn_t)tree_visit_aux, ctx);
          else if (ITEM_PORT_MODE & mask)
             ;
          else if (ITEM_UINT & mask)
@@ -1105,6 +1188,19 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          i++;
    }
 
+   if (ctx->deep) {
+      for (unsigned i = 0; i < t->attrs.num; i++) {
+         switch (t->attrs.table[i].kind) {
+         case A_TREE:
+            tree_visit_aux(t->attrs.table[i].tval, ctx);
+            break;
+
+         default:
+            break;
+         }
+      }
+   }
+
    if ((t->kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
       if (ctx->fn)
          (*ctx->fn)(t, ctx->context);
@@ -1122,6 +1218,7 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
       .generation = next_generation++,
+      .deep       = false
    };
 
    tree_visit_aux(t, &ctx);
@@ -1139,7 +1236,8 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
       .fn         = fn,
       .context    = context,
       .kind       = kind,
-      .generation = next_generation++
+      .generation = next_generation++,
+      .deep       = false
    };
 
    tree_visit_aux(t, &ctx);
