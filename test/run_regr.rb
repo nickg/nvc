@@ -39,7 +39,7 @@ def run_cmd(c, invert=false)
   File.open('out', 'a') do |f|
     f.puts c
   end
-  
+
   pid = fork
   exec("exec #{c} >>out 2>&1") if pid.nil?
   begin
@@ -81,6 +81,17 @@ def check(t)
         puts "failed (no match)".red
         print match_line.chomp
         return false
+      end
+    end
+  end
+  if Opts['v'] then
+    File.open('out').each_line do |l|
+      if l =~ /lost: (\d+)/ then
+        if Regexp.last_match(1).to_i > 0 then
+          puts "failed (leaked)".red
+          print l.chomp
+          return false
+        end
       end
     end
   end
