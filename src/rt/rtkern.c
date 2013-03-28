@@ -1340,9 +1340,10 @@ static void rt_slave_fatal(void)
 
 static void rt_slave_run(slave_run_msg_t *msg)
 {
-   if (aborted) {
+   if (aborted)
       errorf("simulation has aborted and must be restarted");
-   }
+   else if (heap_size(eventq_heap) == 0)
+      warnf("no future simulation events");
    else {
       set_fatal_fn(rt_slave_fatal);
 
