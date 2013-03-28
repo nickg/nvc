@@ -200,6 +200,14 @@ static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int shell_cmd_copyright(ClientData cd, Tcl_Interp *interp,
+                               int objc, Tcl_Obj *const objv[])
+{
+   extern char *copy_string;
+   printf("%s\n", copy_string);
+   return TCL_OK;
+}
+
 static char *shell_get_line(void)
 {
    if (isatty(fileno(stdin))) {
@@ -250,6 +258,13 @@ static void shell_exit_handler(ClientData cd)
    slave_wait();
 }
 
+static void show_banner(void)
+{
+   extern const char *version_string;
+   printf("%s\n", version_string);
+   printf("Type \"help\" or \"copyright\" for more information.\n");
+}
+
 void shell_run(tree_t e)
 {
    Tcl_Interp *interp = Tcl_CreateInterp();
@@ -263,6 +278,9 @@ void shell_run(tree_t e)
    Tcl_CreateObjCommand(interp, "restart", shell_cmd_restart, NULL, NULL);
    Tcl_CreateObjCommand(interp, "show", shell_cmd_show, e, NULL);
    Tcl_CreateObjCommand(interp, "help", shell_cmd_help, e, NULL);
+   Tcl_CreateObjCommand(interp, "copyright", shell_cmd_copyright, e, NULL);
+
+   show_banner();
 
    slave_post_msg(SLAVE_RESTART, NULL, 0);
 
@@ -280,6 +298,8 @@ void shell_run(tree_t e)
 
       free(line);
    }
+
+   printf("\nBye.\n");
 
    Tcl_Exit(EXIT_SUCCESS);
 }

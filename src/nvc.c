@@ -35,6 +35,14 @@
 
 static const char *work_name = "work";
 
+const char *copy_string =
+   "Copyright (C) 2011-2013  Nick Gasson\n"
+   "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
+   "and\nyou are welcome to redistribute it under certain conditions. See "
+   "the GNU\nGeneral Public Licence for details.";
+const char *version_string =
+   PACKAGE_STRING " (llvm " LLVM_VERSION "; tcl " TCL_VERSION ")";
+
 static void set_work_lib(void)
 {
    lib_t work = lib_find(work_name, false, false);
@@ -396,22 +404,6 @@ static void usage(void)
           PACKAGE, PACKAGE_BUGREPORT);
 }
 
-static void version(void)
-{
-   static const char *copy =
-      "Copyright (C) 2011-2013  Nick Gasson\n"
-      "This program comes with ABSOLUTELY NO WARRANTY. This is free software, and\n"
-      "you are welcome to redistribute it under certain conditions. See the GNU\n"
-      "General Public Licence for details.";
-
-#ifdef HAVE_CONFIG_H
-   printf("%s (llvm %s; tcl %s)\n",
-          PACKAGE_STRING, LLVM_VERSION, TCL_VERSION);
-#endif
-
-   puts(copy);
-}
-
 int main(int argc, char **argv)
 {
    term_init();
@@ -443,7 +435,7 @@ int main(int argc, char **argv)
          usage();
          exit(EXIT_SUCCESS);
       case 'v':
-         version();
+         printf("%s\n%s\n", version_string, copy_string);
          exit(EXIT_SUCCESS);
       case 'w':
          work_name = optarg;
