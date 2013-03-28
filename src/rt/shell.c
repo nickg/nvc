@@ -42,6 +42,16 @@
 #include <readline/history.h>
 #endif
 
+typedef struct {
+   const char     *name;
+   Tcl_ObjCmdProc *fn;
+   ClientData      cd;
+   const char     *help;
+} shell_cmd_t;
+
+#define CMD(name, cd, help) \
+   { #name, shell_cmd_##name, cd, help }
+
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
@@ -188,14 +198,15 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
 static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
+   printf("NVC commands:\n");
+
+   for (shell_cmd_t *c = cd; c->name != NULL; c++)
+      printf("  %-16s%s\n", c->name, c->help);
+
    printf(
-      "NVC commands:\n"
-      "  show\t\tDisplay simulation objects\n"
-      "  restart\tRestart simulation\n"
-      "  quit\t\tExit simulation\n"
-      "Use -help on each command for detailed usage\n"
       "\n"
-      "TCL commands:\n");
+      "Use -help on each command for detailed usage.\n"
+      "Standard TCL commands are also accepted.\n");
 
    return TCL_OK;
 }
@@ -265,6 +276,11 @@ static void show_banner(void)
    printf("Type \"help\" or \"copyright\" for more information.\n");
 }
 
+static int compare_shell_cmd(const void *a, const void *b)
+{
+   return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
+}
+
 void shell_run(tree_t e)
 {
    Tcl_Interp *interp = Tcl_CreateInterp();
@@ -273,12 +289,22 @@ void shell_run(tree_t e)
 
    Tcl_CreateExitHandler(shell_exit_handler, &have_quit);
 
-   Tcl_CreateObjCommand(interp, "quit", shell_cmd_quit, &have_quit, NULL);
-   Tcl_CreateObjCommand(interp, "run", shell_cmd_run, NULL, NULL);
-   Tcl_CreateObjCommand(interp, "restart", shell_cmd_restart, NULL, NULL);
-   Tcl_CreateObjCommand(interp, "show", shell_cmd_show, e, NULL);
-   Tcl_CreateObjCommand(interp, "help", shell_cmd_help, e, NULL);
-   Tcl_CreateObjCommand(interp, "copyright", shell_cmd_copyright, e, NULL);
+   shell_cmd_t shell_cmds[] = {
+      CMD(quit,      &have_quit, "Exit simulation"),
+      CMD(run,       NULL,       "Start or resume simulation"),
+      CMD(restart,   NULL,       "Restart simulation"),
+      CMD(show,      e,          "Display simulation objects"),
+      CMD(help,      shell_cmds, "Display this message"),
+      CMD(copyright, NULL,       "Display copyright information"),
+
+      { NULL, NULL, NULL, NULL}
+   };
+
+   qsort(shell_cmds, ARRAY_LEN(shell_cmds) - 1, sizeof(shell_cmd_t),
+         compare_shell_cmd);
+
+   for (shell_cmd_t *c = shell_cmds; c->name != NULL; c++)
+      Tcl_CreateObjCommand(interp, c->name, c->fn, c->cd, NULL);
 
    show_banner();
 
