@@ -31,6 +31,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 #include <math.h>
 #include <errno.h>
 #include <sys/time.h>
@@ -137,6 +138,8 @@ static bool          trace_on = false;
 static ident_t       i_signal = NULL;
 static tree_rd_ctx_t tree_rd_ctx = NULL;
 static struct rusage ready_rusage;
+static jmp_buf       fatal_jmp;
+static bool          aborted = false;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -1329,11 +1332,28 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
       rt_stats_print();
 }
 
+static void rt_slave_fatal(void)
+{
+   aborted = true;
+   longjmp(fatal_jmp, 1);
+}
+
 static void rt_slave_run(slave_run_msg_t *msg)
 {
-   const uint64_t end = now + msg->time;
-   while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
-      rt_cycle();
+   if (aborted) {
+      errorf("simulation has aborted and must be restarted");
+   }
+   else {
+      set_fatal_fn(rt_slave_fatal);
+
+      if (setjmp(fatal_jmp) == 0) {
+         const uint64_t end = now + msg->time;
+         while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
+            rt_cycle();
+      }
+
+      set_fatal_fn(NULL);
+   }
 }
 
 static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
@@ -1388,6 +1408,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
       case SLAVE_RESTART:
          rt_setup(e);
          rt_initial(e);
+         aborted = false;
          break;
 
       case SLAVE_RUN:

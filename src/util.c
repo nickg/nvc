@@ -126,7 +126,8 @@ struct color_escape {
    int         value;
 };
 
-static error_fn_t     error_fn   = def_error_fn;
+static error_fn_t     error_fn = def_error_fn;
+static fatal_fn_t     fatal_fn = NULL;
 static bool           want_color = false;
 static struct option *options = NULL;
 static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
@@ -343,6 +344,9 @@ void fatal_at(const loc_t *loc, const char *fmt, ...)
    fmt_loc(stderr, loc);
    va_end(ap);
 
+   if (fatal_fn != NULL)
+      (*fatal_fn)();
+
    exit(EXIT_FAILURE);
 }
 
@@ -353,12 +357,20 @@ error_fn_t set_error_fn(error_fn_t fn)
    return old;
 }
 
+void set_fatal_fn(fatal_fn_t fn)
+{
+   fatal_fn = fn;
+}
+
 void fatal(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
    fmt_color(ANSI_FG_RED, "Fatal", fmt, ap);
    va_end(ap);
+
+   if (fatal_fn != NULL)
+      (*fatal_fn)();
 
    exit(EXIT_FAILURE);
 }
