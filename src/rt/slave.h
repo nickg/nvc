@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,8 +31,11 @@ typedef enum {
    SLAVE_RUN,
    SLAVE_READ_SIGNAL,
 
-   // Messages from slave to master
-   REPLY_READ_SIGNAL
+   // Replies to master messages
+   REPLY_READ_SIGNAL,
+
+   // Events from slave
+   EVENT_STOP,
 } slave_msg_t;
 
 typedef struct {

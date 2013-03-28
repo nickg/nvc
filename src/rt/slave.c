@@ -54,6 +54,7 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    switch (*msg) {
    case SLAVE_QUIT:
    case SLAVE_RESTART:
+   case EVENT_STOP:
       break;
    case SLAVE_RUN:
       body_len = sizeof(slave_run_msg_t);

@@ -1354,6 +1354,8 @@ static void rt_slave_run(slave_run_msg_t *msg)
 
       set_fatal_fn(NULL);
    }
+
+   slave_post_msg(EVENT_STOP, NULL, 0);
 }
 
 static void rt_slave_read_signal(slave_read_signal_msg_t *msg)

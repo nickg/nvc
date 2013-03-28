@@ -82,6 +82,19 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
 
    slave_run_msg_t msg = { .time = time };
    slave_post_msg(SLAVE_RUN, &msg, sizeof(msg));
+
+   slave_msg_t event;
+   do {
+      slave_get_msg(&event, NULL, NULL);
+
+      switch (event) {
+      case EVENT_STOP:
+         break;
+      default:
+         fatal("unhandled slave event %d", event);
+      }
+   } while (event != EVENT_STOP);
+
    return TCL_OK;
 }
 
