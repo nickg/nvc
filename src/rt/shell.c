@@ -26,6 +26,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include <inttypes.h>
 
 #if defined HAVE_TCL_TCL_H
@@ -51,6 +52,32 @@ typedef struct {
 
 #define CMD(name, cd, help) \
    { #name, shell_cmd_##name, cd, help }
+
+__attribute__((format(printf, 2, 3)))
+static int tcl_error(Tcl_Interp *interp, const char *fmt, ...)
+{
+   va_list ap;
+   char buf[1024];
+   va_start(ap, fmt);
+   vsnprintf(buf, sizeof(buf), fmt, ap);
+   va_end(ap);
+
+   Tcl_SetObjResult(interp, Tcl_NewStringObj(buf, -1));
+   return TCL_ERROR;
+}
+
+static bool show_help(int objc, Tcl_Obj *const objv[], const char *help)
+{
+   for (int i = 1; i < objc; i++) {
+      const char *what = Tcl_GetString(objv[1]);
+      if (strcmp(what, "-help") == 0) {
+         printf("%s", help);
+         return true;
+      }
+   }
+
+   return false;
+}
 
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
@@ -117,79 +144,141 @@ static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int shell_cmd_signals(ClientData cd, Tcl_Interp *interp,
+                             int objc, Tcl_Obj *const objv[])
+{
+   const char *help =
+      "signals - Find signal objects in the design\n"
+      "\n"
+      "Usage: signals [GLOB]\n"
+      "\n"
+      "Returns a list of signal names. Pass to `show' to see current values\n"
+      "and types. GLOB is either the fully qualified name of a signal; a\n"
+      "pattern containing a wildcard character '*'; or an unqualified name\n"
+      "without the hierarchy separator ':' which matches that name at any\n"
+      "level.\n"
+      "\n"
+      "Examples:\n"
+      "  signals            List of all signal objects\n"
+      "  signals {*foo*}    Find signals containing `foo'\n"
+      "  signals {*:clk}    Find signals named `clk' at any level\n"
+      "  signals {clk}      Equivalent to the above\n"
+      "  show [signals]     Display current value of all signals\n";
+
+   if (show_help(objc, objv, help))
+      return TCL_OK;
+
+   tree_t top = cd;
+
+   Tcl_Obj *result = Tcl_NewListObj(0, NULL);
+
+   const int ndecls = tree_decls(top);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+
+      Tcl_Obj *obj = Tcl_NewStringObj(istr(tree_ident(d)), -1);
+      Tcl_ListObjAppendElement(interp, result, obj);
+   }
+
+   Tcl_SetObjResult(interp, result);
+   return TCL_OK;
+}
+
 static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
-   tree_t top = cd;
+   const char *help =
+      "show - Display simulation objects\n"
+      "\n"
+      "Usage: show LIST...\n"
+      "\n"
+      "Prints a representation of each simulation object in LIST. Typically\n"
+      "this will be a list of signal names and the output will show their\n"
+      "current value.\n"
+      "\n"
+      "Examples:\n"
+      "  show {:top:foo}      Print value of signal :top_foo\n"
+      "  show [signals]       Print value of all signals\n";
+
+   if (show_help(objc, objv, help))
+      return TCL_OK;
 
    if (objc == 1) {
-      fprintf(stderr, "try 'show -help' for usage\n");
-      return TCL_ERROR;
+      warnf("nothing to show (try -help for usage)");
+      return TCL_OK;
    }
 
-   const char *what = Tcl_GetString(objv[1]);
-   if (strcmp(what, "-help") == 0) {
-      printf("Usage: show [something]\n"
-             "  -signal  - list all signals in design with current value\n"
-             "  -process - list all processes in design\n"
-             "  -alias   - list all aliases in design\n");
-   }
-   else if (strcmp(what, "-signal") == 0) {
-      for (unsigned i = 0; i < tree_decls(top); i++) {
-         tree_t d = tree_decl(top, i);
-         if (tree_kind(d) != T_SIGNAL_DECL)
-            continue;
+   tree_t top = cd;
+   const int ndecls = tree_decls(top);
 
-         size_t len = 1;
-         type_t type = tree_type(d);
-         while (type_is_array(type)) {
-            int64_t low = 0, high = 0;
-            range_bounds(type_dim(type, 0), &low, &high);
-            len *= (high - low + 1);
+   for (int i = 1; i < objc; i++) {
+      int length;
+      if (Tcl_ListObjLength(interp, objv[i], &length) != TCL_OK)
+         return TCL_ERROR;
 
-            type = type_elem(type);
+      for (int j = 0; j < length; j++) {
+         Tcl_Obj *obj;
+         if (Tcl_ListObjIndex(interp, objv[i], j, &obj) != TCL_OK)
+            return TCL_ERROR;
+
+         const char *str = Tcl_GetString(obj);
+         ident_t name = ident_new(str);
+
+         tree_t t = NULL;
+         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
+            tree_t decl = tree_decl(top, k);
+            if (tree_ident(decl) == name)
+               t = decl;
          }
 
-         slave_read_signal_msg_t msg = {
-            .index = tree_index(d),
-            .len   = len
-         };
-         slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
+         if (t == NULL)
+            return tcl_error(interp, "object not found: %s", str);
 
-         const size_t rsz =
-            sizeof(reply_read_signal_msg_t) + (msg.len * sizeof(uint64_t));
-         reply_read_signal_msg_t *reply = xmalloc(rsz);
-         slave_get_reply(REPLY_READ_SIGNAL, reply, rsz);
+         tree_kind_t kind = tree_kind(t);
+         switch (kind) {
+         case T_SIGNAL_DECL:
+            {
+               size_t len = 1;
+               type_t type = tree_type(t);
+               while (type_is_array(type)) {
+                  int64_t low = 0, high = 0;
+                  range_bounds(type_dim(type, 0), &low, &high);
+                  len *= (high - low + 1);
 
-         const char *type_str = type_pp(tree_type(d));
-         const char *short_name = strrchr(type_str, '.');
+                  type = type_elem(type);
+               }
 
-         printf("%-30s%-20s%s\n",
-                istr(tree_ident(d)),
-                (short_name != NULL ? short_name + 1 : type_str),
-                pprint(d, reply->values, msg.len));
+               slave_read_signal_msg_t msg = {
+                  .index = tree_index(t),
+                  .len   = len
+               };
+               slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
 
-         free(reply);
+               const size_t rsz =
+                  sizeof(reply_read_signal_msg_t)
+                  + (msg.len * sizeof(uint64_t));
+               reply_read_signal_msg_t *reply = xmalloc(rsz);
+               slave_get_reply(REPLY_READ_SIGNAL, reply, rsz);
+
+               const char *type_str = type_pp(type);
+               const char *short_name = strrchr(type_str, '.');
+
+               printf("%-30s%-20s%s\n",
+                      str,
+                      (short_name != NULL ? short_name + 1 : type_str),
+                      pprint(t, reply->values, msg.len));
+
+               free(reply);
+            }
+            break;
+
+         default:
+            return tcl_error(interp, "cannot show tree kind %s",
+                             tree_kind_str(kind));
+         }
       }
-   }
-   else if (strcmp(what, "-process") == 0) {
-      for (unsigned i = 0; i < tree_stmts(top); i++) {
-         tree_t p = tree_stmt(top, i);
-         printf("%s\n", istr(tree_ident(p)));
-      }
-   }
-   else if (strcmp(what, "-alias") == 0) {
-      for (unsigned i = 0; i < tree_decls(top); i++) {
-         tree_t a = tree_decl(top, i);
-         if (tree_kind(a) != T_ALIAS)
-            continue;
-
-         printf("%s\n", istr(tree_ident(a)));
-      }
-   }
-   else {
-      fprintf(stderr, "cannot show '%s' - try 'show help' for usage\n", what);
-      return TCL_ERROR;
    }
 
    return TCL_OK;
@@ -296,6 +385,7 @@ void shell_run(tree_t e)
       CMD(show,      e,          "Display simulation objects"),
       CMD(help,      shell_cmds, "Display this message"),
       CMD(copyright, NULL,       "Display copyright information"),
+      CMD(signals,   e,          "Find signal objects in the design"),
 
       { NULL, NULL, NULL, NULL}
    };
@@ -316,7 +406,7 @@ void shell_run(tree_t e)
       case TCL_OK:
          break;
       case TCL_ERROR:
-         fprintf(stderr, "%s\n", Tcl_GetStringResult(interp));
+         errorf("%s", Tcl_GetStringResult(interp));
          break;
       default:
          assert(false);

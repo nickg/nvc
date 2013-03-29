@@ -54,6 +54,18 @@ expect "for details."
 
 ############################################################
 
+name_test "signals"
+expect "%" {send "puts \[llength \[signals\]\]\n"}
+expect "8"
+
+############################################################
+
+name_test "show"
+expect "%" {send "show {:ram1:clk}\n"}
+expect -re ":ram1:clk *STD_LOGIC *0"
+
+############################################################
+
 name_test "quit"
 expect "%" {send "quit\n"}
 expect "Bye."
