@@ -2088,7 +2088,16 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
    for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
 
-      LLVMValueRef v = cgen_expr(a.value, ctx);
+      type_t value_type = tree_type(a.value);
+      LLVMValueRef v;
+      if (type_is_array(value_type)) {
+         unsigned nvals;
+         LLVMValueRef *vals = cgen_const_aggregate(a.value, ctx, 0, &nvals);
+         LLVMTypeRef ltype = llvm_type(type_elem(value_type));
+         v = LLVMConstArray(ltype, vals, nvals);
+      }
+      else
+         v = cgen_expr(a.value, ctx);
 
       switch (a.kind) {
       case A_POS:
