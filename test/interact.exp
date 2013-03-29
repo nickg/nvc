@@ -62,7 +62,7 @@ expect "8"
 
 name_test "show"
 expect "%" {send "show {:ram1:clk}\n"}
-expect -re ":ram1:clk *STD_LOGIC *0"
+expect -re ":ram1:clk *STD_LOGIC *'0'"
 
 ############################################################
 

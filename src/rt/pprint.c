@@ -41,7 +41,7 @@ static bool pp_char_enum(type_t type)
    return all_char;
 }
 
-static void pp_one(char *buf, type_t type, uint64_t value)
+static void pp_one(char *buf, type_t type, uint64_t value, bool tick)
 {
    switch (type_kind(type)) {
    case T_INTEGER:
@@ -52,7 +52,7 @@ static void pp_one(char *buf, type_t type, uint64_t value)
       {
          assert(value < type_enum_literals(type));
          const char *s = istr(tree_ident(type_enum_literal(type, value)));
-         if (*s == '\'')
+         if ((*s == '\'') && !tick)
             static_printf(buf, "%c", *(s + 1));
          else
             static_printf(buf, "%s", s);
@@ -82,7 +82,7 @@ static const uint64_t *pp_array(char *buf, type_t type, const uint64_t *values)
       if (type_is_array(elem))
          values = pp_array(buf, elem, values);
       else
-         pp_one(buf, elem, *values++);
+         pp_one(buf, elem, *values++, !all_char);
    }
 
    static_printf(buf, all_char ? "\"" : ")");
@@ -101,7 +101,7 @@ const char *pprint(tree_t t, const uint64_t *values, size_t len)
    if (type_is_array(type))
       pp_array(buf, type, values);
    else
-      pp_one(buf, type_base_recur(type), values[0]);
+      pp_one(buf, type_base_recur(type), values[0], true);
 
    for (int i = 0; i < 3; i++)
       *(buf + sizeof(buf) - 2 - i) = '.';
