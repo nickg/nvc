@@ -1,0 +1,63 @@
+#!/usr/bin/env expect
+
+#
+# Test interactive use of nvc -r -c
+#
+# This is not currently run as part of make check
+#
+
+proc name_test {n} {
+    puts "\033\[32m$n\033\[0m"
+}
+
+proc fail {} {
+    puts "\033\[31mfailed\033\[0m"
+    exit 1
+}
+
+set test  [file dirname $argv0]
+set build [pwd]
+
+set timeout 1
+expect_after timeout fail
+
+############################################################
+
+name_test "compile source"
+system $build/src/nvc -a $test/regress/ram1.vhd
+system $build/src/nvc -e ram1
+
+############################################################
+
+name_test "launch shell"
+spawn $build/src/nvc -r -c ram1
+
+############################################################
+
+name_test "banner"
+expect -re {nvc [\d]+\.[\d]+ \(llvm .*; tcl .*\)}
+expect "Type \"help\""
+
+############################################################
+
+name_test "help"
+expect "%" {send "help\n"}
+expect "NVC commands:"
+expect "Standard TCL commands are also accepted."
+
+############################################################
+
+name_test "copyright"
+expect "%" {send "copyright\n"}
+expect "Copyright (C) 2011-"
+expect "for details."
+
+############################################################
+
+name_test "quit"
+expect "%" {send "quit\n"}
+expect "Bye."
+
+############################################################
+
+interact
