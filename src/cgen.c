@@ -556,14 +556,14 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
    LLVMValueRef zero_based = LLVMBuildSub(builder, off, low, "");
 
    // Array offsets are always 32-bit
-   return LLVMBuildIntCast(builder, zero_based, LLVMInt32Type(), "");
+   return LLVMBuildZExt(builder, zero_based, LLVMInt32Type(), "");
 }
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               LLVMValueRef min, LLVMValueRef max,
                               cgen_ctx_t *ctx)
 {
-   LLVMValueRef value32 = LLVMBuildIntCast(builder, value,
-                                           LLVMInt32Type(), "value32");
+   LLVMValueRef value32 = LLVMBuildZExt(builder, value,
+                                        LLVMInt32Type(), "value32");
 
    LLVMValueRef above =
       LLVMBuildICmp(builder, LLVMIntUGE, value32, min, "above");

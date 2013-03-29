@@ -12,7 +12,7 @@ begin
     process is
     begin
         report const('0');
-        --report const('1');
+        report const('1');
         wait;
     end process;
 
