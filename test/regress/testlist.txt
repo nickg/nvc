@@ -104,3 +104,4 @@ record3         normal
 issue8          normal
 issue9          normal
 record4         normal
+record5         normal

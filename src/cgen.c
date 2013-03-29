@@ -2229,8 +2229,14 @@ static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)
    tree_t value = tree_value(t);
    int index    = cgen_field_index(tree_type(value), tree_ident(t));
 
-   LLVMValueRef rec = cgen_expr(tree_value(t), ctx);
-   return LLVMBuildExtractValue(builder, rec, index, "rec");
+   if (type_is_array(tree_type(t))) {
+      LLVMValueRef rec = cgen_var_lvalue(value, ctx);
+      return LLVMBuildStructGEP(builder, rec, index, "field");
+   }
+   else {
+      LLVMValueRef rec = cgen_expr(tree_value(t), ctx);
+      return LLVMBuildExtractValue(builder, rec, index, "field");
+   }
 }
 
 static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
