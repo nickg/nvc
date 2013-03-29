@@ -85,7 +85,7 @@
 }
 
 %code provides {
-   bool input_from_file(const char *file);
+   void input_from_file(const char *file);
 
    tree_t parse(void);
    void begin_token(char *tok);
@@ -2696,33 +2696,25 @@ int get_next_char(char *b, int max_buffer)
    return *b == 0 ? 0 : 1;
 }
 
-bool input_from_file(const char *file)
+void input_from_file(const char *file)
 {
    int fd = open(file, O_RDONLY);
-   if (fd < 0) {
-      perror(file);
-      return false;
-   }
+   if (fd < 0)
+      fatal_errno("opening %s", file);
 
    struct stat buf;
-   if (fstat(fd, &buf) != 0) {
-      perror("fstat");
-      return false;
-   }
+   if (fstat(fd, &buf) != 0)
+      fatal_errno("fstat");
 
    file_sz = buf.st_size;
 
    file_start = mmap(NULL, file_sz, PROT_READ, MAP_PRIVATE, fd, 0);
-   if (file_start == MAP_FAILED) {
-      perror("mmap");
-      return false;
-   }
+   if (file_start == MAP_FAILED)
+      fatal_errno("mmap");
 
    read_ptr         = file_start;
    last_was_newline = true;
    perm_file_name   = strdup(file);
-
-   return true;
 }
 
 tree_t parse(void)

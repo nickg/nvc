@@ -102,8 +102,7 @@ static int analyse(int argc, char **argv)
    int n_units = 0;
 
    for (int i = optind; i < argc; i++) {
-      if (!input_from_file(argv[i]))
-         return EXIT_FAILURE;
+      input_from_file(argv[i]);
 
       tree_t unit;
       while ((unit = parse()) && sem_check(unit)) {
