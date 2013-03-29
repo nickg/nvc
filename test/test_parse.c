@@ -14,7 +14,7 @@ START_TEST(test_entity)
    type_t t;
    literal_t l;
 
-   fail_unless(input_from_file(TESTDIR "/parse/entity.vhd"));
+   input_from_file(TESTDIR "/parse/entity.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -151,7 +151,7 @@ START_TEST(test_arch)
    tree_t a, d, v;
    literal_t l;
 
-   fail_unless(input_from_file(TESTDIR "/parse/arch.vhd"));
+   input_from_file(TESTDIR "/parse/arch.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -211,7 +211,7 @@ START_TEST(test_process)
 {
    tree_t a, p, d, s;
 
-   fail_unless(input_from_file(TESTDIR "/parse/process.vhd"));
+   input_from_file(TESTDIR "/parse/process.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -250,7 +250,7 @@ START_TEST(test_seq)
 {
    tree_t a, p, s, e, b;
 
-   fail_unless(input_from_file(TESTDIR "/parse/seq.vhd"));
+   input_from_file(TESTDIR "/parse/seq.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -559,7 +559,7 @@ START_TEST(test_types)
    type_t t;
    range_t r;
 
-   fail_unless(input_from_file(TESTDIR "/parse/types.vhd"));
+   input_from_file(TESTDIR "/parse/types.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -695,7 +695,7 @@ START_TEST(test_literal)
    tree_t a, d, v;
    literal_t l;
 
-   fail_unless(input_from_file(TESTDIR "/parse/literal.vhd"));
+   input_from_file(TESTDIR "/parse/literal.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -815,7 +815,7 @@ START_TEST(test_extended)
 {
    tree_t a, d, n;
 
-   fail_unless(input_from_file(TESTDIR "/parse/extended.vhd"));
+   input_from_file(TESTDIR "/parse/extended.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -845,7 +845,7 @@ START_TEST(test_package)
 {
    tree_t p, d;
 
-   fail_unless(input_from_file(TESTDIR "/parse/package.vhd"));
+   input_from_file(TESTDIR "/parse/package.vhd");
 
    p = parse();
    fail_if(p == NULL);
@@ -893,7 +893,7 @@ START_TEST(test_enum)
    tree_t p, d, i;
    type_t t;
 
-   fail_unless(input_from_file(TESTDIR "/parse/enum.vhd"));
+   input_from_file(TESTDIR "/parse/enum.vhd");
 
    p = parse();
    fail_if(p == NULL);
@@ -957,7 +957,7 @@ START_TEST(test_qual)
 {
    tree_t a, p, s, q, e;
 
-   fail_unless(input_from_file(TESTDIR "/parse/qual.vhd"));
+   input_from_file(TESTDIR "/parse/qual.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -997,7 +997,7 @@ START_TEST(test_func)
    tree_t p, f, a;
    type_t t;
 
-   fail_unless(input_from_file(TESTDIR "/parse/func.vhd"));
+   input_from_file(TESTDIR "/parse/func.vhd");
 
    p = parse();
    fail_if(p == NULL);
@@ -1039,7 +1039,7 @@ START_TEST(test_array)
    range_t r;
    assoc_t x;
 
-   fail_unless(input_from_file(TESTDIR "/parse/array.vhd"));
+   input_from_file(TESTDIR "/parse/array.vhd");
 
    p = parse();
    fail_if(p == NULL);
@@ -1205,7 +1205,7 @@ START_TEST(test_instance)
 {
    tree_t a, s;
 
-   fail_unless(input_from_file(TESTDIR "/parse/instance.vhd"));
+   input_from_file(TESTDIR "/parse/instance.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -1268,7 +1268,7 @@ START_TEST(test_conc)
 {
    tree_t a, s, c;
 
-   fail_unless(input_from_file(TESTDIR "/parse/conc.vhd"));
+   input_from_file(TESTDIR "/parse/conc.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -1317,7 +1317,7 @@ START_TEST(test_alias)
 {
    tree_t a, d;
 
-   fail_unless(input_from_file(TESTDIR "/parse/alias.vhd"));
+   input_from_file(TESTDIR "/parse/alias.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -1348,7 +1348,7 @@ START_TEST(test_attr)
 {
    tree_t a, d;
 
-   fail_unless(input_from_file(TESTDIR "/parse/attr.vhd"));
+   input_from_file(TESTDIR "/parse/attr.vhd");
 
    a = parse();
    fail_if(a == NULL);
@@ -1385,7 +1385,7 @@ START_TEST(test_procedure)
 {
    tree_t p, d;
 
-   fail_unless(input_from_file(TESTDIR "/parse/procedure.vhd"));
+   input_from_file(TESTDIR "/parse/procedure.vhd");
 
    p = parse();
    fail_if(p == NULL);
@@ -1420,7 +1420,7 @@ START_TEST(test_ir1045)
 {
    tree_t a, s, q, v, c;
 
-   fail_unless(input_from_file(TESTDIR "/parse/ir1045.vhd"));
+   input_from_file(TESTDIR "/parse/ir1045.vhd");
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -1453,7 +1453,7 @@ START_TEST(test_concat)
 {
    tree_t a, s, e;
 
-   fail_unless(input_from_file(TESTDIR "/parse/concat.vhd"));
+   input_from_file(TESTDIR "/parse/concat.vhd");
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -1475,7 +1475,7 @@ START_TEST(test_based)
 {
    tree_t p, d;
 
-   fail_unless(input_from_file(TESTDIR "/parse/based.vhd"));
+   input_from_file(TESTDIR "/parse/based.vhd");
 
    p = parse();
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1509,7 +1509,7 @@ START_TEST(test_bitstring)
 {
    tree_t p, a;
 
-   fail_unless(input_from_file(TESTDIR "/parse/bitstring.vhd"));
+   input_from_file(TESTDIR "/parse/bitstring.vhd");
 
    p = parse();
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1573,7 +1573,7 @@ START_TEST(test_block)
 {
    tree_t a, b;
 
-   fail_unless(input_from_file(TESTDIR "/parse/block.vhd"));
+   input_from_file(TESTDIR "/parse/block.vhd");
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -1600,7 +1600,7 @@ START_TEST(test_comp)
 {
    tree_t p, c;
 
-   fail_unless(input_from_file(TESTDIR "/parse/comp.vhd"));
+   input_from_file(TESTDIR "/parse/comp.vhd");
 
    p = parse();
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1629,7 +1629,7 @@ START_TEST(test_generate)
 {
    tree_t a, g;
 
-   fail_unless(input_from_file(TESTDIR "/parse/generate.vhd"));
+   input_from_file(TESTDIR "/parse/generate.vhd");
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);
@@ -1677,7 +1677,7 @@ START_TEST(test_access)
 {
    tree_t a, p, s;
 
-   fail_unless(input_from_file(TESTDIR "/parse/access.vhd"));
+   input_from_file(TESTDIR "/parse/access.vhd");
 
    a = parse();
    fail_unless(tree_kind(a) == T_ARCH);

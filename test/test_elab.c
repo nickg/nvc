@@ -74,7 +74,7 @@ START_TEST(test_elab1)
 {
    tree_t top;
 
-   fail_unless(input_from_file(TESTDIR "/elab/elab1.vhd"));
+   input_from_file(TESTDIR "/elab/elab1.vhd");
 
    const error_t expect[] = {
       { -1, NULL }
@@ -89,7 +89,7 @@ START_TEST(test_elab2)
 {
    tree_t top;
 
-   fail_unless(input_from_file(TESTDIR "/elab/elab2.vhd"));
+   input_from_file(TESTDIR "/elab/elab2.vhd");
 
    const error_t expect[] = {
       { -1, NULL }
@@ -104,7 +104,7 @@ START_TEST(test_open)
 {
    tree_t top;
 
-   fail_unless(input_from_file(TESTDIR "/elab/open.vhd"));
+   input_from_file(TESTDIR "/elab/open.vhd");
 
    const error_t expect[] = {
       { -1, NULL }

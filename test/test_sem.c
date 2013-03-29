@@ -60,7 +60,7 @@ START_TEST(test_integer)
    type_t t;
    range_t r;
 
-   fail_unless(input_from_file(TESTDIR "/sem/integer.vhd"));
+   input_from_file(TESTDIR "/sem/integer.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -138,7 +138,7 @@ START_TEST(test_ports)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/ports.vhd"));
+   input_from_file(TESTDIR "/sem/ports.vhd");
 
    const error_t expect[] = {
       { 31,  "cannot read output port O" },
@@ -195,7 +195,7 @@ START_TEST(test_scope)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/scope.vhd"));
+   input_from_file(TESTDIR "/sem/scope.vhd");
 
    const error_t expect[] = {
       { 31, "WORK.PACK1.MY_INT1 does not match type"
@@ -261,7 +261,7 @@ START_TEST(test_ambiguous)
    tree_t a, e, p, s;
    type_t lhs, rhs;
 
-   fail_unless(input_from_file(TESTDIR "/sem/ambiguous.vhd"));
+   input_from_file(TESTDIR "/sem/ambiguous.vhd");
 
    const error_t expect[] = {
       { 35, "type of value BAR does not match type of target FOO" },
@@ -336,7 +336,7 @@ START_TEST(test_const)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/const.vhd"));
+   input_from_file(TESTDIR "/sem/const.vhd");
 
    const error_t expect[] = {
       { 19, "invalid target of variable assignment" },
@@ -379,7 +379,7 @@ START_TEST(test_std)
 {
    tree_t a, e, d;
 
-   fail_unless(input_from_file(TESTDIR "/sem/std.vhd"));
+   input_from_file(TESTDIR "/sem/std.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -401,7 +401,7 @@ START_TEST(test_wait)
 {
    tree_t a, e, p, w;
 
-   fail_unless(input_from_file(TESTDIR "/sem/wait.vhd"));
+   input_from_file(TESTDIR "/sem/wait.vhd");
 
    const error_t expect[] = {
       { 17, "type of delay must be TIME" },
@@ -453,7 +453,7 @@ START_TEST(test_func)
 {
    tree_t p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/func.vhd"));
+   input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
       {   5, "function arguments must have mode IN" },
@@ -506,7 +506,7 @@ START_TEST(test_array)
 {
    tree_t p, a, e;
 
-   fail_unless(input_from_file(TESTDIR "/sem/array.vhd"));
+   input_from_file(TESTDIR "/sem/array.vhd");
 
    const error_t expect[] = {
       { 27, "positional associations must appear first in aggregate" },
@@ -555,7 +555,7 @@ START_TEST(test_assert)
 {
    tree_t a, e;
 
-   fail_unless(input_from_file(TESTDIR "/sem/assert.vhd"));
+   input_from_file(TESTDIR "/sem/assert.vhd");
 
    const error_t expect[] = {
       { 17, "type of assertion expression must be BOOLEAN" },
@@ -586,7 +586,7 @@ START_TEST(test_generics)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/generics.vhd"));
+   input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
       { 34, "missing actual for formal N" },
@@ -653,7 +653,7 @@ START_TEST(test_seq)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/seq.vhd"));
+   input_from_file(TESTDIR "/sem/seq.vhd");
 
    const error_t expect[] = {
       {  15, "type of test must be BOOLEAN" },
@@ -700,7 +700,7 @@ START_TEST(test_conc)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/conc.vhd"));
+   input_from_file(TESTDIR "/sem/conc.vhd");
 
    const error_t expect[] = {
       { 12, "no suitable overload for identifier '4'" },
@@ -734,7 +734,7 @@ START_TEST(test_procedure)
 {
    tree_t p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/procedure.vhd"));
+   input_from_file(TESTDIR "/sem/procedure.vhd");
 
    const error_t expect[] = {
       {   5, "subprogram body is not allowed in package specification" },
@@ -775,7 +775,7 @@ START_TEST(test_concat)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/concat.vhd"));
+   input_from_file(TESTDIR "/sem/concat.vhd");
 
    const error_t expect[] = {
       { 22, "type of scalar does not match element type of array" },
@@ -805,7 +805,7 @@ START_TEST(test_conv)
 {
    tree_t a, e, p;
 
-   fail_unless(input_from_file(TESTDIR "/sem/conv.vhd"));
+   input_from_file(TESTDIR "/sem/conv.vhd");
 
    const error_t expect[] = {
       { 28, "conversion only allowed between closely related types" },
@@ -836,7 +836,7 @@ START_TEST(test_attr)
 {
    tree_t a, e;
 
-   fail_unless(input_from_file(TESTDIR "/sem/attr.vhd"));
+   input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
       { 23, "Z has no attribute FOO" },
@@ -873,7 +873,7 @@ START_TEST(test_generate)
 {
    tree_t a, e;
 
-   fail_unless(input_from_file(TESTDIR "/sem/generate.vhd"));
+   input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
       { 15, "condition of generate statement must be BOOLEAN" },
@@ -904,7 +904,7 @@ START_TEST(test_record)
    tree_t p, d;
    type_t t;
 
-   fail_unless(input_from_file(TESTDIR "/sem/record.vhd"));
+   input_from_file(TESTDIR "/sem/record.vhd");
 
    const error_t expect[] = {
       {  9, "duplicate field name X" },
@@ -944,7 +944,7 @@ START_TEST(test_file)
    tree_t p, d;
    type_t t;
 
-   fail_unless(input_from_file(TESTDIR "/sem/file.vhd"));
+   input_from_file(TESTDIR "/sem/file.vhd");
 
    const error_t expect[] = {
       {  6, "files may not be of access type" },
@@ -979,7 +979,7 @@ START_TEST(test_access)
    tree_t p, d;
    type_t t;
 
-   fail_unless(input_from_file(TESTDIR "/sem/access.vhd"));
+   input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
       {  5, "type FOO is not defined" },
@@ -1014,7 +1014,7 @@ START_TEST(test_real)
 {
    tree_t a, e;
 
-   fail_unless(input_from_file(TESTDIR "/sem/real.vhd"));
+   input_from_file(TESTDIR "/sem/real.vhd");
 
    e = parse();
    fail_if(e == NULL);

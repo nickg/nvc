@@ -106,7 +106,7 @@ START_TEST(test_cfold)
    };
    expect_errors(expect);
 
-   fail_unless(input_from_file(TESTDIR "/simp/cfold.vhd"));
+   input_from_file(TESTDIR "/simp/cfold.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -185,7 +185,7 @@ START_TEST(test_proc)
 {
    tree_t e, a, p, s, r;
 
-   fail_unless(input_from_file(TESTDIR "/simp/proc.vhd"));
+   input_from_file(TESTDIR "/simp/proc.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -262,7 +262,7 @@ START_TEST(test_args)
 {
    tree_t e, a, p, s, c;
 
-   fail_unless(input_from_file(TESTDIR "/simp/args.vhd"));
+   input_from_file(TESTDIR "/simp/args.vhd");
 
    e = parse();
    fail_if(e == NULL);
@@ -319,7 +319,7 @@ START_TEST(test_ffold)
    };
    expect_errors(expect);
 
-   fail_unless(input_from_file(TESTDIR "/simp/ffold.vhd"));
+   input_from_file(TESTDIR "/simp/ffold.vhd");
 
    p = parse();
    fail_if(p == NULL);
