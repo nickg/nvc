@@ -1772,7 +1772,10 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       {
          LLVMValueRef data = cgen_array_data_ptr(type, array);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
-         return LLVMBuildLoad(builder, ptr, "");
+         if (type_is_array(tree_type(t)))
+            return ptr;
+         else
+            return LLVMBuildLoad(builder, ptr, "");
       }
 
    case C_SIGNAL:
