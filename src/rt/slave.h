@@ -30,9 +30,11 @@ typedef enum {
    SLAVE_RESTART,
    SLAVE_RUN,
    SLAVE_READ_SIGNAL,
+   SLAVE_NOW,
 
    // Replies to master messages
    REPLY_READ_SIGNAL,
+   REPLY_NOW,
 
    // Events from slave
    EVENT_STOP,
@@ -51,6 +53,11 @@ typedef struct {
    uint32_t len;
    uint64_t values[0];
 } reply_read_signal_msg_t;
+
+typedef struct {
+   uint64_t now;
+   char     text[64];
+} reply_now_msg_t;
 
 void slave_post_msg(slave_msg_t msg, const void *args, size_t len);
 void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len);

@@ -284,6 +284,47 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int shell_cmd_now(ClientData cd, Tcl_Interp *interp,
+                         int objc, Tcl_Obj *const objv[])
+{
+   const char *help =
+      "now - Display current simulation time\n"
+      "\n"
+      "Usage: now [-q]\n"
+      "\n"
+      "Prints the current simulation time to the standard output unless -q\n"
+      "is specified. Returns the time as a string.\n"
+      "\n"
+      "Examples:\n"
+      "  now               Print current time\n"
+      "  set n [now -q]    Store current time in a variable\n";
+
+   if (show_help(objc, objv, help))
+      return TCL_OK;
+
+   bool quiet = false;
+
+   for (int i = 1; i < objc; i++) {
+      const char *what = Tcl_GetString(objv[i]);
+      if (strcmp(what, "-q") == 0)
+         quiet = true;
+      else
+         return tcl_error(interp, "invalid argument '%s' "
+                          "(try -help for usage)", what);
+   }
+
+   slave_post_msg(SLAVE_NOW, NULL, 0);
+
+   reply_now_msg_t reply;
+   slave_get_reply(REPLY_NOW, &reply, sizeof(reply));
+
+   if (!quiet)
+      printf("%s\n", reply.text);
+
+   Tcl_SetObjResult(interp, Tcl_NewIntObj(reply.now));
+   return TCL_OK;
+}
+
 static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
@@ -356,6 +397,8 @@ static void shell_exit_handler(ClientData cd)
       slave_post_msg(SLAVE_QUIT, NULL, 0);
 
    slave_wait();
+
+   printf("\nBye.\n");
 }
 
 static void show_banner(void)
@@ -386,6 +429,7 @@ void shell_run(tree_t e)
       CMD(help,      shell_cmds, "Display this message"),
       CMD(copyright, NULL,       "Display copyright information"),
       CMD(signals,   e,          "Find signal objects in the design"),
+      CMD(now,       NULL,       "Display current simulation time"),
 
       { NULL, NULL, NULL, NULL}
    };
@@ -414,8 +458,6 @@ void shell_run(tree_t e)
 
       free(line);
    }
-
-   printf("\nBye.\n");
 
    Tcl_Exit(EXIT_SUCCESS);
 }

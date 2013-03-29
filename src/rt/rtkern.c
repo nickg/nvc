@@ -1390,6 +1390,15 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
    free(reply);
 }
 
+static void rt_slave_now(void)
+{
+   reply_now_msg_t reply = {
+      .now = now
+   };
+   fmt_time_r(reply.text, sizeof(reply.text), now);
+   slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
+}
+
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1420,6 +1429,10 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
       case SLAVE_READ_SIGNAL:
          rt_slave_read_signal((slave_read_signal_msg_t*)buf);
+         break;
+
+      case SLAVE_NOW:
+         rt_slave_now();
          break;
 
       default:

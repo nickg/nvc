@@ -54,6 +54,7 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    switch (*msg) {
    case SLAVE_QUIT:
    case SLAVE_RESTART:
+   case SLAVE_NOW:
    case EVENT_STOP:
       break;
    case SLAVE_RUN:
@@ -64,6 +65,9 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
       break;
    case REPLY_READ_SIGNAL:
       body_len = *len;
+      break;
+   case REPLY_NOW:
+      body_len = sizeof(reply_now_msg_t);
       break;
    default:
       fatal("invalid slave message %u\n", *msg);
