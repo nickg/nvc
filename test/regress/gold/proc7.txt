@@ -1,0 +1,6 @@
+1ns+0: Report Note: '1'
+1ns+0: Report Note: '0'
+1ns+0: Report Note: '1'
+2ns+0: Report Note: '1'
+2ns+0: Report Note: '1'
+2ns+0: Report Note: '0'

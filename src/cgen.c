@@ -3287,13 +3287,26 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
          if (type_is_array(ty)) {
             if (!cgen_const_bounds(ty)) {
                // Also store the meta data in the state structure
-               // XXX: the array will be allocated on the stack here
+               // The array data will currently be allocated on the stack so
+               // copy into into a malloc-ed area so its value will be preserved
+               // when the process or procedure suspends
+
+               LLVMTypeRef elem  = llvm_type(type_elem(ty));
+               LLVMValueRef len  = cgen_array_len(ty, val);
+               LLVMValueRef data = LLVMBuildArrayMalloc(builder, elem, len,
+                                                        "proc_array");
+
+               LLVMValueRef new_meta =
+                  LLVMBuildInsertValue(builder, val, data, 0, "new_meta");
+
+               cgen_array_copy(ty, ty, val, new_meta, NULL, ctx);
+
                int offset = tree_attr_int(v, var_offset_i, -1);
                assert(offset != -1);
 
                LLVMValueRef meta_ptr =
                   LLVMBuildStructGEP(builder, ctx->state, offset, "meta_ptr");
-               LLVMBuildStore(builder, val, meta_ptr);
+               LLVMBuildStore(builder, new_meta, meta_ptr);
             }
             else {
                LLVMValueRef var_ptr = cgen_get_var(v, ctx);
@@ -3812,10 +3825,25 @@ static void cgen_proc_body(tree_t t)
    tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
 
    const int nstmts = tree_stmts(t);
-   for (unsigned i = 0; i < nstmts; i++)
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
    if (ctx.state != NULL) {
+      // Free any dynamically allocated arrays
+      const int ndecls = tree_decls(t);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t decl = tree_decl(t, i);
+         if (tree_kind(decl) != T_VAR_DECL)
+            continue;
+
+         type_t type = tree_type(decl);
+         if (type_is_array(type) && !cgen_const_bounds(type)) {
+            LLVMValueRef meta = cgen_get_var(decl, &ctx);
+            LLVMValueRef data = cgen_array_data_ptr(type, meta);
+            LLVMBuildFree(builder, data);
+         }
+      }
+
       // Free the dynamic context
       LLVMBuildFree(builder, LLVMBuildStructGEP(builder, ctx.state, 0, ""));
    }

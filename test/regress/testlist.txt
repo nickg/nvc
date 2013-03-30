@@ -106,3 +106,4 @@ issue9          normal
 record4         normal
 record5         normal
 const3          normal,gold
+proc7           normal,gold

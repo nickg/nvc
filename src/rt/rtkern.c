@@ -427,8 +427,8 @@ char *_tmp_alloc(int32_t n, int32_t sz)
 void _array_reverse(void *restrict dst, const void *restrict src,
                     int32_t off, int32_t n, int32_t sz)
 {
-   TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
-         dst, src, off, n, sz);
+   //TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
+   //      dst, src, off, n, sz);
 
 #define ARRAY_REVERSE(type) do {                \
       const type *restrict sp = src;            \
