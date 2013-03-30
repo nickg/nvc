@@ -9,6 +9,7 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.MATH_REAL ieee/_IEEE.MATH_REAL.bc \
 	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
+	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
 	ieee/IEEE.VITAL_MEMORY
 
