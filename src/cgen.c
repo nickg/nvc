@@ -482,7 +482,14 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
          param_t p = tree_param(r.left, 0);
          assert(tree_kind(p.value) == T_REF);
 
-         LLVMValueRef uarray = cgen_get_var(tree_ref(p.value), ctx);
+         LLVMValueRef uarray;
+         tree_t decl = tree_ref(p.value);
+         if (cgen_get_class(decl) == C_SIGNAL) {
+            uarray = tree_attr_ptr(decl, sig_struct_i);
+            assert(uarray != NULL);
+         }
+         else
+            uarray = cgen_get_var(decl, ctx);
 
          kind_ll = LLVMBuildExtractValue(builder, uarray, 3, "dir");
       }
@@ -685,11 +692,13 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    tree_kind_t kind = tree_kind(decl);
    assert((kind == T_VAR_DECL) || (kind == T_CONST_DECL));
 
+   type_t type = tree_type(decl);
+
    int offset = tree_attr_int(decl, var_offset_i, -1);
    if (offset == -1) {
       // This variable is not defined anywhere in this translation unit
       // so make it an external symbol and hope the linker fixes it up
-      LLVMTypeRef lltype = llvm_type(tree_type(decl));
+      LLVMTypeRef lltype = llvm_type(type);
       LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(decl)));
       LLVMSetLinkage(var, LLVMExternalLinkage);
 
@@ -698,10 +707,16 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
-   if (type_is_array(tree_type(decl))) {
-      // Get a pointer to the first element
-      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-      return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
+   if (type_is_array(type)) {
+      if (cgen_const_bounds(type)) {
+         // Get a pointer to the first element
+         LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+         return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
+      }
+      else {
+         // Load the meta data
+         return LLVMBuildLoad(builder, var, "meta");
+      }
    }
    else
       return var;
@@ -3242,6 +3257,26 @@ static void cgen_jump_table(cgen_ctx_t *ctx, LLVMBasicBlockRef default_bb)
    }
 }
 
+static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t v = tree_decl(t, i);
+      if (tree_kind(v) == T_VAR_DECL) {
+         assert(tree_has_value(v));
+         LLVMValueRef val = cgen_expr(tree_value(v), ctx);
+
+         LLVMValueRef var_ptr = cgen_get_var(v, ctx);
+
+         type_t ty = tree_type(v);
+         if (type_is_array(ty))
+            cgen_array_copy(ty, ty, val, var_ptr, NULL, ctx);
+         else
+            LLVMBuildStore(builder, val, var_ptr);
+      }
+   }
+}
+
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
@@ -3297,21 +3332,7 @@ static void cgen_process(tree_t t)
 
    // Variable initialisation
 
-   for (unsigned i = 0; i < tree_decls(t); i++) {
-      tree_t v = tree_decl(t, i);
-      if (tree_kind(v) == T_VAR_DECL) {
-         assert(tree_has_value(v));
-         LLVMValueRef val = cgen_expr(tree_value(v), &ctx);
-
-         LLVMValueRef var_ptr = cgen_get_var(v, &ctx);
-
-         type_t ty = tree_type(v);
-         if (type_is_array(ty))
-            cgen_array_copy(ty, ty, val, var_ptr, NULL, &ctx);
-         else
-            LLVMBuildStore(builder, val, var_ptr);
-      }
-   }
+   cgen_proc_var_init(t, &ctx);
 
    // Return to simulation kernel after initialisation
 
@@ -3753,13 +3774,16 @@ static void cgen_proc_body(tree_t t)
       cgen_jump_table(&ctx, start_bb);
 
       LLVMPositionBuilderAtEnd(builder, start_bb);
+
+      cgen_proc_var_init(t, &ctx);
    }
    else
       tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 
    tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (unsigned i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
    if (ctx.state != NULL) {
