@@ -519,7 +519,9 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
 
       LLVMValueRef ptr = LLVMBuildPointerCast(builder, buf, ptr_type, "");
 
-      return cgen_array_meta(type, left, right, kind_ll, ptr);
+      LLVMValueRef meta = cgen_array_meta(type, left, right, kind_ll, ptr);
+      LLVMSetValueName(meta, name);
+      return meta;
    }
    else {
       LLVMValueRef var = LLVMBuildAlloca(builder, llvm_type(type), name);
@@ -3281,13 +3283,25 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
          assert(tree_has_value(v));
          LLVMValueRef val = cgen_expr(tree_value(v), ctx);
 
-         LLVMValueRef var_ptr = cgen_get_var(v, ctx);
-
          type_t ty = tree_type(v);
-         if (type_is_array(ty))
-            cgen_array_copy(ty, ty, val, var_ptr, NULL, ctx);
+         if (type_is_array(ty)) {
+            if (!cgen_const_bounds(ty)) {
+               // Also store the meta data in the state structure
+               // XXX: the array will be allocated on the stack here
+               int offset = tree_attr_int(v, var_offset_i, -1);
+               assert(offset != -1);
+
+               LLVMValueRef meta_ptr =
+                  LLVMBuildStructGEP(builder, ctx->state, offset, "meta_ptr");
+               LLVMBuildStore(builder, val, meta_ptr);
+            }
+            else {
+               LLVMValueRef var_ptr = cgen_get_var(v, ctx);
+               cgen_array_copy(ty, ty, val, var_ptr, NULL, ctx);
+            }
+         }
          else
-            LLVMBuildStore(builder, val, var_ptr);
+            LLVMBuildStore(builder, val, cgen_get_var(v, ctx));
       }
    }
 }
