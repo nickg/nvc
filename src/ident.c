@@ -349,3 +349,29 @@ bool icmp(ident_t i, const char *s)
    else
       return result == i;
 }
+
+bool ident_glob(ident_t i, const char *glob, int length)
+{
+   assert(i != NULL);
+
+   if (length < 0)
+      length = strlen(glob);
+
+   struct trie *it = i;
+   const char *p = glob + length - 1;
+   bool nom = false;
+   while ((it->value != '\0') && (p >= glob)) {
+      if ((it->value == *p) || (*p == '*')) {
+         it = it->up;
+         nom = (*p == '*');
+         if (p > glob)
+            p--;
+      }
+      else if (nom)
+         it = it->up;
+      else
+         return false;
+   }
+
+   return p == glob;
+}

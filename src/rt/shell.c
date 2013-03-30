@@ -169,17 +169,47 @@ static int shell_cmd_signals(ClientData cd, Tcl_Interp *interp,
       return TCL_OK;
 
    tree_t top = cd;
+   const int ndecls = tree_decls(top);
 
    Tcl_Obj *result = Tcl_NewListObj(0, NULL);
 
-   const int ndecls = tree_decls(top);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
+   if (objc == 1) {
+      for (int j = 0; j < ndecls; j++) {
+         tree_t d = tree_decl(top, j);
+         if (tree_kind(d) != T_SIGNAL_DECL)
+            continue;
 
-      Tcl_Obj *obj = Tcl_NewStringObj(istr(tree_ident(d)), -1);
-      Tcl_ListObjAppendElement(interp, result, obj);
+         Tcl_Obj *obj = Tcl_NewStringObj(istr(tree_ident(d)), -1);
+         Tcl_ListObjAppendElement(interp, result, obj);
+      }
+   }
+   else {
+      for (int i = 1; i < objc; i++) {
+         const char *glob = Tcl_GetString(objv[i]);
+         char *expand = NULL;
+         if ((*glob != ':') && (*glob != '*')) {
+            expand = xmalloc(strlen(glob) + 3);
+            strcpy(expand, "*:");
+            strcpy(expand + 2, glob);
+
+            glob = expand;
+         }
+
+         for (int j = 0; j < ndecls; j++) {
+            tree_t d = tree_decl(top, j);
+            if (tree_kind(d) != T_SIGNAL_DECL)
+               continue;
+
+            ident_t name = tree_ident(d);
+            if (ident_glob(name, glob, -1)) {
+               Tcl_Obj *obj = Tcl_NewStringObj(istr(name), -1);
+               Tcl_ListObjAppendElement(interp, result, obj);
+            }
+         }
+
+         if (expand != NULL)
+            free(expand);
+      }
    }
 
    Tcl_SetObjResult(interp, result);

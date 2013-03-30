@@ -51,6 +51,11 @@ ident_t ident_runtil(ident_t i, char c);
 // Compare identifier against a NULL-terminated string
 bool icmp(ident_t i, const char *s);
 
+// Compare identifier against a pattern containing wildcards
+// Length is optional and may be set to -1 but improves performance
+// if set to the length of glob
+bool ident_glob(ident_t i, const char *glob, int length);
+
 // Convert an identifier reference to a NULL-terminated string.
 // This function is quite slow so its use should be avoided except
 // for printing.

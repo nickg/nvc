@@ -189,6 +189,25 @@ START_TEST(test_icmp)
 }
 END_TEST;
 
+START_TEST(test_glob)
+{
+   ident_t i;
+
+   i = ident_new("foobar");
+
+   fail_unless(ident_glob(i, "foobar", -1));
+   fail_unless(ident_glob(i, "foobar", 6));
+   fail_if(ident_glob(i, "foobaz", -1));
+   fail_if(ident_glob(i, "goobar", -1));
+   fail_unless(ident_glob(i, "*", -1));
+   fail_unless(ident_glob(i, "f*", -1));
+   fail_unless(ident_glob(i, "f*r", -1));
+   fail_unless(ident_glob(i, "f*b*r", -1));
+   fail_if(ident_glob(i, "f*c*r", -1));
+   fail_unless(ident_glob(i, "**bar", -1));
+}
+END_TEST;
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -207,6 +226,7 @@ int main(void)
    tcase_add_test(tc_core, test_until);
    tcase_add_test(tc_core, test_runtil);
    tcase_add_test(tc_core, test_icmp);
+   tcase_add_test(tc_core, test_glob);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
