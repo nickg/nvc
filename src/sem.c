@@ -452,16 +452,6 @@ static void type_set_add(type_t t)
    top_type_set->members[top_type_set->n_members++] = t;
 }
 
-static void type_set_force(type_t t)
-{
-   assert(top_type_set != NULL);
-   assert(t != NULL);
-   assert(type_kind(t) != T_UNRESOLVED);
-
-   top_type_set->members[0] = t;
-   top_type_set->n_members  = 1;
-}
-
 static bool type_set_restrict(bool (*pred)(type_t))
 {
    assert(top_type_set != NULL);
@@ -4048,9 +4038,9 @@ static bool sem_check_qualified(tree_t t)
    if (tree_kind(decl) != T_TYPE_DECL)
       sem_error(t, "%s is not a type name", istr(tree_ident(t)));
 
-   type_set_force(tree_type(decl));
-   tree_set_type(t, tree_type(decl));
-   return sem_check(tree_value(t));
+   type_t type = tree_type(decl);
+   tree_set_type(t, type);
+   return sem_check_constrained(tree_value(t), type);
 }
 
 static bool sem_check_map(tree_t t, tree_t unit,
