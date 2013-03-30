@@ -1092,11 +1092,27 @@ static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
    }
 }
 
-static LLVMValueRef cgen_uarray_asc(LLVMValueRef uarray)
+static LLVMValueRef cgen_uarray_field(tree_t ref, int field, cgen_ctx_t *ctx)
+{
+   assert(tree_kind(ref) == T_REF);
+   tree_t decl = tree_ref(ref);
+
+   LLVMValueRef meta;
+   if (cgen_get_class(decl) == C_SIGNAL) {
+      meta = tree_attr_ptr(decl, sig_struct_i);
+      assert(meta != NULL);
+   }
+   else
+      meta = cgen_get_var(decl, ctx);
+
+   return LLVMBuildExtractValue(builder, meta, field, "");
+}
+
+static LLVMValueRef cgen_uarray_asc(tree_t ref, cgen_ctx_t *ctx)
 {
    return LLVMBuildICmp(
       builder, LLVMIntEQ,
-      LLVMBuildExtractValue(builder, uarray, 3, "dir"),
+      cgen_uarray_field(ref, 3, ctx),
       llvm_int8(RANGE_TO),
       "ascending");
 }
@@ -1391,22 +1407,44 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
    // Special attributes
    if (builtin) {
+      tree_t p0 = tree_param(t, 0).value;
+
       if (icmp(builtin, "event"))
-         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_EVENT);
+         return cgen_signal_flag(p0, SIGNAL_F_EVENT);
       else if (icmp(builtin, "active"))
-         return cgen_signal_flag(tree_param(t, 0).value, SIGNAL_F_ACTIVE);
+         return cgen_signal_flag(p0, SIGNAL_F_ACTIVE);
       else if (icmp(builtin, "last_value"))
-         return cgen_last_value(tree_param(t, 0).value, ctx);
+         return cgen_last_value(p0, ctx);
       else if (icmp(builtin, "agg_low"))
-         return cgen_agg_bound(tree_param(t, 0).value, true, INT32_MAX, ctx);
+         return cgen_agg_bound(p0, true, INT32_MAX, ctx);
       else if (icmp(builtin, "agg_high"))
-         return cgen_agg_bound(tree_param(t, 0).value, false, INT32_MIN, ctx);
+         return cgen_agg_bound(p0, false, INT32_MIN, ctx);
       else if (icmp(builtin, "instance_name"))
-         return cgen_name_attr(tree_param(t, 0).value, 1);
+         return cgen_name_attr(p0, 1);
       else if (icmp(builtin, "path_name"))
-         return cgen_name_attr(tree_param(t, 0).value, 0);
+         return cgen_name_attr(p0, 0);
       else if (icmp(builtin, "last_event"))
-         return cgen_last_event(tree_param(t, 0).value);
+         return cgen_last_event(p0);
+      else if (icmp(builtin, "uarray_left"))
+         return cgen_uarray_field(p0, 1, ctx);
+      else if (icmp(builtin, "uarray_right"))
+         return cgen_uarray_field(p0, 2, ctx);
+      else if (icmp(builtin, "uarray_asc"))
+         return cgen_uarray_asc(p0, ctx);
+      else if (icmp(builtin, "uarray_low")) {
+         return LLVMBuildSelect(
+            builder, cgen_uarray_asc(p0, ctx),
+            cgen_uarray_field(p0, 1, ctx),
+            cgen_uarray_field(p0, 2, ctx),
+            "low");
+      }
+      else if (icmp(builtin, "uarray_high")) {
+         return LLVMBuildSelect(
+            builder, cgen_uarray_asc(p0, ctx),
+            cgen_uarray_field(p0, 2, ctx),
+            cgen_uarray_field(p0, 1, ctx),
+            "high");
+      }
    }
 
    const int nparams = tree_params(t);
@@ -1594,15 +1632,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          assert(!cgen_const_bounds(arg_types[0]));
          return cgen_array_len(arg_types[0], args[0]);
       }
-      else if (icmp(builtin, "uarray_left")) {
-         return LLVMBuildExtractValue(builder, args[0], 1, "left");
-      }
-      else if (icmp(builtin, "uarray_right")) {
-         return LLVMBuildExtractValue(builder, args[0], 2, "right");
-      }
-      else if (icmp(builtin, "uarray_asc")) {
-         return cgen_uarray_asc(args[0]);
-      }
       else if (icmp(builtin, "uarray_dircmp")) {
          LLVMValueRef dir_eq = LLVMBuildICmp(
             builder, LLVMIntEQ,
@@ -1611,20 +1640,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             "diff_eq");
          LLVMValueRef neg = LLVMBuildNeg(builder, args[2], "neg");
          return LLVMBuildSelect(builder, dir_eq, args[2], neg, "dirmul");
-      }
-      else if (icmp(builtin, "uarray_low")) {
-         return LLVMBuildSelect(
-            builder, cgen_uarray_asc(args[0]),
-            LLVMBuildExtractValue(builder, args[0], 1, "left"),
-            LLVMBuildExtractValue(builder, args[0], 2, "right"),
-            "low");
-      }
-      else if (icmp(builtin, "uarray_high")) {
-         return LLVMBuildSelect(
-            builder, cgen_uarray_asc(args[0]),
-            LLVMBuildExtractValue(builder, args[0], 2, "right"),
-            LLVMBuildExtractValue(builder, args[0], 1, "left"),
-            "high");
       }
       else if (icmp(builtin, "alt"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
