@@ -32,6 +32,7 @@ typedef enum {
    SLAVE_READ_SIGNAL,
    SLAVE_NOW,
    SLAVE_WATCH,
+   SLAVE_UNWATCH,
 
    // Replies to master messages
    REPLY_READ_SIGNAL,
@@ -54,6 +55,10 @@ typedef struct {
 typedef struct {
    uint32_t index;
 } slave_watch_msg_t;
+
+typedef struct {
+   uint32_t index;
+} slave_unwatch_msg_t;
 
 typedef struct {
    uint32_t len;

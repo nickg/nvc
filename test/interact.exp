@@ -97,6 +97,16 @@ expect "10ns: update :top:clk '1' -> '0'"
 
 ############################################################
 
+name_test "unwatch"
+expect "%" {send "unwatch \[signals {clk}\]\n"}
+expect "%" {send "run 10 ns\n"}
+expect {
+    "update" fail
+    "%"      {send "restart\n"}
+}
+
+############################################################
+
 name_test "quit"
 expect "%" {send "quit\n"}
 expect "Bye."

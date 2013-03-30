@@ -66,6 +66,9 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    case SLAVE_WATCH:
       body_len = sizeof(slave_watch_msg_t);
       break;
+   case SLAVE_UNWATCH:
+      body_len = sizeof(slave_unwatch_msg_t);
+      break;
    case REPLY_READ_SIGNAL:
       body_len = *len;
       break;

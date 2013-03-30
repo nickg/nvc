@@ -1422,6 +1422,14 @@ static void rt_slave_watch(slave_watch_msg_t *msg)
    rt_set_event_cb(t, rt_slave_watch_cb);
 }
 
+static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
+{
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   rt_set_event_cb(t, NULL);
+}
+
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1460,6 +1468,10 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
       case SLAVE_WATCH:
          rt_slave_watch((slave_watch_msg_t *)buf);
+         break;
+
+      case SLAVE_UNWATCH:
+         rt_slave_unwatch((slave_unwatch_msg_t *)buf);
          break;
 
       default:

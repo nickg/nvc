@@ -435,6 +435,67 @@ static int shell_cmd_watch(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int shell_cmd_unwatch(ClientData cd, Tcl_Interp *interp,
+                             int objc, Tcl_Obj *const objv[])
+{
+   const char *help =
+      "unwatch - Stop tracing signals\n"
+      "\n"
+      "Usage: unwatch SIGNALS...\n"
+      "\n"
+      "Clears any watch callback on SIGNALS. Note this will also stop any\n"
+      "VCD or other waveform capture for these signals.\n"
+      "\n"
+      "Examples:\n"
+      "  watch [signals {clk}]  Stop tracing updates to clk\n";
+
+   if (show_help(objc, objv, help))
+      return TCL_OK;
+
+   if (objc == 1) {
+      warnf("nothing to unwatch (try -help for usage)");
+      return TCL_OK;
+   }
+
+   tree_t top = cd;
+   const int ndecls = tree_decls(top);
+
+   // TODO: refactor this code to avoid duplication with "watch" and "show"
+   for (int i = 1; i < objc; i++) {
+      int length;
+      if (Tcl_ListObjLength(interp, objv[i], &length) != TCL_OK)
+         return TCL_ERROR;
+
+      for (int j = 0; j < length; j++) {
+         Tcl_Obj *obj;
+         if (Tcl_ListObjIndex(interp, objv[i], j, &obj) != TCL_OK)
+            return TCL_ERROR;
+
+         const char *str = Tcl_GetString(obj);
+         ident_t name = ident_new(str);
+
+         tree_t t = NULL;
+         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
+            tree_t decl = tree_decl(top, k);
+            if (tree_ident(decl) == name)
+               t = decl;
+         }
+
+         if (t == NULL)
+            return tcl_error(interp, "object not found: %s", str);
+         else if (tree_kind(t) != T_SIGNAL_DECL)
+            return tcl_error(interp, "not a signal: %s", str);
+
+         slave_unwatch_msg_t msg = {
+            .index = tree_index(t)
+         };
+         slave_post_msg(SLAVE_UNWATCH, &msg, sizeof(msg));
+      }
+   }
+
+   return TCL_OK;
+}
+
 static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
@@ -541,6 +602,7 @@ void shell_run(tree_t e, struct tree_rd_ctx *ctx)
       CMD(signals,   e,          "Find signal objects in the design"),
       CMD(now,       NULL,       "Display current simulation time"),
       CMD(watch,     e,          "Trace changes to a signal"),
+      CMD(unwatch,   e,          "Stop tracing signals"),
 
       { NULL, NULL, NULL, NULL}
    };
