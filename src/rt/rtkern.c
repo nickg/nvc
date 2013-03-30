@@ -1144,7 +1144,8 @@ static void rt_cycle(void)
       struct signal *s = active_signals[i];
       struct signal *base = s - s->offset;
       s->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
-      if (base->event_cb != NULL && base->flags & SIGNAL_F_UPDATE) {
+      if (unlikely((base->event_cb != NULL)
+                   && (base->flags & SIGNAL_F_UPDATE))) {
          (*base->event_cb)(now, s->decl);
          base->flags &= ~SIGNAL_F_UPDATE;
       }
@@ -1399,6 +1400,28 @@ static void rt_slave_now(void)
    slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
 }
 
+static void rt_slave_watch_cb(uint64_t now, tree_t decl)
+{
+   struct signal *base = tree_attr_ptr(decl, i_signal);
+
+   event_watch_msg_t event = {
+      .index = tree_index(decl),
+      .now   = now,
+      .value = base[0].resolved,
+      .last  = base[0].last_value
+   };
+   fmt_time_r(event.now_text, sizeof(event.now_text), now);
+   slave_post_msg(EVENT_WATCH, &event, sizeof(event));
+}
+
+static void rt_slave_watch(slave_watch_msg_t *msg)
+{
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   rt_set_event_cb(t, rt_slave_watch_cb);
+}
+
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1424,15 +1447,19 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
          break;
 
       case SLAVE_RUN:
-         rt_slave_run((slave_run_msg_t*)buf);
+         rt_slave_run((slave_run_msg_t *)buf);
          break;
 
       case SLAVE_READ_SIGNAL:
-         rt_slave_read_signal((slave_read_signal_msg_t*)buf);
+         rt_slave_read_signal((slave_read_signal_msg_t *)buf);
          break;
 
       case SLAVE_NOW:
          rt_slave_now();
+         break;
+
+      case SLAVE_WATCH:
+         rt_slave_watch((slave_watch_msg_t *)buf);
          break;
 
       default:

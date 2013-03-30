@@ -44,7 +44,7 @@ void *jit_fun_ptr(const char *name, bool required);
 void *jit_var_ptr(const char *name, bool required);
 void jit_bind_fn(const char *name, void *ptr);
 
-void shell_run(struct tree *e);
+void shell_run(struct tree *e, struct tree_rd_ctx *ctx);
 
 const char *pprint(struct tree *t, const uint64_t *values, size_t len);
 

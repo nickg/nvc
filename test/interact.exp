@@ -89,6 +89,14 @@ expect "0ms"
 
 ############################################################
 
+name_test "watch"
+expect "%" {send "watch \[signals {clk}\]\n"}
+expect "%" {send "run 10 ns\n"}
+expect "5ns: update :top:clk '0' -> '1'"
+expect "10ns: update :top:clk '1' -> '0'"
+
+############################################################
+
 name_test "quit"
 expect "%" {send "quit\n"}
 expect "Bye."

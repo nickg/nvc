@@ -63,11 +63,17 @@ void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len)
    case SLAVE_READ_SIGNAL:
       body_len = sizeof(slave_read_signal_msg_t);
       break;
+   case SLAVE_WATCH:
+      body_len = sizeof(slave_watch_msg_t);
+      break;
    case REPLY_READ_SIGNAL:
       body_len = *len;
       break;
    case REPLY_NOW:
       body_len = sizeof(reply_now_msg_t);
+      break;
+   case EVENT_WATCH:
+      body_len = sizeof(event_watch_msg_t);
       break;
    default:
       fatal("invalid slave message %u\n", *msg);

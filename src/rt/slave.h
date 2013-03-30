@@ -31,6 +31,7 @@ typedef enum {
    SLAVE_RUN,
    SLAVE_READ_SIGNAL,
    SLAVE_NOW,
+   SLAVE_WATCH,
 
    // Replies to master messages
    REPLY_READ_SIGNAL,
@@ -38,6 +39,7 @@ typedef enum {
 
    // Events from slave
    EVENT_STOP,
+   EVENT_WATCH,
 } slave_msg_t;
 
 typedef struct {
@@ -50,6 +52,10 @@ typedef struct {
 } slave_read_signal_msg_t;
 
 typedef struct {
+   uint32_t index;
+} slave_watch_msg_t;
+
+typedef struct {
    uint32_t len;
    uint64_t values[0];
 } reply_read_signal_msg_t;
@@ -58,6 +64,14 @@ typedef struct {
    uint64_t now;
    char     text[64];
 } reply_now_msg_t;
+
+typedef struct {
+   uint32_t index;
+   uint64_t value;
+   uint64_t last;
+   uint64_t now;
+   char     now_text[64];
+} event_watch_msg_t;
 
 void slave_post_msg(slave_msg_t msg, const void *args, size_t len);
 void slave_get_msg(slave_msg_t *msg, void *buf, size_t *len);

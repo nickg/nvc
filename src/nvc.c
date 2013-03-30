@@ -294,7 +294,7 @@ static int run(int argc, char **argv)
    else {
       bool master = slave_fork();
       if (master)
-         shell_run(e);
+         shell_run(e, ctx);
       else
          rt_slave_exec(e, ctx);
    }

@@ -66,6 +66,15 @@ static int tcl_error(Tcl_Interp *interp, const char *fmt, ...)
    return TCL_ERROR;
 }
 
+static void event_watch(event_watch_msg_t *event, tree_rd_ctx_t ctx)
+{
+   tree_t decl = tree_read_recall(ctx, event->index);
+
+   printf("%s: update %s ", event->now_text, istr(tree_ident(decl)));
+   printf("%s -> ", pprint(decl, &(event->last), 1));
+   printf("%s\n", pprint(decl, &(event->value), 1));
+}
+
 static bool show_help(int objc, Tcl_Obj *const objv[], const char *help)
 {
    for (int i = 1; i < objc; i++) {
@@ -120,12 +129,21 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
    slave_run_msg_t msg = { .time = time };
    slave_post_msg(SLAVE_RUN, &msg, sizeof(msg));
 
+   tree_rd_ctx_t tree_rd_ctx = cd;
+
    slave_msg_t event;
    do {
-      slave_get_msg(&event, NULL, NULL);
+      union {
+         event_watch_msg_t watch;
+      } payload;
+      size_t sz = sizeof(payload);
+      slave_get_msg(&event, &payload, &sz);
 
       switch (event) {
       case EVENT_STOP:
+         break;
+      case EVENT_WATCH:
+         event_watch(&payload.watch, tree_rd_ctx);
          break;
       default:
          fatal("unhandled slave event %d", event);
@@ -355,6 +373,68 @@ static int shell_cmd_now(ClientData cd, Tcl_Interp *interp,
    return TCL_OK;
 }
 
+static int shell_cmd_watch(ClientData cd, Tcl_Interp *interp,
+                           int objc, Tcl_Obj *const objv[])
+{
+   const char *help =
+      "watch - Trace changes to a signal\n"
+      "\n"
+      "Usage: watch SIGNALS...\n"
+      "\n"
+      "Prints a message every time an update occurs to a signal listed."
+      "\n"
+      "Examples:\n"
+      "  watch [signals {clk}]  Trace updates to all signals named clk\n";
+
+   if (show_help(objc, objv, help))
+      return TCL_OK;
+
+   if (objc == 1) {
+      warnf("nothing to watch (try -help for usage)");
+      return TCL_OK;
+   }
+
+   tree_t top = cd;
+   const int ndecls = tree_decls(top);
+
+   for (int i = 1; i < objc; i++) {
+      int length;
+      if (Tcl_ListObjLength(interp, objv[i], &length) != TCL_OK)
+         return TCL_ERROR;
+
+      for (int j = 0; j < length; j++) {
+         Tcl_Obj *obj;
+         if (Tcl_ListObjIndex(interp, objv[i], j, &obj) != TCL_OK)
+            return TCL_ERROR;
+
+         const char *str = Tcl_GetString(obj);
+         ident_t name = ident_new(str);
+
+         tree_t t = NULL;
+         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
+            tree_t decl = tree_decl(top, k);
+            if (tree_ident(decl) == name)
+               t = decl;
+         }
+
+         if (t == NULL)
+            return tcl_error(interp, "object not found: %s", str);
+         else if (tree_kind(t) != T_SIGNAL_DECL)
+            return tcl_error(interp, "not a signal: %s", str);
+         else if (type_is_array(tree_type(t)))
+            return tcl_error(interp, "only scalar signals may be watched");
+         // TODO: make this work for arrays
+
+         slave_watch_msg_t msg = {
+            .index = tree_index(t)
+         };
+         slave_post_msg(SLAVE_WATCH, &msg, sizeof(msg));
+      }
+   }
+
+   return TCL_OK;
+}
+
 static int shell_cmd_help(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
@@ -443,7 +523,7 @@ static int compare_shell_cmd(const void *a, const void *b)
    return strcmp(((shell_cmd_t *)a)->name, ((shell_cmd_t *)b)->name);
 }
 
-void shell_run(tree_t e)
+void shell_run(tree_t e, struct tree_rd_ctx *ctx)
 {
    Tcl_Interp *interp = Tcl_CreateInterp();
 
@@ -453,13 +533,14 @@ void shell_run(tree_t e)
 
    shell_cmd_t shell_cmds[] = {
       CMD(quit,      &have_quit, "Exit simulation"),
-      CMD(run,       NULL,       "Start or resume simulation"),
+      CMD(run,       ctx,        "Start or resume simulation"),
       CMD(restart,   NULL,       "Restart simulation"),
       CMD(show,      e,          "Display simulation objects"),
       CMD(help,      shell_cmds, "Display this message"),
       CMD(copyright, NULL,       "Display copyright information"),
       CMD(signals,   e,          "Find signal objects in the design"),
       CMD(now,       NULL,       "Display current simulation time"),
+      CMD(watch,     e,          "Trace changes to a signal"),
 
       { NULL, NULL, NULL, NULL}
    };
