@@ -198,4 +198,9 @@ begin
         v(b) := 1;                      -- OK
     end process;
 
+    process is
+    begin
+        assert x'length(1) = 5;         -- OK
+    end process;
+
 end architecture;

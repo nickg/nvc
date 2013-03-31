@@ -519,6 +519,20 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
+static void sem_add_length_attr(tree_t decl)
+{
+   ident_t length_i = ident_new("LENGTH");
+   type_t std_int = sem_std_type("INTEGER");
+   tree_t fn = sem_builtin_fn(length_i, std_int, "length",
+                              std_int, tree_type(decl), NULL);
+
+   // Dimension argument defaults to 1
+   tree_t dim = tree_port(fn, 0);
+   tree_set_value(dim, sem_int_lit(std_int, 1));
+
+   tree_add_attr_tree(decl, length_i, fn);
+}
+
 static void sem_declare_predefined_ops(tree_t decl)
 {
    // Prefined operators are defined in LRM 93 section 7.2
@@ -773,7 +787,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          }
 
          tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       std_string, "image", t, NULL);
+                                       std_string, "image", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
@@ -788,7 +802,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
 
          tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       std_string, "image", t, NULL);
+                                       std_string, "image", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
       }
       break;
@@ -797,11 +811,8 @@ static void sem_declare_predefined_ops(tree_t decl)
       break;
    }
 
-   if (type_is_array(t)) {
-      ident_t length_i = ident_new("LENGTH");
-      tree_add_attr_tree(decl, length_i,
-                         sem_builtin_fn(length_i, std_int, "length", t, NULL));
-   }
+   if (type_is_array(t))
+      sem_add_length_attr(decl);
 
    switch (type_kind(t)) {
    case T_INTEGER:
@@ -811,19 +822,19 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_ENUM:
       {
          tree_t succ = sem_builtin_fn(ident_new("NVC.BUILTIN.SUCC"),
-                                      t, "succ", t, NULL);
+                                      t, "succ", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("SUCC"), succ);
 
          tree_t pred = sem_builtin_fn(ident_new("NVC.BUILTIN.PRED"),
-                                      t, "pred", t, NULL);
+                                      t, "pred", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("PRED"), pred);
 
          tree_t leftof = sem_builtin_fn(ident_new("NVC.BUILTIN.LEFTOF"),
-                                        t, "leftof", t, NULL);
+                                        t, "leftof", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("LEFTOF"), leftof);
 
          tree_t rightof = sem_builtin_fn(ident_new("NVC.BUILTIN.RIGHTOF"),
-                                         t, "rightof", t, NULL);
+                                         t, "rightof", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("RIGHTOF"), rightof);
       }
       break;
@@ -1459,13 +1470,8 @@ static void sem_add_attributes(tree_t decl)
       }
    }
 
-   if (type_is_array(type)) {
-      ident_t length_i = ident_new("LENGTH");
-      tree_add_attr_tree(decl, length_i,
-                         sem_builtin_fn(length_i,
-                                        sem_std_type("INTEGER"),
-                                        "length", type, NULL));
-   }
+   if (type_is_array(type))
+      sem_add_length_attr(decl);
 
    if ((tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
        || (tree_kind(decl) == T_SIGNAL_DECL)) {
@@ -3184,12 +3190,14 @@ static bool sem_check_concat(tree_t t)
       tree_t left_len, right_len;
 
       if (lkind == T_UARRAY)
-         left_len = call_builtin("length", std_int, left, NULL);
+         left_len = call_builtin("length", std_int,
+                                 sem_int_lit(std_int, 1), left, NULL);
       else
          left_len = sem_array_len(ltype);
 
       if (rkind == T_UARRAY)
-         right_len = call_builtin("length", std_int, right, NULL);
+         right_len = call_builtin("length", std_int,
+                                  sem_int_lit(std_int, 1), right, NULL);
       else
          right_len = sem_array_len(rtype);
 
@@ -3236,7 +3244,8 @@ static bool sem_check_concat(tree_t t)
       type_t std_int = sem_std_type("INTEGER");
       tree_t array_len;
       if (akind == T_UARRAY)
-         array_len = call_builtin("length", std_int, array, NULL);
+         array_len = call_builtin("length", std_int,
+                                  sem_int_lit(std_int, 1), array, NULL);
       else
          array_len = sem_array_len(atype);
 
@@ -3850,9 +3859,11 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      ident_t pname = ident_new("_arg0");
+      char buf[32];
+      snprintf(buf, sizeof(buf), "_arg%d", tree_ports(a) - 1);
+      ident_t pname = ident_new(buf);
 
-      // For an expression X'A add X as a hidden parameter
+      // For an expression X'A(..) add X as a final parameter
       bool already_added = false;
       for (unsigned i = 0; (i < tree_params(t)) && !already_added; i++) {
          param_t p = tree_param(t, i);
@@ -3860,7 +3871,7 @@ static bool sem_check_attr_ref(tree_t t)
             already_added = true;
       }
 
-      if (!already_added && (tree_params(t) == 0)) {
+      if (!already_added) {
          tree_t ref = sem_make_ref(decl);
          tree_set_loc(ref, tree_loc(t));
 
@@ -3869,7 +3880,10 @@ static bool sem_check_attr_ref(tree_t t)
          tree_add_param(t, p);
       }
 
+      sem_copy_default_args(t, a);
+
       const int nparams = tree_params(t);
+      const int nports  = tree_ports(a);
 
       if (nparams != type_params(ftype))
          sem_error(t, "expected %d parameters for attribute %s "
@@ -3881,10 +3895,18 @@ static bool sem_check_attr_ref(tree_t t)
          if ((p.kind == P_NAMED) && (p.name == pname))
             continue;
 
-         if (p.kind != P_POS)
-            sem_error(t, "only positional arguments supported here");
+         int pindex = -1;
+         if (p.kind == P_POS)
+            pindex = i;
+         else {
+            for (int j = 0; (j < nports) && (pindex == -1); j++) {
+               if (tree_ident(tree_port(a, j)) == p.name)
+                  pindex = j;
+            }
+            assert(pindex != -1);
+         }
 
-         type_t expect_type = type_param(ftype, i);
+         type_t expect_type = type_param(ftype, pindex);
          if (!sem_check_constrained(p.value, expect_type))
             return false;
 

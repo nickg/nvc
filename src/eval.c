@@ -382,6 +382,23 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       return ((result != NULL) && folded(result)) ? result : t;
    }
 
+   if (icmp(builtin, "length")) {
+      tree_t dim   = tree_param(t, 0).value;
+      tree_t array = tree_param(t, 1).value;
+
+      literal_t dim_i;
+      if ((type_kind(tree_type(array)) != T_UARRAY)
+          && folded_int(dim, &dim_i)) {
+         range_t r = type_dim(tree_type(array), dim_i.i - 1);
+         if (tree_kind(r.left) == T_LITERAL
+             && tree_kind(r.right) == T_LITERAL) {
+            int64_t low, high;
+            range_bounds(r, &low, &high);
+            return get_int_lit(t, (high < low) ? 0 : high - low + 1);
+         }
+      }
+   }
+
    if (tree_params(t) > MAX_BUILTIN_ARGS)
       return t;
 

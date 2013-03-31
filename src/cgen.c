@@ -1631,8 +1631,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                              "rightof");
       }
       else if (icmp(builtin, "length")) {
-         assert(!cgen_const_bounds(arg_types[0]));
-         return cgen_array_len(arg_types[0], args[0]);
+         assert(!cgen_const_bounds(arg_types[1]));
+         return cgen_array_len(arg_types[1], args[1]);
       }
       else if (icmp(builtin, "uarray_dircmp")) {
          LLVMValueRef dir_eq = LLVMBuildICmp(
@@ -1718,6 +1718,10 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
          LLVMValueRef var = cgen_get_var(decl, ctx);
          return needs_load ? LLVMBuildLoad(builder, var, "") : var;
       }
+
+   case T_TYPE_DECL:
+      // The value of a type reference should never be used
+      return NULL;
 
    default:
       fatal("cannot generate code for %s", tree_kind_str(kind));

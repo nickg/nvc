@@ -107,3 +107,4 @@ record4         normal
 record5         normal
 const3          normal,gold
 proc7           normal,gold
+attr2           normal

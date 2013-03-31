@@ -130,19 +130,6 @@ static tree_t simp_attr_ref(tree_t t)
       ident_t builtin = tree_attr_str(decl, builtin_i);
       assert(builtin != NULL);
 
-      if (icmp(builtin, "length")) {
-         tree_t array = tree_param(t, 0).value;
-         if (type_kind(tree_type(array)) != T_UARRAY) {
-            range_t r = type_dim(tree_type(array), 0);
-            if (tree_kind(r.left) == T_LITERAL
-                && tree_kind(r.right) == T_LITERAL) {
-               int64_t low, high;
-               range_bounds(type_dim(tree_type(array), 0), &low, &high);
-               return get_int_lit(t, (high < low) ? 0 : high - low + 1);
-            }
-         }
-      }
-
       // Convert attributes like 'EVENT to function calls
       tree_t fcall = tree_new(T_FCALL);
       tree_set_loc(fcall, tree_loc(t));
@@ -150,10 +137,11 @@ static tree_t simp_attr_ref(tree_t t)
       tree_set_ident(fcall, tree_ident2(t));
       tree_set_ref(fcall, decl);
 
-      for (unsigned i = 0; i < tree_params(t); i++)
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++)
          tree_add_param(fcall, tree_param(t, i));
 
-      return fcall;
+      return simp_fcall(fcall);
    }
 }
 
