@@ -2999,7 +2999,7 @@ static bool sem_check_pcall(tree_t t)
                          "cannot be associated with OUT or INOUT parameters",
                          istr(tree_ident(decl)));
          }
-         else if (decl_kind != T_VAR_DECL)
+         else if ((decl_kind != T_VAR_DECL) && (decl_kind != T_ALIAS))
             sem_error(param.value, "invalid use of name %s",
                       istr(tree_ident(decl)));
       }

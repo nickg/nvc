@@ -100,4 +100,14 @@ package body p is
     procedure test4(x : int_ptr);  -- Error
     procedure test4(x : out int_ptr);  -- OK
 
+    procedure test5_a(variable x : integer) is
+    begin
+    end procedure;
+
+    procedure test5_b(x : integer) is
+        alias a : integer is x;
+    begin
+        test5_a(a);
+    end procedure;
+
 end package body;
