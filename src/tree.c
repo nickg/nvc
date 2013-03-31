@@ -752,10 +752,12 @@ void tree_add_param(tree_t t, param_t e)
 {
    tree_assert_expr(e.value);
 
-   if (e.kind == P_POS)
-      e.pos = tree_params(t);
+   param_array_t *array = &(lookup_item(t, I_PARAMS)->param_array);
 
-   param_array_add(&(lookup_item(t, I_PARAMS)->param_array), e);
+   if (e.kind == P_POS)
+      e.pos = array->count;
+
+   param_array_add(array, e);
 }
 
 unsigned tree_genmaps(tree_t t)
@@ -996,15 +998,8 @@ void tree_add_assoc(tree_t t, assoc_t a)
 {
    assoc_array_t *array = &(lookup_item(t, I_ASSOCS)->assoc_array);
 
-   if (a.kind == A_POS) {
-      unsigned pos = 0;
-      for (unsigned i = 0; i < array->count; i++) {
-         if (array->items[i].kind == A_POS)
-            pos++;
-      }
-
-      a.pos = pos;
-   }
+   if (a.kind == A_POS)
+      a.pos = array->count;
 
    assoc_array_add(array, a);
 }
