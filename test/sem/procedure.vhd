@@ -110,4 +110,22 @@ package body p is
         test5_a(a);
     end procedure;
 
+    type int2d is array (natural range <>, natural range <>) of integer;
+
+    procedure test6 (
+        variable a : inout bit_vector;
+        constant b : in int2d;
+        constant c : in natural ) is
+    begin
+    end procedure;
+
+    procedure test6 (
+        variable a : inout bit_vector;
+        constant b : in int2d ) is
+    begin
+        test6 ( b => b,
+                c => 1,
+                a => a );
+    end procedure;
+
 end package body;

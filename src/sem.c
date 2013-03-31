@@ -2961,9 +2961,22 @@ static bool sem_check_pcall(tree_t t)
    }
 
    const int nparams = tree_params(t);
+   const int nports  = tree_ports(decl);
    for (int i = 0; i < nparams; i++) {
       param_t param    = tree_param(t, i);
-      tree_t  port     = tree_port(decl, i);
+
+      int index = -1;
+      if (param.kind == P_POS)
+         index = i;
+      else {
+         for (int j = 0; (j < nports) && (index == -1); j++) {
+            if (tree_ident(tree_port(decl, j)) == param.name)
+               index = j;
+         }
+         assert(index != -1);
+      }
+
+      tree_t  port     = tree_port(decl, index);
       class_t class    = tree_class(port);
       port_mode_t mode = tree_port_mode(port);
 
