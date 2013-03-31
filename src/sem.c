@@ -4328,10 +4328,6 @@ static bool sem_check_case(tree_t t)
                       istr(tree_ident(type_enum_literal(type, i))));
          have_all = have_all && have[i];
       }
-
-      if (have_all && have_others)
-         warn_at(tree_loc(t), "OTHERS choice is redundant as named "
-                 "choices cover all cases");
    }
 
    return true;
