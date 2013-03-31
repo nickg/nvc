@@ -1,5 +1,5 @@
 check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp \
-	test_elab test_heap
+	test_elab test_heap test_hash
 TESTS_ENVIRONMENT = BUILD_DIR=$(top_builddir)
 TESTS = $(check_PROGRAMS) run_regr.rb
 

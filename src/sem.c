@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -33,17 +34,10 @@ struct ident_list {
    struct ident_list *next;
 };
 
-struct btree {
-   tree_t       tree;
-   ident_t      name;
-   struct btree *left;
-   struct btree *right;
-};
-
 struct scope {
    struct scope      *down;
 
-   struct btree       *decls;
+   hash_t            *decls;
    tree_t             subprog;
 
    // For design unit scopes
@@ -90,7 +84,7 @@ static ident_t            std_standard_i;
 static void scope_push(ident_t prefix)
 {
    struct scope *s = xmalloc(sizeof(struct scope));
-   s->decls      = NULL;
+   s->decls      = hash_new(1024, false);
    s->prefix     = prefix;
    s->imported   = NULL;
    s->down       = top_scope;
@@ -98,15 +92,6 @@ static void scope_push(ident_t prefix)
    s->is_package = false;
 
    top_scope = s;
-}
-
-static void scope_btree_free(struct btree *b)
-{
-   if (b != NULL) {
-      scope_btree_free(b->left);
-      scope_btree_free(b->right);
-      free(b);
-   }
 }
 
 static void scope_ident_list_free(struct ident_list *list)
@@ -124,7 +109,7 @@ static void scope_pop(void)
    assert(top_scope != NULL);
 
    scope_ident_list_free(top_scope->imported);
-   scope_btree_free(top_scope->decls);
+   hash_free(top_scope->decls);
 
    struct scope *s = top_scope;
    top_scope = s->down;
@@ -147,48 +132,16 @@ static void scope_apply_prefix(tree_t t)
                                      tree_ident(t), '.'));
 }
 
-#if 0
-static void scope_dump_aux(struct btree *b)
-{
-   printf("%-30s%s\n", istr(b->name), type_pp(tree_type(b->tree)));
-   if (b->left)
-      scope_dump_aux(b->left);
-   if (b->right)
-      scope_dump_aux(b->right);
-}
-
-static void scope_dump(void)
-{
-   struct scope *s = top_scope;
-
-   while (s != NULL) {
-      printf("---------------------------\n");
-      if (s->decls)
-         scope_dump_aux(s->decls);
-      s = s->down;
-   }
-}
-#endif
-
 static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
 {
    if (s == NULL)
       return NULL;
    else {
-      struct btree *search = s->decls;
-
-      while (search != NULL) {
-         if (search->name == i) {
-            if (k == 0)
-               return search->tree;
-            else
-               --k;
-         }
-
-         search = ((i < search->name) ? search->left : search->right);
-      }
-
-      return (recur ? scope_find_in(i, s->down, true, k) : NULL);
+      void *value = hash_get_nth(s->decls, i, &k);
+      if (value != NULL)
+         return (tree_t)value;
+      else
+         return (recur ? scope_find_in(i, s->down, true, k) : NULL);
    }
 }
 
@@ -212,62 +165,6 @@ static bool scope_can_overload(tree_t t)
       || (kind == T_PROC_BODY);
 }
 
-static bool scope_hides(tree_t a, tree_t b)
-{
-   // True if declaration of b hides a
-   if ((tree_kind(a) == T_COMPONENT) || (tree_kind(b) == T_COMPONENT))
-      return false;
-   else if (type_eq(tree_type(a), tree_type(b))) {
-      return (tree_attr_str(a, builtin_i) != NULL)
-         && (tree_attr_str(b, builtin_i) == NULL);
-   }
-   else
-      return false;
-}
-
-static struct btree *scope_btree_new(tree_t t, ident_t name)
-{
-   struct btree *b = xmalloc(sizeof(struct btree));
-   b->tree  = t;
-   b->name  = name;
-   b->left  = NULL;
-   b->right = NULL;
-
-   return b;
-}
-
-static void scope_insert_at(tree_t t, ident_t name, struct btree *where)
-{
-   if (where == NULL)
-      top_scope->decls = scope_btree_new(t, name);
-   else if (scope_hides(where->tree, t))
-      where->tree = t;
-   else {
-      struct btree **nextp =
-         ((name < where->name) ? &where->left : &where->right);
-
-      if (*nextp == NULL)
-         *nextp = scope_btree_new(t, name);
-      else
-         scope_insert_at(t, name, *nextp);
-   }
-}
-
-static void scope_replace_at(tree_t t, tree_t with, struct btree *where)
-{
-   assert(where != NULL);
-   if (where->tree == t)
-      where->tree = with;
-
-   // We need to walk over the whole tree as this may appear under
-   // multiple names
-
-   if (where->left != NULL)
-      scope_replace_at(t, with, where->left);
-   if (where->right != NULL)
-      scope_replace_at(t, with, where->right);
-}
-
 static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
@@ -277,21 +174,20 @@ static bool scope_insert(tree_t t)
       sem_error(t, "%s already declared in this scope",
                 istr(tree_ident(t)));
 
-   scope_insert_at(t, tree_ident(t), top_scope->decls);
+   hash_put(top_scope->decls, tree_ident(t), t);
    return true;
 }
 
 static void scope_insert_alias(tree_t t, ident_t name)
 {
    assert(top_scope != NULL);
-   scope_insert_at(t, name, top_scope->decls);
+   hash_put(top_scope->decls, name, t);
 }
 
 static void scope_replace(tree_t t, tree_t with)
 {
    assert(top_scope != NULL);
-
-   scope_replace_at(t, with, top_scope->decls);
+   hash_replace(top_scope->decls, t, with);
 }
 
 static void loop_push(ident_t name)
