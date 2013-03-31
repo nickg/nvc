@@ -29,21 +29,16 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-struct ident_list {
-   ident_t           ident;
-   struct ident_list *next;
-};
-
 struct scope {
-   struct scope      *down;
+   struct scope *down;
 
-   hash_t            *decls;
-   tree_t             subprog;
+   hash_t       *decls;
+   tree_t        subprog;
 
    // For design unit scopes
-   ident_t            prefix;
-   struct ident_list *imported;
-   bool               is_package;
+   ident_t       prefix;
+   ident_list_t *imported;
+   bool          is_package;
 };
 
 struct loop_stack {
@@ -94,35 +89,16 @@ static void scope_push(ident_t prefix)
    top_scope = s;
 }
 
-static void scope_ident_list_free(struct ident_list *list)
-{
-   struct ident_list *it = list;
-   while (it != NULL) {
-      struct ident_list *next = it->next;
-      free(it);
-      it = next;
-   }
-}
-
 static void scope_pop(void)
 {
    assert(top_scope != NULL);
 
-   scope_ident_list_free(top_scope->imported);
+   ident_list_free(top_scope->imported);
    hash_free(top_scope->decls);
 
    struct scope *s = top_scope;
    top_scope = s->down;
    free(s);
-}
-
-static void scope_ident_list_add(struct ident_list **list, ident_t i)
-{
-   struct ident_list *c = xmalloc(sizeof(struct ident_list));
-   c->ident = i;
-   c->next  = *list;
-
-   *list = c;
 }
 
 static void scope_apply_prefix(tree_t t)
@@ -303,7 +279,7 @@ static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
       }
    }
 
-   scope_ident_list_add(&top_scope->imported, ctx.name);
+   ident_list_add(&top_scope->imported, ctx.name);
    return true;
 }
 

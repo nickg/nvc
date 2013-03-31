@@ -375,3 +375,22 @@ bool ident_glob(ident_t i, const char *glob, int length)
 
    return p == glob;
 }
+
+void ident_list_add(ident_list_t **list, ident_t i)
+{
+   ident_list_t *c = xmalloc(sizeof(ident_list_t));
+   c->ident = i;
+   c->next  = *list;
+
+   *list = c;
+}
+
+void ident_list_free(ident_list_t *list)
+{
+   ident_list_t *it = list;
+   while (it != NULL) {
+      ident_list_t *next = it->next;
+      free(it);
+      it = next;
+   }
+}

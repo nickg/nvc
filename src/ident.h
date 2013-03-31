@@ -69,4 +69,14 @@ ident_rd_ctx_t ident_read_begin(fbuf_t *f);
 ident_t ident_read(ident_rd_ctx_t ctx);
 void ident_read_end(ident_rd_ctx_t ctx);
 
+typedef struct ident_list ident_list_t;
+
+struct ident_list {
+   ident_list_t *next;
+   ident_t       ident;
+};
+
+void ident_list_add(ident_list_t **list, ident_t i);
+void ident_list_free(ident_list_t *list);
+
 #endif // _IDENT_H

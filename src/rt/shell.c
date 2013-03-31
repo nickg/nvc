@@ -20,6 +20,7 @@
 #include "rt.h"
 #include "tree.h"
 #include "common.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -258,8 +259,7 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
       return TCL_OK;
    }
 
-   tree_t top = cd;
-   const int ndecls = tree_decls(top);
+   hash_t *decl_hash = (hash_t *)cd;
 
    for (int i = 1; i < objc; i++) {
       int length;
@@ -272,15 +272,8 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
             return TCL_ERROR;
 
          const char *str = Tcl_GetString(obj);
-         ident_t name = ident_new(str);
 
-         tree_t t = NULL;
-         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
-            tree_t decl = tree_decl(top, k);
-            if (tree_ident(decl) == name)
-               t = decl;
-         }
-
+         tree_t t = hash_get(decl_hash, ident_new(str));
          if (t == NULL)
             return tcl_error(interp, "object not found: %s", str);
 
@@ -394,8 +387,7 @@ static int shell_cmd_watch(ClientData cd, Tcl_Interp *interp,
       return TCL_OK;
    }
 
-   tree_t top = cd;
-   const int ndecls = tree_decls(top);
+   hash_t *decl_hash = (hash_t *)cd;
 
    for (int i = 1; i < objc; i++) {
       int length;
@@ -408,14 +400,10 @@ static int shell_cmd_watch(ClientData cd, Tcl_Interp *interp,
             return TCL_ERROR;
 
          const char *str = Tcl_GetString(obj);
-         ident_t name = ident_new(str);
 
-         tree_t t = NULL;
-         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
-            tree_t decl = tree_decl(top, k);
-            if (tree_ident(decl) == name)
-               t = decl;
-         }
+         tree_t t = hash_get(decl_hash, ident_new(str));
+         if (t == NULL)
+            return tcl_error(interp, "object not found: %s", str);
 
          if (t == NULL)
             return tcl_error(interp, "object not found: %s", str);
@@ -457,8 +445,7 @@ static int shell_cmd_unwatch(ClientData cd, Tcl_Interp *interp,
       return TCL_OK;
    }
 
-   tree_t top = cd;
-   const int ndecls = tree_decls(top);
+   hash_t *decl_hash = (hash_t *)cd;
 
    // TODO: refactor this code to avoid duplication with "watch" and "show"
    for (int i = 1; i < objc; i++) {
@@ -472,15 +459,8 @@ static int shell_cmd_unwatch(ClientData cd, Tcl_Interp *interp,
             return TCL_ERROR;
 
          const char *str = Tcl_GetString(obj);
-         ident_t name = ident_new(str);
 
-         tree_t t = NULL;
-         for (int k = 0; (t == NULL) && (k < ndecls); k++) {
-            tree_t decl = tree_decl(top, k);
-            if (tree_ident(decl) == name)
-               t = decl;
-         }
-
+         tree_t t = hash_get(decl_hash, ident_new(str));
          if (t == NULL)
             return tcl_error(interp, "object not found: %s", str);
          else if (tree_kind(t) != T_SIGNAL_DECL)
@@ -586,6 +566,13 @@ static int compare_shell_cmd(const void *a, const void *b)
 
 void shell_run(tree_t e, struct tree_rd_ctx *ctx)
 {
+   const int ndecls = tree_decls(e);
+   hash_t *decl_hash = hash_new(ndecls * 2, true);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(e, i);
+      hash_put(decl_hash, tree_ident(d), d);
+   }
+
    Tcl_Interp *interp = Tcl_CreateInterp();
 
    bool have_quit = false;
@@ -596,13 +583,13 @@ void shell_run(tree_t e, struct tree_rd_ctx *ctx)
       CMD(quit,      &have_quit, "Exit simulation"),
       CMD(run,       ctx,        "Start or resume simulation"),
       CMD(restart,   NULL,       "Restart simulation"),
-      CMD(show,      e,          "Display simulation objects"),
+      CMD(show,      decl_hash,  "Display simulation objects"),
       CMD(help,      shell_cmds, "Display this message"),
       CMD(copyright, NULL,       "Display copyright information"),
       CMD(signals,   e,          "Find signal objects in the design"),
       CMD(now,       NULL,       "Display current simulation time"),
-      CMD(watch,     e,          "Trace changes to a signal"),
-      CMD(unwatch,   e,          "Stop tracing signals"),
+      CMD(watch,     decl_hash,  "Trace changes to a signal"),
+      CMD(unwatch,   decl_hash,  "Stop tracing signals"),
 
       { NULL, NULL, NULL, NULL}
    };
