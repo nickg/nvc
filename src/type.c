@@ -913,6 +913,7 @@ void type_sweep(unsigned generation)
 
 bool type_is_array(type_t t)
 {
+   assert(t != NULL);
    if (t->kind == T_SUBTYPE)
       return type_is_array(type_base(t));
    else
@@ -921,6 +922,7 @@ bool type_is_array(type_t t)
 
 type_t type_base_recur(type_t t)
 {
+   assert(t != NULL);
    while (t->kind == T_SUBTYPE)
       t = type_base(t);
    return t;

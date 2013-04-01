@@ -107,9 +107,11 @@ struct signal {
 
 struct uarray {
    void    *ptr;
-   int32_t left;
-   int32_t right;
-   int8_t  dir;
+   struct {
+      int32_t left;
+      int32_t right;
+      int8_t  dir;
+   } dims[1];
 };
 
 struct loaded {
@@ -497,10 +499,10 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
       fatal_at(tree_loc(t), "cannot use 'IMAGE with this type");
    }
 
-   u->ptr   = buf;
-   u->left  = 0;
-   u->right = len - 1;
-   u->dir   = RANGE_TO;
+   u->ptr = buf;
+   u->dims[0].left  = 0;
+   u->dims[0].right = len - 1;
+   u->dims[0].dir   = RANGE_TO;
 }
 
 void _debug_out(int32_t val)
@@ -539,10 +541,10 @@ void _name_attr(void *_sig, int which, struct uarray *u)
    char *buf = rt_tmp_alloc(len);
    strncpy(buf, str, len);
 
-   u->ptr   = buf;
-   u->left  = 0;
-   u->right = len - 1;
-   u->dir   = RANGE_TO;
+   u->ptr = buf;
+   u->dims[0].left  = 0;
+   u->dims[0].right = len - 1;
+   u->dims[0].dir   = RANGE_TO;
 }
 
 void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,

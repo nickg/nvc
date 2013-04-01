@@ -10,8 +10,9 @@ architecture test of attr2 is
     procedure foo(x : in int3d) is
     begin
         assert x'length(1) = 2;
-        assert x'length(2) = 2;
-        assert x'length(3) = 10;
+        report integer'image(x'length(2));
+        --assert x'length(2) = 2;
+        --assert x'length(3) = 10;
     end procedure;
 
 begin
@@ -22,7 +23,7 @@ begin
         assert v'length(1) = 2;
         assert v'length(2) = 2;
         assert v'length(3) = 10;
-        --foo(v);
+        foo(v);
         wait;
     end process;
 
