@@ -2114,10 +2114,19 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef data = cgen_array_data_ptr(type, a);
    LLVMValueRef len = cgen_array_len(type, -1, a);
 
+   const int ndims = cgen_array_dims(type);
+   LLVMValueRef stride = llvm_int32(1);
+   for (int i = 1; i < ndims; i++) {
+      LLVMValueRef sub_len = cgen_array_len(type, i, a);
+      stride = LLVMBuildMul(builder, sub_len, stride, "stride");
+   }
+
    LLVMValueRef def = NULL;
    const int nassocs = tree_assocs(t);
+   type_t assoc_type = NULL;
    for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
+      assoc_type = tree_type(a.value);
       if (a.kind == A_OTHERS) {
          def = cgen_expr(a.value, ctx);
          break;
@@ -2127,7 +2136,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMBuildBr(builder, test_bb);
 
    if (def == NULL)
-      def = LLVMGetUndef(llvm_type(type_elem(type)));
+      def = LLVMGetUndef(llvm_type(assoc_type));
 
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
@@ -2142,7 +2151,6 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef what = def;
    for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
-
       switch (a.kind) {
       case A_POS:
          {
@@ -2187,13 +2195,17 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
       }
    }
 
-   LLVMValueRef indexes[] = { i_loaded };
-   LLVMValueRef ptr = LLVMBuildGEP(builder, data, indexes,
-                                   ARRAY_LEN(indexes), "ptr");
-   LLVMBuildStore(builder, what, ptr);
+   if (type_is_array(assoc_type))
+      cgen_array_copy(assoc_type, type, what, a, i_loaded, ctx);
+   else {
+      LLVMValueRef indexes[] = { i_loaded };
+      LLVMValueRef ptr = LLVMBuildGEP(builder, data, indexes,
+                                      ARRAY_LEN(indexes), "ptr");
+      LLVMBuildStore(builder, what, ptr);
+   }
 
    LLVMValueRef inc =
-      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+      LLVMBuildAdd(builder, i_loaded, stride, "inc");
    LLVMBuildStore(builder, inc, i);
    LLVMBuildBr(builder, test_bb);
 
