@@ -119,7 +119,7 @@ void *hash_get_nth(hash_t *h, const void *key, int *n)
    int slot = hash_slot(h, key);
 
    for (; ; slot = (slot + 1) & (h->size - 1)) {
-      if ((h->keys[slot] == key)) {
+      if (h->keys[slot] == key) {
          if (*n == 0)
             return h->values[slot];
          else
