@@ -481,7 +481,7 @@ static LLVMValueRef cgen_array_len(type_t type, int dim, LLVMValueRef data)
    if (cgen_const_bounds(type)) {
       int n_elems = 1;
       const int ndims = type_dims(type);
-      for (unsigned i = 0; i < ndims; i++) {
+      for (int i = 0; i < ndims; i++) {
          if ((dim == -1) || (i == dim)) {
             int64_t low, high;
             range_bounds(type_dim(type, i), &low, &high);
@@ -495,30 +495,38 @@ static LLVMValueRef cgen_array_len(type_t type, int dim, LLVMValueRef data)
       return llvm_int32(n_elems);
    }
    else {
-      // TODO: fix for dim == -1
-      if (dim == -1)
-         dim = 0;
+      LLVMValueRef n_elems = llvm_int32(1);
+      const int ndims = cgen_array_dims(type);
+      for (int i = 0; i < ndims; i++) {
+         if ((dim == -1) || (i == dim)) {
+            LLVMValueRef dim_struct = cgen_uarray_dim(data, i);
 
-      LLVMValueRef dim_struct = cgen_uarray_dim(data, dim);
+            LLVMValueRef downto = LLVMBuildICmp(
+               builder, LLVMIntEQ,
+               LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),
+               llvm_int8(RANGE_DOWNTO),
+               "downto");
+            LLVMValueRef left =
+               LLVMBuildExtractValue(builder, dim_struct, 0, "left");
+            LLVMValueRef right =
+               LLVMBuildExtractValue(builder, dim_struct, 1, "right");
+            LLVMValueRef diff  =
+               LLVMBuildSelect(builder, downto,
+                               LLVMBuildSub(builder, left, right, ""),
+                               LLVMBuildSub(builder, right, left, ""),
+                               "diff");
+            LLVMValueRef len =
+               LLVMBuildAdd(builder, diff, llvm_int32(1), "len");
+            LLVMValueRef neg = LLVMBuildICmp(builder, LLVMIntSLT, len,
+                                             llvm_int32(0), "negative");
+            LLVMValueRef clamp =
+               LLVMBuildSelect(builder, neg, llvm_int32(0), len, "len_clamp");
 
-      LLVMValueRef downto = LLVMBuildICmp(
-         builder, LLVMIntEQ,
-         LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),
-         llvm_int8(RANGE_DOWNTO),
-         "downto");
-      LLVMValueRef left =
-         LLVMBuildExtractValue(builder, dim_struct, 0, "left");
-      LLVMValueRef right =
-         LLVMBuildExtractValue(builder, dim_struct, 1, "right");
-      LLVMValueRef diff  =
-         LLVMBuildSelect(builder, downto,
-                         LLVMBuildSub(builder, left, right, ""),
-                         LLVMBuildSub(builder, right, left, ""),
-                         "diff");
-      LLVMValueRef len = LLVMBuildAdd(builder, diff, llvm_int32(1), "len");
-      LLVMValueRef neg = LLVMBuildICmp(builder, LLVMIntSLT, len,
-                                       llvm_int32(0), "negative");
-      return LLVMBuildSelect(builder, neg, llvm_int32(0), len, "len_clamp");
+            n_elems = LLVMBuildMul(builder, n_elems, clamp, "n_elems");
+         }
+      }
+
+      return n_elems;
    }
 }
 
@@ -2099,7 +2107,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(ctx->fn, "da_exit");
 
    // Prelude
-   LLVMValueRef a = cgen_tmp_var(type, "", ctx);
+   LLVMValueRef a = cgen_tmp_var(type, "dyn_tmp", ctx);
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -2134,6 +2142,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef what = def;
    for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
+
       switch (a.kind) {
       case A_POS:
          {
