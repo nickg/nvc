@@ -7,6 +7,13 @@ architecture test of attr2 is
                          natural range <>,
                          natural range <>) of integer;
 
+    procedure foo(x : in int3d) is
+    begin
+        assert x'length(1) = 2;
+        assert x'length(2) = 2;
+        assert x'length(3) = 10;
+    end procedure;
+
 begin
 
     process is
@@ -15,6 +22,7 @@ begin
         assert v'length(1) = 2;
         assert v'length(2) = 2;
         assert v'length(3) = 10;
+        --foo(v);
         wait;
     end process;
 
