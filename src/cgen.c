@@ -388,9 +388,11 @@ static int cgen_array_dims(type_t type)
 }
 
 static LLVMValueRef cgen_array_meta(type_t type,
-                                    LLVMValueRef left, LLVMValueRef right,
-                                    LLVMValueRef kind, LLVMValueRef ptr)
+                                    LLVMValueRef params[][3],
+                                    LLVMValueRef ptr)
 {
+   // Argument `params' is an array [dims][3] of (left, right, dir)
+
    LLVMTypeRef base;
    if (type == NULL)   // NULL means generic signal type
       base = cgen_signal_type(NULL);
@@ -407,18 +409,32 @@ static LLVMValueRef cgen_array_meta(type_t type,
 
    LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
 
-   LLVMValueRef dim0 = LLVMGetUndef(dim_struct);
-   dim0 = LLVMBuildInsertValue(builder, dim0, left, 0, "");
-   dim0 = LLVMBuildInsertValue(builder, dim0, right, 1, "");
-   dim0 = LLVMBuildInsertValue(builder, dim0, kind, 2, "");
+   for (int i = 0; i < dims; i++) {
+      LLVMValueRef d = LLVMGetUndef(dim_struct);
+      d = LLVMBuildInsertValue(builder, d, params[i][0], 0, "");
+      d = LLVMBuildInsertValue(builder, d, params[i][1], 1, "");
+      d = LLVMBuildInsertValue(builder, d, params[i][2], 2, "");
 
-   dim_array = LLVMBuildInsertValue(builder, dim_array, dim0, 0, "");
+      dim_array = LLVMBuildInsertValue(builder, dim_array, d, i, "");
+   }
 
    LLVMValueRef var = LLVMGetUndef(uarray_type);
    var = LLVMBuildInsertValue(builder, var, ptr, 0, "");
    var = LLVMBuildInsertValue(builder, var, dim_array, 1, "");
 
    return var;
+}
+
+static LLVMValueRef cgen_array_meta_1(type_t type,
+                                      LLVMValueRef left, LLVMValueRef right,
+                                      LLVMValueRef kind, LLVMValueRef ptr)
+{
+   // Special case for one-dimensional array
+
+   assert((type == NULL) || (cgen_array_dims(type) == 1));
+
+   LLVMValueRef params[1][3] = { { left, right, kind } };
+   return cgen_array_meta(type, params, ptr);
 }
 
 static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
@@ -577,7 +593,7 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
 
       LLVMValueRef ptr = LLVMBuildPointerCast(builder, buf, ptr_type, "");
 
-      LLVMValueRef meta = cgen_array_meta(type, left, right, kind_ll, ptr);
+      LLVMValueRef meta = cgen_array_meta_1(type, left, right, kind_ll, ptr);
       LLVMSetValueName(meta, name);
       return meta;
    }
@@ -731,7 +747,7 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
    if (unwrap)
       return ptr;
    else
-      return cgen_array_meta(type, left, right, llvm_int8(r.kind), ptr);
+      return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
 }
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
@@ -1082,7 +1098,7 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
    LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
 
    if (dst_uarray)
-      return cgen_array_meta(slice_type, left, right, dir, tmp);
+      return cgen_array_meta_1(slice_type, left, right, dir, tmp);
    else
       return tmp;
 }
@@ -1239,8 +1255,6 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          && (builtin == NULL);
 
       if (need_wrap) {
-         range_t r = type_dim(type, 0);
-
          LLVMValueRef data;
          if (class == C_SIGNAL) {
             LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
@@ -1253,11 +1267,18 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
             data = LLVMBuildPointerCast(builder, args[i], ptr_type, "");
          }
 
+         const int dims = cgen_array_dims(type);
+         LLVMValueRef params[dims][3];
+         for (int i = 0; i < dims; i++) {
+            range_t r = type_dim(type, i);
+            params[i][0] = llvm_int32(assume_int(r.left));
+            params[i][1] = llvm_int32(assume_int(r.right));
+            params[i][2] = llvm_int8(r.kind);
+         }
+
          args[i] = cgen_array_meta(
             (class == C_SIGNAL) ? NULL : type,
-            llvm_int32(assume_int(r.left)),
-            llvm_int32(assume_int(r.right)),
-            llvm_int8(r.kind),
+            params,
             data);
       }
 
@@ -2323,7 +2344,7 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
       return LLVMBuildSIToFP(builder, value_ll, llvm_type(to), "");
    else if (!cgen_const_bounds(to)) {
       // Need to wrap in metadata
-      return cgen_array_meta(
+      return cgen_array_meta_1(
          to,
          cgen_array_left(from, value_ll),
          cgen_array_right(from, value_ll),
@@ -2365,11 +2386,11 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
       LLVMTypeRef elem = llvm_type(type_elem(type));
 
       LLVMValueRef meta =
-         cgen_array_meta(type,
-                         cgen_expr(r.left, ctx),
-                         cgen_expr(r.right, ctx),
-                         llvm_int8(r.kind),
-                         LLVMConstNull(LLVMPointerType(elem, 0)));
+         cgen_array_meta_1(type,
+                           cgen_expr(r.left, ctx),
+                           cgen_expr(r.right, ctx),
+                           llvm_int8(r.kind),
+                           LLVMConstNull(LLVMPointerType(elem, 0)));
 
       LLVMValueRef len  = cgen_array_len(type, -1, meta);
       LLVMValueRef data = LLVMBuildArrayMalloc(builder, elem, len, "data");
@@ -2830,7 +2851,7 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
          if (!cgen_const_bounds(rtype)) {
             // Returning a wrapped array
 
-            LLVMValueRef rarray = cgen_array_meta(
+            LLVMValueRef rarray = cgen_array_meta_1(
                rtype,
                cgen_array_left(stype, rval),
                cgen_array_right(stype, rval),
@@ -3629,7 +3650,7 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    LLVMValueRef dir   = llvm_int8(RANGE_TO);
 
    LLVMValueRef wrapped =
-      cgen_array_meta(type_param(ftype, 0), left, right, dir, vals);
+      cgen_array_meta_1(type_param(ftype, 0), left, right, dir, vals);
 
    const char *rfn_name = cgen_mangle_func_name(fdecl);
    LLVMValueRef rfn = LLVMGetNamedFunction(module, rfn_name);
@@ -3689,11 +3710,11 @@ static void cgen_func_constants(tree_t d, void *context)
 
       type_t decl_type = tree_type(d);
       if (!cgen_const_bounds(decl_type)) {
-         var = cgen_array_meta(decl_type,
-                               cgen_array_left(value_type, var),
-                               cgen_array_right(value_type, var),
-                               cgen_array_dir(value_type, var),
-                               cgen_array_data_ptr(value_type, var));
+         var = cgen_array_meta_1(decl_type,
+                                 cgen_array_left(value_type, var),
+                                 cgen_array_right(value_type, var),
+                                 cgen_array_dir(value_type, var),
+                                 cgen_array_data_ptr(value_type, var));
       }
 
       tree_add_attr_ptr(d, local_var_i, var);
