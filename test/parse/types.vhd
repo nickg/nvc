@@ -33,6 +33,11 @@ architecture a of b is
         b : integer;
         c : foo(1 to 5);
     end record;
+
+    file f4 : f is out "bar";           -- VHDL-87 compat
+
+    file f5 : f is in "bar";           -- VHDL-87 compat
+
 begin
 
 end architecture;

@@ -136,6 +136,8 @@
    static void set_delay_mechanism(tree_t t, tree_t reject);
    static tree_t int_to_physical(tree_t t, tree_t unit);
    static tree_t handle_param_expr(tree_t name, list_t *params);
+   static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
+                              tree_t mode, tree_t value, loc_t *loc);
 
 #define parse_error(loc, ...) do {         \
       error_at(loc, __VA_ARGS__);          \
@@ -588,52 +590,32 @@ block_decl_item
 file_decl
 : tFILE id_list tCOLON subtype_indication tOPEN expr tIS expr tSEMI
   {
-     $$ = NULL;
-     for (list_t *it = $2; it != NULL; it = it->next) {
-        tree_t t = tree_new(T_FILE_DECL);
-        tree_set_ident(t, it->item.ident);
-        tree_set_type(t, $4);
-        tree_set_file_mode(t, $6);
-        tree_set_value(t, $8);
-        tree_set_loc(t, &@$);
-
-        tree_list_append(&$$, t);
-     }
-
-     list_free($2);
+     add_file_decls(&$$, $2, $4, $6, $8, &@$);
   }
 | tFILE id_list tCOLON subtype_indication tIS expr tSEMI
   {
      tree_t m = tree_new(T_REF);
      tree_set_ident(m, ident_new("READ_MODE"));
 
-     $$ = NULL;
-     for (list_t *it = $2; it != NULL; it = it->next) {
-        tree_t t = tree_new(T_FILE_DECL);
-        tree_set_ident(t, it->item.ident);
-        tree_set_type(t, $4);
-        tree_set_value(t, $6);
-        tree_set_file_mode(t, m);
-        tree_set_loc(t, &@$);
-
-        tree_list_append(&$$, t);
-     }
-
-     list_free($2);
+     add_file_decls(&$$, $2, $4, m, $6, &@$);
   }
 | tFILE id_list tCOLON subtype_indication tSEMI
   {
-     $$ = NULL;
-     for (list_t *it = $2; it != NULL; it = it->next) {
-        tree_t t = tree_new(T_FILE_DECL);
-        tree_set_ident(t, it->item.ident);
-        tree_set_type(t, $4);
-        tree_set_loc(t, &@$);
+     add_file_decls(&$$, $2, $4, NULL, NULL, &@$);
+  }
+| tFILE id_list tCOLON subtype_indication tIS tIN expr tSEMI
+  {
+     tree_t m = tree_new(T_REF);
+     tree_set_ident(m, ident_new("READ_MODE"));
 
-        tree_list_append(&$$, t);
-     }
+     add_file_decls(&$$, $2, $4, m, $7, &@$);
+  }
+| tFILE id_list tCOLON subtype_indication tIS tOUT expr tSEMI
+  {
+     tree_t m = tree_new(T_REF);
+     tree_set_ident(m, ident_new("WRITE_MODE"));
 
-     list_free($2);
+     add_file_decls(&$$, $2, $4, m, $7, &@$);
   }
 ;
 
@@ -2612,6 +2594,25 @@ static tree_t get_time(int64_t fs)
    tree_add_param(f, right);
 
    return f;
+}
+
+static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
+                           tree_t mode, tree_t value, loc_t *loc)
+{
+   *out = NULL;
+   for (list_t *it = in; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_FILE_DECL);
+      tree_set_ident(t, it->item.ident);
+      tree_set_type(t, type);
+      tree_set_file_mode(t, mode);
+      if (value != NULL)
+         tree_set_value(t, value);
+      tree_set_loc(t, loc);
+
+      tree_list_append(out, t);
+   }
+
+   list_free(in);
 }
 
 static tree_t int_to_physical(tree_t t, tree_t unit)
