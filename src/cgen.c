@@ -300,16 +300,17 @@ static LLVMTypeRef llvm_type(type_t t)
 
 static const char *cgen_mangle_func_name(tree_t decl)
 {
-   static char buf[512];
-   const char *end = buf + sizeof(buf);
-   char *p = buf;
+   static char buf[1024];
+   static_printf_begin(buf, sizeof(buf));
+
    type_t type = tree_type(decl);
 
    tree_t foreign = tree_attr_tree(decl, foreign_i);
    if (foreign != NULL) {
       assert(tree_kind(foreign) == T_AGGREGATE);
 
-      for (unsigned i = 0; i < tree_assocs(foreign); i++) {
+      const int nassocs = tree_assocs(foreign);
+      for (int i = 0; i < nassocs; i++) {
          assoc_t a = tree_assoc(foreign, i);
          assert(a.kind == A_POS);
          assert(tree_kind(a.value) == T_REF);
@@ -317,17 +318,19 @@ static const char *cgen_mangle_func_name(tree_t decl)
          tree_t ch = tree_ref(a.value);
          assert(tree_kind(ch) == T_ENUM_LIT);
 
-         *p++ = tree_pos(ch);
+         static_printf(buf, "%c", tree_pos(ch));
       }
-
-      *p = '\0';
    }
    else {
-      p += snprintf(p, end - p, "%s", istr(tree_ident(decl)));
-      for (unsigned i = 0; i < type_params(type); i++) {
+      static_printf(buf, "%s", istr(tree_ident(decl)));
+      const int nparams = type_params(type);
+      for (int i = 0; i < nparams; i++) {
          type_t param = type_param(type, i);
-         p += snprintf(p, end - p, "$%s", istr(type_ident(param)));
+         static_printf(buf, "$%s", istr(type_ident(param)));
       }
+
+      if (type_kind(type) == T_FUNC)
+         static_printf(buf, "^%s", istr(type_ident(type_result(type))));
    }
 
    return buf;

@@ -2492,19 +2492,37 @@ static bool sem_check_conversion(tree_t t)
    sem_error(t, "conversion only allowed between closely related types");
 }
 
-static bool sem_maybe_ambiguous(tree_t t)
+static int sem_ambiguous_rate(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_REF:
       {
          tree_t decl = scope_find(tree_ident(t));
-         return (decl != NULL && tree_kind(decl) == T_ENUM_LIT);
+         return (decl != NULL && tree_kind(decl) == T_ENUM_LIT) ? 50 : 0;
       }
    case T_AGGREGATE:
-      return true;
+      return 100;
+   case T_LITERAL:
+      return (tree_literal(t).kind == L_NULL) ? 0 : -10;
    default:
-      return false;
+      return 0;
    }
+}
+
+static int sem_ambiguous_cmp(const void *_a, const void *_b)
+{
+   param_t a = *(param_t *)_a;
+   param_t b = *(param_t *)_b;
+
+   return sem_ambiguous_rate(a.value) - sem_ambiguous_rate(b.value);
+}
+
+static void sem_sort_ambiguous(param_t *params, int n)
+{
+   // Reorder a list of tree so the unambiguous ones such as literals
+   // are checked first
+
+   qsort(params, n, sizeof(param_t), sem_ambiguous_cmp);
 }
 
 static type_t sem_find_param_type(param_t param, tree_t decl)
@@ -2543,20 +2561,16 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
    const int nparams = tree_params(t);
 
    // Work out which parameters have ambiguous interpretations
-   bool ambiguous[nparams];
-   for (int i = 0; i < nparams; i++) {
-      param_t p = tree_param(t, i);
-      ambiguous[i] = sem_maybe_ambiguous(p.value);
-   }
+   param_t order[nparams];
+   for (int i = 0; i < nparams; i++)
+      order[i] = tree_param(t, i);
 
-   // First pass: only check those parameters which are unambiguous
-   for (int i = 0; i < nparams; i++) {
-      if (ambiguous[i])
-         continue;
+   sem_sort_ambiguous(order, nparams);
 
+   for (int i = 0; i < nparams; i++) {
       type_set_push();
 
-      param_t p = tree_param(t, i);
+      param_t p = order[i];
       type_t param_types[n_overloads];
 
       for (int j = 0; j < n_overloads; j++) {
@@ -2584,32 +2598,6 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          }
       }
       else
-         return false;
-   }
-
-   // Second pass: now the set of overloads has been constrained check
-   // those parameters which might be ambiguous
-   for (int i = 0; i < nparams; i++) {
-      if (!ambiguous[i])
-         continue;
-
-      type_set_push();
-
-      param_t p = tree_param(t, i);
-
-      for (int j = 0; j < n_overloads; j++) {
-         if (overloads[j] != NULL) {
-            type_t ptype = sem_find_param_type(p, overloads[j]);
-            if (ptype != NULL)
-               type_set_add(ptype);
-         }
-      }
-
-      bool ok = sem_check(p.value);
-
-      type_set_pop();
-
-      if (!ok)
          return false;
    }
 
@@ -3186,7 +3174,7 @@ static bool sem_check_concat(tree_t t)
    if (!type_set_restrict(sem_is_composite))
       sem_error(t, "no composite type in context%s", type_set_fmt());
 
-   if (sem_maybe_ambiguous(left)) {
+   if (sem_ambiguous_rate(left) < sem_ambiguous_rate(right)) {
       if (!sem_check_concat_param(right) || !sem_check_concat_param(left))
          return false;
    }

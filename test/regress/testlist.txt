@@ -112,3 +112,4 @@ func10          normal
 attr3           normal,gold
 proc8           normal,gold
 wait8           normal
+func11          normal

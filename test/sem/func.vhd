@@ -191,4 +191,21 @@ package body func is
         return test21a(';' & LF);       -- OK
     end function;
 
+    function test22a(x : integer) return integer is
+    begin
+        return x + 1;
+    end function;
+
+    function test22a(x : integer) return real is
+    begin
+        return real(x) + 1.0;
+    end function;
+
+    function test22 return integer is
+    begin
+        assert test22a(1) = 2;
+        assert test22a(1) = 2.0;
+        return 1;
+    end function;
+
 end package body;
