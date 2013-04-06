@@ -59,6 +59,7 @@ hash_t *hash_new(int size, bool replace)
    h->keys   = xmalloc(h->size * sizeof(void *));
 
    memset(h->keys, '\0', (h->size * sizeof(void *)));
+   memset(h->values, '\0', (h->size * sizeof(void *)));
 
    return h;
 }
@@ -86,6 +87,7 @@ void hash_put(hash_t *h, const void *key, void *value)
       h->values = xmalloc(h->size * sizeof(void *));
 
       memset(h->keys, '\0', h->size * sizeof(void *));
+      memset(h->values, '\0', h->size * sizeof(void *));
 
       h->members = 0;
 
