@@ -52,7 +52,11 @@ typedef enum type_kind {
 typedef struct range {
    struct tree *left;
    struct tree *right;
-   enum { RANGE_TO, RANGE_DOWNTO, RANGE_EXPR, RANGE_DYN } kind;
+   enum { RANGE_TO,
+          RANGE_DOWNTO,
+          RANGE_EXPR,
+          RANGE_DYN,
+          RANGE_RDYN } kind;
 } range_t;
 
 type_t type_new(type_kind_t kind);

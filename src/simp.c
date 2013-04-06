@@ -25,9 +25,6 @@
 
 #define MAX_BUILTIN_ARGS 2
 
-static ident_t std_bool_i = NULL;
-static ident_t builtin_i  = NULL;
-
 static int errors = 0;
 
 #define simp_error(t, ...) \
@@ -127,7 +124,7 @@ static tree_t simp_attr_ref(tree_t t)
       tree_t decl = tree_ref(t);
       assert(tree_kind(decl) == T_FUNC_DECL);
 
-      ident_t builtin = tree_attr_str(decl, builtin_i);
+      ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
       assert(builtin != NULL);
 
       // Convert attributes like 'EVENT to function calls
@@ -330,7 +327,8 @@ static tree_t simp_for(tree_t t)
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
 
-   for (unsigned i = 0; i < tree_decls(t); i++)
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
       tree_add_decl(b, tree_decl(t, i));
 
    tree_t decl = tree_decl(t, 0);
@@ -351,6 +349,7 @@ static tree_t simp_for(tree_t t)
       test = call_builtin("geq", NULL, r.left, r.right, NULL);
       break;
    case RANGE_DYN:
+   case RANGE_RDYN:
       break;
    default:
       assert(false);
@@ -368,7 +367,7 @@ static tree_t simp_for(tree_t t)
    tree_t init = tree_new(T_VAR_ASSIGN);
    tree_set_ident(init, ident_uniq("init"));
    tree_set_target(init, var);
-   tree_set_value(init, r.left);
+   tree_set_value(init, (r.kind == RANGE_RDYN) ? r.right : r.left);
 
    ident_t label = tree_ident(t);
    tree_t wh = tree_new(T_WHILE);
@@ -377,7 +376,8 @@ static tree_t simp_for(tree_t t)
    for (unsigned i = 0; i < tree_stmts(t); i++)
       tree_add_stmt(wh, tree_stmt(t, i));
 
-   tree_t cmp = call_builtin("eq", NULL, var, r.right, NULL);
+   tree_t cmp = call_builtin("eq", NULL, var,
+                             (r.kind == RANGE_RDYN ? r.left : r.right), NULL);
 
    tree_t exit = tree_new(T_EXIT);
    tree_set_ident(exit, ident_uniq("for_exit"));
@@ -385,7 +385,7 @@ static tree_t simp_for(tree_t t)
    tree_set_ident2(exit, label);
 
    tree_t next;
-   if (r.kind == RANGE_DYN) {
+   if ((r.kind == RANGE_DYN) || (r.kind == RANGE_RDYN)) {
       assert(tree_kind(r.left) == T_FCALL);
       param_t p = tree_param(r.left, 0);
 
@@ -394,14 +394,16 @@ static tree_t simp_for(tree_t t)
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));
 
-      tree_t succ = call_builtin("succ", tree_type(decl), var, NULL);
+      tree_t succ = call_builtin((r.kind == RANGE_DYN) ? "succ" : "pred",
+                                 tree_type(decl), var, NULL);
 
       tree_t a1 = tree_new(T_VAR_ASSIGN);
       tree_set_ident(a1, ident_uniq("for_next_asc"));
       tree_set_target(a1, var);
       tree_set_value(a1, succ);
 
-      tree_t pred = call_builtin("pred", tree_type(decl), var, NULL);
+      tree_t pred = call_builtin((r.kind == RANGE_DYN) ? "pred" : "succ",
+                                 tree_type(decl), var, NULL);
 
       tree_t a2 = tree_new(T_VAR_ASSIGN);
       tree_set_ident(a2, ident_uniq("for_next_dsc"));
@@ -734,22 +736,8 @@ static tree_t simp_tree(tree_t t, void *context)
    }
 }
 
-static void simp_intern_strings(void)
-{
-   // Intern some commonly used strings
-
-   std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
-   builtin_i  = ident_new("builtin");
-}
-
 void simplify(tree_t top)
 {
-   static bool have_interned = false;
-   if (!have_interned) {
-      simp_intern_strings();
-      have_interned = true;
-   }
-
    tree_rewrite(top, simp_tree, NULL);
 }
 

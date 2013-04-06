@@ -213,6 +213,10 @@ static void dump_type(type_t type)
             printf(" dynamic ");
             dump_expr(r.right);
             break;
+         case RANGE_RDYN:
+            printf(" reverse_dynamic ");
+            dump_expr(r.right);
+            break;
          case RANGE_EXPR:
             break;
          }

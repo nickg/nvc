@@ -980,36 +980,51 @@ static bool sem_declare(tree_t decl)
 static bool sem_check_range(range_t *r, type_t context)
 {
    if (r->kind == RANGE_EXPR) {
-      assert(r->right == NULL);
-      assert(tree_kind(r->left) == T_ATTR_REF
-             || tree_kind(r->left) == T_REF);
+      const bool reverse = (r->left == NULL);
 
-      tree_t decl = scope_find(tree_ident(r->left));
+      tree_t expr = reverse ? r->right : r->left;
+
+      assert(tree_kind(expr) == T_ATTR_REF
+             || tree_kind(expr) == T_REF);
+
+      tree_t decl = scope_find(tree_ident(expr));
       if (decl == NULL)
-         sem_error(r->left, "undefined identifier %s",
-                   istr(tree_ident(r->left)));
+         sem_error(expr, "undefined identifier %s",
+                   istr(tree_ident(expr)));
 
       type_t type = tree_type(decl);
       type_kind_t kind = type_kind(type);
       switch (kind) {
       case T_CARRAY:
-         *r = type_dim(type, 0);
+         {
+            range_t d0 = type_dim(type, 0);
+            *r = type_dim(type, 0);
+            if (reverse) {
+               r->left  = d0.right;
+               r->right = d0.left;
+               r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
+            }
+            else
+               *r = d0;
+         }
          return true;
       case T_ENUM:
       case T_UARRAY:
       case T_SUBTYPE:
          {
             tree_t a = tree_new(T_ATTR_REF);
-            tree_set_ident(a, tree_ident(r->left));
+            tree_set_ident(a, tree_ident(expr));
             tree_set_ident2(a, ident_new("LEFT"));
 
             tree_t b = tree_new(T_ATTR_REF);
-            tree_set_ident(b, tree_ident(r->left));
+            tree_set_ident(b, tree_ident(expr));
             tree_set_ident2(b, ident_new("RIGHT"));
 
             // If this is an unconstrained array then we can
             // only find out the direction at runtime
-            r->kind  = (kind == T_UARRAY ? RANGE_DYN : RANGE_TO);
+            r->kind  = (kind == T_UARRAY
+                        ? (reverse ? RANGE_RDYN : RANGE_DYN)
+                        : (reverse ? RANGE_DOWNTO : RANGE_TO));
             r->left  = a;
             r->right = b;
          }

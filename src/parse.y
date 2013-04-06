@@ -2300,7 +2300,7 @@ name
   {
      $$ = tree_new(T_ATTR_REF);
      tree_set_ident($$, $1);
-     tree_set_ident2($$, ident_new("range"));
+     tree_set_ident2($$, ident_new("RANGE"));
      tree_set_loc($$, &@$);
   }
 | name tLPAREN param_list tRPAREN
@@ -2573,15 +2573,25 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
 
 static bool to_range_expr(tree_t t, range_t *r)
 {
-   if (tree_kind(t) == T_ATTR_REF && tree_ident2(t) == ident_new("range")) {
-      r->kind  = RANGE_EXPR;
-      r->left  = t;
-      r->right = NULL;
+   if (tree_kind(t) == T_ATTR_REF) {
+      ident_t a = tree_ident2(t);
+      if (icmp(a, "RANGE")) {
+         r->kind  = RANGE_EXPR;
+         r->left  = t;
+         r->right = NULL;
 
-      return true;
+         return true;
+      }
+      else if (icmp(a, "REVERSE_RANGE")) {
+         r->kind  = RANGE_EXPR;
+         r->left  = NULL;
+         r->right = t;
+
+         return true;
+      }
    }
-   else
-      return false;
+
+   return false;
 }
 
 static tree_t get_time(int64_t fs)
@@ -2721,7 +2731,7 @@ tree_t parse(void)
 {
    root = NULL;
 
-   if (yyparse())
+   if (yyparse() || (n_errors > 0))
       return NULL;
    else
       return root;
