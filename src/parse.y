@@ -539,6 +539,7 @@ package_body_decl_item
 | constant_decl
 | subprogram_decl
 | shared_variable_decl
+| file_decl
 ;
 
 port_clause
