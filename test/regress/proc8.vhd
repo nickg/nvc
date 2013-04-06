@@ -14,6 +14,13 @@ architecture test of proc8 is
         end loop;
     end procedure;
 
+    procedure p1b(variable y : in int_vec4) is
+    begin
+        for i in y'range loop
+            report integer'image(y(i));
+        end loop;
+    end procedure;
+
     procedure p2(signal x : in int_vec4) is
     begin
         p1(x);
@@ -29,11 +36,13 @@ architecture test of proc8 is
 begin
 
     process is
+        variable k : int_vec4 := (-1, -2, -3, -4);
     begin
         p2(s);
         p3(s);
         wait for 1 ns;
         assert s = (6, 7, 8, 9);
+        p1b(k);
         wait;
     end process;
 

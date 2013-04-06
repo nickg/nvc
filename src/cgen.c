@@ -1319,7 +1319,12 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
 
       // If we are passing an unconstrained array actual to a
       // constrained formal then we need to unwrap the array
-      if ((type_kind(formal_type) == T_CARRAY) && (builtin == NULL)) {
+      const bool unwrap =
+         type_is_array(formal_type)
+         && (type_kind(formal_type) != T_UARRAY)
+         && (class != C_SIGNAL)
+         && (builtin == NULL);
+      if (unwrap) {
          LLVMValueRef ptr = args[i];
          if (!cgen_const_bounds(type))
             ptr = LLVMBuildExtractValue(builder, args[i], 0, "aptr");
