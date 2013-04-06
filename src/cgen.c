@@ -965,7 +965,8 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       case C_SIGNAL:
          {
             LLVMTypeRef base_type = cgen_signal_type(type);
-            args[i] = array ? base_type : LLVMPointerType(base_type, 0);
+            args[i] = (array && !cgen_const_bounds(type))
+               ? base_type : LLVMPointerType(base_type, 0);
          }
          break;
 
