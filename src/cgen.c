@@ -900,6 +900,11 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
       src_ptr = LLVMBuildPointerCast(builder, src_ptr, pi64, "src_pi64");
       dst_ptr = LLVMBuildPointerCast(builder, dst_ptr, pi64, "dst_pi64");
    }
+   else {
+      LLVMTypeRef ptr_type = LLVMPointerType(LLVMIntType(width), 0);
+      src_ptr = LLVMBuildPointerCast(builder, src_ptr, ptr_type, "");
+      dst_ptr = LLVMBuildPointerCast(builder, dst_ptr, ptr_type, "");
+   }
 
    LLVMValueRef size = LLVMBuildMul(builder, ll_n_elems, bytes, "size");
 
@@ -958,12 +963,11 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
    LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), ctx);
 
    if (tree_has_value(d)) {
-      if (type_is_array(type)) {
-         LLVMValueRef init = cgen_expr(tree_value(d), ctx);
+      LLVMValueRef init = cgen_expr(tree_value(d), ctx);
+      if (type_is_array(type))
          cgen_array_copy(type, type, init, var, NULL, ctx);
-      }
       else
-         LLVMBuildStore(builder, cgen_expr(tree_value(d), ctx), var);
+         LLVMBuildStore(builder, init, var);
    }
 
    return var;
@@ -4063,7 +4067,11 @@ static void cgen_reset_function(tree_t t)
          // A global constant whose value cannot be determined at
          // compile time
          LLVMValueRef init = cgen_expr(tree_value(d), &ctx);
-         LLVMBuildStore(builder, init, (LLVMValueRef)global);
+         type_t type = tree_type(d);
+         if (type_is_array(type) && cgen_const_bounds(type))
+            cgen_array_copy(type, type, init, (LLVMValueRef)global, NULL, &ctx);
+         else
+            LLVMBuildStore(builder, init, (LLVMValueRef)global);
       }
 
       if (tree_kind(d) != T_SIGNAL_DECL)

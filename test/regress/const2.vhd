@@ -20,6 +20,13 @@ package body pack is
         return results(x);
     end function;
 
+    type int_vector is array (integer range <>) of integer;
+
+    subtype int_vector4 is int_vector(1 to 4);
+
+    constant blah  : int_vector4 := ( 0, 1, 6, 6 );
+    constant blah2 : int_vector4 := blah;
+
 end package body;
 
 -------------------------------------------------------------------------------
