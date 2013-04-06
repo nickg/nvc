@@ -3428,32 +3428,33 @@ static bool sem_check_aggregate(tree_t t)
       type_set_ident(tmp, type_ident(composite_type));
       type_set_elem(tmp, type_elem(composite_type));  // Element type
 
-      assert(type_index_constrs(composite_type) == 1);  // TODO
+      const int nindex = type_index_constrs(composite_type);
+      for (int i = 0; i < nindex; i++) {
+         type_t index_type = type_index_constr(composite_type, i);
+         range_t index_r = type_dim(index_type, 0);
 
-      type_t index_type = type_index_constr(composite_type, 0);
-      range_t index_r = type_dim(index_type, 0);
+         if (have_named) {
+            tree_t low = call_builtin("agg_low", index_type, t, NULL);
+            tree_t high = call_builtin("agg_high", index_type, t, NULL);
 
-      if (have_named) {
-         tree_t low = call_builtin("agg_low", index_type, t, NULL);
-         tree_t high = call_builtin("agg_high", index_type, t, NULL);
+            range_t r = {
+               .kind  = index_r.kind,
+               .left  = (index_r.kind == RANGE_TO ? low : high),
+               .right = (index_r.kind == RANGE_TO ? high : low)
+            };
+            type_add_dim(tmp, r);
+         }
+         else {
+            tree_t n_elems = sem_make_int(tree_assocs(t) - 1);
 
-         range_t r = {
-            .kind  = index_r.kind,
-            .left  = (index_r.kind == RANGE_TO ? low : high),
-            .right = (index_r.kind == RANGE_TO ? high : low)
-         };
-         type_add_dim(tmp, r);
-      }
-      else {
-         tree_t n_elems = sem_make_int(tree_assocs(t) - 1);
-
-         range_t r = {
-            .kind  = index_r.kind,
-            .left  = index_r.left,
-            .right = call_builtin("add", index_type, n_elems,
+            range_t r = {
+               .kind  = index_r.kind,
+               .left  = index_r.left,
+               .right = call_builtin("add", index_type, n_elems,
                                   index_r.left, NULL)
-         };
-         type_add_dim(tmp, r);
+            };
+            type_add_dim(tmp, r);
+         }
       }
 
       composite_type = tmp;
