@@ -11,6 +11,7 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
 	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
+	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
 	ieee/IEEE.VITAL_MEMORY
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
