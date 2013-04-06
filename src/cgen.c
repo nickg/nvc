@@ -444,34 +444,34 @@ static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
    return LLVMBuildExtractValue(builder, dim_array, dim, "dim");
 }
 
-static LLVMValueRef cgen_array_dir(type_t type, LLVMValueRef var)
+static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef dim = cgen_uarray_dim(var, 0 /* XXX */);
-      return LLVMBuildExtractValue(builder, dim, 2, "dir");
+      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+      return LLVMBuildExtractValue(builder, ldim, 2, "dir");
    }
    else
-      return llvm_int8(type_dim(type, 0).kind);
+      return llvm_int8(type_dim(type, dim).kind);
 }
 
-static LLVMValueRef cgen_array_left(type_t type, LLVMValueRef var)
+static LLVMValueRef cgen_array_left(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef dim = cgen_uarray_dim(var, 0);
-      return LLVMBuildExtractValue(builder, dim, 0, "left");
+      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+      return LLVMBuildExtractValue(builder, ldim, 0, "left");
    }
    else
-      return llvm_int32(assume_int(type_dim(type, 0).left));
+      return llvm_int32(assume_int(type_dim(type, dim).left));
 }
 
-static LLVMValueRef cgen_array_right(type_t type, LLVMValueRef var)
+static LLVMValueRef cgen_array_right(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef dim = cgen_uarray_dim(var, 0 /* XXX */);
-      return LLVMBuildExtractValue(builder, dim, 1, "right");
+      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+      return LLVMBuildExtractValue(builder, ldim, 1, "right");
    }
    else
-      return llvm_int32(assume_int(type_dim(type, 0).right));
+      return llvm_int32(assume_int(type_dim(type, dim).right));
 }
 
 static LLVMValueRef cgen_array_len(type_t type, int dim, LLVMValueRef data)
@@ -577,7 +577,7 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
             else
                uarray = cgen_get_var(decl, ctx);
 
-            kind_ll = cgen_array_dir(type, uarray);
+            kind_ll = cgen_array_dir(type, i, uarray);
          }
          else
             kind_ll = llvm_int8(r.kind);
@@ -699,12 +699,13 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
-static void cgen_check_array_bounds(tree_t t, type_t type, LLVMValueRef array,
-                                    LLVMValueRef value, cgen_ctx_t *ctx)
+static void cgen_check_array_bounds(tree_t t, type_t type, int dim,
+                                    LLVMValueRef array, LLVMValueRef value,
+                                    cgen_ctx_t *ctx)
 {
-   LLVMValueRef left  = cgen_array_left(type, array);
-   LLVMValueRef right = cgen_array_right(type, array);
-   LLVMValueRef dir   = cgen_array_dir(type, array);
+   LLVMValueRef left  = cgen_array_left(type, dim, array);
+   LLVMValueRef right = cgen_array_right(type, dim, array);
+   LLVMValueRef dir   = cgen_array_dir(type, dim, array);
 
    LLVMValueRef to = LLVMBuildICmp(builder, LLVMIntEQ, dir,
                                    llvm_int8(RANGE_TO), "to");
@@ -743,8 +744,8 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMPositionBuilderAtEnd(builder, check_bb);
 
-   cgen_check_array_bounds(r.left, type, array, left, ctx);
-   cgen_check_array_bounds(r.right, type, array, right, ctx);
+   cgen_check_array_bounds(r.left, type, 0, array, left, ctx);
+   cgen_check_array_bounds(r.right, type, 0, array, right, ctx);
 
    LLVMBuildBr(builder, merge_bb);
 
@@ -830,8 +831,8 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset, cgen_ctx_t *ctx)
 {
-   LLVMValueRef src_dir = cgen_array_dir(src_type, src);
-   LLVMValueRef dst_dir = cgen_array_dir(dest_type, dst);
+   LLVMValueRef src_dir = cgen_array_dir(src_type, 0, src);
+   LLVMValueRef dst_dir = cgen_array_dir(dest_type, 0, dst);
 
    LLVMValueRef ll_n_elems = cgen_array_len(src_type, -1, src);
 
@@ -1064,9 +1065,9 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
 
    LLVMValueRef fn = llvm_fn("_vec_load");
 
-   LLVMValueRef left  = cgen_array_left(slice_type, signal);
-   LLVMValueRef right = cgen_array_right(slice_type, signal);
-   LLVMValueRef dir   = cgen_array_dir(slice_type, signal);
+   LLVMValueRef left  = cgen_array_left(slice_type, 0, signal);
+   LLVMValueRef right = cgen_array_right(slice_type, 0, signal);
+   LLVMValueRef dir   = cgen_array_dir(slice_type, 0, signal);
 
    LLVMValueRef dir_to =
       LLVMBuildICmp(builder, LLVMIntEQ, dir, llvm_int8(RANGE_TO), "to");
@@ -1326,8 +1327,8 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
    LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
 
-   LLVMValueRef ldir = cgen_array_dir(left_type, lhs);
-   LLVMValueRef rdir = cgen_array_dir(right_type, rhs);
+   LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs);
+   LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs);
 
    LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
                                          llvm_int8(RANGE_DOWNTO), "l_downto");
@@ -1740,7 +1741,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "uarray_dircmp")) {
          LLVMValueRef dir_eq = LLVMBuildICmp(
             builder, LLVMIntEQ,
-            cgen_array_dir(arg_types[0], args[0]),
+            cgen_array_dir(arg_types[0], 0 /* XXX */, args[0]),
             LLVMBuildIntCast(builder, args[1], LLVMInt8Type(), ""),
             "diff_eq");
          LLVMValueRef neg = LLVMBuildNeg(builder, args[2], "neg");
@@ -1884,24 +1885,15 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       assert(p.kind == P_POS);
       LLVMValueRef offset = cgen_expr(p.value, ctx);
 
+      cgen_check_array_bounds(p.value, type, i, array, offset, ctx);
+
       if (i > 0) {
-         range_t r = type_dim(type, i - 1);
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-
-         bounds_kind_t kind =
-            (r.kind == RANGE_TO) ? BOUNDS_ARRAY_TO : BOUNDS_ARRAY_DOWNTO;
-         cgen_check_bounds(p.value, llvm_int32(kind), offset,
-                           llvm_int32(low), llvm_int32(high), ctx);
-
-         LLVMValueRef stride = llvm_int32(high - low + 1);
-         idx = LLVMBuildMul(builder, idx, stride, "");
+         LLVMValueRef stride = cgen_array_len(type, i - 1, array);
+         idx = LLVMBuildMul(builder, idx, stride, "stride");
       }
-      else
-         cgen_check_array_bounds(p.value, type, array, offset, ctx);
 
       idx = LLVMBuildAdd(builder, idx,
-                         cgen_array_off(offset, array, type, ctx, 0), "idx");
+                         cgen_array_off(offset, array, type, ctx, i), "idx");
    }
 
    switch (class) {
@@ -2377,9 +2369,9 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
       // Need to wrap in metadata
       return cgen_array_meta_1(
          to,
-         cgen_array_left(from, value_ll),
-         cgen_array_right(from, value_ll),
-         cgen_array_dir(from, value_ll),
+         cgen_array_left(from, 0, value_ll),
+         cgen_array_right(from, 0, value_ll),
+         cgen_array_dir(from, 0, value_ll),
          cgen_array_data_ptr(from, value_ll));
    }
    else {
@@ -2554,17 +2546,30 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
       {
          type_t type = tree_type(tree_value(t));
 
-         param_t p = tree_param(t, 0);
-         assert(p.kind == P_POS);
-
          LLVMValueRef var = cgen_var_lvalue(tree_value(t), ctx);
-         LLVMValueRef idx = cgen_expr(p.value, ctx);
 
-         cgen_check_array_bounds(p.value, type, var, idx, ctx);
+         LLVMValueRef idx = llvm_int32(0);
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            param_t p = tree_param(t, i);
+            assert(p.kind == P_POS);
 
-         LLVMValueRef off = cgen_array_off(idx, var, type, ctx, 0);
+            LLVMValueRef off = cgen_expr(p.value, ctx);
+
+            cgen_check_array_bounds(p.value, type, i, var, off, ctx);
+
+            if (i > 0) {
+               LLVMValueRef stride = cgen_array_len(type, i - 1, var);
+               idx = LLVMBuildMul(builder, idx, stride, "stride");
+            }
+
+            idx = LLVMBuildAdd(builder, idx,
+                               cgen_array_off(off, var, type, ctx, i),
+                               "idx");
+         }
+
          LLVMValueRef data = cgen_array_data_ptr(type, var);
-         return LLVMBuildGEP(builder, data, &off, 1, "");
+         return LLVMBuildGEP(builder, data, &idx, 1, "");
       }
 
    case T_ARRAY_SLICE:
@@ -2645,8 +2650,8 @@ static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
    LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
    LLVMValueRef n_elems = cgen_array_len_recur(rhs_type, rhs);
 
-   LLVMValueRef ldir = cgen_array_dir(lhs_type, lhs);
-   LLVMValueRef rdir = cgen_array_dir(rhs_type, rhs);
+   LLVMValueRef ldir = cgen_array_dir(lhs_type, 0, lhs);
+   LLVMValueRef rdir = cgen_array_dir(rhs_type, 0, rhs);
 
    LLVMValueRef reverse = LLVMBuildICmp(builder, LLVMIntNE,
                                         ldir, rdir, "reverse");
@@ -2687,7 +2692,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                LLVMValueRef meta = tree_attr_ptr(decl, sig_struct_i);
                assert(meta != NULL);
 
-               cgen_check_array_bounds(p.value, type, meta, idx, ctx);
+               cgen_check_array_bounds(p.value, type, 0, meta, idx, ctx);
 
                LLVMValueRef sig_array = cgen_array_data_ptr(type, meta);
                LLVMValueRef off = cgen_array_off(idx, meta, type, ctx, 0);
@@ -2702,7 +2707,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
 
-               cgen_check_array_bounds(p.value, type, NULL, idx, ctx);
+               cgen_check_array_bounds(p.value, type, 0, NULL, idx, ctx);
 
                LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
                if (type_is_array(type_elem(type))) {
@@ -2717,7 +2722,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             assert(type_kind(type) != T_UARRAY);
 
-            cgen_check_array_bounds(p.value, type, NULL, idx, ctx);
+            cgen_check_array_bounds(p.value, type, 0, NULL, idx, ctx);
 
             LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
@@ -2743,8 +2748,8 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          type_t val_type = tree_type(tree_value(t));
 
-         cgen_check_array_bounds(r.left, val_type, NULL, left, ctx);
-         cgen_check_array_bounds(r.right, val_type, NULL, right, ctx);
+         cgen_check_array_bounds(r.left, val_type, 0, NULL, left, ctx);
+         cgen_check_array_bounds(r.right, val_type, 0, NULL, right, ctx);
 
          LLVMValueRef low = (r.kind == RANGE_TO ? left : right);
          return cgen_array_signal_ptr(decl, low);
@@ -2884,9 +2889,9 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
 
             LLVMValueRef rarray = cgen_array_meta_1(
                rtype,
-               cgen_array_left(stype, rval),
-               cgen_array_right(stype, rval),
-               cgen_array_dir(stype, rval),
+               cgen_array_left(stype, 0, rval),
+               cgen_array_right(stype, 0, rval),
+               cgen_array_dir(stype, 0, rval),
                buf_ptr);
 
             cgen_array_copy(stype, rtype, rval, rarray, NULL, ctx);
@@ -3742,9 +3747,9 @@ static void cgen_func_constants(tree_t d, void *context)
       type_t decl_type = tree_type(d);
       if (!cgen_const_bounds(decl_type)) {
          var = cgen_array_meta_1(decl_type,
-                                 cgen_array_left(value_type, var),
-                                 cgen_array_right(value_type, var),
-                                 cgen_array_dir(value_type, var),
+                                 cgen_array_left(value_type, 0, var),
+                                 cgen_array_right(value_type, 0, var),
+                                 cgen_array_dir(value_type, 0, var),
                                  cgen_array_data_ptr(value_type, var));
       }
 
