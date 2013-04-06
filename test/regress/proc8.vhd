@@ -19,6 +19,11 @@ architecture test of proc8 is
         p1(x);
     end procedure;
 
+    procedure p3(signal x : out int_vec) is
+    begin
+        x <= (6, 7, 8, 9);
+    end procedure;
+
     signal s : int_vec4 := (1, 2, 3, 4);
 
 begin
@@ -26,6 +31,9 @@ begin
     process is
     begin
         p2(s);
+        p3(s);
+        wait for 1 ns;
+        assert s = (6, 7, 8, 9);
         wait;
     end process;
 

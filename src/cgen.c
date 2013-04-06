@@ -771,9 +771,24 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 {
-   LLVMValueRef indexes[] = { llvm_int32(0), elem };
-   return LLVMBuildGEP(builder, tree_attr_ptr(decl, sig_struct_i),
-                       indexes, ARRAY_LEN(indexes), "");
+   type_t type = tree_type(decl);
+
+   LLVMValueRef sig_vec = tree_attr_ptr(decl, sig_struct_i);
+   assert(sig_vec != NULL);
+
+   const bool wrap = type_is_array(type) && !cgen_const_bounds(type);
+   if (wrap) {
+      // Generate a new meta-data structure offset by `elem'
+      LLVMValueRef indexes[] = { elem };
+      LLVMValueRef offset =
+         LLVMBuildGEP(builder, LLVMBuildExtractValue(builder, sig_vec, 0, ""),
+                      indexes, ARRAY_LEN(indexes), "");
+      return LLVMBuildInsertValue(builder, sig_vec, offset, 0, "");
+   }
+   else {
+      LLVMValueRef indexes[] = { llvm_int32(0), elem };
+      return LLVMBuildGEP(builder, sig_vec, indexes, ARRAY_LEN(indexes), "");
+   }
 }
 
 static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
@@ -2654,11 +2669,13 @@ static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
    LLVMValueRef ldir = cgen_array_dir(lhs_type, 0, lhs);
    LLVMValueRef rdir = cgen_array_dir(rhs_type, 0, rhs);
 
+   LLVMValueRef lhs_data = cgen_array_data_ptr(lhs_type, lhs);
+
    LLVMValueRef reverse = LLVMBuildICmp(builder, LLVMIntNE,
                                         ldir, rdir, "reverse");
 
    LLVMValueRef args[] = {
-      llvm_void_cast(lhs),
+      llvm_void_cast(lhs_data),
       llvm_void_cast(rhs_data),
       n_elems,
       cgen_array_elem_size(rhs_type),
