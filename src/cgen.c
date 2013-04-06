@@ -2514,17 +2514,22 @@ static void cgen_sched_event(tree_t on)
 
    type_t type = tree_type(decl);
 
-   int32_t n = 1;
-   if (type_kind(type) == T_CARRAY) {
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      n = high - low + 1;
-   }
-
    LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
+   assert(signal != NULL);
+
+   LLVMValueRef n_elems;
+   if (type_is_array(type))
+      n_elems = cgen_array_len(type, 0, signal);
+   else
+      n_elems = llvm_int32(1);
+
+   LLVMValueRef sig_struct = signal;
+   if (type_is_array(type) && !cgen_const_bounds(type))
+      sig_struct = LLVMBuildExtractValue(builder, signal, 0, "");
+
    LLVMValueRef args[] = {
-      llvm_void_cast(signal),
-      llvm_int32(n)
+      llvm_void_cast(sig_struct),
+      n_elems
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
