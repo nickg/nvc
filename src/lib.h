@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -42,7 +42,6 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen);
 void lib_destroy(lib_t lib);
 struct trie *lib_name(lib_t lib);
 void lib_save(lib_t lib);
-void lib_load_all(lib_t lib);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);
@@ -53,8 +52,8 @@ struct tree *lib_get_ctx(lib_t lib, struct trie *ident,
                          struct tree_rd_ctx **ctx);
 lib_mtime_t lib_mtime(lib_t lib, struct trie *ident);
 
-typedef void (*lib_iter_fn_t)(struct tree *t, void *context);
-void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context);
+typedef void (*lib_index_fn_t)(struct trie *ident, int kind, void *context);
+void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);
 
 
 #endif // _LIB_H

@@ -70,13 +70,17 @@ struct arch_search_params {
    tree_t  *arch;
 };
 
-static void find_arch(tree_t t, void *context)
+static void find_arch(ident_t name, int kind, void *context)
 {
    struct arch_search_params *params = context;
 
    lib_t work = lib_work();
 
-   if ((tree_kind(t) == T_ARCH) && (tree_ident2(t) == params->name)) {
+   ident_t prefix = ident_until(name, '-');
+
+   if ((kind == T_ARCH) && (prefix == params->name)) {
+      tree_t t = lib_get(work, name);
+
       if (*(params->arch) == NULL)
          *(params->arch) = t;
       else {
@@ -109,7 +113,7 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
       struct arch_search_params params = { name, &arch };
-      lib_foreach(lib_work(), find_arch, &params);
+      lib_walk_index(lib_work(), find_arch, &params);
 
       if (arch == NULL)
          fatal_at(loc, "no suitable architecture for %s", istr(name));
@@ -467,8 +471,6 @@ static void elab_funcs(tree_t t)
 
 tree_t elab(tree_t top)
 {
-   lib_load_all(lib_work());
-
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));

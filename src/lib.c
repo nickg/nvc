@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,17 +35,25 @@
 
 struct lib_unit {
    tree_t        top;
+   tree_kind_t   kind;
    tree_rd_ctx_t read_ctx;
    bool          dirty;
    lib_mtime_t   mtime;
 };
 
+struct lib_index {
+   ident_t           name;
+   tree_kind_t       kind;
+   struct lib_index *next;
+};
+
 struct lib {
-   char            path[PATH_MAX];
-   ident_t         name;
-   unsigned        n_units;
-   unsigned        units_alloc;
-   struct lib_unit *units;
+   char              path[PATH_MAX];
+   ident_t           name;
+   unsigned          n_units;
+   unsigned          units_alloc;
+   struct lib_unit  *units;
+   struct lib_index *index;
 };
 
 struct lib_list {
@@ -75,6 +83,7 @@ static lib_t lib_init(const char *name, const char *rpath)
    l->n_units = 0;
    l->units   = NULL;
    l->name    = upcase_name(name);
+   l->index   = NULL;
 
    if (realpath(rpath, l->path) == NULL)
       strncpy(l->path, rpath, PATH_MAX);
@@ -83,6 +92,28 @@ static lib_t lib_init(const char *name, const char *rpath)
    el->item = l;
    el->next = loaded;
    loaded = el;
+
+   fbuf_t *f = lib_fbuf_open(l, "_index", FBUF_IN);
+   if (f != NULL) {
+      ident_rd_ctx_t ictx = ident_read_begin(f);
+
+      const int entries = read_u32(f);
+      for (int i = 0; i < entries; i++) {
+         ident_t name = ident_read(ictx);
+         tree_kind_t kind = read_u16(f);
+         assert(kind < T_LAST_TREE_KIND);
+
+         struct lib_index *in = xmalloc(sizeof(struct lib_index));
+         in->name = name;
+         in->kind = kind;
+         in->next = l->index;
+
+         l->index = in;
+      }
+
+      ident_read_end(ictx);
+      fbuf_close(f);
+   }
 
    return l;
 }
@@ -109,6 +140,25 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    lib->units[n].read_ctx = ctx;
    lib->units[n].dirty    = dirty;
    lib->units[n].mtime    = mtime;
+   lib->units[n].kind     = tree_kind(unit);
+
+   ident_t name = tree_ident(unit);
+   struct lib_index *it;
+   for (it = lib->index;
+        (it != NULL) && (it->name != name);
+        it = it->next)
+      ;
+
+   if (it == NULL) {
+      struct lib_index *new = xmalloc(sizeof(struct lib_index));
+      new->name = name;
+      new->kind = tree_kind(unit);
+      new->next = lib->index;
+
+      lib->index = new;
+   }
+   else
+      it->kind = tree_kind(unit);
 
    return &(lib->units[n]);
 }
@@ -398,26 +448,6 @@ tree_t lib_get(lib_t lib, ident_t ident)
       return NULL;
 }
 
-void lib_load_all(lib_t lib)
-{
-   assert(lib != NULL);
-
-   if (*(lib->path) == '\0')   // Temporary library
-      return;
-
-   DIR *d = opendir(lib->path);
-   if (d == NULL)
-      fatal("%s: %s", lib->path, strerror(errno));
-
-   struct dirent *e;
-   while ((e = readdir(d))) {
-      if (e->d_name[0] != '.' && e->d_name[0] != '_')
-         (void)lib_get(lib, ident_new(e->d_name));
-   }
-
-   closedir(d);
-}
-
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);
@@ -442,14 +472,35 @@ void lib_save(lib_t lib)
          lib->units[n].dirty = false;
       }
    }
+
+   struct lib_index *it;
+   int index_sz = 0;
+   for (it = lib->index; it != NULL; it = it->next, ++index_sz)
+      ;
+
+   fbuf_t *f = lib_fbuf_open(lib, "_index", FBUF_OUT);
+   if (f == NULL)
+      fatal("failed to create library %s index", istr(lib->name));
+
+   ident_wr_ctx_t ictx = ident_write_begin(f);
+
+   write_u32(index_sz, f);
+   for (it = lib->index; it != NULL; it = it->next) {
+      ident_write(it->name, ictx);
+      write_u16(it->kind, f);
+   }
+
+   ident_write_end(ictx);
+   fbuf_close(f);
 }
 
-void lib_foreach(lib_t lib, lib_iter_fn_t fn, void *context)
+void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
 {
    assert(lib != NULL);
 
-   for (unsigned i = 0; i < lib->n_units; i++)
-      (*fn)(lib->units[i].top, context);
+   struct lib_index *it;
+   for (it = lib->index; it != NULL; it = it->next)
+      (*fn)(it->name, it->kind, context);
 }
 
 void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
