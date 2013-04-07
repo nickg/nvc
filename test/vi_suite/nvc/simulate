@@ -7,6 +7,6 @@ if [ $7 != - ]; then
     echo "Cannot elaborate configuration" > ${10}$2$1.so
     exit 1
 else
-    nvc --work $3 -e $5 &> ${10}$2$1.so
-    nvc --work $3 -r $5 --stop-time=$9$8 &>> ${10}$2$1.so
+    timeout 5s nvc --work $3 -e $5 &> ${10}$2$1.so
+    timeout 5s nvc --work $3 -r $5 --stop-time=$9$8 &>> ${10}$2$1.so
 fi
