@@ -203,4 +203,9 @@ begin
         assert x'length(1) = 5;         -- OK
     end process;
 
+    process is
+        type bad is array (integer range <>) of int_array;  -- Error
+    begin
+    end process;
+
 end architecture;

@@ -1282,6 +1282,10 @@ static bool sem_check_type_decl(tree_t t)
          if (!sem_check_type(t, &elem_type))
             return false;
 
+         if (type_kind(elem_type) == T_UARRAY)
+            sem_error(t, "array %s cannot have unconstrained element type",
+                      istr(tree_ident(t)));
+
          type_set_elem(base, elem_type);
       }
       break;
@@ -1395,6 +1399,11 @@ static bool sem_check_type_decl(tree_t t)
             // Recursive record types are not allowed
             if (type_eq(type, tree_type(f)))
                sem_error(f, "recursive record types are not allowed");
+
+            // Element types may not be unconstrained
+            if (type_kind(tree_type(f)) == T_UARRAY)
+               sem_error(f, "field %s with unconstrained array type "
+                         "is not allowed", istr(f_name));
          }
 
          return true;

@@ -525,6 +525,7 @@ START_TEST(test_array)
       { 120, "range direction of slice does not match prefix" },
       { 121, "others choice not allowed in this context" },
       { 130, "range direction of slice does not match prefix" },
+      { 207, "array BAD cannot have unconstrained element type" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -909,15 +910,16 @@ START_TEST(test_record)
    const error_t expect[] = {
       {  9, "duplicate field name X" },
       { 15, "recursive record types are not allowed" },
-      { 35, "field Z does not have a value" },
-      { 36, "does not match type of field Y" },
-      { 38, "field Y does not have a value" },
-      { 39, "type R1 does not have field named Q" },
-      { 40, "type of value R1 does not match type of" },
-      { 43, "field X already has a value" },
-      { 44, "field X already has a value" },
-      { 60, "type R1_VEC is unconstrained" },
-      { 68, "record type R1 has no field F" },
+      { 30, "field X with unconstrained array type is not allowed" },
+      { 39, "field Z does not have a value" },
+      { 40, "does not match type of field Y" },
+      { 42, "field Y does not have a value" },
+      { 43, "type R1 does not have field named Q" },
+      { 44, "type of value R1 does not match type of" },
+      { 47, "field X already has a value" },
+      { 48, "field X already has a value" },
+      { 64, "type R1_VEC is unconstrained" },
+      { 72, "record type R1 has no field F" },
       { -1, NULL }
    };
    expect_errors(expect);

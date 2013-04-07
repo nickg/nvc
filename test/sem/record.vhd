@@ -26,6 +26,10 @@ package p is
 
     type r1_vec is array (integer range <>) of r1;
 
+    type r6 is record
+        x : r1_vec;                     -- Error
+    end record;
+
 end package;
 
 package body p is
