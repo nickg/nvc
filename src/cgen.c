@@ -2544,10 +2544,6 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
       return;
    }
 
-   if (expr_kind == T_ARRAY_SLICE)
-      fatal_at(tree_loc(on), "sorry, waiting on array slices is not "
-               "supported yet");
-
    tree_t decl = NULL;
    switch (expr_kind) {
    case T_REF:
@@ -2604,8 +2600,25 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
          break;
 
       case T_ARRAY_SLICE:
-         // TODO
-         assert(false);
+         {
+            range_t r = tree_range(on);
+
+            LLVMValueRef left  = cgen_expr(r.left, ctx);
+            LLVMValueRef right = cgen_expr(r.right, ctx);
+
+            LLVMValueRef low  = (r.kind == RANGE_TO) ? left : right;
+            LLVMValueRef high = (r.kind == RANGE_TO) ? right : left;
+
+            cgen_check_array_bounds(r.left, type, 0, signal, left, ctx);
+            cgen_check_array_bounds(r.right, type, 0, signal, right, ctx);
+
+            index = low;
+            n_elems = LLVMBuildAdd(builder,
+                                   LLVMBuildSub(builder, high, low, ""),
+                                   llvm_int32(1),
+                                   "n_elems");
+         }
+         break;
 
       default:
          assert(false);

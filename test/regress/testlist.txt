@@ -116,3 +116,4 @@ func11          normal
 const4          normal
 shift1          normal
 wait9           normal
+wait10          normal
