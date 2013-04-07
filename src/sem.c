@@ -60,8 +60,10 @@ static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
 static bool sem_locally_static(tree_t t);
+static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
+static bool sem_static_name(tree_t t);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -1969,26 +1971,28 @@ static bool sem_check_proc_body(tree_t t)
 
 static bool sem_check_sensitivity(tree_t t)
 {
-   bool ok = true;
-   for (unsigned i = 0; i < tree_triggers(t); i++) {
+   const int ntriggers = tree_triggers(t);
+   for (int i = 0; i < ntriggers; i++) {
       tree_t r = tree_trigger(t, i);
-      ok = sem_check(r) && sem_readable(r) && ok;
+      if (!sem_check(r) || !sem_readable(r))
+         return false;
 
-      if (ok) {
-         // Can only reference signals in sensitivity list
-         tree_t decl = sem_check_lvalue(r);
-         switch (tree_kind(decl)) {
-         case T_SIGNAL_DECL:
-         case T_PORT_DECL:
-            break;
-         default:
-            sem_error(r, "name %s in sensitivity list is not a signal",
-                      istr(tree_ident(decl)));
-         }
+      // Can only reference signals in sensitivity list
+      tree_t decl = sem_check_lvalue(r);
+      switch (tree_kind(decl)) {
+      case T_SIGNAL_DECL:
+      case T_PORT_DECL:
+         break;
+      default:
+         sem_error(r, "name %s in sensitivity list is not a signal",
+                   istr(tree_ident(decl)));
       }
+
+      if (!sem_static_name(r))
+         sem_error(r, "name in sensitivity list is not static");
    }
 
-   return ok;
+   return true;
 }
 
 static bool sem_check_process(tree_t t)
@@ -4200,7 +4204,8 @@ static bool sem_locally_static(tree_t t)
       if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
          return false;
 
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
          assoc_t a = tree_assoc(t, i);
          if ((a.kind == A_NAMED) && !sem_locally_static(a.name))
             return false;
@@ -4215,6 +4220,150 @@ static bool sem_locally_static(tree_t t)
    // A record field name
    if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_FIELD_DECL))
       return true;
+
+   return false;
+}
+
+static bool sem_static_name(tree_t t)
+{
+   // Rules for static names are in LRM 93 6.1
+
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         tree_t decl = tree_ref(t);
+         switch (tree_kind(decl)) {
+         case T_SIGNAL_DECL:
+         case T_VAR_DECL:
+         case T_CONST_DECL:
+         case T_PORT_DECL:
+            return true;
+         case T_ALIAS:
+            return sem_static_name(tree_value(decl));
+         default:
+            return false;
+         }
+      }
+
+   case T_ARRAY_REF:
+      {
+         if (!sem_static_name(tree_value(t)))
+            return false;
+
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (!sem_globally_static(tree_param(t, i).value))
+               return false;
+         }
+
+         return true;
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         if (!sem_static_name(tree_value(t)))
+            return false;
+
+         range_t r = tree_range(t);
+
+         return (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO)
+            && sem_globally_static(r.left)
+            && sem_globally_static(r.right);
+      }
+
+   default:
+      return false;
+   }
+}
+
+static bool sem_globally_static(tree_t t)
+{
+   // Rules for globally static expressions are in LRM 93 7.4.2
+
+   type_t type = tree_type(t);
+   tree_kind_t kind = tree_kind(t);
+
+   // A literal of type TIME
+
+   if (kind == T_LITERAL) {
+      type_t std_time = sem_std_type("TIME");
+      if (type_eq(type, std_time))
+         return true;
+   }
+
+   // A locally static primary
+
+   if (sem_locally_static(t))
+      return true;
+
+   // TODO: clauses c, d, e
+
+   // An alias whose aliased name is globally static
+
+   if (kind == T_ALIAS)
+      return sem_globally_static(tree_value(t));
+
+   // Aggregates must have globally static range and all elements
+   // must have globally static values
+   if (kind == T_AGGREGATE) {
+      range_t r = type_dim(type, 0);
+      if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+         return false;
+
+      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+         return false;
+
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         assoc_t a = tree_assoc(t, i);
+         if ((a.kind == A_NAMED) && !sem_globally_static(a.name))
+            return false;
+
+         if (!sem_globally_static(a.value))
+            return false;
+      }
+
+      return true;
+   }
+
+   // TODO: clauses h-l
+
+   // A qualified expression whose operand is globally static
+
+   if (kind == T_QUALIFIED)
+      return sem_globally_static(tree_value(t));
+
+   // A type conversion whose operand is globally static
+
+   if (kind == T_TYPE_CONV)
+      return sem_globally_static(tree_value(t));
+
+   // TODO: clauses o, p
+
+   // A sub-element or slice where indexes are globally static
+
+   if (kind == T_ARRAY_REF) {
+      if (!sem_globally_static(tree_value(t)))
+         return false;
+
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         if (!sem_globally_static(tree_param(t, i).value))
+            return false;
+      }
+
+      return true;
+   }
+   else if (kind == T_ARRAY_SLICE) {
+      if (!sem_globally_static(tree_value(t)))
+         return false;
+
+      range_t r = tree_range(t);
+      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+         return false;
+
+      return true;
+   }
 
    return false;
 }

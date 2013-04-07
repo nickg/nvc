@@ -410,6 +410,7 @@ START_TEST(test_wait)
       { 40, "wait statement not allowed in process" },
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
+      { 66, "name in sensitivity list is not static" },
       { -1, NULL }
    };
    expect_errors(expect);

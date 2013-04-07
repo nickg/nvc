@@ -60,8 +60,10 @@ begin
 
     -- Wait on scalar sub-elements and slices
     process is
+        variable i : integer;
     begin
         wait on z(1), za, z(2 downto 1);
+        wait on z(i);                   -- Not static
     end process;
 
 end architecture;
