@@ -216,4 +216,15 @@ begin
     begin
     end process;
 
+    process is
+        variable b1 : bit_vector(7 downto 0);
+    begin
+        b1 := b1 sll 1;
+        b1 := b1 srl 2;
+        b1 := b1 sla 0;
+        b1 := b1 sra 1;
+        b1 := b1 rol 6;
+        b1 := b1 ror 1;
+    end process;
+
 end architecture;

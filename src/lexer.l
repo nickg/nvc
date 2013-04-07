@@ -173,6 +173,12 @@ RECORD        {R}{E}{C}{O}{R}{D}
 NEW           {N}{E}{W}
 SHARED        {S}{H}{A}{R}{E}{D}
 NEXT          {N}{E}{X}{T}
+SLL           {S}{L}{L}
+SRL           {S}{R}{L}
+SLA           {S}{L}{A}
+SRA           {S}{R}{A}
+ROL           {R}{O}{L}
+ROR           {R}{O}{R}
 
 %%
 
@@ -262,6 +268,12 @@ NEXT          {N}{E}{X}{T}
 {NEW}           { TOKEN(tNEW); }
 {SHARED}        { TOKEN(tSHARED); }
 {NEXT}          { TOKEN(tNEXT); }
+{SLL}           { TOKEN(tSLL); }
+{SRL}           { TOKEN(tSRL); }
+{SLA}           { TOKEN(tSLA); }
+{SRA}           { TOKEN(tSRA); }
+{ROL}           { TOKEN(tROL); }
+{ROR}           { TOKEN(tROR); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

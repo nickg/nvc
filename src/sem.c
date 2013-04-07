@@ -687,6 +687,13 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new("\"nor\""), t, t, t, "v_nor");
       sem_declare_binary(ident_new("\"xnor\""), t, t, t, "v_xnor");
       sem_declare_unary(ident_new("\"not\""), t, t, "v_not");
+
+      sem_declare_binary(ident_new("\"sll\""), t, std_int, t, "sll");
+      sem_declare_binary(ident_new("\"srl\""), t, std_int, t, "srl");
+      sem_declare_binary(ident_new("\"sla\""), t, std_int, t, "sla");
+      sem_declare_binary(ident_new("\"sra\""), t, std_int, t, "sra");
+      sem_declare_binary(ident_new("\"rol\""), t, std_int, t, "rol");
+      sem_declare_binary(ident_new("\"ror\""), t, std_int, t, "ror");
    }
 
    // Predefined procedures
@@ -2762,9 +2769,10 @@ static bool sem_check_fcall(tree_t t)
    int n_overloads = 0;
 
    tree_t decl;
+   ident_t name = tree_ident(t);
    int n = 0, found_func = 0;
    do {
-      if ((decl = scope_find_nth(tree_ident(t), n++))) {
+      if ((decl = scope_find_nth(name, n++))) {
          type_t func_type = tree_type(decl);
 
          switch (tree_kind(decl)) {
@@ -2783,7 +2791,7 @@ static bool sem_check_fcall(tree_t t)
                // The grammar is ambiguous between function calls and
                // array references so must be an array reference
                tree_t ref = tree_new(T_REF);
-               tree_set_ident(ref, tree_ident(t));
+               tree_set_ident(ref, name);
 
                tree_change_kind(t, T_ARRAY_REF);
                tree_set_value(t, ref);
@@ -2819,7 +2827,7 @@ static bool sem_check_fcall(tree_t t)
       sem_error(t, (found_func > 0
                     ? "no matching function %s"
                     : "undefined identifier %s"),
-                istr(tree_ident(t)));
+                istr(name));
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
@@ -2832,7 +2840,7 @@ static bool sem_check_fcall(tree_t t)
       char buf[1024];
       static_printf_begin(buf, sizeof(buf));
 
-      const bool operator = !isalpha((uint8_t)*istr(tree_ident(t)));
+      const bool operator = !isalpha((uint8_t)*istr(name));
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
@@ -2842,14 +2850,14 @@ static bool sem_check_fcall(tree_t t)
 
       sem_error(t, "ambiguous %s %s%s",
                 operator ? "use of operator" : "call to function",
-                istr(tree_ident(t)), buf);
+                istr(name), buf);
    }
 
    if (decl == NULL) {
       char fn[512];
       static_printf_begin(fn, sizeof(fn));
 
-      const char *fname = istr(tree_ident(t));
+      const char *fname = istr(name);
       const bool operator = !isalpha((uint8_t)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
