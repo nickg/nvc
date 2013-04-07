@@ -1743,18 +1743,30 @@ static bool sem_check_unit_decl(tree_t t)
 
 static bool sem_check_alias(tree_t t)
 {
-   if (!sem_check(tree_value(t)))
+   // Rules for aliases are given in LRM 93 section 4.3.3
+
+   tree_t value = tree_value(t);
+
+   if (!sem_check(value))
       return false;
 
+   if (!sem_static_name(value))
+      sem_error(value, "aliased name is not static");
+
    if (tree_has_type(t)) {
-      // TODO: this is not correct - check LRM
       type_t type = tree_type(t);
       if (!sem_check_type(t, &type))
          return false;
+
+      if (!type_eq(type, tree_type(value)))
+         sem_error(t, "type of aliased object %s does not match expected "
+                   "type %s", sem_type_str(tree_type(value)),
+                   sem_type_str(type));
+
       tree_set_type(t, type);
    }
    else
-      tree_set_type(t, tree_type(tree_value(t)));
+      tree_set_type(t, tree_type(value));
 
    sem_add_attributes(t);
 

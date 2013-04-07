@@ -529,6 +529,9 @@ START_TEST(test_array)
       { 207, "array BAD cannot have unconstrained element type" },
       { 214, "aggregate size mismatch in dimension 1" },
       { 215, "OTHERS choice not allowed in unconstrained" },
+      { 232, "aliased name is not static" },
+      { 233, "aliased name is not static" },
+      { 234, "type of aliased object INT_ARRAY does not match" },
       { -1, NULL }
    };
    expect_errors(expect);

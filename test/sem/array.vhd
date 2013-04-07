@@ -227,4 +227,12 @@ begin
         b1 := b1 ror 1;
     end process;
 
+    process is
+        variable i : integer;
+        alias xi is x(1 to i);          -- Error
+        alias zi : integer is z(i);     -- Error
+        alias xx : integer is x(1 to 2);  -- Error
+    begin
+    end process;
+
 end architecture;
