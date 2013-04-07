@@ -40,13 +40,11 @@ def put_title(what)
 end
 
 put_title "UNISIM package"
-# XXX: unisim_VPKG needs VITAL_Primitives which does not currently compile
-#run_nvc "unisim", "unisims/unisim_VPKG.vhd"
+run_nvc "unisim", "unisims/unisim_VPKG.vhd"
 run_nvc "unisim", "unisims/unisim_VCOMP.vhd"
 
 put_title "Primitives"
 
-# XXX: this doesn't get very far as BUFH needs VPKG
 order = "#{$src}/unisims/primitive/vhdl_analyze_order"
 File.open(order).each_line do |line|
   run_nvc "unisim", "unisims/primitive/#{line}"
