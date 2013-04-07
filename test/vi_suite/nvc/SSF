@@ -1,7 +1,7 @@
 compiler_error:
-** Error
+Error
 simulator_error:
-** Fatal
+Fatal
 create_library:
 $work $work_path $suite_dir
 compile:
