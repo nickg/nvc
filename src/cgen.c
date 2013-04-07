@@ -2533,16 +2533,35 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
-static void cgen_sched_event(tree_t on)
+static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
 {
-   if (tree_kind(on) != T_REF) {
+   tree_kind_t expr_kind = tree_kind(on);
+   if ((expr_kind != T_REF) && (expr_kind != T_ARRAY_REF)
+       && (expr_kind != T_ARRAY_SLICE)) {
       // It is possible for constant folding to replace a signal with
       // a constant which will then appear in a sensitivity list so
       // just ignore it
       return;
    }
 
-   tree_t decl = tree_ref(on);
+   if (expr_kind == T_ARRAY_SLICE)
+      fatal_at(tree_loc(on), "sorry, waiting on array slices is not "
+               "supported yet");
+
+   tree_t decl = NULL;
+   switch (expr_kind) {
+   case T_REF:
+      decl = tree_ref(on);
+      break;
+
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      decl = tree_ref(tree_value(on));
+      break;
+
+   default:
+      assert(false);
+   }
 
    tree_kind_t kind = tree_kind(decl);
    if ((kind != T_SIGNAL_DECL) && (kind != T_PORT_DECL)) {
@@ -2557,15 +2576,58 @@ static void cgen_sched_event(tree_t on)
    LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
    assert(signal != NULL);
 
-   LLVMValueRef n_elems;
-   if (type_is_array(type))
-      n_elems = cgen_array_len(type, 0, signal);
-   else
-      n_elems = llvm_int32(1);
+   LLVMValueRef n_elems = NULL, sig_struct = NULL;
+   if (expr_kind == T_REF) {
+      if (type_is_array(type))
+         n_elems = cgen_array_len(type, 0, signal);
+      else
+         n_elems = llvm_int32(1);
 
-   LLVMValueRef sig_struct = signal;
-   if (type_is_array(type) && !cgen_const_bounds(type))
-      sig_struct = LLVMBuildExtractValue(builder, signal, 0, "");
+      if (type_is_array(type) && !cgen_const_bounds(type))
+         sig_struct = LLVMBuildExtractValue(builder, signal, 0, "");
+      else
+         sig_struct = signal;
+   }
+   else {
+      assert(type_is_array(type));
+
+      LLVMValueRef index = NULL;
+      switch (expr_kind) {
+      case T_ARRAY_REF:
+         {
+            param_t p = tree_param(on, 0);
+            index = cgen_expr(p.value, ctx);
+            cgen_check_array_bounds(p.value, type, 0, signal, index, ctx);
+
+            n_elems = llvm_int32(1);
+         }
+         break;
+
+      case T_ARRAY_SLICE:
+         // TODO
+         assert(false);
+
+      default:
+         assert(false);
+      }
+
+      LLVMValueRef offset = cgen_array_off(index, signal, type, ctx, 0);
+
+      if (type_kind(type) == T_UARRAY) {
+         // Unwrap array to sub-signal array
+         LLVMValueRef sub_signals =
+            LLVMBuildExtractValue(builder, signal, 0, "sub_signals");
+
+         LLVMValueRef indexes[] = { offset };
+         sig_struct = LLVMBuildGEP(builder, sub_signals,
+                                   indexes, ARRAY_LEN(indexes), "");
+      }
+      else {
+         LLVMValueRef indexes[] = { llvm_int32(0), offset };
+         sig_struct = LLVMBuildGEP(builder, signal,
+                                   indexes, ARRAY_LEN(indexes), "");
+      }
+   }
 
    LLVMValueRef args[] = {
       llvm_void_cast(sig_struct),
@@ -2580,8 +2642,9 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
    if (tree_has_delay(t))
       cgen_sched_process(cgen_expr(tree_delay(t), ctx));
 
-   for (unsigned i = 0; i < tree_triggers(t); i++)
-      cgen_sched_event(tree_trigger(t, i));
+   const int ntriggers = tree_triggers(t);
+   for (int i = 0; i < ntriggers; i++)
+      cgen_sched_event(tree_trigger(t, i), ctx);
 
    // Find the basic block to jump to when the process is next scheduled
    struct proc_entry *it;

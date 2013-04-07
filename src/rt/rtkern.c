@@ -746,8 +746,12 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    struct event *e = user;
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
-   if (e->kind == E_DRIVER)
-      fprintf(stderr, "driver\t %s\n", fmt_sig(e->signal));
+   if (e->kind == E_DRIVER) {
+      fprintf(stderr, "driver\t %s", fmt_sig(e->signal));
+      if (e->length > 1)
+         fprintf(stderr, "+%d", e->length - 1);
+      fprintf(stderr, "\n");
+   }
    else
       fprintf(stderr, "process\t %s\n", istr(tree_ident(e->proc->source)));
 }
