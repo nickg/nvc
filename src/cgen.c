@@ -1530,6 +1530,26 @@ static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
    }
 }
 
+static LLVMValueRef cgen_bit_shift(bit_shift_kind_t kind, LLVMValueRef array,
+                                   type_t type, LLVMValueRef shift)
+{
+   LLVMValueRef result = LLVMBuildAlloca(builder,
+                                         llvm_uarray_type(LLVMInt1Type(), 1),
+                                         "bit_shift");
+
+   LLVMValueRef args[] = {
+      llvm_int32(kind),
+      cgen_array_data_ptr(type, array),
+      cgen_array_len(type, 0, array),
+      cgen_array_dir(type, 0, array),
+      shift,
+      result
+   };
+   LLVMBuildCall(builder, llvm_fn("_bit_shift"), args, ARRAY_LEN(args), "");
+
+   return LLVMBuildLoad(builder, result, "");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -1794,6 +1814,18 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                                LLVMIntSGE, ctx);
       else if (icmp(builtin, "endfile"))
          return LLVMBuildCall(builder, llvm_fn("_endfile"), args, 1, "");
+      else if (icmp(builtin, "sll"))
+         return cgen_bit_shift(BIT_SHIFT_SLL, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "srl"))
+         return cgen_bit_shift(BIT_SHIFT_SRL, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "sla"))
+         return cgen_bit_shift(BIT_SHIFT_SLA, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "sra"))
+         return cgen_bit_shift(BIT_SHIFT_SRA, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "rol"))
+         return cgen_bit_shift(BIT_SHIFT_ROL, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "ror"))
+         return cgen_bit_shift(BIT_SHIFT_ROR, args[0], arg_types[0], args[1]);
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
@@ -4459,6 +4491,20 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMInt32Type(),
                                     memcmp_args,
                                     ARRAY_LEN(memcmp_args),
+                                    false));
+
+   LLVMTypeRef _bit_shift_args[] = {
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt1Type(), 0),
+      LLVMInt32Type(),
+      LLVMInt8Type(),
+      LLVMInt32Type(),
+      LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
+   };
+   LLVMAddFunction(module, "_bit_shift",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _bit_shift_args,
+                                    ARRAY_LEN(_bit_shift_args),
                                     false));
 }
 

@@ -114,3 +114,4 @@ proc8           normal,gold
 wait8           normal
 func11          normal
 const4          normal
+shift1          normal

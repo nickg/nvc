@@ -505,6 +505,48 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
    u->dims[0].dir   = RANGE_TO;
 }
 
+void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
+                int8_t dir, int32_t shift, struct uarray *u)
+{
+   if (dir == RANGE_DOWNTO)
+      kind = kind ^ 1;
+
+   if (shift < 0) {
+      kind  = kind ^ 1;
+      shift = -shift;
+   }
+
+   uint8_t *buf = rt_tmp_alloc(len);
+
+   for (int i = 0; i < len; i++) {
+      switch (kind) {
+      case BIT_SHIFT_SLL:
+         buf[i] = (i < len - shift) ? data[i + shift] : 0;
+         break;
+      case BIT_SHIFT_SRL:
+         buf[i] = (i >= shift) ? data[i - shift] : 0;
+         break;
+      case BIT_SHIFT_SLA:
+         buf[i] = (i < len - shift) ? data[i + shift] : data[len - 1];
+         break;
+      case BIT_SHIFT_SRA:
+         buf[i] = (i >= shift) ? data[i - shift] : data[0];
+         break;
+      case BIT_SHIFT_ROL:
+         buf[i] = (i < len - shift) ? data[i + shift] : data[(i + shift) % len];
+         break;
+      case BIT_SHIFT_ROR:
+         buf[i] = (i >= shift) ? data[i - shift] : data[(i - shift) % len];
+         break;
+      }
+   }
+
+   u->ptr = buf;
+   u->dims[0].left  = 0;
+   u->dims[0].right = len - 1;
+   u->dims[0].dir   = dir;
+}
+
 void _debug_out(int32_t val)
 {
    printf("DEBUG: val=%"PRIx32"\n", val);
@@ -1221,6 +1263,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_file_read", _file_read);
    jit_bind_fn("_endfile", _endfile);
    jit_bind_fn("_bounds_fail", _bounds_fail);
+   jit_bind_fn("_bit_shift", _bit_shift);
 
    trace_on = opt_get_int("rt_trace_en");
 

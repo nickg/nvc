@@ -32,6 +32,15 @@ typedef enum {
    BOUNDS_ARRAY_DOWNTO,
 } bounds_kind_t;
 
+typedef enum {
+   BIT_SHIFT_SLL,
+   BIT_SHIFT_SRL,
+   BIT_SHIFT_SLA,
+   BIT_SHIFT_SRA,
+   BIT_SHIFT_ROL,
+   BIT_SHIFT_ROR,
+} bit_shift_kind_t;
+
 void rt_batch_exec(struct tree *e, uint64_t stop_time,
                    struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
