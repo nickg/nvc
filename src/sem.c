@@ -3364,6 +3364,35 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
+static bool sem_check_uarray_aggregate(tree_t t, type_t type,
+                                       int dim, int *n_elems)
+{
+   const int nassocs = tree_assocs(t);
+   const int ndims   = type_index_constrs(type);
+
+   for (int i = 0; i < nassocs; i++) {
+      assoc_t a = tree_assoc(t, i);
+
+      if (a.kind == A_OTHERS)
+         sem_error(a.value, "OTHERS choice not allowed in unconstrained "
+                   "array aggregate");
+
+      if (dim + 1 < ndims) {
+         if (!sem_check_uarray_aggregate(a.value, type, dim + 1, n_elems))
+            return false;
+      }
+   }
+
+   if (n_elems[dim] == -1) {
+      // First aggregate in this dimension determines size
+      n_elems[dim] = nassocs;
+   }
+   else if (n_elems[dim] != nassocs)
+      sem_error(t, "aggregate size mismatch in dimension %d", dim);
+
+   return true;
+}
+
 static bool sem_check_aggregate(tree_t t)
 {
    // Rules for aggregates are in LRM 93 section 7.3.2
@@ -3433,11 +3462,19 @@ static bool sem_check_aggregate(tree_t t)
    // array type
 
    if (type_kind(composite_type) == T_UARRAY) {
+      const int nindex = type_index_constrs(composite_type);
+
+      int n_elems[nindex];
+      for (int i = 0; i < nindex; i++)
+         n_elems[i] = -1;
+
+      if (!sem_check_uarray_aggregate(t, composite_type, 0, n_elems))
+         return false;
+
       type_t tmp = type_new(T_CARRAY);
       type_set_ident(tmp, type_ident(composite_type));
       type_set_elem(tmp, type_elem(composite_type));  // Element type
 
-      const int nindex = type_index_constrs(composite_type);
       for (int i = 0; i < nindex; i++) {
          type_t index_type = type_index_constr(composite_type, i);
          range_t index_r = type_dim(index_type, 0);
@@ -3454,13 +3491,12 @@ static bool sem_check_aggregate(tree_t t)
             type_add_dim(tmp, r);
          }
          else {
-            tree_t n_elems = sem_make_int(tree_assocs(t) - 1);
-
             range_t r = {
                .kind  = index_r.kind,
                .left  = index_r.left,
-               .right = call_builtin("add", index_type, n_elems,
-                                  index_r.left, NULL)
+               .right = call_builtin("add", index_type,
+                                     sem_make_int(n_elems[i] - 1),
+                                     index_r.left, NULL)
             };
             type_add_dim(tmp, r);
          }
@@ -3475,14 +3511,15 @@ static bool sem_check_aggregate(tree_t t)
 
    if (type_is_array(base_type)) {
       type_t elem_type = NULL;
-      if (type_dims(composite_type) == 1)
+      const int ndims = type_dims(composite_type);
+      if (ndims == 1)
          elem_type = type_elem(base_type);
       else {
          elem_type = type_new(T_CARRAY);
          type_set_ident(elem_type, type_ident(composite_type));
          type_set_elem(elem_type, type_elem(base_type));
 
-         for (unsigned i = 1; i < type_dims(composite_type); i++)
+         for (int i = 1; i < ndims; i++)
             type_add_dim(elem_type, type_dim(composite_type, i));
       }
 
@@ -3612,7 +3649,7 @@ static bool sem_check_aggregate(tree_t t)
    // If a named choice is not locally static then it must be the
    // only element
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
       if (a.kind == A_NAMED && !sem_locally_static(a.name)) {
          if (tree_assocs(t) != 1)

@@ -526,6 +526,8 @@ START_TEST(test_array)
       { 121, "others choice not allowed in this context" },
       { 130, "range direction of slice does not match prefix" },
       { 207, "array BAD cannot have unconstrained element type" },
+      { 214, "aggregate size mismatch in dimension 1" },
+      { 215, "OTHERS choice not allowed in unconstrained" },
       { -1, NULL }
    };
    expect_errors(expect);

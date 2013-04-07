@@ -664,6 +664,7 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
    // Array offsets are always 32-bit
    return LLVMBuildZExt(builder, zero_based, LLVMInt32Type(), "");
 }
+
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               LLVMValueRef min, LLVMValueRef max,
                               cgen_ctx_t *ctx)
@@ -1916,7 +1917,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       cgen_check_array_bounds(p.value, type, i, array, offset, ctx);
 
       if (i > 0) {
-         LLVMValueRef stride = cgen_array_len(type, i - 1, array);
+         LLVMValueRef stride = cgen_array_len(type, i, array);
          idx = LLVMBuildMul(builder, idx, stride, "stride");
       }
 
@@ -2010,11 +2011,9 @@ static void cgen_copy_vals(LLVMValueRef *dst, LLVMValueRef *src,
    }
 }
 
-static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
-                                          unsigned dim, unsigned *n_elems)
+static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
+                                          int *n_elems, cgen_ctx_t *ctx)
 {
-   type_t type = tree_type(t);
-
    *n_elems = 1;
    const int ndims = type_dims(type);
    for (int i = dim; i < ndims; i++) {
@@ -2034,7 +2033,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
 
    LLVMValueRef *vals = xmalloc(*n_elems * sizeof(LLVMValueRef));
 
-   for (unsigned i = 0; i < *n_elems; i++)
+   for (int i = 0; i < *n_elems; i++)
       vals[i] = NULL;
 
    const int nassocs = tree_assocs(t);
@@ -2042,17 +2041,18 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
       assoc_t a = tree_assoc(t, i);
 
       LLVMValueRef *sub;
-      unsigned nsub;
+      int nsub;
       if (dim < type_dims(type) - 1)
-         sub = cgen_const_aggregate(a.value, ctx, 0 /* XXX */, &nsub);
+         sub = cgen_const_aggregate(a.value, type, dim + 1, &nsub, ctx);
       else if (tree_kind(a.value) == T_AGGREGATE) {
          sub  = xmalloc(sizeof(LLVMValueRef));
          nsub = 1;
 
          type_t sub_type = tree_type(a.value);
          if (type_is_array(sub_type)) {
-            unsigned nvals;
-            LLVMValueRef *v = cgen_const_aggregate(a.value, ctx, 0, &nvals);
+            int nvals;
+            LLVMValueRef *v = cgen_const_aggregate(a.value, tree_type(a.value),
+                                                   0, &nvals, ctx);
             LLVMTypeRef ltype = llvm_type(type_elem(tree_type(a.value)));
 
             *sub = LLVMConstArray(ltype, v, nvals);
@@ -2090,7 +2090,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
 
       case A_OTHERS:
          assert((*n_elems % nsub) == 0);
-         for (unsigned j = 0; j < (*n_elems / nsub); j++) {
+         for (int j = 0; j < (*n_elems / nsub); j++) {
             if (vals[j * nsub] == NULL)
                cgen_copy_vals(vals + (j * nsub), sub, nsub, false);
          }
@@ -2110,7 +2110,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, cgen_ctx_t *ctx,
       free(sub);
    }
 
-   for (unsigned i = 0; i < *n_elems; i++)
+   for (int i = 0; i < *n_elems; i++)
       assert(vals[i] != NULL);
 
    return vals;
@@ -2263,8 +2263,9 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
       type_t value_type = tree_type(a.value);
       LLVMValueRef v;
       if (type_is_array(value_type)) {
-         unsigned nvals;
-         LLVMValueRef *vals = cgen_const_aggregate(a.value, ctx, 0, &nvals);
+         int nvals;
+         LLVMValueRef *vals = cgen_const_aggregate(a.value, tree_type(a.value),
+                                                   0, &nvals, ctx);
          LLVMTypeRef ltype = llvm_type(type_elem(value_type));
          v = LLVMConstArray(ltype, vals, nvals);
       }
@@ -2307,8 +2308,8 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
 
    if (type_is_array(type)) {
       if (cgen_const_bounds(type) && cgen_is_const(t)) {
-         unsigned nvals;
-         LLVMValueRef *vals = cgen_const_aggregate(t, ctx, 0, &nvals);
+         int nvals;
+         LLVMValueRef *vals = cgen_const_aggregate(t, type, 0, &nvals, ctx);
 
          LLVMTypeRef ltype = llvm_type(type_elem(type));
 
@@ -2592,7 +2593,7 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
             cgen_check_array_bounds(p.value, type, i, var, off, ctx);
 
             if (i > 0) {
-               LLVMValueRef stride = cgen_array_len(type, i - 1, var);
+               LLVMValueRef stride = cgen_array_len(type, i, var);
                idx = LLVMBuildMul(builder, idx, stride, "stride");
             }
 
