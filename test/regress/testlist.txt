@@ -117,3 +117,5 @@ const4          normal
 shift1          normal
 wait9           normal
 wait10          normal
+attr4           normal
+bounds6         gold,fail

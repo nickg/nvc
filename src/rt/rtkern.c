@@ -412,6 +412,10 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
       fatal_at(loc, "array index %d outside bounds %d downto %d",
                value, max, min);
       break;
+
+   case BOUNDS_ENUM:
+      fatal_at(loc, "value %d outside %s bounds %d to %d",
+               value, type_pp(tree_type(t)), min, max);
    }
 }
 

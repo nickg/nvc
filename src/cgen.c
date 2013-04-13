@@ -1605,6 +1605,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    type_t arg_types[nparams];
    cgen_call_args(t, args, arg_types, ctx);
 
+   type_t rtype = tree_has_type(t) ? tree_type(t) : NULL;
+
    // Regular builtin functions
    if (builtin) {
       assert(nparams > 0);
@@ -1614,7 +1616,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          if (real)
             return LLVMBuildFMul(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(tree_type(t), args, nparams);
+            cgen_promote_arith(rtype, args, nparams);
             return LLVMBuildMul(builder, args[0], args[1], "");
          }
       }
@@ -1622,7 +1624,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          if (real)
             return LLVMBuildFAdd(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(tree_type(t), args, nparams);
+            cgen_promote_arith(rtype, args, nparams);
             return LLVMBuildAdd(builder, args[0], args[1], "");
          }
       }
@@ -1630,7 +1632,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          if (real)
             return LLVMBuildFSub(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(tree_type(t), args, nparams);
+            cgen_promote_arith(rtype, args, nparams);
             return LLVMBuildSub(builder, args[0], args[1], "");
          }
       }
@@ -1638,7 +1640,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          if (real)
             return LLVMBuildFDiv(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(tree_type(t), args, nparams);
+            cgen_promote_arith(rtype, args, nparams);
             return LLVMBuildSDiv(builder, args[0], args[1], "");
          }
       }
@@ -1715,7 +1717,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             return LLVMBuildFPToUI(
                builder,
                LLVMBuildCall(builder, llvm_fn("llvm.pow.f64"), cast, 2, ""),
-               llvm_type(tree_type(t)),
+               llvm_type(rtype),
                "pow");
          }
       }
@@ -1768,14 +1770,14 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                              "pred");
       }
       else if (icmp(builtin, "leftof")) {
-         range_t r = type_dim(tree_type(t), 0);
+         range_t r = type_dim(rtype, 0);
          int dir = (r.kind == RANGE_TO ? -1 : 1);
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_types[0]), dir, false),
                              "leftof");
       }
       else if (icmp(builtin, "rightof")) {
-         range_t r = type_dim(tree_type(t), 0);
+         range_t r = type_dim(rtype, 0);
          int dir = (r.kind == RANGE_TO ? 1 : -1);
          return LLVMBuildAdd(builder, args[0],
                              LLVMConstInt(llvm_type(arg_types[0]), dir, false),
@@ -1826,6 +1828,14 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_bit_shift(BIT_SHIFT_ROL, args[0], arg_types[0], args[1]);
       else if (icmp(builtin, "ror"))
          return cgen_bit_shift(BIT_SHIFT_ROR, args[0], arg_types[0], args[1]);
+      else if (icmp(builtin, "pos"))
+         return LLVMBuildZExt(builder, args[0], llvm_type(rtype), "pos");
+      else if (icmp(builtin, "val")) {
+         const int max = type_enum_literals(rtype) - 1;
+         cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), args[0],
+                           llvm_int32(0), llvm_int32(max), ctx);
+         return LLVMBuildIntCast(builder, args[0], llvm_type(rtype), "val");
+      }
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }

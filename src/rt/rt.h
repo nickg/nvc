@@ -30,6 +30,7 @@ typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 typedef enum {
    BOUNDS_ARRAY_TO,
    BOUNDS_ARRAY_DOWNTO,
+   BOUNDS_ENUM,
 } bounds_kind_t;
 
 typedef enum {
