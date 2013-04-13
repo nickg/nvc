@@ -77,6 +77,7 @@ end entity;
 architecture a of static is
     signal s : bit_vector(1 to 3);
     alias sx : bit is s(X);
+    alias sx1 : bit is s(X + 1);
 begin
 
 end architecture;

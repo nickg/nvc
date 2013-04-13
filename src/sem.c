@@ -4359,7 +4359,24 @@ static bool sem_globally_static(tree_t t)
       return true;
    }
 
-   // TODO: clauses h-l
+   // TODO: clause h
+
+   // A function call of a pure function with globally static actuals
+   if (kind == T_FCALL) {
+      tree_t decl = tree_ref(t);
+      if (tree_attr_int(decl, ident_new("impure"), 0))
+         return false;
+
+      bool all_static = true;
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         param_t p = tree_param(t, i);
+         all_static = all_static && sem_globally_static(p.value);
+      }
+      return all_static;
+   }
+
+   // TODO: clauses j-l
 
    // A qualified expression whose operand is globally static
 
