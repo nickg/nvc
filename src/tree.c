@@ -289,7 +289,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_NEXT
    (I_IDENT | I_VALUE | I_IDENT2),
 
-   // T_GENVAR_DECL
+   // T_GENVAR
    (I_IDENT | I_TYPE),
 };
 
@@ -324,7 +324,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR_DECL",
+   "T_GENVAR",
 };
 
 static const char *item_text_map[] = {
@@ -1958,8 +1958,8 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 
 struct tree_copy_ctx {
    tree_t   *copied;
-   size_t   n_copied;
-   unsigned generation;
+   unsigned  generation;
+   int       ncopy;
 };
 
 static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
@@ -2026,16 +2026,19 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    if (t == NULL)
       return NULL;
 
-   if (t->generation == ctx->generation) {
+   if (t->generation != ctx->generation) {
+      // Outside scope of copied tree
+      return t;
+   }
+
+   assert(t->index < ctx->ncopy);
+
+   if (ctx->copied[t->index] != NULL) {
       // Already copied this tree
-      assert(t->index < ctx->n_copied);
       return ctx->copied[t->index];
    }
 
    tree_t copy = tree_new(t->kind);
-
-   t->generation = ctx->generation;
-   t->index      = (ctx->n_copied)++;
    ctx->copied[t->index] = copy;
 
    copy->loc = t->loc;
@@ -2099,14 +2102,30 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
    return copy;
 }
 
+static void copy_visit_fn(tree_t t, void *context)
+{
+   int *ncopy = context;
+   t->index = (*ncopy)++;
+}
+
 tree_t tree_copy(tree_t t)
 {
+   // Create a copy of t and all the trees beneath it
+
+   const int generation = next_generation;
+
+   int ncopy = 0;
+   tree_visit(t, copy_visit_fn, &ncopy);
+
    struct tree_copy_ctx ctx = {
-      .copied     = xmalloc(sizeof(tree_t) * n_trees_alloc),
-      .n_copied   = 0,
-      .generation = next_generation++
+      .copied     = xmalloc(sizeof(tree_t) * ncopy),
+      .generation = generation,
+      .ncopy      = ncopy
    };
+   memset(ctx.copied, '\0', sizeof(tree_t) * ncopy);
+
    tree_t copy = tree_copy_aux(t, &ctx);
+
    free(ctx.copied);
    return copy;
 }
