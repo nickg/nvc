@@ -88,6 +88,7 @@ enum {
    I_ELSES     = (1 << 25),
    I_CLASS     = (1 << 26),
    I_RANGE     = (1 << 27),
+   I_NAME      = (1 << 28),
 };
 
 typedef union {
@@ -291,12 +292,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE),
 
    // T_PARAM
-   (I_IDENT | I_VALUE | I_POS | I_SUBKIND),
+   (I_VALUE | I_POS | I_SUBKIND | I_NAME),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE)
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE \
+                          | I_NAME)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS \
@@ -333,7 +335,7 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",  "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",     "I_RANGE",
+   "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",
 };
 
 struct tree {
@@ -752,6 +754,7 @@ tree_t tree_param(tree_t t, unsigned n)
 
 void tree_add_param(tree_t t, tree_t e)
 {
+   assert(tree_kind(e) == T_PARAM);
    tree_assert_expr(tree_value(e));
 
    tree_array_t *array = &(lookup_item(t, I_PARAMS)->tree_array);
@@ -1075,6 +1078,19 @@ void tree_set_reject(tree_t t, tree_t r)
 {
    tree_assert_expr(r);
    lookup_item(t, I_REJECT)->tree = r;
+}
+
+tree_t tree_name(tree_t t)
+{
+   item_t *item = lookup_item(t, I_NAME);
+   assert(item->tree != NULL);
+   return item->tree;
+}
+
+void tree_set_name(tree_t t, tree_t n)
+{
+   tree_assert_expr(n);
+   lookup_item(t, I_NAME)->tree = n;
 }
 
 tree_t tree_file_mode(tree_t t)

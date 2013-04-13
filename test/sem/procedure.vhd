@@ -128,4 +128,13 @@ package body p is
                 a => a );
     end procedure;
 
+    procedure test7a(x : in bit_vector(1 to 2)) is
+    begin
+    end procedure;
+
+    procedure test7b is
+    begin
+        test7a(x(1) => '0', x(2) => '1');
+    end procedure;
+
 end package body;

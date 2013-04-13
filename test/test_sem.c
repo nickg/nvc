@@ -769,6 +769,7 @@ START_TEST(test_procedure)
       {  98, "object X with access type must have class VARIABLE" },
       {  99, "object X with access type must have class VARIABLE" },
       { 100, "object X with access type must have class VARIABLE" },
+      { 137, "sorry, this form of parameter name is not yet supported" },
       { -1, NULL }
    };
    expect_errors(expect);

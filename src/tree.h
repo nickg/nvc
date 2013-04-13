@@ -258,6 +258,9 @@ void tree_set_class(tree_t t, class_t c);
 tree_t tree_reject(tree_t t);
 void tree_set_reject(tree_t t, tree_t r);
 
+tree_t tree_name(tree_t t);
+void tree_set_name(tree_t t, tree_t n);
+
 uint32_t tree_index(tree_t t);
 
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str);

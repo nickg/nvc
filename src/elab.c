@@ -233,12 +233,16 @@ static void elab_map(tree_t t, tree_t arch,
          }
          break;
       case P_NAMED:
-         for (int j = 0; j < nformals; j++) {
-            tree_t port = tree_F(unit, j);
-            if (tree_ident(port) == tree_ident(p)) {
-               formal = port;
-               have_formals[j] = true;
-               break;
+         {
+            tree_t name = tree_name(p);
+            assert(tree_kind(name) == T_REF);
+            for (int j = 0; j < nformals; j++) {
+               tree_t port = tree_F(unit, j);
+               if (tree_ident(port) == tree_ident(name)) {
+                  formal = port;
+                  have_formals[j] = true;
+                  break;
+               }
             }
          }
          break;

@@ -73,7 +73,10 @@ static tree_t simp_call_args(tree_t t)
          tree_t p = tree_param(t, j);
          assert(tree_subkind(p) == P_NAMED);
 
-         if (name == tree_ident(p)) {
+         tree_t ref = tree_name(p);
+         assert(tree_kind(ref) == T_REF);
+
+         if (name == tree_ident(ref)) {
             tree_t q = tree_new(T_PARAM);
             tree_set_subkind(q, P_POS);
             tree_set_loc(q, tree_loc(p));

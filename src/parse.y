@@ -2130,23 +2130,23 @@ param_list
      $$ = $3;
      tree_list_prepend(&$$, p);
   }
-| id tASSOC expr_or_open
+| name tASSOC expr_or_open
   {
      tree_t p = tree_new(T_PARAM);
      tree_set_subkind(p, P_NAMED);
      tree_set_value(p, $3);
-     tree_set_ident(p, $1);
+     tree_set_name(p, $1);
      tree_set_loc(p, &@$);
 
      $$ = NULL;
      tree_list_prepend(&$$, p);
   }
-| id tASSOC expr_or_open tCOMMA param_list
+| name tASSOC expr_or_open tCOMMA param_list
   {
      tree_t p = tree_new(T_PARAM);
      tree_set_subkind(p, P_NAMED);
      tree_set_value(p, $3);
-     tree_set_ident(p, $1);
+     tree_set_name(p, $1);
      tree_set_loc(p, &@3);
 
      $$ = $5;
