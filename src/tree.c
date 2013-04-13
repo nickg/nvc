@@ -288,6 +288,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_NEXT
    (I_IDENT | I_VALUE | I_IDENT2),
+
+   // T_GENVAR_DECL
+   (I_IDENT | I_TYPE),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -321,6 +324,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
+   "T_GENVAR_DECL",
 };
 
 static const char *item_text_map[] = {
@@ -392,7 +396,8 @@ static tree_kind_t decl_kinds[] = {
    T_PORT_DECL,  T_SIGNAL_DECL, T_VAR_DECL,   T_TYPE_DECL,
    T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,  T_ALIAS,
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
-   T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL
+   T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
+   T_GENVAR,
 };
 
 static tree_kind_t top_level_kinds[] = {

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -540,6 +540,20 @@ static void dump_stmt(tree_t t, int indent)
    case T_PCALL:
       printf("%s", istr(tree_ident(tree_ref(t))));
       dump_params(t);
+      break;
+
+   case T_FOR_GENERATE:
+      printf("for %s in ", istr(tree_ident2(t)));
+      dump_range(tree_range(t));
+      printf(" generate\n");
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i), indent + 2);
+      tab(indent);
+      printf("begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      tab(indent);
+      printf("end generate");
       break;
 
    default:

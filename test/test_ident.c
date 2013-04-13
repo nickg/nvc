@@ -107,7 +107,7 @@ END_TEST
 
 START_TEST(test_prefix)
 {
-   ident_t a, b, c, d, e;
+   ident_t a, b, c, d, e, f;
 
    a = ident_new("foo");
    b = ident_new("bar");
@@ -125,6 +125,9 @@ START_TEST(test_prefix)
 
    e = ident_prefix(NULL, a, '?');
    fail_unless(e == a);
+
+   f = ident_prefix(a, b, '\0');
+   fail_unless(f == ident_new("foobar"));
 }
 END_TEST
 

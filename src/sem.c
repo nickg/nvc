@@ -3765,6 +3765,7 @@ static bool sem_check_ref(tree_t t)
    case T_ALIAS:
    case T_FILE_DECL:
    case T_UNIT_DECL:
+   case T_GENVAR:
       tree_set_type(t, tree_type(decl));
       break;
 
@@ -4326,8 +4327,7 @@ static bool sem_globally_static(tree_t t)
       tree_kind_t decl_kind = tree_kind(decl);
       if ((decl_kind == T_PORT_DECL) && (tree_class(decl) == C_CONSTANT))
          return true;
-      else if ((decl_kind == T_VAR_DECL)
-               && tree_attr_int(decl, ident_new("genvar"), 0))
+      else if (decl_kind == T_GENVAR)
          return true;
    }
 
@@ -4702,11 +4702,10 @@ static bool sem_check_for_generate(tree_t t)
       return false;
    tree_set_range(t, r);
 
-   tree_t idecl = tree_new(T_VAR_DECL);
+   tree_t idecl = tree_new(T_GENVAR);
    tree_set_ident(idecl, tree_ident2(t));
    tree_set_loc(idecl, tree_loc(t));
    tree_set_type(idecl, tree_type(r.left));
-   tree_add_attr_int(idecl, ident_new("genvar"), 1);
 
    tree_set_ref(t, idecl);
 

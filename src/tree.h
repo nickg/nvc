@@ -105,6 +105,7 @@ typedef enum tree_kind {
    T_CPCALL,
    T_UNIT_DECL,
    T_NEXT,
+   T_GENVAR,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

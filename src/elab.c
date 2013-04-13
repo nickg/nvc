@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #define FUNC_REPLACE_MAX 32
 
@@ -32,8 +33,14 @@ typedef struct {
    ident_t inst;    // Current 'INSTANCE_NAME
 } elab_ctx_t;
 
+typedef struct {
+   tree_t formal;
+   tree_t actual;
+} rewrite_params_t;
+
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
+static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -122,40 +129,41 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
    return arch;
 }
 
-struct rewrite_params {
-   tree_t formal;
-   tree_t actual;
-};
-
-static tree_t rewrite_ports(tree_t t, void *context)
+static tree_t rewrite_refs(tree_t t, void *context)
 {
-   struct rewrite_params *params = context;
+   rewrite_params_t *params = context;
 
-   switch (tree_kind(t)) {
-   case T_REF:
-      if (tree_kind(tree_ref(t)) == T_PORT_DECL
-          && (tree_ident(t) == tree_ident(params->formal))) {
+   if (tree_kind(t) != T_REF)
+      return t;
 
-         // Delete assignments to OPEN ports
-         if (params->actual == NULL)
-            return NULL;
+   tree_t decl = tree_ref(t);
 
-         switch (tree_kind(params->actual)) {
-         case T_SIGNAL_DECL:
-         case T_ENUM_LIT:
-            tree_set_ref(t, params->actual);
-            break;
-         case T_LITERAL:
-         case T_AGGREGATE:
-            return params->actual;
-         default:
-            assert(false);
-         }
-      }
+   tree_kind_t decl_kind = tree_kind(decl);
+   if (decl_kind != tree_kind(params->formal))
+      return t;
+
+   const bool match =
+      (decl == params->formal)
+      || ((decl_kind == T_PORT_DECL)
+          && (tree_ident(t) == tree_ident(params->formal)));
+
+   if (!match)
+      return t;
+
+   // Delete assignments to OPEN ports
+   if (params->actual == NULL)
+      return NULL;
+
+   switch (tree_kind(params->actual)) {
+   case T_SIGNAL_DECL:
+   case T_ENUM_LIT:
+      tree_set_ref(t, params->actual);
       break;
-
+   case T_LITERAL:
+   case T_AGGREGATE:
+      return params->actual;
    default:
-      break;
+      assert(false);
    }
 
    return t;
@@ -234,7 +242,7 @@ static void elab_map(tree_t t, tree_t arch,
       }
       assert(formal != NULL);
 
-      struct rewrite_params params = {
+      rewrite_params_t params = {
          .formal = formal,
          .actual = NULL
       };
@@ -252,7 +260,7 @@ static void elab_map(tree_t t, tree_t arch,
          assert(false);
       }
 
-      tree_rewrite(arch, rewrite_ports, &params);
+      tree_rewrite(arch, rewrite_refs, &params);
    }
 
    // Assign default values
@@ -261,11 +269,11 @@ static void elab_map(tree_t t, tree_t arch,
          tree_t f = tree_F(unit, i);
          assert(tree_has_value(f));
 
-         struct rewrite_params params = {
+         rewrite_params_t params = {
             .formal = f,
             .actual = tree_value(f)
          };
-         tree_rewrite(arch, rewrite_ports, &params);
+         tree_rewrite(arch, rewrite_refs, &params);
       }
    }
 }
@@ -338,15 +346,44 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
+{
+   int64_t low, high;
+   range_bounds(tree_range(t), &low, &high);
+
+   for (int64_t i = low; i <= high; i++) {
+      tree_t copy = tree_copy(t);
+
+      tree_t genvar = tree_ref(copy);
+      rewrite_params_t params = {
+         .formal = genvar,
+         .actual = get_int_lit(genvar, i)
+      };
+      tree_rewrite(copy, rewrite_refs, &params);
+
+      //const char *label = istr(tree_ident(copy));
+      ident_t npath = hpathf(ctx->path, '\0', "[%"PRIi64"]", i);
+      ident_t ninst = hpathf(ctx->inst, '\0', "[%"PRIi64"]", i);
+
+      elab_ctx_t new_ctx = {
+         .out  = ctx->out,
+         .path = npath,
+         .inst = ninst
+      };
+
+      elab_decls(copy, &new_ctx);
+      elab_stmts(copy, &new_ctx);
+   }
+}
+
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
-   for (unsigned i = 0; i < tree_stmts(t); i++) {
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(t, i);
       const char *label = istr(tree_ident(s));
       ident_t npath = hpathf(ctx->path, ':', "%s", label);
       ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
-
-      tree_set_ident(s, npath);
 
       elab_ctx_t new_ctx = {
          .out  = ctx->out,
@@ -361,9 +398,14 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       case T_BLOCK:
          elab_block(s, &new_ctx);
          break;
+      case T_FOR_GENERATE:
+         elab_for_generate(s, &new_ctx);
+         break;
       default:
          tree_add_stmt(ctx->out, s);
       }
+
+      tree_set_ident(s, npath);
    }
 }
 

@@ -274,11 +274,15 @@ ident_t ident_prefix(ident_t a, ident_t b, char sep)
 
    struct trie *result;
 
-   // Append separator
-   const char sep_str[] = { sep, '\0' };
-   const char *p_sep_str = sep_str;
-   if (!search_trie(&p_sep_str, a, &result))
-      build_trie(p_sep_str, result, &result);
+   if (sep != '\0') {
+      // Append separator
+      const char sep_str[] = { sep, '\0' };
+      const char *p_sep_str = sep_str;
+      if (!search_trie(&p_sep_str, a, &result))
+         build_trie(p_sep_str, result, &result);
+   }
+   else
+      result = a;
 
    // Append b
    const char *bstr = istr(b);
