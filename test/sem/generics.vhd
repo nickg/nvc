@@ -67,3 +67,16 @@ package p is
     end component;
 
 end package;
+
+-------------------------------------------------------------------------------
+
+entity static is
+    generic ( X : integer );
+end entity;
+
+architecture a of static is
+    signal s : bit_vector(1 to 3);
+    alias sx : bit is s(X);
+begin
+
+end architecture;

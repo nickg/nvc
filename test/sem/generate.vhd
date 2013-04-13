@@ -36,4 +36,10 @@ begin
         b(x) <= k;
     end generate;
 
+    g7: for x in b'range generate
+        alias a is b(x);                -- OK
+    begin
+        a <= '1';
+    end generate;
+
 end architecture;

@@ -4319,7 +4319,17 @@ static bool sem_globally_static(tree_t t)
    if (sem_locally_static(t))
       return true;
 
-   // TODO: clauses c, d, e
+   // A generic constant or generate parameter
+
+   if (kind == T_REF) {
+      tree_t decl = tree_ref(t);
+      tree_kind_t decl_kind = tree_kind(decl);
+      if ((decl_kind == T_PORT_DECL) && (tree_class(decl) == C_CONSTANT))
+         return true;
+      else if ((decl_kind == T_VAR_DECL)
+               && tree_attr_int(decl, ident_new("genvar"), 0))
+         return true;
+   }
 
    // An alias whose aliased name is globally static
 
@@ -4696,6 +4706,7 @@ static bool sem_check_for_generate(tree_t t)
    tree_set_ident(idecl, tree_ident2(t));
    tree_set_loc(idecl, tree_loc(t));
    tree_set_type(idecl, tree_type(r.left));
+   tree_add_attr_int(idecl, ident_new("genvar"), 1);
 
    tree_set_ref(t, idecl);
 
@@ -4704,11 +4715,13 @@ static bool sem_check_for_generate(tree_t t)
 
    bool ok = true;
 
-   for (unsigned i = 0; i < tree_decls(t); i++)
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
    if (ok) {
-      for (unsigned i = 0; i < tree_stmts(t); i++)
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
          ok = sem_check(tree_stmt(t, i)) && ok;
    }
 
