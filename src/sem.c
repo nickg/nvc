@@ -795,9 +795,10 @@ static void sem_declare_predefined_ops(tree_t decl)
             tree_add_attr_tree(decl, ident_new("LOW"), r.right);
          }
 
-         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
-                                       std_string, "image", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
+         ident_t image_i = ident_new("IMAGE");
+         tree_add_attr_tree(decl, image_i,
+                            sem_builtin_fn(image_i, std_string,
+                                           "image", t, t, NULL));
       }
       break;
 
@@ -810,7 +811,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
          tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
 
-         tree_t image = sem_builtin_fn(ident_new("NVC.BUILTIN.IMAGE"),
+         tree_t image = sem_builtin_fn(ident_new("IMAGE"),
                                        std_string, "image", t, t, NULL);
          tree_add_attr_tree(decl, ident_new("IMAGE"), image);
 
@@ -839,21 +840,22 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_SUBTYPE:
    case T_ENUM:
       {
-         tree_t succ = sem_builtin_fn(ident_new("NVC.BUILTIN.SUCC"),
-                                      t, "succ", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("SUCC"), succ);
+         ident_t succ_i = ident_new("SUCC");
+         tree_add_attr_tree(decl, succ_i,
+                            sem_builtin_fn(succ_i, t, "succ", t, t, NULL));
 
-         tree_t pred = sem_builtin_fn(ident_new("NVC.BUILTIN.PRED"),
-                                      t, "pred", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("PRED"), pred);
+         ident_t pred_i = ident_new("PRED");
+         tree_add_attr_tree(decl, pred_i,
+                            sem_builtin_fn(pred_i, t, "pred", t, t, NULL));
 
-         tree_t leftof = sem_builtin_fn(ident_new("NVC.BUILTIN.LEFTOF"),
-                                        t, "leftof", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("LEFTOF"), leftof);
+         ident_t leftof_i = ident_new("LEFTOF");
+         tree_add_attr_tree(decl, leftof_i,
+                            sem_builtin_fn(leftof_i, t, "leftof", t, t, NULL));
 
-         tree_t rightof = sem_builtin_fn(ident_new("NVC.BUILTIN.RIGHTOF"),
-                                         t, "rightof", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("RIGHTOF"), rightof);
+         ident_t rightof_i = ident_new("RIGHTOF");
+         tree_add_attr_tree(decl, rightof_i,
+                            sem_builtin_fn(rightof_i, t, "rightof",
+                                           t, t, NULL));
       }
       break;
 
