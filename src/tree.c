@@ -77,7 +77,7 @@ enum {
    I_WAVES     = (1 << 13),
    I_CONDS     = (1 << 14),
    I_TYPE      = (1 << 15),
-   I_PORT_MODE = (1 << 16),
+   I_SUBKIND   = (1 << 16),
    I_DELAY     = (1 << 17),
    I_REJECT    = (1 << 18),
    I_POS       = (1 << 19),
@@ -98,7 +98,7 @@ typedef union {
    tree_array_t  tree_array;
    param_array_t param_array;
    type_t        type;
-   port_mode_t   port_mode;
+   unsigned      subkind;
    uint32_t      uint;
    assoc_array_t assoc_array;
    context_set_t context_set;
@@ -116,7 +116,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT),
 
    // T_PORT_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_PORT_MODE | I_CLASS),
+   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS),
 
    // T_FCALL
    (I_IDENT | I_PARAMS | I_TYPE | I_REF),
@@ -291,6 +291,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_GENVAR
    (I_IDENT | I_TYPE),
+
+   // T_PARAM
+   (I_IDENT | I_VALUE | I_POS),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -301,7 +304,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_CONDS | I_TRIGGERS | I_ELSES)
 #define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
-#define ITEM_PORT_MODE   (I_PORT_MODE)
+#define ITEM_SUBKIND     (I_SUBKIND)
 #define ITEM_UINT        (I_POS)
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
@@ -324,14 +327,14 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR",
+   "T_GENVAR",       "T_PARAM",
 };
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE", "I_TARGET",
    "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
-   "I_TYPE",     "I_PORT_MODE", "I_DELAY",    "I_REJECT",  "I_POS",
+   "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",  "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
    "I_ELSES",    "I_CLASS",     "I_RANGE",
 };
@@ -698,16 +701,15 @@ void tree_add_port(tree_t t, tree_t d)
    tree_array_add(&(lookup_item(t, I_PORTS)->tree_array), d);
 }
 
-port_mode_t tree_port_mode(tree_t t)
+unsigned tree_subkind(tree_t t)
 {
-   item_t *item = lookup_item(t, I_PORT_MODE);
-   assert(item->port_mode != PORT_INVALID);
-   return item->port_mode;
+   item_t *item = lookup_item(t, I_SUBKIND);
+   return item->subkind;
 }
 
-void tree_set_port_mode(tree_t t, port_mode_t mode)
+void tree_set_subkind(tree_t t, unsigned sub)
 {
-   lookup_item(t, I_PORT_MODE)->port_mode = mode;
+   lookup_item(t, I_SUBKIND)->subkind = sub;
 }
 
 unsigned tree_generics(tree_t t)
@@ -1164,7 +1166,7 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_TYPE & mask)
             type_visit_trees(t->items[i].type, ctx->generation,
                              (tree_visit_fn_t)tree_visit_aux, ctx);
-         else if (ITEM_PORT_MODE & mask)
+         else if (ITEM_SUBKIND & mask)
             ;
          else if (ITEM_UINT & mask)
             ;
@@ -1493,8 +1495,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             write_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_write(t->items[n].type, ctx->type_ctx);
-         else if (ITEM_PORT_MODE & mask)
-            write_u8(t->items[n].port_mode, ctx->file);
+         else if (ITEM_SUBKIND & mask)
+            write_u8(t->items[n].subkind, ctx->file);
          else if (ITEM_UINT & mask)
             write_u32(t->items[n].uint, ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -1611,8 +1613,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             read_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             t->items[n].type = type_read(ctx->type_ctx);
-         else if (ITEM_PORT_MODE & mask)
-            t->items[n].port_mode = read_u8(ctx->file);
+         else if (ITEM_SUBKIND & mask)
+            t->items[n].subkind = read_u8(ctx->file);
          else if (ITEM_UINT & mask)
             t->items[n].uint = read_u32(ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -1899,7 +1901,7 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             rewrite_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_item = n;
-         else if (ITEM_PORT_MODE & mask)
+         else if (ITEM_SUBKIND & mask)
             ;
          else if (ITEM_UINT & mask)
             ;
@@ -2062,8 +2064,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
                    &(copy->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             copy->items[n].type = t->items[n].type;
-         else if (ITEM_PORT_MODE & mask)
-            copy->items[n].port_mode = t->items[n].port_mode;
+         else if (ITEM_SUBKIND & mask)
+            copy->items[n].subkind = t->items[n].subkind;
          else if (ITEM_UINT & mask)
             copy->items[n].uint = t->items[n].uint;
          else if (ITEM_ASSOC_ARRAY & mask)

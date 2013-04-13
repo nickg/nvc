@@ -590,7 +590,7 @@ static void dump_port(tree_t t, int indent)
    default:
       assert(false);
    }
-   switch (tree_port_mode(t)) {
+   switch (tree_subkind(t)) {
    case PORT_IN:      dir = "in";     break;
    case PORT_OUT:     dir = "out";    break;
    case PORT_INOUT:   dir = "inout";  break;

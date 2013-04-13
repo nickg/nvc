@@ -620,10 +620,10 @@ static tree_t simp_cpcall(tree_t t)
 
       // Only add IN and INOUT parameters to sensitivity list
       tree_t port = tree_port(tree_ref(t), i);
+      port_mode_t mode = tree_subkind(port);
       const bool sensitive =
          (tree_class(port) == C_SIGNAL)
-         && ((tree_port_mode(port) == PORT_IN)
-             || (tree_port_mode(port) == PORT_INOUT));
+         && ((mode == PORT_IN) || (mode == PORT_INOUT));
       if (sensitive)
          tree_visit_only(p.value, simp_build_wait, wait, T_REF);
 

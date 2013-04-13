@@ -41,7 +41,7 @@ START_TEST(test_entity)
    p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("A"));
-   fail_unless(tree_port_mode(p) == PORT_IN);
+   fail_unless(tree_subkind(p) == PORT_IN);
    fail_unless(tree_class(p) == C_DEFAULT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
@@ -56,7 +56,7 @@ START_TEST(test_entity)
    p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("B"));
-   fail_unless(tree_port_mode(p) == PORT_OUT);
+   fail_unless(tree_subkind(p) == PORT_OUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("BIT"));
@@ -65,7 +65,7 @@ START_TEST(test_entity)
    p = tree_port(e, 2);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("BEE"));
-   fail_unless(tree_port_mode(p) == PORT_OUT);
+   fail_unless(tree_subkind(p) == PORT_OUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("BIT"));
@@ -74,7 +74,7 @@ START_TEST(test_entity)
    p = tree_port(e, 3);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("C"));
-   fail_unless(tree_port_mode(p) == PORT_INOUT);
+   fail_unless(tree_subkind(p) == PORT_INOUT);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("INTEGER"));
@@ -83,7 +83,7 @@ START_TEST(test_entity)
    p = tree_port(e, 4);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("D"));
-   fail_unless(tree_port_mode(p) == PORT_BUFFER);
+   fail_unless(tree_subkind(p) == PORT_BUFFER);
    t = tree_type(p);
    fail_unless(type_kind(t) == T_UNRESOLVED);
    fail_unless(type_ident(t) == ident_new("BIT"));
@@ -135,7 +135,7 @@ START_TEST(test_entity)
    p = tree_port(e, 0);
    fail_unless(tree_kind(p) == T_PORT_DECL);
    fail_unless(tree_ident(p) == ident_new("P"));
-   fail_unless(tree_port_mode(p) == PORT_OUT);
+   fail_unless(tree_subkind(p) == PORT_OUT);
    fail_unless(tree_class(p) == C_SIGNAL);
    fail_if(tree_has_value(p));
 
@@ -1026,7 +1026,7 @@ START_TEST(test_func)
    a = tree_port(f, 0);
    fail_unless(tree_kind(a) == T_PORT_DECL);
    fail_unless(tree_ident(a) == ident_new("X"));
-   fail_unless(tree_port_mode(a) == PORT_IN);
+   fail_unless(tree_subkind(a) == PORT_IN);
    t = tree_type(f);
    fail_unless(type_kind(t) == T_FUNC);
 

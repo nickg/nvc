@@ -445,7 +445,7 @@ static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
    tree_t port = tree_new(T_PORT_DECL);
    tree_set_ident(port, ident_new(argname));
    tree_set_type(port, type);
-   tree_set_port_mode(port, mode);
+   tree_set_subkind(port, mode);
    if (def != NULL)
       tree_set_value(port, def);
 
@@ -1116,7 +1116,7 @@ static bool sem_readable(tree_t t)
       {
          tree_t decl = tree_ref(t);
          if (tree_kind(decl) == T_PORT_DECL
-             && tree_port_mode(decl) == PORT_OUT)
+             && tree_subkind(decl) == PORT_OUT)
             sem_error(t, "cannot read output port %s",
                       istr(tree_ident(t)));
 
@@ -1805,7 +1805,7 @@ static bool sem_check_func_ports(tree_t t)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      if (tree_port_mode(p) != PORT_IN)
+      if (tree_subkind(p) != PORT_IN)
          sem_error(p, "function arguments must have mode IN");
 
       // See LRM 93 section 2.1.1 for default class
@@ -1921,7 +1921,7 @@ static bool sem_check_proc_ports(tree_t t)
 
       // See LRM 93 section 2.1.1 for default class
       if (tree_class(p) == C_DEFAULT) {
-         switch (tree_port_mode(p)) {
+         switch (tree_subkind(p)) {
          case PORT_OUT:
          case PORT_INOUT:
             tree_set_class(p, C_VARIABLE);
@@ -2399,7 +2399,7 @@ static bool sem_check_signal_target(tree_t target)
       break;
 
    case T_PORT_DECL:
-      if (tree_port_mode(decl) == PORT_IN)
+      if (tree_subkind(decl) == PORT_IN)
          sem_error(target, "cannot assign to input port %s",
                    istr(tree_ident(target)));
       break;
@@ -3025,7 +3025,7 @@ static bool sem_check_pcall(tree_t t)
 
       tree_t  port     = tree_port(decl, index);
       class_t class    = tree_class(port);
-      port_mode_t mode = tree_port_mode(port);
+      port_mode_t mode = tree_subkind(port);
 
       tree_t value = param.value;
       tree_kind_t kind = tree_kind(value);
@@ -3050,7 +3050,7 @@ static bool sem_check_pcall(tree_t t)
             sem_error(param.value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
          else if (decl_kind == T_PORT_DECL) {
-            if ((mode == PORT_OUT) && (tree_port_mode(decl) != PORT_OUT))
+            if ((mode == PORT_OUT) && (tree_subkind(decl) != PORT_OUT))
                sem_error(param.value, "cannot read parameter %s with mode OUT",
                          istr(tree_ident(decl)));
             else if (((mode == PORT_OUT) || (mode == PORT_INOUT))
@@ -4089,7 +4089,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
       ok = sem_check_constrained(p.value, tree_type(decl)) && ok;
 
-      if ((tree_kind(p.value) == T_OPEN) && (tree_port_mode(decl) != PORT_OUT))
+      if ((tree_kind(p.value) == T_OPEN) && (tree_subkind(decl) != PORT_OUT))
          sem_error(p.value, "OPEN can only be used with OUT ports");
    }
 

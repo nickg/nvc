@@ -113,13 +113,13 @@ START_TEST(test_lib_save)
 
       tree_t p1 = tree_new(T_PORT_DECL);
       tree_set_ident(p1, ident_new("foo"));
-      tree_set_port_mode(p1, PORT_OUT);
+      tree_set_subkind(p1, PORT_OUT);
       tree_set_type(p1, type_universal_int());
       tree_add_port(ent, p1);
 
       tree_t p2 = tree_new(T_PORT_DECL);
       tree_set_ident(p2, ident_new("bar"));
-      tree_set_port_mode(p2, PORT_IN);
+      tree_set_subkind(p2, PORT_IN);
       tree_set_type(p2, e);
       tree_add_port(ent, p2);
 
@@ -195,12 +195,12 @@ START_TEST(test_lib_save)
 
       tree_t p1 = tree_port(ent, 0);
       fail_unless(tree_kind(p1) == T_PORT_DECL);
-      fail_unless(tree_port_mode(p1) == PORT_OUT);
+      fail_unless(tree_subkind(p1) == PORT_OUT);
       fail_unless(type_kind(tree_type(p1)) == T_INTEGER);
 
       tree_t p2 = tree_port(ent, 1);
       fail_unless(tree_kind(p2) == T_PORT_DECL);
-      fail_unless(tree_port_mode(p2) == PORT_IN);
+      fail_unless(tree_subkind(p2) == PORT_IN);
 
       type_t e = tree_type(p2);
       fail_unless(type_kind(e) == T_ENUM);

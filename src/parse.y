@@ -773,7 +773,7 @@ interface_object_decl
      for (list_t *it = $2; it != NULL; it = it->next) {
         tree_t t = tree_new(T_PORT_DECL);
         tree_set_ident(t, it->item.ident);
-        tree_set_port_mode(t, $4);
+        tree_set_subkind(t, $4);
         tree_set_type(t, $5);
         tree_set_value(t, $6);
         tree_set_loc(t, &@2);

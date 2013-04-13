@@ -106,6 +106,7 @@ typedef enum tree_kind {
    T_UNIT_DECL,
    T_NEXT,
    T_GENVAR,
+   T_PARAM,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -174,9 +175,6 @@ bool tree_has_ident2(tree_t t);
 unsigned tree_ports(tree_t t);
 tree_t tree_port(tree_t t, unsigned n);
 void tree_add_port(tree_t t, tree_t d);
-
-port_mode_t tree_port_mode(tree_t t);
-void tree_set_port_mode(tree_t t, port_mode_t mode);
 
 tree_t tree_file_mode(tree_t t);
 void tree_set_file_mode(tree_t t, tree_t m);
@@ -251,6 +249,9 @@ void tree_set_message(tree_t t, tree_t m);
 
 unsigned tree_pos(tree_t t);
 void tree_set_pos(tree_t t, unsigned pos);
+
+unsigned tree_subkind(tree_t t);
+void tree_set_subkind(tree_t t, unsigned sub);
 
 range_t tree_range(tree_t t);
 void tree_set_range(tree_t t, range_t r);

@@ -981,7 +981,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       tree_t p = tree_port(t, i);
       type_t type = tree_type(p);
 
-      port_mode_t mode = tree_port_mode(p);
+      port_mode_t mode = tree_subkind(p);
       const bool array = type_is_array(type);
 
       switch (tree_class(p)) {
@@ -1272,7 +1272,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          // to pass a pointer rather than the value
          if ((builtin == NULL) || (i < nports)) {
             tree_t port = tree_port(decl, i);
-            port_mode_t mode = tree_port_mode(port);
+            port_mode_t mode = tree_subkind(port);
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !type_is_array(type));
             if (need_ptr)
@@ -1877,7 +1877,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       }
 
    case T_PORT_DECL:
-      needs_load = ((tree_port_mode(decl) == PORT_INOUT)
+      needs_load = ((tree_subkind(decl) == PORT_INOUT)
                     && !type_is_array(tree_type(decl)));
       // Fall-through
 
