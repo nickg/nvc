@@ -119,3 +119,4 @@ wait9           normal
 wait10          normal
 attr4           normal
 bounds6         gold,fail
+elab6           normal
