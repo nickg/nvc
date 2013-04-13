@@ -897,6 +897,8 @@ START_TEST(test_generate)
    const error_t expect[] = {
       { 15, "condition of generate statement must be BOOLEAN" },
       { 26, "undefined identifier Y" },
+      { 45, "condition of generate statement must be static" },
+      { 48, "range of generate statement must be static" },
       { -1, NULL }
    };
    expect_errors(expect);

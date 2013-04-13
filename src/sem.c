@@ -4696,15 +4696,20 @@ static bool sem_check_if_generate(tree_t t)
    if (!type_eq(tree_type(value), std_bool))
       sem_error(value, "condition of generate statement must be BOOLEAN");
 
+   if (!sem_globally_static(value))
+      sem_error(value, "condition of generate statement must be static");
+
    scope_push(NULL);
 
    bool ok = true;
 
-   for (unsigned i = 0; i < tree_decls(t); i++)
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
    if (ok) {
-      for (unsigned i = 0; i < tree_stmts(t); i++)
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
          ok = sem_check(tree_stmt(t, i)) && ok;
    }
 
@@ -4718,6 +4723,11 @@ static bool sem_check_for_generate(tree_t t)
    if (!sem_check_range(&r, NULL))
       return false;
    tree_set_range(t, r);
+
+   if (!sem_globally_static(r.left))
+      sem_error(r.left, "range of generate statement must be static");
+   else if (!sem_globally_static(r.right))
+      sem_error(r.right, "range of generate statement must be static");
 
    tree_t idecl = tree_new(T_GENVAR);
    tree_set_ident(idecl, tree_ident2(t));

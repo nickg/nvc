@@ -42,4 +42,10 @@ begin
         a <= '1';
     end generate;
 
+    g8: if x > 4 generate               -- Error
+    end generate;
+
+    g9: for i in 1 to x generate        -- Error
+    end generate;
+
 end architecture;
