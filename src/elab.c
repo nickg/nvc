@@ -213,26 +213,29 @@ static void elab_map(tree_t t, tree_t arch,
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
 
-   const unsigned nformals = tree_Fs(unit);
-   const unsigned nactuals = tree_As(t);
+   const int nformals = tree_Fs(unit);
+   const int nactuals = tree_As(t);
 
    bool have_formals[nformals];
-   for (unsigned i = 0; i < nformals; i++)
+   for (int i = 0; i < nformals; i++)
       have_formals[i] = false;
 
-   for (unsigned i = 0; i < nactuals; i++) {
-      param_t p = tree_A(t, i);
+   for (int i = 0; i < nactuals; i++) {
+      tree_t p = tree_A(t, i);
       tree_t formal = NULL;
 
-      switch (p.kind) {
+      switch (tree_subkind(p)) {
       case P_POS:
-         formal = tree_F(unit, p.pos);
-         have_formals[p.pos] = true;
+         {
+            const int pos = tree_pos(p);
+            formal = tree_F(unit, pos);
+            have_formals[pos] = true;
+         }
          break;
       case P_NAMED:
-         for (unsigned j = 0; j < nformals; j++) {
+         for (int j = 0; j < nformals; j++) {
             tree_t port = tree_F(unit, j);
-            if (tree_ident(port) == p.name) {
+            if (tree_ident(port) == tree_ident(p)) {
                formal = port;
                have_formals[j] = true;
                break;
@@ -251,11 +254,11 @@ static void elab_map(tree_t t, tree_t arch,
 
       switch (tree_class(formal)) {
       case C_SIGNAL:
-         params.actual = elab_signal_port(arch, formal, p.value);
+         params.actual = elab_signal_port(arch, formal, tree_value(p));
          break;
 
       case C_CONSTANT:
-         params.actual = p.value;
+         params.actual = tree_value(p);
          break;
 
       default:

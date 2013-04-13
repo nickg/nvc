@@ -47,15 +47,15 @@ static void dump_params(tree_t t)
       for (unsigned i = 0; i < tree_params(t); i++) {
          if (i > 0)
             printf(", ");
-         param_t p = tree_param(t, i);
-         switch (p.kind) {
+         tree_t p = tree_param(t, i);
+         switch (tree_subkind(p)) {
          case P_POS:
             break;
          case P_NAMED:
-            printf("%s => ", istr(p.name));
+            printf("%s => ", istr(tree_ident(p)));
             break;
          }
-         dump_expr(p.value);
+         dump_expr(tree_value(p));
       }
       printf(")");
    }
@@ -168,15 +168,15 @@ static void dump_expr(tree_t t)
 
    case T_TYPE_CONV:
       printf("%s(", istr(tree_ident(tree_ref(t))));
-      dump_expr(tree_param(t, 0).value);
+      dump_expr(tree_value(tree_param(t, 0)));
       printf(")");
       break;
 
    case T_CONCAT:
       printf("(");
-      dump_expr(tree_param(t, 0).value);
+      dump_expr(tree_value(tree_param(t, 0)));
       printf(" & ");
-      dump_expr(tree_param(t, 1).value);
+      dump_expr(tree_value(tree_param(t, 1)));
       printf(")");
       break;
 

@@ -185,9 +185,11 @@ void ident_write_end(ident_wr_ctx_t ctx)
 
 void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
-   assert(ident != NULL);
-
-   if (ident->write_gen == ctx->generation)
+   if (ident == NULL) {
+      write_u16(UINT16_MAX, ctx->file);
+      write_u8(0, ctx->file);
+   }
+   else if (ident->write_gen == ctx->generation)
       write_u16(ident->write_index, ctx->file);
    else {
       write_u16(UINT16_MAX, ctx->file);
@@ -236,8 +238,12 @@ ident_t ident_read(ident_rd_ctx_t ctx)
             p = alloc_node(ch, p);
       }
 
-      ctx->cache[ctx->cache_sz++] = p;
-      return (p);
+      if (p == &root)
+         return NULL;
+      else {
+         ctx->cache[ctx->cache_sz++] = p;
+         return p;
+      }
    }
    else {
       assert(index < ctx->cache_sz);

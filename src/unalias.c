@@ -149,8 +149,8 @@ static tree_t unalias_array_ref(tree_t t)
       tree_set_value(new, get_ref(base_decl));
       tree_set_type(new, type_elem(tree_type(base_decl)));
 
-      param_t p = tree_param(t, 0);
-      p.value = unalias_index(decl, p.value);
+      tree_t p = tree_param(t, 0);
+      tree_set_value(p, unalias_index(decl, tree_value(p)));
       tree_add_param(new, p);
 
       return new;

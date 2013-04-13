@@ -44,6 +44,11 @@ typedef enum class {
    C_CONFIGURATION
 } class_t;
 
+typedef enum param_kind {
+   P_POS,
+   P_NAMED
+} param_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -131,15 +136,6 @@ typedef struct assoc {
    enum { A_POS, A_NAMED, A_RANGE, A_OTHERS } kind;
 } assoc_t;
 
-typedef struct param {
-   tree_t value;
-   union {
-      ident_t  name;    // P_NAME
-      unsigned pos;     // P_POS
-   };
-   enum { P_POS, P_NAMED } kind;
-} param_t;
-
 typedef struct context {
    ident_t name;
    bool    all;
@@ -184,12 +180,12 @@ tree_t tree_generic(tree_t t, unsigned n);
 void tree_add_generic(tree_t t, tree_t d);
 
 unsigned tree_genmaps(tree_t t);
-param_t tree_genmap(tree_t t, unsigned n);
-void tree_add_genmap(tree_t t, param_t e);
+tree_t tree_genmap(tree_t t, unsigned n);
+void tree_add_genmap(tree_t t, tree_t e);
 
 unsigned tree_params(tree_t t);
-param_t tree_param(tree_t t, unsigned n);
-void tree_add_param(tree_t t, param_t e);
+tree_t tree_param(tree_t t, unsigned n);
+void tree_add_param(tree_t t, tree_t e);
 
 literal_t tree_literal(tree_t t);
 void tree_set_literal(tree_t t, literal_t lit);

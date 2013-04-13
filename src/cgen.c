@@ -568,11 +568,12 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
          if (r.kind == RANGE_DYN) {
             // This can only appear when using 'RANGE
             assert(tree_kind(r.left) == T_FCALL);
-            param_t p = tree_param(r.left, 0);
-            assert(tree_kind(p.value) == T_REF);
+            tree_t p = tree_param(r.left, 0);
+            tree_t value = tree_value(p);
+            assert(tree_kind(value) == T_REF);
 
             LLVMValueRef uarray;
-            tree_t decl = tree_ref(p.value);
+            tree_t decl = tree_ref(value);
             if (cgen_get_class(decl) == C_SIGNAL) {
                uarray = tree_attr_ptr(decl, sig_struct_i);
                assert(uarray != NULL);
@@ -1250,8 +1251,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
    const int nports  = tree_ports(decl);
 
    for (int i = 0; i < nparams; i++) {
-      param_t p = tree_param(t, i);
-      type_t type = tree_type(p.value);
+      tree_t p = tree_param(t, i);
+      type_t type = tree_type(tree_value(p));
       class_t class = (builtin == NULL)
          ? tree_class(tree_port(decl, i))
          : C_DEFAULT;
@@ -1260,8 +1261,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
 
       if ((builtin == NULL) && (class == C_SIGNAL)) {
          // Pass a pointer to the global signal structure
-         assert(tree_kind(p.value) == T_REF);
-         tree_t sig_decl = tree_ref(p.value);
+         assert(tree_kind(tree_value(p)) == T_REF);
+         tree_t sig_decl = tree_ref(tree_value(p));
          args[i] = tree_attr_ptr(sig_decl, sig_struct_i);
          assert(args[i] != NULL);
       }
@@ -1276,18 +1277,18 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
             bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
                              && !type_is_array(type));
             if (need_ptr)
-               args[i] = cgen_var_lvalue(p.value, ctx);
+               args[i] = cgen_var_lvalue(tree_value(p), ctx);
          }
 
          if (args[i] == NULL)
-            args[i] = cgen_expr(p.value, ctx);
+            args[i] = cgen_expr(tree_value(p), ctx);
       }
 
       type_t formal_type;
       if ((builtin == NULL) || (i < nports))
          formal_type = tree_type(tree_port(decl, i));
       else
-         formal_type = tree_type(p.value);
+         formal_type = tree_type(tree_value(p));
 
       // If we are passing a constrained array argument wrap it in
       // a structure with its metadata. Note we don't need to do
@@ -1560,7 +1561,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
    // Special attributes
    if (builtin) {
-      tree_t p0 = tree_param(t, 0).value;
+      tree_t p0 = tree_value(tree_param(t, 0));
 
       if (icmp(builtin, "event"))
          return cgen_signal_flag(p0, SIGNAL_F_EVENT);
@@ -1751,7 +1752,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                                             "image");
          LLVMValueRef iargs[] = {
             LLVMBuildCast(builder, op, args[0], LLVMInt64Type(), ""),
-            llvm_int32(tree_index(tree_param(t, 0).value)),
+            llvm_int32(tree_index(tree_value(tree_param(t, 0)))),
             LLVMBuildPointerCast(builder, mod_name,
                                  LLVMPointerType(LLVMInt8Type(), 0), ""),
             res
@@ -1786,7 +1787,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "length")) {
          assert(!cgen_const_bounds(arg_types[1]));
          return cgen_array_len(arg_types[1],
-                               assume_int(tree_param(t, 0).value) - 1,
+                               assume_int(tree_value(tree_param(t, 0))) - 1,
                                args[1]);
       }
       else if (icmp(builtin, "uarray_dircmp")) {
@@ -1800,19 +1801,19 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       }
       else if (icmp(builtin, "alt"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_param(t, 1).value),
+                               tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSLT, ctx);
       else if (icmp(builtin, "agt"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_param(t, 1).value),
+                               tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSGT, ctx);
       else if (icmp(builtin, "aleq"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_param(t, 1).value),
+                               tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSLE, ctx);
       else if (icmp(builtin, "ageq"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_param(t, 1).value),
+                               tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSGE, ctx);
       else if (icmp(builtin, "endfile"))
          return LLVMBuildCall(builder, llvm_fn("_endfile"), args, 1, "");
@@ -1952,11 +1953,11 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef idx = llvm_int32(0);
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
-      LLVMValueRef offset = cgen_expr(p.value, ctx);
+      tree_t p = tree_param(t, i);
+      assert(tree_subkind(p) == P_POS);
+      LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
 
-      cgen_check_array_bounds(p.value, type, i, array, offset, ctx);
+      cgen_check_array_bounds(tree_value(p), type, i, array, offset, ctx);
 
       if (i > 0) {
          LLVMValueRef stride = cgen_array_len(type, i, array);
@@ -2385,8 +2386,8 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 
    assert(tree_params(t) == 2);
    tree_t args[] = {
-      tree_param(t, 0).value,
-      tree_param(t, 1).value
+      tree_value(tree_param(t, 0)),
+      tree_value(tree_param(t, 1))
    };
 
    LLVMValueRef args_ll[] = {
@@ -2422,7 +2423,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
 {
-   tree_t value = tree_param(t, 0).value;
+   tree_t value = tree_value(tree_param(t, 0));
 
    type_t from = type_base_recur(tree_type(value));
    type_t to   = type_base_recur(tree_type(t));
@@ -2601,9 +2602,9 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
       switch (expr_kind) {
       case T_ARRAY_REF:
          {
-            param_t p = tree_param(on, 0);
-            index = cgen_expr(p.value, ctx);
-            cgen_check_array_bounds(p.value, type, 0, signal, index, ctx);
+            tree_t p = tree_param(on, 0);
+            index = cgen_expr(tree_value(p), ctx);
+            cgen_check_array_bounds(tree_value(p), type, 0, signal, index, ctx);
 
             n_elems = llvm_int32(1);
          }
@@ -2703,12 +2704,12 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          LLVMValueRef idx = llvm_int32(0);
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
-            param_t p = tree_param(t, i);
-            assert(p.kind == P_POS);
+            tree_t p = tree_param(t, i);
+            assert(tree_subkind(p) == P_POS);
 
-            LLVMValueRef off = cgen_expr(p.value, ctx);
+            LLVMValueRef off = cgen_expr(tree_value(p), ctx);
 
-            cgen_check_array_bounds(p.value, type, i, var, off, ctx);
+            cgen_check_array_bounds(tree_value(p), type, i, var, off, ctx);
 
             if (i > 0) {
                LLVMValueRef stride = cgen_array_len(type, i, var);
@@ -2831,12 +2832,12 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
    case T_ARRAY_REF:
       {
-         param_t p = tree_param(t, 0);
-         assert(p.kind == P_POS);
+         tree_t p = tree_param(t, 0);
+         assert(tree_subkind(p) == P_POS);
 
          type_t type = tree_type(tree_value(t));
 
-         LLVMValueRef idx = cgen_expr(p.value, ctx);
+         LLVMValueRef idx = cgen_expr(tree_value(p), ctx);
 
          if (tree_kind(tree_value(t)) == T_REF) {
             if (type_kind(type) == T_UARRAY) {
@@ -2846,7 +2847,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                LLVMValueRef meta = tree_attr_ptr(decl, sig_struct_i);
                assert(meta != NULL);
 
-               cgen_check_array_bounds(p.value, type, 0, meta, idx, ctx);
+               cgen_check_array_bounds(tree_value(p), type, 0, meta, idx, ctx);
 
                LLVMValueRef sig_array = cgen_array_data_ptr(type, meta);
                LLVMValueRef off = cgen_array_off(idx, meta, type, ctx, 0);
@@ -2861,7 +2862,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
 
-               cgen_check_array_bounds(p.value, type, 0, NULL, idx, ctx);
+               cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
 
                LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
                if (type_is_array(type_elem(type))) {
@@ -2876,7 +2877,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             assert(type_kind(type) != T_UARRAY);
 
-            cgen_check_array_bounds(p.value, type, 0, NULL, idx, ctx);
+            cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
 
             LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);

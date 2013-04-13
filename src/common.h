@@ -40,6 +40,6 @@ tree_t get_real_lit(tree_t t, double r);
 typedef unsigned (*tree_formals_t)(tree_t t);
 typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
 typedef unsigned (*tree_actuals_t)(tree_t t);
-typedef param_t (*tree_actual_t)(tree_t t, unsigned n);
+typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
 
 #endif  // _COMMON_H

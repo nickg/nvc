@@ -291,19 +291,19 @@ START_TEST(test_args)
       c = tree_value(s);
       fail_unless(tree_kind(c) == T_FCALL);
       fail_unless(tree_params(c) == 2);
-      fail_unless(tree_param(c, 0).kind == P_POS);
-      fail_unless(icmp(tree_ident(tree_param(c, 0).value), "A"));
-      fail_unless(tree_param(c, 1).kind == P_POS);
-      fail_unless(icmp(tree_ident(tree_param(c, 1).value), "B"));
+      fail_unless(tree_subkind(tree_param(c, 0)) == P_POS);
+      fail_unless(icmp(tree_ident(tree_value(tree_param(c, 0))), "A"));
+      fail_unless(tree_subkind(tree_param(c, 1)) == P_POS);
+      fail_unless(icmp(tree_ident(tree_value(tree_param(c, 1))), "B"));
    }
 
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_params(s) == 2);
-   fail_unless(tree_param(s, 0).kind == P_POS);
-   fail_unless(icmp(tree_ident(tree_param(s, 0).value), "A"));
-   fail_unless(tree_param(s, 1).kind == P_POS);
-   fail_unless(icmp(tree_ident(tree_param(s, 1).value), "B"));
+   fail_unless(tree_subkind(tree_param(s, 0)) == P_POS);
+   fail_unless(icmp(tree_ident(tree_value(tree_param(s, 0))), "A"));
+   fail_unless(tree_subkind(tree_param(s, 1)) == P_POS);
+   fail_unless(icmp(tree_ident(tree_value(tree_param(s, 1))), "B"));
 
    fail_unless(simplify_errors() == 0);
 }

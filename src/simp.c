@@ -44,7 +44,7 @@ static tree_t simp_call_args(tree_t t)
 
    int last_pos = -1;
    for (int i = 0; i < nparams; i++) {
-      if (tree_param(t, i).kind == P_POS)
+      if (tree_subkind(tree_param(t, i)) == P_POS)
          last_pos = i;
    }
 
@@ -70,12 +70,16 @@ static tree_t simp_call_args(tree_t t)
 
       bool found = false;
       for (int j = last_pos + 1; (j < nparams) && !found; j++) {
-         param_t p = tree_param(t, j);
-         assert(p.kind == P_NAMED);
+         tree_t p = tree_param(t, j);
+         assert(tree_subkind(p) == P_NAMED);
 
-         if (name == p.name) {
-            p.kind = P_POS;
-            tree_add_param(new, p);
+         if (name == tree_ident(p)) {
+            tree_t q = tree_new(T_PARAM);
+            tree_set_subkind(q, P_POS);
+            tree_set_loc(q, tree_loc(p));
+            tree_set_value(q, tree_value(p));
+
+            tree_add_param(new, q);
             found = true;
          }
       }
@@ -155,9 +159,9 @@ static tree_t simp_array_ref(tree_t t)
    literal_t indexes[nparams];
    bool can_fold = true;
    for (unsigned i = 0; i < nparams; i++) {
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
-      can_fold = can_fold && folded_int(p.value, &indexes[i]);
+      tree_t p = tree_param(t, i);
+      assert(tree_subkind(p) == P_POS);
+      can_fold = can_fold && folded_int(tree_value(p), &indexes[i]);
    }
 
    if (!can_fold)
@@ -387,9 +391,9 @@ static tree_t simp_for(tree_t t)
    tree_t next;
    if ((r.kind == RANGE_DYN) || (r.kind == RANGE_RDYN)) {
       assert(tree_kind(r.left) == T_FCALL);
-      param_t p = tree_param(r.left, 0);
+      tree_t p = tree_param(r.left, 0);
 
-      tree_t asc = call_builtin("uarray_asc", NULL, p.value, NULL);
+      tree_t asc = call_builtin("uarray_asc", NULL, tree_value(p), NULL);
       next = tree_new(T_IF);
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));
@@ -615,8 +619,8 @@ static tree_t simp_cpcall(tree_t t)
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
-      param_t p = tree_param(t, i);
-      assert(p.kind == P_POS);
+      tree_t p = tree_param(t, i);
+      assert(tree_subkind(p) == P_POS);
 
       // Only add IN and INOUT parameters to sensitivity list
       tree_t port = tree_port(tree_ref(t), i);
@@ -625,7 +629,7 @@ static tree_t simp_cpcall(tree_t t)
          (tree_class(port) == C_SIGNAL)
          && ((mode == PORT_IN) || (mode == PORT_INOUT));
       if (sensitive)
-         tree_visit_only(p.value, simp_build_wait, wait, T_REF);
+         tree_visit_only(tree_value(p), simp_build_wait, wait, T_REF);
 
       tree_add_param(pcall, p);
    }
@@ -670,7 +674,7 @@ static tree_t simp_type_conv(tree_t t)
 {
    // Simple conversions performed at compile time
 
-   tree_t value = tree_param(t, 0).value;
+   tree_t value = tree_value(tree_param(t, 0));
 
    type_t from = tree_type(value);
    type_t to   = tree_type(t);

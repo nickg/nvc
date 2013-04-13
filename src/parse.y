@@ -66,7 +66,6 @@
    union listval {
       ident_t   ident;
       assoc_t   assoc;
-      param_t   param;
       context_t context;
       range_t   range;
    };
@@ -114,9 +113,6 @@
    static void copy_trees(tree_list_t *from,
                           void (*copy_fn)(tree_t t, tree_t d),
                           tree_t to);
-   static void copy_params(list_t *from,
-                           void (*copy_fn)(tree_t t, param_t p),
-                           tree_t to);
    static list_t *list_add(list_t *list, union listval item);
    static list_t *list_append(list_t *a, list_t *b);
    static void list_free(list_t *list);
@@ -135,7 +131,7 @@
    static tree_t get_time(int64_t fs);
    static void set_delay_mechanism(tree_t t, tree_t reject);
    static tree_t int_to_physical(tree_t t, tree_t unit);
-   static tree_t handle_param_expr(tree_t name, list_t *params);
+   static tree_t handle_param_expr(tree_t name, tree_list_t *params);
    static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
                               tree_t mode, tree_t value, loc_t *loc);
 
@@ -183,7 +179,7 @@
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
-%type <l> secondary_unit_decls
+%type <l> secondary_unit_decls param_list generic_map port_map
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause use_clause
 %type <g> use_clause_item_list
@@ -197,7 +193,7 @@
 %type <g> constraint_list case_alt_list element_assoc
 %type <g> element_assoc_list index_constraint constraint choice_list
 %type <b> choice
-%type <g> param_list generic_map port_map selected_waveforms
+%type <g> selected_waveforms
 %type <c> object_class
 %type <d> use_clause_item
 
@@ -921,8 +917,8 @@ comp_instance_stmt
      tree_set_ident($$, $1);
      tree_set_ident2($$, $3);
      tree_set_class($$, C_COMPONENT);
-     copy_params($5, tree_add_param, $$);
-     copy_params($4, tree_add_genmap, $$);
+     copy_trees($5, tree_add_param, $$);
+     copy_trees($4, tree_add_genmap, $$);
   }
 | id tCOLON tCOMPONENT id generic_map port_map tSEMI
   {
@@ -931,8 +927,8 @@ comp_instance_stmt
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
      tree_set_class($$, C_COMPONENT);
-     copy_params($6, tree_add_param, $$);
-     copy_params($5, tree_add_genmap, $$);
+     copy_trees($6, tree_add_param, $$);
+     copy_trees($5, tree_add_genmap, $$);
   }
 | id tCOLON tENTITY selected_id generic_map port_map tSEMI
   {
@@ -941,8 +937,8 @@ comp_instance_stmt
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
      tree_set_class($$, C_ENTITY);
-     copy_params($6, tree_add_param, $$);
-     copy_params($5, tree_add_genmap, $$);
+     copy_trees($6, tree_add_param, $$);
+     copy_trees($5, tree_add_genmap, $$);
   }
 | id tCOLON tENTITY selected_id tLPAREN id tRPAREN generic_map
   port_map tSEMI
@@ -952,8 +948,8 @@ comp_instance_stmt
      tree_set_ident($$, $1);
      tree_set_ident2($$, ident_prefix($4, $6, '-'));
      tree_set_class($$, C_ENTITY);
-     copy_params($9, tree_add_param, $$);
-     copy_params($8, tree_add_genmap, $$);
+     copy_trees($9, tree_add_param, $$);
+     copy_trees($8, tree_add_genmap, $$);
   }
 | id tCOLON tCONFIGURATION selected_id generic_map port_map tSEMI
   {
@@ -962,8 +958,8 @@ comp_instance_stmt
      tree_set_ident($$, $1);
      tree_set_ident2($$, $4);
      tree_set_class($$, C_CONFIGURATION);
-     copy_params($6, tree_add_param, $$);
-     copy_params($5, tree_add_genmap, $$);
+     copy_trees($6, tree_add_param, $$);
+     copy_trees($5, tree_add_genmap, $$);
   }
 ;
 
@@ -1256,7 +1252,7 @@ conc_procedure_call_stmt
      $$ = tree_new(T_CPCALL);
      tree_set_loc($$, &@$);
      tree_set_ident2($$, tree_ident($1));
-     copy_params($3, tree_add_param, $$);
+     copy_trees($3, tree_add_param, $$);
   }
 ;
 
@@ -2081,9 +2077,18 @@ expr
   {
      $$ = tree_new(T_CONCAT);
      tree_set_loc($$, &@$);
-     param_t p1 = { .value = $1, .kind = P_POS };
+
+     tree_t p1 = tree_new(T_PARAM);
+     tree_set_loc(p1, &@1);
+     tree_set_subkind(p1, P_POS);
+     tree_set_value(p1, $1);
+
+     tree_t p2 = tree_new(T_PARAM);
+     tree_set_loc(p2, &@3);
+     tree_set_subkind(p2, P_POS);
+     tree_set_value(p2, $3);
+
      tree_add_param($$, p1);
-     param_t p2 = { .value = $3, .kind = P_POS };
      tree_add_param($$, p2);
   }
 | name
@@ -2107,25 +2112,45 @@ expr
 param_list
 : expr_or_open
   {
-     param_t p = { .kind = P_POS, .value = $1 };
-     $$ = list_add(NULL, LISTVAL(p));
+     tree_t p = tree_new(T_PARAM);
+     tree_set_subkind(p, P_POS);
+     tree_set_value(p, $1);
+     tree_set_loc(p, &@$);
+
+     $$ = NULL;
+     tree_list_prepend(&$$, p);
   }
 | expr_or_open tCOMMA param_list
   {
-     param_t p = { .kind = P_POS, .value = $1 };
-     $$ = list_add($3, LISTVAL(p));
+     tree_t p = tree_new(T_PARAM);
+     tree_set_subkind(p, P_POS);
+     tree_set_value(p, $1);
+     tree_set_loc(p, &@1);
+
+     $$ = $3;
+     tree_list_prepend(&$$, p);
   }
 | id tASSOC expr_or_open
   {
-     param_t p = { .kind = P_NAMED, .value = $3 };
-     p.name = $1;
-     $$ = list_add(NULL, LISTVAL(p));
+     tree_t p = tree_new(T_PARAM);
+     tree_set_subkind(p, P_NAMED);
+     tree_set_value(p, $3);
+     tree_set_ident(p, $1);
+     tree_set_loc(p, &@$);
+
+     $$ = NULL;
+     tree_list_prepend(&$$, p);
   }
 | id tASSOC expr_or_open tCOMMA param_list
   {
-     param_t p = { .kind = P_NAMED, .value = $3 };
-     p.name = $1;
-     $$ = list_add($5, LISTVAL(p));
+     tree_t p = tree_new(T_PARAM);
+     tree_set_subkind(p, P_NAMED);
+     tree_set_value(p, $3);
+     tree_set_ident(p, $1);
+     tree_set_loc(p, &@3);
+
+     $$ = $5;
+     tree_list_prepend(&$$, p);
   }
 ;
 
@@ -2250,9 +2275,16 @@ physical_literal
      $$ = tree_new(T_FCALL);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_new("\"*\""));
-     param_t left = { .kind = P_POS, .value = $1 };
+
+     tree_t left = tree_new(T_PARAM);
+     tree_set_subkind(left, P_POS);
+     tree_set_value(left, $1);
+
+     tree_t right = tree_new(T_PARAM);
+     tree_set_subkind(right, P_POS);
+     tree_set_value(right, unit);
+
      tree_add_param($$, left);
-     param_t right = { .kind = P_POS, .value = unit };
      tree_add_param($$, right);
   }
 ;
@@ -2387,15 +2419,6 @@ static void copy_trees(tree_list_t *from,
    tree_list_free(from);
 }
 
-static void copy_params(list_t *from,
-                        void (*copy_fn)(tree_t t, param_t p),
-                        tree_t to)
-{
-   for (list_t *it = from; it != NULL; it = it->next)
-      (*copy_fn)(to, it->item.param);
-   list_free(from);
-}
-
 static list_t *list_add(list_t *list, union listval item)
 {
    list_t *new = xmalloc(sizeof(list_t));
@@ -2431,7 +2454,12 @@ static tree_t build_expr1(const char *fn, tree_t arg,
 {
    tree_t t = tree_new(T_FCALL);
    tree_set_ident(t, ident_new(fn));
-   param_t parg = { .kind = P_POS, .value = arg };
+
+   tree_t parg = tree_new(T_PARAM);
+   tree_set_loc(parg, tree_loc(arg));
+   tree_set_subkind(parg, P_POS);
+   tree_set_value(parg, arg);
+
    tree_add_param(t, parg);
    tree_set_loc(t, loc);
 
@@ -2443,9 +2471,18 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
 {
    tree_t t = tree_new(T_FCALL);
    tree_set_ident(t, ident_new(fn));
-   param_t pleft = { .kind = P_POS, .value = left };
+
+   tree_t pleft = tree_new(T_PARAM);
+   tree_set_loc(pleft, tree_loc(left));
+   tree_set_subkind(pleft, P_POS);
+   tree_set_value(pleft, left);
+
+   tree_t pright = tree_new(T_PARAM);
+   tree_set_loc(pright, tree_loc(right));
+   tree_set_subkind(pright, P_POS);
+   tree_set_value(pright, right);
+
    tree_add_param(t, pleft);
-   param_t pright = { .kind = P_POS, .value = right };
    tree_add_param(t, pright);
    tree_set_loc(t, loc);
 
@@ -2475,7 +2512,7 @@ static tree_t str_to_agg(const char *start, const char *end)
    return t;
 }
 
-static tree_t handle_param_expr(tree_t name, list_t *params)
+static tree_t handle_param_expr(tree_t name, tree_list_t *params)
 {
    // This is ambiguous between an array reference and a function
    // call: in the case where $1 is a simple reference assume it
@@ -2484,7 +2521,7 @@ static tree_t handle_param_expr(tree_t name, list_t *params)
    // anyway to make changing the kind easier.
 
    range_t r;
-   if (params->next == NULL && to_range_expr(params->item.param.value, &r)) {
+   if (params->next == NULL && to_range_expr(tree_value(params->value), &r)) {
       // Convert range parameters into array slices
       tree_t s = tree_new(T_ARRAY_SLICE);
       tree_set_value(s, name);
@@ -2506,7 +2543,7 @@ static tree_t handle_param_expr(tree_t name, list_t *params)
          }
       }
 
-      copy_params(params, tree_add_param, a);
+      copy_trees(params, tree_add_param, a);
       return a;
    }
 }
@@ -2588,9 +2625,16 @@ static tree_t get_time(int64_t fs)
 
    tree_t f = tree_new(T_FCALL);
    tree_set_ident(f, ident_new("\"*\""));
-   param_t left = { .kind = P_POS, .value = lit };
+
+   tree_t left = tree_new(T_PARAM);
+   tree_set_subkind(left, P_POS);
+   tree_set_value(left, lit);
+
+   tree_t right = tree_new(T_PARAM);
+   tree_set_subkind(right, P_POS);
+   tree_set_value(right, unit);
+
    tree_add_param(f, left);
-   param_t right = { .kind = P_POS, .value = unit };
    tree_add_param(f, right);
 
    return f;
@@ -2623,9 +2667,16 @@ static tree_t int_to_physical(tree_t t, tree_t unit)
    tree_t fcall = tree_new(T_FCALL);
    tree_set_loc(fcall, tree_loc(t));
    tree_set_ident(fcall, ident_new("\"*\""));
-   param_t a = { .kind = P_POS, .value = t };
+
+   tree_t a = tree_new(T_PARAM);
+   tree_set_subkind(a, P_POS);
+   tree_set_value(a, t);
+
+   tree_t b = tree_new(T_PARAM);
+   tree_set_subkind(b, P_POS);
+   tree_set_value(b, ref);
+
    tree_add_param(fcall, a);
-   param_t b = { .kind = P_POS, .value = ref };
    tree_add_param(fcall, b);
 
    return fcall;

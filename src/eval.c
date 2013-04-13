@@ -296,9 +296,11 @@ static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
 
    if (agg_low || agg_high) {
       int64_t low = INT64_MAX, high = INT64_MIN;
-      param_t p = tree_param(t, 0);
-      for (unsigned i = 0; i < tree_assocs(p.value); i++) {
-         assoc_t a = tree_assoc(p.value, i);
+      tree_t p = tree_param(t, 0);
+      tree_t value = tree_value(p);
+      const int nassocs = tree_assocs(value);
+      for (int i = 0; i < nassocs; i++) {
+         assoc_t a = tree_assoc(value, i);
          switch (a.kind) {
          case A_NAMED:
             {
@@ -365,7 +367,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       const int nports = tree_ports(decl);
       for (int i = 0; i < nports; i++) {
          tree_t port  = tree_port(decl, i);
-         tree_t value = tree_param(t, i).value;
+         tree_t value = tree_value(tree_param(t, i));
 
          if (!folded(value)) {
             vtable_pop(v);
@@ -383,8 +385,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    }
 
    if (icmp(builtin, "length")) {
-      tree_t dim   = tree_param(t, 0).value;
-      tree_t array = tree_param(t, 1).value;
+      tree_t dim   = tree_value(tree_param(t, 0));
+      tree_t array = tree_value(tree_param(t, 1));
 
       literal_t dim_i;
       if ((type_kind(tree_type(array)) != T_UARRAY)
@@ -409,8 +411,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    literal_t largs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
-      param_t p = tree_param(t, i);
-      tree_t val = eval_expr(p.value, v);
+      tree_t p = tree_param(t, i);
+      tree_t val = eval_expr(tree_value(p), v);
       can_fold_int  = can_fold_int && folded_int(val, &largs[i]);
       can_fold_log  = can_fold_log && folded_bool(val, &bargs[i]);
       can_fold_agg  = can_fold_agg && folded_agg(val);

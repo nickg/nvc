@@ -31,7 +31,6 @@
 //#define EXTRA_READ_CHECKS
 
 DEFINE_ARRAY(tree);
-DEFINE_ARRAY(param);
 DEFINE_ARRAY(assoc);
 
 typedef struct {
@@ -96,7 +95,6 @@ typedef union {
    tree_t        tree;
    literal_t     literal;
    tree_array_t  tree_array;
-   param_array_t param_array;
    type_t        type;
    unsigned      subkind;
    uint32_t      uint;
@@ -293,7 +291,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE),
 
    // T_PARAM
-   (I_IDENT | I_VALUE | I_POS),
+   (I_IDENT | I_VALUE | I_POS | I_SUBKIND),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -301,11 +299,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES)
-#define ITEM_PARAM_ARRAY (I_PARAMS | I_GENMAPS)
+                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS \
+                          | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
-#define ITEM_SUBKIND     (I_SUBKIND)
-#define ITEM_UINT        (I_POS)
+#define ITEM_UINT        (I_POS | I_SUBKIND)
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
 #define ITEM_CLASS       (I_CLASS)
@@ -570,8 +567,6 @@ void tree_gc(void)
             if (has & mask) {
                if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
-               else if (ITEM_PARAM_ARRAY & mask)
-                  free(t->items[n].param_array.items);
                else if (ITEM_ASSOC_ARRAY & mask)
                   free(t->items[n].assoc_array.items);
                else if (ITEM_CONTEXT & mask)
@@ -747,44 +742,46 @@ bool tree_has_type(tree_t t)
 
 unsigned tree_params(tree_t t)
 {
-   return lookup_item(t, I_PARAMS)->param_array.count;
+   return lookup_item(t, I_PARAMS)->tree_array.count;
 }
 
-param_t tree_param(tree_t t, unsigned n)
+tree_t tree_param(tree_t t, unsigned n)
 {
-   return param_array_nth(&(lookup_item(t, I_PARAMS)->param_array), n);
+   return tree_array_nth(&(lookup_item(t, I_PARAMS)->tree_array), n);
 }
 
-void tree_add_param(tree_t t, param_t e)
+void tree_add_param(tree_t t, tree_t e)
 {
-   tree_assert_expr(e.value);
+   tree_assert_expr(tree_value(e));
 
-   param_array_t *array = &(lookup_item(t, I_PARAMS)->param_array);
+   tree_array_t *array = &(lookup_item(t, I_PARAMS)->tree_array);
 
-   if (e.kind == P_POS)
-      e.pos = array->count;
+   if (tree_subkind(e) == P_POS)
+      tree_set_pos(e, array->count);
 
-   param_array_add(array, e);
+   tree_array_add(array, e);
 }
 
 unsigned tree_genmaps(tree_t t)
 {
-   return lookup_item(t, I_GENMAPS)->param_array.count;
+   return lookup_item(t, I_GENMAPS)->tree_array.count;
 }
 
-param_t tree_genmap(tree_t t, unsigned n)
+tree_t tree_genmap(tree_t t, unsigned n)
 {
-   return param_array_nth(&(lookup_item(t, I_GENMAPS)->param_array), n);
+   return tree_array_nth(&(lookup_item(t, I_GENMAPS)->tree_array), n);
 }
 
-void tree_add_genmap(tree_t t, param_t e)
+void tree_add_genmap(tree_t t, tree_t e)
 {
-   tree_assert_expr(e.value);
+   tree_assert_expr(tree_value(e));
 
-   if (e.kind == P_POS)
-      e.pos = tree_genmaps(t);
+   tree_array_t *array = &(lookup_item(t, I_GENMAPS)->tree_array);
 
-   param_array_add(&(lookup_item(t, I_GENMAPS)->param_array), e);
+   if (tree_subkind(e) == P_POS)
+      tree_set_pos(e, array->count);
+
+   tree_array_add(&(lookup_item(t, I_GENMAPS)->tree_array), e);
 }
 
 void tree_set_literal(tree_t t, literal_t lit)
@@ -1117,18 +1114,6 @@ static void tree_visit_s(assoc_array_t *a, tree_visit_ctx_t *ctx)
    }
 }
 
-static void tree_visit_p(param_array_t *a, tree_visit_ctx_t *ctx)
-{
-   for (unsigned i = 0; i < a->count; i++) {
-      switch (a->items[i].kind) {
-      case P_POS:
-      case P_NAMED:
-         tree_visit_aux(a->items[i].value, ctx);
-         break;
-      }
-   }
-}
-
 static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
@@ -1161,13 +1146,9 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
             for (unsigned j = 0; j < t->items[i].tree_array.count; j++)
                tree_visit_aux(t->items[i].tree_array.items[j], ctx);
          }
-         else if (ITEM_PARAM_ARRAY & mask)
-            tree_visit_p(&(t->items[i].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_visit_trees(t->items[i].type, ctx->generation,
                              (tree_visit_fn_t)tree_visit_aux, ctx);
-         else if (ITEM_SUBKIND & mask)
-            ;
          else if (ITEM_UINT & mask)
             ;
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -1379,42 +1360,6 @@ static void read_s(assoc_array_t *a, tree_rd_ctx_t ctx)
    }
 }
 
-static void write_p(param_array_t *a, tree_wr_ctx_t ctx)
-{
-   write_u32(a->count, ctx->file);
-   for (unsigned i = 0; i < a->count; i++) {
-      write_u16(a->items[i].kind, ctx->file);
-      switch (a->items[i].kind) {
-      case P_POS:
-         write_u16(a->items[i].pos, ctx->file);
-         tree_write(a->items[i].value, ctx);
-         break;
-      case P_NAMED:
-         ident_write(a->items[i].name, ctx->ident_ctx);
-         tree_write(a->items[i].value, ctx);
-         break;
-      }
-   }
-}
-
-static void read_p(param_array_t *a, tree_rd_ctx_t ctx)
-{
-   param_array_resize(a, read_u32(ctx->file));
-
-   for (unsigned i = 0; i < a->count; i++) {
-      switch ((a->items[i].kind = read_u16(ctx->file))) {
-      case P_POS:
-         a->items[i].pos   = read_u16(ctx->file);
-         a->items[i].value = tree_read(ctx);
-         break;
-      case P_NAMED:
-         a->items[i].name  = ident_read(ctx->ident_ctx);
-         a->items[i].value = tree_read(ctx);
-         break;
-      }
-   }
-}
-
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
    write_u32(format_digest, f);
@@ -1491,12 +1436,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          }
          else if (ITEM_TREE_ARRAY & mask)
             write_a(&(t->items[n].tree_array), ctx);
-         else if (ITEM_PARAM_ARRAY & mask)
-            write_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_write(t->items[n].type, ctx->type_ctx);
-         else if (ITEM_SUBKIND & mask)
-            write_u8(t->items[n].subkind, ctx->file);
          else if (ITEM_UINT & mask)
             write_u32(t->items[n].uint, ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -1609,12 +1550,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          }
          else if (ITEM_TREE_ARRAY & mask)
             read_a(&(t->items[n].tree_array), ctx);
-         else if (ITEM_PARAM_ARRAY & mask)
-            read_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             t->items[n].type = type_read(ctx->type_ctx);
-         else if (ITEM_SUBKIND & mask)
-            t->items[n].subkind = read_u8(ctx->file);
          else if (ITEM_UINT & mask)
             t->items[n].uint = read_u32(ctx->file);
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -1852,18 +1789,6 @@ static void rewrite_s(assoc_array_t *a, struct rewrite_ctx *ctx)
    }
 }
 
-static void rewrite_p(param_array_t *a, struct rewrite_ctx *ctx)
-{
-   for (size_t i = 0; i < a->count; i++) {
-      switch (a->items[i].kind) {
-      case P_POS:
-      case P_NAMED:
-         a->items[i].value = tree_rewrite_aux(a->items[i].value, ctx);
-         break;
-      }
-   }
-}
-
 static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 {
    // Helper from type.c
@@ -1897,12 +1822,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_TREE_ARRAY & mask)
             rewrite_a(&(t->items[n].tree_array), ctx);
-         else if (ITEM_PARAM_ARRAY & mask)
-            rewrite_p(&(t->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             type_item = n;
-         else if (ITEM_SUBKIND & mask)
-            ;
          else if (ITEM_UINT & mask)
             ;
          else if (ITEM_ASSOC_ARRAY & mask)
@@ -2001,28 +1922,6 @@ static void copy_s(const assoc_array_t *from, assoc_array_t *to,
    }
 }
 
-static void copy_p(const param_array_t *from, param_array_t *to,
-                   struct tree_copy_ctx *ctx)
-{
-   param_array_resize(to, from->count);
-
-   for (size_t i = 0; i < from->count; i++) {
-      param_t *fp = &from->items[i];
-      param_t *tp = &to->items[i];
-
-      switch ((tp->kind = fp->kind)) {
-      case P_POS:
-         tp->pos   = fp->pos;
-         tp->value = tree_copy_aux(fp->value, ctx);
-         break;
-      case P_NAMED:
-         tp->name  = fp->name;
-         tp->value = tree_copy_aux(fp->value, ctx);
-         break;
-      }
-   }
-}
-
 static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 {
    if (t == NULL)
@@ -2059,13 +1958,8 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
          else if (ITEM_TREE_ARRAY & mask)
             copy_a(&(t->items[n].tree_array),
                    &(copy->items[n].tree_array), ctx);
-         else if (ITEM_PARAM_ARRAY & mask)
-            copy_p(&(t->items[n].param_array),
-                   &(copy->items[n].param_array), ctx);
          else if (ITEM_TYPE & mask)
             copy->items[n].type = t->items[n].type;
-         else if (ITEM_SUBKIND & mask)
-            copy->items[n].subkind = t->items[n].subkind;
          else if (ITEM_UINT & mask)
             copy->items[n].uint = t->items[n].uint;
          else if (ITEM_ASSOC_ARRAY & mask)
