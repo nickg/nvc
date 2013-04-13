@@ -556,6 +556,20 @@ static void dump_stmt(tree_t t, int indent)
       printf("end generate");
       break;
 
+   case T_IF_GENERATE:
+      printf("if ");
+      dump_expr(tree_value(t));
+      printf(" generate\n");
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i), indent + 2);
+      tab(indent);
+      printf("begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
+      tab(indent);
+      printf("end generate");
+      break;
+
    default:
       cannot_dump(t, "stmt");
    }

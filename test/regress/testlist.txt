@@ -120,3 +120,4 @@ wait10          normal
 attr4           normal
 bounds6         gold,fail
 elab6           normal
+elab7           normal

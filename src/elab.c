@@ -161,9 +161,11 @@ static tree_t rewrite_refs(tree_t t, void *context)
       break;
    case T_LITERAL:
    case T_AGGREGATE:
+   case T_REF:
       return params->actual;
    default:
-      assert(false);
+      fatal_trace("cannot handle tree kind %s in rewrite_refs",
+                  tree_kind_str(tree_kind(t)));
    }
 
    return t;
@@ -299,6 +301,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
+   simplify(arch);
+
    elab_ctx_t new_ctx = {
       .out  = ctx->out,
       .path = ctx->path,
@@ -401,6 +405,8 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
       case T_FOR_GENERATE:
          elab_for_generate(s, &new_ctx);
          break;
+      case T_IF_GENERATE:
+         fatal("IF-GENERATE statement was not constant folded");
       default:
          tree_add_stmt(ctx->out, s);
       }
@@ -533,7 +539,6 @@ tree_t elab(tree_t top)
 
    elab_funcs(e);
 
-   simplify(e);
    if (simplify_errors() == 0) {
       lib_put(lib_work(), e);
       return e;
