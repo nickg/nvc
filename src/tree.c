@@ -25,7 +25,6 @@
 #include <ctype.h>
 
 #define MAX_CONTEXTS 16
-#define MAX_ITEMS    6
 #define MAX_FILES    256
 
 //#define EXTRA_READ_CHECKS
@@ -338,15 +337,22 @@ static const char *item_text_map[] = {
    "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",
 };
 
+static const tree_kind_t change_allowed[][2] = {
+   { T_REF,       T_FCALL      },
+   { T_ARRAY_REF, T_FCALL      },
+   { T_FCALL,     T_ARRAY_REF  },
+   { T_FCALL,     T_PCALL      },
+   { T_FCALL,     T_TYPE_CONV  },
+   { T_REF,       T_RECORD_REF },
+};
+
 struct tree {
    tree_kind_t kind;
    loc_t       loc;
    attr_tab_t  attrs;
-   item_t      items[MAX_ITEMS];
-
-   // Serialisation and GC bookkeeping
-   uint32_t generation;
-   uint32_t index;
+   uint32_t    generation;
+   uint32_t    index;
+   item_t      items[0];
 };
 
 struct tree_wr_ctx {
@@ -413,6 +419,7 @@ static size_t n_trees_alloc = 0;
 
 static uint32_t format_digest;
 static int      item_lookup[T_LAST_TREE_KIND][32];
+static size_t   object_size[T_LAST_TREE_KIND];
 
 unsigned next_generation = 1;
 
@@ -427,8 +434,16 @@ static void tree_one_time_init(void)
    format_digest = type_format_digest();
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
-      const int nitems = __builtin_popcount(has_map[i]);
-      assert(nitems <= MAX_ITEMS);
+      int max_items = __builtin_popcount(has_map[i]);
+      for (size_t j = 0; j < ARRAY_LEN(change_allowed); j++) {
+         if (change_allowed[j][0] == i) {
+            const int to_items =
+               __builtin_popcount(has_map[change_allowed[j][1]]);
+            max_items = MAX(max_items, to_items);
+         }
+      }
+
+      object_size[i] = sizeof(struct tree) + (max_items * sizeof(item_t));
 
       // Knuth's multiplicative hash
       format_digest += has_map[i] * 2654435761u;
@@ -515,8 +530,8 @@ tree_t tree_new(tree_kind_t kind)
 
    tree_one_time_init();
 
-   tree_t t = xmalloc(sizeof(struct tree));
-   memset(t, '\0', sizeof(struct tree));
+   tree_t t = xmalloc(object_size[kind]);
+   memset(t, '\0', object_size[kind]);
    t->kind  = kind;
    t->index = UINT32_MAX;
 
@@ -661,16 +676,29 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
 {
    assert(t != NULL);
 
+   bool allow = false;
+   for (size_t i = 0; (i < ARRAY_LEN(change_allowed)) && !allow; i++) {
+      allow = (change_allowed[i][0] == t->kind)
+         && (change_allowed[i][1] == kind);
+   }
+
+   if (!allow)
+      fatal_trace("cannot change tree kind %s to %s",
+                  tree_kind_str(t->kind), tree_kind_str(kind));
+
    const uint32_t old_has = has_map[t->kind];
    const uint32_t new_has = has_map[kind];
 
-   item_t tmp[MAX_ITEMS];
-   memcpy(tmp, t->items, sizeof(item_t) * MAX_ITEMS);
+   const int old_nitems = __builtin_popcount(old_has);
+   const int new_nitems = __builtin_popcount(new_has);
 
-   const int nitems = __builtin_popcount(new_has);
+   const int max_items = MAX(old_nitems, new_nitems);
+
+   item_t tmp[max_items];
+   memcpy(tmp, t->items, sizeof(item_t) * max_items);
 
    int op = 0, np = 0;
-   for (uint32_t mask = 1; np < nitems; mask <<= 1) {
+   for (uint32_t mask = 1; np < new_nitems; mask <<= 1) {
       if ((old_has & mask) && (new_has & mask))
          t->items[np++] = tmp[op++];
       else if (old_has & mask)
