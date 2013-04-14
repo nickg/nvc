@@ -2787,7 +2787,7 @@ static bool sem_check_params(tree_t t)
          {
             tree_t ref = tree_name(p);
             if (tree_kind(ref) != T_REF)
-               fatal_at(tree_loc(ref), "sorry, this form of parameter name "
+               sem_error(ref, "sorry, this form of parameter name "
                         "is not yet supported");
 
             ident_t name = tree_ident(ref);
