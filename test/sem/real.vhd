@@ -22,7 +22,7 @@ begin
         i := integer(x);                -- OK
         x <= real(i);                   -- OK
         x <= real(5);                   -- OK
-        x <= real('1');                 -- Error
+        x <= real(bit'('1'));           -- Error
     end process;
 
     process is

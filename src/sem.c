@@ -963,9 +963,11 @@ static bool sem_declare(tree_t decl)
    if (type_k == T_INCOMPLETE)
       return true;
 
+   if (tree_kind(decl) != T_TYPE_DECL)
+      return true;
+
    // Declare any predefined operators and attributes
-   if (tree_kind(decl) == T_TYPE_DECL)
-      sem_declare_predefined_ops(decl);
+   sem_declare_predefined_ops(decl);
 
    // No futher processing needed for subtypes
    if (type_k == T_SUBTYPE)
@@ -3761,27 +3763,33 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
 
 static bool sem_check_ref(tree_t t)
 {
-   tree_t decl;
+   tree_t decl = NULL, next;
+   ident_t name = tree_ident(t);
    int n = 0;
    do {
-      if ((decl = scope_find_nth(tree_ident(t), n++))) {
-         type_t type = tree_type(decl);
-         if (type_set_member(type))
-            break;
-         else if (type_kind(type) == T_FUNC
-                  && (sem_required_args(decl) == 0)
-                  && type_set_member(type_result(type)))
-            // Zero-argument function of correct type
-            break;
-         else if (!scope_can_overload(decl))
-            break;
+      if ((next = scope_find_nth(name, n++))) {
+         type_t type = tree_type(next);
+
+         const bool zero_arg_fn =
+            (type_kind(type) == T_FUNC)
+            && (sem_required_args(next) == 0)
+            && type_set_member(type_result(type));
+
+         if (type_set_member(type) || zero_arg_fn) {
+            if (decl != NULL)
+               sem_error(t, "ambiguous use of name %s", istr(name));
+            decl = next;
+         }
       }
-   } while (decl != NULL);
+   } while ((next != NULL) && scope_can_overload(next));
+
+   if (decl == NULL)
+      decl = next;
 
    if (decl == NULL)
       sem_error(t, (n == 1 ? "undefined identifier %s"
                     : "no suitable overload for identifier %s"),
-                istr(tree_ident(t)));
+                istr(name));
 
    switch (tree_kind(decl)) {
    case T_VAR_DECL:

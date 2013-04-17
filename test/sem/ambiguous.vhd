@@ -80,6 +80,13 @@ begin
         report "foo¥bar";
     end process;
 
+    process is
+        type t is (false, true);
+    begin
+        for i in false to false loop    -- Error
+        end loop;
+    end process;
+
 end architecture;
 
 -- -*- coding: latin-1; -*-

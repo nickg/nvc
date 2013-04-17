@@ -266,6 +266,7 @@ START_TEST(test_ambiguous)
    const error_t expect[] = {
       { 35, "type of value BAR does not match type of target FOO" },
       { 56, "type of aggregate is ambiguous" },
+      { 86, "ambiguous use of name FALSE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -278,7 +279,7 @@ START_TEST(test_ambiguous)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 8);
+   fail_unless(tree_stmts(a) == 9);
    sem_check(a);
 
    p = tree_stmt(a, 0);
