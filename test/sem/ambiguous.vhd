@@ -87,6 +87,26 @@ begin
         end loop;
     end process;
 
+    process is
+        function now return integer is
+        begin
+            return 5;
+        end function;
+    begin
+        for i in now to now loop    -- Error
+        end loop;
+    end process;
+
+    process is
+        function false return integer is
+        begin
+            return 1;
+        end function;
+    begin
+        for i in false to false loop    -- Error
+        end loop;
+    end process;
+
 end architecture;
 
 -- -*- coding: latin-1; -*-

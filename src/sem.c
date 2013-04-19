@@ -3777,11 +3777,14 @@ static bool sem_check_ref(tree_t t)
 
          if (type_set_member(type) || zero_arg_fn) {
             if (decl != NULL) {
-               assert(zero_arg_fn || (tree_kind(next) == T_ENUM_LIT));
+               const bool enum_lit = (tree_kind(next) == T_ENUM_LIT);
+               assert(zero_arg_fn || enum_lit);
                sem_error(t, "ambiguous %s %s",
-                         (zero_arg_fn
-                          ? "call to function"
-                          : "use of enumeration literal"),
+                         (enum_lit && (tree_kind(decl) != T_ENUM_LIT))
+                         ? "use of name"
+                         : ((zero_arg_fn
+                             ? "call to function"
+                             : "use of enumeration literal")),
                          istr(name));
             }
             decl = next;
