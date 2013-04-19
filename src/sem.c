@@ -3777,10 +3777,9 @@ static bool sem_check_ref(tree_t t)
 
          if (type_set_member(type) || zero_arg_fn) {
             if (decl != NULL) {
-               const bool enum_lit = (tree_kind(next) == T_ENUM_LIT);
-               assert(zero_arg_fn || enum_lit);
+               assert(zero_arg_fn || (tree_kind(next) == T_ENUM_LIT));
                sem_error(t, "ambiguous %s %s",
-                         (enum_lit && (tree_kind(decl) != T_ENUM_LIT))
+                         (tree_kind(next) != tree_kind(decl))
                          ? "use of name"
                          : ((zero_arg_fn
                              ? "call to function"

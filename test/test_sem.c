@@ -267,8 +267,8 @@ START_TEST(test_ambiguous)
       { 35,  "type of value BAR does not match type of target FOO" },
       { 56,  "type of aggregate is ambiguous" },
       { 86,  "ambiguous use of enumeration literal FALSE" },
-      { 96,  "ambiguous call to function NOW" },
-      { 106, "ambiguous use of name FALSE" },
+      { 93,  "ambiguous call to function NOW" },
+      { 103, "ambiguous use of name FALSE" },
       { -1, NULL }
    };
    expect_errors(expect);

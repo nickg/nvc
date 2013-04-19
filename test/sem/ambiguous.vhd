@@ -88,10 +88,7 @@ begin
     end process;
 
     process is
-        function now return integer is
-        begin
-            return 5;
-        end function;
+        function now return integer;
     begin
         for i in now to now loop    -- Error
         end loop;
