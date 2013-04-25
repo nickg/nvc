@@ -293,8 +293,11 @@ static LLVMTypeRef llvm_type(type_t t)
    case T_ACCESS:
       return LLVMPointerType(llvm_type(type_access(t)), 0);
 
+   case T_FILE:
+      return llvm_void_ptr();
+
    default:
-      assert(false);
+      fatal("cannot get LLVM type for %s", type_kind_str(type_kind(t)));
    }
 }
 
@@ -807,7 +810,9 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
       return LLVMBuildLoad(builder, (LLVMValueRef)global, "global");
 
    tree_kind_t kind = tree_kind(decl);
-   assert((kind == T_VAR_DECL) || (kind == T_CONST_DECL));
+   assert((kind == T_VAR_DECL)
+          || (kind == T_CONST_DECL)
+          || (kind == T_FILE_DECL));
 
    type_t type = tree_type(decl);
 
@@ -1007,6 +1012,10 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
             else
                args[i] = llvm_type(type);
          }
+         break;
+
+      case C_FILE:
+         args[i] = llvm_void_ptr();
          break;
 
       default:
