@@ -55,7 +55,7 @@ EXID       \\.*\\
 STRING     \"([^\"]|\"\")*\"
 BIT_STRING [BOXbox]\"[0-9a-fA-f_]+\"
 CHAR       '.'
-COMMENT    --.*\n
+COMMENT    --.*
 DIGITS     [0-9][0-9_]*
 INT        {DIGITS}{EXPONENT}?
 REAL       {INT}\.{INT}
