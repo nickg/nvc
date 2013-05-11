@@ -1562,6 +1562,32 @@ static LLVMValueRef cgen_bit_shift(bit_shift_kind_t kind, LLVMValueRef array,
    return LLVMBuildLoad(builder, result, "");
 }
 
+static LLVMValueRef cgen_division(LLVMValueRef num, LLVMValueRef denom,
+                                  tree_t t, cgen_ctx_t *ctx)
+{
+   LLVMBasicBlockRef zero_bb = LLVMAppendBasicBlock(ctx->fn, "div_zero");
+   LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "div_ok");
+
+   LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(denom), 0, false);
+   LLVMValueRef div_by_zero =
+      LLVMBuildICmp(builder, LLVMIntEQ, denom, zero, "div0");
+
+   LLVMBuildCondBr(builder, div_by_zero, zero_bb, ok_bb);
+
+   LLVMPositionBuilderAtEnd(builder, zero_bb);
+
+   LLVMValueRef args[] = {
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_div_zero"), args, ARRAY_LEN(args), "");
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, ok_bb);
+   return LLVMBuildSDiv(builder, num, denom, "");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -1653,7 +1679,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             return LLVMBuildFDiv(builder, args[0], args[1], "");
          else {
             cgen_promote_arith(rtype, args, nparams);
-            return LLVMBuildSDiv(builder, args[0], args[1], "");
+            return cgen_division(args[0], args[1], tree_param(t, 1), ctx);
          }
       }
       else if (icmp(builtin, "eq")) {
@@ -4598,6 +4624,17 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _bounds_fail_args,
                                     ARRAY_LEN(_bounds_fail_args),
+                                    false));
+
+
+   LLVMTypeRef _div_zero_args[] = {
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0)
+   };
+   LLVMAddFunction(module, "_div_zero",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _div_zero_args,
+                                    ARRAY_LEN(_div_zero_args),
                                     false));
 
    LLVMTypeRef memcmp_args[] = {

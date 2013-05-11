@@ -428,6 +428,12 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    }
 }
 
+void _div_zero(int32_t where, const char *module)
+{
+   tree_t t = rt_recall_tree(module, where);
+   fatal_at(tree_loc(t), "division by zero");
+}
+
 uint64_t _std_standard_now(void)
 {
    return now;
