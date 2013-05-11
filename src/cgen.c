@@ -673,13 +673,15 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               LLVMValueRef min, LLVMValueRef max,
                               cgen_ctx_t *ctx)
 {
-   LLVMValueRef value32 = LLVMBuildZExt(builder, value,
-                                        LLVMInt32Type(), "value32");
+   LLVMTypeRef int32 = LLVMInt32Type();
+   value = LLVMBuildZExt(builder, value, int32, "");
+   min   = LLVMBuildZExt(builder, min, int32, "");
+   max   = LLVMBuildZExt(builder, max, int32, "");
 
    LLVMValueRef above =
-      LLVMBuildICmp(builder, LLVMIntUGE, value32, min, "above");
+      LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
    LLVMValueRef below =
-      LLVMBuildICmp(builder, LLVMIntULE, value32, max, "below");
+      LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
 
    LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
 
@@ -694,7 +696,7 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
       llvm_int32(tree_index(t)),
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), ""),
-      value32,
+      value,
       min,
       max,
       kind
@@ -2455,6 +2457,9 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
          cgen_array_dir(from, 0, value_ll),
          cgen_array_data_ptr(from, value_ll));
    }
+   else if ((from_k == T_INTEGER) && (to_k == T_INTEGER))
+      // Possibly change width
+      return LLVMBuildIntCast(builder, value_ll, llvm_type(to), "");
    else {
       // No conversion to perform
       return value_ll;
@@ -2774,16 +2779,33 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
 {
-   LLVMValueRef rhs = cgen_expr(tree_value(t), ctx);
-   type_t value_type = tree_type(tree_value(t));
+   tree_t value = tree_value(t);
+   type_t value_type = tree_type(value);
+
+   LLVMValueRef rhs = cgen_expr(value, ctx);
 
    tree_t target = tree_target(t);
+   type_t target_type = tree_type(target);
+
+   type_kind_t base_k = type_kind(type_base_recur(target_type));
+   if (base_k == T_INTEGER) {
+      range_t r = type_dim(target_type, 0);
+      LLVMValueRef min =
+         cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
+      LLVMValueRef max =
+         cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
+      LLVMValueRef kind = llvm_int32((r.kind == RANGE_TO)
+                                     ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO);
+      cgen_check_bounds(value, kind, rhs, min, max, ctx);
+   }
+
+   if (type_is_universal(value_type) && !cgen_is_real(value_type))
+      rhs = LLVMBuildIntCast(builder, rhs, llvm_type(target_type), "");
 
    LLVMValueRef lhs = cgen_var_lvalue(target, ctx);
 
-   type_t ty = tree_type(target);
-   if (type_is_array(ty))
-      cgen_array_copy(value_type, ty, rhs, lhs, NULL, ctx);
+   if (type_is_array(target_type))
+      cgen_array_copy(value_type, target_type, rhs, lhs, NULL, ctx);
    else
       LLVMBuildStore(builder, rhs, lhs);
 }

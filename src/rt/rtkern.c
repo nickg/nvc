@@ -416,6 +416,15 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    case BOUNDS_ENUM:
       fatal_at(loc, "value %d outside %s bounds %d to %d",
                value, type_pp(tree_type(t)), min, max);
+      break;
+
+   case BOUNDS_TYPE_TO:
+      fatal_at(loc, "value %d outside bounds %d to %d", value, min, max);
+      break;
+
+   case BOUNDS_TYPE_DOWNTO:
+      fatal_at(loc, "value %d outside bounds %d downto %d", value, max, min);
+      break;
    }
 }
 
