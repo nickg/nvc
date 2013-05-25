@@ -59,6 +59,13 @@ architecture test of top is
             i : in my_int );
     end component;
 
+    type int_vec is array (integer range <>) of integer;
+
+    component bar is
+        port (
+            i : in int_vec(1 to 10);
+            o : out int_vec(1 to 2) );
+    end component;
 
     signal x, y : my_int;
 begin
@@ -110,5 +117,52 @@ begin
         port map (
             a => 1,
             b => 2 );
+
+    b1: block is
+        signal x : int_vec(1 to 10);
+        signal y : int_vec(1 to 2);
+        signal k : integer;
+    begin
+
+        bar1: bar                       -- OK
+            port map (
+                o(1 to 10) => x(1 to 10),
+                i(1 to 2)  => y(1 to 2) );
+
+        bar2: bar                       -- OK
+            port map (
+                o(1 to 4)  => x(1 to 4),
+                o(5 to 10) => x(5 to 10),
+                i(1 to 2)  => y(1 to 2) );
+
+        bar3: bar
+            port map (
+                o(1)       => x(1),
+                o(2)       => x(2),
+                o(3 to 10) => x(3 to 10),
+                i          => y );
+
+        --bar4: bar
+        --    port map (
+        --        o(1)       => x(1),
+        --        o(2)       => x(k),     -- Error
+        --        o(3 to 10) => x(3 to 10),
+        --        i          => y );
+
+        --bar5: bar
+        --    port map (
+        --        o(k)       => x(1),     -- Error
+        --        o(2)       => x(2),
+        --        o(3 to 10) => x(3 to 10),
+        --        i          => y );
+
+        --bar6: bar
+        --    port map (
+        --        o(1)      => x(1),
+        --        o(2)      => x(2),
+        --        o(3 to k) => x(3 to 10),  -- Error
+        --        i         => y );
+
+    end block;
 
 end architecture;

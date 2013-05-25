@@ -969,7 +969,7 @@ generic_map
 ;
 
 port_map
-: tPORT tMAP tLPAREN  param_list tRPAREN { $$ = $4; }
+: tPORT tMAP tLPAREN param_list tRPAREN { $$ = $4; }
 | /* empty */ { $$ = NULL; }
 ;
 

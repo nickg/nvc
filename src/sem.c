@@ -4097,6 +4097,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
                           tree_actuals_t tree_As, tree_actual_t tree_A)
 {
    // Check there is an actual for each formal port or generic
+   // Rules for maps are described in LRM 93 section 5.2.1.2
 
    const int nformals = tree_Fs(unit);
    const int nactuals = tree_As(t);
@@ -4106,14 +4107,16 @@ static bool sem_check_map(tree_t t, tree_t unit,
    struct {
       tree_t decl;
       bool   have;
+      bool   partial;
    } formals[nformals];
 
    for (int i = 0; i < nformals; i++) {
-      formals[i].decl = tree_F(unit, i);
-      formals[i].have = false;
+      formals[i].decl    = tree_F(unit, i);
+      formals[i].have    = false;
+      formals[i].partial = false;
    }
 
-   for (unsigned i = 0; i < nactuals; i++) {
+   for (int i = 0; i < nactuals; i++) {
       tree_t p = tree_A(t, i);
       tree_t value = tree_value(p);
       tree_t decl = NULL;
@@ -4135,23 +4138,53 @@ static bool sem_check_map(tree_t t, tree_t unit,
       case P_NAMED:
          {
             tree_t name = tree_name(p);
-            assert(tree_kind(name) == T_REF);
+
+            tree_t ref = NULL;
+            switch (tree_kind(name)) {
+            case T_REF:
+               ref = name;
+               break;
+
+            case T_ARRAY_SLICE:
+               ref = tree_value(name);
+               break;
+
+            case T_FCALL:
+               {
+                  tree_t ref = tree_new(T_REF);
+                  tree_set_ident(ref, tree_ident(name));
+
+                  tree_change_kind(name, T_ARRAY_REF);
+                  tree_set_value(name, ref);
+               }
+               // Fall-through
+
+            case T_ARRAY_REF:
+               ref = tree_value(name);
+               break;
+
+            default:
+               assert(false);
+            }
+
+            assert(tree_kind(ref) == T_REF);
 
             for (int i = 0; i < nformals; i++) {
-               if (tree_ident(formals[i].decl) == tree_ident(name)) {
-                  if (formals[i].have)
+               if (tree_ident(formals[i].decl) == tree_ident(ref)) {
+                  if (formals[i].have && !formals[i].partial)
                      sem_error(value, "formal %s already has an actual",
                                istr(tree_ident(formals[i].decl)));
-                  formals[i].have = true;
+                  formals[i].have    = true;
+                  formals[i].partial = (tree_kind(name) != T_REF);
                   decl = formals[i].decl;
-                  tree_set_ref(name, decl);
+                  tree_set_ref(ref, decl);
                   break;
                }
             }
 
             if (decl == NULL)
                sem_error(value, "%s has no formal %s",
-                         istr(tree_ident(unit)), istr(tree_ident(name)));
+                         istr(tree_ident(unit)), istr(tree_ident(ref)));
             break;
          }
       }
