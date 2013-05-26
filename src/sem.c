@@ -1471,6 +1471,11 @@ static void sem_add_attributes(tree_t decl)
    type_t std_bool = sem_std_type("BOOLEAN");
 
    type_t type = tree_type(decl);
+
+   // Implicit dereference for access types
+   if (type_kind(type) == T_ACCESS)
+      type = type_access(type);
+
    type_kind_t kind = type_kind(type);
 
    if (kind == T_UARRAY) {

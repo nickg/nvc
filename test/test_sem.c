@@ -861,10 +861,10 @@ START_TEST(test_attr)
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
-      { 23, "Z has no attribute FOO" },
-      { 34, "expected attribute type INTEGER" },
-      { 35, "expected attribute type STRING" },
-      { 36, "undefined identifier Q" },
+      { 26, "Z has no attribute FOO" },
+      { 43, "expected attribute type INTEGER" },
+      { 44, "expected attribute type STRING" },
+      { 45, "undefined identifier Q" },
       { -1, NULL }
    };
    expect_errors(expect);
