@@ -623,7 +623,7 @@ START_TEST(test_types)
    r = type_dim(t, 0);
    fail_unless(tree_kind(r.left) == T_LITERAL);
    fail_unless(tree_kind(r.right) == T_ATTR_REF);
-   fail_unless(tree_ident(r.right) == ident_new("MY_INT"));
+   fail_unless(tree_ident(tree_name(r.right)) == ident_new("MY_INT"));
    fail_unless(tree_ident2(r.right) == ident_new("HIGH"));
 
    d = tree_decl(a, 7);

@@ -1009,10 +1009,14 @@ static bool sem_check_range(range_t *r, type_t context)
       assert(tree_kind(expr) == T_ATTR_REF
              || tree_kind(expr) == T_REF);
 
-      tree_t decl = scope_find(tree_ident(expr));
+      ident_t name =
+         (tree_kind(expr) == T_ATTR_REF)
+         ? tree_ident(tree_name(expr))
+         : tree_ident(expr);
+
+      tree_t decl = scope_find(name);
       if (decl == NULL)
-         sem_error(expr, "undefined identifier %s",
-                   istr(tree_ident(expr)));
+         sem_error(expr, "undefined identifier %s", istr(name));
 
       type_t type = tree_type(decl);
       type_kind_t kind = type_kind(type);
@@ -1035,11 +1039,11 @@ static bool sem_check_range(range_t *r, type_t context)
       case T_SUBTYPE:
          {
             tree_t a = tree_new(T_ATTR_REF);
-            tree_set_ident(a, tree_ident(expr));
+            tree_set_name(a, sem_make_ref(decl));
             tree_set_ident2(a, ident_new("LEFT"));
 
             tree_t b = tree_new(T_ATTR_REF);
-            tree_set_ident(b, tree_ident(expr));
+            tree_set_name(b, sem_make_ref(decl));
             tree_set_ident2(b, ident_new("RIGHT"));
 
             // If this is an unconstrained array then we can
@@ -3971,10 +3975,20 @@ static bool sem_check_array_slice(tree_t t)
 
 static bool sem_check_attr_ref(tree_t t)
 {
-   tree_t decl = scope_find(tree_ident(t));
+   tree_t name = tree_name(t), decl = NULL;
+   if ((tree_kind(name) == T_REF)
+       && (decl = scope_find(tree_ident(name)))
+       && (tree_kind(decl) == T_TYPE_DECL)) {
+      // Special case for attributes of types
+      tree_set_ref(name, decl);
+      tree_set_type(name, tree_type(decl));
+   }
+   else if (!sem_check(name))
+      return false;
 
-   if (decl == NULL)
-      sem_error(t, "undefined identifier %s", istr(tree_ident(t)));
+   assert(tree_kind(name) == T_REF);
+
+   decl = tree_ref(name);
 
    ident_t attr = tree_ident2(t);
 
@@ -4001,7 +4015,7 @@ static bool sem_check_attr_ref(tree_t t)
    tree_t a = tree_attr_tree(decl, attr);
    if (a == NULL)
       sem_error(t, "object %s has no attribute %s",
-                istr(tree_ident(t)), istr(attr));
+                istr(tree_ident(decl)), istr(attr));
 
    if (tree_kind(a) == T_FUNC_DECL) {
       type_t ftype = tree_type(a);

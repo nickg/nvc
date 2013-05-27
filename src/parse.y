@@ -2311,14 +2311,14 @@ name
 | name tTICK id
   {
      $$ = tree_new(T_ATTR_REF);
-     tree_set_ident($$, tree_ident($1) /* XXX */);
+     tree_set_name($$, $1);
      tree_set_ident2($$, $3);
      tree_set_loc($$, &@$);
   }
 | name tTICK tRANGE
   {
      $$ = tree_new(T_ATTR_REF);
-     tree_set_ident($$, tree_ident($1) /* XXX */);
+     tree_set_name($$, $1);
      tree_set_ident2($$, ident_new("RANGE"));
      tree_set_loc($$, &@$);
   }
