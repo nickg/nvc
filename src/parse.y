@@ -2093,12 +2093,16 @@ expr
   }
 | name
 | literal
-| selected_id tTICK aggregate
+| name tTICK aggregate
   {
      $$ = tree_new(T_QUALIFIED);
-     tree_set_ident($$, $1);
      tree_set_value($$, $3);
      tree_set_loc($$, &@$);
+
+     if (tree_kind($1) != T_REF)
+        parse_error(&@1, "invalid qualified expression");
+     else
+        tree_set_ident($$, tree_ident($1));
   }
 | aggregate
 | tNEW expr
@@ -2304,17 +2308,17 @@ name
      tree_set_ident($$, $1);
      tree_set_loc($$, &@$);
   }
-| selected_id tTICK id
+| name tTICK id
   {
      $$ = tree_new(T_ATTR_REF);
-     tree_set_ident($$, $1);
+     tree_set_ident($$, tree_ident($1) /* XXX */);
      tree_set_ident2($$, $3);
      tree_set_loc($$, &@$);
   }
-| selected_id tTICK tRANGE
+| name tTICK tRANGE
   {
      $$ = tree_new(T_ATTR_REF);
-     tree_set_ident($$, $1);
+     tree_set_ident($$, tree_ident($1) /* XXX */);
      tree_set_ident2($$, ident_new("RANGE"));
      tree_set_loc($$, &@$);
   }
