@@ -4180,7 +4180,14 @@ static bool sem_check_map(tree_t t, tree_t unit,
                break;
 
             case T_ARRAY_SLICE:
-               ref = tree_value(name);
+               {
+                  range_t r = tree_range(name);
+                  if (!sem_check_range(&r, sem_std_type("INTEGER")))
+                     return false;
+                  tree_set_range(name, r);
+
+                  ref = tree_value(name);
+               }
                break;
 
             case T_FCALL:
@@ -4194,7 +4201,16 @@ static bool sem_check_map(tree_t t, tree_t unit,
                // Fall-through
 
             case T_ARRAY_REF:
-               ref = tree_value(name);
+               {
+                  const int nparams = tree_params(name);
+                  for (int i = 0; i < nparams; i++) {
+                     tree_t value = tree_value(tree_param(name, i));
+                     if (!sem_check(value))
+                        return false;
+                  }
+
+                  ref = tree_value(name);
+               }
                break;
 
             default:
@@ -4219,6 +4235,10 @@ static bool sem_check_map(tree_t t, tree_t unit,
             if (decl == NULL)
                sem_error(value, "%s has no formal %s",
                          istr(tree_ident(unit)), istr(tree_ident(ref)));
+
+            if (!sem_static_name(name))
+               sem_error(name, "formal name must be static");
+
             break;
          }
       }
@@ -4227,6 +4247,9 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
       if ((tree_kind(value) == T_OPEN) && (tree_subkind(decl) != PORT_OUT))
          sem_error(value, "OPEN can only be used with OUT ports");
+
+      if (!sem_locally_static(value) && !sem_static_name(value))
+         sem_error(value, "actual must be locally static name");
    }
 
    for (int i = 0; i < nformals; i++) {
@@ -4320,6 +4343,8 @@ static bool sem_locally_static(tree_t t)
       return !type_eq(type, std_time);
    }
    else if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_ENUM_LIT))
+      return true;
+   else if (kind == T_OPEN)
       return true;
 
    // A constant reference with a locally static value

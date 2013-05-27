@@ -142,26 +142,40 @@ begin
                 o(3 to 10) => x(3 to 10),
                 i          => y );
 
-        --bar4: bar
-        --    port map (
-        --        o(1)       => x(1),
-        --        o(2)       => x(k),     -- Error
-        --        o(3 to 10) => x(3 to 10),
-        --        i          => y );
+        bar4: bar
+            port map (
+                o(1)       => x(1),
+                o(2)       => x(k),     -- Error
+                o(3 to 10) => x(3 to 10),
+                i          => y );
 
-        --bar5: bar
-        --    port map (
-        --        o(k)       => x(1),     -- Error
-        --        o(2)       => x(2),
-        --        o(3 to 10) => x(3 to 10),
-        --        i          => y );
+        bar5: bar
+            port map (
+                o(1)       => x(1),
+                o(q)       => x(2),     -- Error
+                o(3 to 10) => x(3 to 10),
+                i          => y );
 
-        --bar6: bar
-        --    port map (
-        --        o(1)      => x(1),
-        --        o(2)      => x(2),
-        --        o(3 to k) => x(3 to 10),  -- Error
-        --        i         => y );
+        bar6: bar
+            port map (
+                o(1)      => x(1),
+                o(2)      => x(2),
+                o(3 to u) => x(3 to 10),  -- Error
+                i         => y );
+
+        bar7: bar
+            port map (
+                o(k)       => x(1),     -- Error
+                o(2)       => x(2),
+                o(3 to 10) => x(3 to 10),
+                i          => y );
+
+        bar8: bar
+            port map (
+                o(1)      => x(1),
+                o(2)      => x(2),
+                o(3 to k) => x(3 to 10),  -- Error
+                i         => y );
 
     end block;
 
