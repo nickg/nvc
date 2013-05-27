@@ -123,3 +123,4 @@ elab6           normal
 elab7           normal
 bounds7         gold,fail
 arith2          gold,fail
+attr5           normal

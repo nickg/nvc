@@ -388,6 +388,9 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       tree_t dim   = tree_value(tree_param(t, 0));
       tree_t array = tree_value(tree_param(t, 1));
 
+      if (tree_kind(array) != T_REF)
+         return t;   // Cannot fold this
+
       literal_t dim_i;
       if ((type_kind(tree_type(array)) != T_UARRAY)
           && folded_int(dim, &dim_i)) {

@@ -56,6 +56,9 @@ struct type_set {
    struct type_set *down;
 };
 
+typedef tree_t (*get_fn_t)(tree_t);
+typedef void (*set_fn_t)(tree_t, tree_t);
+
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
 static bool sem_declare(tree_t decl);
@@ -3869,12 +3872,12 @@ static bool sem_check_record_ref(tree_t t)
    return true;
 }
 
-static type_t sem_implicit_dereference(tree_t t)
+static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set)
 {
    // Construct the implicit dereference when slicing or indexing arrays
    // through accesses
 
-   tree_t value = tree_value(t);
+   tree_t value = get(t);
 
    type_t type = tree_type(value);
    assert(type_kind(type) == T_ACCESS);
@@ -3886,7 +3889,7 @@ static type_t sem_implicit_dereference(tree_t t)
    tree_set_value(all, value);
    tree_set_type(all, access);
 
-   tree_set_value(t, all);
+   set(t, all);
 
    return access;
 }
@@ -3900,7 +3903,7 @@ static bool sem_check_array_ref(tree_t t)
    type_t type = tree_type(tree_value(t));
 
    if (type_kind(type) == T_ACCESS)
-      type = sem_implicit_dereference(t);
+      type = sem_implicit_dereference(t, tree_value, tree_set_value);
 
    if (!type_is_array(type))
       sem_error(t, "invalid array reference");
@@ -3945,7 +3948,7 @@ static bool sem_check_array_slice(tree_t t)
    type_t array_type = tree_type(tree_value(t));
 
    if (type_kind(array_type) == T_ACCESS)
-      array_type = sem_implicit_dereference(t);
+      array_type = sem_implicit_dereference(t, tree_value, tree_set_value);
 
    if (!type_is_array(array_type))
       sem_error(t, "type of slice prefix is not an array");
@@ -3985,6 +3988,12 @@ static bool sem_check_attr_ref(tree_t t)
    }
    else if (!sem_check(name))
       return false;
+
+   if (type_kind(tree_type(name)) == T_ACCESS) {
+      // Convert implicit dereference such as PTR'X to PTR.ALL'X
+      sem_implicit_dereference(t, tree_name, tree_set_name);
+      name = tree_name(t);
+   }
 
    switch (tree_kind(name)) {
    case T_REF:
