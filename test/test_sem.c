@@ -862,9 +862,9 @@ START_TEST(test_attr)
 
    const error_t expect[] = {
       { 26, "Z has no attribute FOO" },
-      { 43, "expected attribute type INTEGER" },
-      { 44, "expected attribute type STRING" },
-      { 45, "undefined identifier Q" },
+      { 44, "expected attribute type INTEGER" },
+      { 45, "expected attribute type STRING" },
+      { 46, "undefined identifier Q" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -2312,14 +2312,14 @@ name
   {
      $$ = tree_new(T_ATTR_REF);
      tree_set_name($$, $1);
-     tree_set_ident2($$, $3);
+     tree_set_ident($$, $3);
      tree_set_loc($$, &@$);
   }
 | name tTICK tRANGE
   {
      $$ = tree_new(T_ATTR_REF);
      tree_set_name($$, $1);
-     tree_set_ident2($$, ident_new("RANGE"));
+     tree_set_ident($$, ident_new("RANGE"));
      tree_set_loc($$, &@$);
   }
 | name tLPAREN param_list tRPAREN
@@ -2598,7 +2598,7 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
 static bool to_range_expr(tree_t t, range_t *r)
 {
    if (tree_kind(t) == T_ATTR_REF) {
-      ident_t a = tree_ident2(t);
+      ident_t a = tree_ident(t);
       if (icmp(a, "RANGE")) {
          r->kind  = RANGE_EXPR;
          r->left  = t;

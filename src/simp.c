@@ -138,7 +138,7 @@ static tree_t simp_attr_ref(tree_t t)
       tree_t fcall = tree_new(T_FCALL);
       tree_set_loc(fcall, tree_loc(t));
       tree_set_type(fcall, tree_type(t));
-      tree_set_ident(fcall, tree_ident2(t));
+      tree_set_ident(fcall, tree_ident(t));
       tree_set_ref(fcall, decl);
 
       const int nparams = tree_params(t);

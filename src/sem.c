@@ -1040,11 +1040,11 @@ static bool sem_check_range(range_t *r, type_t context)
          {
             tree_t a = tree_new(T_ATTR_REF);
             tree_set_name(a, sem_make_ref(decl));
-            tree_set_ident2(a, ident_new("LEFT"));
+            tree_set_ident(a, ident_new("LEFT"));
 
             tree_t b = tree_new(T_ATTR_REF);
             tree_set_name(b, sem_make_ref(decl));
-            tree_set_ident2(b, ident_new("RIGHT"));
+            tree_set_ident(b, ident_new("RIGHT"));
 
             // If this is an unconstrained array then we can
             // only find out the direction at runtime
@@ -3986,11 +3986,20 @@ static bool sem_check_attr_ref(tree_t t)
    else if (!sem_check(name))
       return false;
 
-   assert(tree_kind(name) == T_REF);
+   switch (tree_kind(name)) {
+   case T_REF:
+      decl = tree_ref(name);
+      break;
 
-   decl = tree_ref(name);
+   case T_ALL:
+      decl = tree_ref(tree_value(name));
+      break;
 
-   ident_t attr = tree_ident2(t);
+   default:
+      sem_error(t, "invalid attribute reference");
+   }
+
+   ident_t attr = tree_ident(t);
 
    if (icmp(attr, "range"))
       sem_error(t, "range expression not allowed here");
@@ -4035,13 +4044,10 @@ static bool sem_check_attr_ref(tree_t t)
       }
 
       if (!already_added) {
-         tree_t ref = sem_make_ref(decl);
-         tree_set_loc(ref, tree_loc(t));
-
          tree_t p = tree_new(T_PARAM);
-         tree_set_loc(p, tree_loc(ref));
+         tree_set_loc(p, tree_loc(name));
          tree_set_subkind(p, P_NAMED);
-         tree_set_value(p, ref);
+         tree_set_value(p, name);
          tree_set_name(p, sem_make_ref(tree_port(a, tree_ports(a) - 1)));
 
          tree_add_param(t, p);

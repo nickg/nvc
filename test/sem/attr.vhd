@@ -30,6 +30,7 @@ begin
         variable v : int_vec_ptr;
     begin
         assert v'length = 5;
+        assert v.all'length = 62;
     end process;
 
 end architecture;
