@@ -44,6 +44,12 @@ typedef enum {
    BIT_SHIFT_ROR,
 } bit_shift_kind_t;
 
+typedef enum {
+   NET_F_ACTIVE = (1 << 0),
+   NET_F_EVENT  = (1 << 1),
+   NET_F_UPDATE = (1 << 2)
+} net_flags_t;
+
 void rt_batch_exec(struct tree *e, uint64_t stop_time,
                    struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);

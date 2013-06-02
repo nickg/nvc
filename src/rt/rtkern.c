@@ -94,8 +94,8 @@ struct driver {
 struct net {
    uint64_t          resolved;
    uint64_t          last_value;
-   uint8_t           flags;
-   uint8_t           n_drivers;
+   net_flags_t       flags;
+   unsigned          n_drivers;
    struct driver    *drivers;
    struct sens_list *sensitive;
    sig_event_fn_t    event_cb;
@@ -603,6 +603,18 @@ void _name_attr(void *_sig, int which, struct uarray *u)
 #endif
 }
 
+int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
+{
+   TRACE("_test_net_flag nids[0]=%d n=%d flag=%d", nids[0], n, flag);
+
+   for (int i = 0; i < n; i++) {
+      if (nets[nids[i]].flags & flag)
+         return 1;
+   }
+
+   return 0;
+}
+
 void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
                 int32_t name_len, int8_t mode)
 {
@@ -1047,9 +1059,9 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
    else
       resolved = value;
 
-   int32_t new_flags = SIGNAL_F_ACTIVE;
+   int32_t new_flags = NET_F_ACTIVE;
    if (net->resolved != resolved)
-      new_flags |= SIGNAL_F_EVENT;
+      new_flags |= NET_F_EVENT;
 
    assert(n_active_nets < MAX_ACTIVE_NETS);
    active_nets[n_active_nets++] = net;
@@ -1059,13 +1071,13 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
    // will cause the event callback to be executed at the end of
    // the cycle
    struct signal *base = s - s->offset;
-   base->flags |= SIGNAL_F_UPDATE;
+   base->flags |= NET_F_UPDATE;
 #endif
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
-   if (new_flags & SIGNAL_F_EVENT) {
+   if (new_flags & NET_F_EVENT) {
       net->last_value = net->resolved;
       net->last_event = now;
    }
@@ -1074,7 +1086,7 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
    net->flags    |= new_flags;
 
    // Wake up any processes sensitive to this net
-   if (new_flags & SIGNAL_F_EVENT) {
+   if (new_flags & NET_F_EVENT) {
       struct sens_list *it, *next, *save = NULL;
       for (it = net->sensitive; it != NULL; it = next) {
          next = it->next;
@@ -1198,12 +1210,12 @@ static void rt_cycle(void)
    for (unsigned i = 0; i < n_active_nets; i++) {
       struct net *net = active_nets[i];
       //struct signal *base = s - s->offset;
-      net->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
+      net->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
 #if 0
       if (unlikely((base->event_cb != NULL)
-                   && (base->flags & SIGNAL_F_UPDATE))) {
+                   && (base->flags & NET_F_UPDATE))) {
          (*base->event_cb)(now, s->decl);
-         base->flags &= ~SIGNAL_F_UPDATE;
+         base->flags &= ~NET_F_UPDATE;
       }
 #endif
    }
@@ -1274,6 +1286,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_endfile", _endfile);
    jit_bind_fn("_bounds_fail", _bounds_fail);
    jit_bind_fn("_bit_shift", _bit_shift);
+   jit_bind_fn("_test_net_flag", _test_net_flag);
 
    trace_on = opt_get_int("rt_trace_en");
 

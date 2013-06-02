@@ -1164,47 +1164,26 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
    return nets;
 }
 
-static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
+static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag)
 {
-   LLVMValueRef nets = cgen_signal_nets(signal);
-   LLVMValueRef bit = llvm_int8(flag);
-   LLVMValueRef ptr =
-      LLVMBuildStructGEP(builder, nets, SIGNAL_FLAGS, "");
-   LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
-   LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
-   return LLVMBuildICmp(builder, LLVMIntEQ, masked, bit, "");
-}
+   tree_t decl = tree_ref(ref);
+   type_t type = tree_type(decl);
 
-static LLVMValueRef cgen_array_signal_flag(tree_t signal, int flag)
-{
-   // Need to OR the flag for each sub-element
+   LLVMValueRef nets = cgen_signal_nets(decl);
 
-   LLVMValueRef bit = llvm_int8(flag);
-
-   int64_t low, high;
-   range_bounds(type_dim(tree_type(signal), 0), &low, &high);
-
-   LLVMValueRef result = llvm_int8(0);
-   for (int i = 0; i < high - low + 1; i++) {
-      LLVMValueRef struct_ptr =
-         cgen_array_signal_ptr(signal, llvm_int32(i));
-      LLVMValueRef flags_ptr =
-         LLVMBuildStructGEP(builder, struct_ptr, SIGNAL_FLAGS, "");
-      LLVMValueRef deref = LLVMBuildLoad(builder, flags_ptr, "");
-      LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
-      result = LLVMBuildOr(builder, result, masked, "");
-   }
-
-   return LLVMBuildICmp(builder, LLVMIntEQ, result, bit, "");
-}
-
-static LLVMValueRef cgen_signal_flag(tree_t ref, int flag)
-{
-   tree_t sig_decl = tree_ref(ref);
-   if (type_kind(tree_type(sig_decl)) == T_CARRAY)
-      return cgen_array_signal_flag(sig_decl, flag);
+   LLVMValueRef n_elems;
+   if (type_is_array(type))
+      n_elems = cgen_array_len(type, 0, nets);
    else
-      return cgen_scalar_signal_flag(sig_decl, flag);
+      n_elems = llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      n_elems,
+      llvm_int32(flag)
+   };
+   return LLVMBuildCall(builder, llvm_fn("_test_net_flag"),
+                        args, ARRAY_LEN(args), "");
 }
 
 static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
@@ -1601,9 +1580,9 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       tree_t p0 = tree_value(tree_param(t, 0));
 
       if (icmp(builtin, "event"))
-         return cgen_signal_flag(p0, SIGNAL_F_EVENT);
+         return cgen_net_flag(p0, NET_F_EVENT);
       else if (icmp(builtin, "active"))
-         return cgen_signal_flag(p0, SIGNAL_F_ACTIVE);
+         return cgen_net_flag(p0, NET_F_ACTIVE);
       else if (icmp(builtin, "last_value"))
          return cgen_last_value(p0, ctx);
       else if (icmp(builtin, "agg_low"))
@@ -4674,6 +4653,17 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _bit_shift_args,
                                     ARRAY_LEN(_bit_shift_args),
+                                    false));
+
+   LLVMTypeRef _test_net_flag_args[] = {
+      llvm_void_ptr(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_test_net_flag",
+                   LLVMFunctionType(LLVMInt1Type(),
+                                    _test_net_flag_args,
+                                    ARRAY_LEN(_test_net_flag_args),
                                     false));
 }
 

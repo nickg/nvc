@@ -18,6 +18,8 @@
 #ifndef INC_RT_SIGNAL_H
 #define INC_RT_SIGNAL_H
 
+// XXX: this file is deprecated
+
 // Fixed fields in signal structure
 enum {
    SIGNAL_RESOLVED,
@@ -33,13 +35,6 @@ enum {
    SIGNAL_LAST_EVENT,
 
    SIGNAL_N_FIELDS
-};
-
-// Signal flags
-enum {
-   SIGNAL_F_ACTIVE = (1 << 0),
-   SIGNAL_F_EVENT  = (1 << 1),
-   SIGNAL_F_UPDATE = (1 << 2)
 };
 
 #endif // RT_SIGNAL_H
