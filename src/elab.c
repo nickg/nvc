@@ -196,7 +196,9 @@ static unsigned elab_signal_width(tree_t decl)
 
    type_t type = tree_type(decl);
    if (type_is_array(type)) {
-      assert(false);
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      return high - low + 1;
    }
    else
       return 1;
@@ -354,19 +356,16 @@ static void elab_nets(tree_t decl, const elab_ctx_t *ctx)
 {
    // Assign net IDs to each sub-element of a signal declaration
 
-   type_t type = tree_type(decl);
-
    if (tree_nets(decl) != 0) {
       // Nets have already been assigned e.g. from a port map
    }
-   else if (type_is_array(type)) {
-      assert(false);
-   }
    else {
-      // Scalar signals have only one net ID
-      printf("assign scalar %s net %d\n",
-             istr(tree_ident(decl)), *(ctx->next_net));
-      tree_add_net(decl, (*ctx->next_net)++);
+      const int width = elab_signal_width(decl);
+      for (int i = 0; i < width; i++) {
+         printf("assign %s[%d] net %d\n", istr(tree_ident(decl)),
+                i, *(ctx->next_net));
+         tree_add_net(decl, (*ctx->next_net)++);
+      }
    }
 }
 

@@ -208,6 +208,12 @@ static unsigned bit_width(type_t t)
    }
 }
 
+static unsigned byte_width(type_t t)
+{
+   const int bits = bit_width(t);
+   return (bits / 8) + ((bits % 8 != 0) ? 1 : 0);
+}
+
 static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
 {
    // Unconstrained arrays are represented by a structure
@@ -895,7 +901,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    }
    else {
       width = bit_width(src_type);
-      const int b = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+      const int b = byte_width(src_type);
       bytes = llvm_int32(b);
       align = b;
    }
@@ -1137,8 +1143,7 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
       ? tmp
       : LLVMBuildGEP(builder, tmp, indexes, ARRAY_LEN(indexes), "");
 
-   int width = bit_width(type_elem(type));
-   int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+   const int bytes = byte_width(type_elem(type));
 
    LLVMValueRef args[] = {
       llvm_void_cast(p_signal),
@@ -1861,14 +1866,10 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
-static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_scalar_signal_ref(LLVMValueRef nets, type_t type,
+                                           cgen_ctx_t *ctx)
 {
-   LLVMValueRef nets = cgen_signal_nets(decl);
-
-   type_t type = tree_type(decl);
-
-   const int width = bit_width(type);
-   const int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+   const int bytes = byte_width(type);
 
    LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(type), "tmp");
 
@@ -1915,10 +1916,11 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    case T_SIGNAL_DECL:
       if (cgen_get_class(decl) == C_SIGNAL) {
          type_t type = tree_type(decl);
+         LLVMValueRef nets = cgen_signal_nets(decl);
          if (type_is_array(type))
-            return cgen_vec_load(cgen_signal_nets(decl), type, type, false, ctx);
+            return cgen_vec_load(nets, type, type, false, ctx);
          else
-            return cgen_scalar_signal_ref(decl, ctx);
+            return cgen_scalar_signal_ref(nets, type, ctx);
       }
       else {
          LLVMValueRef var = cgen_get_var(decl, ctx);
@@ -2015,33 +2017,28 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       {
          assert(decl != NULL);
 
-         LLVMValueRef signal;
+         LLVMValueRef nets;
          if (type_kind(type) == T_UARRAY) {
             // Unwrap array to signal array
             array = LLVMBuildExtractValue(builder, array, 0, "aptr");
 
             LLVMValueRef indexes[] = { idx };
-            signal = LLVMBuildGEP(builder, array,
-                                  indexes, ARRAY_LEN(indexes), "");
+            nets = LLVMBuildGEP(builder, array,
+                                indexes, ARRAY_LEN(indexes), "");
          }
          else {
             LLVMValueRef indexes[] = { llvm_int32(0), idx };
-            signal = LLVMBuildGEP(builder, array,
-                                  indexes, ARRAY_LEN(indexes), "");
+            nets = LLVMBuildGEP(builder, array,
+                                indexes, ARRAY_LEN(indexes), "");
          }
 
          type_t elem_type = type_elem(type);
          if (type_is_array(elem_type)) {
             // Load this sub-array into a temporary variable
-            return cgen_vec_load(signal, elem_type, elem_type, false, ctx);
+            return cgen_vec_load(nets, elem_type, elem_type, false, ctx);
          }
-         else {
-            LLVMValueRef ptr =
-               LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
-            LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
-            return LLVMBuildIntCast(builder, deref,
-                                    llvm_type(tree_type(t)), "");
-         }
+         else
+            return cgen_scalar_signal_ref(nets, elem_type, ctx);
       }
 
    default:
