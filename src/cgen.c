@@ -4278,18 +4278,19 @@ static void cgen_reset_function(tree_t t)
       if (!tree_has_value(d))
          continue;
 
-      // Schedule the initial assignment to the signal
+      // Set the initial value of the net
       LLVMValueRef val = cgen_expr(tree_value(d), &ctx);
 
-      LLVMValueRef p_signal = cgen_array_signal_ptr(d, llvm_int32(0));
-
       type_t type = tree_type(d);
+
+      // Assuming array nets are sequential
+      netid_t nid = tree_net(d, 0);
 
       if (type_is_array(type)) {
          LLVMValueRef n_elems = cgen_array_len_recur(type, val);
 
          LLVMValueRef args[] = {
-            llvm_void_cast(p_signal),
+            llvm_int32(nid),
             llvm_void_cast(val),
             n_elems,
             cgen_array_elem_size(type)
@@ -4299,7 +4300,7 @@ static void cgen_reset_function(tree_t t)
       }
       else {
          LLVMValueRef args[] = {
-            llvm_void_cast(p_signal),
+            llvm_int32(nid),
             LLVMBuildZExt(builder, val, LLVMInt64Type(), "")
          };
          LLVMBuildCall(builder, llvm_fn("_set_initial"),
@@ -4440,7 +4441,7 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _set_initial_args[] = {
-      llvm_void_ptr(),
+      LLVMInt32Type(),
       LLVMInt64Type()
    };
    LLVMAddFunction(module, "_set_initial",
@@ -4450,7 +4451,7 @@ static void cgen_support_fns(void)
                                     false));
 
    LLVMTypeRef _set_initial_vec_args[] = {
-      llvm_void_ptr(),
+      LLVMInt32Type(),
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type()

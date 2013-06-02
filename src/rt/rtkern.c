@@ -108,10 +108,8 @@ struct signal {
 struct net {
    uint64_t          resolved;
    uint64_t          last_value;
-   tree_t            decl;
    uint8_t           flags;
    uint8_t           n_drivers;
-   uint16_t          offset;
    struct driver    *drivers;
    struct sens_list *sensitive;
    sig_event_fn_t    event_cb;
@@ -337,28 +335,29 @@ void _sched_event(void *_sig, int32_t n)
    }
 }
 
-void _set_initial_vec(void *_sig, void *values, int32_t n, int32_t size)
+void _set_initial_vec(int32_t nid, void *values, int32_t n, int32_t size)
 {
-   struct signal *sig = _sig;
+   struct net *net = &(nets[nid]);
 
-   TRACE("_set_initial_vec %p values=%p n=%d size=%d", sig, values, n, size);
+   TRACE("_set_initial_vec net=%d values=%p n=%d size=%d",
+         nid, values, n, size);
 
 #define SET_INITIAL_VEC(type) do {                      \
       const type *vp = values;                          \
       for (int i = 0; i < n; i++)                       \
-         sig[i].resolved = sig[i].last_value = vp[i];   \
+         net[i].resolved = net[i].last_value = vp[i];   \
    } while (0)
 
    FOR_ALL_SIZES(size, SET_INITIAL_VEC);
 }
 
-void _set_initial(void *_sig, int64_t value)
+void _set_initial(int32_t nid, int64_t value)
 {
-   struct signal *sig = _sig;
+   struct net *net = &(nets[nid]);
 
-   TRACE("_set_initial %s value=%"PRIx64, fmt_sig(sig), value);
+   TRACE("_set_initial net=%d value=%"PRIx64, nid, value);
 
-   sig->resolved = sig->last_value = value;
+   net->resolved = net->last_value = value;
 }
 
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
@@ -857,6 +856,27 @@ static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
    s->offset    = offset;
 }
 
+static void rt_reset_net(struct net *s)
+{
+   if (s->drivers != NULL) {
+      for (int i = 0; i < s->n_drivers; i++) {
+         struct waveform *w, *wnext;
+         w = s->drivers[i].waveforms;
+         do {
+            wnext = w->next;
+            rt_free(waveform_stack, w);
+         } while ((w = wnext) != NULL);
+      }
+
+      free(s->drivers);
+   }
+
+   s->sensitive = NULL;
+   s->drivers   = NULL;
+   s->n_drivers = 0;
+   s->event_cb  = NULL;
+}
+
 static void rt_setup(tree_t top)
 {
    now = 0;
@@ -873,11 +893,14 @@ static void rt_setup(tree_t top)
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
 
-   if (nets == NULL) {
-      const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
-      assert(nnets != -1);
+   const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
+   assert(nnets != -1);
+
+   if (nets == NULL)
       nets = xmalloc(sizeof(struct net) * nnets);
-   }
+
+   for (int i = 0; i < nnets; i++)
+      rt_reset_net(&(nets[i]));
 
    const int ndecls = tree_decls(top);
    for (int i = 0; i < ndecls; i++) {
