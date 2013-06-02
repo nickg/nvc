@@ -1,7 +1,7 @@
-entity last_value is
+entity attr6 is
 end entity;
 
-architecture test of last_value is
+architecture test of attr6 is
     signal x : integer := 5;
     signal y : bit_vector(0 to 3);
 begin
@@ -14,7 +14,7 @@ begin
         assert x'last_value = 5;
         wait for 1 ns;
         assert x'last_value = 5;
-        assert x'last_event = 0 ns;
+        assert x'last_event = 1 ns;
         x <= 2;
         wait for 1 ns;
         assert x = 2;

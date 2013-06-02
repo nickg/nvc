@@ -427,7 +427,7 @@ void _div_zero(int32_t where, const char *module)
    fatal_at(tree_loc(t), "division by zero");
 }
 
-uint64_t _std_standard_now(void)
+int64_t _std_standard_now(void)
 {
    return now;
 }
@@ -601,6 +601,20 @@ void _name_attr(void *_sig, int which, struct uarray *u)
 #else
    assert(false);
 #endif
+}
+
+int64_t _last_event(const int32_t *nids, int32_t n)
+{
+   TRACE("_last_event nids[0]=%d n=%d", nids[0], n);
+
+   int64_t last = INT64_MAX;
+   for (int i = 0; i < n; i++) {
+      const uint64_t this = nets[nids[i]].last_event;
+      if (this < now)
+         last = MIN(last, now - this);
+   }
+
+   return last;
 }
 
 int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
@@ -841,10 +855,11 @@ static void rt_reset_net(struct net *net)
       free(net->drivers);
    }
 
-   net->sensitive = NULL;
-   net->drivers   = NULL;
-   net->n_drivers = 0;
-   net->event_cb  = NULL;
+   net->sensitive  = NULL;
+   net->drivers    = NULL;
+   net->n_drivers  = 0;
+   net->event_cb   = NULL;
+   net->last_event = INT64_MAX;
 }
 
 static void rt_setup(tree_t top)
@@ -1287,6 +1302,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_bounds_fail", _bounds_fail);
    jit_bind_fn("_bit_shift", _bit_shift);
    jit_bind_fn("_test_net_flag", _test_net_flag);
+   jit_bind_fn("_last_event", _last_event);
 
    trace_on = opt_get_int("rt_trace_en");
 

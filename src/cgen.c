@@ -1505,10 +1505,23 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
 
 static LLVMValueRef cgen_last_event(tree_t t)
 {
-   LLVMValueRef signal_struct = cgen_signal_nets(tree_ref(t));
-   LLVMValueRef ptr =
-      LLVMBuildStructGEP(builder, signal_struct, SIGNAL_LAST_EVENT, "");
-   return LLVMBuildLoad(builder, ptr, "");
+   tree_t decl = tree_ref(t);
+   type_t type = tree_type(decl);
+
+   LLVMValueRef nets = cgen_signal_nets(decl);
+
+   LLVMValueRef n_elems;
+   if (type_is_array(type))
+      n_elems = cgen_array_len(type, 0, nets);
+   else
+      n_elems = llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      n_elems
+   };
+   return LLVMBuildCall(builder, llvm_fn("_last_event"),
+                        args, ARRAY_LEN(args), "");
 }
 
 static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
@@ -4660,6 +4673,16 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMInt1Type(),
                                     _test_net_flag_args,
                                     ARRAY_LEN(_test_net_flag_args),
+                                    false));
+
+   LLVMTypeRef _last_event_args[] = {
+      llvm_void_ptr(),
+      LLVMInt32Type()
+   };
+   LLVMAddFunction(module, "_last_event",
+                   LLVMFunctionType(LLVMInt64Type(),
+                                    _last_event_args,
+                                    ARRAY_LEN(_last_event_args),
                                     false));
 }
 
