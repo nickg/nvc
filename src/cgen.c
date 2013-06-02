@@ -4254,8 +4254,12 @@ static void cgen_reset_function(tree_t t)
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
 
+      // Internal signals that were generated from ports will not have
+      // an initial value
+      if (!tree_has_value(d))
+         continue;
+
       // Schedule the initial assignment to the signal
-      assert(tree_has_value(d));
       LLVMValueRef val = cgen_expr(tree_value(d), &ctx);
 
       LLVMValueRef p_signal = cgen_array_signal_ptr(d, llvm_int32(0));

@@ -172,14 +172,16 @@ static tree_t rewrite_refs(tree_t t, void *context)
    return t;
 }
 
-static void elab_add_alias(tree_t arch, tree_t decl, ident_t ident)
+static tree_t elab_port_to_signal(tree_t arch, tree_t port)
 {
-   tree_t a = tree_new(T_ALIAS);
-   tree_set_ident(a, ident);
-   tree_set_value(a, decl);
-   tree_set_type(a, tree_type(decl));
+   assert(tree_kind(port) == T_PORT_DECL);
 
-   tree_add_decl(arch, a);
+   tree_t s = tree_new(T_SIGNAL_DECL);
+   tree_set_ident(s, tree_ident(port));
+   tree_set_type(s, tree_type(port));
+
+   tree_add_decl(arch, s);
+   return s;
 }
 
 static void elab_copy_context(tree_t dest, tree_t src)
@@ -188,12 +190,40 @@ static void elab_copy_context(tree_t dest, tree_t src)
       tree_add_context(dest, tree_context(src, i));
 }
 
+static unsigned elab_signal_width(tree_t decl)
+{
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   type_t type = tree_type(decl);
+   if (type_is_array(type)) {
+      assert(false);
+   }
+   else
+      return 1;
+}
+
 static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
 {
    switch (tree_kind(actual)) {
    case T_REF:
-      elab_add_alias(arch, actual, tree_ident(formal));
-      return tree_ref(actual);
+      {
+         // Replace the formal port with a signal and connect its nets to
+         // those of the actual
+         tree_t s   = elab_port_to_signal(arch, formal);
+         tree_t ref = tree_ref(actual);
+
+         const int width = elab_signal_width(s);
+         assert(width == elab_signal_width(ref));
+         assert(tree_nets(ref) == width);
+
+         for (int i = 0; i < width; i++) {
+            printf("map %s[%d] -> %s[%d] net %d\n", istr(tree_ident(s)), i,
+                   istr(tree_ident(ref)), i, tree_net(ref, i));
+            tree_add_net(s, tree_net(ref, i));
+         }
+
+         return s;
+      }
 
    case T_LITERAL:
       return actual;
@@ -325,13 +355,14 @@ static void elab_nets(tree_t decl, elab_ctx_t *ctx)
 
    type_t type = tree_type(decl);
 
-   assert(tree_nets(decl) == 0);
-
-   if (type_is_array(type)) {
+   if (tree_nets(decl) != 0) {
+      // Nets have already been assigned e.g. from a port map
+   }
+   else if (type_is_array(type)) {
       assert(false);
    }
    else {
-      // Scalar so has only one net ID
+      // Scalar signals have only one net ID
       printf("assign scalar %s net %d\n",
              istr(tree_ident(decl)), ctx->next_net);
       tree_add_net(decl, (ctx->next_net)++);
