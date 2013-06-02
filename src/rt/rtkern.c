@@ -91,20 +91,6 @@ struct driver {
    struct waveform *waveforms;
 };
 
-struct signal {
-   uint64_t          resolved;
-   uint64_t          last_value;
-   tree_t            decl;
-   uint8_t           flags;
-   uint8_t           n_drivers;
-   uint16_t          offset;
-   struct driver    *drivers;
-   struct sens_list *sensitive;
-   sig_event_fn_t    event_cb;
-   resolution_fn_t   resolution;
-   uint64_t          last_event;
-};
-
 struct net {
    uint64_t          resolved;
    uint64_t          last_value;
@@ -147,10 +133,10 @@ static struct net       *nets = NULL;
 
 static heap_t        eventq_heap = NULL;
 static size_t        n_procs = 0;
+static int           n_nets = 0;
 static uint64_t      now = 0;
 static int           iteration = -1;
 static bool          trace_on = false;
-static ident_t       i_signal = NULL;
 static tree_rd_ctx_t tree_rd_ctx = NULL;
 static struct rusage ready_rusage;
 static jmp_buf       fatal_jmp;
@@ -192,6 +178,7 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
+#if 0
 static int array_size(type_t type)
 {
    if (type_is_array(type)) {
@@ -202,6 +189,7 @@ static int array_size(type_t type)
    else
       return 1;
 }
+#endif
 
 static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
 {
@@ -233,6 +221,7 @@ static const char *fmt_time(uint64_t t)
    return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
 }
 
+#if 0
 static const char *fmt_sig(struct signal *sig)
 {
    static const int BUF_SZ = 256;
@@ -254,6 +243,7 @@ static const char *fmt_sig(struct signal *sig)
    }
    return buf;
 }
+#endif
 
 static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 {
@@ -584,6 +574,7 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 
 void _name_attr(void *_sig, int which, struct uarray *u)
 {
+#if 0
    struct signal *sig = _sig;
    ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
@@ -607,6 +598,9 @@ void _name_attr(void *_sig, int which, struct uarray *u)
    u->dims[0].left  = 0;
    u->dims[0].right = len - 1;
    u->dims[0].dir   = RANGE_TO;
+#else
+   assert(false);
+#endif
 }
 
 void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
@@ -820,29 +814,6 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
-static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
-{
-   if (s->drivers != NULL) {
-      for (int i = 0; i < s->n_drivers; i++) {
-         struct waveform *w, *wnext;
-         w = s->drivers[i].waveforms;
-         do {
-            wnext = w->next;
-            rt_free(waveform_stack, w);
-         } while ((w = wnext) != NULL);
-      }
-
-      free(s->drivers);
-   }
-
-   s->decl      = decl;
-   s->sensitive = NULL;
-   s->drivers   = NULL;
-   s->n_drivers = 0;
-   s->event_cb  = NULL;
-   s->offset    = offset;
-}
-
 static void rt_reset_net(struct net *net)
 {
    if (net->drivers != NULL) {
@@ -880,39 +851,16 @@ static void rt_setup(tree_t top)
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
 
-   const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
-   assert(nnets != -1);
+   n_nets = tree_attr_int(top, ident_new("nnets"), -1);
+   assert(n_nets != -1);
 
    if (nets == NULL) {
-      nets = xmalloc(sizeof(struct net) * nnets);
-      memset(nets, '\0', sizeof(struct net) * nnets);
+      nets = xmalloc(sizeof(struct net) * n_nets);
+      memset(nets, '\0', sizeof(struct net) * n_nets);
    }
 
-   for (int i = 0; i < nnets; i++)
+   for (int i = 0; i < n_nets; i++)
       rt_reset_net(&(nets[i]));
-
-   const int ndecls = tree_decls(top);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
-
-      struct signal *s = jit_var_ptr(istr(tree_ident(d)), true);
-      tree_add_attr_ptr(d, i_signal, s);
-
-      type_t type = tree_type(d);
-      if (type_is_array(type)) {
-         int total = array_size(type);
-         for (unsigned j = 0; j < total; j++) {
-            rt_reset_signal(&s[j], d, j);
-            TRACE("signal %s at %p", fmt_sig(&s[j]), &s[j]);
-         }
-      }
-      else {
-         rt_reset_signal(s, d, 0);
-         TRACE("signal %s at %p", fmt_sig(s), s);
-      }
-   }
 
    const int nstmts = tree_stmts(top);
    for (int i = 0; i < nstmts; i++) {
@@ -1306,8 +1254,6 @@ static tree_t rt_recall_tree(const char *unit, int32_t where)
 
 static void rt_one_time_init(void)
 {
-   i_signal = ident_new("signal");
-
    jit_bind_fn("_std_standard_now", _std_standard_now);
    jit_bind_fn("_sched_process", _sched_process);
    jit_bind_fn("_sched_waveform", _sched_waveform);
@@ -1337,21 +1283,21 @@ static void rt_one_time_init(void)
    tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
 }
 
-static void rt_cleanup_signal(struct signal *sig)
+static void rt_cleanup_net(struct net *net)
 {
-   for (int j = 0; j < sig->n_drivers; j++) {
-      while (sig->drivers[j].waveforms != NULL) {
-         struct waveform *next = sig->drivers[j].waveforms->next;
-         rt_free(waveform_stack, sig->drivers[j].waveforms);
-         sig->drivers[j].waveforms = next;
+   for (int j = 0; j < net->n_drivers; j++) {
+      while (net->drivers[j].waveforms != NULL) {
+         struct waveform *next = net->drivers[j].waveforms->next;
+         rt_free(waveform_stack, net->drivers[j].waveforms);
+         net->drivers[j].waveforms = next;
       }
    }
-   free(sig->drivers);
+   free(net->drivers);
 
-   while (sig->sensitive) {
-      struct sens_list *next = sig->sensitive->next;
-      rt_free(sens_list_stack, sig->sensitive);
-      sig->sensitive = next;
+   while (net->sensitive) {
+      struct sens_list *next = net->sensitive->next;
+      rt_free(sens_list_stack, net->sensitive);
+      net->sensitive = next;
    }
 }
 
@@ -1365,23 +1311,8 @@ static void rt_cleanup(tree_t top)
    heap_free(eventq_heap);
    eventq_heap = NULL;
 
-   const int ndecls = tree_decls(top);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
-
-      struct signal *sig = tree_attr_ptr(d, i_signal);
-
-      type_t type = tree_type(d);
-      if (type_is_array(type)) {
-         int size = array_size(type);
-         for (unsigned i = 0; i < size; i++)
-            rt_cleanup_signal(&sig[i]);
-      }
-      else
-         rt_cleanup_signal(sig);
-   }
+   for (int i = 0; i < n_nets; i++)
+      rt_cleanup_net(&(nets[i]));
 
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
@@ -1472,6 +1403,7 @@ static void rt_slave_run(slave_run_msg_t *msg)
 
 static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
 {
+#if 0
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
@@ -1499,6 +1431,9 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
    slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
 
    free(reply);
+#else
+   assert(false);
+#endif
 }
 
 static void rt_slave_now(void)
@@ -1512,6 +1447,7 @@ static void rt_slave_now(void)
 
 static void rt_slave_watch_cb(uint64_t now, tree_t decl)
 {
+#if 0
    struct signal *base = tree_attr_ptr(decl, i_signal);
 
    event_watch_msg_t event = {
@@ -1522,6 +1458,9 @@ static void rt_slave_watch_cb(uint64_t now, tree_t decl)
    };
    fmt_time_r(event.now_text, sizeof(event.now_text), now);
    slave_post_msg(EVENT_WATCH, &event, sizeof(event));
+#else
+   assert(false);
+#endif
 }
 
 static void rt_slave_watch(slave_watch_msg_t *msg)
@@ -1595,16 +1534,21 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
 void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 {
+#if 0
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
    struct signal *sig = tree_attr_ptr(s, i_signal);
    assert(sig != NULL);
 
    sig->event_cb = fn;
+#else
+   assert(false);
+#endif
 }
 
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max)
 {
+#if 0
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
    type_t type = tree_type(decl);
@@ -1623,4 +1567,7 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max)
       buf[i] = base[i].resolved;
 
    return n_vals;
+#else
+   assert(false);
+#endif
 }
