@@ -161,9 +161,9 @@ static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
 
-#define MAX_ACTIVE_SIGS 128
-static struct net *active_signals[MAX_ACTIVE_SIGS];
-static unsigned    n_active_signals = 0;
+#define MAX_ACTIVE_NETS 128
+static struct net *active_nets[MAX_ACTIVE_NETS];
+static unsigned    n_active_nets = 0;
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
 static void deltaq_insert_driver(uint64_t delta, struct net *net,
@@ -1103,8 +1103,8 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
    if (net->resolved != resolved)
       new_flags |= SIGNAL_F_EVENT;
 
-   assert(n_active_signals < MAX_ACTIVE_SIGS);
-   active_signals[n_active_signals++] = net;
+   assert(n_active_nets < MAX_ACTIVE_NETS);
+   active_nets[n_active_nets++] = net;
 
 #if 0
    // Set the update flag on the first element of the vector which
@@ -1247,19 +1247,19 @@ static void rt_cycle(void)
       resume = next;
    }
 
+   for (unsigned i = 0; i < n_active_nets; i++) {
+      struct net *net = active_nets[i];
+      //struct signal *base = s - s->offset;
+      net->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
 #if 0
-   for (unsigned i = 0; i < n_active_signals; i++) {
-      struct signal *s = active_signals[i];
-      struct signal *base = s - s->offset;
-      s->flags &= ~(SIGNAL_F_ACTIVE | SIGNAL_F_EVENT);
       if (unlikely((base->event_cb != NULL)
                    && (base->flags & SIGNAL_F_UPDATE))) {
          (*base->event_cb)(now, s->decl);
          base->flags &= ~SIGNAL_F_UPDATE;
       }
-   }
 #endif
-   n_active_signals = 0;
+   }
+   n_active_nets = 0;
 }
 
 static void rt_load_unit(const char *name)
