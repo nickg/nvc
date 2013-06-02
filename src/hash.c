@@ -19,6 +19,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 struct hash {
    unsigned     size;
@@ -30,6 +31,8 @@ struct hash {
 
 static inline int hash_slot(hash_t *h, const void *key)
 {
+   assert(key != NULL);
+
    uintptr_t uptr = (uintptr_t)key;
 
    // Bottom two bits will always be zero with 32-bit pointers

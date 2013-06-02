@@ -310,10 +310,11 @@ static int dump_cmd(int argc, char **argv)
    static struct option long_options[] = {
       {"elab", no_argument, 0, 'e'},
       {"body", no_argument, 0, 'b'},
+      {"nets", no_argument, 0, 'n'},
       {0, 0, 0, 0}
    };
 
-   bool add_elab = false, add_body = false;
+   bool add_elab = false, add_body = false, nets = false;
    int c, index = 0;
    const char *spec = "eb";
    optind = 1;
@@ -330,6 +331,10 @@ static int dump_cmd(int argc, char **argv)
          break;
       case 'b':
          add_body = true;
+         break;
+      case 'n':
+         add_elab = true;
+         nets = true;
          break;
       default:
          abort();
@@ -348,7 +353,7 @@ static int dump_cmd(int argc, char **argv)
       tree_t top = lib_get(lib_work(), name);
       if (top == NULL)
          fatal("%s not analysed", istr(name));
-      dump(top);
+      (nets ? dump_nets : dump)(top);
    }
 
    return EXIT_SUCCESS;
@@ -398,6 +403,7 @@ static void usage(void)
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
+          "     --nets\t\tShow mapping from signals to nets\n"
           "\n"
           "Report bugs to %s\n",
           PACKAGE, PACKAGE_BUGREPORT);

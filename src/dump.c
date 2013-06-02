@@ -17,6 +17,7 @@
 
 #include "phase.h"
 #include "util.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <string.h>
@@ -697,4 +698,51 @@ void dump(tree_t t)
    default:
       cannot_dump(t, "tree");
    }
+}
+
+void dump_nets(tree_t top)
+{
+   hash_t *h = hash_new(2048, false);
+
+   const int ndecls = tree_decls(top);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top, i);
+
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+
+      const int nnets = tree_nets(d);
+      for (int j = 0; j < nnets; j++)
+         hash_put(h, (const void *)(uintptr_t)(tree_net(d, j) + 1), d);
+   }
+
+   for (netid_t n = 0; ; n++) {
+      int tmp, k = 0;
+      tree_t d;
+      while ((tmp = k++),
+             (d = hash_get_nth(h, (const void *)(uintptr_t)(n + 1), &tmp))) {
+         if (k == 1)
+            printf("%4d\t", n);
+         else
+            printf(" ");
+         printf("%s", istr(tree_ident(d)));
+
+         if (type_is_array(tree_type(d))) {
+            const int nnets = tree_nets(d);
+            for (int j = 0; j < nnets; j++) {
+               if (n == tree_net(d, j)) {
+                  printf("[%d]", j);
+                  break;
+               }
+            }
+         }
+      }
+
+      if (k == 1)
+         break;
+      else
+         printf("\n");
+   }
+
+   hash_free(h);
 }
