@@ -1884,12 +1884,26 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, cgen_ctx_t *ctx)
 {
-   LLVMValueRef signal = cgen_signal_nets(decl);
-   LLVMValueRef ptr =
-      LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
-   LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
-   return LLVMBuildIntCast(builder, deref,
-                           llvm_type(tree_type(decl)), "");
+   LLVMValueRef nets = cgen_signal_nets(decl);
+
+   type_t type = tree_type(decl);
+
+   const int width = bit_width(type);
+   const int bytes = (width / 8) + ((width % 8 > 0) ? 1 : 0);
+
+   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(type), "tmp");
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      llvm_void_cast(tmp),
+      llvm_int32(bytes),
+      llvm_int32(0),
+      llvm_int32(0),
+      llvm_int1(0)
+   };
+   LLVMBuildCall(builder, llvm_fn("_vec_load"), args, ARRAY_LEN(args), "");
+
+   return LLVMBuildLoad(builder, tmp, "");
 }
 
 static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
