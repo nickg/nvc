@@ -65,8 +65,6 @@ AC_CHECK_LIB([z], [deflate], [], [AC_ERROR([zlib not found])])
 AX_LLVM_C([engine bitreader bitwriter])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test "$ax_cv_llvm_shared" != yes])
 
-AX_WITH_CURSES
-
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])

@@ -47,25 +47,6 @@
 #include <sys/sysctl.h>
 #endif
 
-#if defined HAVE_NCURSESW_CURSES_H
-#include <ncursesw/curses.h>
-#include <ncursesw/term.h>
-#elif defined HAVE_NCURSESW_H
-#include <ncursesw.h>
-#include <term.h>
-#elif defined HAVE_NCURSES_CURSES_H
-#include <ncurses/curses.h>
-#include <ncurses/term.h>
-#elif defined HAVE_NCURSES_H
-#include <ncurses.h>
-#include <term.h>
-#elif defined HAVE_CURSES_H
-#include <curses.h>
-#include <term.h>
-#else
-#error "SysV or X/Open-compatible Curses header file required"
-#endif
-
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported
 #if defined REG_RIP
@@ -674,16 +655,22 @@ void register_gdb_signal_handlers(void)
 void term_init(void)
 {
    const char *nvc_no_color = getenv("NVC_NO_COLOR");
+   const char *term = getenv("TERM");
 
-#ifdef HAVE_CURSES
-   int errret;
-   if (setupterm(NULL, STDERR_FILENO, &errret) == OK)
-      want_color = (has_colors() && (nvc_no_color == NULL));
-   else
-      want_color = false;
-#else   // HAVE_CURSES
+   static const char *term_blacklist[] = {
+      "dumb"
+   };
+
    want_color = isatty(STDERR_FILENO) && (nvc_no_color == NULL);
-#endif  // HAVE_CURSES
+
+   if (want_color && (term != NULL)) {
+      for (size_t i = 0; i < ARRAY_LEN(term_blacklist); i++) {
+         if (strcmp(term, term_blacklist[i]) == 0) {
+            want_color = false;
+            break;
+         }
+      }
+   }
 }
 
 void opt_set_int(const char *name, int val)
