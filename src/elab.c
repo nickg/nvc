@@ -31,6 +31,7 @@ typedef struct {
    tree_t  out;
    ident_t path;    // Current 'PATH_NAME
    ident_t inst;    // Current 'INSTANCE_NAME
+   netid_t next_net;
 } elab_ctx_t;
 
 typedef struct {
@@ -38,9 +39,9 @@ typedef struct {
    tree_t actual;
 } rewrite_params_t;
 
-static void elab_arch(tree_t t, const elab_ctx_t *ctx);
-static void elab_block(tree_t t, const elab_ctx_t *ctx);
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
+static void elab_arch(tree_t t, elab_ctx_t *ctx);
+static void elab_block(tree_t t, elab_ctx_t *ctx);
+static void elab_stmts(tree_t t, elab_ctx_t *ctx);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -287,7 +288,7 @@ static void elab_map(tree_t t, tree_t arch,
    }
 }
 
-static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+static void elab_instance(tree_t t, elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
@@ -318,7 +319,26 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_arch(arch, &new_ctx);
 }
 
-static void elab_decls(tree_t t, const elab_ctx_t *ctx)
+static void elab_nets(tree_t decl, elab_ctx_t *ctx)
+{
+   // Assign net IDs to each sub-element of a signal declaration
+
+   type_t type = tree_type(decl);
+
+   assert(tree_nets(decl) == 0);
+
+   if (type_is_array(type)) {
+      assert(false);
+   }
+   else {
+      // Scalar so has only one net ID
+      printf("assign scalar %s net %d\n",
+             istr(tree_ident(decl)), ctx->next_net);
+      tree_add_net(decl, (ctx->next_net)++);
+   }
+}
+
+static void elab_decls(tree_t t, elab_ctx_t *ctx)
 {
    ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
@@ -331,6 +351,8 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
+         elab_nets(d, ctx);
+         // Fall-through
       case T_FUNC_BODY:
       case T_PROC_BODY:
       case T_ALIAS:
@@ -357,7 +379,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
+static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 {
    int64_t low, high;
    range_bounds(tree_range(t), &low, &high);
@@ -387,7 +409,7 @@ static void elab_for_generate(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
+static void elab_stmts(tree_t t, elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -422,20 +444,20 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
-static void elab_block(tree_t t, const elab_ctx_t *ctx)
+static void elab_block(tree_t t, elab_ctx_t *ctx)
 {
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
 }
 
-static void elab_arch(tree_t t, const elab_ctx_t *ctx)
+static void elab_arch(tree_t t, elab_ctx_t *ctx)
 {
    elab_copy_context(ctx->out, t);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
 }
 
-static void elab_entity(tree_t t, const elab_ctx_t *ctx)
+static void elab_entity(tree_t t, elab_ctx_t *ctx)
 {
    if (tree_ports(t) > 0 || tree_generics(t) > 0) {
       // LRM 93 section 12.1 says implementation may allow this but
@@ -531,9 +553,10 @@ tree_t elab(tree_t top)
                                   ident_new("elab"), '.'));
 
    elab_ctx_t ctx = {
-      .out  = e,
-      .path = NULL,
-      .inst = NULL
+      .out      = e,
+      .path     = NULL,
+      .inst     = NULL,
+      .next_net = 0
    };
 
    switch (tree_kind(top)) {
