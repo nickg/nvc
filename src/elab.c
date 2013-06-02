@@ -28,10 +28,10 @@
 #define FUNC_REPLACE_MAX 32
 
 typedef struct {
-   tree_t  out;
-   ident_t path;    // Current 'PATH_NAME
-   ident_t inst;    // Current 'INSTANCE_NAME
-   netid_t next_net;
+   tree_t   out;
+   ident_t  path;    // Current 'PATH_NAME
+   ident_t  inst;    // Current 'INSTANCE_NAME
+   netid_t *next_net;
 } elab_ctx_t;
 
 typedef struct {
@@ -39,9 +39,9 @@ typedef struct {
    tree_t actual;
 } rewrite_params_t;
 
-static void elab_arch(tree_t t, elab_ctx_t *ctx);
-static void elab_block(tree_t t, elab_ctx_t *ctx);
-static void elab_stmts(tree_t t, elab_ctx_t *ctx);
+static void elab_arch(tree_t t, const elab_ctx_t *ctx);
+static void elab_block(tree_t t, const elab_ctx_t *ctx);
+static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -342,14 +342,15 @@ static void elab_instance(tree_t t, elab_ctx_t *ctx)
    simplify(arch);
 
    elab_ctx_t new_ctx = {
-      .out  = ctx->out,
-      .path = ctx->path,
-      .inst = ninst
+      .out      = ctx->out,
+      .path     = ctx->path,
+      .inst     = ninst,
+      .next_net = ctx->next_net
    };
    elab_arch(arch, &new_ctx);
 }
 
-static void elab_nets(tree_t decl, elab_ctx_t *ctx)
+static void elab_nets(tree_t decl, const elab_ctx_t *ctx)
 {
    // Assign net IDs to each sub-element of a signal declaration
 
@@ -364,12 +365,12 @@ static void elab_nets(tree_t decl, elab_ctx_t *ctx)
    else {
       // Scalar signals have only one net ID
       printf("assign scalar %s net %d\n",
-             istr(tree_ident(decl)), ctx->next_net);
-      tree_add_net(decl, (ctx->next_net)++);
+             istr(tree_ident(decl)), *(ctx->next_net));
+      tree_add_net(decl, (*ctx->next_net)++);
    }
 }
 
-static void elab_decls(tree_t t, elab_ctx_t *ctx)
+static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
    ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
@@ -430,9 +431,10 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       ident_t ninst = hpathf(ctx->inst, '\0', "[%"PRIi64"]", i);
 
       elab_ctx_t new_ctx = {
-         .out  = ctx->out,
-         .path = npath,
-         .inst = ninst
+         .out      = ctx->out,
+         .path     = npath,
+         .inst     = ninst,
+         .next_net = ctx->next_net
       };
 
       elab_decls(copy, &new_ctx);
@@ -440,7 +442,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static void elab_stmts(tree_t t, elab_ctx_t *ctx)
+static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++) {
@@ -450,9 +452,10 @@ static void elab_stmts(tree_t t, elab_ctx_t *ctx)
       ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
 
       elab_ctx_t new_ctx = {
-         .out  = ctx->out,
-         .path = npath,
-         .inst = ninst
+         .out      = ctx->out,
+         .path     = npath,
+         .inst     = ninst,
+         .next_net = ctx->next_net
       };
 
       switch (tree_kind(s)) {
@@ -475,20 +478,20 @@ static void elab_stmts(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static void elab_block(tree_t t, elab_ctx_t *ctx)
+static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
 }
 
-static void elab_arch(tree_t t, elab_ctx_t *ctx)
+static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
    elab_copy_context(ctx->out, t);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
 }
 
-static void elab_entity(tree_t t, elab_ctx_t *ctx)
+static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 {
    if (tree_ports(t) > 0 || tree_generics(t) > 0) {
       // LRM 93 section 12.1 says implementation may allow this but
@@ -505,9 +508,10 @@ static void elab_entity(tree_t t, elab_ctx_t *ctx)
    elab_copy_context(ctx->out, t);
 
    elab_ctx_t new_ctx = {
-      .out  = ctx->out,
-      .path = npath,
-      .inst = ninst,
+      .out      = ctx->out,
+      .path     = npath,
+      .inst     = ninst,
+      .next_net = ctx->next_net
    };
    elab_arch(arch, &new_ctx);
 }
@@ -583,11 +587,12 @@ tree_t elab(tree_t top)
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));
 
+   netid_t next_net = 0;
    elab_ctx_t ctx = {
       .out      = e,
       .path     = NULL,
       .inst     = NULL,
-      .next_net = 0
+      .next_net = &next_net
    };
 
    switch (tree_kind(top)) {
@@ -599,6 +604,8 @@ tree_t elab(tree_t top)
    }
 
    elab_funcs(e);
+
+   tree_add_attr_int(e, ident_new("nnets"), next_net);
 
    if (simplify_errors() == 0) {
       lib_put(lib_work(), e);

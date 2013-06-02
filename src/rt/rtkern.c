@@ -105,6 +105,20 @@ struct signal {
    uint64_t          last_event;
 };
 
+struct net {
+   uint64_t          resolved;
+   uint64_t          last_value;
+   tree_t            decl;
+   uint8_t           flags;
+   uint8_t           n_drivers;
+   uint16_t          offset;
+   struct driver    *drivers;
+   struct sens_list *sensitive;
+   sig_event_fn_t    event_cb;
+   resolution_fn_t   resolution;
+   uint64_t          last_event;
+};
+
 struct uarray {
    void    *ptr;
    struct {
@@ -130,7 +144,8 @@ static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
 static struct loaded    *loaded = NULL;
-static struct run_queue run_queue;
+static struct run_queue  run_queue;
+static struct net       *nets = NULL;
 
 static heap_t        eventq_heap = NULL;
 static size_t        n_procs = 0;
@@ -858,7 +873,14 @@ static void rt_setup(tree_t top)
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
 
-   for (unsigned i = 0; i < tree_decls(top); i++) {
+   if (nets == NULL) {
+      const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
+      assert(nnets != -1);
+      nets = xmalloc(sizeof(struct net) * nnets);
+   }
+
+   const int ndecls = tree_decls(top);
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
@@ -880,7 +902,8 @@ static void rt_setup(tree_t top)
       }
    }
 
-   for (unsigned i = 0; i < tree_stmts(top); i++) {
+   const int nstmts = tree_stmts(top);
+   for (int i = 0; i < nstmts; i++) {
       tree_t p = tree_stmt(top, i);
       assert(tree_kind(p) == T_PROCESS);
 
@@ -1324,7 +1347,8 @@ static void rt_cleanup(tree_t top)
    heap_free(eventq_heap);
    eventq_heap = NULL;
 
-   for (unsigned i = 0; i < tree_decls(top); i++) {
+   const int ndecls = tree_decls(top);
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;

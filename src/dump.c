@@ -716,7 +716,10 @@ void dump_nets(tree_t top)
          hash_put(h, (const void *)(uintptr_t)(tree_net(d, j) + 1), d);
    }
 
-   for (netid_t n = 0; ; n++) {
+   const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
+   assert(nnets != -1);
+
+   for (netid_t n = 0; n < (netid_t)nnets; n++) {
       int tmp, k = 0;
       tree_t d;
       while ((tmp = k++),
@@ -738,10 +741,7 @@ void dump_nets(tree_t top)
          }
       }
 
-      if (k == 1)
-         break;
-      else
-         printf("\n");
+      printf("\n");
    }
 
    hash_free(h);
