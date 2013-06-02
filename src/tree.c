@@ -100,7 +100,6 @@ typedef union {
    uint32_t      uint;
    assoc_array_t assoc_array;
    context_set_t context_set;
-   class_t       class;
    range_t       range;
 } item_t;
 
@@ -296,17 +295,16 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE \
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
                           | I_NAME)
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS \
+                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS        \
                           | I_GENMAPS)
 #define ITEM_TYPE        (I_TYPE)
-#define ITEM_UINT        (I_POS | I_SUBKIND)
+#define ITEM_UINT        (I_POS | I_SUBKIND | I_CLASS)
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
-#define ITEM_CLASS       (I_CLASS)
 #define ITEM_RANGE       (I_RANGE)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -1087,12 +1085,12 @@ void tree_set_pos(tree_t t, unsigned pos)
 
 class_t tree_class(tree_t t)
 {
-   return lookup_item(t, I_CLASS)->class;
+   return lookup_item(t, I_CLASS)->uint;
 }
 
 void tree_set_class(tree_t t, class_t c)
 {
-   lookup_item(t, I_CLASS)->class = c;
+   lookup_item(t, I_CLASS)->uint = c;
 }
 
 tree_t tree_reject(tree_t t)
@@ -1198,8 +1196,6 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_ASSOC_ARRAY & mask)
             tree_visit_s(&(t->items[i].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask)
-            ;
-         else if (ITEM_CLASS & mask)
             ;
          else if (ITEM_RANGE & mask) {
             tree_visit_aux(t->items[i].range.left, ctx);
@@ -1495,8 +1491,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
                write_loc(&(c->loc), ctx);
             }
          }
-         else if (ITEM_CLASS & mask)
-            write_u16(t->items[n].class, ctx->file);
          else if (ITEM_RANGE & mask) {
             write_u8(t->items[n].range.kind, ctx->file);
             tree_write(t->items[n].range.left, ctx);
@@ -1612,8 +1606,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
                c->loc  = read_loc(ctx);
             }
          }
-         else if (ITEM_CLASS & mask)
-            t->items[n].class = read_u16(ctx->file);
          else if (ITEM_RANGE & mask) {
             t->items[n].range.kind  = read_u8(ctx->file);
             t->items[n].range.left  = tree_read(ctx);
@@ -1874,8 +1866,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             rewrite_s(&(t->items[n].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask)
             ;
-         else if (ITEM_CLASS & mask)
-            ;
          else if (ITEM_RANGE & mask) {
             range_t *r = &(t->items[n].range);
             r->left  = tree_rewrite_aux(r->left, ctx);
@@ -2017,8 +2007,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
                    t->items[n].context_set.items,
                    t->items[n].context_set.count * sizeof(context_t));
          }
-         else if (ITEM_CLASS & mask)
-            copy->items[n].class = t->items[n].class;
          else if (ITEM_RANGE & mask) {
             copy->items[n].range.kind = t->items[n].range.kind;
             copy->items[n].range.left =
