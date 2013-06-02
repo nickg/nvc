@@ -30,6 +30,7 @@ src/parse.output
 /lib/std/std
 /lib/ieee/ieee
 stamp-h1
+IDEAS
 
 # IEEE sources cannot be freely redistributed
 lib/ieee/*.vhdl
