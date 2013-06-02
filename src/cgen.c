@@ -42,7 +42,7 @@ static LLVMValueRef   mod_name = NULL;
 static ident_t var_offset_i = NULL;
 static ident_t local_var_i = NULL;
 static ident_t global_const_i = NULL;
-static ident_t sig_struct_i = NULL;
+static ident_t sig_nets_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
 
@@ -82,6 +82,7 @@ static LLVMTypeRef cgen_signal_type(type_t type);
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
+static LLVMValueRef cgen_signal_nets(tree_t decl);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -577,10 +578,8 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
 
             LLVMValueRef uarray;
             tree_t decl = tree_ref(value);
-            if (cgen_get_class(decl) == C_SIGNAL) {
-               uarray = tree_attr_ptr(decl, sig_struct_i);
-               assert(uarray != NULL);
-            }
+            if (cgen_get_class(decl) == C_SIGNAL)
+               uarray = cgen_signal_nets(decl);
             else
                uarray = cgen_get_var(decl, ctx);
 
@@ -783,21 +782,20 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 {
    type_t type = tree_type(decl);
 
-   LLVMValueRef sig_vec = tree_attr_ptr(decl, sig_struct_i);
-   assert(sig_vec != NULL);
+   LLVMValueRef nets = cgen_signal_nets(decl);
 
    const bool wrap = type_is_array(type) && !cgen_const_bounds(type);
    if (wrap) {
       // Generate a new meta-data structure offset by `elem'
       LLVMValueRef indexes[] = { elem };
       LLVMValueRef offset =
-         LLVMBuildGEP(builder, LLVMBuildExtractValue(builder, sig_vec, 0, ""),
+         LLVMBuildGEP(builder, LLVMBuildExtractValue(builder, nets, 0, ""),
                       indexes, ARRAY_LEN(indexes), "");
-      return LLVMBuildInsertValue(builder, sig_vec, offset, 0, "");
+      return LLVMBuildInsertValue(builder, nets, offset, 0, "");
    }
    else {
       LLVMValueRef indexes[] = { llvm_int32(0), elem };
-      return LLVMBuildGEP(builder, sig_vec, indexes, ARRAY_LEN(indexes), "");
+      return LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes), "");
    }
 }
 
@@ -1158,18 +1156,20 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
       return tmp;
 }
 
-static LLVMValueRef cgen_sig_struct(tree_t decl)
+static LLVMValueRef cgen_signal_nets(tree_t decl)
 {
-   // Return the signal structure for a signal declaration
-   return tree_attr_ptr(decl, sig_struct_i);
+   // Return the array of nets associated with a signal
+   void *nets = tree_attr_ptr(decl, sig_nets_i);
+   assert(nets != NULL);
+   return nets;
 }
 
 static LLVMValueRef cgen_scalar_signal_flag(tree_t signal, int flag)
 {
-   LLVMValueRef signal_struct = tree_attr_ptr(signal, sig_struct_i);
+   LLVMValueRef nets = cgen_signal_nets(signal);
    LLVMValueRef bit = llvm_int8(flag);
    LLVMValueRef ptr =
-      LLVMBuildStructGEP(builder, signal_struct, SIGNAL_FLAGS, "");
+      LLVMBuildStructGEP(builder, nets, SIGNAL_FLAGS, "");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
    LLVMValueRef masked = LLVMBuildAnd(builder, deref, bit, "");
    return LLVMBuildICmp(builder, LLVMIntEQ, masked, bit, "");
@@ -1213,10 +1213,10 @@ static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
 
    if (type_kind(tree_type(sig_decl)) == T_CARRAY) {
       type_t type = tree_type(sig_decl);
-      return cgen_vec_load(cgen_sig_struct(sig_decl), type, type, true, ctx);
+      return cgen_vec_load(cgen_signal_nets(sig_decl), type, type, true, ctx);
    }
    else {
-      LLVMValueRef signal = tree_attr_ptr(sig_decl, sig_struct_i);
+      LLVMValueRef signal = cgen_signal_nets(sig_decl);
       LLVMValueRef ptr =
          LLVMBuildStructGEP(builder, signal, SIGNAL_LAST_VALUE, "");
       LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
@@ -1232,7 +1232,7 @@ static LLVMValueRef cgen_uarray_field(tree_t ref, int field, cgen_ctx_t *ctx)
 
    LLVMValueRef meta;
    if (cgen_get_class(decl) == C_SIGNAL) {
-      meta = tree_attr_ptr(decl, sig_struct_i);
+      meta = cgen_signal_nets(decl);
       assert(meta != NULL);
    }
    else
@@ -1271,10 +1271,10 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
       arg_types[i] = type;
 
       if ((builtin == NULL) && (class == C_SIGNAL)) {
-         // Pass a pointer to the global signal structure
+         // Pass a pointer to the array of nets
          assert(tree_kind(tree_value(p)) == T_REF);
          tree_t sig_decl = tree_ref(tree_value(p));
-         args[i] = tree_attr_ptr(sig_decl, sig_struct_i);
+         args[i] = cgen_signal_nets(sig_decl);
          assert(args[i] != NULL);
       }
       else {
@@ -1480,7 +1480,7 @@ static LLVMValueRef cgen_name_attr(tree_t ref, int which)
 {
    tree_t decl = tree_ref(ref);
 
-   LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
+   LLVMValueRef signal = cgen_signal_nets(decl);
    LLVMValueRef res = LLVMBuildAlloca(builder,
                                       llvm_uarray_type(LLVMInt8Type(), 1),
                                       "name_attr");
@@ -1522,7 +1522,7 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
 
 static LLVMValueRef cgen_last_event(tree_t t)
 {
-   LLVMValueRef signal_struct = tree_attr_ptr(tree_ref(t), sig_struct_i);
+   LLVMValueRef signal_struct = cgen_signal_nets(tree_ref(t));
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal_struct, SIGNAL_LAST_EVENT, "");
    return LLVMBuildLoad(builder, ptr, "");
@@ -1884,7 +1884,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_scalar_signal_ref(tree_t decl, cgen_ctx_t *ctx)
 {
-   LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
+   LLVMValueRef signal = cgen_signal_nets(decl);
    LLVMValueRef ptr =
       LLVMBuildStructGEP(builder, signal, SIGNAL_RESOLVED, "");
    LLVMValueRef deref = LLVMBuildLoad(builder, ptr, "");
@@ -1923,7 +1923,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       if (cgen_get_class(decl) == C_SIGNAL) {
          type_t type = tree_type(decl);
          if (type_is_array(type))
-            return cgen_vec_load(cgen_sig_struct(decl), type, type, false, ctx);
+            return cgen_vec_load(cgen_signal_nets(decl), type, type, false, ctx);
          else
             return cgen_scalar_signal_ref(decl, ctx);
       }
@@ -1976,7 +1976,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          array = cgen_get_var(decl, ctx);
          break;
       case C_SIGNAL:
-         array = tree_attr_ptr(decl, sig_struct_i);
+         array = cgen_signal_nets(decl);
          break;
       default:
          assert(false);
@@ -2073,7 +2073,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
       }
 
    case C_SIGNAL:
-      return cgen_vec_load(cgen_sig_struct(decl), type, tree_type(t),
+      return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
                            false, ctx);
 
    default:
@@ -2620,20 +2620,19 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
 
    type_t type = tree_type(decl);
 
-   LLVMValueRef signal = tree_attr_ptr(decl, sig_struct_i);
-   assert(signal != NULL);
+   LLVMValueRef nets = cgen_signal_nets(decl);
 
-   LLVMValueRef n_elems = NULL, sig_struct = NULL;
+   LLVMValueRef n_elems = NULL;
    if (expr_kind == T_REF) {
       if (type_is_array(type))
-         n_elems = cgen_array_len(type, 0, signal);
+         n_elems = cgen_array_len(type, 0, nets);
       else
          n_elems = llvm_int32(1);
 
-      if (type_is_array(type) && !cgen_const_bounds(type))
-         sig_struct = LLVMBuildExtractValue(builder, signal, 0, "");
-      else
-         sig_struct = signal;
+      if (type_is_array(type) && !cgen_const_bounds(type)) {
+         // Unwrap the meta-data to get nets array
+         nets = LLVMBuildExtractValue(builder, nets, 0, "");
+      }
    }
    else {
       assert(type_is_array(type));
@@ -2644,7 +2643,7 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
          {
             tree_t p = tree_param(on, 0);
             index = cgen_expr(tree_value(p), ctx);
-            cgen_check_array_bounds(tree_value(p), type, 0, signal, index, ctx);
+            cgen_check_array_bounds(tree_value(p), type, 0, nets, index, ctx);
 
             n_elems = llvm_int32(1);
          }
@@ -2660,8 +2659,8 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
             LLVMValueRef low  = (r.kind == RANGE_TO) ? left : right;
             LLVMValueRef high = (r.kind == RANGE_TO) ? right : left;
 
-            cgen_check_array_bounds(r.left, type, 0, signal, left, ctx);
-            cgen_check_array_bounds(r.right, type, 0, signal, right, ctx);
+            cgen_check_array_bounds(r.left, type, 0, nets, left, ctx);
+            cgen_check_array_bounds(r.right, type, 0, nets, right, ctx);
 
             index = low;
             n_elems = LLVMBuildAdd(builder,
@@ -2675,26 +2674,26 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
          assert(false);
       }
 
-      LLVMValueRef offset = cgen_array_off(index, signal, type, ctx, 0);
+      LLVMValueRef offset = cgen_array_off(index, nets, type, ctx, 0);
 
       if (type_kind(type) == T_UARRAY) {
-         // Unwrap array to sub-signal array
-         LLVMValueRef sub_signals =
-            LLVMBuildExtractValue(builder, signal, 0, "sub_signals");
+         // Unwrap meta-data to get actual nets array
+         LLVMValueRef sub_nets =
+            LLVMBuildExtractValue(builder, nets, 0, "sub_nets");
 
          LLVMValueRef indexes[] = { offset };
-         sig_struct = LLVMBuildGEP(builder, sub_signals,
+         nets = LLVMBuildGEP(builder, sub_nets,
                                    indexes, ARRAY_LEN(indexes), "");
       }
       else {
          LLVMValueRef indexes[] = { llvm_int32(0), offset };
-         sig_struct = LLVMBuildGEP(builder, signal,
-                                   indexes, ARRAY_LEN(indexes), "");
+         nets = LLVMBuildGEP(builder, nets,
+                             indexes, ARRAY_LEN(indexes), "");
       }
    }
 
    LLVMValueRef args[] = {
-      llvm_void_cast(sig_struct),
+      llvm_void_cast(nets),
       n_elems
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
@@ -2836,51 +2835,6 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, rhs, lhs);
 }
 
-static void cgen_sched_waveform(LLVMValueRef signal, LLVMValueRef value,
-                                LLVMValueRef after, LLVMValueRef reject,
-                                cgen_ctx_t *ctx)
-{
-   LLVMValueRef args[] = {
-      llvm_void_cast(signal),
-      LLVMBuildZExt(builder, value, LLVMInt64Type(), ""),
-      after,
-      reject
-   };
-   LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
-                 args, ARRAY_LEN(args), "");
-}
-
-static void cgen_sched_waveform_vec(LLVMValueRef lhs, type_t lhs_type,
-                                    LLVMValueRef rhs, type_t rhs_type,
-                                    LLVMValueRef after, LLVMValueRef reject,
-                                    cgen_ctx_t *ctx)
-{
-   assert(type_is_array(lhs_type));
-
-   LLVMValueRef rhs_data = cgen_array_data_ptr(rhs_type, rhs);
-   LLVMValueRef n_elems = cgen_array_len_recur(rhs_type, rhs);
-
-   LLVMValueRef ldir = cgen_array_dir(lhs_type, 0, lhs);
-   LLVMValueRef rdir = cgen_array_dir(rhs_type, 0, rhs);
-
-   LLVMValueRef lhs_data = cgen_array_data_ptr(lhs_type, lhs);
-
-   LLVMValueRef reverse = LLVMBuildICmp(builder, LLVMIntNE,
-                                        ldir, rdir, "reverse");
-
-   LLVMValueRef args[] = {
-      llvm_void_cast(lhs_data),
-      llvm_void_cast(rhs_data),
-      n_elems,
-      cgen_array_elem_size(rhs_type),
-      after,
-      reject,
-      reverse
-   };
-   LLVMBuildCall(builder, llvm_fn("_sched_waveform_vec"),
-                 args, ARRAY_LEN(args), "");
-}
-
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -2901,8 +2855,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
 
-               LLVMValueRef meta = tree_attr_ptr(decl, sig_struct_i);
-               assert(meta != NULL);
+               LLVMValueRef meta = cgen_signal_nets(decl);
 
                cgen_check_array_bounds(tree_value(p), type, 0, meta, idx, ctx);
 
@@ -2977,7 +2930,8 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
 {
    LLVMValueRef reject = cgen_expr(tree_reject(t), ctx);
 
-   for (unsigned i = 0; i < tree_waveforms(t); i++) {
+   const int nwaveforms = tree_waveforms(t);
+   for (int i = 0; i < nwaveforms; i++) {
       tree_t w = tree_waveform(t, i);
 
       tree_t target = tree_target(t);
@@ -2988,13 +2942,47 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
                             ? cgen_expr(tree_delay(w), ctx)
                             : llvm_int64(0));
 
-      LLVMValueRef p_signal = cgen_signal_lvalue(tree_target(t), ctx);
+      LLVMValueRef nets = cgen_signal_lvalue(tree_target(t), ctx);
 
-      if (type_is_array(tree_type(value)))
-         cgen_sched_waveform_vec(p_signal, tree_type(target),
-                                 rhs, tree_type(value), after, reject, ctx);
-      else
-         cgen_sched_waveform(p_signal, rhs, after, reject, ctx);
+      LLVMValueRef rhs_data, lhs_data, reverse, n_elems, elem_size;
+
+      type_t value_type  = tree_type(value);
+      type_t target_type = tree_type(target);
+
+      if (!type_is_array(value_type)) {
+         // Need to pass a pointer to values so allocate this on the stack
+         LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(value_type), "");
+         LLVMBuildStore(builder, rhs, tmp);
+
+         rhs_data  = tmp;
+         lhs_data  = nets;
+         reverse   = llvm_int1(0);
+         n_elems   = llvm_int32(1);
+         elem_size = llvm_sizeof(llvm_type(value_type));
+      }
+      else {
+         rhs_data = cgen_array_data_ptr(value_type, rhs);
+         lhs_data = cgen_array_data_ptr(target_type, nets);
+
+         n_elems   = cgen_array_len_recur(value_type, rhs);
+         elem_size = cgen_array_elem_size(value_type);
+
+         LLVMValueRef ldir = cgen_array_dir(target_type, 0, nets);
+         LLVMValueRef rdir = cgen_array_dir(value_type, 0, rhs);
+         reverse = LLVMBuildICmp(builder, LLVMIntNE, ldir, rdir, "reverse");
+      }
+
+      LLVMValueRef args[] = {
+         llvm_void_cast(lhs_data),
+         llvm_void_cast(rhs_data),
+         n_elems,
+         elem_size,
+         after,
+         reject,
+         reverse
+      };
+      LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
+                    args, ARRAY_LEN(args), "");
    }
 }
 
@@ -3935,8 +3923,6 @@ static void cgen_signal(tree_t t)
 
    LLVMSetInitializer(v, cgen_signal_init(type, r));
 
-   tree_add_attr_ptr(t, sig_struct_i, v);
-
    // Generate a constant mapping table from sub-element to net ID
 
    const int nnets = tree_nets(t);
@@ -3955,6 +3941,8 @@ static void cgen_signal(tree_t t)
       init[i] = llvm_int32(tree_net(t, i));
 
    LLVMSetInitializer(map_var, LLVMConstArray(LLVMInt32Type(), init, nnets));
+
+   tree_add_attr_ptr(t, sig_nets_i, map_var);
 }
 
 static void cgen_func_vars(tree_t d, void *context)
@@ -4024,7 +4012,7 @@ static void cgen_func_body(tree_t t)
       tree_t p = tree_port(t, i);
       switch (tree_class(p)) {
       case C_SIGNAL:
-         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
+         tree_add_attr_ptr(p, sig_nets_i, LLVMGetParam(fn, i));
          break;
 
       case C_VARIABLE:
@@ -4075,7 +4063,7 @@ static void cgen_proc_body(tree_t t)
       tree_t p = tree_port(t, i);
       switch (tree_class(p)) {
       case C_SIGNAL:
-         tree_add_attr_ptr(p, sig_struct_i, LLVMGetParam(fn, i));
+         tree_add_attr_ptr(p, sig_nets_i, LLVMGetParam(fn, i));
          break;
 
       case C_VARIABLE:
@@ -4405,18 +4393,6 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _sched_waveform_args[] = {
       llvm_void_ptr(),
-      LLVMInt64Type(),
-      LLVMInt64Type(),
-      LLVMInt64Type()
-   };
-   LLVMAddFunction(module, "_sched_waveform",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _sched_waveform_args,
-                                    ARRAY_LEN(_sched_waveform_args),
-                                    false));
-
-   LLVMTypeRef _sched_waveform_vec_args[] = {
-      llvm_void_ptr(),
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type(),
@@ -4424,10 +4400,10 @@ static void cgen_support_fns(void)
       LLVMInt64Type(),
       LLVMInt1Type()
    };
-   LLVMAddFunction(module, "_sched_waveform_vec",
+   LLVMAddFunction(module, "_sched_waveform",
                    LLVMFunctionType(LLVMVoidType(),
-                                    _sched_waveform_vec_args,
-                                    ARRAY_LEN(_sched_waveform_vec_args),
+                                    _sched_waveform_args,
+                                    ARRAY_LEN(_sched_waveform_args),
                                     false));
 
    LLVMTypeRef _sched_event_args[] = {
@@ -4708,7 +4684,7 @@ void cgen(tree_t top)
    var_offset_i   = ident_new("var_offset");
    local_var_i    = ident_new("local_var");
    global_const_i = ident_new("global_const");
-   sig_struct_i   = ident_new("sig_struct");
+   sig_nets_i     = ident_new("sig_nets");
    foreign_i      = ident_new("FOREIGN");
    never_waits_i  = ident_new("never_waits");
 

@@ -70,19 +70,19 @@ struct event {
    int             iteration;
    event_kind_t    kind;
    struct rt_proc *proc;
-   struct signal  *signal;
+   struct net     *net;
    int             length;
 };
 
 struct waveform {
-   uint64_t        when;
+   uint64_t         when;
    struct waveform *next;
-   uint64_t        value;
+   uint64_t         value;
 };
 
 struct sens_list {
    struct rt_proc   *proc;
-   unsigned         wakeup_gen;
+   unsigned          wakeup_gen;
    struct sens_list *next;
 };
 
@@ -162,13 +162,13 @@ static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
 
 #define MAX_ACTIVE_SIGS 128
-static struct signal *active_signals[MAX_ACTIVE_SIGS];
-static unsigned      n_active_signals = 0;
+static struct net *active_signals[MAX_ACTIVE_SIGS];
+static unsigned    n_active_signals = 0;
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
-static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
+static void deltaq_insert_driver(uint64_t delta, struct net *net,
                                  int length, struct rt_proc *driver);
-static void rt_alloc_driver(struct signal *sig, uint64_t after,
+static void rt_alloc_driver(struct net *net, uint64_t after,
                             uint64_t reject, uint64_t value);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
@@ -271,52 +271,43 @@ void _sched_process(int64_t delay)
    deltaq_insert_proc(delay, active_proc);
 }
 
-void _sched_waveform_vec(void *_sig, void *values, int32_t n, int32_t size,
-                         int64_t after, int64_t reject, int32_t reverse)
+void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
+                     int64_t after, int64_t reject, int32_t reverse)
 {
-   struct signal *sig = _sig;
+   const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform_vec %p values=%p n=%d size=%d after=%s "
-         "reject=%s reverse=%d", sig, values, n, size, fmt_time(after),
+   TRACE("_sched_waveform nids[0]=%d values=%p n=%d size=%d after=%s "
+         "reject=%s reverse=%d", nids[0], values, n, size, fmt_time(after),
          fmt_time(reject), reverse);
 
    const int v_start = reverse ? (n - 1) : 0;
    const int v_inc   = reverse ? -1 : 1;
 
-#define SCHED_WAVEFORM_VEC(type) do {                           \
+#define SCHED_WAVEFORM(type) do {                           \
       const type *vp  = (type *)values + v_start;               \
       for (int i = 0; i < n; i++, vp += v_inc)                  \
-         rt_alloc_driver(&sig[i], after, reject, *vp);          \
+         rt_alloc_driver(&(nets[nids[i]]), after, reject, *vp);        \
    } while (0)
 
-   FOR_ALL_SIZES(size, SCHED_WAVEFORM_VEC);
+   FOR_ALL_SIZES(size, SCHED_WAVEFORM);
 
-   deltaq_insert_driver(after, sig, n, active_proc);
+   // XXX: this assumes array nets are allocated sequentially
+   deltaq_insert_driver(after, &(nets[nids[0]]), n, active_proc);
 }
 
-void _sched_waveform(void *_sig, int64_t value, int64_t after, int64_t reject)
+void _sched_event(void *_nids, int32_t n)
 {
-   struct signal *sig = _sig;
+   const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform %s value=%"PRIx64" after=%s reject=%s",
-         fmt_sig(sig), value, fmt_time(after), fmt_time(reject));
-
-   rt_alloc_driver(sig, after, reject, value);
-
-   deltaq_insert_driver(after, sig, 1, active_proc);
-}
-
-void _sched_event(void *_sig, int32_t n)
-{
-   struct signal *sig = _sig;
-
-   TRACE("_sched_event %s n=%d proc %s", fmt_sig(sig), n,
+   TRACE("_sched_event nids[0]=%d n=%d proc %s", nids[0], n,
          istr(tree_ident(active_proc->source)));
 
    for (int i = 0; i < n; i++) {
+      struct net *net = &(nets[nids[i]]);
+
       // See if there is already a stale entry in the sensitvity
       // list for this process
-      struct sens_list *it = sig[i].sensitive;
+      struct sens_list *it = net->sensitive;
       for (; it != NULL && it->proc != active_proc; it = it->next)
          ;
 
@@ -324,9 +315,9 @@ void _sched_event(void *_sig, int32_t n)
          struct sens_list *node = rt_alloc(sens_list_stack);
          node->proc       = active_proc;
          node->wakeup_gen = active_proc->wakeup_gen;
-         node->next       = sig[i].sensitive;
+         node->next       = net->sensitive;
 
-         sig[i].sensitive = node;
+         net->sensitive = node;
       }
       else {
          // Reuse the stale entry
@@ -759,14 +750,14 @@ static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
 
-static void deltaq_insert_driver(uint64_t delta, struct signal *signal,
+static void deltaq_insert_driver(uint64_t delta, struct net *net,
                                  int length, struct rt_proc *driver)
 {
    struct event *e = rt_alloc(event_stack);
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
    e->kind      = E_DRIVER;
-   e->signal    = signal;
+   e->net       = net;
    e->proc      = driver;
    e->length    = length;
 
@@ -780,7 +771,7 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
    if (e->kind == E_DRIVER) {
-      fprintf(stderr, "driver\t %s", fmt_sig(e->signal));
+      fprintf(stderr, "driver\t %p", e->net);;
       if (e->length > 1)
          fprintf(stderr, "+%d", e->length - 1);
       fprintf(stderr, "\n");
@@ -856,25 +847,25 @@ static void rt_reset_signal(struct signal *s, tree_t decl, int offset)
    s->offset    = offset;
 }
 
-static void rt_reset_net(struct net *s)
+static void rt_reset_net(struct net *net)
 {
-   if (s->drivers != NULL) {
-      for (int i = 0; i < s->n_drivers; i++) {
+   if (net->drivers != NULL) {
+      for (int i = 0; i < net->n_drivers; i++) {
          struct waveform *w, *wnext;
-         w = s->drivers[i].waveforms;
+         w = net->drivers[i].waveforms;
          do {
             wnext = w->next;
             rt_free(waveform_stack, w);
          } while ((w = wnext) != NULL);
       }
 
-      free(s->drivers);
+      free(net->drivers);
    }
 
-   s->sensitive = NULL;
-   s->drivers   = NULL;
-   s->n_drivers = 0;
-   s->event_cb  = NULL;
+   net->sensitive = NULL;
+   net->drivers   = NULL;
+   net->n_drivers = 0;
+   net->event_cb  = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -896,8 +887,10 @@ static void rt_setup(tree_t top)
    const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
    assert(nnets != -1);
 
-   if (nets == NULL)
+   if (nets == NULL) {
       nets = xmalloc(sizeof(struct net) * nnets);
+      memset(nets, '\0', sizeof(struct net) * nnets);
+   }
 
    for (int i = 0; i < nnets; i++)
       rt_reset_net(&(nets[i]));
@@ -1013,30 +1006,30 @@ static bool rt_wakeup(struct sens_list *sl)
    }
 }
 
-static void rt_alloc_driver(struct signal *sig, uint64_t after,
+static void rt_alloc_driver(struct net *net, uint64_t after,
                             uint64_t reject, uint64_t value)
 {
    if (unlikely(reject > after))
-      fatal("signal %s pulse reject limit %s is greater than "
-            "delay %s", fmt_sig(sig), fmt_time(reject), fmt_time(after));
+      fatal("signal %p pulse reject limit %s is greater than "
+            "delay %s", net, fmt_time(reject), fmt_time(after));
 
-   // Try to find this process is the list of existing drivers
+   // Try to find this process in the list of existing drivers
    int driver;
-   for (driver = 0; driver < sig->n_drivers; driver++) {
-      if (likely(sig->drivers[driver].proc == active_proc))
+   for (driver = 0; driver < net->n_drivers; driver++) {
+      if (likely(net->drivers[driver].proc == active_proc))
          break;
    }
 
    // Allocate memory for drivers on demand
-   if (unlikely(driver == sig->n_drivers)) {
+   if (unlikely(driver == net->n_drivers)) {
       const size_t driver_sz = sizeof(struct driver);
-      sig->drivers = xrealloc(sig->drivers, (driver + 1) * driver_sz);
-      memset(&sig->drivers[sig->n_drivers], '\0',
-             (driver + 1 - sig->n_drivers) * driver_sz);
-      sig->n_drivers = driver + 1;
+      net->drivers = xrealloc(net->drivers, (driver + 1) * driver_sz);
+      memset(&net->drivers[net->n_drivers], '\0',
+             (driver + 1 - net->n_drivers) * driver_sz);
+      net->n_drivers = driver + 1;
    }
 
-   struct driver *d = &(sig->drivers[driver]);
+   struct driver *d = &(net->drivers[driver]);
 
    if (unlikely(d->waveforms == NULL)) {
       // Assigning the initial value of a driver
@@ -1084,83 +1077,88 @@ static void rt_alloc_driver(struct signal *sig, uint64_t after,
    }
 }
 
-static void rt_update_signal(struct signal *s, int driver, uint64_t value)
+static void rt_update_net(struct net *net, int driver, uint64_t value)
 {
-   TRACE("update signal %s value=%"PRIx64" driver=%d",
-         fmt_sig(s), value, driver);
+   TRACE("update net %p value=%"PRIx64" driver=%d", net, value, driver);
 
    uint64_t resolved;
-   if (unlikely(s->n_drivers > 1)) {
+   if (unlikely(net->n_drivers > 1)) {
       // If there is more than one driver call the resolution function
 
-      if (unlikely(s->resolution == NULL))
-         fatal_at(tree_loc(s->decl), "signal %s has multiple drivers but "
-                  "no resolution function", istr(tree_ident(s->decl)));
+      if (unlikely(net->resolution == NULL))
+#if 0
+         fatal_at(tree_loc(net->decl), "net %p has multiple drivers but "
+                  "no resolution function", net);
+#else
+      assert(false);
+#endif
 
-      uint64_t vals[s->n_drivers];
-      for (int i = 0; i < s->n_drivers; i++)
-         vals[i] = s->drivers[i].waveforms->value;
+      uint64_t vals[net->n_drivers];
+      for (int i = 0; i < net->n_drivers; i++)
+         vals[i] = net->drivers[i].waveforms->value;
       vals[driver] = value;
 
-      resolved = (*s->resolution)(vals, s->n_drivers);
+      resolved = (*net->resolution)(vals, net->n_drivers);
    }
    else
       resolved = value;
 
    int32_t new_flags = SIGNAL_F_ACTIVE;
-   if (s->resolved != resolved)
+   if (net->resolved != resolved)
       new_flags |= SIGNAL_F_EVENT;
 
    assert(n_active_signals < MAX_ACTIVE_SIGS);
-   active_signals[n_active_signals++] = s;
+   active_signals[n_active_signals++] = net;
 
+#if 0
    // Set the update flag on the first element of the vector which
    // will cause the event callback to be executed at the end of
    // the cycle
    struct signal *base = s - s->offset;
    base->flags |= SIGNAL_F_UPDATE;
+#endif
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & SIGNAL_F_EVENT) {
-      s->last_value = s->resolved;
-      s->last_event = now;
+      net->last_value = net->resolved;
+      net->last_event = now;
    }
 
-   s->resolved  = resolved;
-   s->flags    |= new_flags;
+   net->resolved  = resolved;
+   net->flags    |= new_flags;
 
-   // Wake up any processes sensitive to this signal
+   // Wake up any processes sensitive to this net
    if (new_flags & SIGNAL_F_EVENT) {
       struct sens_list *it, *next, *save = NULL;
-      for (it = s->sensitive; it != NULL; it = next) {
+      for (it = net->sensitive; it != NULL; it = next) {
          next = it->next;
          if (unlikely(!rt_wakeup(it))) {
             it->next = save;
             save = it;
          }
       }
-      s->sensitive = save;
+      net->sensitive = save;
    }
 }
 
-static void rt_update_driver(struct signal *s, struct rt_proc *proc)
+static void rt_update_driver(struct net *net, struct rt_proc *proc)
 {
    // Find the driver owned by proc
    int driver;
-   for (driver = 0; driver < s->n_drivers; driver++) {
-      if (likely(s->drivers[driver].proc == proc))
+   for (driver = 0; driver < net->n_drivers; driver++) {
+      if (likely(net->drivers[driver].proc == proc))
          break;
    }
-   assert(driver != s->n_drivers);
+   assert(driver != net->n_drivers);
 
-   struct waveform *w_now  = s->drivers[driver].waveforms;
+   struct waveform *w_now  = net->drivers[driver].waveforms;
    struct waveform *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      rt_update_signal(s, driver, w_next->value);
-      s->drivers[driver].waveforms = w_next;
+      rt_update_net(net, driver, w_next->value);
+      net->drivers[driver].waveforms = w_next;
       rt_free(waveform_stack, w_now);
    }
    else
@@ -1235,7 +1233,7 @@ static void rt_cycle(void)
          break;
       case E_DRIVER:
          for (int i = 0; i < event->length; i++)
-            rt_update_driver(&event->signal[i], event->proc);
+            rt_update_driver(&event->net[i], event->proc);
          break;
       }
 
@@ -1253,6 +1251,7 @@ static void rt_cycle(void)
       resume = next;
    }
 
+#if 0
    for (unsigned i = 0; i < n_active_signals; i++) {
       struct signal *s = active_signals[i];
       struct signal *base = s - s->offset;
@@ -1263,6 +1262,7 @@ static void rt_cycle(void)
          base->flags &= ~SIGNAL_F_UPDATE;
       }
    }
+#endif
    n_active_signals = 0;
 }
 
@@ -1314,7 +1314,6 @@ static void rt_one_time_init(void)
 
    jit_bind_fn("_std_standard_now", _std_standard_now);
    jit_bind_fn("_sched_process", _sched_process);
-   jit_bind_fn("_sched_waveform_vec", _sched_waveform_vec);
    jit_bind_fn("_sched_waveform", _sched_waveform);
    jit_bind_fn("_sched_event", _sched_event);
    jit_bind_fn("_assert_fail", _assert_fail);
