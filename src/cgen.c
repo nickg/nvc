@@ -3936,6 +3936,25 @@ static void cgen_signal(tree_t t)
    LLVMSetInitializer(v, cgen_signal_init(type, r));
 
    tree_add_attr_ptr(t, sig_struct_i, v);
+
+   // Generate a constant mapping table from sub-element to net ID
+
+   const int nnets = tree_nets(t);
+   assert(nnets > 0);
+
+   char buf[256];
+   snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+
+   LLVMTypeRef  map_type = LLVMArrayType(LLVMInt32Type(), nnets);
+   LLVMValueRef map_var  = LLVMAddGlobal(module, map_type, buf);
+   LLVMSetGlobalConstant(map_var, true);
+   LLVMSetLinkage(map_var, LLVMInternalLinkage);
+
+   LLVMValueRef init[nnets];
+   for (int i = 0; i < nnets; i++)
+      init[i] = llvm_int32(tree_net(t, i));
+
+   LLVMSetInitializer(map_var, LLVMConstArray(LLVMInt32Type(), init, nnets));
 }
 
 static void cgen_func_vars(tree_t d, void *context)
