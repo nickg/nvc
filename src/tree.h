@@ -142,6 +142,8 @@ typedef struct context {
    loc_t   loc;
 } context_t;
 
+typedef uint32_t netid_t;
+
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
@@ -260,6 +262,10 @@ void tree_set_reject(tree_t t, tree_t r);
 
 tree_t tree_name(tree_t t);
 void tree_set_name(tree_t t, tree_t n);
+
+unsigned tree_nets(tree_t t);
+netid_t tree_net(tree_t t, unsigned n);
+void tree_add_net(tree_t t, netid_t n);
 
 uint32_t tree_index(tree_t t);
 

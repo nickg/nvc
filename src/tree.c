@@ -31,6 +31,7 @@
 
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(assoc);
+DEFINE_ARRAY(netid);
 
 typedef struct {
    context_t *items;
@@ -88,6 +89,7 @@ enum {
    I_CLASS     = (1 << 26),
    I_RANGE     = (1 << 27),
    I_NAME      = (1 << 28),
+   I_NETS      = (1 << 29),
 };
 
 typedef union {
@@ -101,6 +103,7 @@ typedef union {
    assoc_array_t assoc_array;
    context_set_t context_set;
    range_t       range;
+   netid_array_t netid_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -122,7 +125,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_LITERAL | I_TYPE),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_NETS),
 
    // T_VAR_DECL
    (I_IDENT | I_VALUE | I_TYPE),
@@ -306,6 +309,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
 #define ITEM_RANGE       (I_RANGE)
+#define ITEM_NETID_ARRAY (I_NETS)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -332,7 +336,7 @@ static const char *item_text_map[] = {
    "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",  "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",
+   "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",    "I_NETS",
 };
 
 static const tree_kind_t change_allowed[][2] = {
@@ -1037,6 +1041,21 @@ void tree_add_assoc(tree_t t, assoc_t a)
    assoc_array_add(array, a);
 }
 
+unsigned tree_nets(tree_t t)
+{
+   return lookup_item(t, I_NETS)->netid_array.count;
+}
+
+netid_t tree_net(tree_t t, unsigned n)
+{
+   return netid_array_nth(&(lookup_item(t, I_NETS)->netid_array), n);
+}
+
+void tree_add_net(tree_t t, netid_t n)
+{
+   netid_array_add(&(lookup_item(t, I_NETS)->netid_array), n);
+}
+
 tree_t tree_severity(tree_t t)
 {
    item_t *item = lookup_item(t, I_SEVERITY);
@@ -1201,6 +1220,8 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
             tree_visit_aux(t->items[i].range.left, ctx);
             tree_visit_aux(t->items[i].range.right, ctx);
          }
+         else if (ITEM_NETID_ARRAY & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -1496,6 +1517,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             tree_write(t->items[n].range.left, ctx);
             tree_write(t->items[n].range.right, ctx);
          }
+         else if (ITEM_NETID_ARRAY & mask) {
+            const netid_array_t *a = &(t->items[n].netid_array);
+            write_u32(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++)
+               write_u32(a->items[i], ctx->file);
+         }
          else
             item_without_type(mask);
          n++;
@@ -1610,6 +1637,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].range.kind  = read_u8(ctx->file);
             t->items[n].range.left  = tree_read(ctx);
             t->items[n].range.right = tree_read(ctx);
+         }
+         else if (ITEM_NETID_ARRAY & mask) {
+            netid_array_t *a = &(t->items[n].netid_array);
+            netid_array_resize(a, read_u32(ctx->file));
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = read_u32(ctx->file);
          }
          else
             item_without_type(mask);
@@ -1871,6 +1904,8 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             r->left  = tree_rewrite_aux(r->left, ctx);
             r->right = tree_rewrite_aux(r->right, ctx);
          }
+         else if (ITEM_NETID_ARRAY & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -2013,6 +2048,15 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
                tree_copy_aux(t->items[n].range.left, ctx);
             copy->items[n].range.right =
                tree_copy_aux(t->items[n].range.right, ctx);
+         }
+         else if (ITEM_NETID_ARRAY & mask) {
+            const netid_array_t *from = &(t->items[n].netid_array);
+            netid_array_t *to = &(copy->items[n].netid_array);
+
+            netid_array_resize(to, from->count);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
          }
          else
             item_without_type(mask);
