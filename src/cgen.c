@@ -19,7 +19,6 @@
 #include "phase.h"
 #include "lib.h"
 #include "common.h"
-#include "rt/signal.h"
 #include "rt/rt.h"
 
 #include <stdlib.h>
@@ -78,7 +77,6 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
-static LLVMTypeRef cgen_signal_type(type_t type);
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
@@ -404,6 +402,11 @@ static int cgen_array_dims(type_t type)
       return type_dims(type);
 }
 
+static LLVMTypeRef cgen_net_map_type(void)
+{
+   return LLVMPointerType(LLVMInt32Type(), 0);
+}
+
 static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef params[][3],
                                     LLVMValueRef ptr)
@@ -412,7 +415,7 @@ static LLVMValueRef cgen_array_meta(type_t type,
 
    LLVMTypeRef base;
    if (type == NULL)   // NULL means generic signal type
-      base = cgen_signal_type(NULL);
+      base = cgen_net_map_type();
    else
       base = llvm_type(type_elem(type));
 
@@ -1003,7 +1006,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       switch (tree_class(p)) {
       case C_SIGNAL:
          {
-            LLVMTypeRef base_type = cgen_signal_type(type);
+            LLVMTypeRef base_type = cgen_net_map_type();
             args[i] = (array && !cgen_const_bounds(type))
                ? base_type : LLVMPointerType(base_type, 0);
          }
@@ -3725,84 +3728,6 @@ static void cgen_process(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_signal_init(type_t type, LLVMValueRef resolution)
-{
-   if (type_is_array(type)) {
-      range_t r = type_dim(type, 0);
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-
-      const unsigned n_elems = high - low + 1;
-
-      LLVMValueRef array_init[n_elems];
-      LLVMValueRef init = cgen_signal_init(type_elem(type), resolution);
-      for (unsigned i = 0; i < n_elems; i++)
-         array_init[i] = init;
-      return LLVMConstArray(LLVMTypeOf(init), array_init, n_elems);
-   }
-   else {
-      LLVMValueRef init[SIGNAL_N_FIELDS];
-      init[SIGNAL_RESOLVED]   = llvm_int64(0);
-      init[SIGNAL_LAST_VALUE] = llvm_int64(0);
-      init[SIGNAL_DECL]       = LLVMConstNull(llvm_void_ptr());
-      init[SIGNAL_FLAGS]      = llvm_int8(0);
-      init[SIGNAL_N_SOURCES]  = llvm_int8(0);
-      init[SIGNAL_OFFSET]     = LLVMConstInt(LLVMInt16Type(), 0, false);
-      init[SIGNAL_SOURCES]    = LLVMConstNull(llvm_void_ptr());
-      init[SIGNAL_SENSITIVE]  = LLVMConstNull(llvm_void_ptr());
-      init[SIGNAL_EVENT_CB]   = LLVMConstNull(llvm_void_ptr());
-      init[SIGNAL_RESOLUTION] = llvm_void_cast(resolution);
-      init[SIGNAL_LAST_EVENT] = LLVMConstInt(LLVMInt64Type(), INT64_MAX, false);
-
-      LLVMTypeRef signal_s = LLVMGetTypeByName(module, "signal_s");
-      assert(signal_s != NULL);
-
-      return LLVMConstNamedStruct(signal_s, init, ARRAY_LEN(init));
-   }
-}
-
-static LLVMTypeRef cgen_signal_type(type_t type)
-{
-   if ((type != NULL) && type_is_array(type)) {
-      LLVMTypeRef base_type = cgen_signal_type(type_elem(type));
-
-      if (type_kind(type) == T_UARRAY)
-         return llvm_uarray_type(base_type, cgen_array_dims(type));
-      else {
-         range_t r = type_dim(type, 0);
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-
-         const unsigned n_elems = high - low + 1;
-
-         return LLVMArrayType(base_type, n_elems);
-      }
-   }
-   else {
-      LLVMTypeRef ty = LLVMGetTypeByName(module, "signal_s");
-      if (ty == NULL) {
-         LLVMTypeRef fields[SIGNAL_N_FIELDS];
-         fields[SIGNAL_RESOLVED]   = LLVMInt64Type();
-         fields[SIGNAL_LAST_VALUE] = LLVMInt64Type();
-         fields[SIGNAL_DECL]       = llvm_void_ptr();
-         fields[SIGNAL_FLAGS]      = LLVMInt8Type();
-         fields[SIGNAL_N_SOURCES]  = LLVMInt8Type();
-         fields[SIGNAL_OFFSET]     = LLVMInt16Type();
-         fields[SIGNAL_SOURCES]    = llvm_void_ptr();
-         fields[SIGNAL_SENSITIVE]  = llvm_void_ptr();
-         fields[SIGNAL_EVENT_CB]   = llvm_void_ptr();
-         fields[SIGNAL_RESOLUTION] = llvm_void_ptr();
-         fields[SIGNAL_LAST_EVENT] = LLVMInt64Type();
-
-         if (!(ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), "signal_s")))
-            fatal("failed to add type name signal_s");
-         LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
-      }
-
-      return ty;
-   }
-}
-
 static LLVMValueRef cgen_resolution_func(type_t type)
 {
    if ((type_kind(type) != T_SUBTYPE) || !type_has_resolution(type))
@@ -3918,12 +3843,8 @@ static void cgen_signal(tree_t t)
 
    type_t type = tree_type(t);
 
-   LLVMTypeRef lltype = cgen_signal_type(type);
-   LLVMValueRef v = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
-
    LLVMValueRef r = cgen_resolution_func(type);
-
-   LLVMSetInitializer(v, cgen_signal_init(type, r));
+   (void)r;  // XXX
 
    // Generate a constant mapping table from sub-element to net ID
 
