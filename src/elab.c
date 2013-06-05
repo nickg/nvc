@@ -190,15 +190,12 @@ static void elab_copy_context(tree_t dest, tree_t src)
       tree_add_context(dest, tree_context(src, i));
 }
 
-static unsigned elab_signal_width(tree_t decl)
+static unsigned elab_type_width(type_t type)
 {
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
-
-   type_t type = tree_type(decl);
    if (type_is_array(type)) {
       int64_t low, high;
       range_bounds(type_dim(type, 0), &low, &high);
-      return high - low + 1;
+      return (high - low + 1) * elab_type_width(type_elem(type));
    }
    else
       return 1;
@@ -213,9 +210,10 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
          // those of the actual
          tree_t s   = elab_port_to_signal(arch, formal);
          tree_t ref = tree_ref(actual);
+         assert(tree_kind(ref) == T_SIGNAL_DECL);
 
-         const int width = elab_signal_width(s);
-         assert(width == elab_signal_width(ref));
+         const int width = elab_type_width(tree_type(s));
+         assert(width == elab_type_width(tree_type(ref)));
          assert(tree_nets(ref) == width);
 
          for (int i = 0; i < width; i++) {
@@ -360,7 +358,7 @@ static void elab_nets(tree_t decl, const elab_ctx_t *ctx)
       // Nets have already been assigned e.g. from a port map
    }
    else {
-      const int width = elab_signal_width(decl);
+      const int width = elab_type_width(tree_type(decl));
       for (int i = 0; i < width; i++) {
          printf("assign %s[%d] net %d\n", istr(tree_ident(decl)),
                 i, *(ctx->next_net));
