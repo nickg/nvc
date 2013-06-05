@@ -1006,9 +1006,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       switch (tree_class(p)) {
       case C_SIGNAL:
          {
-            LLVMTypeRef base_type = cgen_net_map_type();
-            args[i] = (array && !cgen_const_bounds(type))
-               ? base_type : LLVMPointerType(base_type, 0);
+            args[i] = cgen_net_map_type();
          }
          break;
 
@@ -1260,8 +1258,9 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          // Pass a pointer to the array of nets
          assert(tree_kind(tree_value(p)) == T_REF);
          tree_t sig_decl = tree_ref(tree_value(p));
-         args[i] = cgen_signal_nets(sig_decl);
-         assert(args[i] != NULL);
+         LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+         args[i] = LLVMBuildGEP(builder, cgen_signal_nets(sig_decl),
+                                indexes, ARRAY_LEN(indexes), "");
       }
       else {
          args[i] = NULL;
