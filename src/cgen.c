@@ -402,9 +402,29 @@ static int cgen_array_dims(type_t type)
       return type_dims(type);
 }
 
-static LLVMTypeRef cgen_net_map_type(void)
+static LLVMTypeRef cgen_net_id_type(void)
 {
-   return LLVMPointerType(LLVMInt32Type(), 0);
+   return LLVMInt32Type();
+}
+
+static LLVMTypeRef cgen_net_map_type(type_t type)
+{
+   if ((type != NULL) && type_is_array(type)) {
+      if (!cgen_const_bounds(type))
+         return llvm_uarray_type(cgen_net_id_type(),
+                                 cgen_array_dims(type));
+      else {
+         range_t r = type_dim(type, 0);
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+
+         const unsigned n_elems = high - low + 1;
+
+         return LLVMPointerType(LLVMArrayType(cgen_net_id_type(), n_elems), 0);
+      }
+   }
+   else
+      return LLVMPointerType(LLVMArrayType(cgen_net_id_type(), 1), 0);
 }
 
 static LLVMValueRef cgen_array_meta(type_t type,
@@ -415,7 +435,7 @@ static LLVMValueRef cgen_array_meta(type_t type,
 
    LLVMTypeRef base;
    if (type == NULL)   // NULL means generic signal type
-      base = cgen_net_map_type();
+      base = cgen_net_id_type();
    else
       base = llvm_type(type_elem(type));
 
@@ -1005,9 +1025,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
 
       switch (tree_class(p)) {
       case C_SIGNAL:
-         {
-            args[i] = cgen_net_map_type();
-         }
+         args[i] = cgen_net_map_type(type);
          break;
 
       case C_VARIABLE:
@@ -1251,9 +1269,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          // Pass a pointer to the array of nets
          assert(tree_kind(tree_value(p)) == T_REF);
          tree_t sig_decl = tree_ref(tree_value(p));
-         LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-         args[i] = LLVMBuildGEP(builder, cgen_signal_nets(sig_decl),
-                                indexes, ARRAY_LEN(indexes), "");
+         args[i] = cgen_signal_nets(sig_decl);
       }
       else {
          args[i] = NULL;
@@ -3839,7 +3855,8 @@ static void cgen_signal(tree_t t)
    char buf[256];
    snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
 
-   LLVMTypeRef  map_type = LLVMArrayType(LLVMInt32Type(), nnets);
+   LLVMTypeRef  nid_type = cgen_net_id_type();
+   LLVMTypeRef  map_type = LLVMArrayType(nid_type, nnets);
    LLVMValueRef map_var  = LLVMAddGlobal(module, map_type, buf);
    LLVMSetGlobalConstant(map_var, true);
    LLVMSetLinkage(map_var, LLVMInternalLinkage);
@@ -3848,7 +3865,7 @@ static void cgen_signal(tree_t t)
    for (int i = 0; i < nnets; i++)
       init[i] = llvm_int32(tree_net(t, i));
 
-   LLVMSetInitializer(map_var, LLVMConstArray(LLVMInt32Type(), init, nnets));
+   LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
 
    tree_add_attr_ptr(t, sig_nets_i, map_var);
 }
