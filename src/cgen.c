@@ -1136,23 +1136,16 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
    else
       tmp = LLVMBuildAlloca(builder, llvm_type(slice_type), "tmp");
 
-   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-
    LLVMValueRef p_signal =
       src_uarray
       ? LLVMBuildExtractValue(builder, signal, 0, "")
-      : LLVMBuildGEP(builder, signal, indexes, ARRAY_LEN(indexes), "");
-
-   LLVMValueRef p_tmp =
-      dst_uarray
-      ? tmp
-      : LLVMBuildGEP(builder, tmp, indexes, ARRAY_LEN(indexes), "");
+      : signal;
 
    const int bytes = byte_width(type_elem(type));
 
    LLVMValueRef args[] = {
       llvm_void_cast(p_signal),
-      llvm_void_cast(p_tmp),
+      llvm_void_cast(tmp),
       llvm_int32(bytes),
       low_abs,
       high_abs,
@@ -2878,14 +2871,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
                cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
 
-               LLVMValueRef signal = cgen_array_signal_ptr(decl, off);
-               if (type_is_array(type_elem(type))) {
-                  LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-                  return LLVMBuildGEP(builder, signal,
-                                      indexes, ARRAY_LEN(indexes), "");
-               }
-               else
-                  return signal;
+               return cgen_array_signal_ptr(decl, off);
             }
          }
          else {
