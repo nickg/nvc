@@ -3864,11 +3864,6 @@ static void cgen_signal(tree_t t)
 {
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   type_t type = tree_type(t);
-
-   LLVMValueRef r = cgen_resolution_func(type);
-   (void)r;  // XXX
-
    // Generate a constant mapping table from sub-element to net ID
 
    const int nnets = tree_nets(t);
@@ -4242,6 +4237,7 @@ static void cgen_reset_function(tree_t t)
          llvm_void_cast(val),
          n_elems,
          size,
+         llvm_void_cast(cgen_resolution_func(type)),
          llvm_int32(tree_index(d)),
          LLVMBuildPointerCast(builder, mod_name,
                               LLVMPointerType(LLVMInt8Type(), 0), "")
@@ -4375,6 +4371,7 @@ static void cgen_support_fns(void)
       llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMInt32Type(),
+      llvm_void_ptr(),
       LLVMInt32Type(),
       LLVMPointerType(LLVMInt8Type(), 0)
    };

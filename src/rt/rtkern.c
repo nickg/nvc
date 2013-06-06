@@ -312,7 +312,7 @@ void _sched_event(const int32_t *nids, int32_t n)
 }
 
 void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
-                  int32_t index, const char *module)
+                  void *resolution, int32_t index, const char *module)
 {
    //TRACE("_set_initial net=%d values=%p n=%d size=%d index=%d",
    //      nid, values, n, size, index);
@@ -325,8 +325,9 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
 #define SET_INITIAL(type) do {                          \
       const type *vp = values;                          \
       for (int i = 0; i < n; i++) {                     \
-         net[i].resolved = net[i].last_value = vp[i];   \
-         net[i].sig_decl = decl;                        \
+         net[i].resolved   = net[i].last_value = vp[i]; \
+         net[i].sig_decl   = decl;                      \
+         net[i].resolution = resolution;                \
       }                                                 \
    } while (0)
 
@@ -1020,12 +1021,8 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
       // If there is more than one driver call the resolution function
 
       if (unlikely(net->resolution == NULL))
-#if 0
-         fatal_at(tree_loc(net->decl), "net %p has multiple drivers but "
-                  "no resolution function", net);
-#else
-      assert(false);
-#endif
+         fatal_at(tree_loc(net->sig_decl), "net %s has multiple drivers but "
+                  "no resolution function", fmt_net(net));
 
       uint64_t vals[net->n_drivers];
       for (int i = 0; i < net->n_drivers; i++)
