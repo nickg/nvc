@@ -314,29 +314,20 @@ void _sched_event(const int32_t *nids, int32_t n)
    }
 }
 
-void _set_initial_vec(int32_t nid, void *values, int32_t n, int32_t size)
+void _set_initial(int32_t nid, void *values, int32_t n, int32_t size)
 {
    struct net *net = &(nets[nid]);
 
-   TRACE("_set_initial_vec net=%d values=%p n=%d size=%d",
+   TRACE("_set_initial net=%d values=%p n=%d size=%d",
          nid, values, n, size);
 
-#define SET_INITIAL_VEC(type) do {                      \
+#define SET_INITIAL(type) do {                          \
       const type *vp = values;                          \
       for (int i = 0; i < n; i++)                       \
          net[i].resolved = net[i].last_value = vp[i];   \
    } while (0)
 
-   FOR_ALL_SIZES(size, SET_INITIAL_VEC);
-}
-
-void _set_initial(int32_t nid, int64_t value)
-{
-   struct net *net = &(nets[nid]);
-
-   TRACE("_set_initial net=%d value=%"PRIx64, nid, value);
-
-   net->resolved = net->last_value = value;
+   FOR_ALL_SIZES(size, SET_INITIAL);
 }
 
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
@@ -1261,7 +1252,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
    jit_bind_fn("_set_initial", _set_initial);
-   jit_bind_fn("_set_initial_vec", _set_initial_vec);
    jit_bind_fn("_file_open", _file_open);
    jit_bind_fn("_file_close", _file_close);
    jit_bind_fn("_file_write", _file_write);

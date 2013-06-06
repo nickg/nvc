@@ -4218,29 +4218,33 @@ static void cgen_reset_function(tree_t t)
 
       type_t type = tree_type(d);
 
+      LLVMValueRef n_elems, size;
+      if (!type_is_array(type)) {
+         // Need to get a pointer to the data
+         LLVMTypeRef lltype = LLVMTypeOf(val);
+         LLVMValueRef tmp = LLVMBuildAlloca(builder, lltype, "");
+         LLVMBuildStore(builder, val, tmp);
+         val = tmp;
+
+         n_elems = llvm_int32(1);
+         size    = llvm_sizeof(lltype);
+      }
+      else {
+         n_elems = cgen_array_len_recur(type, val);
+         size    = cgen_array_elem_size(type);
+      }
+
       // Assuming array nets are sequential
       netid_t nid = tree_net(d, 0);
 
-      if (type_is_array(type)) {
-         LLVMValueRef n_elems = cgen_array_len_recur(type, val);
-
-         LLVMValueRef args[] = {
-            llvm_int32(nid),
-            llvm_void_cast(val),
-            n_elems,
-            cgen_array_elem_size(type)
-         };
-         LLVMBuildCall(builder, llvm_fn("_set_initial_vec"),
-                       args, ARRAY_LEN(args), "");
-      }
-      else {
-         LLVMValueRef args[] = {
-            llvm_int32(nid),
-            LLVMBuildZExt(builder, val, LLVMInt64Type(), "")
-         };
-         LLVMBuildCall(builder, llvm_fn("_set_initial"),
-                       args, ARRAY_LEN(args), "");
-      }
+      LLVMValueRef args[] = {
+         llvm_int32(nid),
+         llvm_void_cast(val),
+         n_elems,
+         size
+      };
+      LLVMBuildCall(builder, llvm_fn("_set_initial"),
+                    args, ARRAY_LEN(args), "");
    }
 
    LLVMBuildRetVoid(builder);
@@ -4365,24 +4369,14 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _set_initial_args[] = {
       LLVMInt32Type(),
-      LLVMInt64Type()
+      llvm_void_ptr(),
+      LLVMInt32Type(),
+      LLVMInt32Type()
    };
    LLVMAddFunction(module, "_set_initial",
                    LLVMFunctionType(LLVMVoidType(),
                                     _set_initial_args,
                                     ARRAY_LEN(_set_initial_args),
-                                    false));
-
-   LLVMTypeRef _set_initial_vec_args[] = {
-      LLVMInt32Type(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_set_initial_vec",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _set_initial_vec_args,
-                                    ARRAY_LEN(_set_initial_vec_args),
                                     false));
 
    LLVMTypeRef _assert_fail_args[] = {
