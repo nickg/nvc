@@ -572,37 +572,6 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
       printf("\n");
 }
 
-void _name_attr(void *_sig, int which, struct uarray *u)
-{
-#if 0
-   struct signal *sig = _sig;
-   ident_t inst_name_i = ident_new("INSTANCE_NAME");
-
-   const char *str;
-   switch (which) {
-   case 0:   // PATH_NAME
-      str = istr(tree_ident(sig->decl));
-      break;
-   case 1:   // INSTANCE_NAME
-      str = istr(tree_attr_str(sig->decl, inst_name_i));
-      break;
-   default:
-      assert(false);
-   }
-
-   size_t len = strlen(str) + 1;
-   char *buf = rt_tmp_alloc(len);
-   strncpy(buf, str, len);
-
-   u->ptr = buf;
-   u->dims[0].left  = 0;
-   u->dims[0].right = len - 1;
-   u->dims[0].dir   = RANGE_TO;
-#else
-   assert(false);
-#endif
-}
-
 int64_t _last_event(const int32_t *nids, int32_t n)
 {
    TRACE("_last_event nids[0]=%d n=%d", nids[0], n);
@@ -1291,7 +1260,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_vec_load", _vec_load);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
-   jit_bind_fn("_name_attr", _name_attr);
    jit_bind_fn("_set_initial", _set_initial);
    jit_bind_fn("_set_initial_vec", _set_initial_vec);
    jit_bind_fn("_file_open", _file_open);

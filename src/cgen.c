@@ -72,6 +72,11 @@ typedef struct cgen_ctx {
    tree_t            fdecl;
 } cgen_ctx_t;
 
+typedef enum {
+   PATH_NAME,
+   INSTANCE_NAME
+} name_attr_t;
+
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx);
 static void cgen_stmt(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
@@ -1470,21 +1475,38 @@ static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
    return result;
 }
 
-static LLVMValueRef cgen_name_attr(tree_t ref, int which)
+static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
 {
    tree_t decl = tree_ref(ref);
 
-   LLVMValueRef signal = cgen_signal_nets(decl);
-   LLVMValueRef res = LLVMBuildAlloca(builder,
-                                      llvm_uarray_type(LLVMInt8Type(), 1),
-                                      "name_attr");
-   LLVMValueRef args[] = {
-      llvm_void_cast(signal),
-      llvm_int32(which),
-      res,
-   };
-   LLVMBuildCall(builder, llvm_fn("_name_attr"), args, ARRAY_LEN(args), "");
-   return LLVMBuildLoad(builder, res, "");
+   ident_t i;
+   switch (which) {
+   case PATH_NAME:
+      i = tree_ident(decl);
+      break;
+   case INSTANCE_NAME:
+      i = tree_attr_str(decl, ident_new("INSTANCE_NAME"));
+      break;
+   }
+
+   const char *str = istr(i);
+   const size_t len = strlen(str);
+   LLVMValueRef chars[len + 1];
+   llvm_str(chars, len + 1, str);
+
+   LLVMValueRef global = LLVMAddGlobal(module,
+                                     LLVMArrayType(LLVMInt8Type(), len + 1),
+                                     "name_attr");
+   LLVMSetInitializer(global,
+                      LLVMConstArray(LLVMInt8Type(), chars, len + 1));
+   LLVMSetLinkage(global, LLVMPrivateLinkage);
+
+   LLVMValueRef ptr =
+      LLVMBuildPointerCast(builder, global,
+                           LLVMPointerType(LLVMInt8Type(), 0), "");
+
+   return cgen_array_meta_1(type, llvm_int32(1), llvm_int32(len),
+                            llvm_int8(RANGE_TO), ptr);
 }
 
 static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
@@ -1618,9 +1640,9 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "agg_high"))
          return cgen_agg_bound(p0, false, INT32_MIN, ctx);
       else if (icmp(builtin, "instance_name"))
-         return cgen_name_attr(p0, 1);
+         return cgen_name_attr(p0, tree_type(t), INSTANCE_NAME);
       else if (icmp(builtin, "path_name"))
-         return cgen_name_attr(p0, 0);
+         return cgen_name_attr(p0, tree_type(t), PATH_NAME);
       else if (icmp(builtin, "last_event"))
          return cgen_last_event(p0);
       else if (icmp(builtin, "uarray_left"))
@@ -4471,17 +4493,6 @@ static void cgen_support_fns(void)
                                        ARRAY_LEN(llvm_memcpy_args),
                                        false));
    }
-
-   LLVMTypeRef _name_attr_args[] = {
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
-   };
-   LLVMAddFunction(module, "_name_attr",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _name_attr_args,
-                                    ARRAY_LEN(_name_attr_args),
-                                    false));
 
    LLVMTypeRef _file_open_args[] = {
       LLVMPointerType(LLVMInt8Type(), 0),
