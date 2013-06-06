@@ -210,20 +210,21 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
          // those of the actual
          tree_t s   = elab_port_to_signal(arch, formal);
          tree_t ref = tree_ref(actual);
-         assert(tree_kind(ref) == T_SIGNAL_DECL);
+         if (tree_kind(ref) == T_SIGNAL_DECL) {
+            const int width = elab_type_width(tree_type(s));
+            assert(width == elab_type_width(tree_type(ref)));
+            assert(tree_nets(ref) == width);
 
-         const int width = elab_type_width(tree_type(s));
-         assert(width == elab_type_width(tree_type(ref)));
-         assert(tree_nets(ref) == width);
+            for (int i = 0; i < width; i++) {
+               printf("map %s[%d] -> %s[%d] net %d\n", istr(tree_ident(s)), i,
+                      istr(tree_ident(ref)), i, tree_net(ref, i));
+               tree_add_net(s, tree_net(ref, i));
+            }
 
-         for (int i = 0; i < width; i++) {
-            printf("map %s[%d] -> %s[%d] net %d\n", istr(tree_ident(s)), i,
-                   istr(tree_ident(ref)), i, tree_net(ref, i));
-            tree_add_net(s, tree_net(ref, i));
+            return s;
          }
-
-         return s;
       }
+      // Fall-through
 
    case T_LITERAL:
       return actual;
