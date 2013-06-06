@@ -4241,7 +4241,10 @@ static void cgen_reset_function(tree_t t)
          llvm_int32(nid),
          llvm_void_cast(val),
          n_elems,
-         size
+         size,
+         llvm_int32(tree_index(d)),
+         LLVMBuildPointerCast(builder, mod_name,
+                              LLVMPointerType(LLVMInt8Type(), 0), "")
       };
       LLVMBuildCall(builder, llvm_fn("_set_initial"),
                     args, ARRAY_LEN(args), "");
@@ -4371,7 +4374,9 @@ static void cgen_support_fns(void)
       LLVMInt32Type(),
       llvm_void_ptr(),
       LLVMInt32Type(),
-      LLVMInt32Type()
+      LLVMInt32Type(),
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0)
    };
    LLVMAddFunction(module, "_set_initial",
                    LLVMFunctionType(LLVMVoidType(),

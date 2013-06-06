@@ -95,12 +95,13 @@ struct net {
    uint64_t          resolved;
    uint64_t          last_value;
    net_flags_t       flags;
-   unsigned          n_drivers;
+   uint32_t          n_drivers;
    struct driver    *drivers;
    struct sens_list *sensitive;
    sig_event_fn_t    event_cb;
    resolution_fn_t   resolution;
    uint64_t          last_event;
+   tree_t            sig_decl;
 };
 
 struct uarray {
@@ -178,7 +179,6 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
-#if 0
 static int array_size(type_t type)
 {
    if (type_is_array(type)) {
@@ -189,7 +189,6 @@ static int array_size(type_t type)
    else
       return 1;
 }
-#endif
 
 static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
 {
@@ -221,19 +220,18 @@ static const char *fmt_time(uint64_t t)
    return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
 }
 
-#if 0
-static const char *fmt_sig(struct signal *sig)
+static const char *fmt_net(const struct net *net)
 {
    static const int BUF_SZ = 256;
    char *buf = get_fmt_buf(BUF_SZ);
    char *p = buf;
    const char *end = buf + BUF_SZ;
-   p += snprintf(p, end - p, "%s", istr(tree_ident(sig->decl)));
+   p += snprintf(p, end - p, "%s", istr(tree_ident(net->sig_decl)));
 
-   struct signal *first = tree_attr_ptr(sig->decl, i_signal);
-   ptrdiff_t offset = sig - first;
+   const struct net *first = &(nets[tree_net(net->sig_decl, 0)]);
+   ptrdiff_t offset = net - first;
 
-   type_t type = tree_type(sig->decl);
+   type_t type = tree_type(net->sig_decl);
    while (type_is_array(type)) {
       int stride = array_size(type_elem(type));
       p += snprintf(p, end - p, "[%zd]", offset / stride);
@@ -243,7 +241,6 @@ static const char *fmt_sig(struct signal *sig)
    }
    return buf;
 }
-#endif
 
 static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 {
@@ -266,9 +263,9 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 {
    const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform nids[0]=%d values=%p n=%d size=%d after=%s "
-         "reject=%s reverse=%d", nids[0], values, n, size, fmt_time(after),
-         fmt_time(reject), reverse);
+   TRACE("_sched_waveform %s values=%p n=%d size=%d after=%s "
+         "reject=%s reverse=%d", fmt_net(&nets[nids[0]]), values, n, size,
+         fmt_time(after), fmt_time(reject), reverse);
 
    const int v_start = reverse ? (n - 1) : 0;
    const int v_inc   = reverse ? -1 : 1;
@@ -287,7 +284,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
 void _sched_event(const int32_t *nids, int32_t n)
 {
-   TRACE("_sched_event nids[0]=%d n=%d proc %s", nids[0], n,
+   TRACE("_sched_event %s n=%d proc %s", fmt_net(&nets[nids[0]]), n,
          istr(tree_ident(active_proc->source)));
 
    for (int i = 0; i < n; i++) {
@@ -314,17 +311,23 @@ void _sched_event(const int32_t *nids, int32_t n)
    }
 }
 
-void _set_initial(int32_t nid, void *values, int32_t n, int32_t size)
+void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
+                  int32_t index, const char *module)
 {
+   //TRACE("_set_initial net=%d values=%p n=%d size=%d index=%d",
+   //      nid, values, n, size, index);
+
    struct net *net = &(nets[nid]);
 
-   TRACE("_set_initial net=%d values=%p n=%d size=%d",
-         nid, values, n, size);
+   tree_t decl = rt_recall_tree(module, index);
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
 
 #define SET_INITIAL(type) do {                          \
       const type *vp = values;                          \
-      for (int i = 0; i < n; i++)                       \
+      for (int i = 0; i < n; i++) {                     \
          net[i].resolved = net[i].last_value = vp[i];   \
+         net[i].sig_decl = decl;                        \
+      }                                                 \
    } while (0)
 
    FOR_ALL_SIZES(size, SET_INITIAL);
@@ -448,8 +451,8 @@ void _array_reverse(void *restrict dst, const void *restrict src,
 void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                int32_t high, int32_t last)
 {
-   TRACE("_vec_load nids[0]=%d where=%p size=%d low=%d high=%d last=%d",
-         nids[0], where, size, low, high, last);
+   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+         fmt_net(&(nets[nids[0]])), where, size, low, high, last);
 
 #define VEC_LOAD(type) do {                                          \
       type *p = where;                                               \
@@ -565,7 +568,7 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 
 int64_t _last_event(const int32_t *nids, int32_t n)
 {
-   TRACE("_last_event nids[0]=%d n=%d", nids[0], n);
+   TRACE("_last_event %s n=%d", fmt_net(&(nets[nids[0]])), n);
 
    int64_t last = INT64_MAX;
    for (int i = 0; i < n; i++) {
@@ -579,7 +582,7 @@ int64_t _last_event(const int32_t *nids, int32_t n)
 
 int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
 {
-   TRACE("_test_net_flag nids[0]=%d n=%d flag=%d", nids[0], n, flag);
+   TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(&(nets[nids[0]])), n, flag);
 
    for (int i = 0; i < n; i++) {
       if (nets[nids[i]].flags & flag)
@@ -747,7 +750,7 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
    if (e->kind == E_DRIVER) {
-      fprintf(stderr, "driver\t %p", e->net);;
+      fprintf(stderr, "driver\t %s", fmt_net(e->net));;
       if (e->length > 1)
          fprintf(stderr, "+%d", e->length - 1);
       fprintf(stderr, "\n");
