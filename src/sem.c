@@ -46,7 +46,7 @@ struct loop_stack {
    ident_t            name;
 };
 
-#define MAX_OVERLOADS 32
+#define MAX_OVERLOADS 128
 
 struct type_set {
    type_t   *members;
@@ -2878,6 +2878,7 @@ static bool sem_check_fcall(tree_t t)
 
             if (!duplicate) {
                // Found a matching function definition
+               assert(n_overloads < MAX_OVERLOADS);
                overloads[n_overloads++] = decl;
             }
          }
