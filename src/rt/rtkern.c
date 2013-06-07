@@ -24,6 +24,7 @@
 #include "alloc.h"
 #include "heap.h"
 #include "common.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -95,10 +96,10 @@ struct net {
    uint64_t          resolved;
    uint64_t          last_value;
    net_flags_t       flags;
-   uint32_t          n_drivers;
+   uint16_t          n_drivers;
+   uint16_t          n_watchers;
    struct driver    *drivers;
    struct sens_list *sensitive;
-   sig_event_fn_t    event_cb;
    resolution_fn_t   resolution;
    uint64_t          last_event;
    tree_t            sig_decl;
@@ -125,6 +126,13 @@ struct run_queue {
    size_t       alloc;
 };
 
+struct watch {
+   tree_t         signal;
+   sig_event_fn_t fn;
+   uint64_t       last_now;
+   uint32_t       last_delta;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
@@ -142,6 +150,7 @@ static tree_rd_ctx_t tree_rd_ctx = NULL;
 static struct rusage ready_rusage;
 static jmp_buf       fatal_jmp;
 static bool          aborted = false;
+static hash_t       *watch_hash = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -270,10 +279,10 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    const int v_start = reverse ? (n - 1) : 0;
    const int v_inc   = reverse ? -1 : 1;
 
-#define SCHED_WAVEFORM(type) do {                           \
+#define SCHED_WAVEFORM(type) do {                               \
       const type *vp  = (type *)values + v_start;               \
       for (int i = 0; i < n; i++, vp += v_inc)                  \
-         rt_alloc_driver(&(nets[nids[i]]), after, reject, *vp);        \
+         rt_alloc_driver(&(nets[nids[i]]), after, reject, *vp); \
    } while (0)
 
    FOR_ALL_SIZES(size, SCHED_WAVEFORM);
@@ -822,8 +831,8 @@ static void rt_reset_net(struct net *net)
    net->sensitive  = NULL;
    net->drivers    = NULL;
    net->n_drivers  = 0;
-   net->event_cb   = NULL;
    net->last_event = INT64_MAX;
+   net->sig_decl   = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -1014,7 +1023,8 @@ static void rt_alloc_driver(struct net *net, uint64_t after,
 
 static void rt_update_net(struct net *net, int driver, uint64_t value)
 {
-   TRACE("update net %p value=%"PRIx64" driver=%d", net, value, driver);
+   TRACE("update net %s value=%"PRIx64" driver=%d",
+         fmt_net(net), value, driver);
 
    uint64_t resolved;
    if (unlikely(net->n_drivers > 1)) {
@@ -1040,14 +1050,6 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
 
    assert(n_active_nets < MAX_ACTIVE_NETS);
    active_nets[n_active_nets++] = net;
-
-#if 0
-   // Set the update flag on the first element of the vector which
-   // will cause the event callback to be executed at the end of
-   // the cycle
-   struct signal *base = s - s->offset;
-   base->flags |= NET_F_UPDATE;
-#endif
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
@@ -1184,15 +1186,20 @@ static void rt_cycle(void)
 
    for (unsigned i = 0; i < n_active_nets; i++) {
       struct net *net = active_nets[i];
-      //struct signal *base = s - s->offset;
       net->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
-#if 0
-      if (unlikely((base->event_cb != NULL)
-                   && (base->flags & NET_F_UPDATE))) {
-         (*base->event_cb)(now, s->decl);
-         base->flags &= ~NET_F_UPDATE;
+
+      if (unlikely(net->n_watchers > 0)) {
+         struct watch *w;
+         int n = 0, tmp;
+         while ((tmp = n++),
+                (w = hash_get_nth(watch_hash, net, &tmp))) {
+            if ((w->last_now != now) || (w->last_delta != iteration)) {
+               (*w->fn)(now, w->signal);
+               w->last_now   = now;
+               w->last_delta = iteration;
+            }
+         }
       }
-#endif
    }
    n_active_nets = 0;
 }
@@ -1521,40 +1528,45 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
 void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 {
-#if 0
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
-   struct signal *sig = tree_attr_ptr(s, i_signal);
-   assert(sig != NULL);
+   struct watch *w = NULL;
+   if (fn != NULL) {
+      w = xmalloc(sizeof(struct watch));
+      w->signal     = s;
+      w->fn         = fn;
+      w->last_now   = UINT64_MAX;
+      w->last_delta = UINT32_MAX;
+   }
 
-   sig->event_cb = fn;
-#else
-   assert(false);
-#endif
+   const int nnets = tree_nets(s);
+   for (int i = 0; i < nnets; i++) {
+      netid_t nid = tree_net(s, i);
+      struct net *net = &(nets[nid]);
+
+      if (fn == NULL) {
+         assert(net->n_watchers > 0);
+         net->n_watchers--;
+         // XXX: Leaves stale hash entry
+      }
+      else {
+         if (unlikely(watch_hash == NULL))
+            watch_hash = hash_new(4096, false);
+
+         hash_put(watch_hash, net, w);
+         net->n_watchers++;
+      }
+   }
 }
 
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max)
 {
-#if 0
    assert(tree_kind(decl) == T_SIGNAL_DECL);
-
-   type_t type = tree_type(decl);
-
-   int64_t low = 0, high = 0;
-   if (type_kind(type) == T_CARRAY) {
-      range_bounds(type_dim(type, 0), &low, &high);
+   const unsigned nnets = tree_nets(decl);
+   for (unsigned i = 0; (i < nnets) && (i < max); i++) {
+      const struct net *net = &(nets[tree_net(decl, i)]);
+      buf[i] = net->resolved;
    }
-   struct signal *base = tree_attr_ptr(decl, i_signal);
 
-   size_t n_vals = high - low + 1;
-   if (n_vals > max)
-      n_vals = max;
-
-   for (unsigned i = 0; i < n_vals; i++)
-      buf[i] = base[i].resolved;
-
-   return n_vals;
-#else
-   assert(false);
-#endif
+   return MIN(nnets, max);
 }
