@@ -185,8 +185,11 @@ void link_bc(tree_t top)
 
    link_arg_f("-o");
    if (opt_en) {
-      if (mkstemp(tmp) < 0)
+      int fd;
+      if ((fd = mkstemp(tmp)) < 0)
          fatal_errno("mkstemp");
+      else
+         close(fd);
       link_arg_f("%s", tmp);
    }
    else
