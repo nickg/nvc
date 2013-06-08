@@ -217,9 +217,10 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
       {
          // Replace the formal port with a signal and connect its nets to
          // those of the actual
-         tree_t s   = elab_port_to_signal(arch, formal);
          tree_t ref = tree_ref(actual);
          if (tree_kind(ref) == T_SIGNAL_DECL) {
+            tree_t s = elab_port_to_signal(arch, formal);
+
             const int width = elab_type_width(tree_type(s));
             assert(width == elab_type_width(tree_type(ref)));
             assert(tree_nets(ref) == width);
@@ -345,7 +346,7 @@ static void elab_map(tree_t t, tree_t arch,
    }
 }
 
-static void elab_instance(tree_t t, elab_ctx_t *ctx)
+static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 

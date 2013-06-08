@@ -87,10 +87,6 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
 static LLVMValueRef cgen_signal_nets(tree_t decl);
 
-// XXX: merge this with cgen_load_vec
-static LLVMValueRef cgen_scalar_signal_ref(LLVMValueRef nets, type_t type,
-                                           bool last_value, cgen_ctx_t *ctx);
-
 static LLVMValueRef llvm_int1(bool b)
 {
    return LLVMConstInt(LLVMInt1Type(), b, false);
@@ -1122,7 +1118,27 @@ static LLVMValueRef cgen_literal(tree_t t)
    }
 }
 
-static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
+static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
+                                         bool last_value, cgen_ctx_t *ctx)
+{
+   const int bytes = byte_width(type);
+
+   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(type), "tmp");
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      llvm_void_cast(tmp),
+      llvm_int32(bytes),
+      llvm_int32(0),
+      llvm_int32(0),
+      llvm_int1(last_value)
+   };
+   LLVMBuildCall(builder, llvm_fn("_vec_load"), args, ARRAY_LEN(args), "");
+
+   return LLVMBuildLoad(builder, tmp, "");
+}
+
+static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
                                   type_t slice_type, bool last_value,
                                   cgen_ctx_t *ctx)
 {
@@ -1133,9 +1149,9 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
 
    LLVMValueRef fn = llvm_fn("_vec_load");
 
-   LLVMValueRef left  = cgen_array_left(slice_type, 0, signal);
-   LLVMValueRef right = cgen_array_right(slice_type, 0, signal);
-   LLVMValueRef dir   = cgen_array_dir(slice_type, 0, signal);
+   LLVMValueRef left  = cgen_array_left(slice_type, 0, nets);
+   LLVMValueRef right = cgen_array_right(slice_type, 0, nets);
+   LLVMValueRef dir   = cgen_array_dir(slice_type, 0, nets);
 
    LLVMValueRef dir_to =
       LLVMBuildICmp(builder, LLVMIntEQ, dir, llvm_int8(RANGE_TO), "to");
@@ -1143,8 +1159,8 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
    LLVMValueRef low  = LLVMBuildSelect(builder, dir_to, left, right, "");
    LLVMValueRef high = LLVMBuildSelect(builder, dir_to, right, left, "");
 
-   LLVMValueRef low_abs  = cgen_array_off(low, signal, type, ctx, 0);
-   LLVMValueRef high_abs = cgen_array_off(high, signal, type, ctx, 0);
+   LLVMValueRef low_abs  = cgen_array_off(low, nets, type, ctx, 0);
+   LLVMValueRef high_abs = cgen_array_off(high, nets, type, ctx, 0);
 
    LLVMValueRef tmp;
    if (dst_uarray) {
@@ -1161,8 +1177,8 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef signal, type_t type,
 
    LLVMValueRef p_signal =
       src_uarray
-      ? LLVMBuildExtractValue(builder, signal, 0, "")
-      : signal;
+      ? LLVMBuildExtractValue(builder, nets, 0, "")
+      : nets;
 
    const int bytes = byte_width(type_elem(type));
 
@@ -1222,7 +1238,7 @@ static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
    if (type_is_array(type))
       return cgen_vec_load(nets, type, type, true, ctx);
    else
-      return cgen_scalar_signal_ref(nets, type, true, ctx);
+      return cgen_scalar_vec_load(nets, type, true, ctx);
 }
 
 static LLVMValueRef cgen_uarray_field(tree_t ref, int field, cgen_ctx_t *ctx)
@@ -1911,26 +1927,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
-static LLVMValueRef cgen_scalar_signal_ref(LLVMValueRef nets, type_t type,
-                                           bool last_value, cgen_ctx_t *ctx)
-{
-   const int bytes = byte_width(type);
-
-   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(type), "tmp");
-
-   LLVMValueRef args[] = {
-      llvm_void_cast(nets),
-      llvm_void_cast(tmp),
-      llvm_int32(bytes),
-      llvm_int32(0),
-      llvm_int32(0),
-      llvm_int1(last_value)
-   };
-   LLVMBuildCall(builder, llvm_fn("_vec_load"), args, ARRAY_LEN(args), "");
-
-   return LLVMBuildLoad(builder, tmp, "");
-}
-
 static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -1965,7 +1961,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
          if (type_is_array(type))
             return cgen_vec_load(nets, type, type, false, ctx);
          else
-            return cgen_scalar_signal_ref(nets, type, false, ctx);
+            return cgen_scalar_vec_load(nets, type, false, ctx);
       }
       else {
          LLVMValueRef var = cgen_get_var(decl, ctx);
@@ -2083,7 +2079,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
             return cgen_vec_load(nets, elem_type, elem_type, false, ctx);
          }
          else
-            return cgen_scalar_signal_ref(nets, elem_type, false, ctx);
+            return cgen_scalar_vec_load(nets, elem_type, false, ctx);
       }
 
    default:
