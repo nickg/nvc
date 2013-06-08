@@ -176,6 +176,15 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port)
 {
    assert(tree_kind(port) == T_PORT_DECL);
 
+   ident_t name = tree_ident(port);
+
+   const int ndecls = tree_decls(arch);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(arch, i);
+      if (tree_ident(d) == name)
+         return d;
+   }
+
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
    tree_set_type(s, tree_type(port));
@@ -223,8 +232,9 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
 
             return s;
          }
+         else
+            return actual;
       }
-      // Fall-through
 
    case T_LITERAL:
       return actual;
@@ -236,6 +246,23 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
       fatal_at(tree_loc(actual), "tree %s not supported as actual",
                tree_kind_str(tree_kind(actual)));
    }
+}
+
+static ident_t elab_formal_name(tree_t t)
+{
+   tree_kind_t kind;
+   while ((kind = tree_kind(t)) != T_REF) {
+      switch (kind) {
+      case T_ARRAY_REF:
+         t = tree_value(t);
+         break;
+
+      default:
+         assert(false);
+      }
+   }
+
+   return tree_ident(t);
 }
 
 static void elab_map(tree_t t, tree_t arch,
@@ -266,11 +293,10 @@ static void elab_map(tree_t t, tree_t arch,
          break;
       case P_NAMED:
          {
-            tree_t name = tree_name(p);
-            assert(tree_kind(name) == T_REF);
+            ident_t name = elab_formal_name(tree_name(p));
             for (int j = 0; j < nformals; j++) {
                tree_t port = tree_F(unit, j);
-               if (tree_ident(port) == tree_ident(name)) {
+               if (tree_ident(port) == name) {
                   formal = port;
                   have_formals[j] = true;
                   break;
