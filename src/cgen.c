@@ -818,6 +818,14 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
 
    LLVMValueRef nets = cgen_signal_nets(decl);
 
+   if (type_is_array(type)) {
+      type_t elem_type = type_elem(type);
+      if (type_is_array(elem_type)) {
+         LLVMValueRef stride = cgen_array_len(elem_type, 0, nets);
+         elem = LLVMBuildMul(builder, elem, stride, "");
+      }
+   }
+
    const bool wrap = type_is_array(type) && !cgen_const_bounds(type);
    if (wrap) {
       // Generate a new meta-data structure offset by `elem'
@@ -2058,9 +2066,15 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       {
          assert(decl != NULL);
 
+         type_t elem_type = type_elem(type);
+         if (type_is_array(elem_type)) {
+            LLVMValueRef stride = cgen_array_len(elem_type, 0, array);
+            idx = LLVMBuildMul(builder, idx, stride, "");
+         }
+
          LLVMValueRef nets;
          if (type_kind(type) == T_UARRAY) {
-            // Unwrap array to signal array
+            // Unwrap array to nets array
             array = LLVMBuildExtractValue(builder, array, 0, "aptr");
 
             LLVMValueRef indexes[] = { idx };
@@ -2073,7 +2087,6 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
                                 indexes, ARRAY_LEN(indexes), "");
          }
 
-         type_t elem_type = type_elem(type);
          if (type_is_array(elem_type)) {
             // Load this sub-array into a temporary variable
             return cgen_vec_load(nets, elem_type, elem_type, false, ctx);
