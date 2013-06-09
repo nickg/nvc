@@ -1503,7 +1503,7 @@ static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
 {
    tree_t decl = tree_ref(ref);
 
-   ident_t i;
+   ident_t i = NULL;
    switch (which) {
    case PATH_NAME:
       i = tree_ident(decl);
