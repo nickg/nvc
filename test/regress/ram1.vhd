@@ -15,7 +15,7 @@ end entity;
 
 architecture rtl of memory is
     type ram_t is array (0 to 255) of std_logic_vector(WIDTH - 1 downto 0);
-    
+
     signal addr_r : unsigned(7 downto 0);
     signal ram    : ram_t;
 begin
@@ -31,7 +31,7 @@ begin
     end process;
 
     dout <= ram(to_integer(addr_r));
-    
+
 end architecture;
 
 -------------------------------------------------------------------------------
@@ -46,7 +46,7 @@ end entity;
 architecture test of ram1 is
     constant ITERS : integer := 1;
     constant WIDTH : integer := 8;
-    
+
     signal clk  : std_logic := '0';
     signal addr : unsigned(7 downto 0);
     signal din  : std_logic_vector(WIDTH - 1 downto 0);
@@ -88,5 +88,5 @@ begin
         running <= false;
         wait;
     end process;
-    
+
 end architecture;

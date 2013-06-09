@@ -39,6 +39,13 @@ typedef struct {
    tree_t actual;
 } rewrite_params_t;
 
+typedef struct map_list {
+   struct map_list *next;
+   tree_t formal;
+   tree_t actual;
+   tree_t signal;
+} map_list_t;
+
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
@@ -210,7 +217,8 @@ static unsigned elab_type_width(type_t type)
       return 1;
 }
 
-static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
+static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual,
+                               map_list_t **maps)
 {
    switch (tree_kind(actual)) {
    case T_REF:
@@ -221,15 +229,13 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t actual)
          if (tree_kind(ref) == T_SIGNAL_DECL) {
             tree_t s = elab_port_to_signal(arch, formal);
 
-            const int width = elab_type_width(tree_type(s));
-            assert(width == elab_type_width(tree_type(ref)));
-            assert(tree_nets(ref) == width);
+            map_list_t *m = xmalloc(sizeof(map_list_t));
+            m->next   = *maps;
+            m->formal = formal;
+            m->actual = actual;
+            m->signal = s;
 
-            for (int i = 0; i < width; i++) {
-               printf("map %s[%d] -> %s[%d] net %d\n", istr(tree_ident(s)), i,
-                      istr(tree_ident(ref)), i, tree_net(ref, i));
-               tree_add_net(s, tree_net(ref, i));
-            }
+            *maps = m;
 
             return s;
          }
@@ -266,9 +272,9 @@ static ident_t elab_formal_name(tree_t t)
    return tree_ident(t);
 }
 
-static void elab_map(tree_t t, tree_t arch,
-                     tree_formals_t tree_Fs, tree_formal_t tree_F,
-                     tree_actuals_t tree_As, tree_actual_t tree_A)
+static map_list_t *elab_map(tree_t t, tree_t arch,
+                            tree_formals_t tree_Fs, tree_formal_t tree_F,
+                            tree_actuals_t tree_As, tree_actual_t tree_A)
 {
    tree_t unit = tree_ref(t);
    assert(tree_kind(unit) == T_ENTITY);
@@ -279,6 +285,8 @@ static void elab_map(tree_t t, tree_t arch,
    bool have_formals[nformals];
    for (int i = 0; i < nformals; i++)
       have_formals[i] = false;
+
+   map_list_t *maps = NULL;
 
    for (int i = 0; i < nactuals; i++) {
       tree_t p = tree_A(t, i);
@@ -317,7 +325,7 @@ static void elab_map(tree_t t, tree_t arch,
 
       switch (tree_class(formal)) {
       case C_SIGNAL:
-         params.actual = elab_signal_port(arch, formal, tree_value(p));
+         params.actual = elab_signal_port(arch, formal, tree_value(p), &maps);
          break;
 
       case C_CONSTANT:
@@ -344,6 +352,25 @@ static void elab_map(tree_t t, tree_t arch,
          tree_rewrite(arch, rewrite_refs, &params);
       }
    }
+
+   return maps;
+}
+
+static void elab_map_nets(map_list_t *maps)
+{
+   for (; maps != NULL; maps = maps->next) {
+      tree_t ref = tree_ref(maps->actual);
+
+      const int width = elab_type_width(tree_type(maps->signal));
+      assert(width == elab_type_width(tree_type(ref)));
+      assert(tree_nets(ref) == width);
+
+      for (int i = 0; i < width; i++) {
+         printf("map %s[%d] -> %s[%d] net %d\n", istr(tree_ident(maps->signal)), i,
+                istr(tree_ident(ref)), i, tree_net(ref, i));
+         tree_add_net(maps->signal, tree_net(ref, i));
+      }
+   }
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -356,10 +383,11 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    tree_t arch = tree_copy(pick_arch(tree_loc(t), tree_ident2(t)));
 
-   elab_map(t, arch, tree_ports, tree_port,
-            tree_params, tree_param);
-   elab_map(t, arch, tree_generics, tree_generic,
-            tree_genmaps, tree_genmap);
+   map_list_t *maps = elab_map(t, arch, tree_ports, tree_port,
+                               tree_params, tree_param);
+
+   (void)elab_map(t, arch, tree_generics, tree_generic,
+                  tree_genmaps, tree_genmap);
 
    elab_copy_context(ctx->out, tree_ref(t));
 
@@ -368,6 +396,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident(arch))));
 
    simplify(arch);
+
+   elab_map_nets(maps);
 
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
@@ -378,7 +408,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    elab_arch(arch, &new_ctx);
 }
 
-static void elab_nets(tree_t decl, const elab_ctx_t *ctx)
+static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
 {
    // Assign net IDs to each sub-element of a signal declaration
 
@@ -408,7 +438,7 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-         elab_nets(d, ctx);
+         elab_signal_nets(d, ctx);
          // Fall-through
       case T_FUNC_BODY:
       case T_PROC_BODY:
