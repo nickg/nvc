@@ -1048,12 +1048,24 @@ unsigned tree_nets(tree_t t)
 
 netid_t tree_net(tree_t t, unsigned n)
 {
-   return netid_array_nth(&(lookup_item(t, I_NETS)->netid_array), n);
+   netid_t nid = netid_array_nth(&(lookup_item(t, I_NETS)->netid_array), n);
+   assert(nid != NETID_INVALID);
+   return nid;
 }
 
 void tree_add_net(tree_t t, netid_t n)
 {
    netid_array_add(&(lookup_item(t, I_NETS)->netid_array), n);
+}
+
+void tree_change_net(tree_t t, unsigned n, netid_t i)
+{
+   item_t *item = lookup_item(t, I_NETS);
+
+   if (n >= item->netid_array.count)
+      netid_array_resize(&(item->netid_array), n + 1, NETID_INVALID);
+
+   item->netid_array.items[n] = i;
 }
 
 tree_t tree_severity(tree_t t)
@@ -1388,14 +1400,15 @@ static void write_s(assoc_array_t *a, tree_wr_ctx_t ctx)
 
 static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 {
-   tree_array_resize(a, read_u32(ctx->file));
+   tree_array_resize(a, read_u32(ctx->file), NULL);
    for (unsigned i = 0; i < a->count; i++)
       a->items[i] = tree_read(ctx);
 }
 
 static void read_s(assoc_array_t *a, tree_rd_ctx_t ctx)
 {
-   assoc_array_resize(a, read_u16(ctx->file));
+   assoc_t dummy;
+   assoc_array_resize(a, read_u16(ctx->file), dummy);
 
    for (unsigned i = 0; i < a->count; i++) {
       a->items[i].kind  = read_u8(ctx->file);
@@ -1640,7 +1653,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          }
          else if (ITEM_NETID_ARRAY & mask) {
             netid_array_t *a = &(t->items[n].netid_array);
-            netid_array_resize(a, read_u32(ctx->file));
+            netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = read_u32(ctx->file);
          }
@@ -1959,7 +1972,7 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
 static void copy_a(const tree_array_t *from, tree_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
-   tree_array_resize(to, from->count);
+   tree_array_resize(to, from->count, NULL);
 
    for (size_t i = 0; i < from->count; i++)
       to->items[i] = tree_copy_aux(from->items[i], ctx);
@@ -1968,7 +1981,8 @@ static void copy_a(const tree_array_t *from, tree_array_t *to,
 static void copy_s(const assoc_array_t *from, assoc_array_t *to,
                    struct tree_copy_ctx *ctx)
 {
-   assoc_array_resize(to, from->count);
+   assoc_t dummy;
+   assoc_array_resize(to, from->count, dummy);
 
    for (unsigned i = 0; i < from->count; i++) {
       to->items[i].kind = from->items[i].kind;
@@ -2053,7 +2067,7 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             const netid_array_t *from = &(t->items[n].netid_array);
             netid_array_t *to = &(copy->items[n].netid_array);
 
-            netid_array_resize(to, from->count);
+            netid_array_resize(to, from->count, NETID_INVALID);
 
             for (unsigned i = 0; i < from->count; i++)
                to->items[i] = from->items[i];

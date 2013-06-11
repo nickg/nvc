@@ -52,10 +52,12 @@
                                                                \
    __attribute__((unused))                                     \
    static void what##_array_resize(what##_array_t *a,          \
-                                   size_t n)                   \
+                                   size_t n, what##_t fill)    \
    {                                                           \
-      a->count = a->_max = n;                                  \
       a->items = xrealloc(a->items, n * sizeof(what##_t));     \
+      for (unsigned i = a->count; i < n; i++)                  \
+         a->items[i] = fill;                                   \
+      a->count = a->_max = n;                                  \
    }                                                           \
 
 #endif  // _ARRAY_H
