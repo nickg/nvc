@@ -287,8 +287,19 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
    FOR_ALL_SIZES(size, SCHED_WAVEFORM);
 
-   // XXX: this assumes array nets are allocated sequentially
-   deltaq_insert_driver(after, &(nets[nids[0]]), n, active_proc);
+   int32_t first = 0, last = -1;
+   for (int i = 0; i < n; i++) {
+      if (likely((nids[i] == last + 1) || (last == -1)))
+         last = nids[i];
+      else {
+         deltaq_insert_driver(after, &(nets[nids[first]]),
+                              i - first, active_proc);
+         last  = nids[i];
+         first = i;
+      }
+   }
+
+   deltaq_insert_driver(after, &(nets[nids[first]]), n - first, active_proc);
 }
 
 void _sched_event(const int32_t *nids, int32_t n)
@@ -461,8 +472,8 @@ void _array_reverse(void *restrict dst, const void *restrict src,
 void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                int32_t high, int32_t last)
 {
-   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-         fmt_net(&(nets[nids[0]])), where, size, low, high, last);
+   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+   //      fmt_net(&(nets[nids[0]])), where, size, low, high, last);
 
 #define VEC_LOAD(type) do {                                          \
       type *p = where;                                               \
@@ -578,7 +589,7 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 
 int64_t _last_event(const int32_t *nids, int32_t n)
 {
-   TRACE("_last_event %s n=%d", fmt_net(&(nets[nids[0]])), n);
+   //TRACE("_last_event %s n=%d", fmt_net(&(nets[nids[0]])), n);
 
    int64_t last = INT64_MAX;
    for (int i = 0; i < n; i++) {
@@ -592,7 +603,8 @@ int64_t _last_event(const int32_t *nids, int32_t n)
 
 int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
 {
-   TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(&(nets[nids[0]])), n, flag);
+   //TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(&(nets[nids[0]])),
+   //      n, flag);
 
    for (int i = 0; i < n; i++) {
       if (nets[nids[i]].flags & flag)
