@@ -118,7 +118,7 @@ static const char *vcd_value_fmt(tree_t decl)
    void *arg = tree_attr_ptr(decl, i_fmt_arg);
 
    uint64_t vals[MAX_VAR_WIDTH];
-   int w = rt_signal_value(decl, vals, MAX_VAR_WIDTH);
+   int w = rt_signal_value(decl, vals, MAX_VAR_WIDTH, false);
    type_t type = tree_type(decl);
    if (type_is_array(type)) {
       char *p = buf;

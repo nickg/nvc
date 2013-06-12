@@ -1409,37 +1409,18 @@ static void rt_slave_run(slave_run_msg_t *msg)
 
 static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
 {
-#if 0
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
-
-   type_t type = tree_type(t);
-   size_t len = 1;
-   while (type_is_array(type)) {
-      int64_t low = 0, high = 0;
-      range_bounds(type_dim(type, 0), &low, &high);
-      len *= (high - low + 1);
-
-      type = type_elem(type);
-   }
-   assert(len <= msg->len);
-
-   struct signal *sig = tree_attr_ptr(t, i_signal);
 
    const size_t rsz =
       sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
    reply_read_signal_msg_t *reply = xmalloc(rsz);
 
-   reply->len = msg->len;
-   for (unsigned i = 0; i < msg->len; i++)
-      reply->values[i] = sig[i].resolved;
+   reply->len = rt_signal_value(t, reply->values, msg->len, false);
 
    slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
 
    free(reply);
-#else
-   assert(false);
-#endif
 }
 
 static void rt_slave_now(void)
@@ -1453,20 +1434,20 @@ static void rt_slave_now(void)
 
 static void rt_slave_watch_cb(uint64_t now, tree_t decl)
 {
-#if 0
-   struct signal *base = tree_attr_ptr(decl, i_signal);
+   uint64_t value[1];
+   rt_signal_value(decl, value, 1, false);
+
+   uint64_t last[1];
+   rt_signal_value(decl, last, 1, true);
 
    event_watch_msg_t event = {
       .index = tree_index(decl),
       .now   = now,
-      .value = base[0].resolved,
-      .last  = base[0].last_value
+      .value = value[0],
+      .last  = last[0]
    };
    fmt_time_r(event.now_text, sizeof(event.now_text), now);
    slave_post_msg(EVENT_WATCH, &event, sizeof(event));
-#else
-   assert(false);
-#endif
 }
 
 static void rt_slave_watch(slave_watch_msg_t *msg)
@@ -1571,13 +1552,13 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
    }
 }
 
-size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max)
+size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
 {
    assert(tree_kind(decl) == T_SIGNAL_DECL);
    const unsigned nnets = tree_nets(decl);
    for (unsigned i = 0; (i < nnets) && (i < max); i++) {
       const struct net *net = &(nets[tree_net(decl, i)]);
-      buf[i] = net->resolved;
+      buf[i] = last ? net->last_value : net->resolved;
    }
 
    return MIN(nnets, max);

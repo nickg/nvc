@@ -53,7 +53,7 @@ void rt_batch_exec(struct tree *e, uint64_t stop_time,
                    struct tree_rd_ctx *ctx);
 void rt_slave_exec(struct tree *e, struct tree_rd_ctx *ctx);
 void rt_set_event_cb(struct tree *s, sig_event_fn_t fn);
-size_t rt_signal_value(struct tree *s, uint64_t *buf, size_t max);
+size_t rt_signal_value(struct tree *s, uint64_t *buf, size_t max, bool last);
 
 void jit_init(ident_t top);
 void jit_shutdown(void);

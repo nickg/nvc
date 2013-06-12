@@ -56,7 +56,7 @@ expect "for details."
 
 name_test "signals"
 expect "%" {send "puts \[llength \[signals\]\]\n"}
-expect "8"
+expect "13"
 
 ############################################################
 
