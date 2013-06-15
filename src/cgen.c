@@ -2669,7 +2669,7 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
    LLVMValueRef n_elems = NULL;
    if (expr_kind == T_REF) {
       if (type_is_array(type))
-         n_elems = cgen_array_len(type, 0, nets);
+         n_elems = cgen_array_len_recur(type, nets);
       else
          n_elems = llvm_int32(1);
 

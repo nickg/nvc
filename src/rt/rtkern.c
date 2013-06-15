@@ -39,6 +39,7 @@
 #include <sys/resource.h>
 
 #define TRACE_DELTAQ  1
+#define TRACE_PENDING 0
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
@@ -58,10 +59,10 @@ struct tmp_chunk {
 };
 
 struct rt_proc {
-   tree_t           source;
-   proc_fn_t        proc_fn;
-   unsigned         wakeup_gen;
+   tree_t            source;
+   proc_fn_t         proc_fn;
    struct tmp_chunk *tmp_chunks;
+   uint32_t          wakeup_gen;
 };
 
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
@@ -83,8 +84,10 @@ struct waveform {
 
 struct sens_list {
    struct rt_proc   *proc;
-   unsigned          wakeup_gen;
    struct sens_list *next;
+   netid_t           first;
+   netid_t           last;
+   uint32_t          wakeup_gen;
 };
 
 struct driver {
@@ -99,7 +102,6 @@ struct net {
    uint16_t          n_drivers;
    uint16_t          n_watchers;
    struct driver    *drivers;
-   struct sens_list *sensitive;
    resolution_fn_t   resolution;
    uint64_t          last_event;
    tree_t            sig_decl;
@@ -136,6 +138,7 @@ struct watch {
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct sens_list *resume = NULL;
+static struct sens_list *pending = NULL;
 static struct loaded    *loaded = NULL;
 static struct run_queue  run_queue;
 static struct net       *nets = NULL;
@@ -166,6 +169,7 @@ static void deltaq_insert_driver(uint64_t delta, struct net *net,
                                  int length, struct rt_proc *driver);
 static void rt_alloc_driver(struct net *net, uint64_t after,
                             uint64_t reject, uint64_t value);
+static void rt_sched_event(netid_t first, netid_t last);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
@@ -307,28 +311,18 @@ void _sched_event(const int32_t *nids, int32_t n)
    TRACE("_sched_event %s n=%d proc %s", fmt_net(&nets[nids[0]]), n,
          istr(tree_ident(active_proc->source)));
 
+   int32_t first = 0, last = -1;
    for (int i = 0; i < n; i++) {
-      struct net *net = &(nets[nids[i]]);
-
-      // See if there is already a stale entry in the sensitvity
-      // list for this process
-      struct sens_list *it = net->sensitive;
-      for (; it != NULL && it->proc != active_proc; it = it->next)
-         ;
-
-      if (it == NULL) {
-         struct sens_list *node = rt_alloc(sens_list_stack);
-         node->proc       = active_proc;
-         node->wakeup_gen = active_proc->wakeup_gen;
-         node->next       = net->sensitive;
-
-         net->sensitive = node;
-      }
+      if (likely((nids[i] == last + 1) || (last == -1)))
+         last = nids[i];
       else {
-         // Reuse the stale entry
-         it->wakeup_gen = active_proc->wakeup_gen;
+         rt_sched_event(nids[first], nids[i - 1]);
+         last  = nids[i];
+         first = i;
       }
    }
+
+   rt_sched_event(nids[first], nids[n - 1]);
 }
 
 void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
@@ -825,6 +819,46 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
+static void rt_sched_event(netid_t first, netid_t last)
+{
+   // See if there is already a stale entry in the pending
+   // list for this process
+   struct sens_list *it = pending;
+   for (; (it != NULL)
+           && ((it->proc != active_proc)
+               || (it->wakeup_gen == active_proc->wakeup_gen));
+        it = it->next)
+      ;
+
+   if (it == NULL) {
+      struct sens_list *node = rt_alloc(sens_list_stack);
+      node->proc       = active_proc;
+      node->wakeup_gen = active_proc->wakeup_gen;
+      node->next       = pending;
+      node->first      = first;
+      node->last       = last;
+
+      pending = node;
+   }
+   else {
+      // Reuse the stale entry
+      it->wakeup_gen = active_proc->wakeup_gen;
+      it->first      = first;
+      it->last       = last;
+   }
+}
+
+#if TRACE_PENDING
+static void rt_dump_pending(void)
+{
+   for (struct sens_list *it = pending; it != NULL; it = it->next) {
+      printf("%d..%d\t%s%s\n", it->first, it->last,
+             istr(tree_ident(it->proc->source)),
+             (it->wakeup_gen == it->proc->wakeup_gen) ? "" : "(stale)");
+   }
+}
+#endif  // TRACE_PENDING
+
 static void rt_reset_net(struct net *net)
 {
    if (net->drivers != NULL) {
@@ -840,7 +874,6 @@ static void rt_reset_net(struct net *net)
       free(net->drivers);
    }
 
-   net->sensitive  = NULL;
    net->drivers    = NULL;
    net->n_drivers  = 0;
    net->last_event = INT64_MAX;
@@ -935,7 +968,7 @@ static void rt_initial(tree_t top)
       rt_run(&procs[i], true /* reset */);
 }
 
-static bool rt_wakeup(struct sens_list *sl)
+static void rt_wakeup(struct sens_list *sl)
 {
    // To avoid having each process keep a list of the signals it is
    // sensitive to, each process has a "wakeup generation" number which
@@ -945,21 +978,14 @@ static bool rt_wakeup(struct sens_list *sl)
    // generation: these correspond to stale "wait on" statements that
    // have already resumed.
 
-   const char *pstr = NULL;
-   if (unlikely(trace_on))
-      pstr = istr(tree_ident(sl->proc->source));
-
    if (sl->wakeup_gen == sl->proc->wakeup_gen) {
-      TRACE("wakeup process %s", pstr);
+      TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
       ++(sl->proc->wakeup_gen);
       sl->next = resume;
       resume = sl;
-      return true;
    }
-   else {
+   else
       rt_free(sens_list_stack, sl);
-      return true;
-   }
 }
 
 static void rt_alloc_driver(struct net *net, uint64_t after,
@@ -1076,15 +1102,20 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
 
    // Wake up any processes sensitive to this net
    if (new_flags & NET_F_EVENT) {
-      struct sens_list *it, *next, *save = NULL;
-      for (it = net->sensitive; it != NULL; it = next) {
+      const netid_t nid = net - nets;
+      struct sens_list *it, *last = NULL, *next = NULL;
+      for (it = pending; it != NULL; it = next) {
          next = it->next;
-         if (unlikely(!rt_wakeup(it))) {
-            it->next = save;
-            save = it;
+         if ((nid >= it->first) && (nid <= it->last)) {
+            rt_wakeup(it);
+            if (last == NULL)
+               pending = next;
+            else
+               last->next = next;
          }
+         else
+            last = it;
       }
-      net->sensitive = save;
    }
 }
 
@@ -1157,6 +1188,10 @@ static void rt_cycle(void)
 #if TRACE_DELTAQ > 0
    if (trace_on)
       deltaq_dump();
+#endif
+#if TRACE_PENDING > 0
+   if (trace_on)
+      rt_dump_pending();
 #endif
 
    for (;;) {
@@ -1299,12 +1334,6 @@ static void rt_cleanup_net(struct net *net)
       }
    }
    free(net->drivers);
-
-   while (net->sensitive) {
-      struct sens_list *next = net->sensitive->next;
-      rt_free(sens_list_stack, net->sensitive);
-      net->sensitive = next;
-   }
 }
 
 static void rt_cleanup(tree_t top)
@@ -1319,6 +1348,12 @@ static void rt_cleanup(tree_t top)
 
    for (int i = 0; i < n_nets; i++)
       rt_cleanup_net(&(nets[i]));
+
+   while (pending != NULL) {
+      struct sens_list *next = pending->next;
+      rt_free(sens_list_stack, pending);
+      pending = next;
+   }
 
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
