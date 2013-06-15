@@ -2666,16 +2666,36 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
 
    LLVMValueRef nets = cgen_signal_nets(decl);
 
+   bool sequential = false;
    LLVMValueRef n_elems = NULL;
    if (expr_kind == T_REF) {
-      if (type_is_array(type))
+      const bool array = type_is_array(type);
+
+      if (array)
          n_elems = cgen_array_len_recur(type, nets);
       else
          n_elems = llvm_int32(1);
 
-      if (type_is_array(type) && !cgen_const_bounds(type)) {
+      if (array && !cgen_const_bounds(type)) {
          // Unwrap the meta-data to get nets array
          nets = LLVMBuildExtractValue(builder, nets, 0, "");
+      }
+
+      // Try to optimise the case where the list of nets is sequential
+      // and known at compile time
+      if ((kind == T_SIGNAL_DECL) && array) {
+         const int nnets = tree_nets(decl);
+         int i;
+         netid_t last = -1;
+         for (i = 0; i < nnets; i++) {
+            const netid_t nid = tree_net(decl, i);
+            if ((last == -1) || (nid == last + 1))
+               last = nid;
+            else
+               break;
+         }
+
+         sequential = (i == nnets);
       }
    }
    else {
@@ -2738,7 +2758,8 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
 
    LLVMValueRef args[] = {
       llvm_void_cast(nets),
-      n_elems
+      n_elems,
+      llvm_int1(sequential)
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
@@ -4367,7 +4388,8 @@ static void cgen_support_fns(void)
 
    LLVMTypeRef _sched_event_args[] = {
       llvm_void_ptr(),
-      LLVMInt32Type()
+      LLVMInt32Type(),
+      LLVMInt1Type()
    };
    LLVMAddFunction(module, "_sched_event",
                    LLVMFunctionType(LLVMVoidType(),

@@ -306,23 +306,29 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    deltaq_insert_driver(after, &(nets[nids[first]]), n - first, active_proc);
 }
 
-void _sched_event(const int32_t *nids, int32_t n)
+void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
 {
-   TRACE("_sched_event %s n=%d proc %s", fmt_net(&nets[nids[0]]), n,
-         istr(tree_ident(active_proc->source)));
+   TRACE("_sched_event %s n=%d seq=%d proc %s", fmt_net(&nets[nids[0]]), n,
+         seq, istr(tree_ident(active_proc->source)));
 
-   int32_t first = 0, last = -1;
-   for (int i = 0; i < n; i++) {
-      if (likely((nids[i] == last + 1) || (last == -1)))
-         last = nids[i];
-      else {
-         rt_sched_event(nids[first], nids[i - 1]);
-         last  = nids[i];
-         first = i;
+   if (n == 1)
+      rt_sched_event(nids[0], nids[0]);
+   else if (seq)
+      rt_sched_event(nids[0], nids[n - 1]);
+   else {
+      int32_t first = 0, last = -1;
+      for (int i = 0; i < n; i++) {
+         if (likely((nids[i] == last + 1) || (last == -1)))
+            last = nids[i];
+         else {
+            rt_sched_event(nids[first], nids[i - 1]);
+            last  = nids[i];
+            first = i;
+         }
       }
-   }
 
-   rt_sched_event(nids[first], nids[n - 1]);
+      rt_sched_event(nids[first], nids[n - 1]);
+   }
 }
 
 void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
