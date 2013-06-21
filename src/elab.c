@@ -50,6 +50,7 @@ typedef struct map_list {
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
+static void elab_funcs(tree_t t);
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -469,6 +470,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
+   elab_funcs(arch);
    simplify(arch);
 
    elab_map_nets(maps);
@@ -728,8 +730,6 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
-
-   elab_funcs(e);
 
    tree_add_attr_int(e, ident_new("nnets"), next_net);
 
