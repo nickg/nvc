@@ -150,7 +150,7 @@ START_TEST(test_ports)
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "OPEN can only be used with OUT ports" },
       { 116, "object X is not a component declaration" },
-      { 148, "actual must be locally static name" },
+      { 148, "actual must be globally static expression" },
       { 155, "undefined identifier Q" },
       { 163, "undefined identifier U" },
       { 168, "formal name must be static" },

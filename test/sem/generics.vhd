@@ -78,6 +78,14 @@ architecture a of static is
     signal s : bit_vector(1 to 3);
     alias sx : bit is s(X);
     alias sx1 : bit is s(X + 1);
+
+    function f(x : bit_vector) return integer;
 begin
+
+    i: entity work.bot
+        generic map (
+            N => f("100") )
+        port map (
+            o => open );
 
 end architecture;
