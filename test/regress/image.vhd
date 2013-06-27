@@ -27,7 +27,9 @@ begin
         report "i=" & integer'image(i) & " units";
         report character'image('c');
         print_char('X');
+        wait for 10 ps;
+        report time'image(now);
         wait;
     end process;
-    
+
 end architecture;

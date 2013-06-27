@@ -520,6 +520,13 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
       }
       break;
 
+   case T_PHYSICAL:
+      {
+         tree_t unit = type_unit(type, 0);
+         len = snprintf(buf, max, "%"PRIi64" %s", val, istr(tree_ident(unit)));
+      }
+      break;
+
    default:
       fatal_at(tree_loc(t), "cannot use 'IMAGE with this type");
    }
