@@ -4457,6 +4457,7 @@ static bool sem_static_name(tree_t t)
             && sem_globally_static(r.left)
             && sem_globally_static(r.right);
       }
+      // Fall-through
 
    default:
       return false;
@@ -4483,7 +4484,7 @@ static bool sem_globally_static(tree_t t)
    if (sem_locally_static(t))
       return true;
 
-   // A generic constant or generate parameter
+   // A generic constant, generate parameter, or constant
 
    if (kind == T_REF) {
       tree_t decl = tree_ref(t);
@@ -4491,6 +4492,8 @@ static bool sem_globally_static(tree_t t)
       if ((decl_kind == T_PORT_DECL) && (tree_class(decl) == C_CONSTANT))
          return true;
       else if (decl_kind == T_GENVAR)
+         return true;
+      else if (decl_kind == T_CONST_DECL)
          return true;
    }
 

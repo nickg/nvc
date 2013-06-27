@@ -75,9 +75,11 @@ entity static is
 end entity;
 
 architecture a of static is
+    constant k : integer := X + 1;
     signal s : bit_vector(1 to 3);
     alias sx : bit is s(X);
     alias sx1 : bit is s(X + 1);
+    alias sx2 : bit_vector is s(k to 3);
 
     function f(x : bit_vector) return integer;
 begin
