@@ -348,9 +348,9 @@ START_TEST(test_const)
    const error_t expect[] = {
       { 19, "invalid target of variable assignment" },
       { 23, "deferred constant declarations are only permitted" },
-      { 48, "constant WORK.P.C already has a value" },
-      { 49, "expected type INTEGER for deferred constant WORK.P.F" },
-      { 39, "deferred constant WORK.P.D was not given a value" },
+      { 53, "constant WORK.P.C already has a value" },
+      { 54, "expected type INTEGER for deferred constant WORK.P.F" },
+      { 44, "deferred constant WORK.P.D was not given a value" },
       { -1, NULL }
    };
    expect_errors(expect);

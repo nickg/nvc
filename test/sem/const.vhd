@@ -9,7 +9,7 @@ architecture a of e is
         return n + 1;
     end function;
 
-
+    signal s : integer;
 begin
 
     process is
@@ -26,6 +26,11 @@ begin
 
     process is
         constant c : integer := f_pure(5);  -- OK
+    begin
+    end process;
+
+    process is
+        constant c : integer := s;      -- OK (LRM 93 7.4.2 note 2)
     begin
     end process;
 
