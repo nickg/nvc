@@ -1885,9 +1885,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
       return ctx->cache[t->index];
    }
 
-   t->generation = ctx->generation;
-   t->index      = ctx->index++;
-
    const imask_t skip_mask = I_REF;
 
    const imask_t has = has_map[t->kind];
@@ -1930,6 +1927,9 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    // Deleting the target deletes the statement
    if ((has & I_TARGET) && (lookup_item(t, I_TARGET)->tree == NULL))
       return NULL;
+
+   t->generation = ctx->generation;
+   t->index      = ctx->index++;
 
    // Rewrite this tree before we rewrite the type as there may
    // be a circular reference
