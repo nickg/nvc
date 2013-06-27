@@ -47,6 +47,10 @@
 #include <sys/sysctl.h>
 #endif
 
+#ifdef __linux
+#include <sys/prctl.h>
+#endif  // __linux
+
 // The IP register is different depending on the CPU arch
 // Try x86-64 first then regular x86: nothing else is supported
 #if defined REG_RIP
@@ -546,6 +550,14 @@ static bool is_debugger_running(void)
          return true;
    }
 
+#ifdef PR_SET_PTRACER
+   // For Linux 3.4 and later allow tracing from any proccess
+
+   if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0) < 0)
+      perror("prctl");
+
+#endif  // PR_SET_PTRACER
+
    pid_t pid = fork();
 
    if (pid == -1)
@@ -560,7 +572,7 @@ static bool is_debugger_running(void)
          ptrace(PTRACE_CONT, NULL, NULL);
 
          // Detach
-         ptrace(PTRACE_DETACH, getppid(), NULL, NULL);
+         ptrace(PTRACE_DETACH, ppid, NULL, NULL);
 
          // Able to trace so debugger not present
          exit(0);
