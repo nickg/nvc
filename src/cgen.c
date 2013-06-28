@@ -1581,18 +1581,37 @@ static LLVMValueRef cgen_last_event(tree_t t)
                         args, ARRAY_LEN(args), "");
 }
 
-static void cgen_promote_arith(type_t result, LLVMValueRef *args, int nargs)
+static void cgen_widen(type_t result, LLVMValueRef *args, int nargs)
 {
    // Ensure all arguments to arithmetic operators are the same width
 
-   LLVMTypeRef lltype = llvm_type(result);
-   unsigned width = LLVMGetIntTypeWidth(lltype);
+   int max_width = 0;
+   for (int i = 0; i < nargs; i++) {
+      const int width = LLVMGetIntTypeWidth(LLVMTypeOf(args[i]));
+      max_width = MAX(max_width, width);
+   }
+
+   LLVMTypeRef promote_type = LLVMIntType(max_width);
 
    for (int i = 0; i < nargs; i++) {
       LLVMTypeRef arg_type = LLVMTypeOf(args[i]);
-      if (LLVMGetIntTypeWidth(arg_type) != width)
-         args[i] = LLVMBuildIntCast(builder, args[i], lltype, "promote");
+      if (LLVMGetIntTypeWidth(arg_type) < max_width)
+         args[i] = LLVMBuildIntCast(builder, args[i], promote_type, "widen");
    }
+}
+
+static LLVMValueRef cgen_narrow(type_t result, LLVMValueRef value)
+{
+   // Resize arithmetic result to width of target type
+
+   LLVMTypeRef target_type = llvm_type(result);
+   const int target_width = LLVMGetIntTypeWidth(target_type);
+   const int actual_width = LLVMGetIntTypeWidth(LLVMTypeOf(value));
+
+   if (target_width != actual_width)
+      return LLVMBuildIntCast(builder, value, target_type, "narrow");
+   else
+      return value;
 }
 
 static LLVMValueRef cgen_bit_shift(bit_shift_kind_t kind, LLVMValueRef array,
@@ -1707,32 +1726,37 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          if (real)
             return LLVMBuildFMul(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(rtype, args, nparams);
-            return LLVMBuildMul(builder, args[0], args[1], "");
+            cgen_widen(rtype, args, nparams);
+            LLVMValueRef r = LLVMBuildMul(builder, args[0], args[1], "");
+            return cgen_narrow(rtype, r);
          }
       }
       else if (icmp(builtin, "add")) {
          if (real)
             return LLVMBuildFAdd(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(rtype, args, nparams);
-            return LLVMBuildAdd(builder, args[0], args[1], "");
+            cgen_widen(rtype, args, nparams);
+            LLVMValueRef r = LLVMBuildAdd(builder, args[0], args[1], "");
+            return cgen_narrow(rtype, r);
          }
       }
       else if (icmp(builtin, "sub")) {
          if (real)
             return LLVMBuildFSub(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(rtype, args, nparams);
-            return LLVMBuildSub(builder, args[0], args[1], "");
+            cgen_widen(rtype, args, nparams);
+            LLVMValueRef r = LLVMBuildSub(builder, args[0], args[1], "");
+            return cgen_narrow(rtype, r);
          }
       }
       else if (icmp(builtin, "div")) {
          if (real)
             return LLVMBuildFDiv(builder, args[0], args[1], "");
          else {
-            cgen_promote_arith(rtype, args, nparams);
-            return cgen_division(args[0], args[1], tree_param(t, 1), ctx);
+            cgen_widen(rtype, args, nparams);
+            LLVMValueRef r = cgen_division(args[0], args[1],
+                                           tree_param(t, 1), ctx);
+            return cgen_narrow(rtype, r);
          }
       }
       else if (icmp(builtin, "eq")) {
