@@ -11,6 +11,7 @@ begin
         t := 120 ns;
         i := sec / t;
         report integer'image(i);
+        assert i = 8333333;
         wait;
     end process;
 
