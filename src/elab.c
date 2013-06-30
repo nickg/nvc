@@ -643,6 +643,9 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 
    elab_copy_context(ctx->out, t);
 
+   elab_funcs(arch);
+   simplify(arch);
+
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
       .path     = npath,

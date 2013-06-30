@@ -37,6 +37,8 @@ architecture test of sub is
 
     signal s : bit_vector(B - 1 downto 0);
 
+    constant C : bit_vector(log2(B) to 1) := (others => '0');
+
 begin
 
 end architecture;
@@ -52,5 +54,21 @@ begin
     s : entity work.sub
         generic map ( 10 );
 
+
+end architecture;
+
+-------------------------------------------------------------------------------
+
+entity top2 is
+end entity;
+
+use work.p.all;
+
+architecture test of top2 is
+    constant W : integer := 10;
+    constant B : integer := log2(W);
+
+    signal s : bit_vector(B - 1 downto 0);
+begin
 
 end architecture;
