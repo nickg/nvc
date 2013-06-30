@@ -115,6 +115,22 @@ START_TEST(test_elab3)
 }
 END_TEST
 
+START_TEST(test_elab4)
+{
+   tree_t top;
+
+   input_from_file(TESTDIR "/elab/elab4.vhd");
+
+   const error_t expect[] = {
+      { 21, "actual width 9 does not match formal width 8" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   top = run_elab();
+}
+END_TEST
+
 START_TEST(test_open)
 {
    tree_t top;
@@ -147,6 +163,7 @@ int main(void)
    tcase_add_test(tc_core, test_elab1);
    tcase_add_test(tc_core, test_elab2);
    tcase_add_test(tc_core, test_elab3);
+   tcase_add_test(tc_core, test_elab4);
    tcase_add_test(tc_core, test_open);
    suite_add_tcase(s, tc_core);
 

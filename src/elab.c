@@ -52,6 +52,8 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_funcs(tree_t t);
 
+static int errors = 0;
+
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
    va_list ap;
@@ -409,10 +411,16 @@ static void elab_map_nets(map_list_t *maps)
    for (; maps != NULL; maps = maps->next) {
       if (maps->name == NULL) {
          // Associate the whole port
-         const int width = elab_type_width(tree_type(maps->signal));
-         assert(width == elab_type_width(tree_type(maps->actual)));
+         const int fwidth = elab_type_width(tree_type(maps->signal));
+         const int awidth = elab_type_width(tree_type(maps->actual));
+         if (fwidth != awidth) {
+            error_at(tree_loc(maps->actual), "actual width %d does not match "
+                     "formal width %d", awidth, fwidth);
+            ++errors;
+            continue;
+         }
 
-         for (int i = 0; i < width; i++)
+         for (int i = 0; i < awidth; i++)
             tree_add_net(maps->signal, elab_get_net(maps->actual, i));
       }
       else {
@@ -730,6 +738,9 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+
+   if (errors > 0)
+      return NULL;
 
    tree_add_attr_int(e, ident_new("nnets"), next_net);
 
