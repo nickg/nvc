@@ -19,6 +19,7 @@
 #include "tree.h"
 #include "util.h"
 #include "array.h"
+#include "common.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -1028,4 +1029,15 @@ void type_rewrite_trees(type_t t, unsigned generation,
 const char *type_kind_str(type_kind_t t)
 {
    return kind_text_map[t];
+}
+
+unsigned type_width(type_t type)
+{
+   if (type_is_array(type)) {
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      return (high - low + 1) * type_width(type_elem(type));
+   }
+   else
+      return 1;
 }

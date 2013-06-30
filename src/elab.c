@@ -210,17 +210,6 @@ static void elab_copy_context(tree_t dest, tree_t src)
       tree_add_context(dest, tree_context(src, i));
 }
 
-static unsigned elab_type_width(type_t type)
-{
-   if (type_is_array(type)) {
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      return (high - low + 1) * elab_type_width(type_elem(type));
-   }
-   else
-      return 1;
-}
-
 static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
                                map_list_t **maps)
 {
@@ -411,8 +400,8 @@ static void elab_map_nets(map_list_t *maps)
    for (; maps != NULL; maps = maps->next) {
       if (maps->name == NULL) {
          // Associate the whole port
-         const int fwidth = elab_type_width(tree_type(maps->signal));
-         const int awidth = elab_type_width(tree_type(maps->actual));
+         const int fwidth = type_width(tree_type(maps->signal));
+         const int awidth = type_width(tree_type(maps->actual));
          if (fwidth != awidth) {
             error_at(tree_loc(maps->actual), "actual width %d does not match "
                      "formal width %d", awidth, fwidth);
@@ -431,7 +420,7 @@ static void elab_map_nets(map_list_t *maps)
                type_t array_type = tree_type(maps->formal);
 
                type_t elem_type = type_elem(array_type);
-               const int width = elab_type_width(elem_type);
+               const int width = type_width(elem_type);
 
                assert(tree_params(maps->name) == 1);
 
@@ -500,7 +489,7 @@ static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
       // Nets have already been assigned e.g. from a port map
    }
    else {
-      const int width = elab_type_width(tree_type(decl));
+      const int width = type_width(tree_type(decl));
       for (int i = 0; i < width; i++)
          tree_add_net(decl, (*ctx->next_net)++);
    }

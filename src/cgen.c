@@ -773,7 +773,6 @@ static void cgen_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
 
    LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
 
-
    LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
    LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
 
@@ -3968,11 +3967,12 @@ static void cgen_signal(tree_t t)
    LLVMSetGlobalConstant(map_var, true);
    LLVMSetLinkage(map_var, LLVMInternalLinkage);
 
-   LLVMValueRef init[nnets];
+   LLVMValueRef *init = xmalloc(nnets * sizeof(LLVMValueRef));
    for (int i = 0; i < nnets; i++)
       init[i] = llvm_int32(tree_net(t, i));
 
    LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+   free(init);
 
    tree_add_attr_ptr(t, sig_nets_i, map_var);
 }

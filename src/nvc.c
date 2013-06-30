@@ -187,6 +187,7 @@ static int elaborate(int argc, char **argv)
       return EXIT_FAILURE;
 
    opt(e);
+   group_nets(e);
 
    tree_gc();
 

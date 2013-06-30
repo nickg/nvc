@@ -61,4 +61,7 @@ void link_bc(tree_t top);
 // must be run through code generation
 bool pack_needs_cgen(tree_t t);
 
+// Groups nets which never have sub-elements assigned.
+void group_nets(tree_t top);
+
 #endif  // _PHASE_H
