@@ -764,6 +764,40 @@ static void cgen_check_array_bounds(tree_t t, type_t type, int dim,
    cgen_check_bounds(t, kind, value, min, max, ctx);
 }
 
+static void cgen_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+                                   LLVMValueRef lval, LLVMValueRef rval,
+                                   cgen_ctx_t *ctx)
+{
+   LLVMValueRef llen = cgen_array_len(ltype, 0, lval);
+   LLVMValueRef rlen = cgen_array_len(rtype, 0, rval);
+
+   LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
+
+
+   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+
+   LLVMBuildCondBr(builder, ok, pass_bb, fail_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef args[] = {
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      llvm_int32(0),
+      llen,
+      rlen,
+      llvm_int32(BOUNDS_ARRAY_SIZE)
+   };
+
+   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
 static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
                                    range_t r, cgen_ctx_t *ctx)
 {
@@ -3043,6 +3077,8 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          elem_size = llvm_sizeof(llvm_type(value_type));
       }
       else {
+         cgen_check_array_sizes(t, target_type, value_type, nets, rhs, ctx);
+
          rhs_data = cgen_array_data_ptr(value_type, rhs);
          lhs_data = cgen_array_data_ptr(target_type, nets);
 

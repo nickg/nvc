@@ -433,6 +433,11 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    case BOUNDS_TYPE_DOWNTO:
       fatal_at(loc, "value %d outside bounds %d downto %d", value, max, min);
       break;
+
+   case BOUNDS_ARRAY_SIZE:
+      fatal_at(loc, "length of target %d does not match length of value %d",
+               min, max);
+      break;
    }
 }
 

@@ -126,3 +126,4 @@ attr5           normal
 attr6           normal
 elab8           normal
 arith3          normal
+bounds8         gold,fail
