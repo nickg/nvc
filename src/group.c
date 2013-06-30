@@ -21,22 +21,126 @@
 #include "common.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 typedef struct group group_t;
 
+typedef uint32_t groupid_t;
+
+#define GROUPID_INVALID UINT32_MAX
+
 struct group {
    group_t  *next;
+   groupid_t gid;
    netid_t   first;
    unsigned  length;
 };
 
 typedef struct {
-   group_t *groups;
+   group_t   *groups;
+   groupid_t  next_gid;
 } group_nets_ctx_t;
 
-static void group_add(group_nets_ctx_t *ctx, netid_t first, unsigned length)
+static groupid_t group_alloc(group_nets_ctx_t *ctx,
+                             netid_t first, unsigned length)
 {
-   printf("group_add first=%d len=%d\n", first, length);
+   group_t *g = xmalloc(sizeof(group_t));
+   g->next   = ctx->groups;
+   g->gid    = ctx->next_gid++;
+   g->first  = first;
+   g->length = length;
+
+   ctx->groups = g;
+
+   return g->gid;
+}
+
+static void group_unlink(group_nets_ctx_t *ctx, group_t *where, group_t *prev)
+{
+   if (prev == NULL)
+      ctx->groups = where->next;
+   else
+      prev->next = where->next;
+}
+
+static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
+{
+   printf("group_add first=%d length=%d\n", first, length);
+   assert(length > 0);
+
+   group_t *it, *last;
+   for (it = ctx->groups, last = NULL; it != NULL; last = it, it = it->next) {
+      printf("=> it->first=%d it->length=%d\n", it->first, it->length);
+
+      if ((it->first == first) && (it->length == length)) {
+         // Exactly matches
+         printf("=> match %d\n", it->gid);
+         return it->gid;
+      }
+      else if (it->first >= first + length) {
+         // Disjoint, to the right
+      }
+      else if (first >= it->first + it->length) {
+         // Disjoint, to the left
+      }
+      else if ((first == it->first) && (length > it->length)) {
+         // Overlaps on left
+         printf("=> overlap on left %d\n", it->gid);
+         group_add(ctx, first + it->length, length - it->length);
+         return GROUPID_INVALID;
+      }
+      else if ((first > it->first)
+               && (first + length == it->first + it->length)) {
+         // Overlaps on right
+         printf("=> overlap on right %d\n", it->gid);
+         group_unlink(ctx, it, last);
+         group_add(ctx, it->first, first - it->first);
+         free(it);
+         break;
+      }
+      else if ((first > it->first)
+               && (first + length < it->first + it->length)) {
+         // Overlaps completely
+         printf("=> overlaps completely %d\n", it->gid);
+
+         group_unlink(ctx, it, last);
+         group_add(ctx, it->first, first - it->first);
+         group_add(ctx, first + length,
+                   it->first + it->length - first - length);
+         free(it);
+         break;
+      }
+      else if ((first < it->first)
+               && (first + length > it->first + it->length)) {
+         // Contains in middle
+         printf("=> contains in middle %d\n", it->gid);
+         group_add(ctx, first, it->first - first);
+         group_add(ctx, it->first + it->length,
+                   first + length - it->first - it->length);
+         return GROUPID_INVALID;
+      }
+      else if ((first == it->first)
+               && (first + length < it->first + it->length)) {
+         // Contains on left
+         printf("=> contains on left %d\n", it->gid);
+         group_unlink(ctx, it, last);
+         group_add(ctx, first + length, it->length - length);
+         free(it);
+         break;
+      }
+      else if ((first < it->first)
+               && (first + length == it->first + it->length)) {
+         // Contains on right
+         printf("=> contains on right %d\n", it->gid);
+         group_add(ctx, first, it->first - first);
+         return GROUPID_INVALID;
+      }
+      else
+         assert(false);
+   }
+
+   printf("=> add %d\n", ctx->next_gid);
+   return group_alloc(ctx, first, length);
 }
 
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
@@ -238,7 +342,8 @@ static void ungroup_proc_params(tree_t t, void *_ctx)
 void group_nets(tree_t top)
 {
    group_nets_ctx_t ctx = {
-      .groups = NULL
+      .groups   = NULL,
+      .next_gid = 0
    };
    tree_visit_only(top, group_nets_visit_fn, &ctx, T_SIGNAL_ASSIGN);
    tree_visit_only(top, ungroup_proc_params, &ctx, T_PCALL);
