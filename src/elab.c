@@ -50,7 +50,7 @@ typedef struct map_list {
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
-static void elab_funcs(tree_t t);
+static void elab_funcs(tree_t arch, tree_t ent);
 
 static int errors = 0;
 
@@ -478,7 +478,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
-   elab_funcs(arch);
+   elab_funcs(arch, tree_ref(t));
    simplify(arch);
 
    elab_map_nets(maps);
@@ -643,7 +643,7 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 
    elab_copy_context(ctx->out, t);
 
-   elab_funcs(arch);
+   elab_funcs(arch, t);
    simplify(arch);
 
    elab_ctx_t new_ctx = {
@@ -677,7 +677,7 @@ static tree_t rewrite_funcs(tree_t t, void *context)
    return t;
 }
 
-static void elab_funcs(tree_t t)
+static void elab_funcs(tree_t arch, tree_t ent)
 {
    // Look through all the package bodies required by the context and
    // rewrite references to function declarations with references to
@@ -687,9 +687,10 @@ static void elab_funcs(tree_t t)
    int nreplace = 0;
    tree_t rlist[FUNC_REPLACE_MAX];
 
-   const int ncontext = tree_contexts(t);
-   for (int i = 0; i < ncontext; i++) {
-      context_t ctx = tree_context(t, i);
+   const int ncontext_arch = tree_contexts(arch);
+   const int ncontext_ent  = tree_contexts(ent);
+   for (int i = 0; i < ncontext_arch + ncontext_ent; i++) {
+      context_t ctx = tree_context((i < ncontext_arch) ? arch : ent, i);
 
       lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
       if (lib == NULL)
@@ -707,7 +708,7 @@ static void elab_funcs(tree_t t)
             continue;
 
          if (nreplace + 1 == FUNC_REPLACE_MAX) {
-            tree_rewrite(t, rewrite_funcs, rlist);
+            tree_rewrite(arch, rewrite_funcs, rlist);
             nreplace = 0;
          }
 
@@ -717,7 +718,7 @@ static void elab_funcs(tree_t t)
    }
 
    if (nreplace > 0)
-      tree_rewrite(t, rewrite_funcs, rlist);
+      tree_rewrite(arch, rewrite_funcs, rlist);
 }
 
 tree_t elab(tree_t top)

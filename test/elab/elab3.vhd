@@ -59,10 +59,10 @@ end architecture;
 
 -------------------------------------------------------------------------------
 
+use work.p.all;
+
 entity top2 is
 end entity;
-
-use work.p.all;
 
 architecture test of top2 is
     constant W : integer := 10;
