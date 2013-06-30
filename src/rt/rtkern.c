@@ -160,9 +160,9 @@ static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
 
-#define MAX_ACTIVE_NETS 128
-static struct net *active_nets[MAX_ACTIVE_NETS];
-static unsigned    n_active_nets = 0;
+static struct net **active_nets;
+static unsigned     n_active_nets = 0;
+static unsigned     n_active_alloc = 0;
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
 static void deltaq_insert_driver(uint64_t delta, struct net *net,
@@ -1104,7 +1104,11 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
    if (net->resolved != resolved)
       new_flags |= NET_F_EVENT;
 
-   assert(n_active_nets < MAX_ACTIVE_NETS);
+   if (unlikely(n_active_nets == n_active_alloc)) {
+      n_active_alloc *= 2;
+      const size_t newsz = n_active_alloc * sizeof(struct net *);
+      active_nets = xrealloc(active_nets, newsz);
+   }
    active_nets[n_active_nets++] = net;
 
    // LAST_VALUE is the same as the initial value when
@@ -1340,6 +1344,9 @@ static void rt_one_time_init(void)
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
    tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
+
+   n_active_alloc = 128;
+   active_nets = xmalloc(n_active_alloc * sizeof(struct net *));
 }
 
 static void rt_cleanup_net(struct net *net)
