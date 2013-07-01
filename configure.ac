@@ -1,7 +1,7 @@
 AC_INIT([nvc], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
-AM_INIT_AUTOMAKE([1.11 color-tests])
+AM_INIT_AUTOMAKE([1.12 color-tests serial-tests])
 AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
