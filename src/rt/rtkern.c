@@ -438,6 +438,16 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
       fatal_at(loc, "length of target %d does not match length of value %d",
                min, max);
       break;
+
+   case BOUNDS_INDEX_TO:
+      fatal_at(loc, "index %d violates constraint bounds %d to %d",
+               value, min, max);
+      break;
+
+   case BOUNDS_INDEX_DOWNTO:
+      fatal_at(loc, "index %d violates constraint bounds %d downto %d",
+               value, max, min);
+      break;
    }
 }
 

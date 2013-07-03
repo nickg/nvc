@@ -86,6 +86,9 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
 static LLVMValueRef cgen_signal_nets(tree_t decl);
+static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
+                              LLVMValueRef min, LLVMValueRef max,
+                              cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -628,6 +631,18 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
 
          LLVMValueRef left  = cgen_expr(r.left, ctx);
          LLVMValueRef right = cgen_expr(r.right, ctx);
+
+         // Check validity of array bounds against index constraint
+         range_t bounds = type_dim(tree_type(r.left), 0);
+
+         LLVMValueRef bleft = cgen_expr(bounds.left, ctx);
+         LLVMValueRef bright = cgen_expr(bounds.right, ctx);
+
+         LLVMValueRef check_kind = llvm_int32(
+            (bounds.kind == RANGE_TO) ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO);
+
+         cgen_check_bounds(r.left, check_kind, left, bleft, bright, ctx);
+         cgen_check_bounds(r.right, check_kind, right, bleft, bright, ctx);
 
          LLVMValueRef diff =
             LLVMBuildSelect(builder, downto,
