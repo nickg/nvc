@@ -309,6 +309,40 @@ START_TEST(test_args)
 }
 END_TEST
 
+START_TEST(test_bounds)
+{
+   tree_t e, a, p, s;
+   range_t r;
+
+   const error_t expect[] = {
+      { 11, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
+      { 12, "right index 60 violates constraint FOO" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/simp/bounds.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+
+   fail_unless(simplify_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 START_TEST(test_ffold)
 {
    tree_t e, a, p, s;
@@ -369,6 +403,7 @@ int main(void)
    tcase_add_test(tc_core, test_proc);
    tcase_add_test(tc_core, test_args);
    tcase_add_test(tc_core, test_ffold);
+   tcase_add_test(tc_core, test_bounds);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
