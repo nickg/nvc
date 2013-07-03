@@ -99,8 +99,8 @@ START_TEST(test_cfold)
    range_t r;
 
    const error_t expect[] = {
-      { 38, "array reference out of bounds" },
-      { 39, "array reference out of bounds" },
+      { 38, "array index 10 out of bounds 1 to 9" },
+      { 39, "array index -1 out of bounds 1 to 9" },
       { 70, "index out of bounds" },
       { -1, NULL }
    };

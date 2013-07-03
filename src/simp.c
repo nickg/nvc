@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #define MAX_BUILTIN_ARGS 2
 
@@ -189,7 +190,9 @@ static tree_t simp_array_ref(tree_t t)
          int64_t right = assume_int(bounds.right);
 
          if (indexes[0].i < left || indexes[0].i > right)
-            simp_error(t, "array reference out of bounds");
+            simp_error(t, "array index %"PRIi64" out of bounds "
+                       "%"PRIi64" %s %"PRIi64, indexes[0].i, left,
+                       (bounds.kind == RANGE_TO) ? "to" : "downto", right);
 
          for (unsigned i = 0; i < tree_assocs(v); i++) {
             assoc_t a = tree_assoc(v, i);
