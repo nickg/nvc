@@ -24,7 +24,6 @@
 #include "alloc.h"
 #include "heap.h"
 #include "common.h"
-#include "hash.h"
 #include "netdb.h"
 
 #include <assert.h>
@@ -51,6 +50,7 @@ typedef struct rt_proc   rt_proc_t;
 typedef struct event     event_t;
 typedef struct waveform  waveform_t;
 typedef struct sens_list sens_list_t;
+typedef struct watch     watch_t;
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -88,27 +88,20 @@ struct waveform {
    uint64_t   *values;
 };
 
+typedef enum { S_PROCESS, S_CALLBACK } sens_kind_t;
+
 struct sens_list {
-   rt_proc_t   *proc;
-   sens_list_t *next;
-   uint32_t     wakeup_gen;
+   sens_kind_t    kind;
+   rt_proc_t     *proc;
+   sens_list_t   *next;
+   netgroup_t    *group;
+   uint32_t       wakeup_gen;
+   watch_t       *callback;
 };
 
 struct driver {
    rt_proc_t  *proc;
    waveform_t *waveforms;
-};
-
-struct net {
-   uint64_t          resolved;
-   uint64_t          last_value;
-   net_flags_t       flags;
-   uint16_t          n_drivers;
-   uint16_t          n_watchers;
-   driver_t         *drivers;
-   resolution_fn_t   resolution;
-   uint64_t          last_event;
-   tree_t            sig_decl;
 };
 
 struct netgroup {
@@ -118,7 +111,6 @@ struct netgroup {
    uint64_t       *last_value;
    net_flags_t     flags;
    uint16_t        n_drivers;
-   uint16_t        n_watchers;
    driver_t       *drivers;
    resolution_fn_t resolution;
    uint64_t        last_event;
@@ -152,17 +144,16 @@ struct watch {
    sig_event_fn_t fn;
    uint64_t       last_now;
    uint32_t       last_delta;
+   uint32_t       wakeup_gen;
 };
 
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct loaded    *loaded = NULL;
 static struct run_queue  run_queue;
-static struct net       *nets = NULL;
 
 static heap_t        eventq_heap = NULL;
 static size_t        n_procs = 0;
-static int           n_nets = 0;
 static uint64_t      now = 0;
 static int           iteration = -1;
 static bool          trace_on = false;
@@ -170,7 +161,6 @@ static tree_rd_ctx_t tree_rd_ctx = NULL;
 static struct rusage ready_rusage;
 static jmp_buf       fatal_jmp;
 static bool          aborted = false;
-static hash_t       *watch_hash = NULL;
 static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
 static sens_list_t  *resume = NULL;
@@ -189,7 +179,8 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, uint64_t *values);
-static void rt_sched_event(netgroup_t *group);
+static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
+                           rt_proc_t *proc, watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
@@ -325,9 +316,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
    int offset = 0;
    while (offset < n) {
-      groupid_t gid = netdb_lookup(netdb, nids[offset], true);
-      netgroup_t *g = &(groups[gid]);
-      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], true)]);
 
       const int v_start = reverse ? (n - offset - 1) : offset;
       const int v_inc   = reverse ? -1 : 1;
@@ -346,7 +335,6 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
       deltaq_insert_driver(after, g, active_proc);
 
       offset += g->length;
-      assert(offset <= n);
    }
 }
 
@@ -358,18 +346,16 @@ void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
    int offset = 0;
    while (offset < n) {
       netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], true)]);
-      rt_sched_event(g);
-
+      rt_sched_event(S_PROCESS, g, active_proc, NULL);
       offset += g->length;
-      assert(offset <= n);
    }
 }
 
 void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
                   void *resolution, int32_t index, const char *module)
 {
-   TRACE("_set_initial net=%d values=%s n=%d size=%d index=%d",
-         nid, fmt_values(values, n * size), n, size, index);
+   //TRACE("_set_initial net=%d values=%s n=%d size=%d index=%d",
+   //      nid, fmt_values(values, n * size), n, size, index);
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -378,7 +364,6 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
    while (offset < n) {
       groupid_t gid = netdb_lookup(netdb, nid + offset, true);
       netgroup_t *g = &(groups[gid]);
-      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
 
 #define SET_INITIAL(type) do {                                     \
          const type *vp = values;                                  \
@@ -392,7 +377,6 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
       g->resolution = resolution;
 
       offset += g->length;
-      assert(offset <= n);
    }
 }
 
@@ -529,8 +513,8 @@ void _array_reverse(void *restrict dst, const void *restrict src,
 void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                int32_t high, int32_t last)
 {
-   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-         fmt_net(nids[0]), where, size, low, high, last);
+   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+   //      fmt_net(nids[0]), where, size, low, high, last);
 
    int offset = low;
    while (offset <= high) {
@@ -539,9 +523,6 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
 
       const int skip = nids[offset] - g->first;
       const int to_copy = MIN(high - offset + 1, g->length - skip);
-
-      TRACE("group %d first=%d length=%d skip=%d offset=%d to_copy=%d",
-            gid, g->first, g->length, skip, offset, to_copy);
 
 #define VEC_LOAD(type) do {                                          \
          type *p = (type *)where + (offset - low);                   \
@@ -677,7 +658,6 @@ int64_t _last_event(const int32_t *nids, int32_t n)
          last = MIN(last, now - g->last_event);
 
       offset += g->length;
-      assert(offset <= n);
    }
 
    return last;
@@ -696,7 +676,6 @@ int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
          return 1;
 
       offset += g->length;
-      assert(offset <= n);
    }
 
    return 0;
@@ -908,50 +887,35 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
-static void rt_sched_event(netgroup_t *group)
+static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
+                           rt_proc_t *proc, watch_t *callback)
 {
+   const uint32_t wakeup_gen =
+      (kind == S_PROCESS) ? proc->wakeup_gen : callback->wakeup_gen;
+
    // See if there is already a stale entry in the pending
    // list for this process
    sens_list_t *it = group->pending;
    for (; (it != NULL)
-           && ((it->proc != active_proc)
-               || (it->wakeup_gen == active_proc->wakeup_gen));
+           && (((kind == S_PROCESS && it->proc != proc)
+                 || (it->callback != callback))
+               || (it->wakeup_gen == wakeup_gen));
         it = it->next)
       ;
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
-      node->proc       = active_proc;
-      node->wakeup_gen = active_proc->wakeup_gen;
+      node->proc       = proc;
+      node->wakeup_gen = wakeup_gen;
       node->next       = group->pending;
+      node->callback   = callback;
 
       group->pending = node;
    }
    else {
       // Reuse the stale entry
-      it->wakeup_gen = active_proc->wakeup_gen;
+      it->wakeup_gen = wakeup_gen;
    }
-}
-
-static void rt_reset_net(struct net *net)
-{
-   if (net->drivers != NULL) {
-      for (int i = 0; i < net->n_drivers; i++) {
-         struct waveform *w, *wnext;
-         w = net->drivers[i].waveforms;
-         do {
-            wnext = w->next;
-            rt_free(waveform_stack, w);
-         } while ((w = wnext) != NULL);
-      }
-
-      free(net->drivers);
-   }
-
-   net->drivers    = NULL;
-   net->n_drivers  = 0;
-   net->last_event = INT64_MAX;
-   net->sig_decl   = NULL;
 }
 
 static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
@@ -965,10 +929,9 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    g->last_value = xmalloc(length * sizeof(uint64_t));
    g->flags      = 0;
    g->n_drivers  = 0;
-   g->n_watchers = 0;
    g->drivers    = NULL;
    g->resolution = NULL;
-   g->last_event = 0;
+   g->last_event = INT64_MAX;
    g->sig_decl   = NULL;
    g->pending    = NULL;
 }
@@ -993,17 +956,6 @@ static void rt_setup(tree_t top)
       n_procs = tree_stmts(top);
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
-
-   n_nets = tree_attr_int(top, ident_new("nnets"), -1);
-   assert(n_nets != -1);
-
-   if (nets == NULL) {
-      nets = xmalloc(sizeof(struct net) * n_nets);
-      memset(nets, '\0', sizeof(struct net) * n_nets);
-   }
-
-   for (int i = 0; i < n_nets; i++)
-      rt_reset_net(&(nets[i]));
 
    netdb_walk(netdb, rt_reset_group);
 
@@ -1327,6 +1279,7 @@ static void rt_cycle(void)
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
       sens_list_t *next = resume->next;
+      assert(resume->kind == S_PROCESS);
       rt_run(resume->proc, false /* reset */);
       rt_free(sens_list_stack, resume);
       resume = next;
@@ -1335,19 +1288,6 @@ static void rt_cycle(void)
    for (unsigned i = 0; i < n_active_groups; i++) {
       netgroup_t *g = active_groups[i];
       g->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
-
-      if (unlikely(g->n_watchers > 0)) {
-         struct watch *w;
-         int n = 0, tmp;
-         while ((tmp = n++),
-                (w = hash_get_nth(watch_hash, g, &tmp))) {
-            if ((w->last_now != now) || (w->last_delta != iteration)) {
-               (*w->fn)(now, w->signal);
-               w->last_now   = now;
-               w->last_delta = iteration;
-            }
-         }
-      }
    }
    n_active_groups = 0;
 }
@@ -1671,42 +1611,43 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 {
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
-   struct watch *w = NULL;
+   if (fn == NULL)
+      return;   // TODO
+
+   watch_t *w = NULL;
    if (fn != NULL) {
       w = xmalloc(sizeof(struct watch));
       w->signal     = s;
       w->fn         = fn;
       w->last_now   = UINT64_MAX;
       w->last_delta = UINT32_MAX;
+      w->wakeup_gen = 0;
    }
 
    const int nnets = tree_nets(s);
-   for (int i = 0; i < nnets; i++) {
-      netid_t nid = tree_net(s, i);
-      struct net *net = &(nets[nid]);
+   int offset = 0;
+   while (offset < nnets) {
+      netid_t nid = tree_net(s, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
+      rt_sched_event(S_CALLBACK, g, NULL, w);
 
-      if (fn == NULL) {
-         assert(net->n_watchers > 0);
-         net->n_watchers--;
-         // XXX: Leaves stale hash entry
-      }
-      else {
-         if (unlikely(watch_hash == NULL))
-            watch_hash = hash_new(4096, false);
-
-         hash_put(watch_hash, net, w);
-         net->n_watchers++;
-      }
+      offset += g->length;
    }
 }
 
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
 {
    assert(tree_kind(decl) == T_SIGNAL_DECL);
-   const unsigned nnets = tree_nets(decl);
-   for (unsigned i = 0; (i < nnets) && (i < max); i++) {
-      const struct net *net = &(nets[tree_net(decl, i)]);
-      buf[i] = last ? net->last_value : net->resolved;
+   const int nnets = tree_nets(decl);
+   int offset = 0;
+   while ((offset < nnets) && (offset < max)) {
+      netid_t nid = tree_net(decl, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
+
+      for (int i = 0; (i < g->length) && (offset + i < max); i++)
+         buf[offset + i] = last ? g->last_value[i] : g->resolved[i];
+
+      offset += g->length;
    }
 
    return MIN(nnets, max);
