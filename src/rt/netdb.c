@@ -19,6 +19,7 @@
 #include "util.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 typedef struct group group_t;
 
@@ -30,8 +31,10 @@ struct group {
 };
 
 struct netdb {
-   group_t  *groups;
-   unsigned  max;
+   group_t   *groups;
+   groupid_t *map;
+   netid_t    nnets;
+   unsigned   max;
 };
 
 netdb_t *netdb_open(tree_t top)
@@ -46,6 +49,7 @@ netdb_t *netdb_open(tree_t top)
    netdb_t *db = xmalloc(sizeof(struct netdb));
    db->groups = NULL;
    db->max    = 0;
+   db->nnets  = 0;
 
    groupid_t gid;
    while ((gid = read_u32(f)) != GROUPID_INVALID) {
@@ -57,9 +61,19 @@ netdb_t *netdb_open(tree_t top)
 
       db->groups = g;
       db->max    = MAX(db->max, gid);
+      db->nnets  = MAX(db->nnets, g->first + g->length);
    }
 
    fbuf_close(f);
+
+   db->map = xmalloc(sizeof(groupid_t) * db->nnets);
+   for (netid_t i = 0; i < db->nnets; i++)
+      db->map[i] = GROUPID_INVALID;
+
+   for (group_t *it = db->groups; it != NULL; it = it->next) {
+      for (netid_t i = it->first; i < it->first + it->length; i++)
+         db->map[i] = it->gid;
+   }
 
    return db;
 }
@@ -72,23 +86,18 @@ void netdb_close(netdb_t *db)
       db->groups = next;
    }
 
+   free(db->map);
    free(db);
 }
 
 groupid_t netdb_lookup(netdb_t *db, netid_t nid, bool exact)
 {
-   for (group_t *it = db->groups; it != NULL; it = it->next) {
-      if (it->first == nid)
-         return it->gid;
-      else if ((nid > it->first) && (nid < it->first + it->length)) {
-         if (unlikely(exact))
-            fatal_trace("net %d not first in group %d", nid, it->gid);
-         else
-            return it->gid;
-      }
-   }
-
-   fatal_trace("net %d not in database", nid);
+   assert(nid < db->nnets);
+   groupid_t gid = db->map[nid];
+   if (likely(gid != GROUPID_INVALID))
+      return gid;
+   else
+      fatal_trace("net %d not in database", nid);
 }
 
 unsigned netdb_size(netdb_t *db)
