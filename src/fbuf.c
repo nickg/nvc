@@ -208,7 +208,8 @@ void fbuf_close(fbuf_t *f)
    }
    else {
       f->prev->next = f->next;
-      f->next->prev = f->prev;
+      if (f->next != NULL)
+         f->next->prev = f->prev;
    }
 
    free(f->fname);

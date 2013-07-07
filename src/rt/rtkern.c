@@ -670,10 +670,14 @@ int64_t _last_event(const int32_t *nids, int32_t n)
    //TRACE("_last_event %s n=%d", fmt_net(&(nets[nids[0]])), n);
 
    int64_t last = INT64_MAX;
-   for (int i = 0; i < n; i++) {
-      const uint64_t this = nets[nids[i]].last_event;
-      if (this < now)
-         last = MIN(last, now - this);
+   int offset = 0;
+   while (offset < n) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
+      if (g->last_event < now)
+         last = MIN(last, now - g->last_event);
+
+      offset += g->length;
+      assert(offset <= n);
    }
 
    return last;
