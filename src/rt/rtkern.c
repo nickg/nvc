@@ -339,35 +339,6 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
          fmt_values(values, n * size), n, size, fmt_time(after),
          fmt_time(reject), reverse);
 
-#if 0
-
-   const int v_start = reverse ? (n - 1) : 0;
-   const int v_inc   = reverse ? -1 : 1;
-
-#define SCHED_WAVEFORM(type) do {                               \
-      const type *vp  = (type *)values + v_start;               \
-      for (int i = 0; i < n; i++, vp += v_inc)                  \
-         rt_alloc_driver(&(nets[nids[i]]), after, reject, *vp); \
-   } while (0)
-
-   FOR_ALL_SIZES(size, SCHED_WAVEFORM);
-
-   int32_t first = 0, last = -1;
-   for (int i = 0; i < n; i++) {
-      if (likely((nids[i] == last + 1) || (last == -1)))
-         last = nids[i];
-      else {
-         deltaq_insert_driver(after, &(nets[nids[first]]),
-                              i - first, active_proc);
-         last  = nids[i];
-         first = i;
-      }
-   }
-
-   deltaq_insert_driver(after, &(nets[nids[first]]), n - first, active_proc);
-
-#else
-
    int offset = 0;
    while (offset < n) {
       groupid_t gid = netdb_lookup(netdb, nids[offset]);
@@ -394,7 +365,6 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
       offset += g->length;
       assert(offset <= n);
    }
-#endif
 }
 
 void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
@@ -761,9 +731,15 @@ int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
    //TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(&(nets[nids[0]])),
    //      n, flag);
 
-   for (int i = 0; i < n; i++) {
-      if (nets[nids[i]].flags & flag)
+   int offset = 0;
+   while (offset < n) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
+
+      if (g->flags & flag)
          return 1;
+
+      offset += g->length;
+      assert(offset <= n);
    }
 
    return 0;
@@ -1372,7 +1348,7 @@ static void rt_cycle(void)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   struct event *peek = heap_min(eventq_heap);
+   event_t *peek = heap_min(eventq_heap);
 
    if (peek->when > now) {
       now = peek->when;
@@ -1404,7 +1380,7 @@ static void rt_cycle(void)
          break;
    }
 
-   struct event *event;
+   event_t *event;
    while ((event = rt_pop_run_queue())) {
       switch (event->kind) {
       case E_PROCESS:
@@ -1423,22 +1399,21 @@ static void rt_cycle(void)
 
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
-      struct sens_list *next = resume->next;
+      sens_list_t *next = resume->next;
       rt_run(resume->proc, false /* reset */);
       rt_free(sens_list_stack, resume);
       resume = next;
    }
 
-#if 0
    for (unsigned i = 0; i < n_active_groups; i++) {
-      struct net *net = active_groups[i];
-      group->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
+      netgroup_t *g = active_groups[i];
+      g->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
 
-      if (unlikely(group->n_watchers > 0)) {
+      if (unlikely(g->n_watchers > 0)) {
          struct watch *w;
          int n = 0, tmp;
          while ((tmp = n++),
-                (w = hash_get_nth(watch_hash, net, &tmp))) {
+                (w = hash_get_nth(watch_hash, g, &tmp))) {
             if ((w->last_now != now) || (w->last_delta != iteration)) {
                (*w->fn)(now, w->signal);
                w->last_now   = now;
@@ -1447,7 +1422,6 @@ static void rt_cycle(void)
          }
       }
    }
-#endif
    n_active_groups = 0;
 }
 
@@ -1559,9 +1533,10 @@ static void rt_cleanup(tree_t top)
    eventq_heap = NULL;
 
    netdb_walk(netdb, rt_cleanup_group);
+   netdb_close(netdb);
 
    while (pending != NULL) {
-      struct sens_list *next = pending->next;
+      sens_list_t *next = pending->next;
       rt_free(sens_list_stack, pending);
       pending = next;
    }
@@ -1573,7 +1548,7 @@ static void rt_cleanup(tree_t top)
 
 static bool rt_stop_now(uint64_t stop_time)
 {
-   struct event *peek = heap_min(eventq_heap);
+   event_t *peek = heap_min(eventq_heap);
    return peek->when > stop_time;
 }
 
