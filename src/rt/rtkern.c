@@ -39,6 +39,7 @@
 #include <sys/resource.h>
 
 #define TRACE_DELTAQ  1
+#define TRACE_PENDING 1
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
@@ -94,7 +95,8 @@ struct sens_list {
    sens_kind_t    kind;
    rt_proc_t     *proc;
    sens_list_t   *next;
-   netgroup_t    *group;
+   netid_t        first;
+   netid_t        last;
    uint32_t       wakeup_gen;
    watch_t       *callback;
 };
@@ -115,7 +117,6 @@ struct netgroup {
    resolution_fn_t resolution;
    uint64_t        last_event;
    tree_t          sig_decl;
-   sens_list_t    *pending;
 };
 
 struct uarray {
@@ -164,6 +165,7 @@ static bool          aborted = false;
 static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
 static sens_list_t  *resume = NULL;
+static sens_list_t  *pending = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -179,7 +181,7 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, uint64_t *values);
-static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
+static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                            rt_proc_t *proc, watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
@@ -343,11 +345,24 @@ void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
    TRACE("_sched_event %s n=%d seq=%d proc %s", fmt_net(nids[0]), n,
          seq, istr(tree_ident(active_proc->source)));
 
-   int offset = 0;
-   while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], true)]);
-      rt_sched_event(S_PROCESS, g, active_proc, NULL);
-      offset += g->length;
+   if (n == 1)
+      rt_sched_event(S_PROCESS, nids[0], nids[0], active_proc, NULL);
+   else if (seq)
+      rt_sched_event(S_PROCESS, nids[0], nids[n - 1], active_proc, NULL);
+   else {
+      int32_t first = 0, last = -1;
+      for (int i = 0; i < n; i++) {
+         if (likely((nids[i] == last + 1) || (last == -1)))
+            last = nids[i];
+         else {
+            rt_sched_event(S_PROCESS, nids[first], nids[i - 1],
+                           active_proc, NULL);
+            last  = nids[i];
+            first = i;
+         }
+      }
+
+      rt_sched_event(S_PROCESS, nids[first], nids[n - 1], active_proc, NULL);
    }
 }
 
@@ -887,7 +902,7 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
-static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
+static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                            rt_proc_t *proc, watch_t *callback)
 {
    const uint32_t wakeup_gen =
@@ -895,9 +910,11 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
 
    // See if there is already a stale entry in the pending
    // list for this process
-   sens_list_t *it = group->pending;
+   sens_list_t *it = pending;
    for (; it != NULL; it = it->next) {
       if (it->kind != kind)
+         continue;
+      else if ((it->first != first) || (it->last != last))
          continue;
       else if ((kind == S_PROCESS)
                && (it->proc == proc)
@@ -912,19 +929,31 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
       node->kind       = kind;
-      node->group      = group;
+      node->first      = first;
+      node->last       = last;
       node->proc       = proc;
       node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
-      node->next       = group->pending;
+      node->next       = pending;
 
-      group->pending = node;
+      pending = node;
    }
    else {
       // Reuse the stale entry
       it->wakeup_gen = wakeup_gen;
    }
 }
+
+#if TRACE_PENDING
+static void rt_dump_pending(void)
+{
+   for (struct sens_list *it = pending; it != NULL; it = it->next) {
+      printf("%d..%d\t%s%s\n", it->first, it->last,
+             istr(tree_ident(it->proc->source)),
+             (it->wakeup_gen == it->proc->wakeup_gen) ? "" : "(stale)");
+   }
+}
+#endif  // TRACE_PENDING
 
 static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
 {
@@ -941,7 +970,6 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    g->resolution = NULL;
    g->last_event = INT64_MAX;
    g->sig_decl   = NULL;
-   g->pending    = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -1175,12 +1203,27 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 
    // Wake up any processes sensitive to this group
    if (new_flags & NET_F_EVENT) {
-      sens_list_t *it, *next = NULL;
-      for (it = group->pending; it != NULL; it = next) {
+      sens_list_t *it, *last = NULL, *next = NULL;
+      for (it = pending; it != NULL; it = next) {
          next = it->next;
-         rt_wakeup(it);
+
+         const netid_t x = group->first;
+         const netid_t y = group->first + group->length - 1;
+         const netid_t a = it->first;
+         const netid_t b = it->last;
+
+         const bool hit = (x <= b) && (a <= y);
+
+         if (hit) {
+            rt_wakeup(it);
+            if (last == NULL)
+               pending = next;
+            else
+               last->next = next;
+         }
+         else
+            last = it;
       }
-      group->pending = NULL;
    }
 }
 
@@ -1254,6 +1297,10 @@ static void rt_cycle(void)
 #if TRACE_DELTAQ > 0
    if (trace_on)
       deltaq_dump();
+#endif
+#if TRACE_PENDING > 0
+   if (trace_on)
+      rt_dump_pending();
 #endif
 
    for (;;) {
@@ -1395,12 +1442,6 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
       }
    }
    free(g->drivers);
-
-   while (g->pending != NULL) {
-      sens_list_t *next = g->pending->next;
-      rt_free(sens_list_stack, g->pending);
-      g->pending = next;
-   }
 }
 
 static void rt_cleanup(tree_t top)
@@ -1415,6 +1456,12 @@ static void rt_cleanup(tree_t top)
 
    netdb_walk(netdb, rt_cleanup_group);
    netdb_close(netdb);
+
+   while (pending != NULL) {
+      sens_list_t *next = pending->next;
+      rt_free(sens_list_stack, pending);
+      pending = next;
+   }
 
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
@@ -1637,7 +1684,7 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
    while (offset < nnets) {
       netid_t nid = tree_net(s, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
-      rt_sched_event(S_CALLBACK, g, NULL, w);
+      rt_sched_event(S_CALLBACK, g->first, g->first + g->length - 1, NULL, w);
 
       offset += g->length;
    }
