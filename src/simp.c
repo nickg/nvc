@@ -22,6 +22,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 
 #define MAX_BUILTIN_ARGS 2
 
@@ -189,7 +190,9 @@ static tree_t simp_array_ref(tree_t t)
          int64_t right = assume_int(bounds.right);
 
          if (indexes[0].i < left || indexes[0].i > right)
-            simp_error(t, "array reference out of bounds");
+            simp_error(t, "array index %"PRIi64" out of bounds "
+                       "%"PRIi64" %s %"PRIi64, indexes[0].i, left,
+                       (bounds.kind == RANGE_TO) ? "to" : "downto", right);
 
          for (unsigned i = 0; i < tree_assocs(v); i++) {
             assoc_t a = tree_assoc(v, i);
@@ -724,6 +727,46 @@ static tree_t simp_if_generate(tree_t t)
    return t;
 }
 
+static tree_t simp_decl(tree_t t)
+{
+   type_t type = tree_type(t);
+
+   if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
+      // Check folded range does not violate index constraints
+
+      const int ndims = type_dims(type);
+      for (int i = 0; i < ndims; i++) {
+         range_t dim = type_dim(type, i);
+
+         type_t cons = tree_type(dim.left);
+
+         if (type_kind(cons) == T_ENUM)
+            continue;    // TODO: checking for enum constraints
+
+         range_t bounds = type_dim(cons, 0);
+
+         literal_t dim_left, bounds_left;
+         if (folded_int(dim.left, &dim_left)
+             && folded_int(bounds.left, &bounds_left)) {
+            if (dim_left.i < bounds_left.i)
+               simp_error(dim.left, "left index %"PRIi64" violates "
+                          "constraint %s", dim_left.i, type_pp(cons));
+         }
+
+         literal_t dim_right, bounds_right;
+         if (folded_int(dim.right, &dim_right)
+             && folded_int(bounds.right, &bounds_right)) {
+            if (dim_right.i > bounds_right.i)
+               simp_error(dim.right, "right index %"PRIi64" violates "
+                          "constraint %s", dim_right.i, type_pp(cons));
+         }
+      }
+
+   }
+
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -765,6 +808,10 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_type_conv(t);
    case T_IF_GENERATE:
       return simp_if_generate(t);
+   case T_SIGNAL_DECL:
+   case T_CONST_DECL:
+   case T_VAR_DECL:
+      return simp_decl(t);
    default:
       return t;
    }

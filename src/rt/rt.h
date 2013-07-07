@@ -34,6 +34,8 @@ typedef enum {
    BOUNDS_TYPE_TO,
    BOUNDS_TYPE_DOWNTO,
    BOUNDS_ARRAY_SIZE,
+   BOUNDS_INDEX_TO,
+   BOUNDS_INDEX_DOWNTO,
 } bounds_kind_t;
 
 typedef enum {

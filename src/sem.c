@@ -1044,10 +1044,12 @@ static bool sem_check_range(range_t *r, type_t context)
             tree_t a = tree_new(T_ATTR_REF);
             tree_set_name(a, sem_make_ref(decl));
             tree_set_ident(a, ident_new("LEFT"));
+            tree_set_loc(a, tree_loc(expr));
 
             tree_t b = tree_new(T_ATTR_REF);
             tree_set_name(b, sem_make_ref(decl));
             tree_set_ident(b, ident_new("RIGHT"));
+            tree_set_loc(b, tree_loc(expr));
 
             // If this is an unconstrained array then we can
             // only find out the direction at runtime
