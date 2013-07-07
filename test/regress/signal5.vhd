@@ -5,9 +5,9 @@ architecture test of signal5 is
     signal x, y : integer;
 begin
 
-    y <= x + 4;
+    update_y: y <= x + 4;
 
-    process is
+    stim: process is
     begin
         x <= 1;
         wait for 1 ns;
@@ -17,6 +17,5 @@ begin
         assert y = 14;
         wait;
     end process;
-    
-end architecture;
 
+end architecture;
