@@ -896,19 +896,27 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
    // See if there is already a stale entry in the pending
    // list for this process
    sens_list_t *it = group->pending;
-   for (; (it != NULL)
-           && (((kind == S_PROCESS && it->proc != proc)
-                 || (it->callback != callback))
-               || (it->wakeup_gen == wakeup_gen));
-        it = it->next)
-      ;
+   for (; it != NULL; it = it->next) {
+      if (it->kind != kind)
+         continue;
+      else if ((kind == S_PROCESS)
+               && (it->proc == proc)
+               && (it->wakeup_gen == wakeup_gen))
+         break;
+      else if ((kind == S_CALLBACK)
+               && (it->callback = callback)
+               && (it->wakeup_gen == wakeup_gen))
+         break;
+   }
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
+      node->kind       = kind;
+      node->group      = group;
       node->proc       = proc;
+      node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
       node->next       = group->pending;
-      node->callback   = callback;
 
       group->pending = node;
    }
