@@ -51,11 +51,10 @@ static fbuf_t *open_list = NULL;
 
 void fbuf_cleanup(void)
 {
-   while (open_list != NULL) {
-      fbuf_t *next = open_list->next;
-      if (open_list->mode == FBUF_OUT)
-         remove(open_list->fname);
-      open_list = next;
+   for (fbuf_t *it = open_list; it != NULL; it = it->next) {
+      fclose(it->file);
+      if (it->mode == FBUF_OUT)
+         remove(it->fname);
    }
 }
 
@@ -202,6 +201,8 @@ void fbuf_close(fbuf_t *f)
 
    if (f->prev == NULL) {
       assert(f == open_list);
+      if (f->next != NULL)
+         f->next->prev = NULL;
       open_list = f->next;
    }
    else

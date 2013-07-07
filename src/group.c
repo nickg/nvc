@@ -19,15 +19,12 @@
 #include "tree.h"
 #include "phase.h"
 #include "common.h"
+#include "rt/netdb.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
 typedef struct group group_t;
-
-typedef uint32_t groupid_t;
-
-#define GROUPID_INVALID UINT32_MAX
 
 struct group {
    group_t  *next;
@@ -132,14 +129,8 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
    return group_alloc(ctx, first, length);
 }
 
-static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
+static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 {
-   tree_t decl = tree_ref(target);
-   printf("ref %s start=%d n=%d\n", istr(tree_ident(decl)), start, n);
-
-   if (tree_kind(decl) != T_SIGNAL_DECL)
-      return;
-
    netid_t first = NETID_INVALID;
    unsigned len = 0;
    const int nnets = tree_nets(decl);
@@ -161,6 +152,15 @@ static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 
    assert(first != NETID_INVALID);
    group_add(ctx, first, len);
+}
+
+static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
+{
+   tree_t decl = tree_ref(target);
+   printf("ref %s start=%d n=%d\n", istr(tree_ident(decl)), start, n);
+
+   if (tree_kind(decl) == T_SIGNAL_DECL)
+      group_decl(decl, ctx, start, n);
 }
 
 static int64_t rebase_index(type_t array_type, int dim, int64_t value)
@@ -328,6 +328,33 @@ static void ungroup_proc_params(tree_t t, void *_ctx)
    }
 }
 
+static void group_signal_decls(tree_t t, void *_ctx)
+{
+   // Ensure that no group is larger than a contained signal declaration
+
+   group_nets_ctx_t *ctx = _ctx;
+   group_decl(t, ctx, 0, -1);
+}
+
+static void group_write_netdb(tree_t top, group_nets_ctx_t *ctx)
+{
+   char name[256];
+   snprintf(name, sizeof(name), "_%s.netdb", istr(tree_ident(top)));
+
+   fbuf_t *f = lib_fbuf_open(lib_work(), name, FBUF_OUT);
+   if (f == NULL)
+      fatal("failed to create net database file %s", name);
+
+   for (group_t *it = ctx->groups; it != NULL; it = it->next) {
+      write_u32(it->gid, f);
+      write_u32(it->first, f);
+      write_u32(it->length, f);
+   }
+   write_u32(GROUPID_INVALID, f);
+
+   fbuf_close(f);
+}
+
 void group_nets(tree_t top)
 {
    group_nets_ctx_t ctx = {
@@ -336,6 +363,9 @@ void group_nets(tree_t top)
    };
    tree_visit_only(top, group_nets_visit_fn, &ctx, T_SIGNAL_ASSIGN);
    tree_visit_only(top, ungroup_proc_params, &ctx, T_PCALL);
+   tree_visit_only(top, group_signal_decls, &ctx, T_SIGNAL_DECL);
 
    printf("*** allocated %d groups\n", ctx.next_gid);
+
+   group_write_netdb(top, &ctx);
 }

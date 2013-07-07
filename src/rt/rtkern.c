@@ -25,6 +25,7 @@
 #include "heap.h"
 #include "common.h"
 #include "hash.h"
+#include "netdb.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -44,6 +45,13 @@
 
 typedef void (*proc_fn_t)(int32_t reset);
 typedef uint64_t (*resolution_fn_t)(uint64_t *vals, int32_t n);
+
+typedef struct netgroup  netgroup_t;
+typedef struct driver    driver_t;
+typedef struct rt_proc   rt_proc_t;
+typedef struct event     event_t;
+typedef struct waveform  waveform_t;
+typedef struct sens_list sens_list_t;
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -68,31 +76,30 @@ struct rt_proc {
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
 
 struct event {
-   uint64_t        when;
-   int             iteration;
-   event_kind_t    kind;
-   struct rt_proc *proc;
-   struct net     *net;
-   int             length;
+   uint64_t      when;
+   int           iteration;
+   event_kind_t  kind;
+   rt_proc_t    *proc;
+   netgroup_t   *group;
 };
 
 struct waveform {
-   uint64_t         when;
-   struct waveform *next;
-   uint64_t         value;
+   uint64_t    when;
+   waveform_t *next;
+   uint64_t   *values;
 };
 
 struct sens_list {
-   struct rt_proc   *proc;
-   struct sens_list *next;
-   netid_t           first;
-   netid_t           last;
-   uint32_t          wakeup_gen;
+   rt_proc_t   *proc;
+   sens_list_t *next;
+   netid_t      first;
+   netid_t      last;
+   uint32_t     wakeup_gen;
 };
 
 struct driver {
-   struct rt_proc  *proc;
-   struct waveform *waveforms;
+   rt_proc_t  *proc;
+   waveform_t *waveforms;
 };
 
 struct net {
@@ -101,10 +108,24 @@ struct net {
    net_flags_t       flags;
    uint16_t          n_drivers;
    uint16_t          n_watchers;
-   struct driver    *drivers;
+   driver_t         *drivers;
    resolution_fn_t   resolution;
    uint64_t          last_event;
    tree_t            sig_decl;
+};
+
+struct netgroup {
+   netid_t         first;
+   unsigned        length;
+   uint64_t       *resolved;
+   uint64_t       *last_value;
+   net_flags_t     flags;
+   uint16_t        n_drivers;
+   uint16_t        n_watchers;
+   driver_t       *drivers;
+   resolution_fn_t resolution;
+   uint64_t        last_event;
+   tree_t          sig_decl;
 };
 
 struct uarray {
@@ -154,21 +175,23 @@ static struct rusage ready_rusage;
 static jmp_buf       fatal_jmp;
 static bool          aborted = false;
 static hash_t       *watch_hash = NULL;
+static netdb_t      *netdb = NULL;
+static netgroup_t   *groups = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
 
-static struct net **active_nets;
-static unsigned     n_active_nets = 0;
+static netgroup_t **active_groups;
+static unsigned     n_active_groups = 0;
 static unsigned     n_active_alloc = 0;
 
-static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake);
-static void deltaq_insert_driver(uint64_t delta, struct net *net,
-                                 int length, struct rt_proc *driver);
-static void rt_alloc_driver(struct net *net, uint64_t after,
-                            uint64_t reject, uint64_t value);
+static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
+static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
+                                 rt_proc_t *driver);
+static void rt_alloc_driver(netgroup_t *group, uint64_t after,
+                            uint64_t reject, uint64_t *values);
 static void rt_sched_event(netid_t first, netid_t last);
 static void *rt_tmp_alloc(size_t sz);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
@@ -255,6 +278,41 @@ static const char *fmt_net(const struct net *net)
    return buf;
 }
 
+static const char *fmt_group(const netgroup_t *g)
+{
+   static const int BUF_SZ = 256;
+   char *buf = get_fmt_buf(BUF_SZ);
+   char *p = buf;
+   const char *end = buf + BUF_SZ;
+   p += snprintf(p, end - p, "%s", istr(tree_ident(g->sig_decl)));
+
+   netid_t sig_first = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
+   int offset = g->first - sig_first;
+
+   type_t type = tree_type(g->sig_decl);
+   while (type_is_array(type)) {
+      int stride = array_size(type_elem(type));
+      p += snprintf(p, end - p, "[%d]", offset / stride);
+      offset %= stride;
+
+      type = type_elem(type);
+   }
+   return buf;
+}
+
+static const char *fmt_values(const void *values, int length)
+{
+   const size_t sz = (length * 2) + 1;
+   char *buf = get_fmt_buf(sz);
+   static_printf_begin(buf, sz);
+
+   for (int i = 0; i < length; i++) {
+      static_printf(buf, "%02x", ((uint8_t *)values)[i]);
+   }
+
+   return buf;
+}
+
 static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 {
    // Use the bottom bit of the key to indicate the kind
@@ -276,9 +334,12 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 {
    const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform %s values=%p n=%d size=%d after=%s "
-         "reject=%s reverse=%d", fmt_net(&nets[nids[0]]), values, n, size,
-         fmt_time(after), fmt_time(reject), reverse);
+   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s "
+         "reject=%s reverse=%d", fmt_net(&nets[nids[0]]),
+         fmt_values(values, n * size), n, size, fmt_time(after),
+         fmt_time(reject), reverse);
+
+#if 0
 
    const int v_start = reverse ? (n - 1) : 0;
    const int v_inc   = reverse ? -1 : 1;
@@ -304,6 +365,36 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    }
 
    deltaq_insert_driver(after, &(nets[nids[first]]), n - first, active_proc);
+
+#else
+
+   int offset = 0;
+   while (offset < n) {
+      groupid_t gid = netdb_lookup(netdb, nids[offset]);
+      netgroup_t *g = &(groups[gid]);
+      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
+
+      // XXX: missing offset here
+      const int v_start = reverse ? (g->length - 1) : 0;
+      const int v_inc   = reverse ? -1 : 1;
+
+      uint64_t *values_copy = xmalloc(sizeof(uint64_t) * g->length);
+
+#define COPY_VALUES(type) do {                                  \
+         const type *vp = (type *)values + v_start;             \
+         for (int i = 0; i < g->length; i++, vp += v_inc)       \
+            values_copy[i] = *vp;                               \
+      } while (0)
+
+      FOR_ALL_SIZES(size, COPY_VALUES);
+
+      rt_alloc_driver(g, after, reject, values_copy);
+      deltaq_insert_driver(after, g, active_proc);
+
+      offset += g->length;
+      assert(offset <= n);
+   }
+#endif
 }
 
 void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
@@ -334,8 +425,8 @@ void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
 void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
                   void *resolution, int32_t index, const char *module)
 {
-   //TRACE("_set_initial net=%d values=%p n=%d size=%d index=%d",
-   //      nid, values, n, size, index);
+   TRACE("_set_initial net=%d values=%s n=%d size=%d index=%d",
+         nid, fmt_values(values, n * size), n, size, index);
 
    struct net *net = &(nets[nid]);
 
@@ -352,6 +443,27 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
    } while (0)
 
    FOR_ALL_SIZES(size, SET_INITIAL);
+
+   int offset = 0;
+   while (offset < n) {
+      groupid_t gid = netdb_lookup(netdb, nid + offset);
+      netgroup_t *g = &(groups[gid]);
+      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
+
+#define SET_INITIAL2(type) do {                           \
+         const type *vp = values;                         \
+         for (int i = 0; i < g->length; i++)              \
+            g->resolved[i] = g->last_value[i] = vp[i];    \
+      } while (0)
+
+      FOR_ALL_SIZES(size, SET_INITIAL2);
+
+      g->sig_decl   = decl;
+      g->resolution = resolution;
+
+      offset += g->length;
+      assert(offset <= n);
+   }
 }
 
 void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
@@ -487,8 +599,8 @@ void _array_reverse(void *restrict dst, const void *restrict src,
 void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                int32_t high, int32_t last)
 {
-   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-   //      fmt_net(&(nets[nids[0]])), where, size, low, high, last);
+   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+         fmt_net(&(nets[nids[0]])), where, size, low, high, last);
 
 #define VEC_LOAD(type) do {                                          \
       type *p = where;                                               \
@@ -501,6 +613,27 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
    } while (0)
 
    FOR_ALL_SIZES(size, VEC_LOAD);
+
+   int offset = low;
+   while (offset <= high) {
+      groupid_t gid = netdb_lookup(netdb, nids[offset]);
+      netgroup_t *g = &(groups[gid]);
+      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
+
+#define VEC_LOAD2(type) do {                                         \
+         type *p = where;                                            \
+         if (unlikely(last))                                         \
+            for (int i = 0; i < g->length; i++)                      \
+               *p++ = g->last_value[i];                              \
+         else                                                        \
+            for (int i = 0; i < g->length; i++)                      \
+               *p++ = g->resolved[i];                                \
+      } while (0)
+
+      FOR_ALL_SIZES(size, VEC_LOAD2);
+
+      offset += g->length;
+   }
 }
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
@@ -773,16 +906,15 @@ static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
 
-static void deltaq_insert_driver(uint64_t delta, struct net *net,
-                                 int length, struct rt_proc *driver)
+static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
+                                 rt_proc_t *driver)
 {
    struct event *e = rt_alloc(event_stack);
    e->iteration = (delta == 0 ? iteration + 1 : 0);
    e->when      = now + delta;
    e->kind      = E_DRIVER;
-   e->net       = net;
+   e->group     = group;
    e->proc      = driver;
-   e->length    = length;
 
    heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
 }
@@ -793,12 +925,8 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    struct event *e = user;
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
-   if (e->kind == E_DRIVER) {
-      fprintf(stderr, "driver\t %s", fmt_net(e->net));;
-      if (e->length > 1)
-         fprintf(stderr, "+%d", e->length - 1);
-      fprintf(stderr, "\n");
-   }
+   if (e->kind == E_DRIVER)
+      fprintf(stderr, "driver\t %s\n", fmt_group(e->group));
    else
       fprintf(stderr, "process\t %s\n", istr(tree_ident(e->proc->source)));
 }
@@ -908,6 +1036,24 @@ static void rt_reset_net(struct net *net)
    net->sig_decl   = NULL;
 }
 
+static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
+{
+   TRACE("rt_reset_group gid=%d first=%d length=%d", gid, first, length);
+
+   netgroup_t *g = &(groups[gid]);
+   g->first      = first;
+   g->length     = length;
+   g->resolved   = xmalloc(length * sizeof(uint64_t));
+   g->last_value = xmalloc(length * sizeof(uint64_t));
+   g->flags      = 0;
+   g->n_drivers  = 0;
+   g->n_watchers = 0;
+   g->drivers    = NULL;
+   g->resolution = NULL;
+   g->last_event = 0;
+   g->sig_decl   = NULL;
+}
+
 static void rt_setup(tree_t top)
 {
    now = 0;
@@ -918,6 +1064,11 @@ static void rt_setup(tree_t top)
    if (eventq_heap != NULL)
       heap_free(eventq_heap);
    eventq_heap = heap_new(512);
+
+   if (netdb == NULL) {
+      netdb = netdb_open(top);
+      groups = xmalloc(sizeof(struct netgroup) * netdb_size(netdb));
+   }
 
    if (procs == NULL) {
       n_procs = tree_stmts(top);
@@ -934,6 +1085,8 @@ static void rt_setup(tree_t top)
 
    for (int i = 0; i < n_nets; i++)
       rt_reset_net(&(nets[i]));
+
+   netdb_walk(netdb, rt_reset_group);
 
    const int nstmts = tree_stmts(top);
    for (int i = 0; i < nstmts; i++) {
@@ -996,6 +1149,7 @@ static void rt_initial(tree_t top)
       rt_run(&procs[i], true /* reset */);
 }
 
+#if 0
 static void rt_wakeup(struct sens_list *sl)
 {
    // To avoid having each process keep a list of the signals it is
@@ -1015,56 +1169,61 @@ static void rt_wakeup(struct sens_list *sl)
    else
       rt_free(sens_list_stack, sl);
 }
+#endif
 
-static void rt_alloc_driver(struct net *net, uint64_t after,
-                            uint64_t reject, uint64_t value)
+static void rt_alloc_driver(netgroup_t *group, uint64_t after,
+                            uint64_t reject, uint64_t *values)
 {
    if (unlikely(reject > after))
-      fatal("signal %p pulse reject limit %s is greater than "
-            "delay %s", net, fmt_time(reject), fmt_time(after));
+      fatal("signal %s pulse reject limit %s is greater than "
+            "delay %s", fmt_group(group), fmt_time(reject), fmt_time(after));
 
    // Try to find this process in the list of existing drivers
    int driver;
-   for (driver = 0; driver < net->n_drivers; driver++) {
-      if (likely(net->drivers[driver].proc == active_proc))
+   for (driver = 0; driver < group->n_drivers; driver++) {
+      if (likely(group->drivers[driver].proc == active_proc))
          break;
    }
 
    // Allocate memory for drivers on demand
-   if (unlikely(driver == net->n_drivers)) {
+   if (unlikely(driver == group->n_drivers)) {
       const size_t driver_sz = sizeof(struct driver);
-      net->drivers = xrealloc(net->drivers, (driver + 1) * driver_sz);
-      memset(&net->drivers[net->n_drivers], '\0',
-             (driver + 1 - net->n_drivers) * driver_sz);
-      net->n_drivers = driver + 1;
+      group->drivers = xrealloc(group->drivers, (driver + 1) * driver_sz);
+      memset(&group->drivers[group->n_drivers], '\0',
+             (driver + 1 - group->n_drivers) * driver_sz);
+      group->n_drivers = driver + 1;
    }
 
-   struct driver *d = &(net->drivers[driver]);
+   driver_t *d = &(group->drivers[driver]);
+
+   const size_t valuesz = sizeof(uint64_t) * group->length;
 
    if (unlikely(d->waveforms == NULL)) {
       // Assigning the initial value of a driver
-      struct waveform *dummy = rt_alloc(waveform_stack);
-      dummy->when  = 0;
-      dummy->next  = NULL;
-      dummy->value = value;
+      waveform_t *dummy = rt_alloc(waveform_stack);
+      dummy->when   = 0;
+      dummy->next   = NULL;
+      dummy->values = xmalloc(valuesz);
+      memcpy(dummy->values, values, valuesz);
 
       d->waveforms = dummy;
       d->proc      = active_proc;
    }
 
-   struct waveform *w = rt_alloc(waveform_stack);
-   w->when  = now + after;
-   w->next  = NULL;
-   w->value = value;
+   waveform_t *w = rt_alloc(waveform_stack);
+   w->when   = now + after;
+   w->next   = NULL;
+   w->values = values;
 
-   struct waveform *last = d->waveforms;
-   struct waveform *it   = last->next;
+   waveform_t *last = d->waveforms;
+   waveform_t *it   = last->next;
    while ((it != NULL) && (it->when < w->when)) {
       // If the current transaction is within the pulse rejection interval
       // and the value is different to that of the new transaction then
       // delete the current transaction
-      if ((it->when >= w->when - reject) && (it->value != w->value)) {
-         struct waveform *next = it->next;
+      if ((it->when >= w->when - reject)
+          && (memcmp(it->values, w->values, valuesz) != 0)) {
+         waveform_t *next = it->next;
          last->next = next;
          rt_free(waveform_stack, it);
          it = next;
@@ -1082,57 +1241,63 @@ static void rt_alloc_driver(struct net *net, uint64_t after,
    // overhead of doing so is probably higher than the cost of waking
    // up for the empty event
    while (it != NULL) {
+      free(it->values);
       rt_free(waveform_stack, it);
       it = it->next;
    }
 }
 
-static void rt_update_net(struct net *net, int driver, uint64_t value)
+static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 {
-   TRACE("update net %s value=%"PRIx64" driver=%d",
-         fmt_net(net), value, driver);
+   TRACE("update group %s values=%s driver=%d",
+         fmt_group(group), fmt_values(values, 8), driver);
 
-   uint64_t resolved;
-   if (unlikely(net->n_drivers > 1)) {
+   const size_t valuesz = sizeof(uint64_t) * group->length;
+
+   uint64_t *resolved = xmalloc(valuesz);  // XXX
+   if (unlikely(group->n_drivers > 1)) {
       // If there is more than one driver call the resolution function
 
-      if (unlikely(net->resolution == NULL))
-         fatal_at(tree_loc(net->sig_decl), "net %s has multiple drivers but "
-                  "no resolution function", fmt_net(net));
+      if (unlikely(group->resolution == NULL))
+         fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
+                  "but no resolution function", fmt_group(group));
 
-      uint64_t vals[net->n_drivers];
-      for (int i = 0; i < net->n_drivers; i++)
-         vals[i] = net->drivers[i].waveforms->value;
-      vals[driver] = value;
+      for (int j = 0; j < group->length; j++) {
+         uint64_t vals[group->n_drivers];
+         for (int i = 0; i < group->n_drivers; i++)
+            vals[i] = group->drivers[i].waveforms->values[j];
+         vals[driver] = values[j];
 
-      resolved = (*net->resolution)(vals, net->n_drivers);
+         resolved[j] = (*group->resolution)(vals, group->n_drivers);
+      }
    }
    else
-      resolved = value;
+      memcpy(resolved, values, valuesz);
 
    int32_t new_flags = NET_F_ACTIVE;
-   if (net->resolved != resolved)
+   if (memcmp(group->resolved, resolved, group->length * sizeof(uint64_t)) != 0)
       new_flags |= NET_F_EVENT;
 
-   if (unlikely(n_active_nets == n_active_alloc)) {
+   if (unlikely(n_active_groups == n_active_alloc)) {
       n_active_alloc *= 2;
       const size_t newsz = n_active_alloc * sizeof(struct net *);
-      active_nets = xrealloc(active_nets, newsz);
+      active_groups = xrealloc(active_groups, newsz);
    }
-   active_nets[n_active_nets++] = net;
+   active_groups[n_active_groups++] = group;
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
-      net->last_value = net->resolved;
-      net->last_event = now;
+      memcpy(group->last_value, group->resolved, valuesz);
+      group->last_event = now;
    }
 
-   net->resolved  = resolved;
-   net->flags    |= new_flags;
+   memcpy(group->resolved, resolved, valuesz);
+   group->flags |= new_flags;
 
-   // Wake up any processes sensitive to this net
+#if 0
+   // Wake up any processes sensitive to this group
    if (new_flags & NET_F_EVENT) {
       const netid_t nid = net - nets;
       struct sens_list *it, *last = NULL, *next = NULL;
@@ -1149,24 +1314,26 @@ static void rt_update_net(struct net *net, int driver, uint64_t value)
             last = it;
       }
    }
+#endif
 }
 
-static void rt_update_driver(struct net *net, struct rt_proc *proc)
+static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
 {
    // Find the driver owned by proc
    int driver;
-   for (driver = 0; driver < net->n_drivers; driver++) {
-      if (likely(net->drivers[driver].proc == proc))
+   for (driver = 0; driver < group->n_drivers; driver++) {
+      if (likely(group->drivers[driver].proc == proc))
          break;
    }
-   assert(driver != net->n_drivers);
+   assert(driver != group->n_drivers);
 
-   struct waveform *w_now  = net->drivers[driver].waveforms;
-   struct waveform *w_next = w_now->next;
+   waveform_t *w_now  = group->drivers[driver].waveforms;
+   waveform_t *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      rt_update_net(net, driver, w_next->value);
-      net->drivers[driver].waveforms = w_next;
+      rt_update_group(group, driver, w_next->values);
+      group->drivers[driver].waveforms = w_next;
+      free(w_now->values);
       rt_free(waveform_stack, w_now);
    }
    else
@@ -1244,8 +1411,7 @@ static void rt_cycle(void)
          rt_run(event->proc, false /* reset */);
          break;
       case E_DRIVER:
-         for (int i = 0; i < event->length; i++)
-            rt_update_driver(&event->net[i], event->proc);
+         rt_update_driver(event->group, event->proc);
          break;
       }
 
@@ -1263,11 +1429,12 @@ static void rt_cycle(void)
       resume = next;
    }
 
-   for (unsigned i = 0; i < n_active_nets; i++) {
-      struct net *net = active_nets[i];
-      net->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
+#if 0
+   for (unsigned i = 0; i < n_active_groups; i++) {
+      struct net *net = active_groups[i];
+      group->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
 
-      if (unlikely(net->n_watchers > 0)) {
+      if (unlikely(group->n_watchers > 0)) {
          struct watch *w;
          int n = 0, tmp;
          while ((tmp = n++),
@@ -1280,7 +1447,8 @@ static void rt_cycle(void)
          }
       }
    }
-   n_active_nets = 0;
+#endif
+   n_active_groups = 0;
 }
 
 static void rt_load_unit(const char *name)
@@ -1356,19 +1524,28 @@ static void rt_one_time_init(void)
    tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
 
    n_active_alloc = 128;
-   active_nets = xmalloc(n_active_alloc * sizeof(struct net *));
+   active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
 }
 
-static void rt_cleanup_net(struct net *net)
+static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 {
-   for (int j = 0; j < net->n_drivers; j++) {
-      while (net->drivers[j].waveforms != NULL) {
-         struct waveform *next = net->drivers[j].waveforms->next;
-         rt_free(waveform_stack, net->drivers[j].waveforms);
-         net->drivers[j].waveforms = next;
+   netgroup_t *g = &(groups[gid]);
+
+   assert(g->first == first);
+   assert(g->length == length);
+
+   free(g->resolved);
+   free(g->last_value);
+
+   for (int j = 0; j < g->n_drivers; j++) {
+      while (g->drivers[j].waveforms != NULL) {
+         waveform_t *next = g->drivers[j].waveforms->next;
+         free(g->drivers[j].waveforms->values);
+         rt_free(waveform_stack, g->drivers[j].waveforms);
+         g->drivers[j].waveforms = next;
       }
    }
-   free(net->drivers);
+   free(g->drivers);
 }
 
 static void rt_cleanup(tree_t top)
@@ -1381,8 +1558,7 @@ static void rt_cleanup(tree_t top)
    heap_free(eventq_heap);
    eventq_heap = NULL;
 
-   for (int i = 0; i < n_nets; i++)
-      rt_cleanup_net(&(nets[i]));
+   netdb_walk(netdb, rt_cleanup_group);
 
    while (pending != NULL) {
       struct sens_list *next = pending->next;

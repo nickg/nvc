@@ -76,7 +76,7 @@ entity bigram is
 end entity;
 
 architecture test of bigram is
-    constant ITERS : integer := 10;
+    constant ITERS : integer := 100;
     constant WIDTH : integer := 1024;
     constant DEPTH : integer := 1024;
 
