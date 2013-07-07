@@ -750,7 +750,7 @@ void static_printf_begin(char *buf, size_t len)
    struct prbuf *p = &(printf_bufs[next_printf_buf]);
    p->buf    = buf;
    p->wptr   = buf;
-   p->remain = len - 1;
+   p->remain = len;
 
    buf[len - 1] = '\0';
 }

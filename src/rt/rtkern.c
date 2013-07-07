@@ -256,28 +256,6 @@ static const char *fmt_time(uint64_t t)
    return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
 }
 
-static const char *fmt_net(const struct net *net)
-{
-   static const int BUF_SZ = 256;
-   char *buf = get_fmt_buf(BUF_SZ);
-   char *p = buf;
-   const char *end = buf + BUF_SZ;
-   p += snprintf(p, end - p, "%s", istr(tree_ident(net->sig_decl)));
-
-   const struct net *first = &(nets[tree_net(net->sig_decl, 0)]);
-   ptrdiff_t offset = net - first;
-
-   type_t type = tree_type(net->sig_decl);
-   while (type_is_array(type)) {
-      int stride = array_size(type_elem(type));
-      p += snprintf(p, end - p, "[%zd]", offset / stride);
-      offset %= stride;
-
-      type = type_elem(type);
-   }
-   return buf;
-}
-
 static const char *fmt_group(const netgroup_t *g)
 {
    static const int BUF_SZ = 256;
@@ -286,18 +264,28 @@ static const char *fmt_group(const netgroup_t *g)
    const char *end = buf + BUF_SZ;
    p += snprintf(p, end - p, "%s", istr(tree_ident(g->sig_decl)));
 
-   netid_t sig_first = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
+   netid_t sig_first = netdb_lookup(netdb, tree_net(g->sig_decl, 0), false);
    int offset = g->first - sig_first;
 
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
-      int stride = array_size(type_elem(type));
-      p += snprintf(p, end - p, "[%d]", offset / stride);
+      const int stride = array_size(type_elem(type));
+      const int index = offset / stride;
+      p += snprintf(p, end - p, "[%d", index);
+      if (g->length > 1)
+         p += snprintf(p, end - p, "..%d", index + g->length - 1);
+      p += snprintf(p, end -p, "]");
       offset %= stride;
 
       type = type_elem(type);
    }
+
    return buf;
+}
+
+static const char *fmt_net(netid_t nid)
+{
+   return fmt_group(&(groups[netdb_lookup(netdb, nid, false)]));
 }
 
 static const char *fmt_values(const void *values, int length)
@@ -306,9 +294,8 @@ static const char *fmt_values(const void *values, int length)
    char *buf = get_fmt_buf(sz);
    static_printf_begin(buf, sz);
 
-   for (int i = 0; i < length; i++) {
+   for (int i = 0; i < length; i++)
       static_printf(buf, "%02x", ((uint8_t *)values)[i]);
-   }
 
    return buf;
 }
@@ -335,18 +322,17 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    const int32_t *nids = _nids;
 
    TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s "
-         "reject=%s reverse=%d", fmt_net(&nets[nids[0]]),
+         "reject=%s reverse=%d", fmt_net(nids[0]),
          fmt_values(values, n * size), n, size, fmt_time(after),
          fmt_time(reject), reverse);
 
    int offset = 0;
    while (offset < n) {
-      groupid_t gid = netdb_lookup(netdb, nids[offset]);
+      groupid_t gid = netdb_lookup(netdb, nids[offset], true);
       netgroup_t *g = &(groups[gid]);
       TRACE("group %d first=%d length=%d", gid, g->first, g->length);
 
-      // XXX: missing offset here
-      const int v_start = reverse ? (g->length - 1) : 0;
+      const int v_start = reverse ? (n - offset - 1) : offset;
       const int v_inc   = reverse ? -1 : 1;
 
       uint64_t *values_copy = xmalloc(sizeof(uint64_t) * g->length);
@@ -369,7 +355,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
 void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
 {
-   TRACE("_sched_event %s n=%d seq=%d proc %s", fmt_net(&nets[nids[0]]), n,
+   TRACE("_sched_event %s n=%d seq=%d proc %s", fmt_net(nids[0]), n,
          seq, istr(tree_ident(active_proc->source)));
 
    if (n == 1)
@@ -398,35 +384,22 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
    TRACE("_set_initial net=%d values=%s n=%d size=%d index=%d",
          nid, fmt_values(values, n * size), n, size, index);
 
-   struct net *net = &(nets[nid]);
-
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
-#define SET_INITIAL(type) do {                          \
-      const type *vp = values;                          \
-      for (int i = 0; i < n; i++) {                     \
-         net[i].resolved   = net[i].last_value = vp[i]; \
-         net[i].sig_decl   = decl;                      \
-         net[i].resolution = resolution;                \
-      }                                                 \
-   } while (0)
-
-   FOR_ALL_SIZES(size, SET_INITIAL);
-
    int offset = 0;
    while (offset < n) {
-      groupid_t gid = netdb_lookup(netdb, nid + offset);
+      groupid_t gid = netdb_lookup(netdb, nid + offset, true);
       netgroup_t *g = &(groups[gid]);
       TRACE("group %d first=%d length=%d", gid, g->first, g->length);
 
-#define SET_INITIAL2(type) do {                           \
-         const type *vp = values;                         \
-         for (int i = 0; i < g->length; i++)              \
-            g->resolved[i] = g->last_value[i] = vp[i];    \
+#define SET_INITIAL(type) do {                                     \
+         const type *vp = values;                                  \
+         for (int i = 0; i < g->length; i++)                       \
+            g->resolved[i] = g->last_value[i] = vp[i + offset];    \
       } while (0)
 
-      FOR_ALL_SIZES(size, SET_INITIAL2);
+      FOR_ALL_SIZES(size, SET_INITIAL);
 
       g->sig_decl   = decl;
       g->resolution = resolution;
@@ -570,40 +543,37 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                int32_t high, int32_t last)
 {
    TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-         fmt_net(&(nets[nids[0]])), where, size, low, high, last);
-
-#define VEC_LOAD(type) do {                                          \
-      type *p = where;                                               \
-      if (unlikely(last))                                            \
-         for (int i = low; i <= high; i++)                           \
-            *p++ = nets[nids[i]].last_value;                         \
-      else                                                           \
-         for (int i = low; i <= high; i++)                           \
-            *p++ = nets[nids[i]].resolved;                           \
-   } while (0)
-
-   FOR_ALL_SIZES(size, VEC_LOAD);
+         fmt_net(nids[0]), where, size, low, high, last);
 
    int offset = low;
    while (offset <= high) {
-      groupid_t gid = netdb_lookup(netdb, nids[offset]);
+      groupid_t gid = netdb_lookup(netdb, nids[offset], false);
       netgroup_t *g = &(groups[gid]);
-      TRACE("group %d first=%d length=%d", gid, g->first, g->length);
 
-#define VEC_LOAD2(type) do {                                         \
-         type *p = where;                                            \
+      const int skip = nids[offset] - g->first;
+      const int to_copy = MIN(high - offset + 1, g->length - skip);
+
+      TRACE("group %d first=%d length=%d skip=%d offset=%d to_copy=%d",
+            gid, g->first, g->length, skip, offset, to_copy);
+
+      TRACE("res %s", fmt_values(g->resolved, g->length * 8));
+
+#define VEC_LOAD(type) do {                                          \
+         type *p = (type *)where + (offset - low);                   \
          if (unlikely(last))                                         \
-            for (int i = 0; i < g->length; i++)                      \
-               *p++ = g->last_value[i];                              \
+            for (int i = 0; i < to_copy; i++)                        \
+               *p++ = g->last_value[i + skip];                       \
          else                                                        \
-            for (int i = 0; i < g->length; i++)                      \
-               *p++ = g->resolved[i];                                \
+            for (int i = 0; i < to_copy; i++)                        \
+               *p++ = g->resolved[i + skip];                         \
       } while (0)
 
-      FOR_ALL_SIZES(size, VEC_LOAD2);
+      FOR_ALL_SIZES(size, VEC_LOAD);
 
-      offset += g->length;
+      offset += g->length - skip;
    }
+
+   TRACE("out %s", fmt_values(where, size * (high - low + 1)));
 }
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
@@ -733,7 +703,7 @@ int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
 
    int offset = 0;
    while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
 
       if (g->flags & flag)
          return 1;
@@ -1226,7 +1196,7 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
 static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 {
    TRACE("update group %s values=%s driver=%d",
-         fmt_group(group), fmt_values(values, 8), driver);
+         fmt_group(group), fmt_values(values, group->length * 8), driver);
 
    const size_t valuesz = sizeof(uint64_t) * group->length;
 
@@ -1251,7 +1221,7 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
       memcpy(resolved, values, valuesz);
 
    int32_t new_flags = NET_F_ACTIVE;
-   if (memcmp(group->resolved, resolved, group->length * sizeof(uint64_t)) != 0)
+   if (memcmp(group->resolved, resolved, valuesz) != 0)
       new_flags |= NET_F_EVENT;
 
    if (unlikely(n_active_groups == n_active_alloc)) {

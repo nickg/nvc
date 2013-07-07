@@ -24,5 +24,5 @@ begin
         assert s = ( '1', '0', '1', '1' ) report "two";
         wait;
     end process;
-    
+
 end architecture;

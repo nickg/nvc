@@ -75,13 +75,17 @@ void netdb_close(netdb_t *db)
    free(db);
 }
 
-groupid_t netdb_lookup(netdb_t *db, netid_t nid)
+groupid_t netdb_lookup(netdb_t *db, netid_t nid, bool exact)
 {
    for (group_t *it = db->groups; it != NULL; it = it->next) {
       if (it->first == nid)
          return it->gid;
-      else if (unlikely((nid > it->first) && (nid < it->first + it->length)))
-         fatal_trace("net %d not first in group %d", nid, it->gid);
+      else if ((nid > it->first) && (nid < it->first + it->length)) {
+         if (unlikely(exact))
+            fatal_trace("net %d not first in group %d", nid, it->gid);
+         else
+            return it->gid;
+      }
    }
 
    fatal_trace("net %d not in database", nid);
