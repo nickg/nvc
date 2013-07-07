@@ -901,11 +901,11 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
          continue;
       else if ((kind == S_PROCESS)
                && (it->proc == proc)
-               && (it->wakeup_gen == wakeup_gen))
+               && (it->wakeup_gen != wakeup_gen))
          break;
       else if ((kind == S_CALLBACK)
                && (it->callback = callback)
-               && (it->wakeup_gen == wakeup_gen))
+               && (it->wakeup_gen != wakeup_gen))
          break;
    }
 
