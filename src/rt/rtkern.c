@@ -35,6 +35,7 @@
 #include <setjmp.h>
 #include <math.h>
 #include <errno.h>
+#include <alloca.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -1159,13 +1160,15 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 
    const size_t valuesz = sizeof(uint64_t) * group->length;
 
-   uint64_t *resolved = xmalloc(valuesz);  // XXX
+   uint64_t *resolved = values;
    if (unlikely(group->n_drivers > 1)) {
       // If there is more than one driver call the resolution function
 
       if (unlikely(group->resolution == NULL))
          fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
                   "but no resolution function", fmt_group(group));
+
+      resolved = alloca(valuesz);
 
       for (int j = 0; j < group->length; j++) {
          uint64_t vals[group->n_drivers];
@@ -1176,8 +1179,6 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
          resolved[j] = (*group->resolution)(vals, group->n_drivers);
       }
    }
-   else
-      memcpy(resolved, values, valuesz);
 
    int32_t new_flags = NET_F_ACTIVE;
    if (memcmp(group->resolved, resolved, valuesz) != 0)
