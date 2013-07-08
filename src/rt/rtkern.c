@@ -1195,7 +1195,11 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
-      memcpy(group->last_value, group->resolved, valuesz);
+      // Swap last with current value to avoid a memcpy
+      uint64_t *tmp = group->last_value;
+      group->last_value = group->resolved;
+      group->resolved = tmp;
+
       group->last_event = now;
    }
 
