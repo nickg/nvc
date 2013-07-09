@@ -1707,12 +1707,13 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
       netid_t nid = tree_net(decl, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
 
-#if 0
-      for (int i = 0; (i < g->length) && (offset + i < max); i++)
-         buf[offset + i] = last ? g->last_value[i] : g->resolved[i];
-#else
-      assert(false);
-#endif
+#define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
+         const type *sp = (type *)(last ? g->last_value : g->resolved); \
+         for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
+            buf[offset + i] = sp[i];                                    \
+      } while (0)
+
+      FOR_ALL_SIZES(g->size, SIGNAL_VALUE_EXPAND_U64);
 
       offset += g->length;
    }
