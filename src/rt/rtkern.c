@@ -87,7 +87,7 @@ struct event {
 struct waveform {
    uint64_t    when;
    waveform_t *next;
-   uint64_t   *values;
+   void       *values;
 };
 
 typedef enum { S_PROCESS, S_CALLBACK } sens_kind_t;
@@ -109,10 +109,11 @@ struct driver {
 
 struct netgroup {
    netid_t         first;
-   unsigned        length;
-   uint64_t       *resolved;
-   uint64_t       *last_value;
+   uint32_t        length;
    net_flags_t     flags;
+   void           *resolved;
+   void           *last_value;
+   uint16_t        size;
    uint16_t        n_drivers;
    driver_t       *drivers;
    resolution_fn_t resolution;
@@ -181,7 +182,7 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
-                            uint64_t reject, uint64_t *values);
+                            uint64_t reject, void *values);
 static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                            rt_proc_t *proc, watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
@@ -324,12 +325,13 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
       const int v_start = reverse ? (n - offset - 1) : offset;
       const int v_inc   = reverse ? -1 : 1;
 
-      uint64_t *values_copy = xmalloc(sizeof(uint64_t) * g->length);
+      uint64_t *values_copy = xmalloc(size * g->length);
 
 #define COPY_VALUES(type) do {                                  \
          const type *vp = (type *)values + v_start;             \
+         type *vc = (type *)values_copy;                        \
          for (int i = 0; i < g->length; i++, vp += v_inc)       \
-            values_copy[i] = *vp;                               \
+            vc[i] = *vp;                                        \
       } while (0)
 
       FOR_ALL_SIZES(size, COPY_VALUES);
@@ -381,16 +383,15 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
       groupid_t gid = netdb_lookup(netdb, nid + offset, true);
       netgroup_t *g = &(groups[gid]);
 
-#define SET_INITIAL(type) do {                                     \
-         const type *vp = values;                                  \
-         for (int i = 0; i < g->length; i++)                       \
-            g->resolved[i] = g->last_value[i] = vp[i + offset];    \
-      } while (0)
-
-      FOR_ALL_SIZES(size, SET_INITIAL);
-
       g->sig_decl   = decl;
       g->resolution = resolution;
+      g->size       = size;
+      g->resolved   = xmalloc(g->length * size);
+      g->last_value = xmalloc(g->length * size);
+
+      const void *src = (uint8_t *)values + (offset * size);
+      memcpy(g->resolved, src, g->length * size);
+      memcpy(g->last_value, src, g->length * size);
 
       offset += g->length;
    }
@@ -540,17 +541,11 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
       const int skip = nids[offset] - g->first;
       const int to_copy = MIN(high - offset + 1, g->length - skip);
 
-#define VEC_LOAD(type) do {                                          \
-         type *p = (type *)where + (offset - low);                   \
-         if (unlikely(last))                                         \
-            for (int i = 0; i < to_copy; i++)                        \
-               *p++ = g->last_value[i + skip];                       \
-         else                                                        \
-            for (int i = 0; i < to_copy; i++)                        \
-               *p++ = g->resolved[i + skip];                         \
-      } while (0)
-
-      FOR_ALL_SIZES(size, VEC_LOAD);
+      void *p = (uint8_t *)where + ((offset - low) * size);
+      if (unlikely(last))
+         memcpy(p, (uint8_t *)g->last_value + (skip * size), to_copy * size);
+      else
+         memcpy(p, (uint8_t *)g->resolved + (skip * size), to_copy * size);
 
       offset += g->length - skip;
    }
@@ -963,8 +958,9 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    netgroup_t *g = &(groups[gid]);
    g->first      = first;
    g->length     = length;
-   g->resolved   = xmalloc(length * sizeof(uint64_t));
-   g->last_value = xmalloc(length * sizeof(uint64_t));
+   g->resolved   = NULL;
+   g->last_value = NULL;
+   g->size       = 0;
    g->flags      = 0;
    g->n_drivers  = 0;
    g->drivers    = NULL;
@@ -1078,7 +1074,7 @@ static void rt_wakeup(sens_list_t *sl)
 }
 
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
-                            uint64_t reject, uint64_t *values)
+                            uint64_t reject, void *values)
 {
    if (unlikely(reject > after))
       fatal("signal %s pulse reject limit %s is greater than "
@@ -1102,7 +1098,7 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
 
    driver_t *d = &(group->drivers[driver]);
 
-   const size_t valuesz = sizeof(uint64_t) * group->length;
+   const size_t valuesz = group->size * group->length;
 
    if (unlikely(d->waveforms == NULL)) {
       // Assigning the initial value of a driver
@@ -1155,12 +1151,12 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
 
 static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 {
+   const size_t valuesz = group->size * group->length;
+
    TRACE("update group %s values=%s driver=%d",
-         fmt_group(group), fmt_values(values, group->length * 8), driver);
+         fmt_group(group), fmt_values(values, valuesz), driver);
 
-   const size_t valuesz = sizeof(uint64_t) * group->length;
-
-   uint64_t *resolved = values;
+   void *resolved = values;
    if (unlikely(group->n_drivers > 1)) {
       // If there is more than one driver call the resolution function
 
@@ -1172,11 +1168,18 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 
       for (int j = 0; j < group->length; j++) {
          uint64_t vals[group->n_drivers];
-         for (int i = 0; i < group->n_drivers; i++)
-            vals[i] = group->drivers[i].waveforms->values[j];
-         vals[driver] = values[j];
 
-         resolved[j] = (*group->resolution)(vals, group->n_drivers);
+#define CALL_RESOLUTION_FN(type) do {                                   \
+            for (int i = 0; i < group->n_drivers; i++) {                \
+               const void *d = group->drivers[i].waveforms->values;     \
+               vals[i] = ((const type *)d)[j];                          \
+            }                                                           \
+            vals[driver] = ((const type *)values)[j];                   \
+            type *r = (type *)resolved;                                 \
+            r[j] = (*group->resolution)(vals, group->n_drivers);        \
+         } while (0)
+
+         FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
       }
    }
 
@@ -1196,7 +1199,7 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
       // Swap last with current value to avoid a memcpy
-      uint64_t *tmp = group->last_value;
+      void *tmp = group->last_value;
       group->last_value = group->resolved;
       group->resolved = tmp;
 
@@ -1704,8 +1707,12 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
       netid_t nid = tree_net(decl, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
 
+#if 0
       for (int i = 0; (i < g->length) && (offset + i < max); i++)
          buf[offset + i] = last ? g->last_value[i] : g->resolved[i];
+#else
+      assert(false);
+#endif
 
       offset += g->length;
    }
