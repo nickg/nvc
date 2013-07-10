@@ -53,6 +53,7 @@ typedef struct event     event_t;
 typedef struct waveform  waveform_t;
 typedef struct sens_list sens_list_t;
 typedef struct watch     watch_t;
+typedef struct value     value_t;
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -87,7 +88,7 @@ struct event {
 struct waveform {
    uint64_t    when;
    waveform_t *next;
-   void       *values;
+   value_t    *values;
 };
 
 typedef enum { S_PROCESS, S_CALLBACK } sens_kind_t;
@@ -107,18 +108,24 @@ struct driver {
    waveform_t *waveforms;
 };
 
+struct value {
+   value_t *next;
+   char     data[0];
+};
+
 struct netgroup {
    netid_t         first;
    uint32_t        length;
    net_flags_t     flags;
-   void           *resolved;
-   void           *last_value;
+   value_t        *resolved;
+   value_t        *last_value;
    uint16_t        size;
    uint16_t        n_drivers;
    driver_t       *drivers;
    resolution_fn_t resolution;
    uint64_t        last_event;
    tree_t          sig_decl;
+   value_t        *free_values;
 };
 
 struct uarray {
@@ -182,10 +189,11 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
-                            uint64_t reject, void *values);
+                            uint64_t reject, value_t *values);
 static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                            rt_proc_t *proc, watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
+static value_t *rt_alloc_value(netgroup_t *g);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
 
@@ -322,19 +330,21 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    while (offset < n) {
       netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], true)]);
 
-      const int v_start = reverse ? (n - offset - 1) : offset;
-      const int v_inc   = reverse ? -1 : 1;
+      value_t *values_copy = rt_alloc_value(g);
 
-      uint64_t *values_copy = xmalloc(size * g->length);
-
+      if (unlikely(reverse)) {
 #define COPY_VALUES(type) do {                                  \
-         const type *vp = (type *)values + v_start;             \
-         type *vc = (type *)values_copy;                        \
-         for (int i = 0; i < g->length; i++, vp += v_inc)       \
-            vc[i] = *vp;                                        \
-      } while (0)
+            const type *vp = (type *)values + (n - offset - 1); \
+            type *vc = (type *)values_copy->data;               \
+            for (int i = 0; i < g->length; i++, vp--)           \
+               vc[i] = *vp;                                     \
+         } while (0)
 
-      FOR_ALL_SIZES(size, COPY_VALUES);
+         FOR_ALL_SIZES(size, COPY_VALUES);
+      }
+      else
+         memcpy(values_copy->data, (uint8_t *)values + (offset * size),
+                size * g->length);
 
       rt_alloc_driver(g, after, reject, values_copy);
       deltaq_insert_driver(after, g, active_proc);
@@ -386,12 +396,12 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
       g->sig_decl   = decl;
       g->resolution = resolution;
       g->size       = size;
-      g->resolved   = xmalloc(g->length * size);
-      g->last_value = xmalloc(g->length * size);
+      g->resolved   = rt_alloc_value(g);
+      g->last_value = rt_alloc_value(g);
 
       const void *src = (uint8_t *)values + (offset * size);
-      memcpy(g->resolved, src, g->length * size);
-      memcpy(g->last_value, src, g->length * size);
+      memcpy(g->resolved->data, src, g->length * size);
+      memcpy(g->last_value->data, src, g->length * size);
 
       offset += g->length;
    }
@@ -543,9 +553,11 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
 
       void *p = (uint8_t *)where + ((offset - low) * size);
       if (unlikely(last))
-         memcpy(p, (uint8_t *)g->last_value + (skip * size), to_copy * size);
+         memcpy(p, (uint8_t *)g->last_value->data + (skip * size),
+                to_copy * size);
       else
-         memcpy(p, (uint8_t *)g->resolved + (skip * size), to_copy * size);
+         memcpy(p, (uint8_t *)g->resolved->data + (skip * size),
+                to_copy * size);
 
       offset += g->length - skip;
    }
@@ -860,6 +872,30 @@ static void deltaq_dump(void)
 }
 #endif
 
+static value_t *rt_alloc_value(netgroup_t *g)
+{
+   if (g->free_values == NULL) {
+      TRACE("alloc new value");
+      value_t *v = xmalloc(sizeof(struct value) + (g->size * g->length));
+      v->next = NULL;
+      return v;
+   }
+   else {
+      TRACE("reuse old value");
+      value_t *v = g->free_values;
+      g->free_values = v->next;
+      v->next = NULL;
+      return v;
+   }
+}
+
+static void rt_free_value(netgroup_t *g, value_t *v)
+{
+   assert(v->next == NULL);
+   v->next = g->free_values;
+   g->free_values = v;
+}
+
 static void *rt_tmp_alloc(size_t sz)
 {
    // Allocate sz bytes that will be freed when the process suspends
@@ -956,17 +992,18 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    TRACE("rt_reset_group gid=%d first=%d length=%d", gid, first, length);
 
    netgroup_t *g = &(groups[gid]);
-   g->first      = first;
-   g->length     = length;
-   g->resolved   = NULL;
-   g->last_value = NULL;
-   g->size       = 0;
-   g->flags      = 0;
-   g->n_drivers  = 0;
-   g->drivers    = NULL;
-   g->resolution = NULL;
-   g->last_event = INT64_MAX;
-   g->sig_decl   = NULL;
+   g->first       = first;
+   g->length      = length;
+   g->resolved    = NULL;
+   g->last_value  = NULL;
+   g->size        = 0;
+   g->flags       = 0;
+   g->n_drivers   = 0;
+   g->drivers     = NULL;
+   g->resolution  = NULL;
+   g->last_event  = INT64_MAX;
+   g->sig_decl    = NULL;
+   g->free_values = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -1074,7 +1111,7 @@ static void rt_wakeup(sens_list_t *sl)
 }
 
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
-                            uint64_t reject, void *values)
+                            uint64_t reject, value_t *values)
 {
    if (unlikely(reject > after))
       fatal("signal %s pulse reject limit %s is greater than "
@@ -1105,8 +1142,8 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
       waveform_t *dummy = rt_alloc(waveform_stack);
       dummy->when   = 0;
       dummy->next   = NULL;
-      dummy->values = xmalloc(valuesz);
-      memcpy(dummy->values, values, valuesz);
+      dummy->values = rt_alloc_value(group);
+      memcpy(dummy->values->data, values, valuesz);
 
       d->waveforms = dummy;
       d->proc      = active_proc;
@@ -1124,9 +1161,10 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
       // and the value is different to that of the new transaction then
       // delete the current transaction
       if ((it->when >= w->when - reject)
-          && (memcmp(it->values, w->values, valuesz) != 0)) {
+          && (memcmp(it->values->data, w->values->data, valuesz) != 0)) {
          waveform_t *next = it->next;
          last->next = next;
+         rt_free_value(group, it->values);
          rt_free(waveform_stack, it);
          it = next;
       }
@@ -1143,13 +1181,13 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
    // overhead of doing so is probably higher than the cost of waking
    // up for the empty event
    while (it != NULL) {
-      free(it->values);
+      rt_free_value(group, it->values);
       rt_free(waveform_stack, it);
       it = it->next;
    }
 }
 
-static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
+static void rt_update_group(netgroup_t *group, int driver, void *values)
 {
    const size_t valuesz = group->size * group->length;
 
@@ -1171,8 +1209,8 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
 
 #define CALL_RESOLUTION_FN(type) do {                                   \
             for (int i = 0; i < group->n_drivers; i++) {                \
-               const void *d = group->drivers[i].waveforms->values;     \
-               vals[i] = ((const type *)d)[j];                          \
+               const value_t *v = group->drivers[i].waveforms->values;  \
+               vals[i] = ((const type *)v->data)[j];                    \
             }                                                           \
             vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
@@ -1184,7 +1222,7 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
    }
 
    int32_t new_flags = NET_F_ACTIVE;
-   if (memcmp(group->resolved, resolved, valuesz) != 0)
+   if (memcmp(group->resolved->data, resolved, valuesz) != 0)
       new_flags |= NET_F_EVENT;
 
    if (unlikely(n_active_groups == n_active_alloc)) {
@@ -1199,14 +1237,14 @@ static void rt_update_group(netgroup_t *group, int driver, uint64_t *values)
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
       // Swap last with current value to avoid a memcpy
-      void *tmp = group->last_value;
+      value_t *tmp = group->last_value;
       group->last_value = group->resolved;
       group->resolved = tmp;
 
       group->last_event = now;
    }
 
-   memcpy(group->resolved, resolved, valuesz);
+   memcpy(group->resolved->data, resolved, valuesz);
    group->flags |= new_flags;
 
    // Wake up any processes sensitive to this group
@@ -1249,9 +1287,9 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
    waveform_t *w_next = w_now->next;
 
    if (w_next != NULL && w_next->when == now) {
-      rt_update_group(group, driver, w_next->values);
+      rt_update_group(group, driver, w_next->values->data);
       group->drivers[driver].waveforms = w_next;
-      free(w_now->values);
+      rt_free_value(group, w_now->values);
       rt_free(waveform_stack, w_now);
    }
    else
@@ -1444,12 +1482,18 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
    for (int j = 0; j < g->n_drivers; j++) {
       while (g->drivers[j].waveforms != NULL) {
          waveform_t *next = g->drivers[j].waveforms->next;
-         free(g->drivers[j].waveforms->values);
+         rt_free_value(g, g->drivers[j].waveforms->values);
          rt_free(waveform_stack, g->drivers[j].waveforms);
          g->drivers[j].waveforms = next;
       }
    }
    free(g->drivers);
+
+   while (g->free_values != NULL) {
+      value_t *next = g->free_values->next;
+      free(g->free_values);
+      g->free_values = next;
+   }
 }
 
 static void rt_cleanup(tree_t top)
@@ -1708,7 +1752,8 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
 
 #define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
-         const type *sp = (type *)(last ? g->last_value : g->resolved); \
+         const value_t *v = (last ? g->last_value : g->resolved);       \
+         const type *sp = (type *)v->data;                              \
          for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
             buf[offset + i] = sp[i];                                    \
       } while (0)
