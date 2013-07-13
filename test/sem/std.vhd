@@ -26,6 +26,7 @@ begin
 
     process is
         variable t : time := -1 ns;
+        variable u : time := 1.2 ns;
     begin
     end process;
 

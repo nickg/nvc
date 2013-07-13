@@ -553,6 +553,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    type_t std_bool   = sem_std_type("BOOLEAN");
    type_t std_int    = sem_std_type("INTEGER");
+   type_t std_real   = sem_std_type("REAL");
    type_t std_string = sem_std_type("STRING");
 
    type_kind_t kind = type_kind(t);
@@ -583,13 +584,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, std_int, t, "mul");
-      //sem_declare_binary(mult, t, std_real, t, "mul");
+      sem_declare_binary(mult, t, std_real, t, "mul");
       sem_declare_binary(mult, std_int, t, t, "mul");
-      //sem_declare_binary(mult, std_real, t, t, "mul");
+      sem_declare_binary(mult, std_real, t, t, "mul");
 
       // Division
       sem_declare_binary(div, t, std_int, t, "div");
-      //sem_declare_binary(div, t, std_real, t, "div");
+      sem_declare_binary(div, t, std_real, t, "div");
       sem_declare_binary(div, t, t, std_int, "div");
 
       // Addition

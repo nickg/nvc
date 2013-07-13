@@ -6,6 +6,7 @@ package STANDARD is
 
     type INTEGER;
     type STRING;
+    type REAL;
 
     type BOOLEAN is (FALSE, TRUE);
 
