@@ -146,6 +146,20 @@ begin
             when '1' => null;
             when '0' => null;
         end case;
+        case i is
+            when 1 to 6 =>              -- OK
+                null;
+            when 7 to 6.1612 =>         -- Error
+                null;
+        end case;
+        case i is
+            when n to k =>              -- Error
+                null;
+        end case;
+        case i is
+            when 1 to i =>              -- Error
+                null;
+        end case;
     end process;
 
     -- Exit

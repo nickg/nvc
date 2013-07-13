@@ -696,11 +696,14 @@ START_TEST(test_seq)
       { 136, "case choice must be locally static" },
       { 139, "missing choice C in case statement" },
       { 145, "invalid use of BIT" },
-      { 156, "type of exit condition must be BOOLEAN" },
-      { 171, "cannot associate this expression with parameter" },
-      { 179, "type of next condition must be BOOLEAN" },
-      { 182, "cannot use next outside loop" },
-      { 184, "no nested loop with label FOO" },
+      { 152, "type mismatch in range" },
+      { 156, "case choice range must have type INTEGER" },
+      { 160, "right index of case choice range is not locally static" },
+      { 170, "type of exit condition must be BOOLEAN" },
+      { 185, "cannot associate this expression with parameter" },
+      { 193, "type of next condition must be BOOLEAN" },
+      { 196, "cannot use next outside loop" },
+      { 198, "no nested loop with label FOO" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -4596,7 +4596,8 @@ static bool sem_check_case(tree_t t)
    type_t type = tree_type(test);
 
    bool ok = true;
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
       switch (a.kind) {
       case A_OTHERS:
@@ -4605,18 +4606,31 @@ static bool sem_check_case(tree_t t)
          break;
 
       case A_NAMED:
-         ok = sem_check_constrained(a.name, type) && ok;
-         if (ok) {
+         if ((ok = sem_check_constrained(a.name, type) && ok)) {
             if (!type_eq(tree_type(a.name), type))
                sem_error(a.name, "case choice must have type %s",
                          sem_type_str(type));
-            if (!sem_locally_static(a.name))
+            else if (!sem_locally_static(a.name))
                sem_error(a.name, "case choice must be locally static");
          }
          break;
 
+      case A_RANGE:
+         if ((ok = sem_check_range(&a.range, type) && ok)) {
+            if (!type_eq(tree_type(a.range.left), type))
+               sem_error(a.range.left, "case choice range must have type %s",
+                         sem_type_str(type));
+            else if (!sem_locally_static(a.range.left))
+               sem_error(a.range.left, "left index of case choice range is "
+                         "not locally static");
+            else if (!sem_locally_static(a.range.right))
+               sem_error(a.range.right, "right index of case choice range is "
+                         "not locally static");
+         }
+         break;
+
       default:
-         assert(false);
+         sem_error(a.value, "sorry, this form of choice is not supported");
       }
 
       ok = sem_check(a.value) && ok;
