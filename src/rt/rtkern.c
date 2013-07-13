@@ -152,9 +152,8 @@ struct run_queue {
 struct watch {
    tree_t         signal;
    sig_event_fn_t fn;
-   uint64_t       last_now;
-   uint32_t       last_delta;
    uint32_t       wakeup_gen;
+   watch_t       *next;
 };
 
 static struct rt_proc   *procs = NULL;
@@ -175,11 +174,13 @@ static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
 static sens_list_t  *resume = NULL;
 static sens_list_t  *pending = NULL;
+static watch_t      *watches = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
+static rt_alloc_stack_t watch_stack = NULL;
 
 static netgroup_t **active_groups;
 static unsigned     n_active_groups = 0;
@@ -1090,6 +1091,19 @@ static void rt_initial(tree_t top)
       rt_run(&procs[i], true /* reset */);
 }
 
+static void rt_watch_signal(watch_t *w)
+{
+   const int nnets = tree_nets(w->signal);
+   int offset = 0;
+   while (offset < nnets) {
+      netid_t nid = tree_net(w->signal, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
+      rt_sched_event(S_CALLBACK, g->first, g->first + g->length - 1, NULL, w);
+
+      offset += g->length;
+   }
+}
+
 static void rt_wakeup(sens_list_t *sl)
 {
    // To avoid having each process keep a list of the signals it is
@@ -1100,9 +1114,21 @@ static void rt_wakeup(sens_list_t *sl)
    // generation: these correspond to stale "wait on" statements that
    // have already resumed.
 
-   if (sl->wakeup_gen == sl->proc->wakeup_gen) {
-      TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
-      ++(sl->proc->wakeup_gen);
+   const uint32_t wakeup_gen =
+      (sl->kind == S_PROCESS) ? sl->proc->wakeup_gen : sl->callback->wakeup_gen;
+
+   if (sl->wakeup_gen == wakeup_gen) {
+      switch (sl->kind) {
+      case S_PROCESS:
+         TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
+         ++(sl->proc->wakeup_gen);
+         break;
+
+      case S_CALLBACK:
+         ++(sl->callback->wakeup_gen);
+         break;
+      }
+
       sl->next = resume;
       resume = sl;
    }
@@ -1379,9 +1405,18 @@ static void rt_cycle(void)
 
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
+      switch (resume->kind) {
+      case S_PROCESS:
+         rt_run(resume->proc, false /* reset */);
+         break;
+
+      case S_CALLBACK:
+         (*resume->callback->fn)(now, resume->callback->signal);
+         rt_watch_signal(resume->callback);
+         break;
+      }
+
       sens_list_t *next = resume->next;
-      assert(resume->kind == S_PROCESS);
-      rt_run(resume->proc, false /* reset */);
       rt_free(sens_list_stack, resume);
       resume = next;
    }
@@ -1464,6 +1499,7 @@ static void rt_one_time_init(void)
    waveform_stack  = rt_alloc_stack_new(sizeof(struct waveform));
    sens_list_stack = rt_alloc_stack_new(sizeof(struct sens_list));
    tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
+   watch_stack     = rt_alloc_stack_new(sizeof(struct watch));
 
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
@@ -1515,9 +1551,16 @@ static void rt_cleanup(tree_t top)
       pending = next;
    }
 
+   while (watches != NULL) {
+      watch_t *next = watches->next;
+      rt_free(watch_stack, watches);
+      watches = next;
+   }
+
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
+   rt_alloc_stack_destroy(watch_stack);
 }
 
 static bool rt_stop_now(uint64_t stop_time)
@@ -1721,25 +1764,16 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
    if (fn == NULL)
       return;   // TODO
 
-   watch_t *w = NULL;
-   if (fn != NULL) {
-      w = xmalloc(sizeof(struct watch));
-      w->signal     = s;
-      w->fn         = fn;
-      w->last_now   = UINT64_MAX;
-      w->last_delta = UINT32_MAX;
-      w->wakeup_gen = 0;
-   }
+   watch_t *w = rt_alloc(watch_stack);
+   assert(w != NULL);
+   w->signal     = s;
+   w->fn         = fn;
+   w->wakeup_gen = 0;
+   w->next       = watches;
 
-   const int nnets = tree_nets(s);
-   int offset = 0;
-   while (offset < nnets) {
-      netid_t nid = tree_net(s, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
-      rt_sched_event(S_CALLBACK, g->first, g->first + g->length - 1, NULL, w);
+   watches = w;
 
-      offset += g->length;
-   }
+   rt_watch_signal(w);
 }
 
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
