@@ -3049,7 +3049,13 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          cgen_check_array_bounds(r.right, val_type, 0, NULL, right, ctx);
 
          LLVMValueRef low = (r.kind == RANGE_TO ? left : right);
-         return cgen_array_signal_ptr(decl, low);
+         LLVMValueRef ptr = cgen_array_signal_ptr(decl, low);
+
+         type_t type = tree_type(t);
+         if (cgen_const_bounds(type))
+            return ptr;
+         else
+            return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
       }
       break;
 

@@ -87,8 +87,6 @@ START_TEST(test_group_three)
    group_add(&ctx, 0, 5);
    group_add(&ctx, 1, 4);
 
-   group_dump(&ctx);
-
    fail_unless(group_sanity_check(&ctx, 4));
 }
 END_TEST
@@ -102,8 +100,6 @@ START_TEST(test_group_four)
 
    group_add(&ctx, 0, 5);
    group_add(&ctx, 0, 4);
-
-   group_dump(&ctx);
 
    fail_unless(group_sanity_check(&ctx, 4));
 }

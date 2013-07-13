@@ -10,8 +10,11 @@ architecture test of bounds5 is
 begin
 
     process is
+        variable k : integer;
     begin
-        s(9 downto 1) <= (others => 1);
+        k := 9;
+        wait for 1 ns;
+        s(k downto 1) <= (others => 1);
         wait;
     end process;
 

@@ -91,10 +91,10 @@ func8           normal
 ieee4           normal
 bounds1         gold,fail
 bounds2         gold,fail
-#bounds3         gold,fail
+bounds3         gold,fail
 bounds4         gold,fail
 signal9         normal
-#bounds5         gold,fail
+bounds5         gold,fail
 loop1           normal
 record2         normal
 access2         normal
