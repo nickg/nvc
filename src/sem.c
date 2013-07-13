@@ -613,6 +613,9 @@ static void sem_declare_predefined_ops(tree_t decl)
       sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "eq");
       sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "neq");
 
+      // Absolute value
+      sem_declare_unary(ident_new("\"abs\""), t, t, "abs");
+
       break;
 
    case T_INTEGER:
