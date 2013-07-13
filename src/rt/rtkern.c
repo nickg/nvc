@@ -876,13 +876,11 @@ static void deltaq_dump(void)
 static value_t *rt_alloc_value(netgroup_t *g)
 {
    if (g->free_values == NULL) {
-      TRACE("alloc new value");
       value_t *v = xmalloc(sizeof(struct value) + (g->size * g->length));
       v->next = NULL;
       return v;
    }
    else {
-      TRACE("reuse old value");
       value_t *v = g->free_values;
       g->free_values = v->next;
       v->next = NULL;
@@ -990,8 +988,6 @@ static void rt_dump_pending(void)
 
 static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
 {
-   TRACE("rt_reset_group gid=%d first=%d length=%d", gid, first, length);
-
    netgroup_t *g = &(groups[gid]);
    g->first       = first;
    g->length      = length;

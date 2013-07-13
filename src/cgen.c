@@ -34,6 +34,8 @@
 #undef NDEBUG
 #include <assert.h>
 
+#define MAX_STATIC_NETS 256
+
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static LLVMValueRef   mod_name = NULL;
@@ -3968,8 +3970,6 @@ static void cgen_signal(tree_t t)
 {
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   // Generate a constant mapping table from sub-element to net ID
-
    const int nnets = tree_nets(t);
    assert(nnets > 0);
 
@@ -3979,15 +3979,22 @@ static void cgen_signal(tree_t t)
    LLVMTypeRef  nid_type = cgen_net_id_type();
    LLVMTypeRef  map_type = LLVMArrayType(nid_type, nnets);
    LLVMValueRef map_var  = LLVMAddGlobal(module, map_type, buf);
-   LLVMSetGlobalConstant(map_var, true);
    LLVMSetLinkage(map_var, LLVMInternalLinkage);
 
-   LLVMValueRef *init = xmalloc(nnets * sizeof(LLVMValueRef));
-   for (int i = 0; i < nnets; i++)
-      init[i] = llvm_int32(tree_net(t, i));
+   if (nnets <= MAX_STATIC_NETS) {
+      // Generate a constant mapping table from sub-element to net ID
+      LLVMSetGlobalConstant(map_var, true);
 
-   LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
-   free(init);
+      LLVMValueRef init[nnets];
+      for (int i = 0; i < nnets; i++)
+         init[i] = llvm_int32(tree_net(t, i));
+
+      LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+   }
+   else {
+      // Values will be filled in by reset function
+      LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+   }
 
    tree_add_attr_ptr(t, sig_nets_i, map_var);
 }
@@ -4256,6 +4263,53 @@ static void cgen_global_const(tree_t t)
    }
 }
 
+static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
+                                   netid_t last, cgen_ctx_t *ctx)
+{
+   LLVMValueRef nets = cgen_signal_nets(d);
+
+   LLVMValueRef i = LLVMBuildAlloca(builder, cgen_net_id_type(), "i");
+   LLVMBuildStore(builder, llvm_int32(first), i);
+
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "nm_test");
+   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "nm_body");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "nm_exit");
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
+   LLVMValueRef done = LLVMBuildICmp(builder, LLVMIntUGT, i_loaded,
+                                     llvm_int32(last), "done");
+   LLVMBuildCondBr(builder, done, exit_bb, body_bb);
+
+   // Loop body
+
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      LLVMBuildAdd(builder,
+                   LLVMBuildSub(builder, i_loaded, llvm_int32(first), ""),
+                   llvm_int32(offset), "")
+   };
+   LLVMValueRef ptr = LLVMBuildGEP(builder, nets,
+                                   indexes, ARRAY_LEN(indexes), "ptr");
+   LLVMBuildStore(builder, i_loaded, ptr);
+
+   LLVMValueRef i_plus_1 = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "");
+   LLVMBuildStore(builder, i_plus_1, i);
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Epilogue
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
 static void cgen_reset_function(tree_t t)
 {
    char name[128];
@@ -4307,6 +4361,26 @@ static void cgen_reset_function(tree_t t)
 
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
+
+      const int nnets = tree_nets(d);
+      if (nnets > MAX_STATIC_NETS) {
+         // Need to generate runtime code to fill in net mapping table
+
+         netid_t first = tree_net(d, 0);
+         int     off   = 0;
+         netid_t last  = first;
+         for (int i = 1; i < nnets; i++) {
+            const netid_t this = tree_net(d, i);
+            if (this != last + 1) {
+               cgen_net_mapping_table(d, off, first, last, &ctx);
+               first = last = this;
+               off = i;
+            }
+            else
+               last = this;
+         }
+         cgen_net_mapping_table(d, off, first, last, &ctx);
+      }
 
       // Internal signals that were generated from ports will not have
       // an initial value
