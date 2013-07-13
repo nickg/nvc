@@ -153,16 +153,12 @@ static tree_t simp_attr_ref(tree_t t)
 static tree_t simp_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
-   if (tree_kind(value) != T_REF)
-      return t;
 
-   tree_t decl = tree_ref(value);
-
-   const unsigned nparams = tree_params(t);
+   const int nparams = tree_params(t);
 
    literal_t indexes[nparams];
    bool can_fold = true;
-   for (unsigned i = 0; i < nparams; i++) {
+   for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       assert(tree_subkind(p) == P_POS);
       can_fold = can_fold && folded_int(tree_value(p), &indexes[i]);
@@ -170,6 +166,36 @@ static tree_t simp_array_ref(tree_t t)
 
    if (!can_fold)
       return t;
+
+   if (!tree_has_type(value))
+      return t;
+
+   type_t value_type = tree_type(value);
+
+   // Check bounds at compile time
+   if (type_kind(value_type) != T_UARRAY) {
+      for (int i = 0; i < nparams; i++) {
+         range_t b = type_dim(value_type, i);
+
+         if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
+            continue;
+
+         literal_t left, right;
+         if (folded_int(b.left, &left) && folded_int(b.right, &right)) {
+            const int64_t low  = (b.kind == RANGE_TO) ? left.i : right.i;
+            const int64_t high = (b.kind == RANGE_TO) ? right.i : left.i;
+            if (indexes[i].i < low || indexes[i].i > high)
+               simp_error(t, "array index %"PRIi64" out of bounds "
+                          "%"PRIi64" %s %"PRIi64, indexes[0].i, left.i,
+                          (b.kind == RANGE_TO) ? "to" : "downto", right.i);
+         }
+      }
+   }
+
+   if (tree_kind(value) != T_REF)
+      return t;   // Cannot fold nested array references yet
+
+   tree_t decl = tree_ref(value);
 
    if (nparams > 1)
       return t;  // TODO: constant folding for multi-dimensional arrays
@@ -187,12 +213,6 @@ static tree_t simp_array_ref(tree_t t)
 
          range_t bounds = type_dim(tree_type(decl), 0);
          int64_t left = assume_int(bounds.left);
-         int64_t right = assume_int(bounds.right);
-
-         if (indexes[0].i < left || indexes[0].i > right)
-            simp_error(t, "array index %"PRIi64" out of bounds "
-                       "%"PRIi64" %s %"PRIi64, indexes[0].i, left,
-                       (bounds.kind == RANGE_TO) ? "to" : "downto", right);
 
          for (unsigned i = 0; i < tree_assocs(v); i++) {
             assoc_t a = tree_assoc(v, i);
@@ -223,6 +243,47 @@ static tree_t simp_array_ref(tree_t t)
    default:
       return t;
    }
+}
+
+static tree_t simp_array_slice(tree_t t)
+{
+   tree_t value = tree_value(t);
+
+   if (!tree_has_type(value))
+      return t;
+
+   type_t value_type = tree_type(value);
+
+   // Check bounds at compile time
+   if (type_kind(value_type) != T_UARRAY) {
+      range_t b = type_dim(value_type, 0);
+      range_t r = tree_range(t);
+
+      if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
+         return t;
+      else if ((r.kind != RANGE_TO) && (r.kind != RANGE_DOWNTO))
+         return t;
+
+      literal_t b_left, r_left;
+      bool left_error = false;
+      if (folded_int(b.left, &b_left) && folded_int(r.left, &r_left))
+         left_error = ((b.kind == RANGE_TO) && (r_left.i < b_left.i))
+            || ((b.kind == RANGE_DOWNTO) && (r_left.i > b_left.i));
+
+      literal_t b_right, r_right;
+      bool right_error = false;
+      if (folded_int(b.right, &b_right) && folded_int(r.right, &r_right))
+         right_error = ((b.kind == RANGE_TO) && (r_right.i > b_right.i))
+            || ((b.kind == RANGE_DOWNTO) && (r_right.i < b_right.i));
+
+      if (left_error || right_error)
+         simp_error(t, "slice %s index %"PRIi64" out of bounds "
+                    "%"PRIi64" %s %"PRIi64, left_error ? "left" : "right",
+                    left_error ? r_left.i : r_right.i, b_left.i,
+                    (b.kind == RANGE_TO) ? "to" : "downto", b_right.i);
+   }
+
+   return t;
 }
 
 static tree_t simp_process(tree_t t)
@@ -774,6 +835,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_process(t);
    case T_ARRAY_REF:
       return simp_array_ref(t);
+   case T_ARRAY_SLICE:
+      return simp_array_slice(t);
    case T_ATTR_REF:
       return simp_attr_ref(t);
    case T_FCALL:

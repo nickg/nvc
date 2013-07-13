@@ -9,8 +9,9 @@ begin
 
     process is
         variable v : int_vec(1 to 10) := (others => 0);
+        variable k : integer := 51761;
     begin
-        v(51761) := 2;
+        v(k) := 2;
         wait;
     end process;
 

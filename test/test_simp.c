@@ -315,8 +315,11 @@ START_TEST(test_bounds)
    range_t r;
 
    const error_t expect[] = {
-      { 11, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
-      { 12, "right index 60 violates constraint FOO" },
+      { 13, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
+      { 14, "right index 60 violates constraint FOO" },
+      { 18, "array index -52 out of bounds 1 to 10" },
+      { 19, "slice right index 11 out of bounds 1 to 10" },
+      { 20, "slice left index 0 out of bounds 1 to 10" },
       { -1, NULL }
    };
    expect_errors(expect);
