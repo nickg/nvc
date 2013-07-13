@@ -954,7 +954,7 @@ static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                && (it->wakeup_gen != wakeup_gen))
          break;
       else if ((kind == S_CALLBACK)
-               && (it->callback = callback)
+               && (it->callback == callback)
                && (it->wakeup_gen != wakeup_gen))
          break;
    }
@@ -1761,19 +1761,27 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 {
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
-   if (fn == NULL)
-      return;   // TODO
+   if (fn == NULL) {
+      // Find the first entry in the watch list and disable it
+      for (watch_t *it = watches; it != NULL; it = it->next) {
+         if (it->signal == s) {
+            it->wakeup_gen = UINT32_MAX;
+            break;
+         }
+      }
+   }
+   else {
+      watch_t *w = rt_alloc(watch_stack);
+      assert(w != NULL);
+      w->signal     = s;
+      w->fn         = fn;
+      w->wakeup_gen = 0;
+      w->next       = watches;
 
-   watch_t *w = rt_alloc(watch_stack);
-   assert(w != NULL);
-   w->signal     = s;
-   w->fn         = fn;
-   w->wakeup_gen = 0;
-   w->next       = watches;
+      watches = w;
 
-   watches = w;
-
-   rt_watch_signal(w);
+      rt_watch_signal(w);
+   }
 }
 
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
