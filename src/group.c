@@ -157,8 +157,6 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 {
    tree_t decl = tree_ref(target);
-   printf("ref %s start=%d n=%d\n", istr(tree_ident(decl)), start, n);
-
    if (tree_kind(decl) == T_SIGNAL_DECL)
       group_decl(decl, ctx, start, n);
 }
@@ -190,9 +188,6 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
          int64_t offset = -1;
          if (tree_kind(index) == T_LITERAL)
             offset = stride * rebase_index(type, 0, assume_int(index));
-
-         printf("array ref width=%d stride=%d offset=%d\n",
-                width, stride, (int)offset);
 
          if (offset == -1) {
             for (int i = 0; i < width; i += stride)
@@ -232,15 +227,13 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
    type_t type  = tree_type(value);
 
    //const int width  = type_width(type);
-   const int stride = type_width(type_elem(type));
+   //const int stride = type_width(type_elem(type));
 
    range_t slice = tree_range(target);
 
    const bool folded =
       (tree_kind(slice.left) == T_LITERAL)
       && (tree_kind(slice.right) == T_LITERAL);
-
-   printf("array slice stride=%d folded=%d\n", stride, folded);
 
    switch (tree_kind(value)) {
    case T_REF:
@@ -269,8 +262,6 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
 static void group_nets_visit_fn(tree_t t, void *_ctx)
 {
    group_nets_ctx_t *ctx = _ctx;
-
-   fmt_loc(stdout, tree_loc(t));
 
    tree_t target = tree_target(t);
 
@@ -320,8 +311,6 @@ static void ungroup_proc_params(tree_t t, void *_ctx)
       if (tree_kind(decl) != T_SIGNAL_DECL)
          return;
 
-      printf("ungroup nets of %s - pcall\n", istr(tree_ident(decl)));
-
       const int nnets = tree_nets(decl);
       for (int i = 0; i < nnets; i++)
          group_add(ctx, tree_net(decl, i), 1);
@@ -364,8 +353,6 @@ void group_nets(tree_t top)
    tree_visit_only(top, group_nets_visit_fn, &ctx, T_SIGNAL_ASSIGN);
    tree_visit_only(top, ungroup_proc_params, &ctx, T_PCALL);
    tree_visit_only(top, group_signal_decls, &ctx, T_SIGNAL_DECL);
-
-   printf("*** allocated %d groups\n", ctx.next_gid);
 
    group_write_netdb(top, &ctx);
 }
