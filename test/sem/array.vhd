@@ -235,4 +235,10 @@ begin
     begin
     end process;
 
+    process is
+        variable i : integer;
+    begin
+        i(6) := 2;                      -- Error
+    end process;
+
 end architecture;

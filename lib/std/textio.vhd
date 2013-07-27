@@ -136,9 +136,40 @@ package body textio is
     end procedure;
 
     procedure readline (file f: text; l: inout line) is
+        variable tmp  : line;
+        variable ch   : string(1 to 1);
+        variable used : natural;
+        variable got  : integer;
     begin
         if l /= null then
             deallocate(l);
+        end if;
+
+        tmp := new string(1 to 128);
+        loop
+            exit when endfile(f);
+
+            read(f, ch, got);
+            exit when got /= 1;
+
+            next when ch(1) = CR;
+
+            if ch(1) = LF then
+                null;
+            else
+                if used = tmp'length then
+                    grow(tmp, tmp'length * 2);
+                end if;
+                used := used + 1;
+                tmp(used) := ch(1);
+            end if;
+        end loop;
+
+        if used = 0 then
+            l := new string'("");
+        else
+            shrink(tmp, used);
+            l := tmp;
         end if;
     end procedure;
 
@@ -150,6 +181,23 @@ package body textio is
             write(f, l.all);
             deallocate(l);
             l := new string'("");
+        end if;
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in string;
+                     justified : in side := right;
+                     field     : in width := 0 )
+    is
+        variable orig : natural;
+    begin
+        if l = null then
+            l := new string(1 to value'length);
+            l.all := value;
+        else
+            orig := l'length;
+            grow(l, orig + value'length);
+            l(orig + 1 to orig + 1 + value'length) := value;
         end if;
     end procedure;
 

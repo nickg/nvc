@@ -3807,7 +3807,7 @@ static bool sem_check_ref(tree_t t)
    ident_t name = tree_ident(t);
    int n = 0;
    do {
-      if ((next = scope_find_nth(name, n++))) {
+      if ((next = scope_find_nth(name, n))) {
          type_t type = tree_type(next);
 
          const bool zero_arg_fn =
@@ -3828,6 +3828,8 @@ static bool sem_check_ref(tree_t t)
             }
             decl = next;
          }
+
+         n++;
       }
    } while ((next != NULL) && scope_can_overload(next));
 
@@ -3835,8 +3837,9 @@ static bool sem_check_ref(tree_t t)
       decl = next;
 
    if (decl == NULL)
-      sem_error(t, (n == 1 ? "undefined identifier %s"
-                    : "no suitable overload for identifier %s"),
+      sem_error(t, (n == 0 ? "undefined identifier %s"
+                    : (n == 1 ? "name %s cannot be used in this context"
+                       : ("no suitable overload for identifier %s"))),
                 istr(name));
 
    switch (tree_kind(decl)) {

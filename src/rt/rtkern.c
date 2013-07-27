@@ -511,6 +511,12 @@ void _div_zero(int32_t where, const char *module)
    fatal_at(tree_loc(t), "division by zero");
 }
 
+void _null_deref(int32_t where, const char *module)
+{
+   tree_t t = rt_recall_tree(module, where);
+   fatal_at(tree_loc(t), "null access dereference");
+}
+
 int64_t _std_standard_now(void)
 {
    return now;
@@ -734,7 +740,12 @@ void _file_open(int8_t *status, void **_fp, uint8_t *name_bytes,
    if (status != NULL)
       *status = 0;   // OPEN_OK
 
-   *fp = fopen(fname, mode_str[mode]);
+   if (strcmp(fname, "STD_INPUT") == 0)
+      *fp = stdin;
+   else if (strcmp(fname, "STD_OUTPUT") == 0)
+      *fp = stdout;
+   else
+      *fp = fopen(fname, mode_str[mode]);
 
    if (*fp == NULL) {
       if (status == NULL)
@@ -1488,6 +1499,8 @@ static void rt_one_time_init(void)
    jit_bind_fn("_bit_shift", _bit_shift);
    jit_bind_fn("_test_net_flag", _test_net_flag);
    jit_bind_fn("_last_event", _last_event);
+   jit_bind_fn("_div_zero", _div_zero);
+   jit_bind_fn("_null_deref", _null_deref);
 
    trace_on = opt_get_int("rt_trace_en");
 

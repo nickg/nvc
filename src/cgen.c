@@ -2034,7 +2034,8 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       }
 
    case T_PORT_DECL:
-      needs_load = ((tree_subkind(decl) == PORT_INOUT)
+      needs_load = (((tree_subkind(decl) == PORT_INOUT)
+                     || (tree_class(decl) == C_FILE))
                     && !type_is_array(tree_type(decl)));
       // Fall-through
 
@@ -2677,8 +2678,29 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
 {
-   type_t type = tree_type(t);
    LLVMValueRef ptr = cgen_expr(tree_value(t), ctx);
+
+   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntEQ, ptr,
+                                     LLVMConstNull(LLVMTypeOf(ptr)), "null");
+
+   LLVMBasicBlockRef null_bb = LLVMAppendBasicBlock(ctx->fn, "all_null");
+   LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "all_ok");
+
+   LLVMBuildCondBr(builder, null, null_bb, ok_bb);
+
+   LLVMPositionBuilderAtEnd(builder, null_bb);
+
+   LLVMValueRef args[] = {
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_null_deref"), args, ARRAY_LEN(args), "");
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, ok_bb);
+
+   type_t type = tree_type(t);
    if (type_is_array(type) && cgen_const_bounds(type))
       return ptr;
    else
@@ -4764,7 +4786,6 @@ static void cgen_support_fns(void)
                                     ARRAY_LEN(_bounds_fail_args),
                                     false));
 
-
    LLVMTypeRef _div_zero_args[] = {
       LLVMInt32Type(),
       LLVMPointerType(LLVMInt8Type(), 0)
@@ -4773,6 +4794,16 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _div_zero_args,
                                     ARRAY_LEN(_div_zero_args),
+                                    false));
+
+   LLVMTypeRef _null_deref_args[] = {
+      LLVMInt32Type(),
+      LLVMPointerType(LLVMInt8Type(), 0)
+   };
+   LLVMAddFunction(module, "_null_deref",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    _null_deref_args,
+                                    ARRAY_LEN(_null_deref_args),
                                     false));
 
    LLVMTypeRef memcmp_args[] = {

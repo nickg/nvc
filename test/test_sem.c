@@ -471,7 +471,7 @@ START_TEST(test_func)
       {  27, "type of default value universal integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
       {  36, "unit WORK.BAD not found in library WORK" },
-      {  48, "no suitable overload for identifier A" },
+      {  48, "name A cannot be used in this context" },
       {  51, "function arguments must have mode IN" },
       {  56, "function must contain a return statement" },
       {  62, "duplicate declaration of function FOO" },
@@ -539,6 +539,7 @@ START_TEST(test_array)
       { 232, "aliased name is not static" },
       { 233, "aliased name is not static" },
       { 234, "type of aliased object INT_ARRAY does not match" },
+      { 241, "undefined identifier I" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -684,7 +685,7 @@ START_TEST(test_seq)
    const error_t expect[] = {
       {  15, "type of test must be BOOLEAN" },
       {  19, "undefined identifier X" },
-      {  25, "no suitable overload for identifier TRUE" },
+      {  25, "name TRUE cannot be used in this context" },
       {  32, "undefined identifier X" },
       {  48, "return statement not allowed outside subprogram" },
       {  62, "return statement not allowed outside subprogram" },
@@ -732,12 +733,12 @@ START_TEST(test_conc)
    input_from_file(TESTDIR "/sem/conc.vhd");
 
    const error_t expect[] = {
-      { 12, "no suitable overload for identifier '4'" },
+      { 12, "name '4' cannot be used in this context" },
       { 16, "type of condition must be BOOLEAN" },
       { 18, "reject interval must have type TIME" },
       { 26, "choice must be locally static" },
-      { 29, "no suitable overload for identifier TRUE" },
-      { 32, "no suitable overload for identifier FALSE" },
+      { 29, "name TRUE cannot be used in this context" },
+      { 32, "name FALSE cannot be used in this context" },
       { -1, NULL }
    };
    expect_errors(expect);
