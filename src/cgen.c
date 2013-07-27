@@ -2178,26 +2178,32 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
 {
-   assert(tree_kind(tree_value(t)) == T_REF);
+   tree_t value = tree_value(t);
 
-   tree_t decl = tree_ref(tree_value(t));
-   type_t type = tree_type(decl);
+   if (tree_kind(value) == T_REF) {
+      tree_t decl = tree_ref(value);
+      type_t type = tree_type(decl);
 
-   switch (cgen_get_class(decl)) {
-   case C_VARIABLE:
-   case C_DEFAULT:
-   case C_CONSTANT:
-      {
-         LLVMValueRef array = cgen_get_var(decl, ctx);
-         return cgen_get_slice(array, type, tree_range(t), ctx);
+      switch (cgen_get_class(decl)) {
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         {
+            LLVMValueRef array = cgen_get_var(decl, ctx);
+            return cgen_get_slice(array, type, tree_range(t), ctx);
+         }
+
+      case C_SIGNAL:
+         return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
+                              false, ctx);
+
+      default:
+         assert(false);
       }
-
-   case C_SIGNAL:
-      return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
-                           false, ctx);
-
-   default:
-      assert(false);
+   }
+   else {
+      LLVMValueRef src = cgen_expr(value, ctx);
+      return cgen_get_slice(src, tree_type(value), tree_range(t), ctx);
    }
 }
 

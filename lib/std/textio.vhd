@@ -113,6 +113,28 @@ end package;
 
 package body textio is
 
+    procedure grow (l : inout line; size : in natural) is
+        variable tmp : line;
+    begin
+        assert l /= null;
+        assert size > l'length;
+        tmp := new string(1 to size);
+        tmp(1 to l'length) := l.all;
+        deallocate(l);
+        l := tmp;
+    end procedure;
+
+    procedure shrink (l : inout line; size : in natural) is
+        variable tmp : line;
+    begin
+        assert l /= null;
+        assert size < l'length;
+        tmp := new string(1 to size);
+        tmp.all := l.all(1 to size);
+        deallocate(l);
+        l := tmp;
+    end procedure;
+
     procedure readline (file f: text; l: inout line) is
     begin
         if l /= null then

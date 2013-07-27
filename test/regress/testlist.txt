@@ -129,3 +129,4 @@ arith3          normal
 bounds8         gold,fail
 bounds9         gold,fail
 access3         normal
+access4         normal
