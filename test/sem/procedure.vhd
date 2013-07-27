@@ -137,4 +137,10 @@ package body p is
         test7a(x(1) => '0', x(2) => '1');
     end procedure;
 
+    procedure test8(x : out int_ptr) is
+    begin
+        if x /= null then               -- Error
+        end if;
+    end procedure;
+
 end package body;

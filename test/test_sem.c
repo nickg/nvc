@@ -771,6 +771,7 @@ START_TEST(test_procedure)
       {  45, "type of default value universal integer does not match" },
       {  63, "no matching procedure DIFF_TYPES" },
       {  64, "positional parameters must precede named parameters" },
+      {  83, "cannot read output port Y" },
       {  84, "invalid target of variable assignment" },
       {  90, "implicit signal STABLE cannot be used in a subprogram body" },
       {  91, "implicit signal QUIET cannot be used in a subprogram body" },
@@ -780,6 +781,7 @@ START_TEST(test_procedure)
       {  99, "object X with access type must have class VARIABLE" },
       { 100, "object X with access type must have class VARIABLE" },
       { 137, "sorry, this form of parameter name is not yet supported" },
+      { 142, "cannot read output port X" },
       { -1, NULL }
    };
    expect_errors(expect);
