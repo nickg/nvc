@@ -17,6 +17,8 @@ package p is
 
     type int_vec_ptr is access int_vec;
 
+    type string_ptr is access string;
+
 end package;
 
 package body p is
@@ -26,6 +28,7 @@ package body p is
         variable i : integer;
         variable r : rec_ptr;
         variable a : int_vec_ptr;
+        variable s : string_ptr;
     begin
         v := null;                      -- OK
         i := null;                      -- Error
@@ -48,6 +51,9 @@ package body p is
         a.all(5) := 2;                  -- OK
         a(5) := 2;                      -- OK
         a(1 to 2) := (1, 2);            -- OK
+        s := new string'("");           -- OK
+        s := new integer'(1);           -- Error
+        s := new s(1 to 3);             -- Error
     end procedure;
 
 end package body;

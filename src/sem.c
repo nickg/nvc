@@ -1138,18 +1138,6 @@ static bool sem_readable(tree_t t)
          return true;
       }
 
-   case T_FCALL:
-      {
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++) {
-            tree_t p = tree_param(t, i);
-            if (!sem_readable(tree_value(p)))
-               return false;
-         }
-
-         return true;
-      }
-
    default:
       return true;
    }
@@ -1242,6 +1230,10 @@ static bool sem_check_type(tree_t t, type_t *ptype)
          tree_t type_decl = scope_find(type_ident(*ptype));
          if (type_decl == NULL)
             sem_error(t, "type %s is not defined", sem_type_str(*ptype));
+
+         if (tree_kind(type_decl) != T_TYPE_DECL)
+            sem_error(t, "name %s does not refer to a type",
+                      istr(tree_ident(type_decl)));
 
          *ptype = tree_type(type_decl);
       }
@@ -1604,6 +1596,7 @@ static tree_t sem_default_value(type_t type)
             };
             tree_add_assoc(def, a);
          }
+         tree_set_type(def, type);
          return def;
       }
 
@@ -1627,6 +1620,7 @@ static tree_t sem_default_value(type_t type)
             };
             tree_add_assoc(def, a);
          }
+         tree_set_type(def, type);
          return def;
       }
 
@@ -2762,18 +2756,21 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
       tree_t port  = tree_port(decl, i);
       ident_t name = tree_ident(port);
 
-      bool found = false;
-      for (int j = 0; (j < nparams) && !found; j++) {
+      tree_t found = NULL;
+      for (int j = 0; (j < nparams) && (found == NULL); j++) {
          tree_t p = tree_param(call, j);
          switch (tree_subkind(p)) {
          case P_POS:
-            found = (tree_pos(p) == i);
+            if (tree_pos(p) == i)
+               found = p;
             break;
          case P_NAMED:
             {
                tree_t ref = tree_name(p);
-               if ((found = (tree_ident(ref) == name)))
+               if (tree_ident(ref) == name) {
+                  found = p;
                   tree_set_ref(ref, port);
+               }
             }
             break;
          default:
@@ -2781,7 +2778,7 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
          }
       }
 
-      if (!found) {
+      if (found == NULL) {
          if (tree_has_value(port)) {
             tree_t value = tree_value(port);
 
@@ -2792,10 +2789,21 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
             tree_set_name(p, sem_make_ref(port));
 
             tree_add_param(call, p);
+
+            found = p;
          }
          else
             sem_error(call, "missing actual for formal %s without "
                       "default value", istr(name));
+      }
+
+      // Check IN and INOUT parameters can be read
+      if (tree_kind(call) != T_ATTR_REF) {
+         port_mode_t mode = tree_subkind(port);
+         if ((mode == PORT_IN) || (mode == PORT_INOUT)) {
+            if (!sem_readable(tree_value(found)))
+               return false;
+         }
       }
    }
 
@@ -5021,9 +5029,11 @@ static bool sem_check_new(tree_t t)
    if (!type_set_restrict(sem_is_access))
       sem_error(t, "no access type in context");
 
-   type_t type;
-   if (!type_set_uniq(&type))
+   type_t access_type;
+   if (!type_set_uniq(&access_type))
       sem_error(t, "context does not contain unique access type");
+
+   type_t type = NULL;
 
    switch (tree_kind(value)) {
    case T_ARRAY_SLICE:
@@ -5033,32 +5043,50 @@ static bool sem_check_new(tree_t t)
             return false;
          tree_set_range(value, r);
 
-         value = tree_value(value);
-         if (tree_kind(value) != T_REF)
+         tree_t ref = tree_value(value);
+         if (tree_kind(ref) != T_REF)
             sem_error(t, "invalid array allocator expression");
+
+         type_t base = type_new(T_UNRESOLVED);
+         type_set_ident(base, tree_ident(ref));
+         if (!sem_check_type(value, &base))
+            return false;
+
+         type = type_new(T_SUBTYPE);
+         type_set_base(type, base);
+         type_add_dim(type, r);
+
+         tree_set_value(t, sem_default_value(type));
       }
-      // Fall-through
+      break;
 
    case T_REF:
       {
-         tree_t decl = scope_find(tree_ident(value));
-         if ((decl == NULL) || (tree_kind(decl) != T_TYPE_DECL))
-            sem_error(value, "%s does not name a type",
-                      istr(tree_ident(value)));
+         type = type_new(T_UNRESOLVED);
+         type_set_ident(type, tree_ident(value));
+         if (!sem_check_type(value, &type))
+            return false;
 
-         tree_set_ref(value, decl);
-         tree_set_type(value, tree_type(decl));
+         tree_set_value(t, sem_default_value(type));
       }
       break;
 
    case T_QUALIFIED:
+      if (!sem_check_qualified(value))
+         return false;
+      type = tree_type(value);
       break;
 
    default:
       sem_error(t, "invalid allocator expression");
    }
 
-   tree_set_type(t, type);
+   if (!type_eq(type, type_access(access_type)))
+      sem_error(value, "type of allocator expresion %s does not match "
+                "access type %s", sem_type_str(type),
+                sem_type_str(type_access(access_type)));
+
+   tree_set_type(t, access_type);
    return true;
 }
 

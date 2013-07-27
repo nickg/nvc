@@ -2631,12 +2631,17 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
 {
    type_t type = type_access(tree_type(t));
 
+   tree_t value = tree_value(t);
+   type_t value_type = tree_type(value);
+
    LLVMValueRef ptr = LLVMBuildMalloc(builder, llvm_type(type), "");
+
+   LLVMValueRef init = cgen_expr(value, ctx);
 
    if (type_is_array(type) && !cgen_const_bounds(type)) {
       // Need to allocate memory for both the array and its metadata
 
-      range_t r = tree_range(tree_value(t));
+      range_t r = type_dim(value_type, 0);
 
       LLVMTypeRef elem = llvm_type(type_elem(type));
 
@@ -2653,7 +2658,13 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
       meta = LLVMBuildInsertValue(builder, meta, data, 0, "");
 
       LLVMBuildStore(builder, meta, ptr);
+
+      cgen_array_copy(value_type, type, init, meta, NULL, ctx);
    }
+   else if (type_is_array(type))
+      cgen_array_copy(value_type, value_type, init, ptr, NULL, ctx);
+   else
+      LLVMBuildStore(builder, init, ptr);
 
    return ptr;
 }

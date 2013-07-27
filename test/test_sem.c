@@ -1018,11 +1018,13 @@ START_TEST(test_access)
 
    const error_t expect[] = {
       {  5, "type FOO is not defined" },
-      { 31, "null expression must have access type" },
-      { 35, "invalid allocator expression" },
-      { 36, "I does not name a type" },
-      { 38, "does not match type of target INT_PTR" },
-      { 44, "type of value REC does not match type of" },
+      { 34, "null expression must have access type" },
+      { 38, "invalid allocator expression" },
+      { 39, "name I does not refer to a type" },
+      { 41, "does not match type of target INT_PTR" },
+      { 47, "type of value REC does not match type of" },
+      { 55, "type of allocator expresion INTEGER does not match" },
+      { 56, "name S does not refer to a type" },
       { -1, NULL }
    };
    expect_errors(expect);

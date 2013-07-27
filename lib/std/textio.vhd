@@ -127,7 +127,7 @@ package body textio is
         else
             write(f, l.all);
             deallocate(l);
-            --l := new string'("");
+            l := new string'("");
         end if;
     end procedure;
 
