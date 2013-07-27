@@ -1103,7 +1103,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
          break;
 
       case C_FILE:
-         args[i] = llvm_void_ptr();
+         args[i] = LLVMPointerType(llvm_void_ptr(), 0);
          break;
 
       default:
@@ -1358,7 +1358,9 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          if ((builtin == NULL) || (i < nports)) {
             tree_t port = tree_port(decl, i);
             port_mode_t mode = tree_subkind(port);
-            bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
+            bool need_ptr = (((mode == PORT_OUT)
+                              || (mode == PORT_INOUT)
+                              || (class == C_FILE))
                              && !type_is_array(type));
             if (need_ptr)
                args[i] = cgen_var_lvalue(tree_value(p), ctx);
@@ -4129,6 +4131,7 @@ static void cgen_proc_body(tree_t t)
       case C_VARIABLE:
       case C_DEFAULT:
       case C_CONSTANT:
+      case C_FILE:
          tree_add_attr_ptr(p, local_var_i, LLVMGetParam(fn, i));
          break;
 

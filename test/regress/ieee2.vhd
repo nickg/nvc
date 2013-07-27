@@ -4,7 +4,7 @@ use ieee.std_logic_1164.all;
 entity sub is
     port (
         clk : out std_logic;
-        cnt : out integer );
+        cnt : inout integer );
 end entity;
 
 architecture test of sub is

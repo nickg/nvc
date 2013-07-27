@@ -1,112 +1,134 @@
 --
 -- TEXTIO package as defined by IEEE 1076-1993
 --
-package TEXTIO is
+package textio is
 
-    type LINE is access STRING;
+    type line is access string;
 
-    type TEXT is file of STRING;
+    type text is file of string;
 
-    type SIDE is (RIGHT, LEFT);
+    type side is (RIGHT, LEFT);
 
-    subtype WIDTH is NATURAL;
+    subtype width is natural;
 
-    file INPUT : TEXT open READ_MODE is "STD_INPUT";
+    file input : text open READ_MODE is "STD_INPUT";
 
-    file OUTPUT : TEXT open WRITE_MODE is "STD_OUTPUT";
+    file output : text open WRITE_MODE is "STD_OUTPUT";
 
-    procedure READLINE (file F: TEXT; L: out LINE);
+    procedure readline (file f: text; l: inout line);
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out BIT;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out BIT );
+    procedure read (l     : inout line;
+                    value : out bit;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out bit );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out BIT_VECTOR;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out BIT_VECTOR );
+    procedure read (l     : inout line;
+                    value : out bit_vector;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out bit_vector );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out BOOLEAN;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out BOOLEAN );
+    procedure read (l     : inout line;
+                    value : out boolean;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out boolean );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out CHARACTER;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out CHARACTER );
+    procedure read (l     : inout line;
+                    value : out character;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out character );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out INTEGER;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out INTEGER );
+    procedure read (l     : inout line;
+                    value : out integer;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out integer );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out REAL;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out REAL );
+    procedure read (l     : inout line;
+                    value : out real;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out real );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out STRING;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out STRING );
+    procedure read (l     : inout line;
+                    value : out string;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out string );
 
-    procedure READ (L     : inout LINE;
-                    VALUE : out TIME;
-                    GOOD  : out BOOLEAN );
-    procedure READ (L     : inout LINE;
-                    VALUE : out TIME );
+    procedure read (l     : inout line;
+                    value : out time;
+                    good  : out boolean );
+    procedure read (l     : inout line;
+                    value : out time );
 
-    procedure WRITELINE (file F : TEXT; L : inout LINE);
+    procedure writeline (file f : text; l : inout line);
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in BIT;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in bit;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in BIT_VECTOR;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in bit_vector;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in BOOLEAN;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in boolean;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in CHARACTER;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in character;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in INTEGER;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in integer;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in REAL;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0;
-                     DIGITS    : in NATURAL:= 0 );
+    procedure write (l         : inout line;
+                     value     : in real;
+                     justified : in side:= right;
+                     field     : in width := 0;
+                     digits    : in natural:= 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in STRING;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0 );
+    procedure write (l         : inout line;
+                     value     : in string;
+                     justified : in side:= right;
+                     field     : in width := 0 );
 
-    procedure WRITE (L         : inout LINE;
-                     VALUE     : in TIME;
-                     JUSTIFIED : in SIDE:= RIGHT;
-                     FIELD     : in WIDTH := 0;
-                     UNIT      : in TIME:= ns );
+    procedure write (l         : inout line;
+                     value     : in time;
+                     justified : in side:= right;
+                     field     : in width := 0;
+                     unit      : in time:= ns );
 
 end package;
+
+package body textio is
+
+    procedure readline (file f: text; l: inout line) is
+    begin
+        if l /= null then
+            deallocate(l);
+        end if;
+    end procedure;
+
+    procedure writeline (file f : text; l : inout line) is
+    begin
+        if l = null then
+            write(f, "");
+        else
+            write(f, l.all);
+            deallocate(l);
+            --l := new string'("");
+        end if;
+    end procedure;
+
+end package body;
