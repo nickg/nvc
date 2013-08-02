@@ -679,7 +679,9 @@ static void elab_funcs(tree_t arch, tree_t ent)
    const int ncontext_arch = tree_contexts(arch);
    const int ncontext_ent  = tree_contexts(ent);
    for (int i = 0; i < ncontext_arch + ncontext_ent; i++) {
-      context_t ctx = tree_context((i < ncontext_arch) ? arch : ent, i);
+      context_t ctx = (i < ncontext_arch)
+         ? tree_context(arch, i)
+         : tree_context(ent, i - ncontext_arch);
 
       lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
       if (lib == NULL)
