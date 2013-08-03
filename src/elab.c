@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "common.h"
+#include "rt/cover.h"
 
 #include <ctype.h>
 #include <assert.h>
@@ -762,6 +763,9 @@ tree_t elab(tree_t top)
       return NULL;
 
    tree_add_attr_int(e, ident_new("nnets"), next_net);
+
+   if (opt_get_int("cover"))
+      cover_tag(e);
 
    if (simplify_errors() == 0) {
       lib_put(lib_work(), e);

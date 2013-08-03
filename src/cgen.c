@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "common.h"
 #include "rt/rt.h"
+#include "rt/cover.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -46,6 +47,7 @@ static ident_t global_const_i = NULL;
 static ident_t sig_nets_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
+static ident_t stmt_tag_i = NULL;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -3686,6 +3688,20 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
    default:
       fatal("missing cgen_stmt for %s", tree_kind_str(tree_kind(t)));
    }
+
+   const int cover_tag = tree_attr_int(t, stmt_tag_i, -1);
+   if (cover_tag != -1) {
+      LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
+
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+      LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
+                                            indexes, ARRAY_LEN(indexes), "");
+
+      LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
+      LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
+
+      LLVMBuildStore(builder, count1, count_ptr);
+   }
 }
 
 static void cgen_jump_table_fn(tree_t t, void *arg)
@@ -4476,6 +4492,20 @@ static void cgen_reset_function(tree_t t)
                     args, ARRAY_LEN(args), "");
    }
 
+   LLVMValueRef cover_stmts = LLVMGetNamedGlobal(module, "cover_stmts");
+   if (cover_stmts != NULL) {
+      LLVMValueRef memset_args[] = {
+         llvm_void_cast(cover_stmts),
+         llvm_int8(0),
+         llvm_int32(tree_attr_int(t, ident_new("stmt_tags"), 0) * 4),
+         llvm_int32(4),
+         llvm_int1(false)
+      };
+
+      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                    memset_args, ARRAY_LEN(memset_args), "");
+   }
+
    LLVMBuildRetVoid(builder);
 }
 
@@ -4501,8 +4531,20 @@ static void cgen_shared_var(tree_t t)
    tree_add_attr_ptr(t, local_var_i, var);
 }
 
+static void cgen_coverage_state(tree_t t)
+{
+   int stmt_tags = tree_attr_int(t, ident_new("stmt_tags"), 0);
+   if (stmt_tags > 0) {
+      LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
+      LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
+      LLVMSetInitializer(var, LLVMGetUndef(type));
+   }
+}
+
 static void cgen_top(tree_t t)
 {
+   cgen_coverage_state(t);
+
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t decl = tree_decl(t, i);
@@ -4703,6 +4745,19 @@ static void cgen_support_fns(void)
                                     ARRAY_LEN(llvm_pow_args),
                                     false));
 
+   LLVMTypeRef llvm_memset_args[] = {
+      LLVMPointerType(LLVMInt8Type(), 0),
+      LLVMInt8Type(),
+      LLVMInt32Type(),
+      LLVMInt32Type(),
+      LLVMInt1Type()
+   };
+   LLVMAddFunction(module, "llvm.memset.p0i8.i32",
+                   LLVMFunctionType(LLVMVoidType(),
+                                    llvm_memset_args,
+                                    ARRAY_LEN(llvm_memset_args),
+                                    false));
+
    const int widths[] = { 1, 8, 16, 32, 64 };
    for (int i = 0; i < ARRAY_LEN(widths); i++) {
       int w = widths[i];
@@ -4880,6 +4935,7 @@ void cgen(tree_t top)
    sig_nets_i     = ident_new("sig_nets");
    foreign_i      = ident_new("FOREIGN");
    never_waits_i  = ident_new("never_waits");
+   stmt_tag_i     = ident_new("stmt_tag");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

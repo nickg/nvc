@@ -145,6 +145,7 @@ static int elaborate(int argc, char **argv)
       {"disable-opt", no_argument, 0, 'o'},
       {"dump-llvm", no_argument, 0, 'd'},
       {"native", no_argument, 0, 'n'},
+      {"cover", no_argument, 0, 'c'},
       {0, 0, 0, 0}
    };
 
@@ -161,6 +162,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'n':
          opt_set_int("native", 1);
+         break;
+      case 'c':
+         opt_set_int("cover", 1);
          break;
       case 0:
          // Set a flag
@@ -368,6 +372,7 @@ static void set_default_opts(void)
    opt_set_int("optimise", 1);
    opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
+   opt_set_int("cover", 0);
 }
 
 static void usage(void)
@@ -389,6 +394,7 @@ static void usage(void)
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           "\n"
           "Elaborate options:\n"
+          "     --cover\t\tEnable code coverage reporting\n"
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --native\t\tGenerate native code shared library\n"

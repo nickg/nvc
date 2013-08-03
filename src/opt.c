@@ -80,7 +80,6 @@ static void opt_tag_simple_procedures(tree_t top)
 
 void opt(tree_t top)
 {
-   //opt_collapse(top);
    opt_delete_wait_only(top);
    opt_tag_simple_procedures(top);
 }

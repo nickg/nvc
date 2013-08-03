@@ -25,6 +25,7 @@
 #include "heap.h"
 #include "common.h"
 #include "netdb.h"
+#include "cover.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -1607,6 +1608,13 @@ static void rt_stats_print(void)
          final_rusage.ru_maxrss);
 }
 
+static void rt_emit_coverage(tree_t e)
+{
+   const int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
+   if (cover_stmts != NULL)
+      cover_report(e, cover_stmts);
+}
+
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1620,6 +1628,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle();
    rt_cleanup(e);
+   rt_emit_coverage(e);
 
    jit_shutdown();
 
