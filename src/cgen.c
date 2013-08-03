@@ -4182,8 +4182,6 @@ static void cgen_proc_body(tree_t t)
       }
    }
 
-   // Generate a jump table to handle resuming from a wait statement
-
    struct cgen_ctx ctx = {
       .entry_list = NULL,
       .proc       = NULL,
@@ -4191,6 +4189,10 @@ static void cgen_proc_body(tree_t t)
       .fn         = fn,
       .state      = NULL
    };
+
+   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
+
+   // Generate a jump table to handle resuming from a wait statement
 
    tree_visit(t, cgen_jump_table_fn, &ctx);
 
@@ -4264,8 +4266,6 @@ static void cgen_proc_body(tree_t t)
    }
    else
       tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
-
-   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
 
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)

@@ -8,7 +8,8 @@ synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
 	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.bc $(ieee)/IEEE.STD_LOGIC_SIGNED \
 	$(ieee)/IEEE.STD_LOGIC_SIGNED-body $(ieee)/_IEEE.STD_LOGIC_SIGNED-body.bc \
 	$(ieee)/IEEE.STD_LOGIC_UNSIGNED $(ieee)/IEEE.STD_LOGIC_UNSIGNED-body \
-	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.bc
+	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.bc $(ieee)/IEEE.STD_LOGIC_TEXTIO \
+	$(ieee)/IEEE.STD_LOGIC_TEXTIO-body $(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.bc
 
 # XXX: add -L argument and move $(nvc_verbose) to $(nvc)
 lib = $(nvc_verbose) NVC_LIBPATH=../std
@@ -26,4 +27,7 @@ $(ieee)/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/std_logic_unsigned.vhd
 	$(lib) $(nvc) --work=$(ieee) -a $<
 
 $(ieee)/IEEE.STD_LOGIC_SIGNED: $(srcdir)/std_logic_signed.vhd
+	$(lib) $(nvc) --work=$(ieee) -a $<
+
+$(ieee)/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/std_logic_textio.vhd
 	$(lib) $(nvc) --work=$(ieee) -a $<
