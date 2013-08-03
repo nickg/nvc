@@ -17,6 +17,8 @@ begin
         assert p(2) = 2;
         p.all(4 to 6) := (4, 5, 6);
         assert p.all(4) = 4;
+        assert p'length = 10;
+        assert p.all'low = 1;
         wait;
     end process;
 

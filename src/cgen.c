@@ -1299,18 +1299,21 @@ static LLVMValueRef cgen_last_value(tree_t signal, cgen_ctx_t *ctx)
       return cgen_scalar_vec_load(nets, type, true, ctx);
 }
 
-static LLVMValueRef cgen_uarray_field(tree_t ref, int field, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_uarray_field(tree_t expr, int field, cgen_ctx_t *ctx)
 {
-   assert(tree_kind(ref) == T_REF);
-   tree_t decl = tree_ref(ref);
-
    LLVMValueRef meta;
-   if (cgen_get_class(decl) == C_SIGNAL) {
-      meta = cgen_signal_nets(decl);
-      assert(meta != NULL);
+   if (tree_kind(expr) == T_REF) {
+      // Avoid loading all the array data if possible
+      tree_t decl = tree_ref(expr);
+      if (cgen_get_class(decl) == C_SIGNAL) {
+         meta = cgen_signal_nets(decl);
+         assert(meta != NULL);
+      }
+      else
+         meta = cgen_get_var(decl, ctx);
    }
    else
-      meta = cgen_get_var(decl, ctx);
+      meta = cgen_expr(expr, ctx);
 
    LLVMValueRef dim_struct = cgen_uarray_dim(meta, 0 /* XXX */);
 
