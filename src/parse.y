@@ -179,7 +179,8 @@
 %type <l> package_body_decl_item package_body_decl_part subprogram_decl_part
 %type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
-%type <l> secondary_unit_decls param_list generic_map port_map
+%type <l> secondary_unit_decls param_list generic_map port_map entity_decl_part
+%type <l> entity_decl_item
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause use_clause
 %type <g> use_clause_item_list
@@ -432,7 +433,7 @@ id_list
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
 
 entity_decl
-: tENTITY id tIS entity_header /* entity_decl_part */ tEND
+: tENTITY id tIS entity_header entity_decl_part tEND
   opt_entity_token opt_id tSEMI
   {
      $$ = tree_new(T_ENTITY);
@@ -440,12 +441,39 @@ entity_decl
      tree_set_loc($$, &@$);
      copy_trees($4.left, tree_add_generic, $$);
      copy_trees($4.right, tree_add_port, $$);
+     copy_trees($5, tree_add_decl, $$);
 
-     if ($7 != NULL && $7 != $2) {
-        parse_error(&@7, "%s does not match entity name %s",
-                    istr($7), istr($2));
+     if ($8 != NULL && $8 != $2) {
+        parse_error(&@8, "%s does not match entity name %s",
+                    istr($8), istr($2));
      }
   }
+;
+
+entity_decl_part
+: entity_decl_item entity_decl_part
+ {
+    $$ = $1;
+    tree_list_concat(&$$, $2);
+ }
+| /* empty */ { $$ = NULL; }
+;
+
+entity_decl_item
+: subprogram_decl
+  /*| subprogram_body*/
+| type_decl
+| subtype_decl
+| constant_decl
+| signal_decl
+| shared_variable_decl
+| file_decl
+| alias_decl
+| attr_decl
+| attr_spec
+  /*| disconnection_specification
+    | group_template_declaration
+    | group_declaration */
 ;
 
 opt_entity_token : tENTITY | /* empty */ ;

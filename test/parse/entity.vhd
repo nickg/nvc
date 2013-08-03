@@ -22,3 +22,7 @@ entity five is
     port (
         signal p : out bit );
 end entity;
+
+entity six is
+    attribute a of six : entity is 1;
+end entity;
