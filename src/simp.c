@@ -302,7 +302,6 @@ static tree_t simp_process(tree_t t)
          tree_add_stmt(p, tree_stmt(t, i));
 
       tree_t w = tree_new(T_WAIT);
-      tree_set_loc(w, tree_loc(t));
       tree_set_ident(w, tree_ident(p));
       for (unsigned i = 0; i < tree_triggers(t); i++)
          tree_add_trigger(w, tree_trigger(t, i));
@@ -444,8 +443,10 @@ static tree_t simp_for(tree_t t)
    ident_t label = tree_ident(t);
    tree_t wh = tree_new(T_WHILE);
    tree_set_ident(wh, label);
+   tree_set_loc(wh, tree_loc(t));
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       tree_add_stmt(wh, tree_stmt(t, i));
 
    tree_t cmp = call_builtin("eq", NULL, var,

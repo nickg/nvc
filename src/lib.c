@@ -512,3 +512,10 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
    else
       strncpy(buf, lib->path, buflen);
 }
+
+void lib_mkdir(lib_t lib, const char *name)
+{
+   if ((mkdir(lib_file_path(lib, name), 0777) != 0)
+       && (errno != EEXIST))
+      fatal_errno("mkdir");
+}

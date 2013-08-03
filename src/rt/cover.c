@@ -17,7 +17,26 @@
 
 #include "cover.h"
 
-static ident_t stmt_tag_i;
+#include <assert.h>
+#include <string.h>
+#include <limits.h>
+
+typedef struct {
+   char *text;
+   int   hits;
+} cover_line_t;
+
+typedef struct cover_file {
+   const char        *name;
+   cover_line_t      *lines;
+   unsigned           n_lines;
+   unsigned           alloc_lines;
+   bool               valid;
+   struct cover_file *next;
+} cover_file_t;
+
+static ident_t       stmt_tag_i;
+static cover_file_t *files;
 
 static void cover_tag_stmts_fn(tree_t t, void *context)
 {
@@ -27,6 +46,12 @@ static void cover_tag_stmts_fn(tree_t t, void *context)
    case T_SIGNAL_ASSIGN:
    case T_ASSERT:
    case T_VAR_ASSIGN:
+   case T_IF:
+   case T_WHILE:
+   case T_WAIT:
+   case T_RETURN:
+   case T_NEXT:
+   case T_EXIT:
       tree_add_attr_int(t, stmt_tag_i, (*next)++);
       break;
 
@@ -45,10 +70,204 @@ void cover_tag(tree_t top)
    tree_add_attr_int(top, ident_new("stmt_tags"), line_tags);
 }
 
+static void cover_append_line(cover_file_t *f, const char *buf)
+{
+   if (f->n_lines == f->alloc_lines) {
+      f->alloc_lines *= 2;
+      f->lines = xrealloc(f->lines, f->alloc_lines * sizeof(cover_line_t));
+   }
+
+   cover_line_t *l = &(f->lines[(f->n_lines)++]);
+   l->text = strdup(buf);
+   l->hits = -1;
+}
+
+static cover_file_t *cover_file(const loc_t *loc)
+{
+   if (loc->file == NULL)
+      return NULL;
+
+   cover_file_t *f;
+   for (f = files; f != NULL; f = f->next) {
+      // Comparing pointers directly here is OK since only one copy
+      // of the file name string will be created by tree_read
+      if (f->name == loc->file)
+         return f->valid ? f : NULL;
+   }
+
+   f = xmalloc(sizeof(cover_file_t));
+   f->name        = loc->file;
+   f->n_lines     = 0;
+   f->alloc_lines = 1024;
+   f->lines       = xmalloc(sizeof(cover_line_t) * f->alloc_lines);
+   f->next        = files;
+
+   FILE *fp = fopen(loc->file, "r");
+   if (fp == NULL) {
+      warnf("failed to open %s for coverage report", loc->file);
+      f->valid = false;
+   }
+   else {
+      f->valid = true;
+
+      while (!feof(fp)) {
+         char buf[1024];
+         fgets(buf, sizeof(buf), fp);
+         cover_append_line(f, buf);
+      }
+
+      fclose(fp);
+   }
+
+   return (files = f);
+}
+
+static void cover_report_stmts_fn(tree_t t, void *context)
+{
+   const int32_t *counts = context;
+
+   const int tag = tree_attr_int(t, stmt_tag_i, -1);
+   if (tag == -1)
+      return;
+
+   const loc_t *loc = tree_loc(t);
+   cover_file_t *file = cover_file(loc);
+   if (file == NULL)
+      return;
+
+   assert(loc->first_line < file->n_lines);
+
+   cover_line_t *l = &(file->lines[loc->first_line - 1]);
+   l->hits = MAX(counts[tag], l->hits);
+}
+
+static void cover_report_line(FILE *fp, cover_line_t *l)
+{
+   fprintf(fp, "<tr>");
+
+   if (l->hits != -1)
+      fprintf(fp, "<td>%d</td>", l->hits);
+   else
+      fprintf(fp, "<td></td>");
+
+   fprintf(fp, "<td>");
+
+   for (const char *p = l->text; *p != '\0'; p++) {
+      switch (*p) {
+      case ' ':
+         fprintf(fp, "&nbsp;");
+         break;
+      case '\t':
+         {
+            int col = (p - l->text);
+            while (col++ % 8)
+               fputc(' ', fp);
+         }
+      case '<':
+         fprintf(fp, "&lt;");
+         break;
+      case '>':
+         fprintf(fp, "&gt;");
+         break;
+      default:
+         fputc(*p, fp);
+         break;
+      }
+   }
+
+   fprintf(fp, "</td></tr>\n");
+}
+
+static const char *cover_file_url(cover_file_t *f)
+{
+   static char buf[256];
+   snprintf(buf, sizeof(buf) - 6, "cover_%s", f->name);
+   for (char *p = buf; *p != '\0'; p++) {
+      if (*p == '/' || *p == '.')
+         *p = '_';
+   }
+   strcat(buf, ".html");
+   return buf;
+}
+
+static void cover_report_file(cover_file_t *f, const char *dir)
+{
+   char buf[256];
+   snprintf(buf, sizeof(buf), "%s/%s", dir, cover_file_url(f));
+
+   FILE *fp = lib_fopen(lib_work(), buf, "w");
+   if (fp == NULL)
+      fatal("failed to create %s", buf);
+
+   fprintf(fp,
+           "<html>\n"
+           "<head>\n"
+           "  <title>Coverage report for %s</title>\n"
+           "</head>\n"
+           "<body>\n",
+           f->name);
+
+   fprintf(fp, "<table>\n");
+   for (int i = 0; i < f->n_lines; i++) {
+      cover_line_t *l = &(f->lines[i]);
+      cover_report_line(fp, l);
+   }
+   fprintf(fp, "</table>\n");
+
+   fprintf(fp, "<body>\n</html>\n");
+
+   fclose(fp);
+}
+
+static void cover_index(ident_t name, const char *dir)
+{
+   char buf[256];
+   snprintf(buf, sizeof(buf), "%s/index.html", dir);
+
+   FILE *fp = lib_fopen(lib_work(), buf, "w");
+   if (fp == NULL)
+      fatal("failed to create %s", buf);
+
+   fprintf(fp,
+           "<html>\n"
+           "<head>\n"
+           "  <title>Coverage report for %s</title>\n"
+           "</head>\n"
+           "<body>\n",
+           istr(name));
+
+   fprintf(fp, "<ul>\n");
+   for (cover_file_t *f = files; f != NULL; f = f->next) {
+      fprintf(fp, "<li><a href=\"%s\">%s</a></li>\n",
+              cover_file_url(f), f->name);
+   }
+   fprintf(fp, "</ul>\n");
+
+   fprintf(fp, "<body>\n</html>\n");
+
+   fclose(fp);
+}
+
 void cover_report(tree_t top, const int32_t *stmts)
 {
-   const int ntags = tree_attr_int(top, ident_new("stmt_tags"), 0);
-   for (int i = 0; i < ntags; i++) {
-      printf("tag %d -> %d\n", i, stmts[i]);
-   }
+   stmt_tag_i = ident_new("stmt_tag");
+
+   tree_visit(top, cover_report_stmts_fn, (void *)stmts);
+
+   ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
+
+   char dir[256];
+   snprintf(dir, sizeof(dir), "%s.cover", istr(name));
+
+   lib_t work = lib_work();
+   lib_mkdir(work, dir);
+
+   for (cover_file_t *f = files; f != NULL; f = f->next)
+      cover_report_file(f, dir);
+
+   cover_index(name, dir);
+
+   char output[PATH_MAX];
+   lib_realpath(work, dir, output, sizeof(output));
+   notef("coverage report generated in %s/", output);
 }

@@ -42,6 +42,7 @@ void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen);
 void lib_destroy(lib_t lib);
 struct trie *lib_name(lib_t lib);
 void lib_save(lib_t lib);
+void lib_mkdir(lib_t lib, const char *name);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);

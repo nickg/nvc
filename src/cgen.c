@@ -3650,6 +3650,20 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
 {
+   const int cover_tag = tree_attr_int(t, stmt_tag_i, -1);
+   if (cover_tag != -1) {
+      LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
+
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+      LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
+                                            indexes, ARRAY_LEN(indexes), "");
+
+      LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
+      LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
+
+      LLVMBuildStore(builder, count1, count_ptr);
+   }
+
    switch (tree_kind(t)) {
    case T_WAIT:
       cgen_wait(t, ctx);
@@ -3687,20 +3701,6 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
       break;
    default:
       fatal("missing cgen_stmt for %s", tree_kind_str(tree_kind(t)));
-   }
-
-   const int cover_tag = tree_attr_int(t, stmt_tag_i, -1);
-   if (cover_tag != -1) {
-      LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
-
-      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
-      LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
-                                            indexes, ARRAY_LEN(indexes), "");
-
-      LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
-      LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
-
-      LLVMBuildStore(builder, count1, count_ptr);
    }
 }
 

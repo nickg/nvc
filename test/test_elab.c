@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 typedef struct error {
    int        line;
@@ -16,10 +17,16 @@ typedef struct error {
 static const error_t  *error_lines = NULL;
 static error_fn_t orig_error_fn = NULL;
 
+void cover_tag(void)
+{
+   assert(false);
+}
+
 static void setup(void)
 {
    lib_set_work(lib_tmp());
    opt_set_int("bootstrap", 0);
+   opt_set_int("cover", 0);
 }
 
 static void teardown(void)
