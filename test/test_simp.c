@@ -101,7 +101,7 @@ START_TEST(test_cfold)
    const error_t expect[] = {
       { 38, "array index 10 out of bounds 1 to 9" },
       { 39, "array index -1 out of bounds 1 to 9" },
-      { 70, "index out of bounds" },
+      { 70, "aggregate index 5 out of bounds 1 to 3" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -320,6 +320,7 @@ START_TEST(test_bounds)
       { 18, "array index -52 out of bounds 1 to 10" },
       { 19, "slice right index 11 out of bounds 1 to 10" },
       { 20, "slice left index 0 out of bounds 1 to 10" },
+      { 24, "aggregate index 0 out of bounds 1 to 2147483647" },
       { -1, NULL }
    };
    expect_errors(expect);

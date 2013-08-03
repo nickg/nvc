@@ -49,14 +49,18 @@ typedef enum type_kind {
    T_LAST_TYPE_KIND
 } type_kind_t;
 
+typedef enum {
+   RANGE_TO,
+   RANGE_DOWNTO,
+   RANGE_EXPR,
+   RANGE_DYN,
+   RANGE_RDYN
+} range_kind_t;
+
 typedef struct range {
-   struct tree *left;
-   struct tree *right;
-   enum { RANGE_TO,
-          RANGE_DOWNTO,
-          RANGE_EXPR,
-          RANGE_DYN,
-          RANGE_RDYN } kind;
+   struct tree  *left;
+   struct tree  *right;
+   range_kind_t  kind;
 } range_t;
 
 type_t type_new(type_kind_t kind);

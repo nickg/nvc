@@ -30,6 +30,8 @@ static int errors = 0;
 
 #define simp_error(t, ...) \
    { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
+#define simp_error_bool(t, ...) \
+   { errors++; error_at(tree_loc(t), __VA_ARGS__); return false; }
 
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
@@ -586,43 +588,56 @@ static tree_t simp_cassign(tree_t t)
    return p;
 }
 
-static tree_t simp_check_bounds(tree_t i, int64_t low, int64_t high)
+static bool simp_check_bounds(tree_t i, range_kind_t kind, const char *what,
+                              int64_t low, int64_t high)
 {
    literal_t folded;
    if (folded_int(i, &folded)) {
       if (folded.i < low || folded.i > high)
-         simp_error(i, "index out of bounds");
+         simp_error_bool(i, "%s index %"PRIi64" out of bounds %"PRIi64
+                         " %s %"PRIi64, what, folded.i,
+                         (kind == RANGE_TO) ? low : high,
+                         (kind == RANGE_TO) ? "to" : "downto",
+                         (kind == RANGE_TO) ? high : low);
    }
-   return NULL;
+   return true;
 }
 
 static tree_t simp_aggregate(tree_t t)
 {
    type_t type = tree_type(t);
-   if (type_kind(type) != T_CARRAY)
+   if (!type_is_array(type))
       return t;
 
-   range_t r = type_dim(type, 0);
+   assert(type_kind(type) != T_UARRAY);
+
+   type = type_base_recur(type);
+   type_t index = (type_kind(type) == T_UARRAY)
+      ? type_index_constr(type, 0) : type;
+
+   range_t r = type_dim(index, 0);
    if (tree_kind(r.left) != T_LITERAL || tree_kind(r.right) != T_LITERAL)
       return t;
 
    // Check for out of bounds indexes
 
    int64_t low, high;
-   range_bounds(type_dim(type, 0), &low, &high);
+   range_bounds(r, &low, &high);
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
       assoc_t a = tree_assoc(t, i);
 
       switch (a.kind) {
       case A_NAMED:
-         if (simp_check_bounds(a.name, low, high))
+         if (!simp_check_bounds(a.name, r.kind, "aggregate", low, high))
             return t;
          break;
 
       case A_RANGE:
-         if (simp_check_bounds(a.range.left, low, high)
-             || simp_check_bounds(a.range.right, low, high))
+         if (!simp_check_bounds(a.range.left, r.kind, "aggregate", low, high)
+             || !simp_check_bounds(a.range.right, r.kind,
+                                   "aggregate", low, high))
             return t;
          break;
 

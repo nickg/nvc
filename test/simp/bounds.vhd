@@ -19,4 +19,9 @@ begin
     s(1 to 11) <= (others => 0);        -- Error
     s(0 to 2) <= (others => 0);         -- Error
 
+    process is
+    begin
+        report (0 => 'a');              -- Error
+    end process;
+
 end architecture;

@@ -3575,9 +3575,9 @@ static bool sem_check_aggregate(tree_t t)
       if (!sem_check_uarray_aggregate(t, composite_type, 0, n_elems))
          return false;
 
-      type_t tmp = type_new(T_CARRAY);
+      type_t tmp = type_new(T_SUBTYPE);
       type_set_ident(tmp, type_ident(composite_type));
-      type_set_elem(tmp, type_elem(composite_type));  // Element type
+      type_set_base(tmp, composite_type);
 
       for (int i = 0; i < nindex; i++) {
          type_t index_type = type_index_constr(composite_type, i);
