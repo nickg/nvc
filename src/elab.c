@@ -141,6 +141,23 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
    return arch;
 }
 
+static tree_t fixup_entity_refs(tree_t t, void *context)
+{
+   // Rewrite references to an entity to point at the selected architecture
+   // so attributes like 'PATH_NAME are correct
+
+   if (tree_kind(t) != T_REF)
+      return t;
+
+   tree_t arch = context;
+   tree_t decl = tree_ref(t);
+
+   if ((tree_kind(decl) == T_ENTITY) && (tree_ident(decl) == tree_ident2(arch)))
+      tree_set_ref(t, arch);
+
+   return t;
+}
+
 static tree_t rewrite_refs(tree_t t, void *context)
 {
    rewrite_params_t *params = context;
@@ -617,6 +634,8 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx)
    elab_copy_context(ctx->out, t);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
+
+   tree_rewrite(t, fixup_entity_refs, t);
 
    tree_set_ident(t, ident_prefix(ctx->path, ident_new(":"), '\0'));
 }

@@ -2272,6 +2272,14 @@ static bool sem_check_entity(tree_t t)
 
    ok = ok && sem_check_generics(t) && sem_check_ports(t);
 
+   scope_insert(t);
+
+   if (ok) {
+      const int ndecls = tree_decls(t);
+      for (int n = 0; n < ndecls; n++)
+         ok = sem_check(tree_decl(t, n)) && ok;
+   }
+
    scope_pop();
 
    sem_add_attributes(t);
@@ -2310,7 +2318,8 @@ static bool sem_check_arch(tree_t t)
 
    // Make the architecture and entity name visible
    scope_insert(t);
-   scope_insert_alias(t, tree_ident2(t));
+   scope_insert(e);
+   scope_insert_alias(e, tree_ident2(t));
 
    scope_push(NULL);
 
