@@ -33,6 +33,14 @@ begin
         assert v.all'length = 62;
     end process;
 
+    process is
+    begin
+        report e'path_name;             -- OK
+        report e'instance_name;         -- OK
+        report a1'path_name;            -- OK
+        report a1'instance_name;        -- OK
+    end process;
+
 end architecture;
 
 architecture a2 of e is

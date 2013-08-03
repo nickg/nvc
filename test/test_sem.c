@@ -413,7 +413,7 @@ START_TEST(test_wait)
    const error_t expect[] = {
       { 17, "type of delay must be TIME" },
       { 26, "name V in sensitivity list is not a signal" },
-      { 35, "undefined identifier A" },
+      { 35, "invalid use of A" },
       { 40, "wait statement not allowed in process" },
       { 51, "type of condition must be BOOLEAN" },
       { 53, "type of delay must be TIME" },
@@ -873,9 +873,9 @@ START_TEST(test_attr)
 
    const error_t expect[] = {
       { 26, "Z has no attribute FOO" },
-      { 44, "expected attribute type INTEGER" },
-      { 45, "expected attribute type STRING" },
-      { 46, "undefined identifier Q" },
+      { 52, "expected attribute type INTEGER" },
+      { 53, "expected attribute type STRING" },
+      { 54, "undefined identifier Q" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -1488,15 +1488,18 @@ static void sem_add_attributes(tree_t decl)
 {
    type_t std_bool = sem_std_type("BOOLEAN");
 
-   type_t type = tree_type(decl);
+   type_t type;
+   tree_kind_t kind = tree_kind(decl);
+   if ((kind != T_ARCH) && (kind != T_ENTITY))
+      type = tree_type(decl);
+   else
+      type = type_new(T_PLACEHOLDER);
 
    // Implicit dereference for access types
    if (type_kind(type) == T_ACCESS)
       type = type_access(type);
 
-   type_kind_t kind = type_kind(type);
-
-   if (kind == T_UARRAY) {
+   if (type_kind(type) == T_UARRAY) {
       const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
       const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
                              "uarray_right", NULL };
@@ -1542,16 +1545,16 @@ static void sem_add_attributes(tree_t decl)
    if (type_is_array(type))
       sem_add_length_attr(decl);
 
-   if ((tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
-       || (tree_kind(decl) == T_SIGNAL_DECL)) {
-      type_t std_string = sem_std_type("STRING");
+   const bool is_signal =
+      (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
+      || (tree_kind(decl) == T_SIGNAL_DECL);
+
+   if (is_signal) {
       type_t std_time   = sem_std_type("TIME");
 
       ident_t event_i      = ident_new("EVENT");
       ident_t last_value_i = ident_new("LAST_VALUE");
       ident_t active_i     = ident_new("ACTIVE");
-      ident_t inst_name_i  = ident_new("INSTANCE_NAME");
-      ident_t path_name_i  = ident_new("PATH_NAME");
       ident_t last_event_i = ident_new("LAST_EVENT");
 
       tree_add_attr_tree(decl, event_i,
@@ -1563,15 +1566,24 @@ static void sem_add_attributes(tree_t decl)
       tree_add_attr_tree(decl, last_value_i,
                          sem_builtin_fn(last_value_i, type, "last_value",
                                         type, NULL));
+      tree_add_attr_tree(decl, last_event_i,
+                         sem_builtin_fn(last_event_i, std_time,
+                                        "last_event", type, NULL));
+   }
+
+   if (is_signal || (tree_kind(decl) == T_ARCH)
+       || (tree_kind(decl) == T_ENTITY)) {
+      type_t std_string = sem_std_type("STRING");
+
+      ident_t path_name_i  = ident_new("PATH_NAME");
+      ident_t inst_name_i  = ident_new("INSTANCE_NAME");
+
       tree_add_attr_tree(decl, inst_name_i,
                          sem_builtin_fn(inst_name_i, std_string,
                                         "instance_name", type, NULL));
       tree_add_attr_tree(decl, path_name_i,
                          sem_builtin_fn(path_name_i, std_string,
                                         "path_name", type, NULL));
-      tree_add_attr_tree(decl, last_event_i,
-                         sem_builtin_fn(last_event_i, std_time,
-                                        "last_event", type, NULL));
    }
 }
 
@@ -2261,6 +2273,9 @@ static bool sem_check_entity(tree_t t)
    ok = ok && sem_check_generics(t) && sem_check_ports(t);
 
    scope_pop();
+
+   sem_add_attributes(t);
+
    scope_pop();
 
    // Prefix the entity with the current library name
@@ -2291,21 +2306,34 @@ static bool sem_check_arch(tree_t t)
 
    bool ok = sem_check_context(e) && sem_check_context(t);
 
+   sem_add_attributes(t);
+
+   // Make the entity name visible
+   scope_insert(e);
+   scope_insert_alias(e, tree_ident2(t));
+
+   // Make the architecture name visible
+   scope_insert(t);
+
    scope_push(NULL);
 
-   for (unsigned n = 0; n < tree_ports(e); n++)
+   const int nports = tree_ports(e);
+   for (int n = 0; n < nports; n++)
       scope_insert(tree_port(e, n));
 
-   for (unsigned n = 0; n < tree_generics(e); n++)
+   const int ngenerics = tree_generics(e);
+   for (int n = 0; n < ngenerics; n++)
       scope_insert(tree_generic(e, n));
 
    // Now check the architecture itself
 
-   for (unsigned n = 0; n < tree_decls(t); n++)
+   const int ndecls = tree_decls(t);
+   for (int n = 0; n < ndecls; n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
    if (ok) {
-      for (unsigned n = 0; n < tree_stmts(t); n++)
+      const int nstmts = tree_stmts(t);
+      for (int n = 0; n < nstmts; n++)
          ok = sem_check(tree_stmt(t, n)) && ok;
    }
 
@@ -3808,6 +3836,10 @@ static bool sem_check_ref(tree_t t)
    int n = 0;
    do {
       if ((next = scope_find_nth(name, n))) {
+         tree_kind_t kind = tree_kind(next);
+         if ((kind == T_ENTITY) || (kind == T_ARCH))
+            continue;
+
          type_t type = tree_type(next);
 
          const bool zero_arg_fn =
@@ -4009,18 +4041,29 @@ static bool sem_check_array_slice(tree_t t)
 
 static bool sem_check_attr_ref(tree_t t)
 {
+   bool special = false;
    tree_t name = tree_name(t), decl = NULL;
-   if ((tree_kind(name) == T_REF)
-       && (decl = scope_find(tree_ident(name)))
-       && (tree_kind(decl) == T_TYPE_DECL)) {
-      // Special case for attributes of types
-      tree_set_ref(name, decl);
-      tree_set_type(name, tree_type(decl));
+   if ((tree_kind(name) == T_REF) && (decl = scope_find(tree_ident(name)))) {
+      tree_kind_t kind = tree_kind(decl);
+      if (kind == T_TYPE_DECL) {
+         // Special case for attributes of types
+         tree_set_ref(name, decl);
+         tree_set_type(name, tree_type(decl));
+
+         special = true;
+      }
+      else if ((kind == T_ARCH) || (kind == T_ENTITY)) {
+         // Special case for attributes of entities and architectures
+         tree_set_ref(name, decl);
+
+         special = true;
+      }
    }
-   else if (!sem_check(name))
+
+   if (!special && !sem_check_constrained(name, NULL))
       return false;
 
-   if (type_kind(tree_type(name)) == T_ACCESS) {
+   if (tree_has_type(name) && (type_kind(tree_type(name)) == T_ACCESS)) {
       // Convert implicit dereference such as PTR'X to PTR.ALL'X
       sem_implicit_dereference(t, tree_name, tree_set_name);
       name = tree_name(t);
