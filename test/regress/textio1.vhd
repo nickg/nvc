@@ -12,10 +12,18 @@ begin
         write(l, string'("hello, world"));
         writeline(output, l);
         assert l'length = 0;
+
         write(l, string'("one"));
         write(l, ' ');
         write(l, string'("two"));
         writeline(output, l);
+
+        write(l, string'("hello"), left, 10);
+        write(l, '|');
+        write(l, string'("world"), right, 10);
+        write(l, bit'( '0' ));
+        writeline(output, l);
+
         wait;
     end process;
 

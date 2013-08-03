@@ -113,15 +113,21 @@ end package;
 
 package body textio is
 
-    procedure grow (l : inout line; size : in natural) is
+    procedure grow (l        : inout line;
+                    extra    : in natural;
+                    old_size : out natural ) is
         variable tmp : line;
     begin
-        assert l /= null;
-        assert size > l'length;
-        tmp := new string(1 to size);
-        tmp(1 to l'length) := l.all;
-        deallocate(l);
-        l := tmp;
+        if l = null then
+            l := new string(1 to extra);
+            old_size := 0;
+        elsif extra > 0 then
+            old_size := l'length;
+            tmp := new string(1 to l'length + extra);
+            tmp(1 to l'length) := l.all;
+            deallocate(l);
+            l := tmp;
+        end if;
     end procedure;
 
     procedure shrink (l : inout line; size : in natural) is
@@ -158,7 +164,7 @@ package body textio is
                 null;
             else
                 if used = tmp'length then
-                    grow(tmp, tmp'length * 2);
+                    grow(tmp, 128, used);
                 end if;
                 used := used + 1;
                 tmp(used) := ch(1);
@@ -188,16 +194,25 @@ package body textio is
                      justified : in side := right;
                      field     : in width := 0 )
     is
-        variable orig : natural;
+        variable orig  : natural;
+        variable width : natural;
     begin
-        -- TODO: justified, field
-        if l = null then
-            l := new string(1 to value'length);
-            l.all := value;
+        if value'length > field then
+            width := value'length;
         else
-            orig := l'length;
-            grow(l, orig + value'length);
+            width := field;
+        end if;
+        grow(l, width, orig);
+        if justified = left then
             l(orig + 1 to orig + value'length) := value;
+            for i in orig + value'length + 1 to orig + width loop
+                l(i) := ' ';
+            end loop;
+        else
+            for i in orig + 1 to orig + width - value'length loop
+                l(i) := ' ';
+            end loop;
+            l(orig + 1 + width - value'length to orig + width) := value;
         end if;
     end procedure;
 
@@ -206,14 +221,15 @@ package body textio is
                      justified : in side := right;
                      field     : in width := 0 ) is
     begin
-        -- TODO: justified, field
-        if l = null then
-            l := new string(1 to 1);
-            l(1) := value;
-        else
-            grow(l, l'length + 1);
-            l(l'high) := value;
-        end if;
+        write(l, string'(1 => value), justified, field);
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in bit;
+                     justified : in side := right;
+                     field     : in width := 0 ) is
+    begin
+        write(l, bit'image(value), justified, field);
     end procedure;
 
 end package body;
