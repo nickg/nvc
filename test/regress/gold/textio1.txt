@@ -1,3 +1,4 @@
 hello, world
 one two
-hello     |     world'0'
+hello     |     world
+0   0110101

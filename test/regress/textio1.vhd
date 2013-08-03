@@ -21,7 +21,10 @@ begin
         write(l, string'("hello"), left, 10);
         write(l, '|');
         write(l, string'("world"), right, 10);
-        write(l, bit'( '0' ));
+        writeline(output, l);
+
+        write(l, bit'( '0' ), left, 4);
+        write(l, bit_vector'("0110101"));
         writeline(output, l);
 
         wait;

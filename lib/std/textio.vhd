@@ -141,6 +141,15 @@ package body textio is
         l := tmp;
     end procedure;
 
+    function max (a, b : integer) return integer is
+    begin
+        if a > b then
+            return a;
+        else
+            return b;
+        end if;
+    end function;
+
     procedure readline (file f: text; l: inout line) is
         variable tmp  : line;
         variable ch   : string(1 to 1);
@@ -197,11 +206,7 @@ package body textio is
         variable orig  : natural;
         variable width : natural;
     begin
-        if value'length > field then
-            width := value'length;
-        else
-            width := field;
-        end if;
+        width := max(value'length, field);
         grow(l, width, orig);
         if justified = left then
             l(orig + 1 to orig + value'length) := value;
@@ -224,12 +229,34 @@ package body textio is
         write(l, string'(1 => value), justified, field);
     end procedure;
 
+    function bit_to_char (b : bit) return character is
+        type table_t is array (bit) of character;
+        constant table : table_t := ( '0' => '0',
+                                      '1' => '1' );
+    begin
+        return table(b);
+    end function;
+
     procedure write (l         : inout line;
                      value     : in bit;
                      justified : in side := right;
                      field     : in width := 0 ) is
     begin
-        write(l, bit'image(value), justified, field);
+        write(l, bit_to_char(value), justified, field);
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in bit_vector;
+                     justified : in side := right;
+                     field     : in width := 0 )
+    is
+        variable s : string(1 to value'length);
+        alias v : bit_vector(1 to value'length) is value;
+    begin
+        for i in s'range loop
+            s(i) := bit_to_char(v(i));
+        end loop;
+        write(l, s, justified, field);
     end procedure;
 
 end package body;
