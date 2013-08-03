@@ -27,6 +27,9 @@ begin
         write(l, bit_vector'("0110101"));
         writeline(output, l);
 
+        write(l, true);
+        writeline(output, l);
+
         wait;
     end process;
 

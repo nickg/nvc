@@ -69,27 +69,27 @@ package textio is
 
     procedure write (l         : inout line;
                      value     : in bit;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
                      value     : in bit_vector;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
                      value     : in boolean;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
                      value     : in character;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
                      value     : in integer;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
@@ -100,14 +100,14 @@ package textio is
 
     procedure write (l         : inout line;
                      value     : in string;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0 );
 
     procedure write (l         : inout line;
                      value     : in time;
-                     justified : in side:= right;
+                     justified : in side := right;
                      field     : in width := 0;
-                     unit      : in time:= ns );
+                     unit      : in time := ns );
 
 end package;
 
@@ -257,6 +257,14 @@ package body textio is
             s(i) := bit_to_char(v(i));
         end loop;
         write(l, s, justified, field);
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in boolean;
+                     justified : in side := right;
+                     field     : in width := 0 ) is
+    begin
+        write(l, boolean'image(value), justified, field);
     end procedure;
 
 end package body;
