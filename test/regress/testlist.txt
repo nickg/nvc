@@ -130,4 +130,4 @@ bounds8         gold,fail
 bounds9         gold,fail
 access3         normal
 access4         normal
-textio1         normal
+textio1         normal,gold

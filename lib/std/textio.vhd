@@ -175,13 +175,12 @@ package body textio is
 
     procedure writeline (file f : text; l : inout line) is
     begin
-        if l = null then
-            write(f, "");
-        else
+        if l /= null then
             write(f, l.all);
             deallocate(l);
-            l := new string'("");
         end if;
+        write(f, (1 => LF));   -- Prepend CR on Windows?
+        l := new string'("");
     end procedure;
 
     procedure write (l         : inout line;
@@ -191,13 +190,29 @@ package body textio is
     is
         variable orig : natural;
     begin
+        -- TODO: justified, field
         if l = null then
             l := new string(1 to value'length);
             l.all := value;
         else
             orig := l'length;
             grow(l, orig + value'length);
-            l(orig + 1 to orig + 1 + value'length) := value;
+            l(orig + 1 to orig + value'length) := value;
+        end if;
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in character;
+                     justified : in side := right;
+                     field     : in width := 0 ) is
+    begin
+        -- TODO: justified, field
+        if l = null then
+            l := new string(1 to 1);
+            l(1) := value;
+        else
+            grow(l, l'length + 1);
+            l(l'high) := value;
         end if;
     end procedure;
 

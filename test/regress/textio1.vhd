@@ -11,6 +11,11 @@ begin
     begin
         write(l, string'("hello, world"));
         writeline(output, l);
+        assert l'length = 0;
+        write(l, string'("one"));
+        write(l, ' ');
+        write(l, string'("two"));
+        writeline(output, l);
         wait;
     end process;
 

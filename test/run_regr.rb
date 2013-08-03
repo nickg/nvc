@@ -72,15 +72,22 @@ end
 def check(t)
   if t[:flags].member? 'gold' then
     fname = TestDir + "regress/gold/#{t[:name]}.txt"
-    out_lines = File.open('out').lines
+    out_lines = []
+    File.open('out').each_line do |l|
+      out_lines << l
+    end
+    ptr = 0
     File.open(fname).each_line do |match_line|
-      unless out_lines.any? do |output_line|
-          output_line.include? match_line.chomp
+      loop do
+        if ptr == out_lines.size then
+          puts "failed (no match)".red
+          print match_line.chomp
+          return false
+        elsif out_lines[ptr].include? match_line.chomp then
+          break
+        else
+          ptr += 1
         end
-      then
-        puts "failed (no match)".red
-        print match_line.chomp
-        return false
       end
     end
   end
