@@ -108,11 +108,10 @@ static tree_t simp_pcall(tree_t t)
 static tree_t simp_ref(tree_t t)
 {
    tree_t decl = tree_ref(t);
-   type_t type = tree_type(decl);
 
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (type_is_array(type))
+      if (type_is_array(tree_type(decl)))
          return t;
       else
          return tree_value(decl);

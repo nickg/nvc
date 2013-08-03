@@ -2308,12 +2308,9 @@ static bool sem_check_arch(tree_t t)
 
    sem_add_attributes(t);
 
-   // Make the entity name visible
-   scope_insert(e);
-   scope_insert_alias(e, tree_ident2(t));
-
-   // Make the architecture name visible
+   // Make the architecture and entity name visible
    scope_insert(t);
+   scope_insert_alias(t, tree_ident2(t));
 
    scope_push(NULL);
 

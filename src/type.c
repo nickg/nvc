@@ -340,6 +340,10 @@ ident_t type_ident(type_t t)
                   istr(type_ident(type_access(t))));
          break;
 
+      case T_PLACEHOLDER:
+         snprintf(buf, sizeof(buf), "placeholder");
+         break;
+
       default:
          assert(false);
       }

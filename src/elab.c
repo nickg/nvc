@@ -499,6 +499,9 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
    ident_t inst_name_i = ident_new("INSTANCE_NAME");
 
+   tree_add_attr_str(t, inst_name_i,
+                     ident_prefix(ctx->inst, ident_new(":"), '\0'));
+
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
@@ -614,6 +617,8 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx)
    elab_copy_context(ctx->out, t);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
+
+   tree_set_ident(t, ident_prefix(ctx->path, ident_new(":"), '\0'));
 }
 
 static void elab_entity(tree_t t, const elab_ctx_t *ctx)
