@@ -295,7 +295,8 @@ static ident_t elab_formal_name(tree_t t)
          break;
 
       default:
-         assert(false);
+         fatal_at(tree_loc(t), "sorry, this kind of formal is not supported %s",
+                  tree_kind_str(kind));
       }
    }
 

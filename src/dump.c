@@ -28,6 +28,8 @@ static void dump_expr(tree_t t);
 static void dump_stmt(tree_t t, int indent);
 static void dump_port(tree_t t, int indent);
 
+typedef tree_t (*get_fn_t)(tree_t, unsigned);
+
 static void tab(int indent)
 {
    while (indent--)
@@ -41,19 +43,22 @@ static void cannot_dump(tree_t t, const char *hint)
    fatal("cannot dump %s kind %s", hint, tree_kind_str(tree_kind(t)));
 }
 
-static void dump_params(tree_t t)
+static void dump_params(tree_t t, get_fn_t get, int n, const char *prefix)
 {
-   if (tree_params(t) > 0) {
+   if (n > 0) {
+      if (prefix != NULL)
+         printf("%s ", prefix);
       printf("(");
-      for (unsigned i = 0; i < tree_params(t); i++) {
+      for (int i = 0; i < n; i++) {
          if (i > 0)
             printf(", ");
-         tree_t p = tree_param(t, i);
+         tree_t p = (*get)(t, i);
          switch (tree_subkind(p)) {
          case P_POS:
             break;
          case P_NAMED:
-            printf("%s => ", istr(tree_ident(p)));
+            dump_expr(tree_name(p));
+            printf(" => ");
             break;
          }
          dump_expr(tree_value(p));
@@ -83,7 +88,7 @@ static void dump_expr(tree_t t)
    switch (tree_kind(t)) {
    case T_FCALL:
       printf("%s", istr(tree_ident(tree_ref(t))));
-      dump_params(t);
+      dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
    case T_LITERAL:
@@ -152,7 +157,7 @@ static void dump_expr(tree_t t)
 
    case T_ARRAY_REF:
       dump_expr(tree_value(t));
-      dump_params(t);
+      dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
    case T_ARRAY_SLICE:
@@ -540,7 +545,7 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_PCALL:
       printf("%s", istr(tree_ident(tree_ref(t))));
-      dump_params(t);
+      dump_params(t, tree_param, tree_params(t), NULL);
       break;
 
    case T_FOR_GENERATE:
@@ -570,6 +575,22 @@ static void dump_stmt(tree_t t, int indent)
       tab(indent);
       printf("end generate");
       break;
+
+   case T_INSTANCE:
+      switch (tree_class(t)) {
+      case C_ENTITY:    printf("entity "); break;
+      case C_COMPONENT: printf("component "); break;
+      default:
+         assert(false);
+      }
+      printf("%s\n", istr(tree_ident2(t)));
+      tab(indent + 4);
+      dump_params(t, tree_genmap, tree_genmaps(t), "generic map");
+      printf("\n");
+      tab(indent + 4);
+      dump_params(t, tree_param, tree_params(t), "port map");
+      printf(";\n\n");
+      return;
 
    default:
       cannot_dump(t, "stmt");
