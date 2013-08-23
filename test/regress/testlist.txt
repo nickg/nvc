@@ -133,3 +133,4 @@ access4         normal
 textio1         normal,gold
 proc9           normal
 elab9           normal,gold
+elab10          normal,gold

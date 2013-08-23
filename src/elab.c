@@ -201,7 +201,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
    return t;
 }
 
-static tree_t elab_port_to_signal(tree_t arch, tree_t port)
+static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 {
    assert(tree_kind(port) == T_PORT_DECL);
 
@@ -216,7 +216,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port)
 
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
-   tree_set_type(s, tree_type(port));
+   tree_set_type(s, tree_type(actual));
 
    tree_add_decl(arch, s);
    return s;
@@ -256,7 +256,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
 
          tree_t decl = tree_ref(ref);
          if (tree_kind(decl) == T_SIGNAL_DECL) {
-            tree_t s = elab_port_to_signal(arch, formal);
+            tree_t s = elab_port_to_signal(arch, formal, actual);
 
             map_list_t *m = xmalloc(sizeof(map_list_t));
             m->next   = *maps;
@@ -419,13 +419,16 @@ static void elab_map_nets(map_list_t *maps)
    for (; maps != NULL; maps = maps->next) {
       if (maps->name == NULL) {
          // Associate the whole port
-         const int fwidth = type_width(tree_type(maps->signal));
          const int awidth = type_width(tree_type(maps->actual));
-         if (fwidth != awidth) {
-            error_at(tree_loc(maps->actual), "actual width %d does not match "
-                     "formal width %d", awidth, fwidth);
-            ++errors;
-            continue;
+         type_t ftype = tree_type(maps->signal);
+         if (type_kind(ftype) != T_UARRAY) {
+            const int fwidth = type_width(ftype);
+            if (fwidth != awidth) {
+               error_at(tree_loc(maps->actual), "actual width %d does not "
+                        "match formal width %d", awidth, fwidth);
+               ++errors;
+               continue;
+            }
          }
 
          for (int i = 0; i < awidth; i++)
