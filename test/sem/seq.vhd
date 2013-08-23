@@ -206,4 +206,8 @@ begin
         end loop;
     end process;
 
+    -- Statement labels
+    dup: process is begin end process;
+    dup: process is begin end process;
+
 end architecture;
