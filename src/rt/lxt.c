@@ -64,6 +64,15 @@ static void lxt_fmt_int(tree_t decl, lxt_data_t *data)
    lt_emit_value_int(trace, data->sym, 0, val);
 }
 
+static void lxt_fmt_enum(tree_t decl, lxt_data_t *data)
+{
+   uint64_t val;
+   rt_signal_value(decl, &val, 1, false);
+
+   tree_t lit = type_enum_literal(tree_type(decl), val);
+   lt_emit_value_string(trace, data->sym, 0, (char *)istr(tree_ident(lit)));
+}
+
 static void lxt_fmt_chars(tree_t decl, lxt_data_t *data)
 {
    uint64_t vals[MAX_VALS];
@@ -104,12 +113,38 @@ static char *lxt_fmt_name(tree_t decl)
    return s;
 }
 
+static bool lxt_can_fmt_enum_chars(type_t type, lxt_data_t *data, int *flags)
+{
+   ident_t name = type_ident(type);
+   if (icmp(name, "IEEE.STD_LOGIC_1164.STD_ULOGIC")) {
+      data->fmt = lxt_fmt_chars;
+      data->map = std_logic_map;
+      *flags = LT_SYM_F_BITS;
+      return true;
+   }
+   else if (icmp(name, "STD.STANDARD.BIT")) {
+      data->fmt = lxt_fmt_chars;
+      data->map = bit_map;
+      *flags = LT_SYM_F_BITS;
+      return true;
+   }
+   else if (icmp(name, "STD.STANDARD.CHARACTER")) {
+      data->fmt = lxt_fmt_chars;
+      data->map = NULL;
+      *flags = LT_SYM_F_STRING;
+      return true;
+   }
+   else
+      return false;
+}
+
 void lxt_restart(void)
 {
    if (trace == NULL)
       return;
 
    lt_set_timescale(trace, -15);
+   lt_symbol_bracket_stripping(trace, 0);
 
    const int ndecls = tree_decls(lxt_top);
    for (int i = 0; i < ndecls; i++) {
@@ -143,30 +178,8 @@ void lxt_restart(void)
       if (type_is_array(type)) {
          // Only arrays of CHARACTER, BIT, STD_ULOGIC are supported
          type_t elem = type_base_recur(type_elem(type));
-         switch (type_kind(elem)) {
-         case T_ENUM:
-            {
-               ident_t name = type_ident(elem);
-               if (icmp(name, "IEEE.STD_LOGIC_1164.STD_ULOGIC")) {
-                  data->fmt = lxt_fmt_chars;
-                  data->map = std_logic_map;
-                  flags = LT_SYM_F_BITS;
-                  break;
-               }
-               else if (icmp(name, "STD.STANDARD.BIT")) {
-                  data->fmt = lxt_fmt_chars;
-                  data->map = bit_map;
-                  flags = LT_SYM_F_BITS;
-               }
-               else if (icmp(name, "STD.STANDARD.CHARACTER")) {
-                  data->fmt = lxt_fmt_chars;
-                  data->map = NULL;
-                  flags = LT_SYM_F_STRING;
-               }
-            }
-            // Fall-through
-
-         default:
+         if ((type_kind(elem) != T_ENUM)
+             || !lxt_can_fmt_enum_chars(elem, data, &flags)) {
             warn_at(tree_loc(d), "cannot represent arrays of type %s "
                     "in LXT format", type_pp(elem));
             free(data);
@@ -176,10 +189,18 @@ void lxt_restart(void)
          data->dir = type_dim(type, 0).kind;
       }
       else {
-         switch (type_kind(type)) {
+         type_t base = type_base_recur(type);
+         switch (type_kind(base)) {
          case T_INTEGER:
             data->fmt = lxt_fmt_int;
             flags = LT_SYM_F_INTEGER;
+            break;
+
+         case T_ENUM:
+            if (!lxt_can_fmt_enum_chars(base, data, &flags)) {
+               data->fmt = lxt_fmt_enum;
+               flags = LT_SYM_F_STRING;
+            }
             break;
 
          default:
