@@ -175,7 +175,8 @@ static tree_t rewrite_refs(tree_t t, void *context)
    const bool match =
       (decl == params->formal)
       || ((decl_kind == T_PORT_DECL)
-          && (tree_ident(t) == tree_ident(params->formal)));
+          && (tree_ident(t) == tree_ident(params->formal))
+          && loc_eq(tree_loc(decl), tree_loc(params->formal)));
 
    if (!match)
       return t;

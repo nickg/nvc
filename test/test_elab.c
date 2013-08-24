@@ -157,6 +157,19 @@ START_TEST(test_open)
 }
 END_TEST
 
+START_TEST(test_genagg)
+{
+   input_from_file(TESTDIR "/elab/genagg.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   (void)run_elab();
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -172,6 +185,7 @@ int main(void)
    tcase_add_test(tc_core, test_elab3);
    tcase_add_test(tc_core, test_elab4);
    tcase_add_test(tc_core, test_open);
+   tcase_add_test(tc_core, test_genagg);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
