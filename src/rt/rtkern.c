@@ -41,7 +41,7 @@
 #include <sys/resource.h>
 
 #define TRACE_DELTAQ  1
-#define TRACE_PENDING 1
+#define TRACE_PENDING 0
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
@@ -1408,8 +1408,10 @@ static void rt_cycle(void)
       rt_free(event_stack, event);
    }
 
-   if (unlikely(now == 0 && iteration == 0))
+   if (unlikely(now == 0 && iteration == 0)) {
       vcd_restart();
+      lxt_restart();
+   }
 
    // Run all processes that resumed because of signal events
    while (resume != NULL) {

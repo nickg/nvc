@@ -71,4 +71,7 @@ const char *pprint(struct tree *t, const uint64_t *values, size_t len);
 void vcd_init(const char *file, struct tree *top);
 void vcd_restart(void);
 
+void lxt_init(const char *file, struct tree *top);
+void lxt_restart(void);
+
 #endif  // _RT_H

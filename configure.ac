@@ -61,6 +61,7 @@ if test "$vl_cv_lib_readline" = "no"; then
 fi
 
 AC_CHECK_LIB([z], [deflate], [], [AC_ERROR([zlib not found])])
+AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_ERROR([bzip2 not found])])
 
 AX_LLVM_C([engine bitreader bitwriter])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test "$ax_cv_llvm_shared" != yes])
@@ -102,5 +103,5 @@ AM_CONDITIONAL([ENABLE_COVERAGE], [test "$enable_coverage" = yes])
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
-           lib/synopsys/Makefile])
+           lib/synopsys/Makefile lxt/Makefile])
 

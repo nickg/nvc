@@ -1,4 +1,4 @@
-SUBDIRS = src lib test
+SUBDIRS = lxt src lib test
 
 EXTRA_DIST = autogen.sh
 

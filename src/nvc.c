@@ -231,22 +231,24 @@ static int run(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      {"trace", no_argument, 0, 't'},
-      {"batch", no_argument, 0, 'b'},
-      {"command", no_argument, 0, 'c'},
-      {"stop-time", required_argument, 0, 's'},
-      {"vcd", required_argument, 0, 'v'},
-      {"stats", no_argument, 0, 'S'},
-      {0, 0, 0, 0}
+      { "trace",     no_argument,       0, 't' },
+      { "batch",     no_argument,       0, 'b' },
+      { "command",   no_argument,       0, 'c' },
+      { "stop-time", required_argument, 0, 's' },
+      { "vcd",       required_argument, 0, 'v' },
+      { "stats",     no_argument,       0, 'S' },
+      { "wave",      optional_argument, 0, 'w' },
+      { 0, 0, 0, 0 }
    };
 
    enum { BATCH, COMMAND } mode = BATCH;
 
    uint64_t stop_time = UINT64_MAX;
    const char *vcd_fname = NULL;
+   const char *lxt_fname = NULL;
 
    int c, index = 0;
-   const char *spec = "bc";
+   const char *spec = "bcw::";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -274,6 +276,12 @@ static int run(int argc, char **argv)
       case 'S':
          opt_set_int("rt-stats", 1);
          break;
+      case 'w':
+         if (optarg == NULL)
+            lxt_fname = "";
+         else
+            lxt_fname = optarg;
+         break;
       default:
          abort();
       }
@@ -293,6 +301,16 @@ static int run(int argc, char **argv)
 
    if (vcd_fname != NULL)
       vcd_init(vcd_fname, e);
+
+   if (lxt_fname != NULL) {
+      char tmp[128];
+      if (*lxt_fname == '\0') {
+         snprintf(tmp, sizeof(tmp), "%s.lxt", argv[optind]);
+         lxt_fname = tmp;
+         notef("writing LXT waveform data to %s", lxt_fname);
+      }
+      lxt_init(lxt_fname, e);
+   }
 
    if (mode == BATCH)
       rt_batch_exec(e, stop_time, ctx);
@@ -406,6 +424,7 @@ static void usage(void)
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           "     --vcd=FILE\t\tWrite VCD data to FILE\n"
+          " -w, --wave=FILE\tWrite waveform data in LXT format\n"
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
