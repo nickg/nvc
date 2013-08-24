@@ -3359,42 +3359,34 @@ static bool sem_check_concat(tree_t t)
       type_t index_type = sem_index_type(ltype, 0);
       range_t index_r = type_dim(index_type, 0);
 
-      type_t std_int = sem_std_type("INTEGER");
-      tree_t left_len, right_len;
+      if ((lkind == T_UARRAY) || (rkind == T_UARRAY))
+         tree_set_type(t, (lkind == T_UARRAY) ? ltype : rtype);
+      else {
+         tree_t left_len = sem_array_len(ltype);
+         tree_t right_len = sem_array_len(rtype);
 
-      if (lkind == T_UARRAY)
-         left_len = call_builtin("length", std_int,
-                                 sem_int_lit(std_int, 1), left, NULL);
-      else
-         left_len = sem_array_len(ltype);
+         type_t result = type_new(T_SUBTYPE);
+         type_set_ident(result, type_ident(ltype));
+         type_set_base(result, ltype);
 
-      if (rkind == T_UARRAY)
-         right_len = call_builtin("length", std_int,
-                                  sem_int_lit(std_int, 1), right, NULL);
-      else
-         right_len = sem_array_len(rtype);
+         tree_t one = sem_int_lit(index_type, 1);
 
-      type_t result = type_new(T_SUBTYPE);
-      type_set_ident(result, type_ident(ltype));
-      type_set_base(result, ltype);
+         tree_t result_len = call_builtin(
+            "add", index_type, left_len, right_len, NULL);
+         tree_t tmp = call_builtin(
+            "add", index_type, result_len, index_r.left, NULL);
+         tree_t result_right = call_builtin(
+            "sub", index_type, tmp, one, NULL);
 
-      tree_t one = sem_int_lit(index_type, 1);
+         range_t result_r = {
+            .kind  = index_r.kind,
+            .left  = index_r.left,
+            .right = result_right
+         };
+         type_add_dim(result, result_r);
 
-      tree_t result_len = call_builtin(
-         "add", index_type, left_len, right_len, NULL);
-      tree_t tmp = call_builtin(
-         "add", index_type, result_len, index_r.left, NULL);
-      tree_t result_right = call_builtin(
-         "sub", index_type, tmp, one, NULL);
-
-      range_t result_r = {
-         .kind  = index_r.kind,
-         .left  = index_r.left,
-         .right = result_right
-      };
-      type_add_dim(result, result_r);
-
-      tree_set_type(t, result);
+         tree_set_type(t, result);
+      }
    }
    else if (r_array || l_array) {
       tree_t array  = (l_array ? left : right);

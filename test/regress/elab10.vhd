@@ -21,9 +21,13 @@ end entity;
 
 architecture test of elab10 is
     signal x : bit_vector(1 to 5);
+    signal y : bit_vector(6 to 10);
 begin
 
     sub1_i: entity work.sub
         port map ( x );
+
+    sub2_i: entity work.sub
+        port map ( y );
 
 end architecture;

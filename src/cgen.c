@@ -2550,9 +2550,6 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 {
-   type_t type = tree_type(t);
-   LLVMValueRef var = cgen_tmp_var(tree_type(t), "", ctx);
-
    assert(tree_params(t) == 2);
    tree_t args[] = {
       tree_value(tree_param(t, 0)),
@@ -2563,6 +2560,33 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
       cgen_expr(args[0], ctx),
       cgen_expr(args[1], ctx)
    };
+
+   type_t type = tree_type(t);
+   LLVMValueRef var;
+   if (type_kind(type) == T_UARRAY) {
+      LLVMValueRef args_len[] = {
+         cgen_array_len(tree_type(args[0]), 0, args_ll[0]),
+         cgen_array_len(tree_type(args[1]), 0, args_ll[1])
+      };
+      LLVMValueRef len = LLVMBuildAdd(builder, args_len[0],
+                                      args_len[1], "concat_len");
+
+      LLVMValueRef data =
+         LLVMBuildArrayAlloca(builder, llvm_type(type_elem(type)),
+                              len, "concat_data");
+
+      LLVMValueRef dims[1][3] = {
+         {
+            llvm_int32(1),
+            len,
+            llvm_int8(RANGE_TO)
+         }
+      };
+
+      var = cgen_array_meta(type, dims, data);
+   }
+   else
+      var = cgen_tmp_var(tree_type(t), "", ctx);
 
    LLVMValueRef off = NULL;
 
