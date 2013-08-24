@@ -1548,6 +1548,8 @@ static void rt_cleanup(tree_t top)
 {
    assert(resume == NULL);
 
+   lxt_finish(now);
+
    while (heap_size(eventq_heap) > 0)
       rt_free(event_stack, heap_extract_min(eventq_heap));
 

@@ -27,53 +27,71 @@
 #include <assert.h>
 #include <stdlib.h>
 
-typedef void (*lxt_fmt_fn_t)(tree_t, struct lt_symbol *);
+#define MAX_VALS 256
+
+typedef struct lxt_data lxt_data_t;
+
+typedef void (*lxt_fmt_fn_t)(tree_t, lxt_data_t *);
+
+typedef struct lxt_data {
+   struct lt_symbol *sym;
+   lxt_fmt_fn_t      fmt;
+   range_kind_t      dir;
+   const char       *map;
+} lxt_data_t;
 
 static struct lt_trace *trace = NULL;
 static tree_t           lxt_top;
-static ident_t          lxt_symbol_i;
-static ident_t          lxt_fmt_fn_i;
+static ident_t          lxt_data_i;
 static lxttime_t        last_time;
 
-static void lxt_shutdown(void)
+static const char std_logic_map[] = "UX01ZWLH-";
+static const char bit_map[]       = "01";
+
+static void lxt_close_trace(void)
 {
-   assert(trace != NULL);
-   lt_close(trace);
+   if (trace != NULL) {
+      lt_close(trace);
+      trace = NULL;
+   }
 }
 
-static void lxt_fmt_int(tree_t decl, struct lt_symbol *s)
+static void lxt_fmt_int(tree_t decl, lxt_data_t *data)
 {
    uint64_t val;
    rt_signal_value(decl, &val, 1, false);
 
-   lt_emit_value_int(trace, s, 0, val);
+   lt_emit_value_int(trace, data->sym, 0, val);
+}
+
+static void lxt_fmt_chars(tree_t decl, lxt_data_t *data)
+{
+   uint64_t vals[MAX_VALS];
+   const int nvals = rt_signal_value(decl, vals, MAX_VALS, false);
+
+   char bits[MAX_VALS + 1];
+   bits[nvals] = '\0';
+   if (data->map != NULL) {
+      for (int i = 0; i < nvals; i++)
+         bits[i] = data->map[vals[(data->dir == RANGE_TO) ? i : nvals - i - 1]];
+      lt_emit_value_bit_string(trace, data->sym, 0, bits);
+   }
+   else {
+      for (int i = 0; i < nvals; i++)
+         bits[i] = vals[(data->dir == RANGE_TO) ? i : nvals - i - 1];
+      lt_emit_value_string(trace, data->sym, 0, bits);
+   }
 }
 
 static void lxt_event_cb(uint64_t now, tree_t decl)
 {
-   if (now != last_time)
+   if (now != last_time) {
       lt_set_time64(trace, now);
-
-   struct lt_symbol *s = tree_attr_ptr(decl, lxt_symbol_i);
-   lxt_fmt_fn_t fmt = tree_attr_ptr(decl, lxt_fmt_fn_i);
-
-   (*fmt)(decl, s);
-}
-
-static int lxt_symbol_kind(tree_t decl)
-{
-   type_t type = tree_type(decl);
-
-   switch (type_kind(type)) {
-   case T_INTEGER:
-      tree_add_attr_ptr(decl, lxt_fmt_fn_i, lxt_fmt_int);
-      return LT_SYM_F_INTEGER;
-
-   default:
-      warn_at(tree_loc(decl), "cannot represent type %s in LXT format",
-              type_pp(type));
-      return -1;
+      last_time = now;
    }
+
+   lxt_data_t *data = tree_attr_ptr(decl, lxt_data_i);
+   (*data->fmt)(decl, data);
 }
 
 static char *lxt_fmt_name(tree_t decl)
@@ -91,7 +109,7 @@ void lxt_restart(void)
    if (trace == NULL)
       return;
 
-   lt_set_timescale(trace, -12);
+   lt_set_timescale(trace, -15);
 
    const int ndecls = tree_decls(lxt_top);
    for (int i = 0; i < ndecls; i++) {
@@ -103,8 +121,8 @@ void lxt_restart(void)
 
       int rows, msb;
       if (type_is_array(type)) {
-         rows = type_dims(type);
-         if ((rows > 1) || type_is_array(type_elem(type))) {
+         rows = type_dims(type) - 1;
+         if ((rows > 0) || type_is_array(type_elem(type))) {
             warn_at(tree_loc(d), "cannot emit arrays of greater than one "
                     "dimension or arrays of arrays in LXT yet");
             continue;
@@ -117,32 +135,89 @@ void lxt_restart(void)
       else
          msb = rows = 0;
 
-      const int kind = lxt_symbol_kind(d);
-      if (kind == -1)
-         continue;
+      lxt_data_t *data = xmalloc(sizeof(lxt_data_t));
+      memset(data, '\0', sizeof(lxt_data_t));
+
+      int flags = 0;
+
+      if (type_is_array(type)) {
+         // Only arrays of CHARACTER, BIT, STD_ULOGIC are supported
+         type_t elem = type_base_recur(type_elem(type));
+         switch (type_kind(elem)) {
+         case T_ENUM:
+            {
+               ident_t name = type_ident(elem);
+               if (icmp(name, "IEEE.STD_LOGIC_1164.STD_ULOGIC")) {
+                  data->fmt = lxt_fmt_chars;
+                  data->map = std_logic_map;
+                  flags = LT_SYM_F_BITS;
+                  break;
+               }
+               else if (icmp(name, "STD.STANDARD.BIT")) {
+                  data->fmt = lxt_fmt_chars;
+                  data->map = bit_map;
+                  flags = LT_SYM_F_BITS;
+               }
+               else if (icmp(name, "STD.STANDARD.CHARACTER")) {
+                  data->fmt = lxt_fmt_chars;
+                  data->map = NULL;
+                  flags = LT_SYM_F_STRING;
+               }
+            }
+            // Fall-through
+
+         default:
+            warn_at(tree_loc(d), "cannot represent arrays of type %s "
+                    "in LXT format", type_pp(elem));
+            free(data);
+            continue;
+         }
+
+         data->dir = type_dim(type, 0).kind;
+      }
+      else {
+         switch (type_kind(type)) {
+         case T_INTEGER:
+            data->fmt = lxt_fmt_int;
+            flags = LT_SYM_F_INTEGER;
+            break;
+
+         default:
+            warn_at(tree_loc(d), "cannot represent type %s in LXT format",
+                    type_pp(type));
+            free(data);
+            continue;
+         }
+      }
 
       char *name = lxt_fmt_name(d);
-      struct lt_symbol *s = lt_symbol_add(trace, name, rows, msb, 0, kind);
+      data->sym = lt_symbol_add(trace, name, rows, msb, 0, flags);
       free(name);
-      tree_add_attr_ptr(d, lxt_symbol_i, s);
 
-      lt_emit_value_int(trace, s, 0, 0);
+      tree_add_attr_ptr(d, lxt_data_i, data);
 
       rt_set_event_cb(d, lxt_event_cb);
+
+      (*data->fmt)(d, data);
    }
 
    last_time = (lxttime_t)-1;
 }
 
+void lxt_finish(uint64_t now)
+{
+   lt_set_time64(trace, now);
+   lxt_close_trace();
+}
+
 void lxt_init(const char *filename, tree_t top)
 {
-   lxt_symbol_i = ident_new("lxt_symbol");
-   lxt_fmt_fn_i = ident_new("lxt_fmt_fn");
+   lxt_data_i = ident_new("lxt_data");
 
    if ((trace = lt_init(filename)) == NULL)
       fatal("lt_init failed");
 
-   atexit(lxt_shutdown);
+   atexit(lxt_close_trace);
 
    lxt_top = top;
 }
