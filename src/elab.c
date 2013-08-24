@@ -151,9 +151,8 @@ static tree_t fixup_entity_refs(tree_t t, void *context)
       return t;
 
    tree_t arch = context;
-   tree_t decl = tree_ref(t);
 
-   if ((tree_kind(decl) == T_ENTITY) && (tree_ident(decl) == tree_ident2(arch)))
+   if (tree_ref(t) == tree_ref(arch))
       tree_set_ref(t, arch);
 
    return t;
@@ -172,13 +171,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
    if (decl_kind != tree_kind(params->formal))
       return t;
 
-   const bool match =
-      (decl == params->formal)
-      || ((decl_kind == T_PORT_DECL)
-          && (tree_ident(t) == tree_ident(params->formal))
-          && loc_eq(tree_loc(decl), tree_loc(params->formal)));
-
-   if (!match)
+   if (decl != params->formal)
       return t;
 
    // Delete assignments to OPEN ports
@@ -308,7 +301,7 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
                             tree_formals_t tree_Fs, tree_formal_t tree_F,
                             tree_actuals_t tree_As, tree_actual_t tree_A)
 {
-   tree_t unit = tree_ref(t);
+   tree_t unit = tree_ref(arch);
    assert(tree_kind(unit) == T_ENTITY);
 
    const int nformals = tree_Fs(unit);

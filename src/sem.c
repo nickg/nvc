@@ -2321,6 +2321,8 @@ static bool sem_check_arch(tree_t t)
    if (!sem_check_stale(lib_work(), e))
       return false;
 
+   tree_set_ref(t, e);
+
    assert(top_scope == NULL);
    scope_push(NULL);
 

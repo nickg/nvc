@@ -19,7 +19,6 @@
 #define _LOC_H
 
 #include <stdint.h>
-#include <string.h>
 
 typedef struct loc {
    uint16_t   first_line;
@@ -41,14 +40,5 @@ static const loc_t LOC_INVALID = {
    NULL,
    NULL
 };
-
-static inline bool loc_eq(const loc_t *a, const loc_t *b)
-{
-   return (a->first_line == b->first_line)
-      && (a->first_column == b->first_column)
-      && (a->last_line == b->last_line)
-      && (a->last_column == b->last_column)
-      && (strcmp(a->file, b->file) == 0);
-}
 
 #endif  // _LOC_H
