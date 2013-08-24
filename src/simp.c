@@ -194,12 +194,12 @@ static tree_t simp_array_ref(tree_t t)
    }
 
    if (tree_kind(value) != T_REF)
-      return t;   // Cannot fold nested array references yet
+      return t;   // Cannot fold nested array references
 
    tree_t decl = tree_ref(value);
 
    if (nparams > 1)
-      return t;  // TODO: constant folding for multi-dimensional arrays
+      return t;  // Cannot constant fold multi-dimensional arrays
 
    assert(nparams == 1);
 
@@ -213,13 +213,19 @@ static tree_t simp_array_ref(tree_t t)
          assert(indexes[0].kind == L_INT);
 
          range_t bounds = type_dim(tree_type(decl), 0);
-         int64_t left = assume_int(bounds.left);
+         int64_t low, high;
+         range_bounds(bounds, &low, &high);
 
-         for (unsigned i = 0; i < tree_assocs(v); i++) {
+         const bool to = (bounds.kind == RANGE_TO);
+         const int64_t index = indexes[0].i;
+
+         const int nassocs = tree_assocs(v);
+         for (int i = 0; i < nassocs; i++) {
             assoc_t a = tree_assoc(v, i);
             switch (a.kind) {
             case A_POS:
-               if (a.pos + left == indexes[0].i)
+               if ((to && (a.pos + low == index))
+                   || (!to && (high - a.pos == index)))
                   return a.value;
                break;
 
@@ -227,9 +233,14 @@ static tree_t simp_array_ref(tree_t t)
                return a.value;
 
             case A_RANGE:
-               if ((indexes[0].i >= assume_int(a.range.left))
-                   && (indexes[0].i <= assume_int(a.range.right)))
-                  return a.value;
+               {
+                  const int64_t left  = assume_int(a.range.left);
+                  const int64_t right = assume_int(a.range.right);
+
+                  if ((to && (index >= left) && (index <= right))
+                      || (!to && (index <= left) && (index >= right)))
+                     return a.value;
+               }
                break;
 
             case A_NAMED:

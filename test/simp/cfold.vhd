@@ -10,6 +10,8 @@ architecture a of e is
     constant a1 : int_array(1 to 5) := (1, 2, 3, 4, 5);
     constant a2 : int_array(1 to 7) := (2 to 3 => 6, others => 5);
     constant a3 : int_array(1 to 9) := (8 => 24, others => 0);
+    constant a4 : int_array(5 downto 1) := (1, 2, 3, 4, 5);
+    constant a5 : int_array(5 downto 1) := (5 downto 3 => -1, others => 1);
 begin
 
     process is
@@ -38,6 +40,8 @@ begin
         x <= a3(10);                    -- Error!
         x <= a3(-1);                    -- Error!
         x <= a1'length;
+        x <= a4(2);
+        x <= a5(4);
     end process;
 
     process is

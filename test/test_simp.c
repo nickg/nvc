@@ -99,9 +99,9 @@ START_TEST(test_cfold)
    range_t r;
 
    const error_t expect[] = {
-      { 38, "array index 10 out of bounds 1 to 9" },
-      { 39, "array index -1 out of bounds 1 to 9" },
-      { 70, "aggregate index 5 out of bounds 1 to 3" },
+      { 40, "array index 10 out of bounds 1 to 9" },
+      { 41, "array index -1 out of bounds 1 to 9" },
+      { 74, "aggregate index 5 out of bounds 1 to 3" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -159,6 +159,8 @@ START_TEST(test_cfold)
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 18), 0)), 6));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 19), 0)), 24));
    fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 22), 0)), 5));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 23), 0)), 4));
+   fail_unless(folded_i(tree_value(tree_waveform(tree_stmt(p, 24), 0)), -1));
 
    p = tree_stmt(a, 1);
    fail_unless(tree_stmts(p) == 3);
