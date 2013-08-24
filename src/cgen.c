@@ -2618,11 +2618,11 @@ static LLVMValueRef cgen_type_conv(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t value = tree_value(tree_param(t, 0));
 
-   type_t from = type_base_recur(tree_type(value));
-   type_t to   = type_base_recur(tree_type(t));
+   type_t from = tree_type(value);
+   type_t to   = tree_type(t);
 
-   type_kind_t from_k = type_kind(from);
-   type_kind_t to_k   = type_kind(to);
+   type_kind_t from_k = type_kind(type_base_recur(from));
+   type_kind_t to_k   = type_kind(type_base_recur(to));
 
    LLVMValueRef value_ll = cgen_expr(value, ctx);
 
