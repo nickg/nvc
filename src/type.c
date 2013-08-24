@@ -102,7 +102,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_PROC
    (I_PARAMS),
 
-   // T_PLACEHOLDER
+   // T_NONE
    (0)
 };
 
@@ -116,7 +116,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
    "T_ENUM",       "T_PHYSICAL", "T_CARRAY",  "T_UARRAY",
    "T_RECORD",     "T_FILE",     "T_ACCESS",  "T_FUNC",
-   "T_INCOMPLETE", "T_PROC",     "T_PLACEHOLDER",
+   "T_INCOMPLETE", "T_PROC",     "T_NONE",
 };
 
 static const char *item_text_map[] = {
@@ -340,8 +340,8 @@ ident_t type_ident(type_t t)
                   istr(type_ident(type_access(t))));
          break;
 
-      case T_PLACEHOLDER:
-         snprintf(buf, sizeof(buf), "placeholder");
+      case T_NONE:
+         snprintf(buf, sizeof(buf), "none");
          break;
 
       default:

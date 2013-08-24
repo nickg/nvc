@@ -45,7 +45,7 @@ typedef enum type_kind {
    T_FUNC,
    T_INCOMPLETE,
    T_PROC,
-   T_PLACEHOLDER,
+   T_NONE,
 
    T_LAST_TYPE_KIND
 } type_kind_t;

@@ -1490,10 +1490,10 @@ static void sem_add_attributes(tree_t decl)
 
    type_t type;
    tree_kind_t kind = tree_kind(decl);
-   if ((kind != T_ARCH) && (kind != T_ENTITY))
+   if ((kind != T_ARCH) && (kind != T_ENTITY) && (kind != T_COMPONENT))
       type = tree_type(decl);
    else
-      type = type_new(T_PLACEHOLDER);
+      type = type_new(T_NONE);
 
    // Implicit dereference for access types
    if (type_kind(type) == T_ACCESS)
@@ -1545,9 +1545,11 @@ static void sem_add_attributes(tree_t decl)
    if (type_is_array(type))
       sem_add_length_attr(decl);
 
+   const tree_kind_t decl_kind = tree_kind(decl);
+
    const bool is_signal =
-      (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
-      || (tree_kind(decl) == T_SIGNAL_DECL);
+      (decl_kind == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
+      || (decl_kind == T_SIGNAL_DECL);
 
    if (is_signal) {
       type_t std_time   = sem_std_type("TIME");
@@ -1571,8 +1573,8 @@ static void sem_add_attributes(tree_t decl)
                                         "last_event", type, NULL));
    }
 
-   if (is_signal || (tree_kind(decl) == T_ARCH)
-       || (tree_kind(decl) == T_ENTITY)) {
+   if (is_signal || (decl_kind == T_ARCH) || (decl_kind == T_ENTITY)
+       || (decl_kind == T_COMPONENT)) {
       type_t std_string = sem_std_type("STRING");
 
       ident_t path_name_i  = ident_new("PATH_NAME");
@@ -2266,6 +2268,8 @@ static bool sem_check_component(tree_t t)
    bool ok = sem_check_generics(t) && sem_check_ports(t);
 
    scope_pop();
+
+   sem_add_attributes(t);
 
    if (ok) {
       scope_apply_prefix(t);
@@ -3847,7 +3851,7 @@ static bool sem_check_ref(tree_t t)
    do {
       if ((next = scope_find_nth(name, n))) {
          tree_kind_t kind = tree_kind(next);
-         if ((kind == T_ENTITY) || (kind == T_ARCH))
+         if ((kind == T_ENTITY) || (kind == T_ARCH) || (kind == T_COMPONENT))
             continue;
 
          type_t type = tree_type(next);
@@ -4062,7 +4066,8 @@ static bool sem_check_attr_ref(tree_t t)
 
          special = true;
       }
-      else if ((kind == T_ARCH) || (kind == T_ENTITY)) {
+      else if ((kind == T_ARCH) || (kind == T_ENTITY)
+               || (kind == T_COMPONENT)) {
          // Special case for attributes of entities and architectures
          tree_set_ref(name, decl);
 
