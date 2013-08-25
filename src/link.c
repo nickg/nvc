@@ -15,6 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define _GNU_SOURCE
+
 #include "util.h"
 #include "phase.h"
 #include "tree.h"
@@ -27,10 +29,13 @@
 #include <sys/wait.h>
 
 #define MAX_ARGS 64
-#define ARG_LEN  256
 
 static char **args = NULL;
-static int  n_args = 0;
+static int    n_args = 0;
+static tree_t linked[MAX_ARGS];
+static int    n_linked = 0;
+
+static void link_all_context(tree_t unit);
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -38,8 +43,8 @@ static void link_arg_f(const char *fmt, ...)
    va_list ap;
    assert(n_args < MAX_ARGS);
    va_start(ap, fmt);
-   args[n_args] = xmalloc(ARG_LEN);
-   vsnprintf(args[n_args], ARG_LEN, fmt, ap);
+   if (vasprintf(&args[n_args], fmt, ap) < 0)
+      abort();
    va_end(ap);
    args[++n_args] = NULL;
 }
@@ -62,6 +67,15 @@ static bool link_needs_body(tree_t pack)
    return false;   // TODO
 }
 
+static bool link_already_have(tree_t unit)
+{
+   for (int i = 0; i < n_linked; i++) {
+      if (linked[i] == unit)
+         return true;
+   }
+   return false;
+}
+
 static void link_context(context_t ctx)
 {
    lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
@@ -74,8 +88,12 @@ static void link_context(context_t ctx)
    else if (tree_kind(unit) != T_PACKAGE)
       return;
 
-   if (pack_needs_cgen(unit))
+   assert(n_linked < MAX_ARGS - 1);
+
+   if (pack_needs_cgen(unit) && !link_already_have(unit)) {
       link_arg_bc(lib, ctx.name);
+      linked[n_linked++] = unit;
+   }
 
    ident_t body_i = ident_prefix(ctx.name, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
@@ -86,7 +104,20 @@ static void link_context(context_t ctx)
          return;
    }
 
-   link_arg_bc(lib, body_i);
+   if (!link_already_have(body)) {
+      link_arg_bc(lib, body_i);
+      linked[n_linked++] = body;
+   }
+
+   link_all_context(unit);
+   link_all_context(body);
+}
+
+static void link_all_context(tree_t unit)
+{
+   const int ncontext = tree_contexts(unit);
+   for (int i = 0; i < ncontext; i++)
+      link_context(tree_context(unit, i));
 }
 
 static void link_output(tree_t top, const char *ext)
@@ -197,8 +228,7 @@ void link_bc(tree_t top)
 
    link_arg_bc(lib_work(), tree_ident(top));
 
-   for (unsigned i = 0; i < tree_contexts(top); i++)
-      link_context(tree_context(top, i));
+   link_all_context(top);
 
    link_exec();
    link_args_end();
