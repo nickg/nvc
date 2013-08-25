@@ -122,6 +122,16 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
          group_add(ctx, first, it->first - first);
          return GROUPID_INVALID;
       }
+      else if ((first < it->first) && (first + length > it->first)) {
+         // Split left
+         group_unlink(ctx, it, last);
+         group_add(ctx, first, it->first - first);
+         group_add(ctx, it->first, first + length - it->first);
+         group_add(ctx, first + length,
+                   it->first + it->length - first - length);
+         free(it);
+         return GROUPID_INVALID;
+      }
       else
          assert(false);
    }

@@ -240,6 +240,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
    switch (tree_kind(actual)) {
    case T_ARRAY_REF:
    case T_REF:
+   case T_ARRAY_SLICE:
       {
          // Replace the formal port with a signal and connect its nets to
          // those of the actual
@@ -401,6 +402,20 @@ static netid_t elab_get_net(tree_t expr, int n)
          int64_t index_val = assume_int(index) - low;
 
          return elab_get_net(value, n + index_val);
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         int64_t slice_low, slice_high;
+         range_bounds(tree_range(expr), &slice_low, &slice_high);
+
+         tree_t value = tree_value(expr);
+         type_t array_type = tree_type(value);
+
+         int64_t type_low, type_high;
+         range_bounds(type_dim(array_type, 0), &type_low, &type_high);
+
+         return elab_get_net(value, n - type_low + slice_low);
       }
 
    default:
