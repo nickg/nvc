@@ -33,12 +33,12 @@ typedef struct lxt_data lxt_data_t;
 
 typedef void (*lxt_fmt_fn_t)(tree_t, lxt_data_t *);
 
-typedef struct lxt_data {
+struct lxt_data {
    struct lt_symbol *sym;
    lxt_fmt_fn_t      fmt;
    range_kind_t      dir;
    const char       *map;
-} lxt_data_t;
+};
 
 static struct lt_trace *trace = NULL;
 static tree_t           lxt_top;
