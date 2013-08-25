@@ -51,6 +51,7 @@ static const char bit_map[]       = "01";
 static void lxt_close_trace(void)
 {
    if (trace != NULL) {
+      lt_set_time64(trace, rt_now());
       lt_close(trace);
       trace = NULL;
    }
@@ -223,12 +224,6 @@ void lxt_restart(void)
    }
 
    last_time = (lxttime_t)-1;
-}
-
-void lxt_finish(uint64_t now)
-{
-   lt_set_time64(trace, now);
-   lxt_close_trace();
 }
 
 void lxt_init(const char *filename, tree_t top)

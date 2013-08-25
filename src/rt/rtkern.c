@@ -1166,6 +1166,9 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
       memset(&group->drivers[group->n_drivers], '\0',
              (driver + 1 - group->n_drivers) * driver_sz);
       group->n_drivers = driver + 1;
+
+      TRACE("allocate driver %s %d %s", fmt_group(group), driver,
+            istr(tree_ident(active_proc->source)));
    }
 
    driver_t *d = &(group->drivers[driver]);
@@ -1549,8 +1552,6 @@ static void rt_cleanup(tree_t top)
 {
    assert(resume == NULL);
 
-   lxt_finish(now);
-
    while (heap_size(eventq_heap) > 0)
       rt_free(event_stack, heap_extract_min(eventq_heap));
 
@@ -1829,4 +1830,9 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
    }
 
    return MIN(nnets, max);
+}
+
+uint64_t rt_now(void)
+{
+   return now;
 }
