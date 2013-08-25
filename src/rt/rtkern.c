@@ -266,8 +266,9 @@ static const char *fmt_group(const netgroup_t *g)
    const char *end = buf + BUF_SZ;
    p += snprintf(p, end - p, "%s", istr(tree_ident(g->sig_decl)));
 
-   netid_t sig_first = netdb_lookup(netdb, tree_net(g->sig_decl, 0), false);
-   int offset = g->first - sig_first;
+   groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0), false);
+   netid_t sig_net0 = groups[sig_group0].first;
+   int offset = g->first - sig_net0;
 
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
