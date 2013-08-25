@@ -1996,6 +1996,7 @@ static void copy_s(const assoc_array_t *from, assoc_array_t *to,
          to->items[i].name = tree_copy_aux(from->items[i].name, ctx);
          break;
       case A_RANGE:
+         to->items[i].range.kind = from->items[i].range.kind;
          to->items[i].range.left =
             tree_copy_aux(from->items[i].range.left, ctx);
          to->items[i].range.right =
