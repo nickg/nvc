@@ -155,6 +155,7 @@ START_TEST(test_ports)
       { 163, "undefined identifier U" },
       { 168, "formal name must be static" },
       { 177, "formal name must be static" },
+      { 185, "undefined identifier HELLO" },
       { -1, NULL }
    };
    expect_errors(expect);

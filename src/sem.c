@@ -4337,7 +4337,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
       if ((tree_kind(value) == T_OPEN) && (tree_subkind(decl) != PORT_OUT))
          sem_error(value, "OPEN can only be used with OUT ports");
 
-      if (!sem_globally_static(value) && !sem_static_name(value))
+      if (ok && !sem_globally_static(value) && !sem_static_name(value))
          sem_error(value, "actual must be globally static expression "
                    "or locally static name");
    }

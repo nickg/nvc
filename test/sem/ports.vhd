@@ -179,4 +179,9 @@ begin
 
     end block;
 
+    foo9: foo                           -- Error
+        port map (
+            o => x,
+            i => hello(5) );
+
 end architecture;
