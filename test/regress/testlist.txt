@@ -137,3 +137,4 @@ elab10          normal,gold
 conv1           normal
 elab11          normal
 link2           normal
+driver3         normal

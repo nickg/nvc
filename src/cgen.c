@@ -3949,6 +3949,12 @@ static void cgen_process(tree_t t)
 
 static LLVMValueRef cgen_resolution_func(type_t type)
 {
+   // Resolution functions are in LRM 93 section 2.4
+
+   while (type_is_array(type)
+          && ((type_kind(type) != T_SUBTYPE) || !type_has_resolution(type)))
+      type = type_elem(type);
+
    if ((type_kind(type) != T_SUBTYPE) || !type_has_resolution(type))
       return LLVMConstNull(llvm_void_ptr());
 
