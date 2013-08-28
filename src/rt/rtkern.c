@@ -98,8 +98,7 @@ struct sens_list {
    sens_kind_t    kind;
    rt_proc_t     *proc;
    sens_list_t   *next;
-   netid_t        first;
-   netid_t        last;
+   netgroup_t    *group;
    uint32_t       wakeup_gen;
    watch_t       *callback;
 };
@@ -368,22 +367,6 @@ void _sched_event(void *_nids, int32_t n, int32_t seq)
       rt_sched_event(S_PROCESS, g, active_proc, NULL);
    }
    else {
-      /*
-      int32_t first = 0, last = -1;
-      for (int i = 0; i < n; i++) {
-         if (likely((nids[i] == last + 1) || (last == -1)))
-            last = nids[i];
-         else {
-            rt_sched_event(S_PROCESS, nids[first], nids[i - 1],
-                           active_proc, NULL);
-            last  = nids[i];
-            first = i;
-         }
-      }
-
-      rt_sched_event(S_PROCESS, nids[first], nids[n - 1], active_proc, NULL);
-      */
-
       int offset = 0;
       while (offset < n) {
          netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
@@ -972,8 +955,7 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
    for (; it != NULL; it = it->next, ++count) {
       if (it->kind != kind)
          continue;
-      else if ((it->first != group->first)
-               || (it->last != group->first + group->length - 1))
+      else if (it->group != group)
          continue;
       else if ((kind == S_PROCESS)
                && (it->proc == proc)
@@ -984,13 +966,12 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
                && (it->wakeup_gen != wakeup_gen))
          break;
    }
-   //printf("iterated %d times\n", count);
+   printf("iterated %d times\n", count);
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
       node->kind       = kind;
-      node->first      = group->first;
-      node->last       = group->first + group->length - 1;
+      node->group      = group;
       node->proc       = proc;
       node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
@@ -1307,14 +1288,7 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       for (it = pending; it != NULL; it = next) {
          next = it->next;
 
-         const netid_t x = group->first;
-         const netid_t y = group->first + group->length - 1;
-         const netid_t a = it->first;
-         const netid_t b = it->last;
-
-         const bool hit = (x <= b) && (a <= y);
-
-         if (hit) {
+         if (it->group == group) {
             rt_wakeup(it);
             if (last == NULL)
                pending = next;
