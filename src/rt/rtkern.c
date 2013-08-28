@@ -100,6 +100,8 @@ struct sens_list {
    sens_list_t   *next;
    uint32_t       wakeup_gen;
    watch_t       *callback;
+   netid_t        first;
+   netid_t        last;
 };
 
 struct driver {
@@ -172,6 +174,7 @@ static jmp_buf       fatal_jmp;
 static bool          aborted = false;
 static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
+static sens_list_t  *pending = NULL;
 static sens_list_t  *resume = NULL;
 static watch_t      *watches = NULL;
 
@@ -190,8 +193,9 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values);
-static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
-                           rt_proc_t *proc, watch_t *callback);
+static void rt_sched_event(sens_kind_t kind, sens_list_t **list,
+                           netid_t first, netid_t last, rt_proc_t *proc,
+                           watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
@@ -363,16 +367,26 @@ void _sched_event(void *_nids, int32_t n, int32_t seq)
 
    if (n == 1) {
       netgroup_t *g = &(groups[netdb_lookup(netdb, nids[0], false)]);
-      rt_sched_event(S_PROCESS, g, active_proc, NULL);
+      rt_sched_event(S_PROCESS, &(g->pending), NETID_INVALID, NETID_INVALID,
+                     active_proc, NULL);
    }
    else {
       int offset = 0;
       while (offset < n) {
          netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
-
-         rt_sched_event(S_PROCESS, g, active_proc, NULL);
-
          offset += g->length;
+
+         if (seq && (offset < n)) {
+            // Place on the global pending list
+            rt_sched_event(S_PROCESS, &pending, nids[0], nids[n - 1],
+                           active_proc, NULL);
+            break;
+         }
+         else {
+            // Place on the net group's pending list
+            rt_sched_event(S_PROCESS, &(g->pending), NETID_INVALID,
+                           NETID_INVALID, active_proc, NULL);
+         }
       }
    }
 }
@@ -941,7 +955,8 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
-static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
+static void rt_sched_event(sens_kind_t kind, sens_list_t **list,
+                           netid_t first, netid_t last,
                            rt_proc_t *proc, watch_t *callback)
 {
    const uint32_t wakeup_gen =
@@ -949,7 +964,7 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
 
    // See if there is already a stale entry in the pending
    // list for this process
-   sens_list_t *it = group->pending;
+   sens_list_t *it = *list;
    int count = 0;
    for (; it != NULL; it = it->next, ++count) {
       if (it->kind != kind)
@@ -970,9 +985,11 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
       node->proc       = proc;
       node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
-      node->next       = group->pending;
+      node->next       = *list;
+      node->first      = first;
+      node->last       = last;
 
-      group->pending = node;
+      *list = node;
    }
    else {
       // Reuse the stale entry
@@ -1100,7 +1117,8 @@ static void rt_watch_signal(watch_t *w)
    while (offset < nnets) {
       netid_t nid = tree_net(w->signal, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
-      rt_sched_event(S_CALLBACK, g, NULL, w);
+      rt_sched_event(S_CALLBACK, &(g->pending), NETID_INVALID,
+                     NETID_INVALID, NULL, w);
 
       offset += g->length;
    }
@@ -1281,6 +1299,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
    // Wake up any processes sensitive to this group
    if (new_flags & NET_F_EVENT) {
       sens_list_t *it, *last = NULL, *next = NULL;
+
+      // First wakeup everything on the group specific pending list
       for (it = group->pending; it != NULL; it = next) {
          next = it->next;
 
@@ -1289,6 +1309,28 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
             group->pending = next;
          else
             last->next = next;
+      }
+
+      // Now check the global pending list
+      for (it = pending; it != NULL; it = next) {
+         next = it->next;
+
+         const netid_t x = group->first;
+         const netid_t y = group->first + group->length - 1;
+         const netid_t a = it->first;
+         const netid_t b = it->last;
+
+         const bool hit = (x <= b) && (a <= y);
+
+         if (hit) {
+            rt_wakeup(it);
+            if (last == NULL)
+               pending = next;
+            else
+               last->next = next;
+         }
+         else
+            last = it;
       }
    }
 }
@@ -1553,6 +1595,12 @@ static void rt_cleanup(tree_t top)
       watch_t *next = watches->next;
       rt_free(watch_stack, watches);
       watches = next;
+   }
+
+   while (pending != NULL) {
+      sens_list_t *next = pending->next;
+      rt_free(sens_list_stack, pending);
+      pending = next;
    }
 
    rt_alloc_stack_destroy(event_stack);
