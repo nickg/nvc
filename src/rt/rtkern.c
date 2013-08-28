@@ -192,7 +192,7 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
 static void rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values);
-static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
+static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
                            rt_proc_t *proc, watch_t *callback);
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
@@ -356,16 +356,19 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
    }
 }
 
-void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
+void _sched_event(void *_nids, int32_t n, int32_t seq)
 {
+   const int32_t *nids = _nids;
+
    TRACE("_sched_event %s n=%d seq=%d proc %s", fmt_net(nids[0]), n,
          seq, istr(tree_ident(active_proc->source)));
 
-   if (n == 1)
-      rt_sched_event(S_PROCESS, nids[0], nids[0], active_proc, NULL);
-   else if (seq)
-      rt_sched_event(S_PROCESS, nids[0], nids[n - 1], active_proc, NULL);
+   if (n == 1) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[0], false)]);
+      rt_sched_event(S_PROCESS, g, active_proc, NULL);
+   }
    else {
+      /*
       int32_t first = 0, last = -1;
       for (int i = 0; i < n; i++) {
          if (likely((nids[i] == last + 1) || (last == -1)))
@@ -379,6 +382,16 @@ void _sched_event(const int32_t *nids, int32_t n, int32_t seq)
       }
 
       rt_sched_event(S_PROCESS, nids[first], nids[n - 1], active_proc, NULL);
+      */
+
+      int offset = 0;
+      while (offset < n) {
+         netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
+
+         rt_sched_event(S_PROCESS, g, active_proc, NULL);
+
+         offset += g->length;
+      }
    }
 }
 
@@ -946,7 +959,7 @@ static void *rt_tmp_alloc(size_t sz)
    }
 }
 
-static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
+static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
                            rt_proc_t *proc, watch_t *callback)
 {
    const uint32_t wakeup_gen =
@@ -955,10 +968,12 @@ static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
    // See if there is already a stale entry in the pending
    // list for this process
    sens_list_t *it = pending;
-   for (; it != NULL; it = it->next) {
+   int count = 0;
+   for (; it != NULL; it = it->next, ++count) {
       if (it->kind != kind)
          continue;
-      else if ((it->first != first) || (it->last != last))
+      else if ((it->first != group->first)
+               || (it->last != group->first + group->length - 1))
          continue;
       else if ((kind == S_PROCESS)
                && (it->proc == proc)
@@ -969,12 +984,13 @@ static void rt_sched_event(sens_kind_t kind, netid_t first, netid_t last,
                && (it->wakeup_gen != wakeup_gen))
          break;
    }
+   //printf("iterated %d times\n", count);
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
       node->kind       = kind;
-      node->first      = first;
-      node->last       = last;
+      node->first      = group->first;
+      node->last       = group->first + group->length - 1;
       node->proc       = proc;
       node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
@@ -1107,7 +1123,7 @@ static void rt_watch_signal(watch_t *w)
    while (offset < nnets) {
       netid_t nid = tree_net(w->signal, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
-      rt_sched_event(S_CALLBACK, g->first, g->first + g->length - 1, NULL, w);
+      rt_sched_event(S_CALLBACK, g, NULL, w);
 
       offset += g->length;
    }
