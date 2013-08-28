@@ -90,7 +90,7 @@ void netdb_close(netdb_t *db)
    free(db);
 }
 
-groupid_t netdb_lookup(netdb_t *db, netid_t nid, bool exact)
+groupid_t netdb_lookup(netdb_t *db, netid_t nid)
 {
    assert(nid < db->nnets);
    groupid_t gid = db->map[nid];

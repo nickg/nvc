@@ -268,7 +268,7 @@ static const char *fmt_group(const netgroup_t *g)
    const char *end = buf + BUF_SZ;
    p += snprintf(p, end - p, "%s", istr(tree_ident(g->sig_decl)));
 
-   groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0), false);
+   groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
    netid_t sig_net0 = groups[sig_group0].first;
    int offset = g->first - sig_net0;
 
@@ -290,7 +290,7 @@ static const char *fmt_group(const netgroup_t *g)
 
 static const char *fmt_net(netid_t nid)
 {
-   return fmt_group(&(groups[netdb_lookup(netdb, nid, false)]));
+   return fmt_group(&(groups[netdb_lookup(netdb, nid)]));
 }
 
 static const char *fmt_values(const void *values, int length)
@@ -333,7 +333,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
    int offset = 0;
    while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], true)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
 
       value_t *values_copy = rt_alloc_value(g);
 
@@ -366,14 +366,14 @@ void _sched_event(void *_nids, int32_t n, int32_t seq)
          seq, istr(tree_ident(active_proc->source)));
 
    if (n == 1) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[0], false)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[0])]);
       rt_sched_event(S_PROCESS, &(g->pending), NETID_INVALID, NETID_INVALID,
                      active_proc, NULL);
    }
    else {
       int offset = 0;
       while (offset < n) {
-         netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
+         netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
          offset += g->length;
 
          if (seq && (offset < n)) {
@@ -402,7 +402,7 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
 
    int offset = 0;
    while (offset < n) {
-      groupid_t gid = netdb_lookup(netdb, nid + offset, true);
+      groupid_t gid = netdb_lookup(netdb, nid + offset);
       netgroup_t *g = &(groups[gid]);
 
       g->sig_decl   = decl;
@@ -563,7 +563,7 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
 
    int offset = low;
    while (offset <= high) {
-      groupid_t gid = netdb_lookup(netdb, nids[offset], false);
+      groupid_t gid = netdb_lookup(netdb, nids[offset]);
       netgroup_t *g = &(groups[gid]);
 
       const int skip = nids[offset] - g->first;
@@ -694,7 +694,7 @@ int64_t _last_event(const int32_t *nids, int32_t n)
    int64_t last = INT64_MAX;
    int offset = 0;
    while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
       if (g->last_event < now)
          last = MIN(last, now - g->last_event);
 
@@ -711,7 +711,7 @@ int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
 
    int offset = 0;
    while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset], false)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
 
       if (g->flags & flag)
          return 1;
@@ -1116,7 +1116,7 @@ static void rt_watch_signal(watch_t *w)
    int offset = 0;
    while (offset < nnets) {
       netid_t nid = tree_net(w->signal, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
       rt_sched_event(S_CALLBACK, &(g->pending), NETID_INVALID,
                      NETID_INVALID, NULL, w);
 
@@ -1303,12 +1303,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       // First wakeup everything on the group specific pending list
       for (it = group->pending; it != NULL; it = next) {
          next = it->next;
-
          rt_wakeup(it);
-         if (last == NULL)
-            group->pending = next;
-         else
-            last->next = next;
+         group->pending = next;
       }
 
       // Now check the global pending list
@@ -1845,7 +1841,7 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
    int offset = 0;
    while ((offset < nnets) && (offset < max)) {
       netid_t nid = tree_net(decl, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid, true)]);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
 #define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
          const value_t *v = (last ? g->last_value : g->resolved);       \

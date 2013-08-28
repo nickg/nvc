@@ -32,7 +32,7 @@ typedef void (*netdb_walk_fn_t)(groupid_t, netid_t, unsigned);
 
 netdb_t *netdb_open(tree_t top);
 void netdb_close(netdb_t *db);
-groupid_t netdb_lookup(netdb_t *db, netid_t nid, bool exact);
+groupid_t netdb_lookup(netdb_t *db, netid_t nid);
 unsigned netdb_size(netdb_t *db);
 void netdb_walk(netdb_t *db, netdb_walk_fn_t fn);
 
