@@ -98,7 +98,6 @@ struct sens_list {
    sens_kind_t    kind;
    rt_proc_t     *proc;
    sens_list_t   *next;
-   netgroup_t    *group;
    uint32_t       wakeup_gen;
    watch_t       *callback;
 };
@@ -126,6 +125,7 @@ struct netgroup {
    uint64_t        last_event;
    tree_t          sig_decl;
    value_t        *free_values;
+   sens_list_t    *pending;
 };
 
 struct uarray {
@@ -173,7 +173,6 @@ static bool          aborted = false;
 static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
 static sens_list_t  *resume = NULL;
-static sens_list_t  *pending = NULL;
 static watch_t      *watches = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
@@ -950,12 +949,10 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
 
    // See if there is already a stale entry in the pending
    // list for this process
-   sens_list_t *it = pending;
+   sens_list_t *it = group->pending;
    int count = 0;
    for (; it != NULL; it = it->next, ++count) {
       if (it->kind != kind)
-         continue;
-      else if (it->group != group)
          continue;
       else if ((kind == S_PROCESS)
                && (it->proc == proc)
@@ -966,18 +963,16 @@ static void rt_sched_event(sens_kind_t kind, netgroup_t *group,
                && (it->wakeup_gen != wakeup_gen))
          break;
    }
-   printf("iterated %d times\n", count);
 
    if (it == NULL) {
       sens_list_t *node = rt_alloc(sens_list_stack);
       node->kind       = kind;
-      node->group      = group;
       node->proc       = proc;
       node->callback   = callback;
       node->wakeup_gen = wakeup_gen;
-      node->next       = pending;
+      node->next       = group->pending;
 
-      pending = node;
+      group->pending = node;
    }
    else {
       // Reuse the stale entry
@@ -1011,6 +1006,7 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    g->last_event  = INT64_MAX;
    g->sig_decl    = NULL;
    g->free_values = NULL;
+   g->pending     = NULL;
 }
 
 static void rt_setup(tree_t top)
@@ -1285,18 +1281,14 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
    // Wake up any processes sensitive to this group
    if (new_flags & NET_F_EVENT) {
       sens_list_t *it, *last = NULL, *next = NULL;
-      for (it = pending; it != NULL; it = next) {
+      for (it = group->pending; it != NULL; it = next) {
          next = it->next;
 
-         if (it->group == group) {
-            rt_wakeup(it);
-            if (last == NULL)
-               pending = next;
-            else
-               last->next = next;
-         }
+         rt_wakeup(it);
+         if (last == NULL)
+            group->pending = next;
          else
-            last = it;
+            last->next = next;
       }
    }
 }
@@ -1536,6 +1528,12 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
       free(g->free_values);
       g->free_values = next;
    }
+
+   while (g->pending != NULL) {
+      sens_list_t *next = g->pending->next;
+      rt_free(sens_list_stack, g->pending);
+      g->pending = next;
+   }
 }
 
 static void rt_cleanup(tree_t top)
@@ -1550,12 +1548,6 @@ static void rt_cleanup(tree_t top)
 
    netdb_walk(netdb, rt_cleanup_group);
    netdb_close(netdb);
-
-   while (pending != NULL) {
-      sens_list_t *next = pending->next;
-      rt_free(sens_list_stack, pending);
-      pending = next;
-   }
 
    while (watches != NULL) {
       watch_t *next = watches->next;
