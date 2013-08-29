@@ -72,9 +72,11 @@ static void jit_native_name(const char *name, char *buf, size_t len)
    char ch;
    while ((ch = *(name++)) && (p < buf + len - 4)) {
       switch (ch) {
+#if !defined __APPLE__
       case ':':
          p = jit_str_add(p, "_3A_");
          break;
+#endif
       case '(':
          p = jit_str_add(p, "_28_");
          break;
