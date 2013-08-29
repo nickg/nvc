@@ -183,7 +183,8 @@ static void link_shared(tree_t top)
 #if defined __APPLE__
    link_arg_f("-bundle");
    link_arg_f("-flat_namespace");
-   link_arg_f("-undefined suppress");
+   link_arg_f("-undefined");
+   link_arg_f("suppres");
 #else
    link_arg_f("-shared");
 #endif
