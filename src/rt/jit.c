@@ -64,11 +64,6 @@ static char *jit_str_add(char *p, const char *s)
 static void jit_native_name(const char *name, char *buf, size_t len)
 {
    char *p = buf;
-
-#if (defined __APPLE__ || defined __CYGWIN__)
-   *p++ = '_';
-#endif
-
    char ch;
    while ((ch = *(name++)) && (p < buf + len - 4)) {
       switch (ch) {
