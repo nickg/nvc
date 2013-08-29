@@ -184,7 +184,7 @@ static void link_shared(tree_t top)
    link_arg_f("-bundle");
    link_arg_f("-flat_namespace");
    link_arg_f("-undefined");
-   link_arg_f("suppress");
+   link_arg_f("dynamic_lookup");
 #else
    link_arg_f("-shared");
 #endif
