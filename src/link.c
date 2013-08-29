@@ -180,12 +180,16 @@ static void link_shared(tree_t top)
    link_args_begin();
 
    link_arg_f("%s", SYSTEM_CC);
+#if defined __APPLE__
+   link_arg_f("-bundle");
+   link_arg_f("-flat_namespace");
+   link_arg_f("-undefined suppress");
+#else
    link_arg_f("-shared");
+#endif
    link_arg_f("-o");
 #if defined __CYGWIN__
    link_output(top, "dll");
-#elif defined __APPLE__
-   link_output(top, "dylib");
 #else
    link_output(top, "so");
 #endif
