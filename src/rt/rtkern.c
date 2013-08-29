@@ -994,6 +994,8 @@ static void rt_sched_event(sens_kind_t kind, sens_list_t **list,
    else {
       // Reuse the stale entry
       it->wakeup_gen = wakeup_gen;
+      it->first      = first;
+      it->last       = last;
    }
 }
 
