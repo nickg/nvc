@@ -146,6 +146,7 @@ void lxt_restart(void)
 
    lt_set_timescale(trace, -15);
    lt_symbol_bracket_stripping(trace, 0);
+   lt_set_clock_compress(trace);
 
    const int ndecls = tree_decls(lxt_top);
    for (int i = 0; i < ndecls; i++) {
