@@ -192,7 +192,10 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
          const int width  = type_width(type);
          const int stride = type_width(type_elem(type));
 
-         assert(tree_params(target) == 1);
+         if (tree_params(target) > 1)
+            fatal_at(tree_loc(target), "sorry, array signals with more than "
+                     "one dimension are not supported yet");
+
          tree_t index = tree_value(tree_param(target, 0));
 
          int64_t offset = -1;
