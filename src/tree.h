@@ -134,18 +134,6 @@ typedef struct literal {
    enum { L_INT, L_REAL, L_NULL } kind;
 } literal_t;
 
-/*
-typedef struct assoc {
-   union {
-      unsigned pos;
-      tree_t   name;
-      range_t  range;
-   };
-   tree_t value;
-   enum { A_POS, A_NAMED, A_RANGE, A_OTHERS } kind;
-} assoc_t;
-*/
-
 typedef struct context {
    ident_t name;
    bool    all;
