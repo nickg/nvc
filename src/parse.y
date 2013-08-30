@@ -65,7 +65,6 @@
 
    union listval {
       ident_t   ident;
-      assoc_t   assoc;
       context_t context;
       range_t   range;
    };
@@ -149,7 +148,6 @@
       tree_list_t *left;
       tree_list_t *right;
    } p;
-   assoc_t      b;
    port_mode_t  m;
    type_t       y;
    range_t      r;
@@ -167,7 +165,7 @@
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
-%type <t> base_unit_decl
+%type <t> base_unit_decl choice
 %type <i> id opt_id selected_id func_name func_type
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -180,7 +178,8 @@
 %type <l> subprogram_decl_item waveform alias_decl attr_spec elem_decl
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
 %type <l> secondary_unit_decls param_list generic_map port_map entity_decl_part
-%type <l> entity_decl_item
+%type <l> entity_decl_item selected_waveforms choice_list case_alt_list
+%type <l> element_assoc element_assoc_list
 %type <p> entity_header generate_body
 %type <g> id_list context_item context_clause use_clause
 %type <g> use_clause_item_list
@@ -191,10 +190,8 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <y> record_type_def
 %type <r> range range_constraint constraint_elem
-%type <g> constraint_list case_alt_list element_assoc
-%type <g> element_assoc_list index_constraint constraint choice_list
-%type <b> choice
-%type <g> selected_waveforms
+%type <g> constraint_list
+%type <g> index_constraint constraint
 %type <c> object_class
 %type <d> use_clause_item
 
@@ -1308,12 +1305,12 @@ conc_select_assign_stmt
    tree_set_loc($$, &@$);
    tree_set_value($$, $2);
 
-   for (list_t *it = $7; it != NULL; it = it->next) {
-      tree_set_target(it->item.assoc.value, $4);
-      set_delay_mechanism(it->item.assoc.value, $6);
-      tree_add_assoc($$, it->item.assoc);
+   for (tree_list_t *it = $7; it != NULL; it = it->next) {
+      tree_t s = tree_value(it->value);
+      tree_set_target(s, $4);
+      set_delay_mechanism(s, $6);
    }
-   list_free($7);
+   copy_trees($7, tree_add_assoc, $$);
 }
 
 selected_waveforms
@@ -1324,10 +1321,11 @@ selected_waveforms
      tree_set_loc(s, &@1);
      copy_trees($1, tree_add_waveform, s);
 
-     for (list_t *it = $3; it != NULL; it = it->next)
-        it->item.assoc.value = s;
+     for (tree_list_t *it = $3; it != NULL; it = it->next)
+        tree_set_value(it->value, s);
 
-     $$ = list_append($3, $5);
+     $$ = $3;
+     tree_list_concat(&$$, $5);
   }
 | waveform tWHEN choice_list
   {
@@ -1336,8 +1334,8 @@ selected_waveforms
      tree_set_loc(s, &@1);
      copy_trees($1, tree_add_waveform, s);
 
-     for (list_t *it = $3; it != NULL; it = it->next)
-        it->item.assoc.value = s;
+     for (tree_list_t *it = $3; it != NULL; it = it->next)
+        tree_set_value(it->value, s);
 
      $$ = $3;
   }
@@ -1575,9 +1573,7 @@ seq_stmt_without_label
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
 
-     for (list_t *it = $4; it != NULL; it = it->next)
-        tree_add_assoc($$, it->item.assoc);
-     list_free($4);
+     copy_trees($4, tree_add_assoc, $$);
   }
 ;
 
@@ -1589,8 +1585,8 @@ case_alt_list
      tree_set_loc(b, &@4);
      copy_trees($4, tree_add_stmt, b);
 
-     for (list_t *it = $2; it != NULL; it = it->next)
-        it->item.assoc.value = b;
+     for (tree_list_t *it = $2; it != NULL; it = it->next)
+        tree_set_value(it->value, b);
 
      $$ = $2;
   }
@@ -1601,39 +1597,47 @@ case_alt_list
      tree_set_loc(b, &@4);
      copy_trees($4, tree_add_stmt, b);
 
-     for (list_t *it = $2; it != NULL; it = it->next)
-        it->item.assoc.value = b;
+     for (tree_list_t *it = $2; it != NULL; it = it->next)
+        tree_set_value(it->value, b);
 
-     $$ = list_append($2, $5);
+     $$ = $2;
+     tree_list_concat(&$$, $5);
   }
 ;
 
 choice_list
-: choice { $$ = list_add(NULL, LISTVAL($1)); }
-| choice tBAR choice_list { $$ = list_add($3, LISTVAL($1)); }
+: choice { $$ = NULL; tree_list_append(&$$, $1); }
+| choice tBAR choice_list { $$ = $3; tree_list_prepend(&$$, $1); }
 ;
 
 choice
 : expr
   {
-     if (to_range_expr($1, &$$.range))
-        $$.kind = A_RANGE;
-     else {
-        $$.kind = A_NAMED;
-        $$.name = $1;
+     $$ = tree_new(T_ASSOC);
+     tree_set_loc($$, &@$);
+
+     range_t r;
+     if (to_range_expr($1, &r)) {
+        tree_set_subkind($$, A_RANGE);
+        tree_set_range($$, r);
      }
-     $$.value = NULL;
+     else {
+        tree_set_subkind($$, A_NAMED);
+        tree_set_name($$, $1);
+     }
   }
 | range
   {
-     $$.kind  = A_RANGE;
-     $$.range = $1;
-     $$.value = NULL;
+     $$ = tree_new(T_ASSOC);
+     tree_set_loc($$, &@$);
+     tree_set_subkind($$, A_RANGE);
+     tree_set_range($$, $1);
   }
 | tOTHERS
   {
-     $$.kind  = A_OTHERS;
-     $$.value = NULL;
+     $$ = tree_new(T_ASSOC);
+     tree_set_loc($$, &@$);
+     tree_set_subkind($$, A_OTHERS);
   }
 ;
 
@@ -2200,18 +2204,15 @@ aggregate
   {
      // The grammar is ambiguous between an aggregate with a
      // single positional element and a parenthesised expression
-     if ($2->next == NULL && $2->item.assoc.kind == A_POS) {
-        $$ = $2->item.assoc.value;
+     if (($2->next == NULL) && (tree_subkind($2->value) == A_POS)) {
+        $$ = tree_value($2->value);
+        tree_list_free($2);
      }
      else {
         $$ = tree_new(T_AGGREGATE);
         tree_set_loc($$, &@$);
-
-        for (list_t *it = $2; it != NULL; it = it->next)
-           tree_add_assoc($$, it->item.assoc);
+        copy_trees($2, tree_add_assoc, $$);
      }
-
-     list_free($2);
   }
 ;
 
@@ -2222,24 +2223,27 @@ element_assoc_list
   }
 | element_assoc tCOMMA element_assoc_list
   {
-     $$ = list_append($1, $3);
+     $$ = $1;
+     tree_list_concat(&$$, $3);
   }
 ;
 
 element_assoc
 : expr
   {
-     assoc_t a = {
-        .kind  = A_POS,
-        .value = $1
-     };
-     $$ = list_add(NULL, LISTVAL(a));
+     tree_t a = tree_new(T_ASSOC);
+     tree_set_loc(a, tree_loc($1));
+     tree_set_subkind(a, A_POS);
+     tree_set_value(a, $1);
+
+     $$ = NULL;
+     tree_list_append(&$$, a);
   }
 | choice_list tASSOC expr
   {
      $$ = $1;
-     for (list_t *it = $1; it != NULL; it = it->next)
-        it->item.assoc.value = $3;
+     for (tree_list_t *it = $1; it != NULL; it = it->next)
+        tree_set_value(it->value, $3);
   }
 ;
 
@@ -2534,9 +2538,9 @@ static tree_t str_to_agg(const char *start, const char *end)
       tree_t ref = tree_new(T_REF);
       tree_set_ident(ref, ident_new(ch));
 
-      assoc_t a;
-      a.kind  = A_POS;
-      a.value = ref;
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_subkind(a, A_POS);
+      tree_set_value(a, ref);
 
       tree_add_assoc(t, a);
    }
@@ -2612,9 +2616,9 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
       }
 
       for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
-         assoc_t a;
-         a.kind = A_POS;
-         a.value = (n / d) ? one : zero;
+         tree_t a = tree_new(T_ASSOC);
+         tree_set_subkind(a, A_POS);
+         tree_set_value(a, (n / d) ? one : zero);
 
          tree_add_assoc(t, a);
       }

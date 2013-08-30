@@ -118,18 +118,22 @@ static tree_t vtable_get(vtable_t *v, ident_t name)
 static bool folded_agg(tree_t t)
 {
    if (tree_kind(t) == T_AGGREGATE) {
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
-         assoc_t a = tree_assoc(t, i);
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
          literal_t dummy;
-         switch (a.kind) {
+         switch (tree_subkind(a)) {
          case A_NAMED:
-            if (!folded_int(a.name, &dummy))
+            if (!folded_int(tree_name(a), &dummy))
                return false;
             break;
          case A_RANGE:
-            if (!folded_int(a.range.left, &dummy)
-                || !folded_int(a.range.right, &dummy))
-               return false;
+            {
+               range_t r = tree_range(a);
+               if (!folded_int(r.left, &dummy)
+                   || !folded_int(r.right, &dummy))
+                  return false;
+            }
             break;
          default:
             break;
@@ -300,11 +304,11 @@ static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
       tree_t value = tree_value(p);
       const int nassocs = tree_assocs(value);
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(value, i);
-         switch (a.kind) {
+         tree_t a = tree_assoc(value, i);
+         switch (tree_subkind(a)) {
          case A_NAMED:
             {
-               int64_t tmp = assume_int(a.name);
+               int64_t tmp = assume_int(tree_name(a));
                if (tmp < low) low = tmp;
                if (tmp > high) high = tmp;
             }
@@ -313,7 +317,7 @@ static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
          case A_RANGE:
             {
                int64_t low_r, high_r;
-               range_bounds(a.range, &low_r, &high_r);
+               range_bounds(tree_range(a), &low_r, &high_r);
                if (low_r < low) low = low_r;
                if (high_r > high) high = high_r;
             }

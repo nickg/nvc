@@ -30,7 +30,6 @@
 //#define EXTRA_READ_CHECKS
 
 DEFINE_ARRAY(tree);
-DEFINE_ARRAY(assoc);
 DEFINE_ARRAY(netid);
 
 typedef struct {
@@ -100,7 +99,6 @@ typedef union {
    type_t        type;
    unsigned      subkind;
    uint32_t      uint;
-   assoc_array_t assoc_array;
    context_set_t context_set;
    range_t       range;
    netid_array_t netid_array;
@@ -294,6 +292,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_PARAM
    (I_VALUE | I_POS | I_SUBKIND | I_NAME),
+
+   // T_ASSOC
+   (I_VALUE | I_POS | I_NAME | I_RANGE | I_SUBKIND),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -303,10 +304,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS        \
-                          | I_GENMAPS)
+                          | I_GENMAPS | I_ASSOCS)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_UINT        (I_POS | I_SUBKIND | I_CLASS)
-#define ITEM_ASSOC_ARRAY (I_ASSOCS)
 #define ITEM_CONTEXT     (I_CONTEXT)
 #define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
@@ -327,7 +327,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR",       "T_PARAM",
+   "T_GENVAR",       "T_PARAM",         "T_ASSOC"
 };
 
 static const char *item_text_map[] = {
@@ -586,8 +586,6 @@ void tree_gc(void)
             if (has & mask) {
                if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
-               else if (ITEM_ASSOC_ARRAY & mask)
-                  free(t->items[n].assoc_array.items);
                else if (ITEM_CONTEXT & mask)
                   free(t->items[n].context_set.items);
                n++;
@@ -841,7 +839,7 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   if (v != NULL)
+   if ((v != NULL) && (t->kind != T_ASSOC))
       tree_assert_expr(v);
    lookup_item(t, I_VALUE)->tree = v;
 }
@@ -1017,28 +1015,24 @@ void tree_add_context(tree_t t, context_t ctx)
 
 unsigned tree_assocs(tree_t t)
 {
-   return lookup_item(t, I_ASSOCS)->assoc_array.count;
+   return lookup_item(t, I_ASSOCS)->tree_array.count;
 }
 
-assoc_t tree_assoc(tree_t t, unsigned n)
+tree_t tree_assoc(tree_t t, unsigned n)
 {
-   return assoc_array_nth(&(lookup_item(t, I_ASSOCS)->assoc_array), n);
+   return tree_array_nth(&(lookup_item(t, I_ASSOCS)->tree_array), n);
 }
 
-void tree_change_assoc(tree_t t, unsigned i, assoc_t a)
+void tree_add_assoc(tree_t t, tree_t a)
 {
-   assert(i < tree_assocs(t));
-   lookup_item(t, I_ASSOCS)->assoc_array.items[i] = a;
-}
+   assert(a->kind == T_ASSOC);
 
-void tree_add_assoc(tree_t t, assoc_t a)
-{
-   assoc_array_t *array = &(lookup_item(t, I_ASSOCS)->assoc_array);
+   tree_array_t *array = &(lookup_item(t, I_ASSOCS)->tree_array);
 
-   if (a.kind == A_POS)
-      a.pos = array->count;
+   if (tree_subkind(a) == A_POS)
+      tree_set_pos(a, array->count);
 
-   assoc_array_add(array, a);
+   tree_array_add(array, a);
 }
 
 unsigned tree_nets(tree_t t)
@@ -1168,25 +1162,6 @@ uint32_t tree_index(tree_t t)
    return t->index;
 }
 
-static void tree_visit_s(assoc_array_t *a, tree_visit_ctx_t *ctx)
-{
-   for (unsigned i = 0; i < a->count; i++) {
-      switch (a->items[i].kind) {
-         case A_NAMED:
-            tree_visit_aux(a->items[i].name, ctx);
-            break;
-         case A_RANGE:
-            tree_visit_aux(a->items[i].range.left, ctx);
-            tree_visit_aux(a->items[i].range.right, ctx);
-            break;
-         default:
-            break;
-      }
-
-      tree_visit_aux(a->items[i].value, ctx);
-   }
-}
-
 static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
@@ -1224,8 +1199,6 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
                              (tree_visit_fn_t)tree_visit_aux, ctx);
          else if (ITEM_UINT & mask)
             ;
-         else if (ITEM_ASSOC_ARRAY & mask)
-            tree_visit_s(&(t->items[i].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask)
             ;
          else if (ITEM_RANGE & mask) {
@@ -1370,68 +1343,11 @@ static void write_a(tree_array_t *a, tree_wr_ctx_t ctx)
       tree_write(a->items[i], ctx);
 }
 
-static void write_s(assoc_array_t *a, tree_wr_ctx_t ctx)
-{
-   write_u16(a->count, ctx->file);
-
-   for (unsigned i = 0; i < a->count; i++) {
-      write_u8(a->items[i].kind, ctx->file);
-      tree_write(a->items[i].value, ctx);
-
-      switch (a->items[i].kind) {
-      case A_POS:
-         write_u32(a->items[i].pos, ctx->file);
-         break;
-      case A_NAMED:
-         tree_write(a->items[i].name, ctx);
-         break;
-      case A_RANGE:
-         write_u16(a->items[i].range.kind, ctx->file);
-         tree_write(a->items[i].range.left, ctx);
-         tree_write(a->items[i].range.right, ctx);
-         break;
-      case A_OTHERS:
-         break;
-      default:
-         assert(false);
-      }
-   }
-}
-
 static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 {
    tree_array_resize(a, read_u32(ctx->file), NULL);
    for (unsigned i = 0; i < a->count; i++)
       a->items[i] = tree_read(ctx);
-}
-
-static void read_s(assoc_array_t *a, tree_rd_ctx_t ctx)
-{
-   assoc_t dummy;
-   assoc_array_resize(a, read_u16(ctx->file), dummy);
-
-   for (unsigned i = 0; i < a->count; i++) {
-      a->items[i].kind  = read_u8(ctx->file);
-      a->items[i].value = tree_read(ctx);
-
-      switch (a->items[i].kind) {
-      case A_POS:
-         a->items[i].pos = read_u32(ctx->file);
-         break;
-      case A_NAMED:
-         a->items[i].name = tree_read(ctx);
-         break;
-      case A_RANGE:
-         a->items[i].range.kind  = read_u16(ctx->file);
-         a->items[i].range.left  = tree_read(ctx);
-         a->items[i].range.right = tree_read(ctx);
-         break;
-      case A_OTHERS:
-         break;
-      default:
-         assert(false);
-      }
-   }
 }
 
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
@@ -1514,8 +1430,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             type_write(t->items[n].type, ctx->type_ctx);
          else if (ITEM_UINT & mask)
             write_u32(t->items[n].uint, ctx->file);
-         else if (ITEM_ASSOC_ARRAY & mask)
-            write_s(&(t->items[n].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask) {
             write_u16(t->items[n].context_set.count, ctx->file);
             for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
@@ -1632,8 +1546,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].type = type_read(ctx->type_ctx);
          else if (ITEM_UINT & mask)
             t->items[n].uint = read_u32(ctx->file);
-         else if (ITEM_ASSOC_ARRAY & mask)
-            read_s(&(t->items[n].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask) {
             t->items[n].context_set.count = read_u16(ctx->file);
             t->items[n].context_set.items =
@@ -1850,27 +1762,6 @@ static void rewrite_a(tree_array_t *a, struct rewrite_ctx *ctx)
    a->count = n;
 }
 
-static void rewrite_s(assoc_array_t *a, struct rewrite_ctx *ctx)
-{
-   for (unsigned i = 0; i < a->count; i++) {
-      assoc_t *s = &a->items[i];
-      s->value = tree_rewrite_aux(s->value, ctx);
-
-      switch (s->kind) {
-      case A_POS:
-      case A_OTHERS:
-         break;
-      case A_NAMED:
-         s->name = tree_rewrite_aux(s->name, ctx);
-         break;
-      case A_RANGE:
-         s->range.left  = tree_rewrite_aux(s->range.left, ctx);
-         s->range.right = tree_rewrite_aux(s->range.right, ctx);
-         break;
-      }
-   }
-}
-
 static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
 {
    // Helper from type.c
@@ -1905,8 +1796,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             type_item = n;
          else if (ITEM_UINT & mask)
             ;
-         else if (ITEM_ASSOC_ARRAY & mask)
-            rewrite_s(&(t->items[n].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask)
             ;
          else if (ITEM_RANGE & mask) {
@@ -1978,34 +1867,6 @@ static void copy_a(const tree_array_t *from, tree_array_t *to,
       to->items[i] = tree_copy_aux(from->items[i], ctx);
 }
 
-static void copy_s(const assoc_array_t *from, assoc_array_t *to,
-                   struct tree_copy_ctx *ctx)
-{
-   assoc_t dummy;
-   assoc_array_resize(to, from->count, dummy);
-
-   for (unsigned i = 0; i < from->count; i++) {
-      to->items[i].kind = from->items[i].kind;
-      to->items[i].value = tree_copy_aux(from->items[i].value, ctx);
-
-      switch (from->items[i].kind) {
-      case A_POS:
-      case A_OTHERS:
-         break;
-      case A_NAMED:
-         to->items[i].name = tree_copy_aux(from->items[i].name, ctx);
-         break;
-      case A_RANGE:
-         to->items[i].range.kind = from->items[i].range.kind;
-         to->items[i].range.left =
-            tree_copy_aux(from->items[i].range.left, ctx);
-         to->items[i].range.right =
-            tree_copy_aux(from->items[i].range.right, ctx);
-         break;
-      }
-   }
-}
-
 static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
 {
    if (t == NULL)
@@ -2046,9 +1907,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].type = t->items[n].type;
          else if (ITEM_UINT & mask)
             copy->items[n].uint = t->items[n].uint;
-         else if (ITEM_ASSOC_ARRAY & mask)
-            copy_s(&(t->items[n].assoc_array),
-                   &(copy->items[n].assoc_array), ctx);
          else if (ITEM_CONTEXT & mask) {
             copy->items[n].context_set.count = t->items[n].context_set.count;
             copy->items[n].context_set.items =

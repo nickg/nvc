@@ -36,9 +36,9 @@ static tree_t str_to_agg(const char *p, const char *end)
       tree_t ref = tree_new(T_REF);
       tree_set_ident(ref, ident_new(ch));
 
-      assoc_t a;
-      a.kind  = A_POS;
-      a.value = ref;
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_subkind(a, A_POS);
+      tree_set_value(a, ref);
 
       tree_add_assoc(t, a);
 

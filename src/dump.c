@@ -125,24 +125,25 @@ static void dump_expr(tree_t t)
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          if (i > 0)
             printf(", ");
-         assoc_t a = tree_assoc(t, i);
-         switch (a.kind) {
+         tree_t a = tree_assoc(t, i);
+         tree_t value = tree_value(a);
+         switch (tree_subkind(a)) {
          case A_POS:
-            dump_expr(a.value);
+            dump_expr(value);
             break;
          case A_NAMED:
-            dump_expr(a.name);
+            dump_expr(tree_name(a));
             printf(" => ");
-            dump_expr(a.value);
+            dump_expr(value);
             break;
          case A_OTHERS:
             printf("others => ");
-            dump_expr(a.value);
+            dump_expr(value);
             break;
          case A_RANGE:
-            dump_range(a.range);
+            dump_range(tree_range(a));
             printf(" => ");
-            dump_expr(a.value);
+            dump_expr(value);
             break;
          default:
             assert(false);
@@ -509,11 +510,11 @@ static void dump_stmt(tree_t t, int indent)
       printf(" is\n");
       for (unsigned i = 0; i < tree_assocs(t); i++) {
          tab(indent + 2);
-         assoc_t a = tree_assoc(t, i);
-         switch (a.kind) {
+         tree_t a = tree_assoc(t, i);
+         switch (tree_subkind(a)) {
          case A_NAMED:
             printf("when ");
-            dump_expr(a.name);
+            dump_expr(tree_name(a));
             printf(" =>\n");
             break;
          case A_OTHERS:
@@ -522,7 +523,7 @@ static void dump_stmt(tree_t t, int indent)
          default:
             assert(false);
          }
-         dump_stmt(a.value, indent + 4);
+         dump_stmt(tree_value(a), indent + 4);
       }
       tab(indent);
       printf("end case");

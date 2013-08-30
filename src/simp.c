@@ -221,31 +221,35 @@ static tree_t simp_array_ref(tree_t t)
 
          const int nassocs = tree_assocs(v);
          for (int i = 0; i < nassocs; i++) {
-            assoc_t a = tree_assoc(v, i);
-            switch (a.kind) {
+            tree_t a = tree_assoc(v, i);
+            switch (tree_subkind(a)) {
             case A_POS:
-               if ((to && (a.pos + low == index))
-                   || (!to && (high - a.pos == index)))
-                  return a.value;
+               {
+                  const int pos = tree_pos(a);
+                  if ((to && (pos + low == index))
+                      || (!to && (high - pos == index)))
+                     return tree_value(a);
+               }
                break;
 
             case A_OTHERS:
-               return a.value;
+               return tree_value(a);
 
             case A_RANGE:
                {
-                  const int64_t left  = assume_int(a.range.left);
-                  const int64_t right = assume_int(a.range.right);
+                  range_t r = tree_range(a);
+                  const int64_t left  = assume_int(r.left);
+                  const int64_t right = assume_int(r.right);
 
                   if ((to && (index >= left) && (index <= right))
                       || (!to && (index <= left) && (index >= right)))
-                     return a.value;
+                     return tree_value(a);
                }
                break;
 
             case A_NAMED:
-               if (assume_int(a.name) == indexes[0].i)
-                  return a.value;
+               if (assume_int(tree_name(a)) == indexes[0].i)
+                  return tree_value(a);
                break;
             }
          }
@@ -637,19 +641,21 @@ static tree_t simp_aggregate(tree_t t)
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
 
-      switch (a.kind) {
+      switch (tree_subkind(a)) {
       case A_NAMED:
-         if (!simp_check_bounds(a.name, r.kind, "aggregate", low, high))
+         if (!simp_check_bounds(tree_name(a), r.kind, "aggregate", low, high))
             return t;
          break;
 
       case A_RANGE:
-         if (!simp_check_bounds(a.range.left, r.kind, "aggregate", low, high)
-             || !simp_check_bounds(a.range.right, r.kind,
-                                   "aggregate", low, high))
-            return t;
+         {
+            range_t r = tree_range(a);
+            if (!simp_check_bounds(r.left, r.kind, "aggregate", low, high)
+                || !simp_check_bounds(r.right, r.kind, "aggregate", low, high))
+               return t;
+         }
          break;
 
       default:
@@ -677,15 +683,19 @@ static tree_t simp_select(tree_t t)
 
    tree_visit_only(tree_value(t), simp_build_wait, w, T_REF);
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      assoc_t a = tree_assoc(t, i);
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
       tree_add_assoc(c, a);
 
-      if (a.kind == A_NAMED)
-         tree_visit_only(a.name, simp_build_wait, w, T_REF);
+      if (tree_subkind(a) == A_NAMED)
+         tree_visit_only(tree_name(a), simp_build_wait, w, T_REF);
 
-      for (unsigned j = 0; j < tree_waveforms(a.value); j++)
-         tree_visit_only(tree_waveform(a.value, j), simp_build_wait, w, T_REF);
+      tree_t value = tree_value(a);
+
+      const int nwaveforms = tree_waveforms(value);
+      for (int j = 0; j < nwaveforms; j++)
+         tree_visit_only(tree_waveform(value, j), simp_build_wait, w, T_REF);
    }
 
    tree_add_stmt(p, c);

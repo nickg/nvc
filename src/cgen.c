@@ -331,11 +331,13 @@ static const char *cgen_mangle_func_name(tree_t decl)
 
       const int nassocs = tree_assocs(foreign);
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(foreign, i);
-         assert(a.kind == A_POS);
-         assert(tree_kind(a.value) == T_REF);
+         tree_t a = tree_assoc(foreign, i);
+         assert(tree_subkind(a) == A_POS);
 
-         tree_t ch = tree_ref(a.value);
+         tree_t value = tree_value(a);
+         assert(tree_kind(value) == T_REF);
+
+         tree_t ch = tree_ref(value);
          assert(tree_kind(ch) == T_ENUM_LIT);
 
          static_printf(buf, "%c", tree_pos(ch));
@@ -361,8 +363,8 @@ static bool cgen_is_const(tree_t t)
    if (tree_kind(t) == T_AGGREGATE) {
       bool is_const = true;
       for (unsigned i = 0; i < tree_assocs(t); i++) {
-         assoc_t a = tree_assoc(t, i);
-         is_const = is_const && cgen_is_const(a.value);
+         tree_t a = tree_assoc(t, i);
+         is_const = is_const && cgen_is_const(tree_value(a));
       }
       return is_const;
    }
@@ -1529,19 +1531,22 @@ static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
    LLVMValueRef result = llvm_int32(def);
 
    for (unsigned i = 0; i < tree_assocs(t); i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
       LLVMValueRef this = NULL;
-      switch (a.kind) {
+      switch (tree_subkind(a)) {
          case A_NAMED:
-            this = cgen_expr(a.name, ctx);
+            this = cgen_expr(tree_name(a), ctx);
             break;
 
          case A_RANGE:
-            if ((low && a.range.kind == RANGE_TO)
-                || (!low && a.range.kind == RANGE_DOWNTO))
-               this = cgen_expr(a.range.left, ctx);
-            else
-               this = cgen_expr(a.range.right, ctx);
+            {
+               range_t r = tree_range(a);
+               if ((low && r.kind == RANGE_TO)
+                   || (!low && r.kind == RANGE_DOWNTO))
+                  this = cgen_expr(r.left, ctx);
+               else
+                  this = cgen_expr(r.right, ctx);
+            }
             break;
 
          default:
@@ -2250,34 +2255,35 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
+      tree_t value = tree_value(a);
 
       LLVMValueRef *sub;
       int nsub;
       if (dim < type_dims(type) - 1)
-         sub = cgen_const_aggregate(a.value, type, dim + 1, &nsub, ctx);
-      else if (tree_kind(a.value) == T_AGGREGATE) {
+         sub = cgen_const_aggregate(value, type, dim + 1, &nsub, ctx);
+      else if (tree_kind(value) == T_AGGREGATE) {
          sub  = xmalloc(sizeof(LLVMValueRef));
          nsub = 1;
 
-         type_t sub_type = tree_type(a.value);
+         type_t sub_type = tree_type(value);
          if (type_is_array(sub_type)) {
             int nvals;
-            LLVMValueRef *v = cgen_const_aggregate(a.value, tree_type(a.value),
+            LLVMValueRef *v = cgen_const_aggregate(value, sub_type,
                                                    0, &nvals, ctx);
-            LLVMTypeRef ltype = llvm_type(type_elem(tree_type(a.value)));
+            LLVMTypeRef ltype = llvm_type(type_elem(sub_type));
 
             *sub = LLVMConstArray(ltype, v, nvals);
          }
          else if (type_kind(sub_type) == T_RECORD) {
-            *sub = cgen_const_record(a.value, ctx);
+            *sub = cgen_const_record(value, ctx);
          }
          else
             assert(false);
       }
       else {
          sub  = xmalloc(sizeof(LLVMValueRef));
-         *sub = cgen_expr(a.value, ctx);
+         *sub = cgen_expr(value, ctx);
          nsub = 1;
       }
 
@@ -2286,7 +2292,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
       int64_t low, high;
       range_bounds(r, &low, &high);
 
-      switch (a.kind) {
+      switch (tree_subkind(a)) {
       case A_POS:
          if (r.kind == RANGE_TO)
             cgen_copy_vals(vals + (i * nsub), sub, nsub, false);
@@ -2296,7 +2302,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
          break;
 
       case A_NAMED:
-         cgen_copy_vals(vals + ((assume_int(a.name) - low) * nsub),
+         cgen_copy_vals(vals + ((assume_int(tree_name(a)) - low) * nsub),
                         sub, nsub, false);
          break;
 
@@ -2311,7 +2317,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
       case A_RANGE:
          {
             int64_t r_low, r_high;
-            range_bounds(a.range, &r_low, &r_high);
+            range_bounds(tree_range(a), &r_low, &r_high);
 
             for (int j = r_low; j <= r_high; j++)
                cgen_copy_vals(vals + ((j - low) * nsub), sub, nsub, false);
@@ -2357,10 +2363,11 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    const int nassocs = tree_assocs(t);
    type_t assoc_type = NULL;
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
-      assoc_type = tree_type(a.value);
-      if (a.kind == A_OTHERS) {
-         def = cgen_expr(a.value, ctx);
+      tree_t a = tree_assoc(t, i);
+      tree_t value = tree_value(a);
+      assoc_type = tree_type(value);
+      if (tree_subkind(a) == A_OTHERS) {
+         def = cgen_expr(value, ctx);
          break;
       }
    }
@@ -2382,13 +2389,13 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
 
    LLVMValueRef what = def;
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
-      switch (a.kind) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
       case A_POS:
          {
             LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
-                                            llvm_int32(a.pos), "");
-            what = LLVMBuildSelect(builder, eq, cgen_expr(a.value, ctx),
+                                            llvm_int32(tree_pos(a)), "");
+            what = LLVMBuildSelect(builder, eq, cgen_expr(tree_value(a), ctx),
                                    what, "");
          }
          break;
@@ -2396,28 +2403,29 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
       case A_NAMED:
          {
             LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
-                                            cgen_expr(a.name, ctx), "");
-            what = LLVMBuildSelect(builder, eq, cgen_expr(a.value, ctx),
+                                            cgen_expr(tree_name(a), ctx), "");
+            what = LLVMBuildSelect(builder, eq, cgen_expr(tree_value(a), ctx),
                                    what, "");
          }
          break;
 
       case A_RANGE:
          {
+            range_t r = tree_range(a);
             LLVMIntPredicate lpred =
-               (a.range.kind == RANGE_TO ? LLVMIntSGE : LLVMIntSLE);
+               (r.kind == RANGE_TO ? LLVMIntSGE : LLVMIntSLE);
             LLVMIntPredicate rpred =
-               (a.range.kind == RANGE_TO ? LLVMIntSLE : LLVMIntSGE);
+               (r.kind == RANGE_TO ? LLVMIntSLE : LLVMIntSGE);
 
             LLVMValueRef lcmp =
                LLVMBuildICmp(builder, lpred, i_loaded,
-                             cgen_expr(a.range.left, ctx), "lcmp");
+                             cgen_expr(r.left, ctx), "lcmp");
             LLVMValueRef rcmp =
                LLVMBuildICmp(builder, rpred, i_loaded,
-                             cgen_expr(a.range.right, ctx), "rcmp");
+                             cgen_expr(r.right, ctx), "rcmp");
             LLVMValueRef in = LLVMBuildOr(builder, lcmp, rcmp, "in");
 
-            what = LLVMBuildSelect(builder, in, cgen_expr(a.value, ctx),
+            what = LLVMBuildSelect(builder, in, cgen_expr(tree_value(a), ctx),
                                    what, "");
          }
          break;
@@ -2470,28 +2478,29 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
       vals[i] = NULL;
 
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
 
-      type_t value_type = tree_type(a.value);
+      tree_t value = tree_value(a);
+      type_t value_type = tree_type(value);
       LLVMValueRef v;
       if (type_is_array(value_type)) {
          int nvals;
-         LLVMValueRef *vals = cgen_const_aggregate(a.value, tree_type(a.value),
-                                                   0, &nvals, ctx);
+         LLVMValueRef *vals =
+            cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
          LLVMTypeRef ltype = llvm_type(type_elem(value_type));
          v = LLVMConstArray(ltype, vals, nvals);
       }
       else
-         v = cgen_expr(a.value, ctx);
+         v = cgen_expr(value, ctx);
 
-      switch (a.kind) {
+      switch (tree_subkind(a)) {
       case A_POS:
-         vals[a.pos] = v;
+         vals[tree_pos(a)] = v;
          break;
 
       case A_NAMED:
          {
-            int index = cgen_field_index(type, tree_ident(a.name));
+            int index = cgen_field_index(type, tree_ident(tree_name(a)));
             vals[index] = v;
          }
          break;
@@ -3401,10 +3410,12 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
 
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "case_exit");
 
+   const int nassocs = tree_assocs(t);
+
    LLVMBasicBlockRef else_bb = exit_bb;
    unsigned num_cases = 0;
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      if (tree_assoc(t, i).kind == A_OTHERS)
+   for (int i = 0; i < nassocs; i++) {
+      if (tree_subkind(tree_assoc(t, i)) == A_OTHERS)
          else_bb = LLVMAppendBasicBlock(ctx->fn, "case_others");
       else
          num_cases++;
@@ -3413,13 +3424,13 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef val = cgen_expr(tree_value(t), ctx);
    LLVMValueRef sw = LLVMBuildSwitch(builder, val, else_bb, num_cases);
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      assoc_t a = tree_assoc(t, i);
-      switch (a.kind) {
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
       case A_NAMED:
          {
             LLVMBasicBlockRef bb = LLVMAppendBasicBlock(ctx->fn, "");
-            LLVMAddCase(sw, cgen_expr(a.name, ctx), bb);
+            LLVMAddCase(sw, cgen_expr(tree_name(a), ctx), bb);
 
             LLVMPositionBuilderAtEnd(builder, bb);
          }
@@ -3433,7 +3444,7 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
          assert(false);
       }
 
-      cgen_stmt(a.value, ctx);
+      cgen_stmt(tree_value(a), ctx);
       LLVMBuildBr(builder, exit_bb);
    }
 
@@ -3454,16 +3465,17 @@ static void cgen_case_array(tree_t t, cgen_ctx_t *ctx)
    type_t type = tree_type(tree_value(t));
 
    bool have_others = false;
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
       LLVMBasicBlockRef next_bb = NULL;
-      assoc_t a = tree_assoc(t, i);
-      switch (a.kind) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
       case A_NAMED:
          {
             LLVMBasicBlockRef this_bb =
                LLVMAppendBasicBlock(ctx->fn, "case_body");
             next_bb = LLVMAppendBasicBlock(ctx->fn, "case_test");
-            LLVMValueRef eq = cgen_array_rel(val, cgen_expr(a.name, ctx),
+            LLVMValueRef eq = cgen_array_rel(val, cgen_expr(tree_name(a), ctx),
                                              type, type, LLVMIntEQ, ctx);
             LLVMBuildCondBr(builder, eq, this_bb, next_bb);
             LLVMPositionBuilderAtEnd(builder, this_bb);
@@ -3479,7 +3491,7 @@ static void cgen_case_array(tree_t t, cgen_ctx_t *ctx)
          assert(false);
       }
 
-      cgen_stmt(a.value, ctx);
+      cgen_stmt(tree_value(a), ctx);
       LLVMBuildBr(builder, exit_bb);
 
       LLVMPositionBuilderAtEnd(builder, next_bb);

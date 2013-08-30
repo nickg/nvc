@@ -1604,10 +1604,11 @@ static tree_t sem_default_value(type_t type)
          for (int i = type_dims(type) - 1 ; i >= 0; i--) {
             tree_t val = (def ? def : sem_default_value(type_elem(base)));
             def = tree_new(T_AGGREGATE);
-            assoc_t a = {
-               .kind  = A_OTHERS,
-               .value = val
-            };
+
+            tree_t a = tree_new(T_ASSOC);
+            tree_set_subkind(a, A_OTHERS);
+            tree_set_value(a, val);
+
             tree_add_assoc(def, a);
          }
          tree_set_type(def, type);
@@ -1628,10 +1629,11 @@ static tree_t sem_default_value(type_t type)
          const int nfields = type_fields(base);
          for (int i = 0; i < nfields; i++) {
             tree_t field = type_field(base, i);
-            assoc_t a = {
-               .kind  = A_POS,
-               .value = sem_default_value(tree_type(field))
-            };
+
+            tree_t a = tree_new(T_ASSOC);
+            tree_set_subkind(a, A_POS);
+            tree_set_value(a, sem_default_value(tree_type(field)));
+
             tree_add_assoc(def, a);
          }
          tree_set_type(def, type);
@@ -3517,14 +3519,14 @@ static bool sem_check_uarray_aggregate(tree_t t, type_t type,
    const int ndims   = type_index_constrs(type);
 
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
 
-      if (a.kind == A_OTHERS)
-         sem_error(a.value, "OTHERS choice not allowed in unconstrained "
+      if (tree_subkind(a) == A_OTHERS)
+         sem_error(tree_value(a), "OTHERS choice not allowed in unconstrained "
                    "array aggregate");
 
       if (dim + 1 < ndims) {
-         if (!sem_check_uarray_aggregate(a.value, type, dim + 1, n_elems))
+         if (!sem_check_uarray_aggregate(tree_value(a), type, dim + 1, n_elems))
             return false;
       }
    }
@@ -3567,12 +3569,12 @@ static bool sem_check_aggregate(tree_t t)
    const int nassocs = tree_assocs(t);
 
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
+      tree_t a = tree_assoc(t, i);
 
-      switch (a.kind) {
+      switch (tree_subkind(a)) {
       case A_POS:
          if (state > POS)
-            sem_error(a.value, "positional associations must appear "
+            sem_error(a, "positional associations must appear "
                       "first in aggregate");
          have_pos = true;
          break;
@@ -3580,7 +3582,7 @@ static bool sem_check_aggregate(tree_t t)
       case A_NAMED:
       case A_RANGE:
          if (state > NAMED)
-            sem_error(a.name, "named association must not follow "
+            sem_error(a, "named association must not follow "
                       "others association in aggregate");
          state = NAMED;
          have_named = true;
@@ -3588,10 +3590,10 @@ static bool sem_check_aggregate(tree_t t)
 
       case A_OTHERS:
          if (state == OTHERS)
-            sem_error(a.value, "only a single others association "
+            sem_error(a, "only a single others association "
                       "allowed in aggregate");
          if (type_kind(composite_type) == T_UARRAY)
-            sem_error(a.value, "others choice not allowed in this context");
+            sem_error(a, "others choice not allowed in this context");
          state = OTHERS;
          break;
       }
@@ -3672,17 +3674,20 @@ static bool sem_check_aggregate(tree_t t)
       type_t index_type = sem_index_type(composite_type, 0);
 
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(t, i);
+         tree_t a = tree_assoc(t, i);
 
-         switch (a.kind) {
+         switch (tree_subkind(a)) {
          case A_RANGE:
-            if (!sem_check_range(&a.range, index_type))
-               return false;
-            tree_change_assoc(t, i, a);
+            {
+               range_t r = tree_range(a);
+               if (!sem_check_range(&r, index_type))
+                  return false;
+               tree_set_range(a, r);
+            }
             break;
 
          case A_NAMED:
-            if (!sem_check_constrained(a.name, index_type))
+            if (!sem_check_constrained(tree_name(a), index_type))
                return false;
             break;
 
@@ -3690,13 +3695,15 @@ static bool sem_check_aggregate(tree_t t)
             break;
          }
 
-         if (!sem_check_constrained(a.value, elem_type))
+         tree_t value = tree_value(a);
+
+         if (!sem_check_constrained(value, elem_type))
             return false;
 
-         if (!type_eq(elem_type, tree_type(a.value)))
-            sem_error(a.value, "type of element %s does not match base "
+         if (!type_eq(elem_type, tree_type(value)))
+            sem_error(value, "type of element %s does not match base "
                       "type of aggregate %s",
-                      sem_type_str(tree_type(a.value)),
+                      sem_type_str(tree_type(value)),
                       sem_type_str(elem_type));
       }
    }
@@ -3711,28 +3718,29 @@ static bool sem_check_aggregate(tree_t t)
          have[i] = false;
 
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(t, i);
+         tree_t a = tree_assoc(t, i);
          int f = -1;
 
-         switch (a.kind) {
+         switch (tree_subkind(a)) {
          case A_NAMED:
             {
-               if (tree_kind(a.name) != T_REF)
-                  sem_error(a.name, "association name must be a field "
+               tree_t name = tree_name(a);
+               if (tree_kind(name) != T_REF)
+                  sem_error(name, "association name must be a field "
                             "identifier");
 
-               ident_t name_i = tree_ident(a.name);
+               ident_t name_i = tree_ident(name);
                for (f = 0; f < nfields; f++) {
                   tree_t field = type_field(base_type, f);
                   if (tree_ident(field) == name_i) {
-                     tree_set_type(a.name, tree_type(field));
-                     tree_set_ref(a.name, field);
+                     tree_set_type(name, tree_type(field));
+                     tree_set_ref(name, field);
                      break;
                   }
                }
 
                if (f == nfields)
-                  sem_error(a.name, "type %s does not have field named %s",
+                  sem_error(name, "type %s does not have field named %s",
                             sem_type_str(composite_type), istr(name_i));
             }
             break;
@@ -3751,7 +3759,7 @@ static bool sem_check_aggregate(tree_t t)
             break;
 
          case A_RANGE:
-            sem_error(a.value, "range is not allowed here");
+            sem_error(a, "range is not allowed here");
          }
 
          for (int j = 0; j < nfields; j++) {
@@ -3765,17 +3773,19 @@ static bool sem_check_aggregate(tree_t t)
                if (f == -1)
                   continue;
                else
-                  sem_error(a.value, "field %s already has a value",
+                  sem_error(a, "field %s already has a value",
                             istr(tree_ident(field)));
             }
 
-            if (!sem_check_constrained(a.value, field_type))
+            tree_t value = tree_value(a);
+
+            if (!sem_check_constrained(value, field_type))
                return false;
 
-            if (!type_eq(field_type, tree_type(a.value)))
-               sem_error(a.value, "type of value %s does not match type "
+            if (!type_eq(field_type, tree_type(value)))
+               sem_error(a, "type of value %s does not match type "
                          "of field %s %s",
-                         sem_type_str(tree_type(a.value)),
+                         sem_type_str(tree_type(value)),
                          istr(tree_ident(field)),
                          sem_type_str(field_type));
 
@@ -3796,10 +3806,10 @@ static bool sem_check_aggregate(tree_t t)
    // only element
 
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
-      if (a.kind == A_NAMED && !sem_locally_static(a.name)) {
+      tree_t a = tree_assoc(t, i);
+      if (tree_subkind(a) == A_NAMED && !sem_locally_static(tree_name(a))) {
          if (tree_assocs(t) != 1)
-            sem_error(a.name, "non-locally static choice must be "
+            sem_error(tree_name(a), "non-locally static choice must be "
                       "only choice");
       }
    }
@@ -4479,11 +4489,11 @@ static bool sem_locally_static(tree_t t)
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(t, i);
-         if ((a.kind == A_NAMED) && !sem_locally_static(a.name))
+         tree_t a = tree_assoc(t, i);
+         if ((tree_subkind(a) == A_NAMED) && !sem_locally_static(tree_name(a)))
             return false;
 
-         if (!sem_locally_static(a.value))
+         if (!sem_locally_static(tree_value(a)))
             return false;
       }
 
@@ -4600,11 +4610,11 @@ static bool sem_globally_static(tree_t t)
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
-         assoc_t a = tree_assoc(t, i);
-         if ((a.kind == A_NAMED) && !sem_globally_static(a.name))
+         tree_t a = tree_assoc(t, i);
+         if ((tree_subkind(a) == A_NAMED) && !sem_globally_static(tree_name(a)))
             return false;
 
-         if (!sem_globally_static(a.value))
+         if (!sem_globally_static(tree_value(a)))
             return false;
       }
 
@@ -4681,42 +4691,48 @@ static bool sem_check_case(tree_t t)
    bool ok = true;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
-      assoc_t a = tree_assoc(t, i);
-      switch (a.kind) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
       case A_OTHERS:
          if (i != tree_assocs(t) - 1)
             sem_error(t, "others choice must appear last");
          break;
 
       case A_NAMED:
-         if ((ok = sem_check_constrained(a.name, type) && ok)) {
-            if (!type_eq(tree_type(a.name), type))
-               sem_error(a.name, "case choice must have type %s",
-                         sem_type_str(type));
-            else if (!sem_locally_static(a.name))
-               sem_error(a.name, "case choice must be locally static");
+         {
+            tree_t name = tree_name(a);
+            if ((ok = sem_check_constrained(name, type) && ok)) {
+               if (!type_eq(tree_type(name), type))
+                  sem_error(name, "case choice must have type %s",
+                            sem_type_str(type));
+               else if (!sem_locally_static(name))
+                  sem_error(name, "case choice must be locally static");
+            }
          }
          break;
 
       case A_RANGE:
-         if ((ok = sem_check_range(&a.range, type) && ok)) {
-            if (!type_eq(tree_type(a.range.left), type))
-               sem_error(a.range.left, "case choice range must have type %s",
-                         sem_type_str(type));
-            else if (!sem_locally_static(a.range.left))
-               sem_error(a.range.left, "left index of case choice range is "
-                         "not locally static");
-            else if (!sem_locally_static(a.range.right))
-               sem_error(a.range.right, "right index of case choice range is "
-                         "not locally static");
+         {
+            range_t r = tree_range(a);
+            if ((ok = sem_check_range(&r, type) && ok)) {
+               if (!type_eq(tree_type(r.left), type))
+                  sem_error(r.left, "case choice range must have type %s",
+                            sem_type_str(type));
+               else if (!sem_locally_static(r.left))
+                  sem_error(r.left, "left index of case choice range is "
+                            "not locally static");
+               else if (!sem_locally_static(r.right))
+                  sem_error(r.right, "right index of case choice range is "
+                            "not locally static");
+            }
          }
          break;
 
       default:
-         sem_error(a.value, "sorry, this form of choice is not supported");
+         sem_error(a, "sorry, this form of choice is not supported");
       }
 
-      ok = sem_check(a.value) && ok;
+      ok = sem_check(tree_value(a)) && ok;
    }
 
    if (!ok)
@@ -4731,19 +4747,20 @@ static bool sem_check_case(tree_t t)
 
       bool have_others = false;
 
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
-         assoc_t a = tree_assoc(t, i);
+      const int nassocs = tree_assocs(t);
+      for (unsigned i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
 
-         if (a.kind == A_OTHERS) {
+         if (tree_subkind(a) == A_OTHERS) {
             have_others = true;
             continue;
          }
 
-         ident_t name = tree_ident(a.name);
+         ident_t name = tree_ident(tree_name(a));
          for (unsigned j = 0; j < nlits; j++) {
             if (tree_ident(type_enum_literal(type, j)) == name) {
                if (have[j])
-                  sem_error(a.name, "choice %s appears multiple times "
+                  sem_error(tree_name(a), "choice %s appears multiple times "
                             "in case statement", istr(name));
                else
                   have[j] = true;
@@ -4888,18 +4905,21 @@ static bool sem_check_select(tree_t t)
 
    type_t value_type = tree_type(tree_value(t));
 
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      assoc_t a = tree_assoc(t, i);
-      if (a.kind == A_NAMED) {
-         if (!sem_check_constrained(a.name, value_type))
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      if (tree_subkind(a) == A_NAMED) {
+         tree_t name = tree_name(a);
+         if (!sem_check_constrained(name, value_type))
             return false;
-         else if (!type_eq(tree_type(a.name), value_type))
-            sem_error(a.name, "choice must have type %s", sem_type_str(value_type));
-         else if (!sem_locally_static(a.name))
-            sem_error(a.name, "choice must be locally static");
+         else if (!type_eq(tree_type(name), value_type))
+            sem_error(name, "choice must have type %s",
+                      sem_type_str(value_type));
+         else if (!sem_locally_static(name))
+            sem_error(name, "choice must be locally static");
       }
 
-      if (!sem_check(a.value))
+      if (!sem_check(tree_value(a)))
          return false;
    }
 

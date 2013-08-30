@@ -49,6 +49,13 @@ typedef enum param_kind {
    P_NAMED
 } param_kind_t;
 
+typedef enum assoc_kind {
+   A_POS,
+   A_NAMED,
+   A_RANGE,
+   A_OTHERS
+} assoc_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -112,6 +119,7 @@ typedef enum tree_kind {
    T_NEXT,
    T_GENVAR,
    T_PARAM,
+   T_ASSOC,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -126,6 +134,7 @@ typedef struct literal {
    enum { L_INT, L_REAL, L_NULL } kind;
 } literal_t;
 
+/*
 typedef struct assoc {
    union {
       unsigned pos;
@@ -135,6 +144,7 @@ typedef struct assoc {
    tree_t value;
    enum { A_POS, A_NAMED, A_RANGE, A_OTHERS } kind;
 } assoc_t;
+*/
 
 typedef struct context {
    ident_t name;
@@ -237,9 +247,8 @@ context_t tree_context(tree_t t, unsigned n);
 void tree_add_context(tree_t t, context_t ctx);
 
 unsigned tree_assocs(tree_t t);
-assoc_t tree_assoc(tree_t t, unsigned n);
-void tree_add_assoc(tree_t t, assoc_t a);
-void tree_change_assoc(tree_t t, unsigned i, assoc_t a);
+tree_t tree_assoc(tree_t t, unsigned n);
+void tree_add_assoc(tree_t t, tree_t a);
 
 tree_t tree_severity(tree_t t);
 void tree_set_severity(tree_t t, tree_t s);
