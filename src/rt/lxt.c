@@ -167,8 +167,8 @@ void lxt_restart(void)
 
          int64_t low, high;
          range_bounds(type_dim(type, 0), &low, &high);
-         msb = high - low;
-         lsb = 0;
+         msb = high;
+         lsb = low;
       }
       else {
          rows = 0;
