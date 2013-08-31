@@ -156,7 +156,7 @@ void lxt_restart(void)
 
       type_t type = tree_type(d);
 
-      int rows, msb;
+      int rows, msb, lsb;
       if (type_is_array(type)) {
          rows = type_dims(type) - 1;
          if ((rows > 0) || type_is_array(type_elem(type))) {
@@ -168,9 +168,12 @@ void lxt_restart(void)
          int64_t low, high;
          range_bounds(type_dim(type, 0), &low, &high);
          msb = high - low;
+         lsb = 0;
       }
-      else
-         msb = rows = 0;
+      else {
+         rows = 0;
+         msb = lsb = -1;
+      }
 
       lxt_data_t *data = xmalloc(sizeof(lxt_data_t));
       memset(data, '\0', sizeof(lxt_data_t));
@@ -214,7 +217,7 @@ void lxt_restart(void)
       }
 
       char *name = lxt_fmt_name(d);
-      data->sym = lt_symbol_add(trace, name, rows, msb, 0, flags);
+      data->sym = lt_symbol_add(trace, name, rows, msb, lsb, flags);
       free(name);
 
       tree_add_attr_ptr(d, lxt_data_i, data);
