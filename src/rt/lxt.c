@@ -165,10 +165,9 @@ void lxt_restart(void)
             continue;
          }
 
-         int64_t low, high;
-         range_bounds(type_dim(type, 0), &low, &high);
-         msb = high;
-         lsb = low;
+         range_t r = type_dim(type, 0);
+         msb = assume_int(r.left);
+         lsb = assume_int(r.right);
       }
       else {
          rows = 0;
