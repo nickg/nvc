@@ -121,7 +121,7 @@ static bool folded_agg(tree_t t)
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
-         literal_t dummy;
+         int64_t dummy;
          switch (tree_subkind(a)) {
          case A_NAMED:
             if (!folded_int(tree_name(a), &dummy))
@@ -211,84 +211,78 @@ static tree_t eval_fcall_log(tree_t t, ident_t builtin, bool *args)
       return t;
 }
 
-static tree_t eval_fcall_real(tree_t t, ident_t builtin, literal_t *args)
+static tree_t eval_fcall_real(tree_t t, ident_t builtin, double *args)
 {
-   const int lkind = args[0].kind;  // Assume all types checked same
-   assert(lkind == L_REAL);
-
    if (icmp(builtin, "mul")) {
-      return get_real_lit(t, args[0].r * args[1].r);
+      return get_real_lit(t, args[0] * args[1]);
    }
    else if (icmp(builtin, "div")) {
-      return get_real_lit(t, args[0].r / args[1].r);
+      return get_real_lit(t, args[0] / args[1]);
    }
    else if (icmp(builtin, "add")) {
-      return get_real_lit(t, args[0].r + args[1].r);
+      return get_real_lit(t, args[0] + args[1]);
    }
    else if (icmp(builtin, "sub")) {
-      return get_real_lit(t, args[0].r - args[1].r);
+      return get_real_lit(t, args[0] - args[1]);
    }
    else if (icmp(builtin, "neg")) {
-      return get_real_lit(t, -args[0].r);
+      return get_real_lit(t, -args[0]);
    }
    else if (icmp(builtin, "identity")) {
-      return get_real_lit(t, args[0].r);
+      return get_real_lit(t, args[0]);
    }
    else if (icmp(builtin, "eq")) {
-      return get_bool_lit(t, args[0].r == args[1].r);
+      return get_bool_lit(t, args[0] == args[1]);
    }
    else if (icmp(builtin, "neq")) {
-      return get_bool_lit(t, args[0].r != args[1].r);
+      return get_bool_lit(t, args[0] != args[1]);
    }
    else if (icmp(builtin, "gt")) {
-      return get_bool_lit(t, args[0].r > args[1].r);
+      return get_bool_lit(t, args[0] > args[1]);
    }
    else if (icmp(builtin, "lt")) {
-      return get_bool_lit(t, args[0].r < args[1].r);
+      return get_bool_lit(t, args[0] < args[1]);
    }
    else
       return t;
 }
 
-static tree_t eval_fcall_int(tree_t t, ident_t builtin, literal_t *args)
+static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
 {
-   const int lkind = args[0].kind;  // Assume all types checked same
-   assert(lkind == L_INT);
-
    if (icmp(builtin, "mul")) {
-      return get_int_lit(t, args[0].i * args[1].i);
+      return get_int_lit(t, args[0] * args[1]);
    }
    else if (icmp(builtin, "div")) {
-      return get_int_lit(t, args[0].i / args[1].i);
+      return get_int_lit(t, args[0] / args[1]);
    }
    else if (icmp(builtin, "add")) {
-      return get_int_lit(t, args[0].i + args[1].i);
+      return get_int_lit(t, args[0] + args[1]);
    }
    else if (icmp(builtin, "sub")) {
-      return get_int_lit(t, args[0].i - args[1].i);
+      return get_int_lit(t, args[0] - args[1]);
    }
    else if (icmp(builtin, "neg")) {
-      return get_int_lit(t, -args[0].i);
+      return get_int_lit(t, -args[0]);
    }
    else if (icmp(builtin, "identity")) {
-      return get_int_lit(t, args[0].i);
+      return get_int_lit(t, args[0]);
    }
    else if (icmp(builtin, "eq")) {
-      return get_bool_lit(t, args[0].i == args[1].i);
+      return get_bool_lit(t, args[0] == args[1]);
    }
    else if (icmp(builtin, "neq")) {
-      return get_bool_lit(t, args[0].i != args[1].i);
+      return get_bool_lit(t, args[0] != args[1]);
    }
    else if (icmp(builtin, "gt")) {
-      return get_bool_lit(t, args[0].i > args[1].i);
+      return get_bool_lit(t, args[0] > args[1]);
    }
    else if (icmp(builtin, "lt")) {
-      return get_bool_lit(t, args[0].i < args[1].i);
+      return get_bool_lit(t, args[0] < args[1]);
    }
    else if (icmp(builtin, "leq"))
-      return get_bool_lit(t, args[0].i <= args[1].i);
+      return get_bool_lit(t, args[0] <= args[1]);
    else if (icmp(builtin, "geq"))
-      return get_bool_lit(t, args[0].i >= args[1].i);
+      return get_bool_lit(t, args[0] >= args[1]);
    else
       return t;
 }
@@ -395,10 +389,10 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       if (tree_kind(array) != T_REF)
          return t;   // Cannot fold this
 
-      literal_t dim_i;
+      int64_t dim_i;
       if ((type_kind(tree_type(array)) != T_UARRAY)
           && folded_int(dim, &dim_i)) {
-         range_t r = type_dim(tree_type(array), dim_i.i - 1);
+         range_t r = type_dim(tree_type(array), dim_i - 1);
          if (tree_kind(r.left) == T_LITERAL
              && tree_kind(r.right) == T_LITERAL) {
             int64_t low, high;
@@ -433,25 +427,26 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    bool can_fold_log  = true;
    bool can_fold_agg  = true;
    bool can_fold_real = true;
-   literal_t largs[MAX_BUILTIN_ARGS];
+   int64_t iargs[MAX_BUILTIN_ARGS];
+   double rargs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (unsigned i = 0; i < tree_params(t); i++) {
       tree_t p = tree_param(t, i);
       tree_t val = eval_expr(tree_value(p), v);
-      can_fold_int  = can_fold_int && folded_int(val, &largs[i]);
+      can_fold_int  = can_fold_int && folded_int(val, &iargs[i]);
       can_fold_log  = can_fold_log && folded_bool(val, &bargs[i]);
       can_fold_agg  = can_fold_agg && folded_agg(val);
-      can_fold_real = can_fold_real && folded_real(val, &largs[i]);
+      can_fold_real = can_fold_real && folded_real(val, &rargs[i]);
    }
 
    if (can_fold_int)
-      return eval_fcall_int(t, builtin, largs);
+      return eval_fcall_int(t, builtin, iargs);
    else if (can_fold_log)
       return eval_fcall_log(t, builtin, bargs);
    else if (can_fold_agg)
       return eval_fcall_agg(t, builtin);
    else if (can_fold_real)
-      return eval_fcall_real(t, builtin, largs);
+      return eval_fcall_real(t, builtin, rargs);
    else
       return t;
 }

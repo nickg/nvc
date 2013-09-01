@@ -1166,13 +1166,12 @@ static LLVMValueRef cgen_pdecl(tree_t t)
 
 static LLVMValueRef cgen_literal(tree_t t)
 {
-   literal_t l = tree_literal(t);
    LLVMTypeRef lltype = llvm_type(tree_type(t));
-   switch (l.kind) {
+   switch (tree_subkind(t)) {
    case L_INT:
-      return LLVMConstInt(lltype, l.i, false);
+      return LLVMConstInt(lltype, tree_ival(t), false);
    case L_REAL:
-      return LLVMConstReal(lltype, l.r);
+      return LLVMConstReal(lltype, tree_dval(t));
    case L_NULL:
       return LLVMConstNull(lltype);
    default:

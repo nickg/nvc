@@ -414,23 +414,18 @@ void type_set_elem(type_t t, type_t e)
 }
 
 static type_t type_make_universal(type_kind_t kind, const char *name,
-                                  literal_t min, literal_t max)
+                                  tree_t min, tree_t max)
 {
    type_t t = type_new(kind);
    type_set_ident(t, ident_new(name));
 
-   tree_t left = tree_new(T_LITERAL);
-   tree_set_literal(left, min);
-   tree_set_type(left, t);
-
-   tree_t right = tree_new(T_LITERAL);
-   tree_set_literal(right, max);
-   tree_set_type(right, t);
-
    range_t r = { .kind  = RANGE_TO,
-                 .left  = left,
-                 .right = right };
+                 .left  = min,
+                 .right = max };
    type_add_dim(t, r);
+
+   tree_set_type(min, t);
+   tree_set_type(max, t);
 
    return t;
 }
@@ -440,8 +435,14 @@ type_t type_universal_int(void)
    static type_t t = NULL;
 
    if (t == NULL) {
-      literal_t min = { { .i = INT_MIN }, .kind = L_INT };
-      literal_t max = { { .i = INT_MAX }, .kind = L_INT };
+      tree_t min = tree_new(T_LITERAL);
+      tree_set_subkind(min, L_INT);
+      tree_set_ival(min, -INT_MAX);
+
+      tree_t max = tree_new(T_LITERAL);
+      tree_set_subkind(max, L_INT);
+      tree_set_ival(max, INT_MAX);
+
       t = type_make_universal(T_INTEGER, "universal integer", min, max);
    }
 
@@ -453,8 +454,14 @@ type_t type_universal_real(void)
    static type_t t = NULL;
 
    if (t == NULL) {
-      literal_t min = { { .r = -DBL_MAX }, .kind = L_REAL };
-      literal_t max = { { .r = DBL_MAX },  .kind = L_REAL };
+      tree_t min = tree_new(T_LITERAL);
+      tree_set_subkind(min, L_REAL);
+      tree_set_dval(min, -DBL_MAX);
+
+      tree_t max = tree_new(T_LITERAL);
+      tree_set_subkind(max, L_REAL);
+      tree_set_dval(max, DBL_MAX);
+
       t = type_make_universal(T_REAL, "universal real", min, max);
    }
 

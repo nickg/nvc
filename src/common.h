@@ -27,8 +27,8 @@
 int64_t assume_int(tree_t t);
 void range_bounds(range_t r, int64_t *low, int64_t *high);
 tree_t call_builtin(const char *builtin, type_t type, ...);
-bool folded_int(tree_t t, literal_t *l);
-bool folded_real(tree_t t, literal_t *l);
+bool folded_int(tree_t t, int64_t *i);
+bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
 tree_t get_int_lit(tree_t t, int64_t i);
 tree_t get_real_lit(tree_t t, double r);

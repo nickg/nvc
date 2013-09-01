@@ -418,19 +418,6 @@ static type_t sem_std_type(const char *name)
    return tree_type(decl);
 }
 
-static tree_t sem_make_int(int i)
-{
-   literal_t l;
-   l.kind = L_INT;
-   l.i    = i;
-
-   tree_t t = tree_new(T_LITERAL);
-   tree_set_literal(t, l);
-   tree_set_type(t, sem_std_type("INTEGER"));
-
-   return t;
-}
-
 static tree_t sem_make_ref(tree_t to)
 {
    tree_t t = tree_new(T_REF);
@@ -515,12 +502,9 @@ static tree_t sem_bool_lit(type_t std_bool, bool v)
 
 static tree_t sem_int_lit(type_t type, int64_t i)
 {
-   literal_t l;
-   l.kind = L_INT;
-   l.i = i;
-
    tree_t f = tree_new(T_LITERAL);
-   tree_set_literal(f, l);
+   tree_set_subkind(f, L_INT);
+   tree_set_ival(f, i);
    tree_set_type(f, type);
 
    return f;
@@ -894,10 +878,11 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          switch (type_kind(base)) {
          case T_ENUM:
             {
+               type_t std_int = sem_std_type("INTEGER");
                range_t r = {
                   .kind  = RANGE_TO,
-                  .left  = sem_make_int(0),
-                  .right = sem_make_int(type_enum_literals(base) - 1)
+                  .left  = sem_int_lit(std_int, 0),
+                  .right = sem_int_lit(std_int, type_enum_literals(base) - 1)
                };
                type_add_dim(type, r);
             }
@@ -1644,8 +1629,7 @@ static tree_t sem_default_value(type_t type)
    case T_ACCESS:
       {
          tree_t null = tree_new(T_LITERAL);
-         literal_t l = { .kind = L_NULL };
-         tree_set_literal(null, l);
+         tree_set_subkind(null, L_NULL);
          tree_set_type(null, type);
          return null;
       }
@@ -2621,7 +2605,7 @@ static int sem_ambiguous_rate(tree_t t)
    case T_AGGREGATE:
       return 100;
    case T_LITERAL:
-      return (tree_literal(t).kind == L_NULL) ? 0 : -10;
+      return (tree_subkind(t) == L_NULL) ? 0 : -10;
    default:
       return 0;
    }
@@ -3477,9 +3461,7 @@ static bool sem_check_literal(tree_t t)
    if (tree_has_type(t))
       return true;
 
-   literal_t l = tree_literal(t);
-
-   switch (l.kind) {
+   switch (tree_subkind(t)) {
    case L_INT:
       tree_set_type(t, type_universal_int());
       break;
@@ -3635,11 +3617,12 @@ static bool sem_check_aggregate(tree_t t)
             type_add_dim(tmp, r);
          }
          else {
+            type_t std_int = sem_std_type("INTEGER");
             range_t r = {
                .kind  = index_r.kind,
                .left  = index_r.left,
                .right = call_builtin("add", index_type,
-                                     sem_make_int(n_elems[i] - 1),
+                                     sem_int_lit(std_int, n_elems[i] - 1),
                                      index_r.left, NULL)
             };
             type_add_dim(tmp, r);

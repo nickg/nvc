@@ -72,12 +72,9 @@ static tree_t unalias_index(tree_t decl, tree_t index)
          tree_t ref = get_ref(base_decl);
          tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
 
-         literal_t l;
-         l.kind = L_INT;
-         l.i = alias_r.kind;
-
          tree_t rkind_lit = tree_new(T_LITERAL);
-         tree_set_literal(rkind_lit, l);
+         tree_set_subkind(rkind_lit, L_INT);
+         tree_set_ival(rkind_lit, alias_r.kind);
          tree_set_type(rkind_lit, ptype);
 
          // Call dircmp builtin which multiplies its third argument

@@ -25,11 +25,8 @@ int64_t assume_int(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
-      {
-         literal_t l = tree_literal(t);
-         assert(l.kind == L_INT);
-         return l.i;
-      }
+      assert(tree_subkind(t) == L_INT);
+      return tree_ival(t);
 
    case T_REF:
       {
@@ -121,21 +118,21 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    return call;
 }
 
-bool folded_int(tree_t t, literal_t *l)
+bool folded_int(tree_t t, int64_t *l)
 {
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_INT);
+   if ((tree_kind(t) == T_LITERAL) && (tree_subkind(t) == L_INT)) {
+      *l = tree_ival(t);
+      return true;
    }
    else
       return false;
 }
 
-bool folded_real(tree_t t, literal_t *l)
+bool folded_real(tree_t t, double *l)
 {
-   if (tree_kind(t) == T_LITERAL) {
-      *l = tree_literal(t);
-      return (l->kind == L_REAL);
+   if ((tree_kind(t) == T_LITERAL) && (tree_subkind(t) == L_REAL)) {
+      *l = tree_dval(t);
+      return true;
    }
    else
       return false;
@@ -158,13 +155,10 @@ bool folded_bool(tree_t t, bool *b)
 
 tree_t get_int_lit(tree_t t, int64_t i)
 {
-   literal_t l;
-   l.kind = L_INT;
-   l.i = i;
-
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
+   tree_set_subkind(f, L_INT);
+   tree_set_ival(f, i);
    tree_set_type(f, tree_type(t));
 
    return f;
@@ -172,13 +166,10 @@ tree_t get_int_lit(tree_t t, int64_t i)
 
 tree_t get_real_lit(tree_t t, double r)
 {
-   literal_t l;
-   l.kind = L_REAL;
-   l.r = r;
-
    tree_t f = tree_new(T_LITERAL);
    tree_set_loc(f, tree_loc(t));
-   tree_set_literal(f, l);
+   tree_set_subkind(f, L_REAL);
+   tree_set_dval(f, r);
    tree_set_type(f, tree_type(t));
 
    return f;

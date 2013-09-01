@@ -56,6 +56,12 @@ typedef enum assoc_kind {
    A_OTHERS
 } assoc_kind_t;
 
+typedef enum literal_kind {
+   L_INT,
+   L_REAL,
+   L_NULL
+} literal_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -127,14 +133,6 @@ typedef enum tree_kind {
 
 typedef struct tree *tree_t;
 
-typedef struct literal {
-   union {
-      int64_t i;
-      double  r;
-   };
-   enum { L_INT, L_REAL, L_NULL } kind;
-} literal_t;
-
 typedef uint32_t netid_t;
 
 #define NETID_INVALID UINT32_MAX
@@ -184,8 +182,11 @@ unsigned tree_params(tree_t t);
 tree_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, tree_t e);
 
-literal_t tree_literal(tree_t t);
-void tree_set_literal(tree_t t, literal_t lit);
+int64_t tree_ival(tree_t t);
+void tree_set_ival(tree_t t, int64_t i);
+
+double tree_dval(tree_t t);
+void tree_set_dval(tree_t t, double d);
 
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);

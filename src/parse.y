@@ -1960,9 +1960,9 @@ scalar_type_def
 | range_constraint
   {
      bool real = ((tree_kind($1.left) == T_LITERAL)
-                  && (tree_literal($1.left).kind == L_REAL))
+                  && (tree_subkind($1.left) == L_REAL))
         || ((tree_kind($1.right) == T_LITERAL)
-            && (tree_literal($1.right).kind == L_REAL));
+            && (tree_subkind($1.right) == L_REAL));
 
      $$ = type_new(real ? T_REAL : T_INTEGER);
      type_add_dim($$, $1);
@@ -2030,8 +2030,9 @@ base_unit_decl
 : id tSEMI
   {
      tree_t mult = tree_new(T_LITERAL);
-     literal_t l = { { .i = 1 }, .kind = L_INT };
-     tree_set_literal(mult, l);
+     tree_set_loc(mult, &@$);
+     tree_set_subkind(mult, L_INT);
+     tree_set_ival(mult, 1);
 
      $$ = tree_new(T_UNIT_DECL);
      tree_set_loc($$, &@$);
@@ -2262,8 +2263,7 @@ null_literal
   {
      $$ = tree_new(T_LITERAL);
      tree_set_loc($$, &@$);
-     literal_t l = { .kind = L_NULL };
-     tree_set_literal($$, l);
+     tree_set_subkind($$, L_NULL);
   }
 ;
 
@@ -2292,15 +2292,15 @@ abstract_literal
   {
      $$ = tree_new(T_LITERAL);
      tree_set_loc($$, &@$);
-     literal_t l = { { .i = lvals.ival }, .kind = L_INT };
-     tree_set_literal($$, l);
+     tree_set_subkind($$, L_INT);
+     tree_set_ival($$, lvals.ival);
   }
 | tREAL
   {
      $$ = tree_new(T_LITERAL);
      tree_set_loc($$, &@$);
-     literal_t l = { { .r = lvals.rval }, .kind = L_REAL };
-     tree_set_literal($$, l);
+     tree_set_subkind($$, L_REAL);
+     tree_set_dval($$, lvals.rval);
   }
 ;
 
@@ -2643,8 +2643,8 @@ static bool to_range_expr(tree_t t, range_t *r)
 static tree_t get_time(int64_t fs)
 {
    tree_t lit = tree_new(T_LITERAL);
-   literal_t l = { { .i = fs }, .kind = L_INT };
-   tree_set_literal(lit, l);
+   tree_set_subkind(lit, L_INT);
+   tree_set_ival(lit, fs);
 
    tree_t unit = tree_new(T_REF);
    tree_set_ident(unit, ident_new("FS"));

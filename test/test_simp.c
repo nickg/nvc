@@ -59,11 +59,10 @@ static bool folded_i(tree_t t, int64_t i)
    if (tree_kind(t) != T_LITERAL)
       return false;
 
-   literal_t l = tree_literal(t);
-   if (l.kind != L_INT)
+   if (tree_subkind(t) != L_INT)
       return false;
 
-   return l.i == i;
+   return tree_ival(t) == i;
 }
 
 static bool folded_r(tree_t t, double r)
@@ -71,11 +70,10 @@ static bool folded_r(tree_t t, double r)
    if (tree_kind(t) != T_LITERAL)
       return false;
 
-   literal_t l = tree_literal(t);
-   if (l.kind != L_REAL)
+   if (tree_subkind(t) != L_REAL)
       return false;
 
-   return l.r == r;
+   return tree_dval(t) == r;
 }
 
 static bool folded_b(tree_t t, bool b)

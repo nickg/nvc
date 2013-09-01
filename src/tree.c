@@ -59,7 +59,7 @@ enum {
    I_SEVERITY  = (1 << 2),
    I_MESSAGE   = (1 << 3),
    I_TARGET    = (1 << 4),
-   I_LITERAL   = (1 << 5),
+   I_IVAL      = (1 << 5),
    I_IDENT2    = (1 << 6),
    I_DECLS     = (1 << 7),
    I_STMTS     = (1 << 8),
@@ -84,16 +84,17 @@ enum {
    I_RANGE     = (1 << 27),
    I_NAME      = (1 << 28),
    I_NETS      = (1 << 29),
+   I_DVAL      = (1 << 30),
 };
 
 typedef union {
    ident_t       ident;
    tree_t        tree;
-   literal_t     literal;
    tree_array_t  tree_array;
    type_t        type;
    unsigned      subkind;
-   uint32_t      uint;
+   int64_t       ival;
+   double        dval;
    range_t       range;
    netid_array_t netid_array;
 } item_t;
@@ -114,7 +115,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE | I_REF),
 
    // T_LITERAL
-   (I_LITERAL | I_TYPE),
+   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_NETS),
@@ -298,14 +299,14 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
                           | I_NAME)
-#define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS        \
+                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
                           | I_GENMAPS | I_ASSOCS | I_CONTEXT)
 #define ITEM_TYPE        (I_TYPE)
-#define ITEM_UINT        (I_POS | I_SUBKIND | I_CLASS)
+#define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
 #define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
+#define ITEM_DOUBLE      (I_DVAL)
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
@@ -723,12 +724,12 @@ void tree_add_port(tree_t t, tree_t d)
 unsigned tree_subkind(tree_t t)
 {
    item_t *item = lookup_item(t, I_SUBKIND);
-   return item->subkind;
+   return item->ival;
 }
 
 void tree_set_subkind(tree_t t, unsigned sub)
 {
-   lookup_item(t, I_SUBKIND)->subkind = sub;
+   lookup_item(t, I_SUBKIND)->ival = sub;
 }
 
 unsigned tree_generics(tree_t t)
@@ -809,14 +810,28 @@ void tree_add_genmap(tree_t t, tree_t e)
    tree_array_add(&(lookup_item(t, I_GENMAPS)->tree_array), e);
 }
 
-void tree_set_literal(tree_t t, literal_t lit)
+int64_t tree_ival(tree_t t)
 {
-   lookup_item(t, I_LITERAL)->literal = lit;
+   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   return lookup_item(t, I_IVAL)->ival;
 }
 
-literal_t tree_literal(tree_t t)
+void tree_set_ival(tree_t t, int64_t i)
 {
-   return lookup_item(t, I_LITERAL)->literal;
+   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   lookup_item(t, I_IVAL)->ival = i;
+}
+
+double tree_dval(tree_t t)
+{
+   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
+   return lookup_item(t, I_DVAL)->dval;
+}
+
+void tree_set_dval(tree_t t, double d)
+{
+   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
+   lookup_item(t, I_DVAL)->dval = d;
 }
 
 bool tree_has_value(tree_t t)
@@ -1082,22 +1097,22 @@ void tree_set_range(tree_t t, range_t r)
 
 unsigned tree_pos(tree_t t)
 {
-   return lookup_item(t, I_POS)->uint;
+   return lookup_item(t, I_POS)->ival;
 }
 
 void tree_set_pos(tree_t t, unsigned pos)
 {
-   lookup_item(t, I_POS)->uint = pos;
+   lookup_item(t, I_POS)->ival = pos;
 }
 
 class_t tree_class(tree_t t)
 {
-   return lookup_item(t, I_CLASS)->uint;
+   return lookup_item(t, I_CLASS)->ival;
 }
 
 void tree_set_class(tree_t t, class_t c)
 {
-   lookup_item(t, I_CLASS)->uint = c;
+   lookup_item(t, I_CLASS)->ival = c;
 }
 
 tree_t tree_reject(tree_t t)
@@ -1170,8 +1185,6 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
             ;
          else if (ITEM_TREE & mask)
             tree_visit_aux(t->items[i].tree, ctx);
-         else if (ITEM_LITERAL & mask)
-            ;
          else if (ITEM_TREE_ARRAY & mask) {
             for (unsigned j = 0; j < t->items[i].tree_array.count; j++)
                tree_visit_aux(t->items[i].tree_array.items[j], ctx);
@@ -1179,7 +1192,9 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_TYPE & mask)
             type_visit_trees(t->items[i].type, ctx->generation,
                              (tree_visit_fn_t)tree_visit_aux, ctx);
-         else if (ITEM_UINT & mask)
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
             tree_visit_aux(t->items[i].range.left, ctx);
@@ -1390,26 +1405,12 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             ident_write(t->items[n].ident, ctx->ident_ctx);
          else if (ITEM_TREE & mask)
             tree_write(t->items[n].tree, ctx);
-         else if (ITEM_LITERAL & mask) {
-            literal_t *l = &(t->items[n].literal);
-            write_u16(l->kind, ctx->file);
-            switch (l->kind) {
-            case L_REAL:
-            case L_INT:
-               write_u64(l->i, ctx->file);
-               break;
-            case L_NULL:
-               break;
-            default:
-               assert(false);
-            }
-         }
          else if (ITEM_TREE_ARRAY & mask)
             write_a(&(t->items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
             type_write(t->items[n].type, ctx->type_ctx);
-         else if (ITEM_UINT & mask)
-            write_u32(t->items[n].uint, ctx->file);
+         else if (ITEM_INT64 & mask)
+            write_u64(t->items[n].ival, ctx->file);
          else if (ITEM_RANGE & mask) {
             write_u8(t->items[n].range.kind, ctx->file);
             tree_write(t->items[n].range.left, ctx);
@@ -1420,6 +1421,11 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             write_u32(a->count, ctx->file);
             for (unsigned i = 0; i < a->count; i++)
                write_u32(a->items[i], ctx->file);
+         }
+         else if (ITEM_DOUBLE & mask) {
+            union { double d; uint64_t i; } u;
+            u.d = t->items[n].dval;
+            write_u64(u.i, ctx->file);
          }
          else
             item_without_type(mask);
@@ -1497,26 +1503,12 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].ident = ident_read(ctx->ident_ctx);
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_read(ctx);
-         else if (ITEM_LITERAL & mask) {
-            literal_t *l = &(t->items[n].literal);
-            l->kind = read_u16(ctx->file);
-            switch (l->kind) {
-            case L_INT:
-            case L_REAL:
-               l->i = read_u64(ctx->file);
-               break;
-            case L_NULL:
-               break;
-            default:
-               assert(false);
-            }
-         }
          else if (ITEM_TREE_ARRAY & mask)
             read_a(&(t->items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
             t->items[n].type = type_read(ctx->type_ctx);
-         else if (ITEM_UINT & mask)
-            t->items[n].uint = read_u32(ctx->file);
+         else if (ITEM_INT64 & mask)
+            t->items[n].ival = read_u64(ctx->file);
          else if (ITEM_RANGE & mask) {
             t->items[n].range.kind  = read_u8(ctx->file);
             t->items[n].range.left  = tree_read(ctx);
@@ -1527,6 +1519,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = read_u32(ctx->file);
+         }
+         else if (ITEM_DOUBLE & mask) {
+            union { uint64_t i; double d; } u;
+            u.i = read_u64(ctx->file);
+            t->items[n].dval = u.d;
          }
          else
             item_without_type(mask);
@@ -1747,13 +1744,13 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
-         else if (ITEM_LITERAL & mask)
-            ;
          else if (ITEM_TREE_ARRAY & mask)
             rewrite_a(&(t->items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
             type_item = n;
-         else if (ITEM_UINT & mask)
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
             range_t *r = &(t->items[n].range);
@@ -1855,15 +1852,15 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].ident = t->items[n].ident;
          else if (ITEM_TREE & mask)
             copy->items[n].tree = tree_copy_aux(t->items[n].tree, ctx);
-         else if (ITEM_LITERAL & mask)
-            copy->items[n].literal = t->items[n].literal;
+         else if (ITEM_DOUBLE & mask)
+            copy->items[n].dval = t->items[n].dval;
          else if (ITEM_TREE_ARRAY & mask)
             copy_a(&(t->items[n].tree_array),
                    &(copy->items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
             copy->items[n].type = t->items[n].type;
-         else if (ITEM_UINT & mask)
-            copy->items[n].uint = t->items[n].uint;
+         else if (ITEM_INT64 & mask)
+            copy->items[n].ival = t->items[n].ival;
          else if (ITEM_RANGE & mask) {
             copy->items[n].range.kind = t->items[n].range.kind;
             copy->items[n].range.left =
