@@ -32,11 +32,6 @@
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 
-typedef struct {
-   context_t *items;
-   uint32_t   count;
-} context_set_t;
-
 typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
 } attr_kind_t;
@@ -99,7 +94,6 @@ typedef union {
    type_t        type;
    unsigned      subkind;
    uint32_t      uint;
-   context_set_t context_set;
    range_t       range;
    netid_array_t netid_array;
 } item_t;
@@ -295,6 +289,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_ASSOC
    (I_VALUE | I_POS | I_NAME | I_RANGE | I_SUBKIND),
+
+   // T_CONTEXT
+   (I_IDENT | I_IDENT2),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -304,10 +301,9 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_LITERAL     (I_LITERAL)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS        \
-                          | I_GENMAPS | I_ASSOCS)
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_UINT        (I_POS | I_SUBKIND | I_CLASS)
-#define ITEM_CONTEXT     (I_CONTEXT)
 #define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
 
@@ -586,8 +582,6 @@ void tree_gc(void)
             if (has & mask) {
                if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
-               else if (ITEM_CONTEXT & mask)
-                  free(t->items[n].context_set.items);
                n++;
             }
          }
@@ -987,30 +981,18 @@ void tree_set_ref(tree_t t, tree_t decl)
 
 unsigned tree_contexts(tree_t t)
 {
-   return lookup_item(t, I_CONTEXT)->context_set.count;
+   return lookup_item(t, I_CONTEXT)->tree_array.count;
 }
 
-context_t tree_context(tree_t t, unsigned n)
+tree_t tree_context(tree_t t, unsigned n)
 {
-   item_t *item = lookup_item(t, I_CONTEXT);
-   assert(n < item->context_set.count);
-   return item->context_set.items[n];
+   return tree_array_nth(&(lookup_item(t, I_CONTEXT)->tree_array), n);
 }
 
-void tree_add_context(tree_t t, context_t ctx)
+void tree_add_context(tree_t t, tree_t ctx)
 {
-   item_t *item = lookup_item(t, I_CONTEXT);
-   assert(item->context_set.count < MAX_CONTEXTS);
-
-   for (unsigned i = 0; i < item->context_set.count; i++) {
-      if (item->context_set.items[i].name == ctx.name)
-         return;
-   }
-
-   if (item->context_set.count == 0)
-      item->context_set.items = xmalloc(sizeof(context_t) * MAX_CONTEXTS);
-
-   item->context_set.items[item->context_set.count++] = ctx;
+   assert(ctx->kind == T_CONTEXT);
+   tree_array_add(&(lookup_item(t, I_CONTEXT)->tree_array), ctx);
 }
 
 unsigned tree_assocs(tree_t t)
@@ -1198,8 +1180,6 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
             type_visit_trees(t->items[i].type, ctx->generation,
                              (tree_visit_fn_t)tree_visit_aux, ctx);
          else if (ITEM_UINT & mask)
-            ;
-         else if (ITEM_CONTEXT & mask)
             ;
          else if (ITEM_RANGE & mask) {
             tree_visit_aux(t->items[i].range.left, ctx);
@@ -1430,15 +1410,6 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             type_write(t->items[n].type, ctx->type_ctx);
          else if (ITEM_UINT & mask)
             write_u32(t->items[n].uint, ctx->file);
-         else if (ITEM_CONTEXT & mask) {
-            write_u16(t->items[n].context_set.count, ctx->file);
-            for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
-               context_t *c = &(t->items[n].context_set.items[i]);
-               ident_write(c->name, ctx->ident_ctx);
-               write_u8(c->all, ctx->file);
-               write_loc(&(c->loc), ctx);
-            }
-         }
          else if (ITEM_RANGE & mask) {
             write_u8(t->items[n].range.kind, ctx->file);
             tree_write(t->items[n].range.left, ctx);
@@ -1546,18 +1517,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].type = type_read(ctx->type_ctx);
          else if (ITEM_UINT & mask)
             t->items[n].uint = read_u32(ctx->file);
-         else if (ITEM_CONTEXT & mask) {
-            t->items[n].context_set.count = read_u16(ctx->file);
-            t->items[n].context_set.items =
-               xmalloc(sizeof(context_t) * MAX_CONTEXTS);
-
-            for (unsigned i = 0; i < t->items[n].context_set.count; i++) {
-               context_t *c = &(t->items[n].context_set.items[i]);
-               c->name = ident_read(ctx->ident_ctx);
-               c->all  = read_u8(ctx->file);
-               c->loc  = read_loc(ctx);
-            }
-         }
          else if (ITEM_RANGE & mask) {
             t->items[n].range.kind  = read_u8(ctx->file);
             t->items[n].range.left  = tree_read(ctx);
@@ -1796,8 +1755,6 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             type_item = n;
          else if (ITEM_UINT & mask)
             ;
-         else if (ITEM_CONTEXT & mask)
-            ;
          else if (ITEM_RANGE & mask) {
             range_t *r = &(t->items[n].range);
             r->left  = tree_rewrite_aux(r->left, ctx);
@@ -1907,14 +1864,6 @@ static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
             copy->items[n].type = t->items[n].type;
          else if (ITEM_UINT & mask)
             copy->items[n].uint = t->items[n].uint;
-         else if (ITEM_CONTEXT & mask) {
-            copy->items[n].context_set.count = t->items[n].context_set.count;
-            copy->items[n].context_set.items =
-               xmalloc(MAX_CONTEXTS * sizeof(context_t));
-            memcpy(copy->items[n].context_set.items,
-                   t->items[n].context_set.items,
-                   t->items[n].context_set.count * sizeof(context_t));
-         }
          else if (ITEM_RANGE & mask) {
             copy->items[n].range.kind = t->items[n].range.kind;
             copy->items[n].range.left =

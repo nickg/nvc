@@ -242,29 +242,31 @@ static bool sem_check_stale(lib_t lib, tree_t t)
       return true;
 }
 
-static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
+static bool scope_import_unit(ident_t unit_name, lib_t lib,
+                              bool all, const loc_t *loc)
 {
    // Check we haven't already imported this
    for (struct scope *s = top_scope; s != NULL; s = s->down) {
       struct ident_list *it;
       for (it = s->imported; it != NULL; it = it->next) {
-         if (it->ident == ctx.name)
+         if (it->ident == unit_name)
             return true;
       }
    }
 
-   tree_t unit = lib_get(lib, ctx.name);
+   tree_t unit = lib_get(lib, unit_name);
    if (unit == NULL) {
-      error_at(&ctx.loc, "unit %s not found in library %s",
-               istr(ctx.name), istr(lib_name(lib)));
-      errors++;
+      error_at(loc, "unit %s not found in library %s",
+               istr(unit_name), istr(lib_name(lib)));
+      ++errors;
       return false;
    }
 
    if (!sem_check_stale(lib, unit))
       return false;
 
-   for (unsigned n = 0; n < tree_decls(unit); n++) {
+   const int ndecls = tree_decls(unit);
+   for (int n = 0; n < ndecls; n++) {
       tree_t decl = tree_decl(unit, n);
       if (tree_kind(decl) == T_ATTR_SPEC)
          continue;
@@ -284,7 +286,7 @@ static bool scope_import_unit(context_t ctx, lib_t lib, bool all)
       }
    }
 
-   ident_list_add(&top_scope->imported, ctx.name);
+   ident_list_add(&top_scope->imported, unit_name);
    return true;
 }
 
@@ -1091,22 +1093,21 @@ static bool sem_check_context(tree_t t)
       if (std == NULL)
          fatal("failed to find std library");
 
-      context_t c = {
-         .name = std_standard_i,
-         .loc  = LOC_INVALID,
-         .all  = true
-      };
-      if (!scope_import_unit(c, std, true))
+      if (!scope_import_unit(std_standard_i, std, true, NULL))
          return false;
    }
 
    bool ok = true;
-   for (unsigned n = 0; n < tree_contexts(t); n++) {
-      context_t c = tree_context(t, n);
+   const int ncontexts = tree_contexts(t);
+   for (int n = 0; n < ncontexts; n++) {
+      tree_t c = tree_context(t, n);
+      ident_t cname = tree_ident(c);
 
-      lib_t lib = lib_find(istr(ident_until(c.name, '.')), true, true);
+      const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
+
+      lib_t lib = lib_find(istr(ident_until(cname, '.')), true, true);
       if (lib != NULL)
-         ok = scope_import_unit(c, lib, c.all) && ok;
+         ok = scope_import_unit(cname, lib, all, tree_loc(c)) && ok;
       else
          ok = false;
    }
@@ -2159,16 +2160,11 @@ static bool sem_check_package_body(tree_t t)
    scope_push(qual);
 
    // Look up package declaration
-   context_t c = {
-      .name = qual,
-      .loc  = *tree_loc(t),
-      .all  = true
-   };
-   ok = ok && scope_import_unit(c, lib_work(), true);
+   ok = ok && scope_import_unit(qual, lib_work(), true, tree_loc(t));
 
    tree_t pack = NULL;
    if (ok) {
-      pack = lib_get(lib_work(), c.name);
+      pack = lib_get(lib_work(), qual);
       assert(pack != NULL);
       // XXX: this call should be in the outer scope above
       ok = ok && sem_check_context(pack);

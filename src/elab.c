@@ -717,15 +717,16 @@ static void elab_funcs(tree_t arch, tree_t ent)
    const int ncontext_arch = tree_contexts(arch);
    const int ncontext_ent  = tree_contexts(ent);
    for (int i = 0; i < ncontext_arch + ncontext_ent; i++) {
-      context_t ctx = (i < ncontext_arch)
+      tree_t ctx = (i < ncontext_arch)
          ? tree_context(arch, i)
          : tree_context(ent, i - ncontext_arch);
 
-      lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
+      ident_t name = tree_ident(ctx);
+      lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
       if (lib == NULL)
-         fatal("cannot link library %s", istr(ctx.name));
+         fatal("cannot link library %s", istr(name));
 
-      ident_t body_i = ident_prefix(ctx.name, ident_new("body"), '-');
+      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
       tree_t body = lib_get(lib, body_i);
       if (body == NULL)
          continue;

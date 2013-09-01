@@ -120,6 +120,7 @@ typedef enum tree_kind {
    T_GENVAR,
    T_PARAM,
    T_ASSOC,
+   T_CONTEXT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
@@ -133,12 +134,6 @@ typedef struct literal {
    };
    enum { L_INT, L_REAL, L_NULL } kind;
 } literal_t;
-
-typedef struct context {
-   ident_t name;
-   bool    all;
-   loc_t   loc;
-} context_t;
 
 typedef uint32_t netid_t;
 
@@ -231,8 +226,8 @@ tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
 unsigned tree_contexts(tree_t t);
-context_t tree_context(tree_t t, unsigned n);
-void tree_add_context(tree_t t, context_t ctx);
+tree_t tree_context(tree_t t, unsigned n);
+void tree_add_context(tree_t t, tree_t ctx);
 
 unsigned tree_assocs(tree_t t);
 tree_t tree_assoc(tree_t t, unsigned n);

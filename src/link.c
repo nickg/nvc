@@ -76,30 +76,32 @@ static bool link_already_have(tree_t unit)
    return false;
 }
 
-static void link_context(context_t ctx)
+static void link_context(tree_t ctx)
 {
-   lib_t lib = lib_find(istr(ident_until(ctx.name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot link library %s", istr(ctx.name));
+   ident_t name = tree_ident(ctx);
 
-   tree_t unit = lib_get(lib, ctx.name);
+   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
+   if (lib == NULL)
+      fatal("cannot link library %s", istr(name));
+
+   tree_t unit = lib_get(lib, name);
    if (unit == NULL)
-      fatal("cannot find unit %s", istr(ctx.name));
+      fatal("cannot find unit %s", istr(name));
    else if (tree_kind(unit) != T_PACKAGE)
       return;
 
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      link_arg_bc(lib, ctx.name);
+      link_arg_bc(lib, name);
       linked[n_linked++] = unit;
    }
 
-   ident_t body_i = ident_prefix(ctx.name, ident_new("body"), '-');
+   ident_t body_i = ident_prefix(name, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
    if (body == NULL) {
       if (link_needs_body(unit))
-         fatal("missing body for package %s", istr(ctx.name));
+         fatal("missing body for package %s", istr(name));
       else
          return;
    }

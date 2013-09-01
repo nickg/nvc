@@ -65,7 +65,6 @@
 
    union listval {
       ident_t   ident;
-      context_t context;
       range_t   range;
    };
 
@@ -113,7 +112,6 @@
                           void (*copy_fn)(tree_t t, tree_t d),
                           tree_t to);
    static list_t *list_add(list_t *list, union listval item);
-   static list_t *list_append(list_t *a, list_t *b);
    static void list_free(list_t *list);
    static void tree_list_append(tree_list_t **l, tree_t t);
    static void tree_list_prepend(tree_list_t **l, tree_t t);
@@ -153,7 +151,6 @@
    range_t      r;
    list_t       *g;
    class_t      c;
-   context_t    d;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -165,7 +162,7 @@
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
-%type <t> base_unit_decl choice
+%type <t> base_unit_decl choice use_clause_item
 %type <i> id opt_id selected_id func_name func_type
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -179,10 +176,9 @@
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
 %type <l> secondary_unit_decls param_list generic_map port_map entity_decl_part
 %type <l> entity_decl_item selected_waveforms choice_list case_alt_list
-%type <l> element_assoc element_assoc_list
+%type <l> element_assoc element_assoc_list context_item context_clause
+%type <l> use_clause_item_list use_clause
 %type <p> entity_header generate_body
-%type <g> id_list context_item context_clause use_clause
-%type <g> use_clause_item_list
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def
 %type <y> physical_type_def enum_type_def array_type_def
@@ -190,10 +186,8 @@
 %type <y> unconstrained_array_def constrained_array_def
 %type <y> record_type_def
 %type <r> range range_constraint constraint_elem
-%type <g> constraint_list
-%type <g> index_constraint constraint
+%type <g> index_constraint constraint constraint_list id_list
 %type <c> object_class
-%type <d> use_clause_item
 
 %token tID "$yellow$identifier$$"
 %token tENTITY "$yellow$entity$$"
@@ -332,9 +326,7 @@
 design_unit
 : context_clause library_unit
   {
-     for (list_t *it = $1; it != NULL; it = it->next)
-        tree_add_context($2, it->item.context);
-     list_free($1);
+     copy_trees($1, tree_add_context, $2);
 
      root = $2;
      YYACCEPT;
@@ -345,7 +337,8 @@ design_unit
 context_clause
 : context_item context_clause
   {
-     $$ = list_append($2, $1);
+     $$ = $2;
+     tree_list_concat(&$$, $1);
   }
 | /* empty */ { $$ = NULL; }
 ;
@@ -369,32 +362,42 @@ use_clause
 use_clause_item_list
 : use_clause_item
   {
-     $$ = list_add(NULL, LISTVAL($1));
+     $$ = NULL;
+     tree_list_prepend(&$$, $1);
   }
 | use_clause_item tCOMMA use_clause_item_list
   {
-     $$ = list_add($3, LISTVAL($1));
+     $$ = $3;
+     tree_list_prepend(&$$, $1);
   }
 ;
 
 use_clause_item
-: id
+: id tDOT id
   {
-     $$.name = $1;
-     $$.all  = false;
-     $$.loc  = @1;
+     $$ = tree_new(T_CONTEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, ident_prefix($1, $3, '.'));
+  }
+| id tDOT id tDOT id
+  {
+     $$ = tree_new(T_CONTEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, ident_prefix($1, $3, '.'));
+     tree_set_ident2($$, $5);
   }
 | id tALL
   {
-     $$.name = $1;
-     $$.all  = true;
-     $$.loc  = @$;
+     $$ = tree_new(T_CONTEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, ident_prefix($1, ident_new("all"), '.'));
   }
-| id tDOT use_clause_item
+| id tDOT id tALL
   {
-     $$.name = ident_prefix($1, $3.name, '.');
-     $$.all  = $3.all;
-     $$.loc  = @$;
+     $$ = tree_new(T_CONTEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, ident_prefix($1, $3, '.'));
+     tree_set_ident2($$, ident_new("all"));
   }
 ;
 
@@ -2461,19 +2464,6 @@ static list_t *list_add(list_t *list, union listval item)
    new->next = list;
    new->item = item;
    return new;
-}
-
-static list_t *list_append(list_t *a, list_t *b)
-{
-   if (a == NULL)
-      return b;
-
-   list_t *it;
-   for (it = a; it->next != NULL; it = it->next)
-      ;
-   it->next = b;
-
-   return a;
 }
 
 static void list_free(list_t *list)
