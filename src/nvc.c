@@ -107,7 +107,6 @@ static int analyse(int argc, char **argv)
 
       tree_t unit;
       while ((unit = parse()) && sem_check(unit)) {
-         assert(sem_errors() == 0);
          if (n_units == unit_list_sz) {
             unit_list_sz *= 2;
             units = xrealloc(units, sizeof(tree_t) * unit_list_sz);
