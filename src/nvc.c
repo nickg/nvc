@@ -98,7 +98,8 @@ static int analyse(int argc, char **argv)
       }
    }
 
-   tree_t units[32];
+   size_t unit_list_sz = 32;
+   tree_t *units = xmalloc(sizeof(tree_t) * unit_list_sz);
    int n_units = 0;
 
    for (int i = optind; i < argc; i++) {
@@ -107,7 +108,10 @@ static int analyse(int argc, char **argv)
       tree_t unit;
       while ((unit = parse()) && sem_check(unit)) {
          assert(sem_errors() == 0);
-         assert(n_units < ARRAY_LEN(units));
+         if (n_units == unit_list_sz) {
+            unit_list_sz *= 2;
+            units = xrealloc(units, sizeof(tree_t) * unit_list_sz);
+         }
          units[n_units++] = unit;
       }
    }
@@ -133,6 +137,8 @@ static int analyse(int argc, char **argv)
       if (need_cgen)
          cgen(units[i]);
    }
+
+   free(units);
 
    return EXIT_SUCCESS;
 }
