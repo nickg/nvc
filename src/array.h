@@ -24,20 +24,19 @@
 #define DEFINE_ARRAY(what)                                     \
    typedef struct {                                            \
       uint32_t  count;                                         \
-      uint32_t  _max;                                          \
       what##_t *items;                                         \
    } what##_array_t;                                           \
                                                                \
    static void what##_array_add(what##_array_t *a, what##_t t) \
    {                                                           \
-      if (a->_max == 0) {                                      \
+      if (a->count == 0) {                                     \
+         assert(a->items == NULL);                             \
          a->items = xmalloc(sizeof(what##_t) * ARRAY_BASE_SZ); \
-         a->_max  = ARRAY_BASE_SZ;                             \
       }                                                        \
-      else if (a->count == a->_max) {                          \
-         a->_max *= 2;                                         \
-         a->items = xrealloc(a->items,                         \
-                             sizeof(what##_t) * a->_max);      \
+      else if (((a->count & (a->count - 1)) == 0)              \
+               && (a->count >= ARRAY_BASE_SZ)) {               \
+         const int sz = next_power_of_2(a->count + 1);         \
+         a->items = xrealloc(a->items, sizeof(what##_t) * sz); \
       }                                                        \
                                                                \
       a->items[a->count++] = t;                                \
@@ -55,11 +54,13 @@
                                    size_t n, what##_t fill)    \
    {                                                           \
       if (n > 0) {                                             \
-         a->items = xrealloc(a->items, n * sizeof(what##_t));  \
+         const int sz = (n <= ARRAY_BASE_SZ)                   \
+            ? ARRAY_BASE_SZ : next_power_of_2(n);              \
+         a->items = xrealloc(a->items, sz * sizeof(what##_t)); \
          for (unsigned i = a->count; i < n; i++)               \
             a->items[i] = fill;                                \
       }                                                        \
-      a->count = a->_max = n;                                  \
+      a->count = n;                                            \
    }                                                           \
 
 #endif  // _ARRAY_H
