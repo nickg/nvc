@@ -1063,8 +1063,29 @@ static bool sem_check_range(range_t *r, type_t context)
    if (!sem_check_constrained(r->right, context))
       return false;
 
-   if (!type_eq(tree_type(r->left), tree_type(r->right)))
+   type_t left_type  = tree_type(r->left);
+   type_t right_type = tree_type(r->right);
+
+   if (!type_eq(left_type, right_type))
       sem_error(r->right, "type mismatch in range");
+
+   if (context == NULL) {
+      // See LRM 93 section 3.2.11
+      if (type_is_universal(left_type) && type_is_universal(right_type)) {
+         tree_kind_t lkind = tree_kind(r->left);
+         tree_kind_t rkind = tree_kind(r->right);
+
+         if ((lkind != T_LITERAL) && (lkind != T_ATTR_REF)
+             && (rkind != T_LITERAL) && (rkind != T_ATTR_REF))
+            sem_error(r->left, "universal integer bound must be "
+                      "numeric literal or attribute");
+
+         // Implicit conversion to INTEGER
+         type_t std_int = sem_std_type("INTEGER");
+         tree_set_type(r->left, std_int);
+         tree_set_type(r->right, std_int);
+      }
+   }
 
    return true;
 }

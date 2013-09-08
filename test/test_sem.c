@@ -541,6 +541,7 @@ START_TEST(test_array)
       { 233, "aliased name is not static" },
       { 234, "type of aliased object INT_ARRAY does not match" },
       { 241, "undefined identifier I" },
+      { 246, "universal integer bound must be numeric literal or attribute" },
       { -1, NULL }
    };
    expect_errors(expect);
