@@ -1805,123 +1805,6 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
    return result;
 }
 
-struct tree_copy_ctx {
-   tree_t   *copied;
-   unsigned  generation;
-   int       ncopy;
-};
-
-static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx);
-
-static void copy_a(const tree_array_t *from, tree_array_t *to,
-                   struct tree_copy_ctx *ctx)
-{
-   tree_array_resize(to, from->count, NULL);
-
-   for (size_t i = 0; i < from->count; i++)
-      to->items[i] = tree_copy_aux(from->items[i], ctx);
-}
-
-static tree_t tree_copy_aux(tree_t t, struct tree_copy_ctx *ctx)
-{
-   if (t == NULL)
-      return NULL;
-
-   if (t->generation != ctx->generation) {
-      // Outside scope of copied tree
-      return t;
-   }
-
-   assert(t->index < ctx->ncopy);
-
-   if (ctx->copied[t->index] != NULL) {
-      // Already copied this tree
-      return ctx->copied[t->index];
-   }
-
-   tree_t copy = tree_new(t->kind);
-   ctx->copied[t->index] = copy;
-
-   copy->loc = t->loc;
-
-   const imask_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            copy->items[n].ident = t->items[n].ident;
-         else if (ITEM_TREE & mask)
-            copy->items[n].tree = tree_copy_aux(t->items[n].tree, ctx);
-         else if (ITEM_DOUBLE & mask)
-            copy->items[n].dval = t->items[n].dval;
-         else if (ITEM_TREE_ARRAY & mask)
-            copy_a(&(t->items[n].tree_array),
-                   &(copy->items[n].tree_array), ctx);
-         else if (ITEM_TYPE & mask)
-            copy->items[n].type = t->items[n].type;
-         else if (ITEM_INT64 & mask)
-            copy->items[n].ival = t->items[n].ival;
-         else if (ITEM_RANGE & mask) {
-            copy->items[n].range.kind = t->items[n].range.kind;
-            copy->items[n].range.left =
-               tree_copy_aux(t->items[n].range.left, ctx);
-            copy->items[n].range.right =
-               tree_copy_aux(t->items[n].range.right, ctx);
-         }
-         else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *from = &(t->items[n].netid_array);
-            netid_array_t *to = &(copy->items[n].netid_array);
-
-            netid_array_resize(to, from->count, NETID_INVALID);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
-
-   if ((copy->attrs.num = t->attrs.num) > 0) {
-      copy->attrs.alloc = t->attrs.alloc;
-      copy->attrs.table = xmalloc(sizeof(attr_t) * copy->attrs.alloc);
-      for (unsigned i = 0; i < t->attrs.num; i++)
-         copy->attrs.table[i] = t->attrs.table[i];
-   }
-
-   return copy;
-}
-
-static void copy_visit_fn(tree_t t, void *context)
-{
-   int *ncopy = context;
-   t->index = (*ncopy)++;
-}
-
-tree_t tree_copy(tree_t t)
-{
-   // Create a copy of t and all the trees beneath it
-
-   const int generation = next_generation;
-
-   int ncopy = 0;
-   tree_visit(t, copy_visit_fn, &ncopy);
-
-   struct tree_copy_ctx ctx = {
-      .copied     = xmalloc(sizeof(tree_t) * ncopy),
-      .generation = generation,
-      .ncopy      = ncopy
-   };
-   memset(ctx.copied, '\0', sizeof(tree_t) * ncopy);
-
-   tree_t copy = tree_copy_aux(t, &ctx);
-
-   free(ctx.copied);
-   return copy;
-}
-
 bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
 {
    if (t == NULL)
@@ -2053,7 +1936,7 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
    return copy;
 }
 
-tree_t tree_copy2(tree_t t, tree_copy_fn_t fn, void *context)
+tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
 {
    object_copy_ctx_t ctx = {
       .generation = next_generation++,

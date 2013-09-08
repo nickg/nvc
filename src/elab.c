@@ -536,7 +536,7 @@ static tree_t elab_copy(tree_t t)
    if (tree_kind(t) == T_ARCH)
       tree_visit(tree_ref(t), elab_build_copy_list, &copy_list);
 
-   tree_t copy = tree_copy2(t, elab_copy_trees, copy_list);
+   tree_t copy = tree_copy(t, elab_copy_trees, copy_list);
 
    while (copy_list != NULL) {
       copy_list_t *tmp = copy_list->next;

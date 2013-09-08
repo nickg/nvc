@@ -282,10 +282,8 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 typedef tree_t (*tree_rewrite_fn_t)(tree_t t, void *context);
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context);
 
-tree_t tree_copy(tree_t t);
-
 typedef bool (*tree_copy_fn_t)(tree_t t, void *context);
-tree_t tree_copy2(tree_t t, tree_copy_fn_t fn, void *context);
+tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context);
 
 void tree_gc(void);
 
