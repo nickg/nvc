@@ -434,16 +434,8 @@ static void tree_one_time_init(void)
    format_digest = type_format_digest();
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
-      int max_items = __builtin_popcount(has_map[i]);
-      for (size_t j = 0; j < ARRAY_LEN(change_allowed); j++) {
-         if (change_allowed[j][0] == i) {
-            const int to_items =
-               __builtin_popcount(has_map[change_allowed[j][1]]);
-            max_items = MAX(max_items, to_items);
-         }
-      }
-
-      object_size[i] = sizeof(struct tree) + (max_items * sizeof(item_t));
+      const int nitems = __builtin_popcount(has_map[i]);
+      object_size[i] = sizeof(struct tree) + (nitems * sizeof(item_t));
 
       // Knuth's multiplicative hash
       format_digest += has_map[i] * 2654435761u;
@@ -456,6 +448,23 @@ static void tree_one_time_init(void)
             item_lookup[i][j] = -1;
       }
    }
+
+   bool changed = false;
+   do {
+      changed = false;
+      for (int i = 0; i < T_LAST_TREE_KIND; i++) {
+         size_t max_size = object_size[i];
+         for (size_t j = 0; j < ARRAY_LEN(change_allowed); j++) {
+            if (change_allowed[j][0] == i)
+               max_size = MAX(max_size, object_size[change_allowed[j][1]]);
+         }
+
+         if (max_size != object_size[i]) {
+            object_size[i] = max_size;
+            changed = true;
+         }
+      }
+   } while (changed);
 
    done = true;
 }
