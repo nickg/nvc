@@ -4475,7 +4475,7 @@ static bool sem_locally_static(tree_t t)
 
    // A type conversion whose expression is locally static
    if (kind == T_TYPE_CONV)
-      return sem_locally_static(tree_value(t));
+      return sem_locally_static(tree_value(tree_param(t, 0)));
 
    // Aggregates must have locally static range and all elements
    // must have locally static values

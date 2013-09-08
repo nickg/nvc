@@ -48,4 +48,7 @@ begin
     g9: for i in 1 to x generate        -- Error
     end generate;
 
+    g10: for i in integer (-4) to integer (-1) generate  -- OK
+    end generate;
+
 end architecture;
