@@ -23,12 +23,6 @@
 #include "ident.h"
 #include "prim.h"
 
-typedef struct type_wr_ctx *type_wr_ctx_t;
-typedef struct type_rd_ctx *type_rd_ctx_t;
-
-struct tree_wr_ctx;
-struct tree_rd_ctx;
-
 typedef enum type_kind {
    T_UNRESOLVED,
    T_SUBTYPE,
@@ -109,16 +103,6 @@ void type_set_resolution(type_t t, tree_t r);
 bool type_has_resolution(type_t t);
 tree_t type_resolution(type_t t);
 
-type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
-                               ident_wr_ctx_t ident_ctx);
-void type_write(type_t t, type_wr_ctx_t ctx);
-void type_write_end(type_wr_ctx_t ctx);
-
-type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
-                              ident_rd_ctx_t ident_ctx);
-type_t type_read(type_rd_ctx_t ctx);
-void type_read_end(type_rd_ctx_t ctx);
-
 // Pretty printing
 typedef const char *(*minify_fn_t)(const char *);
 const char *type_pp(type_t t);
@@ -128,9 +112,6 @@ const char *type_pp_minify(type_t t, minify_fn_t fn);
 type_t type_universal_int(void);
 type_t type_universal_real(void);
 bool type_is_universal(type_t t);
-
-// Garbage collection
-void type_sweep(unsigned generation);
 
 // Type or its parent type is an array
 bool type_is_array(type_t t);

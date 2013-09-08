@@ -30,10 +30,28 @@ typedef struct {
    void          **copied;
 } object_copy_ctx_t;
 
+typedef struct type_wr_ctx *type_wr_ctx_t;
+typedef struct type_rd_ctx *type_rd_ctx_t;
+
+struct tree_wr_ctx;
+struct tree_rd_ctx;
+
 bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx);
 bool type_copy_mark(type_t t, object_copy_ctx_t *ctx);
 
 tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx);
 type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx);
+
+void type_sweep(unsigned generation);
+
+type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
+                               ident_wr_ctx_t ident_ctx);
+void type_write(type_t t, type_wr_ctx_t ctx);
+void type_write_end(type_wr_ctx_t ctx);
+
+type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
+                              ident_rd_ctx_t ident_ctx);
+type_t type_read(type_rd_ctx_t ctx);
+void type_read_end(type_rd_ctx_t ctx);
 
 #endif   // _OBJECT_H
