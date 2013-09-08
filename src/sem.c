@@ -5003,6 +5003,8 @@ static bool sem_check_for_generate(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
+   tree_add_decl(t, idecl);
+
    scope_pop();
    return ok;
 }

@@ -1066,6 +1066,7 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
       return (t->index != UINT32_MAX);
 
    t->generation = ctx->generation;
+   t->index      = UINT32_MAX;
 
    bool marked = false;
    const uint32_t has = has_map[t->kind];
@@ -1100,12 +1101,8 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
       }
    }
 
-   if (marked) {
-      printf("marked type %p %s\n", t, type_kind_str(t->kind));
+   if (marked)
       t->index = (ctx->index)++;
-   }
-   else
-      t->index = UINT32_MAX;
 
    return marked;
 }
@@ -1177,8 +1174,6 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
          n++;
       }
    }
-
-   printf("copied type %p -> %p\n", t, copy);
 
    return copy;
 }

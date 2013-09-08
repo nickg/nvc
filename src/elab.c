@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <inttypes.h>
 
 #define FUNC_REPLACE_MAX 32
@@ -47,6 +48,11 @@ typedef struct map_list {
    tree_t signal;
    tree_t name;
 } map_list_t;
+
+typedef struct copy_list {
+   struct copy_list *next;
+   tree_t tree;
+} copy_list_t;
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -100,6 +106,7 @@ static void find_arch(ident_t name, int kind, void *context)
 
    if ((kind == T_ARCH) && (prefix == params->name)) {
       tree_t t = lib_get(work, name);
+      assert(t != NULL);
 
       if (*(params->arch) == NULL)
          *(params->arch) = t;
@@ -476,16 +483,68 @@ static void elab_map_nets(map_list_t *maps)
    }
 }
 
-static bool elab_copy_ports(tree_t t, void *context)
+static bool elab_should_copy(tree_t t)
 {
-   // TODO: only need to copy entity ports not function ports
+   switch (tree_kind(t)) {
+   case T_CONST_DECL:
+      return (type_is_array(tree_type(t)));
 
-   if (tree_kind(t) != T_REF)
+   case T_SIGNAL_DECL:
+   case T_GENVAR:
+   case T_VAR_DECL:
+   case T_PORT_DECL:
+      return true;
+
+   default:
       return false;
+   }
+}
 
-   tree_t decl = tree_ref(t);
+static void elab_build_copy_list(tree_t t, void *context)
+{
+   copy_list_t **list = context;
 
-   return (tree_kind(decl) == T_PORT_DECL);
+   if (elab_should_copy(t)) {
+      copy_list_t *new = xmalloc(sizeof(copy_list_t));
+      new->tree = t;
+      new->next = *list;
+
+      *list = new;
+   }
+}
+
+static bool elab_copy_trees(tree_t t, void *context)
+{
+   copy_list_t *list = context;
+
+   if (elab_should_copy(t)) {
+      for (; list != NULL; list = list->next) {
+         if (list->tree == t)
+            return true;
+      }
+   }
+
+   return false;
+}
+
+static tree_t elab_copy(tree_t t)
+{
+   copy_list_t *copy_list = NULL;
+   tree_visit(t, elab_build_copy_list, &copy_list);
+
+   // For achitectures, also make a copy of the entity ports
+   if (tree_kind(t) == T_ARCH)
+      tree_visit(tree_ref(t), elab_build_copy_list, &copy_list);
+
+   tree_t copy = tree_copy2(t, elab_copy_trees, copy_list);
+
+   while (copy_list != NULL) {
+      copy_list_t *tmp = copy_list->next;
+      free(copy_list);
+      copy_list = tmp;
+   }
+
+   return copy;
 }
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
@@ -496,8 +555,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       fatal_at(tree_loc(t), "sorry, instantiating components or configurations "
                "is not supported yet");
 
-   tree_t arch = tree_copy2(pick_arch(tree_loc(t), tree_ident2(t)),
-                            elab_copy_ports, NULL);
+   tree_t arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t)));
 
    map_list_t *maps = elab_map(t, arch, tree_ports, tree_port,
                                tree_params, tree_param);
@@ -589,7 +647,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    range_bounds(tree_range(t), &low, &high);
 
    for (int64_t i = low; i <= high; i++) {
-      tree_t copy = tree_copy(t);
+      tree_t copy = elab_copy(t);
 
       tree_t genvar = tree_ref(copy);
       rewrite_params_t params = {

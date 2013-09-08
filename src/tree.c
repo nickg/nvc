@@ -1931,6 +1931,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
       return (t->index != UINT32_MAX);
 
    t->generation = ctx->generation;
+   t->index      = UINT32_MAX;
 
    bool marked = false;
    const imask_t has = has_map[t->kind];
@@ -1950,7 +1951,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
                marked = tree_copy_mark(a->items[i], ctx) || marked;
          }
          else if (ITEM_TYPE & mask)
-            type_copy_mark(t->items[n].type, ctx);
+            marked = type_copy_mark(t->items[n].type, ctx) || marked;
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_RANGE & mask) {
@@ -1968,12 +1969,8 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
    if (!marked)
       marked = (*ctx->callback)(t, ctx->context);
 
-   if (marked) {
-      printf("marked tree %p %s\n", t, tree_kind_str(t->kind));
+   if (marked)
       t->index = (ctx->index)++;
-   }
-   else
-      t->index = UINT32_MAX;
 
    return marked;
 }
@@ -2053,8 +2050,6 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
          copy->attrs.table[i] = t->attrs.table[i];
    }
 
-   printf("copied tree %p -> %p\n", t, copy);
-
    return copy;
 }
 
@@ -2069,8 +2064,6 @@ tree_t tree_copy2(tree_t t, tree_copy_fn_t fn, void *context)
    };
 
    tree_copy_mark(t, &ctx);
-
-   printf("need to copy %d objects\n", ctx.index);
 
    if (t->index == UINT32_MAX)
       return t;   // Nothing to copy

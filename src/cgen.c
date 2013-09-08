@@ -1571,6 +1571,7 @@ static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
       break;
    case INSTANCE_NAME:
       i = tree_attr_str(decl, ident_new("INSTANCE_NAME"));
+      assert(i != NULL);
       break;
    }
 
