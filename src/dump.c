@@ -92,21 +92,18 @@ static void dump_expr(tree_t t)
       break;
 
    case T_LITERAL:
-      {
-         literal_t l = tree_literal(t);
-         switch (l.kind) {
-         case L_INT:
-            printf("%"PRIi64, l.i);
-            break;
-         case L_REAL:
-            printf("%lf", l.r);
-            break;
-         case L_NULL:
-            printf("null");
-            break;
-         default:
-            assert(false);
-         }
+      switch (tree_subkind(t)) {
+      case L_INT:
+         printf("%"PRIi64, tree_ival(t));
+         break;
+      case L_REAL:
+         printf("%lf", tree_dval(t));
+         break;
+      case L_NULL:
+         printf("null");
+         break;
+      default:
+         assert(false);
       }
       break;
 

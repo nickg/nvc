@@ -11,7 +11,6 @@ START_TEST(test_entity)
 {
    tree_t e, p, g, v, x, y;
    type_t t;
-   literal_t l;
 
    input_from_file(TESTDIR "/parse/entity.vhd");
 
@@ -48,9 +47,8 @@ START_TEST(test_entity)
    fail_unless(tree_has_value(p));
    v = tree_value(p);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 4);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 4);
 
    p = tree_port(e, 1);
    fail_unless(tree_kind(p) == T_PORT_DECL);
@@ -118,16 +116,14 @@ START_TEST(test_entity)
    fail_unless(tree_subkind(x) == P_POS);
    fail_unless(tree_pos(x) == 0);
    fail_unless(tree_kind(tree_value(x)) == T_LITERAL);
-   l = tree_literal(tree_value(x));
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 2);
+   fail_unless(tree_subkind(tree_value(x)) == L_INT);
+   fail_unless(tree_ival(tree_value(x)) == 2);
    y = tree_param(v, 1);
    fail_unless(tree_subkind(y) == P_POS);
    fail_unless(tree_pos(y) == 1);
    fail_unless(tree_kind(tree_value(y)) == T_LITERAL);
-   l = tree_literal(tree_value(y));
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 5);
+   fail_unless(tree_subkind(tree_value(y)) == L_INT);
+   fail_unless(tree_ival(tree_value(y)) == 5);
 
    fail_unless(tree_ports(e) == 1);
 
@@ -154,7 +150,6 @@ END_TEST
 START_TEST(test_arch)
 {
    tree_t a, d, v;
-   literal_t l;
 
    input_from_file(TESTDIR "/parse/arch.vhd");
 
@@ -178,9 +173,8 @@ START_TEST(test_arch)
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 7);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 7);
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
    fail_unless(tree_ident(d) == ident_new("Z"));
@@ -189,9 +183,8 @@ START_TEST(test_arch)
    fail_unless(tree_has_value(d));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 7);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 7);
 
    a = parse();
    fail_if(a == NULL);
@@ -383,13 +376,13 @@ START_TEST(test_seq)
    fail_unless(tree_params(e) == 3);
    fail_unless(tree_subkind(tree_param(e, 0)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 0)) == 0);
-   fail_unless(tree_literal(tree_value(tree_param(e, 0))).i == 1);
+   fail_unless(tree_ival(tree_value(tree_param(e, 0))) == 1);
    fail_unless(tree_subkind(tree_param(e, 1)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 1)) == 1);
-   fail_unless(tree_literal(tree_value(tree_param(e, 1))).i == 2);
+   fail_unless(tree_ival(tree_value(tree_param(e, 1))) == 2);
    fail_unless(tree_subkind(tree_param(e, 2)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 2)) == 2);
-   fail_unless(tree_literal(tree_value(tree_param(e, 2))).i == 3);
+   fail_unless(tree_ival(tree_value(tree_param(e, 2))) == 3);
 
    // If statements
 
@@ -713,7 +706,6 @@ END_TEST
 START_TEST(test_literal)
 {
    tree_t a, d, v;
-   literal_t l;
 
    input_from_file(TESTDIR "/parse/literal.vhd");
 
@@ -726,9 +718,8 @@ START_TEST(test_literal)
    fail_unless(tree_ident(d) == ident_new("POS"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 64);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 64);
 
    d = tree_decl(a, 1);
    fail_unless(tree_ident(d) == ident_new("NEG"));
@@ -736,18 +727,16 @@ START_TEST(test_literal)
    fail_unless(tree_kind(v) == T_FCALL);
    fail_unless(tree_ident(v) == ident_new("\"-\""));
    fail_unless(tree_params(v) == 1);
-   l = tree_literal(tree_value(tree_param(v, 0)));
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 265);
+   fail_unless(tree_subkind(tree_value(tree_param(v, 0))) == L_INT);
+   fail_unless(tree_ival(tree_value(tree_param(v, 0))) == 265);
 
    d = tree_decl(a, 2);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("C"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 523);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 523);
 
    d = tree_decl(a, 3);
    fail_unless(tree_kind(d) == T_CONST_DECL);
@@ -765,64 +754,56 @@ START_TEST(test_literal)
    fail_unless(tree_ident(d) == ident_new("D"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 1000);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 1000);
 
    d = tree_decl(a, 6);
    fail_unless(tree_ident(d) == ident_new("E"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_REAL);
-   fail_unless(l.r == 1.234);
+   fail_unless(tree_subkind(v) == L_REAL);
+   fail_unless(tree_dval(v) == 1.234);
 
    d = tree_decl(a, 7);
    fail_unless(tree_ident(d) == ident_new("F"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_REAL);
-   fail_unless(l.r == 0.21712);
+   fail_unless(tree_subkind(v) == L_REAL);
+   fail_unless(tree_dval(v) == 0.21712);
 
    d = tree_decl(a, 8);
    fail_unless(tree_ident(d) == ident_new("G"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_REAL);
-   fail_unless(l.r == 1400000.0);
+   fail_unless(tree_subkind(v) == L_REAL);
+   fail_unless(tree_dval(v) == 1400000.0);
 
    d = tree_decl(a, 9);
    fail_unless(tree_ident(d) == ident_new("H"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_REAL);
-   fail_unless(l.r == 2.351);
+   fail_unless(tree_subkind(v) == L_REAL);
+   fail_unless(tree_dval(v) == 2.351);
 
    d = tree_decl(a, 10);
    fail_unless(tree_ident(d) == ident_new("I"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_INT);
-   fail_unless(l.i == 1234);
+   fail_unless(tree_subkind(v) == L_INT);
+   fail_unless(tree_ival(v) == 1234);
 
    d = tree_decl(a, 11);
    fail_unless(tree_ident(d) == ident_new("J"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_REAL);
-   fail_unless(l.r == 567.123);
+   fail_unless(tree_subkind(v) == L_REAL);
+   fail_unless(tree_dval(v) == 567.123);
 
    d = tree_decl(a, 12);
    fail_unless(tree_ident(d) == ident_new("K"));
    v = tree_value(d);
    fail_unless(tree_kind(v) == T_LITERAL);
-   l = tree_literal(v);
-   fail_unless(l.kind == L_NULL);
+   fail_unless(tree_subkind(v) == L_NULL);
 
    a = parse();
    fail_unless(a == NULL);
@@ -879,8 +860,8 @@ START_TEST(test_package)
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
    fail_unless(tree_contexts(p) == 1);
-   fail_unless(tree_context(p, 0).name == ident_new("WORK.ONE"));
-   fail_unless(tree_context(p, 0).all);
+   fail_unless(tree_ident(tree_context(p, 0)) == ident_new("WORK.ONE"));
+   fail_unless(icmp(tree_ident2(tree_context(p, 0)), "all"));
    fail_unless(tree_ident(p) == ident_new("TWO"));
 
    p = parse();
@@ -1105,11 +1086,11 @@ START_TEST(test_array)
    fail_unless(type_kind(t) == T_CARRAY);
    fail_unless(type_dims(t) == 2);
    r = type_dim(t, 0);
-   fail_unless(tree_literal(r.left).i == 1);
-   fail_unless(tree_literal(r.right).i == 3);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 3);
    r = type_dim(t, 1);
-   fail_unless(tree_literal(r.left).i == 4);
-   fail_unless(tree_literal(r.right).i == 6);
+   fail_unless(tree_ival(r.left) == 4);
+   fail_unless(tree_ival(r.right) == 6);
 
    a = parse();
    fail_if(a == NULL);
@@ -1121,8 +1102,8 @@ START_TEST(test_array)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_dims(t) == 1);
-   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
-   fail_unless(tree_literal(type_dim(t, 0).right).i == 5);
+   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
+   fail_unless(tree_ival(type_dim(t, 0).right) == 5);
 
    d = tree_decl(a, 1);
    fail_unless(tree_ident(d) == ident_new("Y"));
@@ -1135,8 +1116,8 @@ START_TEST(test_array)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_dims(t) == 1);
-   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
-   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
+   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
@@ -1145,7 +1126,7 @@ START_TEST(test_array)
       x = tree_assoc(g, i);
       fail_unless(tree_subkind(x) == A_POS);
       fail_unless(tree_pos(x) == i);
-      fail_unless(tree_literal(tree_value(x)).i == i);
+      fail_unless(tree_ival(tree_value(x)) == i);
    }
 
    d = tree_decl(a, 3);
@@ -1153,8 +1134,8 @@ START_TEST(test_array)
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_dims(t) == 1);
-   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
-   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
+   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
@@ -1162,23 +1143,23 @@ START_TEST(test_array)
    x = tree_assoc(g, 0);
    fail_unless(tree_subkind(x) == A_POS);
    fail_unless(tree_pos(x) == 0);
-   fail_unless(tree_literal(tree_value(x)).i == 0);
+   fail_unless(tree_ival(tree_value(x)) == 0);
    x = tree_assoc(g, 1);
    fail_unless(tree_subkind(x) == A_NAMED);
    fail_unless(tree_kind(tree_name(x)) == T_LITERAL);
-   fail_unless(tree_literal(tree_name(x)).i == 1);
-   fail_unless(tree_literal(tree_value(x)).i == 1);
+   fail_unless(tree_ival(tree_name(x)) == 1);
+   fail_unless(tree_ival(tree_value(x)) == 1);
    x = tree_assoc(g, 2);
    fail_unless(tree_subkind(x) == A_OTHERS);
-   fail_unless(tree_literal(tree_value(x)).i == 2);
+   fail_unless(tree_ival(tree_value(x)) == 2);
 
    d = tree_decl(a, 4);
    fail_unless(tree_ident(d) == ident_new("M"));
    t = tree_type(d);
    fail_unless(type_kind(t) == T_SUBTYPE);
    fail_unless(type_dims(t) == 1);
-   fail_unless(tree_literal(type_dim(t, 0).left).i == 1);
-   fail_unless(tree_literal(type_dim(t, 0).right).i == 3);
+   fail_unless(tree_ival(type_dim(t, 0).left) == 1);
+   fail_unless(tree_ival(type_dim(t, 0).right) == 3);
    fail_unless(tree_has_value(d));
    g = tree_value(d);
    fail_unless(tree_kind(g) == T_AGGREGATE);
@@ -1186,9 +1167,9 @@ START_TEST(test_array)
    x = tree_assoc(g, 0);
    fail_unless(tree_subkind(x) == A_RANGE);
    r = tree_range(x);
-   fail_unless(tree_literal(r.left).i == 1);
-   fail_unless(tree_literal(r.right).i == 3);
-   fail_unless(tree_literal(tree_value(x)).i == 0);
+   fail_unless(tree_ival(r.left) == 1);
+   fail_unless(tree_ival(r.right) == 3);
+   fail_unless(tree_ival(tree_value(x)) == 0);
 
    d = tree_decl(a, 7);
    fail_unless(tree_ident(d) == ident_new("U"));
@@ -1202,7 +1183,7 @@ START_TEST(test_array)
    fail_unless(tree_params(e) == 1);
    fail_unless(tree_subkind(tree_param(e, 0)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 0)) == 0);
-   fail_unless(tree_literal(tree_value(tree_param(e, 0))).i == 0);
+   fail_unless(tree_ival(tree_value(tree_param(e, 0))) == 0);
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    fail_unless(tree_waveforms(s) == 1);
@@ -1502,22 +1483,22 @@ START_TEST(test_based)
    fail_unless(tree_kind(p) == T_PACKAGE);
 
    d = tree_decl(p, 0);
-   fail_unless(tree_literal(tree_value(d)).i == 13);
+   fail_unless(tree_ival(tree_value(d)) == 13);
 
    d = tree_decl(p, 1);
-   fail_unless(tree_literal(tree_value(d)).i == 6);
+   fail_unless(tree_ival(tree_value(d)) == 6);
 
    d = tree_decl(p, 2);
-   fail_unless(tree_literal(tree_value(d)).i == 7);
+   fail_unless(tree_ival(tree_value(d)) == 7);
 
    d = tree_decl(p, 3);
-   fail_unless(tree_literal(tree_value(d)).i == 1234);
+   fail_unless(tree_ival(tree_value(d)) == 1234);
 
    d = tree_decl(p, 4);
-   fail_unless(tree_literal(tree_value(d)).i == 0xbeef01);
+   fail_unless(tree_ival(tree_value(d)) == 0xbeef01);
 
    d = tree_decl(p, 5);
-   fail_unless(tree_literal(tree_value(d)).i == 2);
+   fail_unless(tree_ival(tree_value(d)) == 2);
 
    p = parse();
    fail_unless(p == NULL);

@@ -157,7 +157,7 @@ static tree_t simp_array_ref(tree_t t)
 
    const int nparams = tree_params(t);
 
-   literal_t indexes[nparams];
+   int64_t indexes[nparams];
    bool can_fold = true;
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
@@ -181,14 +181,14 @@ static tree_t simp_array_ref(tree_t t)
          if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
             continue;
 
-         literal_t left, right;
+         int64_t left, right;
          if (folded_int(b.left, &left) && folded_int(b.right, &right)) {
-            const int64_t low  = (b.kind == RANGE_TO) ? left.i : right.i;
-            const int64_t high = (b.kind == RANGE_TO) ? right.i : left.i;
-            if (indexes[i].i < low || indexes[i].i > high)
+            const int64_t low  = (b.kind == RANGE_TO) ? left : right;
+            const int64_t high = (b.kind == RANGE_TO) ? right : left;
+            if (indexes[i] < low || indexes[i] > high)
                simp_error(t, "array index %"PRIi64" out of bounds "
-                          "%"PRIi64" %s %"PRIi64, indexes[0].i, left.i,
-                          (b.kind == RANGE_TO) ? "to" : "downto", right.i);
+                          "%"PRIi64" %s %"PRIi64, indexes[0], left,
+                          (b.kind == RANGE_TO) ? "to" : "downto", right);
          }
       }
    }
@@ -210,14 +210,12 @@ static tree_t simp_array_ref(tree_t t)
          if (tree_kind(v) != T_AGGREGATE)
             return t;
 
-         assert(indexes[0].kind == L_INT);
-
          range_t bounds = type_dim(tree_type(decl), 0);
          int64_t low, high;
          range_bounds(bounds, &low, &high);
 
          const bool to = (bounds.kind == RANGE_TO);
-         const int64_t index = indexes[0].i;
+         const int64_t index = indexes[0];
 
          const int nassocs = tree_assocs(v);
          for (int i = 0; i < nassocs; i++) {
@@ -248,7 +246,7 @@ static tree_t simp_array_ref(tree_t t)
                break;
 
             case A_NAMED:
-               if (assume_int(tree_name(a)) == indexes[0].i)
+               if (assume_int(tree_name(a)) == indexes[0])
                   return tree_value(a);
                break;
             }
@@ -280,23 +278,23 @@ static tree_t simp_array_slice(tree_t t)
       else if ((r.kind != RANGE_TO) && (r.kind != RANGE_DOWNTO))
          return t;
 
-      literal_t b_left, r_left;
+      int64_t b_left, r_left;
       bool left_error = false;
       if (folded_int(b.left, &b_left) && folded_int(r.left, &r_left))
-         left_error = ((b.kind == RANGE_TO) && (r_left.i < b_left.i))
-            || ((b.kind == RANGE_DOWNTO) && (r_left.i > b_left.i));
+         left_error = ((b.kind == RANGE_TO) && (r_left < b_left))
+            || ((b.kind == RANGE_DOWNTO) && (r_left > b_left));
 
-      literal_t b_right, r_right;
+      int64_t b_right, r_right;
       bool right_error = false;
       if (folded_int(b.right, &b_right) && folded_int(r.right, &r_right))
-         right_error = ((b.kind == RANGE_TO) && (r_right.i > b_right.i))
-            || ((b.kind == RANGE_DOWNTO) && (r_right.i < b_right.i));
+         right_error = ((b.kind == RANGE_TO) && (r_right > b_right))
+            || ((b.kind == RANGE_DOWNTO) && (r_right < b_right));
 
       if (left_error || right_error)
          simp_error(t, "slice %s index %"PRIi64" out of bounds "
                     "%"PRIi64" %s %"PRIi64, left_error ? "left" : "right",
-                    left_error ? r_left.i : r_right.i, b_left.i,
-                    (b.kind == RANGE_TO) ? "to" : "downto", b_right.i);
+                    left_error ? r_left : r_right, b_left,
+                    (b.kind == RANGE_TO) ? "to" : "downto", b_right);
    }
 
    return t;
@@ -606,11 +604,11 @@ static tree_t simp_cassign(tree_t t)
 static bool simp_check_bounds(tree_t i, range_kind_t kind, const char *what,
                               int64_t low, int64_t high)
 {
-   literal_t folded;
+   int64_t folded;
    if (folded_int(i, &folded)) {
-      if (folded.i < low || folded.i > high)
+      if (folded < low || folded > high)
          simp_error_bool(i, "%s index %"PRIi64" out of bounds %"PRIi64
-                         " %s %"PRIi64, what, folded.i,
+                         " %s %"PRIi64, what, folded,
                          (kind == RANGE_TO) ? low : high,
                          (kind == RANGE_TO) ? "to" : "downto",
                          (kind == RANGE_TO) ? high : low);
@@ -786,14 +784,14 @@ static tree_t simp_type_conv(tree_t t)
    type_kind_t to_k   = type_kind(to);
 
    if ((from_k == T_INTEGER) && (to_k == T_REAL)) {
-      literal_t l;
+      int64_t l;
       if (folded_int(value, &l))
-         return get_real_lit(t, (double)l.i);
+         return get_real_lit(t, (double)l);
    }
    else if ((from_k == T_REAL) && (to_k == T_INTEGER)) {
-      literal_t l;
+      double l;
       if (folded_real(value, &l))
-         return get_int_lit(t, (int)l.r);
+         return get_int_lit(t, (int)l);
    }
 
    return t;
@@ -842,20 +840,20 @@ static tree_t simp_decl(tree_t t)
 
          range_t bounds = type_dim(cons, 0);
 
-         literal_t dim_left, bounds_left;
+         int64_t dim_left, bounds_left;
          if (folded_int(dim.left, &dim_left)
              && folded_int(bounds.left, &bounds_left)) {
-            if (dim_left.i < bounds_left.i)
+            if (dim_left < bounds_left)
                simp_error(dim.left, "left index %"PRIi64" violates "
-                          "constraint %s", dim_left.i, type_pp(cons));
+                          "constraint %s", dim_left, type_pp(cons));
          }
 
-         literal_t dim_right, bounds_right;
+         int64_t dim_right, bounds_right;
          if (folded_int(dim.right, &dim_right)
              && folded_int(bounds.right, &bounds_right)) {
-            if (dim_right.i > bounds_right.i)
+            if (dim_right > bounds_right)
                simp_error(dim.right, "right index %"PRIi64" violates "
-                          "constraint %s", dim_right.i, type_pp(cons));
+                          "constraint %s", dim_right, type_pp(cons));
          }
       }
 

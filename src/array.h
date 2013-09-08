@@ -54,9 +54,11 @@
    static void what##_array_resize(what##_array_t *a,          \
                                    size_t n, what##_t fill)    \
    {                                                           \
-      a->items = xrealloc(a->items, n * sizeof(what##_t));     \
-      for (unsigned i = a->count; i < n; i++)                  \
-         a->items[i] = fill;                                   \
+      if (n > 0) {                                             \
+         a->items = xrealloc(a->items, n * sizeof(what##_t));  \
+         for (unsigned i = a->count; i < n; i++)               \
+            a->items[i] = fill;                                \
+      }                                                        \
       a->count = a->_max = n;                                  \
    }                                                           \
 

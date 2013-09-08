@@ -46,12 +46,12 @@ static tree_t str_to_agg(const char *p, const char *end)
    }
 
    tree_t left = tree_new(T_LITERAL);
-   literal_t li = { { .i = 0 }, .kind = L_INT };
-   tree_set_literal(left, li);
+   tree_set_subkind(left, L_INT);
+   tree_set_ival(left, 0);
 
    tree_t right = tree_new(T_LITERAL);
-   literal_t ri = { { .i = len - 1 }, .kind = L_INT };
-   tree_set_literal(right, ri);
+   tree_set_subkind(right, L_INT);
+   tree_set_ival(right, len - 1);
 
    type_t type = type_new(T_CARRAY);
    type_set_ident(type, ident_new("string"));
@@ -146,10 +146,8 @@ START_TEST(test_lib_save)
       tree_add_stmt(pr, s);
 
       tree_t c = tree_new(T_LITERAL);
-      literal_t l;
-      l.kind = L_INT;
-      l.i = 53;
-      tree_set_literal(c, l);
+      tree_set_subkind(c, L_INT);
+      tree_set_ival(c, 53);
 
       tree_t s2 = tree_new(T_VAR_ASSIGN);
       tree_set_ident(s2, ident_new("var_assign"));
@@ -246,9 +244,8 @@ START_TEST(test_lib_save)
 
       tree_t c = tree_value(s2);
       fail_unless(tree_kind(c) == T_LITERAL);
-      literal_t l = tree_literal(c);
-      fail_unless(l.kind == L_INT);
-      fail_unless(l.i == 53);
+      fail_unless(tree_subkind(c) == L_INT);
+      fail_unless(tree_ival(c) == 53);
 
       // Type declaration and reference written to different units
       // so two copies of the type declaration will be read back

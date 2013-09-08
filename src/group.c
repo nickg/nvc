@@ -368,4 +368,10 @@ void group_nets(tree_t top)
    tree_visit_only(top, group_signal_decls, &ctx, T_SIGNAL_DECL);
 
    group_write_netdb(top, &ctx);
+
+   while (ctx.groups != NULL) {
+      group_t *tmp = ctx.groups->next;
+      free(ctx.groups);
+      ctx.groups = tmp;
+   }
 }

@@ -15,31 +15,25 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _COMMON_H
-#define _COMMON_H
-
-#include "tree.h"
+#ifndef _OBJECT_H
+#define _OBJECT_H
 
 //
-// Various utility functions
+// Structures shared between tree and type objects
 //
 
-int64_t assume_int(tree_t t);
-void range_bounds(range_t r, int64_t *low, int64_t *high);
-tree_t call_builtin(const char *builtin, type_t type, ...);
-bool folded_int(tree_t t, int64_t *i);
-bool folded_real(tree_t t, double *d);
-bool folded_bool(tree_t t, bool *b);
-tree_t get_int_lit(tree_t t, int64_t i);
-tree_t get_real_lit(tree_t t, double r);
+typedef struct {
+   uint32_t        generation;
+   uint32_t        index;
+   tree_copy_fn_t  callback;
+   void           *context;
+   void          **copied;
+} object_copy_ctx_t;
 
-//
-// Utility typedefs
-//
+bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx);
+bool type_copy_mark(type_t t, object_copy_ctx_t *ctx);
 
-typedef unsigned (*tree_formals_t)(tree_t t);
-typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
-typedef unsigned (*tree_actuals_t)(tree_t t);
-typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
+tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx);
+type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx);
 
-#endif  // _COMMON_H
+#endif   // _OBJECT_H

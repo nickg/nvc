@@ -56,6 +56,12 @@ typedef enum assoc_kind {
    A_OTHERS
 } assoc_kind_t;
 
+typedef enum literal_kind {
+   L_INT,
+   L_REAL,
+   L_NULL
+} literal_kind_t;
+
 typedef enum tree_kind {
    T_ENTITY,
    T_ARCH,
@@ -120,25 +126,12 @@ typedef enum tree_kind {
    T_GENVAR,
    T_PARAM,
    T_ASSOC,
+   T_CONTEXT,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
 
 typedef struct tree *tree_t;
-
-typedef struct literal {
-   union {
-      int64_t i;
-      double  r;
-   };
-   enum { L_INT, L_REAL, L_NULL } kind;
-} literal_t;
-
-typedef struct context {
-   ident_t name;
-   bool    all;
-   loc_t   loc;
-} context_t;
 
 typedef uint32_t netid_t;
 
@@ -189,8 +182,11 @@ unsigned tree_params(tree_t t);
 tree_t tree_param(tree_t t, unsigned n);
 void tree_add_param(tree_t t, tree_t e);
 
-literal_t tree_literal(tree_t t);
-void tree_set_literal(tree_t t, literal_t lit);
+int64_t tree_ival(tree_t t);
+void tree_set_ival(tree_t t, int64_t i);
+
+double tree_dval(tree_t t);
+void tree_set_dval(tree_t t, double d);
 
 bool tree_has_value(tree_t t);
 tree_t tree_value(tree_t t);
@@ -231,8 +227,8 @@ tree_t tree_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
 unsigned tree_contexts(tree_t t);
-context_t tree_context(tree_t t, unsigned n);
-void tree_add_context(tree_t t, context_t ctx);
+tree_t tree_context(tree_t t, unsigned n);
+void tree_add_context(tree_t t, tree_t ctx);
 
 unsigned tree_assocs(tree_t t);
 tree_t tree_assoc(tree_t t, unsigned n);
@@ -286,7 +282,8 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 typedef tree_t (*tree_rewrite_fn_t)(tree_t t, void *context);
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context);
 
-tree_t tree_copy(tree_t t);
+typedef bool (*tree_copy_fn_t)(tree_t t, void *context);
+tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context);
 
 void tree_gc(void);
 

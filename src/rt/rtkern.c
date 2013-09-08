@@ -1099,10 +1099,11 @@ static void rt_initial(tree_t top)
 
    const int ncontext = tree_contexts(top);
    for (int i = 0; i < ncontext; i++) {
-      context_t c = tree_context(top, i);
-      rt_call_module_reset(c.name);
+      tree_t c = tree_context(top, i);
+      ident_t unit_name = tree_ident(c);
+      rt_call_module_reset(unit_name);
 
-      ident_t body = ident_prefix(c.name, ident_new("body"), '-');
+      ident_t body = ident_prefix(unit_name, ident_new("body"), '-');
       rt_call_module_reset(body);
    }
 
