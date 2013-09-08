@@ -476,6 +476,18 @@ static void elab_map_nets(map_list_t *maps)
    }
 }
 
+static bool elab_copy_ports(tree_t t, void *context)
+{
+   // TODO: only need to copy entity ports not function ports
+
+   if (tree_kind(t) != T_REF)
+      return false;
+
+   tree_t decl = tree_ref(t);
+
+   return (tree_kind(decl) == T_PORT_DECL);
+}
+
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
@@ -484,7 +496,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       fatal_at(tree_loc(t), "sorry, instantiating components or configurations "
                "is not supported yet");
 
-   tree_t arch = tree_copy(pick_arch(tree_loc(t), tree_ident2(t)));
+   tree_t arch = tree_copy2(pick_arch(tree_loc(t), tree_ident2(t)),
+                            elab_copy_ports, NULL);
 
    map_list_t *maps = elab_map(t, arch, tree_ports, tree_port,
                                tree_params, tree_param);

@@ -20,6 +20,7 @@
 #include "util.h"
 #include "array.h"
 #include "common.h"
+#include "object.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -1054,4 +1055,130 @@ unsigned type_width(type_t type)
    }
    else
       return 1;
+}
+
+bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
+{
+   if (t == NULL)
+      return false;
+
+   if (t->generation == ctx->generation)
+      return (t->index != UINT32_MAX);
+
+   t->generation = ctx->generation;
+
+   bool marked = false;
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(t->items[n].type_array);
+            for (unsigned i = 0; i < a->count; i++)
+               marked = type_copy_mark(a->items[i], ctx) || marked;
+         }
+         else if (ITEM_TYPE & mask)
+            marked = type_copy_mark(t->items[n].type, ctx) || marked;
+         else if (ITEM_TREE & mask)
+            marked = tree_copy_mark(t->items[n].tree, ctx) || marked;
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+            for (unsigned i = 0; i < a->count; i++)
+               marked = tree_copy_mark(a->items[i], ctx) || marked;
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(t->items[n].range_array);
+            for (unsigned i = 0; i < a->count; i++) {
+               marked = tree_copy_mark(a->items[i].left, ctx) || marked;
+               marked = tree_copy_mark(a->items[i].right, ctx) || marked;
+            }
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   if (marked) {
+      printf("marked type %p %s\n", t, type_kind_str(t->kind));
+      t->index = (ctx->index)++;
+   }
+   else
+      t->index = UINT32_MAX;
+
+   return marked;
+}
+
+type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
+{
+   if (t == NULL)
+      return NULL;
+
+   assert(t->generation == ctx->generation);
+
+   if (t->index == UINT32_MAX)
+      return t;
+
+   assert(t->index < ctx->index);
+
+   if (ctx->copied[t->index] != NULL) {
+      // Already copied this type
+      return (type_t)ctx->copied[t->index];
+   }
+
+   type_t copy = type_new(t->kind);
+   ctx->copied[t->index] = copy;
+
+   copy->ident = t->ident;
+
+   const uint32_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   uint32_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            const type_array_t *from = &(t->items[n].type_array);
+            type_array_t *to = &(copy->items[n].type_array);
+
+            type_array_resize(to, from->count, NULL);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = type_copy_sweep(from->items[i], ctx);
+         }
+         else if (ITEM_TYPE & mask)
+            copy->items[n].type = type_copy_sweep(t->items[n].type, ctx);
+         else if (ITEM_TREE & mask)
+            copy->items[n].tree = tree_copy_sweep(t->items[n].tree, ctx);
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *from = &(t->items[n].tree_array);
+            tree_array_t *to = &(copy->items[n].tree_array);
+
+            tree_array_resize(to, from->count, NULL);
+
+            for (size_t i = 0; i < from->count; i++)
+               to->items[i] = tree_copy_sweep(from->items[i], ctx);
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            const range_array_t *from = &(t->items[n].range_array);
+            range_array_t *to = &(copy->items[n].range_array);
+
+            range_t dummy;
+            range_array_resize(to, from->count, dummy);
+
+            for (unsigned i = 0; i < from->count; i++) {
+               to->items[i].kind = from->items[i].kind;
+               to->items[i].left = tree_copy_sweep(from->items[i].left, ctx);
+               to->items[i].right = tree_copy_sweep(from->items[i].right, ctx);
+            }
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   printf("copied type %p -> %p\n", t, copy);
+
+   return copy;
 }

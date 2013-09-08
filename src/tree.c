@@ -18,6 +18,7 @@
 #include "tree.h"
 #include "util.h"
 #include "array.h"
+#include "object.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -1916,6 +1917,168 @@ tree_t tree_copy(tree_t t)
    memset(ctx.copied, '\0', sizeof(tree_t) * ncopy);
 
    tree_t copy = tree_copy_aux(t, &ctx);
+
+   free(ctx.copied);
+   return copy;
+}
+
+bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
+{
+   if (t == NULL)
+      return false;
+
+   if (t->generation == ctx->generation)
+      return (t->index != UINT32_MAX);
+
+   t->generation = ctx->generation;
+
+   bool marked = false;
+   const imask_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask)
+            marked = tree_copy_mark(t->items[n].tree, ctx) || marked;
+         else if (ITEM_DOUBLE & mask)
+            ;
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+            for (unsigned i = 0; i < a->count; i++)
+               marked = tree_copy_mark(a->items[i], ctx) || marked;
+         }
+         else if (ITEM_TYPE & mask)
+            type_copy_mark(t->items[n].type, ctx);
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_RANGE & mask) {
+            marked = tree_copy_mark(t->items[n].range.left, ctx) || marked;
+            marked = tree_copy_mark(t->items[n].range.right, ctx) || marked;
+         }
+         else if (ITEM_NETID_ARRAY & mask)
+            ;
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   if (!marked)
+      marked = (*ctx->callback)(t, ctx->context);
+
+   if (marked) {
+      printf("marked tree %p %s\n", t, tree_kind_str(t->kind));
+      t->index = (ctx->index)++;
+   }
+   else
+      t->index = UINT32_MAX;
+
+   return marked;
+}
+
+tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
+{
+   if (t == NULL)
+      return NULL;
+
+   assert(t->generation == ctx->generation);
+
+   if (t->index == UINT32_MAX)
+      return t;
+
+   assert(t->index < ctx->index);
+
+   if (ctx->copied[t->index] != NULL) {
+      // Already copied this tree
+      return (tree_t)ctx->copied[t->index];
+   }
+
+   tree_t copy = tree_new(t->kind);
+   ctx->copied[t->index] = copy;
+
+   copy->loc = t->loc;
+
+   const imask_t has = has_map[t->kind];
+   const int nitems = __builtin_popcount(has);
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            copy->items[n].ident = t->items[n].ident;
+         else if (ITEM_TREE & mask)
+            copy->items[n].tree = tree_copy_sweep(t->items[n].tree, ctx);
+         else if (ITEM_DOUBLE & mask)
+            copy->items[n].dval = t->items[n].dval;
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *from = &(t->items[n].tree_array);
+            tree_array_t *to = &(copy->items[n].tree_array);
+
+            tree_array_resize(to, from->count, NULL);
+
+            for (size_t i = 0; i < from->count; i++)
+               to->items[i] = tree_copy_sweep(from->items[i], ctx);
+         }
+         else if (ITEM_TYPE & mask)
+            copy->items[n].type = type_copy_sweep(t->items[n].type, ctx);
+         else if (ITEM_INT64 & mask)
+            copy->items[n].ival = t->items[n].ival;
+         else if (ITEM_RANGE & mask) {
+            copy->items[n].range.kind = t->items[n].range.kind;
+            copy->items[n].range.left =
+               tree_copy_sweep(t->items[n].range.left, ctx);
+            copy->items[n].range.right =
+               tree_copy_sweep(t->items[n].range.right, ctx);
+         }
+         else if (ITEM_NETID_ARRAY & mask) {
+            const netid_array_t *from = &(t->items[n].netid_array);
+            netid_array_t *to = &(copy->items[n].netid_array);
+
+            netid_array_resize(to, from->count, NETID_INVALID);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   if ((copy->attrs.num = t->attrs.num) > 0) {
+      copy->attrs.alloc = t->attrs.alloc;
+      copy->attrs.table = xmalloc(sizeof(attr_t) * copy->attrs.alloc);
+      for (unsigned i = 0; i < t->attrs.num; i++)
+         copy->attrs.table[i] = t->attrs.table[i];
+   }
+
+   printf("copied tree %p -> %p\n", t, copy);
+
+   return copy;
+}
+
+tree_t tree_copy2(tree_t t, tree_copy_fn_t fn, void *context)
+{
+   object_copy_ctx_t ctx = {
+      .generation = next_generation++,
+      .index      = 0,
+      .callback   = fn,
+      .context    = context,
+      .copied     = NULL
+   };
+
+   tree_copy_mark(t, &ctx);
+
+   printf("need to copy %d objects\n", ctx.index);
+
+   if (t->index == UINT32_MAX)
+      return t;   // Nothing to copy
+
+   ctx.copied = xmalloc(sizeof(void *) * ctx.index);
+   memset(ctx.copied, '\0', sizeof(void *) * ctx.index);
+
+   tree_t copy = tree_copy_sweep(t, &ctx);
 
    free(ctx.copied);
    return copy;
