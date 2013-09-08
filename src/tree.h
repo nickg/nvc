@@ -20,8 +20,8 @@
 
 #include "lib.h"
 #include "ident.h"
+#include "prim.h"
 #include "type.h"
-#include "loc.h"
 
 #include <stdint.h>
 
@@ -130,8 +130,6 @@ typedef enum tree_kind {
 
    T_LAST_TREE_KIND
 } tree_kind_t;
-
-typedef struct tree *tree_t;
 
 typedef uint32_t netid_t;
 

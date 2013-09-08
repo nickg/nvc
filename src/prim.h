@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#ifndef _LOC_H
-#define _LOC_H
+#ifndef _PRIM_H
+#define _PRIM_H
 
 #include <stdint.h>
 
@@ -41,4 +41,21 @@ static const loc_t LOC_INVALID = {
    NULL
 };
 
-#endif  // _LOC_H
+typedef struct tree *tree_t;
+typedef struct type *type_t;
+
+typedef enum {
+   RANGE_TO,
+   RANGE_DOWNTO,
+   RANGE_EXPR,
+   RANGE_DYN,
+   RANGE_RDYN
+} range_kind_t;
+
+typedef struct range {
+   tree_t       left;
+   tree_t       right;
+   range_kind_t kind;
+} range_t;
+
+#endif  // _PRIM_H

@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-#include "loc.h"
+#include "prim.h"
 
 #define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
 

@@ -21,8 +21,7 @@
 #include <stdbool.h>
 
 #include "ident.h"
-
-typedef struct type *type_t;
+#include "prim.h"
 
 typedef struct type_wr_ctx *type_wr_ctx_t;
 typedef struct type_rd_ctx *type_rd_ctx_t;
@@ -50,20 +49,6 @@ typedef enum type_kind {
    T_LAST_TYPE_KIND
 } type_kind_t;
 
-typedef enum {
-   RANGE_TO,
-   RANGE_DOWNTO,
-   RANGE_EXPR,
-   RANGE_DYN,
-   RANGE_RDYN
-} range_kind_t;
-
-typedef struct range {
-   struct tree  *left;
-   struct tree  *right;
-   range_kind_t  kind;
-} range_t;
-
 type_t type_new(type_kind_t kind);
 
 type_kind_t type_kind(type_t t);
@@ -90,11 +75,11 @@ void type_change_dim(type_t t, unsigned n, range_t r);
 
 unsigned type_enum_literals(type_t t);
 struct tree *type_enum_literal(type_t t, unsigned n);
-void type_enum_add_literal(type_t t, struct tree *lit);
+void type_enum_add_literal(type_t t, tree_t lit);
 
 unsigned type_units(type_t t);
-struct tree *type_unit(type_t t, unsigned n);
-void type_add_unit(type_t t, struct tree *u);
+tree_t type_unit(type_t t, unsigned n);
+void type_add_unit(type_t t, tree_t u);
 
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);
@@ -115,14 +100,14 @@ void type_change_index_constr(type_t t, unsigned n, type_t c);
 type_t type_index_constr(type_t t, unsigned n);
 
 unsigned type_fields(type_t t);
-struct tree *type_field(type_t t, unsigned n);
-void type_add_field(type_t t, struct tree *e);
+tree_t type_field(type_t t, unsigned n);
+void type_add_field(type_t t, tree_t e);
 
 void type_replace(type_t t, type_t a);
 
-void type_set_resolution(type_t t, struct tree *r);
+void type_set_resolution(type_t t, tree_t r);
 bool type_has_resolution(type_t t);
-struct tree *type_resolution(type_t t);
+tree_t type_resolution(type_t t);
 
 type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
                                ident_wr_ctx_t ident_ctx);
