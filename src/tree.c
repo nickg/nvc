@@ -375,15 +375,6 @@ struct tree_rd_ctx {
    const char     *file_names[MAX_FILES];
 };
 
-typedef struct {
-   unsigned         count;
-   tree_visit_fn_t  fn;
-   void            *context;
-   tree_kind_t      kind;
-   unsigned         generation;
-   bool             deep;
-} tree_visit_ctx_t;
-
 static const tree_kind_t stmt_kinds[] = {
    T_PROCESS, T_WAIT,        T_VAR_ASSIGN,   T_SIGNAL_ASSIGN,
    T_ASSERT,  T_INSTANCE,    T_IF,           T_NULL,
@@ -423,8 +414,6 @@ static size_t   object_size[T_LAST_TREE_KIND];
 static int      object_nitems[T_LAST_TREE_KIND];
 
 unsigned next_generation = 1;
-
-static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx);
 
 static void tree_one_time_init(void)
 {
@@ -575,7 +564,7 @@ void tree_gc(void)
                                     ARRAY_LEN(top_level_kinds));
 
       if (top_level) {
-         tree_visit_ctx_t ctx = {
+         object_visit_ctx_t ctx = {
             .count      = 0,
             .fn         = NULL,
             .context    = NULL,
@@ -1183,15 +1172,13 @@ uint32_t tree_index(tree_t t)
    return t->index;
 }
 
-static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
+void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
 {
    // If `deep' then will follow links above the tree originally passed
    // to tree_visit - e.g. following references back to their declarations
    // Outside the garbage collector this is usually not what is required
 
    // Helper from type.c
-   void type_visit_trees(type_t t, unsigned generation,
-                         tree_visit_fn_t fn, void *context);
 
    if (t == NULL || t->generation == ctx->generation)
       return;
@@ -1214,8 +1201,7 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
                tree_visit_aux(t->items[i].tree_array.items[j], ctx);
          }
          else if (ITEM_TYPE & mask)
-            type_visit_trees(t->items[i].type, ctx->generation,
-                             (tree_visit_fn_t)tree_visit_aux, ctx);
+            type_visit_trees(t->items[i].type, ctx);
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_DOUBLE & mask)
@@ -1260,7 +1246,7 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
    assert(t != NULL);
 
-   tree_visit_ctx_t ctx = {
+   object_visit_ctx_t ctx = {
       .count      = 0,
       .fn         = fn,
       .context    = context,
@@ -1279,7 +1265,7 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 {
    assert(t != NULL);
 
-   tree_visit_ctx_t ctx = {
+   object_visit_ctx_t ctx = {
       .count      = 0,
       .fn         = fn,
       .context    = context,
@@ -1728,36 +1714,8 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
    tree_add_attr(t, name, A_TREE)->tval = val;
 }
 
-struct rewrite_ctx {
-   tree_t            *cache;
-   uint32_t          index;
-   uint32_t          generation;
-   tree_rewrite_fn_t fn;
-   void              *context;
-};
-
-static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx);
-
-static void rewrite_a(tree_array_t *a, struct rewrite_ctx *ctx)
+tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
 {
-   for (size_t i = 0; i < a->count; i++)
-      a->items[i] = tree_rewrite_aux(a->items[i], ctx);
-
-   // If an item was rewritten to NULL then delete it
-   size_t n = 0;
-   for (size_t i = 0; i < a->count; i++) {
-      if (a->items[i] != NULL)
-         a->items[n++] = a->items[i];
-   }
-   a->count = n;
-}
-
-static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
-{
-   // Helper from type.c
-   void type_rewrite_trees(type_t t, unsigned generation,
-                           tree_rewrite_fn_t fn, void *context);
-
    if (t == NULL)
       return NULL;
 
@@ -1778,8 +1736,20 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
             ;
          else if (ITEM_TREE & mask)
             t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask)
-            rewrite_a(&(t->items[n].tree_array), ctx);
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(t->items[n].tree_array);
+
+            for (size_t i = 0; i < a->count; i++)
+               a->items[i] = tree_rewrite_aux(a->items[i], ctx);
+
+            // If an item was rewritten to NULL then delete it
+            size_t n = 0;
+            for (size_t i = 0; i < a->count; i++) {
+               if (a->items[i] != NULL)
+                  a->items[n++] = a->items[i];
+            }
+            a->count = n;
+         }
          else if (ITEM_TYPE & mask)
             type_item = n;
          else if (ITEM_INT64 & mask)
@@ -1815,8 +1785,7 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
    ctx->cache[t->index] = (*ctx->fn)(t, ctx->context);
 
    if (type_item != -1)
-      type_rewrite_trees(t->items[type_item].type, ctx->generation,
-                         (tree_rewrite_fn_t)tree_rewrite_aux, ctx);
+      type_rewrite_trees(t->items[type_item].type, ctx);
 
    return ctx->cache[t->index];
 }
@@ -1827,7 +1796,7 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
    tree_t *cache = xmalloc(cache_sz);
    memset(cache, '\0', cache_sz);
 
-   struct rewrite_ctx ctx = {
+   object_rewrite_ctx_t ctx = {
       .cache      = cache,
       .index      = 0,
       .generation = next_generation++,

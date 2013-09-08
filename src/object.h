@@ -30,6 +30,23 @@ typedef struct {
    void          **copied;
 } object_copy_ctx_t;
 
+typedef struct {
+   tree_t            *cache;
+   uint32_t          index;
+   uint32_t          generation;
+   tree_rewrite_fn_t fn;
+   void              *context;
+} object_rewrite_ctx_t;
+
+typedef struct {
+   unsigned         count;
+   tree_visit_fn_t  fn;
+   void            *context;
+   tree_kind_t      kind;
+   unsigned         generation;
+   bool             deep;
+} object_visit_ctx_t;
+
 typedef struct type_wr_ctx *type_wr_ctx_t;
 typedef struct type_rd_ctx *type_rd_ctx_t;
 
@@ -53,5 +70,11 @@ type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
                               ident_rd_ctx_t ident_ctx);
 type_t type_read(type_rd_ctx_t ctx);
 void type_read_end(type_rd_ctx_t ctx);
+
+tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx);
+void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx);
+
+void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx);
+void type_visit_trees(type_t t, object_visit_ctx_t *ctx);
 
 #endif   // _OBJECT_H
