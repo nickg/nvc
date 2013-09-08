@@ -89,15 +89,15 @@ enum {
 };
 
 typedef union {
-   ident_t       ident;
-   tree_t        tree;
-   tree_array_t  tree_array;
-   type_t        type;
-   unsigned      subkind;
-   int64_t       ival;
-   double        dval;
-   range_t       range;
-   netid_array_t netid_array;
+   ident_t        ident;
+   tree_t         tree;
+   tree_array_t   tree_array;
+   type_t         type;
+   unsigned       subkind;
+   int64_t        ival;
+   double         dval;
+   range_t       *range;
+   netid_array_t  netid_array;
 } item_t;
 
 typedef uint32_t imask_t;
@@ -325,7 +325,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR",       "T_PARAM",         "T_ASSOC"
+   "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_CONTEXT"
 };
 
 static const char *item_text_map[] = {
@@ -420,6 +420,7 @@ static size_t n_trees_alloc = 0;
 static uint32_t format_digest;
 static int      item_lookup[T_LAST_TREE_KIND][32];
 static size_t   object_size[T_LAST_TREE_KIND];
+static int      object_nitems[T_LAST_TREE_KIND];
 
 unsigned next_generation = 1;
 
@@ -435,7 +436,8 @@ static void tree_one_time_init(void)
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);
-      object_size[i] = sizeof(struct tree) + (nitems * sizeof(item_t));
+      object_size[i]   = sizeof(struct tree) + (nitems * sizeof(item_t));
+      object_nitems[i] = nitems;
 
       // Knuth's multiplicative hash
       format_digest += has_map[i] * 2654435761u;
@@ -465,6 +467,11 @@ static void tree_one_time_init(void)
          }
       }
    } while (changed);
+
+   if (getenv("NVC_TREE_SIZES") != NULL) {
+      for (int i = 0; i < T_LAST_TREE_KIND; i++)
+         printf("%-15s %d\n", tree_kind_str(i), (int)object_size[i]);
+   }
 
    done = true;
 }
@@ -595,6 +602,8 @@ void tree_gc(void)
                   free(t->items[n].tree_array.items);
                else if (ITEM_NETID_ARRAY & mask)
                   free(t->items[n].netid_array.items);
+               else if (ITEM_RANGE & mask)
+                  free(t->items[n].range);
                n++;
             }
          }
@@ -1099,12 +1108,15 @@ void tree_set_message(tree_t t, tree_t m)
 
 range_t tree_range(tree_t t)
 {
-   return lookup_item(t, I_RANGE)->range;
+   return *(lookup_item(t, I_RANGE)->range);
 }
 
 void tree_set_range(tree_t t, range_t r)
 {
-   lookup_item(t, I_RANGE)->range = r;
+   item_t *item = lookup_item(t, I_RANGE);
+   if (item->range == NULL)
+      item->range = xmalloc(sizeof(range_t));
+   *(item->range) = r;
 }
 
 unsigned tree_pos(tree_t t)
@@ -1209,8 +1221,10 @@ static void tree_visit_aux(tree_t t, tree_visit_ctx_t *ctx)
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            tree_visit_aux(t->items[i].range.left, ctx);
-            tree_visit_aux(t->items[i].range.right, ctx);
+            if (t->items[i].range != NULL) {
+               tree_visit_aux(t->items[i].range->left, ctx);
+               tree_visit_aux(t->items[i].range->right, ctx);
+            }
          }
          else if (ITEM_NETID_ARRAY & mask)
             ;
@@ -1424,9 +1438,13 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          else if (ITEM_INT64 & mask)
             write_u64(t->items[n].ival, ctx->file);
          else if (ITEM_RANGE & mask) {
-            write_u8(t->items[n].range.kind, ctx->file);
-            tree_write(t->items[n].range.left, ctx);
-            tree_write(t->items[n].range.right, ctx);
+            if (t->items[n].range != NULL) {
+               write_u8(t->items[n].range->kind, ctx->file);
+               tree_write(t->items[n].range->left, ctx);
+               tree_write(t->items[n].range->right, ctx);
+            }
+            else
+               write_u8(0xff, ctx->file);
          }
          else if (ITEM_NETID_ARRAY & mask) {
             const netid_array_t *a = &(t->items[n].netid_array);
@@ -1522,9 +1540,13 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          else if (ITEM_INT64 & mask)
             t->items[n].ival = read_u64(ctx->file);
          else if (ITEM_RANGE & mask) {
-            t->items[n].range.kind  = read_u8(ctx->file);
-            t->items[n].range.left  = tree_read(ctx);
-            t->items[n].range.right = tree_read(ctx);
+            const uint8_t rmarker = read_u8(ctx->file);
+            if (rmarker != 0xff) {
+               t->items[n].range = xmalloc(sizeof(range_t));
+               t->items[n].range->kind  = rmarker;
+               t->items[n].range->left  = tree_read(ctx);
+               t->items[n].range->right = tree_read(ctx);
+            }
          }
          else if (ITEM_NETID_ARRAY & mask) {
             netid_array_t *a = &(t->items[n].netid_array);
@@ -1765,9 +1787,11 @@ static tree_t tree_rewrite_aux(tree_t t, struct rewrite_ctx *ctx)
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            range_t *r = &(t->items[n].range);
-            r->left  = tree_rewrite_aux(r->left, ctx);
-            r->right = tree_rewrite_aux(r->right, ctx);
+            range_t *r = t->items[n].range;
+            if (r != NULL) {
+               r->left  = tree_rewrite_aux(r->left, ctx);
+               r->right = tree_rewrite_aux(r->right, ctx);
+            }
          }
          else if (ITEM_NETID_ARRAY & mask)
             ;
@@ -1849,8 +1873,10 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            marked = tree_copy_mark(t->items[n].range.left, ctx) || marked;
-            marked = tree_copy_mark(t->items[n].range.right, ctx) || marked;
+            if (t->items[n].range != NULL) {
+               marked = tree_copy_mark(t->items[n].range->left, ctx) || marked;
+               marked = tree_copy_mark(t->items[n].range->right, ctx) || marked;
+            }
          }
          else if (ITEM_NETID_ARRAY & mask)
             ;
@@ -1916,11 +1942,13 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
          else if (ITEM_INT64 & mask)
             copy->items[n].ival = t->items[n].ival;
          else if (ITEM_RANGE & mask) {
-            copy->items[n].range.kind = t->items[n].range.kind;
-            copy->items[n].range.left =
-               tree_copy_sweep(t->items[n].range.left, ctx);
-            copy->items[n].range.right =
-               tree_copy_sweep(t->items[n].range.right, ctx);
+            const range_t *from = t->items[n].range;
+            if (from != NULL) {
+               range_t *to = copy->items[n].range = xmalloc(sizeof(range_t));
+               to->kind  = from->kind;
+               to->left  = tree_copy_sweep(from->left, ctx);
+               to->right = tree_copy_sweep(from->right, ctx);
+            }
          }
          else if (ITEM_NETID_ARRAY & mask) {
             const netid_array_t *from = &(t->items[n].netid_array);
