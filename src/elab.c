@@ -574,6 +574,12 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 
    elab_map_nets(maps);
 
+   while (maps != NULL) {
+      map_list_t *tmp = maps->next;
+      free(maps);
+      maps = tmp;
+   }
+
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
       .path     = ctx->path,

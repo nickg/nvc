@@ -584,6 +584,8 @@ void tree_gc(void)
             if (has & mask) {
                if (ITEM_TREE_ARRAY & mask)
                   free(t->items[n].tree_array.items);
+               else if (ITEM_NETID_ARRAY & mask)
+                  free(t->items[n].netid_array.items);
                n++;
             }
          }
