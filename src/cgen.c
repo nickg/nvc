@@ -914,11 +914,16 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 
    int offset = tree_attr_int(decl, var_offset_i, -1);
    if (offset == -1) {
-      // This variable is not defined anywhere in this translation unit
-      // so make it an external symbol and hope the linker fixes it up
-      LLVMTypeRef lltype = llvm_type(type);
-      LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(decl)));
-      LLVMSetLinkage(var, LLVMExternalLinkage);
+      const char *name = istr(tree_ident(decl));
+
+      LLVMValueRef var = LLVMGetNamedGlobal(module, name);
+      if (var == NULL) {
+         // This variable is not defined anywhere in this translation unit
+         // so make it an external symbol and hope the linker fixes it up
+         LLVMTypeRef lltype = llvm_type(type);
+         var = LLVMAddGlobal(module, lltype, name);
+         LLVMSetLinkage(var, LLVMExternalLinkage);
+      }
 
       tree_add_attr_ptr(decl, local_var_i, var);
       return var;
