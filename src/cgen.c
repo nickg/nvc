@@ -3120,7 +3120,6 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          assert(tree_kind(tree_value(t)) == T_REF);
 
          tree_t decl = tree_ref(tree_value(t));
-         assert(type_kind(tree_type(decl)) == T_CARRAY);
 
          range_t r = tree_range(t);
 

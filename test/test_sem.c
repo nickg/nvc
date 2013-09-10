@@ -814,8 +814,8 @@ START_TEST(test_concat)
    input_from_file(TESTDIR "/sem/concat.vhd");
 
    const error_t expect[] = {
-      { 22, "type of scalar does not match element type of array" },
-      { 24, "cannot concatenate values of different types" },
+      { 24, "type of scalar does not match element type of array" },
+      { 26, "cannot concatenate values of different types" },
       { -1, NULL }
    };
    expect_errors(expect);

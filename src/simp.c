@@ -624,18 +624,36 @@ static tree_t simp_aggregate(tree_t t)
 
    assert(type_kind(type) != T_UARRAY);
 
-   type = type_base_recur(type);
-   type_t index = (type_kind(type) == T_UARRAY)
-      ? type_index_constr(type, 0) : type;
+   // Find the tightest bounds for the index
 
-   range_t r = type_dim(index, 0);
-   if (tree_kind(r.left) != T_LITERAL || tree_kind(r.right) != T_LITERAL)
+   int64_t low  = -INT64_MAX;
+   int64_t high = INT64_MAX;
+
+   range_t r = type_dim(type, 0);
+   if ((tree_kind(r.left) == T_LITERAL) && (tree_kind(r.right) == T_LITERAL))
+      range_bounds(r, &low, &high);
+
+   if (type_kind(type) == T_SUBTYPE) {
+      type_t base = type_base(type);
+
+      type_t index = (type_kind(base) == T_UARRAY)
+         ? type_index_constr(base, 0) : base;
+      range_t base_r = type_dim(index, 0);
+
+      if ((tree_kind(base_r.left) == T_LITERAL)
+          && (tree_kind(base_r.right) == T_LITERAL)) {
+         int64_t base_low, base_high;
+         range_bounds(base_r, &base_low, &base_high);
+
+         low  = MAX(low, base_low);
+         high = MIN(high, base_high);
+      }
+   }
+
+   if ((low == -INT64_MAX) && (high == INT64_MAX))
       return t;
 
    // Check for out of bounds indexes
-
-   int64_t low, high;
-   range_bounds(r, &low, &high);
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {

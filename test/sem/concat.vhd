@@ -11,6 +11,8 @@ begin
         variable z : int_array(1 to 6);
         variable s : string(1 to 5);
         variable t : int_array(1 to 2);
+        variable b : bit_vector(1 to 3);
+        variable c : bit_vector(1 to 4);
     begin
         x := ( 1, 2, 3 );
         y := ( 4, 5, 6 );
@@ -22,9 +24,8 @@ begin
         s := 1 & string'("ello");       -- Error
         t := 6 & 7;                     -- OK
         t := 7 & character'( 'x' );     -- Error
+        c := bit_vector(b & '1');       -- OK
         wait;
     end process;
 
 end architecture;
-
-    

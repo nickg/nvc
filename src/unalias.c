@@ -41,7 +41,6 @@ static tree_t unalias_index(tree_t decl, tree_t index)
    type_t alias_type = tree_type(decl);
    type_t base_type  = tree_type(base_decl);
 
-   assert(type_kind(alias_type) == T_CARRAY);
    assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
 
    range_t alias_r = type_dim(alias_type, 0);
@@ -52,6 +51,7 @@ static tree_t unalias_index(tree_t decl, tree_t index)
 
    switch (type_kind(base_type)) {
    case T_CARRAY:
+   case T_SUBTYPE:
       // The transformation is a constant offset of indices
       {
          range_t base_r  = type_dim(base_type, 0);

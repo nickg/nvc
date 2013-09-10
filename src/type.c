@@ -332,9 +332,7 @@ ident_t type_ident(type_t t)
       char buf[128];
       switch (t->kind) {
       case T_SUBTYPE:
-         snprintf(buf, sizeof(buf), "anonymous subtype of %s",
-                  istr(type_ident(type_base(t))));
-         break;
+         return type_ident(type_base(t));
 
       case T_ACCESS:
          snprintf(buf, sizeof(buf), "access to %s",

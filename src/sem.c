@@ -1016,6 +1016,7 @@ static bool sem_check_range(range_t *r, type_t context)
       type_kind_t kind = type_kind(type);
       switch (kind) {
       case T_CARRAY:
+      case T_SUBTYPE:
          {
             range_t d0 = type_dim(type, 0);
             *r = type_dim(type, 0);
@@ -1030,7 +1031,6 @@ static bool sem_check_range(range_t *r, type_t context)
          return true;
       case T_ENUM:
       case T_UARRAY:
-      case T_SUBTYPE:
          {
             tree_t a = tree_new(T_ATTR_REF);
             tree_set_name(a, sem_make_ref(decl));
@@ -1202,34 +1202,10 @@ static bool sem_check_type(tree_t t, type_t *ptype)
          if (!sem_check_subtype(t, *ptype, &base))
             return false;
 
-         switch (type_kind(base)) {
-         case T_UARRAY:
-            {
-               // Create a new constrained array type for this instance
-
-               if (type_dims(*ptype) != type_index_constrs(base))
-                  sem_error(t, "expected %d array dimensions but %d given",
-                            type_index_constrs(base), type_dims(*ptype));
-
-               if (!sem_check_array_dims(*ptype, base))
-                  return false;
-
-               type_t collapse = type_new(T_CARRAY);
-               type_set_ident(collapse, type_ident(base));
-               type_set_elem(collapse, type_elem(base));  // Element type
-
-               for (unsigned i = 0; i < type_dims(*ptype); i++)
-                  type_add_dim(collapse, type_dim(*ptype, i));
-
-               *ptype = collapse;
-            }
-            break;
-
-         default:
-            break;
-         }
-
-         return true;
+         if (type_kind(base) == T_UARRAY)
+            return sem_check_array_dims(*ptype, base);
+         else
+            return true;
       }
 
    case T_UNRESOLVED:
@@ -3289,32 +3265,28 @@ static type_t sem_index_type(type_t type, int dim)
       return tree_type(type_dim(type, dim).left);
 }
 
-static bool sem_check_concat_param(tree_t t)
+static bool sem_check_concat_param(tree_t t, type_t hint)
 {
    struct type_set *old = top_type_set;
 
    type_set_push();
 
    for (unsigned i = 0; i < old->n_members; i++) {
-      type_t this = type_base_recur(old->members[i]);
+      type_t base = type_base_recur(old->members[i]);
+      if (type_kind(base) == T_UARRAY)
+         type_set_add(base);
 
-      type_kind_t kind = type_kind(this);
+      if (type_is_array(old->members[i]))
+         type_set_add(type_elem(old->members[i]));
+   }
 
-      if (kind == T_CARRAY) {
-         // The bounds of one side should not be used to determine
-         // those of the other side
-         type_t u = type_new(T_UARRAY);
-         type_set_elem(u, type_elem(this));
-         type_set_ident(u, type_ident(this));
-         for (unsigned i = 0; i < type_dims(this); i++)
-            type_add_index_constr(u, tree_type(type_dim(this, i).left));
-         type_set_add(u);
-      }
-      else
-         type_set_add(this);
+   if (hint != NULL) {
+      type_t base = type_base_recur(hint);
+      if (type_kind(base) == T_UARRAY)
+         type_set_add(base);
 
-      if (type_is_array(this))
-         type_set_add(type_elem(this));
+      if (type_is_array(hint))
+         type_set_add(type_elem(hint));
    }
 
    bool ok = sem_check(t);
@@ -3337,15 +3309,17 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_value(tree_param(t, 0));
    tree_t right = tree_value(tree_param(t, 1));
 
-   if (!type_set_restrict(sem_is_composite))
+   if ((top_type_set->n_members > 0) && !type_set_restrict(sem_is_composite))
       sem_error(t, "no composite type in context%s", type_set_fmt());
 
    if (sem_ambiguous_rate(left) < sem_ambiguous_rate(right)) {
-      if (!sem_check_concat_param(right) || !sem_check_concat_param(left))
+      if (!sem_check_concat_param(left, NULL)
+          || !sem_check_concat_param(right, tree_type(left)))
          return false;
    }
    else {
-      if (!sem_check_concat_param(right) || !sem_check_concat_param(left))
+      if (!sem_check_concat_param(right, NULL)
+          || !sem_check_concat_param(left, tree_type(right)))
          return false;
    }
 
