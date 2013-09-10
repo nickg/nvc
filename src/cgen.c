@@ -903,7 +903,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 
    void *global = tree_attr_ptr(decl, global_const_i);
    if (global != NULL) {
-      if (type_is_array(tree_type(decl)))
+      type_t type = tree_type(decl);
+      if (type_is_array(type) && cgen_const_bounds(type))
          return global;
       else
          return LLVMBuildLoad(builder, (LLVMValueRef)global, "global");
