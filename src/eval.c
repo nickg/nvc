@@ -283,6 +283,27 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
       return get_bool_lit(t, args[0] <= args[1]);
    else if (icmp(builtin, "geq"))
       return get_bool_lit(t, args[0] >= args[1]);
+   else if (icmp(builtin, "exp")) {
+      int64_t result = 1;
+      int64_t a = args[0];
+      int64_t b = args[1];
+
+      if (a == 0)
+         return get_int_lit(t, 0);
+      else if (b == 0)
+         return get_int_lit(t, 1);
+      else if (b < 0)
+         return t;
+
+      while (b != 0) {
+         if (b & 1)
+            result *= a;
+         a *= a;
+         b >>= 1;
+      }
+
+      return get_int_lit(t, result);
+   }
    else
       return t;
 }

@@ -42,6 +42,7 @@ begin
         x <= a1'length;
         x <= a4(2);
         x <= a5(4);
+        x <= 2 ** 4;
     end process;
 
     process is
