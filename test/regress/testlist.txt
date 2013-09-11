@@ -140,3 +140,4 @@ link2           normal
 driver3         normal
 elab12          normal
 issue10         normal
+elab13          normal,gold

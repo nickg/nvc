@@ -181,6 +181,10 @@ static tree_t rewrite_refs(tree_t t, void *context)
    if (decl != params->formal)
       return t;
 
+   // Do not rewrite references if they appear as formal names
+   if (tree_attr_int(t, ident_new("formal"), 0))
+      return t;
+
    // Delete assignments to OPEN ports
    if (params->actual == NULL)
       return NULL;

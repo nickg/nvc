@@ -74,6 +74,7 @@ static struct type_set   *top_type_set = NULL;
 static struct loop_stack *loop_stack = NULL;
 static ident_t            builtin_i;
 static ident_t            std_standard_i;
+static ident_t            formal_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -4301,6 +4302,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
                   formals[i].partial = (tree_kind(name) != T_REF);
                   decl = formals[i].decl;
                   tree_set_ref(ref, decl);
+                  tree_add_attr_int(ref, formal_i, 1);
                   break;
                }
             }
@@ -5144,6 +5146,7 @@ static void sem_intern_strings(void)
 
    builtin_i      = ident_new("builtin");
    std_standard_i = ident_new("STD.STANDARD");
+   formal_i       = ident_new("formal");
 }
 
 bool sem_check(tree_t t)
