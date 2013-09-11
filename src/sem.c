@@ -4348,6 +4348,9 @@ static bool sem_check_instance(tree_t t)
          unit = lib_get(lib_work(), prefix);
          if (unit == NULL)
             sem_error(t, "cannot find unit %s", istr(prefix));
+
+         if (tree_kind(unit) != T_ENTITY)
+            sem_error(t, "unit %s is not an entity", istr(prefix));
       }
       break;
 
