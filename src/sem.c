@@ -3303,7 +3303,7 @@ static bool sem_is_composite(type_t t)
 static bool sem_check_concat(tree_t t)
 {
    // Concatenation expressions are treated differently to other operators
-   // as they have special rules. See LRM 93 section 9.2.5
+   // as they have special rules. See LRM 93 section 7.2.4
 
    assert(tree_params(t) == 2);
    tree_t left  = tree_value(tree_param(t, 0));

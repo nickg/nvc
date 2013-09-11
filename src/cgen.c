@@ -2605,7 +2605,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
       var = cgen_array_meta(type, dims, data);
    }
    else
-      var = cgen_tmp_var(tree_type(t), "", ctx);
+      var = cgen_tmp_var(tree_type(t), "concat", ctx);
 
    LLVMValueRef off = NULL;
 
@@ -4469,10 +4469,12 @@ static void cgen_reset_function(tree_t t)
       if (global != NULL) {
          // A global constant whose value cannot be determined at
          // compile time
-         LLVMValueRef init = cgen_expr(tree_value(d), &ctx);
+         tree_t value = tree_value(d);
+         LLVMValueRef init = cgen_expr(value, &ctx);
          type_t type = tree_type(d);
          if (type_is_array(type) && cgen_const_bounds(type))
-            cgen_array_copy(type, type, init, (LLVMValueRef)global, NULL, &ctx);
+            cgen_array_copy(tree_type(value), type, init,
+                            (LLVMValueRef)global, NULL, &ctx);
          else
             LLVMBuildStore(builder, init, (LLVMValueRef)global);
       }
