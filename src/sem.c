@@ -4344,16 +4344,10 @@ static bool sem_check_instance(tree_t t)
    case C_ENTITY:
       {
          // Find the referenced design unit
-         unit = lib_get(lib_work(), name);
+         ident_t prefix = ident_until(name, '-');
+         unit = lib_get(lib_work(), prefix);
          if (unit == NULL)
-            sem_error(t, "cannot find unit %s", istr(name));
-
-         if (tree_kind(unit) == T_ARCH) {
-            unit = lib_get(lib_work(), ident_until(name, '-'));
-            if (unit == NULL)
-               sem_error(t, "no entity corresponding to architecture %s",
-                         istr(name));
-         }
+            sem_error(t, "cannot find unit %s", istr(prefix));
       }
       break;
 

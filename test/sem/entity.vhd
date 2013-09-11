@@ -11,4 +11,7 @@ begin
         report integer'image(e'foo);      -- OK
     end process;
 
+    recur: entity work.e(invalid)       -- OK (until elaboration)
+        ;
+
 end architecture;
