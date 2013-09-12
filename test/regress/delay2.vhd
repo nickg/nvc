@@ -1,9 +1,6 @@
 entity delay2 is
 end entity;
 
-library ieee;
-use ieee.std_logic_1164.all;
-
 architecture test of delay2 is
     signal clk : bit;
 begin
