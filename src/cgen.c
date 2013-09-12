@@ -3206,7 +3206,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          n_elems,
          elem_size,
          after,
-         reject,
+         (i == 0) ? reject : llvm_int64(0),
          reverse
       };
       LLVMBuildCall(builder, llvm_fn("_sched_waveform"),

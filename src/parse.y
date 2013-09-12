@@ -2712,7 +2712,8 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
 {
    if (reject == NULL) {
       // Inertial delay with same value as waveform
-      // TODO: is it correct to only look at the first waveform here?
+      // LRM 93 section 8.4 the rejection limit in this case is
+      // specified by the time expression of the first waveform
       tree_t w = (tree_kind(t) == T_CASSIGN
                   ? tree_waveform(tree_cond(t, 0), 0)
                   :  tree_waveform(t, 0));
