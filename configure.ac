@@ -103,5 +103,5 @@ AM_CONDITIONAL([ENABLE_COVERAGE], [test "$enable_coverage" = yes])
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
-           lib/synopsys/Makefile lxt/Makefile])
+           lib/synopsys/Makefile lxt/Makefile fst/Makefile])
 

@@ -75,4 +75,6 @@ void vcd_restart(void);
 void lxt_init(const char *file, struct tree *top);
 void lxt_restart(void);
 
+void
+
 #endif  // _RT_H
