@@ -2597,6 +2597,9 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
    tree_set_ident(zero, ident_new("'0'"));
 
    for (const char *p = str + 2; *p != '\"'; p++) {
+      if (*p == '_')
+         continue;
+
       int n = (isdigit((int)*p) ? (*p - '0')
                : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
 

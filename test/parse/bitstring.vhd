@@ -5,5 +5,6 @@ package bitstring is
     constant z : t := X"ab";
     constant b : t := B"101";
     constant c : t := x"f";
-    
+    constant d : t := X"a_b";
+
 end package;
