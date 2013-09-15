@@ -142,3 +142,4 @@ elab12          normal
 issue10         normal
 elab13          normal,gold
 delay2          normal
+issue13         normal

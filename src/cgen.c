@@ -2384,8 +2384,11 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
 
    LLVMBuildBr(builder, test_bb);
 
-   if (def == NULL)
-      def = LLVMGetUndef(llvm_type(assoc_type));
+   if (def == NULL) {
+      LLVMTypeRef lltype = llvm_type(assoc_type);
+      def = LLVMGetUndef(type_is_array(assoc_type)
+                         ? LLVMPointerType(lltype, 0) : lltype);
+   }
 
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
