@@ -23,5 +23,5 @@ nodist_EXTRA_nvc_SOURCES = dummy.cxx
 endif
 
 nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a ../lxt/liblxt.a \
-	$(LLVM_LIBS) $(CURSES_LIB)
+	../fst/libfst.a $(LLVM_LIBS) $(CURSES_LIB)
 

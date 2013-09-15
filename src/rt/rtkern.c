@@ -1438,6 +1438,7 @@ static void rt_cycle(void)
    if (unlikely(now == 0 && iteration == 0)) {
       vcd_restart();
       lxt_restart();
+      fst_restart();
    }
 
    // Run all processes that resumed because of signal events

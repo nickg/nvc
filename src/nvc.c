@@ -239,6 +239,7 @@ static int run(int argc, char **argv)
       { "vcd",       required_argument, 0, 'v' },
       { "stats",     no_argument,       0, 'S' },
       { "wave",      optional_argument, 0, 'w' },
+      { "fst",       required_argument, 0, 'f' },
       { 0, 0, 0, 0 }
    };
 
@@ -247,6 +248,7 @@ static int run(int argc, char **argv)
    uint64_t stop_time = UINT64_MAX;
    const char *vcd_fname = NULL;
    const char *lxt_fname = NULL;
+   const char *fst_fname = NULL;
 
    int c, index = 0;
    const char *spec = "bcw::";
@@ -273,6 +275,9 @@ static int run(int argc, char **argv)
          break;
       case 'v':
          vcd_fname = optarg;
+         break;
+      case 'f':
+         fst_fname = optarg;
          break;
       case 'S':
          opt_set_int("rt-stats", 1);
@@ -312,6 +317,9 @@ static int run(int argc, char **argv)
       }
       lxt_init(lxt_fname, e);
    }
+
+   if (fst_fname != NULL)
+      fst_init(fst_fname, e);
 
    if (mode == BATCH)
       rt_batch_exec(e, stop_time, ctx);

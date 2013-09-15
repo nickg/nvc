@@ -19,11 +19,9 @@
 #define _RT_H
 
 #include "ident.h"
+#include "prim.h"
 
 #include <stdint.h>
-
-struct tree;
-struct tree_rd_ctx;
 
 typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
 
@@ -75,6 +73,7 @@ void vcd_restart(void);
 void lxt_init(const char *file, struct tree *top);
 void lxt_restart(void);
 
-void
+void fst_init(const char *file, tree_t top);
+void fst_restart(void);
 
 #endif  // _RT_H
