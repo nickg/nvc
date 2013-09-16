@@ -542,6 +542,7 @@ START_TEST(test_array)
       { 234, "type of aliased object INT_ARRAY does not match" },
       { 241, "undefined identifier I" },
       { 246, "universal integer bound must be numeric literal or attribute" },
+      { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -610,6 +611,7 @@ START_TEST(test_generics)
       { 38, "too many positional actuals" },
       { 48, "undefined identifier X" },
       { 58, "invalid object class for generic" },
+      { 68, "undefined identifier Y" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -67,6 +67,8 @@ static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
+static bool sem_check_range(range_t *r, type_t context);
+static type_t sem_index_type(type_t type, int dim);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -873,10 +875,13 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          type_set_base(type, base);
       }
 
+      const type_kind_t base_kind = type_kind(base);
+
       // If the subtype is not constrained then give it the same
       // range as its base type
-      if (type_dims(type) == 0) {
-         switch (type_kind(base)) {
+      const int ndims = type_dims(type);
+      if (ndims == 0) {
+         switch (base_kind) {
          case T_ENUM:
             {
                type_t std_int = sem_std_type("INTEGER");
@@ -904,6 +909,28 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          default:
             sem_error(t, "sorry, this form of subtype is not supported");
          }
+      }
+      else {
+         // Check constraints
+
+         const int ndims_base =
+            ((base_kind == T_SUBTYPE) || (base_kind == T_CARRAY))
+            ? type_dims(base)
+            : ((base_kind == T_UARRAY)
+               ? type_index_constrs(base)
+               : 1);
+
+         if (ndims != ndims_base)
+            sem_error(t, "expected %d constraints for type %s but found %d",
+                      ndims_base, sem_type_str(base), ndims);
+
+         for (int i = 0; i < ndims; i++) {
+            range_t r = type_dim(type, i);
+            if (!sem_check_range(&r, sem_index_type(base, i)))
+               return false;
+            type_change_dim(type, i, r);
+         }
+
       }
 
       type = base;
@@ -3262,6 +3289,8 @@ static type_t sem_index_type(type_t type, int dim)
 {
    if (type_kind(type) == T_UARRAY)
       return type_index_constr(type, dim);
+   else if (type_kind(type) == T_ENUM)
+      return type;
    else
       return tree_type(type_dim(type, dim).left);
 }
