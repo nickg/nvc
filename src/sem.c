@@ -874,6 +874,10 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          base = tree_type(base_decl);
          type_set_base(type, base);
       }
+      else {
+         type = base;
+         break;
+      }
 
       const type_kind_t base_kind = type_kind(base);
 
@@ -1001,8 +1005,11 @@ static bool sem_declare(tree_t decl)
    switch (type_kind(type)) {
    case T_ENUM:
       // Need to add each literal to the scope
-      for (unsigned i = 0; i < type_enum_literals(type); i++)
-         ok = ok && scope_insert(type_enum_literal(type, i));
+      {
+         const int nlits = type_enum_literals(type);
+         for (int i = 0; i < nlits; i++)
+            ok = ok && scope_insert(type_enum_literal(type, i));
+      }
       break;
 
    case T_PHYSICAL:
