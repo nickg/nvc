@@ -864,8 +864,8 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 {
    // Resolve a subtype to its base type
 
-   while (type_kind(type) == T_SUBTYPE) {
-      type_t base = type_base(type);
+   for (type_t base; type_kind(type) == T_SUBTYPE; type = base) {
+      base = type_base(type);
       if (type_kind(base) == T_UNRESOLVED) {
          tree_t base_decl = scope_find(type_ident(base));
          if (base_decl == NULL)
@@ -874,10 +874,8 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          base = tree_type(base_decl);
          type_set_base(type, base);
       }
-      else {
-         type = base;
-         break;
-      }
+      else
+         continue;
 
       const type_kind_t base_kind = type_kind(base);
 
@@ -936,8 +934,6 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          }
 
       }
-
-      type = base;
    }
 
    if (pbase)
