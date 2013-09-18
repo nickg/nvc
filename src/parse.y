@@ -1690,9 +1690,7 @@ severity
 
 target
 : name
-  {
-     $$ = $1;
-  }
+| aggregate
 ;
 
 waveform

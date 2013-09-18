@@ -272,23 +272,23 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
-static void group_nets_visit_fn(tree_t t, void *_ctx)
+static void group_name(tree_t t, group_nets_ctx_t *ctx)
 {
-   group_nets_ctx_t *ctx = _ctx;
-
-   tree_t target = tree_target(t);
-
-   switch (tree_kind(target)) {
+   switch (tree_kind(t)) {
    case T_REF:
-      group_ref(target, ctx, 0, -1);
+      group_ref(t, ctx, 0, -1);
       break;
 
    case T_ARRAY_REF:
-      group_array_ref(target, ctx);
+      group_array_ref(t, ctx);
       break;
 
    case T_ARRAY_SLICE:
-      group_array_slice(target, ctx);
+      group_array_slice(t, ctx);
+      break;
+
+   case T_LITERAL:
+      // Constant folding can cause this to appear
       break;
 
    default:
@@ -296,12 +296,10 @@ static void group_nets_visit_fn(tree_t t, void *_ctx)
    }
 }
 
-static void ungroup_proc_params(tree_t t, void *_ctx)
+static void ungroup_proc_params(tree_t t, group_nets_ctx_t *ctx)
 {
    // Ungroup any signal that is passed to a procedure as in general we
    // cannot guarantee anything about the procedure's behaviour
-
-   group_nets_ctx_t *ctx = _ctx;
 
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
@@ -330,12 +328,35 @@ static void ungroup_proc_params(tree_t t, void *_ctx)
    }
 }
 
-static void group_signal_decls(tree_t t, void *_ctx)
+static void group_nets_visit_fn(tree_t t, void *_ctx)
 {
-   // Ensure that no group is larger than a contained signal declaration
-
    group_nets_ctx_t *ctx = _ctx;
-   group_decl(t, ctx, 0, -1);
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      group_name(tree_target(t), ctx);
+      break;
+
+   case T_WAIT:
+      {
+         const int ntriggers = tree_triggers(t);
+         for (int i = 0; i < ntriggers; i++)
+            group_name(tree_trigger(t, i), ctx);
+      }
+      break;
+
+   case T_PCALL:
+      ungroup_proc_params(t, ctx);
+      break;
+
+   case T_SIGNAL_DECL:
+      // Ensure that no group is larger than a signal declaration
+      group_decl(t, ctx, 0, -1);
+      break;
+
+   default:
+      break;
+   }
 }
 
 static void group_write_netdb(tree_t top, group_nets_ctx_t *ctx)
@@ -363,9 +384,7 @@ void group_nets(tree_t top)
       .groups   = NULL,
       .next_gid = 0
    };
-   tree_visit_only(top, group_nets_visit_fn, &ctx, T_SIGNAL_ASSIGN);
-   tree_visit_only(top, ungroup_proc_params, &ctx, T_PCALL);
-   tree_visit_only(top, group_signal_decls, &ctx, T_SIGNAL_DECL);
+   tree_visit(top, group_nets_visit_fn, &ctx);
 
    group_write_netdb(top, &ctx);
 

@@ -248,4 +248,9 @@ begin
     begin
     end process;
 
+    process is
+        subtype bad_sub1 is int_array(1 to 3, 2 to 5);  -- Error
+    begin
+    end process;
+
 end architecture;

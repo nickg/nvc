@@ -64,6 +64,8 @@ package p is
 
     component c is
         generic ( X : integer );        -- OK
+        port ( p : in integer range 1 to X;  -- OK
+               q : in integer range 1 to Y );  -- Error
     end component;
 
 end package;

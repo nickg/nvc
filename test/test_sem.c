@@ -542,6 +542,7 @@ START_TEST(test_array)
       { 234, "type of aliased object INT_ARRAY does not match" },
       { 241, "undefined identifier I" },
       { 246, "universal integer bound must be numeric literal or attribute" },
+      { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -610,6 +611,7 @@ START_TEST(test_generics)
       { 38, "too many positional actuals" },
       { 48, "undefined identifier X" },
       { 58, "invalid object class for generic" },
+      { 68, "undefined identifier Y" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -875,10 +877,12 @@ START_TEST(test_attr)
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
-      { 26, "Z has no attribute FOO" },
-      { 52, "expected attribute type INTEGER" },
-      { 53, "expected attribute type STRING" },
-      { 54, "undefined identifier Q" },
+      { 30, "Z has no attribute FOO" },
+      { 52, "invalid attribute reference" },
+      { 54, "prefix of user defined attribute reference cannot denote" },
+      { 65, "expected attribute type INTEGER" },
+      { 66, "expected attribute type STRING" },
+      { 67, "undefined identifier Q" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1114,6 +1118,36 @@ START_TEST(test_entity)
 }
 END_TEST
 
+START_TEST(test_signal)
+{
+   tree_t a, e;
+
+   input_from_file(TESTDIR "/sem/signal.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   const error_t expect[] = {
+      {  9, "sorry, aggregates targets are not yet supported" },
+      { 13, "sorry, aggregates targets are not yet supported" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   sem_check(a);
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1147,6 +1181,7 @@ int main(void)
    tcase_add_test(tc_core, test_access);
    tcase_add_test(tc_core, test_real);
    tcase_add_test(tc_core, test_entity);
+   tcase_add_test(tc_core, test_signal);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -67,6 +67,8 @@ static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
+static bool sem_check_range(range_t *r, type_t context);
+static type_t sem_index_type(type_t type, int dim);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -862,8 +864,8 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 {
    // Resolve a subtype to its base type
 
-   while (type_kind(type) == T_SUBTYPE) {
-      type_t base = type_base(type);
+   for (type_t base; type_kind(type) == T_SUBTYPE; type = base) {
+      base = type_base(type);
       if (type_kind(base) == T_UNRESOLVED) {
          tree_t base_decl = scope_find(type_ident(base));
          if (base_decl == NULL)
@@ -872,11 +874,16 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          base = tree_type(base_decl);
          type_set_base(type, base);
       }
+      else
+         continue;
+
+      const type_kind_t base_kind = type_kind(base);
 
       // If the subtype is not constrained then give it the same
       // range as its base type
-      if (type_dims(type) == 0) {
-         switch (type_kind(base)) {
+      const int ndims = type_dims(type);
+      if (ndims == 0) {
+         switch (base_kind) {
          case T_ENUM:
             {
                type_t std_int = sem_std_type("INTEGER");
@@ -905,8 +912,28 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             sem_error(t, "sorry, this form of subtype is not supported");
          }
       }
+      else {
+         // Check constraints
 
-      type = base;
+         const int ndims_base =
+            ((base_kind == T_SUBTYPE) || (base_kind == T_CARRAY))
+            ? type_dims(base)
+            : ((base_kind == T_UARRAY)
+               ? type_index_constrs(base)
+               : 1);
+
+         if (ndims != ndims_base)
+            sem_error(t, "expected %d constraints for type %s but found %d",
+                      ndims_base, sem_type_str(base), ndims);
+
+         for (int i = 0; i < ndims; i++) {
+            range_t r = type_dim(type, i);
+            if (!sem_check_range(&r, sem_index_type(base, i)))
+               return false;
+            type_change_dim(type, i, r);
+         }
+
+      }
    }
 
    if (pbase)
@@ -974,8 +1001,11 @@ static bool sem_declare(tree_t decl)
    switch (type_kind(type)) {
    case T_ENUM:
       // Need to add each literal to the scope
-      for (unsigned i = 0; i < type_enum_literals(type); i++)
-         ok = ok && scope_insert(type_enum_literal(type, i));
+      {
+         const int nlits = type_enum_literals(type);
+         for (int i = 0; i < nlits; i++)
+            ok = ok && scope_insert(type_enum_literal(type, i));
+      }
       break;
 
    case T_PHYSICAL:
@@ -2484,6 +2514,9 @@ static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
 
+   if (tree_kind(target) == T_AGGREGATE)
+      sem_error(target, "sorry, aggregates targets are not yet supported");
+
    if (!sem_check(target))
       return false;
 
@@ -2502,6 +2535,9 @@ static bool sem_check_signal_assign(tree_t t)
 static bool sem_check_cassign(tree_t t)
 {
    tree_t target = tree_target(t);
+
+   if (tree_kind(target) == T_AGGREGATE)
+      sem_error(target, "sorry, aggregates targets are not yet supported");
 
    if (!sem_check(target))
       return false;
@@ -3262,6 +3298,8 @@ static type_t sem_index_type(type_t type, int dim)
 {
    if (type_kind(type) == T_UARRAY)
       return type_index_constr(type, dim);
+   else if (type_kind(type) == T_ENUM)
+      return type;
    else
       return tree_type(type_dim(type, dim).left);
 }
@@ -4040,6 +4078,8 @@ static bool sem_check_array_slice(tree_t t)
 
 static bool sem_check_attr_ref(tree_t t)
 {
+   // Attribute names are in LRM 93 section 6.6
+
    bool special = false;
    tree_t name = tree_name(t), decl = NULL;
    if ((tree_kind(name) == T_REF) && (decl = scope_find(tree_ident(name)))) {
@@ -4069,6 +4109,7 @@ static bool sem_check_attr_ref(tree_t t)
       name = tree_name(t);
    }
 
+   bool allow_user = true;
    switch (tree_kind(name)) {
    case T_REF:
       decl = tree_ref(name);
@@ -4079,7 +4120,15 @@ static bool sem_check_attr_ref(tree_t t)
       break;
 
    default:
-      sem_error(t, "invalid attribute reference");
+      if (sem_static_name(name)) {
+         while (tree_kind((name = tree_value(name))) != T_REF)
+            ;
+         decl = tree_ref(name);
+         allow_user = false;   // LRM disallows user-defined attributes
+                               // where prefix is slice of sub-element
+      }
+      else
+         sem_error(t, "invalid attribute reference");
    }
 
    ident_t attr = tree_ident(t);
@@ -4180,6 +4229,9 @@ static bool sem_check_attr_ref(tree_t t)
 
       tree_set_ref(t, a);
    }
+   else if (!allow_user)
+      sem_error(t, "prefix of user defined attribute reference cannot "
+                "denote a sub-element or slice of an object");
    else {
       tree_set_value(t, a);
       tree_set_type(t, tree_type(a));

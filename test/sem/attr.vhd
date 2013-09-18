@@ -12,6 +12,10 @@ architecture a1 of e is
 
     type int_vec is array (integer range <>) of integer;
     type int_vec_ptr is access int_vec;
+
+    signal i : int_vec(1 to 3);
+
+    attribute foo of i : signal is 6;  -- OK
 begin
 
     process is
@@ -39,6 +43,15 @@ begin
         report e'instance_name;         -- OK
         report a1'path_name;            -- OK
         report a1'instance_name;        -- OK
+    end process;
+
+    process is
+    begin
+        assert i'event;                 -- OK
+        assert i(1)'event;              -- OK
+        assert i(x)'event;              -- Error
+        assert i'foo = 1;               -- OK
+        assert i(1)'foo = 2;            -- Error
     end process;
 
 end architecture;
