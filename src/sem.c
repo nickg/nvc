@@ -2514,6 +2514,9 @@ static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
 
+   if (tree_kind(target) == T_AGGREGATE)
+      sem_error(target, "sorry, aggregates targets are not yet supported");
+
    if (!sem_check(target))
       return false;
 
@@ -2532,6 +2535,9 @@ static bool sem_check_signal_assign(tree_t t)
 static bool sem_check_cassign(tree_t t)
 {
    tree_t target = tree_target(t);
+
+   if (tree_kind(target) == T_AGGREGATE)
+      sem_error(target, "sorry, aggregates targets are not yet supported");
 
    if (!sem_check(target))
       return false;
