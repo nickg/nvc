@@ -253,7 +253,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 14);
+   fail_unless(tree_stmts(a) == 15);
 
    // Wait statements
 
@@ -543,6 +543,14 @@ START_TEST(test_seq)
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_NEXT);
    fail_unless(tree_has_value(s));
+
+   // Signal assignment to aggregate
+
+   p = tree_stmt(a, 14);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
+   fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
 
    a = parse();
    fail_unless(a == NULL);

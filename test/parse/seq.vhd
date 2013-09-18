@@ -144,4 +144,10 @@ begin
         next when foo = 5;
     end process;
 
+    -- Signal assignment to aggregate
+    process is
+    begin
+        ( x, y, z ) <= foo;
+    end process;
+
 end architecture;
