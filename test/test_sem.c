@@ -877,10 +877,12 @@ START_TEST(test_attr)
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
-      { 26, "Z has no attribute FOO" },
-      { 52, "expected attribute type INTEGER" },
-      { 53, "expected attribute type STRING" },
-      { 54, "undefined identifier Q" },
+      { 30, "Z has no attribute FOO" },
+      { 52, "invalid attribute reference" },
+      { 54, "prefix of user defined attribute reference cannot denote" },
+      { 65, "expected attribute type INTEGER" },
+      { 66, "expected attribute type STRING" },
+      { 67, "undefined identifier Q" },
       { -1, NULL }
    };
    expect_errors(expect);

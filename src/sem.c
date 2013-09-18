@@ -4072,6 +4072,8 @@ static bool sem_check_array_slice(tree_t t)
 
 static bool sem_check_attr_ref(tree_t t)
 {
+   // Attribute names are in LRM 93 section 6.6
+
    bool special = false;
    tree_t name = tree_name(t), decl = NULL;
    if ((tree_kind(name) == T_REF) && (decl = scope_find(tree_ident(name)))) {
@@ -4101,6 +4103,7 @@ static bool sem_check_attr_ref(tree_t t)
       name = tree_name(t);
    }
 
+   bool allow_user = true;
    switch (tree_kind(name)) {
    case T_REF:
       decl = tree_ref(name);
@@ -4111,7 +4114,15 @@ static bool sem_check_attr_ref(tree_t t)
       break;
 
    default:
-      sem_error(t, "invalid attribute reference");
+      if (sem_static_name(name)) {
+         while (tree_kind((name = tree_value(name))) != T_REF)
+            ;
+         decl = tree_ref(name);
+         allow_user = false;   // LRM disallows user-defined attributes
+                               // where prefix is slice of sub-element
+      }
+      else
+         sem_error(t, "invalid attribute reference");
    }
 
    ident_t attr = tree_ident(t);
@@ -4212,6 +4223,9 @@ static bool sem_check_attr_ref(tree_t t)
 
       tree_set_ref(t, a);
    }
+   else if (!allow_user)
+      sem_error(t, "prefix of user defined attribute reference cannot "
+                "denote a sub-element or slice of an object");
    else {
       tree_set_value(t, a);
       tree_set_type(t, tree_type(a));
