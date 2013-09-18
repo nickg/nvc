@@ -330,6 +330,36 @@ static void ungroup_proc_params(tree_t t, void *_ctx)
    }
 }
 
+static void ungroup_wait(tree_t t, void *_ctx)
+{
+   group_nets_ctx_t *ctx = _ctx;
+
+   const int ntriggers = tree_triggers(t);
+   for (int i = 0; i < ntriggers; i++) {
+      tree_t trigger = tree_trigger(t, i);
+
+      switch (tree_kind(trigger)) {
+      case T_REF:
+         group_ref(trigger, ctx, 0, -1);
+         break;
+
+      case T_ARRAY_REF:
+         group_array_ref(trigger, ctx);
+         break;
+
+      case T_ARRAY_SLICE:
+         group_array_slice(trigger, ctx);
+         break;
+
+      case T_LITERAL:
+         break;
+
+      default:
+         assert(false);
+      }
+   }
+}
+
 static void group_signal_decls(tree_t t, void *_ctx)
 {
    // Ensure that no group is larger than a contained signal declaration
@@ -366,6 +396,7 @@ void group_nets(tree_t top)
    tree_visit_only(top, group_nets_visit_fn, &ctx, T_SIGNAL_ASSIGN);
    tree_visit_only(top, ungroup_proc_params, &ctx, T_PCALL);
    tree_visit_only(top, group_signal_decls, &ctx, T_SIGNAL_DECL);
+   tree_visit_only(top, ungroup_wait, &ctx, T_WAIT);
 
    group_write_netdb(top, &ctx);
 
