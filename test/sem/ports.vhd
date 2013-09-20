@@ -79,7 +79,7 @@ begin
         port map ( x, y );
 
     foo3: entity work.foo
-        port map ( i => x );            -- Missing o association
+        ;                               -- Missing i association
 
     foo4: entity work.foo               -- Two associations for i
         port map ( i => x, i => y,
@@ -183,5 +183,9 @@ begin
         port map (
             o => x,
             i => hello(5) );
+
+    foo10: foo
+        port map (
+            i => y );                   -- OK
 
 end architecture;

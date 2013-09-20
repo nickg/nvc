@@ -4388,7 +4388,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
    }
 
    for (int i = 0; i < nformals; i++) {
-      if (!formals[i].have && !tree_has_value(formals[i].decl))
+      if (!formals[i].have && !tree_has_value(formals[i].decl)
+          && (tree_subkind(formals[i].decl) != PORT_OUT))
          sem_error(t, "missing actual for formal %s",
                    istr(tree_ident(formals[i].decl)));
    }
