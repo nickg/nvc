@@ -2361,6 +2361,13 @@ static bool sem_check_arch(tree_t t)
    for (int n = 0; n < ngenerics; n++)
       scope_insert(tree_generic(e, n));
 
+   const int ndecls_ent = tree_decls(e);
+   for (int n = 0; n < ndecls_ent; n++) {
+      tree_t d = tree_decl(e, n);
+      if (tree_kind(d) != T_ATTR_SPEC)
+         sem_declare(d);
+   }
+
    // Now check the architecture itself
 
    const int ndecls = tree_decls(t);

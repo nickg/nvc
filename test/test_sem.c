@@ -1108,7 +1108,7 @@ START_TEST(test_entity)
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
-      { 20, "unit WORK.PACK is not an entity" },
+      { 22, "unit WORK.PACK is not an entity" },
       { -1, NULL }
    };
    expect_errors(expect);
