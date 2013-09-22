@@ -21,6 +21,7 @@ begin
     end process;
 
     process is
+        variable v : bit_vector(1 to 6);
     begin
         s <= c1;
         wait for 1 ns;
@@ -32,6 +33,13 @@ begin
         wait for 1 ns;
         assert x = 1;
         assert y = 2;
+        v := "000100";
+        case v is
+            when "000100" =>
+                null;
+            when others =>
+                assert false;
+        end case;
         wait;
     end process;
 
