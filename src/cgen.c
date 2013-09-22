@@ -36,6 +36,7 @@
 #include <assert.h>
 
 #define MAX_STATIC_NETS 256
+#define MAX_CASE_ARCS   32
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
@@ -48,6 +49,9 @@ static ident_t sig_nets_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
 static ident_t stmt_tag_i = NULL;
+
+typedef struct case_arc  case_arc_t;
+typedef struct case_state case_state_t;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -75,6 +79,20 @@ typedef struct cgen_ctx {
    tree_t            proc;
    tree_t            fdecl;
 } cgen_ctx_t;
+
+// Connects case_state_t elements
+struct case_arc {
+   int64_t       value;
+   case_state_t *next;
+};
+
+// Decision tree used for array case statements
+struct case_state {
+   tree_t            stmts;
+   int               narcs;
+   LLVMBasicBlockRef block;
+   case_arc_t        arcs[MAX_CASE_ARCS];
+};
 
 typedef enum {
    PATH_NAME,
@@ -3463,54 +3481,192 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
+static int64_t cgen_aggregate_get_const(tree_t t, int n)
+{
+   tree_kind_t kind = tree_kind(t);
+
+   if (kind != T_AGGREGATE) {
+      assert(kind == T_REF);
+      tree_t decl = tree_ref(t);
+      assert(tree_kind(decl) == T_CONST_DECL);
+      t = tree_value(decl);
+      kind = tree_kind(t);
+   }
+
+   assert(kind == T_AGGREGATE);
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         if (assume_int(tree_name(a)) == n)
+            return assume_int(tree_value(a));
+         break;
+
+      case A_POS:
+         if (tree_pos(a) == n)
+            return assume_int(tree_value(a));
+         break;
+
+      case A_OTHERS:
+         return assume_int(tree_value(a));
+
+      default:
+         assert(false);
+      }
+   }
+
+   assert(false);
+}
+
+static void cgen_case_add_branch(case_state_t *where, int left, int right,
+                                 int depth, int dirmul,
+                                 tree_t value, tree_t stmts)
+{
+   const int n = left + (depth * dirmul);
+
+   if (((dirmul == -1) && (n < right)) || ((dirmul == 1) && (n > right))) {
+      assert(where->stmts == NULL);
+      assert(where->narcs == 0);
+      where->stmts = stmts;
+   }
+   else {
+      const int64_t this = cgen_aggregate_get_const(value, n);
+
+      for (int i = 0; i < where->narcs; i++) {
+         if (where->arcs[i].value == this) {
+            cgen_case_add_branch(where->arcs[i].next,
+                                 left, right, depth + 1, dirmul, value, stmts);
+            return;
+         }
+      }
+
+      case_state_t *next = xmalloc(sizeof(case_state_t));
+      next->stmts = NULL;
+      next->narcs = 0;
+
+      assert(where->narcs < MAX_CASE_ARCS);
+      case_arc_t *arc = &(where->arcs[(where->narcs)++]);
+      arc->value = this;
+      arc->next  = next;
+
+      cgen_case_add_branch(next, left, right, depth + 1,
+                           dirmul, value, stmts);
+   }
+}
+
+static void cgen_case_alloc_basic_blocks(cgen_ctx_t *ctx, case_state_t *state)
+{
+   state->block = LLVMAppendBasicBlock(ctx->fn, "case_state");
+   for (int i = 0; i < state->narcs; i++)
+      cgen_case_alloc_basic_blocks(ctx, state->arcs[i].next);
+}
+
+static void cgen_case_emit_state_code(cgen_ctx_t *ctx, case_state_t *state,
+                                      LLVMValueRef value, LLVMValueRef left,
+                                      LLVMValueRef dirmul, int depth,
+                                      LLVMBasicBlockRef exit_bb,
+                                      LLVMBasicBlockRef others_bb)
+{
+   LLVMPositionBuilderAtEnd(builder, state->block);
+
+   if (state->stmts != NULL) {
+      cgen_stmt(state->stmts, ctx);
+      LLVMBuildBr(builder, exit_bb);
+   }
+   else {
+      LLVMValueRef off = LLVMBuildMul(builder, llvm_int32(depth), dirmul, "");
+
+      LLVMValueRef indexes[] = { off };
+      LLVMValueRef ptr = LLVMBuildGEP(builder, value,
+                                      indexes, ARRAY_LEN(indexes), "");
+      LLVMValueRef loaded = LLVMBuildLoad(builder, ptr, "");
+
+      LLVMValueRef sw = LLVMBuildSwitch(builder, loaded,
+                                        others_bb, state->narcs);
+
+      for (int i = 0; i < state->narcs; i++) {
+         LLVMValueRef cast =
+            LLVMBuildIntCast(builder, llvm_int32(state->arcs[i].value),
+                             LLVMTypeOf(loaded), "");
+         LLVMAddCase(sw, cast, state->arcs[i].next->block);
+
+         cgen_case_emit_state_code(ctx, state->arcs[i].next, value, left,
+                                   dirmul, depth + 1, exit_bb, others_bb);
+      }
+   }
+}
+
+static void cgen_case_cleanup(case_state_t *state, bool root)
+{
+   for (int i = 0; i < state->narcs; i++)
+      cgen_case_cleanup(state->arcs[i].next, false);
+   if (!root)
+      free(state);
+}
+
 static void cgen_case_array(tree_t t, cgen_ctx_t *ctx)
 {
-   // Case with array value must use chain of ifs
-
-   // TODO: multiple calls to cgen_array_rel is very inefficient
-   //       replace this with code to compare all values in a single
-   //       loop (e.g. build a bit mask of length #assocs)
+   // Case staments on arrays are implemented by building a decision tree
+   // where each state is mapped to an LLVM basic block
 
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "case_exit");
+   LLVMBasicBlockRef others_bb    = exit_bb;
 
    LLVMValueRef val = cgen_expr(tree_value(t), ctx);
    type_t type = tree_type(tree_value(t));
 
-   bool have_others = false;
+   LLVMValueRef val_dirmul = llvm_int32(1);
+   LLVMValueRef val_left = llvm_int32(0);
+
    const int nassocs = tree_assocs(t);
+
+   case_state_t root = {
+      .stmts = NULL,
+      .narcs = 0,
+      .block = NULL
+   };
+
+   range_t r = type_dim(type, 0);
+   const int64_t left  = assume_int(r.left);
+   const int64_t right = assume_int(r.right);
+   const int dirmul = (r.kind == RANGE_DOWNTO) ? -1 : 1;
+
+   int others_assoc = -1;
    for (int i = 0; i < nassocs; i++) {
-      LLVMBasicBlockRef next_bb = NULL;
       tree_t a = tree_assoc(t, i);
       switch (tree_subkind(a)) {
       case A_NAMED:
-         {
-            LLVMBasicBlockRef this_bb =
-               LLVMAppendBasicBlock(ctx->fn, "case_body");
-            next_bb = LLVMAppendBasicBlock(ctx->fn, "case_test");
-            LLVMValueRef eq = cgen_array_rel(val, cgen_expr(tree_name(a), ctx),
-                                             type, type, LLVMIntEQ, ctx);
-            LLVMBuildCondBr(builder, eq, this_bb, next_bb);
-            LLVMPositionBuilderAtEnd(builder, this_bb);
-         }
+         cgen_case_add_branch(&root, left, right, 0, dirmul,
+                              tree_name(a), tree_value(a));
          break;
 
       case A_OTHERS:
-         next_bb = exit_bb;
-         have_others = true;
+         others_assoc = i;
+         others_bb = LLVMAppendBasicBlock(ctx->fn, "case_others");
          break;
 
       default:
          assert(false);
       }
-
-      cgen_stmt(tree_value(a), ctx);
-      LLVMBuildBr(builder, exit_bb);
-
-      LLVMPositionBuilderAtEnd(builder, next_bb);
    }
 
-   if (!have_others)
+   LLVMValueRef data_ptr = cgen_array_data_ptr(type, val);
+
+   cgen_case_alloc_basic_blocks(ctx, &root);
+
+   LLVMBuildBr(builder, root.block);
+
+   cgen_case_emit_state_code(ctx, &root, data_ptr,
+                             val_left, val_dirmul, 0, exit_bb, others_bb);
+   cgen_case_cleanup(&root, true);
+
+   if (others_assoc != -1) {
+      LLVMPositionBuilderAtEnd(builder, others_bb);
+      cgen_stmt(tree_value(tree_assoc(t, others_assoc)), ctx);
       LLVMBuildBr(builder, exit_bb);
+   }
 
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }

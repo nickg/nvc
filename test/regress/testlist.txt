@@ -145,3 +145,4 @@ delay2          normal
 issue13         normal
 attr7           normal
 shift2          normal
+case4           normal
