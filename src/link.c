@@ -171,6 +171,9 @@ static void link_assembly(tree_t top)
    link_arg_f("%s/llc", LLVM_CONFIG_BINDIR);
    link_arg_f("-relocation-model=pic");
    link_output(top, "bc");
+#ifdef LLVM_LLC_HAS_OBJ
+   link_arg_f("-filetype=obj");
+#endif
 
    link_exec();
 
@@ -196,7 +199,11 @@ static void link_shared(tree_t top)
 #else
    link_output(top, "so");
 #endif
+#ifdef LLVM_LLC_HAS_OBJ
+   link_output(top, "o");
+#else
    link_output(top, "s");
+#endif
 
    link_exec();
 
