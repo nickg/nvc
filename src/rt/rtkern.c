@@ -153,7 +153,8 @@ struct watch {
    tree_t         signal;
    sig_event_fn_t fn;
    bool           pending;
-   watch_t       *chain;
+   watch_t       *chain_all;
+   watch_t       *chain_pending;
 };
 
 struct watch_list {
@@ -180,14 +181,13 @@ static netgroup_t   *groups = NULL;
 static sens_list_t  *pending = NULL;
 static sens_list_t  *resume = NULL;
 static watch_t      *watches = NULL;
-static watch_list_t *callbacks = NULL;
+static watch_t      *callbacks = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t tmp_chunk_stack = NULL;
 static rt_alloc_stack_t watch_stack = NULL;
-static rt_alloc_stack_t watch_list_stack = NULL;
 
 static netgroup_t **active_groups;
 static unsigned     n_active_groups = 0;
@@ -1123,7 +1123,7 @@ static void rt_watch_signal(watch_t *w)
       netid_t nid = tree_net(w->signal, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
-      watch_list_t *link = rt_alloc(watch_list_stack);
+      watch_list_t *link = xmalloc(sizeof(watch_list_t));
       link->next  = g->watching;
       link->watch = w;
 
@@ -1330,12 +1330,9 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       // Schedule any callbacks to run
       for (watch_list_t *wl = group->watching; wl != NULL; wl = wl->next) {
          if (!wl->watch->pending) {
-            watch_list_t *copy = rt_alloc(watch_list_stack);
-            copy->next  = callbacks;
-            copy->watch = wl->watch;
-            callbacks = copy;
-
+            wl->watch->chain_pending = callbacks;
             wl->watch->pending = true;
+            callbacks = wl->watch;
          }
       }
    }
@@ -1458,11 +1455,11 @@ static void rt_cycle(void)
 
    // Call all pending callbacks
    while (callbacks != NULL) {
-      (*callbacks->watch->fn)(now, callbacks->watch->signal);
-      callbacks->watch->pending = false;
+      (*callbacks->fn)(now, callbacks->signal);
+      callbacks->pending = false;
 
-      watch_list_t *next = callbacks->next;
-      rt_free(watch_list_stack, callbacks);
+      watch_t *next = callbacks->chain_pending;
+      callbacks->chain_pending = NULL;
       callbacks = next;
    }
 
@@ -1542,12 +1539,11 @@ static void rt_one_time_init(void)
 
    trace_on = opt_get_int("rt_trace_en");
 
-   event_stack      = rt_alloc_stack_new(sizeof(event_t));
-   waveform_stack   = rt_alloc_stack_new(sizeof(waveform_t));
-   sens_list_stack  = rt_alloc_stack_new(sizeof(sens_list_t));
-   tmp_chunk_stack  = rt_alloc_stack_new(sizeof(struct tmp_chunk));
-   watch_stack      = rt_alloc_stack_new(sizeof(watch_t));
-   watch_list_stack = rt_alloc_stack_new(sizeof(watch_list_t));
+   event_stack     = rt_alloc_stack_new(sizeof(event_t));
+   waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t));
+   sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t));
+   tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
+   watch_stack     = rt_alloc_stack_new(sizeof(watch_t));
 
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
@@ -1587,7 +1583,7 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 
    while (g->watching != NULL) {
       watch_list_t *next = g->watching->next;
-      rt_free(watch_list_stack, g->watching);
+      free(g->watching);
       g->watching = next;
    }
 }
@@ -1606,7 +1602,7 @@ static void rt_cleanup(tree_t top)
    netdb_close(netdb);
 
    while (watches != NULL) {
-      watch_t *next = watches->chain;
+      watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
       watches = next;
    }
@@ -1621,7 +1617,6 @@ static void rt_cleanup(tree_t top)
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
    rt_alloc_stack_destroy(watch_stack);
-   rt_alloc_stack_destroy(watch_list_stack);
 }
 
 static bool rt_stop_now(uint64_t stop_time)
@@ -1832,7 +1827,7 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 
    if (fn == NULL) {
       // Find the first entry in the watch list and disable it
-      for (watch_t *it = watches; it != NULL; it = it->chain) {
+      for (watch_t *it = watches; it != NULL; it = it->chain_all) {
          if (it->signal == s) {
             it->pending = true;   // TODO: not a good way of doing this
             break;
@@ -1842,10 +1837,11 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
    else {
       watch_t *w = rt_alloc(watch_stack);
       assert(w != NULL);
-      w->signal     = s;
-      w->fn         = fn;
-      w->chain      = watches;
-      w->pending    = false;
+      w->signal        = s;
+      w->fn            = fn;
+      w->chain_all     = watches;
+      w->chain_pending = NULL;
+      w->pending       = false;
 
       watches = w;
 
