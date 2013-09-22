@@ -555,8 +555,8 @@ void _array_reverse(void *restrict dst, const void *restrict src,
    FOR_ALL_SIZES(sz, ARRAY_REVERSE);
 }
 
-void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
-               int32_t high, int32_t last)
+void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
+                int32_t high, int32_t last)
 {
    //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
    //      fmt_net(nids[0]), where, size, low, high, last);
@@ -569,6 +569,13 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
       const int skip = nids[offset] - g->first;
       const int to_copy = MIN(high - offset + 1, g->length - skip);
 
+      if ((offset == low) && (offset + g->length - skip > high)) {
+         // If the signal data is already contiguous return a pointer to
+         // that rather than copying into the user buffer
+         void *r = unlikely(last) ? g->last_value->data : g->resolved->data;
+         return (uint8_t *)r + (skip * size);
+      }
+
       void *p = (uint8_t *)where + ((offset - low) * size);
       if (unlikely(last))
          memcpy(p, (uint8_t *)g->last_value->data + (skip * size),
@@ -579,6 +586,9 @@ void _vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
 
       offset += g->length - skip;
    }
+
+   // Signal data was non-contiguous so return the user buffer
+   return where;
 }
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)

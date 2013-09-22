@@ -1222,9 +1222,11 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
       llvm_int32(0),
       llvm_int1(last_value)
    };
-   LLVMBuildCall(builder, llvm_fn("_vec_load"), args, ARRAY_LEN(args), "");
+   LLVMValueRef r = LLVMBuildCall(builder, llvm_fn("_vec_load"),
+                                  args, ARRAY_LEN(args), "");
+   LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, LLVMTypeOf(tmp), "");
 
-   return LLVMBuildLoad(builder, tmp, "");
+   return LLVMBuildLoad(builder, loaded, "");
 }
 
 static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
@@ -1279,12 +1281,17 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
       high_abs,
       llvm_int1(last_value)
    };
-   LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+   LLVMValueRef r = LLVMBuildCall(builder, fn, args, ARRAY_LEN(args), "");
+
+   // If the signal data is contiguous _vec_load will return a pointer to
+   // the internal representation, otherwise it will copy into the tmp buffer
+   // and return a pointer to that
+   LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, LLVMTypeOf(tmp), "");
 
    if (dst_uarray)
-      return cgen_array_meta_1(slice_type, left, right, dir, tmp);
+      return cgen_array_meta_1(slice_type, left, right, dir, loaded);
    else
-      return tmp;
+      return loaded;
 }
 
 static LLVMValueRef cgen_signal_nets(tree_t decl)
@@ -4896,7 +4903,7 @@ static void cgen_support_fns(void)
       LLVMInt1Type()
    };
    LLVMAddFunction(module, "_vec_load",
-                   LLVMFunctionType(LLVMVoidType(),
+                   LLVMFunctionType(llvm_void_ptr(),
                                     _vec_load_args,
                                     ARRAY_LEN(_vec_load_args),
                                     false));
