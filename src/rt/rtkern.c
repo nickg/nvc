@@ -641,6 +641,8 @@ void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
       shift = -shift;
    }
 
+   shift %= len;
+
    uint8_t *buf = rt_tmp_alloc(len);
 
    for (int i = 0; i < len; i++) {
@@ -661,7 +663,7 @@ void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
          buf[i] = (i < len - shift) ? data[i + shift] : data[(i + shift) % len];
          break;
       case BIT_SHIFT_ROR:
-         buf[i] = (i >= shift) ? data[i - shift] : data[(i - shift) % len];
+         buf[i] = (i >= shift) ? data[i - shift] : data[len + i - shift];
          break;
       }
    }
