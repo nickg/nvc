@@ -3296,7 +3296,8 @@ static void cgen_if(tree_t t, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, then_bb);
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), ctx);
 
    LLVMBuildBr(builder, end_bb);
@@ -3403,7 +3404,8 @@ static void cgen_while(tree_t t, cgen_ctx_t *ctx)
    ctx->blocks = bl;
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), ctx);
    LLVMBuildBr(builder, test_bb);
 
@@ -3415,7 +3417,8 @@ static void cgen_while(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_block(tree_t t, cgen_ctx_t *ctx)
 {
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), ctx);
 }
 
@@ -4115,7 +4118,8 @@ static void cgen_process(tree_t t)
 
    LLVMPositionBuilderAtEnd(builder, start_bb);
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
    LLVMBuildBr(builder, start_bb);
@@ -4799,7 +4803,8 @@ static void cgen_top(tree_t t)
    cgen_reset_function(t);
 
    if (tree_kind(t) == T_ELAB) {
-      for (unsigned i = 0; i < tree_stmts(t); i++)
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
          cgen_process(tree_stmt(t, i));
    }
 }
