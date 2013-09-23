@@ -197,7 +197,7 @@ static void dump_expr(tree_t t)
 
 static void dump_type(type_t type)
 {
-   if (type_kind(type) == T_CARRAY) {
+   if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
       printf("%s(", istr(type_ident(type)));
       for (unsigned i = 0; i < type_dims(type); i++) {
          if (i > 0)
