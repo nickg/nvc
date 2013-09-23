@@ -193,6 +193,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_ENUM_LIT:
       tree_set_ref(t, params->actual);
+      tree_set_type(t, tree_type(params->actual));
       break;
    case T_LITERAL:
    case T_AGGREGATE:
@@ -219,9 +220,14 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
          return d;
    }
 
+   type_t port_type   = tree_type(port);
+   type_t actual_type = tree_type(actual);
+
+   type_t type = (type_kind(port_type) == T_UARRAY) ? actual_type : port_type;
+
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
-   tree_set_type(s, tree_type(actual));
+   tree_set_type(s, type);
 
    tree_add_decl(arch, s);
    return s;
