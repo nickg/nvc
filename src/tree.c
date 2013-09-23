@@ -1320,7 +1320,7 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
    if (fmarker == 0xfffe)
       return LOC_INVALID;
    else if (fmarker & 0x8000) {
-      uint8_t index = fmarker & 0x7fff;
+      uint16_t index = fmarker & 0x7fff;
       assert(index < MAX_FILES);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
