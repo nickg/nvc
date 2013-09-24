@@ -3146,7 +3146,6 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                                 indexes, ARRAY_LEN(indexes), "");
          }
       }
-      break;
 
    case T_ARRAY_SLICE:
       {
@@ -3173,7 +3172,38 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else
             return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
       }
-      break;
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+
+         LLVMTypeRef nid_type = cgen_net_id_type();
+         LLVMValueRef nid_array =
+            LLVMBuildArrayAlloca(builder, nid_type, llvm_int32(nassocs),
+                                 "aggregate_nid_array");
+
+         const bool downto = (type_dim(tree_type(t), 0).kind == RANGE_DOWNTO);
+
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(t, i);
+            assert(tree_subkind(a) == A_POS);
+
+            tree_t value = tree_value(a);
+            assert(!type_is_array(tree_type(value)));
+
+            LLVMValueRef nid_ptr = cgen_signal_lvalue(value, ctx);
+            LLVMValueRef nid = LLVMBuildLoad(builder, nid_ptr, "nid");
+
+            LLVMValueRef indexes[] = {
+               llvm_int32(downto ? nassocs - i - 1 : i)
+            };
+            LLVMValueRef aptr = LLVMBuildGEP(builder, nid_array,
+                                             indexes, ARRAY_LEN(indexes), "");
+            LLVMBuildStore(builder, nid, aptr);
+         }
+
+         return nid_array;
+      }
 
    default:
       assert(false);

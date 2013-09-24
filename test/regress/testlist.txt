@@ -147,3 +147,4 @@ attr7           normal
 shift2          normal
 case4           normal
 bounds10        gold,fail
+signal10        normal

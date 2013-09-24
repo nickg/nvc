@@ -291,6 +291,14 @@ static void group_name(tree_t t, group_nets_ctx_t *ctx)
       // Constant folding can cause this to appear
       break;
 
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(t);
+         for (int i = 0; i < nassocs; i++)
+            group_name(tree_value(tree_assoc(t, i)), ctx);
+      }
+      break;
+
    default:
       assert(false);
    }
