@@ -448,10 +448,13 @@ static tree_t simp_for(tree_t t)
       tree_add_stmt(b, container);
    }
 
+   ident_t elide_bounds_i = ident_new("elide_bounds");
+
    tree_t init = tree_new(T_VAR_ASSIGN);
    tree_set_ident(init, ident_uniq("init"));
    tree_set_target(init, var);
    tree_set_value(init, (r.kind == RANGE_RDYN) ? r.right : r.left);
+   tree_add_attr_int(init, elide_bounds_i, 1);
 
    ident_t label = tree_ident(t);
    tree_t wh = tree_new(T_WHILE);
@@ -487,6 +490,7 @@ static tree_t simp_for(tree_t t)
       tree_set_ident(a1, ident_uniq("for_next_asc"));
       tree_set_target(a1, var);
       tree_set_value(a1, succ);
+      tree_add_attr_int(a1, elide_bounds_i, 1);
 
       tree_t pred = call_builtin((r.kind == RANGE_DYN) ? "pred" : "succ",
                                  tree_type(decl), var, NULL);
@@ -495,6 +499,7 @@ static tree_t simp_for(tree_t t)
       tree_set_ident(a2, ident_uniq("for_next_dsc"));
       tree_set_target(a2, var);
       tree_set_value(a2, pred);
+      tree_add_attr_int(a2, elide_bounds_i, 1);
 
       tree_add_stmt(next, a1);
       tree_add_else_stmt(next, a2);
@@ -516,6 +521,7 @@ static tree_t simp_for(tree_t t)
       tree_set_ident(next, ident_uniq("for_next"));
       tree_set_target(next, var);
       tree_set_value(next, call);
+      tree_add_attr_int(next, elide_bounds_i, 1);
    }
 
    tree_add_stmt(wh, exit);

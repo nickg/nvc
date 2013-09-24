@@ -49,6 +49,7 @@ static ident_t sig_nets_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
 static ident_t stmt_tag_i = NULL;
+static ident_t elide_bounds_i = NULL;
 
 typedef struct case_arc  case_arc_t;
 typedef struct case_state case_state_t;
@@ -3069,7 +3070,7 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
    type_t target_type = tree_type(target);
 
    type_kind_t base_k = type_kind(type_base_recur(target_type));
-   if (base_k == T_INTEGER) {
+   if ((base_k == T_INTEGER) && !tree_attr_int(t, elide_bounds_i, 0)) {
       range_t r = type_dim(target_type, 0);
       LLVMValueRef min =
          cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
@@ -5185,6 +5186,7 @@ void cgen(tree_t top)
    foreign_i      = ident_new("FOREIGN");
    never_waits_i  = ident_new("never_waits");
    stmt_tag_i     = ident_new("stmt_tag");
+   elide_bounds_i = ident_new("elide_bounds");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
