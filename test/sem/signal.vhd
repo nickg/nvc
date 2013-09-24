@@ -1,4 +1,6 @@
 entity e is
+    port (
+        p : in bit );
 end entity;
 
 architecture a of e is
@@ -6,11 +8,20 @@ architecture a of e is
     signal x, y, z : bit;
 begin
 
-    (x, y, z) <= v;                     -- OK (TODO)
-
     process is
     begin
-        (x, y, z) <= v;                 -- OK (TODO)
+        (x, y, z) <= v;                 -- OK
+        (x, y, z) <= x;                 -- Error
+        (x, y, z) <= "101";             -- Error
+        ('1', y, z) <=  v;              -- Error
+        (others => x) <= v;             -- Error
+        (p, y, z) <= v;                 -- Error
     end process;
+
+    (x, y, z) <= v;                 -- OK
+    (x, y, z) <= x;                 -- Error
+    ('1', y, z) <=  v;              -- Error
+    (others => x) <= v;             -- Error
+    (p, y, z) <= v;                 -- Error
 
 end architecture;

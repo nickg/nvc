@@ -1137,8 +1137,15 @@ START_TEST(test_signal)
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
-      {  9, "sorry, aggregates targets are not yet supported" },
-      { 13, "sorry, aggregates targets are not yet supported" },
+      { 14, "no composite type in context" },
+      { 15, "no composite type in context" },
+      { 16, "not a suitable l-value" },
+      { 17, "others association not allowed in aggregate signal target" },
+      { 18, "cannot assign to input port P" },
+      { 22, "no composite type in context" },
+      { 23, "not a suitable l-value" },
+      { 24, "others association not allowed in aggregate signal target" },
+      { 25, "cannot assign to input port P" },
       { -1, NULL }
    };
    expect_errors(expect);
