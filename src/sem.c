@@ -1099,7 +1099,8 @@ static bool sem_check_range(range_t *r, type_t context)
    type_t right_type = tree_type(r->right);
 
    if (!type_eq(left_type, right_type))
-      sem_error(r->right, "type mismatch in range");
+      sem_error(r->right, "type mismatch in range: left is %s, right is %s",
+                sem_type_str(left_type), sem_type_str(right_type));
 
    if (context == NULL) {
       // See LRM 93 section 3.2.11
