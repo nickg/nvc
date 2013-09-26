@@ -1185,7 +1185,8 @@ static bool sem_readable(tree_t t)
 
 static bool sem_check_array_dims(type_t type, type_t constraint)
 {
-   for (unsigned i = 0; i < type_dims(type); i++) {
+   const int ndims = type_dims(type);
+   for (int i = 0; i < ndims; i++) {
       range_t r = type_dim(type, i);
 
       type_t index_type = NULL;
@@ -3544,7 +3545,7 @@ static bool sem_check_concat(tree_t t)
 
 static bool sem_check_literal(tree_t t)
 {
-   if (tree_has_type(t))
+   if (tree_has_type(t) && (type_kind(tree_type(t)) != T_UNRESOLVED))
       return true;
 
    switch (tree_subkind(t)) {
