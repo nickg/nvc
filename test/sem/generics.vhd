@@ -84,12 +84,23 @@ architecture a of static is
     alias sx2 : bit_vector is s(k to 3);
 
     function f(x : bit_vector) return integer;
+
+    component c is
+        generic (
+            x : bit_vector(2 downto 0) );
+    end component;
 begin
 
-    i: entity work.bot
+    i1: entity work.bot
         generic map (
             N => f("100") )
         port map (
             o => open );
+
+    i2: component c
+        generic map ( x => "00" & '1' );  -- OK
+
+    i3: component c
+        generic map ( x => "00" & sx );  -- Error
 
 end architecture;

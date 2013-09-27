@@ -4703,10 +4703,12 @@ static bool sem_globally_static(tree_t t)
    // TODO: clause h
 
    // A function call of a pure function with globally static actuals
-   if (kind == T_FCALL) {
-      tree_t decl = tree_ref(t);
-      if (tree_attr_int(decl, ident_new("impure"), 0))
-         return false;
+   if ((kind == T_FCALL) || (kind == T_CONCAT)) {
+      if (kind == T_FCALL) {
+         tree_t decl = tree_ref(t);
+         if (tree_attr_int(decl, ident_new("impure"), 0))
+            return false;
+      }
 
       bool all_static = true;
       const int nparams = tree_params(t);

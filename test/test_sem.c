@@ -607,11 +607,12 @@ START_TEST(test_generics)
    input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
-      { 34, "missing actual for formal N" },
-      { 38, "too many positional actuals" },
-      { 48, "undefined identifier X" },
-      { 58, "invalid object class for generic" },
-      { 68, "undefined identifier Y" },
+      {  34, "missing actual for formal N" },
+      {  38, "too many positional actuals" },
+      {  48, "undefined identifier X" },
+      {  58, "invalid object class for generic" },
+      {  68, "undefined identifier Y" },
+      { 104, "actual must be globally static expression or locally " },
       { -1, NULL }
    };
    expect_errors(expect);
