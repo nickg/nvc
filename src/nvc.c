@@ -431,9 +431,17 @@ static void usage(void)
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
           "     --nets\t\tShow mapping from signals to nets\n"
-          "\n"
-          "Report bugs to %s\n",
-          PACKAGE, PACKAGE_BUGREPORT);
+          "\n",
+          PACKAGE);
+
+   const char **paths;
+   lib_enum_paths(&paths);
+
+   printf("Library search paths:\n");
+   for (const char **p = paths; *p != NULL; p++)
+      printf("  %s\n", *p);
+
+   printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }
 
 int main(int argc, char **argv)

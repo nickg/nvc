@@ -43,6 +43,7 @@ void lib_destroy(lib_t lib);
 struct trie *lib_name(lib_t lib);
 void lib_save(lib_t lib);
 void lib_mkdir(lib_t lib, const char *name);
+void lib_enum_paths(const char ***result);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);
