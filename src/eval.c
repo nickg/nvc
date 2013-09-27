@@ -428,7 +428,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
    if (uarray_left || uarray_right) {
       tree_t array = tree_value(tree_param(t, 0));
-      assert(tree_kind(array) == T_REF);
+      if (tree_kind(array) != T_REF)
+         return t;
 
       tree_t decl = tree_ref(array);
       type_t array_type = tree_type(decl);
@@ -441,7 +442,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       return uarray_left ? dim0.left : dim0.right;
    }
 
-   if (tree_params(t) > MAX_BUILTIN_ARGS)
+   const int nparams = tree_params(t);
+   if (nparams > MAX_BUILTIN_ARGS)
       return t;
 
    bool can_fold_int  = true;
@@ -451,7 +453,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    int64_t iargs[MAX_BUILTIN_ARGS];
    double rargs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
-   for (unsigned i = 0; i < tree_params(t); i++) {
+   for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       tree_t val = eval_expr(tree_value(p), v);
       can_fold_int  = can_fold_int && folded_int(val, &iargs[i]);
