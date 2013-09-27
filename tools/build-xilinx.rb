@@ -50,10 +50,22 @@ run_nvc "unisim", "unisims/unisim_VCOMP.vhd"
 
 put_title "Primitives"
 
-order = "#{$src}/unisims/primitive/vhdl_analyze_order"
-File.open(order).each_line do |line|
+unisim_order = "#{$src}/unisims/primitive/vhdl_analyze_order"
+File.open(unisim_order).each_line do |line|
   run_nvc "unisim", "unisims/primitive/#{line}"
 end
 
-puts
+# XilinxCoreLib does not yet build
+#
+#put_title "XilinxCoreLib"
+#
+#corelib_order = "#{$src}/XilinxCoreLib/vhdl_analyze_order"
+#File.open(corelib_order).each_line do |line|
+#  line.gsub!(/#.*$/, '')
+#  unless line =~ /^ *$/ then
+#    run_nvc "xilinxcorelib", "XilinxCoreLib/#{line}"
+#  end
+#end
+
+put_title "Finished"
 puts "Xilinx libraries installed in #{$libdir}"
