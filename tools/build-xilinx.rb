@@ -4,6 +4,8 @@
 # Script to compile the Xilinx simulation libraries
 #
 
+require 'fileutils'
+
 xilinx = ENV['XILINX']
 
 unless xilinx
@@ -28,8 +30,11 @@ puts "Using ISE installation in #{xilinx}"
 # ISE has conflicting version of libstdc++ on some Linux systems
 ENV['LD_LIBRARY_PATH'] = nil
 
+$libdir = "#{File.expand_path '~'}/.nvc/lib"
+FileUtils.mkdir_p $libdir
+
 def run_nvc(lib, file)
-  cmd = "nvc --work=#{lib} -a #{$src}/#{file}"
+  cmd = "nvc --work=#{$libdir}/#{lib} -a #{$src}/#{file}"
   puts cmd
   exit 1 unless system cmd
 end
@@ -49,3 +54,6 @@ order = "#{$src}/unisims/primitive/vhdl_analyze_order"
 File.open(order).each_line do |line|
   run_nvc "unisim", "unisims/primitive/#{line}"
 end
+
+puts
+puts "Xilinx libraries installed in #{$libdir}"
