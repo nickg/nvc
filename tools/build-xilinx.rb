@@ -14,14 +14,14 @@ unless xilinx
     (1..4).collect { |minor| "/opt/Xilinx/#{major}.#{minor}/ISE_DS/ISE" }
   end.flatten.reverse
 
-  unless search.any? { |root| Dir.exists? (xilinx = root) }
+  unless search.any? { |root| File.directory?(xilinx = root) }
     die "No ISE installation found: set XILINX environment variable"
   end
 end
 
 $src = "#{xilinx}/vhdl/src"
 
-unless Dir.exists? $src
+unless File.directory? $src
   die "Source directory #{$src} does not exist"
 end
 
