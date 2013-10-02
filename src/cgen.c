@@ -1920,6 +1920,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "xnor"))
          return LLVMBuildNot(builder,
                              LLVMBuildXor(builder, args[0], args[1], ""), "");
+      else if (icmp(builtin, "nand"))
+         return LLVMBuildNot(builder,
+                             LLVMBuildAnd(builder, args[0], args[1], ""), "");
+      else if (icmp(builtin, "nor"))
+         return LLVMBuildNot(builder,
+                             LLVMBuildOr(builder, args[0], args[1], ""), "");
       else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
       else if (icmp(builtin, "rem"))
