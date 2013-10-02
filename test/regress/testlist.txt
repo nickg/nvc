@@ -148,3 +148,4 @@ shift2          normal
 case4           normal
 bounds10        gold,fail
 signal10        normal
+signal11        normal,gold

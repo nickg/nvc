@@ -1299,8 +1299,18 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
 {
    // Return the array of nets associated with a signal
    void *nets = tree_attr_ptr(decl, sig_nets_i);
-   assert(nets != NULL);
-   return nets;
+   if (nets == NULL) {
+      char buf[256];
+      snprintf(buf, sizeof(buf), "%s_nets",
+               package_signal_path_name(tree_ident(decl)));
+
+      LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), 0);
+      LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
+      LLVMSetLinkage(map_var, LLVMExternalLinkage);
+      return map_var;
+   }
+   else
+      return nets;
 }
 
 static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag)
@@ -4283,30 +4293,41 @@ static void cgen_signal(tree_t t)
 {
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   const int nnets = tree_nets(t);
-   assert(nnets > 0);
-
-   char buf[256];
-   snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
-
    LLVMTypeRef  nid_type = cgen_net_id_type();
-   LLVMTypeRef  map_type = LLVMArrayType(nid_type, nnets);
-   LLVMValueRef map_var  = LLVMAddGlobal(module, map_type, buf);
-   LLVMSetLinkage(map_var, LLVMInternalLinkage);
+   LLVMValueRef map_var = NULL;
 
-   if (nnets <= MAX_STATIC_NETS) {
-      // Generate a constant mapping table from sub-element to net ID
-      LLVMSetGlobalConstant(map_var, true);
+   const int nnets = tree_nets(t);
+   if (nnets == 0) {
+      // Not an elaborated design
+      char buf[256];
+      snprintf(buf, sizeof(buf), "%s_nets",
+               package_signal_path_name(tree_ident(t)));
 
-      LLVMValueRef init[nnets];
-      for (int i = 0; i < nnets; i++)
-         init[i] = llvm_int32(tree_net(t, i));
-
-      LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+      LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
+      map_var = LLVMAddGlobal(module, map_type, buf);
+      LLVMSetLinkage(map_var, LLVMExternalLinkage);
    }
    else {
-      // Values will be filled in by reset function
-      LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+      char buf[256];
+      snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+
+      LLVMTypeRef map_type = LLVMArrayType(nid_type, nnets);
+      map_var = LLVMAddGlobal(module, map_type, buf);
+
+      if (nnets <= MAX_STATIC_NETS) {
+         // Generate a constant mapping table from sub-element to net ID
+         LLVMSetGlobalConstant(map_var, true);
+
+         LLVMValueRef init[nnets];
+         for (int i = 0; i < nnets; i++)
+            init[i] = llvm_int32(tree_net(t, i));
+
+         LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+      }
+      else {
+         // Values will be filled in by reset function
+         LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+      }
    }
 
    tree_add_attr_ptr(t, sig_nets_i, map_var);
@@ -4679,6 +4700,9 @@ static void cgen_reset_function(tree_t t)
          continue;
 
       const int nnets = tree_nets(d);
+      if (nnets == 0)
+         continue;
+
       if (nnets > MAX_STATIC_NETS) {
          // Need to generate runtime code to fill in net mapping table
 
@@ -5177,6 +5201,25 @@ static void cgen_module_name(tree_t top)
    LLVMSetLinkage(mod_name, LLVMPrivateLinkage);
 }
 
+static void cgen_cleanup_tmp_attrs(tree_t top)
+{
+   // Delete any LLVM pointers stored as tree attributes
+
+   const int ndecls = tree_decls(top);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top, i);
+
+      if (tree_attr_ptr(d, local_var_i))
+         tree_add_attr_ptr(d, local_var_i, NULL);
+
+      if (tree_attr_ptr(d, global_const_i))
+         tree_add_attr_ptr(d, global_const_i, NULL);
+
+      if (tree_attr_ptr(d, sig_nets_i))
+         tree_add_attr_ptr(d, sig_nets_i, NULL);
+   }
+}
+
 void cgen(tree_t top)
 {
    var_offset_i   = ident_new("var_offset");
@@ -5215,6 +5258,8 @@ void cgen(tree_t top)
    if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
       fatal("error writing LLVM bitcode");
    fclose(f);
+
+   cgen_cleanup_tmp_attrs(top);
 
    LLVMDisposeBuilder(builder);
    LLVMDisposeModule(module);

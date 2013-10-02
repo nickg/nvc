@@ -20,6 +20,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <string.h>
 
 int64_t assume_int(tree_t t)
 {
@@ -173,4 +174,24 @@ tree_t get_real_lit(tree_t t, double r)
    tree_set_type(f, tree_type(t));
 
    return f;
+}
+
+const char *package_signal_path_name(ident_t i)
+{
+   const char *str = istr(i);
+   char *buf = get_fmt_buf(strlen(str) + 3);
+   char *p = buf;
+
+   *p++ = ':';
+   while (*str != '\0') {
+      if (*str == '.') {
+         *p++ = ':';
+         str++;
+      }
+      else
+         *p++ = tolower(*str++);
+   }
+   *p = '\0';
+
+   return buf;
 }
