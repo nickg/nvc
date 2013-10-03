@@ -436,6 +436,7 @@ static void usage(void)
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --stats\t\tPrint statistics at end of run\n"
+          "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           "     --vcd=FILE\t\tWrite VCD data to FILE\n"
@@ -446,7 +447,8 @@ static void usage(void)
           " -b, --body\t\tDump package body\n"
           "     --nets\t\tShow mapping from signals to nets\n"
           "\n",
-          PACKAGE);
+          PACKAGE,
+          opt_get_int("stop-delta"));
 
    const char **paths;
    lib_enum_paths(&paths);
