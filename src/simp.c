@@ -559,6 +559,7 @@ static tree_t simp_cassign(tree_t t)
 
    tree_t p = tree_new(T_PROCESS);
    tree_set_ident(p, tree_ident(t));
+   tree_set_loc(p, tree_loc(t));
 
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("cassign"));

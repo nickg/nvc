@@ -227,18 +227,28 @@ static uint64_t parse_time(const char *str)
    return base * mult;
 }
 
+static int parse_int(const char *str)
+{
+   char *eptr = NULL;
+   int n = strtol(str, &eptr, 0);
+   if ((eptr == NULL) || (*eptr != '\0'))
+      fatal("invalid integer: %s", str);
+   return n;
+}
+
 static int run(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "trace",     no_argument,       0, 't' },
-      { "batch",     no_argument,       0, 'b' },
-      { "command",   no_argument,       0, 'c' },
-      { "stop-time", required_argument, 0, 's' },
-      { "vcd",       required_argument, 0, 'v' },
-      { "stats",     no_argument,       0, 'S' },
-      { "wave",      optional_argument, 0, 'w' },
+      { "trace",      no_argument,       0, 't' },
+      { "batch",      no_argument,       0, 'b' },
+      { "command",    no_argument,       0, 'c' },
+      { "stop-time",  required_argument, 0, 's' },
+      { "vcd",        required_argument, 0, 'v' },
+      { "stats",      no_argument,       0, 'S' },
+      { "wave",       optional_argument, 0, 'w' },
+      { "stop-delta", required_argument, 0, 'd' },
       { 0, 0, 0, 0 }
    };
 
@@ -282,6 +292,9 @@ static int run(int argc, char **argv)
             lxt_fname = "";
          else
             lxt_fname = optarg;
+         break;
+      case 'd':
+         opt_set_int("stop-delta", parse_int(optarg));
          break;
       default:
          abort();
@@ -392,6 +405,7 @@ static void set_default_opts(void)
    opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
+   opt_set_int("stop-delta", 1000);
 }
 
 static void usage(void)

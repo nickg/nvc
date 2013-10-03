@@ -1389,7 +1389,28 @@ static struct event *rt_pop_run_queue(void)
       return run_queue.queue[(run_queue.rd)++];
 }
 
-static void rt_cycle(void)
+static void rt_iteration_limit(void)
+{
+   char buf[2048];
+   static_printf_begin(buf, sizeof(buf));
+
+   static_printf(buf, "Iteration limit of %d delta cycles reached. "
+                 "The following processes are active:\n",
+                 opt_get_int("stop-delta"));
+
+   for (sens_list_t *it = resume; it != NULL; it = it->next) {
+      tree_t p = it->proc->source;
+      const loc_t *l = tree_loc(p);
+      static_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
+                    l->file, l->first_line);
+   }
+
+   static_printf(buf, "You can increase this limit with --stop-delta");
+
+   fatal(buf);
+}
+
+static void rt_cycle(int stop_delta)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
@@ -1443,6 +1464,8 @@ static void rt_cycle(void)
       vcd_restart();
       lxt_restart();
    }
+   else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
+      rt_iteration_limit();
 
    // Run all processes that resumed because of signal events
    while (resume != NULL) {
@@ -1667,12 +1690,14 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 
    jit_init(tree_ident(e));
 
+   const int stop_delta = opt_get_int("stop-delta");
+
    rt_one_time_init();
    rt_setup(e);
    rt_stats_ready();
    rt_initial(e);
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
-      rt_cycle();
+      rt_cycle(stop_delta);
    rt_cleanup(e);
    rt_emit_coverage(e);
 
@@ -1697,10 +1722,12 @@ static void rt_slave_run(slave_run_msg_t *msg)
    else {
       set_fatal_fn(rt_slave_fatal);
 
+      const int stop_delta = opt_get_int("stop-delta");
+
       if (setjmp(fatal_jmp) == 0) {
          const uint64_t end = now + msg->time;
          while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
-            rt_cycle();
+            rt_cycle(stop_delta);
       }
 
       set_fatal_fn(NULL);

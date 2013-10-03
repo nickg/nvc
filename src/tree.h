@@ -135,9 +135,6 @@ typedef uint32_t netid_t;
 
 #define NETID_INVALID UINT32_MAX
 
-typedef struct tree_wr_ctx *tree_wr_ctx_t;
-typedef struct tree_rd_ctx *tree_rd_ctx_t;
-
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);
