@@ -1407,7 +1407,7 @@ static void rt_iteration_limit(void)
 
    static_printf(buf, "You can increase this limit with --stop-delta");
 
-   fatal(buf);
+   fatal("%s", buf);
 }
 
 static void rt_cycle(int stop_delta)
