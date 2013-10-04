@@ -336,7 +336,8 @@ static void type_set_add(type_t t)
 
 static bool type_set_restrict(bool (*pred)(type_t))
 {
-   assert(top_type_set != NULL);
+   if (top_type_set == NULL)
+      return false;
 
    int j = 0;
    for (int i = 0; i < top_type_set->n_members; i++) {
@@ -1098,7 +1099,8 @@ static bool sem_check_range(range_t *r, type_t context)
    type_t right_type = tree_type(r->right);
 
    if (!type_eq(left_type, right_type))
-      sem_error(r->right, "type mismatch in range");
+      sem_error(r->right, "type mismatch in range: left is %s, right is %s",
+                sem_type_str(left_type), sem_type_str(right_type));
 
    if (context == NULL) {
       // See LRM 93 section 3.2.11
@@ -1183,7 +1185,8 @@ static bool sem_readable(tree_t t)
 
 static bool sem_check_array_dims(type_t type, type_t constraint)
 {
-   for (unsigned i = 0; i < type_dims(type); i++) {
+   const int ndims = type_dims(type);
+   for (int i = 0; i < ndims; i++) {
       range_t r = type_dim(type, i);
 
       type_t index_type = NULL;
@@ -2074,6 +2077,9 @@ static bool sem_check_sensitivity(tree_t t)
 
       // Can only reference signals in sensitivity list
       tree_t decl = sem_check_lvalue(r);
+      if (decl == NULL)
+         sem_error(r, "not a sutiable l-value");
+
       switch (tree_kind(decl)) {
       case T_SIGNAL_DECL:
       case T_PORT_DECL:
@@ -2361,6 +2367,13 @@ static bool sem_check_arch(tree_t t)
    for (int n = 0; n < ngenerics; n++)
       scope_insert(tree_generic(e, n));
 
+   const int ndecls_ent = tree_decls(e);
+   for (int n = 0; n < ndecls_ent; n++) {
+      tree_t d = tree_decl(e, n);
+      if (tree_kind(d) != T_ATTR_SPEC)
+         sem_declare(d);
+   }
+
    // Now check the architecture itself
 
    const int ndecls = tree_decls(t);
@@ -2402,8 +2415,6 @@ static tree_t sem_check_lvalue(tree_t t)
    case T_CONST_DECL:
       return t;
    default:
-      error_at(tree_loc(t), "not a suitable l-value");
-      ++errors;
       return NULL;
    }
 }
@@ -2427,7 +2438,7 @@ static bool sem_check_var_assign(tree_t t)
 
    tree_t decl = sem_check_lvalue(target);
    if (decl == NULL)
-      return false;
+      sem_error(target, "not a suitable l-value");
 
    bool suitable = (tree_kind(decl) == T_VAR_DECL)
       || (tree_kind(decl) == T_PORT_DECL && tree_class(decl) == C_VARIABLE);
@@ -2477,25 +2488,54 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
 
 static bool sem_check_signal_target(tree_t target)
 {
-   tree_t decl = sem_check_lvalue(target);
-   if (decl == NULL)
-      return false;
+   if (tree_kind(target) == T_AGGREGATE) {
+      // Rules for aggregate signal targets in LRM 93 section 8.4
+      const int nassocs = tree_assocs(target);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(target, i);
 
-   switch (tree_kind(decl)) {
-   case T_SIGNAL_DECL:
-      break;
+         if (!sem_check_signal_target(tree_value(a)))
+            return false;
 
-   case T_PORT_DECL:
-      if (tree_subkind(decl) == PORT_IN)
-         sem_error(target, "cannot assign to input port %s",
-                   istr(tree_ident(target)));
-      break;
+         assoc_kind_t kind = tree_subkind(a);
+         switch (kind) {
+         case A_OTHERS:
+            sem_error(a, "others association not allowed in aggregate "
+                      "signal target");
+         case A_RANGE:
+            sem_error(a, "range association not allowd in aggregate "
+                      "signal target");
+         case A_NAMED:
+            sem_error(a, "sorry, named associations are not yet "
+                      "supported here");
+         case A_POS:
+            break;
+         }
+      }
 
-   default:
-      sem_error(target, "invalid target of signal assignment");
+      return true;
    }
+   else {
+      tree_t decl = sem_check_lvalue(target);
+      if (decl == NULL)
+         sem_error(target, "not a suitable l-value");
 
-   return true;
+      switch (tree_kind(decl)) {
+      case T_SIGNAL_DECL:
+         break;
+
+      case T_PORT_DECL:
+         if (tree_subkind(decl) == PORT_IN)
+            sem_error(target, "cannot assign to input port %s",
+                      istr(tree_ident(target)));
+         break;
+
+      default:
+         sem_error(target, "invalid target of signal assignment");
+      }
+
+      return true;
+   }
 }
 
 static bool sem_check_reject(tree_t t)
@@ -2514,10 +2554,16 @@ static bool sem_check_signal_assign(tree_t t)
 {
    tree_t target = tree_target(t);
 
-   if (tree_kind(target) == T_AGGREGATE)
-      sem_error(target, "sorry, aggregates targets are not yet supported");
+   type_t context = NULL;
+   if (tree_kind(target) == T_AGGREGATE) {
+      // Context for target is type of RHS
+      tree_t w0 = tree_value(tree_waveform(t, 0));
+      if (!sem_check(w0))
+         return false;
+      context = tree_type(w0);
+   }
 
-   if (!sem_check(target))
+   if (!sem_check_constrained(target, context))
       return false;
 
    if (!sem_check_waveforms(t, tree_type(target)))
@@ -2536,15 +2582,22 @@ static bool sem_check_cassign(tree_t t)
 {
    tree_t target = tree_target(t);
 
-   if (tree_kind(target) == T_AGGREGATE)
-      sem_error(target, "sorry, aggregates targets are not yet supported");
+   type_t context = NULL;
+   if (tree_kind(target) == T_AGGREGATE) {
+      // Context for target is type of RHS
+      tree_t w0 = tree_value(tree_waveform(tree_cond(t, 0), 0));
+      if (!sem_check(w0))
+         return false;
+      context = tree_type(w0);
+   }
 
-   if (!sem_check(target))
+   if (!sem_check_constrained(target, context))
       return false;
 
    type_t std_bool = sem_std_type("BOOLEAN");
 
-   for (unsigned i = 0; i < tree_conds(t); i++) {
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
       tree_t c = tree_cond(t, i);
 
       if (tree_has_value(c)) {
@@ -3492,7 +3545,7 @@ static bool sem_check_concat(tree_t t)
 
 static bool sem_check_literal(tree_t t)
 {
-   if (tree_has_type(t))
+   if (tree_has_type(t) && (type_kind(tree_type(t)) != T_UNRESOLVED))
       return true;
 
    switch (tree_subkind(t)) {
@@ -4381,7 +4434,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
    }
 
    for (int i = 0; i < nformals; i++) {
-      if (!formals[i].have && !tree_has_value(formals[i].decl))
+      if (!formals[i].have && !tree_has_value(formals[i].decl)
+          && (tree_subkind(formals[i].decl) != PORT_OUT))
          sem_error(t, "missing actual for formal %s",
                    istr(tree_ident(formals[i].decl)));
    }
@@ -4649,10 +4703,12 @@ static bool sem_globally_static(tree_t t)
    // TODO: clause h
 
    // A function call of a pure function with globally static actuals
-   if (kind == T_FCALL) {
-      tree_t decl = tree_ref(t);
-      if (tree_attr_int(decl, ident_new("impure"), 0))
-         return false;
+   if ((kind == T_FCALL) || (kind == T_CONCAT)) {
+      if (kind == T_FCALL) {
+         tree_t decl = tree_ref(t);
+         if (tree_attr_int(decl, ident_new("impure"), 0))
+            return false;
+      }
 
       bool all_static = true;
       const int nparams = tree_params(t);

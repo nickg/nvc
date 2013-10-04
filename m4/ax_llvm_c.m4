@@ -70,6 +70,11 @@ AC_DEFUN([AX_LLVM_C],
                     AC_MSG_ERROR([LLVM version 3.0 or later required])
                 fi
 
+                if test "$llvm_ver_num" -ge "32"; then
+                    AC_DEFINE_UNQUOTED(LLVM_LLC_HAS_OBJ, [1],
+                        [llc can produce .obj output files])
+                fi
+
                 AC_REQUIRE([AC_PROG_CXX])
 
                 CFLAGS_SAVED="$CFLAGS"

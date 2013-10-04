@@ -59,7 +59,8 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_funcs(tree_t arch, tree_t ent);
 
-static int errors = 0;
+static int     errors = 0;
+static ident_t inst_name_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -193,6 +194,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_ENUM_LIT:
       tree_set_ref(t, params->actual);
+      tree_set_type(t, tree_type(params->actual));
       break;
    case T_LITERAL:
    case T_AGGREGATE:
@@ -219,9 +221,14 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
          return d;
    }
 
+   type_t port_type   = tree_type(port);
+   type_t actual_type = tree_type(actual);
+
+   type_t type = (type_kind(port_type) == T_UARRAY) ? actual_type : port_type;
+
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
-   tree_set_type(s, tree_type(actual));
+   tree_set_type(s, type);
 
    tree_add_decl(arch, s);
    return s;
@@ -229,7 +236,8 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 
 static void elab_copy_context(tree_t dest, tree_t src)
 {
-   for (unsigned i = 0; i < tree_contexts(src); i++)
+   const int nctx = tree_contexts(src);
+   for (int i = 0; i < nctx; i++)
       tree_add_context(dest, tree_context(src, i));
 }
 
@@ -609,8 +617,6 @@ static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
 
 static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
-   ident_t inst_name_i = ident_new("INSTANCE_NAME");
-
    tree_add_attr_str(t, inst_name_i,
                      ident_prefix(ctx->inst, ident_new(":"), '\0'));
 
@@ -785,6 +791,14 @@ static tree_t rewrite_funcs(tree_t t, void *context)
    return t;
 }
 
+static lib_t elab_link_lib(ident_t name)
+{
+   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
+   if (lib == NULL)
+      fatal("cannot link library %s", istr(name));
+   return lib;
+}
+
 static void elab_funcs(tree_t arch, tree_t ent)
 {
    // Look through all the package bodies required by the context and
@@ -803,9 +817,7 @@ static void elab_funcs(tree_t arch, tree_t ent)
          : tree_context(ent, i - ncontext_arch);
 
       ident_t name = tree_ident(ctx);
-      lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-      if (lib == NULL)
-         fatal("cannot link library %s", istr(name));
+      lib_t lib = elab_link_lib(name);
 
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
       tree_t body = lib_get(lib, body_i);
@@ -832,8 +844,75 @@ static void elab_funcs(tree_t arch, tree_t ent)
       tree_rewrite(arch, rewrite_funcs, rlist);
 }
 
+static tree_t rewrite_package_signals(tree_t t, void *ctx)
+{
+   tree_t decl = ctx;
+
+   if (tree_kind(t) != T_REF)
+      return t;
+
+   tree_t ref = tree_ref(t);
+
+   if (tree_kind(ref) != T_SIGNAL_DECL)
+      return t;
+
+   if (tree_ident(ref) != tree_ident(decl))
+      return t;
+
+   tree_set_ref(t, decl);
+   return t;
+}
+
+static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
+{
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+      else if (tree_nets(d) > 0)
+         continue;
+
+      elab_signal_nets(d, ctx);
+
+      tree_rewrite(ctx->out, rewrite_package_signals, d);
+
+      tree_add_decl(ctx->out, d);
+
+      ident_t i = ident_new(package_signal_path_name(tree_ident(d)));
+      tree_set_ident(d, i);
+      tree_add_attr_str(d, inst_name_i, i);
+   }
+}
+
+static void elab_context_signals(const elab_ctx_t *ctx)
+{
+   const int nctx = tree_contexts(ctx->out);
+   for (int i = 0; i < nctx; i++) {
+      tree_t c = tree_context(ctx->out, i);
+
+      ident_t name = tree_ident(c);
+      lib_t lib = elab_link_lib(name);
+
+      tree_t pack = lib_get(lib, name);
+      if (tree_kind(pack) != T_PACKAGE)
+         continue;
+
+      elab_package_signals(pack, ctx);
+
+      ident_t body_i = ident_prefix(name, ident_new("body"), '-');
+      tree_t body = lib_get(lib, body_i);
+      if (body == NULL)
+         continue;
+
+      elab_package_signals(body, ctx);
+   }
+}
+
 tree_t elab(tree_t top)
 {
+   inst_name_i = ident_new("INSTANCE_NAME");
+
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));
@@ -853,6 +932,8 @@ tree_t elab(tree_t top)
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
    }
+
+   elab_context_signals(&ctx);
 
    if (errors > 0)
       return NULL;

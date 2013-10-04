@@ -253,4 +253,9 @@ begin
     begin
     end process;
 
+    process is
+        type element is array (integer range 0 to 1) of bit_vector( 0 to 1);
+    begin
+    end process;
+
 end architecture;

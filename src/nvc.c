@@ -227,19 +227,29 @@ static uint64_t parse_time(const char *str)
    return base * mult;
 }
 
+static int parse_int(const char *str)
+{
+   char *eptr = NULL;
+   int n = strtol(str, &eptr, 0);
+   if ((eptr == NULL) || (*eptr != '\0'))
+      fatal("invalid integer: %s", str);
+   return n;
+}
+
 static int run(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "trace",     no_argument,       0, 't' },
-      { "batch",     no_argument,       0, 'b' },
-      { "command",   no_argument,       0, 'c' },
-      { "stop-time", required_argument, 0, 's' },
-      { "vcd",       required_argument, 0, 'v' },
-      { "stats",     no_argument,       0, 'S' },
-      { "wave",      optional_argument, 0, 'w' },
-      { "fst",       required_argument, 0, 'f' },
+      { "trace",      no_argument,       0, 't' },
+      { "batch",      no_argument,       0, 'b' },
+      { "command",    no_argument,       0, 'c' },
+      { "stop-time",  required_argument, 0, 's' },
+      { "vcd",        required_argument, 0, 'v' },
+      { "stats",      no_argument,       0, 'S' },
+      { "wave",       optional_argument, 0, 'w' },
+      { "stop-delta", required_argument, 0, 'd' },
+      { "fst",        required_argument, 0, 'f' },
       { 0, 0, 0, 0 }
    };
 
@@ -287,6 +297,9 @@ static int run(int argc, char **argv)
             lxt_fname = "";
          else
             lxt_fname = optarg;
+         break;
+      case 'd':
+         opt_set_int("stop-delta", parse_int(optarg));
          break;
       default:
          abort();
@@ -400,6 +413,7 @@ static void set_default_opts(void)
    opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
+   opt_set_int("stop-delta", 1000);
 }
 
 static void usage(void)
@@ -430,6 +444,7 @@ static void usage(void)
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --stats\t\tPrint statistics at end of run\n"
+          "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           "     --vcd=FILE\t\tWrite VCD data to FILE\n"
@@ -439,9 +454,18 @@ static void usage(void)
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
           "     --nets\t\tShow mapping from signals to nets\n"
-          "\n"
-          "Report bugs to %s\n",
-          PACKAGE, PACKAGE_BUGREPORT);
+          "\n",
+          PACKAGE,
+          opt_get_int("stop-delta"));
+
+   const char **paths;
+   lib_enum_paths(&paths);
+
+   printf("Library search paths:\n");
+   for (const char **p = paths; *p != NULL; p++)
+      printf("  %s\n", *p);
+
+   printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }
 
 int main(int argc, char **argv)

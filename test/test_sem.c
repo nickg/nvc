@@ -143,7 +143,7 @@ START_TEST(test_ports)
    const error_t expect[] = {
       { 31,  "cannot read output port O" },
       { 42,  "cannot assign to input port I" },
-      { 81,  "missing actual for formal O" },
+      { 81,  "missing actual for formal I" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
       { 92,  "WORK.FOO has no formal CAKE" },
@@ -607,11 +607,12 @@ START_TEST(test_generics)
    input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
-      { 34, "missing actual for formal N" },
-      { 38, "too many positional actuals" },
-      { 48, "undefined identifier X" },
-      { 58, "invalid object class for generic" },
-      { 68, "undefined identifier Y" },
+      {  34, "missing actual for formal N" },
+      {  38, "too many positional actuals" },
+      {  48, "undefined identifier X" },
+      {  58, "invalid object class for generic" },
+      {  68, "undefined identifier Y" },
+      { 104, "actual must be globally static expression or locally " },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1108,7 +1109,7 @@ START_TEST(test_entity)
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
-      { 20, "unit WORK.PACK is not an entity" },
+      { 22, "unit WORK.PACK is not an entity" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1137,8 +1138,15 @@ START_TEST(test_signal)
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
-      {  9, "sorry, aggregates targets are not yet supported" },
-      { 13, "sorry, aggregates targets are not yet supported" },
+      { 14, "no composite type in context" },
+      { 15, "no composite type in context" },
+      { 16, "not a suitable l-value" },
+      { 17, "others association not allowed in aggregate signal target" },
+      { 18, "cannot assign to input port P" },
+      { 22, "no composite type in context" },
+      { 23, "not a suitable l-value" },
+      { 24, "others association not allowed in aggregate signal target" },
+      { 25, "cannot assign to input port P" },
       { -1, NULL }
    };
    expect_errors(expect);

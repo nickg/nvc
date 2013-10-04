@@ -17,6 +17,10 @@ begin
         assert (x xor '1') = '1';
         assert (x xnor '0') = '1';
         assert (x xnor '1') = '0';
+        assert (x nand '0') = '1';
+        assert (x nand '1') = '1';
+        assert (x nor '0') = '1';
+        assert (x nor '1') = '0';
 
         x <= '1';
         wait for 1 ns;
@@ -28,7 +32,11 @@ begin
         assert (x xor '1') = '0';
         assert (x xnor '0') = '0';
         assert (x xnor '1') = '1';
-        
+        assert (x nand '0') = '1';
+        assert (x nand '1') = '0';
+        assert (x nor '0') = '0';
+        assert (x nor '1') = '0';
+
         wait;
     end process;
 

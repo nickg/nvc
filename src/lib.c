@@ -225,6 +225,38 @@ static void push_path(const char **base, size_t *pidx, const char *path)
    }
 }
 
+void lib_enum_paths(const char ***result)
+{
+   static const char **paths = NULL;
+
+   if (paths == NULL) {
+      size_t count = 0;
+      paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
+
+      char *env_copy = NULL;
+      const char *libpath_env = getenv("NVC_LIBPATH");
+      if (libpath_env) {
+         env_copy = strdup(libpath_env);
+
+         const char *path_tok = strtok(env_copy, ":");
+         do {
+            push_path(paths, &count, path_tok);
+         } while ((path_tok = strtok(NULL, ":")));
+      }
+
+      const char *home_env = getenv("HOME");
+      if (home_env) {
+         char tmp[PATH_MAX];
+         snprintf(tmp, sizeof(tmp), "%s/%s/lib", home_env, PACKAGE);
+         push_path(paths, &count, tmp);
+      }
+
+      push_path(paths, &count, DATADIR);
+   }
+
+   *result = paths;
+}
+
 lib_t lib_find(const char *name, bool verbose, bool search)
 {
    // Search in already loaded libraries
@@ -234,54 +266,39 @@ lib_t lib_find(const char *name, bool verbose, bool search)
          return it->item;
    }
 
-   const char *paths[MAX_SEARCH_PATHS];
-   size_t idx = 0;
+   lib_t lib = NULL;
 
    char *name_copy = strdup(name);
    char *sep = strrchr(name_copy, '/');
-   if (sep == NULL)
-      push_path(paths, &idx, ".");
-   else {
-      // Work library contains path
+   if (sep != NULL) {
+      // Work library contains explicit path
       *sep = '\0';
-      push_path(paths, &idx, name_copy);
       name = sep + 1;
+      lib = lib_find_at(name, name_copy);
    }
+   else if (search) {
+      const char **paths;
+      lib_enum_paths(&paths);
 
-   char *env_copy = NULL;
-   if (search) {
-      const char *libpath_env = getenv("NVC_LIBPATH");
-      if (libpath_env) {
-         env_copy = strdup(libpath_env);
-
-         const char *path_tok = strtok(env_copy, ":");
-         do {
-            push_path(paths, &idx, path_tok);
-         } while ((path_tok = strtok(NULL, ":")));
-      }
-
-      push_path(paths, &idx, DATADIR);
-   }
-
-   lib_t lib;
-   for (const char **p = paths; *p != NULL; p++) {
-      if ((lib = lib_find_at(name, *p))) {
-         free(name_copy);
-         free(env_copy);
-         return lib;
-      }
-   }
-
-   if (verbose) {
-      errorf("library %s not found in:", name);
       for (const char **p = paths; *p != NULL; p++) {
-         fprintf(stderr, "  %s\n", *p);
+         if ((lib = lib_find_at(name, *p)))
+            break;
       }
+
+      if ((lib == NULL) && verbose) {
+         errorf("library %s not found in:", name);
+         for (const char **p = paths; *p != NULL; p++) {
+            fprintf(stderr, "  %s\n", *p);
+         }
+      }
+   }
+   else {
+      // Look only in working directory
+      lib = lib_find_at(name, ".");
    }
 
    free(name_copy);
-   free(env_copy);
-   return NULL;
+   return lib;
 }
 
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode)

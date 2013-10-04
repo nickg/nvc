@@ -58,4 +58,7 @@ typedef struct range {
    range_kind_t kind;
 } range_t;
 
+typedef struct tree_wr_ctx *tree_wr_ctx_t;
+typedef struct tree_rd_ctx *tree_rd_ctx_t;
+
 #endif  // _PRIM_H
