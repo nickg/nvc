@@ -1417,6 +1417,16 @@ static void rt_cycle(int stop_delta)
    event_t *peek = heap_min(eventq_heap);
 
    if (peek->when > now) {
+      // Call all pending callbacks
+      while (callbacks != NULL) {
+         (*callbacks->fn)(now, callbacks->signal);
+         callbacks->pending = false;
+
+         watch_t *next = callbacks->chain_pending;
+         callbacks->chain_pending = NULL;
+         callbacks = next;
+      }
+
       now = peek->when;
       assert(peek->iteration == 0);
       iteration = 0;
@@ -1475,16 +1485,6 @@ static void rt_cycle(int stop_delta)
       sens_list_t *next = resume->next;
       rt_free(sens_list_stack, resume);
       resume = next;
-   }
-
-   // Call all pending callbacks
-   while (callbacks != NULL) {
-      (*callbacks->fn)(now, callbacks->signal);
-      callbacks->pending = false;
-
-      watch_t *next = callbacks->chain_pending;
-      callbacks->chain_pending = NULL;
-      callbacks = next;
    }
 
    for (unsigned i = 0; i < n_active_groups; i++) {
