@@ -28,14 +28,11 @@
 
 #define MAX_VAR_WIDTH  256
 #define MAX_TEXT_WIDTH 512
-#define MAX_SCOPE_SZ   64
 
 static FILE    *vcd_file = NULL;
 static ident_t i_vcd_key = NULL;
 static ident_t i_fmt_fn  = NULL;
 static ident_t i_fmt_arg = NULL;
-static char    *scopes[MAX_SCOPE_SZ];
-static int     n_scopes = 0;
 static tree_t  vcd_top = NULL;
 
 typedef int (*vcd_fmt_fn_t)(char *buf, size_t max, uint64_t val, void *arg);
@@ -150,28 +147,6 @@ static void vcd_event_cb(uint64_t now, tree_t decl)
    emit_value(decl);
 }
 
-static void vcd_enter_scope(tree_t decl)
-{
-   char *str = strdup(istr(tree_ident(decl)));
-
-   int n = 0;
-   const char *last = strrchr(str, ':');
-   char *p = strtok(str, ":");
-   do {
-      if ((n >= n_scopes)
-          || ((n < n_scopes) && (strcmp(p, scopes[n]) != 0))) {
-         while (n < n_scopes) {
-            fprintf(vcd_file, "$upscope $end\n");
-            free(scopes[--n_scopes]);
-         }
-         fprintf(vcd_file, "$scope module %s $end\n", p);
-         scopes[n_scopes++] = strdup(p);
-      }
-   } while (++n, (p = strtok(NULL, ":")) && (p < last));
-
-   free(str);
-}
-
 static void vcd_emit_header(void)
 {
    rewind(vcd_file);
@@ -186,6 +161,30 @@ static void vcd_emit_header(void)
    fprintf(vcd_file, "$timescale\n  1 fs\n$end\n");
 }
 
+static void vcd_process_signal(tree_t d, int *next_key)
+{
+   if (!vcd_set_fmt_fn(d))
+      return;
+
+   rt_set_event_cb(d, vcd_event_cb);
+
+   tree_add_attr_int(d, i_vcd_key, *next_key);
+
+   type_t type = tree_type(d);
+   int w = 1;
+   if (type_is_array(type)) {
+      int64_t low, high;
+      range_bounds(type_dim(type, 0), &low, &high);
+      w = high - low + 1;
+   }
+
+   const char *name = strrchr(istr(tree_ident(d)), ':') + 1;
+   fprintf(vcd_file, "$var reg %d %s %s $end\n",
+           w, vcd_key_fmt(*next_key), name);
+
+   ++(*next_key);
+}
+
 void vcd_restart(void)
 {
    if (vcd_file == NULL)
@@ -193,40 +192,25 @@ void vcd_restart(void)
 
    vcd_emit_header();
 
-   n_scopes = 0;
    int next_key = 0;
    const int ndecls = tree_decls(vcd_top);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(vcd_top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
-
-      if (!vcd_set_fmt_fn(d))
-         continue;
-
-      rt_set_event_cb(d, vcd_event_cb);
-
-      tree_add_attr_int(d, i_vcd_key, next_key);
-
-      type_t type = tree_type(d);
-      int w = 1;
-      if (type_is_array(type)) {
-         int64_t low, high;
-         range_bounds(type_dim(type, 0), &low, &high);
-         w = high - low + 1;
+      switch (tree_kind(d)) {
+      case T_HIER:
+         fprintf(vcd_file, "$scope module %s $end\n", istr(tree_ident(d)));
+         break;
+      case T_SIGNAL_DECL:
+         vcd_process_signal(d, &next_key);
+         break;
+      default:
+         break;
       }
 
-      vcd_enter_scope(d);
-
-      const char *name = strrchr(istr(tree_ident(d)), ':') + 1;
-      fprintf(vcd_file, "$var reg %d %s %s $end\n",
-              w, vcd_key_fmt(next_key), name);
-
-      ++next_key;
+      int npop = tree_attr_int(d, ident_new("scope_pop"), 0);
+      while (npop-- > 0)
+         fprintf(vcd_file, "$upscope $end\n");
    }
-
-   while (n_scopes--)
-      fprintf(vcd_file, "$upscope $end\n");
 
    fprintf(vcd_file, "$enddefinitions $end\n");
 
