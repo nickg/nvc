@@ -1417,7 +1417,8 @@ static void rt_cycle(int stop_delta)
    event_t *peek = heap_min(eventq_heap);
 
    if (peek->when > now) {
-      // Call all pending callbacks
+      // Call all event callbacks that were pending during the
+      // last time period
       while (callbacks != NULL) {
          (*callbacks->fn)(now, callbacks->signal);
          callbacks->pending = false;

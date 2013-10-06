@@ -216,8 +216,6 @@ void fst_restart(void)
    if (fst_ctx == NULL)
       return;
 
-   char *current_scope = strdup("");
-
    const int ndecls = tree_decls(fst_top);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(fst_top, i);
@@ -240,7 +238,11 @@ void fst_restart(void)
 
    last_time = UINT64_MAX;
 
-   free(current_scope);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(fst_top, i);
+      if (tree_kind(d) == T_SIGNAL_DECL)
+         fst_event_cb(0, d);
+   }
 }
 
 void fst_init(const char *file, tree_t top)
