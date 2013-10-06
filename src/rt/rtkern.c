@@ -1410,6 +1410,18 @@ static void rt_iteration_limit(void)
    fatal("%s", buf);
 }
 
+static void rt_process_callbacks(void)
+{
+   while (callbacks != NULL) {
+      (*callbacks->fn)(now, callbacks->signal);
+      callbacks->pending = false;
+
+      watch_t *next = callbacks->chain_pending;
+      callbacks->chain_pending = NULL;
+      callbacks = next;
+   }
+}
+
 static void rt_cycle(int stop_delta)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
@@ -1417,17 +1429,7 @@ static void rt_cycle(int stop_delta)
    event_t *peek = heap_min(eventq_heap);
 
    if (peek->when > now) {
-      // Call all event callbacks that were pending during the
-      // last time period
-      while (callbacks != NULL) {
-         (*callbacks->fn)(now, callbacks->signal);
-         callbacks->pending = false;
-
-         watch_t *next = callbacks->chain_pending;
-         callbacks->chain_pending = NULL;
-         callbacks = next;
-      }
-
+      rt_process_callbacks();
       now = peek->when;
       assert(peek->iteration == 0);
       iteration = 0;
@@ -1706,6 +1708,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
    rt_initial(e);
    while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
       rt_cycle(stop_delta);
+   rt_process_callbacks();
    rt_cleanup(e);
    rt_emit_coverage(e);
 
@@ -1736,6 +1739,7 @@ static void rt_slave_run(slave_run_msg_t *msg)
          const uint64_t end = now + msg->time;
          while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
             rt_cycle(stop_delta);
+         rt_process_callbacks();
       }
 
       set_fatal_fn(NULL);
