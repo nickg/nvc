@@ -61,6 +61,7 @@ static void elab_funcs(tree_t arch, tree_t ent);
 
 static int     errors = 0;
 static ident_t inst_name_i;
+static ident_t fst_dir_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -229,6 +230,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
    tree_set_type(s, type);
+   tree_add_attr_int(s, fst_dir_i, tree_subkind(port));
 
    tree_add_decl(arch, s);
    return s;
@@ -912,6 +914,7 @@ static void elab_context_signals(const elab_ctx_t *ctx)
 tree_t elab(tree_t top)
 {
    inst_name_i = ident_new("INSTANCE_NAME");
+   fst_dir_i   = ident_new("fst_dir");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),

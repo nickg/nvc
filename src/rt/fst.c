@@ -29,6 +29,7 @@ static ident_t  fst_data_i;
 static ident_t  std_logic_i;
 static ident_t  std_ulogic_i;
 static ident_t  std_bit_i;
+static ident_t  fst_dir_i;
 static uint64_t last_time;
 
 typedef struct fst_data fst_data_t;
@@ -245,10 +246,19 @@ void fst_restart(void)
 
       fst_enter_scope(d, &current_scope);
 
+      enum fstVarDir dir = FST_VD_IMPLICIT;
+
+      switch (tree_attr_int(d, fst_dir_i, -1)) {
+      case PORT_IN: dir = FST_VD_INPUT; break;
+      case PORT_OUT: dir = FST_VD_OUTPUT; break;
+      case PORT_INOUT: dir = FST_VD_INOUT; break;
+      case PORT_BUFFER: dir = FST_VD_BUFFER; break;
+      }
+
       data->handle = fstWriterCreateVar2(
          fst_ctx,
          vt,
-         FST_VD_IMPLICIT,
+         dir,
          data->size,
          strrchr(istr(tree_ident(d)), ':') + 1,
          0,
@@ -272,6 +282,7 @@ void fst_init(const char *file, tree_t top)
    std_logic_i  = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
    std_ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
    std_bit_i    = ident_new("STD.STANDARD.BIT");
+   fst_dir_i    = ident_new("fst_dir");
 
    if ((fst_ctx = fstWriterCreate(file, 1)) == NULL)
       fatal("fstWriterCreate failed");
