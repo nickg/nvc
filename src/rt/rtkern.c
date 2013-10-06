@@ -53,7 +53,6 @@ typedef struct rt_proc    rt_proc_t;
 typedef struct event      event_t;
 typedef struct waveform   waveform_t;
 typedef struct sens_list  sens_list_t;
-typedef struct watch      watch_t;
 typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
 typedef struct group_map  group_map_t;
@@ -1444,7 +1443,7 @@ static void rt_iteration_limit(void)
 static void rt_process_callbacks(void)
 {
    while (callbacks != NULL) {
-      (*callbacks->fn)(now, callbacks->signal);
+      (*callbacks->fn)(now, callbacks->signal, callbacks);
       callbacks->pending = false;
 
       watch_t *next = callbacks->chain_pending;
@@ -1806,7 +1805,7 @@ static void rt_slave_now(void)
    slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
 }
 
-static void rt_slave_watch_cb(uint64_t now, tree_t decl)
+static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w)
 {
    uint64_t value[1];
    rt_signal_value(decl, value, 1, false);

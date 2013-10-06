@@ -23,7 +23,9 @@
 
 #include <stdint.h>
 
-typedef void (*sig_event_fn_t)(uint64_t, struct tree *);
+typedef struct watch watch_t;
+
+typedef void (*sig_event_fn_t)(uint64_t, tree_t, watch_t *);
 
 typedef enum {
    BOUNDS_ARRAY_TO,

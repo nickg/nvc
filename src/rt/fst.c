@@ -103,7 +103,7 @@ static void fst_fmt_enum(tree_t decl, fst_data_t *data)
       fst_ctx, data->handle, str, strlen(str));
 }
 
-static void fst_event_cb(uint64_t now, tree_t decl)
+static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w)
 {
    if (now != last_time) {
       fstWriterEmitTimeChange(fst_ctx, now);
@@ -305,7 +305,7 @@ void fst_restart(void)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(fst_top, i);
       if (tree_kind(d) == T_SIGNAL_DECL)
-         fst_event_cb(0, d);
+         fst_event_cb(0, d, NULL);
    }
 }
 

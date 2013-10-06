@@ -93,7 +93,7 @@ static void lxt_fmt_chars(tree_t decl, lxt_data_t *data)
    }
 }
 
-static void lxt_event_cb(uint64_t now, tree_t decl)
+static void lxt_event_cb(uint64_t now, tree_t decl, watch_t *w)
 {
    if (now != last_time) {
       lt_set_time64(trace, now);

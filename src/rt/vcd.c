@@ -135,7 +135,7 @@ static void emit_value(tree_t decl)
    fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl), vcd_key_fmt(key));
 }
 
-static void vcd_event_cb(uint64_t now, tree_t decl)
+static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w)
 {
    static uint64_t last_time = UINT64_MAX;
 
