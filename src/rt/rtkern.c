@@ -1646,6 +1646,7 @@ static void rt_cleanup(tree_t top)
    while (watches != NULL) {
       watch_t *next = watches->chain_all;
       rt_free(watch_stack, watches);
+      free(watches->groups);
       watches = next;
    }
 
