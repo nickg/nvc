@@ -207,13 +207,8 @@ static void fst_process_hier(tree_t h)
       break;
    }
 
-   const char *comp = "";
-   if (tree_has_ident2(h)) {
-      comp = istr(tree_ident2(h));
-   }
-   printf("comp=%s\n", comp);
-
-   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)), comp);
+   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)),
+                     tree_has_ident2(h) ? istr(tree_ident2(h)) : "");
 }
 
 void fst_restart(void)

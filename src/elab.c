@@ -665,12 +665,22 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
    tree_t h = tree_new(T_HIER);
    tree_set_loc(h, tree_loc(t));
    tree_set_subkind(h, tree_kind(t));
-   tree_set_ident(h, ident_new(strrchr(istr(ctx->path), ':') + 1));
+
+   if (tree_kind(t) == T_PACKAGE) {
+      const char *name = istr(tree_ident(t));
+      char lower[strlen(name) + 1], *p;
+      for (p = lower; *name != '\0'; p++, name++)
+         *p = tolower(*name);
+      *p = '\0';
+
+      tree_set_ident(h, ident_new(lower));
+   }
+   else
+      tree_set_ident(h, ident_new(strrchr(istr(ctx->path), ':') + 1));
 
    if (tree_kind(t) == T_ARCH) {
       // Convert an identifier like WORK.FOO-RTL to foo(rtl)
       const char *id = istr(tree_ident(t));
-      printf("input %s\n", id);
       while ((*id != '\0') && (*id++ != '.'))
          ;
 
@@ -914,6 +924,7 @@ static tree_t rewrite_package_signals(tree_t t, void *ctx)
 
 static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
 {
+   bool have_signals = false;
    const int ndecls = tree_decls(unit);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(unit, i);
@@ -921,6 +932,11 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
          continue;
       else if (tree_nets(d) > 0)
          continue;
+
+      if (!have_signals) {
+         elab_push_scope(unit, ctx);
+         have_signals = true;
+      }
 
       elab_signal_nets(d, ctx);
 
@@ -932,6 +948,9 @@ static void elab_package_signals(tree_t unit, const elab_ctx_t *ctx)
       tree_set_ident(d, i);
       tree_add_attr_str(d, inst_name_i, i);
    }
+
+   if (have_signals)
+      elab_pop_scope(ctx);
 }
 
 static void elab_context_signals(const elab_ctx_t *ctx)
