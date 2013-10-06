@@ -185,7 +185,8 @@ static char *filter_color(const char *str)
    return copy;
 }
 
-static void paginate_msg(const char *fmt, va_list ap, int left, int right)
+static void paginate_msg(const char *fmt, va_list ap,
+                         int start, int left, int right)
 {
    char *strp = NULL;
    if (vasprintf(&strp, fmt, ap) < 0)
@@ -194,7 +195,7 @@ static void paginate_msg(const char *fmt, va_list ap, int left, int right)
    char *filtered = filter_color(strp);
 
    const char *p = filtered;
-   int col = left;
+   int col = start;
    while (*p != '\0') {
       if ((*p == '\n') || (isspace((uint8_t)*p) && col >= right)) {
          // Can break line here
@@ -242,7 +243,7 @@ static void fmt_color(int color, const char *prefix,
    set_attr(color);
    fprintf(stderr, "** %s: ", prefix);
    set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, 10, PAGINATE_RIGHT);
+   paginate_msg(fmt, ap, strlen(prefix) + 5, 10, PAGINATE_RIGHT);
 }
 
 void errorf(const char *fmt, ...)
