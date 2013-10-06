@@ -97,7 +97,7 @@ static bool vcd_set_fmt_fn(tree_t decl)
    }
 }
 
-static const char *vcd_value_fmt(tree_t decl)
+static const char *vcd_value_fmt(tree_t decl, watch_t *watch)
 {
    static char buf[MAX_TEXT_WIDTH];
 
@@ -105,7 +105,7 @@ static const char *vcd_value_fmt(tree_t decl)
    void *arg = tree_attr_ptr(decl, i_fmt_arg);
 
    uint64_t vals[MAX_VAR_WIDTH];
-   int w = rt_signal_value(decl, vals, MAX_VAR_WIDTH, false);
+   int w = rt_signal_value(watch, vals, MAX_VAR_WIDTH, false);
    type_t type = tree_type(decl);
    if (type_is_array(type)) {
       char *p = buf;
@@ -129,10 +129,10 @@ static const char *vcd_value_fmt(tree_t decl)
    return buf;
 }
 
-static void emit_value(tree_t decl)
+static void emit_value(tree_t decl, watch_t *w)
 {
    int key = tree_attr_int(decl, i_vcd_key, -1);
-   fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl), vcd_key_fmt(key));
+   fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl, w), vcd_key_fmt(key));
 }
 
 static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w)
@@ -144,7 +144,7 @@ static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w)
       last_time = now;
    }
 
-   emit_value(decl);
+   emit_value(decl, w);
 }
 
 static void vcd_emit_header(void)
@@ -165,8 +165,6 @@ static void vcd_process_signal(tree_t d, int *next_key)
 {
    if (!vcd_set_fmt_fn(d))
       return;
-
-   rt_set_event_cb(d, vcd_event_cb);
 
    tree_add_attr_int(d, i_vcd_key, *next_key);
 
@@ -224,7 +222,8 @@ void vcd_restart(void)
       if (tree_attr_int(d, i_vcd_key, -1) == -1)
          continue;
 
-      emit_value(d);
+      watch_t *w = rt_set_event_cb(d, vcd_event_cb);
+      emit_value(d, w);
    }
 
    fprintf(vcd_file, "$end\n");

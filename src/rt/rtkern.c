@@ -1789,7 +1789,24 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
       sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
    reply_read_signal_msg_t *reply = xmalloc(rsz);
 
-   reply->len = rt_signal_value(t, reply->values, msg->len, false);
+   const int nnets = tree_nets(t);
+   int offset = 0;
+   for (int i = 0; (i < nnets) && (offset < msg->len); i++) {
+      netid_t nid = tree_net(t, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+
+#define SIGNAL_READ_EXPAND_U64(type) do {                                 \
+         const type *sp = (type *)g->resolved->data;                      \
+         for (int i = 0; (i < g->length) && (offset + i < msg->len); i++) \
+            reply->values[offset + i] = sp[i];                            \
+      } while (0)
+
+      FOR_ALL_SIZES(g->size, SIGNAL_READ_EXPAND_U64);
+
+      offset += g->length;
+   }
+
+   reply->len = offset;
 
    slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
 
@@ -1808,10 +1825,10 @@ static void rt_slave_now(void)
 static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w)
 {
    uint64_t value[1];
-   rt_signal_value(decl, value, 1, false);
+   rt_signal_value(w, value, 1, false);
 
    uint64_t last[1];
-   rt_signal_value(decl, last, 1, true);
+   rt_signal_value(w, last, 1, true);
 
    event_watch_msg_t event = {
       .index = tree_index(decl),
@@ -1892,7 +1909,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
    jit_shutdown();
 }
 
-void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
+watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 {
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
@@ -1904,6 +1921,8 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
             break;
          }
       }
+
+      return NULL;
    }
    else {
       watch_t *w = rt_alloc(watch_stack);
@@ -1917,14 +1936,13 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
       watches = w;
 
       rt_watch_signal(w);
+      return w;
    }
 }
 
-size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
+size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
 {
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
-
-   const group_map_t *m = tree_attr_ptr(decl, group_map_i);
+   const group_map_t *m = tree_attr_ptr(w->signal, group_map_i);
    assert(m != NULL);
 
    int offset = 0;

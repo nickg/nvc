@@ -40,7 +40,7 @@ static uint64_t last_time;
 
 typedef struct fst_data fst_data_t;
 
-typedef void (*fst_fmt_fn_t)(tree_t, fst_data_t *);
+typedef void (*fst_fmt_fn_t)(tree_t, watch_t *, fst_data_t *);
 
 struct fst_data {
    fstHandle     handle;
@@ -48,6 +48,7 @@ struct fst_data {
    range_kind_t  dir;
    const char   *map;
    size_t        size;
+   watch_t      *watch;
 };
 
 static void fst_close(void)
@@ -56,10 +57,10 @@ static void fst_close(void)
    fstWriterClose(fst_ctx);
 }
 
-static void fst_fmt_int(tree_t decl, fst_data_t *data)
+static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(decl, &val, 1, false);
+   rt_signal_value(w, &val, 1, false);
 
    char buf[data->size + 1];
    for (size_t i = 0; i < data->size; i++)
@@ -69,11 +70,11 @@ static void fst_fmt_int(tree_t decl, fst_data_t *data)
    fstWriterEmitValueChange(fst_ctx, data->handle, buf);
 }
 
-static void fst_fmt_chars(tree_t decl, fst_data_t *data)
+static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
    uint64_t vals[nvals];
-   rt_signal_value(decl, vals, data->size, false);
+   rt_signal_value(w, vals, data->size, false);
 
    char buf[nvals + 1];
    if (likely(data->map != NULL)) {
@@ -91,10 +92,10 @@ static void fst_fmt_chars(tree_t decl, fst_data_t *data)
    }
 }
 
-static void fst_fmt_enum(tree_t decl, fst_data_t *data)
+static void fst_fmt_enum(tree_t decl, watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(decl, &val, 1, false);
+   rt_signal_value(w, &val, 1, false);
 
    tree_t lit = type_enum_literal(tree_type(decl), val);
    const char *str = istr(tree_ident(lit));
@@ -112,7 +113,7 @@ static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w)
 
    fst_data_t *data = tree_attr_ptr(decl, fst_data_i);
    if (likely(data != NULL))
-      (*data->fmt)(decl, data);
+      (*data->fmt)(decl, w, data);
 }
 
 static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
@@ -251,7 +252,7 @@ static void fst_process_signal(tree_t d)
 
    tree_add_attr_ptr(d, fst_data_i, data);
 
-   rt_set_event_cb(d, fst_event_cb);
+   data->watch = rt_set_event_cb(d, fst_event_cb);
 }
 
 static void fst_process_hier(tree_t h)
@@ -304,8 +305,10 @@ void fst_restart(void)
 
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(fst_top, i);
-      if (tree_kind(d) == T_SIGNAL_DECL)
-         fst_event_cb(0, d, NULL);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         fst_data_t *data = tree_attr_ptr(d, fst_data_i);
+         fst_event_cb(0, d, data->watch);
+      }
    }
 }
 

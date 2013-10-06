@@ -31,7 +31,7 @@
 
 typedef struct lxt_data lxt_data_t;
 
-typedef void (*lxt_fmt_fn_t)(tree_t, lxt_data_t *);
+typedef void (*lxt_fmt_fn_t)(tree_t, watch_t *, lxt_data_t *);
 
 struct lxt_data {
    struct lt_symbol *sym;
@@ -57,27 +57,27 @@ static void lxt_close_trace(void)
    }
 }
 
-static void lxt_fmt_int(tree_t decl, lxt_data_t *data)
+static void lxt_fmt_int(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(decl, &val, 1, false);
+   rt_signal_value(w, &val, 1, false);
 
    lt_emit_value_int(trace, data->sym, 0, val);
 }
 
-static void lxt_fmt_enum(tree_t decl, lxt_data_t *data)
+static void lxt_fmt_enum(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(decl, &val, 1, false);
+   rt_signal_value(w, &val, 1, false);
 
    tree_t lit = type_enum_literal(tree_type(decl), val);
    lt_emit_value_string(trace, data->sym, 0, (char *)istr(tree_ident(lit)));
 }
 
-static void lxt_fmt_chars(tree_t decl, lxt_data_t *data)
+static void lxt_fmt_chars(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    uint64_t vals[MAX_VALS];
-   const int nvals = rt_signal_value(decl, vals, MAX_VALS, false);
+   const int nvals = rt_signal_value(w, vals, MAX_VALS, false);
 
    char bits[MAX_VALS + 1];
    bits[nvals] = '\0';
@@ -101,7 +101,7 @@ static void lxt_event_cb(uint64_t now, tree_t decl, watch_t *w)
    }
 
    lxt_data_t *data = tree_attr_ptr(decl, lxt_data_i);
-   (*data->fmt)(decl, data);
+   (*data->fmt)(decl, w, data);
 }
 
 static char *lxt_fmt_name(tree_t decl)
@@ -221,9 +221,9 @@ void lxt_restart(void)
 
       tree_add_attr_ptr(d, lxt_data_i, data);
 
-      rt_set_event_cb(d, lxt_event_cb);
+      watch_t *w = rt_set_event_cb(d, lxt_event_cb);
 
-      (*data->fmt)(d, data);
+      (*data->fmt)(d, w, data);
    }
 
    last_time = (lxttime_t)-1;
