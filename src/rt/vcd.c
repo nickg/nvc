@@ -54,11 +54,6 @@ static const char *vcd_key_fmt(int key)
    return buf;
 }
 
-static int vcd_fmt_int(char *buf, size_t max, uint64_t val, void *arg)
-{
-   return snprintf(buf, max, "h%"PRIx64, val);
-}
-
 static int vcd_fmt_enum(char *buf, size_t max, uint64_t val, void *arg)
 {
    return snprintf(buf, max, "%c", ((const char*)arg)[val]);
@@ -71,17 +66,12 @@ static bool vcd_set_fmt_fn(tree_t decl)
    if (type_is_array(type))
       type = type_elem(type);
 
-   while (type_kind(type) == T_SUBTYPE)
-      type = type_base(type);
+   type = type_base_recur(type);
 
    vcd_fmt_fn_t fn = NULL;
    void *arg = NULL;
 
    switch (type_kind(type)) {
-   case T_INTEGER:
-      fn = vcd_fmt_int;
-      break;
-
    case T_ENUM:
       {
          ident_t i = type_ident(type);
@@ -133,6 +123,8 @@ static const char *vcd_value_fmt(tree_t decl)
          for (int i = 0; i < w; i++)
             p += (*fn)(p, end - p, vals[i], arg);
       }
+
+      p += snprintf(p, end - p, " ");
    }
    else
       (*fn)(buf, MAX_TEXT_WIDTH, vals[0], arg);
@@ -143,9 +135,7 @@ static const char *vcd_value_fmt(tree_t decl)
 static void emit_value(tree_t decl)
 {
    int key = tree_attr_int(decl, i_vcd_key, -1);
-   fprintf(vcd_file, "%s%s%s\n", vcd_value_fmt(decl),
-           (type_kind(tree_type(decl)) == T_CARRAY ? " " : ""),
-           vcd_key_fmt(key));
+   fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl), vcd_key_fmt(key));
 }
 
 static void vcd_event_cb(uint64_t now, tree_t decl)
@@ -220,7 +210,7 @@ void vcd_restart(void)
 
       type_t type = tree_type(d);
       int w = 1;
-      if (type_kind(type) == T_CARRAY) {
+      if (type_is_array(type)) {
          int64_t low, high;
          range_bounds(type_dim(type, 0), &low, &high);
          w = high - low + 1;
@@ -242,7 +232,7 @@ void vcd_restart(void)
 
    fprintf(vcd_file, "$dumpvars\n");
 
-   for (unsigned i = 0; i < tree_decls(vcd_top); i++) {
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(vcd_top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
