@@ -150,9 +150,18 @@ static void fst_process_signal(tree_t d)
    fst_data_t *data = xmalloc(sizeof(fst_data_t));
    memset(data, '\0', sizeof(fst_data_t));
 
+   int msb = 0, lsb = 0;
+
    enum fstVarType vt;
    enum fstSupplimentalDataType sdt;
    if (type_is_array(type)) {
+      if (type_dims(type) > 1) {
+         warn_at(tree_loc(d), "cannot represent multidimensional arrays "
+                 "in FST format");
+         free(data);
+         return;
+      }
+
       range_t r = type_dim(type, 0);
 
       int64_t low, high;
@@ -160,6 +169,9 @@ static void fst_process_signal(tree_t d)
 
       data->dir  = r.kind;
       data->size = high - low + 1;
+
+      msb = assume_int(r.left);
+      lsb = assume_int(r.right);
 
       type_t elem = type_elem(type);
       if (!fst_can_fmt_chars(elem, data, &vt, &sdt)) {
@@ -229,12 +241,19 @@ static void fst_process_signal(tree_t d)
    case PORT_BUFFER: dir = FST_VD_BUFFER; break;
    }
 
+   const char *name_base = strrchr(istr(tree_ident(d)), ':') + 1;
+   const size_t base_len = strlen(name_base);
+   char name[base_len + 64];
+   strcpy(name, name_base);
+   if (type_is_array(type))
+      snprintf(name + base_len, 64, "[%d:%d]\n", msb, lsb);
+
    data->handle = fstWriterCreateVar2(
       fst_ctx,
       vt,
       dir,
       data->size,
-      strrchr(istr(tree_ident(d)), ':') + 1,
+      name,
       0,
       type_pp(type),
       FST_SVT_VHDL_SIGNAL,
@@ -297,7 +316,8 @@ void fst_restart(void)
       tree_t d = tree_decl(fst_top, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
          fst_data_t *data = tree_attr_ptr(d, fst_data_i);
-         fst_event_cb(0, d, data->watch, data);
+         if (likely(data != NULL))
+            fst_event_cb(0, d, data->watch, data);
       }
    }
 }
