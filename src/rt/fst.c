@@ -21,6 +21,8 @@
 #include "common.h"
 #include "fstapi.h"
 
+#include <assert.h>
+
 static tree_t   fst_top;
 static void    *fst_ctx;
 static ident_t  fst_data_i;
@@ -43,7 +45,7 @@ struct fst_data {
 
 static void fst_close(void)
 {
-   //fstWriterEmitTimeChange(fst_ctx, rt_now());
+   fstWriterEmitTimeChange(fst_ctx, rt_now());
    fstWriterClose(fst_ctx);
 }
 
@@ -113,10 +115,78 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
       return false;
 }
 
+static void fst_walk_scopes(const char *new, const char *old)
+{
+   if ((*new == '\0') && (*old == '\0'))
+      ;
+   else if (*new == '\0') {
+      fstWriterSetUpscope(fst_ctx);
+
+      const char *next = strchr(old, ':');
+      const size_t len = (next != NULL) ? (next - old + 1) : strlen(old);
+
+      fst_walk_scopes(new, old + len);
+   }
+   else if (*old == '\0') {
+      const char *next = strchr(new, ':');
+      const size_t nlen = strlen(new);
+      const size_t slen = (next != NULL) ? (next - new + 1) : nlen;
+
+      char name[slen + 1];
+      strncpy(name, new, (next != NULL) ? (next - new) : nlen);
+      name[slen] = '\0';
+
+      fstWriterSetScope(fst_ctx, FST_ST_VHDL_BLOCK, name,
+                        "" /* XXX: scopecomp?? */);
+
+      fst_walk_scopes(new + slen, old);
+   }
+   else {
+      const char *next_new = strchr(new, ':');
+      const size_t len_new =
+         (next_new != NULL) ? (next_new - new + 1) : strlen(new);
+
+      const char *next_old = strchr(old, ':');
+      const size_t len_old =
+         (next_old != NULL) ? (next_old - old + 1) : strlen(old);
+
+      if ((len_old == len_new) && (strncmp(new, old, len_old) == 0))
+         fst_walk_scopes(new + len_new, old + len_old);
+      else {
+         fst_walk_scopes("", old);
+         fst_walk_scopes(new, "");
+      }
+   }
+}
+
+static void fst_enter_scope(tree_t d, char **current)
+{
+   const char *name = istr(tree_ident(d));
+
+   const char *last_scope = strrchr(name, ':');
+   assert(last_scope != NULL);
+
+   const size_t len = last_scope - name - 1;
+
+   char this[len + 1];
+   strncpy(this, name + 1, len);
+   this[len] = '\0';
+
+   if (strcmp(*current, this) == 0)
+      return;
+
+   fst_walk_scopes(this, *current);
+
+   free(*current);
+   *current = strdup(this);
+}
+
 void fst_restart(void)
 {
    if (fst_ctx == NULL)
       return;
+
+   char *current_scope = strdup("");
 
    const int ndecls = tree_decls(fst_top);
    for (int i = 0; i < ndecls; i++) {
@@ -171,12 +241,14 @@ void fst_restart(void)
          }
       }
 
+      fst_enter_scope(d, &current_scope);
+
       data->handle = fstWriterCreateVar2(
          fst_ctx,
          vt,
          FST_VD_IMPLICIT,
          data->size,
-         istr(tree_ident(d)),
+         strrchr(istr(tree_ident(d)), ':') + 1,
          0,
          type_pp(type),
          FST_SVT_VHDL_SIGNAL,
@@ -188,6 +260,8 @@ void fst_restart(void)
    }
 
    last_time = UINT64_MAX;
+
+   free(current_scope);
 }
 
 void fst_init(const char *file, tree_t top)
