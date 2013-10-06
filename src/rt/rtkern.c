@@ -1673,10 +1673,16 @@ static void rt_stats_print(void)
    unsigned final_u = rt_tv2ms(&final_rusage.ru_utime);
    unsigned final_s = rt_tv2ms(&final_rusage.ru_stime);
 
+#ifdef __APPLE__
+   const int rss_units = 1024;
+#else
+   const int rss_units = 1;
+#endif
+
    notef("setup:%ums run:%ums maxrss:%ldkB",
          ready_u + ready_s,
          final_u + final_s - ready_u - ready_s,
-         final_rusage.ru_maxrss);
+         final_rusage.ru_maxrss / rss_units);
 }
 
 static void rt_emit_coverage(tree_t e)
