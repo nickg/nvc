@@ -64,13 +64,14 @@ static void fst_fmt_int(tree_t decl, fst_data_t *data)
 
 static void fst_fmt_chars(tree_t decl, fst_data_t *data)
 {
-   uint64_t vals[data->size];
+   const int nvals = data->size;
+   uint64_t vals[nvals];
    rt_signal_value(decl, vals, data->size, false);
 
-   char buf[data->size + 1];
-   for (size_t i = 0; i < data->size; i++)
-      buf[i] = data->map[vals[i]];
-   buf[data->size] = '\0';
+   char buf[nvals + 1];
+   for (int i = 0; i < nvals; i++)
+      buf[i] = data->map[vals[(data->dir == RANGE_TO) ? i : nvals - i - 1]];
+   buf[nvals] = '\0';
 
    fstWriterEmitValueChange(fst_ctx, data->handle, buf);
 }
@@ -133,8 +134,9 @@ static void fst_walk_scopes(const char *new, const char *old)
       const size_t slen = (next != NULL) ? (next - new + 1) : nlen;
 
       char name[slen + 1];
-      strncpy(name, new, (next != NULL) ? (next - new) : nlen);
+      name[slen - 1] = '\0';
       name[slen] = '\0';
+      strncpy(name, new, (next != NULL) ? (next - new) : nlen);
 
       fstWriterSetScope(fst_ctx, FST_ST_VHDL_BLOCK, name,
                         "" /* XXX: scopecomp?? */);
