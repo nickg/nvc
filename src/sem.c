@@ -574,13 +574,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_PHYSICAL:
       // Multiplication
       sem_declare_binary(mult, t, std_int, t, "mul");
-      sem_declare_binary(mult, t, std_real, t, "mul");
+      sem_declare_binary(mult, t, std_real, t, "mulpr");
       sem_declare_binary(mult, std_int, t, t, "mul");
-      sem_declare_binary(mult, std_real, t, t, "mul");
+      sem_declare_binary(mult, std_real, t, t, "mulrp");
 
       // Division
       sem_declare_binary(div, t, std_int, t, "div");
-      sem_declare_binary(div, t, std_real, t, "div");
+      sem_declare_binary(div, t, std_real, t, "divpr");
       sem_declare_binary(div, t, t, std_int, "div");
 
       // Addition

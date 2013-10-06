@@ -1839,6 +1839,18 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             return cgen_narrow(rtype, r);
          }
       }
+      else if (icmp(builtin, "mulrp")) {
+         LLVMValueRef p =
+            LLVMBuildSIToFP(builder, args[1], LLVMDoubleType(), "");
+         LLVMValueRef r = LLVMBuildFMul(builder, args[0], p, "");
+         return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
+      }
+      else if (icmp(builtin, "mulpr")) {
+         LLVMValueRef p =
+            LLVMBuildSIToFP(builder, args[0], LLVMDoubleType(), "");
+         LLVMValueRef r = LLVMBuildFMul(builder, args[1], p, "");
+         return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
+      }
       else if (icmp(builtin, "add")) {
          if (real)
             return LLVMBuildFAdd(builder, args[0], args[1], "");
@@ -1866,6 +1878,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                                            tree_param(t, 1), ctx);
             return cgen_narrow(rtype, r);
          }
+      }
+      else if (icmp(builtin, "divpr")) {
+         LLVMValueRef p =
+            LLVMBuildSIToFP(builder, args[0], LLVMDoubleType(), "");
+         LLVMValueRef r = LLVMBuildFDiv(builder, p, args[1], "");
+         return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
       }
       else if (icmp(builtin, "eq")) {
          if (real)
