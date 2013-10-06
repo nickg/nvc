@@ -56,6 +56,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user);
 size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last);
+size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max);
 uint64_t rt_now(void);
 
 void jit_init(ident_t top);

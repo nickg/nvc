@@ -76,21 +76,12 @@ static void lxt_fmt_enum(tree_t decl, watch_t *w, lxt_data_t *data)
 
 static void lxt_fmt_chars(tree_t decl, watch_t *w, lxt_data_t *data)
 {
-   uint64_t vals[MAX_VALS];
-   const int nvals = rt_signal_value(w, vals, MAX_VALS, false);
-
    char bits[MAX_VALS + 1];
-   bits[nvals] = '\0';
-   if (data->map != NULL) {
-      for (int i = 0; i < nvals; i++)
-         bits[i] = data->map[vals[(data->dir == RANGE_TO) ? i : nvals - i - 1]];
+   rt_string_value(w, data->map, bits, MAX_VALS + 1);
+   if (likely(data->map != NULL))
       lt_emit_value_bit_string(trace, data->sym, 0, bits);
-   }
-   else {
-      for (int i = 0; i < nvals; i++)
-         bits[i] = vals[(data->dir == RANGE_TO) ? i : nvals - i - 1];
+   else
       lt_emit_value_string(trace, data->sym, 0, bits);
-   }
 }
 
 static void lxt_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)

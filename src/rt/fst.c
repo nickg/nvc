@@ -73,23 +73,13 @@ static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
 static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
-   uint64_t vals[nvals];
-   rt_signal_value(w, vals, data->size, false);
-
    char buf[nvals + 1];
-   if (likely(data->map != NULL)) {
-      for (int i = 0; i < nvals; i++)
-         buf[i] = data->map[vals[(data->dir == RANGE_TO) ? i : nvals - i - 1]];
-      buf[nvals] = '\0';
+   rt_string_value(w, data->map, buf, nvals + 1);
+   if (likely(data->map != NULL))
       fstWriterEmitValueChange(fst_ctx, data->handle, buf);
-   }
-   else {
-      for (int i = 0; i < nvals; i++)
-         buf[i] = vals[(data->dir == RANGE_TO) ? i : nvals - i - 1];
-      buf[nvals] = '\0';
+   else
       fstWriterEmitVariableLengthValueChange(
          fst_ctx, data->handle, buf, data->size);
-   }
 }
 
 static void fst_fmt_enum(tree_t decl, watch_t *w, fst_data_t *data)
