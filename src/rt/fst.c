@@ -207,7 +207,13 @@ static void fst_process_hier(tree_t h)
       break;
    }
 
-   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)), "" /* XXX: scopecomp?? */);
+   const char *comp = "";
+   if (tree_has_ident2(h)) {
+      comp = istr(tree_ident2(h));
+   }
+   printf("comp=%s\n", comp);
+
+   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)), comp);
 }
 
 void fst_restart(void)

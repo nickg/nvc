@@ -296,7 +296,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2),
 
    // T_HIER
-   (I_IDENT | I_SUBKIND),
+   (I_IDENT | I_SUBKIND | I_IDENT2),
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)

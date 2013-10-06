@@ -667,6 +667,29 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
    tree_set_subkind(h, tree_kind(t));
    tree_set_ident(h, ident_new(strrchr(istr(ctx->path), ':') + 1));
 
+   if (tree_kind(t) == T_ARCH) {
+      // Convert an identifier like WORK.FOO-RTL to foo(rtl)
+      const char *id = istr(tree_ident(t));
+      printf("input %s\n", id);
+      while ((*id != '\0') && (*id++ != '.'))
+         ;
+
+      const size_t len = strlen(id);
+      char str[len + 2];
+      char *p = str;
+      for (; *id != '\0'; p++, id++) {
+         if (*id == '-')
+            *p = '(';
+         else
+            *p = tolower(*id);
+      }
+
+      *p++ = ')';
+      *p++ = '\0';
+
+      tree_set_ident2(h, ident_new(str));
+   }
+
    tree_add_decl(ctx->out, h);
 }
 
