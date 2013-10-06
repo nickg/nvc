@@ -56,6 +56,7 @@ typedef struct sens_list  sens_list_t;
 typedef struct watch      watch_t;
 typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
+typedef struct group_map  group_map_t;
 
 struct tmp_chunk_hdr {
    struct tmp_chunk *next;
@@ -162,6 +163,12 @@ struct watch_list {
    watch_list_t *next;
 };
 
+struct group_map {
+   netgroup_t **groups;
+   int          n_groups;
+   int          size;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct loaded    *loaded = NULL;
@@ -182,6 +189,7 @@ static sens_list_t  *pending = NULL;
 static sens_list_t  *resume = NULL;
 static watch_t      *watches = NULL;
 static watch_t      *callbacks = NULL;
+static ident_t       group_map_i;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -1115,10 +1123,25 @@ static void rt_initial(tree_t top)
       rt_run(&procs[i], true /* reset */);
 }
 
+static void rt_init_group_map(tree_t s, group_map_t *m, int n_groups)
+{
+   m->groups   = xmalloc(sizeof(netgroup_t *) * n_groups);
+   m->n_groups = n_groups;
+   m->size     = tree_nets(s);
+
+   int offset = 0, ptr = 0;
+   while (offset < m->size) {
+      netid_t nid = tree_net(s, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+      m->groups[ptr++] = g;
+      offset += g->length;
+   }
+}
+
 static void rt_watch_signal(watch_t *w)
 {
    const int nnets = tree_nets(w->signal);
-   int offset = 0;
+   int offset = 0, n_groups = 0;
    while (offset < nnets) {
       netid_t nid = tree_net(w->signal, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
@@ -1130,6 +1153,14 @@ static void rt_watch_signal(watch_t *w)
       g->watching = link;
 
       offset += g->length;
+      n_groups++;
+   }
+
+   if (tree_attr_ptr(w->signal, group_map_i) == NULL) {
+      group_map_t *m = xmalloc(sizeof(group_map_t));
+      rt_init_group_map(w->signal, m, n_groups);
+
+      tree_add_attr_ptr(w->signal, group_map_i, m);
    }
 }
 
@@ -1572,6 +1603,8 @@ static void rt_one_time_init(void)
    tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
    watch_stack     = rt_alloc_stack_new(sizeof(watch_t));
 
+   group_map_i = ident_new("group_map");
+
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
 }
@@ -1891,11 +1924,13 @@ void rt_set_event_cb(tree_t s, sig_event_fn_t fn)
 size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
 {
    assert(tree_kind(decl) == T_SIGNAL_DECL);
-   const int nnets = tree_nets(decl);
+
+   const group_map_t *m = tree_attr_ptr(decl, group_map_i);
+   assert(m != NULL);
+
    int offset = 0;
-   while ((offset < nnets) && (offset < max)) {
-      netid_t nid = tree_net(decl, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+   for (int i = 0; (i < m->n_groups) && (offset < max); i++) {
+      netgroup_t *g = m->groups[i];
 
 #define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
          const value_t *v = (last ? g->last_value : g->resolved);       \
@@ -1909,7 +1944,7 @@ size_t rt_signal_value(tree_t decl, uint64_t *buf, size_t max, bool last)
       offset += g->length;
    }
 
-   return MIN(nnets, max);
+   return offset;
 }
 
 uint64_t rt_now(void)
