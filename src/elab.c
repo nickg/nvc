@@ -62,6 +62,7 @@ static void elab_funcs(tree_t arch, tree_t ent);
 static int     errors = 0;
 static ident_t inst_name_i;
 static ident_t fst_dir_i;
+static ident_t scope_pop_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -659,6 +660,23 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
+{
+   tree_t h = tree_new(T_HIER);
+   tree_set_loc(h, tree_loc(t));
+   tree_set_subkind(h, tree_kind(t));
+   tree_set_ident(h, ident_new(strrchr(istr(ctx->path), ':') + 1));
+
+   tree_add_decl(ctx->out, h);
+}
+
+static void elab_pop_scope(const elab_ctx_t *ctx)
+{
+   tree_t last_decl = tree_decl(ctx->out, tree_decls(ctx->out) - 1);
+   tree_add_attr_int(last_decl, scope_pop_i,
+                     tree_attr_int(last_decl, scope_pop_i, 0) + 1);
+}
+
 static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
 {
    int64_t low, high;
@@ -685,8 +703,10 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .next_net = ctx->next_net
       };
 
+      elab_push_scope(copy, &new_ctx);
       elab_decls(copy, &new_ctx);
       elab_stmts(copy, &new_ctx);
+      elab_pop_scope(&new_ctx);
    }
 }
 
@@ -728,15 +748,19 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_block(tree_t t, const elab_ctx_t *ctx)
 {
+   elab_push_scope(t, ctx);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
+   elab_pop_scope(ctx);
 }
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
    elab_copy_context(ctx->out, t);
+   elab_push_scope(t, ctx);
    elab_decls(t, ctx);
    elab_stmts(t, ctx);
+   elab_pop_scope(ctx);
 
    tree_rewrite(t, fixup_entity_refs, t);
 
@@ -913,8 +937,9 @@ static void elab_context_signals(const elab_ctx_t *ctx)
 
 tree_t elab(tree_t top)
 {
-   inst_name_i = ident_new("INSTANCE_NAME");
-   fst_dir_i   = ident_new("fst_dir");
+   inst_name_i  = ident_new("INSTANCE_NAME");
+   fst_dir_i    = ident_new("fst_dir");
+   scope_pop_i  = ident_new("scope_pop");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),

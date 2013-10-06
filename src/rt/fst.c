@@ -117,71 +117,97 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
       return false;
 }
 
-static void fst_walk_scopes(const char *new, const char *old)
+static void fst_process_signal(tree_t d)
 {
-   if ((*new == '\0') && (*old == '\0'))
-      ;
-   else if (*new == '\0') {
-      fstWriterSetUpscope(fst_ctx);
+   type_t type = tree_type(d);
 
-      const char *next = strchr(old, ':');
-      const size_t len = (next != NULL) ? (next - old + 1) : strlen(old);
+   fst_data_t *data = xmalloc(sizeof(fst_data_t));
+   memset(data, '\0', sizeof(fst_data_t));
 
-      fst_walk_scopes(new, old + len);
-   }
-   else if (*old == '\0') {
-      const char *next = strchr(new, ':');
-      const size_t nlen = strlen(new);
-      const size_t slen = (next != NULL) ? (next - new + 1) : nlen;
+   enum fstVarType vt;
+   enum fstSupplimentalDataType sdt;
+   if (type_is_array(type)) {
+      type_t elem = type_elem(type);
+      if (!fst_can_fmt_chars(elem, data, &vt, &sdt)) {
+         warn_at(tree_loc(d), "cannot represent arrays of type %s "
+                 "in FST format", type_pp(elem));
+         free(data);
+         return;
+      }
 
-      char name[slen + 1];
-      name[slen - 1] = '\0';
-      name[slen] = '\0';
-      strncpy(name, new, (next != NULL) ? (next - new) : nlen);
+      range_t r = type_dim(type, 0);
 
-      fstWriterSetScope(fst_ctx, FST_ST_VHDL_BLOCK, name,
-                        "" /* XXX: scopecomp?? */);
+      int64_t low, high;
+      range_bounds(r, &low, &high);
 
-      fst_walk_scopes(new + slen, old);
+      data->dir  = r.kind;
+      data->size = high - low + 1;
    }
    else {
-      const char *next_new = strchr(new, ':');
-      const size_t len_new =
-         (next_new != NULL) ? (next_new - new + 1) : strlen(new);
+      type_t base = type_base_recur(type);
+      switch (type_kind(base)) {
+      case T_INTEGER:
+         sdt  = FST_SDT_VHDL_INTEGER;
+         vt   = FST_VT_VCD_INTEGER;
+         data->size = 32;
+         data->fmt  = fst_fmt_int;
+         break;
 
-      const char *next_old = strchr(old, ':');
-      const size_t len_old =
-         (next_old != NULL) ? (next_old - old + 1) : strlen(old);
+      case T_ENUM:
+         if (fst_can_fmt_chars(type, data, &vt, &sdt))
+            break;
+         // Fall-through
 
-      if ((len_old == len_new) && (strncmp(new, old, len_old) == 0))
-         fst_walk_scopes(new + len_new, old + len_old);
-      else {
-         fst_walk_scopes("", old);
-         fst_walk_scopes(new, "");
+      default:
+         warn_at(tree_loc(d), "cannot represent type %s in FST format",
+                 type_pp(type));
+         free(data);
+         return;
       }
    }
+
+   enum fstVarDir dir = FST_VD_IMPLICIT;
+
+   switch (tree_attr_int(d, fst_dir_i, -1)) {
+   case PORT_IN: dir = FST_VD_INPUT; break;
+   case PORT_OUT: dir = FST_VD_OUTPUT; break;
+   case PORT_INOUT: dir = FST_VD_INOUT; break;
+   case PORT_BUFFER: dir = FST_VD_BUFFER; break;
+   }
+
+   data->handle = fstWriterCreateVar2(
+      fst_ctx,
+      vt,
+      dir,
+      data->size,
+      strrchr(istr(tree_ident(d)), ':') + 1,
+      0,
+      type_pp(type),
+      FST_SVT_VHDL_SIGNAL,
+      sdt);
+
+   tree_add_attr_ptr(d, fst_data_i, data);
+
+   rt_set_event_cb(d, fst_event_cb);
 }
 
-static void fst_enter_scope(tree_t d, char **current)
+static void fst_process_hier(tree_t h)
 {
-   const char *name = istr(tree_ident(d));
+   const tree_kind_t scope_kind = tree_subkind(h);
 
-   const char *last_scope = strrchr(name, ':');
-   assert(last_scope != NULL);
+   enum fstScopeType st;
+   switch (scope_kind) {
+   case T_ARCH: st = FST_ST_VHDL_ARCHITECTURE; break;
+   case T_BLOCK: st = FST_ST_VHDL_BLOCK; break;
+   case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
+   default:
+      warn_at(tree_loc(h), "no FST scope type for %s",
+              tree_kind_str(scope_kind));
+      st = FST_ST_VHDL_ARCHITECTURE;
+      break;
+   }
 
-   const size_t len = last_scope - name - 1;
-
-   char this[len + 1];
-   strncpy(this, name + 1, len);
-   this[len] = '\0';
-
-   if (strcmp(*current, this) == 0)
-      return;
-
-   fst_walk_scopes(this, *current);
-
-   free(*current);
-   *current = strdup(this);
+   fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)), "" /* XXX: scopecomp?? */);
 }
 
 void fst_restart(void)
@@ -194,81 +220,21 @@ void fst_restart(void)
    const int ndecls = tree_decls(fst_top);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(fst_top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
 
-      type_t type = tree_type(d);
-
-      fst_data_t *data = xmalloc(sizeof(fst_data_t));
-      memset(data, '\0', sizeof(fst_data_t));
-
-      enum fstVarType vt;
-      enum fstSupplimentalDataType sdt;
-      if (type_is_array(type)) {
-         type_t elem = type_elem(type);
-         if (!fst_can_fmt_chars(elem, data, &vt, &sdt)) {
-            warn_at(tree_loc(d), "cannot represent arrays of type %s "
-                    "in FST format", type_pp(elem));
-            free(data);
-            continue;
-         }
-
-         range_t r = type_dim(type, 0);
-
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-
-         data->dir  = r.kind;
-         data->size = high - low + 1;
-      }
-      else {
-         type_t base = type_base_recur(type);
-         switch (type_kind(base)) {
-         case T_INTEGER:
-            sdt  = FST_SDT_VHDL_INTEGER;
-            vt   = FST_VT_VCD_INTEGER;
-            data->size = 32;
-            data->fmt  = fst_fmt_int;
-            break;
-
-         case T_ENUM:
-            if (fst_can_fmt_chars(type, data, &vt, &sdt))
-               break;
-            // Fall-through
-
-         default:
-            warn_at(tree_loc(d), "cannot represent type %s in FST format",
-                    type_pp(type));
-            free(data);
-            continue;
-         }
+      switch (tree_kind(d)) {
+      case T_SIGNAL_DECL:
+         fst_process_signal(d);
+         break;
+      case T_HIER:
+         fst_process_hier(d);
+         break;
+      default:
+         break;
       }
 
-      fst_enter_scope(d, &current_scope);
-
-      enum fstVarDir dir = FST_VD_IMPLICIT;
-
-      switch (tree_attr_int(d, fst_dir_i, -1)) {
-      case PORT_IN: dir = FST_VD_INPUT; break;
-      case PORT_OUT: dir = FST_VD_OUTPUT; break;
-      case PORT_INOUT: dir = FST_VD_INOUT; break;
-      case PORT_BUFFER: dir = FST_VD_BUFFER; break;
-      }
-
-      data->handle = fstWriterCreateVar2(
-         fst_ctx,
-         vt,
-         dir,
-         data->size,
-         strrchr(istr(tree_ident(d)), ':') + 1,
-         0,
-         type_pp(type),
-         FST_SVT_VHDL_SIGNAL,
-         sdt);
-
-      tree_add_attr_ptr(d, fst_data_i, data);
-
-      rt_set_event_cb(d, fst_event_cb);
+      int npop = tree_attr_int(d, ident_new("scope_pop"), 0);
+      while (npop-- > 0)
+         fstWriterSetUpscope(fst_ctx);
    }
 
    last_time = UINT64_MAX;

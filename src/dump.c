@@ -363,6 +363,10 @@ static void dump_decl(tree_t t, int indent)
       printf("end procedure;\n\n");
       return;
 
+   case T_HIER:
+      printf("-- Enter scope %s\n", istr(tree_ident(t)));
+      return;
+
    default:
       cannot_dump(t, "decl");
    }

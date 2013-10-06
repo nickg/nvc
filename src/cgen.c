@@ -4854,6 +4854,7 @@ static void cgen_top(tree_t t)
          break;
       case T_ATTR_DECL:
       case T_ATTR_SPEC:
+      case T_HIER:
          break;
       default:
          fatal("cannot generate code for top level declaration %s",

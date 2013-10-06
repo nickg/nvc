@@ -127,6 +127,7 @@ typedef enum tree_kind {
    T_PARAM,
    T_ASSOC,
    T_CONTEXT,
+   T_HIER,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
