@@ -135,7 +135,7 @@ static void emit_value(tree_t decl, watch_t *w)
    fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl, w), vcd_key_fmt(key));
 }
 
-static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w)
+static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
    static uint64_t last_time = UINT64_MAX;
 
@@ -222,7 +222,7 @@ void vcd_restart(void)
       if (tree_attr_int(d, i_vcd_key, -1) == -1)
          continue;
 
-      watch_t *w = rt_set_event_cb(d, vcd_event_cb);
+      watch_t *w = rt_set_event_cb(d, vcd_event_cb, NULL);
       emit_value(d, w);
    }
 

@@ -104,14 +104,14 @@ static void fst_fmt_enum(tree_t decl, watch_t *w, fst_data_t *data)
       fst_ctx, data->handle, str, strlen(str));
 }
 
-static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w)
+static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
    if (now != last_time) {
       fstWriterEmitTimeChange(fst_ctx, now);
       last_time = now;
    }
 
-   fst_data_t *data = tree_attr_ptr(decl, fst_data_i);
+   fst_data_t *data = user;
    if (likely(data != NULL))
       (*data->fmt)(decl, w, data);
 }
@@ -252,7 +252,7 @@ static void fst_process_signal(tree_t d)
 
    tree_add_attr_ptr(d, fst_data_i, data);
 
-   data->watch = rt_set_event_cb(d, fst_event_cb);
+   data->watch = rt_set_event_cb(d, fst_event_cb, data);
 }
 
 static void fst_process_hier(tree_t h)
@@ -307,7 +307,7 @@ void fst_restart(void)
       tree_t d = tree_decl(fst_top, i);
       if (tree_kind(d) == T_SIGNAL_DECL) {
          fst_data_t *data = tree_attr_ptr(d, fst_data_i);
-         fst_event_cb(0, d, data->watch);
+         fst_event_cb(0, d, data->watch, data);
       }
    }
 }

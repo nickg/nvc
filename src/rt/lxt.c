@@ -93,14 +93,14 @@ static void lxt_fmt_chars(tree_t decl, watch_t *w, lxt_data_t *data)
    }
 }
 
-static void lxt_event_cb(uint64_t now, tree_t decl, watch_t *w)
+static void lxt_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
    if (now != last_time) {
       lt_set_time64(trace, now);
       last_time = now;
    }
 
-   lxt_data_t *data = tree_attr_ptr(decl, lxt_data_i);
+   lxt_data_t *data = user;
    (*data->fmt)(decl, w, data);
 }
 
@@ -221,7 +221,7 @@ void lxt_restart(void)
 
       tree_add_attr_ptr(d, lxt_data_i, data);
 
-      watch_t *w = rt_set_event_cb(d, lxt_event_cb);
+      watch_t *w = rt_set_event_cb(d, lxt_event_cb, data);
 
       (*data->fmt)(d, w, data);
    }

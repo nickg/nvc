@@ -156,6 +156,7 @@ struct watch {
    watch_t       *chain_pending;
    netgroup_t   **groups;
    int            n_groups;
+   void          *user_data;
 };
 
 struct watch_list {
@@ -1426,7 +1427,7 @@ static void rt_iteration_limit(void)
 static void rt_process_callbacks(void)
 {
    while (callbacks != NULL) {
-      (*callbacks->fn)(now, callbacks->signal, callbacks);
+      (*callbacks->fn)(now, callbacks->signal, callbacks, callbacks->user_data);
       callbacks->pending = false;
 
       watch_t *next = callbacks->chain_pending;
@@ -1803,7 +1804,7 @@ static void rt_slave_now(void)
    slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
 }
 
-static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w)
+static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
    uint64_t value[1];
    rt_signal_value(w, value, 1, false);
@@ -1826,7 +1827,7 @@ static void rt_slave_watch(slave_watch_msg_t *msg)
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   rt_set_event_cb(t, rt_slave_watch_cb);
+   rt_set_event_cb(t, rt_slave_watch_cb, NULL);
 }
 
 static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
@@ -1834,7 +1835,7 @@ static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   rt_set_event_cb(t, NULL);
+   rt_set_event_cb(t, NULL, NULL);
 }
 
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
@@ -1890,7 +1891,7 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
    jit_shutdown();
 }
 
-watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn)
+watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)
 {
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
@@ -1915,6 +1916,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn)
       w->pending       = false;
       w->groups        = NULL;
       w->n_groups      = 0;
+      w->user_data     = user;
 
       watches = w;
 
