@@ -3268,6 +3268,18 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
       type_t value_type  = tree_type(value);
       type_t target_type = tree_type(target);
 
+      type_kind_t base_k = type_kind(type_base_recur(target_type));
+      if (base_k == T_INTEGER) {
+         range_t r = type_dim(target_type, 0);
+         LLVMValueRef min =
+            cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
+         LLVMValueRef max =
+            cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
+         LLVMValueRef kind = llvm_int32((r.kind == RANGE_TO)
+                                        ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO);
+         cgen_check_bounds(value, kind, rhs, min, max, ctx);
+      }
+
       if (!type_is_array(value_type)) {
          // Need to pass a pointer to values so allocate this on the stack
          LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(value_type), "");

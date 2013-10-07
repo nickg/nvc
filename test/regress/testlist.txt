@@ -150,3 +150,4 @@ bounds10        gold,fail
 signal10        normal
 signal11        normal,gold
 wait11          normal
+bounds11        gold,fail
