@@ -26,7 +26,7 @@ end package;
 
 -------------------------------------------------------------------------------
 
-entity fst_test is
+entity wave_test is
 end entity;
 
 library ieee;
@@ -34,13 +34,15 @@ use ieee.std_logic_1164.all;
 
 use work.p.all;
 
-architecture test of fst_test is
+architecture test of wave_test is
     signal x : std_logic_vector(7 downto 0) := X"AA";
     signal y : std_logic_vector(7 downto 0);
     signal z : std_logic := 'U';
     signal o : std_logic := '0';
     signal b : boolean;
     signal m : string(1 to 3);
+    signal p : bit_vector(1 to 3);
+    signal q : bit_vector(3 downto 1);
 
     type state is (INIT, ONE, TWO);
     signal s : state;
@@ -65,7 +67,7 @@ begin
 
     m <= "abc";
 
-    p.s <= '1';
+    work.p.s <= '1';
 
     b <= true;
 
@@ -78,5 +80,13 @@ begin
         signal g : integer;
     begin
     end generate;
+
+    p(1) <= '1';
+    p(2) <= '1';
+    p(3) <= '0';
+
+    q(1) <= '1';
+    q(2) <= '1';
+    q(3) <= '0';
 
 end architecture;

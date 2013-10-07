@@ -158,6 +158,7 @@ struct watch {
    int            n_groups;
    void          *user_data;
    range_kind_t   dir;
+   size_t         length;
 };
 
 struct watch_list {
@@ -1144,6 +1145,7 @@ static void rt_watch_signal(watch_t *w)
       netid_t nid = tree_net(w->signal, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
       w->groups[ptr++] = g;
+      w->length += g->length;
       offset += g->length;
    }
 }
@@ -1919,6 +1921,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)
       w->groups        = NULL;
       w->n_groups      = 0;
       w->user_data     = user;
+      w->length        = 0;
 
       type_t type = tree_type(s);
       if (type_is_array(type))
@@ -1956,22 +1959,27 @@ size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
 
 size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
 {
+   const bool to = (w->dir == RANGE_TO);
+   int outp = to ? 0 : MIN(max, w->length) - 1;
+   const int inc = to ? 1 : -1;
+
    size_t offset = 0;
    for (int i = 0; (i < w->n_groups) && (offset < max - 1); i++) {
       netgroup_t *g = w->groups[i];
       const char *vals = g->resolved->data;
-      const bool to = (w->dir == RANGE_TO);
 
       if (likely(map != NULL)) {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1); i++) {
+         for (int i = 0; (i < g->length) && (offset + i < max - 1);
+              i++, outp += inc) {
             const int ptr = to ? i : g->length - i - 1;
-            buf[offset + i] = map[(int)vals[ptr]];
+            buf[outp] = map[(int)vals[ptr]];
          }
       }
       else {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1); i++) {
+         for (int i = 0; (i < g->length) && (offset + i < max - 1);
+              i++, outp += inc) {
             const int ptr = to ? i : g->length - i - 1;
-            buf[offset + i] = vals[ptr];
+            buf[outp] = vals[ptr];
          }
       }
 
