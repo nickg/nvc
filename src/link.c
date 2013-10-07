@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -51,7 +52,7 @@ static void link_arg_f(const char *fmt, ...)
 
 static void link_product(lib_t lib, ident_t name, const char *ext)
 {
-   char path[256];
+   char path[PATH_MAX];
    lib_realpath(lib, NULL, path, sizeof(path));
 
    link_arg_f("%s/_%s.%s", path, istr(name), ext);
@@ -124,7 +125,9 @@ static void link_all_context(tree_t unit)
 
 static void link_output(tree_t top, const char *ext)
 {
-   ident_t orig = ident_strip(tree_ident(top), ident_new(".elab"));
+   ident_t orig = tree_ident(top);
+   if (tree_kind(top) == T_ELAB)
+      orig = ident_strip(orig, ident_new(".elab"));
    ident_t final = ident_prefix(orig, ident_new("final"), '.');
    link_product(lib_work(), final, ext);
 }
@@ -216,25 +219,44 @@ static void link_native(tree_t top)
    link_shared(top);
 }
 
+static void link_opt(tree_t top, const char *input)
+{
+   link_args_begin();
+
+   link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
+   link_arg_f("-O2");
+   link_arg_f("-o");
+   link_output(top, "bc");
+   link_arg_f("%s", input);
+
+   link_exec();
+   link_args_end();
+}
+
+static void link_tmp_name(tree_t top, char *buf, size_t len)
+{
+   snprintf(buf, len, "%s/%sXXXXXX", P_tmpdir,
+            istr(ident_runtil(tree_ident(top), '.')));
+
+   int fd;
+   if ((fd = mkstemp(buf)) < 0)
+      fatal_errno("mkstemp");
+   else
+      close(fd);
+}
+
 void link_bc(tree_t top)
 {
    link_args_begin();
 
    link_arg_f("%s/llvm-link", LLVM_CONFIG_BINDIR);
 
-   bool opt_en = opt_get_int("optimise");
+   const bool opt_en = opt_get_int("optimise");
 
    char tmp[128];
-   snprintf(tmp, sizeof(tmp), "%s/%sXXXXXX", P_tmpdir,
-            istr(ident_runtil(tree_ident(top), '.')));
-
    link_arg_f("-o");
    if (opt_en) {
-      int fd;
-      if ((fd = mkstemp(tmp)) < 0)
-         fatal_errno("mkstemp");
-      else
-         close(fd);
+      link_tmp_name(top, tmp, sizeof(tmp));
       link_arg_f("%s", tmp);
    }
    else
@@ -248,23 +270,25 @@ void link_bc(tree_t top)
    link_args_end();
 
    if (opt_en) {
-      link_args_begin();
-
-      link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
-      link_arg_f("-O2");
-      link_arg_f("-o");
-      link_output(top, "bc");
-      link_arg_f("%s", tmp);
-
-      link_exec();
-      link_args_end();
-
+      link_opt(top, tmp);
       if (unlink(tmp) < 0)
          fatal_errno("unlink");
    }
 
    if (opt_get_int("native"))
       link_native(top);
+}
+
+void link_package(tree_t pack)
+{
+   char name[128];
+   snprintf(name, sizeof(name), "_%s.bc", istr(tree_ident(pack)));
+
+   char input[PATH_MAX];
+   lib_realpath(lib_work(), name, input, sizeof(input));
+
+   link_opt(pack, input);
+   link_native(pack);
 }
 
 bool pack_needs_cgen(tree_t t)
