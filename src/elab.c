@@ -678,7 +678,7 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
    else
       tree_set_ident(h, ident_new(strrchr(istr(ctx->path), ':') + 1));
 
-   if (tree_kind(t) == T_ARCH) {
+   if ((tree_kind(t) == T_ARCH) && (tree_decls(ctx->out) > 0)) {
       // Convert an identifier like WORK.FOO-RTL to foo(rtl)
       const char *id = istr(tree_ident(t));
       while ((*id != '\0') && (*id++ != '.'))
