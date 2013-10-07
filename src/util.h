@@ -89,5 +89,6 @@ void static_printf(char *buf, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 
 int next_power_of_2(int n);
+int ilog2(int64_t n);
 
 #endif // _UTIL_H

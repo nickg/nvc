@@ -200,8 +200,11 @@ static void fst_process_signal(tree_t d)
             else
                sdt = FST_SDT_VHDL_INTEGER;
 
+            int64_t low, high;
+            range_bounds(type_dim(type, 0), &low, &high);
+
             vt = FST_VT_VCD_INTEGER;
-            data->size = 32;
+            data->size = ilog2(high - low + 1);
             data->fmt  = fst_fmt_int;
          }
          break;

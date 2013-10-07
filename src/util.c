@@ -795,3 +795,18 @@ int next_power_of_2(int n)
    n++;
    return n;
 }
+
+int ilog2(int64_t n)
+{
+   if (n <= 1)
+      return 1;
+   else {
+      int r = 0;
+      int64_t c = 1;
+      while (c < n) {
+         r += 1;
+         c *= 2;
+      }
+      return r;
+   }
+}
