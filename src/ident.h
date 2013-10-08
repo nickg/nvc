@@ -20,8 +20,8 @@
 
 #include "lib.h"
 #include "fbuf.h"
+#include "prim.h"
 
-typedef struct trie *ident_t;
 typedef struct ident_wr_ctx *ident_wr_ctx_t;
 typedef struct ident_rd_ctx *ident_rd_ctx_t;
 

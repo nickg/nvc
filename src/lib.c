@@ -61,8 +61,10 @@ struct lib_list {
    struct lib_list *next;
 };
 
-static lib_t           work = NULL;
+static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
+static const char     **search_paths = NULL;
+static size_t           n_search_paths = 0;
 
 static ident_t upcase_name(const char *name)
 {
@@ -227,11 +229,8 @@ static void push_path(const char **base, size_t *pidx, const char *path)
 
 void lib_enum_paths(const char ***result)
 {
-   static const char **paths = NULL;
-
-   if (paths == NULL) {
-      size_t count = 0;
-      paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
+   if (search_paths == NULL) {
+      search_paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
 
       char *env_copy = NULL;
       const char *libpath_env = getenv("NVC_LIBPATH");
@@ -240,7 +239,7 @@ void lib_enum_paths(const char ***result)
 
          const char *path_tok = strtok(env_copy, ":");
          do {
-            push_path(paths, &count, path_tok);
+            push_path(search_paths, &n_search_paths, path_tok);
          } while ((path_tok = strtok(NULL, ":")));
       }
 
@@ -248,13 +247,21 @@ void lib_enum_paths(const char ***result)
       if (home_env) {
          char tmp[PATH_MAX];
          snprintf(tmp, sizeof(tmp), "%s/%s/lib", home_env, PACKAGE);
-         push_path(paths, &count, tmp);
+         push_path(search_paths, &n_search_paths, tmp);
       }
 
-      push_path(paths, &count, DATADIR);
+      push_path(search_paths, &n_search_paths, DATADIR);
    }
 
-   *result = paths;
+   *result = search_paths;
+}
+
+void lib_add_search_path(const char *path)
+{
+   const char **dummy;
+   lib_enum_paths(&dummy);
+
+   push_path(search_paths, &n_search_paths, path);
 }
 
 lib_t lib_find(const char *name, bool verbose, bool search)

@@ -485,8 +485,9 @@ static void usage(void)
           " --dump UNIT\t\tPrint out previously analysed UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " -v, --version\t\tDisplay version and copyright information\n"
+          " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
           "Analyse options:\n"
@@ -548,7 +549,7 @@ int main(int argc, char **argv)
    };
 
    int c, index = 0;
-   const char *spec = "aehr";
+   const char *spec = "aehrL:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -562,6 +563,9 @@ int main(int argc, char **argv)
          exit(EXIT_SUCCESS);
       case 'w':
          work_name = optarg;
+         break;
+      case 'L':
+         lib_add_search_path(optarg);
          break;
       case 'a':
       case 'e':

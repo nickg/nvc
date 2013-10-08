@@ -79,6 +79,21 @@ esac
 
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which $CC)"], [System compiler])
 
+AC_ARG_ENABLE([native],
+  [AS_HELP_STRING([--enable-native],
+    [Enable native code generation])],
+  [enable_native=$enableval],
+  [case $host_os in
+     *cygwin*) ;;
+     *) enable_native=yes
+   esac])
+
+if test x$enable_native = xyes ; then
+AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
+fi
+
+AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
+
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE
 if ! test x$_cv_gnu_make_command = x ; then

@@ -125,11 +125,11 @@ static void link_all_context(tree_t unit)
 
 static void link_output(tree_t top, const char *ext)
 {
-   ident_t orig = tree_ident(top);
+   ident_t product = tree_ident(top);
    if (tree_kind(top) == T_ELAB)
-      orig = ident_strip(orig, ident_new(".elab"));
-   ident_t final = ident_prefix(orig, ident_new("final"), '.');
-   link_product(lib_work(), final, ext);
+      product = ident_prefix(ident_strip(product, ident_new(".elab")),
+                             ident_new("final"), '.');
+   link_product(lib_work(), product, ext);
 }
 
 static void link_args_begin(void)
@@ -147,8 +147,10 @@ static void link_args_end(void)
 
 static void link_exec(void)
 {
-   for (int i = 0; i < n_args; i++)
-      printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+   if (getenv("NVC_LINK_QUIET") == NULL) {
+      for (int i = 0; i < n_args; i++)
+         printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+   }
 
    pid_t pid = fork();
    if (pid == 0) {
@@ -215,8 +217,12 @@ static void link_shared(tree_t top)
 
 static void link_native(tree_t top)
 {
+#ifdef ENABLE_NATIVE
    link_assembly(top);
    link_shared(top);
+#else
+   fatal("native code generation is not available on this system");
+#endif
 }
 
 static void link_opt(tree_t top, const char *input)
