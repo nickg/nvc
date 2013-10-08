@@ -9,12 +9,15 @@ entity sub is
 end entity;
 
 architecture test of sub is
-    signal ctr : unsigned(3 to 18) := (others => '0');  -- Bounds lost?
+    signal ctr  : unsigned(3 to 18) := (others => '0');
+    signal ctr2 : unsigned(15 downto 0) := (others => '0');
 begin
 
     y <= x after 5 ns;
 
     ctr <= ctr + 1 after 20 ns;
+
+    ctr2 <= ctr2 + 1 after 20 ns;
 
 end architecture;
 

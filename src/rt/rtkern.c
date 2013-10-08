@@ -1970,17 +1970,13 @@ size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
 
       if (likely(map != NULL)) {
          for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc) {
-            const int ptr = to ? i : g->length - i - 1;
-            buf[outp] = map[(int)vals[ptr]];
-         }
+              i++, outp += inc)
+            buf[outp] = map[(int)vals[i]];
       }
       else {
          for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc) {
-            const int ptr = to ? i : g->length - i - 1;
-            buf[outp] = vals[ptr];
-         }
+              i++, outp += inc)
+            buf[outp] = vals[i];
       }
 
       offset += g->length;
