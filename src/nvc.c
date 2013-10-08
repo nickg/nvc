@@ -245,9 +245,10 @@ static int codegen(int argc, char **argv)
    if (pack_needs_cgen(pack))
       link_package(pack);
 
-   //ident_t body_i = ident_prefix(unit_i, ident_new("body"), '-');
-   //tree_t body = lib_get(lib_work(), body_i);
-
+   ident_t body_i = ident_prefix(unit_i, ident_new("body"), '-');
+   tree_t body = lib_get(lib_work(), body_i);
+   if (body != NULL)
+      link_package(body);
 
    return EXIT_SUCCESS;
 }
