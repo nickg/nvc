@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <string.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitReader.h>
@@ -146,6 +147,27 @@ static void jit_init_llvm(const char *path)
       fatal("error creating execution engine: %s", error);
 }
 
+static void jit_load_deps(ident_t top)
+{
+   char deps_name[256];
+   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt", istr(top));
+
+   FILE *deps = lib_fopen(lib_work(), deps_name, "r");
+   if (deps != NULL) {
+      char line[PATH_MAX];
+      while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
+         strtok(line, "\r\n");
+
+         notef("dlopen %s", line);
+
+         if (dlopen(line, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+            fatal("%s: %s", line, dlerror());
+      }
+
+      fclose(deps);
+   }
+}
+
 static void jit_init_native(const char *path)
 {
    if ((dl_handle = dlopen(path, RTLD_LAZY)) == NULL)
@@ -177,9 +199,12 @@ void jit_init(ident_t top)
    snprintf(so_fname, sizeof(so_fname), "_%s.so", istr(final));
 #endif
 
+   jit_load_deps(top);
+
+   lib_t work = lib_work();
    char bc_path[PATH_MAX], so_path[PATH_MAX];
-   lib_realpath(lib_work(), bc_fname, bc_path, sizeof(bc_path));
-   lib_realpath(lib_work(), so_fname, so_path, sizeof(so_path));
+   lib_realpath(work, bc_fname, bc_path, sizeof(bc_path));
+   lib_realpath(work, so_fname, so_path, sizeof(so_path));
 
    using_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
 

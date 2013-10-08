@@ -28,6 +28,7 @@
 #include <limits.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #define MAX_ARGS 64
 
@@ -36,7 +37,7 @@ static int    n_args = 0;
 static tree_t linked[MAX_ARGS];
 static int    n_linked = 0;
 
-static void link_all_context(tree_t unit);
+static void link_all_context(tree_t unit, FILE *deps);
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -68,16 +69,43 @@ static bool link_needs_body(tree_t pack)
    return false;   // TODO
 }
 
+static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
+{
+   ident_t name = tree_ident(unit);
+
+   char so_name[256];
+   snprintf(so_name, sizeof(so_name), "_%s.so", istr(name));
+
+   lib_mtime_t so_mt;
+   if (!lib_stat(lib, so_name, &so_mt))
+      return false;
+
+   lib_mtime_t unit_mt = lib_mtime(lib, name);
+
+   if (unit_mt > so_mt) {
+      warnf("unit %s has stale native shared library", istr(name));
+      return false;
+   }
+
+   char path[PATH_MAX];
+   lib_realpath(lib, so_name, path, sizeof(path));
+
+   fprintf(deps, "%s\n", path);
+
+   return true;
+}
+
 static bool link_already_have(tree_t unit)
 {
    for (int i = 0; i < n_linked; i++) {
       if (linked[i] == unit)
          return true;
    }
+
    return false;
 }
 
-static void link_context(tree_t ctx)
+static void link_context(tree_t ctx, FILE *deps)
 {
    ident_t name = tree_ident(ctx);
 
@@ -94,7 +122,8 @@ static void link_context(tree_t ctx)
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      link_arg_bc(lib, name);
+      if (!link_find_native_library(lib, unit, deps))
+         link_arg_bc(lib, name);
       linked[n_linked++] = unit;
    }
 
@@ -108,19 +137,20 @@ static void link_context(tree_t ctx)
    }
 
    if (!link_already_have(body)) {
-      link_arg_bc(lib, body_i);
+      if (!link_find_native_library(lib, body, deps))
+         link_arg_bc(lib, body_i);
       linked[n_linked++] = body;
    }
 
-   link_all_context(unit);
-   link_all_context(body);
+   link_all_context(unit, deps);
+   link_all_context(body, deps);
 }
 
-static void link_all_context(tree_t unit)
+static void link_all_context(tree_t unit, FILE *deps)
 {
    const int ncontext = tree_contexts(unit);
    for (int i = 0; i < ncontext; i++)
-      link_context(tree_context(unit, i));
+      link_context(tree_context(unit, i), deps);
 }
 
 static void link_output(tree_t top, const char *ext)
@@ -147,7 +177,9 @@ static void link_args_end(void)
 
 static void link_exec(void)
 {
-   if (getenv("NVC_LINK_QUIET") == NULL) {
+   const bool quiet = (getenv("NVC_LINK_QUIET") != NULL);
+
+   if (!quiet) {
       for (int i = 0; i < n_args; i++)
          printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
    }
@@ -251,6 +283,15 @@ static void link_tmp_name(tree_t top, char *buf, size_t len)
       close(fd);
 }
 
+static FILE *link_deps_file(tree_t top)
+{
+   char deps_name[256];
+   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt",
+            istr(tree_ident(top)));
+
+   return lib_fopen(lib_work(), deps_name, "w");
+}
+
 void link_bc(tree_t top)
 {
    link_args_begin();
@@ -270,7 +311,9 @@ void link_bc(tree_t top)
 
    link_arg_bc(lib_work(), tree_ident(top));
 
-   link_all_context(top);
+   FILE *deps = link_deps_file(top);
+   link_all_context(top, deps);
+   fclose(deps);
 
    link_exec();
    link_args_end();

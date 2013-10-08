@@ -393,6 +393,17 @@ void lib_put(lib_t lib, tree_t unit)
    lib_put_aux(lib, unit, NULL, true, usecs);
 }
 
+static lib_mtime_t lib_stat_mtime(struct stat *st)
+{
+   lib_mtime_t mt = lib_time_to_usecs(st->st_mtime);
+#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+   mt += st->st_mtimespec.tv_nsec / 1000;
+#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+   mt += st->st_mtim.tv_nsec / 1000;
+#endif
+   return mt;
+}
+
 static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
@@ -424,12 +435,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          if (stat(lib_file_path(lib, e->d_name), &st) < 0)
             fatal_errno("%s", e->d_name);
 
-         lib_mtime_t mt = lib_time_to_usecs(st.st_mtime);
-#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-         mt += st.st_mtimespec.tv_nsec / 1000;
-#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-         mt += st.st_mtim.tv_nsec / 1000;
-#endif
+         lib_mtime_t mt = lib_stat_mtime(&st);
 
          unit = lib_put_aux(lib, top, ctx, false, mt);
          break;
@@ -445,6 +451,18 @@ lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
    struct lib_unit *lu = lib_get_aux(lib, ident);
    assert(lu != NULL);
    return lu->mtime;
+}
+
+bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
+{
+   struct stat buf;
+   if (stat(lib_file_path(lib, name), &buf) == 0) {
+      if (mt != NULL)
+         *mt = lib_stat_mtime(&buf);
+      return true;
+   }
+   else
+      return false;
 }
 
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
