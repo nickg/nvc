@@ -38,23 +38,6 @@ static LLVMExecutionEngineRef exec_engine = NULL;
 static bool using_jit = true;
 static void *dl_handle = NULL;
 
-void *jit_fun_ptr(const char *name, bool required)
-{
-   if (using_jit) {
-      LLVMValueRef fn;
-      if (LLVMFindFunction(exec_engine, name, &fn)) {
-         if (required)
-            fatal("cannot find function %s", name);
-         else
-            return NULL;
-      }
-
-      return LLVMGetPointerToGlobal(exec_engine, fn);
-   }
-   else
-      return jit_var_ptr(name, required);
-}
-
 static char *jit_str_add(char *p, const char *s)
 {
    while (*s != '\0')
@@ -92,6 +75,35 @@ static void jit_native_name(const char *name, char *buf, size_t len)
    *p = '\0';
 }
 
+static void *jit_search_loaded_syms(const char *name, bool required)
+{
+   dlerror();   // Clear any previous error
+   char dlname[1024];
+   jit_native_name(name, dlname, sizeof(dlname));
+   void *sym = dlsym(dl_handle, dlname);
+   const char *error = dlerror();
+   if ((error != NULL) && required)
+      fatal("%s", error);
+   return sym;
+}
+
+void *jit_fun_ptr(const char *name, bool required)
+{
+   if (using_jit) {
+      LLVMValueRef fn;
+      if (LLVMFindFunction(exec_engine, name, &fn)) {
+         if (required)
+            fatal("cannot find function %s", name);
+         else
+            return jit_search_loaded_syms(name, required);
+      }
+
+      return LLVMGetPointerToGlobal(exec_engine, fn);
+   }
+   else
+      return jit_var_ptr(name, required);
+}
+
 void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
@@ -100,21 +112,13 @@ void *jit_var_ptr(const char *name, bool required)
          if (required)
             fatal("cannot find global %s", name);
          else
-            return NULL;
+            return jit_search_loaded_syms(name, required);
       }
 
       return LLVMGetPointerToGlobal(exec_engine, var);
    }
-   else {
-      dlerror();   // Clear any previous error
-      char dlname[256];
-      jit_native_name(name, dlname, sizeof(dlname));
-      void *sym = dlsym(dl_handle, dlname);
-      const char *error = dlerror();
-      if ((error != NULL) && required)
-         fatal("%s", error);
-      return sym;
-   }
+   else
+      return jit_search_loaded_syms(name, required);
 }
 
 void jit_bind_fn(const char *name, void *ptr)
