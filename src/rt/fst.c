@@ -342,6 +342,7 @@ void fst_init(const char *file, tree_t top)
    if ((fst_ctx = fstWriterCreate(file, 1)) == NULL)
       fatal("fstWriterCreate failed");
 
+   fstWriterSetFileType(fst_ctx, FST_FT_VHDL);
    fstWriterSetTimescale(fst_ctx, -15);
 
    atexit(fst_close);
