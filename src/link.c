@@ -71,6 +71,7 @@ static bool link_needs_body(tree_t pack)
 
 static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
 {
+#ifdef ENABLE_NATIVE
    ident_t name = tree_ident(unit);
 
    char so_name[256];
@@ -93,6 +94,9 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
    fprintf(deps, "%s\n", path);
 
    return true;
+#else   // ENABLE_NATIVE
+   return false;
+#endif  // ENABLE_NATIVE
 }
 
 static bool link_already_have(tree_t unit)
@@ -310,6 +314,8 @@ void link_bc(tree_t top)
       link_output(top, "bc");
 
    link_arg_bc(lib_work(), tree_ident(top));
+
+   // TODO: if only one .bc no point linking!
 
    FILE *deps = link_deps_file(top);
    link_all_context(top, deps);
