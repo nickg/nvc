@@ -375,6 +375,8 @@ static const char *cgen_mangle_func_name(tree_t decl)
          case '*': *p++ = 'm'; break;
          case '/': *p++ = 'd'; break;
          case '=': *p++ = 'e'; break;
+         case '>': *p++ = 'g'; break;
+         case '<': *p++ = 'l'; break;
          default: *p++ = *name;
          }
       }

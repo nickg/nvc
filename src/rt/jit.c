@@ -161,9 +161,6 @@ static void jit_load_deps(ident_t top)
       char line[PATH_MAX];
       while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
          strtok(line, "\r\n");
-
-         notef("dlopen %s", line);
-
          if (dlopen(line, RTLD_LAZY | RTLD_GLOBAL) == NULL)
             fatal("%s: %s", line, dlerror());
       }
