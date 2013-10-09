@@ -36,6 +36,7 @@ static char **args = NULL;
 static int    n_args = 0;
 static tree_t linked[MAX_ARGS];
 static int    n_linked = 0;
+static int    n_linked_bc = 0;
 
 static void link_all_context(tree_t unit, FILE *deps);
 
@@ -126,8 +127,10 @@ static void link_context(tree_t ctx, FILE *deps)
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      if (!link_find_native_library(lib, unit, deps))
+      if (!link_find_native_library(lib, unit, deps)) {
          link_arg_bc(lib, name);
+         n_linked_bc++;
+      }
       linked[n_linked++] = unit;
    }
 
@@ -141,8 +144,10 @@ static void link_context(tree_t ctx, FILE *deps)
    }
 
    if (!link_already_have(body)) {
-      if (!link_find_native_library(lib, body, deps))
+      if (!link_find_native_library(lib, body, deps)) {
          link_arg_bc(lib, body_i);
+         n_linked_bc++;
+      }
       linked[n_linked++] = body;
    }
 
@@ -269,7 +274,10 @@ static void link_opt(tree_t top, const char *input)
    link_arg_f("-O2");
    link_arg_f("-o");
    link_output(top, "bc");
-   link_arg_f("%s", input);
+   if (*input == '\0')
+      link_arg_bc(lib_work(), tree_ident(top));
+   else
+      link_arg_f("%s", input);
 
    link_exec();
    link_args_end();
@@ -304,34 +312,48 @@ void link_bc(tree_t top)
 
    const bool opt_en = opt_get_int("optimise");
 
-   char tmp[128];
-   link_arg_f("-o");
-   if (opt_en) {
-      link_tmp_name(top, tmp, sizeof(tmp));
-      link_arg_f("%s", tmp);
-   }
-   else
-      link_output(top, "bc");
-
    link_arg_bc(lib_work(), tree_ident(top));
-
-   // TODO: if only one .bc no point linking!
 
    FILE *deps = link_deps_file(top);
    link_all_context(top, deps);
    fclose(deps);
 
-   link_exec();
+   char tmp[128] = "";
+   if (n_linked_bc > 0) {
+      link_arg_f("-o");
+      if (opt_en) {
+         link_tmp_name(top, tmp, sizeof(tmp));
+         link_arg_f("%s", tmp);
+      }
+      else
+         link_output(top, "bc");
+
+      link_exec();
+   }
+
    link_args_end();
 
    if (opt_en) {
       link_opt(top, tmp);
-      if (unlink(tmp) < 0)
+      if ((*tmp != '\0') && (unlink(tmp) < 0))
          fatal_errno("unlink");
    }
+   else if (n_linked_bc == 0) {
+      link_args_begin();
 
-   if (opt_get_int("native"))
+      link_arg_f("/bin/mv");
+      link_arg_bc(lib_work(), tree_ident(top));
+      link_output(top, "bc");
+
+      link_exec();
+      link_args_end();
+   }
+
+   if (opt_get_int("native")) {
+      if (!opt_en)
+         fatal("optimisation must be enabled for native code generation");
       link_native(top);
+   }
 }
 
 void link_package(tree_t pack)
