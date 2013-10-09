@@ -82,8 +82,12 @@ static void *jit_search_loaded_syms(const char *name, bool required)
    jit_native_name(name, dlname, sizeof(dlname));
    void *sym = dlsym(dl_handle, dlname);
    const char *error = dlerror();
-   if ((error != NULL) && required)
-      fatal("%s", error);
+   if (error != NULL) {
+      sym = dlsym(NULL, dlname);
+      error = dlerror();
+      if ((error != NULL) && required)
+         fatal("%s", error);
+   }
    return sym;
 }
 
