@@ -344,6 +344,7 @@ void fst_init(const char *file, tree_t top)
 
    fstWriterSetFileType(fst_ctx, FST_FT_VHDL);
    fstWriterSetTimescale(fst_ctx, -15);
+   fstWriterSetVersion(fst_ctx, PACKAGE_STRING);
 
    atexit(fst_close);
 
