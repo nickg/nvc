@@ -40,6 +40,16 @@ extern "C" {
 
 typedef uint32_t fstHandle;
 
+enum fstFileType {
+    FST_FT_MIN                 = 0,
+
+    FST_FT_VERILOG             = 0,
+    FST_FT_VHDL                = 1,
+    FST_FT_VERILOG_VHDL        = 2, 
+
+    FST_FT_MAX                 = 2
+};
+
 enum fstBlockType {
     FST_BL_HDR		       = 0,
     FST_BL_VCDATA              = 1,
@@ -77,8 +87,9 @@ enum fstScopeType {
     FST_ST_VHDL_FOR_GENERATE   = 18,
     FST_ST_VHDL_IF_GENERATE    = 19,
     FST_ST_VHDL_GENERATE       = 20,
+    FST_ST_VHDL_PACKAGE        = 21,
 
-    FST_ST_MAX                 = 20,
+    FST_ST_MAX                 = 21,
 
     FST_ST_GEN_ATTRBEGIN       = 252,
     FST_ST_GEN_ATTREND         = 253,
@@ -212,7 +223,7 @@ enum fstPackType {
     FST_PT_MAX           = 3
 };
 
-enum fstSupplimentalVarType {
+enum fstSupplementalVarType {
     FST_SVT_MIN                    = 0,
 
     FST_SVT_NONE                   = 0,
@@ -226,7 +237,7 @@ enum fstSupplimentalVarType {
     FST_SVT_MAX                    = 5,
 };
 
-enum fstSupplimentalDataType {
+enum fstSupplementalDataType {
     FST_SDT_MIN                    = 0,
 
     FST_SDT_NONE                   = 0,
@@ -250,8 +261,8 @@ enum fstSupplimentalDataType {
 
     FST_SDT_MAX                    = 16,
 
-    FST_SDT_SVT_SHIFT_COUNT        = 10, /* FST_SVT_* is ORed in to the left after shifting FST_SDT_SVT_SHIFT_COUNT */
-    FST_SDT_ABS_MAX		   = (1<<(FST_SDT_SVT_SHIFT_COUNT))
+    FST_SDT_SVT_SHIFT_COUNT        = 10, /* FST_SVT_* is ORed in by fstWriterCreateVar2() to the left after shifting FST_SDT_SVT_SHIFT_COUNT */
+    FST_SDT_ABS_MAX		   = ((1<<(FST_SDT_SVT_SHIFT_COUNT))-1)
 };
 
 
@@ -276,6 +287,7 @@ union {
 
 		unsigned char svt_workspace; /* zeroed out by FST reader, for client code use */
 		unsigned char sdt_workspace; /* zeroed out by FST reader, for client code use */
+		unsigned int  sxt_workspace; /* zeroed out by FST reader, for client code use */
 
 		const char *name;
 		uint32_t length;
@@ -308,7 +320,7 @@ fstHandle fstWriterCreateVar(void *ctx, enum fstVarType vt, enum fstVarDir vd,
    the current Verilog/SV one.  The "type" string is optional for a more verbose or custom description */
 fstHandle fstWriterCreateVar2(void *ctx, enum fstVarType vt, enum fstVarDir vd,
         uint32_t len, const char *nam, fstHandle aliasHandle,
-	const char *type, enum fstSupplimentalVarType svt, enum fstSupplimentalDataType sdt);
+	const char *type, enum fstSupplementalVarType svt, enum fstSupplementalDataType sdt);
 
 void fstWriterSetPackType(void *ctx, int typ); 		/* type = 0 (libz), 1 (fastlz) */
 void fstWriterSetRepackOnClose(void *ctx, int enable); 	/* type = 0 (none), 1 (libz) */
@@ -319,6 +331,7 @@ int fstWriterGetFseekFailed(void *ctx);
 
 void *fstWriterCreate(const char *nam, int use_compressed_hier);
 void fstWriterClose(void *ctx);
+void fstWriterSetFileType(void *ctx, enum fstFileType filetype);
 void fstWriterSetDate(void *ctx, const char *dat);
 void fstWriterSetVersion(void *ctx, const char *vers);
 void fstWriterSetComment(void *ctx, const char *comm);
@@ -357,6 +370,7 @@ void *fstReaderGetCurrentScopeUserInfo(void *ctx);
 int fstReaderGetCurrentScopeLen(void *ctx);
 
 signed char fstReaderGetTimescale(void *ctx);
+int fstReaderGetFileType(void *ctx);
 int64_t fstReaderGetTimezero(void *ctx);
 uint64_t fstReaderGetStartTime(void *ctx);
 uint64_t fstReaderGetEndTime(void *ctx);

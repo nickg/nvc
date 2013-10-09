@@ -65,7 +65,9 @@ void **JenkinsIns(void *base_i, unsigned char *mem, uint32_t length, uint32_t ha
 #define FST_ID_NAM_ATTR_SIZ		(65536+4096)
 #define FST_DOUBLE_ENDTEST 		(2.7182818284590452354)
 #define FST_HDR_SIM_VERSION_SIZE 	(128)
-#define FST_HDR_DATE_SIZE 		(120)
+#define FST_HDR_DATE_SIZE 		(119)
+#define FST_HDR_FILETYPE_SIZE		(1)
+#define FST_HDR_TIMEZERO_SIZE		(8)
 #define FST_GZIO_LEN			(32768)
 
 #if defined(__i386__) || defined(__x86_64__) || defined(_AIX)
@@ -503,6 +505,8 @@ uint32_t num_blackouts;
 
 uint64_t dump_size_limit;
 
+unsigned char filetype; /* default is 0, FST_FT_VERILOG */
+
 unsigned compress_hier : 1;
 unsigned repack_on_close : 1;
 unsigned skip_writing_section_hdr : 1;
@@ -672,12 +676,15 @@ time(&walltime);
 strcpy(dbuf, asctime(localtime(&walltime)));
 fstFwrite(dbuf, FST_HDR_DATE_SIZE, 1, xc->handle);	/* +202 date */
 
-/* date size is deliberately overspecified at 120 bytes in order to provide backfill for new args */
+/* date size is deliberately overspecified at 119 bytes (originally 128) in order to provide backfill for new args */
 
-#define FST_HDR_OFFS_TIMEZERO			(FST_HDR_OFFS_DATE + FST_HDR_DATE_SIZE)
+#define FST_HDR_OFFS_FILETYPE			(FST_HDR_OFFS_DATE + FST_HDR_DATE_SIZE)
+fputc(xc->filetype, xc->handle);		/* +321 filetype */
+
+#define FST_HDR_OFFS_TIMEZERO			(FST_HDR_OFFS_FILETYPE + FST_HDR_FILETYPE_SIZE)
 fstWriterUint64(xc->handle, xc->timezero);	/* +322 timezero */
 
-#define FST_HDR_LENGTH				(FST_HDR_OFFS_TIMEZERO + 8)
+#define FST_HDR_LENGTH				(FST_HDR_OFFS_TIMEZERO + FST_HDR_TIMEZERO_SIZE)
 						/* +330 next section starts here */
 fflush(xc->handle);
 }
@@ -1843,6 +1850,26 @@ if(xc && vers)
 }
 
 
+void fstWriterSetFileType(void *ctx, enum fstFileType filetype)
+{
+struct fstWriterContext *xc = (struct fstWriterContext *)ctx;
+if(xc)
+        {
+	if((filetype >= FST_FT_MIN) && (filetype <= FST_FT_MAX))
+		{
+	        off_t fpos = ftello(xc->handle);
+
+		xc->filetype = filetype;
+
+	        fstWriterFseeko(xc, xc->handle, FST_HDR_OFFS_FILETYPE, SEEK_SET); 
+		fputc(xc->filetype, xc->handle);
+	        fflush(xc->handle);
+	        fstWriterFseeko(xc, xc->handle, fpos, SEEK_SET);
+		}
+	}
+}
+
+
 static void fstWriterSetAttrGeneric(void *ctx, const char *comm, int typ, uint64_t arg)
 {
 struct fstWriterContext *xc = (struct fstWriterContext *)ctx;
@@ -2026,9 +2053,9 @@ return(0);
  */
 fstHandle fstWriterCreateVar2(void *ctx, enum fstVarType vt, enum fstVarDir vd,
         uint32_t len, const char *nam, fstHandle aliasHandle,
-        const char *type, enum fstSupplimentalVarType svt, enum fstSupplimentalDataType sdt)
+        const char *type, enum fstSupplementalVarType svt, enum fstSupplementalDataType sdt)
 {
-fstWriterSetAttrGeneric(ctx, type ? type : "", FST_MT_SUPVAR, (svt<<FST_SDT_SVT_SHIFT_COUNT) | (sdt & (FST_SDT_ABS_MAX-1)));
+fstWriterSetAttrGeneric(ctx, type ? type : "", FST_MT_SUPVAR, (svt<<FST_SDT_SVT_SHIFT_COUNT) | (sdt & FST_SDT_ABS_MAX));
 return(fstWriterCreateVar(ctx, vt, vd, len, nam, aliasHandle));
 }
 
@@ -2486,7 +2513,7 @@ static const char *vartypes[] = {
 
 static const char *modtypes[] = {
 	"module", "task", "function", "begin", "fork", "generate", "struct", "union", "class", "interface", "package", "program",
-        "vhdl_architecture", "vhdl_procedure", "vhdl_function", "vhdl_record", "vhdl_process", "vhdl_block", "vhdl_for_generate", "vhdl_if_generate", "vhdl_generate"
+        "vhdl_architecture", "vhdl_procedure", "vhdl_function", "vhdl_record", "vhdl_process", "vhdl_block", "vhdl_for_generate", "vhdl_if_generate", "vhdl_generate", "vhdl_package"
 	};
 
 static const char *attrtypes[] = {
@@ -2536,6 +2563,8 @@ uint32_t longest_signal_value_len;	/* longest len value encountered */
 unsigned char *temp_signal_value_buf;	/* malloced for len in longest_signal_value_len */
 
 signed char timescale;
+unsigned char filetype;
+
 unsigned double_endian_match : 1;
 unsigned native_doubles_for_cb : 1;
 unsigned contains_geom_section : 1;
@@ -2914,6 +2943,14 @@ struct fstReaderContext *xc = (struct fstReaderContext *)ctx;
 return(xc ? xc->date : NULL);
 }
 
+
+int fstReaderGetFileType(void *ctx)
+{
+struct fstReaderContext *xc = (struct fstReaderContext *)ctx;
+return(xc ? xc->filetype : FST_FT_VERILOG);
+}
+
+
 int64_t fstReaderGetTimezero(void *ctx)
 {
 struct fstReaderContext *xc = (struct fstReaderContext *)ctx;
@@ -3247,6 +3284,7 @@ if(!(isfeof=feof(xc->fh)))
 			xc->hier.htyp = FST_HT_VAR;
 			xc->hier.u.var.svt_workspace = FST_SVT_NONE;
 			xc->hier.u.var.sdt_workspace = FST_SDT_NONE;
+			xc->hier.u.var.sxt_workspace = 0;
 			xc->hier.u.var.typ = tag;
 			xc->hier.u.var.direction = fgetc(xc->fh);
 			xc->hier.u.var.name = pnt = xc->str_scope_nam;
@@ -3720,6 +3758,8 @@ if(gzread_pass_status)
 				xc->version[FST_HDR_SIM_VERSION_SIZE] = 0;
 				fstFread(xc->date, FST_HDR_DATE_SIZE, 1, xc->f);
 				xc->date[FST_HDR_DATE_SIZE] = 0;
+				ch = fgetc(xc->f);
+				xc->filetype = (unsigned char)ch;
 				xc->timezero = fstReaderUint64(xc->f);
 				}
 			}
@@ -4018,6 +4058,8 @@ if(!xc) return(0);
 scatterptr = calloc(xc->maxhandle, sizeof(uint32_t));
 headptr = calloc(xc->maxhandle, sizeof(uint32_t));
 length_remaining = calloc(xc->maxhandle, sizeof(uint32_t));
+
+if(fv) { fprintf(fv, "$dumpvars\n"); } 
 
 for(;;)
 	{

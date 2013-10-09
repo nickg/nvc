@@ -108,7 +108,7 @@ static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 
 static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
                               enum fstVarType *vt,
-                              enum fstSupplimentalDataType *sdt)
+                              enum fstSupplementalDataType *sdt)
 {
    type_t base = type_base_recur(type);
    ident_t name = type_ident(base);
@@ -153,7 +153,7 @@ static void fst_process_signal(tree_t d)
    int msb = 0, lsb = 0;
 
    enum fstVarType vt;
-   enum fstSupplimentalDataType sdt;
+   enum fstSupplementalDataType sdt;
    if (type_is_array(type)) {
       if (type_dims(type) > 1) {
          warn_at(tree_loc(d), "cannot represent multidimensional arrays "
