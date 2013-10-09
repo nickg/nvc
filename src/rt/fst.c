@@ -276,7 +276,7 @@ static void fst_process_hier(tree_t h)
    case T_ARCH: st = FST_ST_VHDL_ARCHITECTURE; break;
    case T_BLOCK: st = FST_ST_VHDL_BLOCK; break;
    case T_FOR_GENERATE: st = FST_ST_VHDL_FOR_GENERATE; break;
-   case T_PACKAGE: st = FST_ST_VCD_PACKAGE; break;
+   case T_PACKAGE: st = FST_ST_VHDL_PACKAGE; break;
    default:
       st = FST_ST_VHDL_ARCHITECTURE;
       warn_at(tree_loc(h), "no FST scope type for %s",
