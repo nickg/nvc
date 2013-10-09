@@ -10,7 +10,11 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
 	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
-	ieee/IEEE.VITAL_MEMORY
+	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.so \
+	ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.NUMERIC_STD-body.so \
+	ieee/_IEEE.MATH_REAL.so ieee/_IEEE.MATH_REAL-body.so \
+	ieee/_IEEE.VITAL_TIMING.so ieee/_IEEE.VITAL_TIMING-body.so \
+	ieee/_IEEE.VITAL_PRIMITIVES.so ieee/_IEEE.VITAL_PRIMITIVES-body.so
 
 bootstrap: $(ieee_DATA)
 
