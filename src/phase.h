@@ -57,6 +57,9 @@ void opt(tree_t top);
 // Link together bitcode packages with elaborated design
 void link_bc(tree_t top);
 
+// Precompile native code for a package
+void link_package(tree_t pack);
+
 // True if the package contains shared variables or signals which
 // must be run through code generation
 bool pack_needs_cgen(tree_t t);

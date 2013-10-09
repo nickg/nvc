@@ -206,6 +206,53 @@ static int elaborate(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static int codegen(int argc, char **argv)
+{
+   set_work_lib();
+
+   static struct option long_options[] = {
+      {0, 0, 0, 0}
+   };
+
+   int c, index = 0;
+   const char *spec = "";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      default:
+         abort();
+      }
+   }
+
+   if (optind == argc)
+      fatal("missing top-level unit name");
+
+   ident_t unit_i = to_unit_name(argv[optind]);
+   tree_t pack = lib_get(lib_work(), unit_i);
+   if (pack == NULL)
+      fatal("cannot find unit %s in library %s",
+            istr(unit_i), istr(lib_name(lib_work())));
+
+   if (tree_kind(pack) != T_PACKAGE)
+      fatal("this command can only be used with packages");
+
+   if (pack_needs_cgen(pack))
+      link_package(pack);
+
+   ident_t body_i = ident_prefix(unit_i, ident_new("body"), '-');
+   tree_t body = lib_get(lib_work(), body_i);
+   if (body != NULL)
+      link_package(body);
+
+   return EXIT_SUCCESS;
+}
+
 static uint64_t parse_time(const char *str)
 {
    char     unit[4];
@@ -434,11 +481,13 @@ static void usage(void)
           " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
           " -e UNIT\t\tElaborate and generate code for UNIT\n"
           " -r UNIT\t\tExecute previously elaborated UNIT\n"
+          " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
           " --dump UNIT\t\tPrint out previously analysed UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " -v, --version\t\tDisplay version and copyright information\n"
+          " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
           "Analyse options:\n"
@@ -495,11 +544,12 @@ int main(int argc, char **argv)
       {"version", no_argument,       0, 'v'},
       {"work",    required_argument, 0, 'w'},
       {"dump",    no_argument,       0, 'd'},
+      {"codegen", no_argument,       0, 'c'},
       {0, 0, 0, 0}
    };
 
    int c, index = 0;
-   const char *spec = "aehr";
+   const char *spec = "aehrL:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -514,10 +564,14 @@ int main(int argc, char **argv)
       case 'w':
          work_name = optarg;
          break;
+      case 'L':
+         lib_add_search_path(optarg);
+         break;
       case 'a':
       case 'e':
       case 'd':
       case 'r':
+      case 'c':
          // Subcommand options are parsed later
          argc -= (optind - 1);
          argv += (optind - 1);
@@ -540,6 +594,8 @@ int main(int argc, char **argv)
       return run(argc, argv);
    case 'd':
       return dump_cmd(argc, argv);
+   case 'c':
+      return codegen(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;

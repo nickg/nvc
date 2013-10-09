@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <string.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitReader.h>
@@ -36,23 +37,6 @@ static LLVMExecutionEngineRef exec_engine = NULL;
 
 static bool using_jit = true;
 static void *dl_handle = NULL;
-
-void *jit_fun_ptr(const char *name, bool required)
-{
-   if (using_jit) {
-      LLVMValueRef fn;
-      if (LLVMFindFunction(exec_engine, name, &fn)) {
-         if (required)
-            fatal("cannot find function %s", name);
-         else
-            return NULL;
-      }
-
-      return LLVMGetPointerToGlobal(exec_engine, fn);
-   }
-   else
-      return jit_var_ptr(name, required);
-}
 
 static char *jit_str_add(char *p, const char *s)
 {
@@ -91,6 +75,35 @@ static void jit_native_name(const char *name, char *buf, size_t len)
    *p = '\0';
 }
 
+static void *jit_search_loaded_syms(const char *name, bool required)
+{
+   dlerror();   // Clear any previous error
+   char dlname[1024];
+   jit_native_name(name, dlname, sizeof(dlname));
+   void *sym = dlsym(dl_handle, dlname);
+   const char *error = dlerror();
+   if ((error != NULL) && required)
+      fatal("%s", error);
+   return sym;
+}
+
+void *jit_fun_ptr(const char *name, bool required)
+{
+   if (using_jit) {
+      LLVMValueRef fn;
+      if (LLVMFindFunction(exec_engine, name, &fn)) {
+         if (required)
+            fatal("cannot find function %s", name);
+         else
+            return jit_search_loaded_syms(name, required);
+      }
+
+      return LLVMGetPointerToGlobal(exec_engine, fn);
+   }
+   else
+      return jit_var_ptr(name, required);
+}
+
 void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
@@ -99,21 +112,13 @@ void *jit_var_ptr(const char *name, bool required)
          if (required)
             fatal("cannot find global %s", name);
          else
-            return NULL;
+            return jit_search_loaded_syms(name, required);
       }
 
       return LLVMGetPointerToGlobal(exec_engine, var);
    }
-   else {
-      dlerror();   // Clear any previous error
-      char dlname[256];
-      jit_native_name(name, dlname, sizeof(dlname));
-      void *sym = dlsym(dl_handle, dlname);
-      const char *error = dlerror();
-      if ((error != NULL) && required)
-         fatal("%s", error);
-      return sym;
-   }
+   else
+      return jit_search_loaded_syms(name, required);
 }
 
 void jit_bind_fn(const char *name, void *ptr)
@@ -144,6 +149,27 @@ static void jit_init_llvm(const char *path)
 
    if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
       fatal("error creating execution engine: %s", error);
+}
+
+static void jit_load_deps(ident_t top)
+{
+   char deps_name[256];
+   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt", istr(top));
+
+   FILE *deps = lib_fopen(lib_work(), deps_name, "r");
+   if (deps != NULL) {
+      char line[PATH_MAX];
+      while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
+         strtok(line, "\r\n");
+
+         notef("dlopen %s", line);
+
+         if (dlopen(line, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+            fatal("%s: %s", line, dlerror());
+      }
+
+      fclose(deps);
+   }
 }
 
 static void jit_init_native(const char *path)
@@ -177,9 +203,12 @@ void jit_init(ident_t top)
    snprintf(so_fname, sizeof(so_fname), "_%s.so", istr(final));
 #endif
 
+   jit_load_deps(top);
+
+   lib_t work = lib_work();
    char bc_path[PATH_MAX], so_path[PATH_MAX];
-   lib_realpath(lib_work(), bc_fname, bc_path, sizeof(bc_path));
-   lib_realpath(lib_work(), so_fname, so_path, sizeof(so_path));
+   lib_realpath(work, bc_fname, bc_path, sizeof(bc_path));
+   lib_realpath(work, so_fname, so_path, sizeof(so_path));
 
    using_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
 

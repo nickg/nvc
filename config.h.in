@@ -11,6 +11,9 @@
 /* Installation data directory */
 #undef DATADIR
 
+/* Enable native code generation */
+#undef ENABLE_NATIVE
+
 /* Define to 1 if you have `alloca', as a function or macro. */
 #undef HAVE_ALLOCA
 

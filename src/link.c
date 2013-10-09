@@ -25,8 +25,10 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/stat.h>
 
 #define MAX_ARGS 64
 
@@ -34,8 +36,9 @@ static char **args = NULL;
 static int    n_args = 0;
 static tree_t linked[MAX_ARGS];
 static int    n_linked = 0;
+static int    n_linked_bc = 0;
 
-static void link_all_context(tree_t unit);
+static void link_all_context(tree_t unit, FILE *deps);
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -51,7 +54,7 @@ static void link_arg_f(const char *fmt, ...)
 
 static void link_product(lib_t lib, ident_t name, const char *ext)
 {
-   char path[256];
+   char path[PATH_MAX];
    lib_realpath(lib, NULL, path, sizeof(path));
 
    link_arg_f("%s/_%s.%s", path, istr(name), ext);
@@ -67,16 +70,47 @@ static bool link_needs_body(tree_t pack)
    return false;   // TODO
 }
 
+static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
+{
+#ifdef ENABLE_NATIVE
+   ident_t name = tree_ident(unit);
+
+   char so_name[256];
+   snprintf(so_name, sizeof(so_name), "_%s.so", istr(name));
+
+   lib_mtime_t so_mt;
+   if (!lib_stat(lib, so_name, &so_mt))
+      return false;
+
+   lib_mtime_t unit_mt = lib_mtime(lib, name);
+
+   if (unit_mt > so_mt) {
+      warnf("unit %s has stale native shared library", istr(name));
+      return false;
+   }
+
+   char path[PATH_MAX];
+   lib_realpath(lib, so_name, path, sizeof(path));
+
+   fprintf(deps, "%s\n", path);
+
+   return true;
+#else   // ENABLE_NATIVE
+   return false;
+#endif  // ENABLE_NATIVE
+}
+
 static bool link_already_have(tree_t unit)
 {
    for (int i = 0; i < n_linked; i++) {
       if (linked[i] == unit)
          return true;
    }
+
    return false;
 }
 
-static void link_context(tree_t ctx)
+static void link_context(tree_t ctx, FILE *deps)
 {
    ident_t name = tree_ident(ctx);
 
@@ -93,7 +127,10 @@ static void link_context(tree_t ctx)
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      link_arg_bc(lib, name);
+      if (!link_find_native_library(lib, unit, deps)) {
+         link_arg_bc(lib, name);
+         n_linked_bc++;
+      }
       linked[n_linked++] = unit;
    }
 
@@ -107,26 +144,31 @@ static void link_context(tree_t ctx)
    }
 
    if (!link_already_have(body)) {
-      link_arg_bc(lib, body_i);
+      if (!link_find_native_library(lib, body, deps)) {
+         link_arg_bc(lib, body_i);
+         n_linked_bc++;
+      }
       linked[n_linked++] = body;
    }
 
-   link_all_context(unit);
-   link_all_context(body);
+   link_all_context(unit, deps);
+   link_all_context(body, deps);
 }
 
-static void link_all_context(tree_t unit)
+static void link_all_context(tree_t unit, FILE *deps)
 {
    const int ncontext = tree_contexts(unit);
    for (int i = 0; i < ncontext; i++)
-      link_context(tree_context(unit, i));
+      link_context(tree_context(unit, i), deps);
 }
 
 static void link_output(tree_t top, const char *ext)
 {
-   ident_t orig = ident_strip(tree_ident(top), ident_new(".elab"));
-   ident_t final = ident_prefix(orig, ident_new("final"), '.');
-   link_product(lib_work(), final, ext);
+   ident_t product = tree_ident(top);
+   if (tree_kind(top) == T_ELAB)
+      product = ident_prefix(ident_strip(product, ident_new(".elab")),
+                             ident_new("final"), '.');
+   link_product(lib_work(), product, ext);
 }
 
 static void link_args_begin(void)
@@ -144,8 +186,12 @@ static void link_args_end(void)
 
 static void link_exec(void)
 {
-   for (int i = 0; i < n_args; i++)
-      printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+   const bool quiet = (getenv("NVC_LINK_QUIET") != NULL);
+
+   if (!quiet) {
+      for (int i = 0; i < n_args; i++)
+         printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
+   }
 
    pid_t pid = fork();
    if (pid == 0) {
@@ -212,8 +258,50 @@ static void link_shared(tree_t top)
 
 static void link_native(tree_t top)
 {
+#ifdef ENABLE_NATIVE
    link_assembly(top);
    link_shared(top);
+#else
+   fatal("native code generation is not available on this system");
+#endif
+}
+
+static void link_opt(tree_t top, const char *input)
+{
+   link_args_begin();
+
+   link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
+   link_arg_f("-O2");
+   link_arg_f("-o");
+   link_output(top, "bc");
+   if (*input == '\0')
+      link_arg_bc(lib_work(), tree_ident(top));
+   else
+      link_arg_f("%s", input);
+
+   link_exec();
+   link_args_end();
+}
+
+static void link_tmp_name(tree_t top, char *buf, size_t len)
+{
+   snprintf(buf, len, "%s/%sXXXXXX", P_tmpdir,
+            istr(ident_runtil(tree_ident(top), '.')));
+
+   int fd;
+   if ((fd = mkstemp(buf)) < 0)
+      fatal_errno("mkstemp");
+   else
+      close(fd);
+}
+
+static FILE *link_deps_file(tree_t top)
+{
+   char deps_name[256];
+   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt",
+            istr(tree_ident(top)));
+
+   return lib_fopen(lib_work(), deps_name, "w");
 }
 
 void link_bc(tree_t top)
@@ -222,49 +310,62 @@ void link_bc(tree_t top)
 
    link_arg_f("%s/llvm-link", LLVM_CONFIG_BINDIR);
 
-   bool opt_en = opt_get_int("optimise");
-
-   char tmp[128];
-   snprintf(tmp, sizeof(tmp), "%s/%sXXXXXX", P_tmpdir,
-            istr(ident_runtil(tree_ident(top), '.')));
-
-   link_arg_f("-o");
-   if (opt_en) {
-      int fd;
-      if ((fd = mkstemp(tmp)) < 0)
-         fatal_errno("mkstemp");
-      else
-         close(fd);
-      link_arg_f("%s", tmp);
-   }
-   else
-      link_output(top, "bc");
+   const bool opt_en = opt_get_int("optimise");
 
    link_arg_bc(lib_work(), tree_ident(top));
 
-   link_all_context(top);
+   FILE *deps = link_deps_file(top);
+   link_all_context(top, deps);
+   fclose(deps);
 
-   link_exec();
+   char tmp[128] = "";
+   if (n_linked_bc > 0) {
+      link_arg_f("-o");
+      if (opt_en) {
+         link_tmp_name(top, tmp, sizeof(tmp));
+         link_arg_f("%s", tmp);
+      }
+      else
+         link_output(top, "bc");
+
+      link_exec();
+   }
+
    link_args_end();
 
    if (opt_en) {
+      link_opt(top, tmp);
+      if ((*tmp != '\0') && (unlink(tmp) < 0))
+         fatal_errno("unlink");
+   }
+   else if (n_linked_bc == 0) {
       link_args_begin();
 
-      link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
-      link_arg_f("-O2");
-      link_arg_f("-o");
+      link_arg_f("/bin/mv");
+      link_arg_bc(lib_work(), tree_ident(top));
       link_output(top, "bc");
-      link_arg_f("%s", tmp);
 
       link_exec();
       link_args_end();
-
-      if (unlink(tmp) < 0)
-         fatal_errno("unlink");
    }
 
-   if (opt_get_int("native"))
+   if (opt_get_int("native")) {
+      if (!opt_en)
+         fatal("optimisation must be enabled for native code generation");
       link_native(top);
+   }
+}
+
+void link_package(tree_t pack)
+{
+   char name[128];
+   snprintf(name, sizeof(name), "_%s.bc", istr(tree_ident(pack)));
+
+   char input[PATH_MAX];
+   lib_realpath(lib_work(), name, input, sizeof(input));
+
+   link_opt(pack, input);
+   link_native(pack);
 }
 
 bool pack_needs_cgen(tree_t t)

@@ -61,4 +61,6 @@ typedef struct range {
 typedef struct tree_wr_ctx *tree_wr_ctx_t;
 typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
+typedef struct trie *ident_t;
+
 #endif  // _PRIM_H

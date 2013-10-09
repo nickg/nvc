@@ -363,7 +363,25 @@ static const char *cgen_mangle_func_name(tree_t decl)
       }
    }
    else {
-      static_printf(buf, "%s", istr(tree_ident(decl)));
+      // Mangle the VHDL name into a unique symbol name
+
+      const char *name = istr(tree_ident(decl));
+      char tmp[strlen(name) + 1], *p;
+      for (p = tmp; *name != '\0'; ++name) {
+         switch (*name) {
+         case '"': break;
+         case '+': *p++ = 'p'; break;
+         case '-': *p++ = 's'; break;
+         case '*': *p++ = 'm'; break;
+         case '/': *p++ = 'd'; break;
+         case '=': *p++ = 'e'; break;
+         default: *p++ = *name;
+         }
+      }
+      *p = '\0';
+
+      static_printf(buf, "%s", tmp);
+
       const int nparams = type_params(type);
       for (int i = 0; i < nparams; i++) {
          type_t param = type_param(type, i);
@@ -371,7 +389,7 @@ static const char *cgen_mangle_func_name(tree_t decl)
       }
 
       if (type_kind(type) == T_FUNC)
-         static_printf(buf, "^%s", istr(type_ident(type_result(type))));
+         static_printf(buf, "_return_%s", istr(type_ident(type_result(type))));
    }
 
    return buf;

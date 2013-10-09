@@ -61,8 +61,10 @@ struct lib_list {
    struct lib_list *next;
 };
 
-static lib_t           work = NULL;
+static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
+static const char     **search_paths = NULL;
+static size_t           n_search_paths = 0;
 
 static ident_t upcase_name(const char *name)
 {
@@ -227,11 +229,8 @@ static void push_path(const char **base, size_t *pidx, const char *path)
 
 void lib_enum_paths(const char ***result)
 {
-   static const char **paths = NULL;
-
-   if (paths == NULL) {
-      size_t count = 0;
-      paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
+   if (search_paths == NULL) {
+      search_paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
 
       char *env_copy = NULL;
       const char *libpath_env = getenv("NVC_LIBPATH");
@@ -240,7 +239,7 @@ void lib_enum_paths(const char ***result)
 
          const char *path_tok = strtok(env_copy, ":");
          do {
-            push_path(paths, &count, path_tok);
+            push_path(search_paths, &n_search_paths, path_tok);
          } while ((path_tok = strtok(NULL, ":")));
       }
 
@@ -248,13 +247,21 @@ void lib_enum_paths(const char ***result)
       if (home_env) {
          char tmp[PATH_MAX];
          snprintf(tmp, sizeof(tmp), "%s/%s/lib", home_env, PACKAGE);
-         push_path(paths, &count, tmp);
+         push_path(search_paths, &n_search_paths, tmp);
       }
 
-      push_path(paths, &count, DATADIR);
+      push_path(search_paths, &n_search_paths, DATADIR);
    }
 
-   *result = paths;
+   *result = search_paths;
+}
+
+void lib_add_search_path(const char *path)
+{
+   const char **dummy;
+   lib_enum_paths(&dummy);
+
+   push_path(search_paths, &n_search_paths, path);
 }
 
 lib_t lib_find(const char *name, bool verbose, bool search)
@@ -386,6 +393,17 @@ void lib_put(lib_t lib, tree_t unit)
    lib_put_aux(lib, unit, NULL, true, usecs);
 }
 
+static lib_mtime_t lib_stat_mtime(struct stat *st)
+{
+   lib_mtime_t mt = lib_time_to_usecs(st->st_mtime);
+#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+   mt += st->st_mtimespec.tv_nsec / 1000;
+#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+   mt += st->st_mtim.tv_nsec / 1000;
+#endif
+   return mt;
+}
+
 static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
@@ -417,12 +435,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          if (stat(lib_file_path(lib, e->d_name), &st) < 0)
             fatal_errno("%s", e->d_name);
 
-         lib_mtime_t mt = lib_time_to_usecs(st.st_mtime);
-#if defined HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-         mt += st.st_mtimespec.tv_nsec / 1000;
-#elif defined HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-         mt += st.st_mtim.tv_nsec / 1000;
-#endif
+         lib_mtime_t mt = lib_stat_mtime(&st);
 
          unit = lib_put_aux(lib, top, ctx, false, mt);
          break;
@@ -438,6 +451,18 @@ lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
    struct lib_unit *lu = lib_get_aux(lib, ident);
    assert(lu != NULL);
    return lu->mtime;
+}
+
+bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
+{
+   struct stat buf;
+   if (stat(lib_file_path(lib, name), &buf) == 0) {
+      if (mt != NULL)
+         *mt = lib_stat_mtime(&buf);
+      return true;
+   }
+   else
+      return false;
 }
 
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
