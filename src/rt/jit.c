@@ -27,16 +27,24 @@
 #include <errno.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <llvm-c/Core.h>
 #include <llvm-c/BitReader.h>
 #include <llvm-c/ExecutionEngine.h>
 
+typedef struct dl_list dl_list_t;
+
+struct dl_list {
+   dl_list_t *next;
+   void      *handle;
+};
+
 static LLVMModuleRef          module = NULL;
 static LLVMExecutionEngineRef exec_engine = NULL;
 
-static bool using_jit = true;
-static void *dl_handle = NULL;
+static bool       using_jit = true;
+static dl_list_t *dl_list = NULL;
 
 static char *jit_str_add(char *p, const char *s)
 {
@@ -78,17 +86,22 @@ static void jit_native_name(const char *name, char *buf, size_t len)
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
    dlerror();   // Clear any previous error
+
    char dlname[1024];
    jit_native_name(name, dlname, sizeof(dlname));
-   void *sym = dlsym(dl_handle, dlname);
-   const char *error = dlerror();
-   if (error != NULL) {
-      sym = dlsym(NULL, dlname);
+
+   const char *error = NULL;
+   for (dl_list_t *it = dl_list; it != NULL; it = it->next) {
+      void *sym = dlsym(it->handle, dlname);
       error = dlerror();
-      if ((error != NULL) && required)
-         fatal("%s", error);
+      if (error == NULL)
+         return sym;
    }
-   return sym;
+
+   if (required)
+      fatal("%s", error);
+
+   return NULL;
 }
 
 void *jit_fun_ptr(const char *name, bool required)
@@ -155,6 +168,15 @@ static void jit_init_llvm(const char *path)
       fatal("error creating execution engine: %s", error);
 }
 
+static void jit_append_dl(void *handle)
+{
+   dl_list_t *link = xmalloc(sizeof(dl_list_t));
+   link->next   = dl_list;
+   link->handle = handle;
+
+   dl_list = link;
+}
+
 static void jit_load_deps(ident_t top)
 {
    char deps_name[256];
@@ -165,8 +187,12 @@ static void jit_load_deps(ident_t top)
       char line[PATH_MAX];
       while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
          strtok(line, "\r\n");
-         if (dlopen(line, RTLD_LAZY | RTLD_GLOBAL) == NULL)
+
+         void *handle;
+         if ((handle = dlopen(line, RTLD_LAZY | RTLD_GLOBAL)) == NULL)
             fatal("%s: %s", line, dlerror());
+
+         jit_append_dl(handle);
       }
 
       fclose(deps);
@@ -175,8 +201,11 @@ static void jit_load_deps(ident_t top)
 
 static void jit_init_native(const char *path)
 {
-   if ((dl_handle = dlopen(path, RTLD_LAZY)) == NULL)
+   void *handle;
+   if ((handle = dlopen(path, RTLD_LAZY)) == NULL)
       fatal("%s: %s", path, dlerror());
+
+   jit_append_dl(handle);
 }
 
 static time_t jit_mod_time(const char *path)
@@ -223,6 +252,13 @@ void jit_shutdown(void)
 {
    if (using_jit)
       LLVMDisposeExecutionEngine(exec_engine);
-   else
-      dlclose(dl_handle);
+   else {
+      dl_list_t *it = dl_list;
+      while (it != NULL) {
+         dl_list_t *tmp = it->next;
+         dlclose(it->handle);
+         free(it);
+         it = tmp;
+      }
+   }
 }
