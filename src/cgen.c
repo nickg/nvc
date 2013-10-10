@@ -563,26 +563,31 @@ static LLVMValueRef cgen_array_right(type_t type, int dim, LLVMValueRef var)
       return llvm_int32(assume_int(type_dim(type, dim).right));
 }
 
+static int cgen_const_array_len(type_t type, int dim)
+{
+   int n_elems = 1;
+   const int ndims = type_dims(type);
+   for (int i = 0; i < ndims; i++) {
+      if ((dim == -1) || (i == dim)) {
+         int64_t low, high;
+         range_bounds(type_dim(type, i), &low, &high);
+
+         if (high < low)
+            n_elems = 0;
+         else
+            n_elems *= (high - low + 1);
+      }
+   }
+
+   return n_elems;
+}
+
 static LLVMValueRef cgen_array_len(type_t type, int dim, LLVMValueRef data)
 {
    // Passing dimension -1 means sum over all dimensions
 
-   if (cgen_const_bounds(type)) {
-      int n_elems = 1;
-      const int ndims = type_dims(type);
-      for (int i = 0; i < ndims; i++) {
-         if ((dim == -1) || (i == dim)) {
-            int64_t low, high;
-            range_bounds(type_dim(type, i), &low, &high);
-
-            if (high < low)
-               n_elems = 0;
-            else
-               n_elems *= (high - low + 1);
-         }
-      }
-      return llvm_int32(n_elems);
-   }
+   if (cgen_const_bounds(type))
+      return llvm_int32(cgen_const_array_len(type, dim));
    else {
       LLVMValueRef n_elems = llvm_int32(1);
       const int ndims = cgen_array_dims(type);
@@ -1324,7 +1329,11 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
       snprintf(buf, sizeof(buf), "%s_nets",
                package_signal_path_name(tree_ident(decl)));
 
-      LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), 0);
+      type_t type = tree_type(decl);
+      const int nnets = type_is_array(type)
+         ? cgen_const_array_len(type, -1) : 1;
+
+      LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), nnets);
       LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
       LLVMSetLinkage(map_var, LLVMExternalLinkage);
       return map_var;

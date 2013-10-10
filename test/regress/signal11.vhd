@@ -11,6 +11,15 @@ package body pack is
         s <= x + 1;
     end procedure;
 
+    procedure bar(signal s : in integer) is
+    begin
+    end procedure;
+
+    procedure foo is
+    begin
+        bar(x);
+    end procedure;
+
 end package body;
 
 -------------------------------------------------------------------------------
