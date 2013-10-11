@@ -517,12 +517,11 @@ static void usage(void)
           PACKAGE,
           opt_get_int("stop-delta"));
 
-   const char **paths;
-   lib_enum_paths(&paths);
-
    printf("Library search paths:\n");
-   for (const char **p = paths; *p != NULL; p++)
-      printf("  %s\n", *p);
+   void *token = NULL;
+   const char *path;
+   while ((path = lib_enum_search_paths(&token)) != NULL)
+      printf("  %s\n", path);
 
    printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }

@@ -15,6 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define _GNU_SOURCE
+
 #include "util.h"
 #include "lib.h"
 #include "tree.h"
@@ -31,7 +33,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#define MAX_SEARCH_PATHS 64
+typedef struct search_path search_path_t;
 
 struct lib_unit {
    tree_t        top;
@@ -61,10 +63,14 @@ struct lib_list {
    struct lib_list *next;
 };
 
+struct search_path {
+   search_path_t *next;
+   const char    *path;
+};
+
 static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
-static const char     **search_paths = NULL;
-static size_t           n_search_paths = 0;
+static search_path_t   *search_paths = NULL;
 
 static ident_t upcase_name(const char *name)
 {
@@ -219,49 +225,62 @@ lib_t lib_tmp(void)
    return lib_init("work", "");
 }
 
-static void push_path(const char **base, size_t *pidx, const char *path)
+static void push_path(const char *path)
 {
-   if (*pidx < MAX_SEARCH_PATHS - 1) {
-      base[(*pidx)++] = path;
-      base[*pidx] = NULL;
-   }
+   search_path_t *s = xmalloc(sizeof(search_path_t));
+   s->next = search_paths;
+   s->path = path;
+
+   search_paths = s;
 }
 
-void lib_enum_paths(const char ***result)
+static void lib_default_search_paths(void)
 {
    if (search_paths == NULL) {
-      search_paths = malloc(sizeof(char *) * MAX_SEARCH_PATHS);
-
       char *env_copy = NULL;
       const char *libpath_env = getenv("NVC_LIBPATH");
       if (libpath_env) {
          env_copy = strdup(libpath_env);
 
-         const char *path_tok = strtok(env_copy, ":");
+         char *path_tok = strtok(env_copy, ":");
          do {
-            push_path(search_paths, &n_search_paths, path_tok);
+            push_path(path_tok);
          } while ((path_tok = strtok(NULL, ":")));
       }
 
       const char *home_env = getenv("HOME");
       if (home_env) {
-         char tmp[PATH_MAX];
-         snprintf(tmp, sizeof(tmp), "%s/%s/lib", home_env, PACKAGE);
-         push_path(search_paths, &n_search_paths, tmp);
+         char *path;
+         asprintf(&path, "%s/.%s/lib", home_env, PACKAGE);
+         assert(path != NULL);
+         push_path(path);
       }
 
-      push_path(search_paths, &n_search_paths, DATADIR);
+      push_path(DATADIR);
+   }
+}
+
+const char *lib_enum_search_paths(void **token)
+{
+   if (*token == NULL) {
+      lib_default_search_paths();
+      *token = search_paths;
    }
 
-   *result = search_paths;
+   if (*token == (void *)-1)
+      return NULL;
+   else {
+      search_path_t *old = *token;
+      if ((*token = old->next) == NULL)
+         *token = (void *)-1;
+      return old->path;
+   }
 }
 
 void lib_add_search_path(const char *path)
 {
-   const char **dummy;
-   lib_enum_paths(&dummy);
-
-   push_path(search_paths, &n_search_paths, path);
+   lib_default_search_paths();
+   push_path(strdup(path));
 }
 
 lib_t lib_find(const char *name, bool verbose, bool search)
@@ -284,19 +303,20 @@ lib_t lib_find(const char *name, bool verbose, bool search)
       lib = lib_find_at(name, name_copy);
    }
    else if (search) {
-      const char **paths;
-      lib_enum_paths(&paths);
+      lib_default_search_paths();
 
-      for (const char **p = paths; *p != NULL; p++) {
-         if ((lib = lib_find_at(name, *p)))
+      for (search_path_t *it = search_paths; it != NULL; it = it->next) {
+         if ((lib = lib_find_at(name, it->path)))
             break;
       }
 
       if ((lib == NULL) && verbose) {
-         errorf("library %s not found in:", name);
-         for (const char **p = paths; *p != NULL; p++) {
-            fprintf(stderr, "  %s\n", *p);
-         }
+         char buf[2048];
+         static_printf_begin(buf, sizeof(buf));
+         static_printf(buf, "library %s not found in:", name);
+         for (search_path_t *it = search_paths; it != NULL; it = it->next)
+            static_printf(buf, "  %s\n", it->path);
+         errorf(buf);
       }
    }
    else {

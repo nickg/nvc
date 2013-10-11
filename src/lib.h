@@ -40,7 +40,7 @@ void lib_destroy(lib_t lib);
 ident_t lib_name(lib_t lib);
 void lib_save(lib_t lib);
 void lib_mkdir(lib_t lib, const char *name);
-void lib_enum_paths(const char ***result);
+const char *lib_enum_search_paths(void **token);
 void lib_add_search_path(const char *path);
 bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 
