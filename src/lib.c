@@ -316,7 +316,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
          static_printf(buf, "library %s not found in:", name);
          for (search_path_t *it = search_paths; it != NULL; it = it->next)
             static_printf(buf, "  %s\n", it->path);
-         errorf(buf);
+         errorf("%s", buf);
       }
    }
    else {
