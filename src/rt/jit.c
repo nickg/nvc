@@ -65,9 +65,11 @@ static void jit_native_name(const char *name, char *buf, size_t len)
       case '@':
          p = jit_str_add(p, "_40_");
          break;
+#if !defined __APPLE__
       case '-':
          p = jit_str_add(p, "_2D_");
          break;
+#endif
       default:
          *p++ = ch;
       }
