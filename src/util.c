@@ -484,7 +484,7 @@ static bool check_guard_page(uintptr_t addr)
 {
    for (guard_t *it = guards; it != NULL; it = it->next) {
       if ((addr >= it->base) && (addr < it->limit)) {
-         fatal_trace("accessed %d bytes beyond region $cyan$%s$$",
+         fatal_trace("accessed %d bytes beyond $cyan$%s$$ region",
                      (int)(addr - it->base), it->tag);
       }
    }

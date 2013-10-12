@@ -565,19 +565,20 @@ void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
    //      fmt_net(nids[0]), where, size, low, high, last);
 
    int offset = low;
-   while (offset <= high) {
-      groupid_t gid = netdb_lookup(netdb, nids[offset]);
-      netgroup_t *g = &(groups[gid]);
 
-      const int skip = nids[offset] - g->first;
+   groupid_t gid = netdb_lookup(netdb, nids[offset]);
+   netgroup_t *g = &(groups[gid]);
+   int skip = nids[offset] - g->first;
+
+   if ((offset == low) && (offset + g->length - skip > high)) {
+      // If the signal data is already contiguous return a pointer to
+      // that rather than copying into the user buffer
+      void *r = unlikely(last) ? g->last_value->data : g->resolved->data;
+      return (uint8_t *)r + (skip * size);
+   }
+
+   for (;;) {
       const int to_copy = MIN(high - offset + 1, g->length - skip);
-
-      if ((offset == low) && (offset + g->length - skip > high)) {
-         // If the signal data is already contiguous return a pointer to
-         // that rather than copying into the user buffer
-         void *r = unlikely(last) ? g->last_value->data : g->resolved->data;
-         return (uint8_t *)r + (skip * size);
-      }
 
       void *p = (uint8_t *)where + ((offset - low) * size);
       if (unlikely(last))
@@ -588,7 +589,14 @@ void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                 to_copy * size);
 
       offset += g->length - skip;
-   }
+
+      if (offset > high)
+         break;
+
+      gid = netdb_lookup(netdb, nids[offset]);
+      g = &(groups[gid]);
+      skip = nids[offset] - g->first;
+    } while (offset <= high);
 
    // Signal data was non-contiguous so return the user buffer
    return where;
