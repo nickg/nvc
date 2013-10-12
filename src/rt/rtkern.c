@@ -74,6 +74,7 @@ struct rt_proc {
    proc_fn_t         proc_fn;
    struct tmp_chunk *tmp_chunks;
    uint32_t          wakeup_gen;
+   bool              postponed;
 };
 
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
@@ -184,6 +185,7 @@ static netdb_t      *netdb = NULL;
 static netgroup_t   *groups = NULL;
 static sens_list_t  *pending = NULL;
 static sens_list_t  *resume = NULL;
+static sens_list_t  *postponed = NULL;
 static watch_t      *watches = NULL;
 static watch_t      *callbacks = NULL;
 static event_t      *delta_proc = NULL;
@@ -340,6 +342,10 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
          "reject=%s reverse=%d", fmt_net(nids[0]),
          fmt_values(values, n * size), n, size, fmt_time(after),
          fmt_time(reject), reverse);
+
+   if (unlikely(active_proc->postponed && (after == 0)))
+      fatal("postponed process %s cannot cause a delta cycle",
+            istr(tree_ident(active_proc->source)));
 
    int offset = 0;
    while (offset < n) {
@@ -1080,6 +1086,8 @@ static void rt_setup(tree_t top)
 
    netdb_walk(netdb, rt_reset_group);
 
+   ident_t postponed_i = ident_new("postponed");
+
    const int nstmts = tree_stmts(top);
    for (int i = 0; i < nstmts; i++) {
       tree_t p = tree_stmt(top, i);
@@ -1089,6 +1097,7 @@ static void rt_setup(tree_t top)
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
       procs[i].tmp_chunks = NULL;
+      procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
 
       TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
@@ -1184,11 +1193,18 @@ static void rt_wakeup(sens_list_t *sl)
    // have already resumed.
 
    if (sl->wakeup_gen == sl->proc->wakeup_gen) {
-      TRACE("wakeup process %s", istr(tree_ident(sl->proc->source)));
+      TRACE("wakeup process %s%s", istr(tree_ident(sl->proc->source)),
+            sl->proc->postponed ? " [postponed]" : "");
       ++(sl->proc->wakeup_gen);
 
-      sl->next = resume;
-      resume = sl;
+      if (unlikely(sl->proc->postponed)) {
+         sl->next  = postponed;
+         postponed = sl;
+      }
+      else {
+         sl->next = resume;
+         resume = sl;
+      }
    }
    else
       rt_free(sens_list_stack, sl);
@@ -1450,6 +1466,20 @@ static void rt_iteration_limit(void)
    fatal("%s", buf);
 }
 
+static void rt_resume_processes(sens_list_t **list)
+{
+   sens_list_t *it = *list;
+   while (it != NULL) {
+      rt_run(it->proc, false /* reset */);
+
+      sens_list_t *next = it->next;
+      rt_free(sens_list_stack, it);
+      it = next;
+   }
+
+   *list = NULL;
+}
+
 static void rt_cycle(int stop_delta)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
@@ -1521,13 +1551,7 @@ static void rt_cycle(int stop_delta)
       rt_iteration_limit();
 
    // Run all processes that resumed because of signal events
-   while (resume != NULL) {
-      rt_run(resume->proc, false /* reset */);
-
-      sens_list_t *next = resume->next;
-      rt_free(sens_list_stack, resume);
-      resume = next;
-   }
+   rt_resume_processes(&resume);
 
    for (unsigned i = 0; i < n_active_groups; i++) {
       netgroup_t *g = active_groups[i];
@@ -1537,6 +1561,9 @@ static void rt_cycle(int stop_delta)
 
    const bool next_is_delta = (delta_driver != NULL) || (delta_proc != NULL);
    if (!next_is_delta) {
+      // Run any postponed processes
+      rt_resume_processes(&postponed);
+
       // Execute all event callbacks
       while (callbacks != NULL) {
          (*callbacks->fn)(now, callbacks->signal, callbacks,
