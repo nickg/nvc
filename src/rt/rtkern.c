@@ -193,7 +193,7 @@ static unsigned     n_active_alloc = 0;
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
-static void rt_alloc_driver(netgroup_t *group, uint64_t after,
+static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values);
 static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
                            rt_proc_t *proc);
@@ -362,8 +362,8 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
          memcpy(values_copy->data, (uint8_t *)values + (offset * size),
                 size * g->length);
 
-      rt_alloc_driver(g, after, reject, values_copy);
-      deltaq_insert_driver(after, g, active_proc);
+      if (!rt_alloc_driver(g, after, reject, values_copy))
+         deltaq_insert_driver(after, g, active_proc);
 
       offset += g->length;
    }
@@ -1180,7 +1180,7 @@ static void rt_wakeup(sens_list_t *sl)
       rt_free(sens_list_stack, sl);
 }
 
-static void rt_alloc_driver(netgroup_t *group, uint64_t after,
+static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values)
 {
    if (unlikely(reject > after))
@@ -1253,11 +1253,19 @@ static void rt_alloc_driver(netgroup_t *group, uint64_t after,
    // We could remove this transaction from the deltaq as well but the
    // overhead of doing so is probably higher than the cost of waking
    // up for the empty event
+   bool already_scheduled = false;
    while (it != NULL) {
       rt_free_value(group, it->values);
+
+      if (it->when == w->when)
+         already_scheduled = true;
+
+      waveform_t *next = it->next;
       rt_free(waveform_stack, it);
-      it = it->next;
+      it = next;
    }
+
+   return already_scheduled;
 }
 
 static void rt_update_group(netgroup_t *group, int driver, void *values)
