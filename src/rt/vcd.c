@@ -261,7 +261,7 @@ void vcd_init(const char *filename, tree_t top)
    warnf("Use of the VCD file format is discouraged as it cannot fully "
          "represent many VHDL types and the performance is poor for large "
          "designs. If you are using GtkWave the --wave option will generate "
-         "an LXT file that overcomes these limitations.");
+         "an FST file that overcomes these limitations.");
 
    vcd_file = fopen(filename, "w");
    if (vcd_file == NULL)

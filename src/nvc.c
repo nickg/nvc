@@ -300,7 +300,7 @@ static int run(int argc, char **argv)
    };
 
    enum { BATCH, COMMAND } mode = BATCH;
-   enum { LXT, FST, VCD} wave_fmt = LXT;
+   enum { LXT, FST, VCD} wave_fmt = FST;
 
    uint64_t stop_time = UINT64_MAX;
    const char *wave_fname = NULL;
