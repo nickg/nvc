@@ -56,19 +56,6 @@ typedef struct sens_list  sens_list_t;
 typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
 
-struct tmp_chunk_hdr {
-   struct tmp_chunk *next;
-   size_t alloced;
-   char   *external;
-};
-
-#define TMP_BUF_SZ (1024 - sizeof(struct tmp_chunk_hdr))
-
-struct tmp_chunk {
-   struct tmp_chunk_hdr hdr;
-   char buf[TMP_BUF_SZ];
-};
-
 struct rt_proc {
    tree_t            source;
    proc_fn_t         proc_fn;
@@ -190,11 +177,13 @@ static watch_t      *watches = NULL;
 static watch_t      *callbacks = NULL;
 static event_t      *delta_proc = NULL;
 static event_t      *delta_driver = NULL;
+static void         *global_tmp_stack = NULL;
+static void         *proc_tmp_stack = NULL;
+static uint32_t      global_tmp_alloc;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
-static rt_alloc_stack_t tmp_chunk_stack = NULL;
 static rt_alloc_stack_t watch_stack = NULL;
 
 static netgroup_t **active_groups;
@@ -212,6 +201,9 @@ static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
 static void _tracef(const char *fmt, ...);
+
+#define GLOBAL_TMP_STACK_SZ (256 * 1024)
+#define PROC_TMP_STACK_SZ   (64 * 1024)
 
 #define TRACE(...) if (unlikely(trace_on)) _tracef(__VA_ARGS__)
 
@@ -326,6 +318,9 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Runtime support functions
+
+void     *_tmp_stack;
+uint32_t  _tmp_alloc;
 
 void _sched_process(int64_t delay)
 {
@@ -545,12 +540,6 @@ void _null_deref(int32_t where, const char *module)
 int64_t _std_standard_now(void)
 {
    return now;
-}
-
-char *_tmp_alloc(int32_t n, int32_t sz)
-{
-   TRACE("_tmp_alloc %dx%d bytes", n, sz);
-   return rt_tmp_alloc(n * sz);
 }
 
 void _array_reverse(void *restrict dst, const void *restrict src,
@@ -964,40 +953,11 @@ static void rt_free_value(netgroup_t *g, value_t *v)
 
 static void *rt_tmp_alloc(size_t sz)
 {
-   // Allocate sz bytes that will be freed when the process suspends
+   // Allocate sz bytes that will be freed by the active process
 
-   if (unlikely(active_proc == NULL)) {
-      // It is possible for the module reset functions to call _tmp_alloc
-      // without an active process
-      // XXX: this can leak memory when result is not used for a global
-      return xmalloc(sz);
-   }
-
-   struct tmp_chunk *c = active_proc->tmp_chunks;
-
-   bool reuse =
-      (c != NULL)
-      && (TMP_BUF_SZ - c->hdr.alloced >= sz)
-      && (c->hdr.external == NULL);
-
-   if (likely(reuse)) {
-      char *ptr = c->buf + c->hdr.alloced;
-      c->hdr.alloced += sz;
-      return ptr;
-   }
-   else {
-      c = rt_alloc(tmp_chunk_stack);
-      c->hdr.alloced  = sz;
-      c->hdr.external = NULL;
-      c->hdr.next     = active_proc->tmp_chunks;
-
-      active_proc->tmp_chunks = c;
-
-      if (likely(sz <= TMP_BUF_SZ))
-         return c->buf;
-      else
-         return (c->hdr.external = xmalloc(sz));
-   }
+   uint8_t *ptr = (uint8_t *)_tmp_stack + _tmp_alloc;
+   _tmp_alloc += sz;
+   return ptr;
 }
 
 static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
@@ -1108,17 +1068,20 @@ static void rt_run(struct rt_proc *proc, bool reset)
    TRACE("%s process %s", reset ? "reset" : "run",
          istr(tree_ident(proc->source)));
 
+   if (reset) {
+      _tmp_stack = global_tmp_stack;
+      _tmp_alloc = global_tmp_alloc;
+   }
+   else {
+      _tmp_stack = proc_tmp_stack;
+      _tmp_alloc = 0;
+   }
+
    active_proc = proc;
    (*proc->proc_fn)(reset ? 1 : 0);
 
-   // Free any temporary memory allocated by the process
-   while (proc->tmp_chunks) {
-      struct tmp_chunk *n = proc->tmp_chunks;
-      proc->tmp_chunks = n->hdr.next;
-      if (n->hdr.external != NULL)
-         free(n->hdr.external);
-      rt_free(tmp_chunk_stack, n);
-   }
+   if (reset)
+      global_tmp_alloc = _tmp_alloc;
 }
 
 static void rt_call_module_reset(ident_t name)
@@ -1126,9 +1089,14 @@ static void rt_call_module_reset(ident_t name)
    char buf[128];
    snprintf(buf, sizeof(buf), "%s_reset", istr(name));
 
+   _tmp_stack = global_tmp_stack;
+   _tmp_alloc = global_tmp_alloc;
+
    void (*reset_fn)(void) = jit_fun_ptr(buf, false);
    if (reset_fn != NULL)
       (*reset_fn)();
+
+   global_tmp_alloc = _tmp_alloc;
 }
 
 static void rt_initial(tree_t top)
@@ -1149,6 +1117,8 @@ static void rt_initial(tree_t top)
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
+
+   TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
 
 static void rt_watch_signal(watch_t *w)
@@ -1626,7 +1596,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_sched_waveform", _sched_waveform);
    jit_bind_fn("_sched_event", _sched_event);
    jit_bind_fn("_assert_fail", _assert_fail);
-   jit_bind_fn("_tmp_alloc", _tmp_alloc);
    jit_bind_fn("_array_reverse", _array_reverse);
    jit_bind_fn("_vec_load", _vec_load);
    jit_bind_fn("_image", _image);
@@ -1649,11 +1618,15 @@ static void rt_one_time_init(void)
    event_stack     = rt_alloc_stack_new(sizeof(event_t));
    waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t));
    sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t));
-   tmp_chunk_stack = rt_alloc_stack_new(sizeof(struct tmp_chunk));
    watch_stack     = rt_alloc_stack_new(sizeof(watch_t));
 
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
+
+   global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
+   proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
+
+   global_tmp_alloc = 0;
 }
 
 static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)

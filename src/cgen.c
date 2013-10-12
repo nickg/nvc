@@ -79,6 +79,7 @@ typedef struct cgen_ctx {
    LLVMValueRef      fn;
    tree_t            proc;
    tree_t            fdecl;
+   bool              tmp_stack_used;
 } cgen_ctx_t;
 
 // Connects case_state_t elements
@@ -1752,8 +1753,11 @@ static LLVMValueRef cgen_narrow(type_t result, LLVMValueRef value)
 }
 
 static LLVMValueRef cgen_bit_shift(bit_shift_kind_t kind, LLVMValueRef array,
-                                   type_t type, LLVMValueRef shift)
+                                   type_t type, LLVMValueRef shift,
+                                   cgen_ctx_t *ctx)
 {
+   ctx->tmp_stack_used = true;
+
    LLVMValueRef result = LLVMBuildAlloca(builder,
                                          llvm_uarray_type(LLVMInt1Type(), 1),
                                          "bit_shift");
@@ -2019,6 +2023,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "image")) {
+         ctx->tmp_stack_used = true;
          const bool is_signed =
             (type_kind(type_base_recur(arg_types[0])) == T_INTEGER);
          LLVMOpcode op = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
@@ -2093,17 +2098,23 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "endfile"))
          return LLVMBuildCall(builder, llvm_fn("_endfile"), args, 1, "");
       else if (icmp(builtin, "sll"))
-         return cgen_bit_shift(BIT_SHIFT_SLL, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_SLL,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "srl"))
-         return cgen_bit_shift(BIT_SHIFT_SRL, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_SRL,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "sla"))
-         return cgen_bit_shift(BIT_SHIFT_SLA, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_SLA,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "sra"))
-         return cgen_bit_shift(BIT_SHIFT_SRA, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_SRA,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "rol"))
-         return cgen_bit_shift(BIT_SHIFT_ROL, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_ROL,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "ror"))
-         return cgen_bit_shift(BIT_SHIFT_ROR, args[0], arg_types[0], args[1]);
+         return cgen_bit_shift(BIT_SHIFT_ROR,
+                               args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "pos"))
          return LLVMBuildZExt(builder, args[0], llvm_type(rtype), "pos");
       else if (icmp(builtin, "val")) {
@@ -2116,6 +2127,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
    else {
+      ctx->tmp_stack_used = true;
       return LLVMBuildCall(builder, cgen_fdecl(decl), args, nparams, "");
    }
 }
@@ -3436,12 +3448,23 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
 
          LLVMTypeRef base_type = llvm_type(type_elem(stype));
 
-         LLVMValueRef args[] = {
-            cgen_array_len(stype, -1, rval),
-            llvm_sizeof(base_type)
-         };
-         LLVMValueRef buf = LLVMBuildCall(builder, llvm_fn("_tmp_alloc"),
-                                          args, ARRAY_LEN(args), "buf");
+         LLVMValueRef _tmp_stack_ptr = LLVMGetNamedGlobal(module, "_tmp_stack");
+         LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+
+         LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
+         LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
+
+         LLVMValueRef indexes[] = { alloc };
+         LLVMValueRef buf = LLVMBuildGEP(builder, stack,
+                                         indexes, ARRAY_LEN(indexes), "");
+
+         LLVMValueRef bytes =
+            LLVMBuildMul(builder, cgen_array_len(stype, -1, rval),
+                         llvm_sizeof(base_type), "bytes");
+         LLVMValueRef alloc_next =
+            LLVMBuildAdd(builder, alloc, bytes, "alloc_next");
+
+         LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
 
          LLVMValueRef buf_ptr =
             LLVMBuildPointerCast(builder, buf,
@@ -3997,7 +4020,7 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
       break;
    case T_RETURN:
       cgen_return(t, ctx);
-      break;
+      return;
    case T_WHILE:
       cgen_while(t, ctx);
       break;
@@ -4016,6 +4039,14 @@ static void cgen_stmt(tree_t t, cgen_ctx_t *ctx)
       break;
    default:
       fatal("missing cgen_stmt for %s", tree_kind_str(tree_kind(t)));
+   }
+
+   if (ctx->tmp_stack_used && (ctx->fdecl == NULL)) {
+      LLVMValueRef _tmp_alloc_ptr =
+         LLVMGetNamedGlobal(module, "_tmp_alloc");
+      LLVMBuildStore(builder, llvm_int32(0), _tmp_alloc_ptr);
+
+      ctx->tmp_stack_used = false;
    }
 }
 
@@ -4157,7 +4188,7 @@ static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
 
-   struct cgen_ctx ctx = {
+   cgen_ctx_t ctx = {
       .entry_list = NULL,
       .proc       = t
    };
@@ -4454,7 +4485,7 @@ static void cgen_func_body(tree_t t)
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
-   struct cgen_ctx ctx = {
+   cgen_ctx_t ctx = {
       .entry_list = NULL,
       .proc       = NULL,
       .fdecl      = t,
@@ -4531,7 +4562,7 @@ static void cgen_proc_body(tree_t t)
       }
    }
 
-   struct cgen_ctx ctx = {
+   cgen_ctx_t ctx = {
       .entry_list = NULL,
       .proc       = NULL,
       .fdecl      = t,
@@ -4861,7 +4892,7 @@ static void cgen_shared_var(tree_t t)
    LLVMTypeRef lltype = llvm_type(tree_type(t));
    LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
 
-   struct cgen_ctx ctx;
+   cgen_ctx_t ctx;
    memset(&ctx, '\0', sizeof(ctx));
    LLVMValueRef init = cgen_expr(tree_value(t), &ctx);
    LLVMSetInitializer(var, init);
@@ -5044,16 +5075,6 @@ static void cgen_support_fns(void)
                    LLVMFunctionType(LLVMVoidType(),
                                     _image_args,
                                     ARRAY_LEN(_image_args),
-                                    false));
-
-   LLVMTypeRef _tmp_alloc_args[] = {
-      LLVMInt32Type(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_tmp_alloc",
-                   LLVMFunctionType(llvm_void_ptr(),
-                                    _tmp_alloc_args,
-                                    ARRAY_LEN(_tmp_alloc_args),
                                     false));
 
    LLVMTypeRef _debug_out_args[] = {
@@ -5267,6 +5288,17 @@ static void cgen_module_name(tree_t top)
    LLVMSetLinkage(mod_name, LLVMPrivateLinkage);
 }
 
+static void cgen_tmp_stack(void)
+{
+   LLVMValueRef _tmp_stack =
+      LLVMAddGlobal(module, LLVMPointerType(llvm_void_ptr(), 0), "_tmp_stack");
+   LLVMSetLinkage(_tmp_stack, LLVMExternalLinkage);
+
+   LLVMValueRef _tmp_alloc =
+      LLVMAddGlobal(module, LLVMInt32Type(), "_tmp_alloc");
+   LLVMSetLinkage(_tmp_alloc, LLVMExternalLinkage);
+}
+
 static void cgen_cleanup_tmp_attrs(tree_t top)
 {
    // Delete any LLVM pointers stored as tree attributes
@@ -5306,6 +5338,7 @@ void cgen(tree_t top)
 
    cgen_module_name(top);
    cgen_support_fns();
+   cgen_tmp_stack();
 
    cgen_top(top);
 

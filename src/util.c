@@ -41,6 +41,7 @@
 #include <assert.h>
 
 #include <sys/types.h>
+#include <sys/mman.h>
 #include <sys/wait.h>
 #if !defined __CYGWIN__
 #include <sys/ptrace.h>
@@ -94,6 +95,8 @@ typedef void (*print_fn_t)(const char *fmt, ...);
 
 static void def_error_fn(const char *msg, const loc_t *loc);
 
+typedef struct guard guard_t;
+
 struct option {
    struct option *next;
    ident_t       key;
@@ -111,12 +114,20 @@ struct color_escape {
    int         value;
 };
 
+struct guard {
+   const char *tag;
+   uintptr_t   base;
+   uintptr_t   limit;
+   guard_t    *next;
+};
+
 static error_fn_t     error_fn = def_error_fn;
 static fatal_fn_t     fatal_fn = NULL;
 static bool           want_color = false;
 static struct option *options = NULL;
 static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
 static int            next_printf_buf = 0;
+static guard_t       *guards;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -469,6 +480,18 @@ static const char *signame(int sig)
    }
 }
 
+static bool check_guard_page(uintptr_t addr)
+{
+   for (guard_t *it = guards; it != NULL; it = it->next) {
+      if ((addr >= it->base) && (addr < it->limit)) {
+         fatal_trace("accessed %d bytes beyond region $cyan$%s$$",
+                     (int)(addr - it->base), it->tag);
+      }
+   }
+
+   return false;
+}
+
 static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 {
    void *trace[N_TRACE_DEPTH];
@@ -483,6 +506,9 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 #else
    uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG];
 #endif
+
+   if (sig == SIGSEGV)
+      check_guard_page((uintptr_t)info->si_addr);
 
    fprintf(stderr, "\n*** Caught signal %d (%s)", sig, signame(sig));
 
@@ -809,4 +835,32 @@ int ilog2(int64_t n)
       }
       return r;
    }
+}
+
+void *mmap_guarded(size_t sz, const char *tag)
+{
+   const long pagesz = sysconf(_SC_PAGESIZE);
+
+   const size_t pagemsk = pagesz - 1;
+   if (sz & pagemsk)
+      sz = (sz & ~pagemsk) + pagesz;
+
+   void *ptr = mmap(NULL, sz + pagesz, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+   if (ptr == MAP_FAILED)
+      fatal_errno("mmap");
+
+   uint8_t *guard_ptr = (uint8_t *)ptr + sz;
+   if (mprotect(guard_ptr, pagesz, PROT_NONE) < 0)
+      fatal_errno("mprotect");
+
+   guard_t *guard = xmalloc(sizeof(guard_t));
+   guard->next  = guards;
+   guard->tag   = tag;
+   guard->base  = (uintptr_t)guard_ptr;
+   guard->limit = guard->base + pagesz;
+
+   guards = guard;
+
+   return ptr;
 }

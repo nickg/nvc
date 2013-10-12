@@ -91,4 +91,6 @@ void static_printf(char *buf, const char *fmt, ...)
 int next_power_of_2(int n);
 int ilog2(int64_t n);
 
+void *mmap_guarded(size_t sz, const char *tag);
+
 #endif // _UTIL_H
