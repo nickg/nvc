@@ -100,7 +100,7 @@ void heap_free(heap_t h)
 void *heap_extract_min(heap_t h)
 {
    if (unlikely(h->size < 1))
-      fatal("heap underflow");
+      fatal_trace("heap underflow");
 
    void *min = USER(h, 1);
    NODE(h, 1) = NODE(h, h->size);
@@ -112,7 +112,7 @@ void *heap_extract_min(heap_t h)
 void *heap_min(heap_t h)
 {
    if (unlikely(h->size < 1))
-      fatal("heap underflow");
+      fatal_trace("heap underflow");
 
    return USER(h, 1);
 }

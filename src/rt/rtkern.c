@@ -80,10 +80,10 @@ typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
 
 struct event {
    uint64_t      when;
-   int           iteration;
    event_kind_t  kind;
    rt_proc_t    *proc;
    netgroup_t   *group;
+   event_t      *delta_chain;
 };
 
 struct waveform {
@@ -186,6 +186,8 @@ static sens_list_t  *pending = NULL;
 static sens_list_t  *resume = NULL;
 static watch_t      *watches = NULL;
 static watch_t      *callbacks = NULL;
+static event_t      *delta_proc = NULL;
+static event_t      *delta_driver = NULL;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -873,32 +875,44 @@ static void _tracef(const char *fmt, ...)
 
 static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
 {
-   struct event *e = rt_alloc(event_stack);
-   e->iteration = (delta == 0 ? iteration + 1 : 0);
+   event_t *e = rt_alloc(event_stack);
    e->when      = now + delta;
    e->kind      = E_PROCESS;
    e->proc      = wake;
 
-   heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+   if (delta == 0) {
+      e->delta_chain = delta_proc;
+      delta_proc = e;
+   }
+   else {
+      e->delta_chain = NULL;
+      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+   }
 }
 
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver)
 {
-   struct event *e = rt_alloc(event_stack);
-   e->iteration = (delta == 0 ? iteration + 1 : 0);
+   event_t *e = rt_alloc(event_stack);
    e->when      = now + delta;
    e->kind      = E_DRIVER;
    e->group     = group;
    e->proc      = driver;
 
-   heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+   if (delta == 0) {
+      e->delta_chain = delta_driver;
+      delta_driver = e;
+   }
+   else {
+      e->delta_chain = NULL;
+      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+   }
 }
 
 #if TRACE_DELTAQ > 0
 static void deltaq_walk(uint64_t key, void *user, void *context)
 {
-   struct event *e = user;
+   event_t *e = user;
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
    if (e->kind == E_DRIVER)
@@ -909,6 +923,13 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
 
 static void deltaq_dump(void)
 {
+   for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
+      fprintf(stderr, "delta\tdriver\t %s\n", fmt_group(e->group));
+
+   for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
+      fprintf(stderr, "delta\tprocess\t %s\n",
+              istr(tree_ident(e->proc->source)));
+
    heap_walk(eventq_heap, deltaq_walk, NULL);
 }
 #endif
@@ -1040,6 +1061,8 @@ static void rt_setup(tree_t top)
    iteration = -1;
 
    assert(resume == NULL);
+   assert(delta_proc == NULL);
+   assert(delta_driver == NULL);
 
    if (eventq_heap != NULL)
       heap_free(eventq_heap);
@@ -1378,24 +1401,24 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
       assert(w_now != NULL);
 }
 
-static void rt_push_run_queue(struct event *e)
+static void rt_push_run_queue(event_t *e)
 {
    if (unlikely(run_queue.wr == run_queue.alloc)) {
       if (run_queue.alloc == 0) {
          run_queue.alloc = 128;
-         run_queue.queue = xmalloc(sizeof(struct event *) * run_queue.alloc);
+         run_queue.queue = xmalloc(sizeof(event_t *) * run_queue.alloc);
       }
       else {
          run_queue.alloc *= 2;
          run_queue.queue = realloc(run_queue.queue,
-                                   sizeof(struct event *) * run_queue.alloc);
+                                   sizeof(event_t *) * run_queue.alloc);
       }
    }
 
    run_queue.queue[(run_queue.wr)++] = e;
 }
 
-static struct event *rt_pop_run_queue(void)
+static event_t *rt_pop_run_queue(void)
 {
    if (run_queue.wr == run_queue.rd) {
       run_queue.wr = 0;
@@ -1427,32 +1450,19 @@ static void rt_iteration_limit(void)
    fatal("%s", buf);
 }
 
-static void rt_process_callbacks(void)
-{
-   while (callbacks != NULL) {
-      (*callbacks->fn)(now, callbacks->signal, callbacks, callbacks->user_data);
-      callbacks->pending = false;
-
-      watch_t *next = callbacks->chain_pending;
-      callbacks->chain_pending = NULL;
-      callbacks = next;
-   }
-}
-
 static void rt_cycle(int stop_delta)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
 
-   event_t *peek = heap_min(eventq_heap);
+   const bool is_delta_cycle = (delta_driver != NULL) || (delta_proc != NULL);
 
-   if (peek->when > now) {
-      rt_process_callbacks();
+   if (is_delta_cycle)
+      iteration = iteration + 1;
+   else {
+      event_t *peek = heap_min(eventq_heap);
       now = peek->when;
-      assert(peek->iteration == 0);
       iteration = 0;
    }
-   else
-      iteration = peek->iteration;
 
    TRACE("begin cycle");
 
@@ -1465,15 +1475,27 @@ static void rt_cycle(int stop_delta)
       rt_dump_pending();
 #endif
 
-   for (;;) {
-      rt_push_run_queue(heap_extract_min(eventq_heap));
+   if (is_delta_cycle) {
+      for (event_t *e = delta_driver; e != NULL; e = e->delta_chain)
+         rt_push_run_queue(e);
 
-      if (heap_size(eventq_heap) == 0)
-         break;
+      for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
+         rt_push_run_queue(e);
 
-      peek = heap_min(eventq_heap);
-      if (peek->when > now || peek->iteration != iteration)
-         break;
+      delta_driver = NULL;
+      delta_proc = NULL;
+   }
+   else {
+      for (;;) {
+         rt_push_run_queue(heap_extract_min(eventq_heap));
+
+         if (heap_size(eventq_heap) == 0)
+            break;
+
+         event_t *peek = heap_min(eventq_heap);
+         if (peek->when > now)
+            break;
+      }
    }
 
    event_t *event;
@@ -1512,6 +1534,20 @@ static void rt_cycle(int stop_delta)
       g->flags &= ~(NET_F_ACTIVE | NET_F_EVENT);
    }
    n_active_groups = 0;
+
+   const bool next_is_delta = (delta_driver != NULL) || (delta_proc != NULL);
+   if (!next_is_delta) {
+      // Execute all event callbacks
+      while (callbacks != NULL) {
+         (*callbacks->fn)(now, callbacks->signal, callbacks,
+                          callbacks->user_data);
+         callbacks->pending = false;
+
+         watch_t *next = callbacks->chain_pending;
+         callbacks->chain_pending = NULL;
+         callbacks = next;
+      }
+   }
 }
 
 static void rt_load_unit(const char *name)
@@ -1666,8 +1702,14 @@ static void rt_cleanup(tree_t top)
 
 static bool rt_stop_now(uint64_t stop_time)
 {
-   event_t *peek = heap_min(eventq_heap);
-   return peek->when > stop_time;
+   if ((delta_driver != NULL) || (delta_proc != NULL))
+      return false;
+   else if (heap_size(eventq_heap) == 0)
+      return true;
+   else {
+      event_t *peek = heap_min(eventq_heap);
+      return peek->when > stop_time;
+   }
 }
 
 static void rt_stats_ready(void)
@@ -1724,9 +1766,8 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
    rt_setup(e);
    rt_stats_ready();
    rt_initial(e);
-   while (heap_size(eventq_heap) > 0 && !rt_stop_now(stop_time))
+   while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
-   rt_process_callbacks();
    rt_cleanup(e);
    rt_emit_coverage(e);
 
@@ -1755,9 +1796,8 @@ static void rt_slave_run(slave_run_msg_t *msg)
 
       if (setjmp(fatal_jmp) == 0) {
          const uint64_t end = now + msg->time;
-         while (heap_size(eventq_heap) > 0 && !rt_stop_now(end))
+         while (!rt_stop_now(end))
             rt_cycle(stop_delta);
-         rt_process_callbacks();
       }
 
       set_fatal_fn(NULL);
