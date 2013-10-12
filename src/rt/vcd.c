@@ -26,125 +26,68 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#define MAX_VAR_WIDTH  256
-#define MAX_TEXT_WIDTH 512
+typedef struct vcd_data vcd_data_t;
 
-static FILE    *vcd_file = NULL;
-static ident_t i_vcd_key = NULL;
-static ident_t i_fmt_fn  = NULL;
-static ident_t i_fmt_arg = NULL;
-static tree_t  vcd_top = NULL;
+typedef void (*vcd_fmt_fn_t)(tree_t, watch_t *, vcd_data_t *);
 
-typedef int (*vcd_fmt_fn_t)(char *buf, size_t max, uint64_t val, void *arg);
+struct vcd_data {
+   char          key[64];
+   vcd_fmt_fn_t  fmt;
+   range_kind_t  dir;
+   const char   *map;
+   size_t        size;
+   watch_t      *watch;
+};
 
-static const char *vcd_key_fmt(int key)
+static FILE    *vcd_file;
+static tree_t   vcd_top;
+static ident_t  vcd_data_i;
+static ident_t  std_bit_i;
+static ident_t  std_ulogic_i;
+static uint64_t last_time;
+
+static void vcd_fmt_int(tree_t decl, watch_t *w, vcd_data_t *data)
 {
-   static char buf[64];
+   uint64_t val;
+   rt_signal_value(w, &val, 1, false);
 
+   char buf[data->size + 1];
+   for (size_t i = 0; i < data->size; i++)
+      buf[data->size - 1 - i] = (val & (1 << i)) ? '1' : '0';
+   buf[data->size] = '\0';
+
+   fprintf(vcd_file, "b%s %s\n", buf, data->key);
+}
+
+static void vcd_fmt_chars(tree_t decl, watch_t *w, vcd_data_t *data)
+{
+   const int nvals = data->size;
+   char buf[nvals + 1];
+   rt_string_value(w, data->map, buf, nvals + 1);
+
+   fprintf(vcd_file, "b%s %s\n", buf, data->key);
+}
+
+static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
+{
+   if (now != last_time) {
+      fprintf(vcd_file, "#%"PRIu64"\n", now);
+      last_time = now;
+   }
+
+   vcd_data_t *data = user;
+   if (likely(data != NULL))
+      (*data->fmt)(decl, w, data);
+}
+
+static void vcd_key_fmt(int key, char *buf)
+{
    char *p = buf;
    do {
       *p++ = 33 + (key % (126 - 33));
       key /= (126 - 33);
    } while (key > 0);
    *p = '\0';
-
-   return buf;
-}
-
-static int vcd_fmt_enum(char *buf, size_t max, uint64_t val, void *arg)
-{
-   return snprintf(buf, max, "%c", ((const char*)arg)[val]);
-}
-
-static bool vcd_set_fmt_fn(tree_t decl)
-{
-   type_t type = tree_type(decl);
-
-   if (type_is_array(type))
-      type = type_elem(type);
-
-   type = type_base_recur(type);
-
-   vcd_fmt_fn_t fn = NULL;
-   void *arg = NULL;
-
-   switch (type_kind(type)) {
-   case T_ENUM:
-      {
-         ident_t i = type_ident(type);
-         if (icmp(i, "STD.STANDARD.BIT"))
-            arg = "01xz";
-         else if (icmp(i, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
-            arg = "xx01zx01x";
-
-         if (arg != NULL)
-            fn = vcd_fmt_enum;
-      }
-      break;
-
-   default:
-      break;
-   }
-
-   if (fn == NULL) {
-      warnf("cannot format type %s in VCD", istr(type_ident(type)));
-      return false;
-   }
-   else {
-      tree_add_attr_ptr(decl, i_fmt_fn, fn);
-      tree_add_attr_ptr(decl, i_fmt_arg, arg);
-      return true;
-   }
-}
-
-static const char *vcd_value_fmt(tree_t decl, watch_t *watch)
-{
-   static char buf[MAX_TEXT_WIDTH];
-
-   vcd_fmt_fn_t fn = tree_attr_ptr(decl, i_fmt_fn);
-   void *arg = tree_attr_ptr(decl, i_fmt_arg);
-
-   uint64_t vals[MAX_VAR_WIDTH];
-   int w = rt_signal_value(watch, vals, MAX_VAR_WIDTH, false);
-   type_t type = tree_type(decl);
-   if (type_is_array(type)) {
-      char *p = buf;
-      const char *end = buf + MAX_TEXT_WIDTH;
-      p += snprintf(p, end - p, "b");
-
-      if (type_dim(type, 0).kind == RANGE_DOWNTO) {
-         for (int i = w - 1; i >= 0; i--)
-            p += (*fn)(p, end - p, vals[i], arg);
-      }
-      else {
-         for (int i = 0; i < w; i++)
-            p += (*fn)(p, end - p, vals[i], arg);
-      }
-
-      p += snprintf(p, end - p, " ");
-   }
-   else
-      (*fn)(buf, MAX_TEXT_WIDTH, vals[0], arg);
-
-   return buf;
-}
-
-static void emit_value(tree_t decl, watch_t *w)
-{
-   int key = tree_attr_int(decl, i_vcd_key, -1);
-   fprintf(vcd_file, "%s%s\n", vcd_value_fmt(decl, w), vcd_key_fmt(key));
-}
-
-static void vcd_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
-{
-   static uint64_t last_time = UINT64_MAX;
-
-   if (now != last_time) {
-      fprintf(vcd_file, "#%"PRIu64"\n", now);
-      last_time = now;
-   }
-
-   emit_value(decl, w);
 }
 
 static void vcd_emit_header(void)
@@ -161,24 +104,103 @@ static void vcd_emit_header(void)
    fprintf(vcd_file, "$timescale\n  1 fs\n$end\n");
 }
 
+static bool vcd_can_fmt_chars(type_t type, vcd_data_t *data)
+{
+   type_t base = type_base_recur(type);
+   ident_t name = type_ident(base);
+   if (name == std_ulogic_i) {
+      data->fmt = vcd_fmt_chars;
+      data->map = "xx01zx01x";
+      return true;
+   }
+   else if (name == std_bit_i) {
+      data->fmt = vcd_fmt_chars;
+      data->map = "01";
+      return true;
+   }
+   else
+      return false;
+}
+
 static void vcd_process_signal(tree_t d, int *next_key)
 {
-   if (!vcd_set_fmt_fn(d))
-      return;
-
-   tree_add_attr_int(d, i_vcd_key, *next_key);
-
    type_t type = tree_type(d);
-   int w = 1;
+   type_t base = type_base_recur(type);
+
+   vcd_data_t *data = xmalloc(sizeof(vcd_data_t));
+   memset(data, '\0', sizeof(vcd_data_t));
+
+   int msb = 0, lsb = 0;
+
    if (type_is_array(type)) {
+      if (type_dims(type) > 1) {
+         warn_at(tree_loc(d), "cannot represent multidimensional arrays "
+                 "in VCD format");
+         free(data);
+         return;
+      }
+
+      range_t r = type_dim(type, 0);
+
       int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      w = high - low + 1;
+      range_bounds(r, &low, &high);
+
+      data->dir  = r.kind;
+      data->size = high - low + 1;
+
+      msb = assume_int(r.left);
+      lsb = assume_int(r.right);
+
+      type_t elem = type_elem(type);
+      if (!vcd_can_fmt_chars(elem, data)) {
+         warn_at(tree_loc(d), "cannot represent arrays of type %s "
+                 "in VCD format", type_pp(elem));
+         free(data);
+         return;
+      }
+   }
+   else {
+      switch (type_kind(base)) {
+      case T_INTEGER:
+         {
+            int64_t low, high;
+            range_bounds(type_dim(type, 0), &low, &high);
+
+            data->size = ilog2(high - low + 1);
+            data->fmt  = vcd_fmt_int;
+         }
+         break;
+
+      case T_ENUM:
+         if (vcd_can_fmt_chars(type, data)) {
+            data->size = 1;
+            break;
+         }
+         // Fall-through
+
+      default:
+         warn_at(tree_loc(d), "cannot represent type %s in VCD format",
+                 type_pp(type));
+         free(data);
+         return;
+      }
    }
 
-   const char *name = strrchr(istr(tree_ident(d)), ':') + 1;
+   const char *name_base = strrchr(istr(tree_ident(d)), ':') + 1;
+   const size_t base_len = strlen(name_base);
+   char name[base_len + 64];
+   strcpy(name, name_base);
+   if (type_is_array(type))
+      snprintf(name + base_len, 64, "[%d:%d]\n", msb, lsb);
+
+   tree_add_attr_ptr(d, vcd_data_i, data);
+
+   data->watch = rt_set_event_cb(d, vcd_event_cb, data);
+
+   vcd_key_fmt(*next_key, data->key);
+
    fprintf(vcd_file, "$var reg %d %s %s $end\n",
-           w, vcd_key_fmt(*next_key), name);
+           (int)data->size, data->key, name);
 
    ++(*next_key);
 }
@@ -214,16 +236,15 @@ void vcd_restart(void)
 
    fprintf(vcd_file, "$dumpvars\n");
 
+   last_time = UINT64_MAX;
+
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(vcd_top, i);
-      if (tree_kind(d) != T_SIGNAL_DECL)
-         continue;
-
-      if (tree_attr_int(d, i_vcd_key, -1) == -1)
-         continue;
-
-      watch_t *w = rt_set_event_cb(d, vcd_event_cb, NULL);
-      emit_value(d, w);
+      if (tree_kind(d) == T_SIGNAL_DECL) {
+         vcd_data_t *data = tree_attr_ptr(d, vcd_data_i);
+         if (likely(data != NULL))
+            vcd_event_cb(0, d, data->watch, data);
+      }
    }
 
    fprintf(vcd_file, "$end\n");
@@ -231,9 +252,9 @@ void vcd_restart(void)
 
 void vcd_init(const char *filename, tree_t top)
 {
-   i_vcd_key = ident_new("vcd_key");
-   i_fmt_fn  = ident_new("fmt_fn");
-   i_fmt_arg = ident_new("fmt_arg");
+   vcd_data_i   = ident_new("vcd_data");
+   std_ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   std_bit_i    = ident_new("STD.STANDARD.BIT");
 
    vcd_top = top;
 
