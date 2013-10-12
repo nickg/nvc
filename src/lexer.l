@@ -166,6 +166,7 @@ WITH          {W}{I}{T}{H}
 SELECT        {S}{E}{L}{E}{C}{T}
 GENERATE      {G}{E}{N}{E}{R}{A}{T}{E}
 ACCESS        {A}{C}{C}{E}{S}{S}
+POSTPONED     {P}{O}{S}{T}{P}{O}{N}{E}{D}
 FILE          {F}{I}{L}{E}
 OPEN          {O}{P}{E}{N}
 UNTIL         {U}{N}{T}{I}{L}
@@ -249,6 +250,7 @@ ROR           {R}{O}{R}
 {MOD}           { TOKEN(tMOD); }
 {ATTRIBUTE}     { TOKEN(tATTRIBUTE); }
 {PROCEDURE}     { TOKEN(tPROCEDURE); }
+{POSTPONED}     { TOKEN(tPOSTPONED); }
 {EXIT}          { TOKEN(tEXIT); }
 {REM}           { TOKEN(tREM); }
 {WHEN}          { TOKEN(tWHEN); }

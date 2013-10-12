@@ -151,6 +151,7 @@
    range_t      r;
    list_t       *g;
    class_t      c;
+   bool         b;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -188,6 +189,7 @@
 %type <r> range range_constraint constraint_elem
 %type <g> index_constraint constraint constraint_list id_list
 %type <c> object_class
+%type <b> opt_postponed
 
 %token tID "$yellow$identifier$$"
 %token tENTITY "$yellow$entity$$"
@@ -213,6 +215,7 @@
 %token tSIGNAL "$yellow$signal$$"
 %token tDOWNTO "$yellow$downto$$"
 %token tPROCESS "$yellow$process$$"
+%token tPOSTPONED "$yellow$postponed$$"
 %token tWAIT "$yellow$wait$$"
 %token tREPORT "$yellow$report$$"
 %token tLPAREN "("
@@ -1002,17 +1005,19 @@ port_map
 ;
 
 process_stmt
-: /* [ postponed ] */ tPROCESS process_sensitivity_clause opt_is
-  process_decl_part tBEGIN seq_stmt_list tEND /* [ postponed ] */
+: opt_postponed tPROCESS process_sensitivity_clause opt_is
+  process_decl_part tBEGIN seq_stmt_list tEND opt_postponed
   tPROCESS opt_id tSEMI
   {
      $$ = tree_new(T_PROCESS);
-     tree_set_loc($$, &@2);
-     copy_trees($4, tree_add_decl, $$);
-     copy_trees($6, tree_add_stmt, $$);
-     copy_trees($2, tree_add_trigger, $$);
-     if ($9 != NULL)
-        tree_set_ident($$, $9);
+     tree_set_loc($$, &@3);
+     copy_trees($5, tree_add_decl, $$);
+     copy_trees($7, tree_add_stmt, $$);
+     copy_trees($3, tree_add_trigger, $$);
+     if ($11 != NULL)
+        tree_set_ident($$, $11);
+     if ($1)
+        tree_add_attr_int($$, ident_new("postponed"), 1);
   }
 ;
 
@@ -1022,6 +1027,11 @@ process_sensitivity_clause
 ;
 
 opt_is : tIS | /* empty */ ;
+
+opt_postponed
+: tPOSTPONED { $$ = true; }
+| /* empty */ { $$ = false; }
+;
 
 process_decl_part
 : process_decl_item process_decl_part

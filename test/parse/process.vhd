@@ -17,4 +17,8 @@ begin
         x <= x + 1;
     end process;
 
+    postponed process is
+    begin
+    end process;
+
 end architecture;
