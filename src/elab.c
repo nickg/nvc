@@ -228,10 +228,17 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 
    type_t type = (type_kind(port_type) == T_UARRAY) ? actual_type : port_type;
 
+   port_mode_t mode = tree_subkind(port);
+
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_ident(s, tree_ident(port));
    tree_set_type(s, type);
-   tree_add_attr_int(s, fst_dir_i, tree_subkind(port));
+   tree_add_attr_int(s, fst_dir_i, mode);
+
+   if ((mode == PORT_OUT) || (mode == PORT_INOUT)) {
+      if (tree_has_value(port))
+         tree_set_value(s, tree_value(port));
+   }
 
    tree_add_decl(arch, s);
    return s;
