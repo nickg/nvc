@@ -509,9 +509,6 @@ static void elab_map_nets(map_list_t *maps)
                int64_t low, high;
                range_bounds(slice, &low, &high);
 
-               const int width = (high - low + 1) * elem_width;
-               printf("width=%d\n", width);
-
                for (int64_t i = low; i <= high; i++) {
                   for (int j = 0; j < elem_width; j++)
                      tree_change_net(
