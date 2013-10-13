@@ -152,3 +152,4 @@ signal11        normal,gold
 wait11          normal
 bounds11        gold,fail
 wait12          normal,gold
+array2          normal
