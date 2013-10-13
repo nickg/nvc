@@ -690,9 +690,63 @@ void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
    }
 
    u->ptr = buf;
-   u->dims[0].left  = 0;
-   u->dims[0].right = len - 1;
+   u->dims[0].left  = (dir == RANGE_TO) ? 0 : len - 1;
+   u->dims[0].right = (dir == RANGE_TO) ? len - 1 : 0;
    u->dims[0].dir   = dir;
+}
+
+void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
+                 int8_t left_dir, const uint8_t *right, int32_t right_len,
+                 int8_t right_dir, struct uarray *u)
+{
+   if ((kind != BIT_VEC_NOT) && (left_len != right_len))
+      fatal("arguments to bit vector operation are not the same length");
+
+   uint8_t *buf = rt_tmp_alloc(left_len);
+
+   const bool flip = (left_dir != right_dir);
+
+   switch (kind) {
+   case BIT_VEC_NOT:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = !left[i];
+      break;
+
+   case BIT_VEC_AND:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = left[i] && right[flip ? right_len - 1 - i : i];
+      break;
+
+   case BIT_VEC_OR:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = left[i] || right[flip ? right_len - 1 - i : i];
+      break;
+
+   case BIT_VEC_XOR:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = left[i] ^ right[flip ? right_len - 1 - i : i];
+      break;
+
+   case BIT_VEC_XNOR:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = !(left[i] ^ right[flip ? right_len - 1 - i : i]);
+      break;
+
+   case BIT_VEC_NAND:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = !(left[i] && right[flip ? right_len - 1 - i : i]);
+      break;
+
+   case BIT_VEC_NOR:
+      for (int i = 0; i < left_len; i++)
+         buf[i] = !(left[i] || right[flip ? right_len - 1 - i : i]);
+      break;
+   }
+
+   u->ptr = buf;
+   u->dims[0].left  = (left_dir == RANGE_TO) ? 0 : left_len - 1;
+   u->dims[0].right = (left_dir == RANGE_TO) ? left_len - 1 : 0;
+   u->dims[0].dir   = left_dir;
 }
 
 void _debug_out(int32_t val)
@@ -1624,6 +1678,7 @@ static void rt_one_time_init(void)
    jit_bind_fn("_endfile", _endfile);
    jit_bind_fn("_bounds_fail", _bounds_fail);
    jit_bind_fn("_bit_shift", _bit_shift);
+   jit_bind_fn("_bit_vec_op", _bit_vec_op);
    jit_bind_fn("_test_net_flag", _test_net_flag);
    jit_bind_fn("_last_event", _last_event);
    jit_bind_fn("_div_zero", _div_zero);

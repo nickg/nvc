@@ -1776,6 +1776,43 @@ static LLVMValueRef cgen_bit_shift(bit_shift_kind_t kind, LLVMValueRef array,
    return LLVMBuildLoad(builder, result, "");
 }
 
+static LLVMValueRef cgen_bit_vec_op(bit_vec_op_kind_t kind, type_t left_type,
+                                    LLVMValueRef left, type_t right_type,
+                                    LLVMValueRef right, cgen_ctx_t *ctx)
+{
+   ctx->tmp_stack_used = true;
+
+   LLVMValueRef result = LLVMBuildAlloca(builder,
+                                         llvm_uarray_type(LLVMInt1Type(), 1),
+                                         "bit_vec_op");
+
+   LLVMValueRef right_data = (right == NULL)
+      ? LLVMConstNull(LLVMPointerType(LLVMInt1Type(), 0))
+      : cgen_array_data_ptr(right_type, right);
+
+   LLVMValueRef right_len = (right == NULL)
+      ? llvm_int32(0)
+      : cgen_array_len(right_type, 0, right);
+
+   LLVMValueRef right_dir = (right == NULL)
+      ? llvm_int8(0)
+      : cgen_array_dir(right_type, 0, right);
+
+   LLVMValueRef args[] = {
+      llvm_int32(kind),
+      cgen_array_data_ptr(left_type, left),
+      cgen_array_len(left_type, 0, left),
+      cgen_array_dir(left_type, 0, left),
+      right_data,
+      right_len,
+      right_dir,
+      result
+   };
+   LLVMBuildCall(builder, llvm_fn("_bit_vec_op"), args, ARRAY_LEN(args), "");
+
+   return LLVMBuildLoad(builder, result, "");
+}
+
 static LLVMValueRef cgen_division(LLVMValueRef num, LLVMValueRef denom,
                                   tree_t t, cgen_ctx_t *ctx)
 {
@@ -2023,6 +2060,27 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "rneq"))
          return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntNE, ctx);
+      else if (icmp(builtin, "v_not"))
+         return cgen_bit_vec_op(BIT_VEC_NOT, arg_types[0],
+                                args[0], NULL, NULL, ctx);
+      else if (icmp(builtin, "v_and"))
+         return cgen_bit_vec_op(BIT_VEC_AND, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
+      else if (icmp(builtin, "v_or"))
+         return cgen_bit_vec_op(BIT_VEC_OR, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
+      else if (icmp(builtin, "v_xor"))
+         return cgen_bit_vec_op(BIT_VEC_XOR, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
+      else if (icmp(builtin, "v_xnor"))
+         return cgen_bit_vec_op(BIT_VEC_XNOR, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
+      else if (icmp(builtin, "v_nand"))
+         return cgen_bit_vec_op(BIT_VEC_NAND, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
+      else if (icmp(builtin, "v_nor"))
+         return cgen_bit_vec_op(BIT_VEC_NOR, arg_types[0],
+                                args[0], arg_types[1], args[1], ctx);
       else if (icmp(builtin, "image")) {
          ctx->tmp_stack_used = true;
          const bool is_signed =
@@ -5224,6 +5282,21 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
       };
       return LLVMAddFunction(module, "_bit_shift",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_bit_vec_op") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt1Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt8Type(),
+         LLVMPointerType(LLVMInt1Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt8Type(),
+         LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
+      };
+      return LLVMAddFunction(module, "_bit_vec_op",
                              LLVMFunctionType(LLVMVoidType(),
                                               args, ARRAY_LEN(args), false));
    }

@@ -155,3 +155,4 @@ wait12          normal,gold
 array2          normal
 driver4         normal
 comp1           normal
+bitvec          normal
