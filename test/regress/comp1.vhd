@@ -34,7 +34,7 @@ begin
     begin
         wait for 1 ns;
         assert a = 2;
-        assert b = 2;
+        assert b = 3;
         wait;
     end process;
 

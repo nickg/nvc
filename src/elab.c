@@ -569,15 +569,102 @@ static tree_t elab_copy(tree_t t)
    return copy;
 }
 
-static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
+                                tree_formals_t tree_Fs, tree_formal_t tree_F)
+{
+   // TODO: for now they must exactly match up
+
+   const int comp_nf   = (*tree_Fs)(comp);
+   const int entity_nf = (*tree_Fs)(entity);
+
+   for (int i = 0; i < comp_nf; i++) {
+      tree_t comp_f = (*tree_F)(comp, i);
+
+      bool found = false;
+      for (int j = 0; j < entity_nf; j++) {
+         tree_t entity_f = (*tree_F)(entity, i);
+
+         if (tree_ident(comp_f) != tree_ident(entity_f))
+            continue;
+
+         found = true;
+
+         type_t entity_type = tree_type(entity_f);
+         type_t comp_type   = tree_type(comp_f);
+
+         if (!type_eq(entity_type, comp_type)) {
+            error_at(tree_loc(comp_f), "type of %s %s in component "
+                     "declaration %s is %s which does not match type %s in "
+                     "entity %s", what, istr(tree_ident(comp_f)),
+                     istr(tree_ident(comp)), type_pp(comp_type),
+                     type_pp(entity_type), istr(tree_ident(entity)));
+            ++errors;
+            return false;
+         }
+      }
+
+      if (!found) {
+         error_at(tree_loc(comp_f), "%s %s not found in entity %s",
+                  what, istr(tree_ident(comp_f)), istr(tree_ident(entity)));
+         ++errors;
+         return false;
+      }
+   }
+
+   return true;
+}
+
+static tree_t elab_default_binding(tree_t t)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
-   if ((tree_class(t) == C_COMPONENT) || (tree_class(t) == C_CONFIGURATION))
-      fatal_at(tree_loc(t), "sorry, instantiating components or configurations "
-               "is not supported yet");
+   tree_t comp = tree_ref(t);
 
-   tree_t arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t)));
+   ident_t comp_name = tree_ident(comp);
+   ident_t entity_name;
+   if (ident_until(comp_name, '.') == comp_name)
+      entity_name = ident_prefix(lib_name(lib_work()), comp_name, '.');
+   else
+      entity_name = comp_name;
+
+   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_name));
+
+   // Check entity is compatible with component declaration
+
+   tree_t entity = tree_ref(arch);
+
+   if (!elab_compatible_map(comp, entity, "generic",
+                            tree_generics, tree_generic))
+      return NULL;
+
+   if (!elab_compatible_map(comp, entity, "port", tree_ports, tree_port))
+      return NULL;
+
+   return arch;
+}
+
+static void elab_instance(tree_t t, const elab_ctx_t *ctx)
+{
+   tree_t arch = NULL;
+   switch (tree_class(t)) {
+   case C_ENTITY:
+      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t)));
+      break;
+
+   case C_COMPONENT:
+      arch = elab_default_binding(t);
+      break;
+
+   case C_CONFIGURATION:
+      fatal_at(tree_loc(t), "sorry, configurations is not supported yet");
+      break;
+
+   default:
+      assert(false);
+   }
+
+   if (arch == NULL)
+      return;
 
    map_list_t *maps = elab_map(t, arch, tree_ports, tree_port,
                                tree_params, tree_param);
@@ -585,13 +672,15 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    (void)elab_map(t, arch, tree_generics, tree_generic,
                   tree_genmaps, tree_genmap);
 
-   elab_copy_context(ctx->out, tree_ref(t));
+   tree_t entity = tree_ref(arch);
+
+   elab_copy_context(ctx->out, entity);
 
    ident_t ninst = hpathf(ctx->inst, '@', "%s(%s)",
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
 
-   elab_funcs(arch, tree_ref(t));
+   elab_funcs(arch, entity);
    simplify(arch);
 
    elab_map_nets(maps);

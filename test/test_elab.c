@@ -170,6 +170,21 @@ START_TEST(test_genagg)
 }
 END_TEST
 
+START_TEST(test_comp)
+{
+   input_from_file(TESTDIR "/elab/comp.vhd");
+
+   const error_t expect[] = {
+      { 56, "port Y not found in entity WORK.E2" },
+      { 63, "type of port X in component declaration E3 is STD.STANDARD.BIT" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   (void)run_elab();
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -186,6 +201,7 @@ int main(void)
    tcase_add_test(tc_core, test_elab4);
    tcase_add_test(tc_core, test_open);
    tcase_add_test(tc_core, test_genagg);
+   tcase_add_test(tc_core, test_comp);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
