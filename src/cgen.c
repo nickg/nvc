@@ -113,6 +113,7 @@ static LLVMValueRef cgen_signal_nets(tree_t decl);
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               LLVMValueRef min, LLVMValueRef max,
                               cgen_ctx_t *ctx);
+static LLVMValueRef cgen_support_fn(const char *name);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -158,7 +159,7 @@ static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
 static LLVMValueRef llvm_fn(const char *name)
 {
    LLVMValueRef fn = LLVMGetNamedFunction(module, name);
-   if (fn == NULL)
+   if ((fn == NULL) && ((fn = cgen_support_fn(name)) == NULL))
       fatal("cannot find named function %s", name);
    return fn;
 }
@@ -4975,301 +4976,278 @@ static void optimise(void)
    LLVMDisposePassManager(pass_mgr);
 }
 
-static void cgen_support_fns(void)
+static LLVMValueRef cgen_support_fn(const char *name)
 {
-   LLVMTypeRef _sched_process_args[] = { LLVMInt64Type() };
-   LLVMAddFunction(module, "_sched_process",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _sched_process_args,
-                                    ARRAY_LEN(_sched_process_args),
-                                    false));
-
-   LLVMTypeRef _sched_waveform_args[] = {
-      llvm_void_ptr(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt64Type(),
-      LLVMInt64Type(),
-      LLVMInt1Type()
-   };
-   LLVMAddFunction(module, "_sched_waveform",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _sched_waveform_args,
-                                    ARRAY_LEN(_sched_waveform_args),
-                                    false));
-
-   LLVMTypeRef _sched_event_args[] = {
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt1Type()
-   };
-   LLVMAddFunction(module, "_sched_event",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _sched_event_args,
-                                    ARRAY_LEN(_sched_event_args),
-                                    false));
-
-   LLVMTypeRef _set_initial_args[] = {
-      LLVMInt32Type(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0)
-   };
-   LLVMAddFunction(module, "_set_initial",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _set_initial_args,
-                                    ARRAY_LEN(_set_initial_args),
-                                    false));
-
-   LLVMTypeRef _assert_fail_args[] = {
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMInt32Type(),
-      LLVMInt8Type(),
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0)
-   };
-   LLVMAddFunction(module, "_assert_fail",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _assert_fail_args,
-                                    ARRAY_LEN(_assert_fail_args),
-                                    false));
-
-   LLVMTypeRef _array_reverse_args[] = {
-      llvm_void_ptr(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_array_reverse",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _array_reverse_args,
-                                    ARRAY_LEN(_array_reverse_args),
-                                    false));
-
-   LLVMTypeRef _vec_load_args[] = {
-      llvm_void_ptr(),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt1Type()
-   };
-   LLVMAddFunction(module, "_vec_load",
-                   LLVMFunctionType(llvm_void_ptr(),
-                                    _vec_load_args,
-                                    ARRAY_LEN(_vec_load_args),
-                                    false));
-
-   LLVMTypeRef _image_args[] = {
-      LLVMInt64Type(),
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
-   };
-   LLVMAddFunction(module, "_image",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _image_args,
-                                    ARRAY_LEN(_image_args),
-                                    false));
-
-   LLVMTypeRef _debug_out_args[] = {
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_debug_out",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _debug_out_args,
-                                    ARRAY_LEN(_debug_out_args),
-                                    false));
-
-   LLVMTypeRef _debug_dump_args[] = {
-      llvm_void_ptr(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_debug_dump",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _debug_dump_args,
-                                    ARRAY_LEN(_debug_dump_args),
-                                    false));
-
-   LLVMTypeRef llvm_pow_args[] = {
-      LLVMDoubleType(),
-      LLVMDoubleType()
-   };
-   LLVMAddFunction(module, "llvm.pow.f64",
-                   LLVMFunctionType(LLVMDoubleType(),
-                                    llvm_pow_args,
-                                    ARRAY_LEN(llvm_pow_args),
-                                    false));
-
-   LLVMTypeRef llvm_memset_args[] = {
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMInt8Type(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt1Type()
-   };
-   LLVMAddFunction(module, "llvm.memset.p0i8.i32",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    llvm_memset_args,
-                                    ARRAY_LEN(llvm_memset_args),
-                                    false));
-
-   const int widths[] = { 1, 8, 16, 32, 64 };
-   for (int i = 0; i < ARRAY_LEN(widths); i++) {
-      int w = widths[i];
-
-      LLVMTypeRef llvm_memcpy_args[] = {
-         LLVMPointerType(LLVMIntType(w), 0),
-         LLVMPointerType(LLVMIntType(w), 0),
+   if (strcmp(name, "_sched_process") == 0) {
+      LLVMTypeRef args[] = { LLVMInt64Type() };
+      return LLVMAddFunction(module, "_sched_process",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_sched_waveform") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt64Type(),
+         LLVMInt64Type(),
+         LLVMInt1Type()
+      };
+      return LLVMAddFunction(module, "_sched_waveform",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_sched_event") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt1Type()
+      };
+      return LLVMAddFunction(module, "_sched_event",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_set_initial") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      return LLVMAddFunction(module, "_set_initial",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_assert_fail") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt8Type(),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      return LLVMAddFunction(module, "_assert_fail",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_array_reverse") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_array_reverse",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_vec_load") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      LLVMAddFunction(module, cgen_memcpy_name(w),
-                      LLVMFunctionType(LLVMVoidType(),
-                                       llvm_memcpy_args,
-                                       ARRAY_LEN(llvm_memcpy_args),
-                                       false));
+      return LLVMAddFunction(module, "_vec_load",
+                             LLVMFunctionType(llvm_void_ptr(),
+                                              args, ARRAY_LEN(args), false));
    }
+   else if (strcmp(name, "_image") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt64Type(),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
+      };
+      return LLVMAddFunction(module, "_image",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_debug_out") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_debug_out",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_debug_dump") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_debug_dump",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "llvm.pow.f64") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMDoubleType(),
+         LLVMDoubleType()
+      };
+      return LLVMAddFunction(module, "llvm.pow.f64",
+                             LLVMFunctionType(LLVMDoubleType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "llvm.memset.p0i8.i32") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt8Type(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt1Type()
+      };
+      return LLVMAddFunction(module, "llvm.memset.p0i8.i32",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strncmp(name, "llvm.memcpy", 11) == 0) {
+      int width;
+      if (sscanf(name, "llvm.memcpy.p0i%d", &width) != 1)
+         fatal("invalid memcpy intrinsic %s", name);
 
-   LLVMTypeRef _file_open_args[] = {
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMPointerType(llvm_void_ptr(), 0),
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMInt32Type(),
-      LLVMInt8Type()
-   };
-   LLVMAddFunction(module, "_file_open",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _file_open_args,
-                                    ARRAY_LEN(_file_open_args),
-                                    false));
-
-   LLVMTypeRef _file_write_args[] = {
-      LLVMPointerType(llvm_void_ptr(), 0),
-      llvm_void_ptr(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_file_write",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _file_write_args,
-                                    ARRAY_LEN(_file_write_args),
-                                    false));
-
-   LLVMTypeRef _file_read_args[] = {
-      LLVMPointerType(llvm_void_ptr(), 0),
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt32Type(), 0)
-   };
-   LLVMAddFunction(module, "_file_read",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _file_read_args,
-                                    ARRAY_LEN(_file_read_args),
-                                    false));
-
-   LLVMTypeRef _file_close_args[] = {
-      LLVMPointerType(llvm_void_ptr(), 0)
-   };
-   LLVMAddFunction(module, "_file_close",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _file_close_args,
-                                    ARRAY_LEN(_file_close_args),
-                                    false));
-
-   LLVMTypeRef _endfile_args[] = {
-      llvm_void_ptr()
-   };
-   LLVMAddFunction(module, "_endfile",
-                   LLVMFunctionType(LLVMInt1Type(),
-                                    _endfile_args,
-                                    ARRAY_LEN(_endfile_args),
-                                    false));
-
-   LLVMTypeRef _bounds_fail_args[] = {
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt32Type(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_bounds_fail",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _bounds_fail_args,
-                                    ARRAY_LEN(_bounds_fail_args),
-                                    false));
-
-   LLVMTypeRef _div_zero_args[] = {
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0)
-   };
-   LLVMAddFunction(module, "_div_zero",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _div_zero_args,
-                                    ARRAY_LEN(_div_zero_args),
-                                    false));
-
-   LLVMTypeRef _null_deref_args[] = {
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt8Type(), 0)
-   };
-   LLVMAddFunction(module, "_null_deref",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _null_deref_args,
-                                    ARRAY_LEN(_null_deref_args),
-                                    false));
-
-   LLVMTypeRef memcmp_args[] = {
-      llvm_void_ptr(),
-      llvm_void_ptr(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "memcmp",
-                   LLVMFunctionType(LLVMInt32Type(),
-                                    memcmp_args,
-                                    ARRAY_LEN(memcmp_args),
-                                    false));
-
-   LLVMTypeRef _bit_shift_args[] = {
-      LLVMInt32Type(),
-      LLVMPointerType(LLVMInt1Type(), 0),
-      LLVMInt32Type(),
-      LLVMInt8Type(),
-      LLVMInt32Type(),
-      LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
-   };
-   LLVMAddFunction(module, "_bit_shift",
-                   LLVMFunctionType(LLVMVoidType(),
-                                    _bit_shift_args,
-                                    ARRAY_LEN(_bit_shift_args),
-                                    false));
-
-   LLVMTypeRef _test_net_flag_args[] = {
-      llvm_void_ptr(),
-      LLVMInt32Type(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_test_net_flag",
-                   LLVMFunctionType(LLVMInt1Type(),
-                                    _test_net_flag_args,
-                                    ARRAY_LEN(_test_net_flag_args),
-                                    false));
-
-   LLVMTypeRef _last_event_args[] = {
-      llvm_void_ptr(),
-      LLVMInt32Type()
-   };
-   LLVMAddFunction(module, "_last_event",
-                   LLVMFunctionType(LLVMInt64Type(),
-                                    _last_event_args,
-                                    ARRAY_LEN(_last_event_args),
-                                    false));
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMIntType(width), 0),
+         LLVMPointerType(LLVMIntType(width), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt1Type()
+      };
+      return LLVMAddFunction(module, cgen_memcpy_name(width),
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_file_open") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMPointerType(llvm_void_ptr(), 0),
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt8Type()
+      };
+      return LLVMAddFunction(module, "_file_open",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_file_write") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_void_ptr(), 0),
+         llvm_void_ptr(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_file_write",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_file_read") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_void_ptr(), 0),
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt32Type(), 0)
+      };
+      return LLVMAddFunction(module, "_file_read",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_file_close") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(llvm_void_ptr(), 0)
+      };
+      return LLVMAddFunction(module, "_file_close",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_endfile") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr()
+      };
+      return LLVMAddFunction(module, "_endfile",
+                             LLVMFunctionType(LLVMInt1Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_bounds_fail") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_bounds_fail",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_div_zero") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      return LLVMAddFunction(module, "_div_zero",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_null_deref") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      return LLVMAddFunction(module, "_null_deref",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "memcmp") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         llvm_void_ptr(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "memcmp",
+                             LLVMFunctionType(LLVMInt32Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_bit_shift") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt1Type(), 0),
+         LLVMInt32Type(),
+         LLVMInt8Type(),
+         LLVMInt32Type(),
+         LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
+      };
+      return LLVMAddFunction(module, "_bit_shift",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_test_net_flag") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_test_net_flag",
+                             LLVMFunctionType(LLVMInt1Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_last_event") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_last_event",
+                             LLVMFunctionType(LLVMInt64Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else
+      return NULL;
 }
 
 static void cgen_module_name(tree_t top)
@@ -5337,7 +5315,6 @@ void cgen(tree_t top)
    builder = LLVMCreateBuilder();
 
    cgen_module_name(top);
-   cgen_support_fns();
    cgen_tmp_stack();
 
    cgen_top(top);
