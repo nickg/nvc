@@ -398,13 +398,13 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    for (unsigned i = 0; i < nformals; i++) {
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
-         assert(tree_has_value(f));
-
-         rewrite_params_t params = {
-            .formal = f,
-            .actual = tree_value(f)
-         };
-         tree_rewrite(arch, rewrite_refs, &params);
+         if (tree_has_value(f)) {
+            rewrite_params_t params = {
+               .formal = f,
+               .actual = tree_value(f)
+            };
+            tree_rewrite(arch, rewrite_refs, &params);
+         }
       }
    }
 
