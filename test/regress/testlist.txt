@@ -156,3 +156,4 @@ array2          normal
 driver4         normal
 comp1           normal
 bitvec          normal
+elab14          normal

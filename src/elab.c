@@ -315,6 +315,7 @@ static ident_t elab_formal_name(tree_t t)
    while ((kind = tree_kind(t)) != T_REF) {
       switch (kind) {
       case T_ARRAY_REF:
+      case T_ARRAY_SLICE:
          t = tree_value(t);
          break;
 
@@ -493,6 +494,30 @@ static void elab_map_nets(map_list_t *maps)
                for (int i = 0; i < width; i++)
                   tree_change_net(maps->signal, index_val + i,
                                   elab_get_net(maps->actual, i));
+            }
+            break;
+
+         case T_ARRAY_SLICE:
+            {
+               type_t array_type = tree_type(maps->formal);
+
+               type_t elem_type = type_elem(array_type);
+               const int elem_width = type_width(elem_type);
+
+               range_t slice = tree_range(maps->name);
+
+               int64_t low, high;
+               range_bounds(slice, &low, &high);
+
+               const int width = (high - low + 1) * elem_width;
+               printf("width=%d\n", width);
+
+               for (int64_t i = low; i <= high; i++) {
+                  for (int j = 0; j < elem_width; j++)
+                     tree_change_net(
+                        maps->signal, (i * elem_width) + j,
+                        elab_get_net(maps->actual, (i - low) * elem_width + j));
+               }
             }
             break;
 
