@@ -4,6 +4,7 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.NUMERIC_STD ieee/_IEEE.NUMERIC_STD.bc \
 	ieee/IEEE.STD_LOGIC_1164-body ieee/_IEEE.STD_LOGIC_1164-body.bc \
 	ieee/IEEE.NUMERIC_STD-body ieee/_IEEE.NUMERIC_STD-body.bc \
+	ieee/IEEE.NUMERIC_BIT-body ieee/_IEEE.NUMERIC_BIT-body.bc \
 	ieee/IEEE.MATH_REAL ieee/_IEEE.MATH_REAL.bc \
 	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
@@ -12,9 +13,10 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
 	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.so \
 	ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.NUMERIC_STD-body.so \
-	ieee/_IEEE.MATH_REAL.so ieee/_IEEE.MATH_REAL-body.so \
-	ieee/_IEEE.VITAL_TIMING.so ieee/_IEEE.VITAL_TIMING-body.so \
-	ieee/_IEEE.VITAL_PRIMITIVES.so ieee/_IEEE.VITAL_PRIMITIVES-body.so
+	ieee/_IEEE.NUMERIC_BIT-body.so ieee/_IEEE.MATH_REAL.so \
+	ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.VITAL_TIMING.so \
+	ieee/_IEEE.VITAL_TIMING-body.so ieee/_IEEE.VITAL_PRIMITIVES.so \
+	ieee/_IEEE.VITAL_PRIMITIVES-body.so
 
 bootstrap: $(ieee_DATA)
 
@@ -37,6 +39,10 @@ ieee/IEEE.NUMERIC_STD: $(srcdir)/numeric_std.vhdl ieee/IEEE.STD_LOGIC_1164
 ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl ieee/IEEE.NUMERIC_STD
 	$(nvc) -L ../std --work=ieee -a $<
 	$(codegen) --work=ieee --codegen numeric_std
+
+ieee/IEEE.NUMERIC_BIT-body: $(srcdir)/numeric_bit-body.vhdl ieee/IEEE.NUMERIC_STD
+	$(nvc) -L ../std --work=ieee -a $<
+	$(codegen) --work=ieee --codegen numeric_bit
 
 ieee/IEEE.MATH_REAL: $(srcdir)/math_real.vhdl
 	$(nvc) -L ../std --work=ieee -a $<
