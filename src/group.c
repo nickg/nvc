@@ -132,8 +132,20 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
          free(it);
          return GROUPID_INVALID;
       }
+      else if ((first > it->first) && (it->first + it->length > first)) {
+         // Split right
+         group_unlink(ctx, it, last);
+         group_add(ctx, it->first, first - it->first);
+         group_add(ctx, first, it->first + it->length - first);
+         group_add(ctx, it->first + it->length,
+                   first + length - it->first - it->length);
+         free(it);
+         return GROUPID_INVALID;
+      }
       else
-         assert(false);
+         fatal("unhandled case in group_add: first=%d length=%d "
+               "it->first=%d it->length=%d", first, length,
+               it->first, it->length);
    }
 
    return group_alloc(ctx, first, length);

@@ -119,6 +119,20 @@ START_TEST(test_group_five)
 }
 END_TEST
 
+START_TEST(test_group_six)
+{
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+
+   group_add(&ctx, 0, 8);
+   group_add(&ctx, 1, 8);
+
+   fail_unless(group_sanity_check(&ctx, 8));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -131,6 +145,7 @@ int main(void)
    tcase_add_test(tc_core, test_group_three);
    tcase_add_test(tc_core, test_group_four);
    tcase_add_test(tc_core, test_group_five);
+   tcase_add_test(tc_core, test_group_six);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
