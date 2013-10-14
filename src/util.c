@@ -845,8 +845,13 @@ void *mmap_guarded(size_t sz, const char *tag)
    if (sz & pagemsk)
       sz = (sz & ~pagemsk) + pagesz;
 
-   void *ptr = mmap(NULL, sz + pagesz, PROT_READ | PROT_WRITE,
-                    MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+#ifdef __APPLE__
+   const int flags = MAP_SHARED | MAP_ANON;
+#else
+   const int flags = MAP_SHARED | MAP_ANONYMOUS;
+#endif
+
+   void *ptr = mmap(NULL, sz + pagesz, PROT_READ | PROT_WRITE, flags, -1, 0);
    if (ptr == MAP_FAILED)
       fatal_errno("mmap");
 
