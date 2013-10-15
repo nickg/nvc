@@ -284,6 +284,9 @@ static void fst_process_hier(tree_t h)
       break;
    }
 
+   const loc_t *loc = tree_loc(h);
+   fstWriterSetSourceStem(fst_ctx, loc->file, loc->first_line, 1);
+
    fstWriterSetScope(fst_ctx, st, istr(tree_ident(h)),
                      tree_has_ident2(h) ? istr(tree_ident2(h)) : "");
 }
