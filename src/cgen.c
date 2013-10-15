@@ -1011,7 +1011,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef src_dir = cgen_array_dir(src_type, 0, src);
    LLVMValueRef dst_dir = cgen_array_dir(dest_type, 0, dst);
 
-   LLVMValueRef ll_n_elems = cgen_array_len(src_type, -1, src);
+   LLVMValueRef ll_n_elems = cgen_array_len_recur(src_type, src);
 
    if (!cgen_const_bounds(dest_type))
       dst = cgen_array_data_ptr(dest_type, dst);
@@ -1028,7 +1028,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef opposite_dir =
       LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
 
-   bool same_dir_const =
+   const bool same_dir_const =
       (cgen_const_bounds(src_type) && cgen_const_bounds(dest_type)
        && (type_dim(src_type, 0).kind == type_dim(dest_type, 0).kind));
 
@@ -1513,21 +1513,21 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
    }
 }
 
-static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
-                                   type_t left_type, type_t right_type,
-                                   LLVMIntPredicate pred, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
+                                         LLVMValueRef rhs_data,
+                                         LLVMValueRef lhs_array,
+                                         LLVMValueRef rhs_array,
+                                         type_t left_type, type_t right_type,
+                                         LLVMIntPredicate pred, cgen_ctx_t *ctx)
 {
    // Behaviour of relational operators on arrays is described in
    // LRM 93 section 7.2.2
 
-   LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs);
-   LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs);
+   LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs_array);
+   LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs_array);
 
-   LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
-   LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
-
-   LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs);
-   LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs);
+   LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs_array);
+   LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs_array);
 
    LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
                                          llvm_int8(RANGE_DOWNTO), "l_downto");
@@ -1568,17 +1568,31 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    LLVMValueRef r_off = LLVMBuildSelect(builder, r_downto,
                                         r_off_down, i_loaded, "r_off");
 
-   LLVMValueRef l_ptr = LLVMBuildGEP(builder, left_base,
-                                     &l_off, 1, "l_ptr");
-   LLVMValueRef r_ptr = LLVMBuildGEP(builder, right_base,
-                                     &r_off, 1, "r_ptr");
+   LLVMValueRef cmp, eq;
+   if (type_is_array(type_elem(left_type))) {
+      LLVMValueRef l_indexes[] = { l_off, llvm_int32(0) };
+      LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, l_indexes,
+                                        ARRAY_LEN(l_indexes), "l_ptr");
+      LLVMValueRef r_indexes[] = { r_off, llvm_int32(0) };
+      LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, r_indexes,
+                                        ARRAY_LEN(r_indexes), "r_ptr");
 
-   LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
-   LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
+      cmp = eq = cgen_array_rel_inner(l_ptr, r_ptr, NULL, NULL,
+                                      type_elem(left_type),
+                                      type_elem(right_type), pred, ctx);
+      body_bb = LLVMGetInsertBlock(builder);
+   }
+   else {
+      LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &l_off, 1, "l_ptr");
+      LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &r_off, 1, "r_ptr");
 
-   LLVMValueRef cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
-   LLVMValueRef eq  = (pred == LLVMIntEQ) ? cmp
-      : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+      LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
+      LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
+
+      cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
+      eq  = (pred == LLVMIntEQ) ? cmp
+         : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+   }
 
    LLVMValueRef inc =
       LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
@@ -1597,6 +1611,17 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
    LLVMAddIncoming(phi, values, bbs, 2);
 
    return phi;
+}
+
+static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
+                                   type_t left_type, type_t right_type,
+                                   LLVMIntPredicate pred, cgen_ctx_t *ctx)
+{
+   LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
+   LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
+
+   return cgen_array_rel_inner(left_base, right_base, lhs, rhs,
+                               left_type, right_type, pred, ctx);
 }
 
 static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
@@ -2423,6 +2448,11 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
    for (int i = 0; i < *n_elems; i++)
       vals[i] = NULL;
 
+   range_t r = type_dim(type, dim);
+
+   int64_t low, high;
+   range_bounds(r, &low, &high);
+
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
@@ -2456,11 +2486,6 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
          *sub = cgen_expr(value, ctx);
          nsub = 1;
       }
-
-      range_t r = type_dim(type, dim);
-
-      int64_t low, high;
-      range_bounds(r, &low, &high);
 
       switch (tree_subkind(a)) {
       case A_POS:

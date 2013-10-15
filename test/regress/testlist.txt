@@ -157,3 +157,4 @@ driver4         normal
 comp1           normal
 bitvec          normal
 elab14          normal
+operator4       normal
