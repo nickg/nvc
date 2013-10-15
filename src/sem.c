@@ -69,6 +69,7 @@ static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
+static unsigned sem_array_dimension(type_t a);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -559,10 +560,12 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Operators on arrays
       sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "aeq");
       sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "aneq");
-      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "alt");
-      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "aleq");
-      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "agt");
-      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "ageq");
+      if (sem_array_dimension(t) == 1) {
+         sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "alt");
+         sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "aleq");
+         sem_declare_binary(ident_new("\">\""), t, t, std_bool, "agt");
+         sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "ageq");
+      }
       break;
 
    case T_RECORD:

@@ -258,4 +258,18 @@ begin
     begin
     end process;
 
+    process is
+        type ten_ten_ints is array (1 to 10) of ten_ints;
+        type int2d is array (natural range <>, natural range <>) of integer;
+        variable t1, t2 : ten_ten_ints;
+        variable m1, m2 : int2d(1 to 3, 1 to 3);
+    begin
+        assert t1 = t2;                 -- OK
+        assert t1 /= t2;                -- OK
+        assert t1 < t2;                 -- OK
+        assert t1 > t2;                 -- OK
+        assert m1 = m2;                 -- OK
+        assert m1 < m2;                 -- Error
+    end process;
+
 end architecture;

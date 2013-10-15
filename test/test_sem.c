@@ -543,6 +543,7 @@ START_TEST(test_array)
       { 241, "undefined identifier I" },
       { 246, "universal integer bound must be numeric literal or attribute" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
+      { 272, "no suitable overload for operator \"<\"(INT2D, INT2D)" },
       { -1, NULL }
    };
    expect_errors(expect);
