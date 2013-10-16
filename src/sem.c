@@ -2143,9 +2143,10 @@ static bool sem_check_package(tree_t t)
          tree_t decl = tree_decl(t, n);
          ident_t unqual = tree_ident(decl);
 
-         if (sem_check(decl) && (tree_kind(decl) != T_ATTR_SPEC)) {
+         if (sem_check(decl)) {
             // Make the unqualified name visible inside the package
-            scope_insert_alias(decl, unqual);
+            if (tree_kind(decl) != T_ATTR_SPEC)
+               scope_insert_alias(decl, unqual);
          }
          else
             ok = false;
