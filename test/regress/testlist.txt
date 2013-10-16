@@ -158,3 +158,4 @@ comp1           normal
 bitvec          normal
 elab14          normal
 operator4       normal
+issue16         normal

@@ -298,6 +298,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
       }
 
    case T_LITERAL:
+   case T_AGGREGATE:
       return actual;
 
    case T_OPEN:
