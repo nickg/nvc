@@ -143,6 +143,9 @@ static void link_context(tree_t ctx, FILE *deps)
          return;
    }
 
+   link_all_context(unit, deps);
+   link_all_context(body, deps);
+
    if (!link_already_have(body)) {
       if (!link_find_native_library(lib, body, deps)) {
          link_arg_bc(lib, body_i);
@@ -150,9 +153,6 @@ static void link_context(tree_t ctx, FILE *deps)
       }
       linked[n_linked++] = body;
    }
-
-   link_all_context(unit, deps);
-   link_all_context(body, deps);
 }
 
 static void link_all_context(tree_t unit, FILE *deps)
