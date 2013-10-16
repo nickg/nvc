@@ -95,7 +95,8 @@ static const char *simple_name(const char *full)
 }
 
 struct arch_search_params {
-   ident_t name;
+   lib_t    lib;
+   ident_t  name;
    tree_t  *arch;
 };
 
@@ -103,19 +104,18 @@ static void find_arch(ident_t name, int kind, void *context)
 {
    struct arch_search_params *params = context;
 
-   lib_t work = lib_work();
-
    ident_t prefix = ident_until(name, '-');
 
    if ((kind == T_ARCH) && (prefix == params->name)) {
-      tree_t t = lib_get(work, name);
+      tree_t t = lib_get(params->lib, name);
       assert(t != NULL);
 
       if (*(params->arch) == NULL)
          *(params->arch) = t;
       else {
-         lib_mtime_t old_mtime = lib_mtime(work, tree_ident2(*(params->arch)));
-         lib_mtime_t new_mtime = lib_mtime(work, tree_ident2(t));
+         lib_mtime_t old_mtime = lib_mtime(params->lib,
+                                           tree_ident2(*(params->arch)));
+         lib_mtime_t new_mtime = lib_mtime(params->lib, tree_ident2(t));
 
          if (new_mtime == old_mtime) {
             // Analysed at the same time: compare line number
@@ -139,11 +139,14 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
    // When an explicit architecture name is not given select the most
    // recently analysed architecture of this entity
 
-   tree_t arch = lib_get(lib_work(), name);
+   ident_t lib_name = ident_until(name, '.');
+   lib_t lib = lib_find(istr(lib_name), true, true);
+
+   tree_t arch = lib_get(lib, name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
-      struct arch_search_params params = { name, &arch };
-      lib_walk_index(lib_work(), find_arch, &params);
+      struct arch_search_params params = { lib, name, &arch };
+      lib_walk_index(lib, find_arch, &params);
 
       if (arch == NULL)
          fatal_at(loc, "no suitable architecture for %s", istr(name));
@@ -643,14 +646,17 @@ static tree_t elab_default_binding(tree_t t)
 
    tree_t comp = tree_ref(t);
 
-   ident_t comp_name = tree_ident(comp);
-   ident_t entity_name;
-   if (ident_until(comp_name, '.') == comp_name)
-      entity_name = ident_prefix(lib_name(lib_work()), comp_name, '.');
-   else
-      entity_name = comp_name;
+   ident_t full_i = tree_ident(comp);
+   ident_t comp_i = ident_rfrom(full_i, '.');
+   ident_t lib_i = ident_until(full_i, '.');
 
-   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_name));
+   ident_t entity_i;
+   if (lib_i == full_i)
+      entity_i = ident_prefix(lib_name(lib_work()), full_i, '.');
+   else
+      entity_i = ident_prefix(lib_i, comp_i, '.');
+
+   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_i));
 
    // Check entity is compatible with component declaration
 

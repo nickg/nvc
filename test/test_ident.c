@@ -177,6 +177,14 @@ START_TEST(test_runtil)
 }
 END_TEST
 
+START_TEST(test_rfrom)
+{
+   ident_t i;
+   i = ident_new("foo.bar.yah");
+   fail_unless(ident_rfrom(i, '.') == ident_new("yah"));
+}
+END_TEST
+
 START_TEST(test_icmp)
 {
    ident_t i, j;
@@ -230,6 +238,7 @@ int main(void)
    tcase_add_test(tc_core, test_runtil);
    tcase_add_test(tc_core, test_icmp);
    tcase_add_test(tc_core, test_glob);
+   tcase_add_test(tc_core, test_rfrom);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

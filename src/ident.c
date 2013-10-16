@@ -339,14 +339,31 @@ ident_t ident_runtil(ident_t i, char c)
 {
    assert(i != NULL);
 
-   ident_t r = i;
    while (i->value != '\0') {
       if (i->value == c)
          return i->up;
       i = i->up;
    }
 
-   return r;
+   return i;
+}
+
+ident_t ident_rfrom(ident_t i, char c)
+{
+   assert(i != NULL);
+
+   char buf[i->depth + 1];
+   char *p = buf + i->depth;
+   *p-- = '\0';
+
+   while (i->value != '\0') {
+      if (i->value == c)
+         return ident_new(p + 1);
+      *p-- = i->value;
+      i = i->up;
+   }
+
+   return i;
 }
 
 bool icmp(ident_t i, const char *s)
