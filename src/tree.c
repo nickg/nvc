@@ -1599,7 +1599,9 @@ tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 
    uint32_t ver = read_u32(f);
    if (ver != format_digest)
-      fatal("%s: serialised format digest is %x expected %x",
+      fatal("%s: serialised format digest is %x expected %x. This design "
+            "unit uses a library format from an earlier version of "
+            PACKAGE_NAME " and should be reanalysed.",
             fname, ver, format_digest);
 
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
