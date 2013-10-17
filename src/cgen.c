@@ -912,8 +912,14 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
       return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
 }
 
-static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem)
+static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem,
+                                          cgen_ctx_t *ctx)
 {
+   // If we see a port declaration here outside a subprogram
+   // then it is OPEN
+   if ((tree_kind(decl) == T_PORT_DECL) && (ctx->fdecl == NULL))
+      return NULL;
+
    type_t type = tree_type(decl);
 
    LLVMValueRef nets = cgen_signal_nets(decl);
@@ -3255,7 +3261,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
-      return cgen_array_signal_ptr(tree_ref(t), llvm_int32(0));
+      return cgen_array_signal_ptr(tree_ref(t), llvm_int32(0), ctx);
 
    case T_ARRAY_REF:
       {
@@ -3290,7 +3296,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
                cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
 
-               return cgen_array_signal_ptr(decl, off);
+               return cgen_array_signal_ptr(decl, off, ctx);
             }
          }
          else {
@@ -3324,7 +3330,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          cgen_check_array_bounds(r.right, val_type, 0, NULL, right, ctx);
 
          LLVMValueRef low = (r.kind == RANGE_TO ? left : right);
-         LLVMValueRef ptr = cgen_array_signal_ptr(decl, low);
+         LLVMValueRef ptr = cgen_array_signal_ptr(decl, low, ctx);
 
          type_t type = tree_type(t);
          if (cgen_const_bounds(type))
@@ -3387,6 +3393,8 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
                             : llvm_int64(0));
 
       LLVMValueRef nets = cgen_signal_lvalue(tree_target(t), ctx);
+      if (nets == NULL)
+         continue;    // Assignment to OPEN port
 
       LLVMValueRef rhs_data, lhs_data, reverse, n_elems, elem_size;
 

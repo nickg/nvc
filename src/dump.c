@@ -190,6 +190,10 @@ static void dump_expr(tree_t t)
       printf(")");
       break;
 
+   case T_OPEN:
+      printf("open");
+      break;
+
    default:
       cannot_dump(t, "expr");
    }
@@ -586,11 +590,15 @@ static void dump_stmt(tree_t t, int indent)
          assert(false);
       }
       printf("%s\n", istr(tree_ident2(t)));
-      tab(indent + 4);
-      dump_params(t, tree_genmap, tree_genmaps(t), "generic map");
-      printf("\n");
-      tab(indent + 4);
-      dump_params(t, tree_param, tree_params(t), "port map");
+      if (tree_genmaps(t) > 0) {
+         tab(indent + 4);
+         dump_params(t, tree_genmap, tree_genmaps(t), "generic map");
+         printf("\n");
+      }
+      if (tree_params(t) > 0) {
+         tab(indent + 4);
+         dump_params(t, tree_param, tree_params(t), "port map");
+      }
       printf(";\n\n");
       return;
 

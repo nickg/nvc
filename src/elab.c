@@ -191,9 +191,9 @@ static tree_t rewrite_refs(tree_t t, void *context)
    if (tree_attr_int(t, ident_new("formal"), 0))
       return t;
 
-   // Delete assignments to OPEN ports
+   // Skip assignments to OPEN ports
    if (params->actual == NULL)
-      return NULL;
+      return t;
 
    switch (tree_kind(params->actual)) {
    case T_SIGNAL_DECL:

@@ -1777,10 +1777,6 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
          n++;
    }
 
-   // Deleting the target deletes the statement
-   if ((has & I_TARGET) && (lookup_item(t, I_TARGET)->tree == NULL))
-      return NULL;
-
    t->generation = ctx->generation;
    t->index      = ctx->index++;
 

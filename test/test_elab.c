@@ -152,8 +152,9 @@ START_TEST(test_open)
    top = run_elab();
    opt(top);
 
-   // Optimisation should have deleted all statements
-   fail_unless(tree_stmts(top) == 0);
+   // We used to delete all statements here but the behaviour
+   // has changed
+   fail_unless(tree_stmts(top) == 1);
 }
 END_TEST
 
