@@ -608,7 +608,7 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
 
       bool found = false;
       for (int j = 0; j < entity_nf; j++) {
-         tree_t entity_f = (*tree_F)(entity, i);
+         tree_t entity_f = (*tree_F)(entity, j);
 
          if (tree_ident(comp_f) != tree_ident(entity_f))
             continue;
