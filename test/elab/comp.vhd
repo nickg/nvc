@@ -14,8 +14,7 @@ end architecture;
 entity e2 is
     generic ( g : integer );
     port (
-        x : in integer;
-        y : out integer );
+        x : in integer );
 end entity;
 
 architecture test of e2 is

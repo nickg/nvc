@@ -176,8 +176,8 @@ START_TEST(test_comp)
    input_from_file(TESTDIR "/elab/comp.vhd");
 
    const error_t expect[] = {
-      { 56, "port Y not found in entity WORK.E2" },
-      { 63, "type of port X in component declaration E3 is STD.STANDARD.BIT" },
+      { 55, "port Y not found in entity WORK.E2" },
+      { 62, "type of port X in component declaration E3 is STD.STANDARD.BIT" },
       { -1, NULL }
    };
    expect_errors(expect);
