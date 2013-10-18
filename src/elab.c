@@ -204,6 +204,8 @@ static tree_t rewrite_refs(tree_t t, void *context)
    case T_LITERAL:
    case T_AGGREGATE:
    case T_REF:
+   case T_ARRAY_SLICE:
+   case T_ARRAY_REF:
       return params->actual;
    default:
       fatal_at(tree_loc(params->actual), "cannot handle tree kind %s "
