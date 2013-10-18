@@ -121,7 +121,8 @@
                              const struct YYLTYPE *loc);
    static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
                              const struct YYLTYPE *loc);
-   static tree_t str_to_agg(const char *start, const char *end);
+   static tree_t str_to_agg(const char *start, const char *end,
+                            const loc_t *loc);
    static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
    static bool to_range_expr(tree_t t, range_t *r);
    static ident_t loc_to_ident(const loc_t *loc);
@@ -1688,7 +1689,7 @@ elsif_list
 report
 : /* empty */
   {
-     $$ = str_to_agg("Assertion violation.", NULL);
+     $$ = str_to_agg("Assertion violation.", NULL, &LOC_INVALID);
   }
 | tREPORT expr { $$ = $2; }
 ;
@@ -2279,7 +2280,7 @@ string_literal
 : tSTRING
   {
      size_t len = strlen(lvals.sval);
-     $$ = str_to_agg(lvals.sval + 1, lvals.sval + len - 1);
+     $$ = str_to_agg(lvals.sval + 1, lvals.sval + len - 1, &@$);
      tree_set_loc($$, &@$);
 
      free(lvals.sval);
@@ -2523,7 +2524,7 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
    return t;
 }
 
-static tree_t str_to_agg(const char *start, const char *end)
+static tree_t str_to_agg(const char *start, const char *end, const loc_t *loc)
 {
    tree_t t = tree_new(T_AGGREGATE);
 
@@ -2535,6 +2536,7 @@ static tree_t str_to_agg(const char *start, const char *end)
 
       tree_t ref = tree_new(T_REF);
       tree_set_ident(ref, ident_new(ch));
+      tree_set_loc(ref, loc);
 
       tree_t a = tree_new(T_ASSOC);
       tree_set_subkind(a, A_POS);
