@@ -94,6 +94,16 @@ static const char *simple_name(const char *full)
    return start;
 }
 
+static tree_t elab_get_unit(lib_t lib, ident_t ident)
+{
+   bool stale;
+   tree_t u = lib_get_check_mtime(lib, ident, &stale);
+   if ((u != NULL) && stale)
+      fatal("design unit %s is older than its source file %s and must "
+            "be reanalysed", istr(ident), tree_loc(u)->file);
+   return u;
+}
+
 struct arch_search_params {
    lib_t    lib;
    ident_t  name;
@@ -107,7 +117,7 @@ static void find_arch(ident_t name, int kind, void *context)
    ident_t prefix = ident_until(name, '-');
 
    if ((kind == T_ARCH) && (prefix == params->name)) {
-      tree_t t = lib_get(params->lib, name);
+      tree_t t = elab_get_unit(params->lib, name);
       assert(t != NULL);
 
       if (*(params->arch) == NULL)
@@ -142,7 +152,7 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
    ident_t lib_name = ident_until(name, '.');
    lib_t lib = lib_find(istr(lib_name), true, true);
 
-   tree_t arch = lib_get(lib, name);
+   tree_t arch = elab_get_unit(lib, name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
       struct arch_search_params params = { lib, name, &arch };
@@ -1006,7 +1016,7 @@ static void elab_funcs(tree_t arch, tree_t ent)
       lib_t lib = elab_link_lib(name);
 
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      tree_t body = lib_get(lib, body_i);
+      tree_t body = elab_get_unit(lib, body_i);
       if (body == NULL)
          continue;
 
@@ -1089,14 +1099,14 @@ static void elab_context_signals(const elab_ctx_t *ctx)
       ident_t name = tree_ident(c);
       lib_t lib = elab_link_lib(name);
 
-      tree_t pack = lib_get(lib, name);
+      tree_t pack = elab_get_unit(lib, name);
       if (tree_kind(pack) != T_PACKAGE)
          continue;
 
       elab_package_signals(pack, ctx);
 
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-      tree_t body = lib_get(lib, body_i);
+      tree_t body = elab_get_unit(lib, body_i);
       if (body == NULL)
          continue;
 

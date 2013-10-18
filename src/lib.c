@@ -510,6 +510,29 @@ tree_t lib_get(lib_t lib, ident_t ident)
       return NULL;
 }
 
+tree_t lib_get_check_mtime(lib_t lib, ident_t ident, bool *stale)
+{
+   struct lib_unit *lu = lib_get_aux(lib, ident);
+   if (lu != NULL) {
+      if (lu->read_ctx != NULL) {
+         tree_read_end(lu->read_ctx);
+         lu->read_ctx = NULL;
+      }
+
+      const loc_t *loc = tree_loc(lu->top);
+
+      struct stat st;
+      if (stat(loc->file, &st) == 0)
+         *stale = (lu->mtime < lib_stat_mtime(&st));
+      else
+         *stale = false;
+
+      return lu->top;
+   }
+   else
+      return NULL;
+}
+
 ident_t lib_name(lib_t lib)
 {
    assert(lib != NULL);

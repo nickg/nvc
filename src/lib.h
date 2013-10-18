@@ -47,9 +47,10 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);
 
-void lib_put(lib_t lib, struct tree *unit);
-tree_t lib_get(lib_t lib, struct trie *ident);
+void lib_put(lib_t lib, tree_t unit);
+tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx);
+tree_t lib_get_check_mtime(lib_t lib, ident_t ident, bool *stale);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
 
 typedef void (*lib_index_fn_t)(struct trie *ident, int kind, void *context);
