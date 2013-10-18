@@ -206,8 +206,8 @@ static tree_t rewrite_refs(tree_t t, void *context)
    case T_REF:
       return params->actual;
    default:
-      fatal_trace("cannot handle tree kind %s in rewrite_refs",
-                  tree_kind_str(tree_kind(t)));
+      fatal_at(tree_loc(params->actual), "cannot handle tree kind %s "
+               "in rewrite_refs", tree_kind_str(tree_kind(params->actual)));
    }
 
    return t;
