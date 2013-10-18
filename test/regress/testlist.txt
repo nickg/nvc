@@ -160,3 +160,4 @@ elab14          normal
 operator4       normal
 issue16         normal
 elab15          normal
+const5          normal

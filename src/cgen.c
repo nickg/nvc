@@ -4192,11 +4192,18 @@ static void cgen_visit_proc_vars(tree_t t, void *context)
    ctx->offset++;
 }
 
-static LLVMTypeRef cgen_process_state_type(tree_t t)
+static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
 {
-   unsigned nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
+   const int nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
 
-   LLVMTypeRef fields[nvars + 2];
+   int nconst = 0;
+   for (int i = 0; i < tree_decls(t); i++) {
+      tree_t d = tree_decl(t, i);
+      if ((tree_kind(d) == T_CONST_DECL) && (type_is_array(tree_type(d))))
+         nconst++;
+   }
+
+   LLVMTypeRef *fields = xmalloc((nvars + nconst + 2) * sizeof(LLVMTypeRef));
    fields[0] = LLVMInt32Type();   // State
    fields[1] = llvm_void_ptr();   // Procedure dynamic context
 
@@ -4206,13 +4213,29 @@ static LLVMTypeRef cgen_process_state_type(tree_t t)
    };
    tree_visit_only(t, cgen_visit_proc_vars, &ctx, T_VAR_DECL);
 
+   for (int i = 0; i < tree_decls(t); i++) {
+      tree_t d = tree_decl(t, i);
+      if ((tree_kind(d) == T_CONST_DECL) && (type_is_array(tree_type(d))))
+         cgen_visit_proc_vars(d, &ctx);
+   }
+
+   *nfields = ctx.offset;
+   return fields;
+}
+
+static LLVMTypeRef cgen_process_state_type(tree_t t)
+{
+   unsigned nfields;
+   LLVMTypeRef *fields = cgen_state_type_fields(t, &nfields);
+
    char name[64];
    snprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
    LLVMTypeRef ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
    if (ty == NULL)
       fatal("failed to add type name %s", name);
-   LLVMStructSetBody(ty, fields, ARRAY_LEN(fields), false);
+   LLVMStructSetBody(ty, fields, nfields, false);
 
+   free(fields);
    return ty;
 }
 
@@ -4236,7 +4259,11 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t v = tree_decl(t, i);
-      if (tree_kind(v) == T_VAR_DECL) {
+      tree_kind_t kind = tree_kind(v);
+      const bool has_storage =
+         (kind == T_VAR_DECL)
+         || ((kind == T_CONST_DECL) && type_is_array(tree_type(v)));
+      if (has_storage) {
          assert(tree_has_value(v));
          LLVMValueRef val = cgen_expr(tree_value(v), ctx);
 
@@ -4662,8 +4689,6 @@ static void cgen_proc_body(tree_t t)
       .state      = NULL
    };
 
-   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
-
    // Generate a jump table to handle resuming from a wait statement
 
    tree_visit(t, cgen_jump_table_fn, &ctx);
@@ -4671,20 +4696,13 @@ static void cgen_proc_body(tree_t t)
    if (ctx.entry_list != NULL) {
       // Only allocate a dynamic context if there are no wait statements
 
-      const int nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
+      unsigned nfields;
+      LLVMTypeRef *fields = cgen_state_type_fields(t, &nfields);
 
-      LLVMTypeRef fields[nvars + 2];
-      fields[0] = LLVMInt32Type();   // State
-      fields[1] = llvm_void_ptr();   // Called procedure dynamic context
-
-      struct cgen_proc_var_ctx var_ctx = {
-         .types  = fields,
-         .offset = 2
-      };
-      tree_visit_only(t, cgen_visit_proc_vars, &var_ctx, T_VAR_DECL);
-
-      LLVMTypeRef state_type = LLVMStructType(fields, ARRAY_LEN(fields), false);
+      LLVMTypeRef state_type = LLVMStructType(fields, nfields, false);
       LLVMTypeRef state_ptr_type = LLVMPointerType(state_type, 0);
+
+      free(fields);
 
       LLVMBasicBlockRef init_bb   = LLVMAppendBasicBlock(fn, "init");
       LLVMBasicBlockRef resume_bb = LLVMAppendBasicBlock(fn, "resume");
@@ -4736,8 +4754,10 @@ static void cgen_proc_body(tree_t t)
 
       cgen_proc_var_init(t, &ctx);
    }
-   else
+   else {
+      tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
       tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
+   }
 
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
@@ -4748,7 +4768,8 @@ static void cgen_proc_body(tree_t t)
       const int ndecls = tree_decls(t);
       for (int i = 0; i < ndecls; i++) {
          tree_t decl = tree_decl(t, i);
-         if (tree_kind(decl) != T_VAR_DECL)
+         tree_kind_t kind = tree_kind(decl);
+         if ((kind != T_VAR_DECL) && (kind != T_CONST_DECL))
             continue;
 
          type_t type = tree_type(decl);
