@@ -222,30 +222,6 @@ static const char *sem_type_str(type_t type)
    return type_pp_minify(type, sem_type_minify);
 }
 
-static bool sem_check_stale(lib_t lib, tree_t t)
-{
-   // Check if the source file corresponding to t has been modified
-   // more recently than the library unit
-
-   const loc_t *l = tree_loc(t);
-   if (l->file == NULL)
-      return true;
-
-   struct stat st;
-   if (stat(l->file, &st) < 0) {
-      if (errno != ENOENT)
-         fatal_errno("%s", l->file);
-      else
-         return true;
-   }
-
-   if (st.st_mtime > lib_mtime(lib, tree_ident(t)))
-      sem_error(NULL, "source file %s for unit %s has changed and must "
-                "be reanalysed", l->file, istr(tree_ident(t)));
-   else
-      return true;
-}
-
 static bool scope_import_unit(ident_t unit_name, lib_t lib,
                               bool all, const loc_t *loc)
 {
@@ -258,16 +234,13 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       }
    }
 
-   tree_t unit = lib_get(lib, unit_name);
+   tree_t unit = lib_get_check_stale(lib, unit_name);
    if (unit == NULL) {
       error_at(loc, "unit %s not found in library %s",
                istr(unit_name), istr(lib_name(lib)));
       ++errors;
       return false;
    }
-
-   if (!sem_check_stale(lib, unit))
-      return false;
 
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
@@ -2186,7 +2159,7 @@ static bool sem_check_package_body(tree_t t)
 
    tree_t pack = NULL;
    if (ok) {
-      pack = lib_get(lib_work(), qual);
+      pack = lib_get_check_stale(lib_work(), qual);
       assert(pack != NULL);
       // XXX: this call should be in the outer scope above
       ok = ok && sem_check_context(pack);
@@ -2335,15 +2308,12 @@ static bool sem_check_entity(tree_t t)
 static bool sem_check_arch(tree_t t)
 {
    // Find the corresponding entity
-   tree_t e = lib_get(lib_work(),
-                      ident_prefix(lib_name(lib_work()),
-                                   tree_ident2(t), '.'));
+   tree_t e = lib_get_check_stale(lib_work(),
+                                  ident_prefix(lib_name(lib_work()),
+                                               tree_ident2(t), '.'));
    if (e == NULL)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
-
-   if (!sem_check_stale(lib_work(), e))
-      return false;
 
    tree_set_ref(t, e);
 
@@ -4457,7 +4427,7 @@ static bool sem_check_instance(tree_t t)
       {
          // Find the referenced design unit
          ident_t prefix = ident_until(name, '-');
-         unit = lib_get(lib_work(), prefix);
+         unit = lib_get_check_stale(lib_work(), prefix);
          if (unit == NULL)
             sem_error(t, "cannot find unit %s", istr(prefix));
 
