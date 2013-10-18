@@ -2813,9 +2813,11 @@ void input_from_file(const char *file)
    if (file_start == MAP_FAILED)
       fatal_errno("mmap");
 
-   read_ptr         = file_start;
-   last_was_newline = true;
-   perm_file_name   = strdup(file);
+   read_ptr           = file_start;
+   last_was_newline   = true;
+   perm_file_name     = strdup(file);
+   n_row              = 0;
+   n_token_next_start = 0;
 }
 
 tree_t parse(void)
