@@ -199,6 +199,33 @@ START_TEST(test_issue17)
 }
 END_TEST
 
+START_TEST(test_issue19)
+{
+   input_from_file(TESTDIR "/elab/issue19.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+
+   tree_t tmp;
+   const int ndecls = tree_decls(e);
+   for (int i = 0; (i < ndecls) && (tmp == NULL); i++) {
+      tree_t t = tree_decl(e, i);
+      if (icmp(tree_ident(t), ":comp6:c1:tmp"))
+         tmp = t;
+   }
+
+   fail_if(tmp == NULL);
+
+   tree_t value = tree_value(tmp);
+   fail_unless(tree_kind(value) == T_LITERAL);
+   fail_unless(tree_ival(value) == 32);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -217,6 +244,7 @@ int main(void)
    tcase_add_test(tc_core, test_genagg);
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_issue17);
+   tcase_add_test(tc_core, test_issue19);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

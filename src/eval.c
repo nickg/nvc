@@ -48,6 +48,7 @@ struct vtframe {
 struct vtable {
    vtframe_t *top;
    bool       failed;
+   ident_t    exit;
 };
 
 static void eval_stmt(tree_t t, vtable_t *v);
@@ -56,11 +57,11 @@ static tree_t eval_expr(tree_t t, vtable_t *v);
 static bool debug = false;
 
 #define eval_error(t, ...) do {                 \
-      if (debug)                                \
+      if (unlikely(debug))                      \
          warn_at(tree_loc(t),  __VA_ARGS__);    \
       v->failed = true;                         \
       return;                                   \
-   } while (0);
+   } while (0)
 
 static void vtable_push(vtable_t *v)
 {
@@ -304,6 +305,10 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
 
       return get_int_lit(t, result);
    }
+   else if (icmp(builtin, "succ"))
+      return get_int_lit(t, args[0] + 1);
+   else if (icmp(builtin, "pred"))
+      return get_int_lit(t, args[0] - 1);
    else
       return t;
 }
@@ -349,6 +354,17 @@ static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
       return t;
 }
 
+static void eval_stmts(tree_t t, unsigned (*count)(tree_t),
+                       tree_t (*get)(tree_t, unsigned), vtable_t *v)
+{
+   const int nstmts = (*count)(t);
+   for (int i = 0; i < nstmts; i++) {
+      eval_stmt((*get)(t, i), v);
+      if (v->failed || vtable_get(v, result_i) || (v->exit != NULL))
+         return;
+   }
+}
+
 static void eval_func_body(tree_t t, vtable_t *v)
 {
    const int ndecls = tree_decls(t);
@@ -358,12 +374,7 @@ static void eval_func_body(tree_t t, vtable_t *v)
          vtable_bind(v, tree_ident(decl), eval_expr(tree_value(decl), v));
    }
 
-   const int nstmts = tree_stmts(t);
-   for (int i = 0; i < nstmts; i++) {
-      eval_stmt(tree_stmt(t, i), v);
-      if (v->failed || vtable_get(v, result_i))
-         return;
-   }
+   eval_stmts(t, tree_stmts, tree_stmt, v);
 }
 
 static tree_t eval_fcall(tree_t t, vtable_t *v)
@@ -505,39 +516,39 @@ static void eval_if(tree_t t, vtable_t *v)
    if (!folded_bool(cond, &cond_b))
       eval_error(cond, "cannot constant fold expression");
 
-   if (cond_b) {
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         eval_stmt(tree_stmt(t, i), v);
-   }
-   else {
-      const int nstmts = tree_else_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         eval_stmt(tree_else_stmt(t, i), v);
-   }
+   if (cond_b)
+      eval_stmts(t, tree_stmts, tree_stmt, v);
+   else
+      eval_stmts(t, tree_else_stmts, tree_else_stmt, v);
 }
 
 static void eval_while(tree_t t, vtable_t *v)
 {
    int iters = 0;
-   tree_t value = tree_value(t);
+   tree_t value = tree_has_value(t) ? tree_value(t) : NULL;
    for (;;) {
-      tree_t cond = eval_expr(value, v);
-      bool cond_b;
-      if (!folded_bool(cond, &cond_b))
-         eval_error(value, "cannot constant fold expression");
+      bool cond_b = true;
+      if (value != NULL) {
+         tree_t cond = eval_expr(value, v);
+         if (!folded_bool(cond, &cond_b))
+            eval_error(value, "cannot constant fold expression");
+      }
 
-      if (!cond_b)
+      if (!cond_b || v->failed)
          break;
       else if (++iters == MAX_ITERS) {
          warn_at(tree_loc(t), "iteration limit exceeded");
          v->failed = true;
-         return;
+         break;
       }
 
-      const int nstmts = tree_stmts(t);
-      for (int i = 0; i < nstmts; i++)
-         eval_stmt(tree_stmt(t, i), v);
+      eval_stmts(t, tree_stmts, tree_stmt, v);
+
+      if (v->exit != NULL) {
+         if (v->exit == tree_ident(t))
+            v->exit = NULL;
+         break;
+      }
    }
 }
 
@@ -555,6 +566,34 @@ static void eval_var_assign(tree_t t, vtable_t *v)
    vtable_bind(v, tree_ident(tree_ref(target)), updated);
 }
 
+static void eval_block(tree_t t, vtable_t *v)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(t, i);
+      if (tree_kind(decl) == T_VAR_DECL) {
+         if (tree_has_value(decl))
+            vtable_bind(v, tree_ident(decl), eval_expr(tree_value(decl), v));
+      }
+   }
+
+   eval_stmts(t, tree_stmts, tree_stmt, v);
+}
+
+static void eval_exit(tree_t t, vtable_t *v)
+{
+   if (tree_has_value(t)) {
+      bool cond_b = true;
+      tree_t cond = eval_expr(tree_value(t), v);
+      if (!folded_bool(cond, &cond_b))
+         eval_error(tree_value(t), "cannot constant fold expression");
+      else if (!cond_b)
+         return;
+   }
+
+   v->exit = tree_ident2(t);
+}
+
 static void eval_stmt(tree_t t, vtable_t *v)
 {
    switch (tree_kind(t)) {
@@ -569,6 +608,12 @@ static void eval_stmt(tree_t t, vtable_t *v)
       break;
    case T_VAR_ASSIGN:
       eval_var_assign(t, v);
+      break;
+   case T_BLOCK:
+      eval_block(t, v);
+      break;
+   case T_EXIT:
+      eval_exit(t, v);
       break;
    default:
       eval_error(t, "cannot evaluate statement %s",
@@ -598,7 +643,8 @@ tree_t eval(tree_t fcall)
 
    vtable_t vt = {
       .top    = NULL,
-      .failed = false
+      .failed = false,
+      .exit   = NULL
    };
    tree_t r = eval_fcall(fcall, &vt);
    return vt.failed ? fcall : r;
