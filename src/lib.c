@@ -74,14 +74,20 @@ static search_path_t   *search_paths = NULL;
 
 static ident_t upcase_name(const char *name)
 {
-   const char *last_slash = strrchr(name, '/');
+   char *name_copy = strdup(name);
 
-   char *name_up = strdup((last_slash != NULL) ? last_slash + 1 : name);
+   char *last_slash = strrchr(name, '/');
+   while ((last_slash != NULL) && (*(last_slash + 1) == '\0')) {
+      *last_slash = '\0';
+      last_slash = strrchr(name, '/');
+   }
+
+   char *name_up = (last_slash != NULL) ? last_slash + 1 : name_copy;
    for (char *p = name_up; *p != '\0'; p++)
       *p = toupper((uint8_t)*p);
 
    ident_t i = ident_new(name_up);
-   free(name_up);
+   free(name_copy);
    return i;
 }
 
