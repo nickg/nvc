@@ -281,7 +281,7 @@ static const char *fmt_group(const netgroup_t *g)
       const int stride = array_size(type_elem(type));
       const int index = offset / stride;
       static_printf(buf, "[%d", index);
-      if (g->length > 1)
+      if ((g->length / stride) > 1)
          static_printf(buf, "..%d", index + g->length - 1);
       static_printf(buf, "]");
       offset %= stride;
