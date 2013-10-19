@@ -268,9 +268,9 @@ static const char *fmt_group(const netgroup_t *g)
 {
    static const int BUF_SZ = 256;
    char *buf = get_fmt_buf(BUF_SZ);
-   char *p = buf;
-   const char *end = buf + BUF_SZ;
-   p += snprintf(p, end - p, "%s", istr(tree_ident(g->sig_decl)));
+   static_printf_begin(buf, BUF_SZ);
+
+   static_printf(buf, "%s", istr(tree_ident(g->sig_decl)));
 
    groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
    netid_t sig_net0 = groups[sig_group0].first;
@@ -280,10 +280,10 @@ static const char *fmt_group(const netgroup_t *g)
    while (type_is_array(type)) {
       const int stride = array_size(type_elem(type));
       const int index = offset / stride;
-      p += snprintf(p, end - p, "[%d", index);
+      static_printf(buf, "[%d", index);
       if (g->length > 1)
-         p += snprintf(p, end - p, "..%d", index + g->length - 1);
-      p += snprintf(p, end -p, "]");
+         static_printf(buf, "..%d", index + g->length - 1);
+      static_printf(buf, "]");
       offset %= stride;
 
       type = type_elem(type);
