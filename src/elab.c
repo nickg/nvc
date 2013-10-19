@@ -206,6 +206,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
    case T_REF:
    case T_ARRAY_SLICE:
    case T_ARRAY_REF:
+   case T_FCALL:
       return params->actual;
    default:
       fatal_at(tree_loc(params->actual), "cannot handle tree kind %s "
@@ -437,7 +438,9 @@ static netid_t elab_get_net(tree_t expr, int n)
          tree_t index = tree_value(tree_param(expr, 0));
          int64_t index_val = assume_int(index) - low;
 
-         return elab_get_net(value, n + index_val);
+         const int stride = type_width(type_elem(array_type));
+
+         return elab_get_net(value, n + (index_val * stride));
       }
 
    case T_ARRAY_SLICE:
@@ -451,7 +454,9 @@ static netid_t elab_get_net(tree_t expr, int n)
          int64_t type_low, type_high;
          range_bounds(type_dim(array_type, 0), &type_low, &type_high);
 
-         return elab_get_net(value, n - type_low + slice_low);
+         const int stride = type_width(type_elem(array_type));
+
+         return elab_get_net(value, n + (slice_low - type_low) * stride);
       }
 
    default:

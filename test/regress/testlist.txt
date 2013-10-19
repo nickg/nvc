@@ -162,3 +162,4 @@ issue16         normal
 elab15          normal
 const5          normal
 issue18         normal
+elab16          normal
