@@ -1337,17 +1337,19 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
       snprintf(buf, sizeof(buf), "%s_nets",
                package_signal_path_name(tree_ident(decl)));
 
-      type_t type = tree_type(decl);
-      const int nnets = type_is_array(type)
-         ? cgen_const_array_len(type, -1) : 1;
+      if ((nets = LLVMGetNamedGlobal(module, buf)) == NULL) {
+         type_t type = tree_type(decl);
+         const int nnets = type_is_array(type)
+            ? cgen_const_array_len(type, -1) : 1;
 
-      LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), nnets);
-      LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
-      LLVMSetLinkage(map_var, LLVMExternalLinkage);
-      return map_var;
+         LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), nnets);
+         LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
+         LLVMSetLinkage(map_var, LLVMExternalLinkage);
+         return map_var;
+      }
    }
-   else
-      return nets;
+
+   return nets;
 }
 
 static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag)
