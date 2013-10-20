@@ -223,17 +223,6 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
-static int array_size(type_t type)
-{
-   if (type_is_array(type)) {
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      return (high - low + 1) * array_size(type_elem(type));
-   }
-   else
-      return 1;
-}
-
 static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
 {
    struct {
@@ -276,17 +265,19 @@ static const char *fmt_group(const netgroup_t *g)
    netid_t sig_net0 = groups[sig_group0].first;
    int offset = g->first - sig_net0;
 
+   int length = g->length;
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
-      const int stride = array_size(type_elem(type));
+      const int stride = type_width(type_elem(type));
       const int index = offset / stride;
       static_printf(buf, "[%d", index);
-      if ((g->length / stride) > 1)
-         static_printf(buf, "..%d", index + g->length - 1);
+      if ((length / stride) > 1)
+         static_printf(buf, "..%d", index + (length / stride) - 1);
       static_printf(buf, "]");
       offset %= stride;
 
       type = type_elem(type);
+      length = stride;
    }
 
    return buf;
