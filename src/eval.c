@@ -30,7 +30,6 @@
 
 static ident_t std_bool_i = NULL;
 static ident_t builtin_i  = NULL;
-static ident_t result_i   = NULL;
 
 typedef struct vtable vtable_t;
 typedef struct vtframe vtframe_t;
@@ -49,6 +48,7 @@ struct vtable {
    vtframe_t *top;
    bool       failed;
    ident_t    exit;
+   tree_t     result;
 };
 
 static void eval_stmt(tree_t t, vtable_t *v);
@@ -360,7 +360,7 @@ static void eval_stmts(tree_t t, unsigned (*count)(tree_t),
    const int nstmts = (*count)(t);
    for (int i = 0; i < nstmts; i++) {
       eval_stmt((*get)(t, i), v);
-      if (v->failed || vtable_get(v, result_i) || (v->exit != NULL))
+      if (v->failed || (v->result != NULL) || (v->exit != NULL))
          return;
    }
 }
@@ -408,7 +408,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       }
 
       eval_func_body(decl, v);
-      tree_t result = vtable_get(v, result_i);
+      tree_t result = v->result;
       vtable_pop(v);
 
       return ((result != NULL) && folded(result)) ? result : t;
@@ -505,8 +505,9 @@ static tree_t eval_expr(tree_t t, vtable_t *v)
 
 static void eval_return(tree_t t, vtable_t *v)
 {
-   if (tree_has_value(t))
-      vtable_bind(v, result_i, eval_expr(tree_value(t), v));
+   assert(tree_has_value(t));
+   assert(v->result == NULL);
+   v->result = eval_expr(tree_value(t), v);
 }
 
 static void eval_if(tree_t t, vtable_t *v)
@@ -526,7 +527,7 @@ static void eval_while(tree_t t, vtable_t *v)
 {
    int iters = 0;
    tree_t value = tree_has_value(t) ? tree_value(t) : NULL;
-   for (;;) {
+   while (v->result == NULL) {
       bool cond_b = true;
       if (value != NULL) {
          tree_t cond = eval_expr(value, v);
@@ -644,7 +645,8 @@ tree_t eval(tree_t fcall)
    vtable_t vt = {
       .top    = NULL,
       .failed = false,
-      .exit   = NULL
+      .exit   = NULL,
+      .result = NULL
    };
    tree_t r = eval_fcall(fcall, &vt);
    return vt.failed ? fcall : r;

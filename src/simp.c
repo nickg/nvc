@@ -113,8 +113,13 @@ static tree_t simp_ref(tree_t t)
    case T_CONST_DECL:
       if (type_is_array(tree_type(decl)))
          return t;
-      else
-         return tree_value(decl);
+      else {
+         tree_t value = tree_value(decl);
+         if (tree_kind(value) == T_FCALL)
+            return t;
+         else
+            return tree_value(decl);
+      }
 
    case T_UNIT_DECL:
    case T_ALIAS:

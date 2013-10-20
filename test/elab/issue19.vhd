@@ -16,10 +16,27 @@ architecture rtl of comp6_bot is
 	return tmp;
 end function cfunc;
 
+function cfunc2 (constant k : integer) return integer is
+    variable tmp : integer;
+  begin
+    tmp := 1;
+   for i in 0 to k loop
+      if tmp > k then
+        return i;
+   end if;
+      tmp := tmp + tmp;
+    end loop;
+end cfunc2;
+
 constant cnum : integer := cfunc(num);
 type m_a_t is array (cnum-1 downto 0) of bit_vector(num-1 downto 0);
 signal ma : m_a_t;
 signal tmp : integer := cnum;
+
+constant cnum2 : integer := cfunc2(num);
+type m_a_t2 is array (cnum2-1 downto 0) of bit_vector(num-1 downto 0);
+signal ma2 : m_a_t2;
+signal tmp2 : integer := cnum2;
 
 begin
     y <= x;
