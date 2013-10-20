@@ -210,7 +210,7 @@ START_TEST(test_issue19)
 
    tree_t e = run_elab();
 
-   tree_t tmp;
+   tree_t tmp = NULL;
    const int ndecls = tree_decls(e);
    for (int i = 0; (i < ndecls) && (tmp == NULL); i++) {
       tree_t t = tree_decl(e, i);
