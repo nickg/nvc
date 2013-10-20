@@ -2641,8 +2641,10 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
       }
    }
 
-   if (type_is_array(assoc_type))
-      cgen_array_copy(assoc_type, type, what, a, i_loaded, ctx);
+   if (type_is_array(assoc_type)) {
+      type_t dst_type = (type_dims(type) == 1) ? type_elem(type) : type;
+      cgen_array_copy(assoc_type, dst_type, what, a, i_loaded, ctx);
+   }
    else {
       LLVMValueRef indexes[] = { i_loaded };
       LLVMValueRef ptr = LLVMBuildGEP(builder, data, indexes,
