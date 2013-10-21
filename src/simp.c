@@ -115,10 +115,7 @@ static tree_t simp_ref(tree_t t)
          return t;
       else {
          tree_t value = tree_value(decl);
-         if (tree_kind(value) == T_FCALL)
-            return t;
-         else
-            return tree_value(decl);
+         return value;
       }
 
    case T_UNIT_DECL:
