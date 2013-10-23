@@ -243,6 +243,16 @@ static void push_path(const char *path)
 static void lib_default_search_paths(void)
 {
    if (search_paths == NULL) {
+      push_path(DATADIR);
+
+      const char *home_env = getenv("HOME");
+      if (home_env) {
+         char *path;
+         asprintf(&path, "%s/.%s/lib", home_env, PACKAGE);
+         assert(path != NULL);
+         push_path(path);
+      }
+
       char *env_copy = NULL;
       const char *libpath_env = getenv("NVC_LIBPATH");
       if (libpath_env) {
@@ -253,16 +263,6 @@ static void lib_default_search_paths(void)
             push_path(path_tok);
          } while ((path_tok = strtok(NULL, ":")));
       }
-
-      const char *home_env = getenv("HOME");
-      if (home_env) {
-         char *path;
-         asprintf(&path, "%s/.%s/lib", home_env, PACKAGE);
-         assert(path != NULL);
-         push_path(path);
-      }
-
-      push_path(DATADIR);
    }
 }
 
