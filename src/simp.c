@@ -115,7 +115,18 @@ static tree_t simp_ref(tree_t t)
          return t;
       else {
          tree_t value = tree_value(decl);
-         return value;
+         switch (tree_kind(value)) {
+         case T_LITERAL:
+            return value;
+
+         case T_REF:
+            if (tree_kind(tree_ref(value)) == T_ENUM_LIT)
+               return value;
+            // Fall-through
+
+         default:
+            return t;
+         }
       }
 
    case T_UNIT_DECL:

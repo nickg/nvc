@@ -542,8 +542,6 @@ static bool elab_should_copy(tree_t t)
 {
    switch (tree_kind(t)) {
    case T_CONST_DECL:
-      return (type_is_array(tree_type(t)));
-
    case T_SIGNAL_DECL:
    case T_GENVAR:
    case T_VAR_DECL:
@@ -780,11 +778,9 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          tree_set_ident(d, npath);
          break;
       case T_CONST_DECL:
-         if (type_is_array(tree_type(d))) {
-            tree_set_ident(d, npath);
-            tree_add_attr_str(d, inst_name_i, ninst);
-            tree_add_decl(ctx->out, d);
-         }
+         tree_set_ident(d, npath);
+         tree_add_attr_str(d, inst_name_i, ninst);
+         tree_add_decl(ctx->out, d);
          break;
       default:
          break;

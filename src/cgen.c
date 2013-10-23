@@ -956,10 +956,10 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    void *global = tree_attr_ptr(decl, global_const_i);
    if (global != NULL) {
       type_t type = tree_type(decl);
-      if (type_is_array(type) && cgen_const_bounds(type))
-         return global;
-      else
+      if ((type_is_array(type) && !cgen_const_bounds(type)))
          return LLVMBuildLoad(builder, (LLVMValueRef)global, "global");
+      else
+         return global;
    }
 
    tree_kind_t kind = tree_kind(decl);
@@ -1427,8 +1427,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
    const int nports  = tree_ports(decl);
 
    for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(t, i);
-      type_t type = tree_type(tree_value(p));
+      tree_t value = tree_value(tree_param(t, i));
+      type_t type = tree_type(value);
       class_t class = (builtin == NULL)
          ? tree_class(tree_port(decl, i))
          : C_DEFAULT;
@@ -1437,8 +1437,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
 
       if ((builtin == NULL) && (class == C_SIGNAL)) {
          // Pass a pointer to the array of nets
-         assert(tree_kind(tree_value(p)) == T_REF);
-         tree_t sig_decl = tree_ref(tree_value(p));
+         assert(tree_kind(value) == T_REF);
+         tree_t sig_decl = tree_ref(value);
          args[i] = cgen_signal_nets(sig_decl);
       }
       else {
@@ -1454,18 +1454,18 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
                               || (class == C_FILE))
                              && !type_is_array(type));
             if (need_ptr)
-               args[i] = cgen_var_lvalue(tree_value(p), ctx);
+               args[i] = cgen_var_lvalue(value, ctx);
          }
 
          if (args[i] == NULL)
-            args[i] = cgen_expr(tree_value(p), ctx);
+            args[i] = cgen_expr(value, ctx);
       }
 
       type_t formal_type;
       if ((builtin == NULL) || (i < nports))
          formal_type = tree_type(tree_port(decl, i));
       else
-         formal_type = tree_type(tree_value(p));
+         formal_type = tree_type(value);
 
       // If we are passing a constrained array argument wrap it in
       // a structure with its metadata. Note we don't need to do
@@ -1510,6 +1510,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          && (type_kind(formal_type) != T_UARRAY)
          && (class != C_SIGNAL)
          && (builtin == NULL);
+      // XXX: with auto-alias this should never happen!
       if (unwrap) {
          LLVMValueRef ptr = args[i];
          if (!cgen_const_bounds(type))
@@ -2240,7 +2241,8 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    case T_FILE_DECL:
       {
          LLVMValueRef ptr = cgen_get_var(decl, ctx);
-         if (type_is_array(tree_type(decl)))
+         type_t type = tree_type(decl);
+         if (type_is_array(type))
             return ptr;
          else
             return LLVMBuildLoad(builder, ptr, "");
@@ -4203,7 +4205,7 @@ static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
    int nconst = 0;
    for (int i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
-      if ((tree_kind(d) == T_CONST_DECL) && (type_is_array(tree_type(d))))
+      if (tree_kind(d) == T_CONST_DECL)
          nconst++;
    }
 
@@ -4219,7 +4221,7 @@ static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
 
    for (int i = 0; i < tree_decls(t); i++) {
       tree_t d = tree_decl(t, i);
-      if ((tree_kind(d) == T_CONST_DECL) && (type_is_array(tree_type(d))))
+      if (tree_kind(d) == T_CONST_DECL)
          cgen_visit_proc_vars(d, &ctx);
    }
 
@@ -4264,10 +4266,7 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
    for (int i = 0; i < ndecls; i++) {
       tree_t v = tree_decl(t, i);
       tree_kind_t kind = tree_kind(v);
-      const bool has_storage =
-         (kind == T_VAR_DECL)
-         || ((kind == T_CONST_DECL) && type_is_array(tree_type(v)));
-      if (has_storage) {
+      if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)) {
          assert(tree_has_value(v));
          LLVMValueRef val = cgen_expr(tree_value(v), ctx);
 
@@ -4793,19 +4792,34 @@ static void cgen_proc_body(tree_t t)
 
 static void cgen_global_const(tree_t t)
 {
-   if (type_is_array(tree_type(t)) && tree_has_value(t)) {
+   if (tree_has_value(t)) {
       tree_t value = tree_value(t);
-      if (cgen_is_const(value)) {
+      type_t type = tree_type(value);
+
+      if (type_is_array(type) && cgen_is_const(value)) {
+         // The aggregate generation code will add a global variable
+         // that we can reuse here
          LLVMValueRef llvalue = cgen_expr(value, NULL);
          LLVMSetValueName(llvalue, istr(tree_ident(t)));
          LLVMSetLinkage(llvalue, LLVMExternalLinkage);
-         tree_add_attr_ptr(t, local_var_i, llvalue);
+         tree_add_attr_ptr(t, global_const_i, llvalue);
       }
       else {
-         // The value will be generated by the reset function
          LLVMTypeRef lltype = llvm_type(tree_type(t));
          LLVMValueRef v = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
-         LLVMSetInitializer(v, LLVMGetUndef(lltype));
+
+         tree_t value = tree_value(t);
+         if (cgen_is_const(value)) {
+            // Value is a compile-time constant
+            LLVMValueRef init = cgen_expr(value, NULL);
+            LLVMSetInitializer(v, init);
+            LLVMSetGlobalConstant(v, true);
+         }
+         else {
+            // The value will be generated by the reset function
+            LLVMSetInitializer(v, LLVMGetUndef(lltype));
+         }
+
          tree_add_attr_ptr(t, global_const_i, v);
       }
    }
