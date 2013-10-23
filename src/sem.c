@@ -1906,6 +1906,20 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    return ok;
 }
 
+static void sem_hoist_for_loop_var(tree_t t, void *context)
+{
+   // Move the declaration for the for loop induction variable to the
+   // containing process or subprogram body
+
+   const int ndecls = tree_decls(t);
+   if (ndecls == 0)
+      return;
+   assert(ndecls == 1);
+
+   tree_t container = context;
+   tree_add_decl(container, tree_decl(t, 0));
+}
+
 static bool sem_check_func_decl(tree_t t)
 {
    if (!sem_check_func_ports(t))
@@ -1959,6 +1973,8 @@ static bool sem_check_func_body(tree_t t)
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
    if (nret == 0)
       sem_error(t, "function must contain a return statement");
+
+   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
 
    return ok;
 }
@@ -2039,6 +2055,8 @@ static bool sem_check_proc_body(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
+   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
+
    scope_pop();
    return ok;
 }
@@ -2092,6 +2110,8 @@ static bool sem_check_process(tree_t t)
          sem_error(t, "wait statement not allowed in process "
                    "with sensitvity list");
    }
+
+   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
 
    return ok;
 }

@@ -4183,49 +4183,46 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
    }
 }
 
-struct cgen_proc_var_ctx {
-   LLVMTypeRef *types;
-   unsigned    offset;
-};
-
-static void cgen_visit_proc_vars(tree_t t, void *context)
-{
-   struct cgen_proc_var_ctx *ctx = context;
-
-   ctx->types[ctx->offset] = llvm_type(tree_type(t));
-   tree_add_attr_int(t, var_offset_i, ctx->offset);
-
-   ctx->offset++;
-}
-
 static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
 {
-   const int nvars = tree_visit_only(t, NULL, NULL, T_VAR_DECL);
-
-   int nconst = 0;
-   for (int i = 0; i < tree_decls(t); i++) {
+   int nconst = 0, nvars = 0;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-      if (tree_kind(d) == T_CONST_DECL)
+      switch (tree_kind(d)) {
+      case T_CONST_DECL:
          nconst++;
+         break;
+      case T_VAR_DECL:
+         nvars++;
+         break;
+      default:
+         break;
+      }
    }
 
    LLVMTypeRef *fields = xmalloc((nvars + nconst + 2) * sizeof(LLVMTypeRef));
    fields[0] = LLVMInt32Type();   // State
    fields[1] = llvm_void_ptr();   // Procedure dynamic context
 
-   struct cgen_proc_var_ctx ctx = {
-      .types  = fields,
-      .offset = 2
-   };
-   tree_visit_only(t, cgen_visit_proc_vars, &ctx, T_VAR_DECL);
-
-   for (int i = 0; i < tree_decls(t); i++) {
+   unsigned offset = 2;
+   for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
-      if (tree_kind(d) == T_CONST_DECL)
-         cgen_visit_proc_vars(d, &ctx);
+      switch (tree_kind(d)) {
+      case T_CONST_DECL:
+      case T_VAR_DECL:
+         {
+            fields[offset] = llvm_type(tree_type(d));
+            tree_add_attr_int(d, var_offset_i, offset);
+            offset++;
+         }
+         break;
+      default:
+         break;
+      }
    }
 
-   *nfields = ctx.offset;
+   *nfields = offset;
    return fields;
 }
 
@@ -4267,7 +4264,9 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
       tree_t v = tree_decl(t, i);
       tree_kind_t kind = tree_kind(v);
       if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)) {
-         assert(tree_has_value(v));
+         if (!tree_has_value(v))
+            continue;
+
          LLVMValueRef val = cgen_expr(tree_value(v), ctx);
 
          type_t ty = tree_type(v);
@@ -4638,8 +4637,20 @@ static void cgen_func_body(tree_t t)
       }
    }
 
-   tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
-   tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_CONST_DECL:
+         cgen_func_constants(d, &ctx);
+         break;
+      case T_VAR_DECL:
+         cgen_func_vars(d, &ctx);
+         break;
+      default:
+         break;
+      }
+   }
 
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)

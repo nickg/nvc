@@ -164,3 +164,4 @@ const5          normal
 issue18         normal
 elab16          normal
 signal12        normal
+const6          normal

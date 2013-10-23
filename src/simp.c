@@ -424,10 +424,6 @@ static tree_t simp_for(tree_t t)
    tree_t b = tree_new(T_BLOCK);
    tree_set_ident(b, tree_ident(t));
 
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      tree_add_decl(b, tree_decl(t, i));
-
    tree_t decl = tree_decl(t, 0);
 
    tree_t var = tree_new(T_REF);

@@ -370,7 +370,7 @@ static void eval_func_body(tree_t t, vtable_t *v)
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t decl = tree_decl(t, i);
-      if (tree_kind(decl) == T_VAR_DECL)
+      if ((tree_kind(decl) == T_VAR_DECL) && tree_has_value(decl))
          vtable_bind(v, tree_ident(decl), eval_expr(tree_value(decl), v));
    }
 
@@ -569,15 +569,7 @@ static void eval_var_assign(tree_t t, vtable_t *v)
 
 static void eval_block(tree_t t, vtable_t *v)
 {
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t decl = tree_decl(t, i);
-      if (tree_kind(decl) == T_VAR_DECL) {
-         if (tree_has_value(decl))
-            vtable_bind(v, tree_ident(decl), eval_expr(tree_value(decl), v));
-      }
-   }
-
+   assert(tree_decls(t) == 0);
    eval_stmts(t, tree_stmts, tree_stmt, v);
 }
 
