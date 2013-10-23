@@ -28,6 +28,14 @@ function cfunc2 (constant k : integer) return integer is
     end loop;
 end cfunc2;
 
+function my_cfunc2 (constant k: integer) return integer is
+begin
+    if k > 1 then
+        return cfunc(k);
+    end if;
+    return 1;
+end my_cfunc2;
+
 constant cnum : integer := cfunc(num);
 type m_a_t is array (cnum-1 downto 0) of bit_vector(num-1 downto 0);
 signal ma : m_a_t;
@@ -37,6 +45,11 @@ constant cnum2 : integer := cfunc2(num);
 type m_a_t2 is array (cnum2-1 downto 0) of bit_vector(num-1 downto 0);
 signal ma2 : m_a_t2;
 signal tmp2 : integer := cnum2;
+
+constant cnum3 : integer := my_cfunc2(num);
+type m_a_t3 is array (cnum3-1 downto 0) of bit_vector(num-1 downto 0);
+signal ma3 : m_a_t3;
+signal tmp3 : integer := cnum3;
 
 begin
     y <= x;

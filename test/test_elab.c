@@ -223,6 +223,18 @@ START_TEST(test_issue19)
    tree_t value = tree_value(tmp);
    fail_unless(tree_kind(value) == T_LITERAL);
    fail_unless(tree_ival(value) == 32);
+
+   for (int i = 0; (i < ndecls) && (tmp == NULL); i++) {
+      tree_t t = tree_decl(e, i);
+      if (icmp(tree_ident(t), ":comp6:c1:tmp3"))
+         tmp = t;
+   }
+
+   fail_if(tmp == NULL);
+
+   value = tree_value(tmp);
+   fail_unless(tree_kind(value) == T_LITERAL);
+   fail_unless(tree_ival(value) == 32);
 }
 END_TEST
 

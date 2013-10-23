@@ -392,20 +392,19 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       if (type_is_array(tree_type(t)))
          return t;
 
-      vtable_push(v);
-
       const int nports = tree_ports(decl);
-      for (int i = 0; i < nports; i++) {
-         tree_t port  = tree_port(decl, i);
-         tree_t value = tree_value(tree_param(t, i));
+      tree_t params[nports];
 
-         if (!folded(value)) {
-            vtable_pop(v);
-            return t;    // Cannot fold this
-         }
-         else
-            vtable_bind(v, tree_ident(port), value);
+      for (int i = 0; i < nports; i++) {
+         params[i] = eval_expr(tree_value(tree_param(t, i)), v);
+
+         if (!folded(params[i]))
+            return t;    // Cannot fold this function call
       }
+
+      vtable_push(v);
+      for (int i = 0; i < nports; i++)
+         vtable_bind(v, tree_ident(tree_port(decl, i)), params[i]);
 
       eval_func_body(decl, v);
       tree_t result = v->result;
