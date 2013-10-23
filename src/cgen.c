@@ -4566,6 +4566,7 @@ static void cgen_func_constants(tree_t d, void *context)
 
    tree_t value = tree_value(d);
    type_t value_type = tree_type(value);
+
    if (type_is_array(value_type)) {
       LLVMValueRef var = cgen_expr(value, ctx);
 
@@ -4578,6 +4579,10 @@ static void cgen_func_constants(tree_t d, void *context)
                                  cgen_array_data_ptr(value_type, var));
       }
 
+      tree_add_attr_ptr(d, local_var_i, var);
+   }
+   else {
+      LLVMValueRef var = cgen_local_var(d, ctx);
       tree_add_attr_ptr(d, local_var_i, var);
    }
 }
@@ -4614,7 +4619,8 @@ static void cgen_func_body(tree_t t)
       .fn         = fn
    };
 
-   for (unsigned i = 0; i < tree_ports(t); i++) {
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
       switch (tree_class(p)) {
       case C_SIGNAL:
@@ -4635,7 +4641,8 @@ static void cgen_func_body(tree_t t)
    tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
    tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
 
-   for (unsigned i = 0; i < tree_stmts(t); i++)
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
    LLVMBuildUnreachable(builder);
