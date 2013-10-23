@@ -4550,39 +4550,43 @@ static void cgen_signal(tree_t t)
    tree_add_attr_ptr(t, sig_nets_i, map_var);
 }
 
-static void cgen_func_vars(tree_t d, void *context)
+static void cgen_subprogram_locals(tree_t t, cgen_ctx_t *ctx)
 {
-   cgen_ctx_t *ctx = context;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_CONST_DECL:
+         {
+            tree_t value = tree_value(d);
+            type_t value_type = tree_type(value);
 
-   LLVMValueRef var = cgen_local_var(d, ctx);
+            if (type_is_array(value_type)) {
+               LLVMValueRef var = cgen_expr(value, ctx);
 
-   tree_add_attr_ptr(d, local_var_i, var);
-}
+               type_t decl_type = tree_type(d);
+               if (!cgen_const_bounds(decl_type)) {
+                  var = cgen_array_meta_1(decl_type,
+                                          cgen_array_left(value_type, 0, var),
+                                          cgen_array_right(value_type, 0, var),
+                                          cgen_array_dir(value_type, 0, var),
+                                          cgen_array_data_ptr(value_type, var));
+               }
 
-static void cgen_func_constants(tree_t d, void *context)
-{
-   cgen_ctx_t *ctx = context;
-
-   tree_t value = tree_value(d);
-   type_t value_type = tree_type(value);
-
-   if (type_is_array(value_type)) {
-      LLVMValueRef var = cgen_expr(value, ctx);
-
-      type_t decl_type = tree_type(d);
-      if (!cgen_const_bounds(decl_type)) {
-         var = cgen_array_meta_1(decl_type,
-                                 cgen_array_left(value_type, 0, var),
-                                 cgen_array_right(value_type, 0, var),
-                                 cgen_array_dir(value_type, 0, var),
-                                 cgen_array_data_ptr(value_type, var));
+               tree_add_attr_ptr(d, local_var_i, var);
+               break;
+            }
+            // Fall-through
+         }
+      case T_VAR_DECL:
+         {
+            LLVMValueRef var = cgen_local_var(d, ctx);
+            tree_add_attr_ptr(d, local_var_i, var);
+         }
+         break;
+      default:
+         break;
       }
-
-      tree_add_attr_ptr(d, local_var_i, var);
-   }
-   else {
-      LLVMValueRef var = cgen_local_var(d, ctx);
-      tree_add_attr_ptr(d, local_var_i, var);
    }
 }
 
@@ -4637,20 +4641,7 @@ static void cgen_func_body(tree_t t)
       }
    }
 
-   const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(t, i);
-      switch (tree_kind(d)) {
-      case T_CONST_DECL:
-         cgen_func_constants(d, &ctx);
-         break;
-      case T_VAR_DECL:
-         cgen_func_vars(d, &ctx);
-         break;
-      default:
-         break;
-      }
-   }
+   cgen_subprogram_locals(t, &ctx);
 
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
@@ -4775,10 +4766,8 @@ static void cgen_proc_body(tree_t t)
 
       cgen_proc_var_init(t, &ctx);
    }
-   else {
-      tree_visit_only(t, cgen_func_constants, &ctx, T_CONST_DECL);
-      tree_visit_only(t, cgen_func_vars, &ctx, T_VAR_DECL);
-   }
+   else
+      cgen_subprogram_locals(t, &ctx);
 
    const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
