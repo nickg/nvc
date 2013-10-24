@@ -652,8 +652,8 @@ static void dump_port(tree_t t, int indent)
    case PORT_BUFFER:  dir = "buffer"; break;
    case PORT_INVALID: dir = "??";     break;
    }
-   printf("%s %s : %s %s", class, istr(tree_ident(t)),
-          dir, type_pp(tree_type(t)));
+   printf("%s %s : %s ", class, istr(tree_ident(t)), dir);
+   dump_type(tree_type(t));
 }
 
 static void dump_elab(tree_t t)
