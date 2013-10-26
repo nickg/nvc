@@ -189,7 +189,7 @@
 %type <y> record_type_def
 %type <r> range range_constraint constraint_elem
 %type <g> index_constraint constraint constraint_list id_list
-%type <c> object_class
+%type <c> object_class entity_class
 %type <b> opt_postponed
 
 %token tID "$yellow$identifier$$"
@@ -267,6 +267,9 @@
 %token tNEXT "$yellow$next$$"
 %token tWHEN "$yellow$when$$"
 %token tCASE "$yellow$case$$"
+%token tLABEL "$yellow$label$$"
+%token tGROUP "$yellow$group$$"
+%token tLITERAL "$yellow$literal$$"
 %token tBAR "|"
 %token tLSQUARE "["
 %token tRSQUARE "]"
@@ -749,6 +752,7 @@ attr_spec
      tree_set_ident(a, $2);
      tree_set_ident2(a, $4);
      tree_set_value(a, $8);
+     tree_set_class(a, $6);
 
      $$ = NULL;
      tree_list_append(&$$, a);
@@ -756,8 +760,18 @@ attr_spec
 ;
 
 entity_class
-: tENTITY | tARCHITECTURE | tCONFIGURATION | tFUNCTION | tPACKAGE
-| tTYPE | tSUBTYPE | tCONSTANT | tSIGNAL | tVARIABLE | tCOMPONENT
+: tENTITY { $$ = C_ENTITY; }
+| tARCHITECTURE { $$ = C_ARCHITECTURE; }
+| tCONFIGURATION { $$ = C_CONFIGURATION; }
+| tFUNCTION { $$ = C_FUNCTION; }
+| tPACKAGE { $$ = C_PACKAGE; }
+| tTYPE { $$ = C_TYPE; }
+| tSUBTYPE { $$ = C_SUBTYPE; }
+| tCONSTANT { $$ = C_CONSTANT; }
+| tSIGNAL { $$ = C_SIGNAL; }
+| tVARIABLE { $$ = C_VARIABLE; }
+| tCOMPONENT { $$ = C_COMPONENT; }
+| tLABEL { $$ = C_LABEL; }
 ;
 
 conc_stmt_list

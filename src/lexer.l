@@ -180,6 +180,9 @@ SLA           {S}{L}{A}
 SRA           {S}{R}{A}
 ROL           {R}{O}{L}
 ROR           {R}{O}{R}
+GROUP         {G}{R}{O}{U}{P}
+LABEL         {L}{A}{B}{E}{L}
+LITERAL       {L}{I}{T}{E}{R}{A}{L}
 
 %%
 
@@ -276,6 +279,9 @@ ROR           {R}{O}{R}
 {SRA}           { TOKEN(tSRA); }
 {ROL}           { TOKEN(tROL); }
 {ROR}           { TOKEN(tROR); }
+{LITERAL}       { TOKEN(tLITERAL); }
+{GROUP}         { TOKEN(tGROUP); }
+{LABEL}         { TOKEN(tLABEL); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

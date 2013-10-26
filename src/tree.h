@@ -41,7 +41,13 @@ typedef enum class {
    C_FILE,
    C_ENTITY,
    C_COMPONENT,
-   C_CONFIGURATION
+   C_CONFIGURATION,
+   C_ARCHITECTURE,
+   C_FUNCTION,
+   C_PACKAGE,
+   C_TYPE,
+   C_SUBTYPE,
+   C_LABEL
 } class_t;
 
 typedef enum param_kind {

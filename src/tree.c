@@ -212,7 +212,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_TYPE),
 
    // T_ATTR_SPEC
-   (I_IDENT | I_VALUE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS),
 
    // T_PROC_DECL
    (I_IDENT | I_PORTS | I_TYPE),
