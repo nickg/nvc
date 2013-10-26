@@ -2513,6 +2513,12 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
       }
    }
 
+   LLVMValueRef dir = cgen_array_dir(type, 0, a);
+   LLVMValueRef is_downto = LLVMBuildICmp(builder, LLVMIntEQ, dir,
+                                          llvm_int8(RANGE_DOWNTO), "is_downto");
+
+   LLVMValueRef left = cgen_array_left(type, 0, a);
+
    LLVMBuildBr(builder, test_bb);
 
    if (def == NULL) {
@@ -2546,8 +2552,14 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
 
       case A_NAMED:
          {
-            LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
-                                            cgen_expr(tree_name(a), ctx), "");
+            LLVMValueRef name = cgen_expr(tree_name(a), ctx);
+            LLVMValueRef off  =
+               LLVMBuildSelect(builder, is_downto,
+                               LLVMBuildSub(builder, left, name, ""),
+                               LLVMBuildSub(builder, name, left, ""), "off");
+
+            LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ,
+                                            i_loaded, off, "");
             what = LLVMBuildSelect(builder, eq, cgen_expr(tree_value(a), ctx),
                                    what, "");
          }
