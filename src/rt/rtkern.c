@@ -2030,24 +2030,18 @@ size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
 
 size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
 {
-   const bool to = (w->dir == RANGE_TO);
-   int outp = to ? 0 : MIN(max, w->length) - 1;
-   const int inc = to ? 1 : -1;
-
    size_t offset = 0;
    for (int i = 0; (i < w->n_groups) && (offset < max - 1); i++) {
       netgroup_t *g = w->groups[i];
       const char *vals = g->resolved->data;
 
       if (likely(map != NULL)) {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc)
-            buf[outp] = map[(int)vals[i]];
+         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
+            buf[offset + j] = map[(int)vals[j]];
       }
       else {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc)
-            buf[outp] = vals[i];
+         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
+            buf[offset + j] = vals[j];
       }
 
       offset += g->length;
