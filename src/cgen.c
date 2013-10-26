@@ -3727,7 +3727,7 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
             break;
 
          case A_POS:
-            if (tree_pos(a) == n - MIN(left, right)) {
+            if (tree_pos(a) == depth) {
                this = assume_int(tree_value(a));
                found = true;
             }
