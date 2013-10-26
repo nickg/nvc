@@ -431,16 +431,20 @@ static netid_t elab_get_net(tree_t expr, int n)
 
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
-
-         int64_t low, high;
-         range_bounds(type_dim(array_type, 0), &low, &high);
-
          tree_t index = tree_value(tree_param(expr, 0));
-         int64_t index_val = assume_int(index) - low;
+
+         range_t type_r  = type_dim(array_type, 0);
+
+         const int64_t type_left = assume_int(type_r.left);
+         const int64_t index_val = assume_int(index);
+         const int64_t type_off =
+            (type_r.kind == RANGE_TO)
+            ? index_val - type_left
+            : type_left - index_val;
 
          const int stride = type_width(type_elem(array_type));
 
-         return elab_get_net(value, n + (index_val * stride));
+         return elab_get_net(value, n + (type_off * stride));
       }
 
    case T_ARRAY_SLICE:
@@ -454,17 +458,15 @@ static netid_t elab_get_net(tree_t expr, int n)
          assert(type_r.kind == slice_r.kind);
 
          const int64_t slice_left = assume_int(slice_r.left);
-         const int64_t slice_off = slice_left;
-
          const int64_t type_left = assume_int(type_r.left);
          const int64_t type_off =
             (type_r.kind == RANGE_TO)
-            ? slice_off - type_left
-            : type_left - slice_off;
+            ? slice_left - type_left
+            : type_left - slice_left;
 
          const int stride = type_width(type_elem(array_type));
 
-         return elab_get_net(value, n + (type_off) * stride);
+         return elab_get_net(value, n + (type_off * stride));
       }
 
    default:
