@@ -32,6 +32,7 @@
 #include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/time.h>
 
 typedef struct search_path search_path_t;
 
@@ -415,7 +416,11 @@ static lib_mtime_t lib_time_to_usecs(time_t t)
 
 void lib_put(lib_t lib, tree_t unit)
 {
-   lib_mtime_t usecs = lib_time_to_usecs(time(NULL));
+   struct timeval tv;
+   if (gettimeofday(&tv, NULL) != 0)
+      fatal_errno("gettimeofday");
+
+   lib_mtime_t usecs = ((lib_mtime_t)tv.tv_sec * 1000000) + tv.tv_usec;
    lib_put_aux(lib, unit, NULL, true, usecs);
 }
 
