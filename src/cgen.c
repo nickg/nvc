@@ -1533,16 +1533,6 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs_array);
    LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs_array);
 
-   //LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs_array);
-   //LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs_array);
-
-   //LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
-   //                                      llvm_int8(RANGE_DOWNTO), "l_downto");
-   //LLVMValueRef r_downto = LLVMBuildICmp(builder, LLVMIntEQ, rdir,
-   //                                      llvm_int8(RANGE_DOWNTO), "r_downto");
-   LLVMValueRef l_downto = llvm_int1(false);
-   LLVMValueRef r_downto = llvm_int1(false);
-
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -1568,21 +1558,12 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
-   LLVMValueRef i_plus_1   = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "");
-   LLVMValueRef l_off_down = LLVMBuildSub(builder, left_len, i_plus_1, "");
-   LLVMValueRef r_off_down = LLVMBuildSub(builder, right_len, i_plus_1, "");
-
-   LLVMValueRef l_off = LLVMBuildSelect(builder, l_downto,
-                                        l_off_down, i_loaded, "l_off");
-   LLVMValueRef r_off = LLVMBuildSelect(builder, r_downto,
-                                        r_off_down, i_loaded, "r_off");
-
    LLVMValueRef cmp, eq;
    if (type_is_array(type_elem(left_type))) {
-      LLVMValueRef l_indexes[] = { l_off, llvm_int32(0) };
+      LLVMValueRef l_indexes[] = { i_loaded, llvm_int32(0) };
       LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, l_indexes,
                                         ARRAY_LEN(l_indexes), "l_ptr");
-      LLVMValueRef r_indexes[] = { r_off, llvm_int32(0) };
+      LLVMValueRef r_indexes[] = { i_loaded, llvm_int32(0) };
       LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, r_indexes,
                                         ARRAY_LEN(r_indexes), "r_ptr");
 
@@ -1592,8 +1573,10 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
       body_bb = LLVMGetInsertBlock(builder);
    }
    else {
-      LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &l_off, 1, "l_ptr");
-      LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &r_off, 1, "r_ptr");
+      LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data,
+                                        &i_loaded, 1, "l_ptr");
+      LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data,
+                                        &i_loaded, 1, "r_ptr");
 
       LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
       LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
