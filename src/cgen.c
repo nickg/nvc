@@ -114,6 +114,7 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               LLVMValueRef min, LLVMValueRef max,
                               cgen_ctx_t *ctx);
 static LLVMValueRef cgen_support_fn(const char *name);
+static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -2961,13 +2962,14 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
    }
 
    type_t type = tree_type(decl);
+   type_t expr_type = tree_type(on);
 
-   LLVMValueRef nets = cgen_signal_nets(decl);
+   const bool array = type_is_array(type);
 
+   LLVMValueRef n_elems, nets;
    bool sequential = false;
-   LLVMValueRef n_elems = NULL;
    if (expr_kind == T_REF) {
-      const bool array = type_is_array(type);
+      nets = cgen_signal_nets(decl);
 
       if (array)
          n_elems = cgen_array_len_recur(type, nets);
@@ -2997,61 +2999,13 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
       }
    }
    else {
-      assert(type_is_array(type));
+      assert(array);
+      nets = cgen_signal_lvalue(on, ctx);
 
-      LLVMValueRef index = NULL;
-      switch (expr_kind) {
-      case T_ARRAY_REF:
-         {
-            tree_t p = tree_param(on, 0);
-            index = cgen_expr(tree_value(p), ctx);
-            cgen_check_array_bounds(tree_value(p), type, 0, nets, index, ctx);
-
-            n_elems = llvm_int32(1);
-         }
-         break;
-
-      case T_ARRAY_SLICE:
-         {
-            range_t r = tree_range(on);
-
-            LLVMValueRef left  = cgen_expr(r.left, ctx);
-            LLVMValueRef right = cgen_expr(r.right, ctx);
-
-            LLVMValueRef low  = (r.kind == RANGE_TO) ? left : right;
-            LLVMValueRef high = (r.kind == RANGE_TO) ? right : left;
-
-            cgen_check_array_bounds(r.left, type, 0, nets, left, ctx);
-            cgen_check_array_bounds(r.right, type, 0, nets, right, ctx);
-
-            index = low;
-            n_elems = LLVMBuildAdd(builder,
-                                   LLVMBuildSub(builder, high, low, ""),
-                                   llvm_int32(1),
-                                   "n_elems");
-         }
-         break;
-
-      default:
-         assert(false);
-      }
-
-      LLVMValueRef offset = cgen_array_off(index, nets, type, ctx, 0);
-
-      if (type_kind(type) == T_UARRAY) {
-         // Unwrap meta-data to get actual nets array
-         LLVMValueRef sub_nets =
-            LLVMBuildExtractValue(builder, nets, 0, "sub_nets");
-
-         LLVMValueRef indexes[] = { offset };
-         nets = LLVMBuildGEP(builder, sub_nets,
-                                   indexes, ARRAY_LEN(indexes), "");
-      }
-      else {
-         LLVMValueRef indexes[] = { llvm_int32(0), offset };
-         nets = LLVMBuildGEP(builder, nets,
-                             indexes, ARRAY_LEN(indexes), "");
-      }
+      if (type_is_array(expr_type))
+         n_elems = cgen_array_len_recur(expr_type, NULL);
+      else
+         n_elems = llvm_int32(1);
    }
 
    LLVMValueRef args[] = {
