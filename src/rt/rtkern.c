@@ -320,14 +320,13 @@ void _sched_process(int64_t delay)
 }
 
 void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
-                     int64_t after, int64_t reject, int32_t reverse)
+                     int64_t after, int64_t reject)
 {
    const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s "
-         "reject=%s reverse=%d", fmt_net(nids[0]),
-         fmt_values(values, n * size), n, size, fmt_time(after),
-         fmt_time(reject), reverse);
+   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s reject=%s",
+         fmt_net(nids[0]), fmt_values(values, n * size), n, size,
+         fmt_time(after), fmt_time(reject));
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -338,20 +337,8 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
       netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
 
       value_t *values_copy = rt_alloc_value(g);
-
-      if (unlikely(reverse)) {
-#define COPY_VALUES(type) do {                                  \
-            const type *vp = (type *)values + (n - offset - 1); \
-            type *vc = (type *)values_copy->data;               \
-            for (int i = 0; i < g->length; i++, vp--)           \
-               vc[i] = *vp;                                     \
-         } while (0)
-
-         FOR_ALL_SIZES(size, COPY_VALUES);
-      }
-      else
-         memcpy(values_copy->data, (uint8_t *)values + (offset * size),
-                size * g->length);
+      memcpy(values_copy->data, (uint8_t *)values + (offset * size),
+             size * g->length);
 
       if (!rt_alloc_driver(g, after, reject, values_copy))
          deltaq_insert_driver(after, g, active_proc);
@@ -533,22 +520,6 @@ void _null_deref(int32_t where, const char *module)
 int64_t _std_standard_now(void)
 {
    return now;
-}
-
-void _array_reverse(void *restrict dst, const void *restrict src,
-                    int32_t off, int32_t n, int32_t sz)
-{
-   TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
-         dst, src, off, n, sz);
-
-#define ARRAY_REVERSE(type) do {                \
-      const type *restrict sp = src;            \
-      type *restrict dp = dst;                  \
-      for (int i = n - 1; i >= 0; i--)          \
-         *(dp + off + i) = *sp++;               \
-   } while (0)
-
-   FOR_ALL_SIZES(sz, ARRAY_REVERSE);
 }
 
 void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
@@ -1659,7 +1630,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_sched_waveform", _sched_waveform);
    jit_bind_fn("_sched_event", _sched_event);
    jit_bind_fn("_assert_fail", _assert_fail);
-   jit_bind_fn("_array_reverse", _array_reverse);
    jit_bind_fn("_vec_load", _vec_load);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);

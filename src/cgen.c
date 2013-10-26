@@ -1018,9 +1018,6 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset, cgen_ctx_t *ctx)
 {
-   LLVMValueRef src_dir = cgen_array_dir(src_type, 0, src);
-   LLVMValueRef dst_dir = cgen_array_dir(dest_type, 0, dst);
-
    LLVMValueRef ll_n_elems = cgen_array_len_recur(src_type, src);
 
    if (!cgen_const_bounds(dest_type))
@@ -1034,13 +1031,6 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    LLVMValueRef indexes[] = { offset };
    LLVMValueRef dst_ptr = LLVMBuildGEP(builder, dst, indexes,
                                        ARRAY_LEN(indexes), "dst_ptr");
-
-   LLVMValueRef opposite_dir =
-      LLVMBuildICmp(builder, LLVMIntNE, src_dir, dst_dir, "opp_dir");
-
-   const bool same_dir_const =
-      (cgen_const_bounds(src_type) && cgen_const_bounds(dest_type)
-       && (type_dim(src_type, 0).kind == type_dim(dest_type, 0).kind));
 
    type_t elem_type = type_elem(src_type);
 
@@ -1084,46 +1074,8 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
       llvm_int32(align),
       llvm_int1(0)
    };
-
-   LLVMValueRef memcpy_fn = llvm_fn(cgen_memcpy_name(width));
-
-   if (same_dir_const) {
-      // Fast path: use LLVM memcpy
-      LLVMBuildCall(builder, memcpy_fn,
-                    memcpy_args, ARRAY_LEN(memcpy_args), "");
-   }
-   else {
-      LLVMBasicBlockRef fast_bb = LLVMAppendBasicBlock(ctx->fn, "fast");
-      LLVMBasicBlockRef slow_bb = LLVMAppendBasicBlock(ctx->fn, "slow");
-      LLVMBasicBlockRef done_bb = LLVMAppendBasicBlock(ctx->fn, "done");
-
-      LLVMBuildCondBr(builder, opposite_dir, slow_bb, fast_bb);
-
-      // Fast(ish) path: call LLVM memcpy after condition
-
-      LLVMPositionBuilderAtEnd(builder, fast_bb);
-      LLVMBuildCall(builder, memcpy_fn,
-                    memcpy_args, ARRAY_LEN(memcpy_args), "");
-      LLVMBuildBr(builder, done_bb);
-
-      // Slow path: call _array_reverse helper function
-
-      LLVMPositionBuilderAtEnd(builder, slow_bb);
-
-      LLVMValueRef reverse_args[] = {
-         llvm_void_cast(dst),
-         llvm_void_cast(src_ptr),
-         offset,
-         ll_n_elems,
-         llvm_sizeof(llvm_type(elem_type))
-      };
-      LLVMBuildCall(builder, llvm_fn("_array_reverse"),
-                    reverse_args, ARRAY_LEN(reverse_args), "");
-
-      LLVMBuildBr(builder, done_bb);
-
-      LLVMPositionBuilderAtEnd(builder, done_bb);
-   }
+   LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(width)),
+                 memcpy_args, ARRAY_LEN(memcpy_args), "");
 }
 
 static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
@@ -3385,7 +3337,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
       if (nets == NULL)
          continue;    // Assignment to OPEN port
 
-      LLVMValueRef rhs_data, lhs_data, reverse, n_elems, elem_size;
+      LLVMValueRef rhs_data, lhs_data, n_elems, elem_size;
 
       type_t value_type  = tree_type(value);
       type_t target_type = tree_type(target);
@@ -3409,7 +3361,6 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
 
          rhs_data  = tmp;
          lhs_data  = nets;
-         reverse   = llvm_int1(0);
          n_elems   = llvm_int32(1);
          elem_size = llvm_sizeof(llvm_type(value_type));
       }
@@ -3421,10 +3372,6 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
 
          n_elems   = cgen_array_len_recur(value_type, rhs);
          elem_size = cgen_array_elem_size(value_type);
-
-         LLVMValueRef ldir = cgen_array_dir(target_type, 0, nets);
-         LLVMValueRef rdir = cgen_array_dir(value_type, 0, rhs);
-         reverse = LLVMBuildICmp(builder, LLVMIntNE, ldir, rdir, "reverse");
       }
 
       LLVMValueRef args[] = {
@@ -3433,8 +3380,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          n_elems,
          elem_size,
          after,
-         (i == 0) ? reject : llvm_int64(0),
-         reverse
+         (i == 0) ? reject : llvm_int64(0)
       };
       LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
                     args, ARRAY_LEN(args), "");
@@ -5112,8 +5058,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt64Type(),
-         LLVMInt64Type(),
-         LLVMInt1Type()
+         LLVMInt64Type()
       };
       return LLVMAddFunction(module, "_sched_waveform",
                              LLVMFunctionType(LLVMVoidType(),
@@ -5152,18 +5097,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       return LLVMAddFunction(module, "_assert_fail",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
-   }
-   else if (strcmp(name, "_array_reverse") == 0) {
-      LLVMTypeRef args[] = {
-         llvm_void_ptr(),
-         llvm_void_ptr(),
-         LLVMInt32Type(),
-         LLVMInt32Type(),
-         LLVMInt32Type()
-      };
-      return LLVMAddFunction(module, "_array_reverse",
                              LLVMFunctionType(LLVMVoidType(),
                                               args, ARRAY_LEN(args), false));
    }
