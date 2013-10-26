@@ -525,8 +525,8 @@ int64_t _std_standard_now(void)
 void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                 int32_t high, int32_t last)
 {
-   TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-         fmt_net(nids[0]), where, size, low, high, last);
+   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
+   //      fmt_net(nids[0]), where, size, low, high, last);
 
    assert(low <= high);
 
