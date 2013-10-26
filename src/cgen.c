@@ -1282,20 +1282,14 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
    LLVMValueRef right = cgen_array_right(slice_type, 0, nets);
    LLVMValueRef dir   = cgen_array_dir(slice_type, 0, nets);
 
-   LLVMValueRef dir_to =
-      LLVMBuildICmp(builder, LLVMIntEQ, dir, llvm_int8(RANGE_TO), "to");
-
-   LLVMValueRef low  = LLVMBuildSelect(builder, dir_to, left, right, "");
-   LLVMValueRef high = LLVMBuildSelect(builder, dir_to, right, left, "");
-
-   LLVMValueRef low_abs  = cgen_array_off(low, nets, type, ctx, 0);
-   LLVMValueRef high_abs = cgen_array_off(high, nets, type, ctx, 0);
+   LLVMValueRef low_abs  = cgen_array_off(left, nets, type, ctx, 0);
+   LLVMValueRef high_abs = cgen_array_off(right, nets, type, ctx, 0);
 
    LLVMValueRef tmp;
    if (dst_uarray) {
       LLVMValueRef length =
          LLVMBuildAdd(builder,
-                      LLVMBuildSub(builder, high, low, ""),
+                      LLVMBuildSub(builder, high_abs, low_abs, ""),
                       llvm_int32(1),
                       "length");
       tmp = LLVMBuildArrayAlloca(builder, llvm_type(type_elem(type)),
@@ -1539,13 +1533,15 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs_array);
    LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs_array);
 
-   LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs_array);
-   LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs_array);
+   //LLVMValueRef ldir = cgen_array_dir(left_type, 0, lhs_array);
+   //LLVMValueRef rdir = cgen_array_dir(right_type, 0, rhs_array);
 
-   LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
-                                         llvm_int8(RANGE_DOWNTO), "l_downto");
-   LLVMValueRef r_downto = LLVMBuildICmp(builder, LLVMIntEQ, rdir,
-                                         llvm_int8(RANGE_DOWNTO), "r_downto");
+   //LLVMValueRef l_downto = LLVMBuildICmp(builder, LLVMIntEQ, ldir,
+   //                                      llvm_int8(RANGE_DOWNTO), "l_downto");
+   //LLVMValueRef r_downto = LLVMBuildICmp(builder, LLVMIntEQ, rdir,
+   //                                      llvm_int8(RANGE_DOWNTO), "r_downto");
+   LLVMValueRef l_downto = llvm_int1(false);
+   LLVMValueRef r_downto = llvm_int1(false);
 
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
