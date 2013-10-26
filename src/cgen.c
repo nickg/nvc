@@ -3289,8 +3289,6 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             LLVMBuildArrayAlloca(builder, nid_type, llvm_int32(nassocs),
                                  "aggregate_nid_array");
 
-         const bool downto = (type_dim(tree_type(t), 0).kind == RANGE_DOWNTO);
-
          for (int i = 0; i < nassocs; i++) {
             tree_t a = tree_assoc(t, i);
             assert(tree_subkind(a) == A_POS);
@@ -3302,7 +3300,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             LLVMValueRef nid = LLVMBuildLoad(builder, nid_ptr, "nid");
 
             LLVMValueRef indexes[] = {
-               llvm_int32(downto ? nassocs - i - 1 : i)
+               llvm_int32(i)
             };
             LLVMValueRef aptr = LLVMBuildGEP(builder, nid_array,
                                              indexes, ARRAY_LEN(indexes), "");
