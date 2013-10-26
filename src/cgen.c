@@ -2463,9 +2463,8 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
       vals[i] = NULL;
 
    range_t r = type_dim(type, dim);
-
-   int64_t low, high;
-   range_bounds(r, &low, &high);
+   const int64_t left = assume_int(r.left);
+   const bool is_downto = (r.kind == RANGE_DOWNTO);
 
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
@@ -2507,8 +2506,11 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
          break;
 
       case A_NAMED:
-         cgen_copy_vals(vals + ((assume_int(tree_name(a)) - low) * nsub),
-                        sub, nsub, false);
+         {
+            const int64_t name = assume_int(tree_name(a));
+            const int64_t off  = is_downto ? left - name : name - left;
+            cgen_copy_vals(vals + (off * nsub), sub, nsub, false);
+         }
          break;
 
       case A_OTHERS:
@@ -2525,7 +2527,8 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
             range_bounds(tree_range(a), &r_low, &r_high);
 
             for (int j = r_low; j <= r_high; j++)
-               cgen_copy_vals(vals + ((j - low) * nsub), sub, nsub, false);
+               assert(false);
+               //cgen_copy_vals(vals + ((j - low) * nsub), sub, nsub, false);
          }
          break;
       }
