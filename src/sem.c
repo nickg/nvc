@@ -5019,10 +5019,6 @@ static bool sem_check_attr_spec(tree_t t)
    if (attr_decl == NULL)
       sem_error(t, "undefined attribute %s", istr(tree_ident(t)));
 
-   tree_t obj_decl = scope_find(tree_ident2(t));
-   if (obj_decl == NULL)
-      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
-
    if (tree_kind(attr_decl) != T_ATTR_DECL)
       sem_error(t, "name %s is not an attribute declaration",
                 istr(tree_ident(t)));
@@ -5035,6 +5031,14 @@ static bool sem_check_attr_spec(tree_t t)
 
    if (!type_eq(type, tree_type(value)))
       sem_error(t, "expected attribute type %s", sem_type_str(type));
+
+   // Attributes of labels are ignored currently
+   if (tree_class(t) == C_LABEL)
+      return true;
+
+   tree_t obj_decl = scope_find(tree_ident2(t));
+   if (obj_decl == NULL)
+      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
 
    tree_add_attr_tree(obj_decl, tree_ident(t), value);
 

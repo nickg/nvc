@@ -65,6 +65,7 @@ architecture a2 of e is
     attribute foo of z : signal is string'("boo");  -- Error
     attribute bar of x : signal is 73;  -- Error
     attribute foo of q : signal is 71;  -- Error
+    attribute foo of yah : label is 12;  -- Ignored
 
 begin
 end architecture;
