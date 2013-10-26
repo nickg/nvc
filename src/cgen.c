@@ -2503,11 +2503,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
 
       switch (tree_subkind(a)) {
       case A_POS:
-         if (r.kind == RANGE_TO)
-            cgen_copy_vals(vals + (i * nsub), sub, nsub, false);
-         else
-           cgen_copy_vals(vals + ((*n_elems - i - 1) * nsub),
-                          sub, nsub, true);
+         cgen_copy_vals(vals + (i * nsub), sub, nsub, false);
          break;
 
       case A_NAMED:
