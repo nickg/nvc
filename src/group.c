@@ -272,10 +272,11 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
       }
       else {
          tree_t decl = tree_ref(value);
-
-         const int nnets = tree_nets(decl);
-         for (int i = 0; i < nnets; i++)
-            group_add(ctx, tree_net(decl, i), 1);
+         if (tree_kind(decl) == T_SIGNAL_DECL) {
+            const int nnets = tree_nets(decl);
+            for (int i = 0; i < nnets; i++)
+               group_add(ctx, tree_net(decl, i), 1);
+         }
       }
       break;
 
