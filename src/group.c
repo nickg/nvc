@@ -185,9 +185,9 @@ static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 
 static int64_t rebase_index(type_t array_type, int dim, int64_t value)
 {
-   int64_t low, high;
-   range_bounds(type_dim(array_type, dim), &low, &high);
-   return value - low;
+   range_t r = type_dim(array_type, dim);
+   const int64_t left = assume_int(r.left);
+   return (r.kind == RANGE_TO) ? value - left : left - value;
 }
 
 static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
@@ -266,16 +266,17 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
          int64_t low, high;
          range_bounds(slice, &low, &high);
 
-         const int64_t low0 = rebase_index(type, 0, low);
+         const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
 
          group_ref(value, ctx, low0, high - low + 1);
       }
       else {
          tree_t decl = tree_ref(value);
-
-         const int nnets = tree_nets(decl);
-         for (int i = 0; i < nnets; i++)
-            group_add(ctx, tree_net(decl, i), 1);
+         if (tree_kind(decl) == T_SIGNAL_DECL) {
+            const int nnets = tree_nets(decl);
+            for (int i = 0; i < nnets; i++)
+               group_add(ctx, tree_net(decl, i), 1);
+         }
       }
       break;
 

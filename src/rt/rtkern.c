@@ -320,14 +320,13 @@ void _sched_process(int64_t delay)
 }
 
 void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
-                     int64_t after, int64_t reject, int32_t reverse)
+                     int64_t after, int64_t reject)
 {
    const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s "
-         "reject=%s reverse=%d", fmt_net(nids[0]),
-         fmt_values(values, n * size), n, size, fmt_time(after),
-         fmt_time(reject), reverse);
+   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s reject=%s",
+         fmt_net(nids[0]), fmt_values(values, n * size), n, size,
+         fmt_time(after), fmt_time(reject));
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -338,26 +337,16 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
       netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
 
       value_t *values_copy = rt_alloc_value(g);
-
-      if (unlikely(reverse)) {
-#define COPY_VALUES(type) do {                                  \
-            const type *vp = (type *)values + (n - offset - 1); \
-            type *vc = (type *)values_copy->data;               \
-            for (int i = 0; i < g->length; i++, vp--)           \
-               vc[i] = *vp;                                     \
-         } while (0)
-
-         FOR_ALL_SIZES(size, COPY_VALUES);
-      }
-      else
-         memcpy(values_copy->data, (uint8_t *)values + (offset * size),
-                size * g->length);
+      memcpy(values_copy->data, (uint8_t *)values + (offset * size),
+             size * g->length);
 
       if (!rt_alloc_driver(g, after, reject, values_copy))
          deltaq_insert_driver(after, g, active_proc);
 
       offset += g->length;
    }
+
+   assert(offset == n);
 }
 
 void _sched_event(void *_nids, int32_t n, int32_t seq)
@@ -533,27 +522,13 @@ int64_t _std_standard_now(void)
    return now;
 }
 
-void _array_reverse(void *restrict dst, const void *restrict src,
-                    int32_t off, int32_t n, int32_t sz)
-{
-   //TRACE("_array_reverse dst=%p src=%p off=%d n=%d sz=%d",
-   //      dst, src, off, n, sz);
-
-#define ARRAY_REVERSE(type) do {                \
-      const type *restrict sp = src;            \
-      type *restrict dp = dst;                  \
-      for (int i = n - 1; i >= 0; i--)          \
-         *(dp + off + i) = *sp++;               \
-   } while (0)
-
-   FOR_ALL_SIZES(sz, ARRAY_REVERSE);
-}
-
 void *_vec_load(const int32_t *nids, void *where, int32_t size, int32_t low,
                 int32_t high, int32_t last)
 {
    //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
    //      fmt_net(nids[0]), where, size, low, high, last);
+
+   assert(low <= high);
 
    int offset = low;
 
@@ -645,9 +620,6 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
 void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
                 int8_t dir, int32_t shift, struct uarray *u)
 {
-   if (dir == RANGE_DOWNTO)
-      kind = kind ^ 1;
-
    if (shift < 0) {
       kind  = kind ^ 1;
       shift = -shift;
@@ -695,8 +667,6 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
 
    uint8_t *buf = rt_tmp_alloc(left_len);
 
-   const bool flip = (left_dir != right_dir);
-
    switch (kind) {
    case BIT_VEC_NOT:
       for (int i = 0; i < left_len; i++)
@@ -705,32 +675,32 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
 
    case BIT_VEC_AND:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] && right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] && right[i];
       break;
 
    case BIT_VEC_OR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] || right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] || right[i];
       break;
 
    case BIT_VEC_XOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] ^ right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] ^ right[i];
       break;
 
    case BIT_VEC_XNOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] ^ right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] ^ right[i]);
       break;
 
    case BIT_VEC_NAND:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] && right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] && right[i]);
       break;
 
    case BIT_VEC_NOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] || right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] || right[i]);
       break;
    }
 
@@ -1657,7 +1627,6 @@ static void rt_one_time_init(void)
    jit_bind_fn("_sched_waveform", _sched_waveform);
    jit_bind_fn("_sched_event", _sched_event);
    jit_bind_fn("_assert_fail", _assert_fail);
-   jit_bind_fn("_array_reverse", _array_reverse);
    jit_bind_fn("_vec_load", _vec_load);
    jit_bind_fn("_image", _image);
    jit_bind_fn("_debug_out", _debug_out);
@@ -2061,24 +2030,18 @@ size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
 
 size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
 {
-   const bool to = (w->dir == RANGE_TO);
-   int outp = to ? 0 : MIN(max, w->length) - 1;
-   const int inc = to ? 1 : -1;
-
    size_t offset = 0;
    for (int i = 0; (i < w->n_groups) && (offset < max - 1); i++) {
       netgroup_t *g = w->groups[i];
       const char *vals = g->resolved->data;
 
       if (likely(map != NULL)) {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc)
-            buf[outp] = map[(int)vals[i]];
+         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
+            buf[offset + j] = map[(int)vals[j]];
       }
       else {
-         for (int i = 0; (i < g->length) && (offset + i < max - 1);
-              i++, outp += inc)
-            buf[outp] = vals[i];
+         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
+            buf[offset + j] = vals[j];
       }
 
       offset += g->length;

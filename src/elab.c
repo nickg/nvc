@@ -431,32 +431,42 @@ static netid_t elab_get_net(tree_t expr, int n)
 
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
-
-         int64_t low, high;
-         range_bounds(type_dim(array_type, 0), &low, &high);
-
          tree_t index = tree_value(tree_param(expr, 0));
-         int64_t index_val = assume_int(index) - low;
+
+         range_t type_r  = type_dim(array_type, 0);
+
+         const int64_t type_left = assume_int(type_r.left);
+         const int64_t index_val = assume_int(index);
+         const int64_t type_off =
+            (type_r.kind == RANGE_TO)
+            ? index_val - type_left
+            : type_left - index_val;
 
          const int stride = type_width(type_elem(array_type));
 
-         return elab_get_net(value, n + (index_val * stride));
+         return elab_get_net(value, n + (type_off * stride));
       }
 
    case T_ARRAY_SLICE:
       {
-         int64_t slice_low, slice_high;
-         range_bounds(tree_range(expr), &slice_low, &slice_high);
-
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
 
-         int64_t type_low, type_high;
-         range_bounds(type_dim(array_type, 0), &type_low, &type_high);
+         range_t type_r  = type_dim(array_type, 0);
+         range_t slice_r = tree_range(expr);
+
+         assert(type_r.kind == slice_r.kind);
+
+         const int64_t slice_left = assume_int(slice_r.left);
+         const int64_t type_left = assume_int(type_r.left);
+         const int64_t type_off =
+            (type_r.kind == RANGE_TO)
+            ? slice_left - type_left
+            : type_left - slice_left;
 
          const int stride = type_width(type_elem(array_type));
 
-         return elab_get_net(value, n + (slice_low - type_low) * stride);
+         return elab_get_net(value, n + (type_off * stride));
       }
 
    default:
@@ -520,11 +530,16 @@ static void elab_map_nets(map_list_t *maps)
                int64_t low, high;
                range_bounds(slice, &low, &high);
 
+               const int64_t left = assume_int(slice.left);
+
                for (int64_t i = low; i <= high; i++) {
-                  for (int j = 0; j < elem_width; j++)
+                  for (int j = 0; j < elem_width; j++) {
+                     const int64_t off =
+                        (slice.kind == RANGE_TO) ? i - left : left - i;
                      tree_change_net(
                         maps->signal, (i * elem_width) + j,
-                        elab_get_net(maps->actual, (i - low) * elem_width + j));
+                        elab_get_net(maps->actual, off * elem_width + j));
+                  }
                }
             }
             break;

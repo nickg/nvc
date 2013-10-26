@@ -16,6 +16,7 @@ begin
         s(0) <= v(3);
         assert s(0) = '0';
         wait for 1 ns;
+        assert v(3) = '1';
         assert s(0) = v(3);
         assert v = ( '1', '0', '1', '1' );
         s <= v;
