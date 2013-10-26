@@ -266,7 +266,7 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
          int64_t low, high;
          range_bounds(slice, &low, &high);
 
-         const int64_t low0 = rebase_index(type, 0, low);
+         const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
 
          group_ref(value, ctx, low0, high - low + 1);
       }
