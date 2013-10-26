@@ -699,8 +699,6 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
 
    uint8_t *buf = rt_tmp_alloc(left_len);
 
-   const bool flip = (left_dir != right_dir);
-
    switch (kind) {
    case BIT_VEC_NOT:
       for (int i = 0; i < left_len; i++)
@@ -709,32 +707,32 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
 
    case BIT_VEC_AND:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] && right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] && right[i];
       break;
 
    case BIT_VEC_OR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] || right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] || right[i];
       break;
 
    case BIT_VEC_XOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = left[i] ^ right[flip ? right_len - 1 - i : i];
+         buf[i] = left[i] ^ right[i];
       break;
 
    case BIT_VEC_XNOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] ^ right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] ^ right[i]);
       break;
 
    case BIT_VEC_NAND:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] && right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] && right[i]);
       break;
 
    case BIT_VEC_NOR:
       for (int i = 0; i < left_len; i++)
-         buf[i] = !(left[i] || right[flip ? right_len - 1 - i : i]);
+         buf[i] = !(left[i] || right[i]);
       break;
    }
 
