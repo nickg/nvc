@@ -741,7 +741,7 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
 {
    // Convert VHDL offset 'off' to a zero-based LLVM array offset
 
-   LLVMValueRef low;
+   LLVMValueRef zeroed;
    if (!cgen_const_bounds(type)) {
       assert(array != NULL);
 
@@ -754,19 +754,23 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
                        llvm_int8(RANGE_DOWNTO), "is_downto");
       LLVMValueRef left =
          LLVMBuildExtractValue(builder, dim_struct, 0, "left");
-      LLVMValueRef right =
-         LLVMBuildExtractValue(builder, dim_struct, 1, "right");
-      low = LLVMBuildSelect(builder, is_downto, right, left, "low");
+
+      LLVMValueRef downto_zero = LLVMBuildSub(builder, left, off, "");
+      LLVMValueRef to_zero     = LLVMBuildSub(builder, off, left, "");
+
+      zeroed = LLVMBuildSelect(builder, is_downto, downto_zero, to_zero, "");
    }
    else {
       range_t r = type_dim(type, dim);
-      low = cgen_expr(r.kind == RANGE_TO ? r.left : r.right, ctx);
+      LLVMValueRef left = cgen_expr(r.left, ctx);
+      if (r.kind == RANGE_TO)
+         zeroed = LLVMBuildSub(builder, off, left, "");
+      else
+         zeroed = LLVMBuildSub(builder, left, off, "");
    }
 
-   LLVMValueRef zero_based = LLVMBuildSub(builder, off, low, "");
-
    // Array offsets are always 32-bit
-   return LLVMBuildZExt(builder, zero_based, LLVMInt32Type(), "");
+   return LLVMBuildZExt(builder, zeroed, LLVMInt32Type(), "");
 }
 
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
@@ -2502,8 +2506,8 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
          if (r.kind == RANGE_TO)
             cgen_copy_vals(vals + (i * nsub), sub, nsub, false);
          else
-            cgen_copy_vals(vals + ((*n_elems - i - 1) * nsub),
-                           sub, nsub, true);
+           cgen_copy_vals(vals + ((*n_elems - i - 1) * nsub),
+                          sub, nsub, true);
          break;
 
       case A_NAMED:
