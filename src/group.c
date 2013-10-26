@@ -185,9 +185,9 @@ static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 
 static int64_t rebase_index(type_t array_type, int dim, int64_t value)
 {
-   int64_t low, high;
-   range_bounds(type_dim(array_type, dim), &low, &high);
-   return value - low;
+   range_t r = type_dim(array_type, dim);
+   const int64_t left = assume_int(r.left);
+   return (r.kind == RANGE_TO) ? value - left : left - value;
 }
 
 static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)

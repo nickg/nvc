@@ -358,6 +358,8 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
       offset += g->length;
    }
+
+   assert(offset == n);
 }
 
 void _sched_event(void *_nids, int32_t n, int32_t seq)
