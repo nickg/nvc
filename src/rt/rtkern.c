@@ -620,9 +620,6 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
 void _bit_shift(int32_t kind, const uint8_t *data, int32_t len,
                 int8_t dir, int32_t shift, struct uarray *u)
 {
-   if (dir == RANGE_DOWNTO)
-      kind = kind ^ 1;
-
    if (shift < 0) {
       kind  = kind ^ 1;
       shift = -shift;
