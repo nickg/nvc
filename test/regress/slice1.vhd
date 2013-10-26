@@ -27,8 +27,8 @@ begin
         u(4 downto 3) := ( 6, 7 );
         assert u = ( 1, 6, 7, 4 );
         assert u(3 downto 2) = ( 7, 4 );
-        
+
         wait;
     end process;
-    
+
 end architecture;

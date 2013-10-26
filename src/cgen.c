@@ -898,7 +898,7 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMPositionBuilderAtEnd(builder, merge_bb);
 
-   LLVMValueRef off = cgen_array_off(low, array, type, ctx, 0);
+   LLVMValueRef off = cgen_array_off(left, array, type, ctx, 0);
    LLVMValueRef data = cgen_array_data_ptr(type, array);
 
    LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type_elem(type)), 0);
