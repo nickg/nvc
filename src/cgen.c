@@ -2505,9 +2505,10 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
             int64_t r_low, r_high;
             range_bounds(tree_range(a), &r_low, &r_high);
 
-            for (int j = r_low; j <= r_high; j++)
-               assert(false);
-               //cgen_copy_vals(vals + ((j - low) * nsub), sub, nsub, false);
+            for (int j = r_low; j <= r_high; j++) {
+               const int64_t off = is_downto ? left - j : j - left;
+               cgen_copy_vals(vals + (off * nsub), sub, nsub, false);
+            }
          }
          break;
       }
