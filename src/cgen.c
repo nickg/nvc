@@ -235,6 +235,17 @@ static unsigned bit_width(type_t t)
    case T_CARRAY:
       return bit_width(type_elem(t));
 
+   case T_RECORD:
+      {
+         unsigned width = 0;
+
+         const int nfields = type_fields(t);
+         for (int i = 0; i < nfields; i++)
+            width += bit_width(tree_type(type_field(t, i)));
+
+         return width;
+      }
+
    default:
       assert(false);
    }
