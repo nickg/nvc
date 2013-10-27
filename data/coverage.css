@@ -1,0 +1,12 @@
+table.code {
+    font-family: monospace;
+    border-spacing: 0;
+}
+
+td.hit {
+    background: #c0ffc0;
+}
+
+td.miss {
+    background: #ffc0c0;
+}

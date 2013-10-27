@@ -15,11 +15,18 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "util.h"
 #include "cover.h"
 
 #include <assert.h>
 #include <string.h>
 #include <limits.h>
+
+#if 0
+#define CSS_DIR "/home/nick/nvc/data/"
+#else
+#define CSS_DIR DATADIR
+#endif
 
 typedef struct cover_hl cover_hl_t;
 
@@ -198,12 +205,14 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
 {
    fprintf(fp, "<tr>");
 
-   if (l->hits != -1)
+   if (l->hits != -1) {
       fprintf(fp, "<td>%d</td>", l->hits);
-   else
+      fprintf(fp, "<td class=\"%s\">", (l->hits > 0) ? "hit" : "miss");
+   }
+   else {
       fprintf(fp, "<td></td>");
-
-   fprintf(fp, "<td>");
+      fprintf(fp, "<td>");
+   }
 
    for (const char *p = l->text; *p != '\0'; p++) {
       switch (*p) {
@@ -213,9 +222,10 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
       case '\t':
          {
             int col = (p - l->text);
-            while (col++ % 8)
-               fputc(' ', fp);
+            while (++col % 8)
+               fprintf(fp, "&nbsp;");
          }
+         break;
       case '<':
          fprintf(fp, "&lt;");
          break;
@@ -226,6 +236,14 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
          fputc(*p, fp);
          break;
       }
+   }
+
+   switch (*(l->text)) {
+   case '\n':
+   case '\r':
+   case '\0':
+      fprintf(fp, "&nbsp;");   // Equal height for empty lines
+      break;
    }
 
    fprintf(fp, "</td></tr>\n");
@@ -243,6 +261,33 @@ static const char *cover_file_url(cover_file_t *f)
    return buf;
 }
 
+static void cover_html_header(FILE *fp, const char *title, ...)
+{
+    fprintf(fp,
+            "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n"
+            "<html>\n"
+            "<head>\n"
+            "  <meta http-equiv=\"Content-type\" \n"
+            "        content=\"text/html;charset=UTF-8\">\n"
+            "  <title>");
+
+    va_list ap;
+    va_start(ap, title);
+    vfprintf(fp, title, ap);
+    va_end(ap);
+
+    fprintf(fp,
+            "</title>\n"
+            "  <link rel=\"stylesheet\" href=\""CSS_DIR"/coverage.css\">\n"
+            "</head>\n"
+            "<body>\n");
+}
+
+static void cover_html_footer(FILE *fp)
+{
+   fprintf(fp, "<body>\n</html>\n");
+}
+
 static void cover_report_file(cover_file_t *f, const char *dir)
 {
    char buf[256];
@@ -252,22 +297,16 @@ static void cover_report_file(cover_file_t *f, const char *dir)
    if (fp == NULL)
       fatal("failed to create %s", buf);
 
-   fprintf(fp,
-           "<html>\n"
-           "<head>\n"
-           "  <title>Coverage report for %s</title>\n"
-           "</head>\n"
-           "<body>\n",
-           f->name);
+   cover_html_header(fp, "Coverage report for %s", f->name);
 
-   fprintf(fp, "<table>\n");
+   fprintf(fp, "<table class=\"code\">\n");
    for (int i = 0; i < f->n_lines; i++) {
       cover_line_t *l = &(f->lines[i]);
       cover_report_line(fp, l);
    }
    fprintf(fp, "</table>\n");
 
-   fprintf(fp, "<body>\n</html>\n");
+   cover_html_footer(fp);
 
    fclose(fp);
 }
@@ -281,13 +320,7 @@ static void cover_index(ident_t name, const char *dir)
    if (fp == NULL)
       fatal("failed to create %s", buf);
 
-   fprintf(fp,
-           "<html>\n"
-           "<head>\n"
-           "  <title>Coverage report for %s</title>\n"
-           "</head>\n"
-           "<body>\n",
-           istr(name));
+   cover_html_header(fp, "Coverage report for %s", istr(name));
 
    fprintf(fp, "<ul>\n");
    for (cover_file_t *f = files; f != NULL; f = f->next) {
@@ -296,7 +329,7 @@ static void cover_index(ident_t name, const char *dir)
    }
    fprintf(fp, "</ul>\n");
 
-   fprintf(fp, "<body>\n</html>\n");
+   cover_html_footer(fp);
 
    fclose(fp);
 }
