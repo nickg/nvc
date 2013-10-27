@@ -132,7 +132,7 @@ static void cover_report_stmts_fn(tree_t t, void *context)
 
    const loc_t *loc = tree_loc(t);
    cover_file_t *file = cover_file(loc);
-   if (file == NULL)
+   if ((file == NULL) || !file->valid)
       return;
 
    assert(loc->first_line < file->n_lines);
