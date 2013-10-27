@@ -4749,7 +4749,7 @@ static bool sem_globally_static(tree_t t)
    // A type conversion whose operand is globally static
 
    if (kind == T_TYPE_CONV)
-      return sem_globally_static(tree_value(t));
+      return sem_globally_static(tree_value(tree_param(t, 0)));
 
    // TODO: clauses o, p
 
