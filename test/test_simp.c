@@ -316,12 +316,15 @@ START_TEST(test_bounds)
    range_t r;
 
    const error_t expect[] = {
-      { 13, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
-      { 14, "right index 60 violates constraint FOO" },
-      { 18, "array index -52 out of bounds 1 to 10" },
-      { 19, "slice right index 11 out of bounds 1 to 10" },
-      { 20, "slice left index 0 out of bounds 1 to 10" },
-      { 24, "aggregate index 0 out of bounds 1 to 2147483647" },
+      { 16, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
+      { 17, "right index 60 violates constraint FOO" },
+      { 21, "array index -52 out of bounds 1 to 10" },
+      { 22, "slice right index 11 out of bounds 1 to 10" },
+      { 23, "slice left index 0 out of bounds 1 to 10" },
+      { 27, "aggregate index 0 out of bounds 1 to 2147483647" },
+      { 34, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
+      { 35, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
+      { 36, "actual bounds 8 downto 1 do not match formal bounds 7 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);

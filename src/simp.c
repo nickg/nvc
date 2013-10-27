@@ -38,12 +38,12 @@ static void simp_build_wait(tree_t ref, void *context);
 
 static tree_t simp_call_args(tree_t t)
 {
-   // Replace named arguments with positional ones
-
    tree_t decl = tree_ref(t);
 
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
+
+   // Replace named arguments with positional ones
 
    int last_pos = -1;
    for (int i = 0; i < nparams; i++) {
@@ -51,48 +51,100 @@ static tree_t simp_call_args(tree_t t)
          last_pos = i;
    }
 
-   if (last_pos == nparams - 1)
-      return t;    // No named arguments
+   if (last_pos < nparams - 1) {
+      tree_t new = tree_new(tree_kind(t));
+      tree_set_loc(new, tree_loc(t));
+      tree_set_ident(new, tree_ident(t));
+      tree_set_ref(new, tree_ref(t));
 
-   tree_t new = tree_new(tree_kind(t));
-   tree_set_loc(new, tree_loc(t));
-   tree_set_ident(new, tree_ident(t));
-   tree_set_ref(new, tree_ref(t));
+      if (tree_kind(t) == T_FCALL)
+         tree_set_type(new, tree_type(t));
+      else if (tree_kind(t) == T_PCALL)
+         tree_set_ident2(new, tree_ident2(t));
 
-   if (tree_kind(t) == T_FCALL)
-      tree_set_type(new, tree_type(t));
-   else if (tree_kind(t) == T_PCALL)
-      tree_set_ident2(new, tree_ident2(t));
+      for (int i = 0; i <= last_pos; i++)
+         tree_add_param(new, tree_param(t, i));
 
-   for (int i = 0; i <= last_pos; i++)
-      tree_add_param(new, tree_param(t, i));
+      for (int i = last_pos + 1; i < nports; i++) {
+         tree_t port  = tree_port(decl, i);
+         ident_t name = tree_ident(port);
 
-   for (int i = last_pos + 1; i < nports; i++) {
-      tree_t port  = tree_port(decl, i);
-      ident_t name = tree_ident(port);
+         bool found = false;
+         for (int j = last_pos + 1; (j < nparams) && !found; j++) {
+            tree_t p = tree_param(t, j);
+            assert(tree_subkind(p) == P_NAMED);
 
-      bool found = false;
-      for (int j = last_pos + 1; (j < nparams) && !found; j++) {
-         tree_t p = tree_param(t, j);
-         assert(tree_subkind(p) == P_NAMED);
+            tree_t ref = tree_name(p);
+            assert(tree_kind(ref) == T_REF);
 
-         tree_t ref = tree_name(p);
-         assert(tree_kind(ref) == T_REF);
+            if (name == tree_ident(ref)) {
+               tree_t q = tree_new(T_PARAM);
+               tree_set_subkind(q, P_POS);
+               tree_set_loc(q, tree_loc(p));
+               tree_set_value(q, tree_value(p));
 
-         if (name == tree_ident(ref)) {
-            tree_t q = tree_new(T_PARAM);
-            tree_set_subkind(q, P_POS);
-            tree_set_loc(q, tree_loc(p));
-            tree_set_value(q, tree_value(p));
-
-            tree_add_param(new, q);
-            found = true;
+               tree_add_param(new, q);
+               found = true;
+            }
          }
+         assert(found);
       }
-      assert(found);
+
+      t = new;
    }
 
-   return new;
+   // Check bounds of constrained array parameters
+
+   for (int i = 0; (i < nparams) && (i < nports); i++) {
+      tree_t param = tree_param(t, i);
+      assert(tree_subkind(param) == P_POS);
+
+      tree_t value = tree_value(param);
+      tree_t port  = tree_port(decl, tree_pos(param));
+
+      if (!tree_has_type(port) || !tree_has_type(value))
+         continue;
+
+      type_t ftype = tree_type(port);
+      type_t atype = tree_type(tree_value(param));
+
+      if (!type_is_array(ftype))
+         continue;
+
+      if ((type_kind(atype) == T_UARRAY) || (type_kind(ftype) == T_UARRAY))
+         continue;
+
+      const int ndims = type_dims(ftype);
+
+      for (int j = 0; j < ndims; j++) {
+         range_t formal_r = type_dim(ftype, j);
+         range_t actual_r = type_dim(atype, j);
+
+         int64_t f_left, f_right, a_left, a_right;
+
+         const bool folded =
+            folded_int(formal_r.left, &f_left)
+            && folded_int(formal_r.right, &f_right)
+            && folded_int(actual_r.left, &a_left)
+            && folded_int(actual_r.right, &a_right);
+
+         if (!folded)
+            continue;
+
+         int64_t f_low, f_high, a_low, a_high;
+         range_bounds(formal_r, &f_low, &f_high);
+         range_bounds(actual_r, &a_low, &a_high);
+
+         if ((f_low != a_low) || (f_high != a_high))
+            simp_error(t, "actual bounds %"PRIi64" %s %"PRIi64" do not match "
+                       "formal bounds %"PRIi64" %s %"PRIi64,
+                       a_left, (actual_r.kind == RANGE_TO ? "to" : "downto"),
+                       a_right, f_left,
+                       (formal_r.kind == RANGE_TO ? "to" : "downto"), f_right);
+      }
+   }
+
+   return t;
 }
 
 static tree_t simp_fcall(tree_t t)
