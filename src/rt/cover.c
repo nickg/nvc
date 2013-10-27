@@ -35,24 +35,34 @@ typedef struct cover_file {
    struct cover_file *next;
 } cover_file_t;
 
+typedef struct {
+   int next_stmt_tag;
+   int next_cond_tag;
+} cover_tag_ctx_t;
+
 static ident_t       stmt_tag_i;
+static ident_t       cond_tag_i;
 static cover_file_t *files;
 
-static void cover_tag_stmts_fn(tree_t t, void *context)
+static void cover_tag_visit_fn(tree_t t, void *context)
 {
-   int *next = context;
+   cover_tag_ctx_t *ctx = context;
 
    switch (tree_kind(t)) {
+   case T_IF:
+   case T_WHILE:
+   case T_NEXT:
+   case T_EXIT:
+      if (tree_has_value(t))
+         tree_add_attr_int(tree_value(t), cond_tag_i, (ctx->next_cond_tag)++);
+      // Fall-through
    case T_SIGNAL_ASSIGN:
    case T_ASSERT:
    case T_VAR_ASSIGN:
-   case T_IF:
-   case T_WHILE:
    case T_WAIT:
    case T_RETURN:
-   case T_NEXT:
-   case T_EXIT:
-      tree_add_attr_int(t, stmt_tag_i, (*next)++);
+   case T_CASE:
+      tree_add_attr_int(t, stmt_tag_i, (ctx->next_stmt_tag)++);
       break;
 
    default:
@@ -63,11 +73,17 @@ static void cover_tag_stmts_fn(tree_t t, void *context)
 void cover_tag(tree_t top)
 {
    stmt_tag_i = ident_new("stmt_tag");
+   cond_tag_i = ident_new("cond_tag");
 
-   int line_tags = 0;
-   tree_visit(top, cover_tag_stmts_fn, &line_tags);
+   cover_tag_ctx_t ctx = {
+      .next_stmt_tag = 0,
+      .next_cond_tag = 0
+   };
 
-   tree_add_attr_int(top, ident_new("stmt_tags"), line_tags);
+   tree_visit(top, cover_tag_visit_fn, &ctx);
+
+   tree_add_attr_int(top, ident_new("stmt_tags"), ctx.next_stmt_tag);
+   tree_add_attr_int(top, ident_new("cond_tags"), ctx.next_cond_tag);
 }
 
 static void cover_append_line(cover_file_t *f, const char *buf)
