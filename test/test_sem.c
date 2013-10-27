@@ -215,11 +215,12 @@ START_TEST(test_scope)
    input_from_file(TESTDIR "/sem/scope.vhd");
 
    const error_t expect[] = {
-      { 31, "WORK.PACK1.MY_INT1 does not match type"
-        " of target WORK.PACK2.MY_INT1" },
-      { 44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
-      { 63, "G already declared in this scope" },
-      { 71, "P already declared in this scope" },
+      {  31, "WORK.PACK1.MY_INT1 does not match type"
+         " of target WORK.PACK2.MY_INT1" },
+      {  44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
+      {  63, "G already declared in this scope" },
+      {  71, "P already declared in this scope" },
+      { 114, "type MY_INT1 is not defined" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -265,6 +266,11 @@ START_TEST(test_scope)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

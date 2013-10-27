@@ -56,6 +56,12 @@ struct type_set {
    struct type_set *down;
 };
 
+typedef struct {
+   const loc_t *loc;
+   lib_t        lib;
+   bool         error;
+} lib_walk_params_t;
+
 typedef tree_t (*get_fn_t)(tree_t);
 typedef void (*set_fn_t)(tree_t, tree_t);
 
@@ -1099,6 +1105,16 @@ static bool sem_check_range(range_t *r, type_t context)
    return true;
 }
 
+static void sem_walk_lib(ident_t name, int kind, void *context)
+{
+   lib_walk_params_t *params = context;
+
+   if (kind == T_PACKAGE) {
+      if (scope_import_unit(name, params->lib, false, params->loc))
+         params->error = true;
+   }
+}
+
 static bool sem_check_context(tree_t t)
 {
    // The std.standard package is also implicit unless we are
@@ -1120,9 +1136,25 @@ static bool sem_check_context(tree_t t)
 
       const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
 
-      lib_t lib = lib_find(istr(ident_until(cname, '.')), true, true);
-      if (lib != NULL)
-         ok = scope_import_unit(cname, lib, all, tree_loc(c)) && ok;
+      ident_t lib_name = ident_until(cname, '.');
+
+      lib_t lib = lib_find(istr(lib_name), true, true);
+      if (lib != NULL) {
+         if (lib_name == cname) {
+            assert(all);
+
+            lib_walk_params_t params = {
+               .loc   = tree_loc(c),
+               .lib   = lib,
+               .error = false
+            };
+            lib_walk_index(lib, sem_walk_lib, &params);
+
+            ok = params.error && ok;
+         }
+         else
+            ok = scope_import_unit(cname, lib, all, tree_loc(c)) && ok;
+      }
       else
          ok = false;
    }

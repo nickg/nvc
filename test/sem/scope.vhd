@@ -11,7 +11,7 @@ end package;
 -------------------------------------------------------------------------------
 
 use work.pack1;
-use work.pack2;    
+use work.pack2;
 
 entity no_use_clause is
     port (
@@ -103,3 +103,13 @@ begin
     foo_inst:
         SO <= SI;
 end behave;
+
+-------------------------------------------------------------------------------
+
+use work.all;
+
+entity no_use_clause is
+    port (
+        a : in pack1.my_int1;           -- OK
+        b : out my_int1 );              -- Error
+end entity;

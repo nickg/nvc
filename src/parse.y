@@ -397,7 +397,8 @@ use_clause_item
   {
      $$ = tree_new(T_CONTEXT);
      tree_set_loc($$, &@$);
-     tree_set_ident($$, ident_prefix($1, ident_new("all"), '.'));
+     tree_set_ident($$, $1);
+     tree_set_ident2($$, ident_new("all"));
   }
 | id tDOT id tALL
   {
