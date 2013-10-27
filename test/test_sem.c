@@ -148,7 +148,7 @@ START_TEST(test_ports)
       { 89,  "too many positional actuals" },
       { 92,  "WORK.FOO has no formal CAKE" },
       { 94,  "cannot find unit WORK.BAD" },
-      { 103, "OPEN can only be used with OUT ports" },
+      { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
       { 148, "actual must be globally static expression" },
       { 155, "undefined identifier Q" },
@@ -156,6 +156,8 @@ START_TEST(test_ports)
       { 168, "formal name must be static" },
       { 177, "formal name must be static" },
       { 185, "undefined identifier HELLO" },
+      { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
+      { 221, "type of actual universal real does not match type INTEGER" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -183,6 +185,15 @@ START_TEST(test_ports)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
+
+   // Architecture test
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   // Architecture other
 
    a = parse();
    fail_if(a == NULL);

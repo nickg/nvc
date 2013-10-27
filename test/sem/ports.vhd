@@ -189,3 +189,36 @@ begin
             i => y );                   -- OK
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture other of top is
+
+    type int_vec is array (integer range <>) of integer;
+
+    component comp1 is
+        port (
+            a : in integer := 5;
+            o : out int_vec );
+    end component;
+
+    signal s : int_vec(1 to 3);
+
+begin
+
+    c1: component comp1                 -- OK
+        port map (
+            a => open,
+            o => s );
+
+    c2: component comp1
+        port map (
+            a => 5,
+            o => open );                -- Error
+
+    c3: component comp1
+        port map (
+            a => 1.0,                   -- Error
+            o => s );
+
+end architecture;

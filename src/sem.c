@@ -4327,6 +4327,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
       tree_t p = tree_A(t, i);
       tree_t value = tree_value(p);
       tree_t decl = NULL;
+      type_t type = NULL;
 
       switch (tree_subkind(p)) {
       case P_POS:
@@ -4339,6 +4340,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
                          istr(tree_ident(formals[pos].decl)));
             formals[pos].have = true;
             decl = formals[pos].decl;
+            type = tree_type(decl);
          }
          break;
 
@@ -4413,16 +4415,40 @@ static bool sem_check_map(tree_t t, tree_t unit,
             if (!sem_static_name(name))
                sem_error(name, "formal name must be static");
 
+            type = tree_type(decl);
+            if (tree_kind(name) == T_ARRAY_REF)
+               type = type_elem(type);
+
             break;
          }
       }
 
-      ok = sem_check_constrained(value, tree_type(decl)) && ok;
+      assert(type != NULL);
 
-      if ((tree_kind(value) == T_OPEN) && (tree_subkind(decl) != PORT_OUT))
-         sem_error(value, "OPEN can only be used with OUT ports");
+      ok = sem_check_constrained(value, type) && ok;
 
-      if (ok && !sem_globally_static(value) && !sem_static_name(value))
+      if (!ok)
+         continue;
+
+      if (!type_eq(tree_type(value), type))
+         sem_error(value, "type of actual %s does not match type %s of formal "
+                   "port %s", sem_type_str(tree_type(value)),
+                   sem_type_str(type), istr(tree_ident(decl)));
+
+      if (tree_kind(value) == T_OPEN) {
+         port_mode_t mode = tree_subkind(decl);
+
+         if ((mode == PORT_IN) && !tree_has_value(decl))
+            sem_error(value, "unconnected port %s with mode IN must have a "
+                      "default value", istr(tree_ident(decl)));
+
+         if ((mode != PORT_IN) && (type_kind(tree_type(decl)) == T_UARRAY))
+            sem_error(value, "port %s of unconstrained type %s cannot "
+                      "be unconnected", istr(tree_ident(decl)),
+                      sem_type_str(type));
+      }
+
+      if (!sem_globally_static(value) && !sem_static_name(value))
          sem_error(value, "actual must be globally static expression "
                    "or locally static name");
    }
