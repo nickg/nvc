@@ -29,9 +29,9 @@
 static int errors = 0;
 
 #define simp_error(t, ...) \
-   { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; }
+   do { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; } while (0)
 #define simp_error_bool(t, ...) \
-   { errors++; error_at(tree_loc(t), __VA_ARGS__); return false; }
+   do { errors++; error_at(tree_loc(t), __VA_ARGS__); return false; } while (0)
 
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
@@ -136,9 +136,14 @@ static tree_t simp_call_args(tree_t t)
          const int a_len = (formal_r.kind == RANGE_TO)
             ? f_right - f_left + 1 : f_left - f_right + 1;
 
-         if (f_len != a_len)
-            simp_error(t, "actual length %d does not match formal length %d",
-                       a_len, f_len);
+         if (f_len != a_len) {
+            if (ndims > 1)
+               simp_error(t, "actual length %d for dimension %d does not match "
+                          "formal length %d", a_len, j + 1, f_len);
+            else
+               simp_error(t, "actual length %d does not match formal length %d",
+                          a_len, f_len);
+         }
       }
    }
 
