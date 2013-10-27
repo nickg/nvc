@@ -33,7 +33,7 @@ begin
     begin
         assert fun(v1) = '1';           -- Error
         proc(v1);                       -- Error
-        proc(v2);                       -- Error
+        proc(v2);                       -- OK
     end process;
 
 end architecture;

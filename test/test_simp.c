@@ -324,7 +324,6 @@ START_TEST(test_bounds)
       { 27, "aggregate index 0 out of bounds 1 to 2147483647" },
       { 34, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
       { 35, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
-      { 36, "actual bounds 8 downto 1 do not match formal bounds 7 downto 0" },
       { -1, NULL }
    };
    expect_errors(expect);

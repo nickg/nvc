@@ -135,7 +135,7 @@ static tree_t simp_call_args(tree_t t)
          range_bounds(formal_r, &f_low, &f_high);
          range_bounds(actual_r, &a_low, &a_high);
 
-         if ((f_low != a_low) || (f_high != a_high))
+         if ((f_high - f_low) != (a_high - a_low))
             simp_error(t, "actual bounds %"PRIi64" %s %"PRIi64" do not match "
                        "formal bounds %"PRIi64" %s %"PRIi64,
                        a_left, (actual_r.kind == RANGE_TO ? "to" : "downto"),
