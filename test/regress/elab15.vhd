@@ -20,6 +20,6 @@ architecture test of elab15 is
 begin
 
     sub_i: entity work.sub
-        port map ( x => 6 );
+        port map ( x => '1' );
 
 end architecture;
