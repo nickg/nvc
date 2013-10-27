@@ -21,6 +21,15 @@
 #include <string.h>
 #include <limits.h>
 
+typedef struct cover_hl cover_hl_t;
+
+struct cover_hl {
+   cover_hl_t *next;
+   int         start;
+   int         end;
+   const char *colour;
+};
+
 typedef struct {
    char *text;
    int   hits;
@@ -165,6 +174,26 @@ static void cover_report_stmts_fn(tree_t t, void *context)
    l->hits = MAX(counts[tag], l->hits);
 }
 
+static void cover_report_conds_fn(tree_t t, void *context)
+{
+   const int32_t *masks = context;
+
+   const int tag = tree_attr_int(t, cond_tag_i, -1);
+   if (tag == -1)
+      return;
+
+   const loc_t *loc = tree_loc(t);
+   cover_file_t *file = cover_file(loc);
+   if ((file == NULL) || !file->valid)
+      return;
+
+   assert(loc->first_line < file->n_lines);
+
+   //cover_line_t *l = &(file->lines[loc->first_line - 1]);
+
+   printf("%s %d mask %x\n", loc->file, loc->first_line, masks[tag]);
+}
+
 static void cover_report_line(FILE *fp, cover_line_t *l)
 {
    fprintf(fp, "<tr>");
@@ -272,11 +301,15 @@ static void cover_index(ident_t name, const char *dir)
    fclose(fp);
 }
 
-void cover_report(tree_t top, const int32_t *stmts)
+void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 {
    stmt_tag_i = ident_new("stmt_tag");
+   cond_tag_i = ident_new("cond_tag");
 
    tree_visit(top, cover_report_stmts_fn, (void *)stmts);
+
+   if (conds != NULL)
+      tree_visit(top, cover_report_conds_fn, (void *)conds);
 
    ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
 

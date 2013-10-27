@@ -1781,8 +1781,9 @@ static void rt_stats_print(void)
 static void rt_emit_coverage(tree_t e)
 {
    const int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
+   const int32_t *cover_conds = jit_var_ptr("cover_conds", false);
    if (cover_stmts != NULL)
-      cover_report(e, cover_stmts);
+      cover_report(e, cover_stmts, cover_conds);
 }
 
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)

@@ -22,6 +22,6 @@
 #include "tree.h"
 
 void cover_tag(tree_t top);
-void cover_report(tree_t top, const int32_t *stmts);
+void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds);
 
 #endif  // _COVER_H

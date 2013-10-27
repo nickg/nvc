@@ -49,6 +49,7 @@ static ident_t sig_nets_i = NULL;
 static ident_t foreign_i = NULL;
 static ident_t never_waits_i = NULL;
 static ident_t stmt_tag_i = NULL;
+static ident_t cond_tag_i = NULL;
 static ident_t elide_bounds_i = NULL;
 
 typedef struct case_arc  case_arc_t;
@@ -3401,6 +3402,31 @@ static void cgen_assert(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_cond_coverage(tree_t t, LLVMValueRef value)
+{
+   const int cover_tag = tree_attr_int(t, cond_tag_i, -1);
+   if (cover_tag == -1)
+      return;
+
+   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
+
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef mask_ptr = LLVMBuildGEP(builder, cover_conds,
+                                        indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_conds");
+
+   // Bit zero means evaluated false, bit one means evaluated true
+   // Other bits may be used in the future for MC/DC
+
+   LLVMValueRef or = LLVMBuildSelect(builder, value, llvm_int32(1 << 1),
+                                     llvm_int32(1 << 0), "cond_mask_or");
+
+   LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
+
+   LLVMBuildStore(builder, mask1, mask_ptr);
+}
+
 static void cgen_if(tree_t t, cgen_ctx_t *ctx)
 {
    LLVMBasicBlockRef then_bb = LLVMAppendBasicBlock(ctx->fn, "then");
@@ -3411,7 +3437,10 @@ static void cgen_if(tree_t t, cgen_ctx_t *ctx)
       ? LLVMAppendBasicBlock(ctx->fn, "ifend")
       : else_bb;
 
-   LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+   tree_t value = tree_value(t);
+   LLVMValueRef test = cgen_expr(value, ctx);
+   cgen_cond_coverage(value, test);
+
    LLVMBuildCondBr(builder, test, then_bb, else_bb);
 
    LLVMPositionBuilderAtEnd(builder, then_bb);
@@ -3520,7 +3549,10 @@ static void cgen_while(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, test_bb);
 
    if (tree_has_value(t)) {
-      LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+      tree_t value = tree_value(t);
+      LLVMValueRef test = cgen_expr(value, ctx);
+      cgen_cond_coverage(value, test);
+
       LLVMBuildCondBr(builder, test, body_bb, exit_bb);
    }
    else
@@ -3559,7 +3591,11 @@ static void cgen_loop_control(tree_t t, cgen_ctx_t *ctx)
 
    if (tree_has_value(t)) {
       LLVMBasicBlockRef true_bb = LLVMAppendBasicBlock(ctx->fn, "c_true");
-      LLVMValueRef test = cgen_expr(tree_value(t), ctx);
+
+      tree_t value = tree_value(t);
+      LLVMValueRef test = cgen_expr(value, ctx);
+      cgen_cond_coverage(value, test);
+
       LLVMBuildCondBr(builder, test, true_bb, false_bb);
       LLVMPositionBuilderAtEnd(builder, true_bb);
    }
@@ -4917,6 +4953,20 @@ static void cgen_reset_function(tree_t t)
                     memset_args, ARRAY_LEN(memset_args), "");
    }
 
+   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
+   if (cover_stmts != NULL) {
+      LLVMValueRef memset_args[] = {
+         llvm_void_cast(cover_conds),
+         llvm_int8(0),
+         llvm_int32(tree_attr_int(t, ident_new("stmt_conds"), 0) * 4),
+         llvm_int32(4),
+         llvm_int1(false)
+      };
+
+      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                    memset_args, ARRAY_LEN(memset_args), "");
+   }
+
    LLVMBuildRetVoid(builder);
 }
 
@@ -4944,10 +4994,17 @@ static void cgen_shared_var(tree_t t)
 
 static void cgen_coverage_state(tree_t t)
 {
-   int stmt_tags = tree_attr_int(t, ident_new("stmt_tags"), 0);
+   const int stmt_tags = tree_attr_int(t, ident_new("stmt_tags"), 0);
    if (stmt_tags > 0) {
       LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
       LLVMValueRef var = LLVMAddGlobal(module, type, "cover_stmts");
+      LLVMSetInitializer(var, LLVMGetUndef(type));
+   }
+
+   const int cond_tags = tree_attr_int(t, ident_new("cond_tags"), 0);
+   if (cond_tags > 0) {
+      LLVMTypeRef type = LLVMArrayType(LLVMInt32Type(), stmt_tags);
+      LLVMValueRef var = LLVMAddGlobal(module, type, "cover_conds");
       LLVMSetInitializer(var, LLVMGetUndef(type));
    }
 }
@@ -5349,6 +5406,7 @@ void cgen(tree_t top)
    foreign_i      = ident_new("FOREIGN");
    never_waits_i  = ident_new("never_waits");
    stmt_tag_i     = ident_new("stmt_tag");
+   cond_tag_i     = ident_new("cond_tag");
    elide_bounds_i = ident_new("elide_bounds");
 
    tree_kind_t kind = tree_kind(top);
