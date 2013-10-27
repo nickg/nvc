@@ -35,6 +35,7 @@ lib_t lib_tmp(void);
 void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode);
+const char *lib_path(lib_t lib);
 void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen);
 void lib_destroy(lib_t lib);
 ident_t lib_name(lib_t lib);

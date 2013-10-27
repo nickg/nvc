@@ -409,6 +409,12 @@ void lib_set_work(lib_t lib)
    work = lib;
 }
 
+const char *lib_path(lib_t lib)
+{
+   assert(lib != NULL);
+   return lib->path;
+}
+
 static lib_mtime_t lib_time_to_usecs(time_t t)
 {
    return (lib_mtime_t)t * 1000 * 1000;

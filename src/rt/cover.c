@@ -103,6 +103,14 @@ static cover_file_t *cover_file(const loc_t *loc)
    f->next        = files;
 
    FILE *fp = fopen(loc->file, "r");
+
+   if (fp == NULL) {
+      // Guess the path is relative to the work library
+      char path[PATH_MAX];
+      snprintf(path, PATH_MAX, "%s/../%s", lib_path(lib_work()), loc->file);
+      fp = fopen(path, "r");
+   }
+
    if (fp == NULL) {
       warnf("failed to open %s for coverage report", loc->file);
       f->valid = false;
