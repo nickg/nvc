@@ -131,16 +131,14 @@ static tree_t simp_call_args(tree_t t)
          if (!folded)
             continue;
 
-         int64_t f_low, f_high, a_low, a_high;
-         range_bounds(formal_r, &f_low, &f_high);
-         range_bounds(actual_r, &a_low, &a_high);
+         const int f_len = (actual_r.kind == RANGE_TO)
+            ? a_right - a_left + 1: a_left - a_right + 1;
+         const int a_len = (formal_r.kind == RANGE_TO)
+            ? f_right - f_left + 1 : f_left - f_right + 1;
 
-         if ((f_high - f_low) != (a_high - a_low))
-            simp_error(t, "actual bounds %"PRIi64" %s %"PRIi64" do not match "
-                       "formal bounds %"PRIi64" %s %"PRIi64,
-                       a_left, (actual_r.kind == RANGE_TO ? "to" : "downto"),
-                       a_right, f_left,
-                       (formal_r.kind == RANGE_TO ? "to" : "downto"), f_right);
+         if (f_len != a_len)
+            simp_error(t, "actual length %d does not match formal length %d",
+                       a_len, f_len);
       }
    }
 

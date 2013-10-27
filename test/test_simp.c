@@ -322,8 +322,8 @@ START_TEST(test_bounds)
       { 22, "slice right index 11 out of bounds 1 to 10" },
       { 23, "slice left index 0 out of bounds 1 to 10" },
       { 27, "aggregate index 0 out of bounds 1 to 2147483647" },
-      { 34, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
-      { 35, "actual bounds 3 downto 0 do not match formal bounds 7 downto 0" },
+      { 34, "actual length 8 does not match formal length 4" },
+      { 35, "actual length 8 does not match formal length 4" },
       { -1, NULL }
    };
    expect_errors(expect);
