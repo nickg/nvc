@@ -3417,7 +3417,7 @@ static void cgen_cond_coverage(tree_t t, LLVMValueRef value)
    LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_conds");
 
    // Bit zero means evaluated false, bit one means evaluated true
-   // Other bits may be used in the future for MC/DC
+   // Other bits may be used in the future for sub-conditions
 
    LLVMValueRef or = LLVMBuildSelect(builder, value, llvm_int32(1 << 1),
                                      llvm_int32(1 << 0), "cond_mask_or");

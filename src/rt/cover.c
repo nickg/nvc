@@ -29,26 +29,35 @@
 #endif
 
 typedef struct cover_hl cover_hl_t;
+typedef struct cover_file cover_file_t;
+
+typedef enum {
+   HL_HIT,
+   HL_MISS
+} hl_kind_t;
 
 struct cover_hl {
    cover_hl_t *next;
    int         start;
    int         end;
-   const char *colour;
+   hl_kind_t   kind;
+   const char *help;
 };
 
 typedef struct {
-   char *text;
-   int   hits;
+   char       *text;
+   size_t      len;
+   int         hits;
+   cover_hl_t *hl;
 } cover_line_t;
 
 typedef struct cover_file {
-   const char        *name;
-   cover_line_t      *lines;
-   unsigned           n_lines;
-   unsigned           alloc_lines;
-   bool               valid;
-   struct cover_file *next;
+   const char   *name;
+   cover_line_t *lines;
+   unsigned      n_lines;
+   unsigned      alloc_lines;
+   bool          valid;
+   cover_file_t *next;
 } cover_file_t;
 
 typedef struct {
@@ -111,7 +120,9 @@ static void cover_append_line(cover_file_t *f, const char *buf)
 
    cover_line_t *l = &(f->lines[(f->n_lines)++]);
    l->text = strdup(buf);
+   l->len  = strlen(buf);
    l->hits = -1;
+   l->hl   = NULL;
 }
 
 static cover_file_t *cover_file(const loc_t *loc)
@@ -186,7 +197,7 @@ static void cover_report_conds_fn(tree_t t, void *context)
    const int32_t *masks = context;
 
    const int tag = tree_attr_int(t, cond_tag_i, -1);
-   if (tag == -1)
+   if ((tag == -1) || (masks[tag] == 0))
       return;
 
    const loc_t *loc = tree_loc(t);
@@ -196,9 +207,36 @@ static void cover_report_conds_fn(tree_t t, void *context)
 
    assert(loc->first_line < file->n_lines);
 
-   //cover_line_t *l = &(file->lines[loc->first_line - 1]);
+   cover_line_t *l = &(file->lines[loc->first_line - 1]);
 
-   printf("%s %d mask %x\n", loc->file, loc->first_line, masks[tag]);
+   const int start = loc->first_column;
+   const int end = (loc->last_line == loc->first_line)
+      ? loc->last_column : l->len;
+
+   cover_hl_t *hl;
+   for (hl = l->hl; hl != NULL; hl = hl->next) {
+      if ((hl->start == start) && (hl->end == end))
+         break;
+   }
+
+   if (hl == NULL) {
+      hl = xmalloc(sizeof(cover_hl_t));
+      hl->start  = start;
+      hl->end    = end;
+      hl->next   = l->hl;
+
+      l->hl = hl;
+   }
+   else if (hl->kind == HL_HIT)
+      return;
+
+   hl->kind = (masks[tag] == 3) ? HL_HIT : HL_MISS;
+   hl->help = NULL;
+
+   if (masks[tag] == 1)
+      hl->help = "Condition never evaluated to TRUE";
+   else if (masks[tag] == 2)
+      hl->help = "Condition never evaluated to FALSE";
 }
 
 static void cover_report_line(FILE *fp, cover_line_t *l)
@@ -214,7 +252,18 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
       fprintf(fp, "<td>");
    }
 
-   for (const char *p = l->text; *p != '\0'; p++) {
+   int col = 0;
+   for (const char *p = l->text; *p != '\0'; p++, col++) {
+      for (cover_hl_t *it = l->hl; it != NULL; it = it->next) {
+         if (it->start == col) {
+            fprintf(fp, "<span class=\"hl_%s\"",
+                    (it->kind == HL_HIT) ? "hit" : "miss");
+            if (it->help != NULL)
+               fprintf(fp, " title=\"%s\"", it->help);
+            fprintf(fp, ">");
+         }
+      }
+
       switch (*p) {
       case ' ':
          fprintf(fp, "&nbsp;");
@@ -235,6 +284,11 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
       default:
          fputc(*p, fp);
          break;
+      }
+
+      for (cover_hl_t *it = l->hl; it != NULL; it = it->next) {
+         if (it->end == col)
+            fprintf(fp, "</span>");
       }
    }
 

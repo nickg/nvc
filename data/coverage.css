@@ -64,3 +64,11 @@ div.advert a:link {
     font-size: 16pt;
     text-align: center;
 }
+
+span.hl_miss {
+    background: #ff6060;
+}
+
+span.hl_hit {
+    background: #60ff60;
+}
