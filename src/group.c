@@ -172,8 +172,12 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
       }
    }
 
-   assert(first != NETID_INVALID);
-   group_add(ctx, first, len);
+   if (first != NETID_INVALID)
+      group_add(ctx, first, len);
+   else {
+      // Array signal with null range
+      tree_add_attr_int(decl, ident_new("null_range"), 1);
+   }
 }
 
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)

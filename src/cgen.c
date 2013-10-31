@@ -51,6 +51,7 @@ static ident_t never_waits_i = NULL;
 static ident_t stmt_tag_i = NULL;
 static ident_t cond_tag_i = NULL;
 static ident_t elide_bounds_i = NULL;
+static ident_t null_range_i = NULL;
 
 typedef struct case_arc  case_arc_t;
 typedef struct case_state case_state_t;
@@ -4455,14 +4456,25 @@ static void cgen_signal(tree_t t)
 
    const int nnets = tree_nets(t);
    if (nnets == 0) {
-      // Not an elaborated design
-      char buf[256];
-      snprintf(buf, sizeof(buf), "%s_nets",
-               package_signal_path_name(tree_ident(t)));
+      if (tree_attr_int(t, null_range_i, 0)) {
+         // Special case of array signal with null range
+         char buf[256];
+         snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
 
-      LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
-      map_var = LLVMAddGlobal(module, map_type, buf);
-      LLVMSetLinkage(map_var, LLVMExternalLinkage);
+         LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
+         map_var = LLVMAddGlobal(module, map_type, buf);
+         LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+      }
+      else {
+         // Not an elaborated design
+         char buf[256];
+         snprintf(buf, sizeof(buf), "%s_nets",
+                  package_signal_path_name(tree_ident(t)));
+
+         LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
+         map_var = LLVMAddGlobal(module, map_type, buf);
+         LLVMSetLinkage(map_var, LLVMExternalLinkage);
+      }
    }
    else {
       char buf[256];
@@ -5408,6 +5420,7 @@ void cgen(tree_t top)
    stmt_tag_i     = ident_new("stmt_tag");
    cond_tag_i     = ident_new("cond_tag");
    elide_bounds_i = ident_new("elide_bounds");
+   null_range_i   = ident_new("null_range");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
