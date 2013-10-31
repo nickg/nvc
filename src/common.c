@@ -139,6 +139,20 @@ bool folded_real(tree_t t, double *l)
       return false;
 }
 
+bool folded_length(range_t r, int64_t *l)
+{
+   int64_t left, right;
+   if (folded_int(r.left, &left) && folded_int(r.right, &right)) {
+      if (r.kind == RANGE_TO)
+         *l = MAX(right - left + 1, 0);
+      else
+         *l = MAX(left - right + 1, 0);
+      return true;
+   }
+   else
+      return false;
+}
+
 bool folded_bool(tree_t t, bool *b)
 {
    ident_t std_bool_i = ident_new("STD.STANDARD.BOOLEAN");

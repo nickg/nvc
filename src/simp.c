@@ -32,6 +32,8 @@ static int errors = 0;
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; } while (0)
 #define simp_error_bool(t, ...) \
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); return false; } while (0)
+#define simp_error_void(t, ...) \
+   do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
 
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
@@ -617,6 +619,35 @@ static void simp_build_wait(tree_t ref, void *context)
    }
 }
 
+static void simp_check_assign_bounds(tree_t target, tree_t value)
+{
+   type_t target_type = tree_type(target);
+   type_t value_type  = tree_type(value);
+
+   if (!type_is_array(target_type)
+       || (type_kind(target_type) == T_UARRAY)
+       || (type_kind(value_type) == T_UARRAY))
+      return;
+
+   const int ndims = type_dims(target_type);
+   for (int i = 0; i < ndims; i++) {
+      int64_t target_w, value_w;
+      if (folded_length(type_dim(target_type, i), &target_w)
+          && folded_length(type_dim(value_type, i), &value_w)) {
+         if (target_w != value_w) {
+            if (i > 0)
+               simp_error_void(value, "length of dimension %d of value %"PRIi64
+                               " does not match length of target %"PRIi64,
+                               i + 1, value_w, target_w);
+            else
+               simp_error_void(value, "length of value %"PRIi64" does not "
+                               "match length of target %"PRIi64,
+                               value_w, target_w);
+         }
+      }
+   }
+}
+
 static tree_t simp_cassign(tree_t t)
 {
    // Replace concurrent assignments with a process
@@ -631,7 +662,10 @@ static tree_t simp_cassign(tree_t t)
    tree_t container = p;  // Where to add new statements
    void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
 
-   for (unsigned i = 0; i < tree_conds(t); i++) {
+   tree_t target = tree_target(t);
+
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++) {
       tree_t c = tree_cond(t, i);
 
       if (tree_has_value(c)) {
@@ -650,12 +684,14 @@ static tree_t simp_cassign(tree_t t)
 
       tree_t s = tree_new(T_SIGNAL_ASSIGN);
       tree_set_loc(s, tree_loc(t));
-      tree_set_target(s, tree_target(t));
+      tree_set_target(s, target);
       tree_set_ident(s, tree_ident(t));
       tree_set_reject(s, tree_reject(c));
 
-      for (unsigned i = 0; i < tree_waveforms(c); i++) {
+      const int nwaves = tree_waveforms(c);
+      for (int i = 0; i < nwaves; i++) {
          tree_t wave = tree_waveform(c, i);
+         simp_check_assign_bounds(target, tree_value(wave));
          tree_add_waveform(s, wave);
          tree_visit_only(wave, simp_build_wait, w, T_REF);
       }
@@ -726,6 +762,8 @@ static tree_t simp_aggregate(tree_t t)
 
    // Check for out of bounds indexes
 
+   bool known_elem_count = true;
+   int nelems = 0;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
@@ -734,6 +772,7 @@ static tree_t simp_aggregate(tree_t t)
       case A_NAMED:
          if (!simp_check_bounds(tree_name(a), r.kind, "aggregate", low, high))
             return t;
+         nelems++;
          break;
 
       case A_RANGE:
@@ -742,12 +781,32 @@ static tree_t simp_aggregate(tree_t t)
             if (!simp_check_bounds(r.left, r.kind, "aggregate", low, high)
                 || !simp_check_bounds(r.right, r.kind, "aggregate", low, high))
                return t;
+
+            int64_t length;
+            if (folded_length(r, &length))
+               nelems += length;
+            else
+               known_elem_count = false;
          }
          break;
 
+      case A_OTHERS:
+         known_elem_count = false;
+         break;
+
       default:
+         nelems++;
          break;
       }
+   }
+
+   // Check the actual against the expected element count
+
+   if ((type_dims(type) == 1) && known_elem_count) {
+      int64_t expect;
+      if (folded_length(type_dim(type, 0), &expect) && (expect != nelems))
+         simp_error(t, "expected %"PRIi64" elements in aggregate but have %d",
+                    expect, nelems);
    }
 
    return t;
@@ -951,6 +1010,23 @@ static tree_t simp_decl(tree_t t)
    return t;
 }
 
+static tree_t simp_signal_assign(tree_t t)
+{
+   tree_t target = tree_target(t);
+
+   const int nwaves = tree_waveforms(t);
+   for (int i = 0; i < nwaves; i++)
+      simp_check_assign_bounds(target, tree_value(tree_waveform(t, i)));
+
+   return t;
+}
+
+static tree_t simp_var_assign(tree_t t)
+{
+   simp_check_assign_bounds(tree_target(t), tree_value(t));
+   return t;
+}
+
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -998,6 +1074,10 @@ static tree_t simp_tree(tree_t t, void *context)
    case T_CONST_DECL:
    case T_VAR_DECL:
       return simp_decl(t);
+   case T_SIGNAL_ASSIGN:
+      return simp_signal_assign(t);
+   case T_VAR_ASSIGN:
+      return simp_var_assign(t);
    default:
       return t;
    }

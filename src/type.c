@@ -1047,7 +1047,7 @@ unsigned type_width(type_t type)
    if (type_is_array(type)) {
       int64_t low, high;
       range_bounds(type_dim(type, 0), &low, &high);
-      return (high - low + 1) * type_width(type_elem(type));
+      return MAX(high - low + 1, 0) * type_width(type_elem(type));
    }
    else
       return 1;

@@ -7,6 +7,7 @@ architecture test of bounds is
     type my_vec2 is array (foo range <>) of integer;
 
     signal s : my_vec1(1 to 10);
+    signal n : my_vec1(1 downto 10);
 
     function fun(x : in bit_vector(7 downto 0)) return bit;
     procedure proc(x : in bit_vector(7 downto 0));
@@ -42,6 +43,16 @@ begin
         proc(v2);                       -- OK
         proc2(m1);                      -- OK
         proc2(m2);                      -- Error
+    end process;
+
+    s <= s(1 to 9);                     -- Error
+    n <= s(1 to 2);                     -- Error
+    n <= (1, 2, 3);                     -- Error
+
+    process is
+        variable v : my_vec1(1 to 3);
+    begin
+        v := s;                         -- Error
     end process;
 
 end architecture;
