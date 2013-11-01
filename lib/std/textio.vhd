@@ -267,4 +267,47 @@ package body textio is
         write(l, boolean'image(value), justified, field);
     end procedure;
 
+    function unit_string (unit : time) return string is
+    begin
+        -- Standard requires unit in lower case
+        if unit = fs then
+            return " fs";
+        elsif unit = ps then
+            return " ps";
+        elsif unit = ns then
+            return " ns";
+        elsif unit = us then
+            return " us";
+        elsif unit = ms then
+            return " ms";
+        elsif unit = sec then
+            return " sec";
+        elsif unit = min then
+            return " min";
+        elsif unit = hr then
+            return " hr";
+        else
+            report "invalid unit " & time'image(unit);
+        end if;
+    end function;
+
+    procedure write (l         : inout line;
+                     value     : in time;
+                     justified : in side := right;
+                     field     : in width := 0;
+                     unit      : in time := ns )
+    is
+        -- TODO: this overflows for large unit or value
+        constant value_fs : integer := value / fs;
+        constant unit_fs  : integer := unit / fs;
+    begin
+        if (value_fs rem unit_fs) = 0 then
+            write(l, integer'image(value_fs / unit_fs) & unit_string(unit),
+                  justified, field);
+        else
+            write(l, real'image(real(value_fs) / real(unit_fs)) &
+                  unit_string(unit), justified, field);
+        end if;
+    end procedure;
+
 end package body;

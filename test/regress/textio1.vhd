@@ -30,6 +30,12 @@ begin
         write(l, true);
         writeline(output, l);
 
+        write(l, 10 ns);
+        writeline(output, l);
+
+        --write(l, 50 ns, field => 20, justified => right, unit => us);
+        --writeline(output, l);
+
         wait;
     end process;
 

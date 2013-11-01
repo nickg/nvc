@@ -2239,7 +2239,7 @@ static bool sem_check_package_body(tree_t t)
       }
    }
 
-   if ((pack != NULL) && !opt_get_int("unit-test")) {
+   if (ok && (pack != NULL) && !opt_get_int("unit-test")) {
       // Check for any subprogram declarations without bodies
       const int ndecls = tree_decls(pack);
       for (int i = 0; i < ndecls; i++) {
