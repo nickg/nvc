@@ -472,6 +472,7 @@ static void set_default_opts(void)
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
    opt_set_int("stop-delta", 1000);
+   opt_set_int("unit-test", 0);
 }
 
 static void usage(void)

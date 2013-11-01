@@ -313,13 +313,12 @@ bool type_eq(type_t a, type_t b)
       if (type_params(a) != type_params(b))
          return false;
 
-      for (unsigned i = 0; i < type_params(a); i++) {
+      const int nparams = type_params(a);
+      for (int i = 0; i < nparams; i++) {
          if (!type_eq(type_param(a, i), type_param(b, i)))
              return false;
       }
    }
-
-   // TODO: compare dimensions
 
    return true;
 }

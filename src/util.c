@@ -88,7 +88,7 @@
 #define ANSI_FG_CYAN    36
 #define ANSI_FG_WHITE   37
 
-#define MAX_FMT_BUFS    8
+#define MAX_FMT_BUFS    32
 #define MAX_PRINTF_BUFS 8
 
 typedef void (*print_fn_t)(const char *fmt, ...);

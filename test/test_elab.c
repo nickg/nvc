@@ -27,6 +27,7 @@ static void setup(void)
    lib_set_work(lib_tmp());
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
+   opt_set_int("unit-test", 1);
 }
 
 static void teardown(void)

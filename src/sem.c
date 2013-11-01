@@ -2239,6 +2239,34 @@ static bool sem_check_package_body(tree_t t)
       }
    }
 
+   if ((pack != NULL) && !opt_get_int("unit-test")) {
+      // Check for any subprogram declarations without bodies
+      const int ndecls = tree_decls(pack);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(pack, i);
+         tree_kind_t dkind = tree_kind(d);
+         if ((dkind == T_FUNC_DECL) || (dkind == T_PROC_DECL)) {
+            type_t dtype = tree_type(d);
+
+            bool found = false;
+            const int nbody_decls = tree_decls(t);
+            for (int j = 0; !found && (j < nbody_decls); j++) {
+               tree_t b = tree_decl(t, j);
+               tree_kind_t bkind = tree_kind(b);
+               if ((bkind == T_FUNC_BODY) || (bkind == T_PROC_BODY)) {
+                  if (type_eq(dtype, tree_type(b)))
+                     found = true;
+               }
+            }
+
+            if (!found)
+               warn_at(tree_loc(d), "missing body for %s %s",
+                       (dkind == T_FUNC_DECL) ? "function" : "procedure",
+                       sem_type_str(dtype));
+         }
+      }
+   }
+
    scope_pop();
    scope_pop();
 
