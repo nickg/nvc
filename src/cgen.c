@@ -2281,6 +2281,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
    type_t type = tree_type(value);
 
+   const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
+
    LLVMValueRef idx = llvm_int32(0);
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
@@ -2288,7 +2290,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       assert(tree_subkind(p) == P_POS);
       LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
 
-      cgen_check_array_bounds(tree_value(p), type, i, array, offset, ctx);
+      if (!elide_bounds)
+         cgen_check_array_bounds(tree_value(p), type, i, array, offset, ctx);
 
       if (i > 0) {
          LLVMValueRef stride = cgen_array_len(type, i, array);

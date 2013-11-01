@@ -26,10 +26,10 @@
 
 static int     errors = 0;
 static ident_t unconstrained_i;
+static ident_t elide_bounds_i;
 
 #define bounds_error(t, ...) \
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
-
 
 static tree_t bounds_check_call_args(tree_t t)
 {
@@ -107,6 +107,7 @@ static void bounds_check_array_ref(tree_t t)
    if (type_kind(value_type) == T_UARRAY)
       return;
 
+   int nstatic = 0;
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
@@ -128,8 +129,13 @@ static void bounds_check_array_ref(tree_t t)
             bounds_error(t, "array index %"PRIi64" out of bounds "
                          "%"PRIi64" %s %"PRIi64, index, left,
                          (b.kind == RANGE_TO) ? "to" : "downto", right);
+         else
+            nstatic++;
       }
    }
+
+   if (nstatic == nparams)
+      tree_add_attr_int(t, elide_bounds_i, 1);
 }
 
 static void bounds_check_array_slice(tree_t t)
@@ -380,6 +386,7 @@ static void bounds_visit_fn(tree_t t, void *context)
 void bounds_check(tree_t top)
 {
    unconstrained_i = ident_new("unconstrained");
+   elide_bounds_i  = ident_new("elide_bounds");
 
    tree_visit(top, bounds_visit_fn, NULL);
 }
