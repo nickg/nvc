@@ -15,14 +15,14 @@ unless xilinx
   end.flatten.reverse
 
   unless search.any? { |root| File.directory?(xilinx = root) }
-    die "No ISE installation found: set XILINX environment variable"
+    raise "No ISE installation found: set XILINX environment variable"
   end
 end
 
 $src = "#{xilinx}/vhdl/src"
 
 unless File.directory? $src
-  die "Source directory #{$src} does not exist"
+  raise "Source directory #{$src} does not exist"
 end
 
 puts "Using ISE installation in #{xilinx}"
