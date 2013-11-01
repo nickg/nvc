@@ -3742,6 +3742,8 @@ static bool sem_check_aggregate(tree_t t)
          }
       }
 
+      tree_add_attr_int(t, ident_new("unconstrained"), 1);
+
       composite_type = tmp;
    }
 

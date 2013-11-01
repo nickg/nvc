@@ -33,8 +33,11 @@ void unalias(tree_t top);
 // Fold all constant expressions
 void simplify(tree_t top);
 
-// Number of errors found during simplification
-int simplify_errors(void);
+// Perform static bounds checking
+void bounds_check(tree_t top);
+
+// Number of errors found during bounds checking
+int bounds_errors(void);
 
 // Evaluate a function call at compile time
 tree_t eval(tree_t fcall);

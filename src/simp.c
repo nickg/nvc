@@ -26,15 +26,6 @@
 
 #define MAX_BUILTIN_ARGS 2
 
-static int errors = 0;
-
-#define simp_error(t, ...) \
-   do { errors++; error_at(tree_loc(t), __VA_ARGS__); return t; } while (0)
-#define simp_error_bool(t, ...) \
-   do { errors++; error_at(tree_loc(t), __VA_ARGS__); return false; } while (0)
-#define simp_error_void(t, ...) \
-   do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
-
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
 
@@ -93,60 +84,6 @@ static tree_t simp_call_args(tree_t t)
       }
 
       t = new;
-   }
-
-   // Check bounds of constrained array parameters
-
-   for (int i = 0; (i < nparams) && (i < nports); i++) {
-      tree_t param = tree_param(t, i);
-      assert(tree_subkind(param) == P_POS);
-
-      tree_t value = tree_value(param);
-      tree_t port  = tree_port(decl, tree_pos(param));
-
-      if (!tree_has_type(port) || !tree_has_type(value))
-         continue;
-
-      type_t ftype = tree_type(port);
-      type_t atype = tree_type(tree_value(param));
-
-      if (!type_is_array(ftype))
-         continue;
-
-      if ((type_kind(atype) == T_UARRAY) || (type_kind(ftype) == T_UARRAY))
-         continue;
-
-      const int ndims = type_dims(ftype);
-
-      for (int j = 0; j < ndims; j++) {
-         range_t formal_r = type_dim(ftype, j);
-         range_t actual_r = type_dim(atype, j);
-
-         int64_t f_left, f_right, a_left, a_right;
-
-         const bool folded =
-            folded_int(formal_r.left, &f_left)
-            && folded_int(formal_r.right, &f_right)
-            && folded_int(actual_r.left, &a_left)
-            && folded_int(actual_r.right, &a_right);
-
-         if (!folded)
-            continue;
-
-         const int f_len = (actual_r.kind == RANGE_TO)
-            ? a_right - a_left + 1: a_left - a_right + 1;
-         const int a_len = (formal_r.kind == RANGE_TO)
-            ? f_right - f_left + 1 : f_left - f_right + 1;
-
-         if (f_len != a_len) {
-            if (ndims > 1)
-               simp_error(t, "actual length %d for dimension %d does not match "
-                          "formal length %d", a_len, j + 1, f_len);
-            else
-               simp_error(t, "actual length %d does not match formal length %d",
-                          a_len, f_len);
-         }
-      }
    }
 
    return t;
@@ -241,28 +178,6 @@ static tree_t simp_array_ref(tree_t t)
    if (!tree_has_type(value))
       return t;
 
-   type_t value_type = tree_type(value);
-
-   // Check bounds at compile time
-   if (type_kind(value_type) != T_UARRAY) {
-      for (int i = 0; i < nparams; i++) {
-         range_t b = type_dim(value_type, i);
-
-         if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
-            continue;
-
-         int64_t left, right;
-         if (folded_int(b.left, &left) && folded_int(b.right, &right)) {
-            const int64_t low  = (b.kind == RANGE_TO) ? left : right;
-            const int64_t high = (b.kind == RANGE_TO) ? right : left;
-            if (indexes[i] < low || indexes[i] > high)
-               simp_error(t, "array index %"PRIi64" out of bounds "
-                          "%"PRIi64" %s %"PRIi64, indexes[0], left,
-                          (b.kind == RANGE_TO) ? "to" : "downto", right);
-         }
-      }
-   }
-
    if (tree_kind(value) != T_REF)
       return t;   // Cannot fold nested array references
 
@@ -327,47 +242,6 @@ static tree_t simp_array_ref(tree_t t)
    default:
       return t;
    }
-}
-
-static tree_t simp_array_slice(tree_t t)
-{
-   tree_t value = tree_value(t);
-
-   if (!tree_has_type(value))
-      return t;
-
-   type_t value_type = tree_type(value);
-
-   // Check bounds at compile time
-   if (type_kind(value_type) != T_UARRAY) {
-      range_t b = type_dim(value_type, 0);
-      range_t r = tree_range(t);
-
-      if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
-         return t;
-      else if ((r.kind != RANGE_TO) && (r.kind != RANGE_DOWNTO))
-         return t;
-
-      int64_t b_left, r_left;
-      bool left_error = false;
-      if (folded_int(b.left, &b_left) && folded_int(r.left, &r_left))
-         left_error = ((b.kind == RANGE_TO) && (r_left < b_left))
-            || ((b.kind == RANGE_DOWNTO) && (r_left > b_left));
-
-      int64_t b_right, r_right;
-      bool right_error = false;
-      if (folded_int(b.right, &b_right) && folded_int(r.right, &r_right))
-         right_error = ((b.kind == RANGE_TO) && (r_right > b_right))
-            || ((b.kind == RANGE_DOWNTO) && (r_right < b_right));
-
-      if (left_error || right_error)
-         simp_error(t, "slice %s index %"PRIi64" out of bounds "
-                    "%"PRIi64" %s %"PRIi64, left_error ? "left" : "right",
-                    left_error ? r_left : r_right, b_left,
-                    (b.kind == RANGE_TO) ? "to" : "downto", b_right);
-   }
-
-   return t;
 }
 
 static tree_t simp_process(tree_t t)
@@ -619,35 +493,6 @@ static void simp_build_wait(tree_t ref, void *context)
    }
 }
 
-static void simp_check_assign_bounds(tree_t target, tree_t value)
-{
-   type_t target_type = tree_type(target);
-   type_t value_type  = tree_type(value);
-
-   if (!type_is_array(target_type)
-       || (type_kind(target_type) == T_UARRAY)
-       || (type_kind(value_type) == T_UARRAY))
-      return;
-
-   const int ndims = type_dims(target_type);
-   for (int i = 0; i < ndims; i++) {
-      int64_t target_w, value_w;
-      if (folded_length(type_dim(target_type, i), &target_w)
-          && folded_length(type_dim(value_type, i), &value_w)) {
-         if (target_w != value_w) {
-            if (i > 0)
-               simp_error_void(value, "length of dimension %d of value %"PRIi64
-                               " does not match length of target %"PRIi64,
-                               i + 1, value_w, target_w);
-            else
-               simp_error_void(value, "length of value %"PRIi64" does not "
-                               "match length of target %"PRIi64,
-                               value_w, target_w);
-         }
-      }
-   }
-}
-
 static tree_t simp_cassign(tree_t t)
 {
    // Replace concurrent assignments with a process
@@ -691,7 +536,6 @@ static tree_t simp_cassign(tree_t t)
       const int nwaves = tree_waveforms(c);
       for (int i = 0; i < nwaves; i++) {
          tree_t wave = tree_waveform(c, i);
-         simp_check_assign_bounds(target, tree_value(wave));
          tree_add_waveform(s, wave);
          tree_visit_only(wave, simp_build_wait, w, T_REF);
       }
@@ -706,110 +550,6 @@ static tree_t simp_cassign(tree_t t)
 
    tree_add_stmt(p, w);
    return p;
-}
-
-static bool simp_check_bounds(tree_t i, range_kind_t kind, const char *what,
-                              int64_t low, int64_t high)
-{
-   int64_t folded;
-   if (folded_int(i, &folded)) {
-      if (folded < low || folded > high)
-         simp_error_bool(i, "%s index %"PRIi64" out of bounds %"PRIi64
-                         " %s %"PRIi64, what, folded,
-                         (kind == RANGE_TO) ? low : high,
-                         (kind == RANGE_TO) ? "to" : "downto",
-                         (kind == RANGE_TO) ? high : low);
-   }
-   return true;
-}
-
-static tree_t simp_aggregate(tree_t t)
-{
-   type_t type = tree_type(t);
-   if (!type_is_array(type))
-      return t;
-
-   assert(type_kind(type) != T_UARRAY);
-
-   // Find the tightest bounds for the index
-
-   int64_t low  = -INT64_MAX;
-   int64_t high = INT64_MAX;
-
-   range_t r = type_dim(type, 0);
-   if ((tree_kind(r.left) == T_LITERAL) && (tree_kind(r.right) == T_LITERAL))
-      range_bounds(r, &low, &high);
-
-   if (type_kind(type) == T_SUBTYPE) {
-      type_t base = type_base(type);
-
-      type_t index = (type_kind(base) == T_UARRAY)
-         ? type_index_constr(base, 0) : base;
-      range_t base_r = type_dim(index, 0);
-
-      if ((tree_kind(base_r.left) == T_LITERAL)
-          && (tree_kind(base_r.right) == T_LITERAL)) {
-         int64_t base_low, base_high;
-         range_bounds(base_r, &base_low, &base_high);
-
-         low  = MAX(low, base_low);
-         high = MIN(high, base_high);
-      }
-   }
-
-   if ((low == -INT64_MAX) && (high == INT64_MAX))
-      return t;
-
-   // Check for out of bounds indexes
-
-   bool known_elem_count = true;
-   int nelems = 0;
-   const int nassocs = tree_assocs(t);
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-
-      switch (tree_subkind(a)) {
-      case A_NAMED:
-         if (!simp_check_bounds(tree_name(a), r.kind, "aggregate", low, high))
-            return t;
-         nelems++;
-         break;
-
-      case A_RANGE:
-         {
-            range_t r = tree_range(a);
-            if (!simp_check_bounds(r.left, r.kind, "aggregate", low, high)
-                || !simp_check_bounds(r.right, r.kind, "aggregate", low, high))
-               return t;
-
-            int64_t length;
-            if (folded_length(r, &length))
-               nelems += length;
-            else
-               known_elem_count = false;
-         }
-         break;
-
-      case A_OTHERS:
-         known_elem_count = false;
-         break;
-
-      default:
-         nelems++;
-         break;
-      }
-   }
-
-   // Check the actual against the expected element count
-
-   if ((type_dims(type) == 1) && known_elem_count) {
-      int64_t expect;
-      if (folded_length(type_dim(type, 0), &expect) && (expect != nelems))
-         simp_error(t, "expected %"PRIi64" elements in aggregate but have %d",
-                    expect, nelems);
-   }
-
-   return t;
 }
 
 static tree_t simp_select(tree_t t)
@@ -970,63 +710,6 @@ static tree_t simp_if_generate(tree_t t)
    return t;
 }
 
-static tree_t simp_decl(tree_t t)
-{
-   type_t type = tree_type(t);
-
-   if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
-      // Check folded range does not violate index constraints
-
-      const int ndims = type_dims(type);
-      for (int i = 0; i < ndims; i++) {
-         range_t dim = type_dim(type, i);
-
-         type_t cons = tree_type(dim.left);
-
-         if (type_kind(cons) == T_ENUM)
-            continue;    // TODO: checking for enum constraints
-
-         range_t bounds = type_dim(cons, 0);
-
-         int64_t dim_left, bounds_left;
-         if (folded_int(dim.left, &dim_left)
-             && folded_int(bounds.left, &bounds_left)) {
-            if (dim_left < bounds_left)
-               simp_error(dim.left, "left index %"PRIi64" violates "
-                          "constraint %s", dim_left, type_pp(cons));
-         }
-
-         int64_t dim_right, bounds_right;
-         if (folded_int(dim.right, &dim_right)
-             && folded_int(bounds.right, &bounds_right)) {
-            if (dim_right > bounds_right)
-               simp_error(dim.right, "right index %"PRIi64" violates "
-                          "constraint %s", dim_right, type_pp(cons));
-         }
-      }
-
-   }
-
-   return t;
-}
-
-static tree_t simp_signal_assign(tree_t t)
-{
-   tree_t target = tree_target(t);
-
-   const int nwaves = tree_waveforms(t);
-   for (int i = 0; i < nwaves; i++)
-      simp_check_assign_bounds(target, tree_value(tree_waveform(t, i)));
-
-   return t;
-}
-
-static tree_t simp_var_assign(tree_t t)
-{
-   simp_check_assign_bounds(tree_target(t), tree_value(t));
-   return t;
-}
-
 static tree_t simp_tree(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -1034,8 +717,6 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_process(t);
    case T_ARRAY_REF:
       return simp_array_ref(t);
-   case T_ARRAY_SLICE:
-      return simp_array_slice(t);
    case T_ATTR_REF:
       return simp_attr_ref(t);
    case T_FCALL:
@@ -1052,8 +733,6 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_for(t);
    case T_CASSIGN:
       return simp_cassign(t);
-   case T_AGGREGATE:
-      return simp_aggregate(t);
    case T_SELECT:
       return simp_select(t);
    case T_WAIT:
@@ -1070,14 +749,6 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_type_conv(t);
    case T_IF_GENERATE:
       return simp_if_generate(t);
-   case T_SIGNAL_DECL:
-   case T_CONST_DECL:
-   case T_VAR_DECL:
-      return simp_decl(t);
-   case T_SIGNAL_ASSIGN:
-      return simp_signal_assign(t);
-   case T_VAR_ASSIGN:
-      return simp_var_assign(t);
    default:
       return t;
    }
@@ -1086,9 +757,4 @@ static tree_t simp_tree(tree_t t, void *context)
 void simplify(tree_t top)
 {
    tree_rewrite(top, simp_tree, NULL);
-}
-
-int simplify_errors(void)
-{
-   return errors;
 }

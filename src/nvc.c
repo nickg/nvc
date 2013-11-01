@@ -118,9 +118,10 @@ static int analyse(int argc, char **argv)
    for (int i = 0; i < n_units; i++) {
       unalias(units[i]);
       simplify(units[i]);
+      bounds_check(units[i]);
    }
 
-   if (parse_errors() + sem_errors() + simplify_errors() > 0)
+   if (parse_errors() + sem_errors() + bounds_errors() > 0)
       return EXIT_FAILURE;
 
    lib_save(lib_work());

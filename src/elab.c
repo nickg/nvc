@@ -1156,7 +1156,9 @@ tree_t elab(tree_t top)
    if (opt_get_int("cover"))
       cover_tag(e);
 
-   if (simplify_errors() == 0) {
+   bounds_check(e);
+
+   if (bounds_errors() == 0) {
       lib_put(lib_work(), e);
       return e;
    }

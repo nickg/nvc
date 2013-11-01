@@ -37,8 +37,6 @@ begin
         x <= a2(1);
         x <= a2(3);
         x <= a3(8);
-        x <= a3(10);                    -- Error!
-        x <= a3(-1);                    -- Error!
         x <= a1'length;
         x <= a4(2);
         x <= a5(4);
@@ -66,13 +64,6 @@ begin
             x <= 5;
             null;
         end if;
-    end process;
-
-    process is
-        variable a : int_array(1 to 3);
-    begin
-        a := (1, 2, 3);                 -- OK
-        a := (5 => 1, 6 => 2, 7 => 3);  -- Error
     end process;
 
     process is

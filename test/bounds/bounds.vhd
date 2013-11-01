@@ -55,4 +55,18 @@ begin
         v := s;                         -- Error
     end process;
 
+    process is
+        variable x : integer;
+    begin
+        x := s(11);                     -- Error!
+        x := s(-1);                     -- Error!
+    end process;
+
+    process is
+        variable a : my_vec1(1 to 3);
+    begin
+        a := (1, 2, 3);                 -- OK
+        a := (5 => 1, 1 => 2, 0 => 3);  -- Error
+    end process;
+
 end architecture;
