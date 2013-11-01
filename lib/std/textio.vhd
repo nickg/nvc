@@ -150,6 +150,126 @@ package body textio is
         end if;
     end function;
 
+    procedure read (l     : inout line;
+                    value : out bit;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out bit ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out bit_vector;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out bit_vector ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out boolean;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out character;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out character ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out integer;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out integer ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out real;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out real ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out string;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out string ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out time;
+                    good  : out boolean ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure read (l     : inout line;
+                    value : out time ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
     procedure readline (file f: text; l: inout line) is
         variable tmp  : line;
         variable ch   : string(1 to 1);
@@ -308,6 +428,24 @@ package body textio is
             write(l, real'image(real(value_fs) / real(unit_fs)) &
                   unit_string(unit), justified, field);
         end if;
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in real;
+                     justified : in side:= right;
+                     field     : in width := 0;
+                     digits    : in natural:= 0 ) is
+    begin
+        -- TODO
+        report "unimplemented" severity failure;
+    end procedure;
+
+    procedure write (l         : inout line;
+                     value     : in integer;
+                     justified : in side := right;
+                     field     : in width := 0 ) is
+    begin
+        write(l, integer'image(value), justified, field);
     end procedure;
 
 end package body;
