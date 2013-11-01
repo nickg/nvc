@@ -238,6 +238,20 @@ START_TEST(test_issue19)
 }
 END_TEST
 
+START_TEST(test_bounds10)
+{
+   input_from_file(TESTDIR "/elab/bounds10.vhd");
+
+   const error_t expect[] = {
+      { 10, "length of value 1 does not match length of target 101" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   (void)run_elab();
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -257,6 +271,7 @@ int main(void)
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_issue17);
    tcase_add_test(tc_core, test_issue19);
+   tcase_add_test(tc_core, test_bounds10);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
