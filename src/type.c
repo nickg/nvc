@@ -1045,9 +1045,15 @@ const char *type_kind_str(type_kind_t t)
 unsigned type_width(type_t type)
 {
    if (type_is_array(type)) {
-      int64_t low, high;
-      range_bounds(type_dim(type, 0), &low, &high);
-      return MAX(high - low + 1, 0) * type_width(type_elem(type));
+      const unsigned elem_w = type_width(type_elem(type));
+      unsigned w = 1;
+      const int ndims = type_dims(type);
+      for (int i = 0; i < ndims; i++) {
+         int64_t low, high;
+         range_bounds(type_dim(type, i), &low, &high);
+         w *= MAX(high - low + 1, 0) * elem_w;
+      }
+      return w;
    }
    else
       return 1;
