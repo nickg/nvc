@@ -9,8 +9,10 @@ begin
     b <= X"10";
 
     process is
+        variable n : integer;
     begin
-        a <= b;
+        n := 7;
+        a <= b(n downto 0);
         wait;
     end process;
 

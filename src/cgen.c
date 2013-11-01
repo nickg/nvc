@@ -1244,9 +1244,18 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
 
    LLVMValueRef fn = llvm_fn("_vec_load");
 
-   LLVMValueRef left  = cgen_array_left(slice_type, 0, nets);
-   LLVMValueRef right = cgen_array_right(slice_type, 0, nets);
-   LLVMValueRef dir   = cgen_array_dir(slice_type, 0, nets);
+   LLVMValueRef left, right, dir;
+   if (type_kind(slice_type) == T_UARRAY) {
+      left  = cgen_array_left(slice_type, 0, nets);
+      right = cgen_array_right(slice_type, 0, nets);
+      dir   = cgen_array_dir(slice_type, 0, nets);
+   }
+   else {
+      range_t r = type_dim(slice_type, 0);
+      left  = cgen_expr(r.left, ctx);
+      right = cgen_expr(r.right, ctx);
+      dir   = llvm_int8(r.kind);
+   }
 
    LLVMValueRef low_abs  = cgen_array_off(left, nets, type, ctx, 0);
    LLVMValueRef high_abs = cgen_array_off(right, nets, type, ctx, 0);
