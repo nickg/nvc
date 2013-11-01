@@ -77,6 +77,8 @@ START_TEST(test_bounds)
       { 62, "array index -1 out of bounds 1 to 10" },
       { 69, "aggregate index 5 out of bounds 1 to 3" },
       { 69, "aggregate index 0 out of bounds 1 to 3" },
+      { 78, "value '1' out of target bounds 'a' to 'z'" },
+      { 79, "value 0 out of target bounds 1 to 2147483647" },
       { -1, NULL }
    };
    expect_errors(expect);

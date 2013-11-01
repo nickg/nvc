@@ -69,4 +69,14 @@ begin
         a := (5 => 1, 1 => 2, 0 => 3);  -- Error
     end process;
 
+    process is
+        subtype alpha is character range 'a' to 'z';
+        variable a : alpha;
+        variable p : positive;
+    begin
+        a := 'c';                       -- OK
+        a := '1';                       -- Error
+        p := 0;                         -- Error
+    end process;
+
 end architecture;

@@ -153,6 +153,19 @@ bool folded_length(range_t r, int64_t *l)
       return false;
 }
 
+bool folded_enum(tree_t t, unsigned *pos)
+{
+   if (tree_kind(t) == T_REF) {
+      tree_t decl = tree_ref(t);
+      if (tree_kind(decl) == T_ENUM_LIT) {
+         *pos = tree_pos(decl);
+         return true;
+      }
+   }
+
+   return false;
+}
+
 bool folded_bool(tree_t t, bool *b)
 {
    ident_t std_bool_i = ident_new("STD.STANDARD.BOOLEAN");

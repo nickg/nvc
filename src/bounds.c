@@ -316,25 +316,95 @@ static void bounds_check_assignment(tree_t target, tree_t value)
    type_t target_type = tree_type(target);
    type_t value_type  = tree_type(value);
 
-   if (!type_is_array(target_type)
-       || (type_kind(target_type) == T_UARRAY)
-       || (type_kind(value_type) == T_UARRAY))
-      return;
+   type_kind_t target_kind = type_kind(target_type);
+   type_kind_t value_kind  = type_kind(value_type);
 
-   const int ndims = type_dims(target_type);
-   for (int i = 0; i < ndims; i++) {
-      int64_t target_w, value_w;
-      if (folded_length(type_dim(target_type, i), &target_w)
-          && folded_length(type_dim(value_type, i), &value_w)) {
-         if (target_w != value_w) {
-            if (i > 0)
-               bounds_error(value, "length of dimension %d of value %"PRIi64
-                            " does not match length of target %"PRIi64,
-                            i + 1, value_w, target_w);
-            else
-               bounds_error(value, "length of value %"PRIi64" does not "
-                            "match length of target %"PRIi64,
-                            value_w, target_w);
+   const bool check_array_length =
+      type_is_array(target_type)
+      && (target_kind != T_UARRAY)
+      && (value_kind != T_UARRAY);
+
+   if (check_array_length) {
+      const int ndims = type_dims(target_type);
+      for (int i = 0; i < ndims; i++) {
+         int64_t target_w, value_w;
+         if (folded_length(type_dim(target_type, i), &target_w)
+             && folded_length(type_dim(value_type, i), &value_w)) {
+            if (target_w != value_w) {
+               if (i > 0)
+                  bounds_error(value, "length of dimension %d of value %"PRIi64
+                               " does not match length of target %"PRIi64,
+                               i + 1, value_w, target_w);
+               else
+                  bounds_error(value, "length of value %"PRIi64" does not "
+                               "match length of target %"PRIi64,
+                               value_w, target_w);
+            }
+         }
+      }
+   }
+
+   const bool check_scalar_subtype_range =
+      !type_is_array(target_type)
+      && (target_kind == T_SUBTYPE);
+
+   if (check_scalar_subtype_range) {
+      range_t r = type_dim(target_type, 0);
+
+      int64_t ivalue;
+      if (folded_int(value, &ivalue)) {
+         int64_t left, right;
+         if (folded_int(r.left, &left) && folded_int(r.right, &right)) {
+            switch (r.kind) {
+            case RANGE_TO:
+               if ((ivalue < left) || (ivalue > right))
+                  bounds_error(value, "value %"PRIi64" out of target bounds %"
+                               PRIi64" to %"PRIi64, ivalue, left, right);
+               break;
+
+            case RANGE_DOWNTO:
+               if ((ivalue > left) || (ivalue < right))
+                  bounds_error(value, "value %"PRIi64" out of target bounds %"
+                               PRIi64" downto %"PRIi64, ivalue, left, right);
+               break;
+
+            default:
+               break;
+            }
+         }
+      }
+
+      unsigned pos;
+      if (folded_enum(value, &pos)) {
+         unsigned left, right;
+         if (folded_enum(r.left, &left) && folded_enum(r.right, &right)) {
+            type_t value_base  = type_base_recur(value_type);
+            type_t target_base = type_base_recur(target_type);
+
+            tree_t value_lit = type_enum_literal(value_base, pos);
+            tree_t left_lit  = type_enum_literal(target_base, left);
+            tree_t right_lit = type_enum_literal(target_base, right);
+
+            switch (r.kind) {
+            case RANGE_TO:
+               if ((pos < left) || (pos > right))
+                  bounds_error(value, "value %s out of target bounds %s to %s",
+                               istr(tree_ident(value_lit)),
+                               istr(tree_ident(left_lit)),
+                               istr(tree_ident(right_lit)));
+               break;
+
+            case RANGE_DOWNTO:
+               if ((pos > left) || (pos < right))
+                  bounds_error(value, "value %s out of target bounds %s "
+                               "downto %s", istr(tree_ident(value_lit)),
+                               istr(tree_ident(left_lit)),
+                               istr(tree_ident(right_lit)));
+               break;
+
+            default:
+               break;
+            }
          }
       }
    }

@@ -31,6 +31,7 @@ bool folded_int(tree_t t, int64_t *i);
 bool folded_real(tree_t t, double *d);
 bool folded_bool(tree_t t, bool *b);
 bool folded_length(range_t r, int64_t *l);
+bool folded_enum(tree_t t, unsigned *pos);
 tree_t get_int_lit(tree_t t, int64_t i);
 tree_t get_real_lit(tree_t t, double r);
 const char *package_signal_path_name(ident_t i);
