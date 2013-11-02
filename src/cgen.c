@@ -81,6 +81,7 @@ typedef struct cgen_ctx {
    struct proc_entry *entry_list;
    struct block_list *blocks;
    LLVMValueRef      state;
+   LLVMValueRef      nest_state;
    LLVMValueRef      fn;
    tree_t            proc;
    tree_t            fdecl;
@@ -1020,7 +1021,7 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
       const int var_level = tree_attr_int(decl, nest_level_i, 0);
 
       // Walk through the chain of structures to get the correct level
-      LLVMValueRef state = ctx->state;
+      LLVMValueRef state = ctx->nest_state;
       for (int i = our_level; i > var_level; i--)
          state = LLVMBuildExtractValue(builder, state, 0, "up");
 
@@ -1572,14 +1573,6 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
 
    *nargs = nparams;
 
-   tree_kind_t decl_kind = tree_kind(decl);
-   const bool is_proc =
-      (decl_kind == T_PROC_DECL) || (decl_kind == T_PROC_BODY);
-   if (is_proc) {
-      // Final parameter to a procedure is its dynamic context
-      args[(*nargs)++] = LLVMConstNull(llvm_void_ptr());
-   }
-
    if (tree_attr_int(decl, nest_level_i, 0) > 0) {
       // Nested subprograms take extra structure of pointers to
       // parent state
@@ -1589,10 +1582,10 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       LLVMValueRef parent_state = LLVMGetUndef(cgen_nest_struct_type(parent));
       unsigned offset = 0;
 
-      const bool chained = (ctx->fdecl != NULL) && (ctx->state != NULL);
+      const bool chained = (ctx->fdecl != NULL) && (ctx->nest_state != NULL);
       if (chained)
          parent_state = LLVMBuildInsertValue(builder, parent_state,
-                                             ctx->state, offset++, "parent");
+                                             ctx->nest_state, offset++, "");
 
       if (ctx->fdecl != NULL) {
          const int nports = tree_ports(ctx->fdecl);
@@ -1626,6 +1619,14 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       }
 
       args[(*nargs)++] = parent_state;
+   }
+
+   tree_kind_t decl_kind = tree_kind(decl);
+   const bool is_proc =
+      (decl_kind == T_PROC_DECL) || (decl_kind == T_PROC_BODY);
+   if (is_proc) {
+      // Final parameter to a procedure is its dynamic context
+      args[(*nargs)++] = LLVMConstNull(llvm_void_ptr());
    }
 }
 
@@ -4134,10 +4135,10 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
 
       unsigned nargs;
-      LLVMValueRef args[nparams + 1];
-      type_t arg_types[nparams + 1];
+      LLVMValueRef args[nparams + 2];
+      type_t arg_types[nparams + 2];
       cgen_call_args(t, args, &nargs, arg_types, ctx);
-      args[nparams] = LLVMBuildLoad(builder, context_ptr, "context");
+      args[nargs - 1] = LLVMBuildLoad(builder, context_ptr, "context");
 
       LLVMValueRef ret =
          LLVMBuildCall(builder, cgen_pdecl(decl), args, nargs, "");
@@ -4484,7 +4485,9 @@ static void cgen_process(tree_t t)
 
    LLVMPositionBuilderAtEnd(builder, jt_bb);
 
-   tree_visit(t, cgen_jump_table_fn, &ctx);
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      tree_visit(tree_stmt(t, i), cgen_jump_table_fn, &ctx);
 
    if (ctx.entry_list == NULL)
       warn_at(tree_loc(t), "no wait statement in process");
@@ -4511,7 +4514,6 @@ static void cgen_process(tree_t t)
 
    LLVMPositionBuilderAtEnd(builder, start_bb);
 
-   const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 
@@ -4771,7 +4773,7 @@ static void cgen_func_body(tree_t t, tree_t parent)
    };
 
    if (tree_attr_int(t, nest_level_i, 0))
-      ctx.state = LLVMGetParam(fn, nargs - 1);
+      ctx.nest_state = LLVMGetParam(fn, nargs - 1);
 
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
@@ -4809,6 +4811,8 @@ static void cgen_proc_body(tree_t t, tree_t parent)
    // resumes call the procedure again with the saved pointer as the first
    // argument. If the procedure returns NULL execution continues as
    // normal.
+
+   cgen_nested_subprograms(t);
 
    const int nports = tree_ports(t);
    unsigned nargs;
@@ -4853,9 +4857,14 @@ static void cgen_proc_body(tree_t t, tree_t parent)
       .state      = NULL
    };
 
+   if (tree_attr_int(t, nest_level_i, 0))
+      ctx.nest_state = LLVMGetParam(fn, nargs - 2);
+
    // Generate a jump table to handle resuming from a wait statement
 
-   tree_visit(t, cgen_jump_table_fn, &ctx);
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      tree_visit(tree_stmt(t, i), cgen_jump_table_fn, &ctx);
 
    if (ctx.entry_list != NULL) {
       // Only allocate a dynamic context if there are no wait statements
@@ -4875,7 +4884,7 @@ static void cgen_proc_body(tree_t t, tree_t parent)
 
       // We are resuming the procedure if the context is non-NULL
       LLVMValueRef resume = LLVMBuildICmp(
-         builder, LLVMIntNE, LLVMGetParam(fn, nports),
+         builder, LLVMIntNE, LLVMGetParam(fn, nargs - 1),
          LLVMConstNull(llvm_void_ptr()), "resume");
 
       LLVMBuildCondBr(builder, resume, resume_bb, init_bb);
@@ -4885,7 +4894,7 @@ static void cgen_proc_body(tree_t t, tree_t parent)
       LLVMPositionBuilderAtEnd(builder, resume_bb);
 
       LLVMValueRef old = LLVMBuildPointerCast(
-         builder, LLVMGetParam(fn, nports),
+         builder, LLVMGetParam(fn, nargs - 1),
          state_ptr_type, "old");
 
       LLVMBuildBr(builder, jump_bb);
@@ -4921,7 +4930,6 @@ static void cgen_proc_body(tree_t t, tree_t parent)
    else
       cgen_subprogram_locals(t, &ctx);
 
-   const int nstmts = tree_stmts(t);
    for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
 

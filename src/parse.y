@@ -469,7 +469,6 @@ entity_decl_part
 
 entity_decl_item
 : subprogram_decl
-  /*| subprogram_body*/
 | type_decl
 | subtype_decl
 | constant_decl
@@ -611,8 +610,7 @@ block_decl_item
 | component_decl
 | file_decl
 | shared_variable_decl
-/* | subprogram_body
-   | configuration_specification
+/* | configuration_specification
    | disconnection_specification
    | use_clause
    | group_template_declaration
@@ -1068,8 +1066,7 @@ process_decl_item
 | attr_decl
 | attr_spec
 | file_decl
-  /* | subprogram_body
-     | use_clause
+  /* | use_clause
      | group_template_declaration
      | group_declaration
   */
@@ -1100,8 +1097,7 @@ block_decl_part
 ;
 
 subprogram_decl
-: /* procedure designator [ ( formal_parameter_list ) ]  | */
-  func_type func_name formal_param_list tRETURN type_mark tSEMI
+: func_type func_name formal_param_list tRETURN type_mark tSEMI
   {
      type_t t = type_new(T_FUNC);
      type_set_ident(t, $2);
