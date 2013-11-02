@@ -42,16 +42,18 @@ static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
 static LLVMValueRef   mod_name = NULL;
 
-static ident_t var_offset_i = NULL;
-static ident_t local_var_i = NULL;
-static ident_t global_const_i = NULL;
-static ident_t sig_nets_i = NULL;
-static ident_t foreign_i = NULL;
-static ident_t never_waits_i = NULL;
-static ident_t stmt_tag_i = NULL;
-static ident_t cond_tag_i = NULL;
-static ident_t elide_bounds_i = NULL;
-static ident_t null_range_i = NULL;
+static ident_t var_offset_i;
+static ident_t local_var_i;
+static ident_t global_const_i;
+static ident_t sig_nets_i;
+static ident_t foreign_i;
+static ident_t never_waits_i;
+static ident_t stmt_tag_i;
+static ident_t cond_tag_i;
+static ident_t elide_bounds_i;
+static ident_t null_range_i;
+static ident_t nest_level_i;
+static ident_t nest_offset_i;
 
 typedef struct case_arc  case_arc_t;
 typedef struct case_state case_state_t;
@@ -117,6 +119,8 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
                               cgen_ctx_t *ctx);
 static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx);
+static void cgen_proc_body(tree_t t, tree_t parent);
+static void cgen_func_body(tree_t t, tree_t parent);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -987,37 +991,43 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 
    type_t type = tree_type(decl);
 
-   int offset = tree_attr_int(decl, var_offset_i, -1);
-   if (offset == -1) {
-      const char *name = istr(tree_ident(decl));
-
-      LLVMValueRef var = LLVMGetNamedGlobal(module, name);
-      if (var == NULL) {
-         // This variable is not defined anywhere in this translation unit
-         // so make it an external symbol and hope the linker fixes it up
-         LLVMTypeRef lltype = llvm_type(type);
-         var = LLVMAddGlobal(module, lltype, name);
-         LLVMSetLinkage(var, LLVMExternalLinkage);
+   const int offset = tree_attr_int(decl, var_offset_i, -1);
+   if (offset != -1) {
+      LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
+      if (type_is_array(type)) {
+         if (cgen_const_bounds(type)) {
+            // Get a pointer to the first element
+            LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+            return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
+         }
+         else {
+            // Load the meta data
+            return LLVMBuildLoad(builder, var, "meta");
+         }
       }
-
-      tree_add_attr_ptr(decl, local_var_i, var);
-      return var;
+      else
+         return var;
    }
 
-   LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
-   if (type_is_array(type)) {
-      if (cgen_const_bounds(type)) {
-         // Get a pointer to the first element
-         LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-         return LLVMBuildGEP(builder, var, indexes, ARRAY_LEN(indexes), "");
-      }
-      else {
-         // Load the meta data
-         return LLVMBuildLoad(builder, var, "meta");
-      }
+   const int nest = tree_attr_int(decl, nest_offset_i, -1);
+   if (nest != -1) {
+      // This variable is contained in an outer scope
+      return LLVMBuildExtractValue(builder, ctx->state, nest, "");
    }
-   else
-      return var;
+
+   const char *name = istr(tree_ident(decl));
+
+   LLVMValueRef var = LLVMGetNamedGlobal(module, name);
+   if (var == NULL) {
+      // This variable is not defined anywhere in this translation unit
+      // so make it an external symbol and hope the linker fixes it up
+      LLVMTypeRef lltype = llvm_type(type);
+      var = LLVMAddGlobal(module, lltype, name);
+      LLVMSetLinkage(var, LLVMExternalLinkage);
+   }
+
+   tree_add_attr_ptr(decl, local_var_i, var);
+   return var;
 }
 
 static const char *cgen_memcpy_name(int width)
@@ -1108,7 +1118,36 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
    return var;
 }
 
-static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
+static LLVMTypeRef cgen_nest_struct_type(tree_t parent)
+{
+   const int ndecls = tree_decls(parent);
+
+   LLVMTypeRef *fields = xmalloc(ndecls * sizeof(LLVMTypeRef));
+
+   unsigned offset = 0;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(parent, i);
+      switch (tree_kind(d)) {
+      case T_CONST_DECL:
+      case T_VAR_DECL:
+         {
+            fields[offset] = LLVMPointerType(llvm_type(tree_type(d)), 0);
+            //tree_add_attr_int(d, var_offset_i, offset);
+            offset++;
+         }
+         break;
+      default:
+         break;
+      }
+   }
+
+   LLVMTypeRef st = LLVMStructType(fields, offset, false);
+   free(fields);
+   return st;
+}
+
+static void cgen_prototype(tree_t t, LLVMTypeRef *args,
+                           unsigned *nargs, bool procedure, tree_t parent)
 {
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
@@ -1147,9 +1186,14 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args, bool procedure)
       }
    }
 
+   *nargs = nports;
+
+   if (parent != NULL)
+      args[(*nargs)++] = cgen_nest_struct_type(parent);
+
    if (procedure) {
       // Last parameter is context
-      args[nports] = llvm_void_ptr();
+      args[(*nargs)++] = llvm_void_ptr();
    }
 }
 
@@ -1162,15 +1206,16 @@ static LLVMValueRef cgen_fdecl(tree_t t)
    else {
       type_t ftype = tree_type(t);
 
+      unsigned nargs;
       LLVMTypeRef atypes[tree_ports(t)];
-      cgen_prototype(t, atypes, false);
+      cgen_prototype(t, atypes, &nargs, false, NULL);
 
       return LLVMAddFunction(
          module,
          cgen_mangle_func_name(t),
          LLVMFunctionType(llvm_type(type_result(ftype)),
                           atypes,
-                          type_params(ftype),
+                          nargs,
                           false));
    }
 }
@@ -1183,15 +1228,16 @@ static LLVMValueRef cgen_pdecl(tree_t t)
       return fn;
    else {
       const int nports = tree_ports(t);
+      unsigned nargs;
       LLVMTypeRef atypes[nports + 1];
-      cgen_prototype(t, atypes, true);
+      cgen_prototype(t, atypes, &nargs, true, NULL);
 
       return LLVMAddFunction(
          module,
          cgen_mangle_func_name(t),
          LLVMFunctionType(llvm_void_ptr(),
                           atypes,
-                          nports + 1,
+                          nargs,
                           false));
    }
 }
@@ -1390,8 +1436,8 @@ static LLVMValueRef cgen_uarray_asc(tree_t ref, cgen_ctx_t *ctx)
       "ascending");
 }
 
-static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
-                           cgen_ctx_t *ctx)
+static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
+                           type_t *arg_types, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
    ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
@@ -1492,6 +1538,46 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, type_t *arg_types,
          LLVMTypeRef lt = LLVMPointerType(llvm_type(formal_type), 0);
          args[i] = LLVMBuildPointerCast(builder, ptr, lt, "");
       }
+   }
+
+   *nargs = nparams;
+
+   tree_kind_t decl_kind = tree_kind(decl);
+   const bool is_proc =
+      (decl_kind == T_PROC_DECL) || (decl_kind == T_PROC_BODY);
+   if (is_proc) {
+      // Final parameter to a procedure is its dynamic context
+      args[(*nargs)++] = LLVMConstNull(llvm_void_ptr());
+   }
+
+   if (tree_attr_int(decl, nest_level_i, 0) > 0) {
+      // Nested subprograms take extra structure of pointers to
+      // parent state
+
+      tree_t parent = (ctx->proc != NULL) ? ctx->proc : ctx->fdecl;
+
+      LLVMValueRef parent_state = LLVMGetUndef(cgen_nest_struct_type(parent));
+
+      unsigned offset = 0;
+      const int ndecls = tree_decls(parent);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(parent, i);
+         switch (tree_kind(d)) {
+         case T_CONST_DECL:
+         case T_VAR_DECL:
+            parent_state = LLVMBuildInsertValue(
+               builder,
+               parent_state,
+               cgen_get_var(d, ctx),
+               offset++,
+               istr(tree_ident(d)));
+            break;
+         default:
+            break;
+         }
+      }
+
+      args[(*nargs)++] = parent_state;
    }
 }
 
@@ -1881,10 +1967,11 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       }
    }
 
+   unsigned nargs;
    const int nparams = tree_params(t);
-   LLVMValueRef args[nparams];
-   type_t arg_types[nparams];
-   cgen_call_args(t, args, arg_types, ctx);
+   LLVMValueRef args[nparams + 1];
+   type_t arg_types[nparams + 1];
+   cgen_call_args(t, args, &nargs, arg_types, ctx);
 
    type_t rtype = tree_has_type(t) ? tree_type(t) : NULL;
 
@@ -2179,7 +2266,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    }
    else {
       ctx->tmp_stack_used = true;
-      return LLVMBuildCall(builder, cgen_fdecl(decl), args, nparams, "");
+      return LLVMBuildCall(builder, cgen_fdecl(decl), args, nargs, "");
    }
 }
 
@@ -3970,18 +4057,16 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       // Simple case where the called procedure never waits so we can ignore
       // the return value
 
-      LLVMValueRef args[nparams + 1];
-      type_t arg_types[nparams + 1];
-      cgen_call_args(t, args, arg_types, ctx);
-
-      // Final parameter to a procedure is its dynamic context
-      args[nparams] = LLVMConstNull(llvm_void_ptr());
+      unsigned nargs;
+      LLVMValueRef args[nparams + 2];
+      type_t arg_types[nparams + 2];
+      cgen_call_args(t, args, &nargs, arg_types, ctx);
 
       if (builtin != NULL)
          cgen_builtin_pcall(builtin, args, arg_types);
       else {
          // Regular procedure call
-         LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+         LLVMBuildCall(builder, cgen_pdecl(decl), args, nargs, "");
       }
    }
    else {
@@ -4000,13 +4085,14 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
       LLVMBuildStore(builder, llvm_int32(it->state_num), state_ptr);
 
+      unsigned nargs;
       LLVMValueRef args[nparams + 1];
       type_t arg_types[nparams + 1];
-      cgen_call_args(t, args, arg_types, ctx);
+      cgen_call_args(t, args, &nargs, arg_types, ctx);
       args[nparams] = LLVMBuildLoad(builder, context_ptr, "context");
 
       LLVMValueRef ret =
-         LLVMBuildCall(builder, cgen_pdecl(decl), args, nparams + 1, "");
+         LLVMBuildCall(builder, cgen_pdecl(decl), args, nargs, "");
 
       LLVMValueRef waited = LLVMBuildICmp(builder, LLVMIntNE, ret,
                                           LLVMConstNull(llvm_void_ptr()),
@@ -4258,9 +4344,49 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
+static bool cgen_nested_subprograms(tree_t t)
+{
+   bool have_nested = false;
+
+   int offset = 0;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      tree_kind_t kind = tree_kind(d);
+
+      switch (kind) {
+      case T_PROC_BODY:
+      case T_FUNC_BODY:
+         {
+            tree_add_attr_int(d, nest_level_i, 1);
+
+            if (kind == T_PROC_BODY)
+               cgen_proc_body(d, t);
+            else
+               cgen_func_body(d, t);
+
+            have_nested = true;
+         }
+         break;
+
+      case T_CONST_DECL:
+      case T_VAR_DECL:
+         tree_add_attr_int(d, nest_offset_i, offset++);
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   return have_nested;
+}
+
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
+
+   (void)cgen_nested_subprograms(t);
 
    cgen_ctx_t ctx = {
       .entry_list = NULL,
@@ -4443,10 +4569,11 @@ static LLVMValueRef cgen_resolution_func(type_t type)
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
       LLVMTypeRef args[tree_ports(fdecl)];
-      cgen_prototype(fdecl, args, false);
+      unsigned nargs;
+      cgen_prototype(fdecl, args, &nargs, false, NULL);
 
       rfn = LLVMAddFunction(module, rfn_name,
-                            LLVMFunctionType(elem_type, args, 1, false));
+                            LLVMFunctionType(elem_type, args, nargs, false));
    }
 
    LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
@@ -4554,12 +4681,13 @@ static void cgen_subprogram_locals(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
-static void cgen_func_body(tree_t t)
+static void cgen_func_body(tree_t t, tree_t parent)
 {
    type_t ftype = tree_type(t);
 
-   LLVMTypeRef args[tree_ports(t)];
-   cgen_prototype(t, args, false);
+   unsigned nargs;
+   LLVMTypeRef args[tree_ports(t) + 1];
+   cgen_prototype(t, args, &nargs, false, parent);
 
    type_t rtype = type_result(ftype);
    LLVMTypeRef llrtype;
@@ -4570,11 +4698,9 @@ static void cgen_func_body(tree_t t)
 
    const char *mangled = cgen_mangle_func_name(t);
    LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
-   if (fn == NULL) {
+   if (fn == NULL)
       fn = LLVMAddFunction(module, mangled,
-                           LLVMFunctionType(llrtype, args,
-                                            type_params(ftype), false));
-   }
+                           LLVMFunctionType(llrtype, args, nargs, false));
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
@@ -4585,6 +4711,9 @@ static void cgen_func_body(tree_t t)
       .fdecl      = t,
       .fn         = fn
    };
+
+   if (tree_attr_int(t, nest_level_i, 0))
+      ctx.state = LLVMGetParam(fn, nargs - 1);
 
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
@@ -4614,7 +4743,7 @@ static void cgen_func_body(tree_t t)
    LLVMBuildUnreachable(builder);
 }
 
-static void cgen_proc_body(tree_t t)
+static void cgen_proc_body(tree_t t, tree_t parent)
 {
    // Procedures take an extra "context" parameter which is used to support
    // suspending and resuming. If the procedure returns non-NULL then this
@@ -4624,15 +4753,16 @@ static void cgen_proc_body(tree_t t)
    // normal.
 
    const int nports = tree_ports(t);
-   LLVMTypeRef args[nports + 1];
-   cgen_prototype(t, args, true);
+   unsigned nargs;
+   LLVMTypeRef args[nports + 2];
+   cgen_prototype(t, args, &nargs, true, parent);
 
    const char *mangled = cgen_mangle_func_name(t);
    LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
    if (fn == NULL) {
       fn = LLVMAddFunction(module, mangled,
                            LLVMFunctionType(llvm_void_ptr(),
-                                            args, nports + 1, false));
+                                            args, nargs, false));
    }
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
@@ -5045,7 +5175,7 @@ static void cgen_top(tree_t t)
          cgen_signal(decl);
          break;
       case T_FUNC_BODY:
-         cgen_func_body(decl);
+         cgen_func_body(decl, NULL);
          break;
       case T_ALIAS:
       case T_TYPE_DECL:
@@ -5057,7 +5187,7 @@ static void cgen_top(tree_t t)
       case T_PROC_DECL:
          break;
       case T_PROC_BODY:
-         cgen_proc_body(decl);
+         cgen_proc_body(decl, NULL);
          break;
       case T_FILE_DECL:
          cgen_file_decl(decl);
@@ -5433,6 +5563,8 @@ void cgen(tree_t top)
    cond_tag_i     = ident_new("cond_tag");
    elide_bounds_i = ident_new("elide_bounds");
    null_range_i   = ident_new("null_range");
+   nest_level_i   = ident_new("nest_level");
+   nest_offset_i  = ident_new("nest_offset");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

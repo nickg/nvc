@@ -208,4 +208,16 @@ package body func is
         return 1;
     end function;
 
+    function test23 return integer is
+        variable x : integer;
+
+        function sub(y : in integer) return integer is
+        begin
+            return x + y;
+        end function;
+    begin
+        x := 5;
+        return sub(2);
+    end function;
+
 end package body;
