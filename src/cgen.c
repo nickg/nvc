@@ -1157,7 +1157,15 @@ static LLVMTypeRef cgen_nest_struct_type(tree_t parent)
       switch (tree_kind(d)) {
       case T_CONST_DECL:
       case T_VAR_DECL:
-         fields[offset++] = LLVMPointerType(llvm_type(tree_type(d)), 0);
+         {
+            type_t type = tree_type(d);
+            LLVMTypeRef lt;
+            if (type_is_array(type) && cgen_const_bounds(type))
+               lt = LLVMPointerType(llvm_type(type_elem(type)), 0);
+            else
+               lt = LLVMPointerType(llvm_type(type), 0);
+            fields[offset++] = lt;
+         }
          break;
       default:
          break;
