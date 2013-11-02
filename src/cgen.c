@@ -2387,6 +2387,36 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
    }
 }
 
+static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
+                                          cgen_ctx_t *ctx)
+{
+   tree_t value = tree_value(t);
+   type_t type = tree_type(value);
+
+   const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
+
+   LLVMValueRef idx = llvm_int32(0);
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(t, i);
+      assert(tree_subkind(p) == P_POS);
+      LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
+
+      if (!elide_bounds)
+         cgen_check_array_bounds(tree_value(p), type, i, meta, offset, ctx);
+
+      if (i > 0) {
+         LLVMValueRef stride = cgen_array_len(type, i, meta);
+         idx = LLVMBuildMul(builder, idx, stride, "stride");
+      }
+
+      idx = LLVMBuildAdd(builder, idx,
+                         cgen_array_off(offset, meta, type, ctx, i), "idx");
+   }
+
+   return idx;
+}
+
 static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = NULL;
@@ -2417,26 +2447,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
    type_t type = tree_type(value);
 
-   const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
-
-   LLVMValueRef idx = llvm_int32(0);
-   const int nparams = tree_params(t);
-   for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(t, i);
-      assert(tree_subkind(p) == P_POS);
-      LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
-
-      if (!elide_bounds)
-         cgen_check_array_bounds(tree_value(p), type, i, array, offset, ctx);
-
-      if (i > 0) {
-         LLVMValueRef stride = cgen_array_len(type, i, array);
-         idx = LLVMBuildMul(builder, idx, stride, "stride");
-      }
-
-      idx = LLVMBuildAdd(builder, idx,
-                         cgen_array_off(offset, array, type, ctx, i), "idx");
-   }
+   LLVMValueRef idx = cgen_array_ref_offset(t, array, ctx);
 
    switch (class) {
    case C_VARIABLE:
@@ -3333,36 +3344,29 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
    case T_ARRAY_REF:
       {
-         tree_t p = tree_param(t, 0);
-         assert(tree_subkind(p) == P_POS);
-
          type_t type = tree_type(tree_value(t));
-
-         LLVMValueRef idx = cgen_expr(tree_value(p), ctx);
 
          if (tree_kind(tree_value(t)) == T_REF) {
             if (type_kind(type) == T_UARRAY) {
+               assert(tree_params(t) == 1);
+
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
 
                LLVMValueRef meta = cgen_signal_nets(decl);
-
-               cgen_check_array_bounds(tree_value(p), type, 0, meta, idx, ctx);
+               LLVMValueRef off  = cgen_array_ref_offset(t, meta, ctx);
 
                LLVMValueRef sig_array = cgen_array_data_ptr(type, meta);
-               LLVMValueRef off = cgen_array_off(idx, meta, type, ctx, 0);
 
                LLVMValueRef indexes[] = { off };
                return LLVMBuildGEP(builder, sig_array,
                                    indexes, ARRAY_LEN(indexes), "");
             }
             else {
-               LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
+               LLVMValueRef off = cgen_array_ref_offset(t, NULL, ctx);
 
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
-
-               cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
 
                return cgen_array_signal_ptr(decl, off, ctx);
             }
@@ -3370,9 +3374,8 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             assert(type_kind(type) != T_UARRAY);
 
-            cgen_check_array_bounds(tree_value(p), type, 0, NULL, idx, ctx);
+            LLVMValueRef off = cgen_array_ref_offset(t, NULL, ctx);
 
-            LLVMValueRef off = cgen_array_off(idx, NULL, type, ctx, 0);
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
 
             LLVMValueRef indexes[] = { off };

@@ -208,22 +208,25 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
          const int width  = type_width(type);
          const int stride = type_width(type_elem(type));
 
-         if (tree_params(target) > 1)
-            fatal_at(tree_loc(target), "sorry, array signals with more than "
-                     "one dimension are not supported yet");
+         if (tree_params(target) == 1) {
+            tree_t index = tree_value(tree_param(target, 0));
 
-         tree_t index = tree_value(tree_param(target, 0));
-
-         int64_t offset = -1;
-         if (tree_kind(index) == T_LITERAL)
-            offset = stride * rebase_index(type, 0, assume_int(index));
-
-         if (offset == -1) {
+            if (tree_kind(index) == T_LITERAL) {
+               const int64_t offset =
+                  stride * rebase_index(type, 0, assume_int(index));
+               group_ref(value, ctx, offset, stride);
+            }
+            else {
+               for (int i = 0; i < width; i += stride)
+                  group_ref(value, ctx, i, stride);
+            }
+         }
+         else {
+            // Ungroup multi-dimensional arrays
+            // TODO: this is inefficient
             for (int i = 0; i < width; i += stride)
                group_ref(value, ctx, i, stride);
          }
-         else
-            group_ref(value, ctx, offset, stride);
       }
       break;
 
