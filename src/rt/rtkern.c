@@ -269,12 +269,27 @@ static const char *fmt_group(const netgroup_t *g)
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
       const int stride = type_width(type_elem(type));
-      const int index = offset / stride;
-      static_printf(buf, "[%d", index);
-      if ((length / stride) > 1)
-         static_printf(buf, "..%d", index + (length / stride) - 1);
+      const int ndims = type_dims(type);
+
+      static_printf(buf, "[");
+      for (int i = 0; i < ndims; i++) {
+         int stride2 = stride;
+         for (int j = i + 1; j < ndims; j++) {
+            range_t r = type_dim(type, j);
+
+            int64_t low, high;
+            range_bounds(r, &low, &high);
+
+            stride2 *= (high - low) + 1;
+         }
+
+         const int index = offset / stride2;
+         static_printf(buf, "%s%d", (i > 0) ? "," : "", index);
+         if ((length / stride2) > 1)
+            static_printf(buf, "..%d", index + (length / stride2) - 1);
+         offset %= stride2;
+      }
       static_printf(buf, "]");
-      offset %= stride;
 
       type = type_elem(type);
       length = stride;
