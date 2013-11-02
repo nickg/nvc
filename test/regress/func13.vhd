@@ -8,8 +8,14 @@ begin
         variable x : integer;
 
         impure function add_to_x(y : integer) return integer is
+
+            impure function do_it return integer is
+            begin
+                return x + y;
+            end function;
+
         begin
-            return x + y;
+            return do_it;
         end function;
     begin
         x := 2;

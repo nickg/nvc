@@ -54,6 +54,7 @@ static ident_t elide_bounds_i;
 static ident_t null_range_i;
 static ident_t nest_level_i;
 static ident_t nest_offset_i;
+static ident_t nest_parent_i;
 
 typedef struct case_arc  case_arc_t;
 typedef struct case_state case_state_t;
@@ -987,7 +988,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    tree_kind_t kind = tree_kind(decl);
    assert((kind == T_VAR_DECL)
           || (kind == T_CONST_DECL)
-          || (kind == T_FILE_DECL));
+          || (kind == T_FILE_DECL)
+          || (kind == T_PORT_DECL));
 
    type_t type = tree_type(decl);
 
@@ -1012,7 +1014,17 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
    const int nest = tree_attr_int(decl, nest_offset_i, -1);
    if (nest != -1) {
       // This variable is contained in an outer scope
-      return LLVMBuildExtractValue(builder, ctx->state, nest, "");
+
+      const int our_level =
+         (ctx->fdecl ? tree_attr_int(ctx->fdecl, nest_level_i, 0) : 0);
+      const int var_level = tree_attr_int(decl, nest_level_i, 0);
+
+      // Walk through the chain of structures to get the correct level
+      LLVMValueRef state = ctx->state;
+      for (int i = our_level; i > var_level; i--)
+         state = LLVMBuildExtractValue(builder, state, 0, "up");
+
+      return LLVMBuildExtractValue(builder, state, nest, "");
    }
 
    const char *name = istr(tree_ident(decl));
@@ -1120,21 +1132,32 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
 
 static LLVMTypeRef cgen_nest_struct_type(tree_t parent)
 {
-   const int ndecls = tree_decls(parent);
+   tree_t grandparent = tree_attr_tree(parent, nest_parent_i);
 
-   LLVMTypeRef *fields = xmalloc(ndecls * sizeof(LLVMTypeRef));
+   const bool has_ports = (tree_kind(parent) != T_PROCESS);
+
+   const int nports  = has_ports ? tree_ports(parent) : 0;
+   const int ndecls  = tree_decls(parent);
+   const int nfields = ndecls + nports + (grandparent ? 1 : 0);
+
+   LLVMTypeRef *fields = xmalloc(nfields * sizeof(LLVMTypeRef));
 
    unsigned offset = 0;
+
+   if (grandparent != NULL)
+      fields[offset++] = cgen_nest_struct_type(grandparent);
+
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(parent, i);
+      fields[offset++] = llvm_type(tree_type(p));
+   }
+
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(parent, i);
       switch (tree_kind(d)) {
       case T_CONST_DECL:
       case T_VAR_DECL:
-         {
-            fields[offset] = LLVMPointerType(llvm_type(tree_type(d)), 0);
-            //tree_add_attr_int(d, var_offset_i, offset);
-            offset++;
-         }
+         fields[offset++] = LLVMPointerType(llvm_type(tree_type(d)), 0);
          break;
       default:
          break;
@@ -1489,7 +1512,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       // If we are passing a constrained array argument wrap it in
       // a structure with its metadata. Note we don't need to do
       // this for unconstrained arrays as they are already wrapped.
-      bool need_wrap =
+      const bool need_wrap =
          (type_kind(formal_type) == T_UARRAY)
          && cgen_const_bounds(type)
          && (builtin == NULL);
@@ -1529,7 +1552,6 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          && (type_kind(formal_type) != T_UARRAY)
          && (class != C_SIGNAL)
          && (builtin == NULL);
-      // XXX: with auto-alias this should never happen!
       if (unwrap) {
          LLVMValueRef ptr = args[i];
          if (!cgen_const_bounds(type))
@@ -1557,8 +1579,26 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       tree_t parent = (ctx->proc != NULL) ? ctx->proc : ctx->fdecl;
 
       LLVMValueRef parent_state = LLVMGetUndef(cgen_nest_struct_type(parent));
-
       unsigned offset = 0;
+
+      const bool chained = (ctx->fdecl != NULL) && (ctx->state != NULL);
+      if (chained)
+         parent_state = LLVMBuildInsertValue(builder, parent_state,
+                                             ctx->state, offset++, "parent");
+
+      if (ctx->fdecl != NULL) {
+         const int nports = tree_ports(ctx->fdecl);
+         for (int i = 0; i < nports; i++) {
+            tree_t p = tree_port(ctx->fdecl, i);
+            parent_state = LLVMBuildInsertValue(
+               builder,
+               parent_state,
+               tree_attr_ptr(p, local_var_i),
+               offset++,
+               istr(tree_ident(p)));
+         }
+      }
+
       const int ndecls = tree_decls(parent);
       for (int i = 0; i < ndecls; i++) {
          tree_t d = tree_decl(parent, i);
@@ -4344,11 +4384,21 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
-static bool cgen_nested_subprograms(tree_t t)
+static void cgen_nested_subprograms(tree_t t)
 {
-   bool have_nested = false;
+   const int level = tree_attr_int(t, nest_level_i, 0);
 
-   int offset = 0;
+   int offset = (level == 0) ? 0 : 1;
+
+   if (tree_kind(t) != T_PROCESS) {
+      const int nports = tree_ports(t);
+      for (int i = 0; i < nports; i++) {
+         tree_t p = tree_port(t, i);
+         tree_add_attr_int(p, nest_offset_i, offset++);
+         tree_add_attr_int(p, nest_level_i, level + 1);
+      }
+   }
+
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
@@ -4358,35 +4408,33 @@ static bool cgen_nested_subprograms(tree_t t)
       case T_PROC_BODY:
       case T_FUNC_BODY:
          {
-            tree_add_attr_int(d, nest_level_i, 1);
+            tree_add_attr_int(d, nest_level_i, level + 1);
+            tree_add_attr_tree(d, nest_parent_i, t);
 
             if (kind == T_PROC_BODY)
                cgen_proc_body(d, t);
             else
                cgen_func_body(d, t);
-
-            have_nested = true;
          }
          break;
 
       case T_CONST_DECL:
       case T_VAR_DECL:
          tree_add_attr_int(d, nest_offset_i, offset++);
+         tree_add_attr_int(d, nest_level_i, level + 1);
          break;
 
       default:
          break;
       }
    }
-
-   return have_nested;
 }
 
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
 
-   (void)cgen_nested_subprograms(t);
+   cgen_nested_subprograms(t);
 
    cgen_ctx_t ctx = {
       .entry_list = NULL,
@@ -4683,6 +4731,8 @@ static void cgen_subprogram_locals(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_func_body(tree_t t, tree_t parent)
 {
+   cgen_nested_subprograms(t);
+
    type_t ftype = tree_type(t);
 
    unsigned nargs;
@@ -5565,6 +5615,7 @@ void cgen(tree_t top)
    null_range_i   = ident_new("null_range");
    nest_level_i   = ident_new("nest_level");
    nest_offset_i  = ident_new("nest_offset");
+   nest_parent_i  = ident_new("nest_parent");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
