@@ -1641,6 +1641,7 @@ tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index)
 static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
 {
    assert(t != NULL);
+   assert(name != NULL);
 
    for (unsigned i = 0; i < t->attrs.num; i++) {
       if (t->attrs.table[i].kind == kind && t->attrs.table[i].name == name)

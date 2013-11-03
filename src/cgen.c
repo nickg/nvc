@@ -50,6 +50,7 @@ static ident_t foreign_i;
 static ident_t never_waits_i;
 static ident_t stmt_tag_i;
 static ident_t cond_tag_i;
+static ident_t sub_cond_i;
 static ident_t elide_bounds_i;
 static ident_t null_range_i;
 static ident_t nest_level_i;
@@ -123,6 +124,7 @@ static LLVMValueRef cgen_support_fn(const char *name);
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx);
 static void cgen_proc_body(tree_t t, tree_t parent);
 static void cgen_func_body(tree_t t, tree_t parent);
+static void cgen_cond_coverage(tree_t t, LLVMValueRef value);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1966,6 +1968,17 @@ static LLVMValueRef cgen_division(LLVMValueRef num, LLVMValueRef denom,
    return LLVMBuildSDiv(builder, num, denom, "");
 }
 
+static LLVMValueRef cgen_logical(tree_t t, LLVMValueRef result)
+{
+   if (tree_attr_int(t, sub_cond_i, 0) > 0) {
+      // This is a sub-condition of a Boolean expression being annotated
+      // for coverage
+      cgen_cond_coverage(t, result);
+   }
+
+   return result;
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -2085,40 +2098,40 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
       }
       else if (icmp(builtin, "eq")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealUEQ, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealUEQ, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "neq")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealUNE, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealUNE, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "lt")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealULT, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealULT, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "gt")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealUGT, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealUGT, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "leq")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealULE, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealULE, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "geq")) {
-         if (real)
-            return LLVMBuildFCmp(builder, LLVMRealUGE, args[0], args[1], "");
-         else
-            return LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+         LLVMValueRef r = real
+            ? LLVMBuildFCmp(builder, LLVMRealUGE, args[0], args[1], "")
+            : LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+         return cgen_logical(t, r);
       }
       else if (icmp(builtin, "neg")) {
          if (real)
@@ -2127,22 +2140,31 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             return LLVMBuildNeg(builder, args[0], "neg");
       }
       else if (icmp(builtin, "not"))
-         return LLVMBuildNot(builder, args[0], "");
+         return cgen_logical(t, LLVMBuildNot(builder, args[0], ""));
       else if (icmp(builtin, "and"))
-         return LLVMBuildAnd(builder, args[0], args[1], "");
+         return cgen_logical(t, LLVMBuildAnd(builder, args[0], args[1], ""));
       else if (icmp(builtin, "or"))
-         return LLVMBuildOr(builder, args[0], args[1], "");
+         return cgen_logical(t, LLVMBuildOr(builder, args[0], args[1], ""));
       else if (icmp(builtin, "xor"))
-         return LLVMBuildXor(builder, args[0], args[1], "");
-      else if (icmp(builtin, "xnor"))
-         return LLVMBuildNot(builder,
-                             LLVMBuildXor(builder, args[0], args[1], ""), "");
-      else if (icmp(builtin, "nand"))
-         return LLVMBuildNot(builder,
-                             LLVMBuildAnd(builder, args[0], args[1], ""), "");
-      else if (icmp(builtin, "nor"))
-         return LLVMBuildNot(builder,
-                             LLVMBuildOr(builder, args[0], args[1], ""), "");
+         return cgen_logical(t, LLVMBuildXor(builder, args[0], args[1], ""));
+      else if (icmp(builtin, "xnor")) {
+         LLVMValueRef r =
+            LLVMBuildNot(builder,
+                         LLVMBuildXor(builder, args[0], args[1], ""), "");
+         return cgen_logical(t, r);
+      }
+      else if (icmp(builtin, "nand")) {
+         LLVMValueRef r =
+            LLVMBuildNot(builder,
+                         LLVMBuildAnd(builder, args[0], args[1], ""), "");
+         return cgen_logical(t, r);
+      }
+      else if (icmp(builtin, "nor")) {
+         LLVMValueRef r =
+            LLVMBuildNot(builder,
+                         LLVMBuildOr(builder, args[0], args[1], ""), "");
+         return cgen_logical(t, r);
+      }
       else if (icmp(builtin, "mod"))
          return LLVMBuildURem(builder, args[0], args[1], "");
       else if (icmp(builtin, "rem"))
@@ -3560,6 +3582,8 @@ static void cgen_cond_coverage(tree_t t, LLVMValueRef value)
    if (cover_tag == -1)
       return;
 
+   const int sub_cond = tree_attr_int(t, sub_cond_i, 0);
+
    LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
 
    LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
@@ -3571,8 +3595,10 @@ static void cgen_cond_coverage(tree_t t, LLVMValueRef value)
    // Bit zero means evaluated false, bit one means evaluated true
    // Other bits may be used in the future for sub-conditions
 
-   LLVMValueRef or = LLVMBuildSelect(builder, value, llvm_int32(1 << 1),
-                                     llvm_int32(1 << 0), "cond_mask_or");
+   LLVMValueRef or = LLVMBuildSelect(builder, value,
+                                     llvm_int32(1 << ((sub_cond * 2) + 1)),
+                                     llvm_int32(1 << (sub_cond * 2)),
+                                     "cond_mask_or");
 
    LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
 
@@ -5635,6 +5661,7 @@ void cgen(tree_t top)
    nest_level_i   = ident_new("nest_level");
    nest_offset_i  = ident_new("nest_offset");
    nest_parent_i  = ident_new("nest_parent");
+   sub_cond_i     = ident_new("sub_cond");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

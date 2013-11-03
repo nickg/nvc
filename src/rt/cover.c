@@ -63,11 +63,41 @@ struct cover_file {
 typedef struct {
    int next_stmt_tag;
    int next_cond_tag;
+   int next_sub_cond;
 } cover_tag_ctx_t;
 
 static ident_t       stmt_tag_i;
 static ident_t       cond_tag_i;
+static ident_t       sub_cond_i;
+static ident_t       builtin_i;
+static ident_t       std_bool_i;
 static cover_file_t *files;
+
+static void cover_tag_conditions(tree_t t, cover_tag_ctx_t *ctx, int branch)
+{
+   const int tag = (branch == -1) ? (ctx->next_cond_tag)++ : branch;
+
+   if (ctx->next_sub_cond == 16)
+      return;
+
+   tree_add_attr_int(t, cond_tag_i, tag);
+   tree_add_attr_int(t, sub_cond_i, (ctx->next_sub_cond)++);
+
+   if (tree_kind(t) != T_FCALL)
+      return;
+
+   // Tag Boolean sub-expressions
+
+   if (tree_attr_str(tree_ref(t), builtin_i) == NULL)
+      return;
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t value = tree_value(tree_param(t, i));
+      if (type_ident(tree_type(value)) == std_bool_i)
+         cover_tag_conditions(value, ctx, tag);
+   }
+}
 
 static void cover_tag_visit_fn(tree_t t, void *context)
 {
@@ -78,8 +108,10 @@ static void cover_tag_visit_fn(tree_t t, void *context)
    case T_WHILE:
    case T_NEXT:
    case T_EXIT:
-      if (tree_has_value(t))
-         tree_add_attr_int(tree_value(t), cond_tag_i, (ctx->next_cond_tag)++);
+      if (tree_has_value(t)) {
+         ctx->next_sub_cond = 0;
+         cover_tag_conditions(tree_value(t), ctx, -1);
+      }
       // Fall-through
    case T_SIGNAL_ASSIGN:
    case T_ASSERT:
@@ -99,6 +131,9 @@ void cover_tag(tree_t top)
 {
    stmt_tag_i = ident_new("stmt_tag");
    cond_tag_i = ident_new("cond_tag");
+   sub_cond_i = ident_new("sub_cond");
+   std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
+   builtin_i  = ident_new("builtin");
 
    cover_tag_ctx_t ctx = {
       .next_stmt_tag = 0,
@@ -230,12 +265,16 @@ static void cover_report_conds_fn(tree_t t, void *context)
    else if (hl->kind == HL_HIT)
       return;
 
-   hl->kind = (masks[tag] == 3) ? HL_HIT : HL_MISS;
+   const int sub_cond = tree_attr_int(t, sub_cond_i, 0);
+
+   const int mask = (masks[tag] >> (sub_cond * 2)) & 3;
+
+   hl->kind = (mask == 3) ? HL_HIT : HL_MISS;
    hl->help = NULL;
 
-   if (masks[tag] == 1)
+   if (mask == 1)
       hl->help = "Condition never evaluated to TRUE";
-   else if (masks[tag] == 2)
+   else if (mask == 2)
       hl->help = "Condition never evaluated to FALSE";
 }
 
@@ -410,6 +449,7 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 {
    stmt_tag_i = ident_new("stmt_tag");
    cond_tag_i = ident_new("cond_tag");
+   sub_cond_i = ident_new("sub_cond");
 
    tree_visit(top, cover_report_stmts_fn, (void *)stmts);
 
