@@ -288,7 +288,8 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
       break;
 
    default:
-      assert(false);
+      fatal_at(tree_loc(value), "tree kind %s not yet supported as slice value",
+               tree_kind_str(tree_kind(value)));
    }
 }
 
