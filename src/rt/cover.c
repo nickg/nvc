@@ -462,9 +462,11 @@ static const char *cover_percent(unsigned x, unsigned y)
 static void cover_stat_line(FILE *fp, const char *text,
                             unsigned hit, unsigned total)
 {
-   fprintf(fp, "<tr><td>%s</td><td class=\"num\">%u</td>"
-           "<td class=\"num\">%u</td><td class=\"num\">%s</td></tr>\n",
-           text, hit, total, cover_percent(hit, total));
+   if (total > 0) {
+      fprintf(fp, "<tr><td>%s</td><td class=\"num\">%u</td>"
+              "<td class=\"num\">%u</td><td class=\"num\">%s</td></tr>\n",
+              text, hit, total, cover_percent(hit, total));
+   }
 }
 
 static void cover_index(ident_t name, const char *dir)
