@@ -25,8 +25,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_CONTEXTS 16
-#define MAX_FILES    512
+#define MAX_FILES 512
 
 //#define EXTRA_READ_CHECKS
 
