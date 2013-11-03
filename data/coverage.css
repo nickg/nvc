@@ -65,10 +65,47 @@ div.advert a:link {
     text-align: center;
 }
 
+#body h2 {
+    font-size: 14pt;
+    text-align: center;
+}
+
 span.hl_miss {
     background: #ff6060;
 }
 
 span.hl_hit {
     background: #60ff60;
+}
+
+table.stats {
+    border-collapse: collapse;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+table.stats td {
+    padding-right: 10px;
+}
+
+table.stats th {
+    border-bottom: 1px solid black;
+    padding-right: 10px;
+    font-size: 12pt;
+}
+
+table.stats td.num {
+    text-align: center;
+}
+
+span.pct_green {
+    color: #339933;
+}
+
+span.pct_orange {
+    color: #ff8800;
+}
+
+span.pct_red {
+    color: #cc0000;
 }
