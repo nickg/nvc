@@ -320,7 +320,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
       if ((lib == NULL) && verbose) {
          char buf[2048];
          static_printf_begin(buf, sizeof(buf));
-         static_printf(buf, "library %s not found in:", name);
+         static_printf(buf, "library %s not found in:\n", name);
          for (search_path_t *it = search_paths; it != NULL; it = it->next)
             static_printf(buf, "  %s\n", it->path);
          errorf("%s", buf);
