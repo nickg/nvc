@@ -51,14 +51,14 @@ typedef struct {
    cover_hl_t *hl;
 } cover_line_t;
 
-typedef struct cover_file {
+struct cover_file {
    const char   *name;
    cover_line_t *lines;
    unsigned      n_lines;
    unsigned      alloc_lines;
    bool          valid;
    cover_file_t *next;
-} cover_file_t;
+};
 
 typedef struct {
    int next_stmt_tag;
