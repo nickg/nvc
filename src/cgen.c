@@ -2274,7 +2274,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                              "rightof");
       }
       else if (icmp(builtin, "length")) {
-         assert(!cgen_const_bounds(arg_types[1]));
          return cgen_array_len(arg_types[1],
                                assume_int(tree_value(tree_param(t, 0))) - 1,
                                args[1]);
