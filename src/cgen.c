@@ -3428,7 +3428,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          if (cgen_const_bounds(type))
             return ptr;
          else
-            return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
+            return cgen_array_meta_1(NULL, left, right, llvm_int8(r.kind), ptr);
       }
 
    case T_AGGREGATE:
