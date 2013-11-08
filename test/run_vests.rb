@@ -11,18 +11,12 @@ BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 VestsDir = "#{TestDir}/vests"
 Prefix = "#{VestsDir}/vhdl-93"
-NvcBin = "#{BuildDir}/src/nvc"
 
 unless Dir.exists? VestsDir
   puts "VESTs source missing from #{VestsDir}"
   puts
   puts "You can download this using"
   puts "  git clone https://github.com/nickg/vests.git"
-  exit 1
-end
-
-unless File.exists? NvcBin
-  puts "#{NvcBin} does not exist"
   exit 1
 end
 
@@ -49,7 +43,7 @@ def find_tests(path, compliant)
     Dir.chdir path
     puts "---- #{path.sub(Prefix.to_s, '')} ----".yellow
     tests.each do |t|
-      cmd = "#{NvcBin} -a #{t}"
+      cmd = "nvc -a #{path}/#{t}"
       cmd += " 2>/dev/null" unless compliant
       puts cmd
       r = system cmd
@@ -73,3 +67,9 @@ find_tests Prefix, true
 
 puts "#{$pass} passes"
 puts "#{$fail} failures"
+
+File.open("#{VestsDir}/HISTORY", 'a') do |f|
+  rev = IO::popen("git rev-parse --short HEAD").read.chomp
+  f.printf("%20s %10s   %4d passes   %4d failures\n",
+    Time.new.ctime, rev, $pass, $fail)
+end
