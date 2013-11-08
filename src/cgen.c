@@ -3407,9 +3407,9 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
    case T_ARRAY_SLICE:
       {
-         assert(tree_kind(tree_value(t)) == T_REF);
+         tree_t value = tree_value(t);
 
-         tree_t decl = tree_ref(tree_value(t));
+         LLVMValueRef nets = cgen_signal_lvalue(value, ctx);
 
          range_t r = tree_range(t);
 
@@ -3418,17 +3418,22 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          type_t val_type = tree_type(tree_value(t));
 
-         cgen_check_array_bounds(r.left, val_type, 0, NULL, left, ctx);
-         cgen_check_array_bounds(r.right, val_type, 0, NULL, right, ctx);
+         cgen_check_array_bounds(r.left, val_type, 0, nets, left, ctx);
+         cgen_check_array_bounds(r.right, val_type, 0, nets, right, ctx);
 
-         LLVMValueRef off = cgen_array_off(left, NULL, val_type, ctx, 0);
-         LLVMValueRef ptr = cgen_array_signal_ptr(decl, off, ctx);
+         LLVMValueRef off = cgen_array_off(left, nets, val_type, ctx, 0);
+
+         if (!cgen_const_bounds(val_type))
+            nets = LLVMBuildExtractValue(builder, nets, 0, "");
+
+         LLVMValueRef slice = LLVMBuildGEP(builder, nets, &off, 1, "slice");
 
          type_t type = tree_type(t);
          if (cgen_const_bounds(type))
-            return ptr;
+            return slice;
          else
-            return cgen_array_meta_1(NULL, left, right, llvm_int8(r.kind), ptr);
+            return cgen_array_meta_1(NULL, left, right,
+                                     llvm_int8(r.kind), slice);
       }
 
    case T_AGGREGATE:
