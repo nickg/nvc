@@ -6,6 +6,7 @@ begin
 
     process is
         type myint is range 1 to 3;
+        subtype myint_sub is myint range 1 to 2;
         variable x : integer;
     begin
         assert myint'val(1) = 1;
@@ -14,6 +15,8 @@ begin
         assert myint'val(x) = 1;
         x := 2;
         assert myint'val(x) = 2;
+        assert myint_sub'val(2) = 2;
+        assert myint_sub'val(x) = 2;
         wait;
     end process;
 
