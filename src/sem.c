@@ -814,10 +814,30 @@ static void sem_declare_predefined_ops(tree_t decl)
       break;
    }
 
+   switch (kind) {
+   case T_INTEGER:
+   case T_PHYSICAL:
+   case T_ENUM:
+      {
+         ident_t pos_i = ident_new("POS");
+         tree_add_attr_tree(decl, pos_i,
+                            sem_builtin_fn(pos_i, std_int, "pos", t, t, NULL));
+
+         ident_t val_i = ident_new("VAL");
+         tree_add_attr_tree(decl, val_i,
+                            sem_builtin_fn(val_i, t, "val",
+                                           type_universal_int(), t, NULL));
+      }
+      break;
+
+   default:
+      break;
+   }
+
    if (type_is_array(t))
       sem_add_length_attr(decl);
 
-   switch (type_kind(t)) {
+   switch (kind) {
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:

@@ -206,15 +206,15 @@ static unsigned bit_width(type_t t)
    case T_PHYSICAL:
       {
          range_t r = type_dim(t, 0);
-         uint64_t elements = assume_int(r.right) - assume_int(r.left);
+         uint64_t elements = assume_int(r.right) - assume_int(r.left) + 1;
 
          if (elements <= 2)
             return 1;
-         if (elements <= 0xffull)
+         if (elements <= 0x100ull)
             return 8;
-         else if (elements <= 0xffffull)
+         else if (elements <= 0x10000ull)
             return 16;
-         else if (elements <= 0xffffffffull)
+         else if (elements <= 0x100000000ull)
             return 32;
          else
             return 64;
@@ -311,7 +311,8 @@ static LLVMTypeRef llvm_type(type_t t)
       {
          if (cgen_const_bounds(t)) {
             unsigned nelems = 1;
-            for (unsigned i = 0; i < type_dims(t); i++) {
+            const int ndims = type_dims(t);
+            for (int i = 0; i < ndims; i++) {
                int64_t low, high;
                range_bounds(type_dim(t, i), &low, &high);
                if (high < low)
@@ -1979,6 +1980,27 @@ static LLVMValueRef cgen_logical(tree_t t, LLVMValueRef result)
    return result;
 }
 
+static LLVMValueRef cgen_attr_val(tree_t t, LLVMValueRef arg, cgen_ctx_t *ctx)
+{
+   type_t type = tree_type(t);
+   if (type_kind(type) == T_ENUM) {
+      const int max = type_enum_literals(type) - 1;
+      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), arg,
+                        llvm_int32(0), llvm_int32(max), ctx);
+   }
+   else {
+      range_t r = type_dim(type, 0);
+
+      int64_t low, high;
+      range_bounds(r, &low, &high);
+
+      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), arg,
+                        llvm_int32(low), llvm_int32(high), ctx);
+   }
+
+   return LLVMBuildIntCast(builder, arg, llvm_type(type), "val");
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -2098,36 +2120,48 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
       }
       else if (icmp(builtin, "eq")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUEQ, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntEQ, args[0], args[1], "");
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "neq")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUNE, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntNE, args[0], args[1], "");
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "lt")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealULT, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "gt")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUGT, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "leq")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealULE, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "geq")) {
+         if (!real)
+            cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUGE, args[0], args[1], "")
             : LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
@@ -2325,12 +2359,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
                                args[0], arg_types[0], args[1], ctx);
       else if (icmp(builtin, "pos"))
          return LLVMBuildZExt(builder, args[0], llvm_type(rtype), "pos");
-      else if (icmp(builtin, "val")) {
-         const int max = type_enum_literals(rtype) - 1;
-         cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), args[0],
-                           llvm_int32(0), llvm_int32(max), ctx);
-         return LLVMBuildIntCast(builder, args[0], llvm_type(rtype), "val");
-      }
+      else if (icmp(builtin, "val"))
+         return cgen_attr_val(t, args[0], ctx);
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
