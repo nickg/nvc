@@ -4628,7 +4628,42 @@ static bool sem_locally_static(tree_t t)
       return all_static;
    }
 
-   // TODO: clauses e, f, and g re. attributes
+   if (kind == T_ATTR_REF) {
+      // A predefined attribute other than 'PATH_NAME whose prefix has a
+      // locally static subtype
+      tree_t decl = tree_ref(t);
+      if (icmp(tree_ident(t), "PATH_NAME"))
+         return false;
+      else if (tree_kind(decl) == T_FUNC_DECL) {
+         assert(tree_attr_str(decl, builtin_i));
+
+         // Check for locally static subtype
+         type_t type = tree_type(tree_ref(tree_name(t)));
+         switch (type_kind(type)) {
+         case T_UARRAY:
+            return false;
+         case T_CARRAY:
+         case T_SUBTYPE:
+            {
+               const int ndims = type_dims(type);
+               for (int i = 0; i < ndims; i++) {
+                  range_t r = type_dim(type, i);
+                  if (!sem_locally_static(r.left)
+                      || !sem_locally_static(r.right))
+                     return false;
+               }
+
+               return true;
+            }
+         default:
+            return true;
+         }
+      }
+
+      // A user-defined attribute whose value is a locally static expression
+      assert(tree_has_value(t));
+      return sem_locally_static(tree_value(t));
+   }
 
    // A qualified expression whose operand is locally static
    if (kind == T_QUALIFIED)
