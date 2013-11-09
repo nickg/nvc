@@ -222,3 +222,36 @@ const char *package_signal_path_name(ident_t i)
 
    return buf;
 }
+
+bool parse_value(type_t type, const char *str, int64_t *value)
+{
+   while (isspace(*str))
+      ++str;
+
+   switch (type_kind(type)) {
+   case T_INTEGER:
+      {
+         int64_t sum = 0;
+         while (isdigit(*str) || (*str == '_')) {
+            if (*str != '_') {
+               sum *= 10;
+               sum += (*str - '0');
+            }
+            ++str;
+         }
+
+         *value = sum;
+      }
+      break;
+
+   default:
+      break;
+   }
+
+   while (*str != '\0') {
+      if (!isspace(*str++))
+         return false;
+   }
+
+   return true;
+}

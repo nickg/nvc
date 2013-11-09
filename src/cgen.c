@@ -1980,25 +1980,53 @@ static LLVMValueRef cgen_logical(tree_t t, LLVMValueRef result)
    return result;
 }
 
-static LLVMValueRef cgen_attr_val(tree_t t, LLVMValueRef arg, cgen_ctx_t *ctx)
+static void cgen_check_scalar_bounds(tree_t t, LLVMValueRef value,
+                                     cgen_ctx_t *ctx)
 {
+   // TODO: use this code in more places
+
    type_t type = tree_type(t);
    if (type_kind(type) == T_ENUM) {
       const int max = type_enum_literals(type) - 1;
-      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), arg,
+      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), value,
                         llvm_int32(0), llvm_int32(max), ctx);
    }
    else {
       range_t r = type_dim(type, 0);
-
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-
-      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), arg,
-                        llvm_int32(low), llvm_int32(high), ctx);
+      LLVMValueRef min =
+         cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
+      LLVMValueRef max =
+         cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
+      LLVMValueRef kind = llvm_int32((r.kind == RANGE_TO)
+                                     ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO);
+      cgen_check_bounds(t, kind, value, min, max, ctx);
    }
+}
 
-   return LLVMBuildIntCast(builder, arg, llvm_type(type), "val");
+static LLVMValueRef cgen_attr_val(tree_t t, LLVMValueRef arg, cgen_ctx_t *ctx)
+{
+   cgen_check_scalar_bounds(t, arg, ctx);
+   return LLVMBuildIntCast(builder, arg, llvm_type(tree_type(t)), "val");
+}
+
+static LLVMValueRef cgen_attr_value(tree_t t, LLVMValueRef arg, type_t arg_type,
+                                    cgen_ctx_t *ctx)
+{
+   LLVMValueRef args[] = {
+      cgen_array_data_ptr(arg_type, arg),
+      cgen_array_len(arg_type, 0, arg),
+      llvm_int32(tree_index(t)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMValueRef value = LLVMBuildCall(builder, llvm_fn("_value_attr"),
+                                      args, ARRAY_LEN(args), "value");
+
+   value = cgen_narrow(tree_type(t), value);
+
+   cgen_check_scalar_bounds(t, value, ctx);
+
+   return value;
 }
 
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
@@ -2361,6 +2389,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return LLVMBuildZExt(builder, args[0], llvm_type(rtype), "pos");
       else if (icmp(builtin, "val"))
          return cgen_attr_val(t, args[0], ctx);
+      else if (icmp(builtin, "value"))
+         return cgen_attr_value(t, args[0], arg_types[0], ctx);
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
@@ -5627,6 +5657,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type()
       };
       return LLVMAddFunction(module, "_last_event",
+                             LLVMFunctionType(LLVMInt64Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_value_attr") == 0) {
+      LLVMTypeRef args[] = {
+         llvm_void_ptr(),
+         LLVMInt32Type(),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt8Type(), 0)
+      };
+      return LLVMAddFunction(module, "_value_attr",
                              LLVMFunctionType(LLVMInt64Type(),
                                               args, ARRAY_LEN(args), false));
    }

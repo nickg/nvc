@@ -520,6 +520,24 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    }
 }
 
+int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
+                    int32_t where, const char *module)
+{
+   tree_t t = rt_recall_tree(module, where);
+
+   char *str = xmalloc(str_len + 1);
+   memcpy(str, raw_str, str_len);
+   str[str_len] = '\0';
+
+   int64_t result;
+   if (!parse_value(tree_type(t), str, &result))
+      fatal_at(tree_loc(t), "string \"%s\" is not a valid "
+               "representation of type %s", str, type_pp(tree_type(t)));
+
+   free(str);
+   return result;
+}
+
 void _div_zero(int32_t where, const char *module)
 {
    tree_t t = rt_recall_tree(module, where);

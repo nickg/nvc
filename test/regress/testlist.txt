@@ -173,3 +173,6 @@ proc10          normal
 array3          normal
 slice2          normal
 attr8           normal
+attr9           normal
+bounds12        gold,fail
+bounds13        gold,fail

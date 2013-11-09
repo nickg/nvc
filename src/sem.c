@@ -848,6 +848,15 @@ static void sem_declare_predefined_ops(tree_t decl)
                             sem_builtin_fn(val_i, t, "val",
                                            type_universal_int(), t, NULL));
       }
+
+      // Fall-through
+   case T_REAL:
+      {
+         ident_t value_i = ident_new("VALUE");
+         tree_add_attr_tree(decl, value_i,
+                            sem_builtin_fn(value_i, t, "value",
+                                           sem_std_type("STRING"), t, NULL));
+      }
       break;
 
    default:
