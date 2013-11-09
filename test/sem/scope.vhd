@@ -113,3 +113,18 @@ entity no_use_clause is
         a : in pack1.my_int1;           -- OK
         b : out my_int1 );              -- Error
 end entity;
+
+-------------------------------------------------------------------------------
+
+use work.pack1.all;
+
+package pack3 is
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack3.all;
+
+entity transitive is
+    port ( x : in my_int1 );            -- OK
+end entity;

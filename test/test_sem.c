@@ -273,6 +273,16 @@ START_TEST(test_scope)
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
 
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 

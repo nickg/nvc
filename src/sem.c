@@ -76,6 +76,7 @@ static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
 static unsigned sem_array_dimension(type_t a);
+static bool sem_check_context(tree_t t);
 
 static struct scope      *top_scope = NULL;
 static int                errors = 0;
@@ -248,6 +249,11 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       return false;
    }
 
+   ident_list_add(&top_scope->imported, unit_name);
+
+   if ((unit_name != std_standard_i) && !sem_check_context(unit))
+      return false;
+
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
       tree_t decl = tree_decl(unit, n);
@@ -269,7 +275,6 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       }
    }
 
-   ident_list_add(&top_scope->imported, unit_name);
    return true;
 }
 

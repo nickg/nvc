@@ -69,7 +69,7 @@ puts "#{$pass} passes"
 puts "#{$fail} failures"
 
 File.open("#{VestsDir}/HISTORY", 'a') do |f|
-  rev = IO::popen("git rev-parse --short HEAD").read.chomp
+  rev = IO::popen("cd #{TestDir} && git rev-parse --short HEAD").read.chomp
   f.printf("%20s %10s   %4d passes   %4d failures\n",
     Time.new.ctime, rev, $pass, $fail)
 end
