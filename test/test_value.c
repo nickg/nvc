@@ -31,6 +31,36 @@ START_TEST(test_integer)
 }
 END_TEST
 
+START_TEST(test_enum)
+{
+   int64_t v;
+   type_t t = type_new(T_ENUM);
+   {
+      tree_t lit1 = tree_new(T_ENUM_LIT);
+      tree_set_ident(lit1, ident_new("'x'"));
+
+      tree_t lit2 = tree_new(T_ENUM_LIT);
+      tree_set_ident(lit2, ident_new("HELLO"));
+
+      tree_t lit3 = tree_new(T_ENUM_LIT);
+      tree_set_ident(lit3, ident_new("A_B_C"));
+
+      type_enum_add_literal(t, lit1);
+      type_enum_add_literal(t, lit2);
+      type_enum_add_literal(t, lit3);
+   }
+
+   fail_unless(parse_value(t, "HELLO", &v));
+   fail_unless(v == 1);
+
+   fail_unless(parse_value(t, "'x'  ", &v));
+   fail_unless(v == 0);
+
+   fail_unless(parse_value(t, " \tA_B_C  ", &v));
+   fail_unless(v == 2);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -39,6 +69,7 @@ int main(void)
 
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_integer);
+   tcase_add_test(tc_core, test_enum);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

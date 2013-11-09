@@ -10,6 +10,9 @@ begin
         assert integer'value("1") = 1;
         assert natural'value("  12_3") = 123;
         assert my_small_int'value("5  ") = 5;
+        assert boolean'value("true") = true;
+        assert boolean'value("FALSE") = false;
+        assert character'value("'x' ") = 'x';
         wait;
     end process;
 

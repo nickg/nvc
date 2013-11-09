@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdlib.h>
 
 int64_t assume_int(tree_t t)
 {
@@ -241,6 +242,34 @@ bool parse_value(type_t type, const char *str, int64_t *value)
          }
 
          *value = sum;
+      }
+      break;
+
+   case T_ENUM:
+      {
+         bool upcase = true;
+         char *copy = strdup(str), *p;
+         for (p = copy; (*p != '\0') && !isspace(*p); p++, str++) {
+            if (*p == '\'')
+               upcase = false;
+            if (upcase)
+               *p = toupper(*p);
+         }
+         *p = '\0';
+
+         ident_t id = ident_new(copy);
+         free(copy);
+
+         *value = -1;
+
+         const int nlits = type_enum_literals(type);
+         for (int i = 0; (*value == -1) && (i < nlits); i++) {
+            if (tree_ident(type_enum_literal(type, i)) == id)
+               *value = i;
+         }
+
+         if (*value == -1)
+            return false;
       }
       break;
 
