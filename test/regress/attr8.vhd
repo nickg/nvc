@@ -17,6 +17,10 @@ begin
         assert myint'val(x) = 2;
         assert myint_sub'val(2) = 2;
         assert myint_sub'val(x) = 2;
+        assert myint'pos(myint(x)) = x;
+        assert myint_sub'pos(myint(x)) = x;
+        assert myint'pos(1) = 1;
+        assert myint_sub'pos(1) = 1;
         wait;
     end process;
 

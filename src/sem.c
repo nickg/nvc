@@ -4344,8 +4344,9 @@ static bool sem_check_attr_ref(tree_t t)
             return false;
 
          if (!type_eq(tree_type(value), expect_type))
-            sem_error(t, "expected type %s for attribute %s",
-                      sem_type_str(expect_type), istr(attr));
+            sem_error(t, "expected type %s for attribute %s but found %s",
+                      sem_type_str(expect_type), istr(attr),
+                      sem_type_str(tree_type(value)));
       }
 
       tree_set_ref(t, a);
