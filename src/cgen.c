@@ -1983,8 +1983,6 @@ static LLVMValueRef cgen_logical(tree_t t, LLVMValueRef result)
 static void cgen_check_scalar_bounds(tree_t t, LLVMValueRef value,
                                      cgen_ctx_t *ctx)
 {
-   // TODO: use this code in more places
-
    type_t type = tree_type(t);
    if (type_kind(type) == T_ENUM) {
       const int max = type_enum_literals(type) - 1;

@@ -228,7 +228,7 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    while (isspace(*str))
       ++str;
 
-   switch (type_kind(type)) {
+   switch (type_kind(type_base_recur(type))) {
    case T_INTEGER:
       {
          int64_t sum = 0;
