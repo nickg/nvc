@@ -57,8 +57,10 @@ static ident_t nest_level_i;
 static ident_t nest_offset_i;
 static ident_t nest_parent_i;
 
-typedef struct case_arc  case_arc_t;
+typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
+typedef struct proc_entry proc_entry_t;
+typedef struct block_list block_list_t;
 
 // Linked list of entry points to a process
 // These correspond to wait statements
@@ -66,7 +68,7 @@ struct proc_entry {
    int               state_num;
    tree_t            wait;
    LLVMBasicBlockRef bb;
-   struct proc_entry *next;
+   proc_entry_t     *next;
 };
 
 // Linked list of named blocks such as loops
@@ -74,19 +76,19 @@ struct block_list {
    ident_t            name;
    LLVMBasicBlockRef  exit_bb;
    LLVMBasicBlockRef  entry_bb;
-   struct block_list *next;
+   block_list_t      *next;
 };
 
 // Code generation context for a process or function
 typedef struct cgen_ctx {
-   struct proc_entry *entry_list;
-   struct block_list *blocks;
-   LLVMValueRef      state;
-   LLVMValueRef      nest_state;
-   LLVMValueRef      fn;
-   tree_t            proc;
-   tree_t            fdecl;
-   bool              tmp_stack_used;
+   proc_entry_t  *entry_list;
+   block_list_t  *blocks;
+   LLVMValueRef   state;
+   LLVMValueRef   nest_state;
+   LLVMValueRef   fn;
+   tree_t         proc;
+   tree_t         fdecl;
+   bool           tmp_stack_used;
 } cgen_ctx_t;
 
 // Connects case_state_t elements
@@ -3290,7 +3292,7 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
       cgen_sched_event(tree_trigger(t, i), ctx);
 
    // Find the basic block to jump to when the process is next scheduled
-   struct proc_entry *it;
+   proc_entry_t *it;
    for (it = ctx->entry_list; it && it->wait != t; it = it->next)
       ;
    assert(it != NULL);
@@ -3798,7 +3800,7 @@ static void cgen_while(tree_t t, cgen_ctx_t *ctx)
    else
       LLVMBuildBr(builder, body_bb);
 
-   struct block_list *bl = xmalloc(sizeof(struct block_list));
+   block_list_t *bl = xmalloc(sizeof(block_list_t));
    bl->exit_bb  = exit_bb;
    bl->entry_bb = test_bb;
    bl->name     = tree_ident(t);
@@ -3841,7 +3843,7 @@ static void cgen_loop_control(tree_t t, cgen_ctx_t *ctx)
    }
 
    ident_t label = tree_ident2(t);
-   struct block_list *bl;
+   block_list_t *bl;
    for (bl = ctx->blocks; (bl != NULL) && (bl->name != label); bl = bl->next)
       ;
    assert(bl != NULL);
@@ -4211,7 +4213,7 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
    }
    else {
       // Find the basic block to jump to when the procedure resumes
-      struct proc_entry *it;
+      proc_entry_t *it;
       for (it = ctx->entry_list; it && it->wait != t; it = it->next)
          ;
       assert(it != NULL);
@@ -4344,7 +4346,7 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
 
    cgen_ctx_t *ctx = arg;
 
-   struct proc_entry *p = xmalloc(sizeof(struct proc_entry));
+   proc_entry_t *p = xmalloc(sizeof(proc_entry_t));
    p->next = NULL;
    p->wait = t;
    p->bb   = NULL;
@@ -4354,7 +4356,7 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
       ctx->entry_list = p;
    }
    else {
-      struct proc_entry *it;
+      proc_entry_t *it;
       for (it = ctx->entry_list; it->next != NULL; it = it->next)
          ;
       p->state_num = it->state_num + 1;
@@ -4429,7 +4431,7 @@ static void cgen_jump_table(cgen_ctx_t *ctx, LLVMBasicBlockRef default_bb)
 
    LLVMAddCase(jswitch, llvm_int32(0), default_bb);
 
-   struct proc_entry *it;
+   proc_entry_t *it;
    for (it = ctx->entry_list; it != NULL; it = it->next) {
       it->bb = LLVMAppendBasicBlock(ctx->fn, istr(tree_ident(it->wait)));
       LLVMAddCase(jswitch, llvm_int32(it->state_num), it->bb);
@@ -4613,7 +4615,7 @@ static void cgen_process(tree_t t)
    // Free context memory
 
    while (ctx.entry_list != NULL) {
-      struct proc_entry *next = ctx.entry_list->next;
+      proc_entry_t *next = ctx.entry_list->next;
       free(ctx.entry_list);
       ctx.entry_list = next;
    }
@@ -5139,7 +5141,7 @@ static void cgen_reset_function(tree_t t)
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
-   struct cgen_ctx ctx = {
+   cgen_ctx_t ctx = {
       .fn = fn
    };
 
