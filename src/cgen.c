@@ -3097,15 +3097,23 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
    if (type_is_array(type) && !cgen_const_bounds(type)) {
       // Need to allocate memory for both the array and its metadata
 
-      range_t r = type_dim(value_type, 0);
+      LLVMValueRef left, right, dir;
+      if (type_kind(value_type) == T_UARRAY) {
+         left  = cgen_array_left(value_type, 0, init);
+         right = cgen_array_right(value_type, 0, init);
+         dir   = cgen_array_dir(value_type, 0, init);
+      }
+      else {
+         range_t r = type_dim(value_type, 0);
+         left  = cgen_expr(r.left, ctx);
+         right = cgen_expr(r.right, ctx);
+         dir   = llvm_int8(r.kind);
+      }
 
       LLVMTypeRef elem = llvm_type(type_elem(type));
 
       LLVMValueRef meta =
-         cgen_array_meta_1(type,
-                           cgen_expr(r.left, ctx),
-                           cgen_expr(r.right, ctx),
-                           llvm_int8(r.kind),
+         cgen_array_meta_1(type, left, right, dir,
                            LLVMConstNull(LLVMPointerType(elem, 0)));
 
       LLVMValueRef len  = cgen_array_len(type, -1, meta);
