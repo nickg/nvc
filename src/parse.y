@@ -894,6 +894,21 @@ conc_stmt
 | comp_instance_stmt
 | block_stmt
 | generate_stmt
+| tBLOCK
+  {
+     parse_error(&@$, "block statement must have a label");
+     YYERROR;
+  }
+| tFOR
+  {
+     parse_error(&@$, "generate statement must have a label");
+     YYERROR;
+  }
+| tIF
+  {
+     parse_error(&@$, "generate statement must have a label");
+     YYERROR;
+  }
 ;
 
 conc_stmt_without_label
