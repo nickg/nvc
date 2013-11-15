@@ -886,29 +886,17 @@ conc_stmt
 | conc_stmt_without_label
   {
      $$ = $1;
+     tree_kind_t kind = tree_kind($$);
      if (tree_has_ident($$))
         parse_error(&@$, "process does not have a label");
+     else if ((kind == T_FOR_GENERATE) || (kind == T_IF_GENERATE))
+        parse_error(&@$, "generate statement must have a label");
+     else if (kind == T_BLOCK)
+        parse_error(&@$, "block statement must have a label");
      else
         tree_set_ident($$, ident_uniq("_proc"));
   }
 | comp_instance_stmt
-| block_stmt
-| generate_stmt
-| tBLOCK
-  {
-     parse_error(&@$, "block statement must have a label");
-     YYERROR;
-  }
-| tFOR
-  {
-     parse_error(&@$, "generate statement must have a label");
-     YYERROR;
-  }
-| tIF
-  {
-     parse_error(&@$, "generate statement must have a label");
-     YYERROR;
-  }
 ;
 
 conc_stmt_without_label
@@ -917,41 +905,40 @@ conc_stmt_without_label
 | conc_select_assign_stmt
 | conc_procedure_call_stmt
 | conc_assertion_stmt
+| generate_stmt
+| block_stmt
 ;
 
 generate_stmt
-: id tCOLON tIF expr generate_body
+: tIF expr generate_body
   {
      $$ = tree_new(T_IF_GENERATE);
      tree_set_loc($$, &@$);
-     tree_set_ident($$, $1);
-     tree_set_value($$, $4);
+     tree_set_value($$, $2);
+     copy_trees($3.left, tree_add_decl, $$);
+     copy_trees($3.right, tree_add_stmt, $$);
+  }
+| tFOR id tIN range generate_body
+  {
+     $$ = tree_new(T_FOR_GENERATE);
+     tree_set_loc($$, &@$);
+     tree_set_ident2($$, $2);
+     tree_set_range($$, $4);
      copy_trees($5.left, tree_add_decl, $$);
      copy_trees($5.right, tree_add_stmt, $$);
   }
-| id tCOLON tFOR id tIN range generate_body
-  {
-     $$ = tree_new(T_FOR_GENERATE);
-     tree_set_loc($$, &@$);
-     tree_set_ident($$, $1);
-     tree_set_ident2($$, $4);
-     tree_set_range($$, $6);
-     copy_trees($7.left, tree_add_decl, $$);
-     copy_trees($7.right, tree_add_stmt, $$);
-  }
-| id tCOLON tFOR id tIN expr generate_body
+| tFOR id tIN expr generate_body
   {
      range_t r;
-     if (!to_range_expr($6, &r))
-        parse_error(&@6, "invalid range expression");
+     if (!to_range_expr($4, &r))
+        parse_error(&@4, "invalid range expression");
 
      $$ = tree_new(T_FOR_GENERATE);
      tree_set_loc($$, &@$);
-     tree_set_ident($$, $1);
-     tree_set_ident2($$, $4);
+     tree_set_ident2($$, $2);
      tree_set_range($$, r);
-     copy_trees($7.left, tree_add_decl, $$);
-     copy_trees($7.right, tree_add_stmt, $$);
+     copy_trees($5.left, tree_add_decl, $$);
+     copy_trees($5.right, tree_add_stmt, $$);
   }
 ;
 
@@ -1088,17 +1075,15 @@ process_decl_item
 ;
 
 block_stmt
-: id tCOLON tBLOCK /* [ ( guard_expression ) ] */ opt_is /*block_header*/
+: tBLOCK /* [ ( guard_expression ) ] */ opt_is /*block_header*/
   block_decl_part tBEGIN conc_stmt_list tEND tBLOCK opt_id tSEMI
   {
      $$ = tree_new(T_BLOCK);
-     tree_set_ident($$, $1);
-     copy_trees($5, tree_add_decl, $$);
-     copy_trees($7, tree_add_stmt, $$);
+     copy_trees($3, tree_add_decl, $$);
+     copy_trees($5, tree_add_stmt, $$);
 
-     if ($10 != NULL && $10 != $1)
-        parse_error(&@10, "%s does not match block name %s",
-                    istr($10), istr($1));
+     if ($8 != NULL)
+        tree_set_ident($$, $8);
   }
 ;
 
