@@ -7,12 +7,20 @@ architecture test of record6 is
         y : integer;
     end record;
 
+    type rec_array is array (natural range <>) of rec;
+
     function make_rec(x : bit_vector(1 to 3); y : integer) return rec is
         variable r : rec;
     begin
         r.x := x;
         r.y := y;
         return r;
+    end function;
+
+    function make_rec_array(x : rec; l, r : natural) return rec_array is
+        variable ra : rec_array(l to r) := (others => x);
+    begin
+        return ra;
     end function;
 
     function get_bit(v : in rec) return bit is
@@ -35,6 +43,7 @@ begin
         r.y := make_rec("010", 1).y;
         assert r.y = 1;
         r := make_rec("010", 1);
+        assert make_rec_array(r, 1, 2) = ( ("010", 1), ("010", 1) );
         wait;
     end process;
 

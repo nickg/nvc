@@ -1658,6 +1658,23 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
    }
 }
 
+static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
+                                   type_t type, LLVMIntPredicate pred,
+                                   cgen_ctx_t *ctx)
+{
+   assert(type_is_record(type));
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(left),
+      llvm_void_cast(right),
+      llvm_sizeof(llvm_type(type))
+   };
+   LLVMValueRef cmp = LLVMBuildCall(builder, llvm_fn("memcmp"),
+                                    args, ARRAY_LEN(args), "cmp");
+
+   return LLVMBuildICmp(builder, pred, cmp, llvm_int32(0), "");
+}
+
 static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
                                          LLVMValueRef rhs_data,
                                          LLVMValueRef lhs_array,
@@ -1696,8 +1713,9 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
 
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
+   type_t elem_type = type_elem(left_type);
    LLVMValueRef cmp, eq;
-   if (type_is_array(type_elem(left_type))) {
+   if (type_is_array(elem_type)) {
       LLVMValueRef l_indexes[] = { i_loaded, llvm_int32(0) };
       LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, l_indexes,
                                         ARRAY_LEN(l_indexes), "l_ptr");
@@ -1716,12 +1734,16 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
       LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data,
                                         &i_loaded, 1, "r_ptr");
 
-      LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
-      LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
+      if (type_is_record(elem_type))
+         cmp = eq = cgen_record_eq(l_ptr, r_ptr, elem_type, pred, ctx);
+      else {
+         LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
+         LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
 
-      cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
-      eq  = (pred == LLVMIntEQ) ? cmp
-         : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+         cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
+         eq  = (pred == LLVMIntEQ) ? cmp
+            : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+      }
    }
 
    LLVMValueRef inc =
@@ -1825,21 +1847,6 @@ static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
 
    return cgen_array_meta_1(type, llvm_int32(1), llvm_int32(len),
                             llvm_int8(RANGE_TO), ptr);
-}
-
-static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
-                                   type_t left_type, type_t right_type,
-                                   LLVMIntPredicate pred, cgen_ctx_t *ctx)
-{
-   LLVMValueRef args[] = {
-      llvm_void_cast(left),
-      llvm_void_cast(right),
-      llvm_sizeof(llvm_type(left_type))
-   };
-   LLVMValueRef cmp = LLVMBuildCall(builder, llvm_fn("memcmp"),
-                                    args, ARRAY_LEN(args), "cmp");
-
-   return LLVMBuildICmp(builder, pred, cmp, llvm_int32(0), "");
 }
 
 static LLVMValueRef cgen_last_event(tree_t t)
@@ -2278,11 +2285,9 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntNE, ctx);
       else if (icmp(builtin, "req"))
-         return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
-                               LLVMIntEQ, ctx);
+         return cgen_record_eq(args[0], args[1], arg_types[0], LLVMIntEQ, ctx);
       else if (icmp(builtin, "rneq"))
-         return cgen_record_eq(args[0], args[1], arg_types[0], arg_types[1],
-                               LLVMIntNE, ctx);
+         return cgen_record_eq(args[0], args[1], arg_types[0], LLVMIntNE, ctx);
       else if (icmp(builtin, "v_not"))
          return cgen_bit_vec_op(BIT_VEC_NOT, arg_types[0],
                                 args[0], NULL, NULL, ctx);
@@ -2864,7 +2869,10 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
       LLVMValueRef indexes[] = { i_loaded };
       LLVMValueRef ptr = LLVMBuildGEP(builder, data, indexes,
                                       ARRAY_LEN(indexes), "ptr");
-      LLVMBuildStore(builder, what, ptr);
+      if (type_is_record(assoc_type))
+         cgen_record_copy(assoc_type, what, ptr);
+      else
+         LLVMBuildStore(builder, what, ptr);
    }
 
    LLVMValueRef inc =
