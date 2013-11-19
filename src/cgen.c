@@ -3142,6 +3142,8 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
    }
    else if (type_is_array(type))
       cgen_array_copy(value_type, value_type, init, ptr, NULL, ctx);
+   else if (type_is_record(type))
+      cgen_record_copy(value_type, init, ptr);
    else
       LLVMBuildStore(builder, init, ptr);
 
@@ -3173,7 +3175,8 @@ static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, ok_bb);
 
    type_t type = tree_type(t);
-   if (type_is_array(type) && cgen_const_bounds(type))
+   if ((type_is_array(type) && cgen_const_bounds(type))
+       || type_is_record(type))
       return ptr;
    else
       return LLVMBuildLoad(builder, ptr, "all");
