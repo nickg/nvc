@@ -1248,7 +1248,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
    }
 }
 
-static LLVMValueRef cgen_fdecl(tree_t t)
+static LLVMValueRef cgen_fdecl(tree_t t, tree_t parent)
 {
    const char *mangled = cgen_mangle_func_name(t);
    LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
@@ -1259,15 +1259,21 @@ static LLVMValueRef cgen_fdecl(tree_t t)
 
       unsigned nargs;
       LLVMTypeRef atypes[tree_ports(t)];
-      cgen_prototype(t, atypes, &nargs, false, NULL);
+      cgen_prototype(t, atypes, &nargs, false, parent);
+
+      type_t rtype = type_result(ftype);
+      LLVMTypeRef llrtype;
+      if (type_is_array(rtype) && cgen_const_bounds(rtype))
+         llrtype = LLVMPointerType(llvm_type(type_elem(rtype)), 0);
+      else if (type_is_record(rtype))
+         llrtype = LLVMPointerType(llvm_type(rtype), 0);
+      else
+         llrtype = llvm_type(rtype);
 
       return LLVMAddFunction(
          module,
-         cgen_mangle_func_name(t),
-         LLVMFunctionType(llvm_type(type_result(ftype)),
-                          atypes,
-                          nargs,
-                          false));
+         mangled,
+         LLVMFunctionType(llrtype, atypes, nargs, false));
    }
 }
 
@@ -2399,7 +2405,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    }
    else {
       ctx->tmp_stack_used = true;
-      return LLVMBuildCall(builder, cgen_fdecl(decl), args, nargs, "");
+      return LLVMBuildCall(builder, cgen_fdecl(decl, NULL), args, nargs, "");
    }
 }
 
@@ -4866,24 +4872,8 @@ static void cgen_func_body(tree_t t, tree_t parent)
 {
    cgen_nested_subprograms(t);
 
-   type_t ftype = tree_type(t);
-
-   unsigned nargs;
-   LLVMTypeRef args[tree_ports(t) + 1];
-   cgen_prototype(t, args, &nargs, false, parent);
-
-   type_t rtype = type_result(ftype);
-   LLVMTypeRef llrtype;
-   if (type_is_array(rtype) && cgen_const_bounds(rtype))
-      llrtype = LLVMPointerType(llvm_type(type_elem(rtype)), 0);
-   else
-      llrtype = llvm_type(rtype);
-
-   const char *mangled = cgen_mangle_func_name(t);
-   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
-   if (fn == NULL)
-      fn = LLVMAddFunction(module, mangled,
-                           LLVMFunctionType(llrtype, args, nargs, false));
+   LLVMValueRef fn = cgen_fdecl(t, parent);
+   const unsigned nargs = LLVMCountParams(fn);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
