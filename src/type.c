@@ -934,6 +934,12 @@ bool type_is_array(type_t t)
       return (t->kind == T_CARRAY || t->kind == T_UARRAY);
 }
 
+bool type_is_record(type_t t)
+{
+   assert(t != NULL);
+   return (t->kind == T_RECORD);
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);

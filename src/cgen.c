@@ -116,7 +116,7 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
-static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx);
+static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
 static LLVMValueRef cgen_signal_nets(tree_t decl);
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
@@ -1056,6 +1056,19 @@ static const char *cgen_memcpy_name(int width)
    return name;
 }
 
+static void cgen_record_copy(type_t type, LLVMValueRef src, LLVMValueRef dst)
+{
+   LLVMValueRef memcpy_args[] = {
+      llvm_void_cast(dst),
+      llvm_void_cast(src),
+      llvm_sizeof(llvm_type(type)),
+      llvm_int32(4),
+      llvm_int1(0)
+   };
+   LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(8)),
+                 memcpy_args, ARRAY_LEN(memcpy_args), "");
+}
+
 static void cgen_array_copy(type_t src_type, type_t dest_type,
                             LLVMValueRef src, LLVMValueRef dst,
                             LLVMValueRef offset, cgen_ctx_t *ctx)
@@ -1203,11 +1216,12 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
       case C_DEFAULT:
       case C_CONSTANT:
          {
-            bool need_ptr = ((mode == PORT_OUT || mode == PORT_INOUT)
-                             && !array);
-            if (need_ptr)
-               args[i] = LLVMPointerType(llvm_type(type), 0);
-            else if (array && (type_kind(type) != T_UARRAY))
+            const bool need_ptr = (((mode == PORT_OUT)
+                                    || (mode == PORT_INOUT)
+                                    || type_is_record(type))
+                                   && !array);
+
+            if (need_ptr || (array && (type_kind(type) != T_UARRAY)))
                args[i] = LLVMPointerType(llvm_type(type), 0);
             else
                args[i] = llvm_type(type);
@@ -1507,7 +1521,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
             port_mode_t mode = tree_subkind(port);
             bool need_ptr = (((mode == PORT_OUT)
                               || (mode == PORT_INOUT)
-                              || (class == C_FILE))
+                              || (class == C_FILE)
+                              || type_is_record(type))
                              && !type_is_array(type));
             if (need_ptr)
                args[i] = cgen_var_lvalue(value, ctx);
@@ -1808,21 +1823,9 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
                                    type_t left_type, type_t right_type,
                                    LLVMIntPredicate pred, cgen_ctx_t *ctx)
 {
-   // We need to get the address of the records to pass to memcmp so
-   // copy them into temporaries on the stack: this should be optimised
-   // away by LLVM
-
-   LLVMValueRef left_tmp =
-      LLVMBuildAlloca(builder, llvm_type(left_type), "left_tmp");
-   LLVMValueRef right_tmp =
-      LLVMBuildAlloca(builder, llvm_type(right_type), "right_tmp");
-
-   LLVMBuildStore(builder, left, left_tmp);
-   LLVMBuildStore(builder, right, right_tmp);
-
    LLVMValueRef args[] = {
-      llvm_void_cast(left_tmp),
-      llvm_void_cast(right_tmp),
+      llvm_void_cast(left),
+      llvm_void_cast(right),
       llvm_sizeof(llvm_type(left_type))
    };
    LLVMValueRef cmp = LLVMBuildCall(builder, llvm_fn("memcmp"),
@@ -2403,12 +2406,13 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
+   type_t type = tree_type(decl);
    bool needs_load = false;
 
    tree_kind_t kind = tree_kind(decl);
    switch (kind) {
    case T_ENUM_LIT:
-      return LLVMConstInt(llvm_type(tree_type(t)), tree_pos(decl), false);
+      return LLVMConstInt(llvm_type(type), tree_pos(decl), false);
 
    case T_CONST_DECL:
    case T_UNIT_DECL:
@@ -2416,8 +2420,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    case T_FILE_DECL:
       {
          LLVMValueRef ptr = cgen_get_var(decl, ctx);
-         type_t type = tree_type(decl);
-         if (type_is_array(type))
+         if (type_is_array(type) || type_is_record(type))
             return ptr;
          else
             return LLVMBuildLoad(builder, ptr, "");
@@ -2426,12 +2429,12 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
    case T_PORT_DECL:
       needs_load = (((tree_subkind(decl) == PORT_INOUT)
                      || (tree_class(decl) == C_FILE))
-                    && !type_is_array(tree_type(decl)));
+                    && !type_is_array(type)
+                    && !type_is_record(type));
       // Fall-through
 
    case T_SIGNAL_DECL:
       if (cgen_get_class(decl) == C_SIGNAL) {
-         type_t type = tree_type(decl);
          LLVMValueRef nets = cgen_signal_nets(decl);
          if (type_is_array(type))
             return cgen_vec_load(nets, type, type, false, ctx);
@@ -2674,7 +2677,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
             *sub = LLVMConstArray(ltype, v, nvals);
          }
          else if (type_kind(sub_type) == T_RECORD) {
-            *sub = cgen_const_record(value, ctx);
+            *sub = cgen_const_record(value, true, ctx);
          }
          else
             assert(false);
@@ -2878,7 +2881,7 @@ static int cgen_field_index(type_t type, ident_t field)
    assert(false);
 }
 
-static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
 {
    type_t type = tree_type(t);
    const int nfields = type_fields(type);
@@ -2931,7 +2934,18 @@ static LLVMValueRef cgen_const_record(tree_t t, cgen_ctx_t *ctx)
    for (int i = 0; i < nfields; i++)
       assert(vals[i] != NULL);
 
-   return LLVMConstNamedStruct(llvm_type(type), vals, nfields);
+   LLVMTypeRef lltype = llvm_type(type);
+   LLVMValueRef init = LLVMConstNamedStruct(lltype, vals, nfields);
+
+   if (nest || (ctx == NULL))
+      return init;
+   else {
+      LLVMValueRef mem = LLVMBuildAlloca(builder, lltype, "const_rec");
+
+      LLVMBuildStore(builder, init, mem);
+
+      return mem;
+   }
 }
 
 static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
@@ -2959,7 +2973,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
    }
    else if (type_kind(type) == T_RECORD) {
       if (cgen_is_const(t))
-         return cgen_const_record(t, ctx);
+         return cgen_const_record(t, false, ctx);
       else
          fatal_at(tree_loc(t), "sorry, non-constant record aggregates "
                   "are not supported yet");
@@ -3073,14 +3087,14 @@ static LLVMValueRef cgen_record_ref(tree_t t, cgen_ctx_t *ctx)
    tree_t value = tree_value(t);
    int index    = cgen_field_index(tree_type(value), tree_ident(t));
 
-   if (type_is_array(tree_type(t))) {
-      LLVMValueRef rec = cgen_var_lvalue(value, ctx);
-      return LLVMBuildStructGEP(builder, rec, index, "field");
-   }
-   else {
-      LLVMValueRef rec = cgen_expr(tree_value(t), ctx);
-      return LLVMBuildExtractValue(builder, rec, index, "field");
-   }
+   type_t type = tree_type(t);
+
+   LLVMValueRef rec = cgen_expr(value, ctx);
+   LLVMValueRef field = LLVMBuildStructGEP(builder, rec, index, "field");
+   if (type_is_array(type) || type_is_record(type))
+      return field;
+   else
+      return LLVMBuildLoad(builder, field, "");
 }
 
 static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
@@ -3421,6 +3435,8 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
 
    if (type_is_array(target_type))
       cgen_array_copy(value_type, target_type, rhs, lhs, NULL, ctx);
+   else if (type_is_record(target_type))
+      cgen_record_copy(target_type, rhs, lhs);
    else
       LLVMBuildStore(builder, rhs, lhs);
 }
@@ -4488,6 +4504,8 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
                cgen_array_copy(ty, ty, val, var_ptr, NULL, ctx);
             }
          }
+         else if (type_is_record(ty))
+            cgen_record_copy(ty, val, cgen_get_var(v, ctx));
          else
             LLVMBuildStore(builder, val, cgen_get_var(v, ctx));
       }
