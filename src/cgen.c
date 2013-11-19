@@ -1142,6 +1142,8 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
       LLVMValueRef init = cgen_expr(tree_value(d), ctx);
       if (type_is_array(type))
          cgen_array_copy(type, type, init, var, NULL, ctx);
+      else if (type_is_record(type))
+         cgen_record_copy(type, init, var);
       else
          LLVMBuildStore(builder, init, var);
    }
@@ -3410,6 +3412,9 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
                                 ARRAY_LEN(indexes), "all");
          }
       }
+
+   case T_FCALL:
+      return cgen_expr(t, ctx);
 
    default:
       fatal("missing cgen_var_lvalue for %s", tree_kind_str(tree_kind(t)));
