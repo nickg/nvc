@@ -3744,6 +3744,28 @@ static void cgen_if(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, end_bb);
 }
 
+static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
+{
+   LLVMValueRef _tmp_stack_ptr = LLVMGetNamedGlobal(module, "_tmp_stack");
+   LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+
+   LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
+   LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
+
+   LLVMValueRef indexes[] = { alloc };
+   LLVMValueRef buf = LLVMBuildGEP(builder, stack,
+                                   indexes, ARRAY_LEN(indexes), "");
+
+   // TODO: align here
+   LLVMValueRef alloc_next =
+      LLVMBuildAdd(builder, alloc, bytes, "alloc_next");
+
+   LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
+
+   return LLVMBuildPointerCast(builder, buf,
+                               LLVMPointerType(type, 0), "tmp_buf");
+}
+
 static void cgen_return(tree_t t, cgen_ctx_t *ctx)
 {
    if (tree_has_value(t)) {
@@ -3759,28 +3781,10 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
          type_t rtype = type_result(tree_type(ctx->fdecl));
 
          LLVMTypeRef base_type = llvm_type(type_elem(stype));
-
-         LLVMValueRef _tmp_stack_ptr = LLVMGetNamedGlobal(module, "_tmp_stack");
-         LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
-
-         LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
-         LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
-
-         LLVMValueRef indexes[] = { alloc };
-         LLVMValueRef buf = LLVMBuildGEP(builder, stack,
-                                         indexes, ARRAY_LEN(indexes), "");
-
          LLVMValueRef bytes =
             LLVMBuildMul(builder, cgen_array_len(stype, -1, rval),
                          llvm_sizeof(base_type), "bytes");
-         LLVMValueRef alloc_next =
-            LLVMBuildAdd(builder, alloc, bytes, "alloc_next");
-
-         LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
-
-         LLVMValueRef buf_ptr =
-            LLVMBuildPointerCast(builder, buf,
-                                 LLVMPointerType(base_type, 0), "buf_ptr");
+         LLVMValueRef buf_ptr = cgen_tmp_alloc(bytes, base_type);
 
          if (!cgen_const_bounds(rtype)) {
             // Returning a wrapped array
@@ -3803,6 +3807,16 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
 
             LLVMBuildRet(builder, buf_ptr);
          }
+      }
+      else if (type_is_record(stype)) {
+         // Returning a record currently on the stack
+
+         LLVMTypeRef lltype = llvm_type(stype);
+         LLVMValueRef copy = cgen_tmp_alloc(llvm_sizeof(lltype), lltype);
+
+         cgen_record_copy(stype, rval, copy);
+
+         LLVMBuildRet(builder, copy);
       }
       else
          LLVMBuildRet(builder, rval);

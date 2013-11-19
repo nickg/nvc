@@ -32,9 +32,9 @@ begin
         assert get_bit(make_rec("011", 2)) = '1';
         r.x := make_rec("010", 1).x;
         assert r.x = "010";
-        --r.y := make_rec("010", 1).y;
-        --assert r.y = 1;
-        --r := make_rec("010", 1);
+        r.y := make_rec("010", 1).y;
+        assert r.y = 1;
+        r := make_rec("010", 1);
         wait;
     end process;
 
