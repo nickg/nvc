@@ -2540,7 +2540,8 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       {
          LLVMValueRef data = cgen_array_data_ptr(type, array);
          LLVMValueRef ptr = LLVMBuildGEP(builder, data, &idx, 1, "");
-         if (type_is_array(tree_type(t)))
+         type_t rtype = tree_type(t);
+         if (type_is_array(rtype) || type_is_record(rtype))
             return ptr;
          else
             return LLVMBuildLoad(builder, ptr, "");
