@@ -127,6 +127,9 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx);
 static void cgen_proc_body(tree_t t, tree_t parent);
 static void cgen_func_body(tree_t t, tree_t parent);
 static void cgen_cond_coverage(tree_t t, LLVMValueRef value);
+static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
+                                   type_t left_type, type_t right_type,
+                                   LLVMIntPredicate pred, cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1664,15 +1667,29 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
 {
    assert(type_is_record(type));
 
-   LLVMValueRef args[] = {
-      llvm_void_cast(left),
-      llvm_void_cast(right),
-      llvm_sizeof(llvm_type(type))
-   };
-   LLVMValueRef cmp = LLVMBuildCall(builder, llvm_fn("memcmp"),
-                                    args, ARRAY_LEN(args), "cmp");
+   LLVMValueRef result = llvm_int1(true);
 
-   return LLVMBuildICmp(builder, pred, cmp, llvm_int32(0), "");
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      LLVMValueRef lfield = LLVMBuildStructGEP(builder, left, i, "lfield");
+      LLVMValueRef rfield = LLVMBuildStructGEP(builder, right, i, "rfield");
+
+      LLVMValueRef cmp;
+      type_t ftype = tree_type(type_field(type, i));
+      if (type_is_array(ftype))
+         cmp = cgen_array_rel(lfield, rfield, ftype, ftype, pred, ctx);
+      else if (type_is_record(ftype))
+         cmp = cgen_record_eq(lfield, rfield, ftype, pred, ctx);
+      else {
+         LLVMValueRef lload = LLVMBuildLoad(builder, lfield, "");
+         LLVMValueRef rload = LLVMBuildLoad(builder, rfield, "");
+         cmp = LLVMBuildICmp(builder, pred, lload, rload, "");
+      }
+
+      result = LLVMBuildAnd(builder, result, cmp, "");
+   }
+
+   return result;
 }
 
 static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
@@ -1734,8 +1751,10 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
       LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data,
                                         &i_loaded, 1, "r_ptr");
 
-      if (type_is_record(elem_type))
+      if (type_is_record(elem_type)) {
          cmp = eq = cgen_record_eq(l_ptr, r_ptr, elem_type, pred, ctx);
+         body_bb = LLVMGetInsertBlock(builder);
+      }
       else {
          LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
          LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
@@ -3422,6 +3441,7 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
       }
 
    case T_FCALL:
+   case T_AGGREGATE:
       return cgen_expr(t, ctx);
 
    default:
@@ -5648,16 +5668,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       return LLVMAddFunction(module, "_null_deref",
                              LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
-   }
-   else if (strcmp(name, "memcmp") == 0) {
-      LLVMTypeRef args[] = {
-         llvm_void_ptr(),
-         llvm_void_ptr(),
-         LLVMInt32Type()
-      };
-      return LLVMAddFunction(module, "memcmp",
-                             LLVMFunctionType(LLVMInt32Type(),
                                               args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_bit_shift") == 0) {

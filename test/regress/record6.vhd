@@ -44,6 +44,7 @@ begin
         assert r.y = 1;
         r := make_rec("010", 1);
         assert make_rec_array(r, 1, 2) = ( ("010", 1), ("010", 1) );
+        assert make_rec_array(("111", 5), 1, 2) = ( ("111", 5), ("111", 5) );
         wait;
     end process;
 
