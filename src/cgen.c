@@ -1263,7 +1263,7 @@ static LLVMValueRef cgen_fdecl(tree_t t, tree_t parent)
       type_t ftype = tree_type(t);
 
       unsigned nargs;
-      LLVMTypeRef atypes[tree_ports(t)];
+      LLVMTypeRef atypes[tree_ports(t) + 1];
       cgen_prototype(t, atypes, &nargs, false, parent);
 
       type_t rtype = type_result(ftype);
