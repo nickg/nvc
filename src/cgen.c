@@ -2819,8 +2819,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
    LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
-   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded,
-                                   len, "ge");
+   LLVMValueRef ge = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded, len, "ge");
    LLVMBuildCondBr(builder, ge, exit_bb, body_bb);
 
    // Loop body
