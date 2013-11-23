@@ -2810,12 +2810,6 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
 
    LLVMBuildBr(builder, test_bb);
 
-   if (def == NULL) {
-      LLVMTypeRef lltype = llvm_type(assoc_type);
-      def = LLVMGetUndef(type_is_array(assoc_type)
-                         ? LLVMPointerType(lltype, 0) : lltype);
-   }
-
    // Loop test
    LLVMPositionBuilderAtEnd(builder, test_bb);
    LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
@@ -2828,13 +2822,21 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef what = def;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
-      switch (tree_subkind(a)) {
+
+      assoc_kind_t kind = tree_subkind(a);
+      LLVMValueRef val = NULL;
+      if (kind != A_OTHERS) {
+         val = cgen_expr(tree_value(a), ctx);
+         if (def == NULL)
+            what = def = LLVMGetUndef(LLVMTypeOf(val));
+      }
+
+      switch (kind) {
       case A_POS:
          {
             LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, i_loaded,
                                             llvm_int32(tree_pos(a)), "");
-            what = LLVMBuildSelect(builder, eq, cgen_expr(tree_value(a), ctx),
-                                   what, "");
+            what = LLVMBuildSelect(builder, eq, val, what, "");
          }
          break;
 
@@ -2848,8 +2850,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
 
             LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ,
                                             i_loaded, off, "");
-            what = LLVMBuildSelect(builder, eq, cgen_expr(tree_value(a), ctx),
-                                   what, "");
+            what = LLVMBuildSelect(builder, eq, val, what, "");
          }
          break;
 
@@ -2869,8 +2870,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
                              cgen_expr(r.right, ctx), "rcmp");
             LLVMValueRef in = LLVMBuildOr(builder, lcmp, rcmp, "in");
 
-            what = LLVMBuildSelect(builder, in, cgen_expr(tree_value(a), ctx),
-                                   what, "");
+            what = LLVMBuildSelect(builder, in, val, what, "");
          }
          break;
 
