@@ -886,6 +886,27 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
+static void elab_process(tree_t t, const elab_ctx_t *ctx)
+{
+   // Rename local functions in this process to avoid collisions in the
+   // global LLVM namespace
+
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_FUNC_DECL:
+      case T_FUNC_BODY:
+      case T_PROC_DECL:
+      case T_PROC_BODY:
+         tree_set_ident(d, ident_prefix(ctx->path, tree_ident(d), '_'));
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
 {
    const int nstmts = tree_stmts(t);
@@ -914,6 +935,9 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          break;
       case T_IF_GENERATE:
          fatal("IF-GENERATE statement was not constant folded");
+      case T_PROCESS:
+         elab_process(s, &new_ctx);
+         // Fall-through
       default:
          tree_add_stmt(ctx->out, s);
       }
