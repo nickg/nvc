@@ -562,6 +562,8 @@ START_TEST(test_array)
       { 246, "universal integer bound must be numeric literal or attribute" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { 272, "no suitable overload for operator \"<\"(INT2D, INT2D)" },
+      { 277, "type NOT_HERE is not defined" },
+      { 279, "type NUM_ARRAY is unconstrained" },
       { -1, NULL }
    };
    expect_errors(expect);

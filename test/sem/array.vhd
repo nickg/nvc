@@ -272,4 +272,12 @@ begin
         assert m1 < m2;                 -- Error
     end process;
 
+    process is
+        subtype num_array is int_array;   -- OK
+        subtype bad_array is not_here;    -- Error
+        variable a1 : num_array(1 to 3);  -- OK
+        variable a2 : num_array;          -- Error
+    begin
+    end process;
+
 end architecture;

@@ -753,10 +753,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    // Predefined attributes
 
    switch (kind) {
+   case T_SUBTYPE:
+      if (type_is_unconstrained(t))
+         break;
+      // Fall-through
    case T_INTEGER:
    case T_REAL:
    case T_PHYSICAL:
-   case T_SUBTYPE:
       {
          range_t r = type_dim(t, 0);
 
@@ -907,6 +910,9 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             }
             break;
 
+         case T_UARRAY:
+            break;
+
          default:
             sem_error(t, "sorry, this form of subtype is not supported");
          }
@@ -915,11 +921,9 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          // Check constraints
 
          const int ndims_base =
-            ((base_kind == T_SUBTYPE) || (base_kind == T_CARRAY))
-            ? type_dims(base)
-            : ((base_kind == T_UARRAY)
-               ? type_index_constrs(base)
-               : 1);
+            type_is_array(base)
+            ? sem_array_dimension(base)
+            : ((base_kind == T_SUBTYPE) ? type_dims(base) : 1);
 
          if (ndims != ndims_base)
             sem_error(t, "expected %d constraints for type %s but found %d",
@@ -1422,7 +1426,6 @@ static bool sem_check_type_decl(tree_t t)
       {
          bool ok = true;
          const int ndims = type_dims(type);
-         assert(ndims > 0);
          for (int i = 0; i < ndims; i++) {
             range_t r = type_dim(type, i);
 
@@ -2695,7 +2698,9 @@ static bool sem_check_cassign(tree_t t)
 
 static unsigned sem_array_dimension(type_t a)
 {
-   return (type_is_unconstrained(a) ? type_index_constrs(a) : type_dims(a));
+   return (type_is_unconstrained(a)
+           ? type_index_constrs(type_base_recur(a))
+           : type_dims(a));
 }
 
 static bool sem_check_conversion(tree_t t)
@@ -3418,7 +3423,7 @@ static tree_t sem_array_len(type_t type)
 static type_t sem_index_type(type_t type, int dim)
 {
    if (type_is_unconstrained(type))
-      return type_index_constr(type, dim);
+      return type_index_constr(type_base_recur(type), dim);
    else if (type_kind(type) == T_ENUM)
       return type;
    else
