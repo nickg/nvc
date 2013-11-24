@@ -444,7 +444,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       tree_t decl = tree_ref(array);
       type_t array_type = tree_type(decl);
 
-      if (type_kind(array_type) == T_UARRAY)
+      if (type_is_unconstrained(array_type))
          return t;   // Cannot fold this
 
       range_t dim0 = type_dim(array_type, 0);

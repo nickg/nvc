@@ -56,7 +56,7 @@ static tree_t bounds_check_call_args(tree_t t)
       if (!type_is_array(ftype))
          continue;
 
-      if ((type_kind(atype) == T_UARRAY) || (type_kind(ftype) == T_UARRAY))
+      if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
          continue;
 
       const int ndims = type_dims(ftype);
@@ -104,7 +104,7 @@ static void bounds_check_array_ref(tree_t t)
 
    type_t value_type = tree_type(value);
 
-   if (type_kind(value_type) == T_UARRAY)
+   if (type_is_unconstrained(value_type))
       return;
 
    int nstatic = 0;
@@ -147,7 +147,7 @@ static void bounds_check_array_slice(tree_t t)
 
    type_t value_type = tree_type(value);
 
-   if (type_kind(value_type) == T_UARRAY)
+   if (type_is_unconstrained(value_type))
       return;
 
    range_t b = type_dim(value_type, 0);
@@ -209,7 +209,7 @@ static void bounds_check_aggregate(tree_t t)
    if (tree_attr_int(t, unconstrained_i, 0)) {
       // Aggregate of unconstrained array type
       type_t base = type_base(type);
-      assert(type_kind(base) == T_UARRAY);
+      assert(type_is_unconstrained(base));
 
       type_t index = type_index_constr(base, 0);
       range_t base_r = type_dim(index, 0);

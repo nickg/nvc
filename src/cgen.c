@@ -450,7 +450,7 @@ static bool cgen_is_real(type_t type)
 
 static bool cgen_const_bounds(type_t type)
 {
-   if (type_kind(type) == T_UARRAY)
+   if (type_is_unconstrained(type))
       return false;
    else {
       range_t r = type_dim(type, 0);
@@ -475,7 +475,7 @@ static class_t cgen_get_class(tree_t decl)
 static int cgen_array_dims(type_t type)
 {
    assert(type_is_array(type));
-   if (type_kind(type) == T_UARRAY)
+   if (type_is_unconstrained(type))
       return type_index_constrs(type);
    else
       return type_dims(type);
@@ -1353,7 +1353,7 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
    LLVMValueRef fn = llvm_fn("_vec_load");
 
    LLVMValueRef left, right, dir;
-   if (type_kind(slice_type) == T_UARRAY) {
+   if (type_is_unconstrained(slice_type)) {
       left  = cgen_array_left(slice_type, 0, nets);
       right = cgen_array_right(slice_type, 0, nets);
       dir   = cgen_array_dir(slice_type, 0, nets);
@@ -1553,7 +1553,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       // a structure with its metadata. Note we don't need to do
       // this for unconstrained arrays as they are already wrapped.
       const bool need_wrap =
-         (type_kind(formal_type) == T_UARRAY)
+         (type_is_unconstrained(formal_type))
          && cgen_const_bounds(type)
          && (builtin == NULL);
 
@@ -2590,7 +2590,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          }
 
          LLVMValueRef nets;
-         if (type_kind(type) == T_UARRAY) {
+         if (type_is_unconstrained(type)) {
             // Unwrap array to nets array
             array = LLVMBuildExtractValue(builder, array, 0, "aptr");
 
@@ -3032,7 +3032,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 
    type_t type = tree_type(t);
    LLVMValueRef var;
-   if (type_kind(type) == T_UARRAY) {
+   if (type_is_unconstrained(type)) {
       LLVMValueRef args_len[] = {
          cgen_array_len(tree_type(args[0]), 0, args_ll[0]),
          cgen_array_len(tree_type(args[1]), 0, args_ll[1])
@@ -3147,7 +3147,7 @@ static LLVMValueRef cgen_new(tree_t t, cgen_ctx_t *ctx)
       // Need to allocate memory for both the array and its metadata
 
       LLVMValueRef left, right, dir;
-      if (type_kind(value_type) == T_UARRAY) {
+      if (type_is_unconstrained(value_type)) {
          left  = cgen_array_left(value_type, 0, init);
          right = cgen_array_right(value_type, 0, init);
          dir   = cgen_array_dir(value_type, 0, init);
@@ -3494,7 +3494,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          type_t type = tree_type(tree_value(t));
 
          if (tree_kind(tree_value(t)) == T_REF) {
-            if (type_kind(type) == T_UARRAY) {
+            if (type_is_unconstrained(type)) {
                assert(tree_params(t) == 1);
 
                tree_t decl = tree_ref(tree_value(t));

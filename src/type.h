@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2013  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -117,6 +117,7 @@ bool type_is_universal(type_t t);
 bool type_is_array(type_t t);
 
 bool type_is_record(type_t t);
+bool type_is_unconstrained(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

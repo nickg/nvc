@@ -1363,7 +1363,7 @@ static bool sem_check_type_decl(tree_t t)
          if (!sem_check_type(t, &elem_type))
             return false;
 
-         if (type_kind(elem_type) == T_UARRAY)
+         if (type_is_unconstrained(elem_type))
             sem_error(t, "array %s cannot have unconstrained element type",
                       istr(tree_ident(t)));
 
@@ -1482,7 +1482,7 @@ static bool sem_check_type_decl(tree_t t)
                sem_error(f, "recursive record types are not allowed");
 
             // Element types may not be unconstrained
-            if (type_kind(tree_type(f)) == T_UARRAY)
+            if (type_is_unconstrained(tree_type(f)))
                sem_error(f, "field %s with unconstrained array type "
                          "is not allowed", istr(f_name));
          }
@@ -1540,7 +1540,7 @@ static void sem_add_attributes(tree_t decl)
    if (type_kind(type) == T_ACCESS)
       type = type_access(type);
 
-   if (type_kind(type) == T_UARRAY) {
+   if (type_is_unconstrained(type)) {
       const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
       const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
                              "uarray_right", NULL };
@@ -1723,7 +1723,7 @@ static bool sem_check_decl(tree_t t)
       sem_error(t, "deferred constant declarations are only permitted "
                 "in packages");
 
-   if ((type_kind(type) == T_UARRAY) && (kind != T_CONST_DECL))
+   if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
 
    if (!tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL))
@@ -1741,7 +1741,7 @@ static bool sem_check_decl(tree_t t)
 
       // Constant array declarations can be unconstrained and the size
       // is determined by the initialiser
-      if ((kind == T_CONST_DECL) && (type_kind(type) == T_UARRAY))
+      if ((kind == T_CONST_DECL) && type_is_unconstrained(type))
          tree_set_type(t, (type = tree_type(value)));
    }
 
@@ -2695,9 +2695,7 @@ static bool sem_check_cassign(tree_t t)
 
 static unsigned sem_array_dimension(type_t a)
 {
-   return (type_kind(a) == T_UARRAY
-           ? type_index_constrs(a)
-           : type_dims(a));
+   return (type_is_unconstrained(a) ? type_index_constrs(a) : type_dims(a));
 }
 
 static bool sem_check_conversion(tree_t t)
@@ -3419,7 +3417,7 @@ static tree_t sem_array_len(type_t type)
 
 static type_t sem_index_type(type_t type, int dim)
 {
-   if (type_kind(type) == T_UARRAY)
+   if (type_is_unconstrained(type))
       return type_index_constr(type, dim);
    else if (type_kind(type) == T_ENUM)
       return type;
@@ -3435,7 +3433,7 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
 
    for (unsigned i = 0; i < old->n_members; i++) {
       type_t base = type_base_recur(old->members[i]);
-      if (type_kind(base) == T_UARRAY)
+      if (type_is_unconstrained(base))
          type_set_add(base);
 
       if (type_is_array(old->members[i]))
@@ -3444,7 +3442,7 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
 
    if (hint != NULL) {
       type_t base = type_base_recur(hint);
-      if (type_kind(base) == T_UARRAY)
+      if (type_is_unconstrained(base))
          type_set_add(base);
 
       if (type_is_array(hint))
@@ -3727,7 +3725,7 @@ static bool sem_check_aggregate(tree_t t)
          if (state == OTHERS)
             sem_error(a, "only a single others association "
                       "allowed in aggregate");
-         if (type_kind(composite_type) == T_UARRAY)
+         if (type_is_unconstrained(composite_type))
             sem_error(a, "others choice not allowed in this context");
          state = OTHERS;
          break;
@@ -3744,7 +3742,7 @@ static bool sem_check_aggregate(tree_t t)
    // If the composite type is unconstrained create a new constrained
    // array type
 
-   if (type_kind(composite_type) == T_UARRAY) {
+   if (type_is_unconstrained(composite_type)) {
       const int nindex = type_index_constrs(composite_type);
 
       int n_elems[nindex];
@@ -4133,10 +4131,7 @@ static bool sem_check_array_ref(tree_t t)
    if (!type_is_array(type))
       sem_error(t, "invalid array reference");
 
-   const int nindex = (type_kind(type) == T_UARRAY
-                       ? type_index_constrs(type)
-                       : type_dims(type));
-
+   const int nindex  = sem_array_dimension(type);
    const int nparams = tree_params(t);
 
    if (nparams != nindex)
@@ -4521,7 +4516,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
             sem_error(value, "unconnected port %s with mode IN must have a "
                       "default value", istr(tree_ident(decl)));
 
-         if ((mode != PORT_IN) && (type_kind(tree_type(decl)) == T_UARRAY))
+         if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
             sem_error(value, "port %s of unconstrained type %s cannot "
                       "be unconnected", istr(tree_ident(decl)),
                       sem_type_str(type));

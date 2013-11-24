@@ -202,7 +202,7 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
    case T_REF:
       {
          type_t type = tree_type(value);
-         if (type_kind(type) == T_UARRAY)
+         if (type_is_unconstrained(type))
             return;
 
          const int width  = type_width(type);

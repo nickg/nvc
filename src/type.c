@@ -940,6 +940,19 @@ bool type_is_record(type_t t)
    return (t->kind == T_RECORD);
 }
 
+bool type_is_unconstrained(type_t t)
+{
+   assert(t != NULL);
+   if (t->kind == T_SUBTYPE) {
+      if (type_dims(t) == 0)
+         return type_is_unconstrained(type_base(t));
+      else
+         return false;
+   }
+   else
+      return (t->kind == T_UARRAY);
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);

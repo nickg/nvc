@@ -232,7 +232,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    type_t port_type   = tree_type(port);
    type_t actual_type = tree_type(actual);
 
-   type_t type = (type_kind(port_type) == T_UARRAY) ? actual_type : port_type;
+   type_t type = (type_is_unconstrained(port_type)) ? actual_type : port_type;
 
    port_mode_t mode = tree_subkind(port);
 
