@@ -4,24 +4,24 @@ See these posts for more information:
   http://www.doof.me.uk/category/vhdl/
 
 To build from a Git clone:
-    ./autogen.sh
-    mkdir build && cd build
-    ../configure
-    make
-    make install
+  ./autogen.sh
+  mkdir build && cd build
+  ../configure
+  make
+  make install
 
 To use a specific version of LLVM add
-    --with-llvm=/path/to/llvm-config
+  --with-llvm=/path/to/llvm-config
 to the configure command. LLVM 3.0 or later is required.
 
 To run the regression tests:
-    make check
+  make check
 Note you may need to install additional Ruby libraries:
-    gem install colorize getopt
+  gem install colorize getopt
 
 To recompile the standard libraries:
-    make -C lib clean
-    make bootstrap
+  make -C lib clean
+  make bootstrap
 Note this happens automatically when installing.
 
 See lib/ieee/README for details on building the IEEE libraries.
