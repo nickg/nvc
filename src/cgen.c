@@ -3326,6 +3326,7 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
    else {
       assert(array);
       nets = cgen_signal_lvalue(on, ctx);
+      assert(nets != NULL);
 
       if (type_is_array(expr_type))
          n_elems = cgen_array_len_recur(expr_type, NULL);
@@ -3524,6 +3525,8 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             LLVMValueRef off = cgen_array_ref_offset(t, NULL, ctx);
 
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
+            if (p_base == NULL)
+               return NULL;
 
             LLVMValueRef indexes[] = { off };
             return LLVMBuildGEP(builder, p_base,
@@ -3536,6 +3539,8 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          tree_t value = tree_value(t);
 
          LLVMValueRef nets = cgen_signal_lvalue(value, ctx);
+         if (nets == NULL)
+            return NULL;
 
          range_t r = tree_range(t);
 
@@ -3579,6 +3584,9 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             assert(!type_is_array(tree_type(value)));
 
             LLVMValueRef nid_ptr = cgen_signal_lvalue(value, ctx);
+            if (nid_ptr == NULL)
+               continue;
+
             LLVMValueRef nid = LLVMBuildLoad(builder, nid_ptr, "nid");
 
             LLVMValueRef indexes[] = {
