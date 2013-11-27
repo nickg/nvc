@@ -774,10 +774,10 @@ entity_class
 ;
 
 conc_stmt_list
-: conc_stmt conc_stmt_list
+: conc_stmt_list conc_stmt
   {
-     $$ = $2;
-     tree_list_prepend(&$$, $1);
+     $$ = $1;
+     tree_list_append(&$$, $2);
   }
 | /* empty */
   {
@@ -1367,10 +1367,10 @@ selected_waveforms
 ;
 
 seq_stmt_list
-: seq_stmt seq_stmt_list
+: seq_stmt_list seq_stmt
   {
-     $$ = $2;
-     tree_list_prepend(&$$, $1);
+     $$ = $1;
+     tree_list_append(&$$, $2);
   }
 | /* empty */
   {
