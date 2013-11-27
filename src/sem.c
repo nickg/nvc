@@ -4033,11 +4033,16 @@ static bool sem_check_ref(tree_t t)
    if (decl == NULL)
       decl = next;
 
-   if (decl == NULL)
-      sem_error(t, (n == 0 ? "undefined identifier %s"
-                    : (n == 1 ? "name %s cannot be used in this context"
-                       : ("no suitable overload for identifier %s"))),
-                istr(name));
+   if (decl == NULL) {
+      if (n == 0)
+         sem_error(t, "undefined identifier %s", istr(name));
+      else if (n == 1)
+         sem_error(t, "name %s cannot be used in this context%s",
+                   istr(name), type_set_fmt());
+      else
+         sem_error(t, "no suitable overload for identifier %s in "
+                   "context%s", istr(name), type_set_fmt());
+   }
 
    switch (tree_kind(decl)) {
    case T_VAR_DECL:
