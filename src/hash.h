@@ -24,7 +24,7 @@ typedef struct hash hash_t;
 
 hash_t *hash_new(int size, bool replace);
 void hash_free(hash_t *h);
-void hash_put(hash_t *h, const void *key, void *value);
+bool hash_put(hash_t *h, const void *key, void *value);
 void *hash_get(hash_t *h, const void *key);
 void *hash_get_nth(hash_t *h, const void *key, int *n);
 void hash_replace(hash_t *h, void *value, void *with);

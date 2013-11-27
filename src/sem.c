@@ -1946,13 +1946,37 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    for (int i = 0; i < nstmts; i++) {
       tree_t s = get_stmt(t, i);
       ok = sem_check(s) && ok;
-
-      ident_t label = tree_ident(s);
-      for (int j = 0; j < i; j++) {
-         if (tree_ident(get_stmt(t, j)) == label)
-            sem_error(s, "duplicate statement label %s", istr(label));
-      }
    }
+
+   // Check for duplicate statements: if the number of statements is small
+   // then it is simpler to do this with the naive O(n^2) algorith but when
+   // the number is large it is more efficient to use a hash table
+
+   const bool use_hash = (nstmts >= 256);
+   hash_t *hash = NULL;
+   if (use_hash)
+      hash = hash_new(nstmts * 2, true);
+
+   for (int i = 0; i < nstmts; i++) {
+      tree_t s = get_stmt(t, i);
+      ident_t label = tree_ident(s);
+
+      bool duplicate;
+      if (use_hash)
+         duplicate = hash_put(hash, label, NULL);
+      else {
+         for (int j = 0; (j < i) && !duplicate; j++) {
+            if (tree_ident(get_stmt(t, j)) == label)
+               duplicate = true;
+         }
+      }
+
+      if (duplicate)
+         sem_error(s, "duplicate statement label %s", istr(label));
+   }
+
+   if (use_hash)
+      hash_free(hash);
 
    return ok;
 }

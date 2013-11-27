@@ -74,7 +74,7 @@ void hash_free(hash_t *h)
    free(h);
 }
 
-void hash_put(hash_t *h, const void *key, void *value)
+bool hash_put(hash_t *h, const void *key, void *value)
 {
    if (unlikely(h->members >= h->size / 2)) {
       // Rebuild the hash table with a larger size
@@ -108,7 +108,7 @@ void hash_put(hash_t *h, const void *key, void *value)
    for (; ; slot = (slot + 1) & (h->size - 1)) {
       if ((h->keys[slot] == key) && h->replace) {
          h->values[slot] = value;
-         break;
+         return true;
       }
       else if (h->keys[slot] == NULL) {
          h->values[slot] = value;
@@ -117,6 +117,8 @@ void hash_put(hash_t *h, const void *key, void *value)
          break;
       }
    }
+
+   return false;
 }
 
 void *hash_get_nth(hash_t *h, const void *key, int *n)
