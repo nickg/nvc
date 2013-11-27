@@ -21,16 +21,16 @@
 #include <stdint.h>
 
 typedef struct loc {
-   uint16_t   first_line;
-   uint16_t   first_column;
-   uint16_t   last_line;
-   uint16_t   last_column;
+   unsigned    first_line : 20;
+   unsigned    first_column : 12;
+   unsigned    last_line : 20;
+   unsigned    last_column : 12;
    const char *file;
    const char *linebuf;
 } loc_t;
 
-#define LINE_INVALID   UINT16_MAX
-#define COLUMN_INVALID UINT16_MAX
+#define LINE_INVALID   (~0)
+#define COLUMN_INVALID (~0)
 
 static const loc_t LOC_INVALID = {
    LINE_INVALID,
