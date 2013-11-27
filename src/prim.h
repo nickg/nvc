@@ -29,8 +29,8 @@ typedef struct loc {
    const char *linebuf;
 } loc_t;
 
-#define LINE_INVALID   (~0)
-#define COLUMN_INVALID (~0)
+#define LINE_INVALID   0xfffff
+#define COLUMN_INVALID 0xfff
 
 static const loc_t LOC_INVALID = {
    LINE_INVALID,
