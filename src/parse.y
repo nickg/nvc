@@ -27,6 +27,7 @@
    #include <string.h>
    #include <stdarg.h>
    #include <ctype.h>
+   #include <assert.h>
 }
 
 %code requires {
@@ -77,7 +78,8 @@
 
    typedef struct tree_list {
       struct tree_list *next;
-      tree_t           value;
+      struct tree_list *tail;
+      tree_t            value;
    } tree_list_t;
 }
 
@@ -2435,6 +2437,7 @@ static void tree_list_append(struct tree_list **l, tree_t t)
    struct tree_list *new = xmalloc(sizeof(struct tree_list));
    new->next  = NULL;
    new->value = t;
+   new->tail  = new;
 
    tree_list_concat(l, new);
 }
@@ -2444,6 +2447,7 @@ static void tree_list_prepend(struct tree_list **l, tree_t t)
    struct tree_list *new = xmalloc(sizeof(struct tree_list));
    new->next  = *l;
    new->value = t;
+   new->tail  = (*l != NULL) ? (*l)->tail : new;
 
    *l = new;
 }
@@ -2452,11 +2456,10 @@ static void tree_list_concat(struct tree_list **a, struct tree_list *b)
 {
    if (*a == NULL)
       *a = b;
-   else {
-      struct tree_list *it;
-      for (it = *a; it->next != NULL; it = it->next)
-         ;
-      it->next = b;
+   else if (b != NULL) {
+      assert((*a)->tail->next == NULL);
+      (*a)->tail->next = b;
+      (*a)->tail = b->tail;
    }
 }
 
