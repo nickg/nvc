@@ -2613,9 +2613,11 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
 
    tree_t one = tree_new(T_REF);
    tree_set_ident(one, ident_new("'1'"));
+   tree_set_loc(one, loc);
 
    tree_t zero = tree_new(T_REF);
    tree_set_ident(zero, ident_new("'0'"));
+   tree_set_loc(zero, loc);
 
    for (const char *p = str + 2; *p != '\"'; p++) {
       if (*p == '_')
