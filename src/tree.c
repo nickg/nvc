@@ -424,7 +424,11 @@ static void tree_one_time_init(void)
    if (likely(done))
       return;
 
-   format_digest = type_format_digest();
+   // Increment this each time a incompatible change is made to the
+   // on-disk format not expressed in the tree items table above
+   const uint32_t format_fudge = 1;
+
+   format_digest = type_format_digest() + format_fudge;
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
       const int nitems = __builtin_popcount(has_map[i]);
@@ -1310,10 +1314,13 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
    else
       write_u16(findex, ctx->file);
 
-   write_u16(l->first_line, ctx->file);
-   write_u16(l->first_column, ctx->file);
-   write_u16(l->last_line, ctx->file);
-   write_u16(l->last_column, ctx->file);
+   const uint64_t merged =
+      ((uint64_t)l->first_line << 44)
+      | ((uint64_t)l->first_column << 32)
+      | ((uint64_t)l->last_line << 12)
+      | (uint64_t)l->last_column;
+
+   write_u64(merged, ctx->file);
 }
 
 static loc_t read_loc(tree_rd_ctx_t ctx)
@@ -1339,10 +1346,14 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
    }
 
    loc_t l = { .file = fname, .linebuf = NULL };
-   l.first_line   = read_u16(ctx->file);
-   l.first_column = read_u16(ctx->file);
-   l.last_line    = read_u16(ctx->file);
-   l.last_column  = read_u16(ctx->file);
+
+   const uint64_t merged = read_u64(ctx->file);
+
+   l.first_line   = (merged >> 44) & 0xfffff;
+   l.first_column = (merged >> 32) & 0xfff;
+   l.last_line    = (merged >> 12) & 0xfffff;
+   l.last_column  = merged & 0xfff;
+
    return l;
 }
 
