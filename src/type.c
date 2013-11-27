@@ -190,7 +190,11 @@ static item_t *lookup_item(type_t t, imask_t mask)
 {
    assert(t != NULL);
    assert((mask & (mask - 1)) == 0);
+
    const imask_t has = has_map[t->kind];
+
+   const int tzc = __builtin_ctz(mask);
+   const int n   = item_lookup[t->kind][tzc];
 
    if (unlikely((has & mask) == 0)) {
       int item;
@@ -201,9 +205,6 @@ static item_t *lookup_item(type_t t, imask_t mask)
       fatal_trace("type kind %s does not have item %s",
                   kind_text_map[t->kind], item_text_map[item]);
    }
-
-   const int tzc = __builtin_ctz(mask);
-   const int n   = item_lookup[t->kind][tzc];
 
    return &(t->items[n]);
 }
