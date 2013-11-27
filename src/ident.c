@@ -35,8 +35,8 @@ struct clist {
 struct trie {
    char         value;
    uint8_t      write_gen;
-   uint16_t     write_index;
    uint16_t     depth;
+   uint32_t     write_index;
    struct trie  *up;
    struct clist *children;
 };
@@ -50,7 +50,7 @@ struct ident_rd_ctx {
 
 struct ident_wr_ctx {
    fbuf_t   *file;
-   uint16_t  next_index;
+   uint32_t  next_index;
    uint8_t   generation;
 };
 
@@ -186,19 +186,19 @@ void ident_write_end(ident_wr_ctx_t ctx)
 void ident_write(ident_t ident, ident_wr_ctx_t ctx)
 {
    if (ident == NULL) {
-      write_u16(UINT16_MAX, ctx->file);
+      write_u32(UINT32_MAX, ctx->file);
       write_u8(0, ctx->file);
    }
    else if (ident->write_gen == ctx->generation)
-      write_u16(ident->write_index, ctx->file);
+      write_u32(ident->write_index, ctx->file);
    else {
-      write_u16(UINT16_MAX, ctx->file);
+      write_u32(UINT32_MAX, ctx->file);
       write_raw(istr(ident), ident->depth, ctx->file);
 
       ident->write_gen   = ctx->generation;
       ident->write_index = ctx->next_index++;
 
-      assert(ctx->next_index != UINT16_MAX);
+      assert(ctx->next_index != UINT32_MAX);
    }
 }
 
@@ -221,8 +221,8 @@ void ident_read_end(ident_rd_ctx_t ctx)
 
 ident_t ident_read(ident_rd_ctx_t ctx)
 {
-   uint16_t index = read_u16(ctx->file);
-   if (index == UINT16_MAX) {
+   const uint32_t index = read_u32(ctx->file);
+   if (index == UINT32_MAX) {
       if (ctx->cache_sz == ctx->cache_alloc) {
          ctx->cache_alloc *= 2;
          ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));

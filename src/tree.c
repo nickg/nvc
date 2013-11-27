@@ -426,7 +426,7 @@ static void tree_one_time_init(void)
 
    // Increment this each time a incompatible change is made to the
    // on-disk format not expressed in the tree items table above
-   const uint32_t format_fudge = 1;
+   const uint32_t format_fudge = 2;
 
    format_digest = type_format_digest() + format_fudge;
 
