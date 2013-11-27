@@ -2476,9 +2476,12 @@ static void copy_trees(tree_list_t *from,
                        void (*copy_fn)(tree_t t, tree_t d),
                        tree_t to)
 {
-   for (tree_list_t *it = from; it != NULL; it = it->next)
-      (*copy_fn)(to, it->value);
-   tree_list_free(from);
+   while (from != NULL) {
+      (*copy_fn)(to, from->value);
+      tree_list_t *next = from->next;
+      free(from);
+      from = next;
+   }
 }
 
 static list_t *list_add(list_t *list, union listval item)
