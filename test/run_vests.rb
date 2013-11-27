@@ -11,6 +11,7 @@ BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 VestsDir = "#{TestDir}/vests"
 Prefix = "#{VestsDir}/vhdl-93"
+GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 
 unless Dir.exists? VestsDir
   puts "VESTs source missing from #{VestsDir}"
@@ -69,7 +70,6 @@ puts "#{$pass} passes"
 puts "#{$fail} failures"
 
 File.open("#{VestsDir}/HISTORY", 'a') do |f|
-  rev = IO::popen("git rev-parse --short HEAD").read.chomp
   f.printf("%20s %10s   %4d passes   %4d failures\n",
-    Time.new.ctime, rev, $pass, $fail)
+    Time.new.ctime, GitRev, $pass, $fail)
 end
