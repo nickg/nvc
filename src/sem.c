@@ -1961,7 +1961,7 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
       tree_t s = get_stmt(t, i);
       ident_t label = tree_ident(s);
 
-      bool duplicate;
+      bool duplicate = false;
       if (use_hash)
          duplicate = hash_put(hash, label, NULL);
       else {
