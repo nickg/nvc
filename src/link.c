@@ -214,8 +214,12 @@ static void link_assembly(tree_t top)
 {
    link_args_begin();
 
+   const char *extra = getenv("NVC_LLC_ARG");
+
    link_arg_f("%s/llc", LLVM_CONFIG_BINDIR);
    link_arg_f("-relocation-model=pic");
+   if (extra != NULL)
+      link_arg_f("%s", extra);
    link_output(top, "bc");
 #ifdef LLVM_LLC_HAS_OBJ
    link_arg_f("-filetype=obj");
