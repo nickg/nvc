@@ -2785,10 +2785,12 @@ void begin_token(char *tok)
       n_token_next_start += n_token_length;
    }
 
-   yylloc.first_line   = n_row;
-   yylloc.first_column = n_token_start;
-   yylloc.last_line    = n_row;
-   yylloc.last_column  = n_token_start + n_token_length - 1;
+   const int last_col = n_token_start + n_token_length - 1;
+
+   yylloc.first_line   = MIN(n_row, LINE_INVALID);
+   yylloc.first_column = MIN(n_token_start, COLUMN_INVALID);
+   yylloc.last_line    = MIN(n_row, LINE_INVALID);
+   yylloc.last_column  = MIN(last_col, COLUMN_INVALID);
    yylloc.file         = perm_file_name;
    yylloc.linebuf      = perm_linebuf;
 }

@@ -431,13 +431,15 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
    set_attr(ANSI_FG_CYAN);
    fprintf(f, "    %s%s\n", buf, many_lines ? " ..." : "");
-   for (uint16_t j = 0; j < loc->first_column + 4; j++)
-      fprintf(f, " ");
-   set_attr(ANSI_FG_GREEN);
-   for (uint16_t j = 0; j < last_col - loc->first_column + 1; j++)
-      fprintf(f, "^");
-   set_attr(ANSI_RESET);
-   fprintf(f, "\n");
+   if (last_col > loc->first_column) {
+      for (unsigned j = 0; j < loc->first_column + 4; j++)
+         fprintf(f, " ");
+      set_attr(ANSI_FG_GREEN);
+      for (unsigned j = 0; j < last_col - loc->first_column + 1; j++)
+         fprintf(f, "^");
+      set_attr(ANSI_RESET);
+      fprintf(f, "\n");
+   }
 }
 
 #ifndef NO_STACK_TRACE
