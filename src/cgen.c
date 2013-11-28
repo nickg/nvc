@@ -1324,11 +1324,9 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
 {
    const int bytes = byte_width(type);
 
-   LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(type), "tmp");
-
    LLVMValueRef args[] = {
       llvm_void_cast(nets),
-      llvm_void_cast(tmp),
+      LLVMConstNull(llvm_void_ptr()),
       llvm_int32(bytes),
       llvm_int32(0),
       llvm_int32(0),
@@ -1336,7 +1334,8 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
    };
    LLVMValueRef r = LLVMBuildCall(builder, llvm_fn("_vec_load"),
                                   args, ARRAY_LEN(args), "");
-   LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, LLVMTypeOf(tmp), "");
+   LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type), 0);
+   LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, ptr_type, "");
 
    return LLVMBuildLoad(builder, loaded, "");
 }
