@@ -2247,7 +2247,7 @@ element_assoc_list
   {
      $$ = $1;
   }
-| element_assoc tCOMMA element_assoc_list
+| element_assoc_list tCOMMA element_assoc
   {
      $$ = $1;
      tree_list_concat(&$$, $3);
