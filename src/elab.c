@@ -37,8 +37,9 @@ typedef struct {
 } elab_ctx_t;
 
 typedef struct {
-   tree_t formal;
-   tree_t actual;
+   const tree_t *formals;
+   const tree_t *actuals;
+   int           count;
 } rewrite_params_t;
 
 typedef struct map_list {
@@ -180,37 +181,36 @@ static tree_t rewrite_refs(tree_t t, void *context)
 
    tree_t decl = tree_ref(t);
 
-   tree_kind_t decl_kind = tree_kind(decl);
-   if (decl_kind != tree_kind(params->formal))
-      return t;
+   for (int i = 0; i < params->count; i++) {
+      if (decl != params->formals[i])
+         continue;
 
-   if (decl != params->formal)
-      return t;
+      // Do not rewrite references if they appear as formal names
+      if (tree_attr_int(t, ident_new("formal"), 0))
+         continue;
 
-   // Do not rewrite references if they appear as formal names
-   if (tree_attr_int(t, ident_new("formal"), 0))
-      return t;
+      // Skip assignments to OPEN ports
+      if (params->actuals[i] == NULL)
+         continue;
 
-   // Skip assignments to OPEN ports
-   if (params->actual == NULL)
-      return t;
-
-   switch (tree_kind(params->actual)) {
-   case T_SIGNAL_DECL:
-   case T_ENUM_LIT:
-      tree_set_ref(t, params->actual);
-      tree_set_type(t, tree_type(params->actual));
-      break;
-   case T_LITERAL:
-   case T_AGGREGATE:
-   case T_REF:
-   case T_ARRAY_SLICE:
-   case T_ARRAY_REF:
-   case T_FCALL:
-      return params->actual;
-   default:
-      fatal_at(tree_loc(params->actual), "cannot handle tree kind %s "
-               "in rewrite_refs", tree_kind_str(tree_kind(params->actual)));
+      switch (tree_kind(params->actuals[i])) {
+      case T_SIGNAL_DECL:
+      case T_ENUM_LIT:
+         tree_set_ref(t, params->actuals[i]);
+         tree_set_type(t, tree_type(params->actuals[i]));
+         return t;
+      case T_LITERAL:
+      case T_AGGREGATE:
+      case T_REF:
+      case T_ARRAY_SLICE:
+      case T_ARRAY_REF:
+      case T_FCALL:
+         return params->actuals[i];
+      default:
+         fatal_at(tree_loc(params->actuals[i]), "cannot handle tree kind %s "
+                  "in rewrite_refs",
+                  tree_kind_str(tree_kind(params->actuals[i])));
+      }
    }
 
    return t;
@@ -345,9 +345,16 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    const int nformals = tree_Fs(unit);
    const int nactuals = tree_As(t);
 
-   bool have_formals[nformals];
+   bool *have_formals = xmalloc(sizeof(bool) * nformals);
+
    for (int i = 0; i < nformals; i++)
       have_formals[i] = false;
+
+   const int maxr = nformals + nactuals;
+
+   tree_t *rformals = xmalloc(sizeof(tree_t) * maxr);
+   tree_t *ractuals = xmalloc(sizeof(tree_t) * maxr);
+   int count = 0;
 
    map_list_t *maps = NULL;
 
@@ -381,25 +388,21 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
       }
       assert(formal != NULL);
 
-      rewrite_params_t params = {
-         .formal = formal,
-         .actual = NULL
-      };
-
       switch (tree_class(formal)) {
       case C_SIGNAL:
-         params.actual = elab_signal_port(arch, formal, p, &maps);
+         ractuals[count] = elab_signal_port(arch, formal, p, &maps);
          break;
 
       case C_CONSTANT:
-         params.actual = tree_value(p);
+         ractuals[count] = tree_value(p);
          break;
 
       default:
          assert(false);
       }
 
-      tree_rewrite(arch, rewrite_refs, &params);
+      rformals[count] = formal;
+      count++;
    }
 
    // Assign default values
@@ -407,14 +410,27 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
       if (!have_formals[i]) {
          tree_t f = tree_F(unit, i);
          if (tree_has_value(f)) {
-            rewrite_params_t params = {
-               .formal = f,
-               .actual = tree_value(f)
-            };
-            tree_rewrite(arch, rewrite_refs, &params);
+            rformals[count] = f;
+            ractuals[count] = tree_value(f);
+            count++;
          }
       }
    }
+
+   assert(count <= maxr);
+
+   if (count > 0) {
+      rewrite_params_t params = {
+         .formals = rformals,
+         .actuals = ractuals,
+         .count   = count
+      };
+      tree_rewrite(arch, rewrite_refs, &params);
+   }
+
+   free(have_formals);
+   free(rformals);
+   free(ractuals);
 
    return maps;
 }
@@ -862,9 +878,14 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       tree_t copy = elab_copy(t);
 
       tree_t genvar = tree_ref(copy);
+
+      tree_t formals[1] = { genvar };
+      tree_t actuals[1] = { get_int_lit(genvar, i) };
+
       rewrite_params_t params = {
-         .formal = genvar,
-         .actual = get_int_lit(genvar, i)
+         .formals = formals,
+         .actuals = actuals,
+         .count   = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
 
