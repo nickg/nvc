@@ -219,8 +219,8 @@ START_TEST(test_scope)
       {  31, "WORK.PACK1.MY_INT1 does not match type"
          " of target WORK.PACK2.MY_INT1" },
       {  44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
-      {  63, "G already declared in this scope" },
-      {  71, "P already declared in this scope" },
+      {  63, "G already declared in this region" },
+      {  71, "P already declared in this region" },
       { 114, "type MY_INT1 is not defined" },
       { -1, NULL }
    };
