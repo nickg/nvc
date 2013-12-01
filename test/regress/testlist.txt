@@ -180,3 +180,4 @@ access5         normal
 record6         normal
 agg6            normal
 func14          normal
+operator5       normal

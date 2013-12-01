@@ -160,10 +160,22 @@ static bool scope_insert(tree_t t)
 {
    assert(top_scope != NULL);
 
-   if (!scope_can_overload(t)
-       && scope_find_in(tree_ident(t), top_scope, false, 0))
-      sem_error(t, "%s already declared in this scope",
-                istr(tree_ident(t)));
+   tree_t existing = scope_find_in(tree_ident(t), top_scope, false, 0);
+
+   if (existing != NULL) {
+      if (!scope_can_overload(t))
+         sem_error(t, "%s already declared in this scope",
+                   istr(tree_ident(t)));
+      else {
+         const bool same_type = type_eq(tree_type(t), tree_type(existing));
+         const bool hides = tree_attr_str(existing, builtin_i);
+
+         if (same_type && hides) {
+            hash_replace(top_scope->decls, existing, t);
+            return true;
+         }
+      }
+   }
 
    hash_put(top_scope->decls, tree_ident(t), t);
    return true;
