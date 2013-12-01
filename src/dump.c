@@ -288,7 +288,9 @@ static void dump_decl(tree_t t, int indent)
       return;
 
    case T_ALIAS:
-      printf("alias %s is ", istr(tree_ident(t)));
+      printf("alias %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(" is ");
       dump_expr(tree_value(t));
       printf(";\n");
       return;
