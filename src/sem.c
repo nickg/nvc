@@ -156,37 +156,38 @@ static bool scope_can_overload(tree_t t)
       || (kind == T_PROC_BODY);
 }
 
-static bool scope_insert(tree_t t)
+static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
 {
    assert(top_scope != NULL);
 
-   const bool can_overload = scope_can_overload(t);
    tree_t existing;
-   ident_t name = tree_ident(t);
    int n = 0;
    do {
       if ((existing = scope_find_in(name, top_scope, false, n++))) {
-         if (!can_overload)
+         if (!overload)
             sem_error(t, "%s already declared in this region", istr(name));
 
-         if (type_eq(tree_type(t), tree_type(existing))) {
+         const bool builtin = (tree_attr_str(existing, builtin_i) != NULL);
+         if (builtin && type_eq(tree_type(t), tree_type(existing))) {
             // Allow builtin functions to be hidden
-            if (tree_attr_str(existing, builtin_i) != NULL) {
-               hash_replace(top_scope->decls, existing, t);
-               return true;
-            }
+            hash_replace(top_scope->decls, existing, t);
+            return true;
          }
       }
    } while (existing != NULL);
 
-   hash_put(top_scope->decls, tree_ident(t), t);
+   hash_put(top_scope->decls, name, t);
    return true;
+}
+
+static bool scope_insert(tree_t t)
+{
+   return scope_insert_hiding(t, tree_ident(t), scope_can_overload(t));
 }
 
 static void scope_insert_alias(tree_t t, ident_t name)
 {
-   assert(top_scope != NULL);
-   hash_put(top_scope->decls, name, t);
+   (void)scope_insert_hiding(t, name, true);
 }
 
 static void scope_replace(tree_t t, tree_t with)
