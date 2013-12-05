@@ -88,7 +88,7 @@
 #
 #     AX_WITH_CURSES
 #     if test "x$ax_cv_ncursesw" != xyes && test "x$ax_cv_ncurses" != xyes; then
-#         AX_MSG_ERROR([requires either NcursesW or Ncurses library])
+#         AC_MSG_ERROR([requires either NcursesW or Ncurses library])
 #     fi
 #
 #   If any Curses library will do (but one must be present and must support
@@ -182,7 +182,7 @@
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
 
-#serial 13
+#serial 15
 
 AU_ALIAS([MP_WITH_CURSES], [AX_WITH_CURSES])
 AC_DEFUN([AX_WITH_CURSES], [
