@@ -8,8 +8,8 @@ synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
 	$(ieee)/IEEE.STD_LOGIC_UNSIGNED $(ieee)/IEEE.STD_LOGIC_UNSIGNED-body \
 	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.bc $(ieee)/IEEE.STD_LOGIC_TEXTIO \
 	$(ieee)/IEEE.STD_LOGIC_TEXTIO-body $(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.bc \
-	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.so $(ieee)/_IEEE.STD_LOGIC_SIGNED-body.so \
-	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.so $(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.so
+	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.$(SO_EXT) $(ieee)/_IEEE.STD_LOGIC_SIGNED-body.$(SO_EXT) \
+	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.$(SO_EXT) $(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.$(SO_EXT)
 
 bootstrap: $(synopsys_DATA)
 

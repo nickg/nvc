@@ -208,7 +208,7 @@ static void paginate_msg(const char *fmt, va_list ap,
    const char *p = filtered;
    int col = start;
    while (*p != '\0') {
-      if ((*p == '\n') || (isspace((uint8_t)*p) && col >= right)) {
+      if ((*p == '\n') || (isspace((int)*p) && col >= right)) {
          // Can break line here
          fputc('\n', stderr);
          for (col = 0; col < left; col++)
@@ -541,8 +541,6 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       exit(EXIT_FAILURE);
 }
 
-#endif  // NO_STACK_TRACE
-
 static bool is_debugger_running(void)
 {
 #if defined __APPLE__
@@ -624,6 +622,8 @@ static bool is_debugger_running(void)
 
 #endif
 }
+
+#endif  // NO_STACK_TRACE
 
 #ifdef __linux
 static void gdb_sighandler(int sig, siginfo_t *info)
