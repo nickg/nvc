@@ -1191,7 +1191,7 @@ func_name
 | tSTRING
   {
      for (char *p = lvals.sval; *p != '\0'; p++)
-        *p = tolower((uint8_t)*p);
+        *p = tolower((int)*p);
      $$ = ident_new(lvals.sval);
      free(lvals.sval);
   }

@@ -33,8 +33,8 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_PID_T
 
-AC_FUNC_MMAP   
-AC_FUNC_ALLOCA 
+AC_FUNC_MMAP
+AC_FUNC_ALLOCA
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_FORK
@@ -71,26 +71,23 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 
-# On cygwin local headers can sometimes be included instead
-# of system ones which is worked around using -I-. A better
-# solution would be to have automake use -iquote.
-case $host_os in
-  *cygwin* ) CFLAGS="$CFLAGS -I-" ;;
-esac
+# CC may constain unwanted -std=... option.
+AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])
 
-AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which $CC)"], [System compiler])
+case $host_os in
+  *cygwin* ) SO_EXT="dll" ;;
+  *)         SO_EXT="so"
+esac
+AC_DEFINE_UNQUOTED([SO_EXT], ["$SO_EXT"], [Shared object extension])
+AC_SUBST(SO_EXT)
 
 AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
     [Enable native code generation])],
-  [enable_native=$enableval],
-  [case $host_os in
-     *cygwin*) ;;
-     *) enable_native=yes
-   esac])
-
+  [enable_native=yes],
+  [])
 if test x$enable_native = xyes ; then
-AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
+  AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
 fi
 
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
@@ -106,8 +103,8 @@ AC_SUBST(MAKEFLAGS)
 AC_ARG_ENABLE([coverage],
   [AS_HELP_STRING([--enable-coverage],
     [Enable gcov for code coverage statistics])],
-    [enable_coverage=yes],
-    [])
+  [enable_coverage=yes],
+  [])
 if test x$enable_coverage = xyes ; then
   COV_CFLAGS="--coverage --no-inline"
   COV_LDFLAGS="--coverage"

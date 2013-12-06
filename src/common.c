@@ -69,7 +69,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    char name[64];
    snprintf(name, sizeof(name), "NVC.BUILTIN.%s", builtin);
    for (char *p = name; *p != '\0'; p++)
-      *p = toupper((uint8_t)*p);
+      *p = toupper((int)*p);
 
    static struct decl_cache *cache = NULL;
 
@@ -216,8 +216,10 @@ const char *package_signal_path_name(ident_t i)
          *p++ = ':';
          str++;
       }
-      else
-         *p++ = tolower(*str++);
+      else {
+         *p++ = tolower((int)*str);
+         str++;
+      }
    }
    *p = '\0';
 
@@ -226,14 +228,14 @@ const char *package_signal_path_name(ident_t i)
 
 bool parse_value(type_t type, const char *str, int64_t *value)
 {
-   while (isspace(*str))
+   while (isspace((int)*str))
       ++str;
 
    switch (type_kind(type_base_recur(type))) {
    case T_INTEGER:
       {
          int64_t sum = 0;
-         while (isdigit(*str) || (*str == '_')) {
+         while (isdigit((int)*str) || (*str == '_')) {
             if (*str != '_') {
                sum *= 10;
                sum += (*str - '0');
@@ -249,11 +251,11 @@ bool parse_value(type_t type, const char *str, int64_t *value)
       {
          bool upcase = true;
          char *copy = strdup(str), *p;
-         for (p = copy; (*p != '\0') && !isspace(*p); p++, str++) {
+         for (p = copy; (*p != '\0') && !isspace((int)*p); p++, str++) {
             if (*p == '\'')
                upcase = false;
             if (upcase)
-               *p = toupper(*p);
+               *p = toupper((int)*p);
          }
          *p = '\0';
 
@@ -278,8 +280,13 @@ bool parse_value(type_t type, const char *str, int64_t *value)
    }
 
    while (*str != '\0') {
-      if (!isspace(*str++))
+      if (!isspace((int)*str)) {
+         str++;
          return false;
+      }
+      else {
+         str++;
+      }
    }
 
    return true;

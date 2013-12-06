@@ -3160,7 +3160,7 @@ static bool sem_check_fcall(tree_t t)
       char buf[1024];
       static_printf_begin(buf, sizeof(buf));
 
-      const bool operator = !isalpha((uint8_t)*istr(name));
+      const bool operator = !isalpha((int)*istr(name));
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
@@ -3178,7 +3178,7 @@ static bool sem_check_fcall(tree_t t)
       static_printf_begin(fn, sizeof(fn));
 
       const char *fname = istr(name);
-      const bool operator = !isalpha((uint8_t)fname[0]);
+      const bool operator = !isalpha((int)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
       static_printf(fn, "%s%s%s(", quote, fname, quote);

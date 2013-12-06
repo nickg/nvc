@@ -5923,8 +5923,8 @@ for(i=0;i<len;i++)
 			case '\\':	*(dst++) = '\\'; break;
 			case '\?':	*(dst++) = '\?'; break;
 
-			case 'x':	val[0] = toupper(src[++i]);
-					val[1] = toupper(src[++i]);
+			case 'x':	++i; val[0] = toupper((int)src[i]);
+					++i; val[1] = toupper((int)src[i]);
 					val[0] = ((val[0]>='A')&&(val[0]<='F')) ? (val[0] - 'A' + 10) : (val[0] - '0');
 					val[1] = ((val[1]>='A')&&(val[1]<='F')) ? (val[1] - 'A' + 10) : (val[1] - '0');
 					*(dst++) = val[0] * 16 + val[1];
