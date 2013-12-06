@@ -349,7 +349,7 @@ static int parse_id(const char *str)
 {
    char *p = (lvals.sval = xmalloc(strlen(str) + 1));
    while (*str) {
-      *p++ = toupper((uint8_t)*str);
+      *p++ = toupper((int)*str);
       str++;
    }
    *p = '\0';

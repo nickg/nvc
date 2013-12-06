@@ -76,7 +76,7 @@ static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
    // LRM specifies instance path is lowercase
    char *p = buf;
    while (*p != '\0') {
-      *p = tolower((uint8_t)*p);
+      *p = tolower((int)*p);
       ++p;
    }
 
@@ -829,7 +829,7 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
       const char *name = istr(tree_ident(t));
       char lower[strlen(name) + 1], *p;
       for (p = lower; *name != '\0'; p++, name++)
-         *p = tolower(*name);
+         *p = tolower((int)*name);
       *p = '\0';
 
       tree_set_ident(h, ident_new(lower));
@@ -850,7 +850,7 @@ static void elab_push_scope(tree_t t, const elab_ctx_t *ctx)
          if (*id == '-')
             *p = '(';
          else
-            *p = tolower(*id);
+            *p = tolower((int)*id);
       }
 
       *p++ = ')';
