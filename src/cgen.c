@@ -4453,23 +4453,21 @@ static void cgen_jump_table_fn(tree_t t, void *arg)
 
 static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
 {
-   int nconst = 0, nvars = 0;
+   int count = 0;
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
       switch (tree_kind(d)) {
       case T_CONST_DECL:
-         nconst++;
-         break;
       case T_VAR_DECL:
-         nvars++;
+         count++;
          break;
       default:
          break;
       }
    }
 
-   LLVMTypeRef *fields = xmalloc((nvars + nconst + 2) * sizeof(LLVMTypeRef));
+   LLVMTypeRef *fields = xmalloc((count + 2) * sizeof(LLVMTypeRef));
    fields[0] = LLVMInt32Type();   // State
    fields[1] = llvm_void_ptr();   // Procedure dynamic context
 
