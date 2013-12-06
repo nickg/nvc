@@ -76,7 +76,7 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
    ident_t name = tree_ident(unit);
 
    char so_name[256];
-   snprintf(so_name, sizeof(so_name), "_%s.so", istr(name));
+   snprintf(so_name, sizeof(so_name), "_%s." SO_EXT, istr(name));
 
    lib_mtime_t so_mt;
    if (!lib_stat(lib, so_name, &so_mt))
@@ -210,6 +210,7 @@ static void link_exec(void)
       fatal_errno("fork");
 }
 
+#ifdef ENABLE_NATIVE
 static void link_assembly(tree_t top)
 {
    link_args_begin();
@@ -229,7 +230,9 @@ static void link_assembly(tree_t top)
 
    link_args_end();
 }
+#endif
 
+#ifdef ENABLE_NATIVE
 static void link_shared(tree_t top)
 {
    link_args_begin();
@@ -244,11 +247,9 @@ static void link_shared(tree_t top)
    link_arg_f("-shared");
 #endif
    link_arg_f("-o");
-#if defined __CYGWIN__
-   link_output(top, "dll");
-#else
-   link_output(top, "so");
-#endif
+
+   link_output(top, SO_EXT);
+
 #ifdef LLVM_LLC_HAS_OBJ
    link_output(top, "o");
 #else
@@ -259,6 +260,7 @@ static void link_shared(tree_t top)
 
    link_args_end();
 }
+#endif
 
 static void link_native(tree_t top)
 {
