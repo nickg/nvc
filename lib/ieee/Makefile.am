@@ -10,13 +10,17 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
 	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
-	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
+	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc
+
+if ENABLE_NATIVE
+ieee_DATA += \
 	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.$(SO_EXT) \
 	ieee/_IEEE.STD_LOGIC_1164-body.$(SO_EXT) ieee/_IEEE.NUMERIC_STD-body.$(SO_EXT) \
 	ieee/_IEEE.NUMERIC_BIT-body.$(SO_EXT) ieee/_IEEE.MATH_REAL.$(SO_EXT) \
 	ieee/_IEEE.MATH_REAL-body.$(SO_EXT) ieee/_IEEE.VITAL_TIMING.$(SO_EXT) \
 	ieee/_IEEE.VITAL_TIMING-body.$(SO_EXT) ieee/_IEEE.VITAL_PRIMITIVES.$(SO_EXT) \
 	ieee/_IEEE.VITAL_PRIMITIVES-body.$(SO_EXT)
+endif
 
 bootstrap: $(ieee_DATA)
 
