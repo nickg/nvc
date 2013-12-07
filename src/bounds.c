@@ -27,6 +27,7 @@
 static int     errors = 0;
 static ident_t unconstrained_i;
 static ident_t elide_bounds_i;
+static ident_t builtin_i;
 
 #define bounds_error(t, ...) \
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
@@ -37,6 +38,29 @@ static tree_t bounds_check_call_args(tree_t t)
 
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
+
+   // Check dimension argument of array attributes
+
+   ident_t builtin = tree_attr_str(decl, builtin_i);
+   if (builtin != NULL) {
+      if (icmp(builtin, "length") || icmp(builtin, "low")
+          || icmp(builtin, "high") || icmp(builtin, "left")
+          || icmp(builtin, "right")) {
+
+         type_t type = tree_type(tree_value(tree_param(t, 1)));
+         if (type_is_array(type) && !type_is_unconstrained(type)) {
+            tree_t dim_tree = tree_value(tree_param(t, 0));
+
+            int64_t dim;
+            const bool f = folded_int(dim_tree, &dim);
+            assert(f);
+
+            if ((dim < 1) || (dim > type_dims(type)))
+               bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
+                            dim, type_pp(type));
+         }
+      }
+   }
 
    // Check bounds of constrained array parameters
 
@@ -457,6 +481,7 @@ void bounds_check(tree_t top)
 {
    unconstrained_i = ident_new("unconstrained");
    elide_bounds_i  = ident_new("elide_bounds");
+   builtin_i       = ident_new("builtin");
 
    tree_visit(top, bounds_visit_fn, NULL);
 }

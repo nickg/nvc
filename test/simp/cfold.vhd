@@ -81,4 +81,16 @@ begin
     begin
     end process;
 
+    process
+        type int2_vec is array (66 to 67) of integer;
+    begin
+        assert a1'length = 5;
+        assert a1'low(1) = 1;
+        assert a1'high(1) = 5;
+        assert a1'left = 1;
+        assert a1'right = 5;
+        assert int2_vec'length = 2;
+        assert int2_vec'low = 66;
+    end process;
+
 end architecture;

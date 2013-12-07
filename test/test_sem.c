@@ -905,6 +905,7 @@ START_TEST(test_attr)
       { 65, "expected attribute type INTEGER" },
       { 66, "expected attribute type STRING" },
       { 67, "undefined identifier Q" },
+      { 85, "parameter must be locally static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -913,6 +914,11 @@ START_TEST(test_attr)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_if(sem_check(a));
 
    a = parse();
    fail_if(a == NULL);

@@ -80,6 +80,7 @@ START_TEST(test_bounds)
       { 69, "aggregate index 0 out of bounds 1 to 3" },
       { 78, "value '1' out of target bounds 'a' to 'z'" },
       { 79, "value 0 out of target bounds 1 to 2147483647" },
+      { 84, "invalid dimension 5 for type MY_VEC1" },
       { -1, NULL }
    };
    expect_errors(expect);

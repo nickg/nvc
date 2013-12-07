@@ -79,4 +79,9 @@ begin
         p := 0;                         -- Error
     end process;
 
+    process is
+    begin
+        assert s'length(5) = 5;         -- Error
+    end process;
+
 end architecture;

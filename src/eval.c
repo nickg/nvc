@@ -28,8 +28,8 @@
 #define VTABLE_SZ        16
 #define MAX_ITERS        1000
 
-static ident_t std_bool_i = NULL;
-static ident_t builtin_i  = NULL;
+static ident_t std_bool_i;
+static ident_t builtin_i;
 
 typedef struct vtable vtable_t;
 typedef struct vtframe vtframe_t;
@@ -413,7 +413,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       return ((result != NULL) && folded(result)) ? result : t;
    }
 
-   if (icmp(builtin, "length")) {
+   if (icmp(builtin, "length") || icmp(builtin, "low") || icmp(builtin, "high")
+       || icmp(builtin, "left") || icmp(builtin, "right")) {
       tree_t dim   = tree_value(tree_param(t, 0));
       tree_t array = tree_value(tree_param(t, 1));
 
@@ -421,16 +422,38 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
          return t;   // Cannot fold this
 
       int64_t dim_i;
-      if ((type_kind(tree_type(array)) != T_UARRAY)
-          && folded_int(dim, &dim_i)) {
-         range_t r = type_dim(tree_type(array), dim_i - 1);
-         if (tree_kind(r.left) == T_LITERAL
-             && tree_kind(r.right) == T_LITERAL) {
+      const bool f = folded_int(dim, &dim_i);
+      assert(f);
+
+      type_t type = tree_type(array);
+      if (type_is_unconstrained(type))
+         return t;
+
+      if ((dim_i < 1) || (dim_i > type_dims(type)))
+         return t;
+
+      range_t r = type_dim(type, dim_i - 1);
+
+      if (icmp(builtin, "length")) {
+         if ((tree_kind(r.left) == T_LITERAL)
+             && (tree_kind(r.right) == T_LITERAL)) {
             int64_t low, high;
             range_bounds(r, &low, &high);
             return get_int_lit(t, (high < low) ? 0 : high - low + 1);
          }
+         else
+            return t;
       }
+      else if (icmp(builtin, "low"))
+         return eval_expr((r.kind == RANGE_TO) ? r.left : r.right, v);
+      else if (icmp(builtin, "high"))
+         return eval_expr((r.kind == RANGE_TO) ? r.right : r.left, v);
+      else if (icmp(builtin, "left"))
+         return eval_expr(r.left, v);
+      else if (icmp(builtin, "right"))
+         return eval_expr(r.right, v);
+      else
+         assert(false);
    }
 
    const bool uarray_left  = icmp(builtin, "uarray_left");

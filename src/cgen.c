@@ -2156,7 +2156,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 
    ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
 
-   // Special attributes
+   // Special attributes where the arguments are not always evaluated
    if (builtin) {
       tree_t p0 = tree_value(tree_param(t, 0));
 
@@ -2195,6 +2195,54 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
             cgen_uarray_field(p0, 1, ctx),
             cgen_uarray_field(p0, 0, ctx),
             "high");
+      }
+      else if (icmp(builtin, "left")) {
+         tree_t p1 = tree_value(tree_param(t, 1));
+         type_t type = tree_type(p1);
+         int64_t dim = assume_int(p0);
+         if (cgen_const_bounds(type))
+            return cgen_expr(type_dim(type, dim).left, ctx);
+         else
+            return cgen_uarray_field(p1, 0, ctx);
+      }
+      else if (icmp(builtin, "right")) {
+         tree_t p1 = tree_value(tree_param(t, 1));
+         type_t type = tree_type(p1);
+         int64_t dim = assume_int(p0);
+         if (cgen_const_bounds(type))
+            return cgen_expr(type_dim(type, dim).right, ctx);
+         else
+            return cgen_uarray_field(p1, 1, ctx);
+      }
+      else if (icmp(builtin, "low")) {
+         tree_t p1 = tree_value(tree_param(t, 1));
+         type_t type = tree_type(p1);
+         int64_t dim = assume_int(p0);
+         if (cgen_const_bounds(type)) {
+            range_t r = type_dim(type, dim);
+            return cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
+         }
+         else
+            return LLVMBuildSelect(
+               builder, cgen_uarray_asc(p1, ctx),
+               cgen_uarray_field(p1, 0, ctx),
+               cgen_uarray_field(p1, 1, ctx),
+               "low");
+      }
+      else if (icmp(builtin, "high")) {
+         tree_t p1 = tree_value(tree_param(t, 1));
+         type_t type = tree_type(p1);
+         int64_t dim = assume_int(p0);
+         if (cgen_const_bounds(type)) {
+            range_t r = type_dim(type, dim);
+            return cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
+         }
+         else
+            return LLVMBuildSelect(
+               builder, cgen_uarray_asc(p1, ctx),
+               cgen_uarray_field(p1, 1, ctx),
+               cgen_uarray_field(p1, 0, ctx),
+               "high");
       }
    }
 

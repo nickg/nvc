@@ -25,6 +25,5 @@ begin
         assert (y / x) = 1;
         wait;
     end process;
-    
+
 end architecture;
-    

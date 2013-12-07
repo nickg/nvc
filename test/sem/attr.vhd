@@ -69,3 +69,20 @@ architecture a2 of e is
 
 begin
 end architecture;
+
+architecture a3 of e is
+    type int10_vec is array (integer range 1 to 10) of integer;
+begin
+
+    process is
+        variable x : integer;
+    begin
+        assert int10_vec'low = 1;       -- OK
+        assert int10_vec'high = 10;     -- OK
+        assert int10_vec'left = 1;      -- OK
+        assert int10_vec'right = 10;    -- OK
+        assert int10_vec'low(1) = 1;    -- OK
+        assert int10_vec'left(x) = 2;   -- Error
+    end process;
+
+end architecture;

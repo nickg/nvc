@@ -84,6 +84,7 @@ static struct loop_stack *loop_stack = NULL;
 static ident_t            builtin_i;
 static ident_t            std_standard_i;
 static ident_t            formal_i;
+static ident_t            locally_static_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -500,16 +501,18 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
-static void sem_add_length_attr(tree_t decl)
+static void sem_add_dimension_attr(tree_t decl, const char *name,
+                                   const char *builtin)
 {
-   ident_t length_i = ident_new("LENGTH");
+   ident_t length_i = ident_new(name);
    type_t std_int = sem_std_type("INTEGER");
-   tree_t fn = sem_builtin_fn(length_i, std_int, "length",
+   tree_t fn = sem_builtin_fn(length_i, std_int, builtin,
                               std_int, tree_type(decl), NULL);
 
    // Dimension argument defaults to 1
    tree_t dim = tree_port(fn, 0);
    tree_set_value(dim, sem_int_lit(std_int, 1));
+   tree_add_attr_int(dim, locally_static_i, 1);
 
    tree_add_attr_tree(decl, length_i, fn);
 }
@@ -816,8 +819,13 @@ static void sem_declare_predefined_ops(tree_t decl)
       break;
    }
 
-   if (type_is_array(t))
-      sem_add_length_attr(decl);
+   if (type_is_array(t)) {
+      sem_add_dimension_attr(decl, "LENGTH", "length");
+      sem_add_dimension_attr(decl, "LEFT", "left");
+      sem_add_dimension_attr(decl, "RIGHT", "right");
+      sem_add_dimension_attr(decl, "LOW", "low");
+      sem_add_dimension_attr(decl, "HIGH", "high");
+   }
 
    switch (type_kind(type_base_recur(t))) {
    case T_INTEGER:
@@ -1547,51 +1555,47 @@ static void sem_add_attributes(tree_t decl)
    if (type_kind(type) == T_ACCESS)
       type = type_access(type);
 
-   if (type_is_unconstrained(type)) {
-      const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
-      const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
-                             "uarray_right", NULL };
-      const char **f, **imp;
-      for (f = funs, imp = impl; *f != NULL; f++, imp++) {
-         ident_t id = ident_new(*f);
-         tree_add_attr_tree(decl, id,
-                            sem_builtin_fn(id, type_index_constr(type, 0),
-                                           *imp, type, NULL));
-      }
+   if (type_is_array(type)) {
+      sem_add_dimension_attr(decl, "LENGTH", "length");
 
-      ident_t asc_i = ident_new("ASCENDING");
-      tree_add_attr_tree(decl, asc_i,
-                         sem_builtin_fn(asc_i, std_bool,
-                                        "uarray_asc", type, NULL));
-   }
-   else if (type_is_array(type)) {
-      range_t r = type_dim(type, 0);
+      if (type_is_unconstrained(type)) {
+         const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
+         const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
+                                "uarray_right", NULL };
+         const char **f, **imp;
+         for (f = funs, imp = impl; *f != NULL; f++, imp++) {
+            ident_t id = ident_new(*f);
+            tree_add_attr_tree(decl, id,
+                               sem_builtin_fn(id, type_index_constr(type, 0),
+                                              *imp, type, NULL));
+         }
 
-      tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
-      tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
-
-      if (r.kind != RANGE_DYN)
-         tree_add_attr_tree(decl, ident_new("ASCENDING"),
-                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
-      else {
          ident_t asc_i = ident_new("ASCENDING");
          tree_add_attr_tree(decl, asc_i,
                             sem_builtin_fn(asc_i, std_bool,
                                            "uarray_asc", type, NULL));
       }
-
-      if (r.kind == RANGE_TO) {
-         tree_add_attr_tree(decl, ident_new("LOW"), r.left);
-         tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
-      }
       else {
-         tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
-         tree_add_attr_tree(decl, ident_new("LOW"), r.right);
+         range_t r = type_dim(type, 0);
+
+         if (type_is_array(type)) {
+            sem_add_dimension_attr(decl, "LEFT", "left");
+            sem_add_dimension_attr(decl, "RIGHT", "right");
+            sem_add_dimension_attr(decl, "LOW", "low");
+            sem_add_dimension_attr(decl, "HIGH", "high");
+         }
+
+         if (r.kind != RANGE_DYN)
+            tree_add_attr_tree(decl, ident_new("ASCENDING"),
+                               sem_bool_lit(std_bool, r.kind == RANGE_TO));
+         else {
+            ident_t asc_i = ident_new("ASCENDING");
+            tree_add_attr_tree(decl, asc_i,
+                               sem_builtin_fn(asc_i, std_bool,
+                                              "uarray_asc", type, NULL));
+         }
       }
    }
-
-   if (type_is_array(type))
-      sem_add_length_attr(decl);
 
    const tree_kind_t decl_kind = tree_kind(decl);
 
@@ -1953,10 +1957,10 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    }
 
    // Check for duplicate statements: if the number of statements is small
-   // then it is simpler to do this with the naive O(n^2) algorith but when
+   // then it is simpler to do this with the naive O(n^2) algorithm but when
    // the number is large it is more efficient to use a hash table
 
-   const bool use_hash = (nstmts >= 256);
+   const bool use_hash = (nstmts >= 128);
    hash_t *hash = NULL;
    if (use_hash)
       hash = hash_new(nstmts * 2, true);
@@ -4384,6 +4388,13 @@ static bool sem_check_attr_ref(tree_t t)
             sem_error(t, "expected type %s for attribute %s but found %s",
                       sem_type_str(expect_type), istr(attr),
                       sem_type_str(tree_type(value)));
+
+         // Check cases where a dimension must be locally static
+         tree_t port = tree_port(a, pindex);
+         if (tree_attr_int(port, locally_static_i, 0)) {
+            if (!sem_locally_static(value))
+               sem_error(p, "parameter must be locally static");
+         }
       }
 
       tree_set_ref(t, a);
@@ -5423,9 +5434,10 @@ static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
 
-   builtin_i      = ident_new("builtin");
-   std_standard_i = ident_new("STD.STANDARD");
-   formal_i       = ident_new("formal");
+   builtin_i        = ident_new("builtin");
+   std_standard_i   = ident_new("STD.STANDARD");
+   formal_i         = ident_new("formal");
+   locally_static_i = ident_new("locally_static");
 }
 
 bool sem_check(tree_t t)
