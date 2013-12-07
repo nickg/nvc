@@ -566,8 +566,16 @@ static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
 static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
-      return LLVMBuildExtractValue(builder, ldim, 2, "dir");
+      if (var == NULL) {
+         assert(!type_is_unconstrained(type));
+         range_t r = type_dim(type, dim);
+         assert((r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO));
+         return llvm_int8(r.kind);
+      }
+      else {
+         LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+         return LLVMBuildExtractValue(builder, ldim, 2, "dir");
+      }
    }
    else
       return llvm_int8(type_dim(type, dim).kind);
@@ -576,8 +584,14 @@ static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
 static LLVMValueRef cgen_array_left(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
-      return LLVMBuildExtractValue(builder, ldim, 0, "left");
+      if (var == NULL) {
+         assert(!type_is_unconstrained(type));
+         return cgen_expr(type_dim(type, dim).left, NULL);
+      }
+      else {
+         LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+         return LLVMBuildExtractValue(builder, ldim, 0, "left");
+      }
    }
    else
       return llvm_int32(assume_int(type_dim(type, dim).left));
@@ -586,8 +600,14 @@ static LLVMValueRef cgen_array_left(type_t type, int dim, LLVMValueRef var)
 static LLVMValueRef cgen_array_right(type_t type, int dim, LLVMValueRef var)
 {
    if (!cgen_const_bounds(type)) {
-      LLVMValueRef ldim = cgen_uarray_dim(var, dim);
-      return LLVMBuildExtractValue(builder, ldim, 1, "right");
+      if (var == NULL) {
+         assert(!type_is_unconstrained(type));
+         return cgen_expr(type_dim(type, dim).right, NULL);
+      }
+      else {
+         LLVMValueRef ldim = cgen_uarray_dim(var, dim);
+         return LLVMBuildExtractValue(builder, ldim, 1, "right");
+      }
    }
    else
       return llvm_int32(assume_int(type_dim(type, dim).right));
@@ -2503,7 +2523,7 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 }
 
 static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
-                                       cgen_ctx_t *ctx)
+                                       LLVMValueRef meta, cgen_ctx_t *ctx)
 {
    type_t alias_type = tree_type(alias);
    type_t base_type  = tree_type(tree_value(alias));
@@ -2536,25 +2556,19 @@ static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
    case T_UARRAY:
       // The transformation must be computed at runtime
       {
-#if 0
-         tree_t ref = make_ref(base_decl);
-         tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
+         LLVMValueRef bleft = cgen_array_left(base_type, 0, meta);
+         LLVMValueRef bdir  = cgen_array_dir(base_type, 0, meta);
 
-         tree_t rkind_lit = tree_new(T_LITERAL);
-         tree_set_subkind(rkind_lit, L_INT);
-         tree_set_ival(rkind_lit, alias_r.kind);
-         tree_set_type(rkind_lit, ptype);
+         LLVMValueRef same_dir =
+            LLVMBuildICmp(builder, LLVMIntEQ, bdir,
+                          llvm_int8(alias_r.kind), "same_dir");
 
-         // Call dircmp builtin which multiplies its third argument
-         // by -1 if the direction of the first argument is not equal
-         // to the direction of the second
-         tree_t off_dir = call_builtin("uarray_dircmp", ptype,
-                                       ref, rkind_lit, off, NULL);
-
-         return call_builtin("add", ptype, base_left, off_dir, NULL);
-#else
-         assert(false);
-#endif
+         return LLVMBuildSelect(
+            builder,
+            same_dir,
+            LLVMBuildAdd(builder, bleft, off, ""),
+            LLVMBuildSub(builder, bleft, off, ""),
+            "unalias");
       }
       break;
 
@@ -2587,10 +2601,10 @@ static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
       LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
 
       if (!elide_bounds)
-         cgen_check_array_bounds(tree_value(p), type, i, meta, offset, ctx);
+         cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta), offset, ctx);
 
       if (alias != NULL) {
-         offset = cgen_unalias_index(alias, offset, ctx);
+         offset = cgen_unalias_index(alias, offset, meta, ctx);
          debug_out(offset);
          type = tree_type(tree_value(alias));
       }
