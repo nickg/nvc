@@ -2664,12 +2664,15 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
    class_t class = C_VARIABLE;
    LLVMValueRef array = NULL;
 
+   tree_t alias = NULL;
    tree_t value = tree_value(t);
    if (tree_kind(value) == T_REF) {
       decl = tree_ref(value);
 
-      if (tree_kind(decl) == T_ALIAS)
-         array = cgen_alias(decl, ctx);
+      if (tree_kind(decl) == T_ALIAS) {
+         alias = decl;
+         array = cgen_expr(tree_value(decl), ctx);
+      }
       else {
          class = cgen_get_class(decl);
 
@@ -2693,6 +2696,9 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
    type_t type = tree_type(value);
 
    LLVMValueRef idx = cgen_array_ref_offset(t, array, ctx);
+
+   if (alias != NULL)
+      array = cgen_alias(alias, ctx);
 
    switch (class) {
    case C_VARIABLE:

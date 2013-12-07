@@ -30,6 +30,8 @@ architecture test of alias5 is
         alias atpd_data_q : yahtype01(data'range) is tpd_data_q;
     begin
         bufpath ( atpd_data_q );
+        assert atpd_data_q(data'left)(tr01) = 1 ns;
+        --assert atpd_data_q(3 downto 3)(3)(tr01) = 1 ns;
     end;
 begin
 
