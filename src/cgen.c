@@ -186,7 +186,7 @@ static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
       chars[i] = llvm_int8(*str ? *(str++) : '\0');
 }
 
-#if 1
+#if 0
 static void debug_out(LLVMValueRef val)
 {
    LLVMValueRef args[] = { val };
@@ -916,8 +916,63 @@ static void cgen_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
+static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
+                                       LLVMValueRef meta, cgen_ctx_t *ctx)
+{
+   type_t alias_type = tree_type(alias);
+   type_t base_type  = tree_type(tree_value(alias));
+
+   assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
+
+   range_t alias_r = type_dim(alias_type, 0);
+
+   LLVMValueRef off = LLVMBuildSub(builder, index,
+                                   cgen_expr(alias_r.left, ctx), "");
+
+   switch (type_kind(base_type)) {
+   case T_CARRAY:
+   case T_SUBTYPE:
+      // The transformation is a constant offset of indices
+      {
+         range_t base_r = type_dim(base_type, 0);
+         LLVMValueRef bleft = cgen_expr(base_r.left, ctx);
+         if (alias_r.kind == base_r.kind) {
+            // Range in same direction
+            return LLVMBuildAdd(builder, bleft, off, "unalias");
+         }
+         else {
+            // Range in opposite direction
+            return LLVMBuildSub(builder, bleft, off, "unalias");
+         }
+      }
+      break;
+
+   case T_UARRAY:
+      // The transformation must be computed at runtime
+      {
+         LLVMValueRef bleft = cgen_array_left(base_type, 0, meta);
+         LLVMValueRef bdir  = cgen_array_dir(base_type, 0, meta);
+
+         LLVMValueRef same_dir =
+            LLVMBuildICmp(builder, LLVMIntEQ, bdir,
+                          llvm_int8(alias_r.kind), "same_dir");
+
+         return LLVMBuildSelect(
+            builder,
+            same_dir,
+            LLVMBuildAdd(builder, bleft, off, ""),
+            LLVMBuildSub(builder, bleft, off, ""),
+            "unalias");
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
-                                   range_t r, cgen_ctx_t *ctx)
+                                   tree_t alias, range_t r, cgen_ctx_t *ctx)
 {
    // Construct a new array sharing the same memory as `array' but offset
    // by `range'
@@ -945,6 +1000,9 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
    LLVMBuildBr(builder, merge_bb);
 
    LLVMPositionBuilderAtEnd(builder, merge_bb);
+
+   if (alias != NULL)
+      left = cgen_unalias_index(alias, left, array, ctx);
 
    LLVMValueRef off = cgen_array_off(left, array, type, ctx, 0);
    LLVMValueRef data = cgen_array_data_ptr(type, array);
@@ -2522,61 +2580,6 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
    }
 }
 
-static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
-                                       LLVMValueRef meta, cgen_ctx_t *ctx)
-{
-   type_t alias_type = tree_type(alias);
-   type_t base_type  = tree_type(tree_value(alias));
-
-   assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
-
-   range_t alias_r = type_dim(alias_type, 0);
-
-   LLVMValueRef off = LLVMBuildSub(builder, index,
-                                   cgen_expr(alias_r.left, ctx), "");
-
-   switch (type_kind(base_type)) {
-   case T_CARRAY:
-   case T_SUBTYPE:
-      // The transformation is a constant offset of indices
-      {
-         range_t base_r = type_dim(base_type, 0);
-         LLVMValueRef bleft = cgen_expr(base_r.left, ctx);
-         if (alias_r.kind == base_r.kind) {
-            // Range in same direction
-            return LLVMBuildAdd(builder, bleft, off, "unalias");
-         }
-         else {
-            // Range in opposite direction
-            return LLVMBuildSub(builder, bleft, off, "unalias");
-         }
-      }
-      break;
-
-   case T_UARRAY:
-      // The transformation must be computed at runtime
-      {
-         LLVMValueRef bleft = cgen_array_left(base_type, 0, meta);
-         LLVMValueRef bdir  = cgen_array_dir(base_type, 0, meta);
-
-         LLVMValueRef same_dir =
-            LLVMBuildICmp(builder, LLVMIntEQ, bdir,
-                          llvm_int8(alias_r.kind), "same_dir");
-
-         return LLVMBuildSelect(
-            builder,
-            same_dir,
-            LLVMBuildAdd(builder, bleft, off, ""),
-            LLVMBuildSub(builder, bleft, off, ""),
-            "unalias");
-      }
-      break;
-
-   default:
-      assert(false);
-   }
-}
-
 static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
                                           cgen_ctx_t *ctx)
 {
@@ -2601,11 +2604,11 @@ static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
       LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
 
       if (!elide_bounds)
-         cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta), offset, ctx);
+         cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta),
+                                 offset, ctx);
 
       if (alias != NULL) {
          offset = cgen_unalias_index(alias, offset, meta, ctx);
-         debug_out(offset);
          type = tree_type(tree_value(alias));
       }
 
@@ -2717,26 +2720,35 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
       tree_t decl = tree_ref(value);
       type_t type = tree_type(decl);
 
-      switch (cgen_get_class(decl)) {
-      case C_VARIABLE:
-      case C_DEFAULT:
-      case C_CONSTANT:
-         {
-            LLVMValueRef array = cgen_get_var(decl, ctx);
-            return cgen_get_slice(array, type, tree_range(t), ctx);
+      if (tree_kind(decl) == T_ALIAS) {
+         tree_t aliased = tree_value(decl);
+         LLVMValueRef array = cgen_expr(aliased, ctx);
+         return cgen_get_slice(array, tree_type(aliased),
+                               decl, tree_range(t), ctx);
+
+      }
+      else {
+         switch (cgen_get_class(decl)) {
+         case C_VARIABLE:
+         case C_DEFAULT:
+         case C_CONSTANT:
+            {
+               LLVMValueRef array = cgen_get_var(decl, ctx);
+               return cgen_get_slice(array, type, NULL, tree_range(t), ctx);
+            }
+
+         case C_SIGNAL:
+            return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
+                                 false, ctx);
+
+         default:
+            assert(false);
          }
-
-      case C_SIGNAL:
-         return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
-                              false, ctx);
-
-      default:
-         assert(false);
       }
    }
    else {
       LLVMValueRef src = cgen_expr(value, ctx);
-      return cgen_get_slice(src, tree_type(value), tree_range(t), ctx);
+      return cgen_get_slice(src, tree_type(value), NULL, tree_range(t), ctx);
    }
 }
 
@@ -3504,7 +3516,7 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          LLVMValueRef array = cgen_var_lvalue(tree_value(t), ctx);
 
          type_t ty = tree_type(tree_value(t));
-         return cgen_get_slice(array, ty, tree_range(t), ctx);
+         return cgen_get_slice(array, ty, NULL, tree_range(t), ctx);
       }
 
    case T_RECORD_REF:
