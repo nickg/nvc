@@ -181,3 +181,4 @@ record6         normal
 agg6            normal
 func14          normal
 operator5       normal
+alias5          normal,gold

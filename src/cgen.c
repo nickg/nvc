@@ -2559,6 +2559,22 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       // The value of a type reference should never be used
       return NULL;
 
+   case T_ALIAS:
+      {
+         tree_t value = tree_value(decl);
+         LLVMValueRef aliased = cgen_expr(value, ctx);
+
+         // The aliased object may have non-constant bounds whereas the
+         // alias itself has known bounds
+         type_t alias_type = tree_type(decl);
+         type_t value_type = tree_type(value);
+
+         if (cgen_const_bounds(alias_type) && !cgen_const_bounds(value_type))
+            return cgen_array_data_ptr(value_type, aliased);
+         else
+            return aliased;
+      }
+
    default:
       fatal("cannot generate code for %s", tree_kind_str(kind));
    }
