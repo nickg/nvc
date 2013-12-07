@@ -2528,8 +2528,6 @@ static LLVMValueRef cgen_alias(tree_t alias, cgen_ctx_t *ctx)
    const bool alias_const = cgen_const_bounds(alias_type);
    const bool value_const = cgen_const_bounds(value_type);
 
-   printf("alias_const=%d value_const=%d\n", alias_const, value_const);
-
    if (alias_const && !value_const)
       return cgen_array_data_ptr(value_type, aliased);
    else if (!alias_const) {
