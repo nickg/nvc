@@ -27,9 +27,6 @@ bool sem_check(tree_t t);
 // The number of errors found during the semantic check phase.
 int sem_errors(void);
 
-// Replace all alias references with the underlying object.
-void unalias(tree_t top);
-
 // Fold all constant expressions
 void simplify(tree_t top);
 
