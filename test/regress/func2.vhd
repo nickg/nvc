@@ -4,7 +4,7 @@ end entity;
 architecture rtl of func2 is
 
     type int_array is array (integer range <>) of integer;
-    
+
     function len(x : int_array) return integer is
     begin
         return x'length;
@@ -33,7 +33,7 @@ architecture rtl of func2 is
     begin
         return x'high;
     end function;
-    
+
 begin
 
     process is

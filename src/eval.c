@@ -456,25 +456,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
          assert(false);
    }
 
-   const bool uarray_left  = icmp(builtin, "uarray_left");
-   const bool uarray_right = icmp(builtin, "uarray_right");
-
-   if (uarray_left || uarray_right) {
-      tree_t array = tree_value(tree_param(t, 0));
-      if (tree_kind(array) != T_REF)
-         return t;
-
-      tree_t decl = tree_ref(array);
-      type_t array_type = tree_type(decl);
-
-      if (type_is_unconstrained(array_type))
-         return t;   // Cannot fold this
-
-      range_t dim0 = type_dim(array_type, 0);
-
-      return uarray_left ? dim0.left : dim0.right;
-   }
-
    const int nparams = tree_params(t);
    if (nparams > MAX_BUILTIN_ARGS)
       return t;

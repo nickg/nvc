@@ -415,7 +415,7 @@ static tree_t simp_for(tree_t t)
    tree_t next;
    if ((r.kind == RANGE_DYN) || (r.kind == RANGE_RDYN)) {
       assert(tree_kind(r.left) == T_FCALL);
-      tree_t p = tree_param(r.left, 0);
+      tree_t p = tree_param(r.left, 1);
 
       tree_t asc = call_builtin("uarray_asc", NULL, tree_value(p), NULL);
       next = tree_new(T_IF);

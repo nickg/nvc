@@ -575,7 +575,7 @@ static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
             if (r.kind == RANGE_DYN) {
                // This can only appear when using 'RANGE
                assert(tree_kind(r.left) == T_FCALL);
-               tree_t p = tree_param(r.left, 0);
+               tree_t p = tree_param(r.left, 1);
                tree_t value = tree_value(p);
                assert(tree_kind(value) == T_REF);
 

@@ -1557,19 +1557,13 @@ static void sem_add_attributes(tree_t decl)
 
    if (type_is_array(type)) {
       sem_add_dimension_attr(decl, "LENGTH", "length");
+      sem_add_dimension_attr(decl, "LEFT", "left");
+      sem_add_dimension_attr(decl, "RIGHT", "right");
+      sem_add_dimension_attr(decl, "LOW", "low");
+      sem_add_dimension_attr(decl, "HIGH", "high");
 
+      // TODO: 'ASCENDING should also take dimension argument
       if (type_is_unconstrained(type)) {
-         const char *funs[] = { "LOW", "HIGH", "LEFT", "RIGHT", NULL };
-         const char *impl[] = { "uarray_low", "uarray_high", "uarray_left",
-                                "uarray_right", NULL };
-         const char **f, **imp;
-         for (f = funs, imp = impl; *f != NULL; f++, imp++) {
-            ident_t id = ident_new(*f);
-            tree_add_attr_tree(decl, id,
-                               sem_builtin_fn(id, type_index_constr(type, 0),
-                                              *imp, type, NULL));
-         }
-
          ident_t asc_i = ident_new("ASCENDING");
          tree_add_attr_tree(decl, asc_i,
                             sem_builtin_fn(asc_i, std_bool,
@@ -1578,14 +1572,7 @@ static void sem_add_attributes(tree_t decl)
       else {
          range_t r = type_dim(type, 0);
 
-         if (type_is_array(type)) {
-            sem_add_dimension_attr(decl, "LEFT", "left");
-            sem_add_dimension_attr(decl, "RIGHT", "right");
-            sem_add_dimension_attr(decl, "LOW", "low");
-            sem_add_dimension_attr(decl, "HIGH", "high");
-         }
-
-         if (r.kind != RANGE_DYN)
+         if ((r.kind != RANGE_DYN) && (r.kind != RANGE_RDYN))
             tree_add_attr_tree(decl, ident_new("ASCENDING"),
                                sem_bool_lit(std_bool, r.kind == RANGE_TO));
          else {
