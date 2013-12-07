@@ -1000,11 +1000,16 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMPositionBuilderAtEnd(builder, merge_bb);
 
-   if (alias != NULL)
+   LLVMValueRef data = cgen_array_data_ptr(type, array);
+
+   if (alias != NULL) {
+      tree_t aliased = tree_value(alias);
+      array = cgen_expr(aliased, ctx);
       left = cgen_unalias_index(alias, left, array, ctx);
+      type = tree_type(aliased);
+   }
 
    LLVMValueRef off = cgen_array_off(left, array, type, ctx, 0);
-   LLVMValueRef data = cgen_array_data_ptr(type, array);
 
    LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type_elem(type)), 0);
 
@@ -2761,10 +2766,8 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
       type_t type = tree_type(decl);
 
       if (tree_kind(decl) == T_ALIAS) {
-         tree_t aliased = tree_value(decl);
          LLVMValueRef array = cgen_alias(decl, ctx);
-         return cgen_get_slice(array, tree_type(aliased),
-                               decl, tree_range(t), ctx);
+         return cgen_get_slice(array, type, decl, tree_range(t), ctx);
 
       }
       else {
