@@ -186,7 +186,7 @@ static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
       chars[i] = llvm_int8(*str ? *(str++) : '\0');
 }
 
-#if 0
+#if 1
 static void debug_out(LLVMValueRef val)
 {
    LLVMValueRef args[] = { val };
@@ -2502,11 +2502,79 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
    }
 }
 
+static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
+                                       cgen_ctx_t *ctx)
+{
+   type_t alias_type = tree_type(alias);
+   type_t base_type  = tree_type(tree_value(alias));
+
+   assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
+
+   range_t alias_r = type_dim(alias_type, 0);
+
+   LLVMValueRef off = LLVMBuildSub(builder, index,
+                                   cgen_expr(alias_r.left, ctx), "");
+
+   switch (type_kind(base_type)) {
+   case T_CARRAY:
+   case T_SUBTYPE:
+      // The transformation is a constant offset of indices
+      {
+         range_t base_r = type_dim(base_type, 0);
+         LLVMValueRef bleft = cgen_expr(base_r.left, ctx);
+         if (alias_r.kind == base_r.kind) {
+            // Range in same direction
+            return LLVMBuildAdd(builder, bleft, off, "unalias");
+         }
+         else {
+            // Range in opposite direction
+            return LLVMBuildSub(builder, bleft, off, "unalias");
+         }
+      }
+      break;
+
+   case T_UARRAY:
+      // The transformation must be computed at runtime
+      {
+#if 0
+         tree_t ref = make_ref(base_decl);
+         tree_t base_left = call_builtin("uarray_left", ptype, ref, NULL);
+
+         tree_t rkind_lit = tree_new(T_LITERAL);
+         tree_set_subkind(rkind_lit, L_INT);
+         tree_set_ival(rkind_lit, alias_r.kind);
+         tree_set_type(rkind_lit, ptype);
+
+         // Call dircmp builtin which multiplies its third argument
+         // by -1 if the direction of the first argument is not equal
+         // to the direction of the second
+         tree_t off_dir = call_builtin("uarray_dircmp", ptype,
+                                       ref, rkind_lit, off, NULL);
+
+         return call_builtin("add", ptype, base_left, off_dir, NULL);
+#else
+         assert(false);
+#endif
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
 static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
                                           cgen_ctx_t *ctx)
 {
    tree_t value = tree_value(t);
    type_t type = tree_type(value);
+
+   tree_t alias = NULL;
+   if (tree_kind(value) == T_REF) {
+      tree_t decl = tree_ref(value);
+      if (tree_kind(decl) == T_ALIAS)
+         alias = decl;
+   }
 
    const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
 
@@ -2515,10 +2583,17 @@ static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       assert(tree_subkind(p) == P_POS);
+
       LLVMValueRef offset = cgen_expr(tree_value(p), ctx);
 
       if (!elide_bounds)
          cgen_check_array_bounds(tree_value(p), type, i, meta, offset, ctx);
+
+      if (alias != NULL) {
+         offset = cgen_unalias_index(alias, offset, ctx);
+         debug_out(offset);
+         type = tree_type(tree_value(alias));
+      }
 
       if (i > 0) {
          LLVMValueRef stride = cgen_array_len(type, i, meta);
@@ -2542,19 +2617,23 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
    if (tree_kind(value) == T_REF) {
       decl = tree_ref(value);
 
-      class = cgen_get_class(decl);
+      if (tree_kind(decl) == T_ALIAS)
+         array = cgen_expr(tree_value(decl), ctx);
+      else {
+         class = cgen_get_class(decl);
 
-      switch (class) {
-      case C_VARIABLE:
-      case C_CONSTANT:
-      case C_DEFAULT:
-         array = cgen_get_var(decl, ctx);
-         break;
-      case C_SIGNAL:
-         array = cgen_signal_nets(decl);
-         break;
-      default:
-         assert(false);
+         switch (class) {
+         case C_VARIABLE:
+         case C_CONSTANT:
+         case C_DEFAULT:
+            array = cgen_get_var(decl, ctx);
+            break;
+         case C_SIGNAL:
+            array = cgen_signal_nets(decl);
+            break;
+         default:
+            assert(false);
+         }
       }
    }
    else

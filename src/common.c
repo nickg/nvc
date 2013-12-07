@@ -291,3 +291,12 @@ bool parse_value(type_t type, const char *str, int64_t *value)
 
    return true;
 }
+
+tree_t make_ref(tree_t to)
+{
+   tree_t t = tree_new(T_REF);
+   tree_set_ident(t, tree_ident(to));
+   tree_set_ref(t, to);
+   tree_set_type(t, tree_type(to));
+   return t;
+}

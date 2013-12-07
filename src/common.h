@@ -36,6 +36,7 @@ tree_t get_int_lit(tree_t t, int64_t i);
 tree_t get_real_lit(tree_t t, double r);
 const char *package_signal_path_name(ident_t i);
 bool parse_value(type_t type, const char *str, int64_t *value);
+tree_t make_ref(tree_t to);
 
 //
 // Utility typedefs

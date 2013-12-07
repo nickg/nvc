@@ -417,15 +417,6 @@ static type_t sem_std_type(const char *name)
    return tree_type(decl);
 }
 
-static tree_t sem_make_ref(tree_t to)
-{
-   tree_t t = tree_new(T_REF);
-   tree_set_ident(t, tree_ident(to));
-   tree_set_ref(t, to);
-   tree_set_type(t, tree_type(to));
-   return t;
-}
-
 static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 {
    type_t ftype = tree_type(d);
@@ -496,7 +487,7 @@ static void sem_declare_unary(ident_t name, type_t operand,
 static tree_t sem_bool_lit(type_t std_bool, bool v)
 {
    tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
-   return sem_make_ref(lit);
+   return make_ref(lit);
 }
 
 static tree_t sem_int_lit(type_t type, int64_t i)
@@ -719,16 +710,14 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t file_open1 = sem_builtin_proc(file_open_i, "file_open1");
          sem_add_port(file_open1, t, PORT_INOUT, NULL);
          sem_add_port(file_open1, std_string, PORT_IN, NULL);
-         sem_add_port(file_open1, open_kind,
-                      PORT_IN, sem_make_ref(read_mode));
+         sem_add_port(file_open1, open_kind, PORT_IN, make_ref(read_mode));
          scope_insert(file_open1);
 
          tree_t file_open2 = sem_builtin_proc(file_open_i, "file_open2");
          sem_add_port(file_open2, open_status, PORT_OUT, NULL);
          sem_add_port(file_open2, t, PORT_INOUT, NULL);
          sem_add_port(file_open2, std_string, PORT_IN, NULL);
-         sem_add_port(file_open2, open_kind,
-                      PORT_IN, sem_make_ref(read_mode));
+         sem_add_port(file_open2, open_kind, PORT_IN, make_ref(read_mode));
          scope_insert(file_open2);
 
          tree_t file_close = sem_builtin_proc(file_close_i, "file_close");
@@ -803,10 +792,10 @@ static void sem_declare_predefined_ops(tree_t decl)
       {
          tree_t left  = type_enum_literal(t, 0);
          tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
-         tree_add_attr_tree(decl, ident_new("LEFT"), sem_make_ref(left));
-         tree_add_attr_tree(decl, ident_new("RIGHT"), sem_make_ref(right));
-         tree_add_attr_tree(decl, ident_new("LOW"), sem_make_ref(left));
-         tree_add_attr_tree(decl, ident_new("HIGH"), sem_make_ref(right));
+         tree_add_attr_tree(decl, ident_new("LEFT"), make_ref(left));
+         tree_add_attr_tree(decl, ident_new("RIGHT"), make_ref(right));
+         tree_add_attr_tree(decl, ident_new("LOW"), make_ref(left));
+         tree_add_attr_tree(decl, ident_new("HIGH"), make_ref(right));
 
          tree_t image = sem_builtin_fn(ident_new("IMAGE"),
                                        std_string, "image", t, t, NULL);
@@ -1082,12 +1071,12 @@ static bool sem_check_range(range_t *r, type_t context)
       case T_UARRAY:
          {
             tree_t a = tree_new(T_ATTR_REF);
-            tree_set_name(a, sem_make_ref(decl));
+            tree_set_name(a, make_ref(decl));
             tree_set_ident(a, ident_new("LEFT"));
             tree_set_loc(a, tree_loc(expr));
 
             tree_t b = tree_new(T_ATTR_REF);
-            tree_set_name(b, sem_make_ref(decl));
+            tree_set_name(b, make_ref(decl));
             tree_set_ident(b, ident_new("RIGHT"));
             tree_set_loc(b, tree_loc(expr));
 
@@ -1680,7 +1669,7 @@ static tree_t sem_default_value(type_t type)
       return type_dim(type, 0).left;
 
    case T_ENUM:
-      return sem_make_ref(type_enum_literal(base, 0));
+      return make_ref(type_enum_literal(base, 0));
 
    case T_RECORD:
       {
@@ -3017,7 +3006,7 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
             tree_set_subkind(p, P_NAMED);
             tree_set_loc(p, tree_loc(value));
             tree_set_value(p, value);
-            tree_set_name(p, sem_make_ref(port));
+            tree_set_name(p, make_ref(port));
 
             tree_add_param(call, p);
 
@@ -4012,7 +4001,7 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    if (kind == T_ACCESS) {
       // Record fields can be dereferenced implicitly
       value = tree_new(T_ALL);
-      tree_set_value(value, sem_make_ref(rec));
+      tree_set_value(value, make_ref(rec));
       tree_set_type(value, type_access(tree_type(rec)));
    }
    else
@@ -4025,7 +4014,7 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
       sem_convert_to_record_ref(value, rec);
    }
    else if (value == NULL)
-      value = sem_make_ref(rec);
+      value = make_ref(rec);
 
    tree_change_kind(t, T_RECORD_REF);
    tree_set_value(t, value);
@@ -4349,7 +4338,7 @@ static bool sem_check_attr_ref(tree_t t)
          tree_set_loc(p, tree_loc(name));
          tree_set_subkind(p, P_NAMED);
          tree_set_value(p, name);
-         tree_set_name(p, sem_make_ref(tree_port(a, tree_ports(a) - 1)));
+         tree_set_name(p, make_ref(tree_port(a, tree_ports(a) - 1)));
 
          tree_add_param(t, p);
       }
