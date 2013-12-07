@@ -569,8 +569,32 @@ static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
       if (var == NULL) {
          assert(!type_is_unconstrained(type));
          range_t r = type_dim(type, dim);
-         assert((r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO));
-         return llvm_int8(r.kind);
+         if ((r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO))
+            return llvm_int8(r.kind);
+         else {
+            if (r.kind == RANGE_DYN) {
+               // This can only appear when using 'RANGE
+               assert(tree_kind(r.left) == T_FCALL);
+               tree_t p = tree_param(r.left, 0);
+               tree_t value = tree_value(p);
+               assert(tree_kind(value) == T_REF);
+
+               LLVMValueRef uarray;
+               tree_t decl = tree_ref(value);
+               if (cgen_get_class(decl) == C_SIGNAL)
+                  uarray = cgen_signal_nets(decl);
+               else
+                  uarray = cgen_get_var(decl, NULL);
+
+               return cgen_array_dir(type, dim, uarray);
+            }
+            else if (r.kind == RANGE_RDYN) {
+               // TODO: 'REVERSE_RANGE
+               assert(false);
+            }
+            else
+               assert(false);
+         }
       }
       else {
          LLVMValueRef ldim = cgen_uarray_dim(var, dim);
@@ -705,26 +729,7 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
       for (int i = 0; i < dims; i++) {
          range_t r = type_dim(type, i);
 
-         LLVMValueRef kind_ll;
-         if (r.kind == RANGE_DYN) {
-            // This can only appear when using 'RANGE
-            assert(tree_kind(r.left) == T_FCALL);
-            tree_t p = tree_param(r.left, 0);
-            tree_t value = tree_value(p);
-            assert(tree_kind(value) == T_REF);
-
-            LLVMValueRef uarray;
-            tree_t decl = tree_ref(value);
-            if (cgen_get_class(decl) == C_SIGNAL)
-               uarray = cgen_signal_nets(decl);
-            else
-               uarray = cgen_get_var(decl, ctx);
-
-            kind_ll = cgen_array_dir(type, i, uarray);
-         }
-         else
-            kind_ll = llvm_int8(r.kind);
-
+         LLVMValueRef kind_ll = cgen_array_dir(type, i, NULL);
          LLVMValueRef downto =
             LLVMBuildICmp(builder, LLVMIntEQ,
                           kind_ll, llvm_int8(RANGE_DOWNTO), "downto");
@@ -1082,6 +1087,7 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 
    const int offset = tree_attr_int(decl, var_offset_i, -1);
    if (offset != -1) {
+      assert(ctx != NULL);
       LLVMValueRef var = LLVMBuildStructGEP(builder, ctx->state, offset, "");
       if (type_is_array(type)) {
          if (cgen_const_bounds(type)) {
