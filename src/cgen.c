@@ -930,50 +930,44 @@ static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
    assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
 
    range_t alias_r = type_dim(alias_type, 0);
-
    LLVMValueRef off = LLVMBuildSub(builder, index,
                                    cgen_expr(alias_r.left, ctx), "");
 
+   LLVMValueRef bleft, bdir;
    switch (type_kind(base_type)) {
    case T_CARRAY:
    case T_SUBTYPE:
       // The transformation is a constant offset of indices
       {
          range_t base_r = type_dim(base_type, 0);
-         LLVMValueRef bleft = cgen_expr(base_r.left, ctx);
-         if (alias_r.kind == base_r.kind) {
-            // Range in same direction
-            return LLVMBuildAdd(builder, bleft, off, "unalias");
-         }
-         else {
-            // Range in opposite direction
-            return LLVMBuildSub(builder, bleft, off, "unalias");
-         }
+         bleft = cgen_expr(base_r.left, ctx);
+         bdir  = cgen_array_dir(base_type, 0, NULL);
       }
       break;
 
    case T_UARRAY:
       // The transformation must be computed at runtime
       {
-         LLVMValueRef bleft = cgen_array_left(base_type, 0, meta);
-         LLVMValueRef bdir  = cgen_array_dir(base_type, 0, meta);
-
-         LLVMValueRef same_dir =
-            LLVMBuildICmp(builder, LLVMIntEQ, bdir,
-                          llvm_int8(alias_r.kind), "same_dir");
-
-         return LLVMBuildSelect(
-            builder,
-            same_dir,
-            LLVMBuildAdd(builder, bleft, off, ""),
-            LLVMBuildSub(builder, bleft, off, ""),
-            "unalias");
+         bleft = cgen_array_left(base_type, 0, meta);
+         bdir  = cgen_array_dir(base_type, 0, meta);
       }
       break;
 
    default:
       assert(false);
    }
+
+   LLVMValueRef adir = cgen_array_dir(alias_type, 0, NULL);
+
+   LLVMValueRef same_dir =
+      LLVMBuildICmp(builder, LLVMIntEQ, bdir, adir, "same_dir");
+
+   return LLVMBuildSelect(
+      builder,
+      same_dir,
+      LLVMBuildAdd(builder, bleft, off, ""),
+      LLVMBuildSub(builder, bleft, off, ""),
+      "unalias");
 }
 
 static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
@@ -2518,6 +2512,39 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
+static LLVMValueRef cgen_alias(tree_t alias, cgen_ctx_t *ctx)
+{
+   assert(tree_kind(alias) == T_ALIAS);
+
+   tree_t value = tree_value(alias);
+   LLVMValueRef aliased = cgen_expr(value, ctx);
+
+   // The aliased object may have non-constant bounds whereas the
+   // alias itself has known bounds
+
+   type_t alias_type = tree_type(alias);
+   type_t value_type = tree_type(value);
+
+   const bool alias_const = cgen_const_bounds(alias_type);
+   const bool value_const = cgen_const_bounds(value_type);
+
+   printf("alias_const=%d value_const=%d\n", alias_const, value_const);
+
+   if (alias_const && !value_const)
+      return cgen_array_data_ptr(value_type, aliased);
+   else if (!alias_const) {
+      assert(type_dims(alias_type) == 1);  // TODO
+      range_t r = type_dim(alias_type, 0);
+      LLVMValueRef left  = cgen_expr(r.left, ctx);
+      LLVMValueRef right = cgen_expr(r.right, ctx);
+      LLVMValueRef kind  = cgen_array_dir(alias_type, 0, NULL);
+      LLVMValueRef data  = cgen_array_data_ptr(value_type, aliased);
+      return cgen_array_meta_1(alias_type, left, right, kind, data);
+   }
+   else
+      return aliased;
+}
+
 static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -2566,20 +2593,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       return NULL;
 
    case T_ALIAS:
-      {
-         tree_t value = tree_value(decl);
-         LLVMValueRef aliased = cgen_expr(value, ctx);
-
-         // The aliased object may have non-constant bounds whereas the
-         // alias itself has known bounds
-         type_t alias_type = tree_type(decl);
-         type_t value_type = tree_type(value);
-
-         if (cgen_const_bounds(alias_type) && !cgen_const_bounds(value_type))
-            return cgen_array_data_ptr(value_type, aliased);
-         else
-            return aliased;
-      }
+      return cgen_alias(decl, ctx);
 
    default:
       fatal("cannot generate code for %s", tree_kind_str(kind));
@@ -2657,7 +2671,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
       decl = tree_ref(value);
 
       if (tree_kind(decl) == T_ALIAS)
-         array = cgen_expr(tree_value(decl), ctx);
+         array = cgen_alias(decl, ctx);
       else {
          class = cgen_get_class(decl);
 
@@ -2744,7 +2758,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
 
       if (tree_kind(decl) == T_ALIAS) {
          tree_t aliased = tree_value(decl);
-         LLVMValueRef array = cgen_expr(aliased, ctx);
+         LLVMValueRef array = cgen_alias(decl, ctx);
          return cgen_get_slice(array, tree_type(aliased),
                                decl, tree_range(t), ctx);
 
