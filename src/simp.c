@@ -481,9 +481,10 @@ static void simp_build_wait(tree_t ref, void *context)
 
    tree_t decl = tree_ref(ref);
    tree_kind_t kind = tree_kind(decl);
-   if (kind == T_SIGNAL_DECL || kind == T_PORT_DECL) {
+   if ((kind == T_SIGNAL_DECL) || (kind == T_PORT_DECL) || (kind == T_ALIAS)) {
       // Check for duplicates
-      for (unsigned i = 0; i < tree_triggers(wait); i++) {
+      const int ntriggers = tree_triggers(wait);
+      for (int i = 0; i < ntriggers; i++) {
          if (tree_ref(tree_trigger(wait, i)) == decl)
             return;
       }

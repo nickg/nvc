@@ -3477,7 +3477,11 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
    }
 
    tree_kind_t kind = tree_kind(decl);
-   if ((kind != T_SIGNAL_DECL) && (kind != T_PORT_DECL)) {
+   if (kind == T_ALIAS) {
+      cgen_sched_event(tree_value(decl), ctx);
+      return;
+   }
+   else if ((kind != T_SIGNAL_DECL) && (kind != T_PORT_DECL)) {
       // As above, a port could have been rewritten to reference a
       // constant declaration or enumeration literal, in which case
       // just ignore it too
