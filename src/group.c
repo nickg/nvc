@@ -38,6 +38,8 @@ typedef struct {
    groupid_t  next_gid;
 } group_nets_ctx_t;
 
+static void group_name(tree_t t, group_nets_ctx_t *ctx);
+
 static groupid_t group_alloc(group_nets_ctx_t *ctx,
                              netid_t first, unsigned length)
 {
@@ -183,8 +185,16 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 {
    tree_t decl = tree_ref(target);
-   if (tree_kind(decl) == T_SIGNAL_DECL)
+   switch (tree_kind(decl)) {
+   case T_SIGNAL_DECL:
       group_decl(decl, ctx, start, n);
+      break;
+   case T_ALIAS:
+      group_name(tree_value(decl), ctx);
+      break;
+   default:
+      break;
+   }
 }
 
 static int64_t rebase_index(type_t array_type, int dim, int64_t value)

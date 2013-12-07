@@ -2578,6 +2578,9 @@ static LLVMValueRef cgen_alias(tree_t alias, cgen_ctx_t *ctx)
    type_t alias_type = tree_type(alias);
    type_t value_type = tree_type(value);
 
+   if (!type_is_array(alias_type))
+      return aliased;
+
    const bool alias_const = cgen_const_bounds(alias_type);
    const bool value_const = cgen_const_bounds(value_type);
 
@@ -3689,7 +3692,13 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
-      return cgen_array_signal_ptr(tree_ref(t), llvm_int32(0), ctx);
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_kind(decl) == T_ALIAS)
+            return cgen_signal_lvalue(tree_value(decl), ctx);
+         else
+            return cgen_array_signal_ptr(decl, llvm_int32(0), ctx);
+      }
 
    case T_ARRAY_REF:
       {
