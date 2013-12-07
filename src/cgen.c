@@ -3479,7 +3479,13 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
-      return cgen_get_var(tree_ref(t), ctx);
+      {
+         tree_t decl = tree_ref(t);
+         if (tree_kind(decl) == T_ALIAS)
+            return cgen_var_lvalue(tree_value(decl), ctx);
+         else
+            return cgen_get_var(tree_ref(t), ctx);
+      }
 
    case T_ARRAY_REF:
       {
