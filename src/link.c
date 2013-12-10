@@ -30,6 +30,10 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 
+#ifdef __CYGWIN__
+#include <process.h>
+#endif
+
 #define MAX_ARGS 64
 
 static char **args = NULL;
@@ -193,6 +197,11 @@ static void link_exec(void)
          printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
    }
 
+#ifdef __CYGWIN__
+   int status = spawnv(_P_WAIT, args[0], (const char * const *)args);
+   if (status != 0)
+      fatal("%s failed with status %d", args[0], status);
+#else  // __CYGWIN__
    pid_t pid = fork();
    if (pid == 0) {
       execv(args[0], args);
@@ -208,6 +217,7 @@ static void link_exec(void)
    }
    else
       fatal_errno("fork");
+#endif  // __CYGWIN__
 }
 
 #ifdef ENABLE_NATIVE
