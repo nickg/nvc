@@ -1196,6 +1196,9 @@ static bool sem_check_context(tree_t t)
 
 static bool sem_check_constrained(tree_t t, type_t type)
 {
+   if (type_kind(type) == T_UNRESOLVED)
+      return false;
+
    type_set_push();
    if (type != NULL)
       type_set_add(type);
