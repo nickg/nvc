@@ -280,4 +280,11 @@ begin
     begin
     end process;
 
+    process is
+        constant k : integer := 5;
+        type a is array (k) of integer;  -- Error
+        variable v : a;                 -- Error
+    begin
+    end process;
+
 end architecture;

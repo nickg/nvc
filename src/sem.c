@@ -3451,8 +3451,10 @@ static type_t sem_index_type(type_t type, int dim)
       return type_index_constr(type_base_recur(type), dim);
    else if (type_kind(type) == T_ENUM)
       return type;
-   else
-      return tree_type(type_dim(type, dim).left);
+   else {
+      tree_t left = type_dim(type, dim).left;
+      return tree_has_type(left) ? tree_type(left) : type;
+   }
 }
 
 static bool sem_check_concat_param(tree_t t, type_t hint)
