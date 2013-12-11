@@ -21,53 +21,34 @@ unless Dir.exists? VestsDir
   exit 1
 end
 
-$fail = 0
-$pass = 0
+fails  = 0
+passes = 0
 
-def find_tests(path, compliant)
-  tests = []
-  Dir.foreach(path) do |item|
-    next if item == 'README'
-    next if item[0] == '.'
-    next if item == 'CVS'
-    next if item == 'simulator_failure'
+#
+# Billowitch, compliant
+#
 
-    full = "#{path}/#{item}"
-    if File.directory? full then
-      find_tests full, (compliant and (item != 'non_compliant'))
-    elsif item =~ /\.vhdl?$/
-      tests << item
-    end
-  end
+Dir.chdir "#{Prefix}/billowitch/compliant"
 
-  unless tests.empty?
-    Dir.chdir path
-    puts "---- #{path.sub(Prefix.to_s, '')} ----".yellow
-    tests.each do |t|
-      cmd = "nvc -a #{path}/#{t}"
-      cmd += " 2>/dev/null" unless compliant
-      puts cmd
-      r = system cmd
-      if compliant then
-        $fail += 1 unless r
-        $pass += 1 if r
-      else
-        if r then
-          puts "expected fail".red
-          $fail += 1
-        else
-          $pass += 1
-        end
-      end
-    end
-    puts
+system 'rm -r work'
+
+Dir.foreach('.') do |item|
+  next unless item =~ /\.vhdl?$/
+
+  cmd = "nvc -a #{item}"
+  puts cmd
+  if system cmd then
+    # TODO: elaborate, run
+    passes += 1
+  else
+    fails += 1
   end
 end
 
-find_tests Prefix, true
+puts "#{passes} passes"
+puts "#{fails} failures"
 
-puts "#{$pass} passes"
-puts "#{$fail} failures"
+exit
 
 File.open("#{VestsDir}/HISTORY", 'a') do |f|
   f.printf("%20s %10s   %4d passes   %4d failures\n",
