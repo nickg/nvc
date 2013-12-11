@@ -1462,6 +1462,9 @@ static bool sem_check_type_decl(tree_t t)
                break;
             }
 
+            if (type_kind(index) == T_UNRESOLVED)
+               return false;
+
             type_set_add(index);
 
             ok = sem_check(r.left) && sem_check(r.right) && ok;
