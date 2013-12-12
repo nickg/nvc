@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Top of build directory */
+#undef BUILDDIR
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -175,6 +178,9 @@
 
 /* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
+
+/* Import library required */
+#undef IMPLIB_REQUIRED
 
 /* Location of LLVM binaries */
 #undef LLVM_CONFIG_BINDIR

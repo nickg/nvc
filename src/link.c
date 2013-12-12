@@ -266,6 +266,12 @@ static void link_shared(tree_t top)
    link_output(top, "s");
 #endif
 
+#ifdef IMPLIB_REQUIRED
+   // FIXME: Consider after installation.
+   link_arg_f("-L" BUILDDIR "/src");
+   link_arg_f("-lnvcimp");
+#endif
+
    link_exec();
 
    link_args_end();
