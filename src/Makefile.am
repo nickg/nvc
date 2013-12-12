@@ -27,6 +27,6 @@ nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a ../lxt/liblxt.a \
 
 if IMPLIB_REQUIRED
 # FIXME: Install libnvcimp.a to sane location.
-nvc_LDFLAGS = $(AM_LDFLAGS) -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
+AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
 libnvcimp.a: nvc
 endif
