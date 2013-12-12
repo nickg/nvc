@@ -74,13 +74,6 @@ AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 # CC may constain unwanted -std=... option.
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])
 
-case $host_os in
-  *cygwin* ) SO_EXT="dll" ;;
-  *)         SO_EXT="so"
-esac
-AC_DEFINE_UNQUOTED([SO_EXT], ["$SO_EXT"], [Shared object extension])
-AC_SUBST(SO_EXT)
-
 AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
     [Enable native code generation])],

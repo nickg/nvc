@@ -206,9 +206,6 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
-/* Shared object extension */
-#undef SO_EXT
-
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
    automatically deduced at runtime.
