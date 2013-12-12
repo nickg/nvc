@@ -26,7 +26,13 @@ nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a ../lxt/liblxt.a \
 	../fst/libfst.a $(LLVM_LIBS) $(CURSES_LIB)
 
 if IMPLIB_REQUIRED
-# FIXME: Install libnvcimp.a to sane location.
+
 AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
+
+lib_LIBRARIES = libnvcimp.a
+
 libnvcimp.a: nvc
+
+.PHONY: libnvcimp.a
+
 endif
