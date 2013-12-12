@@ -70,8 +70,6 @@ AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
-# FIXME: Is this correct way to define BUILDDIR?
-AC_DEFINE_UNQUOTED([BUILDDIR], ["$(pwd)"], [Top of build directory])
 
 # CC may constain unwanted -std=... option.
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])

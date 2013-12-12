@@ -3,7 +3,7 @@
 nvc = $(nvc_verbose)$(top_builddir)/src/nvc
 
 if ENABLE_NATIVE
-codegen = $(codegen_verbose) $(top_builddir)/src/nvc
+codegen = $(codegen_verbose) NVC_CYG_LIB=$(top_builddir)/src $(top_builddir)/src/nvc
 else
 codegen = @true
 endif

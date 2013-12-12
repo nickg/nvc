@@ -267,8 +267,9 @@ static void link_shared(tree_t top)
 #endif
 
 #ifdef IMPLIB_REQUIRED
-   // FIXME: Consider after installation.
-   link_arg_f("-L" BUILDDIR "/src");
+   const char *cyglib = getenv("NVC_CYG_LIB");
+   if (cyglib != NULL)
+      link_arg_f("-L%s", cyglib);
    link_arg_f("-lnvcimp");
 #endif
 
