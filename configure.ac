@@ -52,12 +52,12 @@ AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_ERROR(TCL library not found)])
 
-if test ! "$have_tcl" = "yes"; then
+if test ! x$have_tcl = xyes ; then
   AC_ERROR(TCL header file not found)
 fi
 
 VL_LIB_READLINE
-if test "$vl_cv_lib_readline" = "no"; then
+if test x$vl_cv_lib_readline = xno ; then
   AC_WARN(terminal line editing will not be supported)
 fi
 
@@ -65,21 +65,16 @@ AC_CHECK_LIB([z], [deflate], [], [AC_ERROR([zlib not found])])
 AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_ERROR([bzip2 not found])])
 
 AX_LLVM_C([engine bitreader bitwriter])
-AM_CONDITIONAL([FORCE_CXX_LINK], [test "$ax_cv_llvm_shared" != yes])
+AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
+# FIXME: Is this correct way to define BUILDDIR?
+AC_DEFINE_UNQUOTED([BUILDDIR], ["$(pwd)"], [Top of build directory])
 
 # CC may constain unwanted -std=... option.
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])
-
-case $host_os in
-  *cygwin* ) SO_EXT="dll" ;;
-  *)         SO_EXT="so"
-esac
-AC_DEFINE_UNQUOTED([SO_EXT], ["$SO_EXT"], [Shared object extension])
-AC_SUBST(SO_EXT)
 
 AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
@@ -91,9 +86,16 @@ AC_ARG_ENABLE([native],
    esac])
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
+  case $host_os in
+    *cygwin*) implib_required=yes ;;
+  esac
+  if test x$implib_required = xyes ; then
+    AC_DEFINE_UNQUOTED([IMPLIB_REQUIRED], [1], [Import library required])
+  fi
 fi
 
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
+AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE
@@ -114,7 +116,7 @@ if test x$enable_coverage = xyes ; then
 fi
 AC_SUBST(COV_CFLAGS)
 AC_SUBST(COV_LDFLAGS)
-AM_CONDITIONAL([ENABLE_COVERAGE], [test "$enable_coverage" = yes])
+AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
 AC_CONFIG_HEADERS([config.h])
 AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
