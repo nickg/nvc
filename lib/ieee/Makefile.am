@@ -14,12 +14,12 @@ ieee_DATA = ieee/_NVC_LIB \
 
 if ENABLE_NATIVE
 ieee_DATA += \
-	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.$(SO_EXT) \
-	ieee/_IEEE.STD_LOGIC_1164-body.$(SO_EXT) ieee/_IEEE.NUMERIC_STD-body.$(SO_EXT) \
-	ieee/_IEEE.NUMERIC_BIT-body.$(SO_EXT) ieee/_IEEE.MATH_REAL.$(SO_EXT) \
-	ieee/_IEEE.MATH_REAL-body.$(SO_EXT) ieee/_IEEE.VITAL_TIMING.$(SO_EXT) \
-	ieee/_IEEE.VITAL_TIMING-body.$(SO_EXT) ieee/_IEEE.VITAL_PRIMITIVES.$(SO_EXT) \
-	ieee/_IEEE.VITAL_PRIMITIVES-body.$(SO_EXT)
+	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.so \
+	ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.NUMERIC_STD-body.so \
+	ieee/_IEEE.NUMERIC_BIT-body.so ieee/_IEEE.MATH_REAL.so \
+	ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.VITAL_TIMING.so \
+	ieee/_IEEE.VITAL_TIMING-body.so ieee/_IEEE.VITAL_PRIMITIVES.so \
+	ieee/_IEEE.VITAL_PRIMITIVES-body.so
 endif
 
 bootstrap: $(ieee_DATA)

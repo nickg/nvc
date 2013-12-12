@@ -11,10 +11,10 @@ synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
 
 if ENABLE_NATIVE
 synopsys_DATA += \
-	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.$(SO_EXT) \
-	$(ieee)/_IEEE.STD_LOGIC_SIGNED-body.$(SO_EXT) \
-	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.$(SO_EXT) \
-	$(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.$(SO_EXT)
+	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.so \
+	$(ieee)/_IEEE.STD_LOGIC_SIGNED-body.so \
+	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.so \
+	$(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.so
 endif
 
 bootstrap: $(synopsys_DATA)

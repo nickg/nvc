@@ -80,7 +80,7 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
    ident_t name = tree_ident(unit);
 
    char so_name[256];
-   snprintf(so_name, sizeof(so_name), "_%s." SO_EXT, istr(name));
+   snprintf(so_name, sizeof(so_name), "_%s.so", istr(name));
 
    lib_mtime_t so_mt;
    if (!lib_stat(lib, so_name, &so_mt))
@@ -258,12 +258,18 @@ static void link_shared(tree_t top)
 #endif
    link_arg_f("-o");
 
-   link_output(top, SO_EXT);
+   link_output(top, "so");
 
 #ifdef LLVM_LLC_HAS_OBJ
    link_output(top, "o");
 #else
    link_output(top, "s");
+#endif
+
+#ifdef IMPLIB_REQUIRED
+   // FIXME: Consider after installation.
+   link_arg_f("-L" BUILDDIR "/src");
+   link_arg_f("-lnvcimp");
 #endif
 
    link_exec();

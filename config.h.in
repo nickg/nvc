@@ -1,5 +1,8 @@
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Top of build directory */
+#undef BUILDDIR
+
 /* Define to one of `_getb67', `GETB67', `getb67' for Cray-2 and Cray-YMP
    systems. This function is required for `alloca.c' support on those systems.
    */
@@ -176,6 +179,9 @@
 /* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
 
+/* Import library required */
+#undef IMPLIB_REQUIRED
+
 /* Location of LLVM binaries */
 #undef LLVM_CONFIG_BINDIR
 
@@ -205,9 +211,6 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
-
-/* Shared object extension */
-#undef SO_EXT
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
