@@ -21,18 +21,18 @@ bootstrap: $(synopsys_DATA)
 
 $(ieee)/IEEE.STD_LOGIC_ARITH: $(srcdir)/std_logic_arith.vhd
 	$(nvc) -L ../std --work=$(ieee) -a $<
-	$(codegen) --work=$(ieee) --codegen std_logic_arith
+	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_arith
 
 $(ieee)/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/std_logic_unsigned.vhd
 	$(nvc) -L ../std --work=$(ieee) -a $<
-	$(codegen) --work=$(ieee) --codegen std_logic_unsigned
+	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_unsigned
 
 $(ieee)/IEEE.STD_LOGIC_SIGNED: $(srcdir)/std_logic_signed.vhd
 	$(nvc) -L ../std --work=$(ieee) -a $<
-	$(codegen) --work=$(ieee) --codegen std_logic_signed
+	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_signed
 
 $(ieee)/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/std_logic_textio.vhd
 	$(nvc) -L ../std --work=$(ieee) -a $<
-	$(codegen) --work=$(ieee) --codegen std_logic_textio
+	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_textio
 
 include ../nvc.mk

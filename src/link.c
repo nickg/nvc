@@ -42,7 +42,9 @@ static tree_t linked[MAX_ARGS];
 static int    n_linked = 0;
 static int    n_linked_bc = 0;
 
-static void link_all_context(tree_t unit, FILE *deps);
+typedef void (*context_fn_t)(lib_t lib, tree_t unit, FILE *deps);
+
+static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn);
 
 __attribute__((format(printf, 1, 2)))
 static void link_arg_f(const char *fmt, ...)
@@ -56,17 +58,18 @@ static void link_arg_f(const char *fmt, ...)
    args[++n_args] = NULL;
 }
 
-static void link_product(lib_t lib, ident_t name, const char *ext)
+static void link_product(lib_t lib, ident_t name,
+                         const char *prefix, const char *ext)
 {
    char path[PATH_MAX];
    lib_realpath(lib, NULL, path, sizeof(path));
 
-   link_arg_f("%s/_%s.%s", path, istr(name), ext);
+   link_arg_f("%s%s/_%s.%s", prefix, path, istr(name), ext);
 }
 
 static void link_arg_bc(lib_t lib, ident_t name)
 {
-   link_product(lib, name, "bc");
+   link_product(lib, name, "", "bc");
 }
 
 static bool link_needs_body(tree_t pack)
@@ -93,10 +96,12 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
       return false;
    }
 
-   char path[PATH_MAX];
-   lib_realpath(lib, so_name, path, sizeof(path));
+   if (deps != NULL) {
+      char path[PATH_MAX];
+      lib_realpath(lib, so_name, path, sizeof(path));
 
-   fprintf(deps, "%s\n", path);
+      fprintf(deps, "%s\n", path);
+   }
 
    return true;
 #else   // ENABLE_NATIVE
@@ -114,7 +119,23 @@ static bool link_already_have(tree_t unit)
    return false;
 }
 
-static void link_context(tree_t ctx, FILE *deps)
+static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
+{
+   if (!link_find_native_library(lib, unit, deps)) {
+      link_arg_bc(lib, tree_ident(unit));
+      n_linked_bc++;
+   }
+}
+
+#ifdef __CYGWIN__
+static void link_context_cyg_fn(lib_t lib, tree_t unit, FILE *deps)
+{
+   if (link_find_native_library(lib, unit, deps))
+      link_product(lib, tree_ident(unit), "", "a");
+}
+#endif  // __CYGWIN__
+
+static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
 {
    ident_t name = tree_ident(ctx);
 
@@ -131,12 +152,11 @@ static void link_context(tree_t ctx, FILE *deps)
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      if (!link_find_native_library(lib, unit, deps)) {
-         link_arg_bc(lib, name);
-         n_linked_bc++;
-      }
+      (*fn)(lib, unit, deps);
       linked[n_linked++] = unit;
    }
+
+   link_all_context(unit, deps, fn);
 
    ident_t body_i = ident_prefix(name, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
@@ -147,23 +167,19 @@ static void link_context(tree_t ctx, FILE *deps)
          return;
    }
 
-   link_all_context(unit, deps);
-   link_all_context(body, deps);
+   link_all_context(body, deps, fn);
 
    if (!link_already_have(body)) {
-      if (!link_find_native_library(lib, body, deps)) {
-         link_arg_bc(lib, body_i);
-         n_linked_bc++;
-      }
+      (*fn)(lib, body, deps);
       linked[n_linked++] = body;
    }
 }
 
-static void link_all_context(tree_t unit, FILE *deps)
+static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
 {
    const int ncontext = tree_contexts(unit);
    for (int i = 0; i < ncontext; i++)
-      link_context(tree_context(unit, i), deps);
+      link_context(tree_context(unit, i), deps, fn);
 }
 
 static void link_output(tree_t top, const char *ext)
@@ -172,7 +188,7 @@ static void link_output(tree_t top, const char *ext)
    if (tree_kind(top) == T_ELAB)
       product = ident_prefix(ident_strip(product, ident_new(".elab")),
                              ident_new("final"), '.');
-   link_product(lib_work(), product, ext);
+   link_product(lib_work(), product, "", ext);
 }
 
 static void link_args_begin(void)
@@ -256,6 +272,12 @@ static void link_shared(tree_t top)
 #else
    link_arg_f("-shared");
 #endif
+
+#if defined __CYGWIN__
+   link_arg_f("-Wl,--export-all-symbols");
+   link_product(lib_work(), tree_ident(top), "-Wl,--out-implib=", "a");
+#endif
+
    link_arg_f("-o");
 
    link_output(top, "so");
@@ -271,6 +293,16 @@ static void link_shared(tree_t top)
    if (cyglib != NULL)
       link_arg_f("-L%s", cyglib);
    link_arg_f("-lnvcimp");
+
+   link_all_context(top, NULL, link_context_cyg_fn);
+
+   if (tree_kind(top) == T_PACK_BODY) {
+      tree_t pack = lib_get(lib_work(),
+                            ident_strip(tree_ident(top), ident_new("-body")));
+      assert(tree_kind(pack) == T_PACKAGE);
+      if (pack != NULL)
+         link_all_context(pack, NULL, link_context_cyg_fn);
+   }
 #endif
 
    link_exec();
@@ -338,7 +370,7 @@ void link_bc(tree_t top)
    link_arg_bc(lib_work(), tree_ident(top));
 
    FILE *deps = link_deps_file(top);
-   link_all_context(top, deps);
+   link_all_context(top, deps, link_context_bc_fn);
    fclose(deps);
 
    char tmp[128] = "";
@@ -389,6 +421,9 @@ void link_package(tree_t pack)
 
    link_opt(pack, input);
    link_native(pack);
+
+   n_linked_bc = 0;
+   n_linked = 0;
 }
 
 bool pack_needs_cgen(tree_t t)
