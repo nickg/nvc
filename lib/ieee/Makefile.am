@@ -10,16 +10,28 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
 	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
-	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc
+	ieee/IEEE.VITAL_PRIMITIVES-body ieee/_IEEE.VITAL_PRIMITIVES-body.bc \
+	ieee/IEEE.VITAL_MEMORY
 
 if ENABLE_NATIVE
 ieee_DATA += \
-	ieee/IEEE.VITAL_MEMORY ieee/_IEEE.NUMERIC_STD.so \
+	ieee/_IEEE.NUMERIC_STD.so \
 	ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.NUMERIC_STD-body.so \
 	ieee/_IEEE.NUMERIC_BIT-body.so ieee/_IEEE.MATH_REAL.so \
 	ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.VITAL_TIMING.so \
 	ieee/_IEEE.VITAL_TIMING-body.so ieee/_IEEE.VITAL_PRIMITIVES.so \
 	ieee/_IEEE.VITAL_PRIMITIVES-body.so
+
+if IMPLIB_REQUIRED
+ieee_DATA += \
+	ieee/_IEEE.NUMERIC_STD.a \
+	ieee/_IEEE.STD_LOGIC_1164-body.a ieee/_IEEE.NUMERIC_STD-body.a \
+	ieee/_IEEE.NUMERIC_BIT-body.a ieee/_IEEE.MATH_REAL.a \
+	ieee/_IEEE.MATH_REAL-body.a ieee/_IEEE.VITAL_TIMING.a \
+	ieee/_IEEE.VITAL_TIMING-body.a ieee/_IEEE.VITAL_PRIMITIVES.a \
+	ieee/_IEEE.VITAL_PRIMITIVES-body.a
+endif
+
 endif
 
 bootstrap: $(ieee_DATA)

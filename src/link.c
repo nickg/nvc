@@ -243,6 +243,9 @@ static void link_exec(void)
    else
       fatal_errno("fork");
 #endif  // __CYGWIN__
+
+   n_linked_bc = 0;
+   n_linked = 0;
 }
 
 #ifdef ENABLE_NATIVE
@@ -421,9 +424,6 @@ void link_package(tree_t pack)
 
    link_opt(pack, input);
    link_native(pack);
-
-   n_linked_bc = 0;
-   n_linked = 0;
 }
 
 bool pack_needs_cgen(tree_t t)
