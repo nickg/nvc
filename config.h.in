@@ -179,6 +179,9 @@
 /* Import library required */
 #undef IMPLIB_REQUIRED
 
+/* Installation library directory */
+#undef LIBDIR
+
 /* Location of LLVM binaries */
 #undef LLVM_CONFIG_BINDIR
 
