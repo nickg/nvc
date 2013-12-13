@@ -79,10 +79,8 @@ AC_ARG_ENABLE([native],
   [AS_HELP_STRING([--enable-native],
     [Enable native code generation])],
   [enable_native=$enableval],
-  [case $host_os in
-     *cygwin*) ;;
-     *) enable_native=yes
-   esac])
+  [enable_native=yes])
+
 if test x$enable_native = xyes ; then
   AC_DEFINE_UNQUOTED([ENABLE_NATIVE], [1], [Enable native code generation])
   case $host_os in
