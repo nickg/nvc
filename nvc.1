@@ -1,173 +1,140 @@
-.\" -*- mode: nroff -*-
-.TH "nvc" 1 "November 2013"
-.\" --------------------------------------------------------------------------------
-.SH NAME
-nvc \- VHDL Compiler and Simulator
-.\" --------------------------------------------------------------------------------
-.SH SYNOPSIS
-.B nvc -a
-.RI [ options]
-.I files
-...
+.\" generated with Ronn/v0.7.3
+.\" http://github.com/rtomayko/ronn/tree/0.7.3
+.
+.TH "NVC" "1" "December 2013" "" "NVC Manual"
+.
+.SH "NAME"
+\fBnvc\fR \- VHDL Compiler and Simulator
+.
+.SH "SYNOPSIS"
+\fBnvc\fR \-a [\fIoptions\fR] \fIfiles\fR\.\.\.
+.
 .br
-.B nvc -e
-.RI [ options ]
-.I unit
+\fBnvc\fR \-e [\fIoptions\fR] \fIunit\fR
+.
 .br
-.B nvc -r
-.RI [ options ]
-.I unit
-.\" --------------------------------------------------------------------------------
-.SH DESCRIPTION
-NVC is an implementation of the VHDL language as defined by IEEE
-standard 1076-1993 and later revisions. Simulating a design typically involes
-three steps:
-.I analysing
-one more more source files into the work library;
-.I elaborating
-a top-level design unit; and
-.I running
-the elaborated design.
-.\" --------------------------------------------------------------------------------
-.SH OPTIONS
-NVC accepts three kinds of options: global options; a single command
-option; and options specific to the command. Global options must be
-placed before the command and specific options must be placed after the
-command.
-.SS Commands
+\fBnvc\fR \-r [\fIoptions\fR] \fIunit\fR
+.
+.br
+.
+.SH "DESCRIPTION"
+NVC is an implementation of the VHDL language as defined by IEEE standard 1076\-1993 and later revisions\. Simulating a design typically involes three steps: \fBanalysing\fR one more more source files into the work library; \fBelaborating\fR a top\-level design unit; and \fBrunning\fR the elaborated design\.
+.
+.SH "OPTIONS"
+NVC accepts three kinds of options: global options; a single command option; and options specific to the command\. Global options must be placed before the command and specific options must be placed after the command\.
+.
+.SS "Commands"
+.
 .TP
-.BI "-a " files
-Analyse
-.I files
-into the work library.
+\fB\-a\fR \fIfiles\fR
+Analyse \fIfiles\fR into the work library\.
+.
 .TP
-.BI "-e " unit
-Elaborate a previously analysed top level design unit.
+\fB\-e\fR \fIunit\fR
+Elaborate a previously analysed top level design unit\.
+.
 .TP
-.BI "-r " unit
-Execute a previously elaborated top level design unit.
+\fB\-r\fR \fIunit\fR
+Execute a previously elaborated top level design unit\.
+.
 .TP
-.BI "--codegen " unit
-Generate a native shared library for a previously analysed package. This
-can improve runtime performance if the package contains a large number
-of frequently used subprograms.
+\fB\-\-codegen\fR \fIunit\fR
+Generate a native shared library for a previously analysed package\. This can improve runtime performance if the package contains a large number of frequently used subprograms\.
+.
 .TP
-.BI "--dump " unit
-Print out a pseudo-VHDL representation of an analysed unit. This is
-usually only useful for debugging the compiler.
-
-.SS Global options
+\fB\-\-dump\fR \fIunit\fR
+Print out a pseudo\-VHDL representation of an analysed unit\. This is usually only useful for debugging the compiler\.
+.
+.SS "Global options"
+.
 .TP
-.B "-h, --help"
-Display usage summary.
+\fB\-h\fR, \fB\-\-help\fR
+Display usage summary\.
+.
 .TP
-.BI "-L " path
-Add
-.I path
-to the list of directories to search for libraries (see
-.B LIBRARIES
-section below).
+\fB\-L\fR \fIpath\fR
+Add \fIpath\fR to the list of directories to search for libraries (see \fILIBRARIES\fR section below)\.
+.
 .TP
-.B "-v, --version"
-Display version and copyright information.
+\fB\-v\fR, \fB\-\-version\fR
+Display version and copyright information\.
+.
 .TP
-.BI "--work=" name
-Use
-.I name
-as the work library (see
-.B LIBRARIES
-section below).
-.SS Analysis options
+\fB\-\-work=\fR \fIname\fR
+Use \fIname\fR as the work library (see \fILIBRARIES\fR section below)\.
+.
+.SS "Analysis options"
+.
 .TP
-.BI "--bootstrap"
-Allow compilation of the STANDARD package. Not intended for end users.
-.SS Elaboration options
+\fB\-\-bootstrap\fR
+Allow compilation of the STANDARD package\. Not intended for end users\.
+.
+.SS "Elaboration options"
+.
 .TP
-.B "--cover"
-Enable code coverage reporting (see
-.B COVERAGE
-section below).
+\fB\-\-cover\fR
+Enable code coverage reporting (see the \fICODE COVERAGE\fR section below)\.
+.
 .TP
-.B "--disable-opt"
-Disable LLVM optimisations. Not generally useful unless debugging the
-generated LLVM IR.
+\fB\-\-disable\-opt\fR
+Disable LLVM optimisations\. Not generally useful unless debugging the generated LLVM IR\.
+.
 .TP
-.B "--dump-llvm"
-Print generated LLVM IR prior to optimisation.
+\fB\-\-dump\-llvm\fR
+Print generated LLVM IR prior to optimisation\.
+.
 .TP
-.B "--native"
-Generate native code shared library. By default NVC will use LLVM JIT
-compilation to generate machine code at runtime. For large designs
-compiling to native code at elaboration time may improve performance.
-.SS Runtime options
+\fB\-\-native\fR
+Generate native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\.
+.
+.SS "Runtime options"
+.
 .TP
-.B "-b, --batch"
-Run in batch mode. This is the default.
+\fB\-b\fR, \fB\-\-batch\fR
+Run in batch mode\. This is the default\.
+.
 .TP
-.B "-c, --command"
-Run in interactive TCL command line mode. See
-.B TCL SHELL
-section below.
+\fB\-c\fR, \fB\-\-command\fR
+Run in interactive TCL command line mode\. See \fITCL SHELL\fR section below\.
+.
 .TP
-.BI "--format=" fmt
-Generate waveform data in format
-.IR fmt .
-Currently supported formats are:
-.BR fst ", " lxt ", and " vcd .
-The FST and LXT formats are native to GtkWave. The FST format is
-preferred over LXT due its smaller size and better performance; however
-VHDL support in FST requires a recent version of GtkWave so LXT is
-provided for compatibility. VCD is a very widely used format but has
-limited ability to represent VHDL types and the performance is poor:
-select this only if you must use the output with a tool that does not
-support FST or LXT. The default format is FST if this option is not
-provided.
+\fB\-\-format=\fR\fIfmt\fR
+Generate waveform data in format \fIfmt\fR\. Currently supported formats are: \fBfst\fR, \fBlxt\fR, and \fBvcd\fR\. The FST and LXT formats are native to GtkWave\. The FST format is preferred over LXT due its smaller size and better performance; however VHDL support in FST requires a recent version of GtkWave so LXT is provided for compatibility\. VCD is a very widely used format but has limited ability to represent VHDL types and the performance is poor: select this only if you must use the output with a tool that does not support FST or LXT\. The default format is FST if this option is not provided\.
+.
 .TP
-.BI "--stats"
-Print time and memory statistics at the end of the run.
+\fB\-\-stats\fR
+Print time and memory statistics at the end of the run\.
+.
 .TP
-.BI "--stop-delta=" N
-Stop after
-.I N
-delta cycles. This can be used to detect zero-time loops
-in your model. The default is 1000 if not specified. Setting this to
-zero disables the delta cycle limit.
+\fB\-\-stop\-delta=\fR\fIN\fR
+Stop after \fIN\fR delta cycles\. This can be used to detect zero\-time loops in your model\. The default is 1000 if not specified\. Setting this to zero disables the delta cycle limit\.
+.
 .TP
-.BI "--stop-time=" T
-Stop the simulation after the given time has elapsed. Format of
-.I T
-is an integer followed by a time unit in lower case. For example
-.B 5ns
-or
-.BR 20ms .
+\fB\-\-stop\-time=\fR\fIT\fR
+Stop the simulation after the given time has elapsed\. Format of \fIT\fR is an integer followed by a time unit in lower case\. For example \fB5ns\fR or \fB20ms\fR\.
+.
 .TP
-.BI "--trace"
-Trace simulation events. This is usually only useful for debugging the
-simulator. 
+\fB\-\-trace\fR
+Trace simulation events\. This is usually only useful for debugging the simulator\.
+.
 .TP
-.BI "-w, --wave=" FILE
-Write waveform data to
-.IR FILE .
-The file name is optional and if not specified will default to the name
-of the top-level unit with the appropriate extension for the waveform
-format. The waveform format can be specified with the
-.B --format
-option.
-
-.\" --------------------------------------------------------------------------------
-.SH LIBRARIES
-Description of library search path, contents, etc.
-.\" --------------------------------------------------------------------------------
-.SH CODE COVERAGE
+\fB\-w, \-\-wave=\fR\fIfile\fR
+Write waveform data to \fIfile\fR\. The file name is optional and if not specified will default to the name of the top\-level unit with the appropriate extension for the waveform format\. The waveform format can be specified with the \fB\-\-format\fR option\.
+.
+.SH "LIBRARIES"
+Description of library search path, contents, etc\.
+.
+.SH "CODE COVERAGE"
 Description of coverage generation
-.\" --------------------------------------------------------------------------------
-.SH TCL SHELL
+.
+.SH "TCL SHELL"
 Describe interactive TCL shell
-.\" --------------------------------------------------------------------------------
-.SH AUTHOR
+.
+.SH "AUTHOR"
 Written by Nick Gasson
-.\" --------------------------------------------------------------------------------
+.
 .SH "REPORTING BUGS"
 Report bugs using the GitHub issue tracker at
+.
 .br
-<https://github.com/nickg/nvc/issues>
+\fIhttps://github\.com/nickg/nvc/issues\fR
