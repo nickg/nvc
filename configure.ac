@@ -67,7 +67,9 @@ AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_ERROR([bzip2 not found])])
 AX_LLVM_C([engine bitreader bitwriter])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 
-PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])
+PKG_CHECK_EXISTS([check],
+  [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],
+  [AC_WARN([libcheck not found - unit tests will not run])])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
