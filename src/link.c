@@ -127,13 +127,13 @@ static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
    }
 }
 
-#ifdef __CYGWIN__
+#ifdef IMPLIB_REQUIRED
 static void link_context_cyg_fn(lib_t lib, tree_t unit, FILE *deps)
 {
    if (link_find_native_library(lib, unit, deps))
       link_product(lib, tree_ident(unit), "", "a");
 }
-#endif  // __CYGWIN__
+#endif  // IMPLIB_REQUIRED
 
 static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
 {
@@ -376,8 +376,10 @@ void link_bc(tree_t top)
    link_all_context(top, deps, link_context_bc_fn);
    fclose(deps);
 
+   const bool linked_bc = (n_linked_bc > 0);
+
    char tmp[128] = "";
-   if (n_linked_bc > 0) {
+   if (linked_bc) {
       link_arg_f("-o");
       if (opt_en) {
          link_tmp_name(top, tmp, sizeof(tmp));
@@ -396,7 +398,7 @@ void link_bc(tree_t top)
       if ((*tmp != '\0') && (unlink(tmp) < 0))
          fatal_errno("unlink");
    }
-   else if (n_linked_bc == 0) {
+   else if (!linked_bc) {
       link_args_begin();
 
       link_arg_f("/bin/mv");

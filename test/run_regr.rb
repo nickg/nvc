@@ -119,6 +119,7 @@ mkdir_p 'logs'
 Dir.chdir 'logs'
 
 ENV['NVC_LIBPATH'] = LibPath
+ENV['NVC_CYG_LIB'] = "#{BuildDir}/src"
 
 passed = 0
 failed = 0
