@@ -372,7 +372,7 @@ START_TEST(test_seq)
 
    p = tree_stmt(a, 3);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 1);
+   fail_unless(tree_stmts(p) == 2);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_VAR_ASSIGN);
@@ -388,6 +388,12 @@ START_TEST(test_seq)
    fail_unless(tree_subkind(tree_param(e, 2)) == P_POS);
    fail_unless(tree_pos(tree_param(e, 2)) == 2);
    fail_unless(tree_ival(tree_value(tree_param(e, 2))) == 3);
+
+   s = tree_stmt(p, 1);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"abs\""));
 
    // If statements
 

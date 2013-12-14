@@ -36,6 +36,7 @@ begin
     process is
     begin
         x := foo(1, 2, 3);
+        a := "abs"(b);
     end process;
 
     -- If

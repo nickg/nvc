@@ -167,7 +167,7 @@
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
 %type <t> base_unit_decl choice use_clause_item
-%type <i> id opt_id selected_id func_name func_type
+%type <i> id opt_id selected_id func_name func_type operator_name
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
 %type <l> block_decl_item block_decl_part conc_stmt_list process_decl_part
@@ -1186,9 +1186,8 @@ opt_func : tFUNCTION | /* empty */ ;
 
 opt_proc : tPROCEDURE | /* empty */ ;
 
-func_name
-: id
-| tSTRING
+operator_name
+: tSTRING
   {
      for (char *p = lvals.sval; *p != '\0'; p++)
         *p = tolower((int)*p);
@@ -1196,6 +1195,8 @@ func_name
      free(lvals.sval);
   }
 ;
+
+func_name : id | operator_name ;
 
 opt_func_name : func_name | /* empty */ ;
 
@@ -2382,6 +2383,15 @@ name
 | name tLPAREN param_list tRPAREN
   {
      $$ = handle_param_expr($1, $3);
+     tree_set_loc($$, &@$);
+  }
+| operator_name tLPAREN param_list tRPAREN
+  {
+     tree_t name = tree_new(T_REF);
+     tree_set_ident(name, $1);
+     tree_set_loc(name, &@1);
+
+     $$ = handle_param_expr(name, $3);
      tree_set_loc($$, &@$);
   }
 | name tLPAREN param_list tRPAREN tDOT selected_id
