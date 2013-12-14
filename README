@@ -10,12 +10,23 @@ To build from a Git clone:
   make
   make install
 
+Generating the configure script requires autoconf and automake
+version 1.12 or later.
+
 To use a specific version of LLVM add
   --with-llvm=/path/to/llvm-config
 to the configure command. LLVM 3.0 or later is required.
 
+NVC also depends on flex and bison to generate the parser. The bison
+version should be at least 2.5.
+
+If a readline-compatible library is installed it will be used to provide
+line editing in the interactive mode.
+
 To run the regression tests:
   make check
+The unit tests require the 'check' library:
+  http://check.sourceforge.net/
 Note you may need to install additional Ruby libraries:
   gem install colorize getopt
 
