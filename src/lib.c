@@ -73,14 +73,14 @@ static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
 static search_path_t   *search_paths = NULL;
 
-static ident_t upcase_name(const char *name)
+static ident_t upcase_name(const char * name)
 {
    char *name_copy = strdup(name);
 
-   char *last_slash = strrchr(name, '/');
+   char *last_slash = strrchr(name_copy, '/');
    while ((last_slash != NULL) && (*(last_slash + 1) == '\0')) {
       *last_slash = '\0';
-      last_slash = strrchr(name, '/');
+      last_slash = strrchr(name_copy, '/');
    }
 
    char *name_up = (last_slash != NULL) ? last_slash + 1 : name_copy;
@@ -207,15 +207,11 @@ static const char *lib_file_path(lib_t lib, const char *name)
 
 lib_t lib_new(const char *name)
 {
-   if (access(name, F_OK) == 0) {
-      errorf("file %s already exists", name);
-      return NULL;
-   }
+   if (access(name, F_OK) == 0)
+      fatal("file %s already exists", name);
 
-   if (mkdir(name, 0777) != 0) {
-      perror("mkdir");
-      return NULL;
-   }
+   if (mkdir(name, 0777) != 0)
+      fatal_errno("mkdir: %s", name);
 
    lib_t l = lib_init(name, name);
 
@@ -618,5 +614,5 @@ void lib_mkdir(lib_t lib, const char *name)
 {
    if ((mkdir(lib_file_path(lib, name), 0777) != 0)
        && (errno != EEXIST))
-      fatal_errno("mkdir");
+      fatal_errno("mkdir: %s", name);
 }

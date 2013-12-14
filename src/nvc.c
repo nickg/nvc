@@ -46,10 +46,8 @@ const char *version_string =
 static void set_work_lib(void)
 {
    lib_t work = lib_find(work_name, false, false);
-   if (work == NULL) {
-      if ((work = lib_new(work_name)) == NULL)
-         exit(EXIT_FAILURE);
-   }
+   if (work == NULL)
+      work = lib_new(work_name);
 
    lib_set_work(work);
 }
