@@ -990,6 +990,8 @@ START_TEST(test_record)
       { 48, "field X already has a value" },
       { 64, "type R1_VEC is unconstrained" },
       { 72, "record type R1 has no field F" },
+      { 82, "undefined identifier A.Z" },
+      { 86, "record subtype may not have constraints" },
       { -1, NULL }
    };
    expect_errors(expect);

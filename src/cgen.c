@@ -1177,7 +1177,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
 
    int align, width;
    LLVMValueRef bytes;
-   if (type_kind(elem_type) == T_RECORD) {
+   if (type_is_record(elem_type)) {
       width = 8;
       align = 1;
       bytes = LLVMBuildIntCast(builder, LLVMSizeOf(llvm_type(elem_type)),
@@ -2907,7 +2907,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
 
             *sub = LLVMConstArray(ltype, v, nvals);
          }
-         else if (type_kind(sub_type) == T_RECORD) {
+         else if (type_is_record(sub_type)) {
             *sub = cgen_const_record(value, true, ctx);
          }
          else
@@ -3204,7 +3204,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
       else
          return cgen_dyn_aggregate(t, ctx);
    }
-   else if (type_kind(type) == T_RECORD) {
+   else if (type_is_record(type)) {
       if (cgen_is_const(t))
          return cgen_const_record(t, false, ctx);
       else

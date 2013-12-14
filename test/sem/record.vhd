@@ -73,4 +73,18 @@ package body p is
         a2(0).x := a2(1).y;             -- OK
     end procedure;
 
+    procedure p5 is
+        subtype r1_sub is r1;           -- OK
+        variable a : r1_sub;            -- OK
+    begin
+        a.x := 5;                       -- OK
+        a.y := a.x + 2;                 -- OK
+        a.z := 2;                       -- Error
+    end procedure;
+
+    procedure p6 is
+        subtype r1_bad is r1(1 to 3);   -- Error
+    begin
+    end procedure;
+
 end package body;

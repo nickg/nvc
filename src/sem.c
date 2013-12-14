@@ -761,7 +761,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    switch (kind) {
    case T_SUBTYPE:
-      if (type_is_unconstrained(t))
+      if (type_is_unconstrained(t) || type_is_record(t))
          break;
       // Fall-through
    case T_INTEGER:
@@ -923,6 +923,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             break;
 
          case T_UARRAY:
+         case T_RECORD:
             break;
 
          default:
@@ -931,6 +932,9 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       }
       else {
          // Check constraints
+
+         if (type_is_record(base))
+            sem_error(t, "record subtype may not have constraints");
 
          const int ndims_base =
             type_is_array(base)
@@ -1708,7 +1712,7 @@ static void sem_declare_fields(type_t type, ident_t prefix)
       scope_insert_alias(field, qual);
 
       type_t field_type = tree_type(field);
-      if (type_kind(field_type) == T_RECORD)
+      if (type_is_record(field_type))
          sem_declare_fields(field_type, qual);
    }
 }
@@ -1752,7 +1756,7 @@ static bool sem_check_decl(tree_t t)
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
 
-   if (type_kind(type) == T_RECORD) {
+   if (type_is_record(type)) {
       if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL))
          sem_error(t, "sorry, records are not yet allowed as signals");
 
@@ -1760,7 +1764,7 @@ static bool sem_check_decl(tree_t t)
    }
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
-      if (type_kind(deref_type) == T_RECORD) {
+      if (type_is_record(deref_type)) {
          // Pointers to records can be dereferenced implicitly
          sem_declare_fields(deref_type, tree_ident(t));
       }
@@ -1812,7 +1816,7 @@ static bool sem_check_port_decl(tree_t t)
                    sem_type_str(type));
    }
 
-   if (type_kind(type) == T_RECORD)
+   if (type_is_record(type))
       sem_declare_fields(type, tree_ident(t));
 
    sem_add_attributes(t);
@@ -3489,7 +3493,7 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
 
 static bool sem_is_composite(type_t t)
 {
-   return type_is_array(t) || (type_kind(t) == T_RECORD);
+   return type_is_array(t) || type_is_record(t);
 }
 
 static bool sem_check_concat(tree_t t)
@@ -3878,7 +3882,7 @@ static bool sem_check_aggregate(tree_t t)
 
    // Checks for record aggregates are given in LRM 93 section 7.3.2.1
 
-   if (type_kind(base_type) == T_RECORD) {
+   if (type_is_record(base_type)) {
       const int nfields = type_fields(base_type);
       bool have[nfields];
       int pos = 0;
@@ -3996,15 +4000,15 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
 
    tree_t value = NULL;
 
-   type_kind_t kind = type_kind(tree_type(rec));
-   if (kind == T_ACCESS) {
+   type_t rec_type = tree_type(rec);
+   if (type_kind(rec_type) == T_ACCESS) {
       // Record fields can be dereferenced implicitly
       value = tree_new(T_ALL);
       tree_set_value(value, make_ref(rec));
       tree_set_type(value, type_access(tree_type(rec)));
    }
    else
-      assert(kind == T_RECORD);
+      assert(type_is_record(rec_type));
 
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);

@@ -529,12 +529,18 @@ void type_add_param(type_t t, type_t p)
 
 unsigned type_fields(type_t t)
 {
-   return lookup_item(t, I_FIELDS)->tree_array.count;
+   if (t->kind == T_SUBTYPE)
+      return type_fields(type_base(t));
+   else
+      return lookup_item(t, I_FIELDS)->tree_array.count;
 }
 
 tree_t type_field(type_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_FIELDS)->tree_array), n);
+   if (t->kind == T_SUBTYPE)
+      return type_field(type_base(t), n);
+   else
+      return tree_array_nth(&(lookup_item(t, I_FIELDS)->tree_array), n);
 }
 
 void type_add_field(type_t t, tree_t p)
@@ -938,7 +944,10 @@ bool type_is_array(type_t t)
 bool type_is_record(type_t t)
 {
    assert(t != NULL);
-   return (t->kind == T_RECORD);
+   if (t->kind == T_SUBTYPE)
+      return type_is_record(type_base(t));
+   else
+      return (t->kind == T_RECORD);
 }
 
 bool type_is_unconstrained(type_t t)
