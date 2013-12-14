@@ -62,7 +62,7 @@ ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl ieee/IEEE.NUMERIC_ST
 	$(nvc) -L ../std --work=ieee -a $<
 	$(codegen) -L ../std --work=ieee --codegen numeric_std
 
-ieee/IEEE.NUMERIC_BIT-body: $(srcdir)/numeric_bit-body.vhdl ieee/IEEE.NUMERIC_STD
+ieee/IEEE.NUMERIC_BIT-body: $(srcdir)/numeric_bit-body.vhdl ieee/IEEE.NUMERIC_BIT
 	$(nvc) -L ../std --work=ieee -a $<
 	$(codegen) -L ../std --work=ieee --codegen numeric_bit
 
