@@ -3,6 +3,9 @@ NVC is a GPLv3 VHDL compiler and simulator
 See these posts for more information:
   http://www.doof.me.uk/category/vhdl/
 
+NVC is developped on Debian Linux and has been reported to work on OS X
+and Windows under Cygwin. Ports to other Unix-like systems are welcome.
+
 To build from a Git clone:
   ./autogen.sh
   mkdir build && cd build
