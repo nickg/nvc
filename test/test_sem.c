@@ -565,6 +565,7 @@ START_TEST(test_array)
       { 277, "type NOT_HERE is not defined" },
       { 279, "type NUM_ARRAY is unconstrained" },
       { 285, "object K does not have a range" },
+      { 295, "type of index universal integer does not match" },
       { -1, NULL }
    };
    expect_errors(expect);

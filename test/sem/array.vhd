@@ -287,4 +287,13 @@ begin
     begin
     end process;
 
+    process is
+        type ibv is array (boolean range <>) of integer;
+        variable a : ibv(false to true);
+    begin
+        a(false) := 1;                  -- OK
+        a(4) := 2;                      -- Error
+        a(false to false) := (others => 1);  -- OK
+    end process;
+
 end architecture;

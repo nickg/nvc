@@ -4215,7 +4215,7 @@ static bool sem_check_array_slice(tree_t t)
       sem_error(t, "type of slice prefix is not an array");
 
    range_t r = tree_range(t);
-   if (!sem_check_range(&r, sem_std_type("INTEGER")))
+   if (!sem_check_range(&r, sem_index_type(array_type, 0)))
       return false;
 
    tree_set_range(t, r);
