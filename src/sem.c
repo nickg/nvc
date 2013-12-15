@@ -4938,29 +4938,6 @@ static bool sem_globally_static(tree_t t)
    return false;
 }
 
-static void sem_enum_subtype_bounds(type_t type, unsigned *low, unsigned *high)
-{
-   // For an enumeration subtype find the lowest and highest literal indexes
-   // contained within that subtype
-
-   assert(type_dims(type) == 1);
-
-   range_t r = type_dim(type, 0);
-   assert(r.kind == RANGE_TO);
-
-   assert(tree_kind(r.left) == T_REF);
-   assert(tree_kind(r.right) == T_REF);
-
-   tree_t ldecl = tree_ref(r.left);
-   tree_t rdecl = tree_ref(r.right);
-
-   assert(tree_kind(ldecl) == T_ENUM_LIT);
-   assert(tree_kind(rdecl) == T_ENUM_LIT);
-
-   *low  = tree_pos(ldecl);
-   *high = tree_pos(rdecl);
-}
-
 static bool sem_check_case(tree_t t)
 {
    tree_t test = tree_value(t);
@@ -5016,61 +4993,7 @@ static bool sem_check_case(tree_t t)
       ok = sem_check(tree_value(a)) && ok;
    }
 
-   if (!ok)
-      return false;
-
-   // Check the choices cover all elements of an enumerated type
-   if (type_is_enum(type)) {
-      unsigned nlits, low, high;
-      if (type_kind(type) == T_SUBTYPE) {
-         sem_enum_subtype_bounds(type, &low, &high);
-         nlits = high - low + 1;
-      }
-      else {
-         nlits = type_enum_literals(type);
-         low   = 0;
-         high  = nlits - 1;
-      }
-
-      bool have[nlits];
-      for (unsigned i = 0; i < nlits; i++)
-         have[i] = false;
-
-      type_t base = type_base_recur(type);
-
-      bool have_others = false;
-
-      const int nassocs = tree_assocs(t);
-      for (unsigned i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-
-         if (tree_subkind(a) == A_OTHERS) {
-            have_others = true;
-            continue;
-         }
-
-         ident_t name = tree_ident(tree_name(a));
-         for (unsigned j = low; j <= high; j++) {
-            if (tree_ident(type_enum_literal(base, j)) == name) {
-               if (have[j - low])
-                  sem_error(tree_name(a), "choice %s appears multiple times "
-                            "in case statement", istr(name));
-               else
-                  have[j - low] = true;
-            }
-         }
-      }
-
-      bool have_all = true;
-      for (unsigned i = low; i <= high; i++) {
-         if (!have[i - low] && !have_others)
-            sem_error(t, "missing choice %s in case statement",
-                      istr(tree_ident(type_enum_literal(base, i))));
-         have_all = have_all && have[i - low];
-      }
-   }
-
-   return true;
+   return ok;
 }
 
 static bool sem_check_return(tree_t t)

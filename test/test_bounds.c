@@ -108,6 +108,41 @@ START_TEST(test_bounds)
 }
 END_TEST
 
+START_TEST(test_case)
+{
+   tree_t e, a, p, s;
+   range_t r;
+
+   const error_t expect[] = {
+      { 13, "missing choice C in case statement" },
+      { 19, "missing choice B in case statement" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/bounds/case.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -119,6 +154,7 @@ int main(void)
    TCase *tc_core = tcase_create("Core");
    tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_bounds);
+   tcase_add_test(tc_core, test_case);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

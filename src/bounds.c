@@ -448,6 +448,77 @@ static void bounds_check_var_assign(tree_t t)
    bounds_check_assignment(tree_target(t), tree_value(t));
 }
 
+static void bounds_check_case(tree_t t)
+{
+   type_t type = tree_type(tree_value(t));
+
+   // Check the choices cover all elements of an enumerated type
+   if (type_is_enum(type)) {
+      unsigned nlits, low, high;
+      if (type_kind(type) == T_SUBTYPE) {
+         assert(type_dims(type) == 1);
+
+         range_t r = type_dim(type, 0);
+         assert(r.kind == RANGE_TO);
+
+         assert(tree_kind(r.left) == T_REF);
+         assert(tree_kind(r.right) == T_REF);
+
+         tree_t ldecl = tree_ref(r.left);
+         tree_t rdecl = tree_ref(r.right);
+
+         assert(tree_kind(ldecl) == T_ENUM_LIT);
+         assert(tree_kind(rdecl) == T_ENUM_LIT);
+
+         low   = tree_pos(ldecl);
+         high  = tree_pos(rdecl);
+         nlits = high - low + 1;
+      }
+      else {
+         nlits = type_enum_literals(type);
+         low   = 0;
+         high  = nlits - 1;
+      }
+
+      bool have[nlits];
+      for (unsigned i = 0; i < nlits; i++)
+         have[i] = false;
+
+      type_t base = type_base_recur(type);
+
+      bool have_others = false;
+
+      const int nassocs = tree_assocs(t);
+      for (unsigned i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+
+         if (tree_subkind(a) == A_OTHERS) {
+            have_others = true;
+            continue;
+         }
+
+         ident_t name = tree_ident(tree_name(a));
+         for (unsigned j = low; j <= high; j++) {
+            if (tree_ident(type_enum_literal(base, j)) == name) {
+               if (have[j - low])
+                  bounds_error(tree_name(a), "choice %s appears multiple times "
+                               "in case statement", istr(name));
+               else
+                  have[j - low] = true;
+            }
+         }
+      }
+
+      bool have_all = true;
+      for (unsigned i = low; i <= high; i++) {
+         if (!have[i - low] && !have_others)
+            bounds_error(t, "missing choice %s in case statement",
+                         istr(tree_ident(type_enum_literal(base, i))));
+         have_all = have_all && have[i - low];
+      }
+   }
+}
+
 static void bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -472,6 +543,8 @@ static void bounds_visit_fn(tree_t t, void *context)
       return bounds_check_signal_assign(t);
    case T_VAR_ASSIGN:
       return bounds_check_var_assign(t);
+   case T_CASE:
+      return bounds_check_case(t);
    default:
       break;
    }
