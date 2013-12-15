@@ -498,18 +498,12 @@ void type_add_unit(type_t t, tree_t u)
 
 unsigned type_enum_literals(type_t t)
 {
-   if (t->kind == T_SUBTYPE)
-      return type_enum_literals(type_base(t));
-   else
-      return lookup_item(t, I_LITERALS)->tree_array.count;
+   return lookup_item(t, I_LITERALS)->tree_array.count;
 }
 
 tree_t type_enum_literal(type_t t, unsigned n)
 {
-   if (t->kind == T_SUBTYPE)
-      return type_enum_literal(type_base(t), n);
-   else
-      return tree_array_nth(&(lookup_item(t, I_LITERALS)->tree_array), n);
+   return tree_array_nth(&(lookup_item(t, I_LITERALS)->tree_array), n);
 }
 
 void type_enum_add_literal(type_t t, tree_t lit)
@@ -967,6 +961,15 @@ bool type_is_unconstrained(type_t t)
    }
    else
       return (t->kind == T_UARRAY);
+}
+
+bool type_is_enum(type_t t)
+{
+   assert(t != NULL);
+   if (t->kind == T_SUBTYPE)
+      return type_is_enum(type_base(t));
+   else
+      return (t->kind == T_ENUM);
 }
 
 type_t type_base_recur(type_t t)

@@ -84,7 +84,9 @@ begin
     -- Case
     process is
         type letter is (A, B, C);
+        subtype ab is letter range B to C;
         variable l : letter;
+        variable m : ab;
         variable v : bit_vector(0 to 3);
         constant k : bit := '1';
         variable n : bit;
@@ -140,6 +142,10 @@ begin
             when a =>
                 null;
             when b =>
+                null;
+        end case;
+        case m is                       -- Choice B not covered
+            when a =>
                 null;
         end case;
         case bit is                     -- Error

@@ -113,11 +113,11 @@ type_t type_universal_int(void);
 type_t type_universal_real(void);
 bool type_is_universal(type_t t);
 
-// Type or its parent type is an array
+// Type predicates that recurse to base of subtypes
 bool type_is_array(type_t t);
-
 bool type_is_record(type_t t);
 bool type_is_unconstrained(type_t t);
+bool type_is_enum(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);
