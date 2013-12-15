@@ -211,7 +211,8 @@ static cover_file_t *cover_file(const loc_t *loc)
 
       while (!feof(fp)) {
          char buf[1024];
-         fgets(buf, sizeof(buf), fp);
+         if (fgets(buf, sizeof(buf), fp) == NULL)
+            fatal_errno("fgets");
          cover_append_line(f, buf);
       }
 

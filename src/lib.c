@@ -245,8 +245,8 @@ static void lib_default_search_paths(void)
       const char *home_env = getenv("HOME");
       if (home_env) {
          char *path;
-         asprintf(&path, "%s/.%s/lib", home_env, PACKAGE);
-         assert(path != NULL);
+         if (asprintf(&path, "%s/.%s/lib", home_env, PACKAGE) < 0)
+            fatal_errno("asprintf");
          push_path(path);
       }
 
