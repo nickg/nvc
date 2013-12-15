@@ -29,7 +29,7 @@ line editing in the interactive mode.
 To run the regression tests:
   make check
 The unit tests require the 'check' library:
-  http://check.sourceforge.net/
+  http://check.sourceforge.net
 Note you may need to install additional Ruby libraries:
   gem install colorize getopt
 

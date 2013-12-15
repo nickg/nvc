@@ -1077,14 +1077,24 @@ static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
    g->watching    = NULL;
 }
 
+static void rt_free_delta_events(event_t *e)
+{
+   while (e != NULL) {
+      event_t *tmp = e->delta_chain;
+      rt_free(event_stack, e);
+      e = tmp;
+   }
+}
+
 static void rt_setup(tree_t top)
 {
    now = 0;
    iteration = -1;
 
    assert(resume == NULL);
-   assert(delta_proc == NULL);
-   assert(delta_driver == NULL);
+
+   rt_free_delta_events(delta_proc);
+   rt_free_delta_events(delta_driver);
 
    if (eventq_heap != NULL)
       heap_free(eventq_heap);
@@ -1852,7 +1862,7 @@ static void rt_slave_run(slave_run_msg_t *msg)
 {
    if (aborted)
       errorf("simulation has aborted and must be restarted");
-   else if (heap_size(eventq_heap) == 0)
+   else if ((heap_size(eventq_heap) == 0) && (delta_proc == NULL))
       warnf("no future simulation events");
    else {
       set_fatal_fn(rt_slave_fatal);
