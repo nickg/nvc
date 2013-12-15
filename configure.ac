@@ -50,26 +50,26 @@ AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
 AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
-  [AC_ERROR(TCL library not found)])
+  [AC_MSG_ERROR(TCL library not found)])
 
 if test ! x$have_tcl = xyes ; then
-  AC_ERROR(TCL header file not found)
+  AC_MSG_ERROR(TCL header file not found)
 fi
 
 VL_LIB_READLINE
 if test x$vl_cv_lib_readline = xno ; then
-  AC_WARN(terminal line editing will not be supported)
+  AC_MSG_WARN(terminal line editing will not be supported)
 fi
 
-AC_CHECK_LIB([z], [deflate], [], [AC_ERROR([zlib not found])])
-AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_ERROR([bzip2 not found])])
+AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
+AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_MSG_ERROR(bzip2 not found)])
 
 AX_LLVM_C([engine bitreader bitwriter])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
 
 PKG_CHECK_EXISTS([check],
   [PKG_CHECK_MODULES([CHECK], [check >= 0.9.4], [], [])],
-  [AC_WARN([libcheck not found - unit tests will not run])])
+  [AC_MSG_WARN(libcheck not found - unit tests will not run)])
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
@@ -118,7 +118,8 @@ AC_SUBST(COV_LDFLAGS)
 AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
 AC_CONFIG_HEADERS([config.h])
-AC_OUTPUT([Makefile src/Makefile src/rt/Makefile test/Makefile \
+AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
            lib/synopsys/Makefile lxt/Makefile fst/Makefile])
+AC_OUTPUT
 
