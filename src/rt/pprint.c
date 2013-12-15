@@ -29,6 +29,8 @@
 
 static bool pp_char_enum(type_t type)
 {
+   type = type_base_recur(type);
+
    if (type_kind(type) != T_ENUM)
       return false;
 
@@ -43,6 +45,8 @@ static bool pp_char_enum(type_t type)
 
 static void pp_one(char *buf, type_t type, uint64_t value, bool tick)
 {
+   type = type_base_recur(type);
+
    switch (type_kind(type)) {
    case T_INTEGER:
       static_printf(buf, "%"PRIu64, value);
@@ -66,7 +70,7 @@ static void pp_one(char *buf, type_t type, uint64_t value, bool tick)
 
 static const uint64_t *pp_array(char *buf, type_t type, const uint64_t *values)
 {
-   type_t elem = type_base_recur(type_elem(type));
+   type_t elem = type_elem(type);
    bool all_char = pp_char_enum(elem);
 
    static_printf(buf, all_char ? "\"" : "(");
