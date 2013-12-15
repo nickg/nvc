@@ -22,7 +22,16 @@
 #include <assert.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <inttypes.h>
+
+typedef struct interval interval_t;
+
+struct interval {
+   int64_t     low;
+   int64_t     high;
+   interval_t *next;
+};
 
 static int     errors = 0;
 static ident_t unconstrained_i;
@@ -448,6 +457,56 @@ static void bounds_check_var_assign(tree_t t)
    bounds_check_assignment(tree_target(t), tree_value(t));
 }
 
+static void bounds_case_cover(interval_t **isp, tree_t t,
+                              int64_t low, int64_t high)
+{
+   interval_t *it, *prev;
+   for (it = *isp, prev = NULL;
+        (it != NULL) && (it->low <= high);
+        prev = it, it = it->next) {
+
+      if ((low <= it->high) && (it->low <= high)) {
+         const int64_t rlow  = MAX(low, it->low);
+         const int64_t rhigh = MIN(high, it->high);
+         if (rlow == rhigh)
+            bounds_error(t, "value %"PRIi64" is already covered", rlow);
+         else
+            bounds_error(t, "range %"PRIi64" to %"PRIi64" is already covered",
+                         rlow, rhigh);
+         return;
+      }
+      else if (high == it->low - 1) {
+         it->low = low;
+         return;
+      }
+      else if (low == it->high + 1) {
+         it->high = high;
+         return;
+      }
+   }
+
+   interval_t *new = xmalloc(sizeof(interval_t));
+   new->low  = low;
+   new->high = high;
+
+   if ((*isp == NULL) || (prev == NULL)) {
+      new->next = *isp;
+      *isp = new;
+   }
+   else {
+      new->next = prev->next;
+      prev->next = new;
+   }
+}
+
+static void bounds_fmt_case_missing(char *buf, int64_t low, int64_t high)
+{
+   if (low == high)
+      static_printf(buf, "\n    %"PRIi64, low);
+   else
+      static_printf(buf, "\n    %"PRIi64" to %"PRIi64, low, high);
+}
+
 static void bounds_check_case(tree_t t)
 {
    type_t type = tree_type(tree_value(t));
@@ -516,6 +575,79 @@ static void bounds_check_case(tree_t t)
             bounds_error(t, "missing choice %s in case statement",
                          istr(tree_ident(type_enum_literal(base, i))));
          have_all = have_all && have[i - low];
+      }
+   }
+   else if (type_is_integer(type)) {
+      // Check that the full range of the type is covered
+
+      int64_t tlow, thigh;
+      range_bounds(type_dim(type, 0), &tlow, &thigh);
+
+      bool have_others = false;
+      interval_t *covered = NULL;
+
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+
+         int64_t low = INT64_MIN, high = INT64_MAX;
+         switch (tree_subkind(a)) {
+         case A_OTHERS:
+            have_others = true;
+            continue;
+
+         case A_NAMED:
+            {
+               low = high = assume_int(tree_name(a));
+            }
+            break;
+
+         case A_RANGE:
+            {
+               range_t r = tree_range(a);
+               assert(r.kind == RANGE_TO);
+               low  = assume_int(r.left);
+               high = assume_int(r.right);
+            }
+            break;
+         }
+
+         if ((low < tlow) || (high > thigh))
+            bounds_error(a, "value %"PRIi64" outside %s bounds %"PRIi64
+                         " to %"PRIi64, (low < tlow) ? low : high,
+                         type_pp(type), tlow, thigh);
+         else
+            bounds_case_cover(&covered, a, low, high);
+      }
+
+      if (!have_others) {
+         char buf[1024];
+         static_printf_begin(buf, sizeof(buf));
+         static_printf(buf, "case choices do not cover the following "
+                       "values of %s:", type_pp(type));
+
+         bool missing = false;
+         int64_t walk = tlow;
+         interval_t *it, *tmp;
+         for (it = covered, tmp = NULL; it != NULL; it = tmp) {
+            if (it->low != walk) {
+               bounds_fmt_case_missing(buf, walk, it->low - 1);
+               missing = true;
+            }
+
+            walk = it->high + 1;
+
+            tmp = it->next;
+            free(it);
+         }
+
+         if (walk != thigh + 1) {
+            bounds_fmt_case_missing(buf, walk, thigh);
+            missing = true;
+         }
+
+         if (missing)
+            bounds_error(t, "%s", buf);
       }
    }
 }

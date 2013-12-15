@@ -972,6 +972,15 @@ bool type_is_enum(type_t t)
       return (t->kind == T_ENUM);
 }
 
+bool type_is_integer(type_t t)
+{
+   assert(t != NULL);
+   if (t->kind == T_SUBTYPE)
+      return type_is_integer(type_base(t));
+   else
+      return (t->kind == T_INTEGER);
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);

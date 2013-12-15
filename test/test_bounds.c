@@ -116,6 +116,13 @@ START_TEST(test_case)
    const error_t expect[] = {
       { 13, "missing choice C in case statement" },
       { 19, "missing choice B in case statement" },
+      { 30, "10 to 19" },
+      { 36, "4 to 2147483647" },
+      { 44, "2147483647" },
+      { 51, "value 50 is already covered" },
+      { 53, "range 60 to 64 is already covered" },
+      { 59, "value -1 outside STD.STANDARD.NATURAL bounds" },
+      { 58, "0 to 2147483647" },
       { -1, NULL }
    };
    expect_errors(expect);

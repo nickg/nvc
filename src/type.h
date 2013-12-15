@@ -118,6 +118,7 @@ bool type_is_array(type_t t);
 bool type_is_record(type_t t);
 bool type_is_unconstrained(type_t t);
 bool type_is_enum(type_t t);
+bool type_is_integer(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

@@ -23,9 +23,9 @@ begin
         wait;
     end process;
 
-    -- TODO: should fail
     process is
         variable x : integer;
+        variable y : natural;
     begin
         case x is                       -- Missing range
             when 0 to 9 =>
@@ -39,6 +39,24 @@ begin
         end case;
         case x is                       -- OK
             when others =>
+                null;
+        end case;
+        case x is                       -- Missing integer'right
+            when integer'left to integer'right - 1 =>
+                null;
+        end case;
+        case x is
+            when 1 to 100 =>
+                null;
+            when 50 =>                  -- Duplicate
+                null;
+            when 60 to 64 =>            -- Duplicate
+                null;
+            when others =>
+                null;
+        end case;
+        case y is
+            when -1 =>                  -- Out of range
                 null;
         end case;
     end process;
