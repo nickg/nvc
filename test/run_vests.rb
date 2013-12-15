@@ -50,5 +50,5 @@ puts "#{fails} failures"
 
 File.open("#{VestsDir}/HISTORY", 'a') do |f|
   f.printf("%20s %10s   %4d passes   %4d failures\n",
-    Time.new.ctime, GitRev, $pass, $fail)
+    Time.new.ctime, GitRev, passes, fails)
 end
