@@ -23,4 +23,24 @@ begin
         wait;
     end process;
 
+    -- TODO: should fail
+    process is
+        variable x : integer;
+    begin
+        case x is                       -- Missing range
+            when 0 to 9 =>
+                null;
+            when 20 =>
+                null;
+        end case;
+        case x is                       -- Missing range
+            when 1 | 2 | 3 =>
+                null;
+        end case;
+        case x is                       -- OK
+            when others =>
+                null;
+        end case;
+    end process;
+
 end architecture;
