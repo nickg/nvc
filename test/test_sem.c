@@ -78,7 +78,7 @@ START_TEST(test_integer)
    const error_t expect[] = {
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
-      { 35, "type NOTHING is not defined" },
+      { 35, "type NOTHING is not declared" },
       { 48, "no suitable overload for operator \"*\"(MY_INT2, MY_INT1)" },
       { 57, "MY_INT2 has no attribute CAKE" },
       { -1, NULL }
@@ -221,7 +221,7 @@ START_TEST(test_scope)
       {  44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
       {  63, "G already declared in this region" },
       {  71, "P already declared in this region" },
-      { 114, "type MY_INT1 is not defined" },
+      { 114, "type MY_INT1 is not declared" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -562,7 +562,7 @@ START_TEST(test_array)
       { 246, "universal integer bound must be numeric literal or attribute" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { 272, "no suitable overload for operator \"<\"(INT2D, INT2D)" },
-      { 277, "type NOT_HERE is not defined" },
+      { 277, "type NOT_HERE is not declared" },
       { 279, "type NUM_ARRAY is unconstrained" },
       { 285, "object K does not have a range" },
       { 295, "type of index universal integer does not match" },
@@ -1056,7 +1056,7 @@ START_TEST(test_access)
    input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
-      {  5, "type FOO is not defined" },
+      {  5, "type FOO is not declared" },
       { 34, "null expression must have access type" },
       { 38, "invalid allocator expression" },
       { 39, "name I does not refer to a type" },
@@ -1214,6 +1214,29 @@ START_TEST(test_static)
 }
 END_TEST
 
+START_TEST(test_subtype)
+{
+   tree_t p;
+
+   input_from_file(TESTDIR "/sem/subtype.vhd");
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   sem_check(p);
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1249,6 +1272,7 @@ int main(void)
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_signal);
    tcase_add_test(tc_core, test_static);
+   tcase_add_test(tc_core, test_subtype);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

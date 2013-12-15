@@ -77,6 +77,8 @@ static void dump_range(range_t r)
       printf(" downto "); break;
    case RANGE_DYN:
       printf(" dynamic "); break;
+   case RANGE_RDYN:
+      printf(" reverse_dynamic "); break;
    default:
       assert(false);
    }
@@ -151,6 +153,11 @@ static void dump_expr(tree_t t)
 
    case T_REF:
       printf("%s", istr(tree_ident(tree_ref(t))));
+      break;
+
+   case T_ATTR_REF:
+      dump_expr(tree_name(t));
+      printf("'%s", istr(tree_ident(t)));
       break;
 
    case T_ARRAY_REF:
@@ -569,7 +576,10 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_FOR:
       printf("for %s in ", istr(tree_ident2(t)));
-      printf("...\n");
+      dump_range(tree_range(t));
+      printf(" loop\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++)
+         dump_stmt(tree_stmt(t, i), indent + 2);
       tab(indent);
       printf("end for");
       break;

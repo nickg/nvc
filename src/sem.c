@@ -883,7 +883,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       if (type_kind(base) == T_UNRESOLVED) {
          tree_t base_decl = scope_find(type_ident(base));
          if (base_decl == NULL)
-            sem_error(t, "type %s is not defined", sem_type_str(base));
+            sem_error(t, "type %s is not declared", sem_type_str(base));
 
          base = tree_type(base_decl);
          type_set_base(type, base);
@@ -1062,6 +1062,16 @@ static bool sem_check_range(range_t *r, type_t context)
       if (decl == NULL)
          sem_error(expr, "undefined identifier %s", istr(name));
 
+      tree_t a = tree_new(T_ATTR_REF);
+      tree_set_name(a, make_ref(decl));
+      tree_set_ident(a, ident_new("LEFT"));
+      tree_set_loc(a, tree_loc(expr));
+
+      tree_t b = tree_new(T_ATTR_REF);
+      tree_set_name(b, make_ref(decl));
+      tree_set_ident(b, ident_new("RIGHT"));
+      tree_set_loc(b, tree_loc(expr));
+
       type_t type = tree_type(decl);
       type_kind_t kind = type_kind(type);
       switch (kind) {
@@ -1071,27 +1081,20 @@ static bool sem_check_range(range_t *r, type_t context)
             range_t d0 = type_dim(type, 0);
             *r = type_dim(type, 0);
             if (reverse) {
-               r->left  = d0.right;
-               r->right = d0.left;
+               r->left  = b;
+               r->right = a;
                r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
             }
-            else
-               *r = d0;
+            else {
+               r->left  = a;
+               r->right = b;
+               r->kind  = d0.kind;
+            }
          }
-         return true;
+         break;
       case T_ENUM:
       case T_UARRAY:
          {
-            tree_t a = tree_new(T_ATTR_REF);
-            tree_set_name(a, make_ref(decl));
-            tree_set_ident(a, ident_new("LEFT"));
-            tree_set_loc(a, tree_loc(expr));
-
-            tree_t b = tree_new(T_ATTR_REF);
-            tree_set_name(b, make_ref(decl));
-            tree_set_ident(b, ident_new("RIGHT"));
-            tree_set_loc(b, tree_loc(expr));
-
             // If this is an unconstrained array then we can
             // only find out the direction at runtime
             r->kind  = (kind == T_UARRAY
@@ -1293,7 +1296,7 @@ static bool sem_check_type(tree_t t, type_t *ptype)
       {
          tree_t type_decl = scope_find(type_ident(*ptype));
          if (type_decl == NULL)
-            sem_error(t, "type %s is not defined", sem_type_str(*ptype));
+            sem_error(t, "type %s is not declared", sem_type_str(*ptype));
 
          if (tree_kind(type_decl) != T_TYPE_DECL)
             sem_error(t, "name %s does not refer to a type",

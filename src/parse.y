@@ -1970,10 +1970,10 @@ index_subtype_def
      $$ = type_new(T_UARRAY);
      type_add_index_constr($$, $1);
   }
-| type_mark tRANGE tBOX tCOMMA index_subtype_def
+| index_subtype_def tCOMMA type_mark tRANGE tBOX
   {
-     $$ = $5;
-     type_add_index_constr($$, $1);
+     $$ = $1;
+     type_add_index_constr($$, $3);
   }
 ;
 
