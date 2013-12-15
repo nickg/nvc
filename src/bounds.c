@@ -461,8 +461,9 @@ static void bounds_check_case(tree_t t)
          range_t r = type_dim(type, 0);
          assert(r.kind == RANGE_TO);
 
-         assert(tree_kind(r.left) == T_REF);
-         assert(tree_kind(r.right) == T_REF);
+         if ((tree_kind(r.left) != T_REF)
+             || ((tree_kind(r.right) != T_REF)))
+            return;
 
          tree_t ldecl = tree_ref(r.left);
          tree_t rdecl = tree_ref(r.right);
