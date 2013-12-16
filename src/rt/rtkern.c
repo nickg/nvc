@@ -475,32 +475,42 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
 }
 
 void _bounds_fail(int32_t where, const char *module, int32_t value,
-                  int32_t min, int32_t max, int32_t kind)
+                  int32_t min, int32_t max, int32_t kind, int32_t hint)
 {
    tree_t t = rt_recall_tree(module, where);
    const loc_t *loc = tree_loc(t);
 
+   char suffix[128] = "";
+   if (tree_kind(t) == T_PORT_DECL) {
+      tree_t call_site = rt_recall_tree(module, hint);
+      loc = tree_loc(call_site);
+      snprintf(suffix, sizeof(suffix),
+               " for parameter %s", istr(tree_ident(t)));
+   }
+
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
-      fatal_at(loc, "array index %d outside bounds %d to %d",
-               value, min, max);
+      fatal_at(loc, "array index %d outside bounds %d to %d%s",
+               value, min, max, suffix);
       break;
    case BOUNDS_ARRAY_DOWNTO:
-      fatal_at(loc, "array index %d outside bounds %d downto %d",
-               value, max, min);
+      fatal_at(loc, "array index %d outside bounds %d downto %d%s",
+               value, max, min, suffix);
       break;
 
    case BOUNDS_ENUM:
-      fatal_at(loc, "value %d outside %s bounds %d to %d",
-               value, type_pp(tree_type(t)), min, max);
+      fatal_at(loc, "value %d outside %s bounds %d to %d%s",
+               value, type_pp(tree_type(t)), min, max, suffix);
       break;
 
    case BOUNDS_TYPE_TO:
-      fatal_at(loc, "value %d outside bounds %d to %d", value, min, max);
+      fatal_at(loc, "value %d outside bounds %d to %d%s",
+               value, min, max, suffix);
       break;
 
    case BOUNDS_TYPE_DOWNTO:
-      fatal_at(loc, "value %d outside bounds %d downto %d", value, max, min);
+      fatal_at(loc, "value %d outside bounds %d downto %d%s",
+               value, max, min, suffix);
       break;
 
    case BOUNDS_ARRAY_SIZE:

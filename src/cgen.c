@@ -826,9 +826,9 @@ static LLVMValueRef cgen_array_off(LLVMValueRef off, LLVMValueRef array,
    return LLVMBuildZExt(builder, zeroed, LLVMInt32Type(), "");
 }
 
-static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
-                              LLVMValueRef min, LLVMValueRef max,
-                              cgen_ctx_t *ctx)
+static void cgen_check_bounds_hint(tree_t t, tree_t hint, LLVMValueRef kind,
+                                   LLVMValueRef value, LLVMValueRef min,
+                                   LLVMValueRef max, cgen_ctx_t *ctx)
 {
    LLVMTypeRef int32 = LLVMInt32Type();
    value = LLVMBuildZExt(builder, value, int32, "");
@@ -849,14 +849,17 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
+   LLVMValueRef index = llvm_int32(tree_index(t));
+
    LLVMValueRef args[] = {
-      llvm_int32(tree_index(t)),
+      index,
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), ""),
       value,
       min,
       max,
-      kind
+      kind,
+      (t == hint) ? index : llvm_int32(tree_index(hint))
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -864,6 +867,44 @@ static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
    LLVMBuildUnreachable(builder);
 
    LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
+static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
+                              LLVMValueRef min, LLVMValueRef max,
+                              cgen_ctx_t *ctx)
+{
+   cgen_check_bounds_hint(t, t, kind, value, min, max, ctx);
+}
+
+static void cgen_check_scalar_bounds_hint(tree_t t, tree_t hint,
+                                          LLVMValueRef value, cgen_ctx_t *ctx)
+{
+   type_t type = tree_type(t);
+
+   if (type_is_enum(type)) {
+      const int max = type_enum_literals(type_base_recur(type)) - 1;
+      cgen_check_bounds_hint(t, hint,llvm_int32(BOUNDS_ENUM), value,
+                             llvm_int32(0), llvm_int32(max), ctx);
+   }
+   else if (type_is_integer(type)) {
+      range_t r = type_dim(type, 0);
+      LLVMValueRef min =
+         cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
+      LLVMValueRef max =
+         cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
+      LLVMValueRef kind = llvm_int32((r.kind == RANGE_TO)
+                                     ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO);
+      cgen_check_bounds_hint(t, hint, kind, value, min, max, ctx);
+   }
+   else if (type_is_real(type)) {
+      // TODO
+   }
+}
+
+static void cgen_check_scalar_bounds(tree_t t, LLVMValueRef value,
+                                     cgen_ctx_t *ctx)
+{
+   cgen_check_scalar_bounds_hint(t, t, value, ctx);
 }
 
 static void cgen_check_array_bounds(tree_t t, type_t type, int dim,
@@ -904,14 +945,17 @@ static void cgen_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
+   LLVMValueRef index = llvm_int32(tree_index(t));
+
    LLVMValueRef args[] = {
-      llvm_int32(tree_index(t)),
+      index,
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), ""),
       llvm_int32(0),
       llen,
       rlen,
-      llvm_int32(BOUNDS_ARRAY_SIZE)
+      llvm_int32(BOUNDS_ARRAY_SIZE),
+      index
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -1592,9 +1636,11 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
    for (int i = 0; i < nparams; i++) {
       tree_t value = tree_value(tree_param(t, i));
       type_t type = tree_type(value);
-      class_t class = (builtin == NULL)
-         ? tree_class(tree_port(decl, i))
-         : C_DEFAULT;
+
+      tree_t port = ((builtin == NULL) || (i < nports))
+         ? tree_port(decl, i) : NULL;
+      class_t class = (port != NULL) ? tree_class(port) : C_DEFAULT;
+      port_mode_t mode = (port != NULL) ? tree_subkind(port) : PORT_IN;
 
       arg_types[i] = type;
 
@@ -1603,6 +1649,13 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          assert(tree_kind(value) == T_REF);
          tree_t sig_decl = tree_ref(value);
          args[i] = cgen_signal_nets(sig_decl);
+
+         if (type_is_scalar(type)) {
+            cgen_check_scalar_bounds_hint(
+               port, value,
+               cgen_scalar_vec_load(args[i], type, false, ctx),
+               ctx);
+         }
       }
       else {
          args[i] = NULL;
@@ -1610,8 +1663,6 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          // If this is a scalar out or inout parameter then we need
          // to pass a pointer rather than the value
          if ((builtin == NULL) || (i < nports)) {
-            tree_t port = tree_port(decl, i);
-            port_mode_t mode = tree_subkind(port);
             bool need_ptr = (((mode == PORT_OUT)
                               || (mode == PORT_INOUT)
                               || (class == C_FILE)
@@ -1621,8 +1672,12 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
                args[i] = cgen_var_lvalue(value, ctx);
          }
 
-         if (args[i] == NULL)
+         if (args[i] == NULL) {
             args[i] = cgen_expr(value, ctx);
+
+            if ((builtin == NULL) && type_is_scalar(type))
+               cgen_check_scalar_bounds_hint(port, value, args[i], ctx);
+         }
       }
 
       type_t formal_type;
@@ -2099,27 +2154,6 @@ static LLVMValueRef cgen_logical(tree_t t, LLVMValueRef result)
    }
 
    return result;
-}
-
-static void cgen_check_scalar_bounds(tree_t t, LLVMValueRef value,
-                                     cgen_ctx_t *ctx)
-{
-   type_t type = tree_type(t);
-   if (type_kind(type) == T_ENUM) {
-      const int max = type_enum_literals(type) - 1;
-      cgen_check_bounds(t, llvm_int32(BOUNDS_ENUM), value,
-                        llvm_int32(0), llvm_int32(max), ctx);
-   }
-   else {
-      range_t r = type_dim(type, 0);
-      LLVMValueRef min =
-         cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
-      LLVMValueRef max =
-         cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);
-      LLVMValueRef kind = llvm_int32((r.kind == RANGE_TO)
-                                     ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO);
-      cgen_check_bounds(t, kind, value, min, max, ctx);
-   }
 }
 
 static LLVMValueRef cgen_attr_val(tree_t t, LLVMValueRef arg, cgen_ctx_t *ctx)
@@ -5868,6 +5902,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type(),
