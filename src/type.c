@@ -981,6 +981,26 @@ bool type_is_integer(type_t t)
       return (t->kind == T_INTEGER);
 }
 
+bool type_is_real(type_t t)
+{
+   assert(t != NULL);
+   if (t->kind == T_SUBTYPE)
+      return type_is_real(type_base(t));
+   else
+      return (t->kind == T_REAL);
+}
+
+bool type_is_scalar(type_t t)
+{
+   assert(t != NULL);
+   if (t->kind == T_SUBTYPE)
+      return type_is_scalar(type_base(t));
+   else
+      return (t->kind == T_INTEGER)
+         || (t->kind == T_REAL)
+         || (t->kind == T_ENUM);
+}
+
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);
