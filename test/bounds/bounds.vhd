@@ -9,8 +9,13 @@ architecture test of bounds is
     signal s : my_vec1(1 to 10);
     signal n : my_vec1(1 downto 10);
 
+    subtype bool_true is boolean range true to true;
+
     function fun(x : in bit_vector(7 downto 0)) return bit;
     procedure proc(x : in bit_vector(7 downto 0));
+    function natfunc(x : in natural) return boolean;
+    function enumfunc(x : in bool_true) return boolean;
+    function realfunc(x : in real) return boolean;
 
     type matrix is array (integer range <>, integer range <>) of integer;
 
@@ -82,6 +87,11 @@ begin
     process is
     begin
         assert s'length(5) = 5;         -- Error
+    end process;
+
+    process is
+    begin
+        assert natfunc(-1);             -- Error
     end process;
 
 end architecture;

@@ -71,8 +71,6 @@ static tree_t bounds_check_call_args(tree_t t)
       }
    }
 
-   // Check bounds of constrained array parameters
-
    for (int i = 0; (i < nparams) && (i < nports); i++) {
       tree_t param = tree_param(t, i);
       assert(tree_subkind(param) == P_POS);
@@ -86,43 +84,68 @@ static tree_t bounds_check_call_args(tree_t t)
       type_t ftype = tree_type(port);
       type_t atype = tree_type(tree_value(param));
 
-      if (!type_is_array(ftype))
-         continue;
+      if (type_is_array(ftype)) {
+         // Check bounds of constrained array parameters
 
-      if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
-         continue;
-
-      const int ndims = type_dims(ftype);
-
-      for (int j = 0; j < ndims; j++) {
-         range_t formal_r = type_dim(ftype, j);
-         range_t actual_r = type_dim(atype, j);
-
-         int64_t f_left, f_right, a_left, a_right;
-
-         const bool folded =
-            folded_int(formal_r.left, &f_left)
-            && folded_int(formal_r.right, &f_right)
-            && folded_int(actual_r.left, &a_left)
-            && folded_int(actual_r.right, &a_right);
-
-         if (!folded)
+         if ((type_is_unconstrained(atype)) || (type_is_unconstrained(ftype)))
             continue;
 
-         const int f_len = (actual_r.kind == RANGE_TO)
-            ? a_right - a_left + 1: a_left - a_right + 1;
-         const int a_len = (formal_r.kind == RANGE_TO)
-            ? f_right - f_left + 1 : f_left - f_right + 1;
+         const int ndims = type_dims(ftype);
 
-         if (f_len != a_len) {
-            if (ndims > 1)
-               bounds_error(t, "actual length %d for dimension %d does not "
+         for (int j = 0; j < ndims; j++) {
+            range_t formal_r = type_dim(ftype, j);
+            range_t actual_r = type_dim(atype, j);
+
+            int64_t f_left, f_right, a_left, a_right;
+
+            const bool folded =
+               folded_int(formal_r.left, &f_left)
+               && folded_int(formal_r.right, &f_right)
+               && folded_int(actual_r.left, &a_left)
+               && folded_int(actual_r.right, &a_right);
+
+            if (!folded)
+               continue;
+
+            const int f_len = (actual_r.kind == RANGE_TO)
+               ? a_right - a_left + 1: a_left - a_right + 1;
+            const int a_len = (formal_r.kind == RANGE_TO)
+               ? f_right - f_left + 1 : f_left - f_right + 1;
+
+            if (f_len != a_len) {
+               if (ndims > 1)
+                  bounds_error(t, "actual length %d for dimension %d does not "
                             "match formal length %d", a_len, j + 1, f_len);
-            else
-               bounds_error(t, "actual length %d does not match formal "
-                            "length %d", a_len, f_len);
+               else
+                  bounds_error(t, "actual length %d does not match formal "
+                               "length %d", a_len, f_len);
+            }
          }
       }
+      else if (type_is_integer(ftype)) {
+         int64_t ival;
+         if (!folded_int(value, &ival))
+            continue;
+
+         range_t r = type_dim(ftype, 0);
+
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+
+         if ((ival < low) || (ival > high))
+            bounds_error(value, "value %"PRIi64" out of bounds %"PRIi64" %s "
+                         "%"PRIi64" for parameter %s", ival,
+                         (r.kind == RANGE_TO) ? low : high,
+                         (r.kind == RANGE_TO) ? "to" : "downto",
+                         (r.kind == RANGE_TO) ? high : low,
+                         istr(tree_ident(port)));
+      }
+      else if (type_is_real(ftype)) {
+         // TODO
+      }
+      else if (type_is_enum(ftype)) {
+         // TODO
+     }
    }
 
    return t;
