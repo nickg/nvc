@@ -34,6 +34,7 @@ typedef struct {
    ident_t  path;    // Current 'PATH_NAME
    ident_t  inst;    // Current 'INSTANCE_NAME
    netid_t *next_net;
+   lib_t    library;
 } elab_ctx_t;
 
 typedef struct {
@@ -135,7 +136,7 @@ static void find_arch(ident_t name, int kind, void *context)
    }
 }
 
-static tree_t pick_arch(const loc_t *loc, ident_t name)
+static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib)
 {
    // When an explicit architecture name is not given select the most
    // recently analysed architecture of this entity
@@ -152,6 +153,9 @@ static tree_t pick_arch(const loc_t *loc, ident_t name)
       if (arch == NULL)
          fatal_at(loc, "no suitable architecture for %s", istr(name));
    }
+
+   if (new_lib != NULL)
+      *new_lib = lib;
 
    return arch;
 }
@@ -676,7 +680,8 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
    return true;
 }
 
-static tree_t elab_default_binding(tree_t t)
+static tree_t elab_default_binding(tree_t t, lib_t *new_lib,
+                                   const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
@@ -688,11 +693,11 @@ static tree_t elab_default_binding(tree_t t)
 
    ident_t entity_i;
    if (lib_i == full_i)
-      entity_i = ident_prefix(lib_name(lib_work()), full_i, '.');
+      entity_i = ident_prefix(lib_name(ctx->library), full_i, '.');
    else
       entity_i = ident_prefix(lib_i, comp_i, '.');
 
-   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_i));
+   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_i, new_lib));
 
    // Check entity is compatible with component declaration
 
@@ -710,14 +715,15 @@ static tree_t elab_default_binding(tree_t t)
 
 static void elab_instance(tree_t t, const elab_ctx_t *ctx)
 {
+   lib_t new_lib = NULL;
    tree_t arch = NULL;
    switch (tree_class(t)) {
    case C_ENTITY:
-      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t)));
+      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t), &new_lib));
       break;
 
    case C_COMPONENT:
-      arch = elab_default_binding(t);
+      arch = elab_default_binding(t, &new_lib, ctx);
       break;
 
    case C_CONFIGURATION:
@@ -760,7 +766,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       .out      = ctx->out,
       .path     = ctx->path,
       .inst     = ninst,
-      .next_net = ctx->next_net
+      .next_net = ctx->next_net,
+      .library  = new_lib
    };
    elab_arch(arch, &new_ctx);
 }
@@ -897,7 +904,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .out      = ctx->out,
          .path     = npath,
          .inst     = ninst,
-         .next_net = ctx->next_net
+         .next_net = ctx->next_net,
+         .library  = ctx->library
       };
 
       elab_push_scope(copy, &new_ctx);
@@ -941,7 +949,8 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          .out      = ctx->out,
          .path     = npath,
          .inst     = ninst,
-         .next_net = ctx->next_net
+         .next_net = ctx->next_net,
+         .library  = ctx->library
       };
 
       switch (tree_kind(s)) {
@@ -996,7 +1005,7 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
       fatal("top-level entity may not have generics or ports");
    }
 
-   tree_t arch = pick_arch(NULL, tree_ident(t));
+   tree_t arch = pick_arch(NULL, tree_ident(t), NULL);
    const char *name = simple_name(istr(tree_ident(t)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
@@ -1011,7 +1020,8 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
       .out      = ctx->out,
       .path     = npath,
       .inst     = ninst,
-      .next_net = ctx->next_net
+      .next_net = ctx->next_net,
+      .library  = ctx->library
    };
    elab_arch(arch, &new_ctx);
 }
@@ -1180,7 +1190,8 @@ tree_t elab(tree_t top)
       .out      = e,
       .path     = NULL,
       .inst     = NULL,
-      .next_net = &next_net
+      .next_net = &next_net,
+      .library  = lib_work()
    };
 
    switch (tree_kind(top)) {
