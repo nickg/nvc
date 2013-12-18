@@ -481,12 +481,15 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    const loc_t *loc = tree_loc(t);
 
    char suffix[128] = "";
-   if (tree_kind(t) == T_PORT_DECL) {
+   tree_kind_t tkind = tree_kind(t);
+   if (tkind == T_PORT_DECL) {
       tree_t call_site = rt_recall_tree(module, hint);
       loc = tree_loc(call_site);
       snprintf(suffix, sizeof(suffix),
                " for parameter %s", istr(tree_ident(t)));
    }
+   else if (tkind == T_VAR_DECL)
+      snprintf(suffix, sizeof(suffix), " for variable %s", istr(tree_ident(t)));
 
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
@@ -514,8 +517,8 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
       break;
 
    case BOUNDS_ARRAY_SIZE:
-      fatal_at(loc, "length of target %d does not match length of value %d",
-               min, max);
+      fatal_at(loc, "length of target %d does not match length of value %d%s",
+               min, max, suffix);
       break;
 
    case BOUNDS_INDEX_TO:

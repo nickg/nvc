@@ -929,9 +929,9 @@ static void cgen_check_array_bounds(tree_t t, type_t type, int dim,
    cgen_check_bounds(t, kind, value, min, max, ctx);
 }
 
-static void cgen_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
-                                   LLVMValueRef lval, LLVMValueRef rval,
-                                   cgen_ctx_t *ctx)
+static void cgen_check_array_sizes(tree_t t, type_t ltype,
+                                   type_t rtype, LLVMValueRef lval,
+                                   LLVMValueRef rval, cgen_ctx_t *ctx)
 {
    LLVMValueRef llen = cgen_array_len(ltype, 0, lval);
    LLVMValueRef rlen = cgen_array_len(rtype, 0, rval);
@@ -1269,13 +1269,19 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
    LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), ctx);
 
    if (tree_has_value(d)) {
-      LLVMValueRef init = cgen_expr(tree_value(d), ctx);
-      if (type_is_array(type))
-         cgen_array_copy(type, type, init, var, NULL, ctx);
+      tree_t value = tree_value(d);
+      LLVMValueRef init = cgen_expr(value, ctx);
+      if (type_is_array(type)) {
+         type_t value_type = tree_type(value);
+         cgen_check_array_sizes(d, type, value_type, var, init, ctx);
+         cgen_array_copy(value_type, type, init, var, NULL, ctx);
+      }
       else if (type_is_record(type))
          cgen_record_copy(type, init, var);
-      else
+      else {
+         cgen_check_scalar_bounds(d, init, ctx);
          LLVMBuildStore(builder, init, var);
+      }
    }
 
    return var;
@@ -3718,8 +3724,10 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
 
    LLVMValueRef lhs = cgen_var_lvalue(target, ctx);
 
-   if (type_is_array(target_type))
+   if (type_is_array(target_type)) {
+      cgen_check_array_sizes(value, target_type, value_type, lhs, rhs, ctx);
       cgen_array_copy(value_type, target_type, rhs, lhs, NULL, ctx);
+   }
    else if (type_is_record(target_type))
       cgen_record_copy(target_type, rhs, lhs);
    else
@@ -4782,25 +4790,28 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
          if (!tree_has_value(v))
             continue;
 
-         LLVMValueRef val = cgen_expr(tree_value(v), ctx);
+         tree_t value = tree_value(v);
+         LLVMValueRef val = cgen_expr(value, ctx);
 
-         type_t ty = tree_type(v);
-         if (type_is_array(ty)) {
-            if (!cgen_const_bounds(ty)) {
+         type_t decl_type  = tree_type(v);
+         type_t value_type = tree_type(value);
+
+         if (type_is_array(decl_type)) {
+            if (!cgen_const_bounds(decl_type)) {
                // Also store the meta data in the state structure
                // The array data will currently be allocated on the stack so
                // copy into into a malloc-ed area so its value will be preserved
                // when the process or procedure suspends
 
-               LLVMTypeRef elem  = llvm_type(type_elem(ty));
-               LLVMValueRef len  = cgen_array_len(ty, -1, val);
+               LLVMTypeRef elem  = llvm_type(type_elem(decl_type));
+               LLVMValueRef len  = cgen_array_len(decl_type, -1, val);
                LLVMValueRef data = LLVMBuildArrayMalloc(builder, elem, len,
                                                         "proc_array");
 
                LLVMValueRef new_meta =
                   LLVMBuildInsertValue(builder, val, data, 0, "new_meta");
 
-               cgen_array_copy(ty, ty, val, new_meta, NULL, ctx);
+               cgen_array_copy(value_type, decl_type, val, new_meta, NULL, ctx);
 
                int offset = tree_attr_int(v, var_offset_i, -1);
                assert(offset != -1);
@@ -4811,13 +4822,17 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
             }
             else {
                LLVMValueRef var_ptr = cgen_get_var(v, ctx);
-               cgen_array_copy(ty, ty, val, var_ptr, NULL, ctx);
+               cgen_check_array_sizes(v, decl_type, value_type,
+                                      var_ptr, val, ctx);
+               cgen_array_copy(value_type, decl_type, val, var_ptr, NULL, ctx);
             }
          }
-         else if (type_is_record(ty))
-            cgen_record_copy(ty, val, cgen_get_var(v, ctx));
-         else
+         else if (type_is_record(decl_type))
+            cgen_record_copy(decl_type, val, cgen_get_var(v, ctx));
+         else {
+            cgen_check_scalar_bounds(value, val, ctx);
             LLVMBuildStore(builder, val, cgen_get_var(v, ctx));
+         }
       }
    }
 }
