@@ -190,3 +190,4 @@ bounds14        gold,fail
 bounds15        gold,fail
 bounds16        gold,fail
 bounds17        gold,fail
+signal13        normal

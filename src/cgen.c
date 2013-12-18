@@ -1647,9 +1647,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
 
       if ((builtin == NULL) && (class == C_SIGNAL)) {
          // Pass a pointer to the array of nets
-         assert(tree_kind(value) == T_REF);
-         tree_t sig_decl = tree_ref(value);
-         args[i] = cgen_signal_nets(sig_decl);
+         args[i] = cgen_signal_lvalue(value, ctx);
 
          if (type_is_scalar(type)) {
             cgen_check_scalar_bounds_hint(
