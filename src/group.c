@@ -258,6 +258,11 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
       }
       break;
 
+   case T_AGGREGATE:
+      // This can appear due to assignments to open ports with a
+      // default value
+      break;
+
    default:
       assert(false);
    }

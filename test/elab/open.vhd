@@ -1,11 +1,14 @@
 entity open_bot is
     port (
         i : in integer;
-        o : out integer );
+        o : out integer;
+        v : out bit_vector(3 downto 0) := X"f" );
 end entity;
 
 architecture test of open_bot is
 begin
+
+    v(1) <= '0';
 
     process (i) is
     begin
@@ -25,5 +28,5 @@ begin
 
     uut: entity work.open_bot
         port map ( x, open );
-    
+
 end architecture;

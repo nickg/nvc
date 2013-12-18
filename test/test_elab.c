@@ -155,7 +155,7 @@ START_TEST(test_open)
 
    // We used to delete all statements here but the behaviour
    // has changed
-   fail_unless(tree_stmts(top) == 1);
+   fail_unless(tree_stmts(top) == 2);
 }
 END_TEST
 
