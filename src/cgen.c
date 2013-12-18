@@ -1080,7 +1080,7 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem,
       return LLVMBuildInsertValue(builder, nets, offset, 0, "");
    }
    else {
-      LLVMValueRef indexes[] = { llvm_int32(0), elem };
+      LLVMValueRef indexes[] = { elem };
       return LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes), "");
    }
 }
@@ -1328,22 +1328,15 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
       switch (tree_class(p)) {
       case C_SIGNAL:
          {
-            if ((type != NULL) && type_is_array(type)) {
+            if (type_is_array(type)) {
                if (!cgen_const_bounds(type))
                   args[i] = llvm_uarray_type(cgen_net_id_type(),
                                              cgen_array_dims(type));
-               else {
-                  range_t r = type_dim(type, 0);
-                  int64_t low, high;
-                  range_bounds(r, &low, &high);
-
-                  const unsigned n_elems = high - low + 1;
-
-                  args[i] = LLVMPointerType(LLVMArrayType(cgen_net_id_type(), n_elems), 0);
-               }
+               else
+                  args[i] = LLVMPointerType(cgen_net_id_type(), 0);
             }
             else
-               args[i] = LLVMPointerType(LLVMArrayType(cgen_net_id_type(), 1), 0);
+               args[i] = LLVMPointerType(cgen_net_id_type(), 0);
          }
          break;
 
@@ -1541,7 +1534,7 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
 static LLVMValueRef cgen_signal_nets(tree_t decl)
 {
    // Return the array of nets associated with a signal
-   void *nets = tree_attr_ptr(decl, sig_nets_i);
+   LLVMValueRef nets = tree_attr_ptr(decl, sig_nets_i);
    if (nets == NULL) {
       char buf[256];
       snprintf(buf, sizeof(buf), "%s_nets",
@@ -1552,11 +1545,16 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
          const int nnets = type_is_array(type)
             ? cgen_const_array_len(type, -1) : 1;
 
-         LLVMTypeRef  map_type = LLVMArrayType(cgen_net_id_type(), nnets);
-         LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
-         LLVMSetLinkage(map_var, LLVMExternalLinkage);
-         return map_var;
+         LLVMTypeRef map_type = LLVMArrayType(cgen_net_id_type(), nnets);
+         nets = LLVMAddGlobal(module, map_type, buf);
+         LLVMSetLinkage(nets, LLVMExternalLinkage);
       }
+   }
+
+   if (tree_kind(decl) == T_SIGNAL_DECL) {
+      // Get a pointer to the first element
+      LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+      nets = LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes), "");
    }
 
    return nets;
@@ -1700,7 +1698,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       if (need_wrap) {
          LLVMValueRef data;
          if (class == C_SIGNAL) {
-            LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+            LLVMValueRef indexes[] = { llvm_int32(0) };
             data = LLVMBuildGEP(builder, args[i],
                                 indexes, ARRAY_LEN(indexes), "");
          }
@@ -2821,16 +2819,11 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          if (type_is_unconstrained(type)) {
             // Unwrap array to nets array
             array = LLVMBuildExtractValue(builder, array, 0, "aptr");
+         }
 
-            LLVMValueRef indexes[] = { idx };
-            nets = LLVMBuildGEP(builder, array,
-                                indexes, ARRAY_LEN(indexes), "");
-         }
-         else {
-            LLVMValueRef indexes[] = { llvm_int32(0), idx };
-            nets = LLVMBuildGEP(builder, array,
-                                indexes, ARRAY_LEN(indexes), "");
-         }
+         LLVMValueRef indexes[] = { idx };
+         nets = LLVMBuildGEP(builder, array,
+                             indexes, ARRAY_LEN(indexes), "");
 
          if (type_is_array(elem_type)) {
             // Load this sub-array into a temporary variable
@@ -5445,7 +5438,6 @@ static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
    LLVMPositionBuilderAtEnd(builder, body_bb);
 
    LLVMValueRef indexes[] = {
-      llvm_int32(0),
       LLVMBuildAdd(builder,
                    LLVMBuildSub(builder, i_loaded, llvm_int32(first), ""),
                    llvm_int32(offset), "")
