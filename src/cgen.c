@@ -486,26 +486,6 @@ static LLVMTypeRef cgen_net_id_type(void)
    return LLVMInt32Type();
 }
 
-static LLVMTypeRef cgen_net_map_type(type_t type)
-{
-   if ((type != NULL) && type_is_array(type)) {
-      if (!cgen_const_bounds(type))
-         return llvm_uarray_type(cgen_net_id_type(),
-                                 cgen_array_dims(type));
-      else {
-         range_t r = type_dim(type, 0);
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-
-         const unsigned n_elems = high - low + 1;
-
-         return LLVMPointerType(LLVMArrayType(cgen_net_id_type(), n_elems), 0);
-      }
-   }
-   else
-      return LLVMPointerType(LLVMArrayType(cgen_net_id_type(), 1), 0);
-}
-
 static LLVMValueRef cgen_array_meta(type_t type,
                                     LLVMValueRef params[][3],
                                     LLVMValueRef ptr)
@@ -1347,7 +1327,24 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
 
       switch (tree_class(p)) {
       case C_SIGNAL:
-         args[i] = cgen_net_map_type(type);
+         {
+            if ((type != NULL) && type_is_array(type)) {
+               if (!cgen_const_bounds(type))
+                  args[i] = llvm_uarray_type(cgen_net_id_type(),
+                                             cgen_array_dims(type));
+               else {
+                  range_t r = type_dim(type, 0);
+                  int64_t low, high;
+                  range_bounds(r, &low, &high);
+
+                  const unsigned n_elems = high - low + 1;
+
+                  args[i] = LLVMPointerType(LLVMArrayType(cgen_net_id_type(), n_elems), 0);
+               }
+            }
+            else
+               args[i] = LLVMPointerType(LLVMArrayType(cgen_net_id_type(), 1), 0);
+         }
          break;
 
       case C_VARIABLE:
