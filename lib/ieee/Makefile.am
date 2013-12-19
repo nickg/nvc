@@ -32,6 +32,8 @@ ieee_DATA += \
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 ieee_SCRIPTS = $(ieee_so)
+
+$(ieee_SCRIPTS) : $(ieee_DATA)
 else
 
 ieee_DATA += $(ieee_so)

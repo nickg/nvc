@@ -29,7 +29,7 @@ if IMPLIB_REQUIRED
 
 AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
 
-lib_LIBRARIES = libnvcimp.a
+data_FILES = libnvcimp.a
 
 libnvcimp.a: nvc
 

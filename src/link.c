@@ -302,7 +302,7 @@ static void link_shared(tree_t top)
 
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_CYG_LIB");
-   link_arg_f("-L%s", (cyglib != NULL) ? cyglib : LIBDIR);
+   link_arg_f("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
    link_arg_f("-lnvcimp");
 
    link_all_context(top, NULL, link_context_cyg_fn);
