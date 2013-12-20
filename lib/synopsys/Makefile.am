@@ -10,11 +10,29 @@ synopsys_DATA = $(ieee)/IEEE.STD_LOGIC_ARITH $(ieee)/IEEE.STD_LOGIC_ARITH-body \
 	$(ieee)/IEEE.STD_LOGIC_TEXTIO-body $(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.bc
 
 if ENABLE_NATIVE
-synopsys_DATA += \
+synopsys_so = \
 	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.so \
 	$(ieee)/_IEEE.STD_LOGIC_SIGNED-body.so \
 	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.so \
 	$(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.so
+
+if IMPLIB_REQUIRED
+synopsys_DATA += \
+	$(ieee)/_IEEE.STD_LOGIC_ARITH-body.a \
+	$(ieee)/_IEEE.STD_LOGIC_SIGNED-body.a \
+	$(ieee)/_IEEE.STD_LOGIC_UNSIGNED-body.a \
+	$(ieee)/_IEEE.STD_LOGIC_TEXTIO-body.a
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+synopsys_SCRIPTS = $(synopsys_so)
+
+$(synopsys_SCRIPTS) : $(synopsys_DATA)
+else
+
+synopsys_DATA += $(synopsys_so)
+
+endif
+
 endif
 
 bootstrap: $(synopsys_DATA)

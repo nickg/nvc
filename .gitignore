@@ -15,6 +15,7 @@ Makefile.in
 *.a
 *.gcda
 *.gcno
+*.exe
 *~
 TAGS
 logs
@@ -29,10 +30,8 @@ src/parse.output
 /config.guess
 /config.sub
 /src/nvc
-/src/nvc.exe
 /lib/std/std
 /lib/ieee/ieee
-/lib/ieee/IEEE
 stamp-h1
 IDEAS
 PERF
