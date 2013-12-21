@@ -3123,7 +3123,10 @@ static bool sem_check_fcall(tree_t t)
             // table under different names
             bool duplicate = false;
             for (int i = 0; i < n_overloads; i++) {
-               if (type_eq(tree_type(overloads[i]), func_type))
+               if (overloads[i] == decl)
+                  duplicate = true;
+               else if (type_eq(tree_type(overloads[i]), func_type)
+                        && (tree_ident(overloads[i]) == tree_ident(decl)))
                   duplicate = true;
             }
 
@@ -3156,9 +3159,12 @@ static bool sem_check_fcall(tree_t t)
       const bool operator = !isalpha((int)*istr(name));
 
       for (int n = 0; n < n_overloads; n++) {
-         if (overloads[n] != NULL)
-            static_printf(buf, "\n%s",
-                          sem_type_str(tree_type(overloads[n])));
+         if (overloads[n] != NULL) {
+            const bool implicit = tree_attr_str(overloads[n], builtin_i);
+            static_printf(buf, "\n%s%s",
+                          sem_type_str(tree_type(overloads[n])),
+                          implicit ? " (implicit)" : "");
+         }
       }
 
       sem_error(t, "ambiguous %s %s%s",

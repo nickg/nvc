@@ -293,6 +293,7 @@ START_TEST(test_ambiguous)
       { 86,  "ambiguous use of enumeration literal FALSE" },
       { 93,  "ambiguous call to function NOW" },
       { 103, "ambiguous use of name FALSE" },
+      { 141, "ambiguous use of operator \"<\"" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -350,6 +351,21 @@ START_TEST(test_ambiguous)
    rhs = tree_type(tree_value(tree_waveform(s, 0)));
    fail_unless(type_ident(lhs) == ident_new("FOO"));
    fail_unless(type_ident(rhs) == ident_new("FOO"));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

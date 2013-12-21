@@ -104,6 +104,43 @@ begin
         end loop;
     end process;
 
+    process is
+        function "="(a, b : foo) return boolean is
+        begin
+            return false;
+        end function;
+
+        variable x, y : foo;
+    begin
+        assert x = y;                   -- OK
+    end process;
+
+end architecture;
+
+package pack is
+    type my_int is range 1 to 10;
+end package;
+
+use work.pack.all;
+
+package pack2 is
+    function "<"(a, b: my_int) return boolean;
+end package;
+
+use work.pack.all;
+use work.pack2.all;
+
+architecture a2 of e is
+    function ">"(a, b: my_int) return boolean;
+begin
+
+    process is
+        variable x, y : my_int;
+    begin
+        assert x > y;                   -- OK
+        assert x < y;                   -- Error
+    end process;
+
 end architecture;
 
 -- -*- coding: latin-1; -*-
