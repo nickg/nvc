@@ -60,6 +60,12 @@ specific options must be placed after the command.
  * `--bootstrap`:
   Allow compilation of the STANDARD package. Not intended for end users.
 
+ * `--prefer-explicit`:
+  Any visible explicitly declared operator always hides an implicit operator
+  regardless of the region in which it is declared. This deviates from the
+  VHDL standard but is required to analyse code that uses the Synopsys
+  `std_logic_arith` package.
+
 ### Elaboration options
 
  * `--cover`:

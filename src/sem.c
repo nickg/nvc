@@ -3125,9 +3125,13 @@ static bool sem_check_fcall(tree_t t)
             for (int i = 0; i < n_overloads; i++) {
                if (overloads[i] == decl)
                   duplicate = true;
-               else if (type_eq(tree_type(overloads[i]), func_type)
-                        && (tree_ident(overloads[i]) == tree_ident(decl)))
-                  duplicate = true;
+               else if (type_eq(tree_type(overloads[i]), func_type)) {
+                  const bool same_name =
+                     (tree_ident(overloads[i]) == tree_ident(decl));
+
+                  if (same_name || opt_get_int("prefer-explicit"))
+                     duplicate = true;
+               }
             }
 
             if (!duplicate) {
@@ -3158,13 +3162,23 @@ static bool sem_check_fcall(tree_t t)
 
       const bool operator = !isalpha((int)*istr(name));
 
+      int nimplict = 0, nexplict = 0;
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL) {
             const bool implicit = tree_attr_str(overloads[n], builtin_i);
-            static_printf(buf, "\n%s%s",
+            static_printf(buf, "\n    %s%s",
                           sem_type_str(tree_type(overloads[n])),
                           implicit ? " (implicit)" : "");
+            if (implicit)
+               nimplict++;
+            else
+               nexplict++;
          }
+
+         if ((nimplict == 1) && (nexplict == 1))
+            static_printf(buf, "\nYou can use the --prefer-explicit option to "
+                          "hide the implicit %s",
+                          operator ? "operator" : "function");
       }
 
       sem_error(t, "ambiguous %s %s%s",

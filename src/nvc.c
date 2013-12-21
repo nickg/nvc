@@ -69,9 +69,10 @@ static int analyse(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      {"bootstrap", no_argument, 0, 'b'},
-      {"dump-llvm", no_argument, 0, 'd'},
-      {0, 0, 0, 0}
+      { "bootstrap",       no_argument, 0, 'b' },
+      { "dump-llvm",       no_argument, 0, 'd' },
+      { "prefer-explicit", no_argument, 0, 'p' },
+      { 0, 0, 0, 0 }
    };
 
    int c, index = 0;
@@ -90,6 +91,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'd':
          opt_set_int("dump-llvm", 1);
+         break;
+      case 'p':
+         opt_set_int("prefer-explicit", 1);
          break;
       default:
          abort();
@@ -470,6 +474,7 @@ static void set_default_opts(void)
    opt_set_int("cover", 0);
    opt_set_int("stop-delta", 1000);
    opt_set_int("unit-test", 0);
+   opt_set_int("prefer-explicit", 0);
 }
 
 static void usage(void)
@@ -491,6 +496,7 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
+          "     --prefer-explicit\tExplict operators always hide implicit\n"
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
