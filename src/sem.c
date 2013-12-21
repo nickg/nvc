@@ -3129,7 +3129,11 @@ static bool sem_check_fcall(tree_t t)
                   const bool same_name =
                      (tree_ident(overloads[i]) == tree_ident(decl));
 
-                  if (same_name || opt_get_int("prefer-explicit"))
+                  const bool hide_implicit =
+                     (tree_attr_str(decl, builtin_i) != NULL)
+                     && opt_get_int("prefer-explicit");
+
+                  if (same_name || hide_implicit)
                      duplicate = true;
                }
             }
