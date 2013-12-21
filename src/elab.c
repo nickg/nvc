@@ -65,6 +65,8 @@ static int     errors = 0;
 static ident_t inst_name_i;
 static ident_t fst_dir_i;
 static ident_t scope_pop_i;
+static ident_t all_i;
+static ident_t formal_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -190,7 +192,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
          continue;
 
       // Do not rewrite references if they appear as formal names
-      if (tree_attr_int(t, ident_new("formal"), 0))
+      if (tree_attr_int(t, formal_i, 0))
          continue;
 
       // Skip assignments to OPEN ports
@@ -256,9 +258,22 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 
 static void elab_copy_context(tree_t dest, tree_t src)
 {
-   const int nctx = tree_contexts(src);
-   for (int i = 0; i < nctx; i++)
-      tree_add_context(dest, tree_context(src, i));
+   const int nsrc = tree_contexts(src);
+   for (int i = 0; i < nsrc; i++) {
+      tree_t c = tree_context(src, i);
+      tree_set_ident2(c, all_i);
+
+      ident_t name = tree_ident(c);
+      bool have = false;
+      const int ndest = tree_contexts(dest);
+      for (int j = 0; (j < ndest) && !have; j++) {
+         if (tree_ident(tree_context(dest, j)) == name)
+            have = true;
+      }
+
+      if (!have)
+         tree_add_context(dest, c);
+   }
 }
 
 static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
@@ -1180,6 +1195,8 @@ tree_t elab(tree_t top)
    inst_name_i  = ident_new("INSTANCE_NAME");
    fst_dir_i    = ident_new("fst_dir");
    scope_pop_i  = ident_new("scope_pop");
+   all_i        = ident_new("all");
+   formal_i     = ident_new("formal");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),

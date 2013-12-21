@@ -668,8 +668,25 @@ static void dump_port(tree_t t, int indent)
    dump_type(tree_type(t));
 }
 
+static void dump_context(tree_t t)
+{
+   const int nctx = tree_contexts(t);
+   for (int i = 0; i < nctx; i++) {
+      tree_t c = tree_context(t, i);
+      printf("use %s", istr(tree_ident(c)));
+      if (tree_has_ident2(c)) {
+         printf(".%s", istr(tree_ident2(c)));
+      }
+      printf(";\n");
+   }
+
+   if (nctx > 0)
+      printf("\n");
+}
+
 static void dump_elab(tree_t t)
 {
+   dump_context(t);
    printf("entity %s is\nend entity;\n\n", istr(tree_ident(t)));
    printf("architecture elab of %s is\n", istr(tree_ident(t)));
    for (unsigned i = 0; i < tree_decls(t); i++)
@@ -682,6 +699,7 @@ static void dump_elab(tree_t t)
 
 static void dump_entity(tree_t t)
 {
+   dump_context(t);
    printf("entity %s is\n", istr(tree_ident(t)));
    if (tree_generics(t) > 0) {
       printf("  port (\n");
@@ -706,6 +724,7 @@ static void dump_entity(tree_t t)
 
 static void dump_arch(tree_t t)
 {
+   dump_context(t);
    printf("architecture %s of %s is\n",
           istr(tree_ident(t)), istr(tree_ident2(t)));
    for (unsigned i = 0; i < tree_decls(t); i++)
@@ -718,6 +737,7 @@ static void dump_arch(tree_t t)
 
 static void dump_package(tree_t t)
 {
+   dump_context(t);
    printf("package %s is\n", istr(tree_ident(t)));
    for (unsigned i = 0; i < tree_decls(t); i++)
       dump_decl(tree_decl(t, i), 2);
@@ -726,6 +746,7 @@ static void dump_package(tree_t t)
 
 static void dump_package_body(tree_t t)
 {
+   dump_context(t);
    printf("package body %s is\n", istr(tree_ident(t)));
    for (unsigned i = 0; i < tree_decls(t); i++)
       dump_decl(tree_decl(t, i), 2);
