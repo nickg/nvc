@@ -1055,7 +1055,10 @@ static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem,
 {
    // If we see a port declaration here outside a subprogram
    // then it is OPEN
-   if ((tree_kind(decl) == T_PORT_DECL) && (ctx->fdecl == NULL))
+   const tree_kind_t decl_kind = tree_kind(decl);
+   if ((decl_kind == T_PORT_DECL) && (ctx->fdecl == NULL))
+      return NULL;
+   else if ((decl_kind != T_PORT_DECL) && (decl_kind != T_SIGNAL_DECL))
       return NULL;
 
    type_t type = tree_type(decl);
@@ -3827,11 +3830,11 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             tree_t value = tree_value(a);
             assert(!type_is_array(tree_type(value)));
 
-            LLVMValueRef nid_ptr = cgen_signal_lvalue(value, ctx);
+            LLVMValueRef nid, nid_ptr = cgen_signal_lvalue(value, ctx);
             if (nid_ptr == NULL)
-               continue;
-
-            LLVMValueRef nid = LLVMBuildLoad(builder, nid_ptr, "nid");
+               nid = llvm_int32(NETID_INVALID);
+            else
+               nid = LLVMBuildLoad(builder, nid_ptr, "nid");
 
             LLVMValueRef indexes[] = {
                llvm_int32(i)

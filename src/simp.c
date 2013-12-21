@@ -157,6 +157,52 @@ static tree_t simp_attr_ref(tree_t t)
    }
 }
 
+static tree_t simp_extract_aggregate(tree_t agg, int64_t index)
+{
+   range_t bounds = type_dim(tree_type(agg), 0);
+   int64_t low, high;
+   range_bounds(bounds, &low, &high);
+
+   const bool to = (bounds.kind == RANGE_TO);
+
+   const int nassocs = tree_assocs(agg);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(agg, i);
+      switch (tree_subkind(a)) {
+      case A_POS:
+         {
+            const int pos = tree_pos(a);
+            if ((to && (pos + low == index))
+                || (!to && (high - pos == index)))
+               return tree_value(a);
+         }
+         break;
+
+      case A_OTHERS:
+         return tree_value(a);
+
+      case A_RANGE:
+         {
+            range_t r = tree_range(a);
+            const int64_t left  = assume_int(r.left);
+            const int64_t right = assume_int(r.right);
+
+            if ((to && (index >= left) && (index <= right))
+                || (!to && (index <= left) && (index >= right)))
+               return tree_value(a);
+         }
+         break;
+
+      case A_NAMED:
+         if (assume_int(tree_name(a)) == index)
+            return tree_value(a);
+         break;
+      }
+   }
+
+   assert(false);
+}
+
 static tree_t simp_array_ref(tree_t t)
 {
    tree_t value = tree_value(t);
@@ -177,7 +223,10 @@ static tree_t simp_array_ref(tree_t t)
    if (!tree_has_type(value))
       return t;
 
-   if (tree_kind(value) != T_REF)
+   const tree_kind_t value_kind = tree_kind(value);
+   if (value_kind == T_AGGREGATE)
+      return simp_extract_aggregate(value, indexes[0]);
+   else if (value_kind != T_REF)
       return t;   // Cannot fold nested array references
 
    tree_t decl = tree_ref(value);
@@ -194,49 +243,7 @@ static tree_t simp_array_ref(tree_t t)
          if (tree_kind(v) != T_AGGREGATE)
             return t;
 
-         range_t bounds = type_dim(tree_type(decl), 0);
-         int64_t low, high;
-         range_bounds(bounds, &low, &high);
-
-         const bool to = (bounds.kind == RANGE_TO);
-         const int64_t index = indexes[0];
-
-         const int nassocs = tree_assocs(v);
-         for (int i = 0; i < nassocs; i++) {
-            tree_t a = tree_assoc(v, i);
-            switch (tree_subkind(a)) {
-            case A_POS:
-               {
-                  const int pos = tree_pos(a);
-                  if ((to && (pos + low == index))
-                      || (!to && (high - pos == index)))
-                     return tree_value(a);
-               }
-               break;
-
-            case A_OTHERS:
-               return tree_value(a);
-
-            case A_RANGE:
-               {
-                  range_t r = tree_range(a);
-                  const int64_t left  = assume_int(r.left);
-                  const int64_t right = assume_int(r.right);
-
-                  if ((to && (index >= left) && (index <= right))
-                      || (!to && (index <= left) && (index >= right)))
-                     return tree_value(a);
-               }
-               break;
-
-            case A_NAMED:
-               if (assume_int(tree_name(a)) == indexes[0])
-                  return tree_value(a);
-               break;
-            }
-         }
-
-         assert(false);
+         return simp_extract_aggregate(v, indexes[0]);
       }
    default:
       return t;

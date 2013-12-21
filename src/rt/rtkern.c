@@ -349,16 +349,21 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
 
    int offset = 0;
    while (offset < n) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
+      const netid_t nid = nids[offset];
+      if (likely(nid != NETID_INVALID)) {
+         netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
-      value_t *values_copy = rt_alloc_value(g);
-      memcpy(values_copy->data, (uint8_t *)values + (offset * size),
-             size * g->length);
+         value_t *values_copy = rt_alloc_value(g);
+         memcpy(values_copy->data, (uint8_t *)values + (offset * size),
+                size * g->length);
 
-      if (!rt_alloc_driver(g, after, reject, values_copy))
-         deltaq_insert_driver(after, g, active_proc);
+         if (!rt_alloc_driver(g, after, reject, values_copy))
+            deltaq_insert_driver(after, g, active_proc);
 
-      offset += g->length;
+         offset += g->length;
+      }
+      else
+         offset++;
    }
 
    assert(offset == n);

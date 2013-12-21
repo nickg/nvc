@@ -191,3 +191,4 @@ bounds15        gold,fail
 bounds16        gold,fail
 bounds17        gold,fail
 signal13        normal
+elab18          normal
