@@ -871,3 +871,15 @@ void *mmap_guarded(size_t sz, const char *tag)
 
    return ptr;
 }
+
+void checked_sprintf(char *buf, int len, const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+
+   const int nbytes = vsnprintf(buf, len, fmt, ap);
+   if (nbytes >= len)
+      fatal_trace("checked_sprintf requires %d bytes but have %d", nbytes, len);
+
+   va_end(ap);
+}

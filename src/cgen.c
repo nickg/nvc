@@ -1164,8 +1164,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
 static const char *cgen_memcpy_name(int width)
 {
    static char name[64];
-   snprintf(name, sizeof(name),
-            "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
+   checked_sprintf(name, sizeof(name),
+                   "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
    return name;
 }
 
@@ -1540,8 +1540,8 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
    LLVMValueRef nets = tree_attr_ptr(decl, sig_nets_i);
    if (nets == NULL) {
       char buf[256];
-      snprintf(buf, sizeof(buf), "%s_nets",
-               package_signal_path_name(tree_ident(decl)));
+      checked_sprintf(buf, sizeof(buf), "%s_nets",
+                      package_signal_path_name(tree_ident(decl)));
 
       if ((nets = LLVMGetNamedGlobal(module, buf)) == NULL) {
          type_t type = tree_type(decl);
@@ -4745,8 +4745,8 @@ static LLVMTypeRef cgen_process_state_type(tree_t t)
    unsigned nfields;
    LLVMTypeRef *fields = cgen_state_type_fields(t, &nfields);
 
-   char name[64];
-   snprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
+   char name[256];
+   checked_sprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
    LLVMTypeRef ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
    if (ty == NULL)
       fatal("failed to add type name %s", name);
@@ -4886,9 +4886,9 @@ static void cgen_process(tree_t t)
    };
 
    // Create a global structure to hold process state
-   char state_name[64];
-   snprintf(state_name, sizeof(state_name),
-            "%s__state", istr(tree_ident(t)));
+   char state_name[256];
+   checked_sprintf(state_name, sizeof(state_name),
+                   "%s__state", istr(tree_ident(t)));
    LLVMTypeRef state_ty = cgen_process_state_type(t);
    ctx.state = LLVMAddGlobal(module, state_ty, state_name);
    LLVMSetLinkage(ctx.state, LLVMInternalLinkage);
@@ -4979,7 +4979,7 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    // signal's LLVM type
 
    char name[256];
-   snprintf(name, sizeof(name), "%s$resolution", istr(type_ident(type)));
+   checked_sprintf(name, sizeof(name), "%s$resolution", istr(type_ident(type)));
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, name);
    if (fn != NULL)
@@ -5091,7 +5091,7 @@ static void cgen_signal(tree_t t)
       if (tree_attr_int(t, null_range_i, 0)) {
          // Special case of array signal with null range
          char buf[256];
-         snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+         checked_sprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
 
          LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
          map_var = LLVMAddGlobal(module, map_type, buf);
@@ -5100,8 +5100,8 @@ static void cgen_signal(tree_t t)
       else {
          // Not an elaborated design
          char buf[256];
-         snprintf(buf, sizeof(buf), "%s_nets",
-                  package_signal_path_name(tree_ident(t)));
+         checked_sprintf(buf, sizeof(buf), "%s_nets",
+                         package_signal_path_name(tree_ident(t)));
 
          LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
          map_var = LLVMAddGlobal(module, map_type, buf);
@@ -5110,7 +5110,7 @@ static void cgen_signal(tree_t t)
    }
    else {
       char buf[256];
-      snprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+      checked_sprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
 
       LLVMTypeRef map_type = LLVMArrayType(nid_type, nnets);
       map_var = LLVMAddGlobal(module, map_type, buf);
@@ -5460,7 +5460,7 @@ static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
 static void cgen_reset_function(tree_t t)
 {
    char name[128];
-   snprintf(name, sizeof(name), "%s_reset", istr(tree_ident(t)));
+   checked_sprintf(name, sizeof(name), "%s_reset", istr(tree_ident(t)));
 
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
@@ -6081,7 +6081,7 @@ void cgen(tree_t top)
    optimise();
 
    char fname[256];
-   snprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
+   checked_sprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
 
    FILE *f = lib_fopen(lib_work(), fname, "w");
    if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)

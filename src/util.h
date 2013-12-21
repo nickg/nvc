@@ -88,6 +88,9 @@ void static_printf_begin(char *buf, size_t len);
 void static_printf(char *buf, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 
+void checked_sprintf(char *buf, int len, const char *fmt, ...)
+   __attribute__((format(printf, 3, 4)));
+
 int next_power_of_2(int n);
 int ilog2(int64_t n);
 
