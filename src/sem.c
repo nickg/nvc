@@ -3178,12 +3178,12 @@ static bool sem_check_fcall(tree_t t)
             else
                nexplict++;
          }
-
-         if ((nimplict == 1) && (nexplict == 1))
-            static_printf(buf, "\nYou can use the --prefer-explicit option to "
-                          "hide the implicit %s",
-                          operator ? "operator" : "function");
       }
+
+      if ((nimplict == 1) && (nexplict == 1))
+         static_printf(buf, "\nYou can use the --prefer-explicit option to "
+                       "hide the implicit %s",
+                       operator ? "operator" : "function");
 
       sem_error(t, "ambiguous %s %s%s",
                 operator ? "use of operator" : "call to function",
