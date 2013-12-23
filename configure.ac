@@ -106,7 +106,7 @@ AC_SUBST(MAKEFLAGS)
 # Optional code coverage statistics
 AC_ARG_ENABLE([coverage],
   [AS_HELP_STRING([--enable-coverage],
-    [Enable gcov for code coverage statistics])],
+    [Instrument compiler with gcov])],
   [enable_coverage=yes],
   [])
 if test x$enable_coverage = xyes ; then
