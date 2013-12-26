@@ -1194,8 +1194,10 @@ static bool sem_check_context(tree_t t)
          else
             ok = scope_import_unit(cname, lib, all, tree_loc(c)) && ok;
       }
-      else
+      else {
+         errors++;
          ok = false;
+      }
    }
 
    return ok;
