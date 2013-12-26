@@ -69,6 +69,7 @@ typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
 struct event {
    uint64_t      when;
    event_kind_t  kind;
+   uint32_t      wakeup_gen;
    rt_proc_t    *proc;
    netgroup_t   *group;
    event_t      *delta_chain;
@@ -942,12 +943,13 @@ static void _tracef(const char *fmt, ...)
    va_end(ap);
 }
 
-static void deltaq_insert_proc(uint64_t delta, struct rt_proc *wake)
+static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
 {
    event_t *e = rt_alloc(event_stack);
-   e->when      = now + delta;
-   e->kind      = E_PROCESS;
-   e->proc      = wake;
+   e->when       = now + delta;
+   e->kind       = E_PROCESS;
+   e->proc       = wake;
+   e->wakeup_gen = wake->wakeup_gen;
 
    if (delta == 0) {
       e->delta_chain = delta_proc;
@@ -963,10 +965,11 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver)
 {
    event_t *e = rt_alloc(event_stack);
-   e->when      = now + delta;
-   e->kind      = E_DRIVER;
-   e->group     = group;
-   e->proc      = driver;
+   e->when       = now + delta;
+   e->kind       = E_DRIVER;
+   e->group      = group;
+   e->proc       = driver;
+   e->wakeup_gen = UINT32_MAX;
 
    if (delta == 0) {
       e->delta_chain = delta_driver;
@@ -987,7 +990,8 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    if (e->kind == E_DRIVER)
       fprintf(stderr, "driver\t %s\n", fmt_group(e->group));
    else
-      fprintf(stderr, "process\t %s\n", istr(tree_ident(e->proc->source)));
+      fprintf(stderr, "process\t %s%s\n", istr(tree_ident(e->proc->source)),
+              (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
 }
 
 static void deltaq_dump(void)
@@ -996,8 +1000,9 @@ static void deltaq_dump(void)
       fprintf(stderr, "delta\tdriver\t %s\n", fmt_group(e->group));
 
    for (event_t *e = delta_proc; e != NULL; e = e->delta_chain)
-      fprintf(stderr, "delta\tprocess\t %s\n",
-              istr(tree_ident(e->proc->source)));
+      fprintf(stderr, "delta\tprocess\t %s%s\n",
+              istr(tree_ident(e->proc->source)),
+              (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
 
    heap_walk(eventq_heap, deltaq_walk, NULL);
 }
@@ -1071,7 +1076,7 @@ static void rt_dump_pending(void)
    for (struct sens_list *it = pending; it != NULL; it = it->next) {
       printf("%d..%d\t%s%s\n", it->first, it->last,
              istr(tree_ident(it->proc->source)),
-             (it->wakeup_gen == it->proc->wakeup_gen) ? "" : "(stale)");
+             (it->wakeup_gen == it->proc->wakeup_gen) ? "" : " (stale)");
    }
 }
 #endif  // TRACE_PENDING
@@ -1493,7 +1498,15 @@ static void rt_push_run_queue(event_t *e)
       }
    }
 
-   run_queue.queue[(run_queue.wr)++] = e;
+   if (e->kind == E_PROCESS) {
+      // Drop stale process wakeups
+      if (likely(e->wakeup_gen == e->proc->wakeup_gen)) {
+         run_queue.queue[(run_queue.wr)++] = e;
+         ++(e->proc->wakeup_gen);
+      }
+   }
+   else
+      run_queue.queue[(run_queue.wr)++] = e;
 }
 
 static event_t *rt_pop_run_queue(void)

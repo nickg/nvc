@@ -186,7 +186,7 @@ static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
       chars[i] = llvm_int8(*str ? *(str++) : '\0');
 }
 
-#if 0
+#if 1
 static void debug_out(LLVMValueRef val)
 {
    LLVMValueRef args[] = { val };
@@ -3602,6 +3602,11 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildRetVoid(builder);
 
    LLVMPositionBuilderAtEnd(builder, it->bb);
+
+   if (tree_has_value(t)) {
+      LLVMValueRef until = cgen_expr(tree_value(t), ctx);
+      debug_out(LLVMBuildZExt(builder, until, LLVMInt32Type(), ""));
+   }
 }
 
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
