@@ -59,8 +59,12 @@ static void opt_may_wait_fn(tree_t t, void *ctx)
    bool *may_wait = ctx;
 
    tree_kind_t kind = tree_kind(t);
-   if (kind == T_WAIT || kind == T_PCALL)
+   if (kind == T_WAIT)
       *may_wait = true;
+   else if (kind == T_PCALL) {
+      if (!tree_attr_int(tree_ref(t), ident_new("never_waits"), 0))
+         *may_wait = true;
+   }
 }
 
 static void opt_tag_simple_procedure_fn(tree_t t, void *ctx)
@@ -80,6 +84,8 @@ static void opt_tag_simple_procedures(tree_t top)
 
 void opt(tree_t top)
 {
-   opt_delete_wait_only(top);
+   if (tree_kind(top) == T_ELAB)
+      opt_delete_wait_only(top);
+
    opt_tag_simple_procedures(top);
 }

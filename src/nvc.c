@@ -133,8 +133,10 @@ static int analyse(int argc, char **argv)
          (kind == T_PACK_BODY)
          || ((kind == T_PACKAGE) && pack_needs_cgen(units[i]));
 
-      if (need_cgen)
+      if (need_cgen) {
+         opt(units[i]);
          cgen(units[i]);
+      }
    }
 
    free(units);
