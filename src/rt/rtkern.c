@@ -1484,6 +1484,11 @@ static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
       assert(w_now != NULL);
 }
 
+static bool rt_stale_event(event_t *e)
+{
+   return (e->kind == E_PROCESS) && (e->wakeup_gen != e->proc->wakeup_gen);
+}
+
 static void rt_push_run_queue(event_t *e)
 {
    if (unlikely(run_queue.wr == run_queue.alloc)) {
@@ -1498,17 +1503,13 @@ static void rt_push_run_queue(event_t *e)
       }
    }
 
-   if (e->kind == E_PROCESS) {
-      // Drop stale process wakeups
-      if (likely(e->wakeup_gen == e->proc->wakeup_gen)) {
-         run_queue.queue[(run_queue.wr)++] = e;
-         ++(e->proc->wakeup_gen);
-      }
-      else
-         rt_free(event_stack, e);
-   }
-   else
+   if (unlikely(rt_stale_event(e)))
+      rt_free(event_stack, e);
+   else {
       run_queue.queue[(run_queue.wr)++] = e;
+      if (e->kind == E_PROCESS)
+         ++(e->proc->wakeup_gen);
+   }
 }
 
 static event_t *rt_pop_run_queue(void)
@@ -1567,6 +1568,14 @@ static void rt_cycle(int stop_delta)
       iteration = iteration + 1;
    else {
       event_t *peek = heap_min(eventq_heap);
+      while (unlikely(rt_stale_event(peek))) {
+         // Discard stale events
+         rt_free(event_stack, heap_extract_min(eventq_heap));
+         if (heap_size(eventq_heap) == 0)
+            return;
+         else
+            peek = heap_min(eventq_heap);
+      }
       now = peek->when;
       iteration = 0;
    }
@@ -1813,6 +1822,8 @@ static bool rt_stop_now(uint64_t stop_time)
       return false;
    else if (heap_size(eventq_heap) == 0)
       return true;
+   else if (stop_time == UINT64_MAX)
+      return false;
    else {
       event_t *peek = heap_min(eventq_heap);
       return peek->when > stop_time;
