@@ -449,9 +449,23 @@ static void print_trace(char **messages, int trace_size)
    int i;
 
    fputs("\n-------- STACK TRACE --------\n", stderr);
-   for (i = 0; i < trace_size; i++) {
-      fprintf(stderr, "%s\n", messages[i]);
+
+   FILE *out = stderr;
+
+   bool decode = getenv("NVC_DECODE");
+   if (decode) {
+      if ((out = popen("./decode 1>&2", "w")) == NULL) {
+         out = stderr;
+         decode = false;
+      }
    }
+
+   for (i = 0; i < trace_size; i++)
+      fprintf(out, "%s\n", messages[i]);
+
+   if (decode)
+      pclose(out);
+
    fputs("-----------------------------\n", stderr);
 }
 
