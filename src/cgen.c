@@ -186,7 +186,7 @@ static void llvm_str(LLVMValueRef *chars, size_t n, const char *str)
       chars[i] = llvm_int8(*str ? *(str++) : '\0');
 }
 
-#if 1
+#if 0
 static void debug_out(LLVMValueRef val)
 {
    LLVMValueRef args[] = { val };
@@ -3576,10 +3576,22 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
+static LLVMValueRef cgen_now(void)
+{
+   return LLVMBuildCall(builder, llvm_fn("_std_standard_now"), NULL, 0, "");
+}
+
 static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
 {
-   if (tree_has_delay(t))
-      cgen_sched_process(cgen_expr(tree_delay(t), ctx));
+   if (tree_has_delay(t)) {
+      LLVMValueRef after = cgen_expr(tree_delay(t), ctx);
+      cgen_sched_process(after);
+
+      LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
+      LLVMValueRef timeout =
+         LLVMBuildAdd(builder, cgen_now(), after, "timeout");
+      LLVMBuildStore(builder, timeout, ptr);
+   }
 
    const int ntriggers = tree_triggers(t);
    for (int i = 0; i < ntriggers; i++)
@@ -3604,8 +3616,47 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, it->bb);
 
    if (tree_has_value(t)) {
+      // Generate code to loop until condition is met
+
       LLVMValueRef until = cgen_expr(tree_value(t), ctx);
-      debug_out(LLVMBuildZExt(builder, until, LLVMInt32Type(), ""));
+
+      const bool has_delay = tree_has_delay(t);
+
+      LLVMValueRef done, remain = NULL;
+      if (has_delay) {
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
+         LLVMValueRef timeout = LLVMBuildLoad(builder, ptr, "");
+
+         remain = LLVMBuildSub(builder, timeout, cgen_now(), "");
+
+         LLVMValueRef expired =
+            LLVMBuildICmp(builder, LLVMIntEQ, remain, llvm_int64(0), "");
+
+         done = LLVMBuildOr(builder, until, expired, "");
+      }
+      else
+         done = until;
+
+      LLVMBasicBlockRef again_bb = LLVMAppendBasicBlock(ctx->fn, "again");
+      LLVMBasicBlockRef done_bb  = LLVMAppendBasicBlock(ctx->fn, "done");
+
+      LLVMBuildCondBr(builder, done, done_bb, again_bb);
+
+      LLVMPositionBuilderAtEnd(builder, again_bb);
+
+      if (has_delay)
+         cgen_sched_process(remain);
+
+      const int ntriggers = tree_triggers(t);
+      for (int i = 0; i < ntriggers; i++)
+         cgen_sched_event(tree_trigger(t, i), ctx);
+
+      if (ctx->proc == NULL)
+         LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+      else
+         LLVMBuildRetVoid(builder);
+
+      LLVMPositionBuilderAtEnd(builder, done_bb);
    }
 }
 
@@ -4720,11 +4771,12 @@ static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
       }
    }
 
-   LLVMTypeRef *fields = xmalloc((count + 2) * sizeof(LLVMTypeRef));
+   LLVMTypeRef *fields = xmalloc((count + 3) * sizeof(LLVMTypeRef));
    fields[0] = LLVMInt32Type();   // State
    fields[1] = llvm_void_ptr();   // Procedure dynamic context
+   fields[2] = LLVMInt64Type();   // Wait until timeout
 
-   unsigned offset = 2;
+   unsigned offset = 3;
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
       switch (tree_kind(d)) {
@@ -5995,6 +6047,12 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0)
       };
       return LLVMAddFunction(module, "_value_attr",
+                             LLVMFunctionType(LLVMInt64Type(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_std_standard_now") == 0) {
+      LLVMTypeRef args[] = {};
+      return LLVMAddFunction(module, "_std_standard_now",
                              LLVMFunctionType(LLVMInt64Type(),
                                               args, ARRAY_LEN(args), false));
    }

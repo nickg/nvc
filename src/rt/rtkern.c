@@ -1504,6 +1504,8 @@ static void rt_push_run_queue(event_t *e)
          run_queue.queue[(run_queue.wr)++] = e;
          ++(e->proc->wakeup_gen);
       }
+      else
+         rt_free(event_stack, e);
    }
    else
       run_queue.queue[(run_queue.wr)++] = e;

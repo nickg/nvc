@@ -285,27 +285,7 @@ static tree_t simp_wait(tree_t t)
    if (tree_has_value(t) && (tree_triggers(t) == 0))
       tree_visit_only(tree_value(t), simp_build_wait, t, T_REF);
 
-   // Rewrite until clause as a loop
-   if (tree_has_value(t)) {
-      tree_t until = tree_value(t);
-      tree_set_value(t, NULL);
-
-      ident_t label = ident_uniq("until_loop");
-
-      tree_t exit = tree_new(T_EXIT);
-      tree_set_ident(exit, ident_uniq("until_exit"));
-      tree_set_value(exit, until);
-      tree_set_ident2(exit, label);
-
-      tree_t loop = tree_new(T_WHILE);
-      tree_add_stmt(loop, t);
-      tree_add_stmt(loop, exit);
-      tree_set_ident(loop, label);
-
-      return loop;
-   }
-   else
-      return t;
+   return t;
 }
 
 static tree_t simp_if(tree_t t)
