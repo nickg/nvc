@@ -446,21 +446,19 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
 static void print_trace(char **messages, int trace_size)
 {
-   int i;
-
    fputs("\n-------- STACK TRACE --------\n", stderr);
 
    FILE *out = stderr;
 
    bool decode = getenv("NVC_DECODE");
    if (decode) {
-      if ((out = popen("./decode 1>&2", "w")) == NULL) {
+      if ((out = popen("[ -x decode ] && ./decode || cat 1>&2", "w")) == NULL) {
          out = stderr;
          decode = false;
       }
    }
 
-   for (i = 0; i < trace_size; i++)
+   for (int i = 0; i < trace_size; i++)
       fprintf(out, "%s\n", messages[i]);
 
    if (decode)
