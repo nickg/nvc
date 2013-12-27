@@ -183,6 +183,22 @@ static void make_instance_deps(tree_t t, void *context)
    }
 }
 
+static char *make_elab_name(tree_t t)
+{
+   const char *suffix = strchr(istr(tree_ident(t)), '.');
+   assert(suffix != NULL);
+
+   char *name = strdup(suffix + 1);
+   for (char *p = name; *p != '\0'; p++) {
+      if (*p == '.')
+         *p = '\0';
+      else
+         *p = tolower(*p);
+   }
+
+   return name;
+}
+
 static void make_rule(tree_t t, rule_t **rules)
 {
    if (tree_attr_int(t, make_tag_i, 0))
@@ -198,19 +214,8 @@ static void make_rule(tree_t t, rule_t **rules)
 
    rule_t *r;
    if (kind == T_ELAB) {
-      const char *suffix = strchr(istr(tree_ident(t)), '.');
-      assert(suffix != NULL);
-
-      char *name = strdup(suffix + 1);
-      for (char *p = name; *p != '\0'; p++) {
-         if (*p == '.')
-            *p = '\0';
-         else
-            *p = tolower(*p);
-      }
-
+      char *name = make_elab_name(t);
       r = make_rule_for_source(rules, RULE_ELABORATE, name);
-
       free(name);
    }
    else {
@@ -347,6 +352,30 @@ static void make_print_rules(rule_t *rules, FILE *out)
    }
 }
 
+static void make_run(tree_t *targets, int count, FILE *out)
+{
+   int selected = -1;
+   for (int i = 0; i < count; i++) {
+      if (tree_kind(targets[i]) == T_ELAB) {
+         if (selected != -1) {
+            warnf("multiple elaborarted units found: %s is selected as "
+                  "run target",
+                  istr(ident_runtil(tree_ident(targets[selected]), '.')));
+            return;
+         }
+         else {
+            char *name = make_elab_name(targets[i]);
+            fprintf(out, "\nrun: all\n");
+            fprintf(out, "\tnvc -r %s\n", name);
+            fprintf(out, "\nwave: all\n");
+            fprintf(out, "\tnvc -r -w %s\n", name);
+            free(name);
+            selected = i;
+         }
+      }
+   }
+}
+
 static void make_add_target(ident_t name, int kind, void *context)
 {
    tree_t **outp = context;
@@ -374,8 +403,10 @@ void make(tree_t *targets, int count, FILE *out)
    make_print_rules(rules, out);
    make_free_rules(rules);
 
-   if (!opt_get_int("make-deps-only"))
+   if (!opt_get_int("make-deps-only")) {
       make_clean(targets[0], out);
+      make_run(targets, count, out);
+   }
 
    free(targets);
 }
