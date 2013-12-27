@@ -32,6 +32,21 @@ typedef enum {
    MAKE_LIB
 } make_product_t;
 
+typedef struct rule rule_t;
+
+typedef enum {
+   RULE_ANALYSE,
+   RULE_ELABORATE
+} rule_kind_t;
+
+struct rule {
+   rule_t       *next;
+   rule_kind_t   kind;
+   ident_list_t *outputs;
+   ident_list_t *inputs;
+   ident_t       source;
+};
+
 static ident_t make_tag_i;
 
 static lib_t make_get_lib(ident_t name)
@@ -90,34 +105,65 @@ static const char *make_product(tree_t t, make_product_t product)
    return buf;
 }
 
-static void make_print_all_products(tree_t t, FILE *out)
+static void make_rule_add_input(rule_t *r, const char *input)
 {
-   switch (tree_kind(t)) {
-   case T_ELAB:
-      fprintf(out, "%s %s %s",
-              make_product(t, MAKE_TREE),
-              make_product(t, MAKE_BC),
-              make_product(t, MAKE_FINAL_BC));
-      break;
+   ident_t ident = ident_new(input);
 
-   case T_PACKAGE:
-   case T_PACK_BODY:
-      fprintf(out, "%s ", make_product(t, MAKE_BC));
-      // Fall-through
+   for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
+      if (it->ident == ident)
+         return;
+   }
 
-   case T_ENTITY:
-   case T_ARCH:
-      fprintf(out, "%s", make_product(t, MAKE_TREE));
-      break;
+   ident_list_add(&(r->inputs), ident);
+}
 
-   default:
-      fatal("cannot print products for %s", tree_kind_str(tree_kind(t)));
+static void make_rule_add_output(rule_t *r, const char *output)
+{
+   ident_t ident = ident_new(output);
+
+   for (ident_list_t *it = r->outputs; it != NULL; it = it->next) {
+      if (it->ident == ident)
+         return;
+   }
+
+   ident_list_add(&(r->outputs), ident);
+}
+
+static rule_t *make_rule_for_source(rule_t **all, rule_kind_t kind,
+                                    const char *source)
+{
+   ident_t ident = ident_new(source);
+
+   for (rule_t *it = *all; it != NULL; it = it->next) {
+      if (it->source == ident)
+         return it;
+   }
+
+   rule_t *new = xmalloc(sizeof(rule_t));
+   new->inputs  = NULL;
+   new->outputs = NULL;
+   new->kind    = kind;
+   new->next    = *all;
+   new->source  = ident;
+
+   *all = new;
+   return new;
+}
+
+static void make_free_rules(rule_t *list)
+{
+   while (list != NULL) {
+      rule_t *tmp = list->next;
+      ident_list_free(list->inputs);
+      ident_list_free(list->outputs);
+      free(list);
+      list = tmp;
    }
 }
 
 static void make_instance_deps(tree_t t, void *context)
 {
-   FILE *out = context;
+   rule_t *r = context;
 
    if (tree_class(t) == C_ENTITY) {
       ident_t name = tree_ident2(t);
@@ -125,11 +171,11 @@ static void make_instance_deps(tree_t t, void *context)
       if ((unit == NULL) || (tree_kind(unit) != T_ENTITY))
          warnf("cannot find entity %s", istr(name));
       else
-         fprintf(out, " %s", make_product(unit, MAKE_TREE));
+         make_rule_add_input(r, make_product(unit, MAKE_TREE));
    }
 }
 
-static void make_rule(tree_t t, FILE *out)
+static void make_rule(tree_t t, rule_t **rules)
 {
    if (tree_attr_int(t, make_tag_i, 0))
       return;
@@ -140,8 +186,60 @@ static void make_rule(tree_t t, FILE *out)
    if (work != lib_work())
       return;
 
-   make_print_all_products(t, out);
-   fprintf(out, ":");
+   tree_kind_t kind = tree_kind(t);
+
+   rule_t *r;
+   if (kind == T_ELAB) {
+      const char *suffix = strchr(istr(tree_ident(t)), '.');
+      assert(suffix != NULL);
+
+      char *name = strdup(suffix + 1);
+      for (char *p = name; *p != '\0'; p++) {
+         if (*p == '.')
+            *p = '\0';
+         else
+            *p = tolower(*p);
+      }
+
+      r = make_rule_for_source(rules, RULE_ELABORATE, name);
+
+      free(name);
+   }
+   else {
+      const loc_t *loc = tree_loc(t);
+      r = make_rule_for_source(rules, RULE_ANALYSE, loc->file);
+      make_rule_add_input(r, loc->file);
+
+      if (kind == T_PACK_BODY) {
+         ident_t pack_name = ident_until(tree_ident(t), '-');
+         tree_t pack = lib_get(work, pack_name);
+         if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
+            warnf("cannot find package %s", istr(pack_name));
+         else
+            make_rule_add_input(r, make_product(pack, MAKE_TREE));
+      }
+   }
+
+   switch (kind) {
+   case T_ELAB:
+      make_rule_add_output(r, make_product(t, MAKE_TREE));
+      make_rule_add_output(r, make_product(t, MAKE_BC));
+      make_rule_add_output(r, make_product(t, MAKE_FINAL_BC));
+      break;
+
+   case T_PACKAGE:
+   case T_PACK_BODY:
+      make_rule_add_output(r, make_product(t, MAKE_BC));
+      // Fall-through
+
+   case T_ENTITY:
+   case T_ARCH:
+      make_rule_add_output(r, make_product(t, MAKE_TREE));
+      break;
+
+   default:
+      fatal("cannot get products for %s", tree_kind_str(tree_kind(t)));
+   }
 
    const int nctx = tree_contexts(t);
    tree_t *deps = xmalloc(nctx * sizeof(tree_t));
@@ -156,62 +254,15 @@ static void make_rule(tree_t t, FILE *out)
          continue;
       }
 
-      fprintf(out, " %s", make_product(deps[i], MAKE_TREE));
+      make_rule_add_input(r, make_product(deps[i], MAKE_TREE));
    }
 
    if (tree_kind(t) == T_ARCH)
-      tree_visit_only(t, make_instance_deps, out, T_INSTANCE);
-
-   switch (tree_kind(t)) {
-   case T_ELAB:
-      {
-         const char *suffix = strchr(istr(tree_ident(t)), '.');
-         assert(suffix != NULL);
-
-         char *name = strdup(suffix + 1);
-         for (char *p = name; *p != '\0'; p++) {
-            if (*p == '.')
-               *p = '\0';
-            else
-               *p = tolower(*p);
-         }
-
-         fprintf(out, "\n\tnvc -e %s\n", name);
-
-         free(name);
-      }
-      break;
-
-   case T_PACK_BODY:
-      {
-         ident_t pack_name = ident_until(tree_ident(t), '-');
-         tree_t pack = lib_get(work, pack_name);
-         if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
-            warnf("cannot find package %s", istr(pack_name));
-         else
-            fprintf(out, " %s\n", tree_loc(pack)->file);
-      }
-      // Fall-through
-
-   case T_ENTITY:
-   case T_ARCH:
-   case T_PACKAGE:
-      {
-         const loc_t *loc = tree_loc(t);
-         fprintf(out, " %s\n", loc->file);
-         fprintf(out, "\tnvc -a %s\n", loc->file);
-      }
-      break;
-
-   default:
-      fatal("cannot generate rule for %s", tree_kind_str(tree_kind(t)));
-   }
-
-   fprintf(out, "\n");
+      tree_visit_only(t, make_instance_deps, r, T_INSTANCE);
 
    for (int i = 0; i < nctx; i++) {
       if (deps[i] != NULL)
-         make_rule(deps[i], out);
+         make_rule(deps[i], rules);
    }
 
    free(deps);
@@ -221,9 +272,9 @@ static void make_header(tree_t *targets, int count, FILE *out)
 {
    fprintf(out, "# Generated by " PACKAGE_STRING "\n\n");
 
-   fprintf(out, "all: ");
+   fprintf(out, "all:");
    for (int i = 0; i < count; i++)
-      make_print_all_products(targets[i], out);
+      fprintf(out, " %s", make_product(targets[i], MAKE_TREE));
    fprintf(out, "\n\n");
 }
 
@@ -233,14 +284,41 @@ static void make_clean(tree_t dummy, FILE *out)
    fprintf(out, "\trm -r %s\n", make_product(dummy, MAKE_LIB));
 }
 
+static void make_print_rules(rule_t *rules, FILE *out)
+{
+   for (rule_t *r = rules; r != NULL; r = r->next) {
+      for (ident_list_t *it = r->outputs; it != NULL; it = it->next)
+         fprintf(out, "%s%s", istr(it->ident), (it->next == NULL) ? "" : " ");
+
+      fprintf(out, ":");
+
+      for (ident_list_t *it = r->inputs; it != NULL; it = it->next)
+         fprintf(out, " %s", istr(it->ident));
+
+      switch (r->kind) {
+      case RULE_ANALYSE:
+         fprintf(out, "\n\tnvc -a %s\n\n", istr(r->source));
+         break;
+
+      case RULE_ELABORATE:
+         fprintf(out, "\n\tnvc -e %s\n\n", istr(r->source));
+         break;
+      }
+   }
+}
+
 void make(tree_t *targets, int count, FILE *out)
 {
    make_tag_i = ident_new("make_tag");
 
    make_header(targets, count, out);
 
+   rule_t *rules = NULL;
    for (int i = 0; i < count; i++)
-      make_rule(targets[i], out);
+      make_rule(targets[i], &rules);
+
+   make_print_rules(rules, out);
+   make_free_rules(rules);
 
    make_clean(targets[0], out);
 }
