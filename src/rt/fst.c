@@ -42,11 +42,21 @@ typedef struct fst_data fst_data_t;
 
 typedef void (*fst_fmt_fn_t)(tree_t, watch_t *, fst_data_t *);
 
+typedef struct {
+   int64_t  mult;
+   char    *name;
+} fst_unit_t;
+
+typedef union {
+   const char *map;
+   fst_unit_t *units;
+} fst_type_t;
+
 struct fst_data {
    fstHandle     handle;
    fst_fmt_fn_t  fmt;
    range_kind_t  dir;
-   const char   *map;
+   fst_type_t    type;
    size_t        size;
    watch_t      *watch;
 };
@@ -70,12 +80,29 @@ static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
    fstWriterEmitValueChange(fst_ctx, data->handle, buf);
 }
 
+static void fst_fmt_physical(tree_t decl, watch_t *w, fst_data_t *data)
+{
+   uint64_t val;
+   rt_signal_value(w, &val, 1, false);
+
+   fst_unit_t *unit = data->type.units;
+   while ((val % unit->mult) != 0)
+      ++unit;
+
+   char buf[128];
+   checked_sprintf(buf, sizeof(buf), "%"PRIi64" %s",
+                   val / unit->mult, unit->name);
+
+   fstWriterEmitVariableLengthValueChange(
+      fst_ctx, data->handle, buf, strlen(buf));
+}
+
 static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
    char buf[nvals + 1];
-   rt_string_value(w, data->map, buf, nvals + 1);
-   if (likely(data->map != NULL))
+   rt_string_value(w, data->type.map, buf, nvals + 1);
+   if (likely(data->type.map != NULL))
       fstWriterEmitValueChange(fst_ctx, data->handle, buf);
    else
       fstWriterEmitVariableLengthValueChange(
@@ -106,6 +133,22 @@ static void fst_event_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
       (*data->fmt)(decl, w, data);
 }
 
+static fst_unit_t *fst_make_unit_map(type_t type)
+{
+   type_t base = type_base_recur(type);
+
+   const int nunits = type_units(base);
+
+   fst_unit_t *map = xmalloc(nunits * sizeof(fst_unit_t));
+   for (int i = 0; i < nunits; i++) {
+      tree_t unit = type_unit(base, nunits - 1 - i);
+      map[i].mult = assume_int(tree_value(unit));
+      map[i].name = strdup(istr(tree_ident(unit)));
+   }
+
+   return map;
+}
+
 static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
                               enum fstVarType *vt,
                               enum fstSupplementalDataType *sdt)
@@ -121,21 +164,21 @@ static bool fst_can_fmt_chars(type_t type, fst_data_t *data,
             FST_SDT_VHDL_STD_ULOGIC_VECTOR : FST_SDT_VHDL_STD_ULOGIC;
       *vt = FST_VT_SV_LOGIC;
       data->fmt = fst_fmt_chars;
-      data->map = "UX01ZWLH-";
+      data->type.map = "UX01ZWLH-";
       return true;
    }
    else if (name == std_bit_i) {
       *sdt = FST_SDT_VHDL_BIT;
       *vt  = FST_VT_SV_LOGIC;
       data->fmt = fst_fmt_chars;
-      data->map = "01";
+      data->type.map = "01";
       return true;
    }
    else if ((name == std_char_i) && (data->size > 0)) {
       *sdt = FST_SDT_VHDL_STRING;
       *vt  = FST_VT_GEN_STRING;
       data->fmt = fst_fmt_chars;
-      data->map = NULL;
+      data->type.map = NULL;
       return true;
    }
    else
@@ -225,6 +268,15 @@ static void fst_process_signal(tree_t d)
          }
          else
             data->size = 1;
+         break;
+
+      case T_PHYSICAL:
+         {
+            vt = FST_VT_GEN_STRING;
+            data->size = 0;
+            data->type.units = fst_make_unit_map(type);
+            data->fmt = fst_fmt_physical;
+         }
          break;
 
       default:

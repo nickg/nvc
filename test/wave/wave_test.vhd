@@ -46,6 +46,7 @@ architecture test of wave_test is
     signal m : string(1 to 3);
     signal p : bit_vector(1 to 3);
     signal q : bit_vector(3 downto 1);
+    signal t : delay_length;
 
     type state is (INIT, ONE, TWO);
     signal s : state;
@@ -91,5 +92,7 @@ begin
     q(1) <= '1';
     q(2) <= '1';
     q(3) <= '0';
+
+    t <= 20 us after 1 ps;
 
 end architecture;
