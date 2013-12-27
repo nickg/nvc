@@ -409,6 +409,54 @@ static int run(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static int make_cmd(int argc, char **argv)
+{
+   set_work_lib();
+
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   int c, index = 0;
+   const char *spec = "";
+   optind = 1;
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         // getopt_long already printed an error message
+         exit(EXIT_FAILURE);
+      default:
+         abort();
+      }
+   }
+
+   if (optind == argc)
+      fatal("missing unit name");
+
+
+   const int count = argc - optind;
+   tree_t *targets = xmalloc(count * sizeof(tree_t));
+
+   lib_t work = lib_work();
+
+   for (int i = optind; i < argc; i++) {
+      ident_t name = to_unit_name(argv[i]);
+      ident_t elab = ident_prefix(name, ident_new("elab"), '.');
+      if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
+         if ((targets[i - optind] = lib_get(work, name)) == NULL)
+            fatal("cannot find unit %s in library %s",
+                  istr(name), istr(lib_name(work)));
+      }
+   }
+
+   make(targets, count, stdout);
+
+   return EXIT_SUCCESS;
+}
+
 static int dump_cmd(int argc, char **argv)
 {
    set_work_lib();
@@ -546,12 +594,13 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      {"help",    no_argument,       0, 'h'},
-      {"version", no_argument,       0, 'v'},
-      {"work",    required_argument, 0, 'w'},
-      {"dump",    no_argument,       0, 'd'},
-      {"codegen", no_argument,       0, 'c'},
-      {0, 0, 0, 0}
+      { "help",    no_argument,       0, 'h' },
+      { "version", no_argument,       0, 'v' },
+      { "work",    required_argument, 0, 'w' },
+      { "dump",    no_argument,       0, 'd' },
+      { "codegen", no_argument,       0, 'c' },
+      { "make",    no_argument,       0, 'm' },
+      { 0, 0, 0, 0 }
    };
 
    int c, index = 0;
@@ -578,6 +627,7 @@ int main(int argc, char **argv)
       case 'd':
       case 'r':
       case 'c':
+      case 'm':
          // Subcommand options are parsed later
          argc -= (optind - 1);
          argv += (optind - 1);
@@ -602,6 +652,8 @@ int main(int argc, char **argv)
       return dump_cmd(argc, argv);
    case 'c':
       return codegen(argc, argv);
+   case 'm':
+      return make_cmd(argc, argv);
    default:
       fprintf(stderr, "%s: missing command\n", PACKAGE);
       return EXIT_FAILURE;

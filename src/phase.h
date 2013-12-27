@@ -67,4 +67,7 @@ bool pack_needs_cgen(tree_t t);
 // Groups nets which never have sub-elements assigned.
 void group_nets(tree_t top);
 
+// Generate a makefile for the givein unit
+void make(tree_t *targets, int count, FILE *out);
+
 #endif  // _PHASE_H

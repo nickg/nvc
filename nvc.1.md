@@ -40,6 +40,9 @@ specific options must be placed after the command.
    Print out a pseudo-VHDL representation of an analysed unit. This is
    usually only useful for debugging the compiler.
 
+ * `--make` _units_:
+   Generate a makefile for already analysed units.
+
 ### Global options
 
  * `-h`, `--help`:
@@ -104,21 +107,21 @@ specific options must be placed after the command.
 
  * `--stats`:
    Print time and memory statistics at the end of the run.
-   
+
  * `--stop-delta=`_N_:
    Stop after _N_ delta cycles. This can be used to detect zero-time loops
    in your model. The default is 1000 if not specified. Setting this to
    zero disables the delta cycle limit.
-   
+
  * `--stop-time=`_T_:
    Stop the simulation after the given time has elapsed. Format of _T_ is
    an integer followed by a time unit in lower case. For example `5ns` or
    `20ms`.
-   
+
  * `--trace`:
    Trace simulation events. This is usually only useful for debugging the
    simulator.
-   
+
  * `-w, --wave=`_file_:
    Write waveform data to _file_. The file name is optional and if not specified
    will default to the name of the top-level unit with the appropriate extension

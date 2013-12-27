@@ -276,6 +276,25 @@ static void elab_copy_context(tree_t dest, tree_t src)
    }
 }
 
+static void elab_pseudo_context(tree_t out, tree_t src)
+{
+   // Add a pseudo use clause for an entity or architecture so the
+   // makefile generator can find the dependencies
+
+   ident_t name = tree_ident(src);
+
+   const int nctx = tree_contexts(out);
+   for (int i = 0; i < nctx; i++) {
+      if (tree_ident(tree_context(out, i)) == name)
+         return;
+   }
+
+   tree_t c = tree_new(T_CONTEXT);
+   tree_set_ident(c, name);
+
+   tree_add_context(out, c);
+}
+
 static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
                                map_list_t **maps)
 {
@@ -1001,6 +1020,8 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
+   elab_pseudo_context(ctx->out, t);
+   elab_pseudo_context(ctx->out, tree_ref(t));
    elab_copy_context(ctx->out, t);
    elab_push_scope(t, ctx);
    elab_decls(t, ctx);
@@ -1026,6 +1047,7 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path, ':', ":%s", name);
 
+   elab_pseudo_context(ctx->out, t);
    elab_copy_context(ctx->out, t);
 
    elab_funcs(arch, t);
@@ -1176,7 +1198,7 @@ static void elab_context_signals(const elab_ctx_t *ctx)
       lib_t lib = elab_link_lib(name);
 
       tree_t pack = lib_get_check_stale(lib, name);
-      if (tree_kind(pack) != T_PACKAGE)
+      if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
          continue;
 
       elab_package_signals(pack, ctx);
