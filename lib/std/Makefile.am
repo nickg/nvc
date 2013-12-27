@@ -27,7 +27,7 @@ std/_NVC_LIB: std/STD.STANDARD
 std/STD.STANDARD: $(srcdir)/standard.vhd
 	$(nvc) --work=std -a --bootstrap $(srcdir)/standard.vhd
 
-std/STD.TEXTIO: $(srcdir)/textio.vhd
+std/STD.TEXTIO: std/STD.STANDARD $(srcdir)/textio.vhd
 	$(nvc) --work=std -a $(srcdir)/textio.vhd
 	$(codegen) --work=std --codegen textio
 
@@ -35,3 +35,8 @@ clean-local:
 	-test -d std && $(RM) -r std
 
 include ../nvc.mk
+
+gen-deps:
+	$(nvc) --work=std --make --deps-only --native > $(srcdir)/deps.mk
+
+include deps.mk

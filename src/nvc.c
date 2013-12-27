@@ -414,6 +414,8 @@ static int make_cmd(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
+      { "deps-only", no_argument, 0, 'd' },
+      { "native",    no_argument, 0, 'n' },
       { 0, 0, 0, 0 }
    };
 
@@ -428,14 +430,16 @@ static int make_cmd(int argc, char **argv)
       case '?':
          // getopt_long already printed an error message
          exit(EXIT_FAILURE);
+      case 'd':
+         opt_set_int("make-deps-only", 1);
+         break;
+      case 'n':
+         opt_set_int("native", 1);
+         break;
       default:
          abort();
       }
    }
-
-   if (optind == argc)
-      fatal("missing unit name");
-
 
    const int count = argc - optind;
    tree_t *targets = xmalloc(count * sizeof(tree_t));
@@ -525,6 +529,7 @@ static void set_default_opts(void)
    opt_set_int("stop-delta", 1000);
    opt_set_int("unit-test", 0);
    opt_set_int("prefer-explicit", 0);
+   opt_set_int("make-deps-only", 1);
 }
 
 static void usage(void)
@@ -537,6 +542,7 @@ static void usage(void)
           " -r UNIT\t\tExecute previously elaborated UNIT\n"
           " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
           " --dump UNIT\t\tPrint out previously analysed UNIT\n"
+          " --make [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
@@ -563,6 +569,10 @@ static void usage(void)
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"
           "     --trace\t\tTrace simulation events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
+          "\n"
+          "Make options:\n"
+          "     --deps-only\tOutput dependencies without actions\n"
+          "     --native\t\tGenerate actions for native code generation\n"
           "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"

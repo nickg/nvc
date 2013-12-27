@@ -53,6 +53,7 @@ tree_t lib_get(lib_t lib, ident_t ident);
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx);
 tree_t lib_get_check_stale(lib_t lib, ident_t ident);
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident);
+unsigned lib_index_size(lib_t lib);
 
 typedef void (*lib_index_fn_t)(ident_t ident, int kind, void *context);
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context);

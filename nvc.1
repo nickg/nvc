@@ -129,6 +129,16 @@ Trace simulation events\. This is usually only useful for debugging the simulato
 \fB\-w, \-\-wave=\fR\fIfile\fR
 Write waveform data to \fIfile\fR\. The file name is optional and if not specified will default to the name of the top\-level unit with the appropriate extension for the waveform format\. The waveform format can be specified with the \fB\-\-format\fR option\.
 .
+.SS "Make options"
+.
+.TP
+\fB\-\-deps\-only\fR
+Generate rules that only contain dependencies without actions\. These can be useful for inclusion in a hand written makefile\.
+.
+.TP
+\fB\-\-native\fR
+Output actions to generate native code\.
+.
 .SH "LIBRARIES"
 Description of library search path, contents, etc\.
 .

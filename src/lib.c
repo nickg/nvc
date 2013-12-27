@@ -600,6 +600,17 @@ void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
       (*fn)(it->name, it->kind, context);
 }
 
+unsigned lib_index_size(lib_t lib)
+{
+   assert(lib != NULL);
+
+   unsigned n = 0;
+   for (struct lib_index *it = lib->index; it != NULL; it = it->next)
+      n++;
+
+   return n;
+}
+
 void lib_realpath(lib_t lib, const char *name, char *buf, size_t buflen)
 {
    assert(lib != NULL);

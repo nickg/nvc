@@ -14,6 +14,9 @@ nvc.1: nvc.1.md
 bootstrap: all
 	@cd lib && $(MAKE) $(AM_MAKEFLAGS) clean bootstrap
 
+gen-deps: all
+	@cd lib && $(MAKE) $(AM_MAKEFLAGS) $@
+
 cov-reset cov-report:
 	cd test && $(MAKE) $(AM_MAKEFLAGS) $@
 

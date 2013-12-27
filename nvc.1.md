@@ -128,6 +128,15 @@ specific options must be placed after the command.
    for the waveform format. The waveform format can be specified with the
    `--format` option.
 
+### Make options
+
+ * `--deps-only`:
+   Generate rules that only contain dependencies without actions. These can be
+   useful for inclusion in a hand written makefile.
+
+ * `--native`:
+   Output actions to generate native code.
+
 ## LIBRARIES
 
 Description of library search path, contents, etc.
