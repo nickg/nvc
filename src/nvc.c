@@ -33,8 +33,6 @@
 #include <tcl.h>
 #endif
 
-static const char *work_name = "work";
-
 const char *copy_string =
    "Copyright (C) 2011-2013  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
@@ -45,6 +43,7 @@ const char *version_string =
 
 static void set_work_lib(void)
 {
+   const char *work_name = opt_get_str("work-name");
    lib_t work = lib_find(work_name, false, false);
    if (work == NULL)
       work = lib_new(work_name);
@@ -529,7 +528,8 @@ static void set_default_opts(void)
    opt_set_int("stop-delta", 1000);
    opt_set_int("unit-test", 0);
    opt_set_int("prefer-explicit", 0);
-   opt_set_int("make-deps-only", 1);
+   opt_set_int("make-deps-only", 0);
+   opt_set_str("work-name", "work");
 }
 
 static void usage(void)
@@ -627,7 +627,7 @@ int main(int argc, char **argv)
          printf("%s\n%s\n", version_string, copy_string);
          exit(EXIT_SUCCESS);
       case 'w':
-         work_name = optarg;
+         opt_set_str("work-name", optarg);
          break;
       case 'L':
          lib_add_search_path(optarg);

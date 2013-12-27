@@ -4,5 +4,3 @@ std/STD.TEXTIO-body std/_STD.TEXTIO-body.so std/_STD.TEXTIO-body.bc std/STD.TEXT
 
 std/STD.STANDARD: ../../../lib/std/standard.vhd
 
-clean:
-	rm -r std

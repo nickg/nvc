@@ -62,56 +62,51 @@ static lib_t make_get_lib(ident_t name)
 
 static const char *make_product(tree_t t, make_product_t product)
 {
-   static char *cwd = NULL;
-   if (cwd == NULL) {
-      cwd = xmalloc(PATH_MAX);
-      if (getcwd(cwd, PATH_MAX) == NULL)
-         fatal_errno("getcwd");
-   }
+   static const char *work_name = NULL;
+
+   if (work_name == NULL)
+      work_name = opt_get_str("work-name");
 
    char *buf = get_fmt_buf(PATH_MAX);
 
    ident_t name = tree_ident(t);
+   lib_t lib = make_get_lib(name);
 
-   const char *relpath = lib_path(make_get_lib(name));
-   const char *a, *b;
-   for (a = relpath, b = cwd;
-        (*a != '\0') && (*b != '\0') && (*a == *b);
-        a++, b++)
-      ;
-
-   if ((*b == '\0') && (*a == '/'))
-      relpath = a + 1;
+   const char *path;
+   if (lib == lib_work())
+      path = work_name;
+   else
+      path = lib_path(lib);
 
    switch (product) {
    case MAKE_TREE:
-      checked_sprintf(buf, PATH_MAX, "%s/%s", relpath, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/%s", path, istr(name));
       break;
 
    case MAKE_BC:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.bc", relpath, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.bc", path, istr(name));
       break;
 
    case MAKE_SO:
-      checked_sprintf(buf, PATH_MAX, "%s/_%s.so", relpath, istr(name));
+      checked_sprintf(buf, PATH_MAX, "%s/_%s.so", path, istr(name));
       break;
 
    case MAKE_FINAL_BC:
       {
          ident_t base = ident_runtil(name, '.');
-         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.bc", relpath, istr(base));
+         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.bc", path, istr(base));
       }
       break;
 
    case MAKE_FINAL_SO:
       {
          ident_t base = ident_runtil(name, '.');
-         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.so", relpath, istr(base));
+         checked_sprintf(buf, PATH_MAX, "%s/_%s.final.so", path, istr(base));
       }
       break;
 
    case MAKE_LIB:
-      checked_sprintf(buf, PATH_MAX, "%s", relpath);
+      checked_sprintf(buf, PATH_MAX, "%s", path);
       break;
    }
 
@@ -123,11 +118,6 @@ static void make_rule_add_input(rule_t *r, const char *input)
    ident_t ident = ident_new(input);
 
    for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
-      if (it->ident == ident)
-         return;
-   }
-
-   for (ident_list_t *it = r->outputs; it != NULL; it = it->next) {
       if (it->ident == ident)
          return;
    }
@@ -268,11 +258,19 @@ static void make_rule(tree_t t, rule_t **rules)
    const int nctx = tree_contexts(t);
    tree_t *deps = xmalloc(nctx * sizeof(tree_t));
 
+   const bool deps_only = opt_get_int("make-deps-only");
+
    for (int i = 0; i < nctx; i++) {
       tree_t c = tree_context(t, i);
       ident_t name = tree_ident(c);
 
-      deps[i] = lib_get(make_get_lib(name), name);
+      lib_t lib = make_get_lib(name);
+      if ((lib != work) && deps_only) {
+         deps[i] = NULL;
+         continue;
+      }
+
+      deps[i] = lib_get(lib, name);
       if (deps[i] == NULL) {
          warnf("cannot find unit %s", istr(name));
          continue;
@@ -320,8 +318,16 @@ static void make_print_rules(rule_t *rules, FILE *out)
 
       fprintf(out, ":");
 
-      for (ident_list_t *it = r->inputs; it != NULL; it = it->next)
-         fprintf(out, " %s", istr(it->ident));
+      for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
+         bool circular = false;
+         for (ident_list_t *o = r->outputs; o != NULL; o = o->next) {
+            if (it->ident == o->ident)
+               circular = true;
+         }
+
+         if (!circular)
+            fprintf(out, " %s", istr(it->ident));
+      }
 
       if (deps_only)
          fprintf(out, "\n\n");
@@ -368,7 +374,7 @@ void make(tree_t *targets, int count, FILE *out)
    make_print_rules(rules, out);
    make_free_rules(rules);
 
-   if (opt_get_int("make-deps-only"))
+   if (!opt_get_int("make-deps-only"))
       make_clean(targets[0], out);
 
    free(targets);

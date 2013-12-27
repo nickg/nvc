@@ -96,11 +96,23 @@ typedef void (*print_fn_t)(const char *fmt, ...);
 static void def_error_fn(const char *msg, const loc_t *loc);
 
 typedef struct guard guard_t;
+typedef struct option option_t;
+
+typedef enum {
+   OPTION_INT,
+   OPTION_STRING
+} option_kind_t;
+
+typedef union {
+   int   i;
+   char *s;
+} optval_t;
 
 struct option {
-   struct option *next;
-   ident_t       key;
-   int           value;
+   option_t      *next;
+   option_kind_t  kind;
+   ident_t        key;
+   optval_t       value;
 };
 
 struct prbuf {
@@ -726,36 +738,65 @@ void term_init(void)
    }
 }
 
-void opt_set_int(const char *name, int val)
+static void opt_set_generic(const char *name, option_kind_t kind,
+                            optval_t value)
 {
    ident_t name_i = ident_new(name);
    struct option *it;
    for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
       ;
 
-   if (it != NULL)
-      it->value = val;
+   if (it != NULL) {
+      if (it->kind == OPTION_STRING)
+         free(it->value.s);
+      it->value = value;
+   }
    else {
       it = xmalloc(sizeof(struct option));
       it->key   = ident_new(name);
-      it->value = val;
+      it->value = value;
       it->next  = options;
+      it->kind  = kind;
 
       options = it;
    }
 }
 
-int opt_get_int(const char *name)
+static optval_t opt_get_generic(const char *name, option_kind_t kind)
 {
    ident_t name_i = ident_new(name);
    struct option *it;
    for (it = options; (it != NULL) && (it->key != name_i); it = it->next)
       ;
 
-   if (it != NULL)
-      return it->value;
+   if (it != NULL) {
+      if (it->kind == kind)
+         return it->value;
+      else
+         fatal_trace("wrong option kind for %s", name);
+   }
    else
-      fatal("invalid option %s", name);
+      fatal_trace("invalid option %s", name);
+}
+
+void opt_set_int(const char *name, int val)
+{
+   opt_set_generic(name, OPTION_INT, (optval_t)val);
+}
+
+int opt_get_int(const char *name)
+{
+   return opt_get_generic(name, OPTION_INT).i;
+}
+
+void opt_set_str(const char *name, const char *val)
+{
+   opt_set_generic(name, OPTION_INT, (optval_t)strdup(val));
+}
+
+const char *opt_get_str(const char *name)
+{
+   return opt_get_generic(name, OPTION_INT).s;
 }
 
 char *get_fmt_buf(size_t len)
