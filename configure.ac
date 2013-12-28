@@ -68,22 +68,22 @@ AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_MSG_ERROR(bzip2 not found)])
 # fst/fstapi.c can use pthread to write FST in parallel if HAVE_LIBPTHREAD is defined.
 # FIXME: -lpthread may be in LLVM_LDFLAGS already.
 # FIXME: Use AX_PTHREAD?
-AC_ARG_ENABLE([pthread],
-  [AS_HELP_STRING([--enable-pthread],
+AC_ARG_ENABLE([fst_pthread],
+  [AS_HELP_STRING([--enable-fst-pthread],
     [Use pthread to write FST in parallel])],
-  [enable_pthread=$enableval],
-  [enable_pthread=yes])
-if test x$enable_pthread = xyes ; then
+  [enable_fst_pthread=$enableval],
+  [enable_fst_pthread=yes])
+if test x$enable_fst_pthread = xyes ; then
   AC_CHECK_LIB([pthread], [main], [], [AC_MSG_ERROR(pthread not found)])
 fi
 
 # fst/fstapi.c can use Judy instead of builtin Jenkins if _WAVE_HAVE_JUDY is defined.
-AC_ARG_ENABLE([judy],
-  [AS_HELP_STRING([--enable-judy],
+AC_ARG_ENABLE([fst_judy],
+  [AS_HELP_STRING([--enable-fst-judy],
     [Use Judy instead of builtin Jenkins for FST])],
-  [enable_judy=$enableval],
-  [enable_judy=yes])
-if test x$enable_judy = xyes ; then
+  [enable_fst_judy=$enableval],
+  [enable_fst_judy=yes])
+if test x$enable_fst_judy = xyes ; then
   AC_CHECK_LIB([Judy], [JudyHSIns], [], [AC_MSG_ERROR(Judy not found)])
   AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
 fi
