@@ -299,6 +299,8 @@ static int run(int argc, char **argv)
       { "wave",       optional_argument, 0, 'w' },
       { "stop-delta", required_argument, 0, 'd' },
       { "format",     required_argument, 0, 'f' },
+      { "include",    required_argument, 0, 'i' },
+      { "exclude",    required_argument, 0, 'e' },
       { 0, 0, 0, 0 }
    };
 
@@ -353,6 +355,12 @@ static int run(int argc, char **argv)
       case 'd':
          opt_set_int("stop-delta", parse_int(optarg));
          break;
+      case 'i':
+         wave_include_glob(optarg);
+         break;
+      case 'e':
+         wave_exclude_glob(optarg);
+         break;
       default:
          abort();
       }
@@ -380,6 +388,8 @@ static int run(int argc, char **argv)
          wave_fname = tmp;
          notef("writing %s waveform data to %s", name_map[wave_fmt], tmp);
       }
+
+      wave_include_file(argv[optind]);
 
       switch (wave_fmt) {
       case LXT:
@@ -563,7 +573,9 @@ static void usage(void)
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
+          "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
           "     --format=FMT\tWaveform format is one of lxt, fst, or vcd\n"
+          "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
           "     --stats\t\tPrint statistics at end of run\n"
           "     --stop-delta=N\tStop after N delta cycles (default %d)\n"
           "     --stop-time=T\tStop after simulation time T (e.g. 5ns)\n"

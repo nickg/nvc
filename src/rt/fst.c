@@ -355,7 +355,8 @@ void fst_restart(void)
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
-         fst_process_signal(d);
+         if (wave_should_dump(d))
+            fst_process_signal(d);
          break;
       case T_HIER:
          fst_process_hier(d);

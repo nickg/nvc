@@ -88,4 +88,9 @@ void lxt_restart(void);
 void fst_init(const char *file, tree_t top);
 void fst_restart(void);
 
+void wave_include_glob(const char *glob);
+void wave_exclude_glob(const char *glob);
+void wave_include_file(const char *base);
+bool wave_should_dump(tree_t decl);
+
 #endif  // _RT_H

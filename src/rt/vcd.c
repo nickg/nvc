@@ -221,7 +221,8 @@ void vcd_restart(void)
          fprintf(vcd_file, "$scope module %s $end\n", istr(tree_ident(d)));
          break;
       case T_SIGNAL_DECL:
-         vcd_process_signal(d, &next_key);
+         if (wave_should_dump(d))
+            vcd_process_signal(d, &next_key);
          break;
       default:
          break;

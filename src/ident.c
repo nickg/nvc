@@ -377,6 +377,22 @@ bool icmp(ident_t i, const char *s)
       return result == i;
 }
 
+static bool ident_glob_walk(const struct trie *i, const char *g,
+                            const char *const end)
+{
+   if (i->value == '\0')
+      return (g < end);
+   else if (g < end)
+      return false;
+   else if (*g == '*')
+      return ident_glob_walk(i->up, g, end)
+         || ident_glob_walk(i->up, g - 1, end);
+   else if (i->value == *g)
+      return ident_glob_walk(i->up, g - 1, end);
+   else
+      return false;
+}
+
 bool ident_glob(ident_t i, const char *glob, int length)
 {
    assert(i != NULL);
@@ -384,23 +400,7 @@ bool ident_glob(ident_t i, const char *glob, int length)
    if (length < 0)
       length = strlen(glob);
 
-   struct trie *it = i;
-   const char *p = glob + length - 1;
-   bool nom = false;
-   while ((it->value != '\0') && (p >= glob)) {
-      if ((it->value == *p) || (*p == '*')) {
-         it = it->up;
-         nom = (*p == '*');
-         if (p > glob)
-            p--;
-      }
-      else if (nom)
-         it = it->up;
-      else
-         return false;
-   }
-
-   return p == glob;
+   return ident_glob_walk(i, glob + length - 1, glob);
 }
 
 void ident_list_add(ident_list_t **list, ident_t i)

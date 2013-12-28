@@ -216,6 +216,11 @@ START_TEST(test_glob)
    fail_unless(ident_glob(i, "f*b*r", -1));
    fail_if(ident_glob(i, "f*c*r", -1));
    fail_unless(ident_glob(i, "**bar", -1));
+
+   i = ident_new("foo:bar:a");
+
+   fail_unless(ident_glob(i, "*:a", -1));
+   fail_unless(ident_glob(i, "foo:*", -1));
 }
 END_TEST;
 

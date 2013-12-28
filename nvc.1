@@ -18,7 +18,7 @@
 .br
 .
 .SH "DESCRIPTION"
-NVC is an implementation of the VHDL language as defined by IEEE standard 1076\-1993 and later revisions\. Simulating a design typically involes three steps: \fBanalysing\fR one more more source files into the work library; \fBelaborating\fR a top\-level design unit; and \fBrunning\fR the elaborated design\.
+NVC is an implementation of the VHDL language as defined by IEEE standard 1076\-1993 and later revisions\. Simulating a design typically involves three steps: analysing one more more source files into the work library; elaborating a top\-level design unit; and running the elaborated design\.
 .
 .SH "OPTIONS"
 NVC accepts three kinds of options: global options; a single command option; and options specific to the command\. Global options must be placed before the command and specific options must be placed after the command\.
@@ -110,6 +110,10 @@ Run in interactive TCL command line mode\. See \fITCL SHELL\fR section below\.
 Generate waveform data in format \fIfmt\fR\. Currently supported formats are: \fBfst\fR, \fBlxt\fR, and \fBvcd\fR\. The FST and LXT formats are native to GtkWave\. The FST format is preferred over LXT due its smaller size and better performance; however VHDL support in FST requires a recent version of GtkWave so LXT is provided for compatibility\. VCD is a very widely used format but has limited ability to represent VHDL types and the performance is poor: select this only if you must use the output with a tool that does not support FST or LXT\. The default format is FST if this option is not provided\.
 .
 .TP
+\fB\-\-include=\fR\fIglob\fR, \fB\-\-exclude=\fR\fIglob\fR
+Signals that match \fIglob\fR are included in or excluded from the waveform dump\. See section \fISELECTING SIGNALS\fR for details on how to select particular signals\. These options can be given multiple times\.
+.
+.TP
 \fB\-\-stats\fR
 Print time and memory statistics at the end of the run\.
 .
@@ -127,7 +131,7 @@ Trace simulation events\. This is usually only useful for debugging the simulato
 .
 .TP
 \fB\-w, \-\-wave=\fR\fIfile\fR
-Write waveform data to \fIfile\fR\. The file name is optional and if not specified will default to the name of the top\-level unit with the appropriate extension for the waveform format\. The waveform format can be specified with the \fB\-\-format\fR option\.
+Write waveform data to \fIfile\fR\. The file name is optional and if not specified will default to the name of the top\-level unit with the appropriate extension for the waveform format\. The waveform format can be specified with the \fB\-\-format\fR option\. By default all signals in the design will be dumped: see the \fISELECTING SIGNALS\fR section below for how to control this\.
 .
 .SS "Make options"
 .
@@ -138,6 +142,21 @@ Generate rules that only contain dependencies without actions\. These can be use
 .TP
 \fB\-\-native\fR
 Output actions to generate native code\.
+.
+.SH "SELECTING SIGNALS"
+Every signal object in the design has a unique hierarchical path name\. This is identical to the value of the \fBPATH_NAME\fR attribute\. You can get a list of the path names in your design using the command \fBshow [signals]\fR from the TCL shell\.
+.
+.P
+A signal can be referred to using its full path name, for example \fB:top:sub:x\fR, \fB:top:other:x\fR are two different signals\. The character \fB:\fR is a hierarchy separator\. A \fIglob\fR may be used refer to a group of signals\. For example \fB:top:*:x\fR, \fB*:x\fR, and \fB:top:sub:*\fR, all select both of the previous signals\. The special character \fB*\fR is a wildcard that matches zero or more characters\.
+.
+.SS "Restricting waveform dumps"
+Path names and globs can be used to exclude or explicitly include signals in a waveform dump\. For simple cases this can be done using the \fB\-\-include\fR and \fB\-\-exclude\fR arguments\. For example \fB\-\-exclude=\':top:sub:*\fR will exclude all matching signals from the waveform dump\. Multiple inclusion and exclusion patterns can be provided\.
+.
+.P
+When the number of patterns becomes large, specifying them on the command line becomes cumbersome\. Instead a text file can be used to provide inclusion and exclusion patterns\. If the top\-level unit name is \fBtop\fR then inclusion patterns should be placed in a file called \fBtop\.include\fR and exclusion patterns in a file called \fBtop\.exclude\fR\. These files should be in the working directory where the \fBnvc \-r\fR command is executed\. The format is one glob per line, with comments preceded by a \fB#\fR character\.
+.
+.P
+When both inclusion and exclusion patterns are present, exclusions have precedence over inclusions\. If no inclusion patterns are present then all signals are implicitly included\.
 .
 .SH "LIBRARIES"
 Description of library search path, contents, etc\.

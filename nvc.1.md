@@ -10,9 +10,9 @@ nvc(1) -- VHDL Compiler and Simulator
 ## DESCRIPTION
 
 NVC is an implementation of the VHDL language as defined by IEEE standard 1076-1993
-and later revisions. Simulating a design typically involes three steps: `analysing`
-one more more source files into the work library; `elaborating` a top-level design
-unit; and `running` the elaborated design.
+and later revisions. Simulating a design typically involves three steps: analysing
+one more more source files into the work library; elaborating a top-level design
+unit; and running the elaborated design.
 
 ## OPTIONS
 
@@ -105,6 +105,11 @@ specific options must be placed after the command.
    not support FST or LXT. The default format is FST if this option is not
    provided.
 
+ * `--include=`_glob_, `--exclude=`_glob_:
+   Signals that match _glob_ are included in or excluded from the waveform
+   dump. See section [SELECTING SIGNALS][] for details on how to select
+   particular signals. These options can be given multiple times.
+
  * `--stats`:
    Print time and memory statistics at the end of the run.
 
@@ -126,7 +131,8 @@ specific options must be placed after the command.
    Write waveform data to _file_. The file name is optional and if not specified
    will default to the name of the top-level unit with the appropriate extension
    for the waveform format. The waveform format can be specified with the
-   `--format` option.
+   `--format` option. By default all signals in the design will be dumped: see
+   the [SELECTING SIGNALS][] section below for how to control this.
 
 ### Make options
 
@@ -137,17 +143,52 @@ specific options must be placed after the command.
  * `--native`:
    Output actions to generate native code.
 
+## SELECTING SIGNALS
+
+Every signal object in the design has a unique hierarchical path name. This is
+identical to the value of the `PATH_NAME` attribute. You can get a list of the
+path names in your design using the command `show [signals]` from the TCL shell.
+
+A signal can be referred to using its full path name, for example
+`:top:sub:x`, `:top:other:x` are two different signals. The character `:` is a
+hierarchy separator. A _glob_ may be used refer to a group of signals. For example
+`:top:*:x`, `*:x`, and `:top:sub:*`, all select both of the previous signals. The
+special character `*` is a wildcard that matches zero or more characters.
+
+### Restricting waveform dumps
+
+Path names and globs can be used to exclude or explicitly include signals in a
+waveform dump. For simple cases this can be done using the `--include` and
+`--exclude` arguments. For example `--exclude=':top:sub:*` will exclude all
+matching signals from the waveform dump. Multiple inclusion and exclusion
+patterns can be provided.
+
+When the number of patterns becomes large, specifying them on the command line
+becomes cumbersome. Instead a text file can be used to provide inclusion and
+exclusion patterns. If the top-level unit name is `top` then inclusion patterns
+should be placed in a file called `top.include` and exclusion patterns in a file
+called `top.exclude`. These files should be in the working directory where the
+`nvc -r` command is executed. The format is one glob per line, with comments
+preceded by a `#` character.
+
+When both inclusion and exclusion patterns are present, exclusions have precedence
+over inclusions. If no inclusion patterns are present then all signals are
+implicitly included.
+
 ## LIBRARIES
 
 Description of library search path, contents, etc.
 
 ## CODE COVERAGE
+
 Description of coverage generation
 
 ## TCL SHELL
+
 Describe interactive TCL shell
 
 ## AUTHOR
+
 Written by Nick Gasson
 
 ## REPORTING BUGS

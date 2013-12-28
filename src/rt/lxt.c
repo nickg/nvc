@@ -144,6 +144,8 @@ void lxt_restart(void)
       tree_t d = tree_decl(lxt_top, i);
       if (tree_kind(d) != T_SIGNAL_DECL)
          continue;
+      else if (!wave_should_dump(d))
+         continue;
 
       type_t type = tree_type(d);
 
