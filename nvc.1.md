@@ -150,7 +150,7 @@ identical to the value of the `PATH_NAME` attribute. You can get a list of the
 path names in your design using the command `show [signals]` from the TCL shell.
 
 A signal can be referred to using its full path name, for example
-`:top:sub:x`, `:top:other:x` are two different signals. The character `:` is a
+`:top:sub:x`, and `:top:other:x` are two different signals. The character `:` is a
 hierarchy separator. A _glob_ may be used refer to a group of signals. For example
 `:top:*:x`, `*:x`, and `:top:sub:*`, all select both of the previous signals. The
 special character `*` is a wildcard that matches zero or more characters.
@@ -159,12 +159,12 @@ special character `*` is a wildcard that matches zero or more characters.
 
 Path names and globs can be used to exclude or explicitly include signals in a
 waveform dump. For simple cases this can be done using the `--include` and
-`--exclude` arguments. For example `--exclude=':top:sub:*` will exclude all
+`--exclude` arguments. For example `--exclude=":top:sub:*"` will exclude all
 matching signals from the waveform dump. Multiple inclusion and exclusion
 patterns can be provided.
 
 When the number of patterns becomes large, specifying them on the command line
-becomes cumbersome. Instead a text file can be used to provide inclusion and
+is cumbersome. Instead a text file can be used to provide inclusion and
 exclusion patterns. If the top-level unit name is `top` then inclusion patterns
 should be placed in a file called `top.include` and exclusion patterns in a file
 called `top.exclude`. These files should be in the working directory where the

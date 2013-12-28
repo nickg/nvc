@@ -147,13 +147,13 @@ Output actions to generate native code\.
 Every signal object in the design has a unique hierarchical path name\. This is identical to the value of the \fBPATH_NAME\fR attribute\. You can get a list of the path names in your design using the command \fBshow [signals]\fR from the TCL shell\.
 .
 .P
-A signal can be referred to using its full path name, for example \fB:top:sub:x\fR, \fB:top:other:x\fR are two different signals\. The character \fB:\fR is a hierarchy separator\. A \fIglob\fR may be used refer to a group of signals\. For example \fB:top:*:x\fR, \fB*:x\fR, and \fB:top:sub:*\fR, all select both of the previous signals\. The special character \fB*\fR is a wildcard that matches zero or more characters\.
+A signal can be referred to using its full path name, for example \fB:top:sub:x\fR, and \fB:top:other:x\fR are two different signals\. The character \fB:\fR is a hierarchy separator\. A \fIglob\fR may be used refer to a group of signals\. For example \fB:top:*:x\fR, \fB*:x\fR, and \fB:top:sub:*\fR, all select both of the previous signals\. The special character \fB*\fR is a wildcard that matches zero or more characters\.
 .
 .SS "Restricting waveform dumps"
-Path names and globs can be used to exclude or explicitly include signals in a waveform dump\. For simple cases this can be done using the \fB\-\-include\fR and \fB\-\-exclude\fR arguments\. For example \fB\-\-exclude=\':top:sub:*\fR will exclude all matching signals from the waveform dump\. Multiple inclusion and exclusion patterns can be provided\.
+Path names and globs can be used to exclude or explicitly include signals in a waveform dump\. For simple cases this can be done using the \fB\-\-include\fR and \fB\-\-exclude\fR arguments\. For example \fB\-\-exclude=":top:sub:*"\fR will exclude all matching signals from the waveform dump\. Multiple inclusion and exclusion patterns can be provided\.
 .
 .P
-When the number of patterns becomes large, specifying them on the command line becomes cumbersome\. Instead a text file can be used to provide inclusion and exclusion patterns\. If the top\-level unit name is \fBtop\fR then inclusion patterns should be placed in a file called \fBtop\.include\fR and exclusion patterns in a file called \fBtop\.exclude\fR\. These files should be in the working directory where the \fBnvc \-r\fR command is executed\. The format is one glob per line, with comments preceded by a \fB#\fR character\.
+When the number of patterns becomes large, specifying them on the command line is cumbersome\. Instead a text file can be used to provide inclusion and exclusion patterns\. If the top\-level unit name is \fBtop\fR then inclusion patterns should be placed in a file called \fBtop\.include\fR and exclusion patterns in a file called \fBtop\.exclude\fR\. These files should be in the working directory where the \fBnvc \-r\fR command is executed\. The format is one glob per line, with comments preceded by a \fB#\fR character\.
 .
 .P
 When both inclusion and exclusion patterns are present, exclusions have precedence over inclusions\. If no inclusion patterns are present then all signals are implicitly included\.
