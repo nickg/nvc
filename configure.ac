@@ -78,7 +78,6 @@ if test x$enable_pthread = xyes ; then
 fi
 
 # fst/fstapi.c can use Judy instead of builtin Jenkins if _WAVE_HAVE_JUDY is defined.
-# FIXME: Multiple AC_CHECK_LIB([Judy], ...) produces multiple -lJudy in LIBS.
 AC_ARG_ENABLE([judy],
   [AS_HELP_STRING([--enable-judy],
     [Use Judy instead of builtin Jenkins for FST])],
@@ -86,7 +85,6 @@ AC_ARG_ENABLE([judy],
   [enable_judy=yes])
 if test x$enable_judy = xyes ; then
   AC_CHECK_LIB([Judy], [JudyHSIns], [], [AC_MSG_ERROR(Judy not found)])
-  #AC_CHECK_LIB([Judy], [JudyHSFreeArray], [], [AC_MSG_ERROR(Judy not found)])
   AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
 fi
 
