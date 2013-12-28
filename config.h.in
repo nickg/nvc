@@ -14,6 +14,9 @@
 /* Enable native code generation */
 #undef ENABLE_NATIVE
 
+/* Internal definition of GTKWave for parallel FST writer */
+#undef FST_WRITER_PARALLEL
+
 /* Define to 1 if you have `alloca', as a function or macro. */
 #undef HAVE_ALLOCA
 
@@ -48,9 +51,6 @@
 /* Define to 1 if you have the `Judy' library (-lJudy). */
 #undef HAVE_LIBJUDY
 
-/* Define to 1 if you have the `pthread' library (-lpthread). */
-#undef HAVE_LIBPTHREAD
-
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
 
@@ -81,6 +81,12 @@
 
 /* Define to 1 if you have a working `mmap' system call. */
 #undef HAVE_MMAP
+
+/* Define if you have POSIX threads libraries and header files. */
+#undef HAVE_PTHREAD
+
+/* Have PTHREAD_PRIO_INHERIT. */
+#undef HAVE_PTHREAD_PRIO_INHERIT
 
 /* Define to 1 if you have the <readline.h> header file. */
 #undef HAVE_READLINE_H
@@ -220,6 +226,10 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define to necessary symbol if this constant uses a non-standard name on
+   your system. */
+#undef PTHREAD_CREATE_JOINABLE
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
