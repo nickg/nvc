@@ -16,6 +16,13 @@ libnvc_a_SOURCES = lib.c util.c ident.c parse.y lexer.l tree.c type.c \
 libcgen_a_SOURCES = cgen.c
 libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
+if FST_WRITER_PARALLEL
+# FIXME: Consider FORCE_CXX_LINK?
+AM_CC       = $(PTHREAD_CC)
+AM_CFLAGS  += $(PTHREAD_CFLAGS)
+AM_LDFLAGS += $(PTHREAD_LIBS)
+endif
+
 nvc_SOURCES = nvc.c
 
 if FORCE_CXX_LINK
