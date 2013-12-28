@@ -51,6 +51,9 @@
 /* Define to 1 if you have the `Judy' library (-lJudy). */
 #undef HAVE_LIBJUDY
 
+/* Preprequisite definition of GTKWave for parallel FST writer */
+#undef HAVE_LIBPTHREAD
+
 /* Define if you have a readline compatible library */
 #undef HAVE_LIBREADLINE
 
