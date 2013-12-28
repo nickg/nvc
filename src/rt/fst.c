@@ -272,7 +272,8 @@ static void fst_process_signal(tree_t d)
 
       case T_PHYSICAL:
          {
-            vt = FST_VT_GEN_STRING;
+            sdt = FST_SDT_NONE;
+            vt  = FST_VT_GEN_STRING;
             data->size = 0;
             data->type.units = fst_make_unit_map(type);
             data->fmt = fst_fmt_physical;
