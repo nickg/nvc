@@ -56,7 +56,7 @@ $(ieee)/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/std_logic_textio.vhd
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) -L ../std --work=../ieee/ieee --make --deps-only --native \
-		> $(srcdir)/deps.mk
+	$(nvc) -L ../std --work=../ieee/ieee --make --deps-only --native | \
+		$(deps_pp) > $(srcdir)/deps.mk
 
 include deps.mk

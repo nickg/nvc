@@ -37,6 +37,7 @@ clean-local:
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) --work=std --make --deps-only --native > $(srcdir)/deps.mk
+	$(nvc) --work=std --make --deps-only --native | \
+		$(deps_pp) > $(srcdir)/deps.mk
 
 include deps.mk

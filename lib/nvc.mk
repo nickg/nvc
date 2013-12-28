@@ -20,3 +20,5 @@ codegen_verbose_0 = @echo "  NATIVE  " $@; NVC_LINK_QUIET=1
 else
 codegen_verbose_0 =
 endif
+
+deps_pp = sed 's|\(../\)*\(\w\+/\w\+/[a-z0-9_\-]\+\.vhdl\?\)|$$(top_srcdir)/\2|g'
