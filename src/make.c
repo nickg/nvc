@@ -193,7 +193,7 @@ static char *make_elab_name(tree_t t)
       if (*p == '.')
          *p = '\0';
       else
-         *p = tolower(*p);
+         *p = tolower((int)*p);
    }
 
    return name;
