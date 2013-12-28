@@ -38,6 +38,7 @@ AC_FUNC_ALLOCA
 AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_FORK
+AC_FUNC_FSEEKO
 AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
                 memset strchr strrchr strstr setenv])
 
@@ -63,6 +64,35 @@ fi
 
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_MSG_ERROR(bzip2 not found)])
+
+# fst/fstapi.c can use pthread to write FST in parallel if HAVE_LIBPTHREAD
+# or FST_WRITER_PARALLEL is defined.
+# FIXME: -lpthread may be in LLVM_LDFLAGS already.
+AC_ARG_ENABLE([fst_pthread],
+  [AS_HELP_STRING([--enable-fst-pthread],
+    [Use pthread to write FST in parallel])],
+  [enable_fst_pthread=$enableval],
+  [enable_fst_pthread=no])
+if test x$enable_fst_pthread = xyes ; then
+  AX_PTHREAD([], [AC_MSG_ERROR([pthread not found])])
+  if test x$ax_pthread_ok = xyes ; then
+    AC_DEFINE_UNQUOTED([FST_WRITER_PARALLEL], [1],
+      [Internal definition of GTKWave for parallel FST writer])
+  fi
+fi
+
+AM_CONDITIONAL([FST_WRITER_PARALLEL], [test x$ax_pthread_ok = xyes])
+
+# fst/fstapi.c can use Judy instead of builtin Jenkins if _WAVE_HAVE_JUDY is defined.
+AC_ARG_ENABLE([fst_judy],
+  [AS_HELP_STRING([--enable-fst-judy],
+    [Use Judy instead of builtin Jenkins for FST])],
+  [enable_fst_judy=$enableval],
+  [enable_fst_judy=no])
+if test x$enable_fst_judy = xyes ; then
+  AC_CHECK_LIB([Judy], [JudyHSIns], [], [AC_MSG_ERROR(Judy not found)])
+  AC_DEFINE_UNQUOTED([_WAVE_HAVE_JUDY], [1], [Internal definition of GTKWave for Judy])
+fi
 
 AX_LLVM_C([engine bitreader bitwriter])
 AM_CONDITIONAL([FORCE_CXX_LINK], [test ! x$ax_cv_llvm_shared = xyes])
