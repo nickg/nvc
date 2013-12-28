@@ -24,6 +24,7 @@ src/lexer.c
 src/parse.[ch]
 src/parse.output
 .deps
+/config.h.in
 /config.h
 /config.log
 /config.status
