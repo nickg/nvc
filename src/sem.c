@@ -1643,6 +1643,22 @@ static void sem_add_attributes(tree_t decl)
    }
 }
 
+static type_t sem_array_aggregate_type(type_t array, int from_dim)
+{
+   const int ndims = type_dims(array);
+
+   assert(from_dim < ndims);
+
+   type_t type = type_new(T_CARRAY);
+   type_set_ident(type, type_ident(array));
+   type_set_elem(type, type_elem(array));
+
+   for (int i = from_dim; i < ndims; i++)
+      type_add_dim(type, type_dim(array, i));
+
+   return type;
+}
+
 static tree_t sem_default_value(type_t type)
 {
    type_t base = type_base_recur(type);
@@ -1655,9 +1671,11 @@ static tree_t sem_default_value(type_t type)
    case T_CARRAY:
       {
          tree_t def = NULL;
-         for (int i = type_dims(type) - 1 ; i >= 0; i--) {
+         const int ndims = type_dims(type);
+         for (int i = ndims - 1; i >= 0; i--) {
             tree_t val = (def ? def : sem_default_value(type_elem(base)));
             def = tree_new(T_AGGREGATE);
+            tree_set_type(def, sem_array_aggregate_type(type, i));
 
             tree_t a = tree_new(T_ASSOC);
             tree_set_subkind(a, A_OTHERS);
@@ -1741,8 +1759,7 @@ static bool sem_check_decl(tree_t t)
 
    if (!tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL))
       tree_set_value(t, sem_default_value(type));
-
-   if (tree_has_value(t)) {
+   else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check_constrained(value, type))
          return false;
@@ -3863,14 +3880,8 @@ static bool sem_check_aggregate(tree_t t)
       const int ndims = type_dims(composite_type);
       if (ndims == 1)
          elem_type = type_elem(base_type);
-      else {
-         elem_type = type_new(T_CARRAY);
-         type_set_ident(elem_type, type_ident(composite_type));
-         type_set_elem(elem_type, type_elem(base_type));
-
-         for (int i = 1; i < ndims; i++)
-            type_add_dim(elem_type, type_dim(composite_type, i));
-      }
+      else
+         elem_type = sem_array_aggregate_type(composite_type, 1);
 
       type_t index_type = sem_index_type(composite_type, 0);
 

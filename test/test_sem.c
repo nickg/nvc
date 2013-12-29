@@ -223,6 +223,7 @@ START_TEST(test_scope)
       {  63, "G already declared in this region" },
       {  71, "P already declared in this region" },
       { 114, "type MY_INT1 is not declared" },
+      { 137, "undefined identifier E1" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -273,6 +274,21 @@ START_TEST(test_scope)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

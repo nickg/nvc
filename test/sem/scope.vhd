@@ -113,3 +113,28 @@ entity no_use_clause is
         a : in pack1.my_int1;           -- OK
         b : out my_int1 );              -- Error
 end entity;
+
+-------------------------------------------------------------------------------
+
+package pack3 is
+    type my_enum is (E1, E2, E3);
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack3.all;
+
+package pack4 is
+    type my_enum_array is array (integer range <>) of my_enum;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack4.all;
+
+architecture a of foo is
+    signal x : my_enum_array(1 to 3);           -- OK
+    signal y : my_enum_array(1 to 3) := (others => E1);
+              -- Error: E1 not visible
+begin
+end architecture;
