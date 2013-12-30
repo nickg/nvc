@@ -222,3 +222,56 @@ begin
             o => s );
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture conv of top is
+    type int_vec1 is array (integer range <>) of integer;
+    type int_vec2 is array (integer range <>) of integer;
+
+    type my_int1 is range 0 to 1;
+
+    component comp1 is
+        port (
+            i : in int_vec1(1 to 3);
+            n : in my_int1 := 5;
+            o : out int_vec2(1 to 3) );
+    end component;
+
+    component comp2 is
+        port (
+            i : in int_vec1 );
+    end component;
+
+    function func1(signal x : in bit) return my_int1;
+    function func2(signal x : in bit; y : in integer := 5) return my_int1;
+    function func3(constant x : in bit) return my_int1;
+
+    signal x : int_vec1(1 to 3);
+    signal y : int_vec2(1 to 3);
+    signal z : bit;
+begin
+
+    c1: component comp1
+        port map ( i => int_vec1(y) );  -- OK
+
+    c2: component comp2
+        port map ( i => int_vec1(y) );  -- Error
+
+    c3: component comp1
+        port map ( i => x,
+                   n => func1(z) );     -- OK
+
+    c4: component comp1
+        port map ( i => x,
+                   n => func2(z) );     -- Error
+
+    c5: component comp1
+        port map ( i => x,
+                   n => func3(z) );     -- Error
+
+    c6: component comp1
+        port map ( i => int_vec1(y),
+                   o => int_vec2(x) );  -- Error
+
+end architecture;

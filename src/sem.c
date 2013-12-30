@@ -4592,9 +4592,11 @@ static bool sem_check_map(tree_t t, tree_t unit,
       if (!ok)
          continue;
 
-      if (!type_eq(tree_type(value), type))
+      type_t value_type = tree_type(value);
+
+      if (!type_eq(value_type, type))
          sem_error(value, "type of actual %s does not match type %s of formal "
-                   "port %s", sem_type_str(tree_type(value)),
+                   "port %s", sem_type_str(value_type),
                    sem_type_str(type), istr(tree_ident(decl)));
 
       if (tree_kind(value) == T_OPEN) {
@@ -4610,7 +4612,40 @@ static bool sem_check_map(tree_t t, tree_t unit,
                       sem_type_str(type));
       }
 
-      if (!sem_globally_static(value) && !sem_static_name(value))
+      // Check for type conversions and conversion functions
+
+      tree_t actual = NULL;
+
+      if (tree_kind(value) == T_TYPE_CONV)
+         actual = tree_value(tree_param(value, 0));
+      else if (tree_kind(value) == T_FCALL) {
+         // Conversion functions are in LRM 93 section 4.3.2.2
+
+         tree_t func = tree_ref(value);
+         if ((tree_ports(func) == 1) && (tree_params(value) == 1)) {
+            tree_t port0 = tree_port(func, 0);
+            if (tree_class(port0) != C_CONSTANT)
+               actual = tree_value(tree_param(value, 0));
+         }
+      }
+
+      if (actual == NULL)
+         actual = value;    // No conversion
+      else {
+         // LRM 93 section 3.2.1.1 result of a type conversion in an
+         // association list cannot be an unconstrained array type
+         if (type_is_unconstrained(value_type)
+             && type_is_unconstrained(type))
+            sem_error(value, "result of conversion for unconstrained formal "
+                      "%s must be a constrained array type",
+                      istr(tree_ident(decl)));
+
+         if (tree_subkind(decl) == PORT_OUT)
+            sem_error(value, "conversion not allowed for formal %s with "
+                      "mode OUT", istr(tree_ident(decl)));
+      }
+
+      if (!sem_globally_static(actual) && !sem_static_name(actual))
          sem_error(value, "actual must be globally static expression "
                    "or locally static name");
    }
