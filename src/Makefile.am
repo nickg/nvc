@@ -38,7 +38,7 @@ AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
 
 pkgdata_DATA = libnvcimp.a
 
-libnvcimp.a: nvc
+libnvcimp.a: nvc$(EXEEXT)
 
 .PHONY: libnvcimp.a
 
