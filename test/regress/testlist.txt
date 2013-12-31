@@ -193,3 +193,4 @@ bounds17        gold,fail
 signal13        normal
 elab18          normal
 wait13          normal
+shared2         normal

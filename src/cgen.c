@@ -5682,13 +5682,22 @@ static void cgen_file_decl(tree_t t)
 
 static void cgen_shared_var(tree_t t)
 {
-   LLVMTypeRef lltype = llvm_type(tree_type(t));
-   LLVMValueRef var = LLVMAddGlobal(module, lltype, istr(tree_ident(t)));
+   type_t type  = tree_type(t);
+   tree_t value = tree_value(t);
 
-   cgen_ctx_t ctx;
-   memset(&ctx, '\0', sizeof(ctx));
-   LLVMValueRef init = cgen_expr(tree_value(t), &ctx);
-   LLVMSetInitializer(var, init);
+   LLVMValueRef var;
+   if (type_is_array(type)) {
+      var = cgen_expr(value, NULL);
+      LLVMSetValueName(var, istr(tree_ident(t)));
+      LLVMSetLinkage(var, LLVMExternalLinkage);
+      LLVMSetGlobalConstant(var, false);
+   }
+   else {
+      var = LLVMAddGlobal(module, llvm_type(type), istr(tree_ident(t)));
+
+      LLVMValueRef init = cgen_expr(value, NULL);
+      LLVMSetInitializer(var, init);
+   }
 
    tree_add_attr_ptr(t, local_var_i, var);
 }
