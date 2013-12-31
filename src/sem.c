@@ -4634,11 +4634,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
          // Conversion functions are in LRM 93 section 4.3.2.2
 
          tree_t func = tree_ref(value);
-         if ((tree_ports(func) == 1) && (tree_params(value) == 1)) {
-            tree_t port0 = tree_port(func, 0);
-            if (tree_class(port0) != C_CONSTANT)
-               actual = tree_value(tree_param(value, 0));
-         }
+         if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+            actual = tree_value(tree_param(value, 0));
       }
 
       if (actual == NULL)
