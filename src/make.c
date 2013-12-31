@@ -415,5 +415,7 @@ void make(tree_t *targets, int count, FILE *out)
       make_run(targets, count, out);
    }
 
+   fprintf(out, "\n-include local.mk\n");
+
    free(targets);
 }
