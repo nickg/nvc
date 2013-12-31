@@ -296,4 +296,11 @@ begin
         a(false to false) := (others => 1);  -- OK
     end process;
 
+    process is
+        subtype r is integer range 1 to 3;
+    begin
+        x(r'range) <= (others => 1);
+        x(r) <= (others => 1);
+    end process;
+
 end architecture;
