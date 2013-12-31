@@ -25,6 +25,9 @@ begin
         t := 6 & 7;                     -- OK
         t := 7 & character'( 'x' );     -- Error
         c := bit_vector(b & '1');       -- OK
+        assert "10" = ("1" & b(1));     -- OK
+        assert ("1" & b(1)) = "10";     -- OK
+        assert "10" = (b(1) & "0");     -- OK
         wait;
     end process;
 

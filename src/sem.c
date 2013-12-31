@@ -3514,12 +3514,24 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
    type_set_push();
 
    for (unsigned i = 0; i < old->n_members; i++) {
-      type_t base = type_base_recur(old->members[i]);
-      if (type_is_unconstrained(base))
-         type_set_add(base);
+      if (!type_is_array(old->members[i]))
+         continue;
 
-      if (type_is_array(old->members[i]))
-         type_set_add(type_elem(old->members[i]));
+      type_t base = type_base_recur(old->members[i]);
+      type_t elem = type_elem(base);
+
+      if (hint == NULL) {
+         if (type_is_unconstrained(base))
+            type_set_add(base);
+
+         type_set_add(elem);
+      }
+      else if (!type_is_array(hint)) {
+         if (type_eq(type_elem(base), hint)) {
+            type_set_add(base);
+            type_set_add(elem);
+         }
+      }
    }
 
    if (hint != NULL) {
