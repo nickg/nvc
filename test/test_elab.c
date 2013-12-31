@@ -130,7 +130,7 @@ START_TEST(test_elab4)
    input_from_file(TESTDIR "/elab/elab4.vhd");
 
    const error_t expect[] = {
-      { 21, "actual width 9 does not match formal width 8" },
+      { 21, "actual width 9 does not match formal X width 8" },
       { -1, NULL }
    };
    expect_errors(expect);

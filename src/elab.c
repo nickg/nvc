@@ -539,7 +539,8 @@ static void elab_map_nets(map_list_t *maps)
             const int fwidth = type_width(ftype);
             if (fwidth != awidth) {
                error_at(tree_loc(maps->actual), "actual width %d does not "
-                        "match formal width %d", awidth, fwidth);
+                        "match formal %s width %d", awidth,
+                        istr(tree_ident(maps->signal)), fwidth);
                ++errors;
                continue;
             }
