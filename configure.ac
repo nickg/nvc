@@ -140,7 +140,7 @@ AC_SUBST(MAKEFLAGS)
 AC_ARG_ENABLE([coverage],
   [AS_HELP_STRING([--enable-coverage],
     [Instrument compiler with gcov])],
-  [enable_coverage=yes],
+  [enable_coverage=$enableval],
   [])
 if test x$enable_coverage = xyes ; then
   COV_CFLAGS="--coverage --no-inline"
