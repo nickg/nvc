@@ -20,6 +20,10 @@
 
 #include <stdlib.h>
 
+static ident_t never_waits_i;
+static ident_t elide_bounds_i;
+static ident_t range_var_i;
+
 ////////////////////////////////////////////////////////////////////////////////
 // Delete processes that contain just a single wait statement
 //
@@ -62,7 +66,7 @@ static void opt_may_wait_fn(tree_t t, void *ctx)
    if (kind == T_WAIT)
       *may_wait = true;
    else if (kind == T_PCALL) {
-      if (!tree_attr_int(tree_ref(t), ident_new("never_waits"), 0))
+      if (!tree_attr_int(tree_ref(t), never_waits_i, 0))
          *may_wait = true;
    }
 }
@@ -72,7 +76,7 @@ static void opt_tag_simple_procedure(tree_t t)
    bool may_wait = false;
    tree_visit(t, opt_may_wait_fn, &may_wait);
    if (!may_wait)
-      tree_add_attr_int(t, ident_new("never_waits"), 1);
+      tree_add_attr_int(t, never_waits_i, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +109,44 @@ static void opt_tag_return_array(tree_t t)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// If an array reference index is a reference to an induction variable with
+// the same range as the array then elide bounds checking at runtime
+//
+// for i in x'range loop
+//   x(i) := f(...);
+// end loop;
+//
+// The bounds check on x(i) always succeeds
+//
+
+static void opt_elide_array_ref_bounds(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (tree_kind(value) != T_REF)
+      return;
+
+   tree_t decl = tree_ref(value);
+
+   const int nparams = tree_params(t);
+   for (int i = 0; i < nparams; i++) {
+      tree_t index = tree_value(tree_param(t, i));
+      if (tree_kind(index) != T_REF)
+         return;
+
+      tree_t index_decl = tree_ref(index);
+
+      tree_t range_var = tree_attr_tree(index_decl, range_var_i);
+      if (range_var == NULL)
+         return;
+
+      if (range_var != decl)
+         return;
+   }
+
+   tree_add_attr_int(t, elide_bounds_i, 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void opt_tag(tree_t t, void *ctx)
 {
@@ -117,6 +159,10 @@ static void opt_tag(tree_t t, void *ctx)
       opt_tag_return_array(t);
       break;
 
+   case T_ARRAY_REF:
+      opt_elide_array_ref_bounds(t);
+      break;
+
    default:
       break;
    }
@@ -124,6 +170,10 @@ static void opt_tag(tree_t t, void *ctx)
 
 void opt(tree_t top)
 {
+   never_waits_i  = ident_new("never_waits");
+   elide_bounds_i = ident_new("elide_bounds");
+   range_var_i    = ident_new("range_var");
+
    if (tree_kind(top) == T_ELAB)
       opt_delete_wait_only(top);
 

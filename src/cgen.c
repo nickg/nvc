@@ -3740,6 +3740,8 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
 
          LLVMValueRef var = cgen_var_lvalue(tree_value(t), ctx);
 
+         const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
+
          LLVMValueRef idx = llvm_int32(0);
          const int nparams = tree_params(t);
          for (int i = 0; i < nparams; i++) {
@@ -3748,7 +3750,8 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
 
             LLVMValueRef off = cgen_expr(tree_value(p), ctx);
 
-            cgen_check_array_bounds(tree_value(p), type, i, var, off, ctx);
+            if (!elide_bounds)
+               cgen_check_array_bounds(tree_value(p), type, i, var, off, ctx);
 
             if (i > 0) {
                LLVMValueRef stride = cgen_array_len(type, i, var);

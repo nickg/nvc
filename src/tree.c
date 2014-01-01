@@ -1729,6 +1729,7 @@ tree_t tree_attr_tree(tree_t t, ident_t name)
 
 void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
 {
+   assert(val != NULL);
    tree_add_attr(t, name, A_TREE)->tval = val;
 }
 

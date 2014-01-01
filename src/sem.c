@@ -5138,6 +5138,7 @@ static bool sem_check_while(tree_t t)
 static bool sem_check_for(tree_t t)
 {
    range_t r = tree_range(t);
+   const bool is_range_expr = (r.kind == RANGE_EXPR);
    if (!sem_check_range(&r, NULL))
       return false;
    tree_set_range(t, r);
@@ -5146,6 +5147,12 @@ static bool sem_check_for(tree_t t)
    tree_set_ident(idecl, tree_ident2(t));
    tree_set_loc(idecl, tree_loc(t));
    tree_set_type(idecl, tree_type(r.left));
+
+   if (is_range_expr) {
+      // Find the variable X in X'RANGE
+      tree_t range_var = tree_ref(tree_name(r.left));
+      tree_add_attr_tree(idecl, ident_new("range_var"), range_var);
+   }
 
    tree_add_decl(t, idecl);
 
