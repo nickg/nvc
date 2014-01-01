@@ -56,6 +56,7 @@ static ident_t null_range_i;
 static ident_t nest_level_i;
 static ident_t nest_offset_i;
 static ident_t nest_parent_i;
+static ident_t returned_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -130,6 +131,7 @@ static void cgen_cond_coverage(tree_t t, LLVMValueRef value);
 static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
                                    type_t left_type, type_t right_type,
                                    LLVMIntPredicate pred, cgen_ctx_t *ctx);
+static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -697,7 +699,8 @@ static LLVMValueRef cgen_array_elem_size(type_t type)
    return llvm_sizeof(llvm_type(type));
 }
 
-static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_tmp_var(type_t type, const char *name,
+                                 bool use_tmp, cgen_ctx_t *ctx)
 {
    // Handle case where array size is not known until run time
    if (type_is_array(type) && !cgen_const_bounds(type)) {
@@ -746,14 +749,25 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name, cgen_ctx_t *ctx)
       LLVMTypeRef base_type = llvm_type(type_elem(type));
       LLVMTypeRef ptr_type  = LLVMPointerType(base_type, 0);
 
-      LLVMValueRef buf =
-         LLVMBuildArrayAlloca(builder, base_type, size, "buf");
-
-      LLVMValueRef ptr = LLVMBuildPointerCast(builder, buf, ptr_type, "");
+      LLVMValueRef ptr;
+      if (use_tmp) {
+         LLVMValueRef bytes =
+            LLVMBuildMul(builder, llvm_sizeof(base_type), size, "bytes");
+         ptr = cgen_tmp_alloc(bytes, base_type);
+      }
+      else {
+         LLVMValueRef buf =
+            LLVMBuildArrayAlloca(builder, base_type, size, "buf");
+         ptr = LLVMBuildPointerCast(builder, buf, ptr_type, "");
+      }
 
       LLVMValueRef meta = cgen_array_meta(type, params, ptr);
       LLVMSetValueName(meta, name);
       return meta;
+   }
+   else if (use_tmp && type_is_array(type)) {
+      LLVMValueRef bytes = llvm_sizeof(llvm_type(type));
+      return cgen_tmp_alloc(bytes, llvm_type(type_elem(type)));
    }
    else {
       LLVMValueRef var = LLVMBuildAlloca(builder, llvm_type(type), name);
@@ -1254,7 +1268,8 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
 static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
 {
    type_t type = tree_type(d);
-   LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), ctx);
+   const bool use_tmp = tree_attr_int(d, returned_i, 0);
+   LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), use_tmp, ctx);
 
    if (tree_has_value(d)) {
       tree_t value = tree_value(d);
@@ -3033,7 +3048,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(ctx->fn, "da_exit");
 
    // Prelude
-   LLVMValueRef a = cgen_tmp_var(type, "dyn_tmp", ctx);
+   LLVMValueRef a = cgen_tmp_var(type, "dyn_tmp", false, ctx);
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -3313,7 +3328,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
       var = cgen_array_meta(type, dims, data);
    }
    else
-      var = cgen_tmp_var(tree_type(t), "concat", ctx);
+      var = cgen_tmp_var(tree_type(t), "concat", false, ctx);
 
    LLVMValueRef off = NULL;
 
@@ -4138,41 +4153,69 @@ static void cgen_return(tree_t t, cgen_ctx_t *ctx)
    if (tree_has_value(t)) {
       LLVMValueRef rval = cgen_expr(tree_value(t), ctx);
 
-      type_t stype = tree_type(tree_value(t));
+      tree_t value = tree_value(t);
+      type_t stype = tree_type(value);
 
       // If we are returning an array then wrap it with metadata
       if (type_is_array(stype)) {
-         // Need to make a copy of this array as it is currently
-         // on the stack
-
          type_t rtype = type_result(tree_type(ctx->fdecl));
 
-         LLVMTypeRef base_type = llvm_type(type_elem(stype));
-         LLVMValueRef bytes =
-            LLVMBuildMul(builder, cgen_array_len(stype, -1, rval),
-                         llvm_sizeof(base_type), "bytes");
-         LLVMValueRef buf_ptr = cgen_tmp_alloc(bytes, base_type);
+         if ((tree_kind(value) == T_REF) &&
+             tree_attr_int(tree_ref(value), returned_i, 0)) {
+            // This array was already allocatated in the temporary area
 
-         if (!cgen_const_bounds(rtype)) {
-            // Returning a wrapped array
+            const bool rconst = cgen_const_bounds(rtype);
+            const bool sconst = cgen_const_bounds(stype);
 
-            LLVMValueRef rarray = cgen_array_meta_1(
-               rtype,
-               cgen_array_left(stype, 0, rval),
-               cgen_array_right(stype, 0, rval),
-               cgen_array_dir(stype, 0, rval),
-               buf_ptr);
-
-            cgen_array_copy(stype, rtype, rval, rarray, NULL, ctx);
-
-            LLVMBuildRet(builder, rarray);
+            if (rconst == sconst)
+               LLVMBuildRet(builder, rval);
+            else if (rconst) {
+               LLVMValueRef data = cgen_array_data_ptr(stype, rval);
+               LLVMBuildRet(builder, data);
+            }
+            else if (sconst) {
+               LLVMValueRef rarray = cgen_array_meta_1(
+                  rtype,
+                  cgen_array_left(stype, 0, rval),
+                  cgen_array_right(stype, 0, rval),
+                  cgen_array_dir(stype, 0, rval),
+                  cgen_array_data_ptr(stype, rval));
+               LLVMBuildRet(builder, rarray);
+            }
+            else
+               assert(false);
          }
          else {
-            // Returning an array of known dimension
+            // Need to make a copy of this array as it is currently
+            // on the stack
 
-            cgen_array_copy(stype, rtype, rval, buf_ptr, NULL, ctx);
+            LLVMTypeRef base_type = llvm_type(type_elem(stype));
+            LLVMValueRef bytes =
+               LLVMBuildMul(builder, cgen_array_len(stype, -1, rval),
+                            llvm_sizeof(base_type), "bytes");
+            LLVMValueRef buf_ptr = cgen_tmp_alloc(bytes, base_type);
 
-            LLVMBuildRet(builder, buf_ptr);
+            if (!cgen_const_bounds(rtype)) {
+               // Returning a wrapped array
+
+               LLVMValueRef rarray = cgen_array_meta_1(
+                  rtype,
+                  cgen_array_left(stype, 0, rval),
+                  cgen_array_right(stype, 0, rval),
+                  cgen_array_dir(stype, 0, rval),
+                  buf_ptr);
+
+               cgen_array_copy(stype, rtype, rval, rarray, NULL, ctx);
+
+               LLVMBuildRet(builder, rarray);
+            }
+            else {
+               // Returning an array of known dimension
+
+               cgen_array_copy(stype, rtype, rval, buf_ptr, NULL, ctx);
+
+               LLVMBuildRet(builder, buf_ptr);
+            }
          }
       }
       else if (type_is_record(stype)) {
@@ -6160,6 +6203,7 @@ void cgen(tree_t top)
    nest_offset_i  = ident_new("nest_offset");
    nest_parent_i  = ident_new("nest_parent");
    sub_cond_i     = ident_new("sub_cond");
+   returned_i     = ident_new("returned");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

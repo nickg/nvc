@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -413,7 +413,13 @@ static void dump_decl(tree_t t, int indent)
       printf(" := ");
       dump_expr(tree_value(t));
    }
-   printf(";\n");
+   printf(";");
+
+   if (tree_attr_int(t, ident_new("returned"), 0))
+      printf(" -- returned");
+
+   printf("\n");
+
 }
 
 static void dump_stmt(tree_t t, int indent)

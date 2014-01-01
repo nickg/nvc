@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ static void opt_may_wait_fn(tree_t t, void *ctx)
    }
 }
 
-static void opt_tag_simple_procedure_fn(tree_t t, void *ctx)
+static void opt_tag_simple_procedure(tree_t t)
 {
    bool may_wait = false;
    tree_visit(t, opt_may_wait_fn, &may_wait);
@@ -75,17 +75,57 @@ static void opt_tag_simple_procedure_fn(tree_t t, void *ctx)
       tree_add_attr_int(t, ident_new("never_waits"), 1);
 }
 
-static void opt_tag_simple_procedures(tree_t top)
+////////////////////////////////////////////////////////////////////////////////
+// Tag array variables that are returned from functions
+//
+// This is used to avoid allocating extra memory for the result
+//
+
+static void opt_tag_return_array(tree_t t)
 {
-   tree_visit_only(top, opt_tag_simple_procedure_fn, NULL, T_PROC_BODY);
+   if (!tree_has_value(t))
+      return;
+
+   tree_t value = tree_value(t);
+
+   if (tree_kind(value) != T_REF)
+      return;
+
+   type_t type = tree_type(value);
+
+   if (!type_is_array(type))
+      return;
+
+   tree_t decl = tree_ref(value);
+
+   if (tree_kind(decl) != T_VAR_DECL)
+      return;
+
+   tree_add_attr_int(decl, ident_new("returned"), 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static void opt_tag(tree_t t, void *ctx)
+{
+   switch (tree_kind(t)) {
+   case T_PROC_BODY:
+      opt_tag_simple_procedure(t);
+      break;
+
+   case T_RETURN:
+      opt_tag_return_array(t);
+      break;
+
+   default:
+      break;
+   }
+}
 
 void opt(tree_t top)
 {
    if (tree_kind(top) == T_ELAB)
       opt_delete_wait_only(top);
 
-   opt_tag_simple_procedures(top);
+   tree_visit(top, opt_tag, NULL);
 }

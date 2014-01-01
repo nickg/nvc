@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 #endif
 
 const char *copy_string =
-   "Copyright (C) 2011-2013  Nick Gasson\n"
+   "Copyright (C) 2011-2014  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
@@ -124,18 +124,22 @@ static int analyse(int argc, char **argv)
    if (parse_errors() + sem_errors() + bounds_errors() > 0)
       return EXIT_FAILURE;
 
-   lib_save(lib_work());
-
    for (int i = 0; i < n_units; i++) {
       tree_kind_t kind = tree_kind(units[i]);
       const bool need_cgen =
          (kind == T_PACK_BODY)
          || ((kind == T_PACKAGE) && pack_needs_cgen(units[i]));
-
-      if (need_cgen) {
+      if (need_cgen)
          opt(units[i]);
+      else
+         units[i] = NULL;
+   }
+
+   lib_save(lib_work());
+
+   for (int i = 0; i < n_units; i++) {
+      if (units[i] != NULL)
          cgen(units[i]);
-      }
    }
 
    free(units);
