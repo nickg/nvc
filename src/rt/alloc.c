@@ -26,6 +26,24 @@
 
 #define INIT_ITEMS 128
 
+struct rt_chunk {
+   void       *ptr;
+   rt_chunk_t *next;
+};
+
+static void rt_alloc_add_objects(rt_alloc_stack_t s, size_t n)
+{
+   rt_chunk_t *c = xmalloc(sizeof(rt_chunk_t));
+   c->next = s->chunks;
+   c->ptr  = xmalloc(n * s->item_sz);
+
+   char *p = c->ptr;
+   for (int i = 0; i < n; i++, p += s->item_sz)
+      rt_free(s, p);
+
+   s->chunks = c;
+}
+
 rt_alloc_stack_t rt_alloc_stack_new(size_t size)
 {
    struct rt_alloc_stack *s = xmalloc(sizeof(struct rt_alloc_stack));
@@ -33,9 +51,9 @@ rt_alloc_stack_t rt_alloc_stack_new(size_t size)
    s->stack_sz  = INIT_ITEMS;
    s->stack_top = 0;
    s->item_sz   = size;
+   s->chunks    = NULL;
 
-   for (int i = 0; i < INIT_ITEMS; i++)
-      rt_free(s, xmalloc(size));
+   rt_alloc_add_objects(s, INIT_ITEMS);
 
    return s;
 }
@@ -46,8 +64,12 @@ void rt_alloc_stack_destroy(rt_alloc_stack_t s)
       fatal("memory leak of %zu items from %zu byte stack",
             s->stack_sz - s->stack_top, s->item_sz);
 
-   for (size_t i = 0; i < s->stack_sz; i++)
-      free(s->stack[i]);
+   while (s->chunks != NULL) {
+      rt_chunk_t *tmp = s->chunks->next;
+      free(s->chunks->ptr);
+      free(s->chunks);
+      s->chunks = tmp;
+   }
 
    free(s->stack);
    free(s);
@@ -59,10 +81,8 @@ void *rt_alloc_slow(rt_alloc_stack_t s)
       s->stack_sz *= 2;
       s->stack = xrealloc(s->stack, sizeof(void *) * s->stack_sz);
 
-      for (size_t i = 0; i < s->stack_sz / 2; i++)
-         rt_free(s, xmalloc(s->item_sz));
+      rt_alloc_add_objects(s, s->stack_sz / 2);
    }
 
    return s->stack[--s->stack_top];
 }
-

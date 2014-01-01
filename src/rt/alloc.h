@@ -22,11 +22,14 @@
 
 #include <assert.h>
 
+typedef struct rt_chunk rt_chunk_t;
+
 struct rt_alloc_stack {
-   void   **stack;
-   size_t stack_sz;
-   size_t stack_top;
-   size_t item_sz;
+   void      **stack;
+   size_t      stack_sz;
+   size_t      stack_top;
+   size_t      item_sz;
+   rt_chunk_t *chunks;
 };
 
 typedef struct rt_alloc_stack *rt_alloc_stack_t;
