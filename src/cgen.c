@@ -1846,12 +1846,15 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    // Behaviour of relational operators on arrays is described in
    // LRM 93 section 7.2.2
 
+   assert((pred == LLVMIntEQ) || (pred == LLVMIntSLT) || (pred == LLVMIntSLE));
+
    LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs_array);
    LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs_array);
 
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
+   LLVMBasicBlockRef init_bb = LLVMGetInsertBlock(builder);
    LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "rel_test");
    LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "rel_body");
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "rel_exit");
@@ -1859,7 +1862,10 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    LLVMValueRef len_eq =
       LLVMBuildICmp(builder, LLVMIntEQ, left_len, right_len, "len_eq");
 
-   LLVMBuildBr(builder, test_bb);
+   if (pred == LLVMIntEQ)
+      LLVMBuildCondBr(builder, len_eq, test_bb, exit_bb);
+   else
+      LLVMBuildBr(builder, test_bb);
 
    // Loop test
 
@@ -1916,11 +1922,11 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
       LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
    LLVMBuildStore(builder, inc, i);
 
+   LLVMValueRef i_eq_len =
+      LLVMBuildICmp(builder, LLVMIntEQ, inc, left_len, "");
    LLVMValueRef done =
       LLVMBuildOr(builder, LLVMBuildNot(builder, eq, ""),
-                  LLVMBuildAnd(builder, len_eq,
-                               LLVMBuildICmp(builder, LLVMIntEQ,
-                                             inc, left_len, ""), ""), "");
+                  LLVMBuildAnd(builder, len_eq, i_eq_len, ""), "");
 
    LLVMBuildCondBr(builder, done, exit_bb, test_bb);
 
@@ -1930,9 +1936,9 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
 
    LLVMValueRef phi = LLVMBuildPhi(builder, LLVMInt1Type(), "arel");
 
-   LLVMValueRef      values[] = { cmp,     len_ge_l };
-   LLVMBasicBlockRef bbs[]    = { body_bb, test_bb  };
-   LLVMAddIncoming(phi, values, bbs, 2);
+   LLVMValueRef      values[] = { cmp,     len_ge_l, len_eq  };
+   LLVMBasicBlockRef bbs[]    = { body_bb, test_bb,  init_bb };
+   LLVMAddIncoming(phi, values, bbs, (pred == LLVMIntEQ) ? 3 : 2);
 
    return phi;
 }
@@ -2480,9 +2486,12 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "aeq"))
          return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
                                LLVMIntEQ, ctx);
-      else if (icmp(builtin, "aneq"))
-         return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
-                               LLVMIntNE, ctx);
+      else if (icmp(builtin, "aneq")) {
+         LLVMValueRef eq =
+            cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
+                           LLVMIntEQ, ctx);
+         return LLVMBuildNot(builder, eq, "");
+      }
       else if (icmp(builtin, "req"))
          return cgen_record_eq(args[0], args[1], arg_types[0], LLVMIntEQ, ctx);
       else if (icmp(builtin, "rneq"))

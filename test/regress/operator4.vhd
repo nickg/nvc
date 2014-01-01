@@ -13,6 +13,8 @@ begin
         v := ( X"01", X"02", X"03" );
         assert v = ( X"01", X"02", X"03" );
         assert v /= ( X"01", X"02", X"05" );
+        assert v /= ( X"01", X"02", X"03", X"04" );
+        assert v /= ( X"01", X"02" );
         wait;
     end process;
 
