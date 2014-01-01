@@ -1851,6 +1851,9 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "rel_body");
    LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "rel_exit");
 
+   LLVMValueRef len_eq =
+      LLVMBuildICmp(builder, LLVMIntEQ, left_len, right_len, "len_eq");
+
    LLVMBuildBr(builder, test_bb);
 
    // Loop test
@@ -1908,7 +1911,13 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
       LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
    LLVMBuildStore(builder, inc, i);
 
-   LLVMBuildCondBr(builder, eq, test_bb, exit_bb);
+   LLVMValueRef done =
+      LLVMBuildOr(builder, LLVMBuildNot(builder, eq, ""),
+                  LLVMBuildAnd(builder, len_eq,
+                               LLVMBuildICmp(builder, LLVMIntEQ,
+                                             inc, left_len, ""), ""), "");
+
+   LLVMBuildCondBr(builder, done, exit_bb, test_bb);
 
    // Epilogue
 
@@ -2554,18 +2563,24 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSLT, ctx);
-      else if (icmp(builtin, "agt"))
-         return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_value(tree_param(t, 1))),
-                               LLVMIntSGT, ctx);
+      else if (icmp(builtin, "agt")) {
+         LLVMValueRef leq =
+            cgen_array_rel(args[0], args[1], arg_types[0],
+                           tree_type(tree_value(tree_param(t, 1))),
+                           LLVMIntSLE, ctx);
+         return LLVMBuildNot(builder, leq, "");
+      }
       else if (icmp(builtin, "aleq"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_value(tree_param(t, 1))),
                                LLVMIntSLE, ctx);
-      else if (icmp(builtin, "ageq"))
-         return cgen_array_rel(args[0], args[1], arg_types[0],
-                               tree_type(tree_value(tree_param(t, 1))),
-                               LLVMIntSGE, ctx);
+      else if (icmp(builtin, "ageq")) {
+         LLVMValueRef lt =
+            cgen_array_rel(args[0], args[1], arg_types[0],
+                           tree_type(tree_value(tree_param(t, 1))),
+                           LLVMIntSLT, ctx);
+         return LLVMBuildNot(builder, lt, "");
+      }
       else if (icmp(builtin, "endfile"))
          return LLVMBuildCall(builder, llvm_fn("_endfile"), args, 1, "");
       else if (icmp(builtin, "sll"))
