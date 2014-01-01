@@ -50,6 +50,9 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
+AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
+AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
+
 AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl], [],
   [AC_MSG_ERROR(TCL library not found)])
