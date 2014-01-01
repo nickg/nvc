@@ -132,6 +132,7 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
                                    type_t left_type, type_t right_type,
                                    LLVMIntPredicate pred, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type);
+static LLVMValueRef cgen_dyn_aggregate(tree_t t, bool use_tmp, cgen_ctx_t *ctx);
 
 static LLVMValueRef llvm_int1(bool b)
 {
@@ -1269,25 +1270,42 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
 {
    type_t type = tree_type(d);
    const bool use_tmp = tree_attr_int(d, returned_i, 0);
-   LLVMValueRef var = cgen_tmp_var(type, istr(tree_ident(d)), use_tmp, ctx);
 
    if (tree_has_value(d)) {
       tree_t value = tree_value(d);
-      LLVMValueRef init = cgen_expr(value, ctx);
-      if (type_is_array(type)) {
-         type_t value_type = tree_type(value);
-         cgen_check_array_sizes(d, type, value_type, var, init, ctx);
-         cgen_array_copy(value_type, type, init, var, NULL, ctx);
+
+      const bool dyn_agg =
+         type_is_array(type)
+         && (tree_kind(value) == T_AGGREGATE)
+         && (!cgen_const_bounds(tree_type(value)) || !cgen_is_const(value));
+
+      if (dyn_agg) {
+         LLVMValueRef var = cgen_dyn_aggregate(value, use_tmp, ctx);
+         LLVMSetValueName(var, istr(tree_ident(d)));
+         return var;
       }
-      else if (type_is_record(type))
-         cgen_record_copy(type, init, var);
       else {
-         cgen_check_scalar_bounds(d, init, ctx);
-         LLVMBuildStore(builder, init, var);
+         LLVMValueRef var =
+            cgen_tmp_var(type, istr(tree_ident(d)), use_tmp, ctx);
+         LLVMValueRef init = cgen_expr(value, ctx);
+
+         if (type_is_array(type)) {
+            type_t value_type = tree_type(value);
+            cgen_check_array_sizes(d, type, value_type, var, init, ctx);
+            cgen_array_copy(value_type, type, init, var, NULL, ctx);
+         }
+         else if (type_is_record(type))
+            cgen_record_copy(type, init, var);
+         else {
+            cgen_check_scalar_bounds(d, init, ctx);
+            LLVMBuildStore(builder, init, var);
+         }
+
+         return var;
       }
    }
-
-   return var;
+   else
+      return cgen_tmp_var(type, istr(tree_ident(d)), use_tmp, ctx);
 }
 
 static LLVMTypeRef cgen_nest_struct_type(tree_t parent)
@@ -3037,7 +3055,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
    return vals;
 }
 
-static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_dyn_aggregate(tree_t t, bool use_tmp, cgen_ctx_t *ctx)
 {
    // Generate code to fill in the aggregate at run time
 
@@ -3048,7 +3066,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, cgen_ctx_t *ctx)
    LLVMBasicBlockRef exit_bb  = LLVMAppendBasicBlock(ctx->fn, "da_exit");
 
    // Prelude
-   LLVMValueRef a = cgen_tmp_var(type, "dyn_tmp", false, ctx);
+   LLVMValueRef a = cgen_tmp_var(type, "dyn_tmp", use_tmp, ctx);
    LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
    LLVMBuildStore(builder, llvm_int32(0), i);
 
@@ -3277,7 +3295,7 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
          return g;
       }
       else
-         return cgen_dyn_aggregate(t, ctx);
+         return cgen_dyn_aggregate(t, false, ctx);
    }
    else if (type_is_record(type)) {
       if (cgen_is_const(t))
