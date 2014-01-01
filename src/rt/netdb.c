@@ -21,20 +21,11 @@
 #include <stdlib.h>
 #include <assert.h>
 
-typedef struct group group_t;
-
 struct group {
    group_t  *next;
    groupid_t gid;
    netid_t   first;
    unsigned  length;
-};
-
-struct netdb {
-   group_t   *groups;
-   groupid_t *map;
-   netid_t    nnets;
-   unsigned   max;
 };
 
 netdb_t *netdb_open(tree_t top)
@@ -88,16 +79,6 @@ void netdb_close(netdb_t *db)
 
    free(db->map);
    free(db);
-}
-
-groupid_t netdb_lookup(netdb_t *db, netid_t nid)
-{
-   assert(nid < db->nnets);
-   groupid_t gid = db->map[nid];
-   if (likely(gid != GROUPID_INVALID))
-      return gid;
-   else
-      fatal_trace("net %d not in database", nid);
 }
 
 unsigned netdb_size(netdb_t *db)
