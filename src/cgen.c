@@ -1026,12 +1026,17 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMValueRef data = cgen_array_data_ptr(type, array);
 
+   LLVMValueRef kind;
    if (alias != NULL) {
       tree_t aliased = tree_value(alias);
       array = cgen_expr(aliased, ctx);
-      left = cgen_unalias_index(alias, left, array, ctx);
-      type = tree_type(aliased);
+      left  = cgen_unalias_index(alias, left, array, ctx);
+      right = cgen_unalias_index(alias, right, array, ctx);
+      type  = tree_type(aliased);
+      kind  = cgen_array_dir(type, 0, array);
    }
+   else
+      kind = llvm_int8(r.kind);
 
    LLVMValueRef off = cgen_array_off(left, array, type, ctx, 0);
 
@@ -1047,7 +1052,7 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
    if (unwrap)
       return ptr;
    else
-      return cgen_array_meta_1(type, left, right, llvm_int8(r.kind), ptr);
+      return cgen_array_meta_1(type, left, right, kind, ptr);
 }
 
 static LLVMValueRef cgen_array_signal_ptr(tree_t decl, LLVMValueRef elem,
