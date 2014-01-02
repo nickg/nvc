@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -57,11 +57,10 @@ typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
 
 struct rt_proc {
-   tree_t            source;
-   proc_fn_t         proc_fn;
-   struct tmp_chunk *tmp_chunks;
-   uint32_t          wakeup_gen;
-   bool              postponed;
+   tree_t    source;
+   proc_fn_t proc_fn;
+   uint32_t  wakeup_gen;
+   bool      postponed;
 };
 
 typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
@@ -1145,7 +1144,6 @@ static void rt_setup(tree_t top)
       procs[i].source     = p;
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
-      procs[i].tmp_chunks = NULL;
       procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
 
       TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
