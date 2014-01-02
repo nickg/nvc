@@ -21,13 +21,6 @@
 #include <stdlib.h>
 #include <assert.h>
 
-struct group {
-   group_t  *next;
-   groupid_t gid;
-   netid_t   first;
-   unsigned  length;
-};
-
 netdb_t *netdb_open(tree_t top)
 {
    char name[256];

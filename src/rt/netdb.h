@@ -32,6 +32,13 @@ typedef struct group group_t;
 
 typedef void (*netdb_walk_fn_t)(groupid_t, netid_t, unsigned);
 
+struct group {
+   group_t  *next;
+   groupid_t gid;
+   netid_t   first;
+   unsigned  length;
+};
+
 struct netdb {
    group_t   *groups;
    groupid_t *map;
@@ -53,6 +60,5 @@ static inline groupid_t netdb_lookup(const netdb_t *db, netid_t nid)
    else
       fatal_trace("net %d not in database", nid);
 }
-
 
 #endif  // _NETDB_H

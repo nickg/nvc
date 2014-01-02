@@ -24,15 +24,6 @@
 #include <assert.h>
 #include <stdlib.h>
 
-typedef struct group group_t;
-
-struct group {
-   group_t  *next;
-   groupid_t gid;
-   netid_t   first;
-   unsigned  length;
-};
-
 typedef struct {
    group_t   *groups;
    groupid_t  next_gid;
