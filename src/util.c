@@ -20,18 +20,13 @@
 #include "util.h"
 #include "ident.h"
 
-#if !defined __CYGWIN__
-// Get REG_EIP from ucontext.h
-#include <sys/ucontext.h>
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
 #include <string.h>
 #include <stdbool.h>
-#if !defined __CYGWIN__
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>
 #endif
 #include <signal.h>
@@ -43,34 +38,24 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
-#if !defined __CYGWIN__
+#ifdef HAVE_SYS_PTRACE_H
 #include <sys/ptrace.h>
+#endif
+#ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
 #endif
 
-#ifdef __linux
+#ifdef HAVE_SYS_PRCTL_H
 #include <sys/prctl.h>
-#endif  // __linux
-
-// The IP register is different depending on the CPU arch
-// Try x86-64 first then regular x86: nothing else is supported
-#if defined REG_RIP
-#define ARCH_IP_REG REG_RIP
-#elif defined REG_EIP
-#define ARCH_IP_REG REG_EIP
-#elif defined __APPLE__
-#ifdef __LP64__
-#define ARCH_IP_REG __rip
-#else
-#define ARCH_IP_REG __eip
 #endif
-#elif defined __ppc__ || defined __powerpc__
-#define ARCH_IP_REG __nip
-#elif defined __CYGWIN__
-#define NO_STACK_TRACE
-#else
-#warning "Don't know the IP register name for your architecture!"
-#define NO_STACK_TRACE
+
+#if defined(HAVE_UCONTEXT_H)
+#include <ucontext.h>
+#elif defined(HAVE_SYS_UCONTEXT_H)
+#include <sys/ucontext.h>
+#elif defined(HAVE_CYGWIN_SIGNAL_H)
+#include <cygwin/signal.h>
+typedef struct ucontext ucontext_t;
 #endif
 
 #define N_TRACE_DEPTH   16
@@ -456,6 +441,8 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
 #ifndef NO_STACK_TRACE
 
+// FIXME: Use cygwin_stackdump() on cygwin?.
+#ifdef HAVE_EXECINFO_H
 static void print_trace(char **messages, int trace_size)
 {
    fputs("\n-------- STACK TRACE --------\n", stderr);
@@ -478,9 +465,12 @@ static void print_trace(char **messages, int trace_size)
 
    fputs("-----------------------------\n", stderr);
 }
+#endif
 
 void show_stacktrace(void)
 {
+// FIXME: Use cygwin_stackdump() on cygwin?.
+#ifdef HAVE_EXECINFO_H
    void *trace[N_TRACE_DEPTH];
    char **messages = NULL;
    int trace_size = 0;
@@ -491,6 +481,7 @@ void show_stacktrace(void)
    print_trace(messages, trace_size);
 
    free(messages);
+#endif
 }
 
 static const char *signame(int sig)
@@ -520,18 +511,8 @@ static bool check_guard_page(uintptr_t addr)
 
 static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 {
-   void *trace[N_TRACE_DEPTH];
-   char **messages = NULL;
-   int trace_size = 0;
    ucontext_t *uc = (ucontext_t*)secret;
-
-#ifdef __APPLE__
-   uintptr_t ip = uc->uc_mcontext->__ss.ARCH_IP_REG;
-#elif defined __ppc__ || defined __powerpc__
-   uintptr_t ip = uc->uc_mcontext.regs->nip;
-#else
-   uintptr_t ip = uc->uc_mcontext.gregs[ARCH_IP_REG];
-#endif
+   uintptr_t ip = uc->PC_FROM_UCONTEXT;
 
    if (sig == SIGSEGV)
       check_guard_page((uintptr_t)info->si_addr);
@@ -549,6 +530,12 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
    fputs(" ***\n", stderr);
 
+// FIXME: Use cygwin_stackdump() on cygwin?.
+#ifdef HAVE_EXECINFO_H
+   void *trace[N_TRACE_DEPTH];
+   int trace_size = 0;
+   char **messages = NULL;
+
    trace_size = backtrace(trace, N_TRACE_DEPTH);
 
    // Overwrite sigaction with caller's address
@@ -560,6 +547,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
    print_trace(messages + 1, trace_size - 1);
 
    free(messages);
+#endif
 
    if (sig != SIGUSR1)
       exit(EXIT_FAILURE);
