@@ -229,11 +229,11 @@ static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
       uint64_t time;
       const char *unit;
    } units[] = {
-      { 1ull, "fs" },
-      { 1000ull, "ps" },
-      { 1000000ull, "ns" },
-      { 1000000000ull, "us" },
-      { 1000000000000ull, "ms" },
+      { UINT64_C(1), "fs" },
+      { UINT64_C(1000), "ps" },
+      { UINT64_C(1000000), "ns" },
+      { UINT64_C(1000000000), "us" },
+      { UINT64_C(1000000000000), "ms" },
       { 0, NULL }
    };
 

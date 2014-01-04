@@ -218,11 +218,11 @@ static unsigned bit_width(type_t t)
 
          if (elements <= 2)
             return 1;
-         if (elements <= 0x100ull)
+         if (elements <= UINT64_C(0x100))
             return 8;
-         else if (elements <= 0x10000ull)
+         else if (elements <= UINT64_C(0x10000))
             return 16;
-         else if (elements <= 0x100000000ull)
+         else if (elements <= UINT64_C(0x100000000))
             return 32;
          else
             return 64;
