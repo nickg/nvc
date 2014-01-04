@@ -45,7 +45,8 @@ AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
 
 AC_HEADER_STDBOOL
 AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
-                  sys/socket.h])
+                  sys/socket.h execinfo.h sys/ptrace.h sys/sysctl.h \
+                  sys/prctl.h])
 
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
@@ -131,6 +132,12 @@ fi
 
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
+
+# AC_PC_FROM_UCONTEXT doesn't accept []-quoted argument.
+AC_PC_FROM_UCONTEXT(AC_MSG_WARN(no way to access program counter - stack trace is disabled))
+if test x$pc_field_found = xfalse ; then
+  AC_DEFINE_UNQUOTED([NO_STACK_TRACE], [1], [Disable stack trace support])
+fi
 
 # Turn on silent make when using the GNU version
 AX_CHECK_GNU_MAKE
