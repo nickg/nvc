@@ -22,7 +22,7 @@ START_TEST(test_integer)
    fail_unless(v == 14124);
 
    fail_unless(parse_value(t, "25252781781981", &v));
-   fail_unless(v == 25252781781981ll);
+   fail_unless(v == INT64_C(25252781781981));
 
    fail_unless(parse_value(t, "1_2_3", &v));
    fail_unless(v == 123);

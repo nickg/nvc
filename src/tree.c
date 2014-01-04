@@ -437,7 +437,7 @@ static void tree_one_time_init(void)
       object_nitems[i] = nitems;
 
       // Knuth's multiplicative hash
-      format_digest += has_map[i] * 2654435761u;
+      format_digest += has_map[i] * UINT32_C(2654435761);
 
       int n = 0;
       for (int j = 0; j < 32; j++) {
@@ -1290,7 +1290,7 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 {
    if (l->file == NULL) {
-      write_u16(0xfffe, ctx->file);  // Invalid location marker
+      write_u16(UINT16_C(0xfffe), ctx->file);  // Invalid location marker
       return;
    }
 
@@ -1308,7 +1308,7 @@ static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
 
       ctx->file_names[findex] = l->file;
 
-      write_u16(findex | 0x8000, ctx->file);
+      write_u16(findex | UINT16_C(0x8000), ctx->file);
       write_u16(len, ctx->file);
       write_raw(l->file, len, ctx->file);
    }
@@ -1328,10 +1328,10 @@ static loc_t read_loc(tree_rd_ctx_t ctx)
 {
    const char *fname;
    uint16_t fmarker = read_u16(ctx->file);
-   if (fmarker == 0xfffe)
+   if (fmarker == UINT16_C(0xfffe))
       return LOC_INVALID;
-   else if (fmarker & 0x8000) {
-      uint16_t index = fmarker & 0x7fff;
+   else if (fmarker & UINT16_C(0x8000)) {
+      uint16_t index = fmarker & UINT16_C(0x7fff);
       assert(index < MAX_FILES);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
@@ -1402,17 +1402,17 @@ fbuf_t *tree_write_file(tree_wr_ctx_t ctx)
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
 #ifdef EXTRA_READ_CHECKS
-   write_u16(0xf11f, ctx->file);
+   write_u16(UINT16_C(0xf11f), ctx->file);
 #endif  // EXTRA_READ_CHECKS
 
    if (t == NULL) {
-      write_u16(0xffff, ctx->file);  // Null marker
+      write_u16(UINT16_C(0xffff), ctx->file);  // Null marker
       return;
    }
 
    if (t->generation == ctx->generation) {
       // Already visited this tree
-      write_u16(0xfffe, ctx->file);   // Back reference marker
+      write_u16(UINT16_C(0xfffe), ctx->file);   // Back reference marker
       write_u32(t->index, ctx->file);
       return;
    }
@@ -1445,7 +1445,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
                tree_write(t->items[n].range->right, ctx);
             }
             else
-               write_u8(0xff, ctx->file);
+               write_u8(UINT8_C(0xff), ctx->file);
          }
          else if (ITEM_NETID_ARRAY & mask) {
             const netid_array_t *a = &(t->items[n].netid_array);
@@ -1488,7 +1488,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    }
 
 #ifdef EXTRA_READ_CHECKS
-   write_u16(0xdead, ctx->file);
+   write_u16(UINT16_C(0xdead), ctx->file);
 #endif  // EXTRA_READ_CHECKS
 }
 
@@ -1496,14 +1496,14 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 {
 #ifdef EXTRA_READ_CHECKS
    uint16_t start = read_u16(ctx->file);
-   if (start != 0xf11f)
+   if (start != UINT16_C(0xf11f))
       fatal("bad tree start marker %x", start);
 #endif  // EXTRA_READ_CHECKS
 
    uint16_t marker = read_u16(ctx->file);
-   if (marker == 0xffff)
+   if (marker == UINT16_C(0xffff))
       return NULL;    // Null marker
-   else if (marker == 0xfffe) {
+   else if (marker == UINT16_C(0xfffe)) {
       // Back reference marker
       unsigned index = read_u32(ctx->file);
       assert(index < ctx->n_trees);
@@ -1542,7 +1542,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             t->items[n].ival = read_u64(ctx->file);
          else if (ITEM_RANGE & mask) {
             const uint8_t rmarker = read_u8(ctx->file);
-            if (rmarker != 0xff) {
+            if (rmarker != UINT8_C(0xff)) {
                t->items[n].range = xmalloc(sizeof(range_t));
                t->items[n].range->kind  = rmarker;
                t->items[n].range->left  = tree_read(ctx);
@@ -1596,7 +1596,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
 #ifdef EXTRA_READ_CHECKS
    uint16_t term = read_u16(ctx->file);
-   if (term != 0xdead)
+   if (term != UINT16_C(0xdead))
       fatal("bad tree termination marker %x kind=%d",
             term, t->kind);
 #endif  // EXTRA_READ_CHECKS

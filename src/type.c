@@ -172,7 +172,7 @@ static void type_one_time_init(void)
       assert(nitems <= MAX_ITEMS);
 
       // Knuth's multiplicative hash
-      format_digest += has_map[i] * 2654435761u;
+      format_digest += has_map[i] * UINT32_C(2654435761);
 
       int n = 0;
       for (int j = 0; j < 32; j++) {
@@ -678,13 +678,13 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    fbuf_t *f = tree_write_file(ctx->tree_ctx);
 
    if (t == NULL) {
-      write_u16(0xffff, f);   // Null marker
+      write_u16(UINT16_C(0xffff), f);   // Null marker
       return;
    }
 
    if (t->generation == ctx->generation) {
       // Already visited this type
-      write_u16(0xfffe, f);   // Back reference marker
+      write_u16(UINT16_C(0xfffe), f);   // Back reference marker
       write_u32(t->index, f);
       return;
    }
@@ -738,10 +738,10 @@ type_t type_read(type_rd_ctx_t ctx)
 {
    fbuf_t *f = tree_read_file(ctx->tree_ctx);
 
-   unsigned short marker = read_u16(f);
-   if (marker == 0xffff)
+   uint16_t marker = read_u16(f);
+   if (marker == UINT16_C(0xffff))
       return NULL;   // Null marker
-   else if (marker == 0xfffe) {
+   else if (marker == UINT16_C(0xfffe)) {
       // Back reference marker
       unsigned index = read_u32(f);
       assert(index < ctx->n_types);

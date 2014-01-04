@@ -219,30 +219,30 @@ void fbuf_close(fbuf_t *f)
 void write_u32(uint32_t u, fbuf_t *f)
 {
    fbuf_maybe_flush(f, 4, false);
-   *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 24) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >>  0) & UINT32_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >>  8) & UINT32_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 16) & UINT32_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 24) & UINT32_C(0xff);
 }
 
 void write_u64(uint64_t u, fbuf_t *f)
 {
    fbuf_maybe_flush(f, 8, false);
-   *(f->wbuf + f->wpend++) = (u >> 0) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 8) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 16) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 24) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 32) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 40) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 48) & 0xff;
-   *(f->wbuf + f->wpend++) = (u >> 56) & 0xff;
+   *(f->wbuf + f->wpend++) = (u >>  0) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >>  8) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 16) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 24) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 32) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 40) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 48) & UINT64_C(0xff);
+   *(f->wbuf + f->wpend++) = (u >> 56) & UINT64_C(0xff);
 }
 
 void write_u16(uint16_t s, fbuf_t *f)
 {
    fbuf_maybe_flush(f, 2, false);
-   *(f->wbuf + f->wpend++) = (s >> 0) & 0xff;
-   *(f->wbuf + f->wpend++) = (s >> 8) & 0xff;
+   *(f->wbuf + f->wpend++) = (s >> 0) & UINT16_C(0xff);
+   *(f->wbuf + f->wpend++) = (s >> 8) & UINT16_C(0xff);
 }
 
 void write_u8(uint8_t u, fbuf_t *f)

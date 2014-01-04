@@ -45,7 +45,7 @@ static inline int hash_slot(hash_t *h, const void *key)
    a = (a ^ 61) ^ (a >> 16);
    a = a + (a << 3);
    a = a ^ (a >> 4);
-   a = a * 0x27d4eb2d;
+   a = a * UINT32_C(0x27d4eb2d);
    a = a ^ (a >> 15);
 
    return a & (h->size - 1);
