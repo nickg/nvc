@@ -225,7 +225,7 @@ static void _tracef(const char *fmt, ...);
 
 static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
 {
-   struct {
+   static const struct {
       uint64_t time;
       const char *unit;
    } units[] = {
