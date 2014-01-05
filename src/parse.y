@@ -2840,6 +2840,9 @@ void input_from_file(const char *file)
    if (fstat(fd, &buf) != 0)
       fatal_errno("fstat");
 
+   if (!S_ISREG(buf.st_mode))
+      fatal("opening %s: not a regular file", file);
+
    file_sz = buf.st_size;
 
    file_start = mmap(NULL, file_sz, PROT_READ, MAP_PRIVATE, fd, 0);
