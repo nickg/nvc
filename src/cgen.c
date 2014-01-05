@@ -5002,6 +5002,8 @@ static void cgen_nested_subprograms(tree_t t)
       case T_PROC_BODY:
       case T_FUNC_BODY:
          {
+            tree_set_ident(d, ident_prefix(tree_ident(t), tree_ident(d), '.'));
+
             tree_add_attr_int(d, nest_level_i, level + 1);
             tree_add_attr_tree(d, nest_parent_i, t);
 
