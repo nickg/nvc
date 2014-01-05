@@ -1327,7 +1327,11 @@ static LLVMTypeRef cgen_nest_struct_type(tree_t parent)
 
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(parent, i);
-      fields[offset++] = llvm_type(tree_type(p));
+      type_t type = tree_type(p);
+      if (type_is_array(type) && cgen_const_bounds(type))
+         fields[offset++] = LLVMPointerType(llvm_type(type_elem(type)), 0);
+      else
+         fields[offset++] = llvm_type(tree_type(p));
    }
 
    for (int i = 0; i < ndecls; i++) {
@@ -1799,10 +1803,20 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          const int nports = tree_ports(ctx->fdecl);
          for (int i = 0; i < nports; i++) {
             tree_t p = tree_port(ctx->fdecl, i);
+
+            LLVMValueRef var = tree_attr_ptr(p, local_var_i);
+
+            type_t type = tree_type(p);
+            if (type_is_array(type) && cgen_const_bounds(type)) {
+               LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+               var = LLVMBuildGEP(builder, var,
+                                  indexes, ARRAY_LEN(indexes), "");
+            }
+
             parent_state = LLVMBuildInsertValue(
                builder,
                parent_state,
-               tree_attr_ptr(p, local_var_i),
+               var,
                offset++,
                istr(tree_ident(p)));
          }
