@@ -4637,17 +4637,20 @@ static bool sem_check_map(tree_t t, tree_t unit,
       }
 
       // Check for type conversions and conversion functions
+      // These only apply if the class of the formal is not constant
 
       tree_t actual = NULL;
 
-      if (tree_kind(value) == T_TYPE_CONV)
-         actual = tree_value(tree_param(value, 0));
-      else if (tree_kind(value) == T_FCALL) {
-         // Conversion functions are in LRM 93 section 4.3.2.2
-
-         tree_t func = tree_ref(value);
-         if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+      if (tree_class(decl) != C_CONSTANT) {
+         if (tree_kind(value) == T_TYPE_CONV)
             actual = tree_value(tree_param(value, 0));
+         else if (tree_kind(value) == T_FCALL) {
+            // Conversion functions are in LRM 93 section 4.3.2.2
+
+            tree_t func = tree_ref(value);
+            if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+               actual = tree_value(tree_param(value, 0));
+         }
       }
 
       if (actual == NULL)
