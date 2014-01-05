@@ -308,6 +308,7 @@
 %token tMINUS "-"
 %token tAMP "&"
 %token tPOWER "**"
+%token tOVER "/"
 %token tSLL "$yellow$sll$$"
 %token tSRL "$yellow$srl$$"
 %token tSLA "$yellow$sla$$"
