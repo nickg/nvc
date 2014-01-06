@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,136 +15,114 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-%code top {
-   #include "util.h"
-   #include "ident.h"
+%{
+#include "util.h"
+#include "ident.h"
+#include "tree.h"
 
-   #include <sys/types.h>
-   #include <sys/mman.h>
-   #include <sys/stat.h>
-   #include <fcntl.h>
-   #include <unistd.h>
-   #include <string.h>
-   #include <stdarg.h>
-   #include <ctype.h>
-   #include <assert.h>
-}
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdarg.h>
+#include <ctype.h>
+#include <assert.h>
+#include <stdbool.h>
 
-%code requires {
-   #include "tree.h"
+#define YYLTYPE loc
+typedef struct loc loc;
 
-   #include <stdbool.h>
+#define YYLLOC_DEFAULT(Current, Rhs, N) {                            \
+   if (N) {                                                          \
+      (Current).first_line   = YYRHSLOC(Rhs, 1).first_line;          \
+      (Current).first_column = YYRHSLOC(Rhs, 1).first_column;        \
+      (Current).last_line    = YYRHSLOC(Rhs, N).last_line;           \
+      (Current).last_column  = YYRHSLOC(Rhs, N).last_column;         \
+      (Current).file         = YYRHSLOC(Rhs, N).file;                \
+      (Current).linebuf      = YYRHSLOC(Rhs, 1).linebuf;             \
+   }                                                                 \
+   else {                                                            \
+      (Current).first_line   = (Current).last_line   =               \
+         YYRHSLOC(Rhs, 0).last_line;                                 \
+      (Current).first_column = (Current).last_column =               \
+         YYRHSLOC(Rhs, 0).last_column;                               \
+      (Current).file = YYRHSLOC(Rhs, 0).file;                        \
+      (Current).linebuf = YYRHSLOC(Rhs, 0).linebuf;                  \
+   }                                                                 \
+ }
 
-   #define YYLTYPE loc
-   typedef struct loc loc;
+union listval {
+   ident_t   ident;
+   range_t   range;
+};
 
-   #define YYLLOC_DEFAULT(Current, Rhs, N) {                         \
-         if (N) {                                                    \
-            (Current).first_line   = YYRHSLOC(Rhs, 1).first_line;    \
-            (Current).first_column = YYRHSLOC(Rhs, 1).first_column;  \
-            (Current).last_line    = YYRHSLOC(Rhs, N).last_line;     \
-            (Current).last_column  = YYRHSLOC(Rhs, N).last_column;   \
-            (Current).file         = YYRHSLOC(Rhs, N).file;          \
-            (Current).linebuf      = YYRHSLOC(Rhs, 1).linebuf;       \
-         }                                                           \
-         else {                                                      \
-            (Current).first_line   = (Current).last_line   =         \
-               YYRHSLOC(Rhs, 0).last_line;                           \
-            (Current).first_column = (Current).last_column =         \
-               YYRHSLOC(Rhs, 0).last_column;                         \
-            (Current).file = YYRHSLOC(Rhs, 0).file;                  \
-            (Current).linebuf = YYRHSLOC(Rhs, 0).linebuf;            \
-         }                                                           \
-      }
+#define LISTVAL(x) ((union listval)x)
 
-   typedef struct {
-      int64_t ival;
-      double  rval;
-      char    *sval;
-      char    cval;
-   } lvals_t;
+typedef struct list list_t;
+typedef struct tree_list tree_list_t;
 
-   union listval {
-      ident_t   ident;
-      range_t   range;
-   };
+struct list {
+   list_t       *next;
+   union listval item;
+};
 
-  #define LISTVAL(x) ((union listval)x)
+struct tree_list {
+   tree_list_t *next;
+   tree_list_t *tail;
+   tree_t       value;
+};
 
-   typedef struct list {
-      struct list   *next;
-      union listval item;
-   } list_t;
+static int        n_errors = 0;
+static const char *read_ptr;
+static const char *file_start;
+static size_t     file_sz;
+static const char *perm_linebuf = NULL;
+static const char *perm_file_name = NULL;
+static int        n_token_next_start = 0;
+static int        n_row = 0;
+static bool       last_was_newline = true;
+static tree_t     root;
 
-   typedef struct tree_list {
-      struct tree_list *next;
-      struct tree_list *tail;
-      tree_t            value;
-   } tree_list_t;
-}
+int yylex(void);
+static void yyerror(const char *s);
 
-%code provides {
-   void input_from_file(const char *file);
+static void copy_trees(tree_list_t *from,
+                       void (*copy_fn)(tree_t t, tree_t d),
+                       tree_t to);
+static list_t *list_add(list_t *list, union listval item);
+static void list_free(list_t *list);
+static void tree_list_append(tree_list_t **l, tree_t t);
+static void tree_list_prepend(tree_list_t **l, tree_t t);
+static void tree_list_concat(tree_list_t **a, tree_list_t *b);
+static void tree_list_free(tree_list_t *l);
+static tree_t build_expr1(const char *fn, tree_t left,
+                          const struct YYLTYPE *loc);
+static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
+                          const struct YYLTYPE *loc);
+static tree_t str_to_agg(const char *start, const char *end,
+                         const loc_t *loc);
+static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
+static bool to_range_expr(tree_t t, range_t *r);
+static ident_t loc_to_ident(const loc_t *loc);
+static tree_t get_time(int64_t fs);
+static void set_delay_mechanism(tree_t t, tree_t reject);
+static tree_t int_to_physical(tree_t t, tree_t unit);
+static tree_t handle_param_expr(tree_t name, tree_list_t *params);
+static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
+                           tree_t mode, tree_t value, loc_t *loc);
 
-   tree_t parse(void);
-   void begin_token(char *tok);
-   int get_next_char(char *b, int max_buffer);
-   int parse_errors(void);
-}
-
-%code {
-   extern lvals_t lvals;
-   extern YYLTYPE yylloc;
-
-   static int        n_errors = 0;
-   static const char *read_ptr;
-   static const char *file_start;
-   static size_t     file_sz;
-   static const char *perm_linebuf = NULL;
-   static const char *perm_file_name = NULL;
-   static int        n_token_next_start = 0;
-   static int        n_row = 0;
-   static bool       last_was_newline = true;
-   static tree_t     root;
-
-   int yylex(void);
-   static void yyerror(const char *s);
-
-   static void copy_trees(tree_list_t *from,
-                          void (*copy_fn)(tree_t t, tree_t d),
-                          tree_t to);
-   static list_t *list_add(list_t *list, union listval item);
-   static void list_free(list_t *list);
-   static void tree_list_append(tree_list_t **l, tree_t t);
-   static void tree_list_prepend(tree_list_t **l, tree_t t);
-   static void tree_list_concat(tree_list_t **a, tree_list_t *b);
-   static void tree_list_free(tree_list_t *l);
-   static tree_t build_expr1(const char *fn, tree_t left,
-                             const struct YYLTYPE *loc);
-   static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
-                             const struct YYLTYPE *loc);
-   static tree_t str_to_agg(const char *start, const char *end,
-                            const loc_t *loc);
-   static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
-   static bool to_range_expr(tree_t t, range_t *r);
-   static ident_t loc_to_ident(const loc_t *loc);
-   static tree_t get_time(int64_t fs);
-   static void set_delay_mechanism(tree_t t, tree_t reject);
-   static tree_t int_to_physical(tree_t t, tree_t unit);
-   static tree_t handle_param_expr(tree_t name, tree_list_t *params);
-   static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
-                              tree_t mode, tree_t value, loc_t *loc);
-
-#define parse_error(loc, ...) do {         \
-      error_at(loc, __VA_ARGS__);          \
-      n_errors++;                          \
+#define parse_error(loc, ...) do {            \
+      error_at(loc, __VA_ARGS__);             \
+      n_errors++;                             \
    } while (0)
-}
+%}
 
 %union {
    tree_t       t;
    ident_t      i;
-   tree_list_t  *l;
+   tree_list_t *l;
    struct {
       tree_list_t *left;
       tree_list_t *right;
@@ -152,9 +130,12 @@
    port_mode_t  m;
    type_t       y;
    range_t      r;
-   list_t       *g;
+   list_t      *g;
    class_t      c;
    bool         b;
+   char        *s;
+   int64_t      n;
+   double       d;
 }
 
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
@@ -194,7 +175,7 @@
 %type <c> object_class entity_class
 %type <b> opt_postponed
 
-%token tID "$yellow$identifier$$"
+%token <s> tID "$yellow$identifier$$"
 %token tENTITY "$yellow$entity$$"
 %token tIS "$yellow$is$$"
 %token tEND "$yellow$end$$"
@@ -227,8 +208,8 @@
 %token tASSIGN ":="
 %token tCOLON ":"
 %token tCOMMA ","
-%token tINT "$yellow$integer literal$$"
-%token tSTRING "$yellow$string literal$$"
+%token <n> tINT "$yellow$integer literal$$"
+%token <s> tSTRING "$yellow$string literal$$"
 %token tERROR "$yellow$error token$$"
 %token tINOUT "$yellow$inout$$"
 %token tLINKAGE "$yellow$linkage$$"
@@ -278,7 +259,7 @@
 %token tINERTIAL "$yellow$inertial$$"
 %token tTRANSPORT "$yellow$transport$$"
 %token tREJECT "$yellow$reject$$"
-%token tBITSTRING "$yellow$bit string$$"
+%token <s> tBITSTRING "$yellow$bit string$$"
 %token tBLOCK "$yellow$block$$"
 %token tWITH "$yellow$with$$"
 %token tSELECT "$yellow$select$$"
@@ -286,7 +267,7 @@
 %token tACCESS "$yellow$access$$"
 %token tFILE "$yellow$file$$"
 %token tOPEN "$yellow$open$$"
-%token tREAL "$yellow$real literal$$"
+%token <d> tREAL "$yellow$real literal$$"
 %token tUNTIL "$yellow$until$$"
 %token tRECORD "$yellow$record$$"
 %token tNEW "$yellow$new$$"
@@ -417,8 +398,8 @@ library_unit : entity_decl | arch_body | package_decl ;
 id
 : tID
   {
-     $$ = ident_new(lvals.sval);
-     free(lvals.sval);
+     $$ = ident_new($1);
+     free($1);
   }
 ;
 
@@ -1190,10 +1171,10 @@ opt_proc : tPROCEDURE | /* empty */ ;
 operator_name
 : tSTRING
   {
-     for (char *p = lvals.sval; *p != '\0'; p++)
+     for (char *p = $1; *p != '\0'; p++)
         *p = tolower((int)*p);
-     $$ = ident_new(lvals.sval);
-     free(lvals.sval);
+     $$ = ident_new($1);
+     free($1);
   }
 ;
 
@@ -2294,19 +2275,19 @@ null_literal
 string_literal
 : tSTRING
   {
-     size_t len = strlen(lvals.sval);
-     $$ = str_to_agg(lvals.sval + 1, lvals.sval + len - 1, &@$);
+     size_t len = strlen($1);
+     $$ = str_to_agg($1 + 1, $1 + len - 1, &@$);
      tree_set_loc($$, &@$);
 
-     free(lvals.sval);
+     free($1);
   }
 ;
 
 bit_string_literal
 : tBITSTRING
   {
-     $$ = bit_str_to_agg(lvals.sval, &@$);
-     free(lvals.sval);
+     $$ = bit_str_to_agg($1, &@$);
+     free($1);
   }
 
 numeric_literal : abstract_literal | physical_literal ;
@@ -2317,14 +2298,14 @@ abstract_literal
      $$ = tree_new(T_LITERAL);
      tree_set_loc($$, &@$);
      tree_set_subkind($$, L_INT);
-     tree_set_ival($$, lvals.ival);
+     tree_set_ival($$, $1);
   }
 | tREAL
   {
      $$ = tree_new(T_LITERAL);
      tree_set_loc($$, &@$);
      tree_set_subkind($$, L_REAL);
-     tree_set_dval($$, lvals.rval);
+     tree_set_dval($$, $1);
   }
 ;
 

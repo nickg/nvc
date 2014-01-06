@@ -70,4 +70,13 @@ void group_nets(tree_t top);
 // Generate a makefile for the givein unit
 void make(tree_t *targets, int count, FILE *out);
 
+// Set parser input file
+void input_from_file(const char *file);
+
+// Read the next unit from the input file
+tree_t parse(void);
+
+// Number of errors found while parsing last unit
+int parse_errors(void);
+
 #endif  // _PHASE_H

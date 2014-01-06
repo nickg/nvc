@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
 
 /*
- *  Copyright (C) 2011-2013  Nick Gasson
+ *  Copyright (C) 2011-2014  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -23,11 +23,16 @@
 %option noinput
 
 %{
-#include "parse.h"
+#include "tree.h"
 #include "util.h"
 
 #include <ctype.h>
 #include <math.h>
+
+typedef struct list list_t;
+typedef struct tree_list tree_list_t;
+
+#include "parse.h"
 
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
@@ -47,7 +52,9 @@ static int parse_int(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
-lvals_t lvals;
+
+void begin_token(char *tok);
+int get_next_char(char *b, int max_buffer);
 %}
 
 ID         [a-zA-Z][a-zA-Z_0-9]*
@@ -310,11 +317,11 @@ LITERAL       {L}{I}{T}{E}{R}{A}{L}
 {INT}        { return parse_int(yytext); }
 {BASED_INT}  { return parse_based_int(yytext); }
 {REAL}       { return parse_real(yytext); }
-{BIT_STRING} { lvals.sval = strdup(yytext); TOKEN(tBITSTRING); }
-{STRING}     { lvals.sval = strdup(yytext); TOKEN(tSTRING); }
+{BIT_STRING} { yylval.s = strdup(yytext); TOKEN(tBITSTRING); }
+{STRING}     { yylval.s = strdup(yytext); TOKEN(tSTRING); }
 {TICK}       { TOKEN(tTICK); }
 {CHAR}       { if (resolve_ir1045()) {
-                  lvals.sval = strdup(yytext);
+                  yylval.s = strdup(yytext);
                   TOKEN(tID);
                }
                REJECT;
@@ -347,7 +354,7 @@ static int resolve_ir1045(void)
 
 static int parse_id(const char *str)
 {
-   char *p = (lvals.sval = xmalloc(strlen(str) + 1));
+   char *p = (yylval.s = xmalloc(strlen(str) + 1));
    while (*str) {
       *p++ = toupper((int)*str);
       str++;
@@ -359,7 +366,7 @@ static int parse_id(const char *str)
 
 static int parse_ex_id(const char *str)
 {
-   char *p = (lvals.sval = xmalloc(strlen(str) + 1));
+   char *p = (yylval.s = xmalloc(strlen(str) + 1));
    while (*str) {
       switch (*str) {
       case '\\':
@@ -393,7 +400,7 @@ static int parse_int(const char *str)
    char *base = strtok(tmp, "eE");
    char *exp  = strtok(NULL, "eE");
 
-   lvals.ival = atoll(base);
+   yylval.n = atoll(base);
 
    int e = (exp ? atoi(exp) : 0);
 
@@ -403,7 +410,7 @@ static int parse_int(const char *str)
       TOKEN(tERROR);
    else {
       for (; e > 0; e--)
-         lvals.ival *= 10;
+         yylval.n *= 10;
    }
 
    TOKEN(tINT);
@@ -418,7 +425,7 @@ static int parse_based_int(const char *str)
    char *value = strtok(NULL, "#");
 
    char *eptr = NULL;
-   lvals.ival = strtol(value, &eptr, atoi(base));
+   yylval.n = strtol(value, &eptr, atoi(base));
    int t = *eptr == '\0' ? tINT : tERROR;
 
    free(tmp);
@@ -434,11 +441,11 @@ static int parse_real(const char *str)
    char *base = strtok(tmp, "eE");
    char *exp  = strtok(NULL, "eE");
 
-   lvals.rval = strtod(base, NULL);
+   yylval.d = strtod(base, NULL);
 
    int e = (exp ? atoi(exp) : 0);
    if (e != 0)
-      lvals.rval *= pow(10.0, (double)e);
+      yylval.d *= pow(10.0, (double)e);
 
    free(tmp);
 

@@ -1,6 +1,7 @@
-#include "parse.h"
 #include "type.h"
 #include "util.h"
+#include "tree.h"
+#include "phase.h"
 
 #include <check.h>
 #include <stdlib.h>
