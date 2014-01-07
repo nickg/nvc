@@ -2099,9 +2099,9 @@ static void cgen_widen(type_t result, LLVMValueRef *args, int nargs)
 {
    // Ensure all arguments to arithmetic operators are the same width
 
-   int max_width = 0;
+   unsigned max_width = 0;
    for (int i = 0; i < nargs; i++) {
-      const int width = LLVMGetIntTypeWidth(LLVMTypeOf(args[i]));
+      const unsigned width = LLVMGetIntTypeWidth(LLVMTypeOf(args[i]));
       max_width = MAX(max_width, width);
    }
 
@@ -2999,7 +2999,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
 
       LLVMValueRef *sub;
       int nsub;
-      if (dim < type_dims(type) - 1)
+      if (dim < ndims - 1)
          sub = cgen_const_aggregate(value, type, dim + 1, &nsub, ctx);
       else if (tree_kind(value) == T_AGGREGATE) {
          sub  = xmalloc(sizeof(LLVMValueRef));
@@ -3620,10 +3620,10 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
       if ((kind == T_SIGNAL_DECL) && array) {
          const int nnets = tree_nets(decl);
          int i;
-         netid_t last = -1;
+         netid_t last = NETID_INVALID;
          for (i = 0; i < nnets; i++) {
             const netid_t nid = tree_net(decl, i);
-            if ((last == -1) || (nid == last + 1))
+            if ((last == NETID_INVALID) || (nid == last + 1))
                last = nid;
             else
                break;
@@ -4410,7 +4410,7 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
       where->stmts = stmts;
    }
    else {
-      int64_t this;
+      int64_t this = 0;
       bool found = false;
       const int nassocs = tree_assocs(value);
       for (int i = 0; (i < nassocs) && !found; i++) {
@@ -4424,7 +4424,7 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
             break;
 
          case A_POS:
-            if (tree_pos(a) == depth) {
+            if (tree_pos(a) == (unsigned)depth) {
                this = assume_int(tree_value(a));
                found = true;
             }
@@ -6168,12 +6168,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
                              LLVMFunctionType(LLVMInt64Type(),
                                               args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_std_standard_now") == 0) {
-      LLVMTypeRef args[] = {};
+   else if (strcmp(name, "_std_standard_now") == 0)
       return LLVMAddFunction(module, "_std_standard_now",
-                             LLVMFunctionType(LLVMInt64Type(),
-                                              args, ARRAY_LEN(args), false));
-   }
+                             LLVMFunctionType(LLVMInt64Type(), NULL, 0, false));
    else
       return NULL;
 }
