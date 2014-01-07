@@ -47,52 +47,52 @@ bootstrap: $(ieee_DATA)
 ieee/_NVC_LIB:
 
 ieee/IEEE.STD_LOGIC_1164: $(srcdir)/std_logic_1164.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/std_logic_1164.vhdl
 
 ieee/IEEE.STD_LOGIC_1164-body: $(srcdir)/std_logic_1164-body.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/std_logic_1164-body.vhdl
 	$(codegen) -L ../std --work=ieee --codegen std_logic_1164
 
 ieee/IEEE.NUMERIC_BIT: $(srcdir)/numeric_bit.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/numeric_bit.vhdl
 
 ieee/IEEE.NUMERIC_STD: $(srcdir)/numeric_std.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/numeric_std.vhdl
 
 ieee/IEEE.NUMERIC_STD-body: $(srcdir)/numeric_std-body.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/numeric_std-body.vhdl
 	$(codegen) -L ../std --work=ieee --codegen numeric_std
 
 ieee/IEEE.NUMERIC_BIT-body: $(srcdir)/numeric_bit-body.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/numeric_bit-body.vhdl
 	$(codegen) -L ../std --work=ieee --codegen numeric_bit
 
 ieee/IEEE.MATH_REAL: $(srcdir)/math_real.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/math_real.vhdl
 
 ieee/IEEE.MATH_REAL-body: $(srcdir)/math_real-body.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/math_real-body.vhdl
 	$(codegen) -L ../std --work=ieee --codegen math_real
 
 ieee/IEEE.VITAL_TIMING: $(srcdir)/timing_p.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/timing_p.vhdl
 
 ieee/IEEE.VITAL_TIMING-body: $(srcdir)/timing_b.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/timing_b.vhdl
 	$(codegen) -L ../std --work=ieee --codegen vital_timing
 
 ieee/IEEE.VITAL_PRIMITIVES: $(srcdir)/prmtvs_p.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/prmtvs_p.vhdl
 
 ieee/IEEE.VITAL_PRIMITIVES-body: $(srcdir)/prmtvs_b.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/prmtvs_b.vhdl
 	$(codegen) -L ../std --work=ieee --codegen vital_primitives
 
 ieee/IEEE.VITAL_MEMORY: $(srcdir)/memory_p.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/memory_p.vhdl
 
 ieee/IEEE.VITAL_MEMORY-body: $(srcdir)/memory_b.vhdl
-	$(nvc) -L ../std --work=ieee -a $<
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/memory_b.vhdl
 	$(codegen) -L ../std --work=ieee --codegen vital_memory
 
 clean-local:
