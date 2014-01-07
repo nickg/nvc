@@ -319,8 +319,13 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          // those of the actual
 
          tree_t ref = actual;
-         while (tree_kind(ref) != T_REF)
-            ref = tree_value(ref);
+         tree_kind_t ref_kind;
+         while ((ref_kind = tree_kind(ref)) != T_REF) {
+            if (ref_kind == T_AGGREGATE)
+               return actual;
+            else
+               ref = tree_value(ref);
+         }
 
          tree_t decl = tree_ref(ref);
          if (tree_kind(decl) == T_SIGNAL_DECL) {
@@ -931,7 +936,6 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
       };
       tree_rewrite(copy, rewrite_refs, &params);
 
-      //const char *label = istr(tree_ident(copy));
       ident_t npath = hpathf(ctx->path, '\0', "[%"PRIi64"]", i);
       ident_t ninst = hpathf(ctx->inst, '\0', "[%"PRIi64"]", i);
 
