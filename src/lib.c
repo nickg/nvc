@@ -299,6 +299,13 @@ lib_t lib_find(const char *name, bool verbose, bool search)
 
    char *name_copy = strdup(name);
    char *sep = strrchr(name_copy, '/');
+
+   // Ignore trailing slashes
+   while ((sep != NULL) && (*(sep + 1) == '\0')) {
+      *sep = '\0';
+      sep = strrchr(name_copy, '/');
+   }
+
    if (sep != NULL) {
       // Work library contains explicit path
       *sep = '\0';
