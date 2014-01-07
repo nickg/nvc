@@ -36,7 +36,6 @@ typedef struct tree_list tree_list_t;
 #include "parse.h"
 
 #define YY_INPUT(buf, result, max_size) {    \
-      (void)yy_flex_realloc;                 \
       result = get_next_char(buf, max_size); \
       if (result <= 0)                       \
          result = YY_NULL;                   \

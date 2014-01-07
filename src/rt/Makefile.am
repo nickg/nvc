@@ -1,6 +1,6 @@
 noinst_LIBRARIES = libnvc-rt.a libjit.a
 
-AM_CFLAGS = -Wall -Werror $(COV_CFLAGS) -I$(srcdir)/.. -I$(top_srcdir)/lxt \
+AM_CFLAGS = -Wall $(COV_CFLAGS) -I$(srcdir)/.. -I$(top_srcdir)/lxt \
 	-I$(top_srcdir)/fst
 
 libnvc_rt_a_SOURCES = rtkern.c slave.c shell.c alloc.c vcd.c heap.c \
