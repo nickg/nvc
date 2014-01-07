@@ -36,9 +36,12 @@
 #include <setjmp.h>
 #include <math.h>
 #include <errno.h>
-#include <alloca.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+
+#ifdef HAVE_ALLOCA_H
+#include <alloca.h>
+#endif
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
