@@ -888,7 +888,7 @@ void *mmap_guarded(size_t sz, const char *tag)
    if (sz & pagemsk)
       sz = (sz & ~pagemsk) + pagesz;
 
-#ifdef __APPLE__
+#if (defined __APPLE__ || defined __OpenBSD__)
    const int flags = MAP_SHARED | MAP_ANON;
 #else
    const int flags = MAP_SHARED | MAP_ANONYMOUS;
