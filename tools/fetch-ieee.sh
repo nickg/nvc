@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 ieee_url="http://standards.ieee.org/downloads/1076/1076.2-1996"
@@ -14,7 +14,8 @@ EOF
 echo $prompt
 
 while true; do
-    read -p "Continue? (yes/no) " yn
+    printf "Continue? (yes/no) "
+    read yn
     case $yn in
         [Yy]* ) break ;;
         [Nn]* ) exit ;;
@@ -42,12 +43,23 @@ files="$ieee_url/math_complex-body.vhdl
 cd "$(dirname $0)/../lib/ieee"
 
 for f in $files; do
-    wget -nv -O $(basename $f) $f
+    bn=$(basename $f)
+    echo "$bn"
+    curl -sSL -o "$bn" $f
 done
 
 # Uncomment operator XNOR
-sed -i.bak -e '119,120 s/^--/  /' -e '89 s/^--/  /' std_logic_1164.vhdl
-sed -i.bak -e '367,382 s/^--/  /' -e '384,399 s/^--/  /' \
-    -e '165,168 s/^--/  /' std_logic_1164-body.vhdl
+
+std_logic_pack=
+std_logic_body=
+
+mv std_logic_1164.vhdl std_logic_1164.vhdl.bak
+mv std_logic_1164-body.vhdl std_logic_1164-body.vhdl.bak
+
+sed -e '119,120 s/^--/  /' -e '89 s/^--/  /' \
+    std_logic_1164.vhdl.bak > std_logic_1164.vhdl
+
+sed -e '367,382 s/^--/  /' -e '384,399 s/^--/  /' -e '165,168 s/^--/  /' \
+    std_logic_1164-body.vhdl.bak > std_logic_1164-body.vhdl
 
 rm *.vhdl.bak
