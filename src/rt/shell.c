@@ -207,9 +207,9 @@ static int shell_cmd_signals(ClientData cd, Tcl_Interp *interp,
          const char *glob = Tcl_GetString(objv[i]);
          char *expand = NULL;
          if ((*glob != ':') && (*glob != '*')) {
-            expand = xmalloc(strlen(glob) + 3);
-            strcpy(expand, "*:");
-            strcpy(expand + 2, glob);
+            const size_t sz = strlen(glob) + 3;
+            expand = xmalloc(sz);
+            checked_sprintf(expand, sz, "*:%s", glob);
 
             glob = expand;
          }

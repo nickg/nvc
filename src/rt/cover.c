@@ -212,7 +212,7 @@ static cover_file_t *cover_file(const loc_t *loc)
       while (!feof(fp)) {
          char buf[1024];
          if (fgets(buf, sizeof(buf), fp) == NULL)
-            fatal_errno("fgets");
+            fatal_errno("fgets: %s", loc->file);
          cover_append_line(f, buf);
       }
 
@@ -373,12 +373,11 @@ static void cover_report_line(FILE *fp, cover_line_t *l)
 static const char *cover_file_url(cover_file_t *f)
 {
    static char buf[256];
-   snprintf(buf, sizeof(buf) - 6, "report_%s", f->name);
-   for (char *p = buf; *p != '\0'; p++) {
+   checked_sprintf(buf, sizeof(buf) - 6, "report_%s.html", f->name);
+   for (char *p = buf; *(p + 5) != '\0'; p++) {
       if (*p == '/' || *p == '.')
          *p = '_';
    }
-   strcat(buf, ".html");
    return buf;
 }
 

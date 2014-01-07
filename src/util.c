@@ -161,7 +161,7 @@ static char *filter_color(const char *str)
                bool found = false;
                for (int i = 0; i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
-                     p += sprintf(p, "\033[%dm", escapes[i].value);
+                     p += snprintf(p, copy - p, "\033[%dm", escapes[i].value);
                      found = true;
                      break;
                   }
