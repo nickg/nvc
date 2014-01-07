@@ -174,6 +174,9 @@ AC_SUBST(COV_CFLAGS)
 AC_SUBST(COV_LDFLAGS)
 AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
+AC_CHECK_PROG([RONN], [ronn], [1])
+AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
+
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
