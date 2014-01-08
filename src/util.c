@@ -208,7 +208,9 @@ static void paginate_msg(const char *fmt, va_list ap,
       if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
          // Can break line here
          fputc('\n', stderr);
-         if (*p != '\r') {
+         if (*p == '\r')
+            col = 0;
+         else {
             for (col = 0; col < left; col++)
                fputc(' ', stderr);
          }
