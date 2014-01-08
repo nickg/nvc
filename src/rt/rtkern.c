@@ -19,7 +19,6 @@
 #include "tree.h"
 #include "lib.h"
 #include "util.h"
-#include "signal.h"
 #include "slave.h"
 #include "alloc.h"
 #include "heap.h"
@@ -36,6 +35,7 @@
 #include <setjmp.h>
 #include <math.h>
 #include <errno.h>
+#include <signal.h>
 #include <sys/time.h>
 #include <sys/resource.h>
 
@@ -1874,6 +1874,11 @@ static void rt_emit_coverage(tree_t e)
       cover_report(e, cover_stmts, cover_conds);
 }
 
+static void rt_interrupt(void)
+{
+   fatal("interrupted");
+}
+
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
@@ -1881,6 +1886,13 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
    jit_init(tree_ident(e));
 
    const int stop_delta = opt_get_int("stop-delta");
+
+   struct sigaction sa;
+   sa.sa_sigaction = (void*)rt_interrupt;
+   sigemptyset(&sa.sa_mask);
+   sa.sa_flags = SA_RESTART | SA_SIGINFO;
+
+   sigaction(SIGINT, &sa, NULL);
 
    rt_one_time_init();
    rt_setup(e);
