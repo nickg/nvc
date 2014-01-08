@@ -2766,7 +2766,7 @@ static ident_t loc_to_ident(const loc_t *loc)
       checked_sprintf(buf, sizeof(buf), "line_%d%c", loc->first_line,
                       'a' + unique_ctr++);
 
-   return ident_uniq(buf);
+   return ident_new(buf);
 }
 
 static void yyerror(const char *s)
@@ -2803,9 +2803,7 @@ int get_next_char(char *b, int max_buffer)
 {
    if (last_was_newline) {
       n_row += 1;
-
       perm_linebuf = read_ptr;
-
       last_was_newline = false;
    }
 
