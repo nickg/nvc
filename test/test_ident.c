@@ -224,6 +224,14 @@ START_TEST(test_glob)
 }
 END_TEST;
 
+START_TEST(test_interned)
+{
+   ident_new("foo");
+   fail_unless(ident_interned("foo"));
+   fail_if(ident_interned("foobar"));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -244,6 +252,7 @@ int main(void)
    tcase_add_test(tc_core, test_icmp);
    tcase_add_test(tc_core, test_glob);
    tcase_add_test(tc_core, test_rfrom);
+   tcase_add_test(tc_core, test_interned);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -147,6 +147,15 @@ ident_t ident_new(const char *str)
       build_trie(str, result, &result);
 
    return result;
+}
+
+bool ident_interned(const char *str)
+{
+   assert(str != NULL);
+   assert(*str != '\0');
+
+   struct trie *result;
+   return search_trie(&str, &root, &result);
 }
 
 const char *istr(ident_t ident)

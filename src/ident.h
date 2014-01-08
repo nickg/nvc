@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,9 @@ typedef struct ident_rd_ctx *ident_rd_ctx_t;
 
 // Intern a string as an identifier.
 ident_t ident_new(const char *str);
+
+// True if the given string was already interned.
+bool ident_interned(const char *str);
 
 // Generate a unique identifier with the given prefix.
 ident_t ident_uniq(const char *prefix);

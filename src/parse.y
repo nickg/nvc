@@ -873,7 +873,7 @@ conc_stmt
      if (tree_has_ident($$))
         parse_error(&@$, "process does not have a label");
      else
-        tree_set_ident($$, loc_to_ident(&@$));
+        tree_set_ident($$, loc_to_ident(tree_loc($1)));
   }
 | comp_instance_stmt
 | block_stmt
@@ -2752,19 +2752,13 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
 
 static ident_t loc_to_ident(const loc_t *loc)
 {
-   static int last_line = 0;
-   static int unique_ctr = 0;
-
    char buf[128];
+   const int nprint = snprintf(buf, sizeof(buf), "line_%d", loc->first_line);
 
-   if (last_line != loc->first_line) {
-      checked_sprintf(buf, sizeof(buf), "line_%d", loc->first_line);
-      last_line = loc->first_line;
-      unique_ctr = 0;
+   for (int i = 0; ident_interned(buf); i++) {
+      buf[nprint] = 'a' + i;
+      buf[nprint + 1] = '\0';
    }
-   else
-      checked_sprintf(buf, sizeof(buf), "line_%d%c", loc->first_line,
-                      'a' + unique_ctr++);
 
    return ident_new(buf);
 }
