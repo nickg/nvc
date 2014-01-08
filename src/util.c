@@ -205,11 +205,13 @@ static void paginate_msg(const char *fmt, va_list ap,
    const char *p = filtered;
    int col = start;
    while (*p != '\0') {
-      if ((*p == '\n') || (isspace((int)*p) && col >= right)) {
+      if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
          // Can break line here
          fputc('\n', stderr);
-         for (col = 0; col < left; col++)
-            fputc(' ', stderr);
+         if (*p != '\r') {
+            for (col = 0; col < left; col++)
+               fputc(' ', stderr);
+         }
       }
       else {
          fputc(*p, stderr);

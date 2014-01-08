@@ -472,11 +472,13 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    if (severity >= EXIT_SEVERITY)
       fn = fatal_at;
 
-   (*fn)(loc, "%s+%d: %s %s: %s",
+   (*fn)(loc, "%s+%d: %s %s: %s\r\tProcess %s",
          fmt_time(now), iteration,
          (is_report ? "Report" : "Assertion"),
          levels[severity],
-         (copy != NULL ? copy : (const char *)msg));
+         (copy != NULL ? copy : (const char *)msg),
+         ((active_proc == NULL) ? "(init)"
+          : istr(tree_ident(active_proc->source))));
 
    if (copy != NULL)
       free(copy);
@@ -1115,6 +1117,7 @@ static void rt_setup(tree_t top)
 {
    now = 0;
    iteration = -1;
+   active_proc = NULL;
 
    assert(resume == NULL);
 
