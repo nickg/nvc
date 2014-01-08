@@ -26,6 +26,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <limits.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
@@ -34,7 +35,8 @@
 #include <process.h>
 #endif
 
-#define MAX_ARGS 64
+#define MAX_ARGS          64
+#define LINK_NATIVE_BYTES (100 * 1024)
 
 static char **args = NULL;
 static int    n_args = 0;
@@ -191,12 +193,19 @@ static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
       link_context(tree_context(unit, i), deps, fn);
 }
 
+static ident_t link_elab_final(tree_t top)
+{
+   return ident_prefix(ident_strip(tree_ident(top), ident_new(".elab")),
+                       ident_new("final"), '.');
+}
+
 static void link_output(tree_t top, const char *ext)
 {
-   ident_t product = tree_ident(top);
+   ident_t product;
    if (tree_kind(top) == T_ELAB)
-      product = ident_prefix(ident_strip(product, ident_new(".elab")),
-                             ident_new("final"), '.');
+      product = link_elab_final(top);
+   else
+      product = tree_ident(top);
    link_product(lib_work(), product, "", ext);
 }
 
@@ -409,11 +418,38 @@ void link_bc(tree_t top)
       link_args_end();
    }
 
+   bool native = false;
+
    if (opt_get_int("native")) {
       if (!opt_en)
          fatal("optimisation must be enabled for native code generation");
-      link_native(top);
+      else
+         native = true;
    }
+   else if (opt_en) {
+      // Use a heuristic to decide if the generated bitcode file is large
+      // enough to benefit from native complilation
+#ifdef ENABLE_NATIVE
+      ident_t final = link_elab_final(top);
+
+      char path[PATH_MAX];
+      lib_realpath(lib_work(), NULL, path, sizeof(path));
+
+      const size_t libpath_len = strlen(path);
+
+      checked_sprintf(path + libpath_len, PATH_MAX - libpath_len,
+                      "/_%s.bc", istr(final));
+
+      struct stat st;
+      if (stat(path, &st) != 0)
+         fatal_errno("stat: %s", path);
+
+      native = (st.st_size > LINK_NATIVE_BYTES);
+#endif  // ENABLE_NATIVE
+   }
+
+   if (native)
+      link_native(top);
 }
 
 void link_package(tree_t pack)
