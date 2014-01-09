@@ -15,7 +15,7 @@ LDADD = -lcheck $(build)/rt/libnvc-rt.a $(build)/libnvc.a $(CHECK_LIBS) \
 AM_LDFLAGS = -rdynamic $(COV_LDFLAGS)
 
 clean-local:
-	-test -d logs && $(RM) -r logs
+	-test ! -d logs || rm -r logs
 
 if ENABLE_COVERAGE
 

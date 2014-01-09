@@ -32,7 +32,7 @@ std/STD.TEXTIO: std/STD.STANDARD $(srcdir)/textio.vhd
 	$(codegen) --work=std --codegen textio
 
 clean-local:
-	-test -d std && $(RM) -r std
+	-test ! -d std || rm -r std
 
 include ../nvc.mk
 

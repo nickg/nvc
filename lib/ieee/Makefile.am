@@ -96,7 +96,7 @@ ieee/IEEE.VITAL_MEMORY-body: $(srcdir)/memory_b.vhdl
 	$(codegen) -L ../std --work=ieee --codegen vital_memory
 
 clean-local:
-	-test -d ieee && $(RM) -r ieee
+	-test ! -d ieee || rm -r ieee
 
 $(srcdir)/std_logic_1164.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
