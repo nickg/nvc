@@ -4674,11 +4674,18 @@ static bool sem_check_map(tree_t t, tree_t unit,
                    "or locally static name");
    }
 
-   for (int i = 0; i < nformals; i++) {
-      if (!formals[i].have && !tree_has_value(formals[i].decl)
-          && (tree_subkind(formals[i].decl) != PORT_OUT))
-         sem_error(t, "missing actual for formal %s",
-                   istr(tree_ident(formals[i].decl)));
+   if (tree_kind(unit) == T_ENTITY) {
+      // Component and configuration instantiations must be checked at
+      // elaboration time
+
+      for (int i = 0; i < nformals; i++) {
+         if (!formals[i].have && !tree_has_value(formals[i].decl)
+             && (tree_subkind(formals[i].decl) != PORT_OUT)) {
+            error_at(tree_loc(t), "missing actual for formal %s",
+                     istr(tree_ident(formals[i].decl)));
+            ++errors;
+         }
+      }
    }
 
    return ok;
