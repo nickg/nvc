@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -253,20 +253,24 @@ static tree_t simp_array_ref(tree_t t)
 static tree_t simp_process(tree_t t)
 {
    // Replace sensitivity list with a "wait on" statement
-   if (tree_triggers(t) > 0) {
+   const int ntriggers = tree_triggers(t);
+   if (ntriggers > 0) {
       tree_t p = tree_new(T_PROCESS);
       tree_set_ident(p, tree_ident(t));
       tree_set_loc(p, tree_loc(t));
 
-      for (unsigned i = 0; i < tree_decls(t); i++)
+      const int ndecls = tree_decls(t);
+      for (int i = 0; i < ndecls; i++)
          tree_add_decl(p, tree_decl(t, i));
 
-      for (unsigned i = 0; i < tree_stmts(t); i++)
+      const int nstmts = tree_stmts(t);
+      for (int i = 0; i < nstmts; i++)
          tree_add_stmt(p, tree_stmt(t, i));
 
       tree_t w = tree_new(T_WAIT);
       tree_set_ident(w, tree_ident(p));
-      for (unsigned i = 0; i < tree_triggers(t); i++)
+      tree_add_attr_int(w, ident_new("static"), 1);
+      for (int i = 0; i < ntriggers; i++)
          tree_add_trigger(w, tree_trigger(t, i));
       tree_add_stmt(p, w);
 
@@ -490,6 +494,7 @@ static tree_t simp_cassign(tree_t t)
 
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("cassign"));
+   tree_add_attr_int(w, ident_new("static"), 1);
 
    tree_t container = p;  // Where to add new statements
    void (*add_stmt)(tree_t, tree_t) = tree_add_stmt;
@@ -548,6 +553,7 @@ static tree_t simp_select(tree_t t)
 
    tree_t w = tree_new(T_WAIT);
    tree_set_ident(w, ident_new("select_wait"));
+   tree_add_attr_int(w, ident_new("static"), 1);
 
    tree_t c = tree_new(T_CASE);
    tree_set_ident(c, ident_new("select_case"));
@@ -624,6 +630,7 @@ static tree_t simp_cassert(tree_t t)
 
    tree_t wait = tree_new(T_WAIT);
    tree_set_ident(wait, ident_new("assert_wait"));
+   tree_add_attr_int(wait, ident_new("static"), 1);
 
    tree_t a = tree_new(T_ASSERT);
    tree_set_ident(a, ident_new("assert_wrap"));

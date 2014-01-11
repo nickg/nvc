@@ -487,7 +487,11 @@ static void dump_stmt(tree_t t, int indent)
          printf(" for ");
          dump_expr(tree_delay(t));
       }
-      break;
+      printf(";");
+      if (tree_attr_int(t, ident_new("static"), 0))
+         printf("   -- static");
+      printf("\n");
+      return;
 
    case T_BLOCK:
       printf("block is\n");

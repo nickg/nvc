@@ -62,6 +62,11 @@ typedef enum {
    NET_F_EVENT  = (1 << 1)
 } net_flags_t;
 
+typedef enum {
+   SCHED_SEQUENTIAL = (1 << 0),
+   SCHED_STATIC     = (1 << 1)
+} sched_flags_t;
+
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user);

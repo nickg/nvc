@@ -57,6 +57,7 @@ static ident_t nest_level_i;
 static ident_t nest_offset_i;
 static ident_t nest_parent_i;
 static ident_t returned_i;
+static ident_t static_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -3557,7 +3558,7 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
-static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
+static void cgen_sched_event(tree_t on, bool is_static, cgen_ctx_t *ctx)
 {
    tree_kind_t expr_kind = tree_kind(on);
    if ((expr_kind != T_REF) && (expr_kind != T_ARRAY_REF)
@@ -3585,7 +3586,7 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
 
    tree_kind_t kind = tree_kind(decl);
    if (kind == T_ALIAS) {
-      cgen_sched_event(tree_value(decl), ctx);
+      cgen_sched_event(tree_value(decl), is_static, ctx);
       return;
    }
    else if ((kind != T_SIGNAL_DECL) && (kind != T_PORT_DECL)) {
@@ -3643,10 +3644,14 @@ static void cgen_sched_event(tree_t on, cgen_ctx_t *ctx)
          n_elems = llvm_int32(1);
    }
 
+   const int flags =
+      (sequential ? SCHED_SEQUENTIAL : 0)
+      | (is_static ? SCHED_STATIC : 0);
+
    LLVMValueRef args[] = {
       llvm_void_cast(nets),
       n_elems,
-      llvm_int1(sequential)
+      llvm_int32(flags),
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"),
                  args, ARRAY_LEN(args), "");
@@ -3659,6 +3664,10 @@ static LLVMValueRef cgen_now(void)
 
 static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
 {
+   const bool is_static = tree_attr_int(t, static_i, 0);
+
+   assert(!is_static || (!tree_has_delay(t) && !tree_has_value(t)));
+
    if (tree_has_delay(t)) {
       LLVMValueRef after = cgen_expr(tree_delay(t), ctx);
       cgen_sched_process(after);
@@ -3669,9 +3678,38 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, timeout, ptr);
    }
 
+   LLVMBasicBlockRef after_bb = NULL;
+   if (is_static) {
+      // This process is always sensitive to the same set of signals so
+      // only call _sched_event once at startup
+      // We reuse the 64-bit wait until timeout field as a flag bit
+
+      after_bb = LLVMAppendBasicBlock(ctx->fn, "static_skip");
+
+      LLVMValueRef ptr = LLVMBuildStructGEP(builder, ctx->state, 2, "");
+      LLVMValueRef done =
+         LLVMBuildICmp(builder,
+                       LLVMIntEQ,
+                       LLVMBuildLoad(builder, ptr, ""),
+                       llvm_int64(1),
+                       "static_done");
+
+      LLVMBasicBlockRef static_bb =
+         LLVMAppendBasicBlock(ctx->fn, "static_sched");
+      LLVMBuildCondBr(builder, done, after_bb, static_bb);
+
+      LLVMPositionBuilderAtEnd(builder, static_bb);
+      LLVMBuildStore(builder, llvm_int64(1), ptr);
+   }
+
    const int ntriggers = tree_triggers(t);
    for (int i = 0; i < ntriggers; i++)
-      cgen_sched_event(tree_trigger(t, i), ctx);
+      cgen_sched_event(tree_trigger(t, i), is_static, ctx);
+
+   if (after_bb != NULL) {
+      LLVMBuildBr(builder, after_bb);
+      LLVMPositionBuilderAtEnd(builder, after_bb);
+   }
 
    // Find the basic block to jump to when the process is next scheduled
    proc_entry_t *it;
@@ -3725,7 +3763,7 @@ static void cgen_wait(tree_t t, cgen_ctx_t *ctx)
 
       const int ntriggers = tree_triggers(t);
       for (int i = 0; i < ntriggers; i++)
-         cgen_sched_event(tree_trigger(t, i), ctx);
+         cgen_sched_event(tree_trigger(t, i), false, ctx);
 
       if (ctx->proc == NULL)
          LLVMBuildRet(builder, llvm_void_cast(ctx->state));
@@ -5105,10 +5143,12 @@ static void cgen_process(tree_t t)
 
    LLVMValueRef state_ptr   = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    LLVMValueRef context_ptr = LLVMBuildStructGEP(builder, ctx.state, 1, "");
+   LLVMValueRef wait_ptr    = LLVMBuildStructGEP(builder, ctx.state, 2, "");
 
    cgen_sched_process(llvm_int64(0));
    LLVMBuildStore(builder, llvm_int32(0 /* start */), state_ptr);
    LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), context_ptr);
+   LLVMBuildStore(builder, llvm_int64(0), wait_ptr);
    LLVMBuildRetVoid(builder);
 
    // Sequential statements
@@ -5919,7 +5959,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
          LLVMInt32Type(),
-         LLVMInt1Type()
+         LLVMInt32Type()
       };
       return LLVMAddFunction(module, "_sched_event",
                              LLVMFunctionType(LLVMVoidType(),
@@ -6238,6 +6278,7 @@ void cgen(tree_t top)
    nest_parent_i  = ident_new("nest_parent");
    sub_cond_i     = ident_new("sub_cond");
    returned_i     = ident_new("returned");
+   static_i       = ident_new("static");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
