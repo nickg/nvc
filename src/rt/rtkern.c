@@ -1406,7 +1406,7 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
 
    if (unlikely(n_active_groups == n_active_alloc)) {
       n_active_alloc *= 2;
-      const size_t newsz = n_active_alloc * sizeof(struct net *);
+      const size_t newsz = n_active_alloc * sizeof(struct netgroup *);
       active_groups = xrealloc(active_groups, newsz);
    }
    active_groups[n_active_groups++] = group;
@@ -1753,7 +1753,7 @@ static void rt_one_time_init(void)
    watch_stack     = rt_alloc_stack_new(sizeof(watch_t));
 
    n_active_alloc = 128;
-   active_groups = xmalloc(n_active_alloc * sizeof(struct net *));
+   active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));
 
    global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
    proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
