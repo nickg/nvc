@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -67,6 +67,8 @@ static ident_t fst_dir_i;
 static ident_t scope_pop_i;
 static ident_t all_i;
 static ident_t formal_i;
+static ident_t elab_copy_i;
+static ident_t shared_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -616,15 +618,15 @@ static void elab_map_nets(map_list_t *maps)
 static bool elab_should_copy(tree_t t)
 {
    switch (tree_kind(t)) {
-   case T_CONST_DECL:
    case T_SIGNAL_DECL:
    case T_GENVAR:
-   case T_VAR_DECL:
-   case T_PORT_DECL:
       return true;
-
+   case T_VAR_DECL:
+      if (tree_attr_int(t, shared_i, 0))
+         return true;
+      // Fall-through
    default:
-      return false;
+      return tree_attr_int(t, elab_copy_i, 0);
    }
 }
 
@@ -837,6 +839,9 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
       const char *label = simple_name(istr(tree_ident(d)));
       ident_t ninst = hpathf(ctx->inst, ':', "%s", label);
       ident_t npath = hpathf(ctx->path, ':', "%s", label);
+
+      if (label[0] == ':')
+         continue;  // Already named one instance of this
 
       switch (tree_kind(d)) {
       case T_SIGNAL_DECL:
@@ -1224,6 +1229,8 @@ tree_t elab(tree_t top)
    scope_pop_i  = ident_new("scope_pop");
    all_i        = ident_new("all");
    formal_i     = ident_new("formal");
+   elab_copy_i  = ident_new("elab_copy");
+   shared_i     = ident_new("shared");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),

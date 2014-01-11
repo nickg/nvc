@@ -1215,6 +1215,8 @@ shared_variable_decl
 : tSHARED variable_decl
   {
      $$ = $2;
+     for (tree_list_t *it = $$; it != NULL; it = it->next)
+        tree_add_attr_int(it->value, ident_new("shared"), 1);
   }
 ;
 

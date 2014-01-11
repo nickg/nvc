@@ -252,6 +252,33 @@ START_TEST(test_bounds10)
 }
 END_TEST
 
+START_TEST(test_copy1)
+{
+   input_from_file(TESTDIR "/elab/copy1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+
+   int nfuncs = 0, nshared = 0;
+
+   const int ndecls = tree_decls(e);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t t = tree_decl(e, i);
+      if (tree_kind(t) == T_FUNC_BODY)
+         nfuncs++;
+      else if (tree_kind(t) == T_VAR_DECL)
+         nshared++;
+   }
+
+   fail_unless(nfuncs == 1);
+   fail_unless(nshared == 2);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -272,6 +299,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue17);
    tcase_add_test(tc_core, test_issue19);
    tcase_add_test(tc_core, test_bounds10);
+   tcase_add_test(tc_core, test_copy1);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

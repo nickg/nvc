@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -85,6 +85,7 @@ static ident_t            builtin_i;
 static ident_t            std_standard_i;
 static ident_t            formal_i;
 static ident_t            locally_static_i;
+static ident_t            elab_copy_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -2363,7 +2364,8 @@ static bool sem_check_generics(tree_t t)
 {
    bool ok = true;
 
-   for (unsigned n = 0; n < tree_generics(t); n++) {
+   const int ngenerics = tree_generics(t);
+   for (int n = 0; n < ngenerics; n++) {
       tree_t g = tree_generic(t, n);
 
       switch (tree_class(g)) {
@@ -2376,12 +2378,14 @@ static bool sem_check_generics(tree_t t)
          sem_error(g, "invalid object class for generic");
       }
 
+      tree_add_attr_int(g, elab_copy_i, 1);
+
       ok = sem_check(g) && ok;
    }
 
    if (ok) {
       // Make generics visible in this region
-      for (unsigned n = 0; n < tree_generics(t); n++)
+      for (int n = 0; n < ngenerics; n++)
          ok = scope_insert(tree_generic(t, n)) && ok;
    }
 
@@ -2392,11 +2396,14 @@ static bool sem_check_ports(tree_t t)
 {
    bool ok = true;
 
-   for (unsigned n = 0; n < tree_ports(t); n++) {
+   const int nports = tree_ports(t);
+   for (int n = 0; n < nports; n++) {
       tree_t p = tree_port(t, n);
 
       if (tree_class(p) == C_DEFAULT)
          tree_set_class(p, C_SIGNAL);
+
+      tree_add_attr_int(p, elab_copy_i, 1);
 
       ok = sem_check(p) && ok;
    }
@@ -5508,6 +5515,7 @@ static void sem_intern_strings(void)
    std_standard_i   = ident_new("STD.STANDARD");
    formal_i         = ident_new("formal");
    locally_static_i = ident_new("locally_static");
+   elab_copy_i      = ident_new("elab_copy");
 }
 
 bool sem_check(tree_t t)
