@@ -1395,6 +1395,9 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
          FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
       }
    }
+   else if (unlikely(group->n_drivers > 1))
+      fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
+               "but no resolution function", fmt_group(group));
 
    int32_t new_flags = NET_F_ACTIVE;
    if (memcmp(group->resolved->data, resolved, valuesz) != 0)
