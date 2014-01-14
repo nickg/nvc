@@ -3,7 +3,7 @@ end entity;
 
 architecture test of driver1 is
 
-    type u is (A, B);
+    type u is (A, B, C);
 
     type uv is array (natural range <>) of u;
 
@@ -23,7 +23,7 @@ architecture test of driver1 is
     subtype r is func u;
 
     signal s : r := B;
-
+    signal k : r := C;
 begin
 
     one: process is
@@ -61,6 +61,14 @@ begin
 
         assert s = A;
 
+        wait;
+    end process;
+
+    three: process is
+    begin
+        k <= C;
+        wait for 1 ns;
+        assert k = B;
         wait;
     end process;
 

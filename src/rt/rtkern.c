@@ -1374,12 +1374,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
          fmt_group(group), fmt_values(values, valuesz), driver);
 
    void *resolved = values;
-   if (unlikely(group->n_drivers > 1)) {
-      // If there is more than one driver call the resolution function
-
-      if (unlikely(group->resolution == NULL))
-         fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
-                  "but no resolution function", fmt_group(group));
+   if (group->resolution != NULL) {
+      // Always call the resolution function for resolved signals
 
       resolved = alloca(valuesz);
 
