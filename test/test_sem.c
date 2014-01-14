@@ -1270,6 +1270,7 @@ START_TEST(test_subtype)
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
+      { 16, "undefined resolution function NOT_HERE" },
       { -1, NULL }
    };
    expect_errors(expect);

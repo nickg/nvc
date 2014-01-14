@@ -875,6 +875,50 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 }
 
+static bool sem_check_resolution(type_t type)
+{
+   // Resolution functions are described in LRM 93 section 2.4
+
+   assert(type_kind(type) == T_SUBTYPE);
+
+   tree_t ref = type_resolution(type);
+
+   tree_t fdecl = scope_find(tree_ident(ref));
+   if (fdecl == NULL)
+      sem_error(ref, "undefined resolution function %s",
+                istr(tree_ident(ref)));
+
+   tree_kind_t kind = tree_kind(fdecl);
+   if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY))
+      sem_error(ref, "declaration %s is not a function",
+                istr(tree_ident(ref)));
+
+   type_t ftype = tree_type(fdecl);
+
+   // Must take a single parameter of array of base type
+
+   if (type_params(ftype) != 1)
+      sem_error(fdecl, "resolution function must have single argument");
+
+   type_t param = type_param(ftype, 0);
+   if (type_kind(param) != T_UARRAY)
+      sem_error(fdecl, "parameter of resolution function must be "
+                "an unconstrained array type");
+
+   if (!type_eq(type_elem(param), type))
+      sem_error(fdecl, "parameter of resolution function must be "
+                "array of %s", sem_type_str(type));
+
+   // Return type must be the resolved type
+
+   if (!type_eq(type_result(ftype), type))
+      sem_error(fdecl, "result of resolution function must %s",
+                sem_type_str(type));
+
+   tree_set_ref(ref, fdecl);
+   return true;
+}
+
 static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 {
    // Resolve a subtype to its base type
@@ -953,6 +997,11 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
             type_change_dim(type, i, r);
          }
 
+      }
+
+      if (type_has_resolution(type)) {
+         if (!sem_check_resolution(type))
+            return false;
       }
    }
 
@@ -1312,50 +1361,6 @@ static bool sem_check_type(tree_t t, type_t *ptype)
    default:
       assert(false);
    }
-}
-
-static bool sem_check_resolution(type_t type)
-{
-   // Resolution functions are described in LRM 93 section 2.4
-
-   assert(type_kind(type) == T_SUBTYPE);
-
-   tree_t ref = type_resolution(type);
-
-   tree_t fdecl = scope_find(tree_ident(ref));
-   if (fdecl == NULL)
-      sem_error(ref, "undefined resolution function %s",
-                istr(tree_ident(ref)));
-
-   tree_kind_t kind = tree_kind(fdecl);
-   if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY))
-      sem_error(ref, "declaration %s is not a function",
-                istr(tree_ident(ref)));
-
-   type_t ftype = tree_type(fdecl);
-
-   // Must take a single parameter of array of base type
-
-   if (type_params(ftype) != 1)
-      sem_error(fdecl, "resolution function must have single argument");
-
-   type_t param = type_param(ftype, 0);
-   if (type_kind(param) != T_UARRAY)
-      sem_error(fdecl, "parameter of resolution function must be "
-                "an unconstrained array type");
-
-   if (!type_eq(type_elem(param), type))
-      sem_error(fdecl, "parameter of resolution function must be "
-                "array of %s", sem_type_str(type));
-
-   // Return type must be the resolved type
-
-   if (!type_eq(type_result(ftype), type))
-      sem_error(fdecl, "result of resolution function must %s",
-                sem_type_str(type));
-
-   tree_set_ref(ref, fdecl);
-   return true;
 }
 
 static bool sem_check_type_decl(tree_t t)

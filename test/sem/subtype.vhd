@@ -7,4 +7,12 @@ package p is
 
     -- TODO
     subtype ibi_x  is ibi (brange, irange);  -- Error
+
+
+    type int_vec is array (integer range <>) of integer;
+    function resolved(x : int_vec) return integer;
+
+    signal rint1 : resolved integer;  -- OK
+    signal rint2 : not_here integer;  -- Error
+
 end package;
