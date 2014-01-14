@@ -1420,9 +1420,10 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       group->resolved = tmp;
 
       group->last_event = now;
+
+      memcpy(group->resolved->data, resolved, valuesz);
    }
 
-   memcpy(group->resolved->data, resolved, valuesz);
    group->flags |= new_flags;
 
    // Wake up any processes sensitive to this group
