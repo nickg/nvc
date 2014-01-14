@@ -165,8 +165,8 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <l> use_clause_item_list use_clause
 %type <p> entity_header generate_body
 %type <m> opt_mode
-%type <y> subtype_indication type_mark type_def scalar_type_def
-%type <y> physical_type_def enum_type_def array_type_def
+%type <y> subtype_indication type_mark type_def scalar_type_def array_type_def
+%type <y> physical_type_def enum_type_def subtype_indication_constraint
 %type <y> index_subtype_def access_type_def file_type_def
 %type <y> unconstrained_array_def constrained_array_def
 %type <y> record_type_def
@@ -837,6 +837,25 @@ opt_mode
 ;
 
 subtype_indication
+: subtype_indication_constraint { $$ = $1; }
+| id subtype_indication_constraint
+  {
+     tree_t r = tree_new(T_REF);
+     tree_set_loc(r, &@1);
+     tree_set_ident(r, $1);
+
+     if (type_kind($2) != T_SUBTYPE) {
+        $$ = type_new(T_SUBTYPE);
+        type_set_base($$, $2);
+     }
+     else
+        $$ = $2;
+
+     type_set_resolution($$, r);
+  }
+;
+
+subtype_indication_constraint
 : type_mark { $$ = $1; }
 | type_mark constraint
   {
@@ -1758,28 +1777,6 @@ subtype_decl
         type_set_base(sub, $4);
      }
      type_set_ident(sub, $2);
-
-     tree_t t = tree_new(T_TYPE_DECL);
-     tree_set_ident(t, $2);
-     tree_set_type(t, sub);
-     tree_set_loc(t, &@$);
-
-     $$ = NULL;
-     tree_list_append(&$$, t);
-  }
-| tSUBTYPE id tIS id subtype_indication tSEMI
-  {
-     tree_t r = tree_new(T_REF);
-     tree_set_loc(r, &@4);
-     tree_set_ident(r, $4);
-
-     type_t sub = $5;
-     if (type_kind(sub) != T_SUBTYPE) {
-        sub = type_new(T_SUBTYPE);
-        type_set_base(sub, $5);
-     }
-     type_set_ident(sub, $2);
-     type_set_resolution(sub, r);
 
      tree_t t = tree_new(T_TYPE_DECL);
      tree_set_ident(t, $2);
