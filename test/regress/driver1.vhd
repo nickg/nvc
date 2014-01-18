@@ -9,8 +9,9 @@ architecture test of driver1 is
 
     function func (x : uv) return u is
     begin
+        --report "func called";
         for i in x'range loop
-            report u'image(x(i));
+          --  report u'image(x(i));
         end loop;
         for i in x'range loop
             if x(i) = A then

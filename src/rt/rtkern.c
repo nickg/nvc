@@ -25,6 +25,7 @@
 #include "common.h"
 #include "netdb.h"
 #include "cover.h"
+#include "hash.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -58,6 +59,7 @@ typedef struct waveform   waveform_t;
 typedef struct sens_list  sens_list_t;
 typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
+typedef struct res_memo   res_memo_t;
 
 struct rt_proc {
    tree_t    source;
@@ -103,20 +105,20 @@ struct value {
 };
 
 struct netgroup {
-   netid_t         first;
-   uint32_t        length;
-   net_flags_t     flags;
-   value_t        *resolved;
-   value_t        *last_value;
-   uint16_t        size;
-   uint16_t        n_drivers;
-   driver_t       *drivers;
-   resolution_fn_t resolution;
-   uint64_t        last_event;
-   tree_t          sig_decl;
-   value_t        *free_values;
-   sens_list_t    *pending;
-   watch_list_t   *watching;
+   netid_t       first;
+   uint32_t      length;
+   net_flags_t   flags;
+   value_t      *resolved;
+   value_t      *last_value;
+   uint16_t      size;
+   uint16_t      n_drivers;
+   driver_t     *drivers;
+   res_memo_t   *resolution;
+   uint64_t      last_event;
+   tree_t        sig_decl;
+   value_t      *free_values;
+   sens_list_t  *pending;
+   watch_list_t *watching;
 };
 
 struct uarray {
@@ -158,6 +160,16 @@ struct watch_list {
    watch_list_t *next;
 };
 
+typedef enum {
+   R_MEMO = (1 << 0)
+} res_flags_t;
+
+struct res_memo {
+   resolution_fn_t fn;
+   res_flags_t     flags;
+   int8_t          tab[16][16];
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct loaded    *loaded = NULL;
@@ -184,6 +196,8 @@ static event_t      *delta_driver = NULL;
 static void         *global_tmp_stack = NULL;
 static void         *proc_tmp_stack = NULL;
 static uint32_t      global_tmp_alloc;
+static hash_t       *res_memo_hash = NULL;
+static bool          init_side_effect;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -204,12 +218,15 @@ static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
 static void *rt_tmp_alloc(size_t sz);
 static value_t *rt_alloc_value(netgroup_t *g);
 static tree_t rt_recall_tree(const char *unit, int32_t where);
+static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn);
 static void _tracef(const char *fmt, ...);
 
 #define GLOBAL_TMP_STACK_SZ (256 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
 
-#define TRACE(...) if (unlikely(trace_on)) _tracef(__VA_ARGS__)
+#define TRACE(...) do {                                 \
+      if (unlikely(trace_on)) _tracef(__VA_ARGS__);     \
+   } while (0)
 
 #define FOR_ALL_SIZES(size, macro) do {                 \
       switch (size) {                                   \
@@ -415,13 +432,17 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
 
+   res_memo_t *memo = NULL;
+   if (resolution != NULL)
+      memo = rt_memo_resolution_fn(tree_type(decl), resolution);
+
    int offset = 0;
    while (offset < n) {
       groupid_t gid = netdb_lookup(netdb, nid + offset);
       netgroup_t *g = &(groups[gid]);
 
       g->sig_decl   = decl;
-      g->resolution = resolution;
+      g->resolution = memo;
       g->size       = size;
       g->resolved   = rt_alloc_value(g);
       g->last_value = rt_alloc_value(g);
@@ -449,6 +470,11 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    const char *levels[] = {
       "Note", "Warning", "Error", "Failure"
    };
+
+   if (iteration < 0) {
+      init_side_effect = true;
+      return;
+   }
 
    tree_t t = rt_recall_tree(module, where);
    const loc_t *loc = tree_loc(t);
@@ -1015,6 +1041,68 @@ static void deltaq_dump(void)
 }
 #endif
 
+static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
+{
+   // Optimise some common resolution functions by memoising them
+
+   res_memo_t *memo = hash_get(res_memo_hash, fn);
+   if (memo != NULL)
+      return memo;
+
+   if (type_is_array(type))
+      type = type_elem(type);
+
+   TRACE("rt_memo_resolution_fn type=%s fn=%p", type_pp(type), fn);
+
+   memo = xmalloc(sizeof(res_memo_t));
+   memo->fn    = fn;
+   memo->flags = 0;
+
+   hash_put(res_memo_hash, fn, memo);
+
+   if (type_kind(type_base_recur(type)) != T_ENUM)
+      return memo;
+
+   int nlits;
+   switch (type_kind(type)) {
+   case T_ENUM:
+      nlits = type_enum_literals(type);
+      break;
+   case T_SUBTYPE:
+      {
+         int64_t low, high;
+         range_bounds(type_dim(type, 0), &low, &high);
+         nlits = high - low + 1;
+      }
+      break;
+   default:
+      return memo;
+   }
+
+   if (nlits > 16)
+      return memo;
+
+   // Memoise the function for all two value cases
+
+   init_side_effect = false;
+
+   for (int i = 0; i < nlits; i++) {
+      for (int j = 0; j < nlits; j++) {
+         int8_t args[2] = { i, j };
+         memo->tab[i][j] = (*fn)(args, 2);
+      }
+   }
+
+   if (init_side_effect)
+      TRACE("resolution function has side effects");
+   else {
+      TRACE("resolution function was memoised");
+      memo->flags |= R_MEMO;
+   }
+
+   return memo;
+}
+
 static value_t *rt_alloc_value(netgroup_t *g)
 {
    if (g->free_values == NULL) {
@@ -1142,6 +1230,8 @@ static void rt_setup(tree_t top)
       n_procs = tree_stmts(top);
       procs   = xmalloc(sizeof(struct rt_proc) * n_procs);
    }
+
+   res_memo_hash = hash_new(128, true);
 
    netdb_walk(netdb, rt_reset_group);
 
@@ -1373,9 +1463,46 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
    TRACE("update group %s values=%s driver=%d",
          fmt_group(group), fmt_values(values, valuesz), driver);
 
-   void *resolved = values;
-   if (group->resolution != NULL) {
-      // Always call the resolution function for resolved signals
+   void *resolved = NULL;
+   if (group->resolution == NULL) {
+      if (unlikely(group->n_drivers > 1))
+         fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
+                  "but no resolution function", fmt_group(group));
+      resolved = values;
+   }
+   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 1)) {
+      // Resolution function has been memoised so do a table lookup
+
+      resolved = alloca(valuesz);
+
+      for (int j = 0; j < group->length; j++) {
+         int driving[1] = { ((const char *)values)[j] };
+         const int8_t r = group->resolution->tab[driving[0]][driving[0]];
+         ((int8_t *)resolved)[j] = r;
+
+         TRACE("memo %d => %d", driving[0], r);
+      }
+   }
+   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 2)) {
+      // Resolution function has been memoised so do a table lookup
+
+      resolved = alloca(valuesz);
+
+      const char *p0 = group->drivers[0].waveforms->values->data;
+      const char *p1 = group->drivers[1].waveforms->values->data;
+
+      for (int j = 0; j < group->length; j++) {
+         int driving[2] = { p0[j], p1[j] };
+         driving[driver] = ((const char *)values)[j];
+
+         const int8_t r = group->resolution->tab[driving[0]][driving[1]];
+         ((int8_t *)resolved)[j] = r;
+
+         TRACE("memo %d %d => %d", driving[0], driving[1], r);
+      }
+   }
+   else {
+      // Must actually call resolution function in general case
 
       resolved = alloca(valuesz);
 
@@ -1388,15 +1515,12 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
             }                                                           \
             vals[driver] = ((const type *)values)[j];                   \
             type *r = (type *)resolved;                                 \
-            r[j] = (*group->resolution)(vals, group->n_drivers);        \
+            r[j] = (*group->resolution->fn)(vals, group->n_drivers);    \
          } while (0)
 
          FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
       }
    }
-   else if (unlikely(group->n_drivers > 1))
-      fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
-               "but no resolution function", fmt_group(group));
 
    int32_t new_flags = NET_F_ACTIVE;
    if (memcmp(group->resolved->data, resolved, valuesz) != 0)
@@ -1829,6 +1953,8 @@ static void rt_cleanup(tree_t top)
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
    rt_alloc_stack_destroy(watch_stack);
+
+   hash_free(res_memo_hash);
 }
 
 static bool rt_stop_now(uint64_t stop_time)
