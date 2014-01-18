@@ -161,13 +161,15 @@ struct watch_list {
 };
 
 typedef enum {
-   R_MEMO = (1 << 0)
+   R_MEMO  = (1 << 0),
+   R_IDENT = (1 << 1),
 } res_flags_t;
 
 struct res_memo {
    resolution_fn_t fn;
    res_flags_t     flags;
-   int8_t          tab[16][16];
+   int8_t          tab2[16][16];
+   int8_t          tab1[16];
 };
 
 static struct rt_proc   *procs = NULL;
@@ -1052,8 +1054,6 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    if (type_is_array(type))
       type = type_elem(type);
 
-   TRACE("rt_memo_resolution_fn type=%s fn=%p", type_pp(type), fn);
-
    memo = xmalloc(sizeof(res_memo_t));
    memo->fn    = fn;
    memo->flags = 0;
@@ -1082,22 +1082,31 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    if (nlits > 16)
       return memo;
 
-   // Memoise the function for all two value cases
-
    init_side_effect = false;
+
+   // Memoise the function for all two value cases
 
    for (int i = 0; i < nlits; i++) {
       for (int j = 0; j < nlits; j++) {
          int8_t args[2] = { i, j };
-         memo->tab[i][j] = (*fn)(args, 2);
+         memo->tab2[i][j] = (*fn)(args, 2);
       }
    }
 
-   if (init_side_effect)
-      TRACE("resolution function has side effects");
-   else {
-      TRACE("resolution function was memoised");
+   // Memoise the function for all single value cases and determine if the
+   // function behaves like the identity function
+
+   bool identity = true;
+   for (int i = 0; i < nlits; i++) {
+      int8_t args[1] = { i };
+      memo->tab1[i] = (*fn)(args, 1);
+      identity = identity && (memo->tab1[i] == i);
+   }
+
+   if (!init_side_effect) {
       memo->flags |= R_MEMO;
+      if (identity)
+         memo->flags |= R_IDENT;
    }
 
    return memo;
@@ -1470,17 +1479,19 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
                   "but no resolution function", fmt_group(group));
       resolved = values;
    }
+   else if ((group->resolution->flags & R_IDENT) && (group->n_drivers == 1)) {
+      // Resolution function behaves like identity for a single driver
+      resolved = values;
+   }
    else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 1)) {
       // Resolution function has been memoised so do a table lookup
 
       resolved = alloca(valuesz);
 
       for (int j = 0; j < group->length; j++) {
-         int driving[1] = { ((const char *)values)[j] };
-         const int8_t r = group->resolution->tab[driving[0]][driving[0]];
+         const int index = { ((const char *)values)[j] };
+         const int8_t r = group->resolution->tab1[index];
          ((int8_t *)resolved)[j] = r;
-
-         TRACE("memo %d => %d", driving[0], r);
       }
    }
    else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 2)) {
@@ -1495,10 +1506,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
          int driving[2] = { p0[j], p1[j] };
          driving[driver] = ((const char *)values)[j];
 
-         const int8_t r = group->resolution->tab[driving[0]][driving[1]];
+         const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
-
-         TRACE("memo %d %d => %d", driving[0], driving[1], r);
       }
    }
    else {
