@@ -1491,12 +1491,9 @@ static LLVMValueRef cgen_literal(tree_t t)
 static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
                                          bool last_value, cgen_ctx_t *ctx)
 {
-   const int bytes = byte_width(type);
-
    LLVMValueRef args[] = {
       llvm_void_cast(nets),
       LLVMConstNull(llvm_void_ptr()),
-      llvm_int32(bytes),
       llvm_int32(0),
       llvm_int32(0),
       llvm_int1(last_value)
@@ -1554,12 +1551,9 @@ static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
       ? LLVMBuildExtractValue(builder, nets, 0, "")
       : nets;
 
-   const int bytes = byte_width(type_elem(type));
-
    LLVMValueRef args[] = {
       llvm_void_cast(p_signal),
       llvm_void_cast(tmp),
-      llvm_int32(bytes),
       low_abs,
       high_abs,
       llvm_int1(last_value)
@@ -5955,7 +5949,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
          llvm_void_ptr(),
-         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt1Type()
