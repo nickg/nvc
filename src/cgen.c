@@ -5181,8 +5181,8 @@ static LLVMValueRef cgen_resolution_func(type_t type)
       return LLVMConstNull(llvm_void_ptr());
 
    // Generate a wrapper function to call the type's resolution function
-   // This needs to convert an array of raw 64-bit signal values to the
-   // signal's LLVM type
+   // This is passed a length and raw array of value which needs to be
+   // wrapped in meta data
 
    char name[256];
    checked_sprintf(name, sizeof(name), "%s$resolution", istr(type_ident(type)));
@@ -5191,62 +5191,21 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    if (fn != NULL)
       return fn;    // Already generated wrapper
 
+   LLVMTypeRef elem_type = llvm_type(type);
+
    LLVMTypeRef args[] = {
-      LLVMPointerType(LLVMInt64Type(), 0),
+      LLVMPointerType(elem_type, 0),
       LLVMInt32Type()
    };
 
    fn = LLVMAddFunction(module, name,
-                        LLVMFunctionType(LLVMInt64Type(),
-                                         args, ARRAY_LEN(args), false));
+                        LLVMFunctionType(LLVMInt64Type(), args,
+                                         ARRAY_LEN(args), false));
 
    LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMPositionBuilderAtEnd(builder, entry_bb);
-
-   // Convert 64-bit values to array of required type
-   LLVMTypeRef elem_type = llvm_type(type);
-   LLVMValueRef vals =
-      LLVMBuildArrayAlloca(builder,
-                           elem_type,
-                           LLVMGetParam(fn, 1),  // Number of elements
-                           "vals");
-
-   // Loop prelude
-   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
-   LLVMBuildStore(builder, llvm_int32(0), i);
-
-   LLVMBasicBlockRef loop_bb = LLVMAppendBasicBlock(fn, "loop");
-   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(fn, "exit");
-
-   LLVMBuildBr(builder, loop_bb);
-   LLVMPositionBuilderAtEnd(builder, loop_bb);
-
-   // Loop body
-
-   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i_loaded");
-
-   LLVMValueRef src = LLVMBuildGEP(builder, LLVMGetParam(fn, 0),
-                                   &i_loaded, 1, "src");
-   LLVMValueRef dst = LLVMBuildGEP(builder, vals, &i_loaded, 1, "dst");
-
-   LLVMValueRef src_loaded = LLVMBuildLoad(builder, src, "src_loaded");
-
-   LLVMBuildStore(builder,
-                  LLVMBuildTrunc(builder, src_loaded, elem_type, "trunc"),
-                  dst);
-
-   LLVMValueRef i_plus1  =
-      LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "i_plus1");
-   LLVMBuildStore(builder, i_plus1, i);
-
-   LLVMValueRef end = LLVMBuildICmp(builder, LLVMIntEQ, i_plus1,
-                                    LLVMGetParam(fn, 1), "end");
-
-   LLVMBuildCondBr(builder, end, exit_bb, loop_bb);
-
-   LLVMPositionBuilderAtEnd(builder, exit_bb);
 
    // Wrap array in meta data and call actual resolution function
 
@@ -5258,6 +5217,7 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    LLVMValueRef right = LLVMBuildSub(builder, LLVMGetParam(fn, 1),
                                      llvm_int32(1), "right");
    LLVMValueRef dir   = llvm_int8(RANGE_TO);
+   LLVMValueRef vals  = LLVMGetParam(fn, 0);
 
    LLVMValueRef wrapped =
       cgen_array_meta_1(type_param(ftype, 0), left, right, dir, vals);

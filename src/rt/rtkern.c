@@ -48,7 +48,7 @@
 #define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
-typedef uint64_t (*resolution_fn_t)(uint64_t *vals, int32_t n);
+typedef uint64_t (*resolution_fn_t)(void *vals, int32_t n);
 
 typedef struct netgroup   netgroup_t;
 typedef struct driver     driver_t;
@@ -1380,9 +1380,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       resolved = alloca(valuesz);
 
       for (int j = 0; j < group->length; j++) {
-         uint64_t vals[group->n_drivers];
-
 #define CALL_RESOLUTION_FN(type) do {                                   \
+            type vals[group->n_drivers];                                \
             for (int i = 0; i < group->n_drivers; i++) {                \
                const value_t *v = group->drivers[i].waveforms->values;  \
                vals[i] = ((const type *)v->data)[j];                    \
