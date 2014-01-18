@@ -147,6 +147,15 @@ fi
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
+AC_ARG_ENABLE([werror],
+  [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])]
+  [enable_werror=$enableval]
+  [])
+if test x$enable_werror = xyes ; then
+  WERROR_CFLAGS="-Werror"
+fi
+AC_SUBST(WERROR_CFLAGS)
+
 # AC_PC_FROM_UCONTEXT doesn't accept []-quoted argument.
 AC_PC_FROM_UCONTEXT(AC_MSG_WARN(no way to access program counter - stack trace is disabled))
 if test x$pc_field_found = xfalse ; then
