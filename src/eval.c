@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ struct vtable {
 static void eval_stmt(tree_t t, vtable_t *v);
 static tree_t eval_expr(tree_t t, vtable_t *v);
 
-static bool debug = false;
+static bool debug = true;
 
 #define eval_error(t, ...) do {                 \
       if (unlikely(debug))                      \
@@ -526,6 +526,43 @@ static void eval_if(tree_t t, vtable_t *v)
       eval_stmts(t, tree_else_stmts, tree_else_stmt, v);
 }
 
+static void eval_case(tree_t t, vtable_t *v)
+{
+   tree_t value = tree_value(t);
+
+   if (type_is_array(tree_type(value)))
+      eval_error(value, "cannot constant fold array case");
+
+   int64_t value_int;
+   if (!folded_int(eval_expr(value, v), &value_int))
+      eval_error(value, "cannot constant fold expression");
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      switch (tree_subkind(a)) {
+      case A_NAMED:
+         {
+            int64_t cmp;
+            if (!folded_int(eval_expr(tree_name(a), v), &cmp))
+               eval_error(tree_name(a), "cannot constant fold expression");
+            else if (cmp == value_int) {
+               eval_stmt(tree_value(a), v);
+               return;
+            }
+         }
+         break;
+
+      case A_OTHERS:
+         eval_stmt(tree_value(a), v);
+         break;
+
+      default:
+         assert(false);
+      }
+   }
+}
+
 static void eval_while(tree_t t, vtable_t *v)
 {
    int iters = 0;
@@ -610,6 +647,9 @@ static void eval_stmt(tree_t t, vtable_t *v)
       break;
    case T_EXIT:
       eval_exit(t, v);
+      break;
+   case T_CASE:
+      eval_case(t, v);
       break;
    default:
       eval_error(t, "cannot evaluate statement %s",

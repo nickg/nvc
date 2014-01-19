@@ -44,10 +44,24 @@ architecture a of ffold is
         return r;
     end function;
 
+    function case1(x : in integer) return integer is
+    begin
+        case x is
+            when 1 =>
+                return 2;
+            when 2 =>
+                return 3;
+            when others =>
+                return 5;
+        end case;
+    end function;
+
     signal s1 : integer := add1(5);
     signal s2 : integer := add4(1);
     signal s3 : integer := log2(11);
     signal s4 : integer := log2(integer(real'(5.5)));
+    signal s5 : integer := case1(1);
+    signal s6 : integer := case1(7);
 
 begin
 

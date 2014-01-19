@@ -263,12 +263,11 @@ static void dump_decl(tree_t t, int indent)
       printf("type %s is ", istr(tree_ident(t)));
       {
          type_t type = tree_type(t);
-         switch (type_kind(type)) {
-         case T_INTEGER:
+         if (type_is_integer(type)) {
             printf("range ");
             dump_range(type_dim(type, 0));
-            break;
-         case T_PHYSICAL:
+         }
+         else if (type_kind(type) == T_PHYSICAL) {
             printf("range ");
             dump_range(type_dim(type, 0));
             printf("\n");
@@ -286,10 +285,29 @@ static void dump_decl(tree_t t, int indent)
             }
             tab(indent + 2);
             printf("end units\n");
-            break;
-         default:
-            dump_type(type);
          }
+         else if (type_is_array(type)) {
+            printf("array (");
+            if (type_kind(type) == T_UARRAY) {
+               const int nindex = type_index_constrs(type);
+               for (int i = 0; i < nindex; i++) {
+                  if (i > 0) printf(", ");
+                  dump_type(type_index_constr(type, i));
+                  printf(" range <>");
+               }
+            }
+            else {
+               const int ndims = type_dims(type);
+               for (int i = 0; i < ndims; i++) {
+                  if (i > 0) printf(", ");
+                  dump_range(type_dim(type, i));
+               }
+            }
+            printf(") of ");
+            dump_type(type_elem(type));
+         }
+         else
+            dump_type(type);
       }
       printf(";\n");
       return;
