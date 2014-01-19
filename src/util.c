@@ -196,9 +196,7 @@ static char *filter_color(const char *str)
 static void paginate_msg(const char *fmt, va_list ap,
                          int start, int left, int right)
 {
-   char *strp = NULL;
-   if (vasprintf(&strp, fmt, ap) < 0)
-      abort();
+   char *strp = xvasprintf(fmt, ap);
 
    char *filtered = filter_color(strp);
 
@@ -247,6 +245,23 @@ void *xrealloc(void *ptr, size_t size)
    if (ptr == NULL)
       abort();
    return ptr;
+}
+
+char *xvasprintf(const char *fmt, va_list ap)
+{
+   char *strp = NULL;
+   if (vasprintf(&strp, fmt, ap) < 0)
+      abort();
+   return strp;
+}
+
+char *xasprintf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *strp = xvasprintf(fmt, ap);
+   va_end(ap);
+   return strp;
 }
 
 static void fmt_color(int color, const char *prefix,

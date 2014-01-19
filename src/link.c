@@ -54,8 +54,7 @@ static void link_arg_f(const char *fmt, ...)
    va_list ap;
    assert(n_args < MAX_ARGS);
    va_start(ap, fmt);
-   if (vasprintf(&args[n_args], fmt, ap) < 0)
-      abort();
+   args[n_args] = xvasprintf(fmt, ap);
    va_end(ap);
    args[++n_args] = NULL;
 }

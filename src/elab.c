@@ -73,9 +73,8 @@ static ident_t shared_i;
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
    va_list ap;
-   char buf[256];
    va_start(ap, fmt);
-   vsnprintf(buf, sizeof(buf), fmt, ap);
+   char *buf = xvasprintf(fmt, ap);
    va_end(ap);
 
    // LRM specifies instance path is lowercase
