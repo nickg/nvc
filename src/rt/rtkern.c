@@ -612,8 +612,8 @@ int64_t _std_standard_now(void)
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
-   //TRACE("_vec_load %s where=%p size=%d low=%d high=%d last=%d",
-   //      fmt_net(nids[0]), where, size, low, high, last);
+   //TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
+   //     fmt_net(nids[0]), where, low, high, last);
 
    assert(low <= high);
 
@@ -623,7 +623,7 @@ void *_vec_load(const int32_t *nids, void *where,
    netgroup_t *g = &(groups[gid]);
    int skip = nids[offset] - g->first;
 
-   if ((offset == low) && (offset + g->length - skip > high)) {
+   if (offset + g->length - skip > high) {
       // If the signal data is already contiguous return a pointer to
       // that rather than copying into the user buffer
       void *r = unlikely(last) ? g->last_value->data : g->resolved->data;
@@ -649,7 +649,7 @@ void *_vec_load(const int32_t *nids, void *where,
       gid = netdb_lookup(netdb, nids[offset]);
       g = &(groups[gid]);
       skip = nids[offset] - g->first;
-    } while (offset <= high);
+   } while (offset <= high);
 
    // Signal data was non-contiguous so return the user buffer
    return where;
