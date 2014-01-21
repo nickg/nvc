@@ -148,7 +148,7 @@ AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
 AC_ARG_ENABLE([werror],
-  [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])]
+  [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
   [enable_werror=$enableval]
   [])
 if test x$enable_werror = xyes ; then
