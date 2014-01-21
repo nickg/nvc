@@ -53,9 +53,6 @@
 #include <ucontext.h>
 #elif defined(HAVE_SYS_UCONTEXT_H)
 #include <sys/ucontext.h>
-#elif defined(HAVE_CYGWIN_SIGNAL_H)
-#include <cygwin/signal.h>
-typedef struct ucontext ucontext_t;
 #endif
 
 #define N_TRACE_DEPTH   16
@@ -460,7 +457,6 @@ void fmt_loc(FILE *f, const struct loc *loc)
 
 #ifndef NO_STACK_TRACE
 
-// FIXME: Use cygwin_stackdump() on cygwin?.
 #ifdef HAVE_EXECINFO_H
 static void print_trace(char **messages, int trace_size)
 {
@@ -488,7 +484,6 @@ static void print_trace(char **messages, int trace_size)
 
 void show_stacktrace(void)
 {
-// FIXME: Use cygwin_stackdump() on cygwin?.
 #ifdef HAVE_EXECINFO_H
    void *trace[N_TRACE_DEPTH];
    char **messages = NULL;
@@ -549,7 +544,6 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 
    fputs(" ***\n", stderr);
 
-// FIXME: Use cygwin_stackdump() on cygwin?.
 #ifdef HAVE_EXECINFO_H
    void *trace[N_TRACE_DEPTH];
    int trace_size = 0;
