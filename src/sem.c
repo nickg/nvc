@@ -423,11 +423,10 @@ static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 {
    type_t ftype = tree_type(d);
 
-   char argname[16];
-   snprintf(argname, sizeof(argname), "_arg%d", type_params(ftype));
-
+   char *argname = xasprintf("_arg%d", type_params(ftype));
    tree_t port = tree_new(T_PORT_DECL);
    tree_set_ident(port, ident_new(argname));
+   free(argname);
    tree_set_type(port, type);
    tree_set_subkind(port, mode);
    if (def != NULL)
@@ -4399,9 +4398,9 @@ static bool sem_check_attr_ref(tree_t t)
       type_t ftype = tree_type(a);
       tree_set_type(t, type_result(ftype));
 
-      char buf[32];
-      snprintf(buf, sizeof(buf), "_arg%d", tree_ports(a) - 1);
+      char *buf = xasprintf("_arg%d", tree_ports(a) - 1);
       ident_t pname = ident_new(buf);
+      free(buf);
 
       // For an expression X'A(..) add X as a final parameter
       bool already_added = false;

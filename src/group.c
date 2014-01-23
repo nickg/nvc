@@ -396,12 +396,13 @@ static void group_nets_visit_fn(tree_t t, void *_ctx)
 
 static void group_write_netdb(tree_t top, group_nets_ctx_t *ctx)
 {
-   char name[256];
-   snprintf(name, sizeof(name), "_%s.netdb", istr(tree_ident(top)));
+   char *name = xasprintf("_%s.netdb", istr(tree_ident(top)));
 
    fbuf_t *f = lib_fbuf_open(lib_work(), name, FBUF_OUT);
    if (f == NULL)
       fatal("failed to create net database file %s", name);
+
+   free(name);
 
    for (group_t *it = ctx->groups; it != NULL; it = it->next) {
       write_u32(it->gid, f);

@@ -26,6 +26,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <dlfcn.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <llvm-c/Core.h>
@@ -165,10 +166,9 @@ static void jit_init_llvm(const char *path)
 
 static void jit_load_deps(ident_t top)
 {
-   char deps_name[256];
-   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt", istr(top));
-
+   char *deps_name = xasprintf("_%s.deps.txt", istr(top));
    FILE *deps = lib_fopen(lib_work(), deps_name, "r");
+   free(deps_name);
    if (deps != NULL) {
       char line[PATH_MAX];
       while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
@@ -204,9 +204,8 @@ void jit_init(ident_t top)
    ident_t orig = ident_strip(top, ident_new(".elab"));
    ident_t final = ident_prefix(orig, ident_new("final"), '.');
 
-   char bc_fname[64], so_fname[64];;
-   snprintf(bc_fname, sizeof(bc_fname), "_%s.bc", istr(final));
-   snprintf(so_fname, sizeof(so_fname), "_%s.so", istr(final));
+   char *bc_fname = xasprintf("_%s.bc", istr(final));
+   char *so_fname = xasprintf("_%s.so", istr(final));
 
    jit_load_deps(top);
 
@@ -214,6 +213,8 @@ void jit_init(ident_t top)
    char bc_path[PATH_MAX], so_path[PATH_MAX];
    lib_realpath(work, bc_fname, bc_path, sizeof(bc_path));
    lib_realpath(work, so_fname, so_path, sizeof(so_path));
+   free(bc_fname);
+   free(so_fname);
 
    using_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
 

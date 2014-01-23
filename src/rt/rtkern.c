@@ -521,16 +521,15 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    tree_t t = rt_recall_tree(module, where);
    const loc_t *loc = tree_loc(t);
 
-   char suffix[128] = "";
+   char *suffix = NULL;
    tree_kind_t tkind = tree_kind(t);
    if (tkind == T_PORT_DECL) {
       tree_t call_site = rt_recall_tree(module, hint);
       loc = tree_loc(call_site);
-      snprintf(suffix, sizeof(suffix),
-               " for parameter %s", istr(tree_ident(t)));
+      suffix = xasprintf(" for parameter %s", istr(tree_ident(t)));
    }
    else if (tkind == T_VAR_DECL)
-      snprintf(suffix, sizeof(suffix), " for variable %s", istr(tree_ident(t)));
+      suffix = xasprintf(" for variable %s", istr(tree_ident(t)));
 
    switch ((bounds_kind_t)kind) {
    case BOUNDS_ARRAY_TO:
@@ -572,6 +571,8 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
                value, max, min);
       break;
    }
+   if (suffix != NULL)
+      free(suffix);
 }
 
 int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
@@ -1283,8 +1284,7 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
 static void rt_call_module_reset(ident_t name)
 {
-   char buf[128];
-   snprintf(buf, sizeof(buf), "%s_reset", istr(name));
+   char *buf = xasprintf("%s_reset", istr(name));
 
    _tmp_stack = global_tmp_stack;
    _tmp_alloc = global_tmp_alloc;
@@ -1292,6 +1292,7 @@ static void rt_call_module_reset(ident_t name)
    void (*reset_fn)(void) = jit_fun_ptr(buf, false);
    if (reset_fn != NULL)
       (*reset_fn)();
+   free(buf);
 
    global_tmp_alloc = _tmp_alloc;
 }

@@ -23,12 +23,11 @@
 
 netdb_t *netdb_open(tree_t top)
 {
-   char name[256];
-   snprintf(name, sizeof(name), "_%s.netdb", istr(tree_ident(top)));
-
+   char *name = xasprintf("_%s.netdb", istr(tree_ident(top)));
    fbuf_t *f = lib_fbuf_open(lib_work(), name, FBUF_IN);
    if (f == NULL)
       fatal("failed to open net database file %s", name);
+   free(name);
 
    netdb_t *db = xmalloc(sizeof(struct netdb));
    db->groups = NULL;

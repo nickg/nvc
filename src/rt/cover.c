@@ -19,6 +19,7 @@
 #include "cover.h"
 
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 
@@ -427,12 +428,11 @@ static void cover_html_footer(FILE *fp)
 
 static void cover_report_file(cover_file_t *f, const char *dir)
 {
-   char buf[256];
-   snprintf(buf, sizeof(buf), "%s/%s", dir, cover_file_url(f));
-
+   char *buf = xasprintf("%s/%s", dir, cover_file_url(f));
    FILE *fp = lib_fopen(lib_work(), buf, "w");
    if (fp == NULL)
       fatal("failed to create %s", buf);
+   free(buf);
 
    cover_html_header(fp, "Coverage report for %s", f->name);
 
@@ -472,12 +472,11 @@ static void cover_stat_line(FILE *fp, const char *text,
 
 static void cover_index(ident_t name, const char *dir)
 {
-   char buf[256];
-   snprintf(buf, sizeof(buf), "%s/index.html", dir);
-
+   char *buf = xasprintf("%s/index.html", dir);
    FILE *fp = lib_fopen(lib_work(), buf, "w");
    if (fp == NULL)
       fatal("failed to create %s", buf);
+   free(buf);
 
    cover_html_header(fp, "Coverage report for %s", istr(name));
 
@@ -520,8 +519,7 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 
    ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
 
-   char dir[256];
-   snprintf(dir, sizeof(dir), "%s.cover", istr(name));
+   char *dir = xasprintf("%s.cover", istr(name));
 
    lib_t work = lib_work();
    lib_mkdir(work, dir);
@@ -533,9 +531,9 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
 
    char output[PATH_MAX];
    lib_realpath(work, dir, output, sizeof(output));
+   free(dir);
 
-   char buf[1024];
-   snprintf(buf, sizeof(buf),
+   char *buf = xasprintf(
             "coverage report generated in %s/\n"
             "  %u/%u statements covered\n"
             "  %u/%u branches covered\n"
@@ -545,4 +543,5 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
             stats.hit_branches, stats.total_branches,
             stats.hit_conds, stats.total_conds);
    notef("%s", buf);
+   free(buf);
 }

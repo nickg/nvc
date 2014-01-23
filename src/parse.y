@@ -2751,15 +2751,17 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
 
 static ident_t loc_to_ident(const loc_t *loc)
 {
-   char buf[128];
-   const int nprint = snprintf(buf, sizeof(buf), "line_%d", loc->first_line);
+   char *buf = xasprintf("line_%d", loc->first_line);
+   const int nprint = strlen(buf);
 
    for (int i = 0; ident_interned(buf); i++) {
       buf[nprint] = 'a' + i;
       buf[nprint + 1] = '\0';
    }
 
-   return ident_new(buf);
+   ident_t ident = ident_new(buf);
+   free(buf);
+   return ident;
 }
 
 static void yyerror(const char *s)

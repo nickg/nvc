@@ -83,8 +83,7 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
 #ifdef ENABLE_NATIVE
    ident_t name = tree_ident(unit);
 
-   char so_name[256];
-   snprintf(so_name, sizeof(so_name), "_%s.so", istr(name));
+   char *so_name = xasprintf("_%s.so", istr(name));
 
    lib_mtime_t so_mt;
    if (!lib_stat(lib, so_name, &so_mt))
@@ -104,6 +103,7 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
       fprintf(deps, "%s\n", path);
    }
 
+   free(so_name);
    return true;
 #else   // ENABLE_NATIVE
    return false;
@@ -363,11 +363,10 @@ static void link_tmp_name(tree_t top, char *buf, size_t len)
 
 static FILE *link_deps_file(tree_t top)
 {
-   char deps_name[256];
-   snprintf(deps_name, sizeof(deps_name), "_%s.deps.txt",
-            istr(tree_ident(top)));
-
-   return lib_fopen(lib_work(), deps_name, "w");
+   char *deps_name = xasprintf("_%s.deps.txt", istr(tree_ident(top)));
+   FILE *fp = lib_fopen(lib_work(), deps_name, "w");
+   free(deps_name);
+   return fp;
 }
 
 void link_bc(tree_t top)
@@ -453,11 +452,11 @@ void link_bc(tree_t top)
 
 void link_package(tree_t pack)
 {
-   char name[128];
-   snprintf(name, sizeof(name), "_%s.bc", istr(tree_ident(pack)));
+   char *name = xasprintf("_%s.bc", istr(tree_ident(pack)));
 
    char input[PATH_MAX];
    lib_realpath(lib_work(), name, input, sizeof(input));
+   free(name);
 
    link_opt(pack, input);
    link_native(pack);

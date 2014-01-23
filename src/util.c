@@ -657,12 +657,13 @@ static void gdb_sighandler(int sig, siginfo_t *info)
    if (readlink("/proc/self/exe", exe, sizeof(exe)) < 0)
       fatal_errno("readlink");
 
-   char pid[16];
-   snprintf(pid, sizeof(pid), "%d", getpid());
+   pid_t pp = getpid();
 
    pid_t p = fork();
    if (p == 0) {
+      char *pid = xasprintf("%d", pp);
       execl("/usr/bin/gdb", "gdb", "-ex", "cont", exe, pid, NULL);
+      free(pid);
       fatal_errno("execl");
    }
    else if (p < 0)

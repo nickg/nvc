@@ -66,8 +66,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
       tree_t  decl;
    };
 
-   char name[64];
-   snprintf(name, sizeof(name), "NVC.BUILTIN.%s", builtin);
+   char *name = xasprintf("NVC.BUILTIN.%s", builtin);
    for (char *p = name; *p != '\0'; p++)
       *p = toupper((int)*p);
 
@@ -75,6 +74,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
 
    ident_t bname = ident_new(builtin);
    ident_t name_i = ident_new(name);
+   free(name);
 
    struct decl_cache *it;
    tree_t decl = NULL;

@@ -384,10 +384,10 @@ static int run(int argc, char **argv)
    if (wave_fname != NULL) {
       const char *name_map[] = { "LXT", "FST", "VCD" };
       const char *ext_map[]  = { "lxt", "fst", "vcd" };
+      char *tmp = NULL;
 
-      char tmp[256];
       if (*wave_fname == '\0') {
-         snprintf(tmp, sizeof(tmp), "%s.%s", argv[optind], ext_map[wave_fmt]);
+         tmp = xasprintf("%s.%s", argv[optind], ext_map[wave_fmt]);
          wave_fname = tmp;
          notef("writing %s waveform data to %s", name_map[wave_fmt], tmp);
       }
@@ -405,6 +405,9 @@ static int run(int argc, char **argv)
          fst_init(wave_fname, e);
          break;
       }
+
+      if (tmp != NULL)
+         free(tmp);
    }
 
    if (mode == BATCH)
