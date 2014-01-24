@@ -84,7 +84,9 @@ static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
       ++p;
    }
 
-   return ident_prefix(path, ident_new(buf), sep);
+   ident_t id = ident_new(buf);
+   free(buf);
+   return ident_prefix(path, id, sep);
 }
 
 static const char *simple_name(const char *full)
