@@ -1576,9 +1576,8 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
    // Return the array of nets associated with a signal
    LLVMValueRef nets = tree_attr_ptr(decl, sig_nets_i);
    if (nets == NULL) {
-      char buf[256];
-      checked_sprintf(buf, sizeof(buf), "%s_nets",
-                      package_signal_path_name(tree_ident(decl)));
+      char *buf = xasprintf("%s_nets",
+                            package_signal_path_name(tree_ident(decl)));
 
       if ((nets = LLVMGetNamedGlobal(module, buf)) == NULL) {
          type_t type = tree_type(decl);
@@ -1589,6 +1588,8 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
          nets = LLVMAddGlobal(module, map_type, buf);
          LLVMSetLinkage(nets, LLVMExternalLinkage);
       }
+
+      free(buf);
    }
 
    if (tree_kind(decl) == T_SIGNAL_DECL) {
@@ -4941,13 +4942,13 @@ static LLVMTypeRef cgen_process_state_type(tree_t t)
    unsigned nfields;
    LLVMTypeRef *fields = cgen_state_type_fields(t, &nfields);
 
-   char name[256];
-   checked_sprintf(name, sizeof(name), "%s__state_s", istr(tree_ident(t)));
+   char *name = xasprintf("%s__state_s", istr(tree_ident(t)));
    LLVMTypeRef ty = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
    if (ty == NULL)
       fatal("failed to add type name %s", name);
    LLVMStructSetBody(ty, fields, nfields, false);
 
+   free(name);
    free(fields);
    return ty;
 }
@@ -5084,12 +5085,11 @@ static void cgen_process(tree_t t)
    };
 
    // Create a global structure to hold process state
-   char state_name[256];
-   checked_sprintf(state_name, sizeof(state_name),
-                   "%s__state", istr(tree_ident(t)));
+   char *state_name = xasprintf("%s__state", istr(tree_ident(t)));
    LLVMTypeRef state_ty = cgen_process_state_type(t);
    ctx.state = LLVMAddGlobal(module, state_ty, state_name);
    LLVMSetLinkage(ctx.state, LLVMInternalLinkage);
+   free(state_name);
 
    // Process state is initially undefined: call process function
    // with non-zero argument to initialise
@@ -5178,12 +5178,13 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    // This is passed a length and raw array of value which needs to be
    // wrapped in meta data
 
-   char name[256];
-   checked_sprintf(name, sizeof(name), "%s$resolution", istr(type_ident(type)));
+   char *name = xasprintf("%s$resolution", istr(type_ident(type)));
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, name);
-   if (fn != NULL)
+   if (fn != NULL) {
+      free(name);
       return fn;    // Already generated wrapper
+   }
 
    LLVMTypeRef elem_type = llvm_type(type);
 
@@ -5195,6 +5196,7 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    fn = LLVMAddFunction(module, name,
                         LLVMFunctionType(LLVMInt64Type(), args,
                                          ARRAY_LEN(args), false));
+   free(name);
 
    LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
 
@@ -5250,30 +5252,30 @@ static void cgen_signal(tree_t t)
    if (nnets == 0) {
       if (tree_attr_int(t, null_range_i, 0)) {
          // Special case of array signal with null range
-         char buf[256];
-         checked_sprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+         char *buf = xasprintf("%s_nets", istr(tree_ident(t)));
 
          LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
          map_var = LLVMAddGlobal(module, map_type, buf);
          LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+         free(buf);
       }
       else {
          // Not an elaborated design
-         char buf[256];
-         checked_sprintf(buf, sizeof(buf), "%s_nets",
-                         package_signal_path_name(tree_ident(t)));
+         char *buf = xasprintf("%s_nets",
+                               package_signal_path_name(tree_ident(t)));
 
          LLVMTypeRef map_type = LLVMArrayType(nid_type, 0);
          map_var = LLVMAddGlobal(module, map_type, buf);
          LLVMSetLinkage(map_var, LLVMExternalLinkage);
+         free(buf);
       }
    }
    else {
-      char buf[256];
-      checked_sprintf(buf, sizeof(buf), "%s_nets", istr(tree_ident(t)));
+      char *buf = xasprintf("%s_nets", istr(tree_ident(t)));
 
       LLVMTypeRef map_type = LLVMArrayType(nid_type, nnets);
       map_var = LLVMAddGlobal(module, map_type, buf);
+      free(buf);
 
       if (nnets <= MAX_STATIC_NETS) {
          // Generate a constant mapping table from sub-element to net ID
@@ -5619,12 +5621,11 @@ static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
 
 static void cgen_reset_function(tree_t t)
 {
-   char name[128];
-   checked_sprintf(name, sizeof(name), "%s_reset", istr(tree_ident(t)));
-
+   char *name = xasprintf("%s_reset", istr(tree_ident(t)));
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
+   free(name);
 
    cgen_ctx_t ctx = {
       .fn = fn
@@ -6253,13 +6254,13 @@ void cgen(tree_t top)
 
    optimise();
 
-   char fname[256];
-   checked_sprintf(fname, sizeof(fname), "_%s.bc", istr(tree_ident(top)));
+   char *fname = xasprintf("_%s.bc", istr(tree_ident(top)));
 
    FILE *f = lib_fopen(lib_work(), fname, "w");
    if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
       fatal("error writing LLVM bitcode");
    fclose(f);
+   free(fname);
 
    cgen_cleanup_tmp_attrs(top);
 
