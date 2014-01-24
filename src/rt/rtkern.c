@@ -521,7 +521,7 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
    tree_t t = rt_recall_tree(module, where);
    const loc_t *loc = tree_loc(t);
 
-   char *suffix = NULL;
+   const char *suffix = "";
    tree_kind_t tkind = tree_kind(t);
    if (tkind == T_PORT_DECL) {
       tree_t call_site = rt_recall_tree(module, hint);
@@ -571,8 +571,6 @@ void _bounds_fail(int32_t where, const char *module, int32_t value,
                value, max, min);
       break;
    }
-   if (suffix != NULL)
-      free(suffix);
 }
 
 int64_t _value_attr(const uint8_t *raw_str, int32_t str_len,
