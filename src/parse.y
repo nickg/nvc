@@ -2751,10 +2751,16 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
 
 static ident_t loc_to_ident(const loc_t *loc)
 {
-   char *buf = xasprintf("line_%d", loc->first_line);
+   int bufsz = 128;
+   char *buf = xmalloc(bufsz);
+   checked_sprintf(buf, bufsz, "line_%d", loc->first_line);
    const int nprint = strlen(buf);
 
    for (int i = 0; ident_interned(buf); i++) {
+      if (nprint + 1 > bufsz) {
+         bufsz *= 2;
+         buf = xrealloc(buf, bufsz);
+      }
       buf[nprint] = 'a' + i;
       buf[nprint + 1] = '\0';
    }
