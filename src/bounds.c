@@ -181,10 +181,15 @@ static void bounds_check_array_ref(tree_t t)
       if (folded_int(b.left, &left) && folded_int(b.right, &right)) {
          const int64_t low  = (b.kind == RANGE_TO) ? left : right;
          const int64_t high = (b.kind == RANGE_TO) ? right : left;
-         if (index < low || index > high)
-            bounds_error(t, "array index %"PRIi64" out of bounds "
-                         "%"PRIi64" %s %"PRIi64, index, left,
+         if ((index < low) || (index > high)) {
+            const char *name = (tree_kind(value) == T_REF)
+               ? istr(tree_ident(value)) : NULL;
+            bounds_error(t, "array %s%sindex %"PRIi64" out of bounds "
+                         "%"PRIi64" %s %"PRIi64,
+                         name ? name : "", name ? " " : "",
+                         index, left,
                          (b.kind == RANGE_TO) ? "to" : "downto", right);
+         }
          else
             nstatic++;
       }
@@ -226,11 +231,16 @@ static void bounds_check_array_slice(tree_t t)
       right_error = ((b.kind == RANGE_TO) && (r_right > b_right))
          || ((b.kind == RANGE_DOWNTO) && (r_right < b_right));
 
-   if (left_error || right_error)
-      bounds_error(t, "slice %s index %"PRIi64" out of bounds "
-                   "%"PRIi64" %s %"PRIi64, left_error ? "left" : "right",
+   if (left_error || right_error) {
+      const char *name = (tree_kind(value) == T_REF)
+         ? istr(tree_ident(value)) : NULL;
+      bounds_error(t, "%s%sslice %s index %"PRIi64" out of bounds "
+                   "%"PRIi64" %s %"PRIi64,
+                   name ? name : "", name ? " " : "",
+                   left_error ? "left" : "right",
                    left_error ? r_left : r_right, b_left,
                    (b.kind == RANGE_TO) ? "to" : "downto", b_right);
+   }
 }
 
 static void bounds_within(tree_t i, range_kind_t kind, const char *what,
