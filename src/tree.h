@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -134,6 +134,8 @@ typedef enum tree_kind {
    T_ASSOC,
    T_CONTEXT,
    T_HIER,
+   T_SPEC,
+   T_BINDING,
 
    T_LAST_TREE_KIND
 } tree_kind_t;

@@ -1742,6 +1742,91 @@ START_TEST(test_access)
 }
 END_TEST
 
+START_TEST(test_spec)
+{
+   tree_t a, d, b;
+
+   input_from_file(TESTDIR "/parse/spec.vhd");
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 0);
+   fail_unless(tree_decls(a) == 7);
+
+   d = tree_decl(a, 0);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+
+   d = tree_decl(a, 1);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X1"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+
+   d = tree_decl(a, 2);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X2"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+
+   d = tree_decl(a, 3);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+   fail_unless(tree_ident2(b) == ident_new("BAR"));
+
+   d = tree_decl(a, 4);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("X"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_ENTITY);
+   fail_unless(tree_ident(b) == ident_new("WORK.FOO"));
+   fail_unless(tree_ident2(b) == ident_new("BAR"));
+   fail_unless(tree_genmaps(b) == 1);
+   fail_unless(tree_params(b) == 1);
+
+#if 0
+   d = tree_decl(a, 5);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_unless(tree_ident(d) == ident_new("all"));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   b = tree_value(d);
+   fail_unless(tree_kind(b) == T_BINDING);
+   fail_unless(tree_class(b) == C_CONFIGURATION);
+   fail_unless(tree_ident(b) == ident_new("YAH"));
+#endif
+
+   d = tree_decl(a, 6);
+   fail_unless(tree_kind(d) == T_SPEC);
+   fail_if(tree_has_ident(d));
+   fail_unless(tree_ident2(d) == ident_new("Y"));
+   fail_if(tree_has_value(d));
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1774,6 +1859,7 @@ int main(void)
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_access);
+   tcase_add_test(tc_core, test_spec);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

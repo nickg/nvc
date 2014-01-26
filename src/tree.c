@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -296,6 +296,12 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 
    // T_HIER
    (I_IDENT | I_SUBKIND | I_IDENT2),
+
+   // T_SPEC
+   (I_IDENT | I_IDENT2 | I_VALUE),
+
+   // T_BINDING
+   (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS)
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -328,7 +334,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_CONTEXT",
-   "T_HIER"
+   "T_HIER",         "T_SPEC",          "T_BINDING"
 };
 
 static const char *item_text_map[] = {
@@ -400,7 +406,7 @@ static tree_kind_t decl_kinds[] = {
    T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,  T_ALIAS,
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
-   T_GENVAR,     T_HIER,
+   T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING
 };
 
 static tree_kind_t top_level_kinds[] = {
@@ -866,7 +872,7 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   if ((v != NULL) && (t->kind != T_ASSOC))
+   if ((v != NULL) && (t->kind != T_ASSOC) && (t->kind != T_SPEC))
       tree_assert_expr(v);
    lookup_item(t, I_VALUE)->tree = v;
 }

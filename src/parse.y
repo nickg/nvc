@@ -141,13 +141,13 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <t> entity_decl opt_static_expr expr abstract_literal literal
 %type <t> numeric_literal library_unit arch_body process_stmt conc_stmt
 %type <t> seq_stmt timeout_clause physical_literal target severity
-%type <t> package_decl name aggregate string_literal report
+%type <t> package_decl name aggregate string_literal report binding
 %type <t> waveform_element seq_stmt_without_label conc_assign_stmt
 %type <t> comp_instance_stmt conc_stmt_without_label elsif_list
 %type <t> delay_mechanism bit_string_literal block_stmt expr_or_open
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
-%type <t> base_unit_decl choice use_clause_item
+%type <t> base_unit_decl choice use_clause_item entity_aspect
 %type <i> id opt_id selected_id func_name func_type operator_name
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -162,7 +162,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <l> secondary_unit_decls param_list generic_map port_map entity_decl_part
 %type <l> entity_decl_item selected_waveforms choice_list case_alt_list
 %type <l> element_assoc element_assoc_list context_item context_clause
-%type <l> use_clause_item_list use_clause
+%type <l> use_clause_item_list use_clause config_spec
 %type <p> entity_header generate_body
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def array_type_def
@@ -594,11 +594,94 @@ block_decl_item
 | component_decl
 | file_decl
 | shared_variable_decl
-/* | configuration_specification
-   | disconnection_specification
+| config_spec
+/* | disconnection_specification
    | use_clause
    | group_template_declaration
    | group_declaration */
+;
+
+config_spec
+: tFOR id_list tCOLON id binding tSEMI
+  {
+     $$ = NULL;
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_SPEC);
+        tree_set_ident(t, it->item.ident);
+        tree_set_ident2(t, $4);
+        tree_set_value(t, $5);
+        tree_set_loc(t, &@$);
+
+        tree_list_append(&$$, t);
+     }
+
+     list_free($2);
+  }
+| tFOR tOTHERS tCOLON id binding tSEMI
+  {
+     tree_t t = tree_new(T_SPEC);
+     tree_set_ident2(t, $4);
+     tree_set_value(t, $5);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+| tFOR tALL tCOLON id binding tSEMI
+  {
+     // XXX: bug in parsing of `all' at the moment
+     tree_t t = tree_new(T_SPEC);
+     tree_set_ident(t, ident_new("all"));
+     tree_set_ident2(t, $4);
+     tree_set_value(t, $5);
+     tree_set_loc(t, &@$);
+
+     $$ = NULL;
+     tree_list_append(&$$, t);
+  }
+;
+
+binding
+: tUSE entity_aspect generic_map port_map
+  {
+     $$ = $2;
+     copy_trees($4, tree_add_param, $$);
+     copy_trees($3, tree_add_genmap, $$);
+  }
+| generic_map port_map
+  {
+     $$ = tree_new(T_BINDING);
+     tree_set_loc($$, &@$);
+     tree_set_class($$, C_DEFAULT);
+     copy_trees($2, tree_add_param, $$);
+     copy_trees($1, tree_add_genmap, $$);
+  }
+;
+
+entity_aspect
+: tENTITY selected_id
+  {
+     $$ = tree_new(T_BINDING);
+     tree_set_loc($$, &@$);
+     tree_set_class($$, C_ENTITY);
+     tree_set_ident($$, $2);
+  }
+| tENTITY selected_id tLPAREN id tRPAREN
+  {
+     $$ = tree_new(T_BINDING);
+     tree_set_loc($$, &@$);
+     tree_set_class($$, C_ENTITY);
+     tree_set_ident($$, $2);
+     tree_set_ident2($$, $4);
+  }
+| tCONFIGURATION selected_id
+  {
+     $$ = tree_new(T_BINDING);
+     tree_set_loc($$, &@$);
+     tree_set_class($$, C_CONFIGURATION);
+     tree_set_ident($$, $2);
+  }
+| tOPEN { $$ = NULL; }
 ;
 
 file_decl
