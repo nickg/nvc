@@ -149,6 +149,11 @@ START_TEST(test_cfold)
    fail_unless(folded_b(tree_value(tree_stmt(p, 2)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 3)), true));
    fail_unless(folded_b(tree_value(tree_stmt(p, 4)), true));
+
+   p = tree_stmt(a, 5);
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_BLOCK);
+   fail_unless(tree_stmts(s) == 0);
 }
 END_TEST
 

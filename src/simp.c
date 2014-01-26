@@ -292,6 +292,37 @@ static tree_t simp_wait(tree_t t)
    return t;
 }
 
+static tree_t simp_case(tree_t t)
+{
+   int64_t ival;
+   if (folded_int(tree_value(t), &ival)) {
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            {
+               int64_t aval;
+               if (folded_int(tree_name(a), &aval) && (ival == aval))
+                  return tree_value(a);
+            }
+            break;
+
+         case A_RANGE:
+            continue;   // TODO
+
+         case A_OTHERS:
+            return tree_value(a);
+
+         default:
+            assert(false);
+         }
+      }
+   }
+
+   return t;
+}
+
 static tree_t simp_if(tree_t t)
 {
    bool value_b;
@@ -721,6 +752,8 @@ static tree_t simp_tree(tree_t t, void *context)
       return simp_ref(t);
    case T_IF:
       return simp_if(t);
+   case T_CASE:
+      return simp_case(t);
    case T_WHILE:
       return simp_while(t);
    case T_FOR:

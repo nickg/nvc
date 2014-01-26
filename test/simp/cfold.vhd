@@ -93,4 +93,12 @@ begin
         assert int2_vec'low = 66;
     end process;
 
+    process is
+    begin
+        case 1 is
+            when 1 => null;
+            when others => report "bang";
+        end case;
+    end process;
+
 end architecture;
