@@ -311,6 +311,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 
 %error-verbose
 %expect 0
+%glr-parser
 
 %%
 
@@ -1398,15 +1399,16 @@ conc_procedure_call_stmt
 conc_assertion_stmt
 : /* [ postponed ] */ tASSERT expr report severity tSEMI
   {
-     if ($4 == NULL) {
-        $4 = tree_new(T_REF);
-        tree_set_ident($4, ident_new("ERROR"));
+     tree_t sev = $4;
+     if (sev == NULL) {
+        sev = tree_new(T_REF);
+        tree_set_ident(sev, ident_new("ERROR"));
      }
 
      $$ = tree_new(T_CASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
-     tree_set_severity($$, $4);
+     tree_set_severity($$, sev);
      tree_set_message($$, $3);
   }
 ;
@@ -1528,15 +1530,16 @@ seq_stmt_without_label
   }
 | tASSERT expr report severity tSEMI
   {
-     if ($4 == NULL) {
-        $4 = tree_new(T_REF);
-        tree_set_ident($4, ident_new("ERROR"));
+     tree_t sev = $4;
+     if (sev == NULL) {
+        sev = tree_new(T_REF);
+        tree_set_ident(sev, ident_new("ERROR"));
      }
 
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, $2);
-     tree_set_severity($$, $4);
+     tree_set_severity($$, sev);
      tree_set_message($$, $3);
   }
 | tREPORT expr severity tSEMI
@@ -1544,15 +1547,16 @@ seq_stmt_without_label
      tree_t false_ref = tree_new(T_REF);
      tree_set_ident(false_ref, ident_new("FALSE"));
 
-     if ($3 == NULL) {
-        $3 = tree_new(T_REF);
-        tree_set_ident($3, ident_new("NOTE"));
+     tree_t sev = $3;
+     if (sev == NULL) {
+        sev = tree_new(T_REF);
+        tree_set_ident(sev, ident_new("NOTE"));
      }
 
      $$ = tree_new(T_ASSERT);
      tree_set_loc($$, &@$);
      tree_set_value($$, false_ref);
-     tree_set_severity($$, $3);
+     tree_set_severity($$, sev);
      tree_set_message($$, $2);
      tree_add_attr_int($$, ident_new("is_report"), 1);
   }
@@ -1919,7 +1923,7 @@ elem_decl_list
 : elem_decl elem_decl_list
   {
      $$ = $1;
-     tree_list_concat(&$1, $2);
+     tree_list_concat(&$$, $2);
   }
 | elem_decl
   {
@@ -2096,11 +2100,12 @@ physical_type_def
 : range_constraint tUNITS base_unit_decl secondary_unit_decls tEND
   tUNITS opt_id
   {
-     $1.left  = int_to_physical($1.left, $3);
-     $1.right = int_to_physical($1.right, $3);
+     range_t r = $1;
+     r.left  = int_to_physical(r.left, $3);
+     r.right = int_to_physical(r.right, $3);
 
      $$ = type_new(T_PHYSICAL);
-     type_add_dim($$, $1);
+     type_add_dim($$, r);
 
      tree_set_type($3, $$);
      type_add_unit($$, $3);
