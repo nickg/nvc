@@ -1803,7 +1803,6 @@ START_TEST(test_spec)
    fail_unless(tree_genmaps(b) == 1);
    fail_unless(tree_params(b) == 1);
 
-#if 0
    d = tree_decl(a, 5);
    fail_unless(tree_kind(d) == T_SPEC);
    fail_unless(tree_ident(d) == ident_new("all"));
@@ -1812,7 +1811,6 @@ START_TEST(test_spec)
    fail_unless(tree_kind(b) == T_BINDING);
    fail_unless(tree_class(b) == C_CONFIGURATION);
    fail_unless(tree_ident(b) == ident_new("YAH"));
-#endif
 
    d = tree_decl(a, 6);
    fail_unless(tree_kind(d) == T_SPEC);

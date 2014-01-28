@@ -215,7 +215,7 @@ LITERAL       {L}{I}{T}{E}{R}{A}{L}
 {NOR}           { TOKEN(tNOR); }
 {ABS}           { TOKEN(tABS); }
 {NOT}           { TOKEN(tNOT); }
-"."{ALL}        { TOKEN(tALL); }  // Dot here to resolve parser ambiguity
+{ALL}           { TOKEN(tALL); }
 {IN}            { TOKEN(tIN); }
 {OUT}           { TOKEN(tOUT); }
 {BUFFER}        { TOKEN(tBUFFER); }

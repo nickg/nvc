@@ -311,7 +311,6 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 
 %error-verbose
 %expect 0
-%glr-parser
 
 %%
 
@@ -378,14 +377,14 @@ use_clause_item
      tree_set_ident($$, ident_prefix($1, $3, '.'));
      tree_set_ident2($$, $5);
   }
-| id tALL
+| id tDOT tALL
   {
      $$ = tree_new(T_CONTEXT);
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, ident_new("all"));
   }
-| id tDOT id tALL
+| id tDOT id tDOT tALL
   {
      $$ = tree_new(T_CONTEXT);
      tree_set_loc($$, &@$);
@@ -630,7 +629,6 @@ config_spec
   }
 | tFOR tALL tCOLON id binding tSEMI
   {
-     // XXX: bug in parsing of `all' at the moment
      tree_t t = tree_new(T_SPEC);
      tree_set_ident(t, ident_new("all"));
      tree_set_ident2(t, $4);
@@ -2016,11 +2014,17 @@ constraint_elem
      $$.left  = $1;
      $$.right = NULL;
   }
-| type_mark range_constraint
+| name range_constraint
   {
+     if (tree_kind($1) != T_REF)
+        parse_error(&@1, "invalid type mark");
+
+     type_t type = type_new(T_UNRESOLVED);
+     type_set_ident(type, tree_ident($1));
+
      $$ = $2;
-     tree_set_type($$.left, $1);
-     tree_set_type($$.right, $1);
+     tree_set_type($$.left, type);
+     tree_set_type($$.right, type);
   }
 ;
 
@@ -2033,10 +2037,13 @@ unconstrained_array_def
 ;
 
 index_subtype_def
-: type_mark tRANGE tBOX
+: name tRANGE tBOX
   {
+     type_t type = type_new(T_UNRESOLVED);
+     type_set_ident(type, tree_ident($1));
+
      $$ = type_new(T_UARRAY);
-     type_add_index_constr($$, $1);
+     type_add_index_constr($$, type);
   }
 | index_subtype_def tCOMMA type_mark tRANGE tBOX
   {
@@ -2429,7 +2436,7 @@ type_mark
 ;
 
 name
-: selected_id
+: id
   {
      $$ = tree_new(T_REF);
      tree_set_ident($$, $1);
@@ -2463,13 +2470,6 @@ name
      $$ = handle_param_expr(name, $3);
      tree_set_loc($$, &@$);
   }
-| name tLPAREN param_list tRPAREN tDOT selected_id
-  {
-     $$ = tree_new(T_RECORD_REF);
-     tree_set_loc($$, &@$);
-     tree_set_value($$, handle_param_expr($1, $3));
-     tree_set_ident($$, $6);
-  }
 | name tLPAREN range tRPAREN
   {
      $$ = tree_new(T_ARRAY_SLICE);
@@ -2477,22 +2477,25 @@ name
      tree_set_range($$, $3);
      tree_set_loc($$, &@$);
   }
-| name tALL
+| name tDOT tALL
   {
      $$ = tree_new(T_ALL);
      tree_set_value($$, $1);
      tree_set_loc($$, &@$);
   }
-| name tALL tDOT selected_id
+| name tDOT id
   {
-     tree_t all = tree_new(T_ALL);
-     tree_set_value(all, $1);
-     tree_set_loc(all, &@$);
-
-     $$ = tree_new(T_RECORD_REF);
-     tree_set_value($$, all);
-     tree_set_ident($$, $4);
-     tree_set_loc($$, &@$);
+     if (tree_kind($1) == T_REF) {
+        $$ = $1;
+        tree_set_ident($$, ident_prefix(tree_ident($1), $3, '.'));
+        tree_set_loc($$, &@$);
+     }
+     else {
+        $$ = tree_new(T_RECORD_REF);
+        tree_set_value($$, $1);
+        tree_set_ident($$, $3);
+        tree_set_loc($$, &@$);
+     }
   }
 ;
 
