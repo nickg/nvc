@@ -94,4 +94,10 @@ begin
         assert natfunc(-1);             -- Error
     end process;
 
+    process is
+        subtype str is string;
+        constant c : str := "hello";    -- OK
+    begin
+    end process;
+
 end architecture;

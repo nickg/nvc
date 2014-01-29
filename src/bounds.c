@@ -274,8 +274,8 @@ static void bounds_check_aggregate(tree_t t)
 
    if (tree_attr_int(t, unconstrained_i, 0)) {
       // Aggregate of unconstrained array type
-      type_t base = type_base(type);
-      assert(type_is_unconstrained(base));
+      type_t base = type_base_recur(type);
+      assert(type_kind(base) == T_UARRAY);
 
       type_t index = type_index_constr(base, 0);
       range_t base_r = type_dim(index, 0);
