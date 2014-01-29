@@ -3599,7 +3599,8 @@ static bool sem_check_concat(tree_t t)
 
    if (l_array && r_array) {
       if (!type_eq(ltype, rtype))
-         sem_error(t, "cannot concatenate arrays of different types");
+         sem_error(t, "cannot concatenate arrays of different types\n"
+                   "    %s\n    %s", sem_type_str(ltype), sem_type_str(rtype));
 
       if (sem_array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
