@@ -3598,9 +3598,19 @@ static bool sem_check_concat(tree_t t)
    bool r_array = type_is_array(rtype);
 
    if (l_array && r_array) {
+      const bool l_elem_array = type_is_array(type_elem(ltype));
+      const bool r_elem_array = type_is_array(type_elem(rtype));
+
+      if (l_elem_array && !r_elem_array)
+         r_array = false;
+      else if (!l_elem_array && r_elem_array)
+         l_array = false;
+   }
+
+   if (l_array && r_array) {
       if (!type_eq(ltype, rtype))
-         sem_error(t, "cannot concatenate arrays of different types\n"
-                   "    %s\n    %s", sem_type_str(ltype), sem_type_str(rtype));
+         sem_error(t, "cannot concatenate arrays of types %s and %s",
+                   sem_type_str(ltype), sem_type_str(rtype));
 
       if (sem_array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");

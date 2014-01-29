@@ -31,4 +31,13 @@ begin
         wait;
     end process;
 
+    process
+        type mem_type is array (1 to 128) of bit_vector(7 downto 0);
+        variable mem  : mem_type;
+        variable byte : bit_vector(7 downto 0);
+    begin
+        mem := mem(1 to 127) & byte;    -- OK
+        wait;
+    end process;
+
 end architecture;
