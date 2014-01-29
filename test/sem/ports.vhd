@@ -46,7 +46,7 @@ end architecture;
 
 -------------------------------------------------------------------------------
 
-entity top is
+entity top is generic (str : string := "boo");
 end entity;
 
 use work.foo_pkg.all;

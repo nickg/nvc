@@ -4822,7 +4822,8 @@ static bool sem_locally_static(tree_t t)
          return false;
 
       bool all_static = true;
-      for (unsigned i = 0; i < tree_params(t); i++) {
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
          tree_t p = tree_param(t, i);
          all_static = all_static && sem_locally_static(tree_value(p));
       }
@@ -4840,9 +4841,11 @@ static bool sem_locally_static(tree_t t)
 
          // Check for locally static subtype
          type_t type = tree_type(tree_ref(tree_name(t)));
-         switch (type_kind(type)) {
-         case T_UARRAY:
+
+         if (type_is_unconstrained(type))
             return false;
+
+         switch (type_kind(type)) {
          case T_CARRAY:
          case T_SUBTYPE:
             {
@@ -5037,7 +5040,44 @@ static bool sem_globally_static(tree_t t)
       return all_static;
    }
 
-   // TODO: clauses j-l
+   if (kind == T_ATTR_REF) {
+      // A predefined attribute prefix has a globally static subtype
+      tree_t decl = tree_ref(t);
+      ident_t attr = tree_ident(t);
+      if (icmp(attr, "EVENT") || icmp(attr, "ACTIVE")
+          || icmp(attr, "LAST_EVENT") || icmp(attr, "LAST_ACTIVE")
+          || icmp(attr, "LAST_VALUE") || icmp(attr, "DRIVING")
+          || icmp(attr, "DRIVING_VALUE"))
+         return false;   // Clause k
+      else if (tree_kind(decl) == T_FUNC_DECL) {
+         assert(tree_attr_str(decl, builtin_i));
+
+         // Check for globally static subtype
+         type_t type = tree_type(tree_ref(tree_name(t)));
+
+         switch (type_kind(type)) {
+         case T_CARRAY:
+         case T_SUBTYPE:
+            {
+               const int ndims = type_dims(type);
+               for (int i = 0; i < ndims; i++) {
+                  range_t r = type_dim(type, i);
+                  if (!sem_globally_static(r.left)
+                      || !sem_globally_static(r.right))
+                     return false;
+               }
+
+               return true;
+            }
+         default:
+            return true;
+         }
+      }
+
+      // A user-defined attribute whose value is a globally static expression
+      assert(tree_has_value(t));
+      return sem_globally_static(tree_value(t));
+   }
 
    // A qualified expression whose operand is globally static
 

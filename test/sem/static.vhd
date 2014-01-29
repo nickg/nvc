@@ -27,3 +27,18 @@ begin
     end process;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity sub is
+    port ( x : bit_vector );
+end entity;
+
+architecture test of sub is
+begin
+
+    sub_i: entity work.sub
+        port map (
+            x => x(x'left downto x'right) );  -- OK
+
+end architecture;
