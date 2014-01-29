@@ -138,3 +138,33 @@ architecture a of foo is
               -- Error: E1 not visible
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package pack5 is
+    function func1(x : integer) return boolean;
+    function func2(x : integer) return boolean;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack5.func1;
+
+architecture a2 of foo is
+begin
+
+    process is
+    begin
+        assert func1(4);                -- OK
+        assert func2(5);                -- Error
+    end process;
+
+end architecture;
+
+-------------------------------------------------------------------------------
+
+use work.pack5.not_here;                -- Error
+
+architecture a3 of foo is
+begin
+end architecture;

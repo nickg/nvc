@@ -1240,8 +1240,21 @@ static bool sem_check_context(tree_t t)
 
             ok = params.error && ok;
          }
+         else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
+            if (tree_has_ident2(c) && !all) {
+               ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
+
+               tree_t object = scope_find(full);
+               if (object == NULL)
+                  sem_error(c, "declaration %s not found in unit %s",
+                            istr(tree_ident2(c)), istr(cname));
+               else
+                  scope_insert_alias(object, tree_ident2(c));
+
+            }
+         }
          else
-            ok = scope_import_unit(cname, lib, all, tree_loc(c)) && ok;
+            ok = false;
       }
       else {
          errors++;
