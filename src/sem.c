@@ -3754,7 +3754,7 @@ static bool sem_check_uarray_aggregate(tree_t t, type_t type,
                                        int dim, int *n_elems)
 {
    const int nassocs = tree_assocs(t);
-   const int ndims   = type_index_constrs(type);
+   const int ndims   = sem_array_dimension(type);
 
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
@@ -3848,7 +3848,7 @@ static bool sem_check_aggregate(tree_t t)
    // array type
 
    if (type_is_unconstrained(composite_type)) {
-      const int nindex = type_index_constrs(composite_type);
+      const int nindex = sem_array_dimension(composite_type);
 
       int n_elems[nindex];
       for (int i = 0; i < nindex; i++)
@@ -3862,7 +3862,7 @@ static bool sem_check_aggregate(tree_t t)
       type_set_base(tmp, composite_type);
 
       for (int i = 0; i < nindex; i++) {
-         type_t index_type = type_index_constr(composite_type, i);
+         type_t index_type = sem_index_type(composite_type, i);
          range_t index_r = type_dim(index_type, 0);
 
          if (have_named) {

@@ -303,4 +303,10 @@ begin
         x(r) <= (others => 1);
     end process;
 
+    process is
+        subtype str is string;
+        constant x : str := "hello";  -- OK
+    begin
+    end process;
+
 end architecture;
