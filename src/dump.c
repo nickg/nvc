@@ -749,6 +749,12 @@ static void dump_entity(tree_t t)
       }
       printf("  );\n");
    }
+   if (tree_stmts(t) > 0) {
+      printf("begin\n");
+      for (unsigned i = 0; i < tree_stmts(t); i++) {
+         dump_stmt(tree_stmt(t, i), 2);
+      }
+   }
    printf("end entity;\n");
 }
 
