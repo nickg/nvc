@@ -16,6 +16,7 @@ Makefile.in
 *.gcda
 *.gcno
 *.exe
+*.exe.stackdump
 *~
 TAGS
 logs
