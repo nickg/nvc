@@ -27,3 +27,9 @@ entity six is
     attribute a : integer;
     attribute a of six : entity is 1;
 end entity;
+
+entity seven is
+begin
+    assert (true ) report "should not assert" severity note;
+    assert (false) report "should assert"     severity note;
+end entity seven;
