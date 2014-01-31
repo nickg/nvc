@@ -138,8 +138,16 @@ START_TEST(test_entity)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_decls(e) == 1);
-   fail_unless(tree_kind(tree_decl(e, 0)) == T_ATTR_SPEC);
+   fail_unless(tree_decls(e) == 2);
+   fail_unless(tree_kind(tree_decl(e, 0)) == T_ATTR_DECL);
+   fail_unless(tree_kind(tree_decl(e, 1)) == T_ATTR_SPEC);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_stmts(e) == 2);
+   fail_unless(tree_kind(tree_stmt(e, 0)) == T_CASSERT);
+   fail_unless(tree_kind(tree_stmt(e, 1)) == T_CASSERT);
 
    e = parse();
    fail_unless(e == NULL);

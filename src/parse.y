@@ -148,6 +148,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
 %type <t> base_unit_decl choice use_clause_item entity_aspect
+%type <t> entity_stmt
 %type <i> id opt_id selected_id func_name func_type operator_name
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -161,6 +162,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <l> conditional_waveforms component_decl file_decl elem_decl_list
 %type <l> secondary_unit_decls param_list generic_map port_map entity_decl_part
 %type <l> entity_decl_item selected_waveforms choice_list case_alt_list
+%type <l> entity_stmt_part
 %type <l> element_assoc element_assoc_list context_item context_clause
 %type <l> use_clause_item_list use_clause config_spec
 %type <p> entity_header generate_body
@@ -425,8 +427,8 @@ id_list
 opt_id : id { $$ = $1; } | { $$ = NULL; } ;
 
 entity_decl
-: tENTITY id tIS entity_header entity_decl_part tEND
-  opt_entity_token opt_id tSEMI
+: tENTITY id tIS entity_header entity_decl_part
+  tEND opt_entity_token opt_id tSEMI
   {
      $$ = tree_new(T_ENTITY);
      tree_set_ident($$, $2);
@@ -438,6 +440,23 @@ entity_decl
      if ($8 != NULL && $8 != $2) {
         parse_error(&@8, "%s does not match entity name %s",
                     istr($8), istr($2));
+     }
+  }
+| tENTITY id tIS entity_header entity_decl_part
+  tBEGIN entity_stmt_part
+  tEND opt_entity_token opt_id tSEMI
+  {
+     $$ = tree_new(T_ENTITY);
+     tree_set_ident($$, $2);
+     tree_set_loc($$, &@$);
+     copy_trees($4.left, tree_add_generic, $$);
+     copy_trees($4.right, tree_add_port, $$);
+     copy_trees($5, tree_add_decl, $$);
+     copy_trees($7, tree_add_stmt, $$);
+
+     if ($10 != NULL && $10 != $2) {
+        parse_error(&@10, "%s does not match entity name %s",
+                    istr($10), istr($2));
      }
   }
 ;
@@ -475,6 +494,21 @@ entity_header
      $$.left  = $1;
      $$.right = $2;
   }
+;
+
+entity_stmt_part
+: entity_stmt_part entity_stmt
+  {
+     $$ = $1;
+     tree_list_append(&$$, $2);
+  }
+| /* empty */ { $$ = NULL; }
+;
+
+entity_stmt
+: conc_assertion_stmt
+| conc_procedure_call_stmt /* FIXME: must be passive. */
+| process_stmt             /* FIXME: must be passive. */
 ;
 
 generic_clause
