@@ -24,5 +24,6 @@ entity five is
 end entity;
 
 entity six is
+    attribute a : integer;
     attribute a of six : entity is 1;
 end entity;
