@@ -730,23 +730,25 @@ static void dump_entity(tree_t t)
    dump_context(t);
    printf("entity %s is\n", istr(tree_ident(t)));
    if (tree_generics(t) > 0) {
-      printf("  port (\n");
+      printf("  generic (\n");
       for (unsigned i = 0; i < tree_generics(t); i++) {
          if (i > 0)
             printf(";\n");
          tab(4);
          dump_port(tree_generic(t, i), 2);
       }
-      printf(" );\n");
+      printf("  );\n");
    }
-   printf("  port (\n");
-   for (unsigned i = 0; i < tree_ports(t); i++) {
-      if (i > 0)
-         printf(";\n");
-      tab(4);
-      dump_port(tree_port(t, i), 2);
+   if (tree_ports(t) > 0) {
+      printf("  port (\n");
+      for (unsigned i = 0; i < tree_ports(t); i++) {
+         if (i > 0)
+            printf(";\n");
+         tab(4);
+         dump_port(tree_port(t, i), 2);
+      }
+      printf("  );\n");
    }
-   printf(" );\n");
    printf("end entity;\n");
 }
 
