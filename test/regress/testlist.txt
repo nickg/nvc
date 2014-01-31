@@ -1,3 +1,4 @@
+assert3         normal
 wait1           normal
 assert1         gold,fail
 assign1         normal
