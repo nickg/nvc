@@ -351,7 +351,12 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
 
    case T_LITERAL:
    case T_AGGREGATE:
-      return actual;
+      {
+         type_t formal_type = tree_type(formal);
+         if (!type_is_unconstrained(formal_type))
+            tree_set_type(actual, formal_type);
+         return actual;
+      }
 
    case T_OPEN:
       return NULL;
