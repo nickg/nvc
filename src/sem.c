@@ -2463,18 +2463,13 @@ static bool sem_check_entity(tree_t t)
       const int ndecls = tree_decls(t);
       for (int n = 0; n < ndecls; n++)
          ok = sem_check(tree_decl(t, n)) && ok;
+
+      ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
    }
 
    scope_pop();
 
    sem_add_attributes(t);
-
-   scope_pop();
-
-   scope_push(NULL);
-
-   // FIXME: some scope_insert() callings are required?
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
    scope_pop();
 
