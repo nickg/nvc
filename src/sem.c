@@ -2471,6 +2471,13 @@ static bool sem_check_entity(tree_t t)
 
    scope_pop();
 
+   scope_push(NULL);
+
+   // FIXME: some scope_insert() callings are required?
+   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   scope_pop();
+
    // Prefix the entity with the current library name
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
    tree_set_ident(t, qual);
