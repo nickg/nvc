@@ -3186,7 +3186,8 @@ static bool sem_check_fcall(tree_t t)
                      (tree_ident(overloads[i]) == tree_ident(decl));
 
                   const bool hide_implicit =
-                     (tree_attr_str(decl, builtin_i) != NULL)
+                     ((tree_attr_str(decl, builtin_i) != NULL)
+                      || (tree_attr_str(overloads[i], builtin_i) != NULL))
                      && opt_get_int("prefer-explicit");
 
                   if (same_name || hide_implicit)
