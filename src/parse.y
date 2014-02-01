@@ -379,6 +379,14 @@ use_clause_item
      tree_set_ident($$, ident_prefix($1, $3, '.'));
      tree_set_ident2($$, $5);
   }
+| id tDOT id tDOT tSTRING
+  {
+     $$ = tree_new(T_CONTEXT);
+     tree_set_loc($$, &@$);
+     tree_set_ident($$, ident_prefix($1, $3, '.'));
+     tree_set_ident2($$, ident_new($5));
+     free($5);
+  }
 | id tDOT tALL
   {
      $$ = tree_new(T_CONTEXT);
@@ -2550,6 +2558,17 @@ name
         tree_set_ident($$, $3);
         tree_set_loc($$, &@$);
      }
+  }
+| name tDOT tSTRING
+  {
+     if (tree_kind($1) == T_REF) {
+        $$ = $1;
+        tree_set_ident($$, ident_prefix(tree_ident($1), ident_new($3), '.'));
+        tree_set_loc($$, &@$);
+        free($3);
+     }
+     else
+        parse_error(&@1, "invalid selected name");
   }
 ;
 

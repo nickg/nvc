@@ -144,6 +144,7 @@ end architecture;
 package pack5 is
     function func1(x : integer) return boolean;
     function func2(x : integer) return boolean;
+    function "and"(x, y : integer) return boolean;
 end package;
 
 -------------------------------------------------------------------------------
@@ -195,4 +196,18 @@ begin
     begin
     end block;
 
+end architecture;
+
+-------------------------------------------------------------------------------
+
+use work.pack5."and";
+
+architecture a5 of bar is
+begin
+    process is
+    begin
+        assert 1 and 2;                 -- OK
+        assert work.pack5."and"(1, 2);  -- OK
+        assert pack5."and"(1, 2);       -- OK
+    end process;
 end architecture;

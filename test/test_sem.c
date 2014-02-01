@@ -233,9 +233,9 @@ START_TEST(test_scope)
       {  71, "P already declared in this region" },
       { 114, "type MY_INT1 is not declared" },
       { 137, "undefined identifier E1" },
-      { 159, "undefined identifier FUNC2" },
-      { 166, "declaration NOT_HERE not found in unit WORK.PACK5" },
-      { 188, "type MY_INT1 is not declared" },
+      { 160, "undefined identifier FUNC2" },
+      { 167, "declaration NOT_HERE not found in unit WORK.PACK5" },
+      { 189, "type MY_INT1 is not declared" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -319,10 +319,12 @@ START_TEST(test_scope)
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
+   for (int i = 0; i < 2; i++) {
+      a = parse();
+      fail_if(a == NULL);
+      fail_unless(tree_kind(a) == T_ARCH);
+      sem_check(a);
+   }
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
