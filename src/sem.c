@@ -1858,6 +1858,13 @@ static bool sem_check_port_decl(tree_t t)
 
    if (type_is_record(type))
       sem_declare_fields(type, tree_ident(t));
+   else if (type_kind(type) == T_ACCESS) {
+      type_t deref_type = type_access(type);
+      if (type_is_record(deref_type)) {
+         // Pointers to records can be dereferenced implicitly
+         sem_declare_fields(deref_type, tree_ident(t));
+      }
+   }
 
    sem_add_attributes(t);
    return true;

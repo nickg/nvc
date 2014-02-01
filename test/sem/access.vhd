@@ -56,4 +56,9 @@ package body p is
         s := new s(1 to 3);             -- Error
     end procedure;
 
+    procedure test2(x : inout rec_ptr) is
+    begin
+        x.value := x.value + 1;
+    end procedure;
+
 end package body;
