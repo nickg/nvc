@@ -168,3 +168,31 @@ use work.pack5.not_here;                -- Error
 architecture a3 of foo is
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+entity bar is
+end entity;
+
+architecture a4 of bar is
+begin
+
+    process is
+        use work.pack1.all;
+        variable x : my_int1;           -- OK
+    begin
+        x := 5;
+    end process;
+
+    process is
+        variable x : my_int1;           -- Error
+    begin
+    end process;
+
+    b: block is
+        use work.pack1;
+        signal x : pack1.my_int1;           -- OK
+    begin
+    end block;
+
+end architecture;

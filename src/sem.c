@@ -1203,6 +1203,51 @@ static void sem_walk_lib(ident_t name, int kind, void *context)
    }
 }
 
+static bool sem_check_use_clause(tree_t c)
+{
+   ident_t cname = tree_ident(c);
+
+   const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
+
+   ident_t lib_name = ident_until(cname, '.');
+
+   lib_t lib = lib_find(istr(lib_name), true, true);
+   if (lib != NULL) {
+      if (lib_name == cname) {
+         assert(all);
+
+         lib_walk_params_t params = {
+            .loc   = tree_loc(c),
+            .lib   = lib,
+            .error = false
+         };
+         lib_walk_index(lib, sem_walk_lib, &params);
+
+         return params.error;
+      }
+      else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
+         if (tree_has_ident2(c) && !all) {
+            ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
+
+            tree_t object = scope_find(full);
+            if (object == NULL)
+               sem_error(c, "declaration %s not found in unit %s",
+                         istr(tree_ident2(c)), istr(cname));
+            else
+               scope_insert_alias(object, tree_ident2(c));
+         }
+
+         return true;
+      }
+      else
+         return false;
+   }
+   else {
+      errors++;
+      return false;
+   }
+}
+
 static bool sem_check_context(tree_t t)
 {
    // The std.standard package is also implicit unless we are
@@ -1218,49 +1263,8 @@ static bool sem_check_context(tree_t t)
 
    bool ok = true;
    const int ncontexts = tree_contexts(t);
-   for (int n = 0; n < ncontexts; n++) {
-      tree_t c = tree_context(t, n);
-      ident_t cname = tree_ident(c);
-
-      const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
-
-      ident_t lib_name = ident_until(cname, '.');
-
-      lib_t lib = lib_find(istr(lib_name), true, true);
-      if (lib != NULL) {
-         if (lib_name == cname) {
-            assert(all);
-
-            lib_walk_params_t params = {
-               .loc   = tree_loc(c),
-               .lib   = lib,
-               .error = false
-            };
-            lib_walk_index(lib, sem_walk_lib, &params);
-
-            ok = params.error && ok;
-         }
-         else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
-            if (tree_has_ident2(c) && !all) {
-               ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
-
-               tree_t object = scope_find(full);
-               if (object == NULL)
-                  sem_error(c, "declaration %s not found in unit %s",
-                            istr(tree_ident2(c)), istr(cname));
-               else
-                  scope_insert_alias(object, tree_ident2(c));
-
-            }
-         }
-         else
-            ok = false;
-      }
-      else {
-         errors++;
-         ok = false;
-      }
-   }
+   for (int n = 0; n < ncontexts; n++)
+      ok = sem_check_use_clause(tree_context(t, n)) && ok;
 
    return ok;
 }
@@ -5707,6 +5711,8 @@ bool sem_check(tree_t t)
       return sem_check_record_ref(t);
    case T_UNIT_DECL:
       return sem_check_unit_decl(t);
+   case T_CONTEXT:
+      return sem_check_use_clause(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

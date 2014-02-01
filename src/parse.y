@@ -569,8 +569,8 @@ package_decl_item
 | file_decl
 | shared_variable_decl
 | signal_decl
+| use_clause
 /* | disconnection_specification
-   | use_clause
    | group_template_declaration
    | group_declaration */
 ;
@@ -629,8 +629,8 @@ block_decl_item
 | file_decl
 | shared_variable_decl
 | config_spec
+| use_clause
 /* | disconnection_specification
-   | use_clause
    | group_template_declaration
    | group_declaration */
 ;
@@ -1185,8 +1185,8 @@ process_decl_item
 | attr_decl
 | attr_spec
 | file_decl
-  /* | use_clause
-     | group_template_declaration
+| use_clause
+  /* | group_template_declaration
      | group_declaration
   */
 ;
@@ -1336,8 +1336,8 @@ subprogram_decl_item
 | attr_decl
 | attr_spec
 | file_decl
-  /* | use_clause
-     | group_template_declaration
+| use_clause
+  /* | group_template_declaration
      | group_declaration */
 ;
 

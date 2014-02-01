@@ -406,7 +406,8 @@ static tree_kind_t decl_kinds[] = {
    T_CONST_DECL, T_FUNC_DECL,   T_FUNC_BODY,  T_ALIAS,
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
-   T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING
+   T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING,
+   T_CONTEXT
 };
 
 static tree_kind_t top_level_kinds[] = {
