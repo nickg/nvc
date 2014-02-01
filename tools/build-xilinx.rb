@@ -60,20 +60,30 @@ put_title "Primitives"
 
 unisim_order = "#{$src}/unisims/primitive/vhdl_analyze_order"
 File.open(unisim_order).each_line do |line|
+  line.chomp!
   run_nvc "unisim", "unisims/primitive/#{line}"
 end
 
-# XilinxCoreLib does not yet build
-#
-#put_title "XilinxCoreLib"
-#
-#corelib_order = "#{$src}/XilinxCoreLib/vhdl_analyze_order"
-#File.open(corelib_order).each_line do |line|
-#  line.gsub!(/#.*$/, '')
-#  unless line =~ /^ *$/ then
-#    run_nvc "xilinxcorelib", "XilinxCoreLib/#{line}"
-#  end
-#end
+put_title "XilinxCoreLib"
+
+if false
+
+# Some files in XilinxCoreLib do not yet build
+xcl_skip = [
+  'prims_sim_arch_v4_0.vhd',      # No configurations
+]
+
+corelib_order = "#{$src}/XilinxCoreLib/vhdl_analyze_order"
+File.open(corelib_order).each_line do |line|
+  line.gsub!(/#.*$/, '')
+  line.chomp!
+  puts "line='#{line}' include=#{xcl_skip.include? line}"
+  unless line =~ /^ *$/ or xcl_skip.include? line then
+    run_nvc "xilinxcorelib", "XilinxCoreLib/#{line}"
+  end
+end
+
+end
 
 put_title "Finished"
 puts "Xilinx libraries installed in #{$libdir}"
