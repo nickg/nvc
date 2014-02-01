@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -55,6 +55,7 @@ bool type_eq(type_t a, type_t b);
 
 ident_t type_ident(type_t t);
 void type_set_ident(type_t t, ident_t id);
+bool type_has_ident(type_t t);
 
 type_t type_base(type_t t);
 void type_set_base(type_t t, type_t b);

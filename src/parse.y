@@ -1944,7 +1944,13 @@ type_decl
      tree_set_type(t, $4);
      tree_set_loc(t, &@$);
 
-     type_set_ident($4, $2);
+     if (type_has_ident($4)) {
+        if (type_ident($4) != $2)
+           parse_error(&@$, "expected name %s at end of type declaration",
+                       istr($2));
+     }
+     else
+        type_set_ident($4, $2);
 
      $$ = NULL;
      tree_list_append(&$$, t);
@@ -2010,13 +2016,16 @@ elem_decl
 ;
 
 record_type_def
-: tRECORD elem_decl_list tEND tRECORD
+: tRECORD elem_decl_list tEND tRECORD opt_id
   {
      $$ = type_new(T_RECORD);
 
      for (tree_list_t *it = $2; it != NULL; it = it->next)
         type_add_field($$, it->value);
      tree_list_free($2);
+
+     if ($5 != NULL)
+        type_set_ident($$, $5);
   }
 ;
 

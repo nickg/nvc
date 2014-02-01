@@ -38,6 +38,10 @@ architecture a of b is
 
     file f5 : f is in "bar";           -- VHDL-87 compat
 
+    type r2 is record
+        x : integer;
+    end record r2;
+
 begin
 
 end architecture;

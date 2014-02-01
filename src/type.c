@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -353,6 +353,12 @@ ident_t type_ident(type_t t)
    }
    else
       return t->ident;
+}
+
+bool type_has_ident(type_t t)
+{
+   assert(t != NULL);
+   return (t->ident != NULL);
 }
 
 void type_set_ident(type_t t, ident_t id)
