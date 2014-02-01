@@ -268,7 +268,9 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
       tree_t decl = tree_decl(unit, n);
-      if (tree_kind(decl) == T_ATTR_SPEC)
+
+      tree_kind_t kind = tree_kind(decl);
+      if ((kind == T_ATTR_SPEC) || (kind == T_CONTEXT))
          continue;
 
       if (!sem_declare(decl))

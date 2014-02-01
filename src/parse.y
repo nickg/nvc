@@ -619,6 +619,7 @@ package_body_decl_item
 | subprogram_decl
 | shared_variable_decl
 | file_decl
+| use_clause
 ;
 
 port_clause

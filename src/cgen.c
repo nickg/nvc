@@ -5859,6 +5859,7 @@ static void cgen_top(tree_t t)
       case T_ATTR_SPEC:
       case T_HIER:
       case T_COMPONENT:
+      case T_CONTEXT:
          break;
       default:
          fatal("cannot generate code for top level declaration %s",
