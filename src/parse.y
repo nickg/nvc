@@ -148,7 +148,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <t> conc_select_assign_stmt generate_stmt condition_clause
 %type <t> null_literal conc_procedure_call_stmt conc_assertion_stmt
 %type <t> base_unit_decl choice use_clause_item entity_aspect
-%type <t> entity_stmt
+%type <t> entity_stmt entity_stmt_without_label
 %type <i> id opt_id selected_id func_name func_type operator_name
 %type <l> interface_object_decl interface_list shared_variable_decl
 %type <l> port_clause generic_clause interface_decl signal_decl
@@ -506,9 +506,29 @@ entity_stmt_part
 ;
 
 entity_stmt
-: conc_assertion_stmt
-| conc_procedure_call_stmt /* FIXME: must be passive. */
-| process_stmt             /* FIXME: must be passive. */
+: id tCOLON entity_stmt_without_label
+  {
+     $$ = $3;
+     if (tree_has_ident($$) && tree_ident($$) != $1)
+        parse_error(&@1, "%s does not match statement name %s",
+                    istr(tree_ident($$)), istr($1));
+     else
+        tree_set_ident($$, $1);
+  }
+| entity_stmt_without_label
+  {
+     $$ = $1;
+     if (tree_has_ident($$))
+        parse_error(&@$, "process does not have a label");
+     else
+        tree_set_ident($$, loc_to_ident(tree_loc($1)));
+  }
+;
+
+entity_stmt_without_label
+: conc_assertion_stmt      { $$ = $1; }
+| conc_procedure_call_stmt { $$ = $1; } /* FIXME: must be passive. */
+| process_stmt             { $$ = $1; } /* FIXME: must be passive. */
 ;
 
 generic_clause

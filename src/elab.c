@@ -1036,6 +1036,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 {
+   elab_stmts(tree_ref(t), ctx);
    elab_pseudo_context(ctx->out, t);
    elab_pseudo_context(ctx->out, tree_ref(t));
    elab_copy_context(ctx->out, t);

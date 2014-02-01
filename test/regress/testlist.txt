@@ -198,3 +198,4 @@ func15          normal
 elab19          normal
 concat4         normal
 issue29         normal
+assert3         normal,gold
