@@ -557,8 +557,8 @@ static void usage(void)
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
           " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
-          " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           " --dump [OPTION]... UNIT\t\tPrint out previously analysed UNIT\n"
+          " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
@@ -588,14 +588,14 @@ static void usage(void)
           "     --trace\t\tTrace simulation events\n"
           " -w, --wave=FILE\tWrite waveform data; file name is optional\n"
           "\n"
-          "Make options:\n"
-          "     --deps-only\tOutput dependencies without actions\n"
-          "     --native\t\tGenerate actions for native code generation\n"
-          "\n"
           "Dump options:\n"
           " -e, --elab\t\tDump an elaborated unit\n"
           " -b, --body\t\tDump package body\n"
           "     --nets\t\tShow mapping from signals to nets\n"
+          "\n"
+          "Make options:\n"
+          "     --deps-only\tOutput dependencies without actions\n"
+          "     --native\t\tGenerate actions for native code generation\n"
           "\n",
           PACKAGE,
           opt_get_int("stop-delta"));
