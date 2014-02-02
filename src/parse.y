@@ -619,7 +619,10 @@ package_body_decl_item
 | subprogram_decl
 | shared_variable_decl
 | file_decl
+| alias_decl
 | use_clause
+/* | group_template_declaration
+   | group_declaration */
 ;
 
 port_clause
