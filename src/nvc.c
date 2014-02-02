@@ -554,11 +554,11 @@ static void usage(void)
           "\n"
           "COMMAND is one of:\n"
           " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
-          " -e UNIT\t\tElaborate and generate code for UNIT\n"
-          " -r UNIT\t\tExecute previously elaborated UNIT\n"
+          " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
+          " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
           " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
-          " --dump UNIT\t\tPrint out previously analysed UNIT\n"
-          " --make [UNIT]...\tGenerate makefile to rebuild UNITs\n"
+          " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
+          " --dump [OPTION]... UNIT\t\tPrint out previously analysed UNIT\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
@@ -632,7 +632,7 @@ int main(int argc, char **argv)
    };
 
    int c, index = 0;
-   const char *spec = "aehrL:";
+   const char *spec = "aehrvL:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
