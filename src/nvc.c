@@ -632,7 +632,7 @@ int main(int argc, char **argv)
    };
 
    int c, index = 0;
-   const char *spec = "aehrL:";
+   const char *spec = "aehrvL:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
