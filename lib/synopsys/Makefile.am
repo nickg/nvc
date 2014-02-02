@@ -62,8 +62,8 @@ $(ieee)/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/std_logic_textio.vhd
 	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_textio
 
 $(ieee)/IEEE.STD_LOGIC_MISC: $(srcdir)/std_logic_misc.vhd
-	$(nvc) -L ../std --work=$(ieee) -a $(srcdir)/std_logic_misc.vhd
-	$(codegen) -L ../std --work=$(ieee) --codegen std_logic_misc
+	$(nvc) -L ../std -L ../synopsys --work=$(ieee) -a $(srcdir)/std_logic_misc.vhd
+	$(codegen) -L ../std -L ../synopsys --work=$(ieee) --codegen std_logic_misc
 
 synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/attributes.vhd
 	$(nvc) -L ../std --work=synopsys -a $(srcdir)/attributes.vhd
@@ -74,9 +74,9 @@ clean-local:
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) -L ../std --work=../ieee/ieee --make --deps-only --native | \
+	$(nvc) -L ../std -L ../synopsys --work=../ieee/ieee --make --deps-only --native | \
 		$(deps_pp) > $(srcdir)/deps.mk
-	$(nvc) -L ../std --work=synopsys --make --deps-only --native | \
+	$(nvc) -L ../std -L ../synopsys --work=synopsys --make --deps-only --native | \
 		$(deps_pp) >> $(srcdir)/deps.mk
 
 include deps.mk
