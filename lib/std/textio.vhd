@@ -141,6 +141,21 @@ package body textio is
         l := tmp;
     end procedure;
 
+    procedure consume (l : inout line; nchars : in natural) is
+        variable tmp : line;
+    begin
+        assert l /= null;
+        if nchars = l'length then
+            tmp := new string'("");
+        else
+            assert nchars <= l'length;
+            tmp := new string(1 to l'length - nchars);
+            tmp.all := l.all(1 + nchars to l'length);
+        end if;
+        deallocate(l);
+        l := tmp;
+    end procedure;
+
     function max (a, b : integer) return integer is
     begin
         if a > b then
@@ -159,10 +174,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out bit ) is
+                    value : out bit )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "bit read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -174,10 +191,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out bit_vector ) is
+                    value : out bit_vector )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "bit_vector read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -189,10 +208,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out boolean ) is
+                    value : out boolean )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "boolean read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -204,10 +225,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out character ) is
+                    value : out character )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "character read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -219,10 +242,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out integer ) is
+                    value : out integer )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "integer read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -234,25 +259,34 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out real ) is
+                    value : out real )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "real read failed";
     end procedure;
 
     procedure read (l     : inout line;
                     value : out string;
                     good  : out boolean ) is
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        if value'length <= l'length then
+            value := l.all(1 to value'length);
+            consume(l, value'length);
+            good := true;
+        else
+            good := false;
+        end if;
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out string ) is
+                    value : out string )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "string read failed";
     end procedure;
 
     procedure read (l     : inout line;
@@ -264,10 +298,12 @@ package body textio is
     end procedure;
 
     procedure read (l     : inout line;
-                    value : out time ) is
+                    value : out time )
+    is
+        variable good : boolean;
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        read(l, value, good);
+        assert good report "time read failed";
     end procedure;
 
     procedure readline (file f: text; l: inout line) is

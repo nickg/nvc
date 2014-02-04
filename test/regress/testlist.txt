@@ -200,3 +200,4 @@ concat4         normal
 issue29         normal
 assert3         normal,gold
 alias8          normal
+textio2         normal
