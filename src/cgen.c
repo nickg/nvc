@@ -4904,6 +4904,7 @@ static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
       switch (tree_kind(d)) {
       case T_CONST_DECL:
       case T_VAR_DECL:
+      case T_FILE_DECL:
          count++;
          break;
       default:
@@ -4922,6 +4923,7 @@ static LLVMTypeRef *cgen_state_type_fields(tree_t t, unsigned *nfields)
       switch (tree_kind(d)) {
       case T_CONST_DECL:
       case T_VAR_DECL:
+      case T_FILE_DECL:
          {
             fields[offset] = llvm_type(tree_type(d));
             tree_add_attr_int(d, var_offset_i, offset);
@@ -4974,7 +4976,8 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
    for (int i = 0; i < ndecls; i++) {
       tree_t v = tree_decl(t, i);
       tree_kind_t kind = tree_kind(v);
-      if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)) {
+      if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)
+          || (kind == T_FILE_DECL)) {
          if (!tree_has_value(v))
             continue;
 

@@ -4,10 +4,10 @@ end entity;
 use std.textio.all;
 
 architecture test of textio2 is
-    file tmp : text;
 begin
 
     process is
+        file tmp      : text;
         variable l    : line;
         variable str  : string(1 to 5);
         variable good : boolean;
