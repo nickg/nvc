@@ -1842,6 +1842,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
    t->generation = ctx->generation;
    t->index      = UINT32_MAX;
 
+   int type_item = -1;
    bool marked = false;
    const imask_t has = has_map[t->kind];
    const int nitems = __builtin_popcount(has);
@@ -1860,7 +1861,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
                marked = tree_copy_mark(a->items[i], ctx) || marked;
          }
          else if (ITEM_TYPE & mask)
-            marked = type_copy_mark(t->items[n].type, ctx) || marked;
+            type_item = n;
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_RANGE & mask) {
@@ -1881,6 +1882,13 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
       marked = (*ctx->callback)(t, ctx->context);
 
    if (marked)
+      t->index = (ctx->index)++;
+
+   // Check type last as it may contain a circular reference
+   if (type_item != -1)
+      marked = type_copy_mark(t->items[type_item].type, ctx) || marked;
+
+   if (marked && (t->index == UINT32_MAX))
       t->index = (ctx->index)++;
 
    return marked;
