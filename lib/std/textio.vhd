@@ -220,8 +220,13 @@ package body textio is
                     value : out character;
                     good  : out boolean ) is
     begin
-        -- TODO
-        report "unimplemented" severity failure;
+        if l'length > 0 then
+            value := l.all(1);
+            consume(l, 1);
+            good := true;
+        else
+            good := false;
+        end if;
     end procedure;
 
     procedure read (l     : inout line;

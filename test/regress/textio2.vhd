@@ -11,6 +11,7 @@ begin
         variable l    : line;
         variable str  : string(1 to 5);
         variable good : boolean;
+        variable ch   : character;
     begin
         file_open(tmp, "tmp.txt", WRITE_MODE);
         write(l, string'("hello, world"));
@@ -32,8 +33,10 @@ begin
         readline(tmp, l);
         read(l, str);
         assert str = "secon";
-        read(l, str, good);
-        assert not good;                -- One char remaining
+        read(l, ch);
+        assert ch = 'd';
+        read(l, ch, good);
+        assert not good;
 
         file_close(tmp);
         wait;
