@@ -154,6 +154,33 @@ bool folded_length(range_t r, int64_t *l)
       return false;
 }
 
+bool folded_bounds(range_t r, int64_t *low, int64_t *high)
+{
+   int64_t left, right;
+   unsigned leftu, rightu;
+   if (folded_int(r.left, &left) && folded_int(r.right, &right))
+       ;
+   else if (folded_enum(r.left, &leftu) && folded_enum(r.right, &rightu)) {
+      left  = leftu;
+      right = rightu;
+   }
+   else
+      return false;
+
+   switch (r.kind) {
+   case RANGE_TO:
+      *low  = left;
+      *high = right;
+      return true;
+   case RANGE_DOWNTO:
+      *low  = right;
+      *high = left;
+      return true;
+   default:
+      return false;
+   }
+}
+
 bool folded_enum(tree_t t, unsigned *pos)
 {
    if (tree_kind(t) == T_REF) {

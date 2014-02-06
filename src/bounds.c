@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -130,7 +130,8 @@ static tree_t bounds_check_call_args(tree_t t)
          range_t r = type_dim(ftype, 0);
 
          int64_t low, high;
-         range_bounds(r, &low, &high);
+         if (!folded_bounds(r, &low, &high))
+            continue;
 
          if ((ival < low) || (ival > high))
             bounds_error(value, "value %"PRIi64" out of bounds %"PRIi64" %s "
@@ -614,7 +615,8 @@ static void bounds_check_case(tree_t t)
       // Check that the full range of the type is covered
 
       int64_t tlow, thigh;
-      range_bounds(type_dim(type, 0), &tlow, &thigh);
+      if (!folded_bounds(type_dim(type, 0), &tlow, &thigh))
+         return;
 
       bool have_others = false;
       interval_t *covered = NULL;
