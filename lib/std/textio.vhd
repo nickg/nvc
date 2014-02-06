@@ -326,7 +326,7 @@ package body textio is
             next when ch(1) = CR;
 
             if ch(1) = LF then
-                null;
+                exit;
             else
                 if used = tmp'length then
                     grow(tmp, 128, used);

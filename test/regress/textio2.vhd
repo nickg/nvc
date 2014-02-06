@@ -15,6 +15,8 @@ begin
         file_open(tmp, "tmp.txt", WRITE_MODE);
         write(l, string'("hello, world"));
         writeline(tmp, l);
+        write(l, string'("second"));
+        writeline(tmp, l);
         file_close(tmp);
 
         file_open(tmp, "tmp.txt", READ_MODE);
@@ -26,6 +28,12 @@ begin
         assert str = ", wor";
         read(l, str, good);
         assert not good;                -- Fewer than 5 chars
+
+        readline(tmp, l);
+        read(l, str);
+        assert str = "secon";
+        read(l, str, good);
+        assert not good;                -- One char remaining
 
         file_close(tmp);
         wait;
