@@ -1805,9 +1805,6 @@ static bool sem_check_decl(tree_t t)
       tree_set_class(t, C_SIGNAL);
 
    if (type_is_record(type)) {
-      if ((kind == T_PORT_DECL) || (kind == T_SIGNAL_DECL))
-         sem_error(t, "sorry, records are not yet allowed as signals");
-
       sem_declare_fields(type, tree_ident(t));
    }
    else if (type_kind(type) == T_ACCESS) {

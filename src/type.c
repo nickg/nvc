@@ -1129,6 +1129,14 @@ unsigned type_width(type_t type)
       }
       return w;
    }
+   else if (type_is_record(type)) {
+      type_t base = type_base_recur(type);
+      unsigned w = 0;
+      const int nfields = type_fields(base);
+      for (int i = 0; i < nfields; i++)
+         w += type_width(type_field(base, i));
+      return w;
+   }
    else
       return 1;
 }
