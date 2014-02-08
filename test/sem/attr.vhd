@@ -86,3 +86,15 @@ begin
     end process;
 
 end architecture;
+
+package p is
+    function func(x : in integer) return integer;
+end package;
+
+package body p is
+    function func(x : in integer) return integer is
+    begin
+        report func'instance_name;
+        return x + 1;
+    end function;
+end package body;

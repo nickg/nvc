@@ -2040,14 +2040,20 @@ static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
    tree_t decl = tree_ref(ref);
 
    ident_t i = NULL;
-   switch (which) {
-   case PATH_NAME:
-      i = tree_ident(decl);
-      break;
-   case INSTANCE_NAME:
-      i = tree_attr_str(decl, ident_new("INSTANCE_NAME"));
-      assert(i != NULL);
-      break;
+   ident_t instance = tree_attr_str(decl, ident_new("INSTANCE_NAME"));
+   if (instance == NULL) {
+      // Assume this is a package not an elaborated design
+      i = ident_new(package_signal_path_name(tree_ident(decl)));
+   }
+   else {
+      switch (which) {
+      case PATH_NAME:
+         i = tree_ident(decl);
+         break;
+      case INSTANCE_NAME:
+         i = instance;
+         break;
+      }
    }
 
    const char *str = istr(i);

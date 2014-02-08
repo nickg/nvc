@@ -1652,7 +1652,9 @@ static void sem_add_attributes(tree_t decl)
    }
 
    if (is_signal || (decl_kind == T_ARCH) || (decl_kind == T_ENTITY)
-       || (decl_kind == T_COMPONENT)) {
+       || (decl_kind == T_COMPONENT) || (decl_kind == T_FUNC_DECL)
+       || (decl_kind == T_FUNC_BODY) || (decl_kind == T_PROC_DECL)
+       || (decl_kind == T_PROC_BODY)) {
       type_t std_string = sem_std_type("STRING");
 
       ident_t path_name_i  = ident_new("PATH_NAME");
@@ -2062,6 +2064,8 @@ static bool sem_check_func_decl(tree_t t)
       sem_error(t, "duplicate declaration of function %s",
                 istr(tree_ident(t)));
 
+   sem_add_attributes(t);
+
    scope_apply_prefix(t);
    return scope_insert(t);
 }
@@ -2073,6 +2077,8 @@ static bool sem_check_func_body(tree_t t)
 
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
+
+   sem_add_attributes(t);
 
    // If there is no declaration for this function add to the scope
    if (!sem_check_duplicate(t, T_FUNC_DECL)) {
@@ -2153,6 +2159,8 @@ static bool sem_check_proc_decl(tree_t t)
       sem_error(t, "duplicate declaration of procedure %s",
                 istr(tree_ident(t)));
 
+   sem_add_attributes(t);
+
    scope_apply_prefix(t);
    return scope_insert(t);
 }
@@ -2163,6 +2171,8 @@ static bool sem_check_proc_body(tree_t t)
       return false;
 
    scope_apply_prefix(t);
+
+   sem_add_attributes(t);
 
    // If there is no declaration for this procedure add to the scope
    if (!sem_check_duplicate(t, T_PROC_DECL)) {
@@ -4368,7 +4378,9 @@ static bool sem_check_attr_ref(tree_t t)
          special = true;
       }
       else if ((kind == T_ARCH) || (kind == T_ENTITY)
-               || (kind == T_COMPONENT)) {
+               || (kind == T_COMPONENT) || (kind == T_FUNC_DECL)
+               || (kind == T_FUNC_BODY) || (kind == T_PROC_DECL)
+               || (kind == T_PROC_BODY)) {
          // Special case for attributes of entities and architectures
          tree_set_ref(name, decl);
 

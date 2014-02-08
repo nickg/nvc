@@ -964,7 +964,7 @@ END_TEST
 
 START_TEST(test_attr)
 {
-   tree_t a, e;
+   tree_t a, e, p;
 
    input_from_file(TESTDIR "/sem/attr.vhd");
 
@@ -999,6 +999,16 @@ START_TEST(test_attr)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_if(sem_check(a));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(sem_check(p));
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   fail_unless(sem_check(p));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
