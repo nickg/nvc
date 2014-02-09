@@ -2482,6 +2482,8 @@ static bool sem_check_entity(tree_t t)
 
    scope_insert(t);
 
+   sem_add_attributes(t);
+
    if (ok) {
       const int ndecls = tree_decls(t);
       for (int n = 0; n < ndecls; n++)
@@ -2491,8 +2493,6 @@ static bool sem_check_entity(tree_t t)
    }
 
    scope_pop();
-
-   sem_add_attributes(t);
 
    scope_pop();
 

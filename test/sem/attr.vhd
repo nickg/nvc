@@ -98,3 +98,13 @@ package body p is
         return x + 1;
     end function;
 end package body;
+
+entity issue39 is
+    generic (
+        g : bit := '0'
+    );
+begin
+    assert (g = '0' or g = '1')
+        report issue39'instance_name & "oops!"
+        severity failure;
+end entity issue39;

@@ -1010,6 +1010,11 @@ START_TEST(test_attr)
    fail_unless(tree_kind(p) == T_PACK_BODY);
    fail_unless(sem_check(p));
 
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
