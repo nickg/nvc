@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -2670,6 +2670,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_attr_val(t, args[0], ctx);
       else if (icmp(builtin, "value"))
          return cgen_attr_value(t, args[0], arg_types[0], ctx);
+      else if (icmp(builtin, "identity"))
+         return args[0];
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }
