@@ -4,5 +4,3 @@ std/STD.TEXTIO-body std/_STD.TEXTIO-body.a std/_STD.TEXTIO-body.so std/_STD.TEXT
 
 std/STD.STANDARD: $(top_srcdir)/lib/std/standard.vhd
 
-
--include local.mk

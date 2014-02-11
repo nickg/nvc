@@ -36,5 +36,3 @@ ieee/IEEE.STD_LOGIC_1164: $(top_srcdir)/lib/ieee/std_logic_1164.vhdl
 
 ieee/IEEE.STD_LOGIC_TEXTIO ieee/IEEE.STD_LOGIC_TEXTIO-body ieee/_IEEE.STD_LOGIC_TEXTIO-body.a ieee/_IEEE.STD_LOGIC_TEXTIO-body.so ieee/_IEEE.STD_LOGIC_TEXTIO-body.bc: ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/synopsys/std_logic_textio.vhd
 
-
--include local.mk

@@ -431,6 +431,7 @@ static int make_cmd(int argc, char **argv)
    static struct option long_options[] = {
       { "deps-only", no_argument, 0, 'd' },
       { "native",    no_argument, 0, 'n' },
+      { "posix",     no_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
 
@@ -450,6 +451,9 @@ static int make_cmd(int argc, char **argv)
          break;
       case 'n':
          opt_set_int("native", 1);
+         break;
+      case 'p':
+         opt_set_int("make-posix", 1);
          break;
       default:
          abort();
@@ -545,6 +549,7 @@ static void set_default_opts(void)
    opt_set_int("unit-test", 0);
    opt_set_int("prefer-explicit", 0);
    opt_set_int("make-deps-only", 0);
+   opt_set_int("make-posix", 0);
    opt_set_str("work-name", "work");
 }
 
@@ -596,6 +601,7 @@ static void usage(void)
           "Make options:\n"
           "     --deps-only\tOutput dependencies without actions\n"
           "     --native\t\tGenerate actions for native code generation\n"
+          "     --posix\t\tStrictly POSIX compliant makefile\n"
           "\n",
           PACKAGE,
           opt_get_int("stop-delta"));

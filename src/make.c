@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -24,6 +24,9 @@
 #include <string.h>
 #include <ctype.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 typedef enum {
    MAKE_TREE,
@@ -415,7 +418,13 @@ void make(tree_t *targets, int count, FILE *out)
       make_run(targets, count, out);
    }
 
-   fprintf(out, "\n-include local.mk\n");
+   if (!opt_get_int("make-posix"))
+      fprintf(out, "\n-include local.mk\n");
+   else {
+      struct stat dummy;
+      if (stat("local.mk", &dummy) == 0)
+         fprintf(out, "\ninclude local.mk\n");
+   }
 
    free(targets);
 }

@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "December 2013" "" "NVC Manual"
+.TH "NVC" "1" "February 2014" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -142,6 +142,10 @@ Generate rules that only contain dependencies without actions\. These can be use
 .TP
 \fB\-\-native\fR
 Output actions to generate native code\.
+.
+.TP
+\fB\-\-posix\fR
+The generated makefile will work with any POSIX compliant make\. Otherwise the output may use extensions specific to GNU make\.
 .
 .SH "SELECTING SIGNALS"
 Every signal object in the design has a unique hierarchical path name\. This is identical to the value of the \fBPATH_NAME\fR attribute\. You can get a list of the path names in your design using the command \fBshow [signals]\fR from the TCL shell\.

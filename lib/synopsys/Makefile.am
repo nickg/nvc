@@ -74,9 +74,11 @@ clean-local:
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) -L ../std -L ../synopsys --work=../ieee/ieee --make --deps-only --native | \
+	$(nvc) -L ../std -L ../synopsys --work=../ieee/ieee --make --posix \
+	 --deps-only --native | \
 		$(deps_pp) > $(srcdir)/deps.mk
-	$(nvc) -L ../std -L ../synopsys --work=synopsys --make --deps-only --native | \
+	$(nvc) -L ../std -L ../synopsys --work=synopsys --make --posix \
+	--deps-only --native | \
 		$(deps_pp) >> $(srcdir)/deps.mk
 
 include deps.mk

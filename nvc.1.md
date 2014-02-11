@@ -143,6 +143,10 @@ specific options must be placed after the command.
  * `--native`:
    Output actions to generate native code.
 
+ * `--posix`:
+   The generated makefile will work with any POSIX compliant make. Otherwise the
+   output may use extensions specific to GNU make.
+
 ## SELECTING SIGNALS
 
 Every signal object in the design has a unique hierarchical path name. This is
