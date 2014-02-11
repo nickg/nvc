@@ -621,6 +621,8 @@ package_body_decl_item
 | file_decl
 | alias_decl
 | use_clause
+| attr_decl
+| attr_spec
 /* | group_template_declaration
    | group_declaration */
 ;
@@ -895,6 +897,7 @@ entity_class
 | tARCHITECTURE { $$ = C_ARCHITECTURE; }
 | tCONFIGURATION { $$ = C_CONFIGURATION; }
 | tFUNCTION { $$ = C_FUNCTION; }
+| tPROCEDURE { $$ = C_PROCEDURE; }
 | tPACKAGE { $$ = C_PACKAGE; }
 | tTYPE { $$ = C_TYPE; }
 | tSUBTYPE { $$ = C_SUBTYPE; }

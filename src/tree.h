@@ -47,7 +47,8 @@ typedef enum class {
    C_PACKAGE,
    C_TYPE,
    C_SUBTYPE,
-   C_LABEL
+   C_LABEL,
+   C_PROCEDURE
 } class_t;
 
 typedef enum param_kind {

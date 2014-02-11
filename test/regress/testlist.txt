@@ -203,3 +203,4 @@ alias8          normal
 textio2         normal
 elab20          normal
 issue38         normal
+stop1           normal,gold

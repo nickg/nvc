@@ -608,6 +608,16 @@ int64_t _std_standard_now(void)
    return now;
 }
 
+void _nvc_sim_stop(int32_t finish, int32_t have_status, int32_t status)
+{
+   if (have_status)
+      notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
+   else
+      notef("%s called", finish ? "FINISH" : "STOP", status);
+
+   exit(status);
+}
+
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
