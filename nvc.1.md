@@ -52,6 +52,12 @@ specific options must be placed after the command.
    Add _path_ to the list of directories to search for libraries (see
    [LIBRARIES][] section below).
 
+ * `--std=`_rev_:
+   Select the VHDL standard revision to use. Specify either the full year such as
+   _1993_ or the decade such as _93_. The allowed revisions are 1993, 2000, 2002,
+   and 2008. Note there is very limited supported for any features beyond those in
+   VHDL-93. VHDL-87 is not supported.
+
  * `-v`, `--version`:
    Display version and copyright information.
 

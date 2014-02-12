@@ -48,4 +48,19 @@ typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
 typedef unsigned (*tree_actuals_t)(tree_t t);
 typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
 
+//
+// VHDL standard revisions
+//
+
+typedef enum {
+   STD_87,
+   STD_93,
+   STD_00,
+   STD_02,
+   STD_08
+} vhdl_standard_t;
+
+vhdl_standard_t standard(void);
+void set_standard(vhdl_standard_t s);
+
 #endif  // _COMMON_H

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -22,6 +22,8 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+
+static vhdl_standard_t current_std = STD_93;
 
 int64_t assume_int(tree_t t)
 {
@@ -326,4 +328,14 @@ tree_t make_ref(tree_t to)
    tree_set_ref(t, to);
    tree_set_type(t, tree_type(to));
    return t;
+}
+
+vhdl_standard_t standard(void)
+{
+   return current_std;
+}
+
+void set_standard(vhdl_standard_t s)
+{
+   current_std = s;
 }

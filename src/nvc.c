@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "phase.h"
+#include "common.h"
 #include "rt/rt.h"
 #include "rt/slave.h"
 
@@ -568,6 +569,7 @@ static void usage(void)
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
@@ -615,6 +617,33 @@ static void usage(void)
    printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }
 
+static vhdl_standard_t parse_standard(const char *str)
+{
+   char *eptr = NULL;
+   const int year = strtol(str, &eptr, 0);
+   if ((eptr != NULL) && (*eptr == '\0')) {
+      switch (year) {
+      case 1987:
+      case 87:
+         fatal("VHDL standard 1076-1987 is not supported");
+      case 1993:
+      case 93:
+         return STD_93;
+      case 2000:
+      case 0:
+         return STD_00;
+      case 2002:
+      case 2:
+         return STD_02;
+      case 2008:
+      case 8:
+         return STD_08;
+      }
+   }
+
+   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -634,6 +663,7 @@ int main(int argc, char **argv)
       { "dump",    no_argument,       0, 'd' },
       { "codegen", no_argument,       0, 'c' },
       { "make",    no_argument,       0, 'm' },
+      { "std",     required_argument, 0, 's' },
       { 0, 0, 0, 0 }
    };
 
@@ -655,6 +685,9 @@ int main(int argc, char **argv)
          break;
       case 'L':
          lib_add_search_path(optarg);
+         break;
+      case 's':
+         set_standard(parse_standard(optarg));
          break;
       case 'a':
       case 'e':
