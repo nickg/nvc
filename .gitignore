@@ -35,6 +35,7 @@ src/parse.output
 /lib/std/std
 /lib/ieee/ieee
 /lib/synopsys/synopsys
+/lib/nvc/nvc
 stamp-h1
 IDEAS
 PERF

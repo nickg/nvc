@@ -1,10 +1,10 @@
-entity stop1 is
+entity stop2 is
 end entity;
 
-library nvc;
-use nvc.env.all;
+library std;
+use std.env.all;
 
-architecture test of stop1 is
+architecture test of stop2 is
 begin
 
     process is
