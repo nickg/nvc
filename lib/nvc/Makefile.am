@@ -66,7 +66,9 @@ include ../nvc.mk
 gen-deps:
 	$(nvc) -L ../std --work=nvc --make --posix --deps-only --native | \
 		$(deps_pp) > $(srcdir)/deps.mk
+if ENABLE_VHDL_2008
 	$(nvc) -L ../std --work=$(std) --make --posix --deps-only --native | \
 		$(deps_pp) >> $(srcdir)/deps.mk
+endif
 
 include deps.mk
