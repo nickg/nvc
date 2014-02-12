@@ -5,7 +5,7 @@ if ENABLE_NATIVE
 nvc_so = nvc/_NVC.SIM-body.so
 
 if IMPLIB_REQUIRED
-nvc_DATA += nvc/_NVC.SIM.a
+nvc_DATA += nvc/_NVC.SIM-body.a
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 nvc_SCRIPTS = $(nvc_so)
@@ -24,8 +24,8 @@ bootstrap: $(nvc_DATA)
 nvc/_NVC_LIB: nvc/NVC.SIM
 
 nvc/NVC.SIM: $(srcdir)/sim.vhd
-	$(nvc) --work=nvc -a $(srcdir)/sim.vhd
-	$(codegen) --work=nvc --codegen sim
+	$(nvc) -L ../std --work=nvc -a $(srcdir)/sim.vhd
+	$(codegen) -L ../std --work=nvc --codegen sim
 
 clean-local:
 	-test ! -d nvc || rm -r nvc
@@ -33,7 +33,7 @@ clean-local:
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) --work=nvc --make --posix --deps-only --native | \
+	$(nvc) -L ../std --work=nvc --make --posix --deps-only --native | \
 		$(deps_pp) > $(srcdir)/deps.mk
 
 include deps.mk

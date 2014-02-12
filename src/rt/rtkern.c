@@ -613,7 +613,7 @@ void _nvc_sim_stop(int32_t finish, int32_t have_status, int32_t status)
    if (have_status)
       notef("%s called with status %d", finish ? "FINISH" : "STOP", status);
    else
-      notef("%s called", finish ? "FINISH" : "STOP", status);
+      notef("%s called", finish ? "FINISH" : "STOP");
 
    exit(status);
 }
