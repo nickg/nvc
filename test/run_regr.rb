@@ -10,6 +10,7 @@ TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee:#{BuildDir}/lib/nvc"
 Opts = Getopt::Std.getopts('vn')
+Have2008 = File.exists? "#{BuildDir}/lib/std/std/STD.ENV"   # Hack
 
 def read_tests
   tests = []
@@ -125,6 +126,7 @@ passed = 0
 failed = 0
 
 read_tests.each do |t|
+  next if t[:flags].member? '2008' and not Have2008
   printf "%15s : ", t[:name]
   mkdir_p t[:name]
   Dir.chdir t[:name] do
