@@ -183,6 +183,13 @@ AC_SUBST(COV_CFLAGS)
 AC_SUBST(COV_LDFLAGS)
 AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
 
+AC_ARG_ENABLE([vhdl-2008],
+  [AS_HELP_STRING([--enable-vhdl-2008],
+    [Enable VHDL-2008 features (experimental)])],
+  [enable_vhdl_2008=$enableval],
+  [])
+AM_CONDITIONAL([ENABLE_VHDL_2008], [test x$enable_vhdl_2008 = xyes])
+
 AC_CHECK_PROG([RONN], [ronn], [1])
 AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
 
