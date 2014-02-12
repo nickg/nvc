@@ -21,4 +21,5 @@ else
 codegen_verbose_0 =
 endif
 
-deps_pp = sed 's|\(../\)*\(\w\+/\w\+/[a-z0-9_\-]\+\.vhdl\?\)|$$(top_srcdir)/\2|g'
+deps_pp = sed -e 's|$(top_srcdir)|$$(top_srcdir)|g' \
+	-e 's|$(abs_top_builddir)|$$(top_builddir)|g'

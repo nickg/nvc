@@ -152,7 +152,7 @@ missing-ieee:
 include ../nvc.mk
 
 gen-deps:
-	$(nvc) -L ../std --work=ieee --make --posix --deps-only --native | \
-		$(deps_pp) > $(srcdir)/deps.mk
+	$(nvc) -L ../std -L ../synopsys --work=ieee --make --posix \
+	--deps-only --native | $(deps_pp) > $(srcdir)/deps.mk
 
 include deps.mk

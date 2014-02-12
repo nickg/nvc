@@ -280,10 +280,6 @@ static void make_rule(tree_t t, rule_t **rules)
       ident_t name = tree_ident(c);
 
       lib_t lib = make_get_lib(name);
-      if ((lib != work) && deps_only) {
-         deps[i] = NULL;
-         continue;
-      }
 
       deps[i] = lib_get(lib, name);
       if (deps[i] == NULL) {
@@ -292,6 +288,9 @@ static void make_rule(tree_t t, rule_t **rules)
       }
 
       make_rule_add_input(r, make_product(deps[i], MAKE_TREE));
+
+      if ((lib != work) && deps_only)
+         deps[i] = NULL;
    }
 
    if (tree_kind(t) == T_ARCH)
