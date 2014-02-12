@@ -1,11 +1,11 @@
 nvcdir = $(pkgdatadir)/nvc
-nvc_DATA = nvc/_NVC_LIB nvc/NVC.SIM nvc/NVC.SIM-body nvc/_NVC.SIM-body.bc
+nvc_DATA = nvc/_NVC_LIB nvc/NVC.ENV nvc/NVC.ENV-body nvc/_NVC.ENV-body.bc
 
 if ENABLE_NATIVE
-nvc_so = nvc/_NVC.SIM-body.so
+nvc_so = nvc/_NVC.ENV-body.so
 
 if IMPLIB_REQUIRED
-nvc_DATA += nvc/_NVC.SIM-body.a
+nvc_DATA += nvc/_NVC.ENV-body.a
 
 # Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
 nvc_SCRIPTS = $(nvc_so)
@@ -21,11 +21,11 @@ endif
 
 bootstrap: $(nvc_DATA)
 
-nvc/_NVC_LIB: nvc/NVC.SIM
+nvc/_NVC_LIB: nvc/NVC.ENV
 
-nvc/NVC.SIM: $(srcdir)/sim.vhd
-	$(nvc) -L ../std --work=nvc -a $(srcdir)/sim.vhd
-	$(codegen) -L ../std --work=nvc --codegen sim
+nvc/NVC.ENV: $(srcdir)/env.vhd
+	$(nvc) -L ../std --work=nvc -a $(srcdir)/env.vhd
+	$(codegen) -L ../std --work=nvc --codegen env
 
 clean-local:
 	-test ! -d nvc || rm -r nvc

@@ -2,7 +2,7 @@
 -- Support package for NVC-specific features
 --
 
-package sim is
+package env is
 
     -- The following are provided for compatibility with VHDL-2008
 
@@ -16,11 +16,11 @@ package sim is
 
 end package;
 
-package body sim is
+package body env is
 
     procedure stop_impl(finish, have_status : boolean; status : integer);
 
-    attribute foreign of stop_impl : procedure is "_nvc_sim_stop";
+    attribute foreign of stop_impl : procedure is "_nvc_env_stop";
 
     procedure stop(status : integer) is
     begin

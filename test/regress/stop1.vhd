@@ -2,7 +2,7 @@ entity stop1 is
 end entity;
 
 library nvc;
-use nvc.sim.all;
+use nvc.env.all;
 
 architecture test of stop1 is
 begin
