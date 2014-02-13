@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #include "util.h"
 #include "lib.h"
 #include "tree.h"
+#include "common.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -73,6 +74,16 @@ static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
 static search_path_t   *search_paths = NULL;
 
+static const char *standard_ext(vhdl_standard_t std)
+{
+   static const char *ext[] = {
+      "87", "93", "00", "02", "08"
+   };
+
+   assert(std < ARRAY_LEN(ext));
+   return ext[std];
+}
+
 static ident_t upcase_name(const char * name)
 {
    char *name_copy = strdup(name);
@@ -86,6 +97,19 @@ static ident_t upcase_name(const char * name)
    char *name_up = (last_slash != NULL) ? last_slash + 1 : name_copy;
    for (char *p = name_up; *p != '\0'; p++)
       *p = toupper((int)*p);
+
+   char *last_dot = strrchr(name_up, '.');
+   if (last_dot != NULL) {
+      const char *ext = standard_ext(standard());
+      if (strcmp(last_dot + 1, ext) != 0)
+         fatal("library directory suffix must be '%s' for this standard");
+      *last_dot = '\0';
+   }
+
+   for (const char *p = name_up; *p != '\0'; p++) {
+      if (!isalnum(*p))
+         fatal("invalid character '%c' in library name", *p);
+   }
 
    ident_t i = ident_new(name_up);
    free(name_copy);
