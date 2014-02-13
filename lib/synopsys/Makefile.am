@@ -82,3 +82,6 @@ gen-deps:
 		$(deps_pp) >> $(srcdir)/deps.mk
 
 include deps.mk
+
+$(top_builddir)/lib/synopsys/synopsys/SYNOPSYS.ATTRIBUTES: \
+	synopsys/SYNOPSYS.ATTRIBUTES
