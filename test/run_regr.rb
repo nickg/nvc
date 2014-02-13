@@ -10,7 +10,6 @@ TestDir = Pathname.new(__FILE__).realpath.dirname
 BuildDir = Pathname.new(ENV['BUILD_DIR'] || Dir.pwd).realpath
 LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee:#{BuildDir}/lib/nvc"
 Opts = Getopt::Std.getopts('vn')
-Have2008 = File.exists? "#{BuildDir}/lib/std/std/STD.ENV"   # Hack
 
 def read_tests
   tests = []
@@ -54,12 +53,20 @@ def run_cmd(c, invert=false)
   end
 end
 
+def std(t)
+  if t[:flags].member? '2008' then
+    '--std=2008'
+  else
+    ''
+  end
+end
+
 def analyse(t)
-  run_cmd "#{nvc} -a #{TestDir}/regress/#{t[:name]}.vhd"
+  run_cmd "#{nvc} #{std t} -a #{TestDir}/regress/#{t[:name]}.vhd"
 end
 
 def elaborate(t)
-  run_cmd "#{nvc} -e #{t[:name]} --disable-opt #{native}"
+  run_cmd "#{nvc} #{std t} -e #{t[:name]} --disable-opt #{native}"
 end
 
 def run(t)
@@ -67,7 +74,7 @@ def run(t)
   t[:flags].each do |f|
     stop = "--stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
   end
-  run_cmd "#{nvc} -r #{stop} #{t[:name]}", t[:flags].member?('fail')
+  run_cmd "#{nvc} #{std t} -r #{stop} #{t[:name]}", t[:flags].member?('fail')
 end
 
 def check(t)
@@ -126,7 +133,6 @@ passed = 0
 failed = 0
 
 read_tests.each do |t|
-  next if t[:flags].member? '2008' and not Have2008
   printf "%15s : ", t[:name]
   mkdir_p t[:name]
   Dir.chdir t[:name] do

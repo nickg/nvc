@@ -21,5 +21,7 @@ else
 codegen_verbose_0 =
 endif
 
-deps_pp = sed -e 's|$(top_srcdir)|$$(top_srcdir)|g' \
-	-e 's|$(abs_top_builddir)|$$(top_builddir)|g'
+deps_pp = sed \
+	-e 's|'`echo $(top_srcdir) | sed 's/\./\\\./g'`'|$$(top_srcdir)|' \
+	-e 's|$(abs_top_builddir)|$$(top_builddir)|' \
+	-e 's|$(abs_top_srcdir)|$$(top_srcdir)|'

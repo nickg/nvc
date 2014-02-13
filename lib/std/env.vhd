@@ -1,10 +1,10 @@
 --
--- Support package for NVC-specific features
+-- Environment package for VHDL-2008
+--
+-- This is also compiled into the NVC library for use with earlier standards
 --
 
 package env is
-
-    -- The following are provided for compatibility with VHDL-2008
 
     procedure stop(status : integer);
     procedure stop;
