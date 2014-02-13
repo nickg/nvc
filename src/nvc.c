@@ -63,42 +63,14 @@ static ident_t to_unit_name(const char *str)
    return i;
 }
 
-static vhdl_standard_t parse_standard(const char *str)
-{
-   char *eptr = NULL;
-   const int year = strtol(str, &eptr, 0);
-   if ((eptr != NULL) && (*eptr == '\0')) {
-      switch (year) {
-      case 1987:
-      case 87:
-         fatal("VHDL standard 1076-1987 is not supported");
-      case 1993:
-      case 93:
-         return STD_93;
-      case 2000:
-      case 0:
-         return STD_00;
-      case 2002:
-      case 2:
-         return STD_02;
-      case 2008:
-      case 8:
-         return STD_08;
-      }
-   }
-
-   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
-}
-
 static int analyse(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "bootstrap",       no_argument,       0, 'b' },
-      { "dump-llvm",       no_argument,       0, 'd' },
-      { "prefer-explicit", no_argument,       0, 'p' },
-      { "std",             required_argument, 0, 's' },
+      { "bootstrap",       no_argument, 0, 'b' },
+      { "dump-llvm",       no_argument, 0, 'd' },
+      { "prefer-explicit", no_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
 
@@ -121,9 +93,6 @@ static int analyse(int argc, char **argv)
          break;
       case 'p':
          opt_set_int("prefer-explicit", 1);
-         break;
-      case 's':
-         set_standard(parse_standard(optarg));
          break;
       default:
          abort();
@@ -600,13 +569,13 @@ static void usage(void)
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
           "     --prefer-explicit\tExplict operators always hide implicit\n"
-          "     --std=REV\t\tVHDL standard revision to use\n"
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
@@ -648,6 +617,33 @@ static void usage(void)
    printf("\nReport bugs to %s\n", PACKAGE_BUGREPORT);
 }
 
+static vhdl_standard_t parse_standard(const char *str)
+{
+   char *eptr = NULL;
+   const int year = strtol(str, &eptr, 0);
+   if ((eptr != NULL) && (*eptr == '\0')) {
+      switch (year) {
+      case 1987:
+      case 87:
+         fatal("VHDL standard 1076-1987 is not supported");
+      case 1993:
+      case 93:
+         return STD_93;
+      case 2000:
+      case 0:
+         return STD_00;
+      case 2002:
+      case 2:
+         return STD_02;
+      case 2008:
+      case 8:
+         return STD_08;
+      }
+   }
+
+   fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -667,6 +663,7 @@ int main(int argc, char **argv)
       { "dump",    no_argument,       0, 'd' },
       { "codegen", no_argument,       0, 'c' },
       { "make",    no_argument,       0, 'm' },
+      { "std",     required_argument, 0, 's' },
       { 0, 0, 0, 0 }
    };
 
@@ -688,6 +685,9 @@ int main(int argc, char **argv)
          break;
       case 'L':
          lib_add_search_path(optarg);
+         break;
+      case 's':
+         set_standard(parse_standard(optarg));
          break;
       case 'a':
       case 'e':
