@@ -92,17 +92,6 @@ START_TEST(test_lib_fopen)
 }
 END_TEST
 
-START_TEST(test_lib_std)
-{
-   set_standard(STD_08);
-
-   lib_t work08 = lib_new("work.08");
-   fail_if(work08 == NULL);
-
-   lib_destroy(work08);
-}
-END_TEST
-
 START_TEST(test_lib_save)
 {
    {
@@ -278,7 +267,6 @@ int main(void)
    tcase_add_test(tc_core, test_lib_new);
    tcase_add_test(tc_core, test_lib_fopen);
    tcase_add_test(tc_core, test_lib_save);
-   tcase_add_test(tc_core, test_lib_std);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

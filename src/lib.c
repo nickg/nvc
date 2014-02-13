@@ -74,7 +74,7 @@ static lib_t            work = NULL;
 static struct lib_list *loaded = NULL;
 static search_path_t   *search_paths = NULL;
 
-static const char *standard_ext(vhdl_standard_t std)
+static const char *standard_suffix(vhdl_standard_t std)
 {
    static const char *ext[] = {
       "87", "93", "00", "02", "08"
@@ -99,17 +99,8 @@ static ident_t upcase_name(const char * name)
       *p = toupper((int)*p);
 
    char *last_dot = strrchr(name_up, '.');
-   if (last_dot != NULL) {
-      const char *ext = standard_ext(standard());
-      if (strcmp(last_dot + 1, ext) != 0)
-         fatal("library directory suffix must be '%s' for this standard", ext);
+   if (last_dot != NULL)
       *last_dot = '\0';
-   }
-
-   for (const char *p = name_up; *p != '\0'; p++) {
-      if (!isalnum(*p))
-         fatal("invalid character '%c' in library name", *p);
-   }
 
    ident_t i = ident_new(name_up);
    free(name_copy);
@@ -205,14 +196,24 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
 static lib_t lib_find_at(const char *name, const char *path)
 {
    char dir[PATH_MAX];
-   snprintf(dir, sizeof(dir), "%s/%s", path, name);
+   const int nchars = snprintf(dir, sizeof(dir) - 4, "%s/%s", path, name);
 
    // Convert to lower case
    for (char *p = dir; *p != '\0'; p++)
       *p = tolower((int)*p);
 
-   if (access(dir, F_OK) < 0)
-      return NULL;
+   // Try suffixing standard revision extensions first
+   bool found = false;
+   for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
+      snprintf(dir + nchars, 4, ".%s", standard_suffix(s));
+      found = (access(dir, F_OK) == 0);
+   }
+
+   if (!found) {
+      dir[nchars] = '\0';
+      if (access(dir, F_OK) < 0)
+         return NULL;
+   }
 
    char marker[PATH_MAX];
    snprintf(marker, sizeof(marker), "%s/_NVC_LIB", dir);
@@ -231,6 +232,21 @@ static const char *lib_file_path(lib_t lib, const char *name)
 
 lib_t lib_new(const char *name)
 {
+   const char *last_dot = strrchr(name, '.');
+   if (last_dot != NULL) {
+      const char *ext = standard_suffix(standard());
+      if (strcmp(last_dot + 1, ext) != 0)
+         fatal("library directory suffix must be '%s' for this standard", ext);
+   }
+
+   const char *last_slash = strrchr(name, '/');
+   for (const char *p = (last_slash ? last_slash : name);
+        (*p != '\0') && (p != last_dot);
+        p++) {
+      if (!isalnum(*p))
+         fatal("invalid character '%c' in library name", *p);
+   }
+
    if (access(name, F_OK) == 0)
       fatal("file %s already exists", name);
 
