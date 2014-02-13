@@ -102,7 +102,7 @@ static ident_t upcase_name(const char * name)
    if (last_dot != NULL) {
       const char *ext = standard_ext(standard());
       if (strcmp(last_dot + 1, ext) != 0)
-         fatal("library directory suffix must be '%s' for this standard");
+         fatal("library directory suffix must be '%s' for this standard", ext);
       *last_dot = '\0';
    }
 
