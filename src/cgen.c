@@ -1503,7 +1503,10 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
    LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type), 0);
    LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, ptr_type, "");
 
-   return LLVMBuildLoad(builder, loaded, "");
+   if (type_is_record(type))
+      return loaded;
+   else
+      return LLVMBuildLoad(builder, loaded, "");
 }
 
 static LLVMValueRef cgen_vec_load(LLVMValueRef nets, type_t type,
