@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "fbuf.h"
+#include "fastlz.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,11 +27,9 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <zlib.h>
 
-#define WBUF_SIZE     8192
-#define RBUF_SIZE     8192
-#define DEFLATE_LEVEL 4
+#define BLOCK_SIZE 16384
+#define SPILL_SIZE (BLOCK_SIZE + (BLOCK_SIZE / 16))
 
 struct fbuf {
    fbuf_mode_t  mode;
@@ -40,9 +39,10 @@ struct fbuf {
    size_t       wpend;
    uint8_t     *rbuf;
    size_t       rptr;
+   size_t       ravail;
+   size_t       roff;
    uint8_t     *rmap;
    size_t       maplen;
-   z_stream     strm;
    fbuf_t      *next;
    fbuf_t      *prev;
 };
@@ -75,14 +75,8 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          f->file  = h;
          f->rmap  = NULL;
          f->rbuf  = NULL;
-         f->wbuf  = xmalloc(WBUF_SIZE);
+         f->wbuf  = xmalloc(BLOCK_SIZE);
          f->wpend = 0;
-
-         f->strm.zalloc = Z_NULL;
-         f->strm.zfree  = Z_NULL;
-         f->strm.opaque = Z_NULL;
-         if (deflateInit(&(f->strm), DEFLATE_LEVEL) != Z_OK)
-            fatal("deflateInit failed");
       }
       break;
 
@@ -106,18 +100,12 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 
          f->file   = NULL;
          f->rmap   = rmap;
-         f->rbuf   = xmalloc(RBUF_SIZE);
-         f->rptr   = RBUF_SIZE;
+         f->rbuf   = xmalloc(SPILL_SIZE);
+         f->rptr   = 0;
+         f->roff   = 0;
+         f->ravail = 0;
          f->maplen = buf.st_size;
          f->wbuf   = NULL;
-
-         f->strm.zalloc   = Z_NULL;
-         f->strm.zfree    = Z_NULL;
-         f->strm.opaque   = Z_NULL;
-         f->strm.avail_in = buf.st_size;
-         f->strm.next_in  = rmap;
-         if (inflateInit(&(f->strm)) != Z_OK)
-            fatal("inflateInit failed");
       }
       break;
    }
@@ -135,25 +123,31 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
 
 static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
 {
-   assert(more <= WBUF_SIZE);
-   if (f->wpend + more > WBUF_SIZE) {
-      const int zflush = finish ? Z_FINISH : Z_NO_FLUSH;
-      f->strm.avail_in = f->wpend;
-      f->strm.next_in  = f->wbuf;
+   assert(more <= BLOCK_SIZE);
+   if (f->wpend + more > BLOCK_SIZE) {
+      if (f->wpend < 16) {
+         // Write dummy bytes at and to meet fastlz block size requirement
+         assert(finish);
+         f->wpend = 16;
+      }
 
-      do {
-         uint8_t out[WBUF_SIZE];
-         f->strm.avail_out = sizeof(out);
-         f->strm.next_out  = out;
+      uint8_t out[SPILL_SIZE];
+      const int ret = fastlz_compress(f->wbuf, f->wpend, out);
 
-         const int ret = deflate(&(f->strm), zflush);
-         assert(ret != Z_STREAM_ERROR);
+      assert((ret > 0) && (ret < SPILL_SIZE));
 
-         const int have = sizeof(out) - f->strm.avail_out;
-         if ((have > 0) && (fwrite(out, have, 1, f->file) != 1))
-            fatal("fwrite failed");
+      const uint8_t blksz[4] = {
+         (ret >> 24) & 0xff,
+         (ret >> 16) & 0xff,
+         (ret >> 8) & 0xff,
+         ret & 0xff
+      };
 
-      } while (f->strm.avail_out == 0);
+      if (fwrite(blksz, 4, 1, f->file) != 1)
+         fatal("fwrite failed");
+
+      if (fwrite(out, ret, 1, f->file) != 1)
+         fatal("fwrite failed");
 
       f->wpend = 0;
    }
@@ -161,25 +155,35 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
 
 static void fbuf_maybe_read(fbuf_t *f, size_t more)
 {
-   assert(more <= RBUF_SIZE);
-   if (f->rptr + more > RBUF_SIZE) {
-      const size_t overlap = RBUF_SIZE - f->rptr;
+   assert(more <= BLOCK_SIZE);
+   if (f->rptr + more > f->ravail) {
+      const size_t overlap = f->ravail - f->rptr;
       memcpy(f->rbuf, f->rbuf + f->rptr, overlap);
 
-      f->strm.avail_out = RBUF_SIZE - overlap;
-      f->strm.next_out  = f->rbuf + overlap;
+      const uint8_t *blksz_raw = f->rmap + f->roff;
 
-      do {
-         const int ret = inflate(&(f->strm), Z_NO_FLUSH);
-         if (ret == Z_STREAM_END)
-            break;
-         else if (ret == Z_DATA_ERROR)
-            fatal("file is not compressed");
-         else if (ret != Z_OK)
-            fatal("inflate failed %d", ret);
-      } while (f->strm.avail_out != 0);
+      const uint32_t blksz =
+         (uint32_t)(blksz_raw[0] << 24)
+         | (uint32_t)(blksz_raw[1] << 16)
+         | (uint32_t)(blksz_raw[2] << 8)
+         | (uint32_t)blksz_raw[3];
 
-      f->rptr = 0;
+      if (blksz > SPILL_SIZE)
+         fatal("file %s has invalid compression format", f->fname);
+
+      f->roff += sizeof(uint32_t);
+
+      const int ret = fastlz_decompress(f->rmap + f->roff,
+                                        blksz,
+                                        f->rbuf + overlap,
+                                        SPILL_SIZE - overlap);
+
+      if (ret == 0)
+         fatal("file %s has invalid compression format", f->fname);
+
+      f->roff  += blksz;
+      f->ravail = overlap + ret;
+      f->rptr   = 0;
    }
 }
 
@@ -187,13 +191,11 @@ void fbuf_close(fbuf_t *f)
 {
    if (f->rmap != NULL) {
       munmap((void *)f->rmap, f->maplen);
-      inflateEnd(&(f->strm));
       free(f->rbuf);
    }
 
    if (f->wbuf != NULL) {
-      fbuf_maybe_flush(f, WBUF_SIZE, true);
-      deflateEnd(&(f->strm));
+      fbuf_maybe_flush(f, BLOCK_SIZE, true);
       free(f->wbuf);
    }
 
