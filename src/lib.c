@@ -232,15 +232,16 @@ static const char *lib_file_path(lib_t lib, const char *name)
 
 lib_t lib_new(const char *name)
 {
+   const char *last_slash = strrchr(name, '/');
    const char *last_dot = strrchr(name, '.');
-   if (last_dot != NULL) {
+
+   if ((last_dot != NULL) && (last_dot > last_slash)) {
       const char *ext = standard_suffix(standard());
       if (strcmp(last_dot + 1, ext) != 0)
          fatal("library directory suffix must be '%s' for this standard", ext);
    }
 
-   const char *last_slash = strrchr(name, '/');
-   for (const char *p = (last_slash ? last_slash : name);
+   for (const char *p = (last_slash ? last_slash + 1 : name);
         (*p != '\0') && (p != last_dot);
         p++) {
       if (!isalnum(*p))
