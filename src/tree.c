@@ -1639,7 +1639,6 @@ void tree_read_end(tree_rd_ctx_t ctx)
 {
    ident_read_end(ctx->ident_ctx);
    type_read_end(ctx->type_ctx);
-   fbuf_close(ctx->file);
    free(ctx->store);
    free(ctx->db_fname);
    free(ctx);

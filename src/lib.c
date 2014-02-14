@@ -511,6 +511,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
          fbuf_t *f = lib_fbuf_open(lib, e->d_name, FBUF_IN);
          tree_rd_ctx_t ctx = tree_read_begin(f, lib_file_path(lib, e->d_name));
          tree_t top = tree_read(ctx);
+         fbuf_close(f);
 
          struct stat st;
          if (stat(lib_file_path(lib, e->d_name), &st) < 0)
