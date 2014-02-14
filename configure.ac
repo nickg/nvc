@@ -82,7 +82,6 @@ if test "x$vl_cv_lib_readline" = xno ; then
 fi
 
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
-AC_CHECK_LIB([bz2], [BZ2_bzclose], [], [AC_MSG_ERROR(bzip2 not found)])
 
 # fst/fstapi.c can use pthread to write FST in parallel if HAVE_LIBPTHREAD
 # and FST_WRITER_PARALLEL is defined.
