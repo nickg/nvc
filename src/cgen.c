@@ -1705,8 +1705,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          if ((builtin == NULL) || (i < nports)) {
             bool need_ptr = (((mode == PORT_OUT)
                               || (mode == PORT_INOUT)
-                              || (class == C_FILE)
-                              || type_is_record(type))
+                              || (class == C_FILE))
                              && !type_is_array(type));
             if (need_ptr)
                args[i] = cgen_var_lvalue(value, ctx);
