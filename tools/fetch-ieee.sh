@@ -2,7 +2,7 @@
 set -e
 
 ieee_url="http://standards.ieee.org/downloads/1076/1076.2-1996"
-vital_url="http://tams-www.informatik.uni-hamburg.de/vhdl/packages/P1076.4"
+vital_url="http://svn.gna.org/svn/ghdl/trunk/libraries/vital2000"
 
 cat <<EOF
 This program will download IEEE library sources from
