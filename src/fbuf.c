@@ -132,7 +132,7 @@ static void fbuf_maybe_flush(fbuf_t *f, size_t more, bool finish)
       }
 
       uint8_t out[SPILL_SIZE];
-      const int ret = fastlz_compress(f->wbuf, f->wpend, out);
+      const int ret = fastlz_compress_level(2, f->wbuf, f->wpend, out);
 
       assert((ret > 0) && (ret < SPILL_SIZE));
 
