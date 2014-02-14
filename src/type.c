@@ -1134,7 +1134,7 @@ unsigned type_width(type_t type)
       unsigned w = 0;
       const int nfields = type_fields(base);
       for (int i = 0; i < nfields; i++)
-         w += type_width(type_field(base, i));
+         w += type_width(tree_type(type_field(base, i)));
       return w;
    }
    else
