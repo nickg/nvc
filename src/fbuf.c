@@ -28,8 +28,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define BLOCK_SIZE 16384
-#define SPILL_SIZE (BLOCK_SIZE + (BLOCK_SIZE / 16))
+#define SPILL_SIZE 65536
+#define BLOCK_SIZE (SPILL_SIZE - (SPILL_SIZE / 16))
 
 struct fbuf {
    fbuf_mode_t  mode;
@@ -75,7 +75,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          f->file  = h;
          f->rmap  = NULL;
          f->rbuf  = NULL;
-         f->wbuf  = xmalloc(BLOCK_SIZE);
+         f->wbuf  = xmalloc(SPILL_SIZE);
          f->wpend = 0;
       }
       break;
