@@ -1,4 +1,6 @@
-noinst_LIBRARIES = libfst.a
+noinst_LIBRARIES = libfst.a liblxt.a
+
+liblxt_a_SOURCES = lxt_write.c
 
 if FST_WRITER_PARALLEL
 AM_CC      = $(PTHREAD_CC)

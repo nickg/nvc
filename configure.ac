@@ -189,6 +189,6 @@ AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile test/Makefile \
            lib/Makefile lib/std/Makefile lib/ieee/Makefile \
-           lib/nvc/Makefile lib/synopsys/Makefile lxt/Makefile fst/Makefile])
+           lib/nvc/Makefile lib/synopsys/Makefile thirdparty/Makefile])
 AC_OUTPUT
 
