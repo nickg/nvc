@@ -3017,6 +3017,7 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
             LLVMTypeRef ltype = llvm_type(type_elem(sub_type));
 
             *sub = LLVMConstArray(ltype, v, nvals);
+            free(v);
          }
          else if (type_is_record(sub_type)) {
             *sub = cgen_const_record(value, true, ctx);
