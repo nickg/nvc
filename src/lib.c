@@ -244,7 +244,7 @@ lib_t lib_new(const char *name)
    for (const char *p = (last_slash ? last_slash + 1 : name);
         (*p != '\0') && (p != last_dot);
         p++) {
-      if (!isalnum(*p))
+      if (!isalnum((int)*p))
          fatal("invalid character '%c' in library name", *p);
    }
 
