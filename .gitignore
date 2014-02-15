@@ -33,6 +33,7 @@ src/parse.output
 /config.sub
 /src/nvc
 /lib/std/std
+/lib/std/std.08
 /lib/ieee/ieee
 /lib/synopsys/synopsys
 /lib/nvc/nvc
