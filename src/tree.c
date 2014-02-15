@@ -98,7 +98,7 @@ typedef union {
    netid_array_t  netid_array;
 } item_t;
 
-typedef uint32_t imask_t;
+typedef uint64_t imask_t;
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
@@ -422,7 +422,7 @@ static size_t max_trees = 128;   // Grows at runtime
 static size_t n_trees_alloc = 0;
 
 static uint32_t format_digest;
-static int      item_lookup[T_LAST_TREE_KIND][32];
+static int      item_lookup[T_LAST_TREE_KIND][64];
 static size_t   object_size[T_LAST_TREE_KIND];
 static int      object_nitems[T_LAST_TREE_KIND];
 
@@ -446,11 +446,12 @@ static void tree_one_time_init(void)
       object_nitems[i] = nitems;
 
       // Knuth's multiplicative hash
-      format_digest += has_map[i] * UINT32_C(2654435761);
+      format_digest += (uint32_t)(has_map[i] >> 32) * UINT32_C(2654435761);
+      format_digest += (uint32_t)(has_map[i]) * UINT32_C(2654435761);
 
       int n = 0;
-      for (int j = 0; j < 32; j++) {
-         if (has_map[i] & (1 << j))
+      for (int j = 0; j < 64; j++) {
+         if (has_map[i] & (UINT64_C(1) << j))
             item_lookup[i][j] = n++;
          else
             item_lookup[i][j] = -1;
@@ -1437,7 +1438,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
 
    const imask_t has = has_map[t->kind];
    const int nitems = object_nitems[t->kind];
-   uint32_t mask = 1;
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
@@ -1539,7 +1540,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
    const imask_t has = has_map[t->kind];
    const int nitems = object_nitems[t->kind];
-   uint32_t mask = 1;
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
