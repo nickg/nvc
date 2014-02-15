@@ -54,39 +54,37 @@ typedef struct {
    attr_t   *table;
 } attr_tab_t;
 
-enum {
-   I_IDENT     = (1 << 0),
-   I_VALUE     = (1 << 1),
-   I_SEVERITY  = (1 << 2),
-   I_MESSAGE   = (1 << 3),
-   I_TARGET    = (1 << 4),
-   I_IVAL      = (1 << 5),
-   I_IDENT2    = (1 << 6),
-   I_DECLS     = (1 << 7),
-   I_STMTS     = (1 << 8),
-   I_PORTS     = (1 << 9),
-   I_GENERICS  = (1 << 10),
-   I_PARAMS    = (1 << 11),
-   I_GENMAPS   = (1 << 12),
-   I_WAVES     = (1 << 13),
-   I_CONDS     = (1 << 14),
-   I_TYPE      = (1 << 15),
-   I_SUBKIND   = (1 << 16),
-   I_DELAY     = (1 << 17),
-   I_REJECT    = (1 << 18),
-   I_POS       = (1 << 19),
-   I_REF       = (1 << 20),
-   I_FILE_MODE = (1 << 21),
-   I_ASSOCS    = (1 << 22),
-   I_CONTEXT   = (1 << 23),
-   I_TRIGGERS  = (1 << 24),
-   I_ELSES     = (1 << 25),
-   I_CLASS     = (1 << 26),
-   I_RANGE     = (1 << 27),
-   I_NAME      = (1 << 28),
-   I_NETS      = (1 << 29),
-   I_DVAL      = (1 << 30),
-};
+#define I_IDENT     (UINT64_C(1) << 0)
+#define I_VALUE     (UINT64_C(1) << 1)
+#define I_SEVERITY  (UINT64_C(1) << 2)
+#define I_MESSAGE   (UINT64_C(1) << 3)
+#define I_TARGET    (UINT64_C(1) << 4)
+#define I_IVAL      (UINT64_C(1) << 5)
+#define I_IDENT2    (UINT64_C(1) << 6)
+#define I_DECLS     (UINT64_C(1) << 7)
+#define I_STMTS     (UINT64_C(1) << 8)
+#define I_PORTS     (UINT64_C(1) << 9)
+#define I_GENERICS  (UINT64_C(1) << 10)
+#define I_PARAMS    (UINT64_C(1) << 11)
+#define I_GENMAPS   (UINT64_C(1) << 12)
+#define I_WAVES     (UINT64_C(1) << 13)
+#define I_CONDS     (UINT64_C(1) << 14)
+#define I_TYPE      (UINT64_C(1) << 15)
+#define I_SUBKIND   (UINT64_C(1) << 16)
+#define I_DELAY     (UINT64_C(1) << 17)
+#define I_REJECT    (UINT64_C(1) << 18)
+#define I_POS       (UINT64_C(1) << 19)
+#define I_REF       (UINT64_C(1) << 20)
+#define I_FILE_MODE (UINT64_C(1) << 21)
+#define I_ASSOCS    (UINT64_C(1) << 22)
+#define I_CONTEXT   (UINT64_C(1) << 23)
+#define I_TRIGGERS  (UINT64_C(1) << 24)
+#define I_ELSES     (UINT64_C(1) << 25)
+#define I_CLASS     (UINT64_C(1) << 26)
+#define I_RANGE     (UINT64_C(1) << 27)
+#define I_NAME      (UINT64_C(1) << 28)
+#define I_NETS      (UINT64_C(1) << 29)
+#define I_DVAL      (UINT64_C(1) << 30)
 
 typedef union {
    ident_t        ident;
@@ -602,7 +600,7 @@ void tree_gc(void)
       if (t->generation < base_gen) {
 
          const imask_t has = has_map[t->kind];
-         const int nitems = __builtin_popcount(has);
+         const int nitems = object_nitems[t->kind];
          imask_t mask = 1;
          for (int n = 0; n < nitems; mask <<= 1) {
             if (has & mask) {
@@ -710,11 +708,11 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
       fatal_trace("cannot change tree kind %s to %s",
                   tree_kind_str(t->kind), tree_kind_str(kind));
 
-   const uint32_t old_has = has_map[t->kind];
-   const uint32_t new_has = has_map[kind];
+   const imask_t old_has = has_map[t->kind];
+   const imask_t new_has = has_map[kind];
 
-   const int old_nitems = __builtin_popcount(old_has);
-   const int new_nitems = __builtin_popcount(new_has);
+   const int old_nitems = object_nitems[t->kind];
+   const int new_nitems = object_nitems[kind];
 
    const int max_items = MAX(old_nitems, new_nitems);
 
@@ -722,7 +720,7 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
    memcpy(tmp, t->items, sizeof(item_t) * max_items);
 
    int op = 0, np = 0;
-   for (uint32_t mask = 1; np < new_nitems; mask <<= 1) {
+   for (imask_t mask = 1; np < new_nitems; mask <<= 1) {
       if ((old_has & mask) && (new_has & mask))
          t->items[np++] = tmp[op++];
       else if (old_has & mask)
@@ -1209,7 +1207,7 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
    const imask_t deep_mask = I_TYPE | I_REF;
 
    const imask_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const int nitems = object_nitems[t->kind];
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
@@ -1437,8 +1435,8 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    write_u16(t->kind, ctx->file);
    write_loc(&t->loc, ctx);
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
    uint32_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1539,8 +1537,8 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    }
    ctx->store[t->index] = t;
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
    uint32_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1783,7 +1781,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
    const imask_t skip_mask = I_REF;
 
    const imask_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const int nitems = object_nitems[t->kind];
    int type_item = -1;
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
@@ -1875,7 +1873,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
    int type_item = -1;
    bool marked = false;
    const imask_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const int nitems = object_nitems[t->kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1947,7 +1945,7 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
    copy->loc = t->loc;
 
    const imask_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
+   const int nitems = object_nitems[t->kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
