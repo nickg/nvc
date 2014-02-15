@@ -339,3 +339,15 @@ void set_standard(vhdl_standard_t s)
 {
    current_std = s;
 }
+
+const char *standard_text(vhdl_standard_t s)
+{
+   static const char *text[] = {
+      "1987", "1993", "2000", "2002", "2008"
+   };
+
+   if ((unsigned)s < ARRAY_LEN(text))
+      return text[s];
+   else
+      return "????";
+}

@@ -19,6 +19,7 @@
 #include "util.h"
 #include "array.h"
 #include "object.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -1382,6 +1383,7 @@ static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
    write_u32(format_digest, f);
+   write_u8(standard(), f);
 
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
    ctx->file       = f;
@@ -1615,12 +1617,18 @@ tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 {
    tree_one_time_init();
 
-   uint32_t ver = read_u32(f);
+   const uint32_t ver = read_u32(f);
    if (ver != format_digest)
       fatal("%s: serialised format digest is %x expected %x. This design "
             "unit uses a library format from an earlier version of "
             PACKAGE_NAME " and should be reanalysed.",
             fname, ver, format_digest);
+
+   const vhdl_standard_t std = read_u8(f);
+   if (std > standard())
+      fatal("%s: design unit was analysed using standard revision %s which "
+            "is more recent that the currently selected standard %s",
+            fname, standard_text(std), standard_text(standard()));
 
    struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
    ctx->file      = f;

@@ -62,5 +62,6 @@ typedef enum {
 
 vhdl_standard_t standard(void);
 void set_standard(vhdl_standard_t s);
+const char *standard_text(vhdl_standard_t s);
 
 #endif  // _COMMON_H
