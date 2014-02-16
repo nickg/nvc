@@ -5633,6 +5633,50 @@ static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
+static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
+{
+   tree_t value = tree_value(d);
+   type_t init_type = tree_type(value);
+   LLVMValueRef val = cgen_expr(value, ctx);
+
+   type_t decl_type = tree_type(d);
+
+   LLVMValueRef n_elems, size;
+   if (!type_is_array(init_type)) {
+      // Need to get a pointer to the data
+      LLVMTypeRef lltype = LLVMTypeOf(val);
+      LLVMValueRef tmp = LLVMBuildAlloca(builder, lltype, "");
+      LLVMBuildStore(builder, val, tmp);
+      val = tmp;
+
+      n_elems = llvm_int32(1);
+      size    = llvm_sizeof(lltype);
+   }
+   else {
+      cgen_check_array_sizes(value, decl_type, init_type, NULL, val, ctx);
+
+      val     = cgen_array_data_ptr(init_type, val);
+      n_elems = cgen_array_len_recur(decl_type, val);
+      size    = cgen_array_elem_size(decl_type);
+   }
+
+   // Assuming array nets are sequential
+   netid_t nid = tree_net(d, 0);
+
+   LLVMValueRef args[] = {
+      llvm_int32(nid),
+      llvm_void_cast(val),
+      n_elems,
+      size,
+      llvm_void_cast(cgen_resolution_func(decl_type)),
+      llvm_int32(tree_index(d)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_set_initial"),
+                 args, ARRAY_LEN(args), "");
+}
+
 static void cgen_reset_function(tree_t t)
 {
    char *name = xasprintf("%s_reset", istr(tree_ident(t)));
@@ -5714,48 +5758,7 @@ static void cgen_reset_function(tree_t t)
       if (!tree_has_value(d))
          continue;
 
-      // Set the initial value of the net
-      tree_t value = tree_value(d);
-      type_t init_type = tree_type(value);
-      LLVMValueRef val = cgen_expr(value, &ctx);
-
-      type_t decl_type = tree_type(d);
-
-      LLVMValueRef n_elems, size;
-      if (!type_is_array(init_type)) {
-         // Need to get a pointer to the data
-         LLVMTypeRef lltype = LLVMTypeOf(val);
-         LLVMValueRef tmp = LLVMBuildAlloca(builder, lltype, "");
-         LLVMBuildStore(builder, val, tmp);
-         val = tmp;
-
-         n_elems = llvm_int32(1);
-         size    = llvm_sizeof(lltype);
-      }
-      else {
-         cgen_check_array_sizes(value, decl_type, init_type,
-                                NULL, val, &ctx);
-
-         val     = cgen_array_data_ptr(init_type, val);
-         n_elems = cgen_array_len_recur(decl_type, val);
-         size    = cgen_array_elem_size(decl_type);
-      }
-
-      // Assuming array nets are sequential
-      netid_t nid = tree_net(d, 0);
-
-      LLVMValueRef args[] = {
-         llvm_int32(nid),
-         llvm_void_cast(val),
-         n_elems,
-         size,
-         llvm_void_cast(cgen_resolution_func(decl_type)),
-         llvm_int32(tree_index(d)),
-         LLVMBuildPointerCast(builder, mod_name,
-                              LLVMPointerType(LLVMInt8Type(), 0), "")
-      };
-      LLVMBuildCall(builder, llvm_fn("_set_initial"),
-                    args, ARRAY_LEN(args), "");
+      cgen_set_initial(d, &ctx);
    }
 
    LLVMValueRef cover_stmts = LLVMGetNamedGlobal(module, "cover_stmts");
