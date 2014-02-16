@@ -1499,7 +1499,7 @@ if((lt)&&(!lt->emitted)&&(!lt->sorted_facs))
 		{
 		lt_set_zmode(lt, lt->zmode = LT_ZMODE_BZIP2);
 		fflush(lt->handle);
-		lt->zhandle = BZ2_bzdopen(dup(fileno(lt->handle)), "wb9");
+		lt->zhandle = NULL; /* BZ2_bzdopen(dup(fileno(lt->handle)), "wb9"); */
 		}
 
 	if((lt->sorted_facs = (struct lt_symbol **)calloc(lt->numfacs, sizeof(struct lt_symbol *))))
