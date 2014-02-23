@@ -451,15 +451,17 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       groupid_t gid = netdb_lookup(netdb, nid + offset);
       netgroup_t *g = &(groups[gid]);
 
+      const int size = size_list[part * 2];
+
       g->sig_decl   = decl;
       g->resolution = memo;
-      g->size       = size_list[part];
+      g->size       = size;
       g->resolved   = rt_alloc_value(g);
       g->last_value = rt_alloc_value(g);
 
-      const void *src = values + (offset * size_list[part]);
-      memcpy(g->resolved->data, src, g->length * size_list[part]);
-      memcpy(g->last_value->data, src, g->length * size_list[part]);
+      const void *src = values + (offset * size);
+      memcpy(g->resolved->data, src, g->length * size);
+      memcpy(g->last_value->data, src, g->length * size);
 
       offset += g->length;
 
@@ -659,6 +661,7 @@ void *_vec_load(const int32_t *nids, void *where,
 
    for (;;) {
       const int to_copy = MIN(high - offset + 1, g->length - skip);
+      TRACE("  to_copy=%d size=%d", to_copy, g->size);
 
       void *p = (uint8_t *)where + ((offset - low) * g->size);
       if (unlikely(last))

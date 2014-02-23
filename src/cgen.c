@@ -199,7 +199,7 @@ static void debug_out(LLVMValueRef val)
 }
 #endif
 
-#if 0
+#if 1
 static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 {
    LLVMValueRef args[] = { llvm_void_cast(ptr), len };
@@ -1491,11 +1491,19 @@ static LLVMValueRef cgen_literal(tree_t t)
 static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
                                          bool last_value, cgen_ctx_t *ctx)
 {
+   const bool record = type_is_record(type);
+
+   LLVMValueRef tmp;
+   if (record)
+      tmp = llvm_void_cast(LLVMBuildAlloca(builder, llvm_type(type), "tmp"));
+   else
+      tmp = LLVMConstNull(llvm_void_ptr());
+
    LLVMValueRef args[] = {
       llvm_void_cast(nets),
-      LLVMConstNull(llvm_void_ptr()),
+      tmp,
       llvm_int32(0),
-      llvm_int32(0),
+      llvm_int32(record ? type_width(type) - 1 : 0),
       llvm_int1(last_value)
    };
    LLVMValueRef r = LLVMBuildCall(builder, llvm_fn("_vec_load"),
@@ -1503,7 +1511,9 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
    LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type), 0);
    LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, ptr_type, "");
 
-   if (type_is_record(type))
+   debug_dump(loaded, llvm_int32(8));
+
+   if (record)
       return loaded;
    else
       return LLVMBuildLoad(builder, loaded, "");
