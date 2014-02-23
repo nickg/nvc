@@ -357,14 +357,15 @@ void _sched_process(int64_t delay)
    deltaq_insert_proc(delay, active_proc);
 }
 
-void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
+void _sched_waveform(void *_nids, void *values, int32_t n,
                      int64_t after, int64_t reject)
 {
    const int32_t *nids = _nids;
 
-   TRACE("_sched_waveform %s values=%s n=%d size=%d after=%s reject=%s",
-         fmt_net(nids[0]), fmt_values(values, n * size), n, size,
-         fmt_time(after), fmt_time(reject));
+   TRACE("_sched_waveform %s values=%s n=%d after=%s reject=%s",
+         fmt_net(nids[0]),
+         fmt_values(values, n * groups[netdb_lookup(netdb, nids[0])].size),
+         n, fmt_time(after), fmt_time(reject));
 
    if (unlikely(active_proc->postponed && (after == 0)))
       fatal("postponed process %s cannot cause a delta cycle",
@@ -377,8 +378,8 @@ void _sched_waveform(void *_nids, void *values, int32_t n, int32_t size,
          netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
          value_t *values_copy = rt_alloc_value(g);
-         memcpy(values_copy->data, (uint8_t *)values + (offset * size),
-                size * g->length);
+         memcpy(values_copy->data, (uint8_t *)values + (offset * g->size),
+                g->size * g->length);
 
          if (!rt_alloc_driver(g, after, reject, values_copy))
             deltaq_insert_driver(after, g, active_proc);

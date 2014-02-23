@@ -4061,7 +4061,7 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
       if (nets == NULL)
          continue;    // Assignment to OPEN port
 
-      LLVMValueRef rhs_data, lhs_data, n_elems, elem_size;
+      LLVMValueRef rhs_data, lhs_data, n_elems;
 
       type_t value_type  = tree_type(value);
       type_t target_type = tree_type(target);
@@ -4078,7 +4078,12 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          cgen_check_bounds(value, kind, rhs, min, max, ctx);
       }
 
-      if (!type_is_array(value_type)) {
+      if (type_is_record(value_type)) {
+         rhs_data = rhs;
+         lhs_data = nets;
+         n_elems  = llvm_int32(type_width(value_type));
+      }
+      else if (!type_is_array(value_type)) {
          // Need to pass a pointer to values so allocate this on the stack
          LLVMValueRef tmp = LLVMBuildAlloca(builder, llvm_type(value_type), "");
          LLVMBuildStore(builder, rhs, tmp);
@@ -4086,7 +4091,6 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          rhs_data  = tmp;
          lhs_data  = nets;
          n_elems   = llvm_int32(1);
-         elem_size = llvm_sizeof(llvm_type(value_type));
       }
       else {
          cgen_check_array_sizes(t, target_type, value_type, nets, rhs, ctx);
@@ -4095,14 +4099,12 @@ static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
          lhs_data = cgen_array_data_ptr(target_type, nets);
 
          n_elems   = cgen_array_len_recur(value_type, rhs);
-         elem_size = cgen_array_elem_size(value_type);
       }
 
       LLVMValueRef args[] = {
          llvm_void_cast(lhs_data),
          llvm_void_cast(rhs_data),
          n_elems,
-         elem_size,
          after,
          (i == 0) ? reject : llvm_int64(0)
       };
@@ -5976,7 +5978,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
          llvm_void_ptr(),
-         LLVMInt32Type(),
          LLVMInt32Type(),
          LLVMInt64Type(),
          LLVMInt64Type()
