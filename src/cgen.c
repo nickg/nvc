@@ -356,7 +356,7 @@ static LLVMTypeRef llvm_type(type_t t)
             llfields[i] = llvm_type(tree_type(field));
          }
 
-         LLVMStructSetBody(lltype, llfields, nfields, false);
+         LLVMStructSetBody(lltype, llfields, nfields, true);
          return lltype;
       }
 
