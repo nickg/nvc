@@ -430,8 +430,15 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)
 {
-   //TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
-   //     nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
+         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+
+   int poff = 0;
+   for (int i = 0; i < nparts; i++) {
+      TRACE("  %d %d %s", size_list[i * 2], size_list[(i * 2) + 1],
+            fmt_values(values + poff, size_list[i * 2] * size_list[(i * 2) + 1]));
+      poff += size_list[i * 2] * size_list[(i * 2) + 1];
+   }
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -440,6 +447,7 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
    if (resolution != NULL)
       memo = rt_memo_resolution_fn(tree_type(decl), resolution);
 
+   const uint8_t *src = values;
    int offset = 0, part = 0, remain = size_list[1];
    while (part < nparts) {
       groupid_t gid = netdb_lookup(netdb, nid + offset);
@@ -453,11 +461,12 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       g->resolved   = rt_alloc_value(g);
       g->last_value = rt_alloc_value(g);
 
-      const void *src = values + (offset * size);
-      memcpy(g->resolved->data, src, g->length * size);
-      memcpy(g->last_value->data, src, g->length * size);
+      const int nbytes = g->length * size;
+      memcpy(g->resolved->data, src, nbytes);
+      memcpy(g->last_value->data, src, nbytes);
 
       offset += g->length;
+      src += nbytes;
 
       remain -= g->length;
       assert(remain >= 0);
@@ -633,8 +642,8 @@ void _nvc_env_stop(int32_t finish, int32_t have_status, int32_t status)
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
-   //TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
-   //      fmt_net(nids[0]), where, low, high, last);
+   TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
+         fmt_net(nids[0]), where, low, high, last);
 
    assert(low <= high);
 
@@ -651,19 +660,20 @@ void *_vec_load(const int32_t *nids, void *where,
       return (uint8_t *)r + (skip * g->size);
    }
 
+   uint8_t *p = where;
    for (;;) {
       const int to_copy = MIN(high - offset + 1, g->length - skip);
-      TRACE("  to_copy=%d size=%d", to_copy, g->size);
+      const int bytes   = to_copy * g->size;
 
-      void *p = (uint8_t *)where + ((offset - low) * g->size);
+      TRACE("  to_copy=%d size=%d p=%p %s", to_copy, g->size, p,
+            fmt_values((uint8_t *)g->resolved->data + (skip * g->size), bytes));
       if (unlikely(last))
-         memcpy(p, (uint8_t *)g->last_value->data + (skip * g->size),
-                to_copy * g->size);
+         memcpy(p, (uint8_t *)g->last_value->data + (skip * g->size), bytes);
       else
-         memcpy(p, (uint8_t *)g->resolved->data + (skip * g->size),
-                to_copy * g->size);
+         memcpy(p, (uint8_t *)g->resolved->data + (skip * g->size), bytes);
 
       offset += g->length - skip;
+      p += bytes;
 
       if (offset > high)
          break;
