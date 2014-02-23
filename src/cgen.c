@@ -3259,6 +3259,8 @@ static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
          LLVMTypeRef ltype = llvm_type(type_elem(value_type));
          v = LLVMConstArray(ltype, vals, nvals);
       }
+      else if (type_is_record(value_type))
+         v = cgen_const_record(value, true, ctx);
       else
          v = cgen_expr(value, ctx);
 
@@ -5675,6 +5677,55 @@ static void cgen_net_mapping_table(tree_t d, int offset, netid_t first,
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
+static int cgen_count_record_fields(type_t type)
+{
+   int total = 0;
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      type_t ftype = tree_type(type_field(type, i));
+      if (type_is_record(ftype))
+         total += cgen_count_record_fields(ftype);
+      else
+         total++;
+   }
+
+   return total;
+}
+
+static void cgen_record_size_list(type_t type, LLVMValueRef size_list, int *off)
+{
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t field = type_field(type, i);
+      type_t field_type = tree_type(field);
+
+      LLVMValueRef field_size, field_num;
+      if (type_is_record(field_type)) {
+         cgen_record_size_list(field_type, size_list, off);
+         continue;
+      }
+      else if (type_is_array(field_type)) {
+         field_size = cgen_array_elem_size(field_type);
+         field_num  = cgen_array_len_recur(field_type, NULL);
+      }
+      else {
+         field_size = llvm_sizeof(llvm_type(field_type));
+         field_num  = llvm_int32(1);
+      }
+
+      LLVMValueRef size_index[] = { llvm_int32(*off * 2) };
+      LLVMBuildStore(builder, field_size,
+                     LLVMBuildGEP(builder, size_list, size_index, 1, ""));
+
+      LLVMValueRef num_index[] = { llvm_int32((*off * 2) + 1) };
+      LLVMBuildStore(builder, field_num,
+                     LLVMBuildGEP(builder, size_list, num_index, 1, ""));
+
+      (*off)++;
+   }
+}
+
 static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
 {
    tree_t value = tree_value(d);
@@ -5686,36 +5737,16 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
    LLVMValueRef n_elems = NULL, size = NULL;
    LLVMValueRef size_list = NULL, nparts = NULL;
    if (type_is_record(init_type)) {
-      const int nfields = type_fields(init_type);
+      const int total_fields = cgen_count_record_fields(init_type);
 
-      nparts    = llvm_int32(nfields);
+      nparts    = llvm_int32(total_fields);
       size_list = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
-                                       llvm_int32(nfields * 2), "size_list");
+                                       llvm_int32(total_fields * 2),
+                                       "size_list");
 
-      for (int i = 0; i < nfields; i++) {
-         tree_t field = type_field(init_type, i);
-         type_t field_type = tree_type(field);
-
-         assert(!type_is_record(field_type));
-
-         LLVMValueRef field_size, field_num;
-         if (type_is_array(field_type)) {
-            field_size = cgen_array_elem_size(field_type);
-            field_num  = cgen_array_len_recur(field_type, NULL);
-         }
-         else {
-            field_size = llvm_sizeof(llvm_type(field_type));
-            field_num  = llvm_int32(1);
-         }
-
-         LLVMValueRef size_index[] = { llvm_int32(i * 2) };
-         LLVMBuildStore(builder, field_size,
-                        LLVMBuildGEP(builder, size_list, size_index, 1, ""));
-
-         LLVMValueRef num_index[] = { llvm_int32((i * 2) + 1) };
-         LLVMBuildStore(builder, field_num,
-                        LLVMBuildGEP(builder, size_list, num_index, 1, ""));
-      }
+      int offset = 0;
+      cgen_record_size_list(init_type, size_list, &offset);
+      assert(offset == total_fields);
    }
    else if (!type_is_array(init_type)) {
       // Need to get a pointer to the data
