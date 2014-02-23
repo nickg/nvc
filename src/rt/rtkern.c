@@ -430,15 +430,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)
 {
-   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
-         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
-
-   int poff = 0;
-   for (int i = 0; i < nparts; i++) {
-      TRACE("  %d %d %s", size_list[i * 2], size_list[(i * 2) + 1],
-            fmt_values(values + poff, size_list[i * 2] * size_list[(i * 2) + 1]));
-      poff += size_list[i * 2] * size_list[(i * 2) + 1];
-   }
+   //TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
+   //     nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -465,8 +458,6 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       memcpy(g->last_value->data, src, g->length * size);
 
       offset += g->length;
-
-      TRACE("length=%d", g->length);
 
       remain -= g->length;
       assert(remain >= 0);
@@ -642,8 +633,8 @@ void _nvc_env_stop(int32_t finish, int32_t have_status, int32_t status)
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
-   TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
-         fmt_net(nids[0]), where, low, high, last);
+   //TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
+   //      fmt_net(nids[0]), where, low, high, last);
 
    assert(low <= high);
 

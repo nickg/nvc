@@ -199,7 +199,7 @@ static void debug_out(LLVMValueRef val)
 }
 #endif
 
-#if 1
+#if 0
 static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 {
    LLVMValueRef args[] = { llvm_void_cast(ptr), len };
@@ -1510,8 +1510,6 @@ static LLVMValueRef cgen_scalar_vec_load(LLVMValueRef nets, type_t type,
                                   args, ARRAY_LEN(args), "");
    LLVMTypeRef ptr_type = LLVMPointerType(llvm_type(type), 0);
    LLVMValueRef loaded = LLVMBuildPointerCast(builder, r, ptr_type, "");
-
-   debug_dump(loaded, llvm_int32(8));
 
    if (record)
       return loaded;
