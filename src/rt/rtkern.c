@@ -425,11 +425,16 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
    }
 }
 
-void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
-                  void *resolution, int32_t index, const char *module)
+void _set_initial(int32_t nid, void *values, const int32_t *size_list,
+                  int32_t nparts, void *resolution, int32_t index,
+                  const char *module)
 {
-   //TRACE("_set_initial net=%d values=%s n=%d size=%d index=%d",
-   //      nid, fmt_values(values, n * size), n, size, index);
+   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
+         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+
+   for (int i = 0; i < nparts; i++) {
+      TRACE("  %d %d", size_list[i * 2], size_list[(i * 2) + 1]);
+   }
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -438,22 +443,30 @@ void _set_initial(int32_t nid, void *values, int32_t n, int32_t size,
    if (resolution != NULL)
       memo = rt_memo_resolution_fn(tree_type(decl), resolution);
 
-   int offset = 0;
-   while (offset < n) {
+   int offset = 0, part = 0, remain = size_list[1];
+   while (part < nparts) {
       groupid_t gid = netdb_lookup(netdb, nid + offset);
       netgroup_t *g = &(groups[gid]);
 
       g->sig_decl   = decl;
       g->resolution = memo;
-      g->size       = size;
+      g->size       = size_list[part];
       g->resolved   = rt_alloc_value(g);
       g->last_value = rt_alloc_value(g);
 
-      const void *src = (uint8_t *)values + (offset * size);
-      memcpy(g->resolved->data, src, g->length * size);
-      memcpy(g->last_value->data, src, g->length * size);
+      const void *src = (uint8_t *)values + (offset * size_list[part]);
+      memcpy(g->resolved->data, src, g->length * size_list[part]);
+      memcpy(g->last_value->data, src, g->length * size_list[part]);
 
       offset += g->length;
+
+      remain -= g->length;
+      assert(remain >= 0);
+
+      if (remain == 0) {
+         part++;
+         remain = size_list[(part * 2) + 1];
+      }
    }
 }
 
@@ -1264,8 +1277,6 @@ static void rt_setup(tree_t top)
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
       procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
-
-      TRACE("process %s at %p", istr(tree_ident(p)), procs[i].proc_fn);
    }
 }
 

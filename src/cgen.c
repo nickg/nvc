@@ -5641,7 +5641,8 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
 
    type_t decl_type = tree_type(d);
 
-   LLVMValueRef n_elems, size;
+   LLVMValueRef n_elems = NULL, size = NULL;
+   LLVMValueRef size_list = NULL, nparts = NULL;
    if (!type_is_array(init_type)) {
       // Need to get a pointer to the data
       LLVMTypeRef lltype = LLVMTypeOf(val);
@@ -5660,14 +5661,28 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
       size    = cgen_array_elem_size(decl_type);
    }
 
+   if (size_list == NULL) {
+      nparts    = llvm_int32(1);
+      size_list = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
+                                       llvm_int32(2), "size_list");
+
+      LLVMValueRef zero[] = { llvm_int32(0) };
+      LLVMBuildStore(builder, size,
+                     LLVMBuildGEP(builder, size_list, zero, 1, ""));
+
+      LLVMValueRef one[] = { llvm_int32(1) };
+      LLVMBuildStore(builder, n_elems,
+                     LLVMBuildGEP(builder, size_list, one, 1, ""));
+   }
+
    // Assuming array nets are sequential
    netid_t nid = tree_net(d, 0);
 
    LLVMValueRef args[] = {
       llvm_int32(nid),
       llvm_void_cast(val),
-      n_elems,
-      size,
+      size_list,
+      nparts,
       llvm_void_cast(cgen_resolution_func(decl_type)),
       llvm_int32(tree_index(d)),
       LLVMBuildPointerCast(builder, mod_name,
@@ -5942,7 +5957,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
          llvm_void_ptr(),
-         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt32Type(), 0),
          LLVMInt32Type(),
          llvm_void_ptr(),
          LLVMInt32Type(),
