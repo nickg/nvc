@@ -205,3 +205,4 @@ elab20          normal
 issue38         normal
 stop1           normal,gold
 stop2           normal,gold,2008
+record7         normal

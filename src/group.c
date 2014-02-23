@@ -300,6 +300,12 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
+static void group_record_ref(tree_t t, group_nets_ctx_t *ctx)
+{
+   // Nothing to do here at the moment as we ungroup all the nets
+   // within a record
+}
+
 static void group_name(tree_t t, group_nets_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -313,6 +319,10 @@ static void group_name(tree_t t, group_nets_ctx_t *ctx)
 
    case T_ARRAY_SLICE:
       group_array_slice(t, ctx);
+      break;
+
+   case T_RECORD_REF:
+      group_record_ref(t, ctx);
       break;
 
    case T_LITERAL:
