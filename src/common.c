@@ -351,3 +351,19 @@ const char *standard_text(vhdl_standard_t s)
    else
       return "????";
 }
+
+int record_field_to_net(type_t type, ident_t name)
+{
+   int offset = 0;
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t field = type_field(type, i);
+      if (tree_ident(field) == name)
+         return offset;
+      else
+         offset += type_width(tree_type(field));
+   }
+
+   assert(false);
+}

@@ -317,6 +317,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
    case T_ARRAY_REF:
    case T_REF:
    case T_ARRAY_SLICE:
+   case T_RECORD_REF:
       {
          // Replace the formal port with a signal and connect its nets to
          // those of the actual
@@ -534,6 +535,18 @@ static netid_t elab_get_net(tree_t expr, int n)
          const int stride = type_width(type_elem(array_type));
 
          return elab_get_net(value, n + (type_off * stride));
+      }
+
+   case T_RECORD_REF:
+      {
+         tree_t rec  = tree_value(expr);
+         type_t type = tree_type(rec);
+
+         const int roff = record_field_to_net(type, tree_ident(expr));
+
+         printf("roff=%d n=%d\n", roff, n);
+
+         return elab_get_net(rec, n + roff);
       }
 
    default:

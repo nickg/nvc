@@ -38,6 +38,7 @@ tree_t get_real_lit(tree_t t, double r);
 const char *package_signal_path_name(ident_t i);
 bool parse_value(type_t type, const char *str, int64_t *value);
 tree_t make_ref(tree_t to);
+int record_field_to_net(type_t type, ident_t name);
 
 //
 // Utility typedefs

@@ -3914,22 +3914,6 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, rhs, lhs);
 }
 
-static int cgen_record_field_to_net(type_t type, ident_t name)
-{
-   int offset = 0;
-
-   const int nfields = type_fields(type);
-   for (int i = 0; i < nfields; i++) {
-      tree_t field = type_field(type, i);
-      if (tree_ident(field) == name)
-         return offset;
-      else
-         offset += type_width(tree_type(field));
-   }
-
-   assert(false);
-}
-
 static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -4061,7 +4045,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
             return NULL;
 
          type_t rtype = tree_type(value);
-         const netid_t offset = cgen_record_field_to_net(rtype, tree_ident(t));
+         const netid_t offset = record_field_to_net(rtype, tree_ident(t));
 
          LLVMValueRef indexes[] = { llvm_int32(offset) };
          return LLVMBuildGEP(builder, nets, indexes,

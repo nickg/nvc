@@ -2511,6 +2511,9 @@ static bool sem_check_arch(tree_t t)
       sem_error(t, "missing declaration for entity %s",
                 istr(tree_ident2(t)));
 
+   if (tree_kind(e) != T_ENTITY)
+      sem_error(t, "unit %s is not an entity", istr(tree_ident(e)));
+
    tree_set_ref(t, e);
 
    assert(top_scope == NULL);
@@ -2530,8 +2533,14 @@ static bool sem_check_arch(tree_t t)
    scope_push(NULL);
 
    const int nports = tree_ports(e);
-   for (int n = 0; n < nports; n++)
-      scope_insert(tree_port(e, n));
+   for (int n = 0; n < nports; n++) {
+      tree_t p = tree_port(e, n);
+      scope_insert(p);
+
+      type_t type = tree_type(p);
+      if (type_is_record(type))
+         sem_declare_fields(type, tree_ident(p));
+   }
 
    const int ngenerics = tree_generics(e);
    for (int n = 0; n < ngenerics; n++)
@@ -4952,6 +4961,9 @@ static bool sem_static_name(tree_t t)
             return false;
          }
       }
+
+   case T_RECORD_REF:
+      return sem_static_name(tree_value(t));
 
    case T_ARRAY_REF:
       {

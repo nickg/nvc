@@ -26,3 +26,7 @@ begin
     bad: entity work.pack;              -- Error
 
 end architecture;
+
+architecture a of pack is               -- Error
+begin
+end architecture;

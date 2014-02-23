@@ -1201,7 +1201,7 @@ END_TEST
 
 START_TEST(test_entity)
 {
-   tree_t a, ca, e, p;
+   tree_t a1, a2, ca, e, p;
 
    input_from_file(TESTDIR "/sem/entity.vhd");
 
@@ -1218,20 +1218,27 @@ START_TEST(test_entity)
    fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
+   a1 = parse();
+   fail_if(a1 == NULL);
+   fail_unless(tree_kind(a1) == T_ARCH);
+
+   a2 = parse();
+   fail_if(a2 == NULL);
+   fail_unless(tree_kind(a2) == T_ARCH);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
       { 26, "unit WORK.PACK is not an entity" },
+      { 30, "unit WORK.PACK is not an entity" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   sem_check(a);
+   sem_check(a1);
+   sem_check(a2);
+
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
