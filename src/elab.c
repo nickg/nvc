@@ -332,7 +332,8 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          }
 
          tree_t decl = tree_ref(ref);
-         if (tree_kind(decl) == T_SIGNAL_DECL) {
+         tree_kind_t decl_kind = tree_kind(decl);
+         if (decl_kind == T_SIGNAL_DECL) {
             tree_t s = elab_port_to_signal(arch, formal, actual);
 
             map_list_t *m = xmalloc(sizeof(map_list_t));
@@ -346,6 +347,8 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
 
             return s;
          }
+         else if (decl_kind == T_PORT_DECL)
+            return NULL;    // Port was OPEN at a higher level
          else
             return actual;
       }

@@ -305,6 +305,19 @@ START_TEST(test_ifgen)
 }
 END_TEST
 
+START_TEST(test_open2)
+{
+   input_from_file(TESTDIR "/elab/open2.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   (void)run_elab();
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -328,6 +341,7 @@ int main(void)
    tcase_add_test(tc_core, test_copy1);
    tcase_add_test(tc_core, test_record);
    tcase_add_test(tc_core, test_ifgen);
+   tcase_add_test(tc_core, test_open2);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
