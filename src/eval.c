@@ -218,72 +218,52 @@ static tree_t eval_fcall_log(tree_t t, ident_t builtin, bool *args)
 
 static tree_t eval_fcall_real(tree_t t, ident_t builtin, double *args)
 {
-   if (icmp(builtin, "mul")) {
+   if (icmp(builtin, "mul"))
       return get_real_lit(t, args[0] * args[1]);
-   }
-   else if (icmp(builtin, "div")) {
+   else if (icmp(builtin, "div"))
       return get_real_lit(t, args[0] / args[1]);
-   }
-   else if (icmp(builtin, "add")) {
+   else if (icmp(builtin, "add"))
       return get_real_lit(t, args[0] + args[1]);
-   }
-   else if (icmp(builtin, "sub")) {
+   else if (icmp(builtin, "sub"))
       return get_real_lit(t, args[0] - args[1]);
-   }
-   else if (icmp(builtin, "neg")) {
+   else if (icmp(builtin, "neg"))
       return get_real_lit(t, -args[0]);
-   }
-   else if (icmp(builtin, "identity")) {
+   else if (icmp(builtin, "identity"))
       return get_real_lit(t, args[0]);
-   }
-   else if (icmp(builtin, "eq")) {
+   else if (icmp(builtin, "eq"))
       return get_bool_lit(t, args[0] == args[1]);
-   }
-   else if (icmp(builtin, "neq")) {
+   else if (icmp(builtin, "neq"))
       return get_bool_lit(t, args[0] != args[1]);
-   }
-   else if (icmp(builtin, "gt")) {
+   else if (icmp(builtin, "gt"))
       return get_bool_lit(t, args[0] > args[1]);
-   }
-   else if (icmp(builtin, "lt")) {
+   else if (icmp(builtin, "lt"))
       return get_bool_lit(t, args[0] < args[1]);
-   }
    else
       return t;
 }
 
 static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
 {
-   if (icmp(builtin, "mul")) {
+   if (icmp(builtin, "mul"))
       return get_int_lit(t, args[0] * args[1]);
-   }
-   else if (icmp(builtin, "div")) {
+   else if (icmp(builtin, "div"))
       return get_int_lit(t, args[0] / args[1]);
-   }
-   else if (icmp(builtin, "add")) {
+   else if (icmp(builtin, "add"))
       return get_int_lit(t, args[0] + args[1]);
-   }
-   else if (icmp(builtin, "sub")) {
+   else if (icmp(builtin, "sub"))
       return get_int_lit(t, args[0] - args[1]);
-   }
-   else if (icmp(builtin, "neg")) {
+   else if (icmp(builtin, "neg"))
       return get_int_lit(t, -args[0]);
-   }
-   else if (icmp(builtin, "identity")) {
+   else if (icmp(builtin, "identity"))
       return get_int_lit(t, args[0]);
-   }
-   else if (icmp(builtin, "eq")) {
+   else if (icmp(builtin, "eq"))
       return get_bool_lit(t, args[0] == args[1]);
-   }
-   else if (icmp(builtin, "neq")) {
+   else if (icmp(builtin, "neq"))
       return get_bool_lit(t, args[0] != args[1]);
-   }
-   else if (icmp(builtin, "gt")) {
+   else if (icmp(builtin, "gt"))
       return get_bool_lit(t, args[0] > args[1]);
-   }
-   else if (icmp(builtin, "lt")) {
+   else if (icmp(builtin, "lt"))
       return get_bool_lit(t, args[0] < args[1]);
-   }
    else if (icmp(builtin, "leq"))
       return get_bool_lit(t, args[0] <= args[1]);
    else if (icmp(builtin, "geq"))

@@ -439,7 +439,8 @@ static bool cgen_is_const(tree_t t)
 {
    if (tree_kind(t) == T_AGGREGATE) {
       bool is_const = true;
-      for (unsigned i = 0; i < tree_assocs(t); i++) {
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
          is_const = is_const && cgen_is_const(tree_value(a));
       }
