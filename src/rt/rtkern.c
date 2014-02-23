@@ -425,15 +425,18 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
    }
 }
 
-void _set_initial(int32_t nid, void *values, const int32_t *size_list,
+void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)
 {
    TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
          nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
 
+   int poff = 0;
    for (int i = 0; i < nparts; i++) {
-      TRACE("  %d %d", size_list[i * 2], size_list[(i * 2) + 1]);
+      TRACE("  %d %d %s", size_list[i * 2], size_list[(i * 2) + 1],
+            fmt_values(values + poff, size_list[i * 2] * size_list[(i * 2) + 1]));
+      poff += size_list[i * 2] * size_list[(i * 2) + 1];
    }
 
    tree_t decl = rt_recall_tree(module, index);
@@ -454,11 +457,13 @@ void _set_initial(int32_t nid, void *values, const int32_t *size_list,
       g->resolved   = rt_alloc_value(g);
       g->last_value = rt_alloc_value(g);
 
-      const void *src = (uint8_t *)values + (offset * size_list[part]);
+      const void *src = values + (offset * size_list[part]);
       memcpy(g->resolved->data, src, g->length * size_list[part]);
       memcpy(g->last_value->data, src, g->length * size_list[part]);
 
       offset += g->length;
+
+      TRACE("length=%d", g->length);
 
       remain -= g->length;
       assert(remain >= 0);
@@ -634,8 +639,8 @@ void _nvc_env_stop(int32_t finish, int32_t have_status, int32_t status)
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
-   //TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
-   //     fmt_net(nids[0]), where, low, high, last);
+   TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
+         fmt_net(nids[0]), where, low, high, last);
 
    assert(low <= high);
 

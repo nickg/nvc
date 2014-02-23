@@ -5643,7 +5643,39 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
 
    LLVMValueRef n_elems = NULL, size = NULL;
    LLVMValueRef size_list = NULL, nparts = NULL;
-   if (!type_is_array(init_type)) {
+   if (type_is_record(init_type)) {
+      const int nfields = type_fields(init_type);
+
+      nparts    = llvm_int32(nfields);
+      size_list = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
+                                       llvm_int32(nfields * 2), "size_list");
+
+      for (int i = 0; i < nfields; i++) {
+         tree_t field = type_field(init_type, i);
+         type_t field_type = tree_type(field);
+
+         assert(!type_is_record(field_type));
+
+         LLVMValueRef field_size, field_num;
+         if (type_is_array(field_type)) {
+            field_size = cgen_array_elem_size(field_type);
+            field_num  = cgen_array_len_recur(field_type, NULL);
+         }
+         else {
+            field_size = llvm_sizeof(llvm_type(field_type));
+            field_num  = llvm_int32(1);
+         }
+
+         LLVMValueRef size_index[] = { llvm_int32(i * 2) };
+         LLVMBuildStore(builder, field_size,
+                        LLVMBuildGEP(builder, size_list, size_index, 1, ""));
+
+         LLVMValueRef num_index[] = { llvm_int32((i * 2) + 1) };
+         LLVMBuildStore(builder, field_num,
+                        LLVMBuildGEP(builder, size_list, num_index, 1, ""));
+      }
+   }
+   else if (!type_is_array(init_type)) {
       // Need to get a pointer to the data
       LLVMTypeRef lltype = LLVMTypeOf(val);
       LLVMValueRef tmp = LLVMBuildAlloca(builder, lltype, "");
