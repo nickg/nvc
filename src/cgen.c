@@ -339,10 +339,13 @@ static LLVMTypeRef llvm_type(type_t t)
 
    case T_RECORD:
       {
-         const char *rec_name = istr(type_ident(t));
+         char *rec_name = xasprintf("%s.%d", istr(type_ident(t)),
+                                    type_index(t));
          LLVMTypeRef lltype = LLVMGetTypeByName(module, rec_name);
-         if (lltype != NULL)
+         if (lltype != NULL) {
+            free(rec_name);
             return lltype;
+         }
 
          lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), rec_name);
          if (lltype == NULL)
@@ -357,6 +360,7 @@ static LLVMTypeRef llvm_type(type_t t)
          }
 
          LLVMStructSetBody(lltype, llfields, nfields, true);
+         free(rec_name);
          return lltype;
       }
 

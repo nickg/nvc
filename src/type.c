@@ -245,6 +245,14 @@ type_kind_t type_kind(type_t t)
    return t->kind;
 }
 
+uint32_t type_index(type_t t)
+{
+   assert(t != NULL);
+   assert(t->index != UINT32_MAX);
+
+   return t->index;
+}
+
 bool type_eq(type_t a, type_t b)
 {
    assert(a != NULL);
