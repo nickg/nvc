@@ -26,6 +26,7 @@
 typedef uint32_t groupid_t;
 
 #define GROUPID_INVALID UINT32_MAX
+#define NETDB_DEBUG     0
 
 typedef struct netdb netdb_t;
 typedef struct group group_t;
@@ -53,12 +54,16 @@ void netdb_walk(netdb_t *db, netdb_walk_fn_t fn);
 
 static inline groupid_t netdb_lookup(const netdb_t *db, netid_t nid)
 {
+#if NETDB_DEBUG
    assert(nid < db->nnets);
    groupid_t gid = db->map[nid];
    if (likely(gid != GROUPID_INVALID))
       return gid;
    else
       fatal_trace("net %d not in database", nid);
+#else
+   return db->map[nid];
+#endif
 }
 
 #endif  // _NETDB_H
