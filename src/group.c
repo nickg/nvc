@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -149,6 +149,7 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
    netid_t first = NETID_INVALID;
    unsigned len = 0;
    const int nnets = tree_nets(decl);
+   const bool record = type_is_record(tree_type(decl));
    assert((n == -1) | (start + n <= nnets));
    for (int i = start; i < (n == -1 ? nnets : start + n); i++) {
       netid_t nid = tree_net(decl, i);
@@ -156,7 +157,7 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
          first = nid;
          len   = 1;
       }
-      else if (nid == first + len)
+      else if ((nid == first + len) && !record)
          ++len;
       else {
          group_add(ctx, first, len);
