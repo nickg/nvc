@@ -208,6 +208,10 @@ static tree_t eval_fcall_log(tree_t t, ident_t builtin, bool *args)
       return get_bool_lit(t, args[0] ^ args[1]);
    else if (icmp(builtin, "xnor"))
       return get_bool_lit(t, !(args[0] ^ args[1]));
+   else if (icmp(builtin, "eq"))
+      return get_bool_lit(t, args[0] == args[1]);
+   else if (icmp(builtin, "neq"))
+      return get_bool_lit(t, args[0] != args[1]);
    else
       return t;
 }

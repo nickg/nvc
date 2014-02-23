@@ -544,8 +544,6 @@ static netid_t elab_get_net(tree_t expr, int n)
 
          const int roff = record_field_to_net(type, tree_ident(expr));
 
-         printf("roff=%d n=%d\n", roff, n);
-
          return elab_get_net(rec, n + roff);
       }
 
@@ -1027,7 +1025,7 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          elab_for_generate(s, &new_ctx);
          break;
       case T_IF_GENERATE:
-         fatal("IF-GENERATE statement was not constant folded");
+         fatal_at(tree_loc(s), "IF-GENERATE statement was not constant folded");
       case T_PROCESS:
          elab_process(s, &new_ctx);
          // Fall-through
