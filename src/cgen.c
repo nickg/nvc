@@ -4482,7 +4482,9 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
    const int n = left + (depth * dirmul);
 
    if (((dirmul == -1) && (n < right)) || ((dirmul == 1) && (n > right))) {
-      assert(where->stmts == NULL);
+      if (where->stmts != NULL)
+         fatal_at(tree_loc(value), "duplicate choice in case statement");
+
       assert(where->narcs == 0);
       where->stmts = stmts;
    }
