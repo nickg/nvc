@@ -12,6 +12,7 @@ unless xilinx
   # Try searching some common installation directories
   search = (10..14).collect do |major|
     (1..7).collect { |minor| "/opt/Xilinx/#{major}.#{minor}/ISE_DS/ISE" }
+    (1..7).collect { |minor| "/cygdrive/C/Xilinx/#{major}.#{minor}/ISE_DS/ISE" }
   end.flatten.reverse
 
   unless search.any? { |root| File.directory?(xilinx = root) }
