@@ -11,7 +11,7 @@ xilinx = ENV['XILINX']
 unless xilinx
   # Try searching some common installation directories
   search = (10..14).collect do |major|
-    (1..4).collect { |minor| "/opt/Xilinx/#{major}.#{minor}/ISE_DS/ISE" }
+    (1..7).collect { |minor| "/opt/Xilinx/#{major}.#{minor}/ISE_DS/ISE" }
   end.flatten.reverse
 
   unless search.any? { |root| File.directory?(xilinx = root) }
