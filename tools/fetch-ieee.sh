@@ -9,6 +9,7 @@ This program will download IEEE library sources from
   $ieee_url
   $vital_url
 and modify them by uncommenting the definition of operator XNOR.
+Also remap WORK to IEEE.
 EOF
 
 echo $prompt
@@ -61,5 +62,13 @@ sed -e '119,120 s/^--/  /' -e '89 s/^--/  /' \
 
 sed -e '367,382 s/^--/  /' -e '384,399 s/^--/  /' -e '165,168 s/^--/  /' \
     std_logic_1164-body.vhdl.bak > std_logic_1164-body.vhdl
+
+# Remap WORK to IEEE
+
+mv math_complex.vhdl math_complex.vhdl.bak
+mv math_complex-body.vhdl math_complex-body.vhdl.bak
+
+sed -e '55 s/WORK/IEEE/' math_complex.vhdl.bak > math_complex.vhdl
+sed -e '52 s/WORK/IEEE/' math_complex-body.vhdl.bak > math_complex-body.vhdl
 
 rm *.vhdl.bak
