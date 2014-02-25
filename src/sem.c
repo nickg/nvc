@@ -5653,6 +5653,7 @@ bool sem_check(tree_t t)
    case T_SIGNAL_ASSIGN:
       return sem_check_signal_assign(t);
    case T_FCALL:
+   case T_TYPE_CONV:
       return sem_check_fcall(t);
    case T_LITERAL:
       return sem_check_literal(t);
