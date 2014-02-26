@@ -10,6 +10,8 @@ ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.a ieee/_IEEE.VITAL_TIMI
 
 ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.a ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.MATH_REAL-body.bc: ieee/IEEE.MATH_REAL $(top_srcdir)/lib/ieee/math_real-body.vhdl
 
+ieee/IEEE.MATH_COMPLEX-body ieee/_IEEE.MATH_COMPLEX-body.a ieee/_IEEE.MATH_COMPLEX-body.so ieee/_IEEE.MATH_COMPLEX-body.bc: ieee/IEEE.MATH_REAL $(top_srcdir)/lib/ieee/math_complex-body.vhdl
+
 ieee/IEEE.NUMERIC_BIT-body ieee/_IEEE.NUMERIC_BIT-body.a ieee/_IEEE.NUMERIC_BIT-body.so ieee/_IEEE.NUMERIC_BIT-body.bc: ieee/IEEE.NUMERIC_BIT $(top_srcdir)/lib/ieee/numeric_bit-body.vhdl
 
 ieee/IEEE.STD_LOGIC_1164-body ieee/_IEEE.STD_LOGIC_1164-body.a ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.STD_LOGIC_1164-body.bc: ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/std_logic_1164-body.vhdl
@@ -21,6 +23,8 @@ ieee/IEEE.NUMERIC_STD ieee/_IEEE.NUMERIC_STD.a ieee/_IEEE.NUMERIC_STD.so ieee/_I
 ieee/IEEE.NUMERIC_STD-body ieee/_IEEE.NUMERIC_STD-body.a ieee/_IEEE.NUMERIC_STD-body.so ieee/_IEEE.NUMERIC_STD-body.bc: ieee/IEEE.NUMERIC_STD $(top_srcdir)/lib/ieee/numeric_std-body.vhdl
 
 ieee/IEEE.MATH_REAL ieee/_IEEE.MATH_REAL.a ieee/_IEEE.MATH_REAL.so ieee/_IEEE.MATH_REAL.bc: $(top_srcdir)/lib/ieee/math_real.vhdl
+
+ieee/IEEE.MATH_COMPLEX ieee/_IEEE.MATH_COMPLEX.a ieee/_IEEE.MATH_COMPLEX.so ieee/_IEEE.MATH_COMPLEX.bc: ieee/IEEE.MATH_REAL $(top_srcdir)/lib/ieee/math_complex.vhdl
 
 ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.a ieee/_IEEE.VITAL_TIMING.so ieee/_IEEE.VITAL_TIMING.bc: ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/timing_p.vhdl
 

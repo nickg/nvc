@@ -7,6 +7,8 @@ ieee_DATA = ieee/_NVC_LIB \
 	ieee/IEEE.NUMERIC_BIT-body ieee/_IEEE.NUMERIC_BIT-body.bc \
 	ieee/IEEE.MATH_REAL ieee/_IEEE.MATH_REAL.bc \
 	ieee/IEEE.MATH_REAL-body ieee/_IEEE.MATH_REAL-body.bc \
+	ieee/IEEE.MATH_COMPLEX ieee/_IEEE.MATH_COMPLEX.bc \
+	ieee/IEEE.MATH_COMPLEX-body ieee/_IEEE.MATH_COMPLEX-body.bc \
 	ieee/IEEE.VITAL_TIMING ieee/_IEEE.VITAL_TIMING.bc \
 	ieee/IEEE.VITAL_TIMING-body ieee/_IEEE.VITAL_TIMING-body.bc \
 	ieee/IEEE.VITAL_PRIMITIVES ieee/_IEEE.VITAL_PRIMITIVES.bc \
@@ -17,7 +19,8 @@ if ENABLE_NATIVE
 ieee_so = ieee/_IEEE.NUMERIC_STD.so \
 	ieee/_IEEE.STD_LOGIC_1164-body.so ieee/_IEEE.NUMERIC_STD-body.so \
 	ieee/_IEEE.NUMERIC_BIT-body.so ieee/_IEEE.MATH_REAL.so \
-	ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.VITAL_TIMING.so \
+	ieee/_IEEE.MATH_REAL-body.so ieee/_IEEE.MATH_COMPLEX.so \
+	ieee/_IEEE.MATH_COMPLEX-body.so ieee/_IEEE.VITAL_TIMING.so \
 	ieee/_IEEE.VITAL_TIMING-body.so ieee/_IEEE.VITAL_PRIMITIVES.so \
 	ieee/_IEEE.VITAL_PRIMITIVES-body.so
 
@@ -26,7 +29,8 @@ ieee_DATA += \
 	ieee/_IEEE.NUMERIC_STD.a \
 	ieee/_IEEE.STD_LOGIC_1164-body.a ieee/_IEEE.NUMERIC_STD-body.a \
 	ieee/_IEEE.NUMERIC_BIT-body.a ieee/_IEEE.MATH_REAL.a \
-	ieee/_IEEE.MATH_REAL-body.a ieee/_IEEE.VITAL_TIMING.a \
+	ieee/_IEEE.MATH_REAL-body.a ieee/_IEEE.MATH_COMPLEX.a \
+	ieee/_IEEE.MATH_COMPLEX-body.a ieee/_IEEE.VITAL_TIMING.a \
 	ieee/_IEEE.VITAL_TIMING-body.a ieee/_IEEE.VITAL_PRIMITIVES.a \
 	ieee/_IEEE.VITAL_PRIMITIVES-body.a
 
@@ -74,6 +78,13 @@ ieee/IEEE.MATH_REAL-body: $(srcdir)/math_real-body.vhdl
 	$(nvc) -L ../std --work=ieee -a $(srcdir)/math_real-body.vhdl
 	$(codegen) -L ../std --work=ieee --codegen math_real
 
+ieee/IEEE.MATH_COMPLEX: $(srcdir)/math_complex.vhdl
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/math_complex.vhdl
+
+ieee/IEEE.MATH_COMPLEX-body: $(srcdir)/math_complex-body.vhdl
+	$(nvc) -L ../std --work=ieee -a $(srcdir)/math_complex-body.vhdl
+	$(codegen) -L ../std --work=ieee --codegen math_complex
+
 ieee/IEEE.VITAL_TIMING: $(srcdir)/timing_p.vhdl
 	$(nvc) -L ../std --work=ieee -a $(srcdir)/timing_p.vhdl
 
@@ -120,6 +131,12 @@ $(srcdir)/math_real.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
 
 $(srcdir)/math_real-body.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/math_complex.vhdl:
+	@$(MAKE) missing-ieee LIB=$@
+
+$(srcdir)/math_complex-body.vhdl:
 	@$(MAKE) missing-ieee LIB=$@
 
 $(srcdir)/timing_p.vhdl:
