@@ -118,7 +118,8 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
 static bool cgen_const_bounds(type_t type);
 static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var);
 static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx);
-static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx);
+static LLVMValueRef cgen_record_aggregate(tree_t t, bool nest, bool is_const,
+                                          cgen_ctx_t *ctx);
 static int cgen_array_dims(type_t type);
 static LLVMValueRef cgen_signal_nets(tree_t decl);
 static void cgen_check_bounds(tree_t t, LLVMValueRef kind, LLVMValueRef value,
@@ -3034,9 +3035,9 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
             *sub = LLVMConstArray(ltype, v, nvals);
             free(v);
          }
-         else if (type_is_record(sub_type)) {
-            *sub = cgen_const_record(value, true, ctx);
-         }
+         else if (type_is_record(sub_type))
+            *sub = cgen_record_aggregate(value, true,
+                                         cgen_is_const(value), ctx);
          else
             assert(false);
       }
@@ -3241,7 +3242,8 @@ static int cgen_field_index(type_t type, ident_t field)
    assert(false);
 }
 
-static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_record_aggregate(tree_t t, bool nest, bool is_const,
+                                          cgen_ctx_t *ctx)
 {
    type_t type = tree_type(t);
    const int nfields = type_fields(type);
@@ -3257,7 +3259,7 @@ static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
       tree_t value = tree_value(a);
       type_t value_type = tree_type(value);
       LLVMValueRef v;
-      if (type_is_array(value_type)) {
+      if (type_is_array(value_type) && is_const) {
          int nvals;
          LLVMValueRef *vals =
             cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
@@ -3265,7 +3267,7 @@ static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
          v = LLVMConstArray(ltype, vals, nvals);
       }
       else if (type_is_record(value_type))
-         v = cgen_const_record(value, true, ctx);
+         v = cgen_record_aggregate(value, true, is_const, ctx);
       else
          v = cgen_expr(value, ctx);
 
@@ -3297,14 +3299,26 @@ static LLVMValueRef cgen_const_record(tree_t t, bool nest, cgen_ctx_t *ctx)
       assert(vals[i] != NULL);
 
    LLVMTypeRef lltype = llvm_type(type);
-   LLVMValueRef init = LLVMConstNamedStruct(lltype, vals, nfields);
+   LLVMValueRef mem = LLVMBuildAlloca(builder, lltype, "const_rec");
 
-   if (nest || (ctx == NULL))
-      return init;
+   if (is_const) {
+      LLVMValueRef init = LLVMConstNamedStruct(lltype, vals, nfields);
+      if (nest || (ctx == NULL))
+         return init;
+      else {
+         LLVMBuildStore(builder, init, mem);
+         return mem;
+      }
+   }
    else {
-      LLVMValueRef mem = LLVMBuildAlloca(builder, lltype, "const_rec");
-
-      LLVMBuildStore(builder, init, mem);
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
+         if (type_is_array(ftype))
+            cgen_array_copy(ftype, ftype, vals[i], ptr, NULL, ctx);
+         else
+            LLVMBuildStore(builder, vals[i], ptr);
+      }
 
       return mem;
    }
@@ -3333,13 +3347,8 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
       else
          return cgen_dyn_aggregate(t, false, ctx);
    }
-   else if (type_is_record(type)) {
-      if (cgen_is_const(t))
-         return cgen_const_record(t, false, ctx);
-      else
-         fatal_at(tree_loc(t), "sorry, non-constant record aggregates "
-                  "are not supported yet");
-   }
+   else if (type_is_record(type))
+      return cgen_record_aggregate(t, false, cgen_is_const(t), ctx);
    else
       assert(false);
 }

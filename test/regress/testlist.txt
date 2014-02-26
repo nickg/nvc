@@ -209,3 +209,4 @@ record7         normal
 record8         normal
 elab21          normal
 record9         normal
+record10        normal
