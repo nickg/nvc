@@ -112,6 +112,15 @@ typedef enum {
    INSTANCE_NAME
 } name_attr_t;
 
+typedef enum {
+   PRED_EQ,
+   PRED_NE,
+   PRED_LT,
+   PRED_GT,
+   PRED_LE,
+   PRED_GE
+} pred_t;
+
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx);
 static void cgen_stmt(tree_t t, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx);
@@ -132,7 +141,7 @@ static void cgen_func_body(tree_t t, tree_t parent);
 static void cgen_cond_coverage(tree_t t, LLVMValueRef value);
 static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
                                    type_t left_type, type_t right_type,
-                                   LLVMIntPredicate pred, cgen_ctx_t *ctx);
+                                   pred_t pred, cgen_ctx_t *ctx);
 static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type);
 static LLVMValueRef cgen_dyn_aggregate(tree_t t, bool use_tmp, cgen_ctx_t *ctx);
 
@@ -1864,9 +1873,35 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
    }
 }
 
+static LLVMValueRef cgen_pred(type_t type, pred_t pred,
+                              LLVMValueRef lhs, LLVMValueRef rhs)
+{
+   static const LLVMIntPredicate ipreds[] = {
+      LLVMIntEQ,
+      LLVMIntNE,
+      LLVMIntSLT,
+      LLVMIntSGT,
+      LLVMIntSLE,
+      LLVMIntSGE
+   };
+
+   static const LLVMIntPredicate rpreds[] = {
+      LLVMRealUEQ,
+      LLVMRealUNE,
+      LLVMRealULT,
+      LLVMRealUGT,
+      LLVMRealULE,
+      LLVMRealUGE
+   };
+
+   if (type_is_real(type))
+      return LLVMBuildFCmp(builder, rpreds[pred], lhs, rhs, "");
+   else
+      return LLVMBuildICmp(builder, ipreds[pred], lhs, rhs, "");
+}
+
 static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
-                                   type_t type, LLVMIntPredicate pred,
-                                   cgen_ctx_t *ctx)
+                                   type_t type, pred_t pred, cgen_ctx_t *ctx)
 {
    assert(type_is_record(type));
 
@@ -1879,14 +1914,18 @@ static LLVMValueRef cgen_record_eq(LLVMValueRef left, LLVMValueRef right,
 
       LLVMValueRef cmp;
       type_t ftype = tree_type(type_field(type, i));
-      if (type_is_array(ftype))
-         cmp = cgen_array_rel(lfield, rfield, ftype, ftype, pred, ctx);
+      if (type_is_array(ftype)) {
+         cmp = cgen_array_rel(lfield, rfield, ftype, ftype,
+                              PRED_EQ, ctx);
+         if (pred == PRED_NE)
+            cmp = LLVMBuildNot(builder, cmp, "");
+      }
       else if (type_is_record(ftype))
          cmp = cgen_record_eq(lfield, rfield, ftype, pred, ctx);
       else {
          LLVMValueRef lload = LLVMBuildLoad(builder, lfield, "");
          LLVMValueRef rload = LLVMBuildLoad(builder, rfield, "");
-         cmp = LLVMBuildICmp(builder, pred, lload, rload, "");
+         cmp = cgen_pred(ftype, pred, lload, rload);
       }
 
       result = LLVMBuildAnd(builder, result, cmp, "");
@@ -1900,12 +1939,12 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
                                          LLVMValueRef lhs_array,
                                          LLVMValueRef rhs_array,
                                          type_t left_type, type_t right_type,
-                                         LLVMIntPredicate pred, cgen_ctx_t *ctx)
+                                         pred_t pred, cgen_ctx_t *ctx)
 {
    // Behaviour of relational operators on arrays is described in
    // LRM 93 section 7.2.2
 
-   assert((pred == LLVMIntEQ) || (pred == LLVMIntSLT) || (pred == LLVMIntSLE));
+   assert((pred == PRED_EQ) || (pred == PRED_LT) || (pred == PRED_LE));
 
    LLVMValueRef left_len  = cgen_array_len(left_type, 0, lhs_array);
    LLVMValueRef right_len = cgen_array_len(right_type, 0, rhs_array);
@@ -1921,7 +1960,7 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
    LLVMValueRef len_eq =
       LLVMBuildICmp(builder, LLVMIntEQ, left_len, right_len, "len_eq");
 
-   if (pred == LLVMIntEQ)
+   if (pred == PRED_EQ)
       LLVMBuildCondBr(builder, len_eq, test_bb, exit_bb);
    else
       LLVMBuildBr(builder, test_bb);
@@ -1971,9 +2010,9 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
          LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
          LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
 
-         cmp = LLVMBuildICmp(builder, pred, l_val, r_val, "cmp");
-         eq  = (pred == LLVMIntEQ) ? cmp
-            : LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+         cmp = cgen_pred(elem_type, pred, l_val, r_val);
+         eq  = (pred == PRED_EQ) ? cmp
+            : cgen_pred(elem_type, PRED_EQ, l_val, r_val);
       }
    }
 
@@ -1997,14 +2036,14 @@ static LLVMValueRef cgen_array_rel_inner(LLVMValueRef lhs_data,
 
    LLVMValueRef      values[] = { cmp,     len_ge_l, len_eq  };
    LLVMBasicBlockRef bbs[]    = { body_bb, test_bb,  init_bb };
-   LLVMAddIncoming(phi, values, bbs, (pred == LLVMIntEQ) ? 3 : 2);
+   LLVMAddIncoming(phi, values, bbs, (pred == PRED_EQ) ? 3 : 2);
 
    return phi;
 }
 
 static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
                                    type_t left_type, type_t right_type,
-                                   LLVMIntPredicate pred, cgen_ctx_t *ctx)
+                                   pred_t pred, cgen_ctx_t *ctx)
 {
    LLVMValueRef left_base  = cgen_array_data_ptr(left_type, lhs);
    LLVMValueRef right_base = cgen_array_data_ptr(right_type, rhs);
@@ -2454,33 +2493,25 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "lt")) {
          if (!real)
             cgen_widen(rtype, args, nparams);
-         LLVMValueRef r = real
-            ? LLVMBuildFCmp(builder, LLVMRealULT, args[0], args[1], "")
-            : LLVMBuildICmp(builder, LLVMIntSLT, args[0], args[1], "");
+         LLVMValueRef r = cgen_pred(arg_types[0], PRED_LT, args[0], args[1]);
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "gt")) {
          if (!real)
             cgen_widen(rtype, args, nparams);
-         LLVMValueRef r = real
-            ? LLVMBuildFCmp(builder, LLVMRealUGT, args[0], args[1], "")
-            : LLVMBuildICmp(builder, LLVMIntSGT, args[0], args[1], "");
+         LLVMValueRef r = cgen_pred(arg_types[0], PRED_GT, args[0], args[1]);
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "leq")) {
          if (!real)
             cgen_widen(rtype, args, nparams);
-         LLVMValueRef r = real
-            ? LLVMBuildFCmp(builder, LLVMRealULE, args[0], args[1], "")
-            : LLVMBuildICmp(builder, LLVMIntSLE, args[0], args[1], "");
+         LLVMValueRef r = cgen_pred(arg_types[0], PRED_LE, args[0], args[1]);
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "geq")) {
          if (!real)
             cgen_widen(rtype, args, nparams);
-         LLVMValueRef r = real
-            ? LLVMBuildFCmp(builder, LLVMRealUGE, args[0], args[1], "")
-            : LLVMBuildICmp(builder, LLVMIntSGE, args[0], args[1], "");
+         LLVMValueRef r = cgen_pred(arg_types[0], PRED_GE, args[0], args[1]);
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "neg")) {
@@ -2550,17 +2581,17 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       }
       else if (icmp(builtin, "aeq"))
          return cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
-                               LLVMIntEQ, ctx);
+                               PRED_EQ, ctx);
       else if (icmp(builtin, "aneq")) {
          LLVMValueRef eq =
             cgen_array_rel(args[0], args[1], arg_types[0], arg_types[1],
-                           LLVMIntEQ, ctx);
+                           PRED_EQ, ctx);
          return LLVMBuildNot(builder, eq, "");
       }
       else if (icmp(builtin, "req"))
-         return cgen_record_eq(args[0], args[1], arg_types[0], LLVMIntEQ, ctx);
+         return cgen_record_eq(args[0], args[1], arg_types[0], PRED_EQ, ctx);
       else if (icmp(builtin, "rneq"))
-         return cgen_record_eq(args[0], args[1], arg_types[0], LLVMIntNE, ctx);
+         return cgen_record_eq(args[0], args[1], arg_types[0], PRED_NE, ctx);
       else if (icmp(builtin, "v_not"))
          return cgen_bit_vec_op(BIT_VEC_NOT, arg_types[0],
                                 args[0], NULL, NULL, ctx);
@@ -2641,23 +2672,23 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "alt"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_value(tree_param(t, 1))),
-                               LLVMIntSLT, ctx);
+                               PRED_LT, ctx);
       else if (icmp(builtin, "agt")) {
          LLVMValueRef leq =
             cgen_array_rel(args[0], args[1], arg_types[0],
                            tree_type(tree_value(tree_param(t, 1))),
-                           LLVMIntSLE, ctx);
+                           PRED_LE, ctx);
          return LLVMBuildNot(builder, leq, "");
       }
       else if (icmp(builtin, "aleq"))
          return cgen_array_rel(args[0], args[1], arg_types[0],
                                tree_type(tree_value(tree_param(t, 1))),
-                               LLVMIntSLE, ctx);
+                               PRED_LE, ctx);
       else if (icmp(builtin, "ageq")) {
          LLVMValueRef lt =
             cgen_array_rel(args[0], args[1], arg_types[0],
                            tree_type(tree_value(tree_param(t, 1))),
-                           LLVMIntSLT, ctx);
+                           PRED_LT, ctx);
          return LLVMBuildNot(builder, lt, "");
       }
       else if (icmp(builtin, "endfile"))
