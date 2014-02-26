@@ -1211,11 +1211,17 @@ static bool sem_check_use_clause(tree_t c)
 
    const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
 
-   ident_t lib_name = ident_until(cname, '.');
+   ident_t lname = ident_until(cname, '.');
 
-   lib_t lib = lib_find(istr(lib_name), true, true);
+   lib_t lib = lib_find(istr(lname), true, true);
    if (lib != NULL) {
-      if (lib_name == cname) {
+      if (lname != lib_name(lib)) {
+         ident_t unit = ident_rfrom(cname, '.');
+         lname = lib_name(lib);
+         cname = ident_prefix(lname, unit, '.');
+      }
+
+      if (lname == cname) {
          assert(all);
 
          lib_walk_params_t params = {

@@ -329,8 +329,12 @@ void lib_add_search_path(const char *path)
 
 lib_t lib_find(const char *name, bool verbose, bool search)
 {
-   // Search in already loaded libraries
    ident_t name_i = upcase_name(name);
+
+   if (icmp(name_i, "WORK") && (work != NULL))
+      return work;
+
+   // Search in already loaded libraries
    for (struct lib_list *it = loaded; it != NULL; it = it->next) {
       if (lib_name(it->item) == name_i)
          return it->item;
@@ -489,7 +493,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
-   // Search in the list of already loaded libraries
+   // Search in the list of already loaded units
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (tree_ident(lib->units[n].top) == ident)
          return &(lib->units[n]);
