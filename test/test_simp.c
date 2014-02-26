@@ -46,7 +46,8 @@ static bool folded_r(tree_t t, double r)
    if (tree_subkind(t) != L_REAL)
       return false;
 
-   return tree_dval(t) == r;
+   const double dval = tree_dval(t);
+   return (dval > r * 0.9999) && (dval < r * 1.0001);
 }
 
 static bool folded_b(tree_t t, bool b)
@@ -154,6 +155,11 @@ START_TEST(test_cfold)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_BLOCK);
    fail_unless(tree_stmts(s) == 0);
+
+   p = tree_stmt(a, 6);
+   fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 3.0));
+   fail_unless(folded_r(tree_value(tree_stmt(p, 1)), 0.6));
+   fail_unless(folded_r(tree_value(tree_stmt(p, 2)), 2.5));
 }
 END_TEST
 

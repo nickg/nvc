@@ -1250,6 +1250,23 @@ static bool sem_check_use_clause(tree_t c)
    }
 }
 
+static void sem_declare_universal(void)
+{
+   // Universal integers and reals have some additional overloaded operators
+   // that are not valid for regular integer and and real types
+   // See LRM 93 section 7.5
+
+   type_t uint  = type_universal_int();
+   type_t ureal = type_universal_real();
+
+   ident_t mult = ident_new("\"*\"");
+   ident_t div  = ident_new("\"/\"");
+
+   sem_declare_binary(mult, ureal, uint, ureal, "mulri");
+   sem_declare_binary(mult, uint, ureal, ureal, "mulir");
+   sem_declare_binary(div, ureal, uint, ureal, "divri");
+}
+
 static bool sem_check_context(tree_t t)
 {
    // The std.standard package is also implicit unless we are
@@ -1261,6 +1278,8 @@ static bool sem_check_context(tree_t t)
 
       if (!scope_import_unit(std_standard_i, std, true, NULL))
          return false;
+
+      sem_declare_universal();
    }
 
    bool ok = true;
@@ -2961,10 +2980,14 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          // Delete all overloads which don't match this parameter type
          type_t ptype = tree_type(tree_value(p));
          for (int j = 0; j < n_overloads; j++) {
-            if (overloads[j] != NULL) {
-               if ((param_types[j] == NULL)
-                   || !type_eq(param_types[j], ptype)) {
+            if ((overloads[j] != NULL) && (param_types[j] != NULL)) {
+               if (!type_eq(param_types[j], ptype))
                   overloads[j] = NULL;
+
+               if (type_is_universal(param_types[j])) {
+                  // Universal operators only match universal arguments
+                  if (!type_is_universal(ptype))
+                     overloads[j] = NULL;
                }
             }
          }

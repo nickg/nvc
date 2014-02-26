@@ -101,4 +101,12 @@ begin
         end case;
     end process;
 
+    process is
+        variable r : real;
+    begin
+        r := 1.5 * 2;
+        r := 3 * 0.2;
+        r := 5.0 / 2;
+    end process;
+
 end architecture;

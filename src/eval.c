@@ -297,6 +297,24 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
       return t;
 }
 
+static tree_t eval_fcall_universal(tree_t t, ident_t builtin, tree_t *args)
+{
+   int64_t ival;
+   double rval;
+
+   if (icmp(builtin, "mulri") && folded_real(args[0], &rval)
+       && folded_int(args[1], &ival))
+      return get_real_lit(t, rval * (double)ival);
+   else if (icmp(builtin, "mulir") && folded_real(args[1], &rval)
+            && folded_int(args[0], &ival))
+      return get_real_lit(t, rval * (double)ival);
+   else if (icmp(builtin, "divri") && folded_real(args[0], &rval)
+            && folded_int(args[1], &ival))
+      return get_real_lit(t, rval / (double)ival);
+   else
+      fatal_at(tree_loc(t), "universal expression cannot be evaluated");
+}
+
 static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
 {
    bool agg_low  = icmp(builtin, "agg_low");
@@ -444,6 +462,16 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    if (nparams > MAX_BUILTIN_ARGS)
       return t;
 
+   tree_t targs[MAX_BUILTIN_ARGS];
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(t, i);
+      targs[i] = eval_expr(tree_value(p), v);
+   }
+
+   if (icmp(builtin, "mulri") || icmp(builtin, "mulir")
+       || icmp(builtin, "divri"))
+      return eval_fcall_universal(t, builtin, targs);
+
    bool can_fold_int  = true;
    bool can_fold_log  = true;
    bool can_fold_agg  = true;
@@ -452,12 +480,10 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    double rargs[MAX_BUILTIN_ARGS];
    bool bargs[MAX_BUILTIN_ARGS];
    for (int i = 0; i < nparams; i++) {
-      tree_t p = tree_param(t, i);
-      tree_t val = eval_expr(tree_value(p), v);
-      can_fold_int  = can_fold_int && folded_int(val, &iargs[i]);
-      can_fold_log  = can_fold_log && folded_bool(val, &bargs[i]);
-      can_fold_agg  = can_fold_agg && folded_agg(val);
-      can_fold_real = can_fold_real && folded_real(val, &rargs[i]);
+      can_fold_int  = can_fold_int && folded_int(targs[i], &iargs[i]);
+      can_fold_log  = can_fold_log && folded_bool(targs[i], &bargs[i]);
+      can_fold_agg  = can_fold_agg && folded_agg(targs[i]);
+      can_fold_real = can_fold_real && folded_real(targs[i], &rargs[i]);
    }
 
    if (can_fold_int)
