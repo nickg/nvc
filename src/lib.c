@@ -493,6 +493,13 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
+   // Handle aliased library names
+   ident_t lname = ident_until(ident, '.');
+   if (lname != lib->name) {
+      ident_t uname = ident_rfrom(ident, '.');
+      ident = ident_prefix(lib->name, uname, '.');
+   }
+
    // Search in the list of already loaded units
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (tree_ident(lib->units[n].top) == ident)

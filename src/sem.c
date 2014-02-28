@@ -1215,12 +1215,6 @@ static bool sem_check_use_clause(tree_t c)
 
    lib_t lib = lib_find(istr(lname), true, true);
    if (lib != NULL) {
-      if (lname != lib_name(lib)) {
-         ident_t unit = ident_rfrom(cname, '.');
-         lname = lib_name(lib);
-         cname = ident_prefix(lname, unit, '.');
-      }
-
       if (lname == cname) {
          assert(all);
 
