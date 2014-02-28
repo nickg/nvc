@@ -308,6 +308,10 @@ static void link_shared(tree_t top)
    link_output(top, "s");
 #endif
 
+   const char *objs = getenv("NVC_FOREIGN_OBJS");
+   if (objs != NULL)
+      link_arg_f("%s", objs);
+
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_CYG_LIB");
    link_arg_f("-L%s", (cyglib != NULL) ? cyglib : DATADIR);
