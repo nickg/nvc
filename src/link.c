@@ -308,9 +308,9 @@ static void link_shared(tree_t top)
    link_output(top, "s");
 #endif
 
-   const char *objs = getenv("NVC_FOREIGN_OBJS");
-   if (objs != NULL)
-      link_arg_f("%s", objs);
+   const char *obj = getenv("NVC_FOREIGN_OBJ");
+   if (obj != NULL)
+      link_arg_f("%s", obj);
 
 #ifdef IMPLIB_REQUIRED
    const char *cyglib = getenv("NVC_CYG_LIB");
