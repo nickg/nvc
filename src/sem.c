@@ -5762,6 +5762,8 @@ bool sem_check(tree_t t)
       return sem_check_unit_decl(t);
    case T_CONTEXT:
       return sem_check_use_clause(t);
+   case T_TYPE_CONV:
+      return sem_check_conversion(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
