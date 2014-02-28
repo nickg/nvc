@@ -1885,7 +1885,7 @@ static LLVMValueRef cgen_pred(type_t type, pred_t pred,
       LLVMIntSGE
    };
 
-   static const LLVMIntPredicate rpreds[] = {
+   static const LLVMRealPredicate rpreds[] = {
       LLVMRealUEQ,
       LLVMRealUNE,
       LLVMRealULT,
