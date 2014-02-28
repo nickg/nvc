@@ -239,7 +239,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_PARAMS | I_TYPE),
 
    // T_TYPE_CONV
-   (I_PARAMS | I_TYPE | I_REF),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF),
 
    // T_SELECT
    (I_IDENT | I_VALUE | I_ASSOCS),
@@ -353,6 +353,7 @@ static const tree_kind_t change_allowed[][2] = {
    { T_FCALL,     T_ARRAY_REF   },
    { T_FCALL,     T_PCALL       },
    { T_FCALL,     T_TYPE_CONV   },
+   { T_TYPE_CONV, T_TYPE_CONV   },
    { T_REF,       T_RECORD_REF  },
    { T_ARRAY_REF, T_ARRAY_SLICE },
 };
