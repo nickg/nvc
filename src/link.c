@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -86,13 +86,16 @@ static bool link_find_native_library(lib_t lib, tree_t unit, FILE *deps)
    char *so_name = xasprintf("_%s.so", istr(name));
 
    lib_mtime_t so_mt;
-   if (!lib_stat(lib, so_name, &so_mt))
+   if (!lib_stat(lib, so_name, &so_mt)) {
+      free(so_name);
       return false;
+   }
 
    lib_mtime_t unit_mt = lib_mtime(lib, name);
 
    if (unit_mt > so_mt) {
       warnf("unit %s has stale native shared library", istr(name));
+      free(so_name);
       return false;
    }
 
@@ -179,10 +182,16 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
 static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
 {
    if (tree_kind(unit) == T_PACK_BODY) {
-      tree_t pack = lib_get(lib_work(),
-                            ident_strip(tree_ident(unit), ident_new("-body")));
+      tree_t pack = lib_get(lib_work(), ident_strip(tree_ident(unit),
+                                                    ident_new("-body")));
       if (pack != NULL) {
          assert(tree_kind(pack) == T_PACKAGE);
+
+         if (pack_needs_cgen(pack) && !link_already_have(pack)) {
+            (*fn)(lib_work(), pack, deps);
+            linked[n_linked++] = pack;
+         }
+
          link_all_context(pack, NULL, fn);
       }
    }
