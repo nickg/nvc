@@ -495,9 +495,10 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 
    // Handle aliased library names
    ident_t lname = ident_until(ident, '.');
-   if (lname != lib->name) {
+   if ((lname != NULL) && (lname != lib->name)) {
       ident_t uname = ident_rfrom(ident, '.');
-      ident = ident_prefix(lib->name, uname, '.');
+      if (uname != NULL)
+         ident = ident_prefix(lib->name, uname, '.');
    }
 
    // Search in the list of already loaded units

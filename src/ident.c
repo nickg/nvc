@@ -372,7 +372,7 @@ ident_t ident_rfrom(ident_t i, char c)
       i = i->up;
    }
 
-   return i;
+   return (i->value == '\0') ? NULL : i;
 }
 
 bool icmp(ident_t i, const char *s)
