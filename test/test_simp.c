@@ -328,6 +328,30 @@ START_TEST(test_ffold)
 }
 END_TEST
 
+START_TEST(test_issue49)
+{
+   tree_t e, a;
+
+   input_from_file(TESTDIR "/simp/issue49.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -342,6 +366,7 @@ int main(void)
    tcase_add_test(tc_core, test_proc);
    tcase_add_test(tc_core, test_args);
    tcase_add_test(tc_core, test_ffold);
+   tcase_add_test(tc_core, test_issue49);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

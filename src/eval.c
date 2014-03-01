@@ -153,8 +153,10 @@ static bool folded(tree_t t)
       return true;
    else if (kind == T_AGGREGATE)
       return folded_agg(t);
-   else if (kind == T_REF)
-      return folded_bool(t, NULL);
+   else if (kind == T_REF) {
+      bool dummy;
+      return folded_bool(t, &dummy);
+   }
    else
       return false;
 }
