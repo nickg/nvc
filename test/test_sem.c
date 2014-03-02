@@ -802,6 +802,7 @@ START_TEST(test_seq)
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
       { 205, "DUP already declared in this region" },
+      { 214, "object REAL does not have a range" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -204,4 +204,15 @@ begin
     dup: process is begin end process;
     dup: process is begin end process;
 
+    -- Loop over enumeration
+    process is
+    begin
+        for c in character loop         -- OK
+        end loop;
+        for c in integer loop           -- OK
+        end loop;
+        for c in real loop              -- Error
+        end loop;
+    end process;
+
 end architecture;

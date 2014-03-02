@@ -1144,8 +1144,9 @@ static bool sem_check_range(range_t *r, type_t context)
          }
          break;
       case T_ENUM:
-      case T_UARRAY:
-         {
+      case T_INTEGER:
+         if (tree_kind(decl) == T_TYPE_DECL) {
+         case T_UARRAY:
             // If this is an unconstrained array then we can
             // only find out the direction at runtime
             r->kind  = (kind == T_UARRAY
@@ -1153,8 +1154,9 @@ static bool sem_check_range(range_t *r, type_t context)
                         : (reverse ? RANGE_DOWNTO : RANGE_TO));
             r->left  = a;
             r->right = b;
+            break;
          }
-         break;
+         // Fall-through
       default:
          sem_error(r->left, "object %s does not have a range",
                    istr(tree_ident(r->left)));

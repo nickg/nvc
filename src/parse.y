@@ -104,7 +104,7 @@ static tree_t build_expr2(const char *fn, tree_t left, tree_t right,
 static tree_t str_to_agg(const char *start, const char *end,
                          const loc_t *loc);
 static tree_t bit_str_to_agg(const char *str, const loc_t *loc);
-static bool to_range_expr(tree_t t, range_t *r);
+static bool to_range_expr(tree_t t, range_t *r, bool force);
 static ident_t loc_to_ident(const loc_t *loc);
 static tree_t get_time(int64_t fs);
 static void set_delay_mechanism(tree_t t, tree_t reject);
@@ -1081,7 +1081,7 @@ generate_stmt
 | id tCOLON tFOR id tIN expr generate_body
   {
      range_t r;
-     if (!to_range_expr($6, &r))
+     if (!to_range_expr($6, &r, true))
         parse_error(&@6, "invalid range expression");
 
      $$ = tree_new(T_FOR_GENERATE);
@@ -1695,7 +1695,7 @@ seq_stmt_without_label
 | tFOR id tIN expr tLOOP seq_stmt_list tEND tLOOP opt_id tSEMI
   {
      range_t r;
-     if (!to_range_expr($4, &r))
+     if (!to_range_expr($4, &r, true))
         parse_error(&@4, "invalid range expression");
 
      $$ = tree_new(T_FOR);
@@ -1802,7 +1802,7 @@ choice
      tree_set_loc($$, &@$);
 
      range_t r;
-     if (to_range_expr($1, &r)) {
+     if (to_range_expr($1, &r, false)) {
         tree_set_subkind($$, A_RANGE);
         tree_set_range($$, r);
      }
@@ -2745,7 +2745,8 @@ static tree_t handle_param_expr(tree_t name, tree_list_t *params)
    // anyway to make changing the kind easier.
 
    range_t r;
-   if (params->next == NULL && to_range_expr(tree_value(params->value), &r)) {
+   if ((params->next == NULL)
+       && to_range_expr(tree_value(params->value), &r, false)) {
       // Convert range parameters into array slices
       tree_t s = tree_new(T_ARRAY_SLICE);
       tree_set_value(s, name);
@@ -2820,27 +2821,43 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
    return t;
 }
 
-static bool to_range_expr(tree_t t, range_t *r)
+static bool to_range_expr(tree_t t, range_t *r, bool force)
 {
-   if (tree_kind(t) == T_ATTR_REF) {
-      ident_t a = tree_ident(t);
-      if (icmp(a, "RANGE")) {
+   switch (tree_kind(t)) {
+   case T_ATTR_REF:
+      {
+         ident_t a = tree_ident(t);
+         if (icmp(a, "RANGE")) {
+            r->kind  = RANGE_EXPR;
+            r->left  = t;
+            r->right = NULL;
+
+            return true;
+         }
+         else if (icmp(a, "REVERSE_RANGE")) {
+            r->kind  = RANGE_EXPR;
+            r->left  = NULL;
+            r->right = t;
+
+            return true;
+         }
+         else
+            return false;
+      }
+
+   case T_REF:
+      if (force) {
          r->kind  = RANGE_EXPR;
          r->left  = t;
          r->right = NULL;
-
          return true;
       }
-      else if (icmp(a, "REVERSE_RANGE")) {
-         r->kind  = RANGE_EXPR;
-         r->left  = NULL;
-         r->right = t;
+      else
+         return false;
 
-         return true;
-      }
+   default:
+      return false;
    }
-
-   return false;
 }
 
 static tree_t get_time(int64_t fs)
