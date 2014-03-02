@@ -1603,8 +1603,8 @@ static void sem_add_attributes(tree_t decl)
    type_t std_bool = sem_std_type("BOOLEAN");
 
    type_t type;
-   tree_kind_t kind = tree_kind(decl);
-   if ((kind != T_ARCH) && (kind != T_ENTITY) && (kind != T_COMPONENT))
+   class_t class = class_of(decl);
+   if (class_has_type(class))
       type = tree_type(decl);
    else
       type = type_new(T_NONE);
@@ -1670,10 +1670,9 @@ static void sem_add_attributes(tree_t decl)
                                         "last_event", type, NULL));
    }
 
-   if (is_signal || (decl_kind == T_ARCH) || (decl_kind == T_ENTITY)
-       || (decl_kind == T_COMPONENT) || (decl_kind == T_FUNC_DECL)
-       || (decl_kind == T_FUNC_BODY) || (decl_kind == T_PROC_DECL)
-       || (decl_kind == T_PROC_BODY)) {
+   if (is_signal || (class == C_ARCHITECTURE) || (class == C_ENTITY)
+       || (class == C_FUNCTION) || (class == C_PROCEDURE)
+       || (class == C_LABEL)) {
       type_t std_string = sem_std_type("STRING");
 
       ident_t path_name_i  = ident_new("PATH_NAME");
@@ -2021,38 +2020,8 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    bool ok = true;
    for (int i = 0; i < nstmts; i++) {
       tree_t s = get_stmt(t, i);
-      ok = sem_check(s) && ok;
+      ok = scope_insert(s) && sem_check(s) && ok;
    }
-
-   // Check for duplicate statements: if the number of statements is small
-   // then it is simpler to do this with the naive O(n^2) algorithm but when
-   // the number is large it is more efficient to use a hash table
-
-   const bool use_hash = (nstmts >= 128);
-   hash_t *hash = NULL;
-   if (use_hash)
-      hash = hash_new(nstmts * 2, true);
-
-   for (int i = 0; i < nstmts; i++) {
-      tree_t s = get_stmt(t, i);
-      ident_t label = tree_ident(s);
-
-      bool duplicate = false;
-      if (use_hash)
-         duplicate = hash_put(hash, label, NULL);
-      else {
-         for (int j = 0; (j < i) && !duplicate; j++) {
-            if (tree_ident(get_stmt(t, j)) == label)
-               duplicate = true;
-         }
-      }
-
-      if (duplicate)
-         sem_error(s, "duplicate statement label %s", istr(label));
-   }
-
-   if (use_hash)
-      hash_free(hash);
 
    return ok;
 }
@@ -2251,6 +2220,8 @@ static bool sem_check_sensitivity(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
+   sem_add_attributes(t);
+
    scope_push(NULL);
 
    bool ok = sem_check_sensitivity(t);
@@ -4174,8 +4145,9 @@ static bool sem_check_ref(tree_t t)
    int n = 0;
    do {
       if ((next = scope_find_nth(name, n))) {
-         tree_kind_t kind = tree_kind(next);
-         if ((kind == T_ENTITY) || (kind == T_ARCH) || (kind == T_COMPONENT))
+         class_t class = class_of(next);
+         if ((class == C_ENTITY) || (class == C_ARCHITECTURE)
+             || (class == C_COMPONENT) || (class == C_LABEL))
             continue;
 
          type_t type = tree_type(next);
@@ -4406,14 +4378,15 @@ static bool sem_check_attr_ref(tree_t t)
 
          special = true;
       }
-      else if ((kind == T_ARCH) || (kind == T_ENTITY)
-               || (kind == T_COMPONENT) || (kind == T_FUNC_DECL)
-               || (kind == T_FUNC_BODY) || (kind == T_PROC_DECL)
-               || (kind == T_PROC_BODY)) {
-         // Special case for attributes of entities and architectures
-         tree_set_ref(name, decl);
+      else {
+         class_t class = class_of(decl);
+         if (!class_has_type(class) || (class == C_PROCEDURE)
+             || (class == C_FUNCTION)) {
+            // Special case for attributes of entities, architectures, etc.
+            tree_set_ref(name, decl);
 
-         special = true;
+            special = true;
+         }
       }
    }
 
@@ -5317,6 +5290,8 @@ static bool sem_check_for(tree_t t)
 static bool sem_check_block(tree_t t)
 {
    scope_push(NULL);
+
+   sem_add_attributes(t);
 
    bool ok = true;
 

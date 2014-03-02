@@ -477,20 +477,6 @@ static bool cgen_const_bounds(type_t type)
    }
 }
 
-static class_t cgen_get_class(tree_t decl)
-{
-   switch (tree_kind(decl)) {
-   case T_VAR_DECL:
-      return C_VARIABLE;
-   case T_SIGNAL_DECL:
-      return C_SIGNAL;
-   case T_CONST_DECL:
-      return C_CONSTANT;
-   default:
-      return tree_class(decl);
-   }
-}
-
 static int cgen_array_dims(type_t type)
 {
    assert(type_is_array(type));
@@ -580,7 +566,7 @@ static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
 
                LLVMValueRef uarray;
                tree_t decl = tree_ref(value);
-               if (cgen_get_class(decl) == C_SIGNAL)
+               if (class_of(decl) == C_SIGNAL)
                   uarray = cgen_signal_nets(decl);
                else
                   uarray = cgen_get_var(decl, NULL);
@@ -1668,7 +1654,7 @@ static LLVMValueRef cgen_uarray_field(tree_t expr, int field, cgen_ctx_t *ctx)
    if (tree_kind(expr) == T_REF) {
       // Avoid loading all the array data if possible
       tree_t decl = tree_ref(expr);
-      if (cgen_get_class(decl) == C_SIGNAL) {
+      if (class_of(decl) == C_SIGNAL) {
          meta = cgen_signal_nets(decl);
          assert(meta != NULL);
       }
@@ -2793,7 +2779,7 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
       // Fall-through
 
    case T_SIGNAL_DECL:
-      if (cgen_get_class(decl) == C_SIGNAL) {
+      if (class_of(decl) == C_SIGNAL) {
          LLVMValueRef nets = cgen_signal_nets(decl);
          if (type_is_array(type))
             return cgen_vec_load(nets, type, type, false, ctx);
@@ -2893,7 +2879,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
          array = cgen_expr(tree_value(decl), ctx);
       }
       else {
-         class = cgen_get_class(decl);
+         class = class_of(decl);
 
          switch (class) {
          case C_VARIABLE:
@@ -2980,7 +2966,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
 
       }
       else {
-         switch (cgen_get_class(decl)) {
+         switch (class_of(decl)) {
          case C_VARIABLE:
          case C_DEFAULT:
          case C_CONSTANT:

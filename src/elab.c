@@ -998,6 +998,9 @@ static void elab_process(tree_t t, const elab_ctx_t *ctx)
          break;
       }
    }
+
+   tree_add_attr_str(t, inst_name_i,
+                     ident_prefix(ctx->inst, ident_new(":"), '\0'));
 }
 
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx)

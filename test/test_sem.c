@@ -801,7 +801,7 @@ START_TEST(test_seq)
       { 187, "type of next condition must be BOOLEAN" },
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
-      { 205, "duplicate statement label DUP" },
+      { 205, "DUP already declared in this region" },
       { -1, NULL }
    };
    expect_errors(expect);

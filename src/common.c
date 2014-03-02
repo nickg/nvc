@@ -367,3 +367,60 @@ int record_field_to_net(type_t type, ident_t name)
 
    assert(false);
 }
+
+class_t class_of(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_VAR_DECL:
+      return C_VARIABLE;
+   case T_SIGNAL_DECL:
+      return C_SIGNAL;
+   case T_CONST_DECL:
+      return C_CONSTANT;
+   case T_PORT_DECL:
+      return tree_class(t);
+   case T_ENUM_LIT:
+   case T_GENVAR:
+   case T_ALIAS:
+   case T_FIELD_DECL:
+      return C_DEFAULT;
+   case T_UNIT_DECL:
+      return C_UNITS;
+   case T_ARCH:
+      return C_ARCHITECTURE;
+   case T_FUNC_DECL:
+   case T_FUNC_BODY:
+      return C_FUNCTION;
+   case T_PROC_DECL:
+   case T_PROC_BODY:
+      return C_PROCEDURE;
+   case T_ENTITY:
+      return C_ENTITY;
+   case T_TYPE_DECL:
+      return C_TYPE;
+   case T_FILE_DECL:
+      return C_FILE;
+   case T_PROCESS:
+   case T_BLOCK:
+      return C_LABEL;
+   case T_COMPONENT:
+      return C_COMPONENT;
+   default:
+      fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
+   }
+}
+
+bool class_has_type(class_t c)
+{
+   switch (c) {
+   case C_LABEL:
+   case C_ENTITY:
+   case C_ARCHITECTURE:
+   case C_COMPONENT:
+   case C_CONFIGURATION:
+   case C_PACKAGE:
+      return false;
+   default:
+      return true;
+   }
+}

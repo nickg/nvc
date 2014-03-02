@@ -48,7 +48,9 @@ typedef enum class {
    C_TYPE,
    C_SUBTYPE,
    C_LABEL,
-   C_PROCEDURE
+   C_PROCEDURE,
+   C_LITERAL,
+   C_UNITS
 } class_t;
 
 typedef enum param_kind {

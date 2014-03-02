@@ -1014,9 +1014,6 @@ tree_t tree_ref(tree_t t)
 
 void tree_set_ref(tree_t t, tree_t decl)
 {
-   assert(tree_kind_in(decl, decl_kinds, ARRAY_LEN(decl_kinds))
-          || (decl->kind == T_ENUM_LIT)
-          || tree_kind_in(decl, top_level_kinds, ARRAY_LEN(top_level_kinds)));
    lookup_item(t, I_REF)->tree = decl;
 }
 
