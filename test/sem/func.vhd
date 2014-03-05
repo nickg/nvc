@@ -220,4 +220,12 @@ package body func is
         return sub(2);
     end function;
 
+    function test24f(x : integer; r : real := 1.0) return integer;
+    function test24f(y : integer; b : boolean := true) return integer;
+
+    function test24 return integer is
+    begin
+        return test24f(x => 1) + test24f(y => 2);
+    end function;
+
 end package body;

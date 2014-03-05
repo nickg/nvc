@@ -2980,8 +2980,12 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          tree_t p = tree_param(t, i);
          type_t ptype = tree_type(tree_value(p));
          type_t mtype = sem_find_param_type(p, overloads[n]);
-         match = match && type_eq(mtype, ptype);
-         all_universal = all_universal && type_is_universal(ptype);
+         if (mtype == NULL)
+            match = false;
+         else {
+            match = match && type_eq(mtype, ptype);
+            all_universal = all_universal && type_is_universal(ptype);
+         }
       }
 
       if (match) {
