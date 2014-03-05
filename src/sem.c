@@ -2864,6 +2864,13 @@ static int sem_ambiguous_rate(tree_t t)
       return 100;
    case T_LITERAL:
       return (tree_subkind(t) == L_NULL) ? 0 : -10;
+   case T_TYPE_CONV:
+      return -50;
+   case T_FCALL:
+      {
+         tree_t decl = scope_find(tree_ident(t));
+         return (decl != NULL) && (tree_kind(decl) == T_TYPE_DECL) ? -40 : 0;
+      }
    default:
       return 0;
    }

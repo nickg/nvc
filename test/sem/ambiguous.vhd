@@ -143,4 +143,22 @@ begin
 
 end architecture;
 
+architecture a3 of e is
+    type unsigned is array (natural range <>) of bit;
+
+    function "*"(a, b : unsigned) return bit_vector;
+    function "*"(a, b : bit_vector) return bit_vector;
+    function "*"(a, b : unsigned) return unsigned;
+
+    function "+"(a, b : unsigned) return bit_vector;
+    function "+"(a, b : bit_vector) return bit_vector;
+    function "+"(a, b : unsigned) return unsigned;
+
+    signal x, y, z : bit_vector(7 downto 0);
+begin
+
+    x <= unsigned(y) * unsigned(z) + unsigned(z);
+
+end architecture;
+
 -- -*- coding: latin-1; -*-
