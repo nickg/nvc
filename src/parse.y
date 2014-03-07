@@ -470,7 +470,7 @@ entity_decl
 ;
 
 entity_decl_part
-: entity_decl_item entity_decl_part
+: entity_decl_part entity_decl_item
  {
     $$ = $1;
     tree_list_concat(&$$, $2);
@@ -577,7 +577,7 @@ opt_package_token : tPACKAGE | /* empty */ ;
 opt_package_body : tPACKAGE tBODY | /* empty */ ;
 
 package_decl_part
-: package_decl_item package_decl_part
+: package_decl_part package_decl_item
   {
      $$ = $1;
      tree_list_concat(&$$, $2);
@@ -604,7 +604,7 @@ package_decl_item
 ;
 
 package_body_decl_part
-: package_body_decl_item package_body_decl_part
+: package_body_decl_part package_body_decl_item
   {
      $$ = $1;
      tree_list_concat(&$$, $2);
@@ -1202,7 +1202,7 @@ opt_postponed
 ;
 
 process_decl_part
-: process_decl_item process_decl_part
+: process_decl_part process_decl_item
   {
      $$ = $1;
      tree_list_concat(&$$, $2);
@@ -1242,7 +1242,7 @@ block_stmt
 ;
 
 block_decl_part
-: block_decl_item block_decl_part
+: block_decl_part block_decl_item
   {
      $$ = $1;
      tree_list_concat(&$$, $2);
@@ -1353,7 +1353,7 @@ func_name : id | operator_name ;
 opt_func_name : func_name | /* empty */ ;
 
 subprogram_decl_part
-: subprogram_decl_item subprogram_decl_part
+: subprogram_decl_part subprogram_decl_item
   {
      $$ = $1;
      tree_list_concat(&$$, $2);
