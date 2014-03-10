@@ -161,4 +161,25 @@ begin
 
 end architecture;
 
+-- Test case reduced from Altera model
+architecture a4 of e is
+    function resolved (x : bit_vector) return bit;
+
+    subtype rbit is resolved bit;
+
+    type rbit_vector is array (natural range <>) of rbit;
+
+    function "and" (x, y : rbit_vector) return rbit_vector;
+
+    signal mdio_wr  : rbit;
+    signal reg_addr : rbit_vector(15 downto 0);
+begin
+
+    process is
+    begin
+        assert ((X"0000" & mdio_wr) and reg_addr) /= X"0000";
+    end process;
+
+end architecture;
+
 -- -*- coding: latin-1; -*-
