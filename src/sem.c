@@ -4925,7 +4925,8 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
-      if (!tree_attr_int(t, ident_new("unconstrained"), 0)) {
+      if (type_is_array(type) &&
+          !tree_attr_int(t, ident_new("unconstrained"), 0)) {
          range_t r = type_dim(type, 0);
          if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
             return false;
@@ -5167,6 +5168,8 @@ static bool sem_globally_static(tree_t t)
 
       return true;
    }
+   else if (kind == T_RECORD_REF)
+      return sem_globally_static(tree_value(t));
 
    return false;
 }

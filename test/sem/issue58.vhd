@@ -1,8 +1,8 @@
-entity issueG is
+entity issue58 is
 begin
-end entity issueG;
+end entity issue58;
 
-architecture a of issueG is
+architecture a of issue58 is
     type t is record
         g : bit;
     end record t;
