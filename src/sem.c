@@ -5051,12 +5051,14 @@ static bool sem_globally_static(tree_t t)
    // Aggregates must have globally static range and all elements
    // must have globally static values
    if (kind == T_AGGREGATE) {
-      range_t r = type_dim(type, 0);
-      if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
-         return false;
+      if (!tree_attr_int(t, ident_new("unconstrained"), 0)) {
+         range_t r = type_dim(type, 0);
+         if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+            return false;
 
-      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
-         return false;
+         if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+            return false;
+      }
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
