@@ -424,3 +424,19 @@ bool class_has_type(class_t c)
       return true;
    }
 }
+
+tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
+{
+   tree_t p = tree_new(T_PARAM);
+   tree_set_loc(p, tree_loc(value));
+   tree_set_subkind(p, kind);
+   tree_set_value(p, value);
+
+   if (kind == P_NAMED) {
+      assert(name != NULL);
+      tree_set_name(p, name);
+   }
+
+   tree_add_param(call, p);
+   return p;
+}

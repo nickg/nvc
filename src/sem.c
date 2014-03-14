@@ -3100,19 +3100,8 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
       }
 
       if (found == NULL) {
-         if (tree_has_value(port)) {
-            tree_t value = tree_value(port);
-
-            tree_t p = tree_new(T_PARAM);
-            tree_set_subkind(p, P_NAMED);
-            tree_set_loc(p, tree_loc(value));
-            tree_set_value(p, value);
-            tree_set_name(p, make_ref(port));
-
-            tree_add_param(call, p);
-
-            found = p;
-         }
+         if (tree_has_value(port))
+            found = add_param(call, tree_value(port), P_NAMED, make_ref(port));
          else
             sem_error(call, "missing actual for formal %s without "
                       "default value", istr(name));
@@ -3829,16 +3818,6 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
-static void sem_add_param(tree_t call, tree_t value)
-{
-   tree_t p = tree_new(T_PARAM);
-   tree_set_loc(p, tree_loc(value));
-   tree_set_subkind(p, P_POS);
-   tree_set_value(p, value);
-
-   tree_add_param(call, p);
-}
-
 static bool sem_check_aggregate(tree_t t)
 {
    // Rules for aggregates are in LRM 93 section 7.3.2
@@ -4117,8 +4096,8 @@ static bool sem_check_aggregate(tree_t t)
             case A_NAMED:
                {
                   tree_t name = tree_name(a);
-                  sem_add_param(low, name);
-                  sem_add_param(high, name);
+                  add_param(low, name, P_POS, NULL);
+                  add_param(high, name, P_POS, NULL);
                }
                break;
 
@@ -4126,18 +4105,18 @@ static bool sem_check_aggregate(tree_t t)
                {
                   range_t r = tree_range(a);
                   if (r.kind == RANGE_TO) {
-                     sem_add_param(low, r.left);
-                     sem_add_param(high, r.right);
+                     add_param(low, r.left, P_POS, NULL);
+                     add_param(high, r.right, P_POS, NULL);
                   }
                   else if (r.kind == RANGE_DOWNTO) {
-                     sem_add_param(low, r.right);
-                     sem_add_param(high, r.left);
+                     add_param(low, r.right, P_POS, NULL);
+                     add_param(high, r.left, P_POS, NULL);
                   }
                   else {
-                     sem_add_param(low, r.right);
-                     sem_add_param(low, r.left);
-                     sem_add_param(high, r.right);
-                     sem_add_param(high, r.left);
+                     add_param(low, r.right, P_POS, NULL);
+                     add_param(low, r.left, P_POS, NULL);
+                     add_param(high, r.right, P_POS, NULL);
+                     add_param(high, r.left, P_POS, NULL);
                   }
                }
                break;
@@ -4537,15 +4516,8 @@ static bool sem_check_attr_ref(tree_t t)
             already_added = true;
       }
 
-      if (!already_added) {
-         tree_t p = tree_new(T_PARAM);
-         tree_set_loc(p, tree_loc(name));
-         tree_set_subkind(p, P_NAMED);
-         tree_set_value(p, name);
-         tree_set_name(p, make_ref(tree_port(a, tree_ports(a) - 1)));
-
-         tree_add_param(t, p);
-      }
+      if (!already_added)
+         add_param(t, name, P_NAMED, make_ref(tree_port(a, tree_ports(a) - 1)));
 
       sem_copy_default_args(t, a);
 

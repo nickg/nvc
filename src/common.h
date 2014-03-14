@@ -41,6 +41,7 @@ tree_t make_ref(tree_t to);
 int record_field_to_net(type_t type, ident_t name);
 class_t class_of(tree_t t);
 bool class_has_type(class_t c);
+tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name);
 
 //
 // Utility typedefs

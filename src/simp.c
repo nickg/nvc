@@ -71,12 +71,7 @@ static tree_t simp_call_args(tree_t t)
             assert(tree_kind(ref) == T_REF);
 
             if (name == tree_ident(ref)) {
-               tree_t q = tree_new(T_PARAM);
-               tree_set_subkind(q, P_POS);
-               tree_set_loc(q, tree_loc(p));
-               tree_set_value(q, tree_value(p));
-
-               tree_add_param(new, q);
+               add_param(new, tree_value(p), P_POS, NULL);
                found = true;
             }
          }
