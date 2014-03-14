@@ -2047,44 +2047,6 @@ static LLVMValueRef cgen_array_rel(LLVMValueRef lhs, LLVMValueRef rhs,
                                left_type, right_type, pred, ctx);
 }
 
-static LLVMValueRef cgen_agg_bound(tree_t t, bool low, int32_t def,
-                                   cgen_ctx_t *ctx)
-{
-   assert(tree_kind(t) == T_AGGREGATE);
-
-   LLVMValueRef result = llvm_int32(def);
-
-   for (unsigned i = 0; i < tree_assocs(t); i++) {
-      tree_t a = tree_assoc(t, i);
-      LLVMValueRef this = NULL;
-      switch (tree_subkind(a)) {
-         case A_NAMED:
-            this = cgen_expr(tree_name(a), ctx);
-            break;
-
-         case A_RANGE:
-            {
-               range_t r = tree_range(a);
-               if ((low && r.kind == RANGE_TO)
-                   || (!low && r.kind == RANGE_DOWNTO))
-                  this = cgen_expr(r.left, ctx);
-               else
-                  this = cgen_expr(r.right, ctx);
-            }
-            break;
-
-         default:
-            assert(false);
-      }
-
-      LLVMIntPredicate pred = (low ? LLVMIntSLT : LLVMIntSGT);
-      LLVMValueRef cmp = LLVMBuildICmp(builder, pred, this, result, "");
-      result = LLVMBuildSelect(builder, cmp, this, result, "");
-   }
-
-   return result;
-}
-
 static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
 {
    tree_t decl = tree_ref(ref);
@@ -2335,10 +2297,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_net_flag(p0, NET_F_ACTIVE);
       else if (icmp(builtin, "last_value"))
          return cgen_last_value(p0, ctx);
-      else if (icmp(builtin, "agg_low"))
-         return cgen_agg_bound(p0, true, INT32_MAX, ctx);
-      else if (icmp(builtin, "agg_high"))
-         return cgen_agg_bound(p0, false, INT32_MIN, ctx);
       else if (icmp(builtin, "instance_name"))
          return cgen_name_attr(p0, tree_type(t), INSTANCE_NAME);
       else if (icmp(builtin, "path_name"))

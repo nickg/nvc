@@ -4925,9 +4925,6 @@ static bool sem_locally_static(tree_t t)
       if (builtin == NULL)
          return false;
 
-      if (icmp(builtin, "agg_low") || icmp(builtin, "agg_high"))
-         return true;
-
       bool all_static = true;
       const int nparams = tree_params(t);
       for (int i = 0; i < nparams; i++) {

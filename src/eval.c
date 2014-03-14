@@ -115,49 +115,11 @@ static tree_t vtable_get(vtable_t *v, ident_t name)
    return vtframe_get(v->top, name);
 }
 
-static bool folded_agg(tree_t t)
-{
-   if (tree_kind(t) == T_AGGREGATE) {
-      const int nassocs = tree_assocs(t);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-         int64_t dummy1;
-         unsigned dummy2;
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               if (!folded_int(name, &dummy1) && !folded_enum(name, &dummy2))
-                  return false;
-            }
-            break;
-         case A_RANGE:
-            {
-               range_t r = tree_range(a);
-               if ((!folded_int(r.left, &dummy1)
-                    && !folded_enum(r.left, &dummy2))
-                   || (!folded_int(r.right, &dummy1)
-                       && !folded_enum(r.right, &dummy2)))
-                  return false;
-            }
-            break;
-         default:
-            break;
-         }
-      }
-      return true;
-   }
-   else
-      return false;
-}
-
 static bool folded(tree_t t)
 {
    tree_kind_t kind = tree_kind(t);
    if (kind == T_LITERAL)
       return true;
-   else if (kind == T_AGGREGATE)
-      return folded_agg(t);
    else if (kind == T_REF) {
       bool dummy;
       return folded_bool(t, &dummy);
@@ -356,47 +318,6 @@ static tree_t eval_fcall_universal(tree_t t, ident_t builtin, tree_t *args)
       fatal_at(tree_loc(t), "universal expression cannot be evaluated");
 }
 
-static tree_t eval_fcall_agg(tree_t t, ident_t builtin)
-{
-   bool agg_low  = icmp(builtin, "agg_low");
-   bool agg_high = icmp(builtin, "agg_high");
-
-   if (agg_low || agg_high) {
-      int64_t low = INT64_MAX, high = INT64_MIN;
-      tree_t p = tree_param(t, 0);
-      tree_t value = tree_value(p);
-      const int nassocs = tree_assocs(value);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(value, i);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               int64_t tmp = assume_int(tree_name(a));
-               if (tmp < low) low = tmp;
-               if (tmp > high) high = tmp;
-            }
-            break;
-
-         case A_RANGE:
-            {
-               int64_t low_r, high_r;
-               range_bounds(tree_range(a), &low_r, &high_r);
-               if (low_r < low) low = low_r;
-               if (high_r > high) high = high_r;
-            }
-            break;
-
-         default:
-            assert(false);
-         }
-      }
-
-      return get_int_lit(t, agg_low ? low : high);
-   }
-   else
-      return t;
-}
-
 static void eval_stmts(tree_t t, unsigned (*count)(tree_t),
                        tree_t (*get)(tree_t, unsigned), vtable_t *v)
 {
@@ -513,7 +434,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
    bool can_fold_int  = true;
    bool can_fold_log  = true;
-   bool can_fold_agg  = true;
    bool can_fold_real = true;
    bool can_fold_enum = true;
    int64_t iargs[nparams];
@@ -523,7 +443,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    for (int i = 0; i < nparams; i++) {
       can_fold_int  = can_fold_int && folded_int(targs[i], &iargs[i]);
       can_fold_log  = can_fold_log && folded_bool(targs[i], &bargs[i]);
-      can_fold_agg  = can_fold_agg && folded_agg(targs[i]);
       can_fold_real = can_fold_real && folded_real(targs[i], &rargs[i]);
       can_fold_enum = can_fold_enum && folded_enum(targs[i], &eargs[i]);
    }
@@ -532,8 +451,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       return eval_fcall_int(t, builtin, iargs, nparams);
    else if (can_fold_log)
       return eval_fcall_log(t, builtin, bargs);
-   else if (can_fold_agg)
-      return eval_fcall_agg(t, builtin);
    else if (can_fold_real)
       return eval_fcall_real(t, builtin, rargs);
    else if (can_fold_enum)
