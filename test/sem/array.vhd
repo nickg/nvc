@@ -211,7 +211,7 @@ begin
     process is
         type int2d is array (natural range <>, natural range <>) of integer;
         constant c : int2d := ( (0, 1, 2), (0, 1, 2) );  -- OK
-        constant d : int2d := ( (0, 1), (5, 6, 7 ) );  -- Error
+        constant d : int2d := ( (0, 1), (5, 6, 7) );  -- OK (at sem)
         constant e : int2d := ( (0, 1), (others => 2) );  -- Error
     begin
     end process;

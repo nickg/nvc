@@ -1691,18 +1691,32 @@ static void sem_add_attributes(tree_t decl)
 
 static type_t sem_array_aggregate_type(type_t array, int from_dim)
 {
-   const int ndims = type_dims(array);
+   if (type_is_unconstrained(array)) {
+      const int nindex = type_index_constrs(array);
+      assert(from_dim < nindex);
 
-   assert(from_dim < ndims);
+      type_t type = type_new(T_UARRAY);
+      type_set_ident(type, type_ident(array));
+      type_set_elem(type, type_elem(array));
 
-   type_t type = type_new(T_CARRAY);
-   type_set_ident(type, type_ident(array));
-   type_set_elem(type, type_elem(array));
+      for (int i = from_dim; i < nindex; i++)
+         type_add_index_constr(type, type_index_constr(array, i));
 
-   for (int i = from_dim; i < ndims; i++)
-      type_add_dim(type, type_dim(array, i));
+      return type;
+   }
+   else {
+      const int ndims = type_dims(array);
+      assert(from_dim < ndims);
 
-   return type;
+      type_t type = type_new(T_CARRAY);
+      type_set_ident(type, type_ident(array));
+      type_set_elem(type, type_elem(array));
+
+      for (int i = from_dim; i < ndims; i++)
+         type_add_dim(type, type_dim(array, i));
+
+      return type;
+   }
 }
 
 static tree_t sem_default_value(type_t type)
@@ -3825,35 +3839,6 @@ static void sem_add_param(tree_t call, tree_t value)
    tree_add_param(call, p);
 }
 
-static bool sem_check_uarray_aggregate(tree_t t, type_t type,
-                                       int dim, int *n_elems)
-{
-   const int nassocs = tree_assocs(t);
-   const int ndims   = sem_array_dimension(type);
-
-   for (int i = 0; i < nassocs; i++) {
-      tree_t a = tree_assoc(t, i);
-
-      if (tree_subkind(a) == A_OTHERS)
-         sem_error(tree_value(a), "OTHERS choice not allowed in unconstrained "
-                   "array aggregate");
-
-      if (dim + 1 < ndims) {
-         if (!sem_check_uarray_aggregate(tree_value(a), type, dim + 1, n_elems))
-            return false;
-      }
-   }
-
-   if (n_elems[dim] == -1) {
-      // First aggregate in this dimension determines size
-      n_elems[dim] = nassocs;
-   }
-   else if (n_elems[dim] != nassocs)
-      sem_error(t, "aggregate size mismatch in dimension %d", dim);
-
-   return true;
-}
-
 static bool sem_check_aggregate(tree_t t)
 {
    // Rules for aggregates are in LRM 93 section 7.3.2
@@ -3924,63 +3909,13 @@ static bool sem_check_aggregate(tree_t t)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
 
-   // If the composite type is unconstrained create a new constrained
-   // array type
-
-   if (unconstrained) {
-      const int nindex = sem_array_dimension(composite_type);
-
-      int n_elems[nindex];
-      for (int i = 0; i < nindex; i++)
-         n_elems[i] = -1;
-
-      if (!sem_check_uarray_aggregate(t, composite_type, 0, n_elems))
-         return false;
-
-      type_t tmp = type_new(T_SUBTYPE);
-      type_set_ident(tmp, type_ident(composite_type));
-      type_set_base(tmp, composite_type);
-
-      for (int i = 0; i < nindex; i++) {
-         type_t index_type = sem_index_type(composite_type, i);
-         range_t index_r = type_dim(index_type, 0);
-
-         if (have_named) {
-            tree_t low = call_builtin("agg_low", index_type, t, NULL);
-            tree_t high = call_builtin("agg_high", index_type, t, NULL);
-
-            range_t r = {
-               .kind  = index_r.kind,
-               .left  = (index_r.kind == RANGE_TO ? low : high),
-               .right = (index_r.kind == RANGE_TO ? high : low)
-            };
-            type_add_dim(tmp, r);
-         }
-         else {
-            type_t std_int = sem_std_type("INTEGER");
-            range_t r = {
-               .kind  = index_r.kind,
-               .left  = index_r.left,
-               .right = call_builtin("add", index_type,
-                                     sem_int_lit(std_int, n_elems[i] - 1),
-                                     index_r.left, NULL)
-            };
-            type_add_dim(tmp, r);
-         }
-      }
-
-      tree_add_attr_int(t, ident_new("unconstrained"), 1);
-
-      composite_type = tmp;
-   }
-
    // All elements must be of the composite base type if this is
    // a one-dimensional array otherwise construct an array type
    // with n-1 dimensions.
 
    if (array) {
       type_t elem_type = NULL;
-      const int ndims = type_dims(composite_type);
+      const int ndims = sem_array_dimension(composite_type);
       if (ndims == 1)
          elem_type = type_elem(base_type);
       else
@@ -4129,74 +4064,113 @@ static bool sem_check_aggregate(tree_t t)
       }
    }
 
-   // If there is no others choice then construct a new array subtype using
-   // the rules in LRM 93 7.3.2.2
+   // If there is no others choice or the base type is unconstrained then
+   // construct a new array subtype using the rules in LRM 93 7.3.2.2
 
-   if (array && have_named && !have_others && !unconstrained) {
+   if (array && (have_named || unconstrained) && !have_others) {
       type_t tmp = type_new(T_SUBTYPE);
       type_set_ident(tmp, type_ident(base_type));
       type_set_base(tmp, base_type);
 
-      const int ndims = type_dims(composite_type);
+      const int ndims = sem_array_dimension(composite_type);
 
       type_t index_type = sem_index_type(composite_type, 0);
 
-      // The direction is determined by the context
-      range_kind_t dir = type_dim(composite_type, 0).kind;
+      range_kind_t dir;
+      if (unconstrained) {
+         // The direction is determined by the index type
+         dir = type_dim(index_type, 0).kind;
+      }
+      else {
+         // The direction is determined by the context
+         dir = type_dim(composite_type, 0).kind;
+      }
 
-      tree_t low  = call_builtin("min", index_type, NULL);
-      tree_t high = call_builtin("max", index_type, NULL);
+      tree_t left = NULL, right = NULL;
 
-      tree_set_loc(low, tree_loc(t));
-      tree_set_loc(high, tree_loc(t));
+      if (have_pos || !have_named) {
+         // The left bound is the left of the index type and the right bound
+         // is determined by the number of elements
 
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            {
-               tree_t name = tree_name(a);
-               sem_add_param(low, name);
-               sem_add_param(high, name);
+         assert(unconstrained);
+
+         type_t std_int = sem_std_type("INTEGER");
+
+         left = type_dim(index_type, 0).left;
+         right = call_builtin("add", index_type,
+                              sem_int_lit(std_int, nassocs - 1),
+                              left, NULL);
+      }
+      else {
+         // The left and right bounds are determined by the smallest and
+         // largest choices
+
+         tree_t low  = call_builtin("min", index_type, NULL);
+         tree_t high = call_builtin("max", index_type, NULL);
+
+         tree_set_loc(low, tree_loc(t));
+         tree_set_loc(high, tree_loc(t));
+
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(t, i);
+            switch (tree_subkind(a)) {
+            case A_NAMED:
+               {
+                  tree_t name = tree_name(a);
+                  sem_add_param(low, name);
+                  sem_add_param(high, name);
+               }
+               break;
+
+            case A_RANGE:
+               {
+                  range_t r = tree_range(a);
+                  if (r.kind == RANGE_TO) {
+                     sem_add_param(low, r.left);
+                     sem_add_param(high, r.right);
+                  }
+                  else if (r.kind == RANGE_DOWNTO) {
+                     sem_add_param(low, r.right);
+                     sem_add_param(high, r.left);
+                  }
+                  else {
+                     sem_add_param(low, r.right);
+                     sem_add_param(low, r.left);
+                     sem_add_param(high, r.right);
+                     sem_add_param(high, r.left);
+                  }
+               }
+               break;
             }
-            break;
-
-         case A_RANGE:
-            {
-               range_t r = tree_range(a);
-               if (r.kind == RANGE_TO) {
-                  sem_add_param(low, r.left);
-                  sem_add_param(high, r.right);
-               }
-               else if (r.kind == RANGE_DOWNTO) {
-                  sem_add_param(low, r.right);
-                  sem_add_param(high, r.left);
-               }
-               else {
-                  sem_add_param(low, r.right);
-                  sem_add_param(low, r.left);
-                  sem_add_param(high, r.right);
-                  sem_add_param(high, r.left);
-               }
-            }
-            break;
          }
+
+         left  = (dir == RANGE_TO ? low : high);
+         right = (dir == RANGE_TO ? high : low);
       }
 
       range_t r = {
          .kind  = dir,
-         .left  = (dir == RANGE_TO ? low : high),
-         .right = (dir == RANGE_TO ? high : low)
+         .left  = left,
+         .right = right
       };
       type_add_dim(tmp, r);
 
-      for (int i = 1; i < ndims; i++)
-         type_add_dim(tmp, type_dim(composite_type, i));
+      for (int i = 1; i < ndims; i++) {
+         range_t dim;
+         if (unconstrained)
+            dim = type_dim(tree_type(tree_value(tree_assoc(t, 0))), i - 1);
+         else
+            dim = type_dim(composite_type, i);
+         type_add_dim(tmp, dim);
+      }
 
       tree_set_type(t, tmp);
    }
    else
       tree_set_type(t, composite_type);
+
+   if (unconstrained)
+      tree_add_attr_int(t, ident_new("unconstrained"), 1);
 
    return true;
 }

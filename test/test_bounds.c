@@ -183,6 +183,7 @@ START_TEST(test_issue54)
 
    const error_t expect[] = {
       { 12, "aggregate index 3 out of bounds 7 downto 4" },
+      { 12, "aggregate index 0 out of bounds 7 downto 4" },
       { -1, NULL }
    };
    expect_errors(expect);
