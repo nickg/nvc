@@ -3862,12 +3862,16 @@ static bool sem_check_aggregate(tree_t t)
    while (type_kind(base_type) == T_SUBTYPE)
       base_type = type_base(base_type);
 
+   const bool unconstrained = type_is_unconstrained(composite_type);
+   const bool array = type_is_array(composite_type);
+
    // All positional associations must appear before named associations
    // and those must appear before any others association
 
    enum { POS, NAMED, OTHERS } state = POS;
    bool have_named = false;
    bool have_pos = false;
+   bool have_others = false;
 
    const int nassocs = tree_assocs(t);
 
@@ -3895,9 +3899,10 @@ static bool sem_check_aggregate(tree_t t)
          if (state == OTHERS)
             sem_error(a, "only a single others association "
                       "allowed in aggregate");
-         if (type_is_unconstrained(composite_type))
+         if (unconstrained)
             sem_error(a, "others choice not allowed in this context");
          state = OTHERS;
+         have_others = true;
          break;
       }
    }
@@ -3905,14 +3910,14 @@ static bool sem_check_aggregate(tree_t t)
    // Named and positional associations cannot be mixed in array
    // aggregates
 
-   if (type_is_array(base_type) && have_named && have_pos)
+   if (array && have_named && have_pos)
       sem_error(t, "named and positional associations cannot be "
                 "mixed in array aggregates");
 
    // If the composite type is unconstrained create a new constrained
    // array type
 
-   if (type_is_unconstrained(composite_type)) {
+   if (unconstrained) {
       const int nindex = sem_array_dimension(composite_type);
 
       int n_elems[nindex];
@@ -3963,7 +3968,7 @@ static bool sem_check_aggregate(tree_t t)
    // a one-dimensional array otherwise construct an array type
    // with n-1 dimensions.
 
-   if (type_is_array(base_type)) {
+   if (array) {
       type_t elem_type = NULL;
       const int ndims = type_dims(composite_type);
       if (ndims == 1)
@@ -4114,7 +4119,39 @@ static bool sem_check_aggregate(tree_t t)
       }
    }
 
-   tree_set_type(t, composite_type);
+   // If there is no others choice then construct a new array subtype using
+   // the rules in LRM 93 7.3.2.2
+
+   if (array && have_named && !have_others && !unconstrained) {
+      type_t tmp = type_new(T_SUBTYPE);
+      type_set_ident(tmp, type_ident(base_type));
+      type_set_base(tmp, base_type);
+
+      const int ndims = type_dims(composite_type);
+
+      type_t index_type = sem_index_type(composite_type, 0);
+
+      // The direction is determined by the context
+      range_kind_t dir = type_dim(composite_type, 0).kind;
+
+      tree_t low = call_builtin("agg_low", index_type, t, NULL);
+      tree_t high = call_builtin("agg_high", index_type, t, NULL);
+
+      range_t r = {
+         .kind  = dir,
+         .left  = (dir == RANGE_TO ? low : high),
+         .right = (dir == RANGE_TO ? high : low)
+      };
+      type_add_dim(tmp, r);
+
+      for (int i = 1; i < ndims; i++)
+         type_add_dim(tmp, type_dim(composite_type, i));
+
+      tree_set_type(t, tmp);
+   }
+   else
+      tree_set_type(t, composite_type);
+
    return true;
 }
 
@@ -4863,8 +4900,13 @@ static bool sem_locally_static(tree_t t)
    // A function call of an implicit operator with locally static actuals
    if (kind == T_FCALL) {
       tree_t decl = tree_ref(t);
-      if (tree_attr_str(decl, builtin_i) == NULL)
+
+      ident_t builtin = tree_attr_str(decl, builtin_i);
+      if (builtin == NULL)
          return false;
+
+      if (icmp(builtin, "agg_low") || icmp(builtin, "agg_high"))
+         return true;
 
       bool all_static = true;
       const int nparams = tree_params(t);
@@ -4925,8 +4967,7 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
-      if (type_is_array(type) &&
-          !tree_attr_int(t, ident_new("unconstrained"), 0)) {
+      if (type_is_array(type)) {
          range_t r = type_dim(type, 0);
          if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
             return false;
@@ -5052,14 +5093,12 @@ static bool sem_globally_static(tree_t t)
    // Aggregates must have globally static range and all elements
    // must have globally static values
    if (kind == T_AGGREGATE) {
-      if (!tree_attr_int(t, ident_new("unconstrained"), 0)) {
-         range_t r = type_dim(type, 0);
-         if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
-            return false;
+      range_t r = type_dim(type, 0);
+      if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+         return false;
 
-         if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
-            return false;
-      }
+      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+         return false;
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {

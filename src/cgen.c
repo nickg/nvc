@@ -724,16 +724,25 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name,
          LLVMValueRef right = cgen_expr(r.right, ctx);
 
          // Check validity of array bounds against index constraint
-         range_t bounds = type_dim(tree_type(r.left), 0);
+         type_t index_type = tree_type(r.left);
 
-         LLVMValueRef bleft = cgen_expr(bounds.left, ctx);
-         LLVMValueRef bright = cgen_expr(bounds.right, ctx);
+         LLVMValueRef bleft, bright, bkind;
+         if (type_kind(index_type) == T_ENUM) {
+            bleft  = llvm_int32(0);
+            bright = llvm_int32(type_enum_literals(index_type) - 1);
+            bkind  = llvm_int32(BOUNDS_INDEX_TO);
+         }
+         else {
+            range_t bounds = type_dim(index_type, 0);
 
-         LLVMValueRef check_kind = llvm_int32(
-            (bounds.kind == RANGE_TO) ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO);
+            bleft  = cgen_expr(bounds.left, ctx);
+            bright = cgen_expr(bounds.right, ctx);
+            bkind  = llvm_int32((bounds.kind == RANGE_TO)
+                                ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO);
+         }
 
-         cgen_check_bounds(r.left, check_kind, left, bleft, bright, ctx);
-         cgen_check_bounds(r.right, check_kind, right, bleft, bright, ctx);
+         cgen_check_bounds(r.left, bkind, left, bleft, bright, ctx);
+         cgen_check_bounds(r.right, bkind, right, bleft, bright, ctx);
 
          LLVMValueRef diff =
             LLVMBuildSelect(builder, downto,

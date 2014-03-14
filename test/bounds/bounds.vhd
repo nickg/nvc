@@ -71,7 +71,7 @@ begin
         variable a : my_vec1(1 to 3);
     begin
         a := (1, 2, 3);                 -- OK
-        a := (5 => 1, 1 => 2, 0 => 3);  -- Error
+        a := (2 => 1, 1 => 2, 0 => 3);  -- Error
     end process;
 
     process is

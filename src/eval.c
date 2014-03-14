@@ -122,17 +122,23 @@ static bool folded_agg(tree_t t)
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
-         int64_t dummy;
+         int64_t dummy1;
+         unsigned dummy2;
          switch (tree_subkind(a)) {
          case A_NAMED:
-            if (!folded_int(tree_name(a), &dummy))
-               return false;
+            {
+               tree_t name = tree_name(a);
+               if (!folded_int(name, &dummy1) && !folded_enum(name, &dummy2))
+                  return false;
+            }
             break;
          case A_RANGE:
             {
                range_t r = tree_range(a);
-               if (!folded_int(r.left, &dummy)
-                   || !folded_int(r.right, &dummy))
+               if ((!folded_int(r.left, &dummy1)
+                    && !folded_enum(r.left, &dummy2))
+                   || (!folded_int(r.right, &dummy1)
+                       && !folded_enum(r.right, &dummy2)))
                   return false;
             }
             break;
