@@ -24,9 +24,8 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#define MAX_BUILTIN_ARGS 2
-#define VTABLE_SZ        16
-#define MAX_ITERS        1000
+#define VTABLE_SZ 16
+#define MAX_ITERS 1000
 
 static ident_t std_bool_i;
 static ident_t builtin_i;
@@ -250,7 +249,7 @@ static tree_t eval_fcall_real(tree_t t, ident_t builtin, double *args)
       return t;
 }
 
-static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
+static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args, int n)
 {
    if (icmp(builtin, "mul"))
       return get_int_lit(t, args[0] * args[1]);
@@ -301,6 +300,40 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args)
       return get_int_lit(t, args[0] + 1);
    else if (icmp(builtin, "pred"))
       return get_int_lit(t, args[0] - 1);
+   else if (icmp(builtin, "min")) {
+      assert(n > 0);
+      int64_t r = args[0];
+      for (int i = 1; i < n; i++)
+         r = MIN(r, args[i]);
+      return get_int_lit(t, r);
+   }
+   else if (icmp(builtin, "max")) {
+      assert(n > 0);
+      int64_t r = args[0];
+      for (int i = 1; i < n; i++)
+         r = MAX(r, args[i]);
+      return get_int_lit(t, r);
+   }
+   else
+      return t;
+}
+
+static tree_t eval_fcall_enum(tree_t t, ident_t builtin, unsigned *args, int n)
+{
+   if (icmp(builtin, "min")) {
+      assert(n > 0);
+      unsigned r = args[0];
+      for (int i = 1; i < n; i++)
+         r = MIN(r, args[i]);
+      return get_int_lit(t, r);
+   }
+   else if (icmp(builtin, "max")) {
+      assert(n > 0);
+      unsigned r = args[0];
+      for (int i = 1; i < n; i++)
+         r = MAX(r, args[i]);
+      return get_int_lit(t, r);
+   }
    else
       return t;
 }
@@ -467,10 +500,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    }
 
    const int nparams = tree_params(t);
-   if (nparams > MAX_BUILTIN_ARGS)
-      return t;
 
-   tree_t targs[MAX_BUILTIN_ARGS];
+   tree_t targs[nparams];
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
       targs[i] = eval_expr(tree_value(p), v);
@@ -484,24 +515,29 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    bool can_fold_log  = true;
    bool can_fold_agg  = true;
    bool can_fold_real = true;
-   int64_t iargs[MAX_BUILTIN_ARGS];
-   double rargs[MAX_BUILTIN_ARGS];
-   bool bargs[MAX_BUILTIN_ARGS];
+   bool can_fold_enum = true;
+   int64_t iargs[nparams];
+   double rargs[nparams];
+   bool bargs[nparams];
+   unsigned eargs[nparams];
    for (int i = 0; i < nparams; i++) {
       can_fold_int  = can_fold_int && folded_int(targs[i], &iargs[i]);
       can_fold_log  = can_fold_log && folded_bool(targs[i], &bargs[i]);
       can_fold_agg  = can_fold_agg && folded_agg(targs[i]);
       can_fold_real = can_fold_real && folded_real(targs[i], &rargs[i]);
+      can_fold_enum = can_fold_enum && folded_enum(targs[i], &eargs[i]);
    }
 
    if (can_fold_int)
-      return eval_fcall_int(t, builtin, iargs);
+      return eval_fcall_int(t, builtin, iargs, nparams);
    else if (can_fold_log)
       return eval_fcall_log(t, builtin, bargs);
    else if (can_fold_agg)
       return eval_fcall_agg(t, builtin);
    else if (can_fold_real)
       return eval_fcall_real(t, builtin, rargs);
+   else if (can_fold_enum)
+      return eval_fcall_enum(t, builtin, eargs, nparams);
    else
       return t;
 }

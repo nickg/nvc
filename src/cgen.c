@@ -2303,6 +2303,20 @@ static LLVMValueRef cgen_attr_value(tree_t t, LLVMValueRef arg, type_t arg_type,
    return value;
 }
 
+static LLVMValueRef cgen_min_max(LLVMValueRef *values, int n,
+                                 type_t type, pred_t pred)
+{
+   assert(n > 0);
+   LLVMValueRef result = values[0];
+
+   for (int i = 1; i < n; i++) {
+      LLVMValueRef cmp = cgen_pred(type, pred, values[i], result);
+      result = LLVMBuildSelect(builder, cmp, values[i], result, "");
+   }
+
+   return result;
+}
+
 static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
 {
    tree_t decl = tree_ref(t);
@@ -2714,6 +2728,10 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_attr_value(t, args[0], arg_types[0], ctx);
       else if (icmp(builtin, "identity"))
          return args[0];
+      else if (icmp(builtin, "min"))
+         return cgen_min_max(args, nargs, rtype, PRED_LT);
+      else if (icmp(builtin, "max"))
+         return cgen_min_max(args, nargs, rtype, PRED_GT);
       else
          fatal("cannot generate code for builtin %s", istr(builtin));
    }

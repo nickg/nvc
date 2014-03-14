@@ -3815,6 +3815,16 @@ static bool sem_check_literal(tree_t t)
    return true;
 }
 
+static void sem_add_param(tree_t call, tree_t value)
+{
+   tree_t p = tree_new(T_PARAM);
+   tree_set_loc(p, tree_loc(value));
+   tree_set_subkind(p, P_POS);
+   tree_set_value(p, value);
+
+   tree_add_param(call, p);
+}
+
 static bool sem_check_uarray_aggregate(tree_t t, type_t type,
                                        int dim, int *n_elems)
 {
@@ -4134,8 +4144,44 @@ static bool sem_check_aggregate(tree_t t)
       // The direction is determined by the context
       range_kind_t dir = type_dim(composite_type, 0).kind;
 
-      tree_t low = call_builtin("agg_low", index_type, t, NULL);
-      tree_t high = call_builtin("agg_high", index_type, t, NULL);
+      tree_t low  = call_builtin("min", index_type, NULL);
+      tree_t high = call_builtin("max", index_type, NULL);
+
+      tree_set_loc(low, tree_loc(t));
+      tree_set_loc(high, tree_loc(t));
+
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         switch (tree_subkind(a)) {
+         case A_NAMED:
+            {
+               tree_t name = tree_name(a);
+               sem_add_param(low, name);
+               sem_add_param(high, name);
+            }
+            break;
+
+         case A_RANGE:
+            {
+               range_t r = tree_range(a);
+               if (r.kind == RANGE_TO) {
+                  sem_add_param(low, r.left);
+                  sem_add_param(high, r.right);
+               }
+               else if (r.kind == RANGE_DOWNTO) {
+                  sem_add_param(low, r.right);
+                  sem_add_param(high, r.left);
+               }
+               else {
+                  sem_add_param(low, r.right);
+                  sem_add_param(low, r.left);
+                  sem_add_param(high, r.right);
+                  sem_add_param(high, r.left);
+               }
+            }
+            break;
+         }
+      }
 
       range_t r = {
          .kind  = dir,
