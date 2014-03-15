@@ -1,4 +1,4 @@
-# Synopsis
+## Synopsis
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-1993 compliance. See
 these [blog posts](http://www.doof.me.uk/category/vhdl/) for background information.
@@ -13,7 +13,7 @@ The full manual can be read after installing NVC using `man nvc`.
 
 Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues).
 
-# Installing
+## Installing
 
 NVC is developped on Debian Linux and has been reported to work on OS X
 and Windows under Cygwin. Ports to other Unix-like systems are welcome.
@@ -39,25 +39,25 @@ should be at least 2.5.
 If a readline-compatible library is installed it will be used to provide
 line editing in the interactive mode.
 
-## Debian and Ubuntu
+### Debian and Ubuntu
 
 TODO
 
-## Mac OS X
+### Mac OS X
 
 TODO
 
-## Windows
+### Windows
 
 Windows support is via [Cygwin](http://www.cygwin.com/).
 
 TODO: dependencies
 
-## OpenBSD
+### OpenBSD
 
 TODO
 
-## IEEE Libraries
+### IEEE Libraries
 
 Due to copyright restrictions the IEEE library source files cannot be freely
 redistributed and must be downloaded from an external source prior to building. See
@@ -70,7 +70,7 @@ To recompile the standard libraries:
 
 Note this happens automatically when installing.
 
-## Testing
+### Testing
 
 To run the regression tests:
 
@@ -82,7 +82,7 @@ You may need to install additional Ruby libraries:
 
     gem install colorize getopt
 
-# Vendor Libraries
+## Vendor Libraries
 
 NVC provides scripts to compile the simulation libraries of common FPGA vendors. Use
 `./tools/build-xilinx.rb` for Xilinx ISE and `./tools/build-altera.rb` for Altera
