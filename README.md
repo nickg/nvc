@@ -7,17 +7,17 @@ NVC is developped on Debian Linux and has been reported to work on OS X
 and Windows under Cygwin. Ports to other Unix-like systems are welcome.
 
 To build from a Git clone:
-  ./autogen.sh
-  mkdir build && cd build
-  ../configure
-  make
-  make install
+
+    ./autogen.sh
+    mkdir build && cd build
+    ../configure
+    make
+    make install
 
 Generating the configure script requires autoconf and automake
 version 1.12 or later.
 
-To use a specific version of LLVM add
-  --with-llvm=/path/to/llvm-config
+To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command. LLVM 3.0 or later is required.
 
 NVC also depends on flex and bison to generate the parser. The bison
@@ -27,18 +27,23 @@ If a readline-compatible library is installed it will be used to provide
 line editing in the interactive mode.
 
 To run the regression tests:
-  make check
+
+    make check
+
 The unit tests require the 'check' library:
   http://check.sourceforge.net
 Note you may need to install additional Ruby libraries:
-  gem install colorize getopt
+
+    gem install colorize getopt
 
 To recompile the standard libraries:
-  make -C lib clean
-  make bootstrap
+
+    make -C lib clean
+    make bootstrap
+
 Note this happens automatically when installing.
 
-See lib/ieee/README for details on building the IEEE libraries.
+See `lib/ieee/README` for details on building the IEEE libraries.
 
 Report bugs using the GitHub issue tracker:
   https://github.com/nickg/nvc/issues
