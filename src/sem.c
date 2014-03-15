@@ -60,7 +60,7 @@ struct loop_stack {
    ident_t       name;
 };
 
-#define MAX_OVERLOADS 128
+#define MAX_OVERLOADS 256
 
 struct type_set {
    type_t     *members;
