@@ -1,7 +1,10 @@
 ### Synopsis
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-1993 compliance. See
-these [blog posts](http://www.doof.me.uk/category/vhdl/) for background information.
+these [blog posts](http://www.doof.me.uk/category/vhdl/) for background
+information. NVC should not be considered a production quality tool and language
+support is lacking in many areas. However it has been successfully used to simulate
+several real-world designs.
 
 Brief usage example:
 
@@ -9,7 +12,8 @@ Brief usage example:
     $ nvc -e my_tb
     $ nvc -r my_tb
 
-The full manual can be read after installing NVC using `man nvc`.
+The full manual can be read after installing NVC using `man nvc` or
+[online](nvc.1.md).
 
 Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues).
 
@@ -41,7 +45,11 @@ line editing in the interactive mode.
 
 #### Debian and Ubuntu
 
-TODO
+On a Debian derivative the following should be sufficient to install all required
+dependencies:
+
+    sudo apt-get install build-essential automake autoconf flex bison \
+        libreadline-dev tcl-dev check llvm-dev
 
 #### Mac OS X
 
@@ -76,7 +84,7 @@ To run the regression tests:
 
     make check
 
-The unit tests require the ['check'](http://check.sourceforge.net) library.
+The unit tests require the [check](http://check.sourceforge.net) library.
 
 You may need to install additional Ruby libraries:
 
