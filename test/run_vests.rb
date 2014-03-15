@@ -12,6 +12,8 @@ LibPath = "#{BuildDir}/lib/std:#{BuildDir}/lib/ieee"
 VestsDir = "#{TestDir}/vests"
 Prefix = "#{VestsDir}/vhdl-93"
 GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
+Tool = 'nvc'
+Billowitch = "#{Prefix}/billowitch/compliant"
 
 unless Dir.exists? VestsDir
   puts "VESTs source missing from #{VestsDir}"
@@ -28,23 +30,25 @@ passes = 0
 # Billowitch, compliant
 #
 
-Dir.chdir "#{Prefix}/billowitch/compliant"
+Dir.chdir Billowitch
 
 system 'rm -r work'
 
 Dir.foreach('.') do |item|
   next unless item =~ /\.vhdl?$/
 
-  cmd = "nvc -a #{item}"
-  puts cmd
+  cmd = "#{Tool} -a #{item}"
   if system cmd then
     # TODO: elaborate, run
     passes += 1
+    print '+'.green
   else
     fails += 1
+    puts "Failed #{Billowitch}/#{item}"
   end
 end
 
+puts
 puts "#{passes} passes"
 puts "#{fails} failures"
 
