@@ -71,7 +71,7 @@ begin
         variable a : my_vec1(1 to 3);
     begin
         a := (1, 2, 3);                 -- OK
-        a := (2 => 1, 1 => 2, 0 => 3);  -- Error
+        a := (5 => 1, 1 => 2, 0 => 3);  -- Error
     end process;
 
     process is
@@ -98,6 +98,22 @@ begin
         subtype str is string;
         constant c : str := "hello";    -- OK
     begin
+    end process;
+
+    process is
+        variable a : my_vec1(1 to 3);
+    begin
+        a := (1, others => 2);          -- OK
+        a := (5 => 1, others => 2);     -- Error
+    end process;
+
+    process is
+        type mat2d is array (integer range <>, integer range <>)
+            of integer;
+
+        procedure p(m : in mat2d);
+    begin
+        p(((0, 1, 2, 3), (1 to 2 => 5)));  -- Error
     end process;
 
 end architecture;

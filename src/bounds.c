@@ -273,7 +273,9 @@ static void bounds_check_aggregate(tree_t t)
 
    range_t type_r = type_dim(type, 0);
 
-   if (tree_attr_int(t, unconstrained_i, 0)) {
+   const bool unconstrained = tree_attr_int(t, unconstrained_i, 0);
+
+   if (unconstrained) {
       // Aggregate of unconstrained array type
       type_t base = type_base_recur(type);
       assert(type_kind(base) == T_UARRAY);
@@ -332,11 +334,35 @@ static void bounds_check_aggregate(tree_t t)
 
    // Check the actual against the expected element count
 
-   if ((type_dims(type) == 1) && known_elem_count) {
+   const int ndims = type_dims(type);
+
+   if ((ndims == 1) && known_elem_count) {
       int64_t expect;
       if (folded_length(type_dim(type, 0), &expect) && (expect != nelems))
          bounds_error(t, "expected %"PRIi64" elements in aggregate but have %d",
                       expect, nelems);
+   }
+
+   // Check each sub-aggregate has the same length for an unconstrained
+   // array aggregate
+
+   if ((ndims > 1) && unconstrained) {
+      int64_t length = -1;
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         type_t value_type = tree_type(tree_value(a));
+
+         int64_t this_length;
+         if (!folded_length(type_dim(value_type, 0), &this_length))
+             break;
+
+         if (length == -1)
+            length = this_length;
+         else if (length != this_length)
+            bounds_error(a, "length of sub-aggregate %"PRIi64" does not match "
+                         "expected length %"PRIi64,
+                         this_length, length);
+      }
    }
 }
 
