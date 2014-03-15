@@ -211,3 +211,22 @@ begin
         assert pack5."and"(1, 2);       -- OK
     end process;
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package pack6 is
+    component bar is
+    end component;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack6.all;
+
+architecture a6 of bar is
+begin
+    process is
+    begin
+        report bar'path_name;           -- OK (references entity)
+    end process;
+end architecture;

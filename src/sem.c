@@ -2533,6 +2533,8 @@ static bool sem_check_arch(tree_t t)
 
    bool ok = sem_check_context(e) && sem_check_context(t);
 
+   scope_push(NULL);
+
    sem_add_attributes(t);
 
    // Make the architecture and entity name visible
@@ -2571,6 +2573,7 @@ static bool sem_check_arch(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
+   scope_pop();
    scope_pop();
    scope_pop();
 
