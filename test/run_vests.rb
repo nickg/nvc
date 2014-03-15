@@ -4,6 +4,7 @@ require 'rubygems'
 require 'pathname'
 require 'colorize'
 require 'timeout'
+require 'fileutils'
 require 'getopt/std'
 
 TestDir = Pathname.new(__FILE__).realpath.dirname
@@ -32,10 +33,10 @@ passes = 0
 
 Dir.chdir Billowitch
 
-system 'rm -r work'
-
 Dir.foreach('.') do |item|
   next unless item =~ /\.vhdl?$/
+
+  FileUtils.rm_rf 'work'
 
   cmd = "#{Tool} -a #{item}"
   if system cmd then

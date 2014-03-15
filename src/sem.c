@@ -60,8 +60,6 @@ struct loop_stack {
    ident_t       name;
 };
 
-#define MAX_OVERLOADS 256
-
 struct type_set {
    type_t     *members;
    unsigned    n_members;
@@ -99,6 +97,8 @@ static ident_t       std_standard_i;
 static ident_t       formal_i;
 static ident_t       locally_static_i;
 static ident_t       elab_copy_i;
+
+#define MAX_OVERLOADS 128
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
