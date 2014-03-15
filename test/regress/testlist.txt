@@ -213,3 +213,4 @@ record10        normal
 real2           normal
 issue45         normal,gold
 for2            normal,gold
+issue57         normal

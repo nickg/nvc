@@ -58,6 +58,7 @@ static ident_t nest_offset_i;
 static ident_t nest_parent_i;
 static ident_t returned_i;
 static ident_t static_i;
+static ident_t deferred_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -1186,6 +1187,9 @@ static LLVMValueRef cgen_get_var(tree_t decl, cgen_ctx_t *ctx)
       LLVMTypeRef lltype = llvm_type(type);
       var = LLVMAddGlobal(module, lltype, name);
       LLVMSetLinkage(var, LLVMExternalLinkage);
+
+      if (type_is_array(type) && !cgen_const_bounds(type))
+         var = LLVMBuildLoad(builder, var, "meta");
    }
 
    tree_add_attr_ptr(decl, local_var_i, var);
@@ -5600,7 +5604,7 @@ static void cgen_proc_body(tree_t t, tree_t parent)
 
 static void cgen_global_const(tree_t t)
 {
-   if (tree_has_value(t)) {
+   if (tree_has_value(t) && !tree_attr_int(t, deferred_i, 0)) {
       tree_t value = tree_value(t);
       type_t type = tree_type(value);
 
@@ -6372,6 +6376,7 @@ void cgen(tree_t top)
    sub_cond_i     = ident_new("sub_cond");
    returned_i     = ident_new("returned");
    static_i       = ident_new("static");
+   deferred_i     = ident_new("deferred");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

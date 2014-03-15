@@ -1810,9 +1810,13 @@ static bool sem_check_decl(tree_t t)
 
    tree_kind_t kind = tree_kind(t);
 
-   if (!tree_has_value(t) && (kind == T_CONST_DECL) && !top_scope->is_package)
-      sem_error(t, "deferred constant declarations are only permitted "
-                "in packages");
+   if (!tree_has_value(t) && (kind == T_CONST_DECL)) {
+      if (!top_scope->is_package)
+         sem_error(t, "deferred constant declarations are only permitted "
+                   "in packages");
+      else
+         tree_add_attr_int(t, ident_new("deferred"), 1);
+   }
 
    if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
