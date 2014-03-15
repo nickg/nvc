@@ -29,20 +29,30 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-typedef struct scope      scope_t;
-typedef struct loop_stack loop_stack_t;
-typedef struct type_set   type_set_t;
+typedef struct scope       scope_t;
+typedef struct loop_stack  loop_stack_t;
+typedef struct type_set    type_set_t;
+typedef struct defer_check defer_check_t;
+
+typedef bool (*defer_fn_t)(tree_t t);
+
+struct defer_check {
+   defer_check_t *next;
+   defer_fn_t     fn;
+   tree_t         arg;
+};
 
 struct scope {
-   scope_t      *down;
+   scope_t       *down;
 
-   hash_t       *decls;
-   tree_t        subprog;
+   defer_check_t *deferred;
+   hash_t        *decls;
+   tree_t         subprog;
 
    // For design unit scopes
-   ident_t       prefix;
-   ident_list_t *imported;
-   bool          is_package;
+   ident_t        prefix;
+   ident_list_t  *imported;
+   bool           is_package;
 };
 
 struct loop_stack {
@@ -105,6 +115,7 @@ static void scope_push(ident_t prefix)
    s->down       = top_scope;
    s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
    s->is_package = false;
+   s->deferred   = NULL;
 
    top_scope = s;
 }
@@ -112,6 +123,7 @@ static void scope_push(ident_t prefix)
 static void scope_pop(void)
 {
    assert(top_scope != NULL);
+   assert(top_scope->deferred == NULL);
 
    ident_list_free(top_scope->imported);
    hash_free(top_scope->decls);
@@ -119,6 +131,43 @@ static void scope_pop(void)
    scope_t *s = top_scope;
    top_scope = s->down;
    free(s);
+}
+
+static void scope_defer_check(defer_fn_t fn, tree_t arg)
+{
+   assert(top_scope != NULL);
+
+   defer_check_t *d = xmalloc(sizeof(defer_check_t));
+   d->next = NULL;
+   d->fn   = fn;
+   d->arg  = arg;
+
+   if (top_scope->deferred == NULL)
+      top_scope->deferred = d;
+   else {
+      defer_check_t *where = top_scope->deferred;
+      while (where->next != NULL)
+         where = where->next;
+      where->next = d;
+   }
+}
+
+static bool scope_run_deferred_checks(void)
+{
+   assert(top_scope != NULL);
+
+   bool result = true;
+   defer_check_t *it = top_scope->deferred;
+   while (it != NULL) {
+      defer_check_t *tmp = it->next;
+      result = (*it->fn)(it->arg) && result;
+      free(it);
+      it = tmp;
+   }
+
+   top_scope->deferred = NULL;
+
+   return result;
 }
 
 static void scope_apply_prefix(tree_t t)
@@ -2574,7 +2623,9 @@ static bool sem_check_arch(tree_t t)
    for (int n = 0; n < ndecls; n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   ok = ok
+      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
+      && scope_run_deferred_checks();
 
    scope_pop();
    scope_pop();
@@ -5670,6 +5721,49 @@ static bool sem_check_all(tree_t t)
    return true;
 }
 
+static bool sem_check_spec(tree_t t)
+{
+   ident_t iname = tree_ident(t);
+   ident_t cname = tree_ident2(t);
+
+   tree_t inst = scope_find(iname);
+   if (inst == NULL)
+      sem_error(t, "instance %s not found", istr(iname));
+   else if (tree_kind(inst) != T_INSTANCE)
+      sem_error(t, "object %s is not an instance", istr(iname));
+
+   tree_t comp = scope_find(cname);
+   if (comp == NULL)
+      sem_error(t, "component %s not found", istr(cname));
+   else if (tree_kind(comp) != T_COMPONENT)
+      sem_error(t, "object %s is not a component declaration", istr(cname));
+
+   if (tree_class(inst) != C_COMPONENT)
+      sem_error(t, "specification may only be used with component instances");
+
+   if (tree_ref(inst) != comp)
+      sem_error(t, "component mismatch for instance %s: expected %s but "
+                "specification has %s", istr(iname),
+                istr(tree_ident(tree_ref(inst))), istr(cname));
+
+   // TODO: set_ref of instance to specification
+
+   return sem_check(tree_value(t));
+}
+
+static bool sem_check_binding(tree_t t)
+{
+   if (tree_params(t) > 0)
+      sem_error(t, "sorry, bindings with port maps are not yet supported");
+
+   if (tree_genmaps(t) > 0)
+      sem_error(t, "sorry, bindings with generic maps are not yet supported");
+
+   // TODO: find the referenced design unit
+
+   return true;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -5799,6 +5893,11 @@ bool sem_check(tree_t t)
       return sem_check_use_clause(t);
    case T_TYPE_CONV:
       return sem_check_conversion(t);
+   case T_SPEC:
+      scope_defer_check(sem_check_spec, t);
+      return true;
+   case T_BINDING:
+      return sem_check_binding(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
