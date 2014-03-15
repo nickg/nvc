@@ -2623,9 +2623,9 @@ static bool sem_check_arch(tree_t t)
    for (int n = 0; n < ndecls; n++)
       ok = sem_check(tree_decl(t, n)) && ok;
 
-   ok = ok
-      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
-      && scope_run_deferred_checks();
+   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   ok = scope_run_deferred_checks() && ok;
 
    scope_pop();
    scope_pop();
@@ -5408,9 +5408,9 @@ static bool sem_check_block(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok
-      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
-      && scope_run_deferred_checks();
+   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   ok = scope_run_deferred_checks() && ok;
 
    scope_pop();
    return ok;
@@ -5544,9 +5544,9 @@ static bool sem_check_if_generate(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok
-      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
-      && scope_run_deferred_checks();
+   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   ok = scope_run_deferred_checks() && ok;
 
    scope_pop();
    return ok;
@@ -5580,9 +5580,9 @@ static bool sem_check_for_generate(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok
-      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
-      && scope_run_deferred_checks();
+   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   ok = scope_run_deferred_checks() && ok;
 
    tree_add_decl(t, idecl);
 
@@ -5746,6 +5746,9 @@ static bool sem_check_spec(tree_t t)
 
    if (tree_class(inst) != C_COMPONENT)
       sem_error(t, "specification may only be used with component instances");
+
+   if (!tree_has_ref(inst))
+      return false;
 
    if (tree_ref(inst) != comp)
       sem_error(t, "component mismatch for instance %s: expected %s but "

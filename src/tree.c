@@ -1012,6 +1012,11 @@ tree_t tree_ref(tree_t t)
    return item->tree;
 }
 
+bool tree_has_ref(tree_t t)
+{
+   return lookup_item(t, I_REF)->tree != NULL;
+}
+
 void tree_set_ref(tree_t t, tree_t decl)
 {
    lookup_item(t, I_REF)->tree = decl;

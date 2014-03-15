@@ -231,6 +231,7 @@ tree_t tree_target(tree_t t);
 void tree_set_target(tree_t t, tree_t lhs);
 
 tree_t tree_ref(tree_t t);
+bool tree_has_ref(tree_t t);
 void tree_set_ref(tree_t t, tree_t decl);
 
 unsigned tree_contexts(tree_t t);
