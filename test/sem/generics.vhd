@@ -89,6 +89,11 @@ architecture a of static is
         generic (
             x : bit_vector(2 downto 0) );
     end component;
+
+    component d is
+        generic (
+            t : time );
+    end component;
 begin
 
     i1: entity work.bot
@@ -102,5 +107,8 @@ begin
 
     i3: component c
         generic map ( x => "00" & sx );  -- Error
+
+    i4: component d
+        generic map ( t => 100 ns );    -- OK
 
 end architecture;

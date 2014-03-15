@@ -723,7 +723,7 @@ START_TEST(test_generics)
       {  48, "undefined identifier X" },
       {  58, "invalid object class for generic" },
       {  68, "undefined identifier Y" },
-      { 104, "actual must be globally static expression or locally " },
+      { 109, "actual must be globally static expression or locally " },
       { -1, NULL }
    };
    expect_errors(expect);

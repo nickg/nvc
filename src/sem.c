@@ -5111,7 +5111,7 @@ static bool sem_globally_static(tree_t t)
 
    // A literal of type TIME
 
-   if (kind == T_LITERAL) {
+   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_UNIT_DECL)) {
       type_t std_time = sem_std_type("TIME");
       if (type_eq(type, std_time))
          return true;
