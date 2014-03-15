@@ -29,8 +29,12 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+typedef struct scope      scope_t;
+typedef struct loop_stack loop_stack_t;
+typedef struct type_set   type_set_t;
+
 struct scope {
-   struct scope *down;
+   scope_t      *down;
 
    hash_t       *decls;
    tree_t        subprog;
@@ -42,18 +46,17 @@ struct scope {
 };
 
 struct loop_stack {
-   struct loop_stack *up;
-   ident_t            name;
+   loop_stack_t *up;
+   ident_t       name;
 };
 
 #define MAX_OVERLOADS 128
 
 struct type_set {
-   type_t   *members;
-   unsigned  n_members;
-   unsigned  alloc;
-
-   struct type_set *down;
+   type_t     *members;
+   unsigned    n_members;
+   unsigned    alloc;
+   type_set_t *down;
 };
 
 typedef struct {
@@ -77,15 +80,15 @@ static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
 static unsigned sem_array_dimension(type_t a);
 
-static struct scope      *top_scope = NULL;
-static int                errors = 0;
-static struct type_set   *top_type_set = NULL;
-static struct loop_stack *loop_stack = NULL;
-static ident_t            builtin_i;
-static ident_t            std_standard_i;
-static ident_t            formal_i;
-static ident_t            locally_static_i;
-static ident_t            elab_copy_i;
+static scope_t      *top_scope = NULL;
+static int           errors = 0;
+static type_set_t   *top_type_set = NULL;
+static loop_stack_t *loop_stack = NULL;
+static ident_t       builtin_i;
+static ident_t       std_standard_i;
+static ident_t       formal_i;
+static ident_t       locally_static_i;
+static ident_t       elab_copy_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -95,7 +98,7 @@ static ident_t            elab_copy_i;
 
 static void scope_push(ident_t prefix)
 {
-   struct scope *s = xmalloc(sizeof(struct scope));
+   scope_t *s = xmalloc(sizeof(scope_t));
    s->decls      = hash_new(1024, false);
    s->prefix     = prefix;
    s->imported   = NULL;
@@ -113,7 +116,7 @@ static void scope_pop(void)
    ident_list_free(top_scope->imported);
    hash_free(top_scope->decls);
 
-   struct scope *s = top_scope;
+   scope_t *s = top_scope;
    top_scope = s->down;
    free(s);
 }
@@ -125,7 +128,7 @@ static void scope_apply_prefix(tree_t t)
                                      tree_ident(t), '.'));
 }
 
-static tree_t scope_find_in(ident_t i, struct scope *s, bool recur, int k)
+static tree_t scope_find_in(ident_t i, scope_t *s, bool recur, int k)
 {
    if (s == NULL)
       return NULL;
@@ -200,7 +203,7 @@ static void scope_replace(tree_t t, tree_t with)
 
 static void loop_push(ident_t name)
 {
-   struct loop_stack *ls = xmalloc(sizeof(struct loop_stack));
+   loop_stack_t *ls = xmalloc(sizeof(loop_stack_t));
    ls->up   = loop_stack;
    ls->name = name;
 
@@ -209,7 +212,7 @@ static void loop_push(ident_t name)
 
 static void loop_pop(void)
 {
-   struct loop_stack *tmp = loop_stack->up;
+   loop_stack_t *tmp = loop_stack->up;
    free(loop_stack);
    loop_stack = tmp;
 }
@@ -229,8 +232,8 @@ static const char *sem_type_minify(const char *name)
    ident_t suffix_i = ident_new(suffix + 1);
 
    int matches = 0;
-   for (struct scope *s = top_scope; s != NULL; s = s->down) {
-      for (struct ident_list *i = s->imported; i != NULL; i = i->next) {
+   for (scope_t *s = top_scope; s != NULL; s = s->down) {
+      for (ident_list_t *i = s->imported; i != NULL; i = i->next) {
          ident_t search = ident_prefix(i->ident, suffix_i, '.');
          if (scope_find_in(search, s, false, 0) != NULL)
             matches++;
@@ -249,8 +252,8 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
                               bool all, const loc_t *loc)
 {
    // Check we haven't already imported this
-   for (struct scope *s = top_scope; s != NULL; s = s->down) {
-      struct ident_list *it;
+   for (scope_t *s = top_scope; s != NULL; s = s->down) {
+      ident_list_t *it;
       for (it = s->imported; it != NULL; it = it->next) {
          if (it->ident == unit_name)
             return true;
@@ -294,7 +297,7 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
 
 static void type_set_push(void)
 {
-   struct type_set *t = xmalloc(sizeof(struct type_set));
+   type_set_t *t = xmalloc(sizeof(type_set_t));
    t->n_members = 0;
    t->alloc     = 32;
    t->members   = xmalloc(t->alloc * sizeof(type_t));
@@ -307,7 +310,7 @@ static void type_set_pop(void)
 {
    assert(top_type_set != NULL);
 
-   struct type_set *old = top_type_set;
+   type_set_t *old = top_type_set;
    top_type_set = old->down;
    free(old->members);
    free(old);
@@ -3584,7 +3587,7 @@ static type_t sem_index_type(type_t type, int dim)
 
 static bool sem_check_concat_param(tree_t t, type_t hint)
 {
-   struct type_set *old = top_type_set;
+   type_set_t *old = top_type_set;
 
    type_set_push();
 
@@ -5368,7 +5371,7 @@ static bool sem_check_loop_control(tree_t t)
 
    if (tree_has_ident2(t)) {
       ident_t label = tree_ident2(t);
-      struct loop_stack *it;
+      loop_stack_t *it;
       for (it = loop_stack; (it != NULL) && (it->name != label); it = it->up)
          ;
 
