@@ -5408,7 +5408,9 @@ static bool sem_check_block(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   ok = ok
+      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
+      && scope_run_deferred_checks();
 
    scope_pop();
    return ok;
@@ -5542,7 +5544,9 @@ static bool sem_check_if_generate(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   ok = ok
+      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
+      && scope_run_deferred_checks();
 
    scope_pop();
    return ok;
@@ -5576,7 +5580,9 @@ static bool sem_check_for_generate(tree_t t)
    for (int i = 0; i < ndecls; i++)
       ok = sem_check(tree_decl(t, i)) && ok;
 
-   ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+   ok = ok
+      && sem_check_stmts(t, tree_stmt, tree_stmts(t))
+      && scope_run_deferred_checks();
 
    tree_add_decl(t, idecl);
 
