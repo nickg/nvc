@@ -1482,7 +1482,9 @@ static bool sem_check_type_decl(tree_t t)
    if (!sem_check_subtype(t, type, &base))
       return false;
 
-   switch (type_kind(type)) {
+   type_kind_t kind = type_kind(type);
+
+   switch (kind) {
    case T_CARRAY:
    case T_UARRAY:
       {
@@ -1497,11 +1499,12 @@ static bool sem_check_type_decl(tree_t t)
          type_set_elem(base, elem_type);
       }
       break;
+
    default:
       break;
    }
 
-   switch (type_kind(type)) {
+   switch (kind) {
    case T_CARRAY:
       {
          if (!sem_check_array_dims(base, NULL))
@@ -1528,6 +1531,8 @@ static bool sem_check_type_decl(tree_t t)
 
    case T_PHYSICAL:
       {
+         sem_declare_predefined_ops(t);
+
          // Check the units
          const int nunits = type_units(type);
          for (int i = 0; i < nunits; i++) {
@@ -1540,7 +1545,8 @@ static bool sem_check_type_decl(tree_t t)
    case T_INTEGER:
    case T_REAL:
       {
-         sem_declare_predefined_ops(t);
+         if (kind != T_PHYSICAL)
+            sem_declare_predefined_ops(t);
 
          range_t r = type_dim(type, 0);
 
