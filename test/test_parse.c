@@ -1130,7 +1130,7 @@ START_TEST(test_array)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_decls(a) == 8);
+   fail_unless(tree_decls(a) == 9);
 
    d = tree_decl(a, 0);
    fail_unless(tree_ident(d) == ident_new("X"));
@@ -1208,6 +1208,10 @@ START_TEST(test_array)
 
    d = tree_decl(a, 7);
    fail_unless(tree_ident(d) == ident_new("U"));
+   fail_unless(tree_assocs(tree_value(d)) == 4);
+
+   d = tree_decl(a, 8);
+   fail_unless(tree_ident(d) == ident_new("V"));
    fail_unless(tree_assocs(tree_value(d)) == 4);
 
    p = tree_stmt(a, 0);

@@ -22,6 +22,7 @@ architecture a of e is
     signal c : char_counts;
     signal t : two_d;
     signal u : ten_ints := ( 1 | 2 | 3 => 4, others => 2);
+    signal v : ten_ints := ( 1 ! 2 ! 3 => 4, others => 2);
 begin
 
     process is

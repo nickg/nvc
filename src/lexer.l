@@ -313,6 +313,7 @@ LITERAL       {L}{I}{T}{E}{R}{A}{L}
 "."          { TOKEN(tDOT); }
 "&"          { TOKEN(tAMP); }
 "|"          { TOKEN(tBAR); }
+"!"          { TOKEN(tBAR); }
 "["          { TOKEN(tLSQUARE); }
 "]"          { TOKEN(tRSQUARE); }
 {INT}        { return parse_int(yytext); }
