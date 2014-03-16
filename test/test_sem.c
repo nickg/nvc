@@ -1486,6 +1486,29 @@ START_TEST(test_spec)
 }
 END_TEST
 
+START_TEST(test_issue53)
+{
+   tree_t a, e;
+
+   input_from_file(TESTDIR "/sem/issue53.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1526,6 +1549,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue52);
    tcase_add_test(tc_core, test_issue58);
    tcase_add_test(tc_core, test_spec);
+   tcase_add_test(tc_core, test_issue53);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

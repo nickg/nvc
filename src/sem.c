@@ -2568,10 +2568,19 @@ static bool sem_check_entity(tree_t t)
 
    if (ok) {
       const int ndecls = tree_decls(t);
+      const int nstmts = tree_stmts(t);
+
+      if ((ndecls > 0) || (nstmts > 0)) {
+         // Make ports visible in this region
+         const int nports = tree_ports(t);
+         for (int i = 0; i < nports; i++)
+            scope_insert(tree_port(t, i));
+      }
+
       for (int n = 0; n < ndecls; n++)
          ok = sem_check(tree_decl(t, n)) && ok;
 
-      ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+      ok = ok && sem_check_stmts(t, tree_stmt, nstmts);
    }
 
    scope_pop();
