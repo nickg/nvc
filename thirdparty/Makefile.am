@@ -8,6 +8,6 @@ AM_CFLAGS  = $(PTHREAD_CFLAFGS)
 AM_LDFLAGS = $(PTHREAD_LIBS)
 endif
 
-libfst_a_SOURCES = fstapi.c
+libfst_a_SOURCES = fstapi.c lz4.c
 
 libfastlz_a_SOURCES = fastlz.c
