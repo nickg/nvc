@@ -92,6 +92,7 @@ You may need to install additional Ruby libraries:
 
 ### Vendor Libraries
 
-NVC provides scripts to compile the simulation libraries of common FPGA vendors. Use
-`./tools/build-xilinx.rb` for Xilinx ISE and `./tools/build-altera.rb` for Altera
-Quartus. The libraries will be installed under `~/.nvc/lib`.
+NVC provides scripts to compile the simulation libraries of common FPGA vendors.
+ * For Xilinx ISE use `./tools/build-xilinx.rb`
+ * For Altera Quartus use `./tools/build-altera.rb`
+The libraries will be installed under `~/.nvc/lib`.
