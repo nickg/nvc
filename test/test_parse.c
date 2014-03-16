@@ -1548,6 +1548,9 @@ START_TEST(test_based)
    d = tree_decl(p, 5);
    fail_unless(tree_ival(tree_value(d)) == 2);
 
+   d = tree_decl(p, 6);
+   fail_unless(tree_ival(tree_value(d)) == 2);
+
    p = parse();
    fail_unless(p == NULL);
 

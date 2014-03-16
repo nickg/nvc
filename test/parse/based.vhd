@@ -6,5 +6,6 @@ package p is
     constant d : integer := 10#1234#;
     constant e : integer := 16#beef01#;
     constant f : integer := 2#1_0#;
-    
+    constant g : integer := 2:1_0:;
+
 end package;

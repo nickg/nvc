@@ -68,7 +68,7 @@ DIGITS     [0-9][0-9_]*
 INT        {DIGITS}{EXPONENT}?
 REAL       {INT}\.{INT}
 EXPONENT   [Ee][+-]?{DIGITS}
-BASED_INT  {INT}#[0-9a-fA-f][0-9a-fA-f_]*#
+BASED_INT  {INT}[#:][0-9a-fA-f][0-9a-fA-f_]*[#:]
 SPACE      [ \t\r\n]+
 TICK       \'
 
@@ -423,12 +423,15 @@ static int parse_based_int(const char *str)
    char *tmp = strdup(str);
    strip_underscores(tmp);
 
-   char *base  = strtok(tmp, "#");
-   char *value = strtok(NULL, "#");
+   char *base  = strtok(tmp, "#:");
+   char *value = strtok(NULL, "#:");
+
+   char btok = str[value - tmp - 1];
+   char etok = str[strlen(str) - 1];
 
    char *eptr = NULL;
    yylval.n = strtol(value, &eptr, atoi(base));
-   int t = *eptr == '\0' ? tINT : tERROR;
+   int t = ((*eptr == '\0') && (btok == etok)) ? tINT : tERROR;
 
    free(tmp);
 
