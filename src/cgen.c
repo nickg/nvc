@@ -2307,26 +2307,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_name_attr(p0, tree_type(t), PATH_NAME);
       else if (icmp(builtin, "last_event"))
          return cgen_last_event(p0);
-      else if (icmp(builtin, "uarray_left"))
-         return cgen_uarray_field(p0, 0, ctx);
-      else if (icmp(builtin, "uarray_right"))
-         return cgen_uarray_field(p0, 1, ctx);
       else if (icmp(builtin, "uarray_asc"))
          return cgen_uarray_asc(p0, ctx);
-      else if (icmp(builtin, "uarray_low")) {
-         return LLVMBuildSelect(
-            builder, cgen_uarray_asc(p0, ctx),
-            cgen_uarray_field(p0, 0, ctx),
-            cgen_uarray_field(p0, 1, ctx),
-            "low");
-      }
-      else if (icmp(builtin, "uarray_high")) {
-         return LLVMBuildSelect(
-            builder, cgen_uarray_asc(p0, ctx),
-            cgen_uarray_field(p0, 1, ctx),
-            cgen_uarray_field(p0, 0, ctx),
-            "high");
-      }
       else if (icmp(builtin, "left")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
