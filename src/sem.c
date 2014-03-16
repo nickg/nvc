@@ -558,6 +558,19 @@ static tree_t sem_int_lit(type_t type, int64_t i)
 static void sem_add_dimension_attr(tree_t decl, type_t rtype, const char *name,
                                    const char *builtin)
 {
+   if (rtype == NULL) {
+      type_t dtype = tree_type(decl);
+      if (type_kind(dtype) == T_ACCESS)
+         dtype = type_access(dtype);
+
+      if (type_is_array(dtype))
+         rtype = (sem_array_dimension(dtype) > 0)
+            ? type_new(T_NONE)
+            : sem_index_type(dtype, 0);
+      else
+         rtype = dtype;
+   }
+
    ident_t length_i = ident_new(name);
    type_t std_int = sem_std_type("INTEGER");
    tree_t fn = sem_builtin_fn(length_i, rtype, builtin,
@@ -874,12 +887,11 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    if (type_is_array(t)) {
-      type_t index_type = sem_index_type(t, 0 /* XXX */);
       sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
-      sem_add_dimension_attr(decl, index_type, "LEFT", "left");
-      sem_add_dimension_attr(decl, index_type, "RIGHT", "right");
-      sem_add_dimension_attr(decl, index_type, "LOW", "low");
-      sem_add_dimension_attr(decl, index_type, "HIGH", "high");
+      sem_add_dimension_attr(decl, NULL, "LEFT", "left");
+      sem_add_dimension_attr(decl, NULL, "RIGHT", "right");
+      sem_add_dimension_attr(decl, NULL, "LOW", "low");
+      sem_add_dimension_attr(decl, NULL, "HIGH", "high");
    }
 
    switch (type_kind(type_base_recur(t))) {
@@ -1050,7 +1062,6 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
                return false;
             type_change_dim(type, i, r);
          }
-
       }
 
       if (type_has_resolution(type)) {
@@ -1699,12 +1710,11 @@ static void sem_add_attributes(tree_t decl)
       type = type_access(type);
 
    if (type_is_array(type)) {
-      type_t index_type = sem_index_type(type, 0 /* XXX */);
       sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
-      sem_add_dimension_attr(decl, index_type, "LEFT", "left");
-      sem_add_dimension_attr(decl, index_type, "RIGHT", "right");
-      sem_add_dimension_attr(decl, index_type, "LOW", "low");
-      sem_add_dimension_attr(decl, index_type, "HIGH", "high");
+      sem_add_dimension_attr(decl, NULL, "LEFT", "left");
+      sem_add_dimension_attr(decl, NULL, "RIGHT", "right");
+      sem_add_dimension_attr(decl, NULL, "LOW", "low");
+      sem_add_dimension_attr(decl, NULL, "HIGH", "high");
 
       // TODO: 'ASCENDING should also take dimension argument
       if (type_is_unconstrained(type)) {
@@ -4597,7 +4607,6 @@ static bool sem_check_attr_ref(tree_t t)
 
    if (tree_kind(a) == T_FUNC_DECL) {
       type_t ftype = tree_type(a);
-      tree_set_type(t, type_result(ftype));
 
       char *buf = xasprintf("_arg%d", tree_ports(a) - 1);
       ident_t pname = ident_new(buf);
@@ -4664,6 +4673,33 @@ static bool sem_check_attr_ref(tree_t t)
                sem_error(p, "parameter must be locally static");
          }
       }
+
+      type_t result_type = type_result(ftype);
+      if (type_kind(result_type) == T_NONE) {
+         // This is a kludge to handle the result type of 'LEFT, etc. for
+         // arrays being dependent on the dimension argument
+
+         type_t array_type = tree_type(decl);
+         if (type_kind(array_type) == T_ACCESS)
+            array_type = type_access(array_type);
+         assert(type_is_array(array_type));
+
+         ident_t arg0_i = ident_new("_arg0");
+         for (int i = 0; i < nparams; i++) {
+            tree_t p = tree_param(t, i);
+            if ((tree_subkind(p) != P_POS)
+                && (tree_ident(tree_name(p)) != arg0_i))
+               continue;
+
+            tree_t pv = tree_value(p);
+            if (tree_kind(pv) != T_LITERAL)
+               sem_error(pv, "dimension argument must be a literal");
+            else
+               result_type = sem_index_type(array_type, tree_ival(pv) - 1);
+         }
+      }
+
+      tree_set_type(t, result_type);
 
       tree_set_ref(t, a);
    }

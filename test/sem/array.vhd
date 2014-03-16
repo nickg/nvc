@@ -310,10 +310,16 @@ begin
     end process;
 
     process is
-        type barry2d is array (boolean, boolean) of integer;
+        type barry2d is array (boolean range <>, boolean range <>)
+            of integer;
         variable b : barry2d(false to true, false to true);
+        type ibarray2d is array (integer range <>, boolean range <>)
+            of integer;
+        variable ib : ibarray2d(1 to 5, false to true);
     begin
         b(barry2d'left(1), barry2d'left(2)) := 5;  -- OK
+        ib(integer'(5), boolean'(true)) := 1;      -- OK
+        ib(ibarray2d'left(1), ibarray2d'left(2)) := 5;  -- OK
     end process;
 
 end architecture;
