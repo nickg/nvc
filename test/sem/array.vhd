@@ -309,4 +309,11 @@ begin
     begin
     end process;
 
+    process is
+        type barry2d is array (boolean, boolean) of integer;
+        variable b : barry2d(false to true, false to true);
+    begin
+        b(barry2d'left(1), barry2d'left(2)) := 5;  -- OK
+    end process;
+
 end architecture;

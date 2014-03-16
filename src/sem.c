@@ -78,7 +78,7 @@ typedef void (*set_fn_t)(tree_t, tree_t);
 
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
-static bool sem_declare(tree_t decl);
+static bool sem_declare(tree_t decl, bool add_predefined);
 static bool sem_locally_static(tree_t t);
 static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
@@ -325,7 +325,7 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       if ((kind == T_ATTR_SPEC) || (kind == T_CONTEXT))
          continue;
 
-      if (!sem_declare(decl))
+      if (!sem_declare(decl, true))
          return false;
 
       // Make unqualified and package qualified names visible
@@ -555,12 +555,12 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    return f;
 }
 
-static void sem_add_dimension_attr(tree_t decl, const char *name,
+static void sem_add_dimension_attr(tree_t decl, type_t rtype, const char *name,
                                    const char *builtin)
 {
    ident_t length_i = ident_new(name);
    type_t std_int = sem_std_type("INTEGER");
-   tree_t fn = sem_builtin_fn(length_i, std_int, builtin,
+   tree_t fn = sem_builtin_fn(length_i, rtype, builtin,
                               std_int, tree_type(decl), NULL);
 
    // Dimension argument defaults to 1
@@ -874,11 +874,12 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    if (type_is_array(t)) {
-      sem_add_dimension_attr(decl, "LENGTH", "length");
-      sem_add_dimension_attr(decl, "LEFT", "left");
-      sem_add_dimension_attr(decl, "RIGHT", "right");
-      sem_add_dimension_attr(decl, "LOW", "low");
-      sem_add_dimension_attr(decl, "HIGH", "high");
+      type_t index_type = sem_index_type(t, 0 /* XXX */);
+      sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
+      sem_add_dimension_attr(decl, index_type, "LEFT", "left");
+      sem_add_dimension_attr(decl, index_type, "RIGHT", "right");
+      sem_add_dimension_attr(decl, index_type, "LOW", "low");
+      sem_add_dimension_attr(decl, index_type, "HIGH", "high");
    }
 
    switch (type_kind(type_base_recur(t))) {
@@ -1064,7 +1065,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
    return true;
 }
 
-static bool sem_declare(tree_t decl)
+static bool sem_declare(tree_t decl, bool add_predefined)
 {
    // Handle special cases of scope insertion such as enumeration
    // literals, physical unit names, and predefined types
@@ -1111,7 +1112,8 @@ static bool sem_declare(tree_t decl)
       return true;
 
    // Declare any predefined operators and attributes
-   sem_declare_predefined_ops(decl);
+   if (add_predefined)
+      sem_declare_predefined_ops(decl);
 
    // No futher processing needed for subtypes
    if (type_k == T_SUBTYPE)
@@ -1462,7 +1464,7 @@ static bool sem_check_type_decl(tree_t t)
    // the symbol table should also avoid spurious type-not-defined
    // errors later on
    scope_apply_prefix(t);
-   if (!sem_declare(t))
+   if (!sem_declare(t, false))
       return false;
 
    type_t type = tree_type(t);
@@ -1501,17 +1503,28 @@ static bool sem_check_type_decl(tree_t t)
 
    switch (type_kind(type)) {
    case T_CARRAY:
-      return sem_check_array_dims(base, NULL);
-
-   case T_UARRAY:
-      for (unsigned i = 0; i < type_index_constrs(type); i++) {
-         type_t index_type = type_index_constr(type, i);
-         if (!sem_check_type(t, &index_type))
+      {
+         if (!sem_check_array_dims(base, NULL))
             return false;
 
-         type_change_index_constr(type, i, index_type);
+         sem_declare_predefined_ops(t);
+         return true;
       }
-      return true;
+
+   case T_UARRAY:
+      {
+         const int nindex = type_index_constrs(type);
+         for (int i = 0; i < nindex; i++) {
+            type_t index_type = type_index_constr(type, i);
+            if (!sem_check_type(t, &index_type))
+               return false;
+
+            type_change_index_constr(type, i, index_type);
+         }
+
+         sem_declare_predefined_ops(t);
+         return true;
+      }
 
    case T_PHYSICAL:
       {
@@ -1527,6 +1540,8 @@ static bool sem_check_type_decl(tree_t t)
    case T_INTEGER:
    case T_REAL:
       {
+         sem_declare_predefined_ops(t);
+
          range_t r = type_dim(type, 0);
 
          if (!sem_check_constrained(r.left, type))
@@ -1582,10 +1597,16 @@ static bool sem_check_type_decl(tree_t t)
             }
          }
 
-         if (type_has_resolution(type))
-            ok = ok && sem_check_resolution(type);
+         if (!ok)
+            return false;
 
-         return ok;
+         if (type_has_resolution(type)) {
+            if (!sem_check_resolution(type))
+               return false;
+         }
+
+         sem_declare_predefined_ops(t);
+         return true;
       }
 
    case T_RECORD:
@@ -1614,6 +1635,7 @@ static bool sem_check_type_decl(tree_t t)
                          "is not allowed", istr(f_name));
          }
 
+         sem_declare_predefined_ops(t);
          return true;
       }
 
@@ -1632,6 +1654,7 @@ static bool sem_check_type_decl(tree_t t)
          if (type_kind(f) == T_FILE)
             sem_error(t, "files may not be of file type");
 
+         sem_declare_predefined_ops(t);
          return true;
       }
 
@@ -1644,10 +1667,12 @@ static bool sem_check_type_decl(tree_t t)
             return false;
          type_set_access(base, a);
 
+         sem_declare_predefined_ops(t);
          return true;
       }
 
    default:
+      sem_declare_predefined_ops(t);
       return true;
    }
 }
@@ -1668,11 +1693,12 @@ static void sem_add_attributes(tree_t decl)
       type = type_access(type);
 
    if (type_is_array(type)) {
-      sem_add_dimension_attr(decl, "LENGTH", "length");
-      sem_add_dimension_attr(decl, "LEFT", "left");
-      sem_add_dimension_attr(decl, "RIGHT", "right");
-      sem_add_dimension_attr(decl, "LOW", "low");
-      sem_add_dimension_attr(decl, "HIGH", "high");
+      type_t index_type = sem_index_type(type, 0 /* XXX */);
+      sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
+      sem_add_dimension_attr(decl, index_type, "LEFT", "left");
+      sem_add_dimension_attr(decl, index_type, "RIGHT", "right");
+      sem_add_dimension_attr(decl, index_type, "LOW", "low");
+      sem_add_dimension_attr(decl, index_type, "HIGH", "high");
 
       // TODO: 'ASCENDING should also take dimension argument
       if (type_is_unconstrained(type)) {
@@ -2614,7 +2640,7 @@ static bool sem_check_arch(tree_t t)
    for (int n = 0; n < ndecls_ent; n++) {
       tree_t d = tree_decl(e, n);
       if (tree_kind(d) != T_ATTR_SPEC)
-         sem_declare(d);
+         sem_declare(d, true);
    }
 
    // Now check the architecture itself
@@ -3632,6 +3658,9 @@ static type_t sem_index_type(type_t type, int dim)
       return type;
    else {
       tree_t left = type_dim(type, dim).left;
+
+      // If the left bound has not been assigned a type then there is some
+      // error with it so just return a dummy type here
       return tree_has_type(left) ? tree_type(left) : type;
    }
 }
