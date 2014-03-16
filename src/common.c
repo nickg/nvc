@@ -50,13 +50,19 @@ void range_bounds(range_t r, int64_t *low, int64_t *high)
    int64_t left  = assume_int(r.left);
    int64_t right = assume_int(r.right);
 
-   if (r.kind == RANGE_TO) {
+   switch (r.kind) {
+   case RANGE_TO:
       *low  = left;
       *high = right;
-   }
-   else {
+      break;
+
+   case RANGE_DOWNTO:
       *low  = right;
       *high = left;
+      break;
+
+   default:
+      assert(false);
    }
 }
 
@@ -214,9 +220,9 @@ bool folded_bool(tree_t t, bool *b)
 tree_t get_int_lit(tree_t t, int64_t i)
 {
    tree_t f = tree_new(T_LITERAL);
-   tree_set_loc(f, tree_loc(t));
    tree_set_subkind(f, L_INT);
    tree_set_ival(f, i);
+   tree_set_loc(f, tree_loc(t));
    tree_set_type(f, tree_type(t));
 
    return f;

@@ -2307,12 +2307,19 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_name_attr(p0, tree_type(t), PATH_NAME);
       else if (icmp(builtin, "last_event"))
          return cgen_last_event(p0);
-      else if (icmp(builtin, "uarray_asc"))
-         return cgen_uarray_asc(p0, ctx);
+      else if (icmp(builtin, "ascending")) {
+         tree_t p1 = tree_value(tree_param(t, 1));
+         type_t type = tree_type(p1);
+         int64_t dim = assume_int(p0) - 1;
+         if (cgen_const_bounds(type))
+            return llvm_int1(type_dim(type, dim).kind == RANGE_TO);
+         else
+            return cgen_uarray_asc(p1, ctx);
+      }
       else if (icmp(builtin, "left")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
-         int64_t dim = assume_int(p0);
+         int64_t dim = assume_int(p0) - 1;
          if (cgen_const_bounds(type))
             return cgen_expr(type_dim(type, dim).left, ctx);
          else
@@ -2321,7 +2328,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "right")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
-         int64_t dim = assume_int(p0);
+         int64_t dim = assume_int(p0) - 1;
          if (cgen_const_bounds(type))
             return cgen_expr(type_dim(type, dim).right, ctx);
          else
@@ -2330,7 +2337,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "low")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
-         int64_t dim = assume_int(p0);
+         int64_t dim = assume_int(p0) - 1;
          if (cgen_const_bounds(type)) {
             range_t r = type_dim(type, dim);
             return cgen_expr((r.kind == RANGE_TO) ? r.left : r.right, ctx);
@@ -2345,7 +2352,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       else if (icmp(builtin, "high")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
-         int64_t dim = assume_int(p0);
+         int64_t dim = assume_int(p0) - 1;
          if (cgen_const_bounds(type)) {
             range_t r = type_dim(type, dim);
             return cgen_expr((r.kind == RANGE_TO) ? r.right : r.left, ctx);

@@ -378,7 +378,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    }
 
    if (icmp(builtin, "length") || icmp(builtin, "low") || icmp(builtin, "high")
-       || icmp(builtin, "left") || icmp(builtin, "right")) {
+       || icmp(builtin, "left") || icmp(builtin, "right")
+       || icmp(builtin, "ascending")) {
       tree_t dim   = tree_value(tree_param(t, 0));
       tree_t array = tree_value(tree_param(t, 1));
 
@@ -398,7 +399,9 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
       range_t r = type_dim(type, dim_i - 1);
 
-      if (icmp(builtin, "length")) {
+      const bool known_dir = (r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO);
+
+      if (icmp(builtin, "length") && known_dir) {
          if ((tree_kind(r.left) == T_LITERAL)
              && (tree_kind(r.right) == T_LITERAL)) {
             int64_t low, high;
@@ -408,16 +411,18 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
          else
             return t;
       }
-      else if (icmp(builtin, "low"))
+      else if (icmp(builtin, "low") && known_dir)
          return eval_expr((r.kind == RANGE_TO) ? r.left : r.right, v);
-      else if (icmp(builtin, "high"))
+      else if (icmp(builtin, "high") && known_dir)
          return eval_expr((r.kind == RANGE_TO) ? r.right : r.left, v);
       else if (icmp(builtin, "left"))
          return eval_expr(r.left, v);
       else if (icmp(builtin, "right"))
          return eval_expr(r.right, v);
+      else if (icmp(builtin, "ascending") && known_dir)
+         return get_bool_lit(t, (r.kind == RANGE_TO));
       else
-         assert(false);
+         return t;
    }
 
    const int nparams = tree_params(t);

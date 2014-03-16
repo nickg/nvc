@@ -434,7 +434,12 @@ static tree_t simp_for(tree_t t)
       assert(tree_kind(r.left) == T_FCALL);
       tree_t p = tree_param(r.left, 1);
 
-      tree_t asc = call_builtin("uarray_asc", NULL, tree_value(p), NULL);
+      tree_t dim = tree_new(T_LITERAL);
+      tree_set_subkind(dim, L_INT);
+      tree_set_ival(dim, 1);
+      tree_set_type(dim, type_universal_int());
+
+      tree_t asc = call_builtin("ascending", NULL, dim, tree_value(p), NULL);
       next = tree_new(T_IF);
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));

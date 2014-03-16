@@ -1715,27 +1715,8 @@ static void sem_add_attributes(tree_t decl)
       sem_add_dimension_attr(decl, NULL, "RIGHT", "right");
       sem_add_dimension_attr(decl, NULL, "LOW", "low");
       sem_add_dimension_attr(decl, NULL, "HIGH", "high");
-
-      // TODO: 'ASCENDING should also take dimension argument
-      if (type_is_unconstrained(type)) {
-         ident_t asc_i = ident_new("ASCENDING");
-         tree_add_attr_tree(decl, asc_i,
-                            sem_builtin_fn(asc_i, std_bool,
-                                           "uarray_asc", type, NULL));
-      }
-      else {
-         range_t r = type_dim(type, 0);
-
-         if ((r.kind != RANGE_DYN) && (r.kind != RANGE_RDYN))
-            tree_add_attr_tree(decl, ident_new("ASCENDING"),
-                               sem_bool_lit(std_bool, r.kind == RANGE_TO));
-         else {
-            ident_t asc_i = ident_new("ASCENDING");
-            tree_add_attr_tree(decl, asc_i,
-                               sem_builtin_fn(asc_i, std_bool,
-                                              "uarray_asc", type, NULL));
-         }
-      }
+      sem_add_dimension_attr(decl, sem_std_type("BOOLEAN"),
+                             "ASCENDING", "ascending");
    }
 
    const tree_kind_t decl_kind = tree_kind(decl);
