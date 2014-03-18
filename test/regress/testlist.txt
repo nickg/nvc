@@ -214,3 +214,4 @@ real2           normal
 issue45         normal,gold
 for2            normal,gold
 issue57         normal
+attr10          normal

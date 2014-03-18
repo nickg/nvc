@@ -719,8 +719,8 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
    }
 
    u->ptr = buf;
-   u->dims[0].left  = 0;
-   u->dims[0].right = len - 1;
+   u->dims[0].left  = 1;
+   u->dims[0].right = len;
    u->dims[0].dir   = RANGE_TO;
 }
 
