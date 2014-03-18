@@ -1035,6 +1035,11 @@ START_TEST(test_attr)
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
 
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(sem_check(a));
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 

@@ -2756,7 +2756,7 @@ static tree_t handle_param_expr(tree_t name, tree_list_t *params)
    }
    else {
       tree_t a;
-      if (tree_kind(name) == T_ATTR_REF)
+      if ((tree_kind(name) == T_ATTR_REF) && (tree_params(name) == 0))
          a = name;
       else {
          a = tree_new(T_ARRAY_REF);

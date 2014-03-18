@@ -108,3 +108,11 @@ begin
         report issue39'instance_name & "oops!"
         severity failure;
 end entity issue39;
+
+architecture a4 of e is
+begin
+    process is
+    begin
+        assert integer'image(0)(0) = '0';  -- OK
+    end process;
+end architecture;
