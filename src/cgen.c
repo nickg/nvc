@@ -4142,9 +4142,6 @@ static void cgen_assert(tree_t t, cgen_ctx_t *ctx)
 {
    int is_report = tree_attr_int(t, ident_new("is_report"), 0);
 
-   LLVMValueRef message  = cgen_expr(tree_message(t), ctx);
-   LLVMValueRef severity = cgen_expr(tree_severity(t), ctx);
-
    LLVMBasicBlockRef thenbb, elsebb = NULL;
    if (!is_report) {
       LLVMValueRef test = cgen_expr(tree_value(t), ctx);
@@ -4157,6 +4154,9 @@ static void cgen_assert(tree_t t, cgen_ctx_t *ctx)
 
       LLVMPositionBuilderAtEnd(builder, thenbb);
    }
+
+   LLVMValueRef message  = cgen_expr(tree_message(t), ctx);
+   LLVMValueRef severity = cgen_expr(tree_severity(t), ctx);
 
    type_t msg_type = tree_type(tree_message(t));
 

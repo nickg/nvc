@@ -215,3 +215,4 @@ issue45         normal,gold
 for2            normal,gold
 issue57         normal
 attr10          normal
+assert4         normal
