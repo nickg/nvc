@@ -398,7 +398,7 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
    assert(tree_kind(unit) == T_ENTITY);
 
    const int nformals = tree_Fs(unit);
-   const int nactuals = tree_As(t);
+   const int nactuals = (tree_As != NULL) ? tree_As(t) : 0;
 
    bool *have_formals = xmalloc(sizeof(bool) * nformals);
 
@@ -1069,10 +1069,20 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx)
 
 static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 {
-   if (tree_ports(t) > 0 || tree_generics(t) > 0) {
-      // LRM 93 section 12.1 says implementation may allow this but
-      // is not required to
-      fatal("top-level entity may not have generics or ports");
+   const int ngenerics = tree_generics(t);
+   for (int i = 0; i < ngenerics; i++) {
+      tree_t g = tree_generic(t, i);
+      if (!tree_has_value(g))
+         fatal_at(tree_loc(g), "generic %s of top-level entity must have "
+                  "default value", istr(tree_ident(g)));
+   }
+
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(t, i);
+      if (!tree_has_value(p) && (tree_subkind(p) != PORT_OUT))
+         fatal_at(tree_loc(p), "port %s of top-level entity must have "
+                  "default value", istr(tree_ident(p)));
    }
 
    tree_t arch = pick_arch(NULL, tree_ident(t), NULL);
@@ -1080,6 +1090,11 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path, ':', ":%s", name);
+
+   map_list_t *maps = elab_map(t, arch, tree_ports, tree_port, NULL, NULL);
+   assert(maps == NULL);
+
+   (void)elab_map(t, arch, tree_generics, tree_generic, NULL, NULL);
 
    elab_pseudo_context(ctx->out, t);
    elab_copy_context(ctx->out, t);
