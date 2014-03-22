@@ -230,3 +230,11 @@ begin
         report bar'path_name;           -- OK (references entity)
     end process;
 end architecture;
+
+-------------------------------------------------------------------------------
+
+use foo.bar.all;                        -- Error
+
+architecture a7 of bar is
+begin
+end architecture;

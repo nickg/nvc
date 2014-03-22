@@ -879,7 +879,7 @@ END_TEST
 
 START_TEST(test_package)
 {
-   tree_t p, d;
+   tree_t p, d, c;
 
    input_from_file(TESTDIR "/parse/package.vhd");
 
@@ -916,6 +916,11 @@ START_TEST(test_package)
    fail_unless(tree_ident(p) == ident_new("THREE"));
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
+
+   fail_unless(tree_contexts(p) == 1);
+   c = tree_context(p, 0);
+   fail_unless(tree_kind(c) == T_LIBRARY);
+   fail_unless(tree_ident(c) == ident_new("FOO"));
 
    p = parse();
    fail_unless(p == NULL);

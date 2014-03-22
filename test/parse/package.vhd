@@ -28,6 +28,8 @@ end package body;
 
 -------------------------------------------------------------------------------
 
+library foo;
+
 package three is
 
     signal s : integer;

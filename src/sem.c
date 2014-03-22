@@ -1280,7 +1280,7 @@ static bool sem_check_use_clause(tree_t c)
 
    ident_t lname = ident_until(cname, '.');
 
-   lib_t lib = lib_find(istr(lname), true, true);
+   lib_t lib = lib_find(istr(lname), false, false);
    if (lib != NULL) {
       if (lname == cname) {
          assert(all);
@@ -1311,10 +1311,18 @@ static bool sem_check_use_clause(tree_t c)
       else
          return false;
    }
-   else {
+   else
+      sem_error(c, "missing library clause for %s", istr(lname));
+}
+
+static bool sem_check_library_clause(tree_t t)
+{
+   if (lib_find(istr(tree_ident(t)), true, true) == NULL) {
       errors++;
       return false;
    }
+   else
+      return true;
 }
 
 static void sem_declare_universal(void)
@@ -1352,7 +1360,7 @@ static bool sem_check_context(tree_t t)
    bool ok = true;
    const int ncontexts = tree_contexts(t);
    for (int n = 0; n < ncontexts; n++)
-      ok = sem_check_use_clause(tree_context(t, n)) && ok;
+      ok = sem_check(tree_context(t, n)) && ok;
 
    return ok;
 }
@@ -5968,6 +5976,8 @@ bool sem_check(tree_t t)
       return true;
    case T_BINDING:
       return sem_check_binding(t);
+   case T_LIBRARY:
+      return sem_check_library_clause(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

@@ -302,7 +302,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_VALUE),
 
    // T_BINDING
-   (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS)
+   (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS),
+
+   // T_LIBRARY
+   (I_IDENT)
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -335,7 +338,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_CONTEXT",
-   "T_HIER",         "T_SPEC",          "T_BINDING"
+   "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY"
 };
 
 static const char *item_text_map[] = {
@@ -1034,7 +1037,7 @@ tree_t tree_context(tree_t t, unsigned n)
 
 void tree_add_context(tree_t t, tree_t ctx)
 {
-   assert(ctx->kind == T_CONTEXT);
+   assert((ctx->kind == T_CONTEXT) || (ctx->kind == T_LIBRARY));
    tree_array_add(&(lookup_item(t, I_CONTEXT)->tree_array), ctx);
 }
 

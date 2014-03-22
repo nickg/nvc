@@ -164,7 +164,7 @@ static void add_file_decls(tree_list_t **out, list_t *in, type_t type,
 %type <l> entity_decl_item selected_waveforms choice_list case_alt_list
 %type <l> entity_stmt_part
 %type <l> element_assoc element_assoc_list context_item context_clause
-%type <l> use_clause_item_list use_clause config_spec
+%type <l> use_clause_item_list use_clause config_spec library_clause
 %type <p> entity_header generate_body
 %type <m> opt_mode
 %type <y> subtype_indication type_mark type_def scalar_type_def array_type_def
@@ -336,11 +336,21 @@ context_clause
 | /* empty */ { $$ = NULL; }
 ;
 
-context_item : library_clause { $$ = NULL; } | use_clause ;
+context_item : library_clause | use_clause ;
 
 library_clause
 : tLIBRARY id_list tSEMI
   {
+     $$ = NULL;
+
+     for (list_t *it = $2; it != NULL; it = it->next) {
+        tree_t t = tree_new(T_LIBRARY);
+        tree_set_ident(t, it->item.ident);
+        tree_set_loc(t, &@$);
+
+        tree_list_prepend(&$$, t);
+     }
+
      list_free($2);
   }
 ;
