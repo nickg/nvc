@@ -217,3 +217,4 @@ issue57         normal
 attr10          normal
 assert4         normal
 issue56         normal
+issue53         normal

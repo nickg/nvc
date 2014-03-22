@@ -491,6 +491,10 @@ static map_list_t *elab_map(tree_t t, tree_t arch,
          .count   = count
       };
       tree_rewrite(arch, rewrite_refs, &params);
+
+      tree_t ent = tree_ref(arch);
+      if (tree_stmts(ent) > 0)
+         tree_rewrite(ent, rewrite_refs, &params);
    }
 
    free(have_formals);
