@@ -121,6 +121,7 @@ void **JenkinsIns(void *base_i, const unsigned char *mem, uint32_t length, uint3
 
 #if defined(__APPLE__) && defined(__MACH__)
 #define FST_MACOSX 
+#include <sys/sysctl.h>
 #endif
 
 
@@ -918,14 +919,10 @@ xc->curval_mem = NULL;
 static void fstDetermineBreakSize(struct fstWriterContext *xc)
 {
 #if defined(__linux__) || defined(FST_MACOSX)
+int was_set = 0;
 
 #ifdef __linux__
 FILE *f = fopen("/proc/meminfo", "rb");
-#else
-FILE *f = popen("system_profiler SPHardwareDataType", "r"); 
-#endif
-
-int was_set = 0;
 
 if(f)
 	{
@@ -937,18 +934,10 @@ if(f)
 		s = fgets(buf, 256, f);
 		if(s && *s)
 			{
-#ifdef __linux__
 			if(!strncmp(s, "MemTotal:", 9))
 				{
 				size_t v = atol(s+10);
 				v *= 1024; /* convert to bytes */
-#else
-			if((s=strstr(s, "Memory:")))
-				{
-				size_t v = atol(s+7);
-				v <<= 30; /* convert GB to bytes */
-#endif
-
 				v /= 8; /* chop down to 1/8 physical memory */
 				if(v > FST_BREAK_SIZE)
 					{
@@ -965,18 +954,45 @@ if(f)
 			}
 		}
 
-#ifdef __linux__
 	fclose(f);
-#else
-	pclose(f);
-#endif
 	} 
 
 if(!was_set)
-#endif
 	{
 	xc->fst_huge_break_size = FST_BREAK_SIZE;
 	}
+#else
+int mib[2];
+int64_t v;
+size_t length;
+
+mib[0] = CTL_HW;
+mib[1] = HW_MEMSIZE;
+length = sizeof(int64_t);
+if(!sysctl(mib, 2, &v, &length, NULL, 0))
+	{
+	v /= 8;
+
+	if(v > FST_BREAK_SIZE)
+		{
+		if(v > FST_BREAK_SIZE_MAX)
+			{
+			v = FST_BREAK_SIZE_MAX;
+			}
+
+		xc->fst_huge_break_size = v;
+		was_set = 1;
+		}
+	}
+
+if(!was_set)
+	{
+	xc->fst_huge_break_size = FST_BREAK_SIZE;
+	}
+#endif
+#else
+xc->fst_huge_break_size = FST_BREAK_SIZE;
+#endif
 
 xc->fst_break_size = xc->fst_orig_break_size = FST_BREAK_SIZE;
 xc->fst_break_add_size = xc->fst_orig_break_add_size = FST_BREAK_ADD_SIZE;
