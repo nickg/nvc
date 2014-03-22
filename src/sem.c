@@ -222,11 +222,22 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
          if (!overload)
             sem_error(t, "%s already declared in this region", istr(name));
 
-         const bool builtin = (tree_attr_str(existing, builtin_i) != NULL);
-         if (builtin && type_eq(tree_type(t), tree_type(existing))) {
-            // Allow builtin functions to be hidden
-            hash_replace(top_scope->decls, existing, t);
-            return true;
+         const bool builtin   = (tree_attr_str(existing, builtin_i) != NULL);
+         const bool same_type = type_eq(tree_type(t), tree_type(existing));
+         if (builtin && same_type) {
+            type_t arg0_type = type_param(tree_type(existing), 0);
+
+            ident_t t_region = ident_runtil(tree_ident(t), '.');
+            ident_t e_region = ident_runtil(type_ident(arg0_type), '.');
+
+            const bool same_region = (t_region == e_region);
+
+            // Allow builtin functions to be hidden by explicit functins
+            // declared in the same region
+            if (same_region) {
+               hash_replace(top_scope->decls, existing, t);
+               return true;
+            }
          }
       }
    } while (existing != NULL);
