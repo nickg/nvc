@@ -135,7 +135,7 @@ typedef enum tree_kind {
    T_GENVAR,
    T_PARAM,
    T_ASSOC,
-   T_CONTEXT,
+   T_USE,
    T_HIER,
    T_SPEC,
    T_BINDING,

@@ -292,7 +292,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ASSOC
    (I_VALUE | I_POS | I_NAME | I_RANGE | I_SUBKIND),
 
-   // T_CONTEXT
+   // T_USE
    (I_IDENT | I_IDENT2),
 
    // T_HIER
@@ -337,7 +337,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_IF_GENERATE",  "T_FOR_GENERATE",  "T_FILE_DECL",  "T_OPEN",
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
-   "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_CONTEXT",
+   "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY"
 };
 
@@ -411,7 +411,7 @@ static tree_kind_t decl_kinds[] = {
    T_ATTR_DECL,  T_ATTR_SPEC,   T_PROC_DECL,  T_PROC_BODY,
    T_COMPONENT,  T_FILE_DECL,   T_FIELD_DECL, T_UNIT_DECL,
    T_GENVAR,     T_HIER,        T_SPEC,       T_BINDING,
-   T_CONTEXT
+   T_USE
 };
 
 static tree_kind_t top_level_kinds[] = {
@@ -1037,7 +1037,7 @@ tree_t tree_context(tree_t t, unsigned n)
 
 void tree_add_context(tree_t t, tree_t ctx)
 {
-   assert((ctx->kind == T_CONTEXT) || (ctx->kind == T_LIBRARY));
+   assert((ctx->kind == T_USE) || (ctx->kind == T_LIBRARY));
    tree_array_add(&(lookup_item(t, I_CONTEXT)->tree_array), ctx);
 }
 

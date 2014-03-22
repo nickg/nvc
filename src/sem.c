@@ -322,7 +322,7 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       tree_t decl = tree_decl(unit, n);
 
       tree_kind_t kind = tree_kind(decl);
-      if ((kind == T_ATTR_SPEC) || (kind == T_CONTEXT))
+      if ((kind == T_ATTR_SPEC) || (kind == T_USE))
          continue;
 
       if (!sem_declare(decl, true))
@@ -5967,7 +5967,7 @@ bool sem_check(tree_t t)
       return sem_check_record_ref(t);
    case T_UNIT_DECL:
       return sem_check_unit_decl(t);
-   case T_CONTEXT:
+   case T_USE:
       return sem_check_use_clause(t);
    case T_TYPE_CONV:
       return sem_check_conversion(t);

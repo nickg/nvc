@@ -277,8 +277,12 @@ static void make_rule(tree_t t, rule_t **rules)
 
    for (int i = 0; i < nctx; i++) {
       tree_t c = tree_context(t, i);
-      ident_t name = tree_ident(c);
+      if (tree_kind(c) != T_USE) {
+         deps[i] = NULL;
+         continue;
+      }
 
+      ident_t name = tree_ident(c);
       lib_t lib = make_get_lib(name);
 
       deps[i] = lib_get(lib, name);

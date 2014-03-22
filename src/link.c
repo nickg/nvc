@@ -197,8 +197,11 @@ static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
    }
 
    const int ncontext = tree_contexts(unit);
-   for (int i = 0; i < ncontext; i++)
-      link_context(tree_context(unit, i), deps, fn);
+   for (int i = 0; i < ncontext; i++) {
+      tree_t c = tree_context(unit, i);
+      if (tree_kind(c) == T_USE)
+         link_context(c, deps, fn);
+   }
 }
 
 static ident_t link_elab_final(tree_t top)

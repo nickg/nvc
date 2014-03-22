@@ -264,13 +264,20 @@ static void elab_copy_context(tree_t dest, tree_t src)
    const int nsrc = tree_contexts(src);
    for (int i = 0; i < nsrc; i++) {
       tree_t c = tree_context(src, i);
+      if (tree_kind(c) != T_USE)
+         continue;
+
       tree_set_ident2(c, all_i);
 
       ident_t name = tree_ident(c);
       bool have = false;
       const int ndest = tree_contexts(dest);
       for (int j = 0; (j < ndest) && !have; j++) {
-         if (tree_ident(tree_context(dest, j)) == name)
+         tree_t c2 = tree_context(dest, j);
+         if (tree_kind(c2) != T_USE)
+            continue;
+
+         if (tree_ident(c2) == name)
             have = true;
       }
 
@@ -288,11 +295,14 @@ static void elab_pseudo_context(tree_t out, tree_t src)
 
    const int nctx = tree_contexts(out);
    for (int i = 0; i < nctx; i++) {
-      if (tree_ident(tree_context(out, i)) == name)
+      tree_t c = tree_context(out, i);
+      if (tree_kind(c) != T_USE)
+         continue;
+      else if (tree_ident(c) == name)
          return;
    }
 
-   tree_t c = tree_new(T_CONTEXT);
+   tree_t c = tree_new(T_USE);
    tree_set_ident(c, name);
 
    tree_add_context(out, c);
@@ -1159,6 +1169,9 @@ static void elab_funcs(tree_t arch, tree_t ent)
          ? tree_context(arch, i)
          : tree_context(ent, i - ncontext_arch);
 
+      if (tree_kind(ctx) != T_USE)
+         continue;
+
       ident_t name = tree_ident(ctx);
       lib_t lib = elab_link_lib(name);
 
@@ -1242,6 +1255,8 @@ static void elab_context_signals(const elab_ctx_t *ctx)
    const int nctx = tree_contexts(ctx->out);
    for (int i = 0; i < nctx; i++) {
       tree_t c = tree_context(ctx->out, i);
+      if (tree_kind(c) != T_USE)
+         continue;
 
       ident_t name = tree_ident(c);
       lib_t lib = elab_link_lib(name);

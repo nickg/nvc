@@ -328,10 +328,10 @@ design_unit
 ;
 
 context_clause
-: context_item context_clause
+: context_clause context_item
   {
-     $$ = $2;
-     tree_list_concat(&$$, $1);
+     $$ = $1;
+     tree_list_concat(&$$, $2);
   }
 | /* empty */ { $$ = NULL; }
 ;
@@ -378,20 +378,20 @@ use_clause_item_list
 use_clause_item
 : id tDOT id
   {
-     $$ = tree_new(T_CONTEXT);
+     $$ = tree_new(T_USE);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_prefix($1, $3, '.'));
   }
 | id tDOT id tDOT id
   {
-     $$ = tree_new(T_CONTEXT);
+     $$ = tree_new(T_USE);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_prefix($1, $3, '.'));
      tree_set_ident2($$, $5);
   }
 | id tDOT id tDOT tSTRING
   {
-     $$ = tree_new(T_CONTEXT);
+     $$ = tree_new(T_USE);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_prefix($1, $3, '.'));
      tree_set_ident2($$, ident_new($5));
@@ -399,14 +399,14 @@ use_clause_item
   }
 | id tDOT tALL
   {
-     $$ = tree_new(T_CONTEXT);
+     $$ = tree_new(T_USE);
      tree_set_loc($$, &@$);
      tree_set_ident($$, $1);
      tree_set_ident2($$, ident_new("all"));
   }
 | id tDOT id tDOT tALL
   {
-     $$ = tree_new(T_CONTEXT);
+     $$ = tree_new(T_USE);
      tree_set_loc($$, &@$);
      tree_set_ident($$, ident_prefix($1, $3, '.'));
      tree_set_ident2($$, ident_new("all"));

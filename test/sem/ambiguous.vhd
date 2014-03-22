@@ -127,8 +127,8 @@ package pack2 is
     function "<"(a, b: my_int) return boolean;
 end package;
 
-use work.pack.all;
 use work.pack2.all;
+use work.pack.all;
 
 architecture a2 of e is
     function ">"(a, b: my_int) return boolean;
