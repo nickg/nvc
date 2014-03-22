@@ -491,6 +491,10 @@ bool pack_needs_cgen(tree_t t)
       case T_CONST_DECL:
          if (type_is_array(tree_type(decl)))
             return true;
+         else if (tree_has_value(decl)) {
+            if (tree_kind(tree_value(decl)) != T_LITERAL)
+               return true;
+         }
          break;
       default:
          break;
