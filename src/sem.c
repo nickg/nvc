@@ -97,6 +97,7 @@ static ident_t       std_standard_i;
 static ident_t       formal_i;
 static ident_t       locally_static_i;
 static ident_t       elab_copy_i;
+static bool          prefer_explicit = false;
 
 #define MAX_OVERLOADS 128
 
@@ -3319,7 +3320,7 @@ static bool sem_check_fcall(tree_t t)
                   const bool hide_implicit =
                      ((tree_attr_str(decl, builtin_i) != NULL)
                       || (tree_attr_str(overloads[i], builtin_i) != NULL))
-                     && opt_get_int("prefer-explicit");
+                     && prefer_explicit;
 
                   if (same_name || hide_implicit)
                      duplicate = true;
@@ -3354,7 +3355,7 @@ static bool sem_check_fcall(tree_t t)
 
       const bool operator = !isalpha((int)*istr(name));
 
-      int nimplict = 0, nexplict = 0;
+      int nimplicit = 0, nexplicit = 0;
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL) {
             const bool implicit = tree_attr_str(overloads[n], builtin_i);
@@ -3362,13 +3363,13 @@ static bool sem_check_fcall(tree_t t)
                           sem_type_str(tree_type(overloads[n])),
                           implicit ? " (implicit)" : "");
             if (implicit)
-               nimplict++;
+               nimplicit++;
             else
-               nexplict++;
+               nexplicit++;
          }
       }
 
-      if ((nimplict == 1) && (nexplict == 1))
+      if ((nimplicit == 1) && (nexplicit == 1))
          static_printf(buf, "\nYou can use the --prefer-explicit option to "
                        "hide the implicit %s",
                        operator ? "operator" : "function");
@@ -5851,6 +5852,8 @@ static void sem_intern_strings(void)
    formal_i         = ident_new("formal");
    locally_static_i = ident_new("locally_static");
    elab_copy_i      = ident_new("elab_copy");
+
+   prefer_explicit  = opt_get_int("prefer-explicit");
 }
 
 bool sem_check(tree_t t)
