@@ -6343,17 +6343,9 @@ static void cgen_cleanup_tmp_attrs(tree_t top)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top, i);
 
-      if (tree_attr_ptr(d, local_var_i))
-         tree_add_attr_ptr(d, local_var_i, NULL);
-
-      if (tree_attr_ptr(d, global_const_i))
-         tree_add_attr_ptr(d, global_const_i, NULL);
-
-      if (tree_attr_ptr(d, sig_nets_i))
-         tree_add_attr_ptr(d, sig_nets_i, NULL);
-
-      if (tree_attr_ptr(d, llvm_agg_i))
-         tree_add_attr_ptr(d, llvm_agg_i, NULL);
+      tree_remove_attr(d, local_var_i);
+      tree_remove_attr(d, global_const_i);
+      tree_remove_attr(d, sig_nets_i);
    }
 }
 

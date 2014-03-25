@@ -282,6 +282,7 @@ void tree_add_attr_ptr(tree_t t, ident_t name, void *ptr);
 void *tree_attr_ptr(tree_t t, ident_t name);
 tree_t tree_attr_tree(tree_t t, ident_t name);
 void tree_add_attr_tree(tree_t t, ident_t name, tree_t val);
+void tree_remove_attr(tree_t t, ident_t name);
 
 typedef void (*tree_visit_fn_t)(tree_t t, void *context);
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context);

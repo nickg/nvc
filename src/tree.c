@@ -1707,6 +1707,24 @@ static attr_t *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
    return &(t->attrs.table[i]);
 }
 
+void tree_remove_attr(tree_t t, ident_t name)
+{
+   assert(t != NULL);
+   assert(name != NULL);
+
+   unsigned i;
+   for (i = 0; (i < t->attrs.num) && (t->attrs.table[i].name != name); i++)
+      ;
+
+   if (i == t->attrs.num)
+      return;
+
+   for (; i + 1 < t->attrs.num; i++)
+      t->attrs.table[i] = t->attrs.table[i + 1];
+
+   t->attrs.num--;
+}
+
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
 {
    tree_add_attr(t, name, A_STRING)->sval = str;
