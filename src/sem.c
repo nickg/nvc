@@ -2990,7 +2990,7 @@ static int sem_ambiguous_rate(tree_t t)
    case T_AGGREGATE:
       return 100;
    case T_CONCAT:
-      return 60;
+      return 40;
    case T_LITERAL:
       return (tree_subkind(t) == L_NULL) ? 0 : -10;
    case T_TYPE_CONV:

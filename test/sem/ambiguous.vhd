@@ -182,4 +182,18 @@ begin
 
 end architecture;
 
+architecture issue61 of e is
+    type ubit_vector is array (natural range <>) of bit;
+begin
+    process is
+        variable x: bit_vector(4 downto 0);
+        variable y: ubit_vector(6 downto 0);
+    begin
+        y := ubit_vector(x & ('0' & '1'));
+        y := ubit_vector((x & '0') & '1');
+        y := ubit_vector(x & '0' & '1');
+        wait;
+    end process;
+end architecture;
+
 -- -*- coding: latin-1; -*-
