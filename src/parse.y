@@ -84,6 +84,7 @@ static int        n_token_next_start = 0;
 static int        n_row = 0;
 static bool       last_was_newline = true;
 static tree_t     root;
+static tree_t     assert_viol = NULL;
 
 int yylex(void);
 static void yyerror(const char *s);
@@ -1870,7 +1871,10 @@ elsif_list
 report
 : /* empty */
   {
-     $$ = str_to_agg("Assertion violation.", NULL, &LOC_INVALID);
+     if (assert_viol == NULL)
+        assert_viol = str_to_agg("Assertion violation.", NULL, &LOC_INVALID);
+
+     $$ = assert_viol;
   }
 | tREPORT expr { $$ = $2; }
 ;
@@ -3059,6 +3063,7 @@ void input_from_file(const char *file)
 tree_t parse(void)
 {
    root = NULL;
+   assert_viol = NULL;
 
    if (yyparse() || (n_errors > 0))
       return NULL;
