@@ -238,3 +238,25 @@ use foo.bar.all;                        -- Error
 architecture a7 of bar is
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package pack7 is
+    function foo(x : in integer) return boolean;
+    function foo(y : in real) return boolean;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack7.foo;
+
+architecture issue62 of bar is
+begin
+
+    process is
+    begin
+        assert foo(integer'(1));        -- OK
+        assert foo(real'(1.6));         -- OK
+    end process;
+
+end architecture;

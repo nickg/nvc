@@ -1310,12 +1310,14 @@ static bool sem_check_use_clause(tree_t c)
          if (tree_has_ident2(c) && !all) {
             ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
 
-            tree_t object = scope_find(full);
-            if (object == NULL)
+            int n = 0;
+            tree_t object;
+            while ((object = scope_find_nth(full, n++)))
+               scope_insert_alias(object, tree_ident2(c));
+
+            if (n == 1)
                sem_error(c, "declaration %s not found in unit %s",
                          istr(tree_ident2(c)), istr(cname));
-            else
-               scope_insert_alias(object, tree_ident2(c));
          }
 
          return true;
