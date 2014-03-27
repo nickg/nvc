@@ -1342,7 +1342,7 @@ static bool sem_check_library_clause(tree_t t)
 static void sem_declare_universal(void)
 {
    // Universal integers and reals have some additional overloaded operators
-   // that are not valid for regular integer and and real types
+   // that are not valid for regular integer and real types
    // See LRM 93 section 7.5
 
    type_t uint  = type_universal_int();
