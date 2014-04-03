@@ -33,6 +33,7 @@ typedef struct scope       scope_t;
 typedef struct loop_stack  loop_stack_t;
 typedef struct type_set    type_set_t;
 typedef struct defer_check defer_check_t;
+typedef struct import_list import_list_t;
 
 typedef bool (*defer_fn_t)(tree_t t);
 
@@ -40,6 +41,12 @@ struct defer_check {
    defer_check_t *next;
    defer_fn_t     fn;
    tree_t         arg;
+};
+
+struct import_list {
+   ident_t        name;
+   bool           all;
+   import_list_t *next;
 };
 
 struct scope {
@@ -51,7 +58,7 @@ struct scope {
 
    // For design unit scopes
    ident_t        prefix;
-   ident_list_t  *imported;
+   import_list_t *imported;
    bool           is_package;
 };
 
@@ -126,7 +133,12 @@ static void scope_pop(void)
    assert(top_scope != NULL);
    assert(top_scope->deferred == NULL);
 
-   ident_list_free(top_scope->imported);
+   while (top_scope->imported != NULL) {
+      import_list_t *tmp = top_scope->imported->next;
+      free(top_scope->imported);
+      top_scope->imported = tmp;
+   }
+
    hash_free(top_scope->decls);
 
    scope_t *s = top_scope;
@@ -294,8 +306,8 @@ static const char *sem_type_minify(const char *name)
 
    int matches = 0;
    for (scope_t *s = top_scope; s != NULL; s = s->down) {
-      for (ident_list_t *i = s->imported; i != NULL; i = i->next) {
-         ident_t search = ident_prefix(i->ident, suffix_i, '.');
+      for (import_list_t *i = s->imported; i != NULL; i = i->next) {
+         ident_t search = ident_prefix(i->name, suffix_i, '.');
          if (scope_find_in(search, s, false, 0) != NULL)
             matches++;
       }
@@ -313,11 +325,18 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
                               bool all, const loc_t *loc)
 {
    // Check we haven't already imported this
+   bool unqual_only = false;
    for (scope_t *s = top_scope; s != NULL; s = s->down) {
-      ident_list_t *it;
+      import_list_t *it;
       for (it = s->imported; it != NULL; it = it->next) {
-         if (it->ident == unit_name)
-            return true;
+         if (it->name == unit_name) {
+            if (it->all || !all)
+               return true;
+            else {
+               unqual_only = true;
+               break;
+            }
+         }
       }
    }
 
@@ -337,14 +356,18 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       if ((kind == T_ATTR_SPEC) || (kind == T_USE))
          continue;
 
-      if (!sem_declare(decl, true))
-         return false;
+      const char *tmp = istr(tree_ident(decl));
 
       // Make unqualified and package qualified names visible
-      const char *tmp = istr(tree_ident(decl));
-      const char *pqual = strchr(tmp, '.');
-      if (pqual != NULL)
-         scope_insert_alias(decl, ident_new(pqual + 1));
+      if (!unqual_only) {
+         if (!sem_declare(decl, true))
+            return false;
+
+         const char *pqual = strchr(tmp, '.');
+         if (pqual != NULL)
+            scope_insert_alias(decl, ident_new(pqual + 1));
+      }
+
       if (all) {
          const char *unqual = strrchr(tmp, '.');
          if (unqual != NULL)
@@ -352,7 +375,12 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       }
    }
 
-   ident_list_add(&top_scope->imported, unit_name);
+   import_list_t *new = xmalloc(sizeof(import_list_t));
+   new->name = unit_name;
+   new->all  = all;
+   new->next = top_scope->imported;
+
+   top_scope->imported = new;
    return true;
 }
 

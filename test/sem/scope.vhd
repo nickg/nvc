@@ -260,3 +260,13 @@ begin
     end process;
 
 end architecture;
+
+-------------------------------------------------------------------------------
+
+use work.all;
+use work.pack1.all;
+
+architecture issue63 of bar is
+    signal x : my_int1;                 -- OK
+begin
+end architecture;

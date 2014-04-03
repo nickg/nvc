@@ -344,10 +344,12 @@ START_TEST(test_scope)
    fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
+   for (int i = 0; i < 2; i++) {
+      a = parse();
+      fail_if(a == NULL);
+      fail_unless(tree_kind(a) == T_ARCH);
+      sem_check(a);
+   }
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
