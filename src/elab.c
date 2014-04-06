@@ -215,6 +215,9 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_ARRAY_REF:
       case T_FCALL:
          return params->actuals[i];
+      case T_TYPE_CONV:
+         // XXX: this only works in trivial cases
+         return tree_value(tree_param(params->actuals[i], 0));
       default:
          fatal_at(tree_loc(params->actuals[i]), "cannot handle tree kind %s "
                   "in rewrite_refs",
@@ -374,6 +377,19 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
 
    case T_OPEN:
       return NULL;
+
+   case T_TYPE_CONV:
+      // Only allow simple array type conversions for now
+      {
+         type_t to_type   = tree_type(actual);
+         type_t from_type = tree_type(tree_value(tree_param(actual, 0)));
+
+         if (type_is_array(to_type) && type_is_array(from_type))
+            return actual;
+         else
+            fatal_at(tree_loc(actual), "sorry, this form of type conversion "
+                     "is not supported as an actual");
+      }
 
    default:
       fatal_at(tree_loc(actual), "tree %s not supported as actual",
