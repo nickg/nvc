@@ -851,8 +851,7 @@ int64_t _last_event(const int32_t *nids, int32_t n)
 
 int32_t _test_net_flag(const int32_t *nids, int32_t n, int32_t flag)
 {
-   //TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(&(nets[nids[0]])),
-   //      n, flag);
+   //TRACE("_test_net_flag %s n=%d flag=%d", fmt_net(nids[0]), n, flag);
 
    int offset = 0;
    while (offset < n) {

@@ -4608,9 +4608,10 @@ static bool sem_check_attr_ref(tree_t t)
 
    default:
       if (sem_static_name(name)) {
-         while (tree_kind((name = tree_value(name))) != T_REF)
+         tree_t n = name;
+         while (tree_kind((n = tree_value(name))) != T_REF)
             ;
-         decl = tree_ref(name);
+         decl = tree_ref(n);
          allow_user = false;   // LRM disallows user-defined attributes
                                // where prefix is slice of sub-element
       }

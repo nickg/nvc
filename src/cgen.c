@@ -1627,12 +1627,11 @@ static LLVMValueRef cgen_signal_nets(tree_t decl)
    return nets;
 }
 
-static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag)
+static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag, cgen_ctx_t *ctx)
 {
-   tree_t decl = tree_ref(ref);
-   type_t type = tree_type(decl);
+   type_t type = tree_type(ref);
 
-   LLVMValueRef nets = cgen_signal_nets(decl);
+   LLVMValueRef nets = cgen_signal_lvalue(ref, ctx);
 
    LLVMValueRef n_elems;
    if (type_is_array(type))
@@ -2297,9 +2296,9 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
       tree_t p0 = tree_value(tree_param(t, 0));
 
       if (icmp(builtin, "event"))
-         return cgen_net_flag(p0, NET_F_EVENT);
+         return cgen_net_flag(p0, NET_F_EVENT, ctx);
       else if (icmp(builtin, "active"))
-         return cgen_net_flag(p0, NET_F_ACTIVE);
+         return cgen_net_flag(p0, NET_F_ACTIVE, ctx);
       else if (icmp(builtin, "last_value"))
          return cgen_last_value(p0, ctx);
       else if (icmp(builtin, "instance_name"))
@@ -3640,6 +3639,8 @@ static void cgen_sched_event(tree_t on, bool is_static, cgen_ctx_t *ctx)
 
       if (array)
          n_elems = cgen_array_len_recur(type, nets);
+      else if (type_is_record(type))
+         n_elems = llvm_int32(type_width(type));
       else
          n_elems = llvm_int32(1);
 

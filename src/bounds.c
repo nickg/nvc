@@ -69,6 +69,8 @@ static tree_t bounds_check_call_args(tree_t t)
                             dim, type_pp(type));
          }
       }
+      else if (icmp(builtin, "event") || icmp(builtin, "active"))
+         return t;
    }
 
    for (int i = 0; (i < nparams) && (i < nports); i++) {
