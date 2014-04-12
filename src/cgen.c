@@ -5199,6 +5199,18 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
 
 static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
 {
+   if (tree_kind(t) == T_AGGREGATE) {
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         assert(tree_subkind(a) == A_POS);
+
+         cgen_driver_target(tree_value(a), ctx);
+      }
+
+      return;
+   }
+
    tree_t decl = NULL;
    LLVMValueRef all_nets = NULL, driven_nets = NULL;
    int64_t all_length = 0, driven_length = 0;
