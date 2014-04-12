@@ -213,7 +213,7 @@ static unsigned     n_active_alloc = 0;
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake);
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
                                  rt_proc_t *driver);
-static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
+static bool rt_sched_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values);
 static void rt_sched_event(sens_list_t **list, netid_t first, netid_t last,
                            rt_proc_t *proc, bool is_static);
@@ -381,7 +381,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
          memcpy(values_copy->data, (uint8_t *)values + (offset * g->size),
                 g->size * g->length);
 
-         if (!rt_alloc_driver(g, after, reject, values_copy))
+         if (!rt_sched_driver(g, after, reject, values_copy))
             deltaq_insert_driver(after, g, active_proc);
 
          offset += g->length;
@@ -431,6 +431,34 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
 {
    TRACE("_alloc_driver all=%s+%d driven=%s+%d", fmt_net(all_nets[0]),
          all_length, fmt_net(driven_nets[0]), driven_length);
+
+   int offset = 0;
+   while (offset < driven_length) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, driven_nets[offset])]);
+      offset += g->length;
+
+      // Try to find this process in the list of existing drivers
+      int driver;
+      for (driver = 0; driver < g->n_drivers; driver++) {
+         if (likely(g->drivers[driver].proc == active_proc))
+            break;
+      }
+
+      // Allocate memory for drivers on demand
+      if (unlikely(driver == g->n_drivers)) {
+         const size_t driver_sz = sizeof(struct driver);
+         g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
+         memset(&g->drivers[g->n_drivers], '\0',
+                (driver + 1 - g->n_drivers) * driver_sz);
+         g->n_drivers = driver + 1;
+
+         TRACE("allocate driver %s %d %s", fmt_group(g), driver,
+               istr(tree_ident(active_proc->source)));
+
+         driver_t *d = &(g->drivers[driver]);
+         d->proc = active_proc;
+      }
+   }
 }
 
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
@@ -1401,7 +1429,7 @@ static void rt_wakeup(sens_list_t *sl)
       rt_free(sens_list_stack, sl);
 }
 
-static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
+static bool rt_sched_driver(netgroup_t *group, uint64_t after,
                             uint64_t reject, value_t *values)
 {
    if (unlikely(reject > after))
@@ -1415,18 +1443,7 @@ static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
          break;
    }
 
-   // Allocate memory for drivers on demand
-   if (unlikely(driver == group->n_drivers)) {
-      const size_t driver_sz = sizeof(struct driver);
-      group->drivers = xrealloc(group->drivers, (driver + 1) * driver_sz);
-      memset(&group->drivers[group->n_drivers], '\0',
-             (driver + 1 - group->n_drivers) * driver_sz);
-      group->n_drivers = driver + 1;
-
-      TRACE("allocate driver %s %d %s", fmt_group(group), driver,
-            istr(tree_ident(active_proc->source)));
-   }
-
+   assert(driver != group->n_drivers);
    driver_t *d = &(group->drivers[driver]);
 
    const size_t valuesz = group->size * group->length;
@@ -1440,7 +1457,6 @@ static bool rt_alloc_driver(netgroup_t *group, uint64_t after,
       memcpy(dummy->values->data, values, valuesz);
 
       d->waveforms = dummy;
-      d->proc      = active_proc;
    }
 
    waveform_t *w = rt_alloc(waveform_stack);
