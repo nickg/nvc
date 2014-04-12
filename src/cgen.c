@@ -5148,7 +5148,7 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
          if (tree_attr_ptr(*decl, drives_all_i) == ctx->proc)
             return false;
 
-         *all_nets = *driven_nets = cgen_signal_nets(*decl);
+         *all_nets = *driven_nets = cgen_signal_lvalue(t, ctx);
          *all_length = *driven_length = type_width(tree_type(*decl));
       }
       break;
