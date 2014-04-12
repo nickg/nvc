@@ -5135,7 +5135,7 @@ static void cgen_nested_subprograms(tree_t t)
    }
 }
 
-static void cgen_driver_nets(tree_t t, tree_t *decl,
+static bool cgen_driver_nets(tree_t t, tree_t *decl,
                              LLVMValueRef *all_nets, int64_t *all_length,
                              LLVMValueRef *driven_nets, int64_t *driven_length,
                              cgen_ctx_t *ctx)
@@ -5144,6 +5144,10 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
    case T_REF:
       {
          *decl = tree_ref(t);
+
+         if (tree_attr_ptr(*decl, drives_all_i) == ctx->proc)
+            return false;
+
          *all_nets = *driven_nets = cgen_signal_nets(*decl);
          *all_length = *driven_length = type_width(tree_type(*decl));
       }
@@ -5151,8 +5155,9 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
 
    case T_ARRAY_REF:
       {
-         cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
-                          driven_nets, driven_length, ctx);
+         if (!cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
+                               driven_nets, driven_length, ctx))
+            return false;
 
          bool all_const = true;
          const int nparams = tree_params(t);
@@ -5172,8 +5177,9 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
    case T_ARRAY_SLICE:
       {
          tree_t value = tree_value(t);
-         cgen_driver_nets(value, decl, all_nets, all_length,
-                          driven_nets, driven_length, ctx);
+         if (!cgen_driver_nets(value, decl, all_nets, all_length,
+                               driven_nets, driven_length, ctx))
+            return false;
 
          range_t r = tree_range(t);
          if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
@@ -5187,6 +5193,8 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
    default:
       assert(false);
    }
+
+   return true;
 }
 
 static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
@@ -5195,13 +5203,11 @@ static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef all_nets = NULL, driven_nets = NULL;
    int64_t all_length = 0, driven_length = 0;
 
-   cgen_driver_nets(t, &decl, &all_nets, &all_length,
-                    &driven_nets, &driven_length, ctx);
+   if (!cgen_driver_nets(t, &decl, &all_nets, &all_length,
+                         &driven_nets, &driven_length, ctx))
+      return;
 
    assert(decl != NULL);
-
-   if (tree_attr_ptr(decl, drives_all_i) == ctx->proc)
-      return;
 
    if (all_length == driven_length)
       tree_add_attr_ptr(decl, drives_all_i, ctx->proc);
