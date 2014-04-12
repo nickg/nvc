@@ -5145,7 +5145,27 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
       {
          *decl = tree_ref(t);
          *all_nets = *driven_nets = cgen_signal_nets(*decl);
-         *all_length = *driven_length = tree_nets(*decl);
+         *all_length = *driven_length = type_width(tree_type(*decl));
+      }
+      break;
+
+   case T_ARRAY_REF:
+      {
+         cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
+                          driven_nets, driven_length, ctx);
+
+         bool all_const = true;
+         const int nparams = tree_params(t);
+         for (int i = 0; (i < nparams) && all_const; i++) {
+            if (!cgen_is_const(tree_value(tree_param(t, i))))
+               all_const = false;
+         }
+
+         if (all_const) {
+            LLVMValueRef idx = cgen_array_ref_offset(t, *driven_nets, ctx);
+            *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
+            *driven_length = type_width(tree_type(t));
+         }
       }
       break;
 
@@ -5178,9 +5198,6 @@ static void cgen_driver_fn(tree_t t, void *_ctx)
 
    if (tree_attr_ptr(decl, drives_all_i) == ctx->proc)
       return;
-
-   printf("%s all_length=%d driven_length=%d\n",
-          istr(tree_ident(decl)), (int)all_length, (int)driven_length);
 
    if (all_length == driven_length)
       tree_add_attr_ptr(decl, drives_all_i, ctx->proc);
