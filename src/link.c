@@ -46,6 +46,12 @@ static int    n_linked_bc = 0;
 
 typedef void (*context_fn_t)(lib_t lib, tree_t unit, FILE *deps);
 
+typedef struct {
+   lib_t        lib;
+   FILE        *deps;
+   context_fn_t fn;
+} lib_walk_params_t;
+
 static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn);
 
 __attribute__((format(printf, 1, 2)))
@@ -139,20 +145,9 @@ static void link_context_cyg_fn(lib_t lib, tree_t unit, FILE *deps)
 }
 #endif  // IMPLIB_REQUIRED
 
-static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
+static void link_context_package(tree_t unit, lib_t lib,
+                                 FILE *deps, context_fn_t fn)
 {
-   ident_t name = tree_ident(ctx);
-
-   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot link library %s", istr(name));
-
-   tree_t unit = lib_get(lib, name);
-   if (unit == NULL)
-      fatal("cannot find unit %s", istr(name));
-   else if (tree_kind(unit) != T_PACKAGE)
-      return;
-
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
@@ -161,6 +156,8 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
    }
 
    link_all_context(unit, deps, fn);
+
+   ident_t name = tree_ident(unit);
 
    ident_t body_i = ident_prefix(name, ident_new("body"), '-');
    tree_t body = lib_get(lib, body_i);
@@ -176,6 +173,41 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
    if (!link_already_have(body)) {
       (*fn)(lib, body, deps);
       linked[n_linked++] = body;
+   }
+}
+
+static void link_walk_lib(ident_t name, int kind, void *context)
+{
+   lib_walk_params_t *params = context;
+
+   if (kind == T_PACKAGE)
+      link_context_package(lib_get(params->lib, name), params->lib,
+                           params->deps, params->fn);
+}
+
+static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
+{
+   ident_t cname = tree_ident(ctx);
+   ident_t lname = ident_until(cname, '.');
+
+   lib_t lib = lib_find(istr(lname), true, true);
+   if (lib == NULL)
+      fatal("cannot link library %s", istr(lname));
+
+   if (lname == cname) {
+         lib_walk_params_t params = {
+            .lib  = lib,
+            .deps = deps,
+            .fn   = fn
+         };
+         lib_walk_index(lib, link_walk_lib, &params);
+   }
+   else {
+      tree_t unit = lib_get(lib, cname);
+      if (unit == NULL)
+         fatal("cannot find unit %s", istr(cname));
+      else if (tree_kind(unit) == T_PACKAGE)
+         link_context_package(unit, lib, deps, fn);
    }
 }
 
