@@ -449,6 +449,10 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
 
       // Allocate memory for drivers on demand
       if (driver == g->n_drivers) {
+         if ((g->n_drivers == 1) && (g->resolution == NULL))
+            fatal_at(tree_loc(g->sig_decl), "group %s has multiple drivers "
+                     "but no resolution function", fmt_group(g));
+
          const size_t driver_sz = sizeof(struct driver);
          g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
          memset(&g->drivers[g->n_drivers], '\0',
@@ -469,8 +473,6 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
          dummy->next   = NULL;
          dummy->values = rt_alloc_value(g);
          memcpy(dummy->values->data, src, g->length * g->size);
-
-         TRACE("driver initial %s", fmt_values(dummy->values->data, g->length * g->size));
 
          d->waveforms = dummy;
       }
@@ -1368,10 +1370,98 @@ static void rt_call_module_reset(ident_t name)
    global_tmp_alloc = _tmp_alloc;
 }
 
+static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
+{
+   // Set driver to -1 for initial call to resolution function
+
+   const size_t valuesz = group->size * group->length;
+
+   void *resolved = NULL;
+   if (group->resolution == NULL) {
+      resolved = values;
+   }
+   else if ((group->resolution->flags & R_IDENT) && (group->n_drivers == 1)) {
+      // Resolution function behaves like identity for a single driver
+      resolved = values;
+   }
+   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 1)) {
+      // Resolution function has been memoised so do a table lookup
+
+      resolved = alloca(valuesz);
+
+      for (int j = 0; j < group->length; j++) {
+         const int index = { ((const char *)values)[j] };
+         const int8_t r = group->resolution->tab1[index];
+         ((int8_t *)resolved)[j] = r;
+      }
+   }
+   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 2)) {
+      // Resolution function has been memoised so do a table lookup
+
+      resolved = alloca(valuesz);
+
+      const char *p0 = group->drivers[0].waveforms->values->data;
+      const char *p1 = group->drivers[1].waveforms->values->data;
+
+      for (int j = 0; j < group->length; j++) {
+         int driving[2] = { p0[j], p1[j] };
+         if (likely(driver >= 0))
+            driving[driver] = ((const char *)values)[j];
+
+         const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
+         ((int8_t *)resolved)[j] = r;
+      }
+   }
+   else {
+      // Must actually call resolution function in general case
+
+      resolved = alloca(valuesz);
+
+      for (int j = 0; j < group->length; j++) {
+#define CALL_RESOLUTION_FN(type) do {                                   \
+            type vals[group->n_drivers];                                \
+            for (int i = 0; i < group->n_drivers; i++) {                \
+               const value_t *v = group->drivers[i].waveforms->values;  \
+               vals[i] = ((const type *)v->data)[j];                    \
+            }                                                           \
+            if (likely(driver >= 0))                                    \
+               vals[driver] = ((const type *)values)[j];                \
+            type *r = (type *)resolved;                                 \
+            r[j] = (*group->resolution->fn)(vals, group->n_drivers);    \
+         } while (0)
+
+         FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
+      }
+   }
+
+   int32_t new_flags = NET_F_ACTIVE;
+   if (memcmp(group->resolved->data, resolved, valuesz) != 0)
+      new_flags |= NET_F_EVENT;
+
+   // LAST_VALUE is the same as the initial value when
+   // there have been no events on the signal otherwise
+   // only update it when there is an event
+   if (new_flags & NET_F_EVENT) {
+      // Swap last with current value to avoid a memcpy
+      value_t *tmp = group->last_value;
+      group->last_value = group->resolved;
+      group->resolved = tmp;
+
+      group->last_event = now;
+
+      memcpy(group->resolved->data, resolved, valuesz);
+   }
+
+   return new_flags;
+}
+
 static void rt_group_inital(groupid_t gid, netid_t first, unsigned length)
 {
    netgroup_t *g = &(groups[gid]);
-   (void)g;
+   if ((g->n_drivers == 1) && (g->resolution == NULL))
+      rt_resolve_group(g, -1, g->drivers[0].waveforms->values->data);
+   else if (g->n_drivers > 0)
+      rt_resolve_group(g, -1, g->resolved->data);
 }
 
 static void rt_initial(tree_t top)
@@ -1392,6 +1482,8 @@ static void rt_initial(tree_t top)
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
+
+   TRACE("calculate initial driver values");
 
    netdb_walk(netdb, rt_group_inital);
 
@@ -1529,68 +1621,8 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
    TRACE("update group %s values=%s driver=%d",
          fmt_group(group), fmt_values(values, valuesz), driver);
 
-   void *resolved = NULL;
-   if (group->resolution == NULL) {
-      if (unlikely(group->n_drivers > 1))
-         fatal_at(tree_loc(group->sig_decl), "group %s has multiple drivers "
-                  "but no resolution function", fmt_group(group));
-      resolved = values;
-   }
-   else if ((group->resolution->flags & R_IDENT) && (group->n_drivers == 1)) {
-      // Resolution function behaves like identity for a single driver
-      resolved = values;
-   }
-   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 1)) {
-      // Resolution function has been memoised so do a table lookup
-
-      resolved = alloca(valuesz);
-
-      for (int j = 0; j < group->length; j++) {
-         const int index = { ((const char *)values)[j] };
-         const int8_t r = group->resolution->tab1[index];
-         ((int8_t *)resolved)[j] = r;
-      }
-   }
-   else if ((group->resolution->flags & R_MEMO) && (group->n_drivers == 2)) {
-      // Resolution function has been memoised so do a table lookup
-
-      resolved = alloca(valuesz);
-
-      const char *p0 = group->drivers[0].waveforms->values->data;
-      const char *p1 = group->drivers[1].waveforms->values->data;
-
-      for (int j = 0; j < group->length; j++) {
-         int driving[2] = { p0[j], p1[j] };
-         driving[driver] = ((const char *)values)[j];
-
-         const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
-         ((int8_t *)resolved)[j] = r;
-      }
-   }
-   else {
-      // Must actually call resolution function in general case
-
-      resolved = alloca(valuesz);
-
-      for (int j = 0; j < group->length; j++) {
-#define CALL_RESOLUTION_FN(type) do {                                   \
-            type vals[group->n_drivers];                                \
-            for (int i = 0; i < group->n_drivers; i++) {                \
-               const value_t *v = group->drivers[i].waveforms->values;  \
-               vals[i] = ((const type *)v->data)[j];                    \
-            }                                                           \
-            vals[driver] = ((const type *)values)[j];                   \
-            type *r = (type *)resolved;                                 \
-            r[j] = (*group->resolution->fn)(vals, group->n_drivers);    \
-         } while (0)
-
-         FOR_ALL_SIZES(group->size, CALL_RESOLUTION_FN);
-      }
-   }
-
-   int32_t new_flags = NET_F_ACTIVE;
-   if (memcmp(group->resolved->data, resolved, valuesz) != 0)
-      new_flags |= NET_F_EVENT;
+   const int32_t new_flags = rt_resolve_group(group, driver, values);
+   group->flags |= new_flags;
 
    if (unlikely(n_active_groups == n_active_alloc)) {
       n_active_alloc *= 2;
@@ -1598,22 +1630,6 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       active_groups = xrealloc(active_groups, newsz);
    }
    active_groups[n_active_groups++] = group;
-
-   // LAST_VALUE is the same as the initial value when
-   // there have been no events on the signal otherwise
-   // only update it when there is an event
-   if (new_flags & NET_F_EVENT) {
-      // Swap last with current value to avoid a memcpy
-      value_t *tmp = group->last_value;
-      group->last_value = group->resolved;
-      group->resolved = tmp;
-
-      group->last_event = now;
-
-      memcpy(group->resolved->data, resolved, valuesz);
-   }
-
-   group->flags |= new_flags;
 
    // Wake up any processes sensitive to this group
    if (new_flags & NET_F_EVENT) {
