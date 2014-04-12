@@ -5169,6 +5169,21 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
+   case T_ARRAY_SLICE:
+      {
+         tree_t value = tree_value(t);
+         cgen_driver_nets(value, decl, all_nets, all_length,
+                          driven_nets, driven_length, ctx);
+
+         range_t r = tree_range(t);
+         if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
+            *driven_nets = cgen_get_slice(*driven_nets, tree_type(value),
+                                          NULL, r, ctx);
+            *driven_length = type_width(tree_type(t));
+         }
+      }
+      break;
+
    default:
       assert(false);
    }
