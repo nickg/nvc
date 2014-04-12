@@ -255,7 +255,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 
    if ((mode == PORT_OUT) || (mode == PORT_INOUT)) {
       if (tree_has_value(port))
-         tree_set_value(s, tree_value(port));
+         tree_add_attr_tree(s, ident_new("driver_init"), tree_value(port));
    }
 
    tree_add_decl(arch, s);

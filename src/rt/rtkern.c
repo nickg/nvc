@@ -427,10 +427,13 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
 }
 
 void _alloc_driver(const int32_t *all_nets, int32_t all_length,
-                   const int32_t *driven_nets, int32_t driven_length)
+                   const int32_t *driven_nets, int32_t driven_length,
+                   const void *init)
 {
    TRACE("_alloc_driver all=%s+%d driven=%s+%d", fmt_net(all_nets[0]),
          all_length, fmt_net(driven_nets[0]), driven_length);
+
+   const char *initp = init;
 
    int offset = 0;
    while (offset < driven_length) {
@@ -445,7 +448,7 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
       }
 
       // Allocate memory for drivers on demand
-      if (unlikely(driver == g->n_drivers)) {
+      if (driver == g->n_drivers) {
          const size_t driver_sz = sizeof(struct driver);
          g->drivers = xrealloc(g->drivers, (driver + 1) * driver_sz);
          memset(&g->drivers[g->n_drivers], '\0',
@@ -457,7 +460,22 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
 
          driver_t *d = &(g->drivers[driver]);
          d->proc = active_proc;
+
+         const void *src = (init == NULL) ? g->resolved->data : initp;
+
+         // Assign the initial value of the driver
+         waveform_t *dummy = rt_alloc(waveform_stack);
+         dummy->when   = 0;
+         dummy->next   = NULL;
+         dummy->values = rt_alloc_value(g);
+         memcpy(dummy->values->data, src, g->length * g->size);
+
+         TRACE("driver initial %s", fmt_values(dummy->values->data, g->length * g->size));
+
+         d->waveforms = dummy;
       }
+
+      initp += g->length * g->size;
    }
 }
 
@@ -482,6 +500,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       netgroup_t *g = &(groups[gid]);
 
       const int size = size_list[part * 2];
+
+      assert(g->sig_decl == NULL);
 
       g->sig_decl   = decl;
       g->resolution = memo;
@@ -1348,6 +1368,12 @@ static void rt_call_module_reset(ident_t name)
    global_tmp_alloc = _tmp_alloc;
 }
 
+static void rt_group_inital(groupid_t gid, netid_t first, unsigned length)
+{
+   netgroup_t *g = &(groups[gid]);
+   (void)g;
+}
+
 static void rt_initial(tree_t top)
 {
    // Initialisation is described in LRM 93 section 12.6.4
@@ -1366,6 +1392,8 @@ static void rt_initial(tree_t top)
 
    for (size_t i = 0; i < n_procs; i++)
       rt_run(&procs[i], true /* reset */);
+
+   netdb_walk(netdb, rt_group_inital);
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
 }
@@ -1447,17 +1475,6 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
    driver_t *d = &(group->drivers[driver]);
 
    const size_t valuesz = group->size * group->length;
-
-   if (unlikely(d->waveforms == NULL)) {
-      // Assigning the initial value of a driver
-      waveform_t *dummy = rt_alloc(waveform_stack);
-      dummy->when   = 0;
-      dummy->next   = NULL;
-      dummy->values = rt_alloc_value(group);
-      memcpy(dummy->values->data, values, valuesz);
-
-      d->waveforms = dummy;
-   }
 
    waveform_t *w = rt_alloc(waveform_stack);
    w->when   = now + after;

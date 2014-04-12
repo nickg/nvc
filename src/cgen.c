@@ -61,6 +61,7 @@ static ident_t static_i;
 static ident_t deferred_i;
 static ident_t llvm_agg_i;
 static ident_t drives_all_i;
+static ident_t driver_init_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -5256,11 +5257,29 @@ static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
    if (all_length == driven_length)
       tree_add_attr_ptr(decl, drives_all_i, ctx->proc);
 
+   LLVMValueRef init_ll;
+   tree_t init = tree_attr_tree(decl, driver_init_i);
+   if (init == NULL) {
+      init_ll = LLVMConstNull(llvm_void_ptr());
+   }
+   else {
+      init_ll = cgen_expr(init, ctx);
+
+      if (type_is_scalar(tree_type(init))) {
+         LLVMValueRef tmp = LLVMBuildAlloca(builder, LLVMTypeOf(init_ll), "");
+         LLVMBuildStore(builder, init_ll, tmp);
+         init_ll = tmp;
+      }
+
+      init_ll = llvm_void_cast(init_ll);
+   }
+
    LLVMValueRef args[] = {
       all_nets,
       llvm_int32(all_length),
       driven_nets,
-      llvm_int32(driven_length)
+      llvm_int32(driven_length),
+      init_ll
    };
    LLVMBuildCall(builder, llvm_fn("_alloc_driver"), args, ARRAY_LEN(args), "");
 }
@@ -6247,7 +6266,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt32Type(), 0),
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt32Type(), 0),
-         LLVMInt32Type()
+         LLVMInt32Type(),
+         llvm_void_ptr()
       };
       return LLVMAddFunction(module, "_alloc_driver",
                              LLVMFunctionType(LLVMVoidType(),
@@ -6550,6 +6570,7 @@ void cgen(tree_t top)
    deferred_i     = ident_new("deferred");
    llvm_agg_i     = ident_new("llvm_agg");
    drives_all_i   = ident_new("drives_all");
+   driver_init_i  = ident_new("driver_init");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
