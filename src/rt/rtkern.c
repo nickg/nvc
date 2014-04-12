@@ -1563,14 +1563,17 @@ static bool rt_sched_driver(netgroup_t *group, uint64_t after,
       fatal("signal %s pulse reject limit %s is greater than "
             "delay %s", fmt_group(group), fmt_time(reject), fmt_time(after));
 
-   // Try to find this process in the list of existing drivers
-   int driver;
-   for (driver = 0; driver < group->n_drivers; driver++) {
-      if (likely(group->drivers[driver].proc == active_proc))
-         break;
+   int driver = 0;
+   if (unlikely(group->n_drivers != 1)) {
+      // Try to find this process in the list of existing drivers
+      for (driver = 0; driver < group->n_drivers; driver++) {
+         if (likely(group->drivers[driver].proc == active_proc))
+            break;
+      }
+
+      assert(driver != group->n_drivers);
    }
 
-   assert(driver != group->n_drivers);
    driver_t *d = &(group->drivers[driver]);
 
    const size_t valuesz = group->size * group->length;
