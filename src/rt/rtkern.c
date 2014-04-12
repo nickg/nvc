@@ -426,6 +426,14 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
    }
 }
 
+void _alloc_driver(const int32_t *all_nets, int32_t all_length,
+                   const int32_t *driven_nets, int32_t driven_length)
+{
+   TRACE("_alloc_driver all_nets=%s all_length=%d driven_nets=%s "
+         "driven_length=%d", fmt_net(all_nets[0]), all_length,
+         fmt_net(driven_nets[0]), driven_length);
+}
+
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)

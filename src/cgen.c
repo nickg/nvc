@@ -60,6 +60,7 @@ static ident_t returned_i;
 static ident_t static_i;
 static ident_t deferred_i;
 static ident_t llvm_agg_i;
+static ident_t drives_all_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -5134,6 +5135,65 @@ static void cgen_nested_subprograms(tree_t t)
    }
 }
 
+static void cgen_driver_nets(tree_t t, tree_t *decl,
+                             LLVMValueRef *all_nets, int64_t *all_length,
+                             LLVMValueRef *driven_nets, int64_t *driven_length,
+                             cgen_ctx_t *ctx)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         *decl = tree_ref(t);
+         *all_nets = *driven_nets = cgen_signal_nets(*decl);
+         *all_length = *driven_length = tree_nets(*decl);
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+}
+
+static void cgen_driver_fn(tree_t t, void *_ctx)
+{
+   cgen_ctx_t *ctx = _ctx;
+   tree_t decl = NULL;
+   LLVMValueRef all_nets = NULL, driven_nets = NULL;
+   int64_t all_length = 0, driven_length = 0;
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      cgen_driver_nets(tree_target(t), &decl, &all_nets, &all_length,
+                       &driven_nets, &driven_length, ctx);
+      break;
+
+   case T_PCALL:
+      assert(false);
+
+   default:
+      return;
+   }
+
+   assert(decl != NULL);
+
+   if (tree_attr_ptr(decl, drives_all_i) == ctx->proc)
+      return;
+
+   printf("%s all_length=%d driven_length=%d\n",
+          istr(tree_ident(decl)), (int)all_length, (int)driven_length);
+
+   if (all_length == driven_length)
+      tree_add_attr_ptr(decl, drives_all_i, ctx->proc);
+
+   LLVMValueRef args[] = {
+      all_nets,
+      llvm_int32(all_length),
+      driven_nets,
+      llvm_int32(driven_length)
+   };
+   LLVMBuildCall(builder, llvm_fn("_alloc_driver"), args, ARRAY_LEN(args), "");
+}
+
 static void cgen_process(tree_t t)
 {
    assert(tree_kind(t) == T_PROCESS);
@@ -5193,6 +5253,10 @@ static void cgen_process(tree_t t)
    // Variable initialisation
 
    cgen_proc_var_init(t, &ctx);
+
+   // Driver initialisation
+
+   tree_visit(t, cgen_driver_fn, &ctx);
 
    // Return to simulation kernel after initialisation
 
@@ -6074,6 +6138,17 @@ static LLVMValueRef cgen_support_fn(const char *name)
                              LLVMFunctionType(LLVMVoidType(),
                                               args, ARRAY_LEN(args), false));
    }
+   else if (strcmp(name, "_alloc_driver") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMInt32Type(), 0),
+         LLVMInt32Type(),
+         LLVMPointerType(LLVMInt32Type(), 0),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_alloc_driver",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
    else if (strcmp(name, "_assert_fail") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(LLVMInt8Type(), 0),
@@ -6370,6 +6445,7 @@ void cgen(tree_t top)
    static_i       = ident_new("static");
    deferred_i     = ident_new("deferred");
    llvm_agg_i     = ident_new("llvm_agg");
+   drives_all_i   = ident_new("drives_all");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
