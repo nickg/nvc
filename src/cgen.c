@@ -1024,7 +1024,8 @@ static LLVMValueRef cgen_unalias_index(tree_t alias, LLVMValueRef index,
 }
 
 static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
-                                   tree_t alias, range_t r, cgen_ctx_t *ctx)
+                                   tree_t alias, range_t r,
+                                   bool elide_bounds, cgen_ctx_t *ctx)
 {
    // Construct a new array sharing the same memory as `array' but offset
    // by `range'
@@ -1039,19 +1040,21 @@ static LLVMValueRef cgen_get_slice(LLVMValueRef array, type_t type,
 
    LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
 
-   LLVMBasicBlockRef check_bb = LLVMAppendBasicBlock(ctx->fn, "check");
-   LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(ctx->fn, "merge");
+   if (!elide_bounds) {
+      LLVMBasicBlockRef check_bb = LLVMAppendBasicBlock(ctx->fn, "check");
+      LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(ctx->fn, "merge");
 
-   LLVMBuildCondBr(builder, null, merge_bb, check_bb);
+      LLVMBuildCondBr(builder, null, merge_bb, check_bb);
 
-   LLVMPositionBuilderAtEnd(builder, check_bb);
+      LLVMPositionBuilderAtEnd(builder, check_bb);
 
-   cgen_check_array_bounds(r.left, type, 0, array, left, ctx);
-   cgen_check_array_bounds(r.right, type, 0, array, right, ctx);
+      cgen_check_array_bounds(r.left, type, 0, array, left, ctx);
+      cgen_check_array_bounds(r.right, type, 0, array, right, ctx);
 
-   LLVMBuildBr(builder, merge_bb);
+      LLVMBuildBr(builder, merge_bb);
 
-   LLVMPositionBuilderAtEnd(builder, merge_bb);
+      LLVMPositionBuilderAtEnd(builder, merge_bb);
+   }
 
    LLVMValueRef data = cgen_array_data_ptr(type, array);
 
@@ -2799,7 +2802,7 @@ static LLVMValueRef cgen_array_data_ptr(type_t type, LLVMValueRef var)
 }
 
 static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
-                                          cgen_ctx_t *ctx)
+                                          bool elide_bounds, cgen_ctx_t *ctx)
 {
    tree_t value = tree_value(t);
    type_t type = tree_type(value);
@@ -2811,7 +2814,7 @@ static LLVMValueRef cgen_array_ref_offset(tree_t t, LLVMValueRef meta,
          alias = decl;
    }
 
-   const bool elide_bounds = tree_attr_int(t, elide_bounds_i, 0);
+   elide_bounds = elide_bounds || tree_attr_int(t, elide_bounds_i, 0);
 
    LLVMValueRef idx = llvm_int32(0);
    const int nparams = tree_params(t);
@@ -2879,7 +2882,7 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
 
    type_t type = tree_type(value);
 
-   LLVMValueRef idx = cgen_array_ref_offset(t, array, ctx);
+   LLVMValueRef idx = cgen_array_ref_offset(t, array, false, ctx);
 
    if (alias != NULL)
       array = cgen_alias(alias, ctx);
@@ -2941,7 +2944,7 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
 
       if (tree_kind(decl) == T_ALIAS) {
          LLVMValueRef array = cgen_alias(decl, ctx);
-         return cgen_get_slice(array, type, decl, tree_range(t), ctx);
+         return cgen_get_slice(array, type, decl, tree_range(t), false, ctx);
 
       }
       else {
@@ -2949,10 +2952,8 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
          case C_VARIABLE:
          case C_DEFAULT:
          case C_CONSTANT:
-            {
-               LLVMValueRef array = cgen_get_var(decl, ctx);
-               return cgen_get_slice(array, type, NULL, tree_range(t), ctx);
-            }
+            return cgen_get_slice(cgen_get_var(decl, ctx), type, NULL,
+                                  tree_range(t), false, ctx);
 
          case C_SIGNAL:
             return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
@@ -2963,10 +2964,9 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
          }
       }
    }
-   else {
-      LLVMValueRef src = cgen_expr(value, ctx);
-      return cgen_get_slice(src, tree_type(value), NULL, tree_range(t), ctx);
-   }
+   else
+      return cgen_get_slice(cgen_expr(value, ctx), tree_type(value),
+                            NULL, tree_range(t), false, ctx);
 }
 
 static void cgen_copy_vals(LLVMValueRef *dst, LLVMValueRef *src,
@@ -3858,7 +3858,7 @@ static LLVMValueRef cgen_var_lvalue(tree_t t, cgen_ctx_t *ctx)
          LLVMValueRef array = cgen_var_lvalue(tree_value(t), ctx);
 
          type_t ty = tree_type(tree_value(t));
-         return cgen_get_slice(array, ty, NULL, tree_range(t), ctx);
+         return cgen_get_slice(array, ty, NULL, tree_range(t), false, ctx);
       }
 
    case T_RECORD_REF:
@@ -3956,7 +3956,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                assert(type_is_array(tree_type(decl)));
 
                LLVMValueRef meta = cgen_signal_nets(decl);
-               LLVMValueRef off  = cgen_array_ref_offset(t, meta, ctx);
+               LLVMValueRef off  = cgen_array_ref_offset(t, meta, false, ctx);
 
                LLVMValueRef sig_array = cgen_array_data_ptr(type, meta);
 
@@ -3965,7 +3965,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                                    indexes, ARRAY_LEN(indexes), "");
             }
             else {
-               LLVMValueRef off = cgen_array_ref_offset(t, NULL, ctx);
+               LLVMValueRef off = cgen_array_ref_offset(t, NULL, false, ctx);
 
                tree_t decl = tree_ref(tree_value(t));
                assert(type_is_array(tree_type(decl)));
@@ -3976,7 +3976,7 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          else {
             assert(type_kind(type) != T_UARRAY);
 
-            LLVMValueRef off = cgen_array_ref_offset(t, NULL, ctx);
+            LLVMValueRef off = cgen_array_ref_offset(t, NULL, false, ctx);
 
             LLVMValueRef p_base = cgen_signal_lvalue(tree_value(t), ctx);
             if (p_base == NULL)
@@ -5169,7 +5169,8 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
          }
 
          if (all_const) {
-            LLVMValueRef idx = cgen_array_ref_offset(t, *driven_nets, ctx);
+            LLVMValueRef idx =
+               cgen_array_ref_offset(t, *driven_nets, true, ctx);
             *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
             *driven_length = type_width(tree_type(t));
          }
