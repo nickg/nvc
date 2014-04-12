@@ -5174,25 +5174,14 @@ static void cgen_driver_nets(tree_t t, tree_t *decl,
    }
 }
 
-static void cgen_driver_fn(tree_t t, void *_ctx)
+static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
 {
-   cgen_ctx_t *ctx = _ctx;
    tree_t decl = NULL;
    LLVMValueRef all_nets = NULL, driven_nets = NULL;
    int64_t all_length = 0, driven_length = 0;
 
-   switch (tree_kind(t)) {
-   case T_SIGNAL_ASSIGN:
-      cgen_driver_nets(tree_target(t), &decl, &all_nets, &all_length,
-                       &driven_nets, &driven_length, ctx);
-      break;
-
-   case T_PCALL:
-      assert(false);
-
-   default:
-      return;
-   }
+   cgen_driver_nets(t, &decl, &all_nets, &all_length,
+                    &driven_nets, &driven_length, ctx);
 
    assert(decl != NULL);
 
@@ -5209,6 +5198,39 @@ static void cgen_driver_fn(tree_t t, void *_ctx)
       llvm_int32(driven_length)
    };
    LLVMBuildCall(builder, llvm_fn("_alloc_driver"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_driver_fn(tree_t t, void *_ctx)
+{
+   cgen_ctx_t *ctx = _ctx;
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      cgen_driver_target(tree_target(t), ctx);
+      break;
+
+   case T_PCALL:
+      {
+         tree_t pdecl = tree_ref(t);
+         const int nparams = tree_params(t);
+         assert(nparams == tree_ports(pdecl));
+
+         for (int i = 0; i < nparams; i++) {
+            tree_t port = tree_port(pdecl, i);
+            if ((tree_class(port) == C_SIGNAL)
+                && (tree_subkind(port) != PORT_IN)) {
+
+               tree_t param = tree_param(t, i);
+               assert(tree_subkind(param) == P_POS);
+               cgen_driver_target(tree_value(param), ctx);
+            }
+         }
+      }
+      break;
+
+   default:
+      return;
+   }
 }
 
 static void cgen_process(tree_t t)
