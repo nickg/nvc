@@ -5201,6 +5201,27 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
+   case T_RECORD_REF:
+      {
+         tree_t value = tree_value(t);
+         if (!cgen_driver_nets(value, decl, all_nets, all_length,
+                               driven_nets, driven_length, ctx))
+            return false;
+         else if (*driven_nets == NULL)
+            return false;
+
+         type_t rtype = tree_type(value);
+         const netid_t offset = record_field_to_net(rtype, tree_ident(t));
+
+         LLVMValueRef indexes[] = { llvm_int32(offset) };
+         LLVMValueRef field_nets = LLVMBuildGEP(builder, *driven_nets, indexes,
+                                                ARRAY_LEN(indexes), "");
+
+         *driven_nets   = field_nets;
+         *driven_length = type_width(tree_type(t));
+      }
+      break;
+
    default:
       assert(false);
    }
