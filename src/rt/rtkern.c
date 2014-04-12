@@ -172,6 +172,12 @@ struct res_memo {
    int8_t          tab1[16];
 };
 
+typedef enum {
+   SIDE_EFFECT_ALLOW,
+   SIDE_EFFECT_DISALLOW,
+   SIDE_EFFECT_OCCURRED
+} side_effect_t;
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct loaded    *loaded = NULL;
@@ -199,7 +205,7 @@ static void         *global_tmp_stack = NULL;
 static void         *proc_tmp_stack = NULL;
 static uint32_t      global_tmp_alloc;
 static hash_t       *res_memo_hash = NULL;
-static bool          init_side_effect;
+static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -544,8 +550,8 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       "Note", "Warning", "Error", "Failure"
    };
 
-   if (iteration < 0) {
-      init_side_effect = true;
+   if (init_side_effect != SIDE_EFFECT_ALLOW) {
+      init_side_effect = SIDE_EFFECT_OCCURRED;
       return;
    }
 
@@ -1158,7 +1164,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    if (nlits > 16)
       return memo;
 
-   init_side_effect = false;
+   init_side_effect = SIDE_EFFECT_DISALLOW;
 
    // Memoise the function for all two value cases
 
@@ -1179,7 +1185,7 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
       identity = identity && (memo->tab1[i] == i);
    }
 
-   if (!init_side_effect) {
+   if (init_side_effect != SIDE_EFFECT_OCCURRED) {
       memo->flags |= R_MEMO;
       if (identity)
          memo->flags |= R_IDENT;
@@ -1485,6 +1491,7 @@ static void rt_initial(tree_t top)
 
    TRACE("calculate initial driver values");
 
+   init_side_effect = SIDE_EFFECT_ALLOW;
    netdb_walk(netdb, rt_group_inital);
 
    TRACE("used %d bytes of global temporary stack", global_tmp_alloc);
