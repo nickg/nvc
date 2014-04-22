@@ -243,12 +243,19 @@ architecture conv of top is
             i : in int_vec1 );
     end component;
 
+    component comp3 is
+        port (
+            b : out bit );
+    end component;
+
     function func1(x : in bit) return my_int1;
     function func2(x : in bit; y : in integer := 5) return my_int1;
+    function func3(x : in bit) return integer;
 
     signal x : int_vec1(1 to 3);
     signal y : int_vec2(1 to 3);
     signal z : bit;
+    signal i : integer;
 begin
 
     c1: component comp1
@@ -268,5 +275,8 @@ begin
     c6: component comp1
         port map ( i => int_vec1(y),
                    o => int_vec2(x) );  -- Error
+
+    c7: component comp3
+        port map ( func3(b) => i );     -- OK
 
 end architecture;

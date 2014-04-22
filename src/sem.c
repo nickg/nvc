@@ -49,6 +49,11 @@ struct import_list {
    import_list_t *next;
 };
 
+typedef enum {
+   SCOPE_PACKAGE = (1 << 0),
+   SCOPE_FORMAL  = (1 << 1)
+} scope_flags_t;
+
 struct scope {
    scope_t       *down;
 
@@ -59,7 +64,7 @@ struct scope {
    // For design unit scopes
    ident_t        prefix;
    import_list_t *imported;
-   bool           is_package;
+   scope_flags_t  flags;
 };
 
 struct loop_stack {
@@ -117,13 +122,13 @@ static bool          prefer_explicit = false;
 static void scope_push(ident_t prefix)
 {
    scope_t *s = xmalloc(sizeof(scope_t));
-   s->decls      = hash_new(1024, false);
-   s->prefix     = prefix;
-   s->imported   = NULL;
-   s->down       = top_scope;
-   s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
-   s->is_package = false;
-   s->deferred   = NULL;
+   s->decls    = hash_new(1024, false);
+   s->prefix   = prefix;
+   s->imported = NULL;
+   s->down     = top_scope;
+   s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
+   s->flags    = 0;
+   s->deferred = NULL;
 
    top_scope = s;
 }
@@ -1425,8 +1430,9 @@ static bool sem_readable(tree_t t)
    case T_REF:
       {
          tree_t decl = tree_ref(t);
-         if (tree_kind(decl) == T_PORT_DECL
-             && tree_subkind(decl) == PORT_OUT)
+         if ((tree_kind(decl) == T_PORT_DECL)
+             && (tree_subkind(decl) == PORT_OUT)
+             && !(top_scope->flags & SCOPE_FORMAL))
             sem_error(t, "cannot read output port %s",
                       istr(tree_ident(t)));
 
@@ -1935,7 +1941,7 @@ static bool sem_check_decl(tree_t t)
    tree_kind_t kind = tree_kind(t);
 
    if (!tree_has_value(t) && (kind == T_CONST_DECL)) {
-      if (!top_scope->is_package)
+      if (!(top_scope->flags & SCOPE_PACKAGE))
          sem_error(t, "deferred constant declarations are only permitted "
                    "in packages");
       else
@@ -2404,7 +2410,7 @@ static bool sem_check_package(tree_t t)
       scope_push(qual);
 
       // Allow constant declarations without initial values
-      top_scope->is_package = true;
+      top_scope->flags |= SCOPE_PACKAGE;
 
       for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
@@ -4799,6 +4805,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
       if (!has_named) {
          scope_push(NULL);
+         top_scope->flags |= SCOPE_FORMAL;
 
          for (int i = 0; i < nformals; i++)
             (void)scope_insert(formals[i].decl);

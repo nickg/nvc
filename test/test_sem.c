@@ -159,9 +159,9 @@ START_TEST(test_ports)
       { 185, "no visible declaration for HELLO" },
       { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
       { 221, "type of actual universal real does not match type INTEGER" },
-      { 258, "result of conversion for unconstrained formal I must" },
-      { 266, "actual must be globally static expression or locally" },
-      { 270, "conversion not allowed for formal O with mode OUT" },
+      { 265, "result of conversion for unconstrained formal I must" },
+      { 273, "actual must be globally static expression or locally" },
+      { 277, "conversion not allowed for formal O with mode OUT" },
       { -1, NULL }
    };
    expect_errors(expect);
