@@ -4839,49 +4839,16 @@ static bool sem_check_map(tree_t t, tree_t unit,
       case P_NAMED:
          {
             tree_t name = tree_name(p);
+            tree_kind_t kind = tree_kind(name);
+            tree_t ref = name;
 
-            tree_t ref = NULL;
-            switch (tree_kind(name)) {
-            case T_REF:
-               ref = name;
-               break;
+            if (kind == T_FCALL) {
+               sem_error(name, "sorry, output conversion not supported");
+            }
 
-            case T_ARRAY_SLICE:
-               {
-                  range_t r = tree_range(name);
-                  if (!sem_check_range(&r, sem_std_type("INTEGER")))
-                     return false;
-                  tree_set_range(name, r);
-
-                  ref = tree_value(name);
-               }
-               break;
-
-            case T_FCALL:
-               {
-                  tree_t ref = tree_new(T_REF);
-                  tree_set_ident(ref, tree_ident(name));
-
-                  tree_change_kind(name, T_ARRAY_REF);
-                  tree_set_value(name, ref);
-               }
-               // Fall-through
-
-            case T_ARRAY_REF:
-               {
-                  const int nparams = tree_params(name);
-                  for (int i = 0; i < nparams; i++) {
-                     tree_t value = tree_value(tree_param(name, i));
-                     if (!sem_check(value))
-                        return false;
-                  }
-
-                  ref = tree_value(name);
-               }
-               break;
-
-            default:
-               assert(false);
+            while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
+               ref  = tree_value(ref);
+               kind = tree_kind(ref);
             }
 
             assert(tree_kind(ref) == T_REF);
