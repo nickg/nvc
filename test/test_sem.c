@@ -147,16 +147,16 @@ START_TEST(test_ports)
       { 81,  "missing actual for formal I" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
-      { 92,  "undefined identifier CAKE" },
+      { 92,  "no visible declaration for CAKE" },
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
       { 148, "actual must be globally static expression" },
-      { 155, "undefined identifier Q" },
-      { 163, "undefined identifier U" },
+      { 155, "no visible declaration for Q" },
+      { 163, "no visible declaration for U" },
       { 168, "formal name must be static" },
       { 177, "formal name must be static" },
-      { 185, "undefined identifier HELLO" },
+      { 185, "no visible declaration for HELLO" },
       { 217, "port O of unconstrained type INT_VEC cannot be unconnected" },
       { 221, "type of actual universal real does not match type INTEGER" },
       { 258, "result of conversion for unconstrained formal I must" },
@@ -232,8 +232,8 @@ START_TEST(test_scope)
       {  63, "G already declared in this region" },
       {  71, "P already declared in this region" },
       { 114, "type MY_INT1 is not declared" },
-      { 137, "undefined identifier E1" },
-      { 160, "undefined identifier FUNC2" },
+      { 137, "no visible declaration for E1" },
+      { 160, "no visible declaration for FUNC2" },
       { 167, "declaration NOT_HERE not found in unit WORK.PACK5" },
       { 189, "type MY_INT1 is not declared" },
       { 236, "missing library clause for FOO" },
@@ -653,7 +653,7 @@ START_TEST(test_array)
       { 232, "aliased name is not static" },
       { 233, "aliased name is not static" },
       { 234, "type of aliased object INT_ARRAY does not match" },
-      { 241, "undefined identifier I" },
+      { 241, "no visible declaration for I" },
       { 246, "universal integer bound must be numeric literal or attribute" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
       { 272, "no suitable overload for operator \"<\"(INT2D, INT2D)" },
@@ -727,9 +727,9 @@ START_TEST(test_generics)
    const error_t expect[] = {
       {  34, "missing actual for formal N" },
       {  38, "too many positional actuals" },
-      {  48, "undefined identifier X" },
+      {  48, "no visible declaration for X" },
       {  58, "invalid object class for generic" },
-      {  68, "undefined identifier Y" },
+      {  68, "no visible declaration for Y" },
       { 109, "actual must be globally static expression or locally " },
       { -1, NULL }
    };
@@ -807,13 +807,13 @@ START_TEST(test_seq)
 
    const error_t expect[] = {
       {  15, "type of test must be BOOLEAN" },
-      {  19, "undefined identifier X" },
+      {  19, "no visible declaration for X" },
       {  25, "name TRUE cannot be used in this context" },
-      {  32, "undefined identifier X" },
+      {  32, "no visible declaration for X" },
       {  48, "return statement not allowed outside subprogram" },
       {  62, "return statement not allowed outside subprogram" },
       {  64, "type of loop condition must be BOOLEAN" },
-      {  79, "undefined identifier X" },
+      {  79, "no visible declaration for X" },
       { 106, "others choice must appear last" },
       { 113, "case choice must be locally static" },
       { 126, "case choice must be locally static" },
@@ -1001,7 +1001,7 @@ START_TEST(test_attr)
       { 54, "prefix of user defined attribute reference cannot denote" },
       { 65, "expected attribute type INTEGER" },
       { 66, "expected attribute type STRING" },
-      { 67, "undefined identifier Q" },
+      { 67, "no visible declaration for Q" },
       { 85, "parameter must be locally static" },
       { -1, NULL }
    };
@@ -1062,7 +1062,7 @@ START_TEST(test_generate)
 
    const error_t expect[] = {
       { 15, "condition of generate statement must be BOOLEAN" },
-      { 26, "undefined identifier Y" },
+      { 26, "no visible declaration for Y" },
       { 45, "condition of generate statement must be static" },
       { 48, "range of generate statement must be static" },
       { -1, NULL }
@@ -1106,7 +1106,7 @@ START_TEST(test_record)
       { 48, "field X already has a value" },
       { 64, "type R1_VEC is unconstrained" },
       { 72, "record type R1 has no field F" },
-      { 82, "undefined identifier A.Z" },
+      { 82, "no visible declaration for A.Z" },
       { 86, "record subtype may not have constraints" },
       { -1, NULL }
    };

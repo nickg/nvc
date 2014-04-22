@@ -1215,7 +1215,7 @@ static bool sem_check_range(range_t *r, type_t context)
 
       tree_t decl = scope_find(name);
       if (decl == NULL)
-         sem_error(expr, "undefined identifier %s", istr(name));
+         sem_error(expr, "no visible declaration for %s", istr(name));
 
       tree_t a = tree_new(T_ATTR_REF);
       tree_set_name(a, make_ref(decl));
@@ -3379,7 +3379,7 @@ static bool sem_check_fcall(tree_t t)
    if (n_overloads == 0)
       sem_error(t, (found_func > 0
                     ? "no matching function %s"
-                    : "undefined identifier %s"),
+                    : "no visible declaration for %s"),
                 istr(name));
 
    int matches;
@@ -4376,7 +4376,7 @@ static bool sem_check_ref(tree_t t)
 
    if (decl == NULL) {
       if (n == 0)
-         sem_error(t, "undefined identifier %s", istr(name));
+         sem_error(t, "no visible declaration for %s", istr(name));
       else if (n == 1)
          sem_error(t, "name %s cannot be used in this context%s",
                    istr(name), type_set_fmt());
@@ -5021,7 +5021,7 @@ static bool sem_check_instance(tree_t t)
          // Find the component declaration
          unit = scope_find(name);
          if (unit == NULL)
-            sem_error(t, "no declaration for component %s", istr(name));
+            sem_error(t, "no visible declaration for component %s", istr(name));
 
          if (tree_kind(unit) != T_COMPONENT)
             sem_error(t, "object %s is not a component declaration",
@@ -5651,7 +5651,7 @@ static bool sem_check_attr_spec(tree_t t)
 
    tree_t obj_decl = scope_find(tree_ident2(t));
    if (obj_decl == NULL)
-      sem_error(t, "undefined identifier %s", istr(tree_ident2(t)));
+      sem_error(t, "no visible declaration for %s", istr(tree_ident2(t)));
 
    tree_add_attr_tree(obj_decl, tree_ident(t), value);
 
