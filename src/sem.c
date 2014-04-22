@@ -4502,7 +4502,7 @@ static bool sem_check_array_ref(tree_t t)
       if (tree_kind(value) == T_REF) {
          // Handle slices using a subtype as a range
          tree_t decl = scope_find(tree_ident(value));
-         if (tree_kind(decl) == T_TYPE_DECL) {
+         if ((decl != NULL) && (tree_kind(decl) == T_TYPE_DECL)) {
             tree_change_kind(t, T_ARRAY_SLICE);
             tree_set_range(t, type_dim(tree_type(decl), 0));
 
@@ -4789,6 +4789,31 @@ static bool sem_check_map(tree_t t, tree_t unit,
       formals[i].have    = false;
       formals[i].partial = false;
    }
+
+   bool has_named = false;
+
+   for (int i = 0; i < nactuals; i++) {
+      tree_t p = tree_A(t, i);
+      if (tree_subkind(p) != P_NAMED)
+         continue;
+
+      if (!has_named) {
+         scope_push(NULL);
+
+         for (int i = 0; i < nformals; i++)
+            (void)scope_insert(formals[i].decl);
+
+         has_named = true;
+      }
+
+      ok = sem_check(tree_name(p)) && ok;
+   }
+
+   if (has_named)
+      scope_pop();
+
+   if (!ok)
+      return false;
 
    for (int i = 0; i < nactuals; i++) {
       tree_t p = tree_A(t, i);

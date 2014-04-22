@@ -147,7 +147,7 @@ START_TEST(test_ports)
       { 81,  "missing actual for formal I" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
-      { 92,  "WORK.FOO has no formal CAKE" },
+      { 92,  "undefined identifier CAKE" },
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "unconnected port I with mode IN must have a default value" },
       { 116, "object X is not a component declaration" },
