@@ -4891,10 +4891,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
             if (conv != NULL) {
                port_mode_t mode = tree_subkind(decl);
 
-               if (mode == PORT_INOUT)
-                  type = tree_type(name);
-               else
-                  type = tree_type(conv);
+               type = tree_type((mode == PORT_INOUT) ? name : conv);
 
                if (mode == PORT_IN)
                   sem_error(name, "output conversion not allowed for formal "
