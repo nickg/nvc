@@ -279,4 +279,15 @@ begin
     c7: component comp3
         port map ( func3(b) => i );     -- OK
 
+    c8: component comp1
+        port map ( i => (1, 1, 1),
+                   int_vec1(o) => x );  -- OK
+
+    c9: component comp1
+        port map ( int_vec2(i) => y,    -- Error
+                   int_vec1(o) => x );
+
+    c10: component comp3
+        port map ( func3(b) => open );  -- Error
+
 end architecture;

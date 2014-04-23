@@ -4848,9 +4848,16 @@ static bool sem_check_map(tree_t t, tree_t unit,
             tree_t name = tree_name(p);
             tree_kind_t kind = tree_kind(name);
             tree_t ref = name;
+            tree_t conv = NULL;
 
-            if (kind == T_FCALL) {
-               sem_error(name, "sorry, output conversion not supported");
+            if ((kind == T_FCALL) || (kind == T_TYPE_CONV)) {
+               if (tree_params(name) != 1)
+                  sem_error(name, "output conversion function must have "
+                            "exactly one parameter");
+
+               conv = name;
+               name = ref = tree_value(tree_param(name, 0));
+               kind = tree_kind(ref);
             }
 
             while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
@@ -4881,9 +4888,22 @@ static bool sem_check_map(tree_t t, tree_t unit,
             if (!sem_static_name(name))
                sem_error(name, "formal name must be static");
 
-            type = tree_type(decl);
-            if (tree_kind(name) == T_ARRAY_REF)
-               type = type_elem(type);
+            if (conv != NULL) {
+               type = tree_type(conv);
+
+               if (tree_subkind(decl) == PORT_IN)
+                  sem_error(name, "output conversion not allowed for formal "
+                            "%s with mode IN", istr(tree_ident(decl)));
+
+               if (tree_kind(value) == T_OPEN)
+                  sem_error(name, "output conversion for formal %s must not "
+                            "have OPEN actual", istr(tree_ident(decl)));
+            }
+            else {
+               type = tree_type(decl);
+               if (tree_kind(name) == T_ARRAY_REF)
+                  type = type_elem(type);
+            }
 
             break;
          }

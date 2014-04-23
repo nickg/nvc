@@ -162,6 +162,8 @@ START_TEST(test_ports)
       { 265, "result of conversion for unconstrained formal I must" },
       { 273, "actual must be globally static expression or locally" },
       { 277, "conversion not allowed for formal O with mode OUT" },
+      { 287, "output conversion not allowed for formal I with mode IN" },
+      { 291, "output conversion for formal B must not have OPEN actual" },
       { -1, NULL }
    };
    expect_errors(expect);
