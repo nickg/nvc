@@ -38,14 +38,13 @@ Dir.foreach('.') do |item|
 
   FileUtils.rm_rf 'work'
 
-  cmd = "#{Tool} -a #{item}"
+  cmd = "#{Tool} -a #{Billowitch}/#{item}"
   if system cmd then
     # TODO: elaborate, run
     passes += 1
     print '+'.green
   else
     fails += 1
-    puts "Failed #{Billowitch}/#{item}"
   end
 end
 
