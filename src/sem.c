@@ -4889,9 +4889,14 @@ static bool sem_check_map(tree_t t, tree_t unit,
                sem_error(name, "formal name must be static");
 
             if (conv != NULL) {
-               type = tree_type(conv);
+               port_mode_t mode = tree_subkind(decl);
 
-               if (tree_subkind(decl) == PORT_IN)
+               if (mode == PORT_INOUT)
+                  type = tree_type(name);
+               else
+                  type = tree_type(conv);
+
+               if (mode == PORT_IN)
                   sem_error(name, "output conversion not allowed for formal "
                             "%s with mode IN", istr(tree_ident(decl)));
 
@@ -4899,11 +4904,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
                   sem_error(name, "output conversion for formal %s must not "
                             "have OPEN actual", istr(tree_ident(decl)));
             }
-            else {
-               type = tree_type(decl);
-               if (tree_kind(name) == T_ARRAY_REF)
-                  type = type_elem(type);
-            }
+            else
+               type = tree_type(name);
 
             break;
          }
