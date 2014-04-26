@@ -5030,14 +5030,38 @@ static void cgen_jump_table(cgen_ctx_t *ctx, LLVMBasicBlockRef default_bb)
    }
 }
 
+static void cgen_open_file(tree_t d, cgen_ctx_t *ctx)
+{
+   assert(tree_kind(d) == T_FILE_DECL);
+
+   LLVMValueRef filep = cgen_get_var(d, ctx);
+   LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), filep);
+
+   if (tree_has_value(d)) {
+      // Generate implicit call to FILE_OPEN
+      tree_t value = tree_value(d);
+      type_t value_type = tree_type(value);
+      LLVMValueRef fname = cgen_expr(value, ctx);
+
+      LLVMValueRef args[] = {
+         LLVMConstNull(LLVMPointerType(LLVMInt8Type(), 0)),
+         filep,
+         cgen_array_data_ptr(value_type, fname),
+         cgen_array_len(value_type, 0, fname),
+         cgen_expr(tree_file_mode(d), ctx)
+      };
+      LLVMBuildCall(builder, llvm_fn("_file_open"),
+                    args, ARRAY_LEN(args), "");
+   }
+}
+
 static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
 {
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t v = tree_decl(t, i);
       tree_kind_t kind = tree_kind(v);
-      if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)
-          || (kind == T_FILE_DECL)) {
+      if ((kind == T_VAR_DECL) || (kind == T_CONST_DECL)) {
          if (!tree_has_value(v))
             continue;
 
@@ -5085,6 +5109,8 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
             LLVMBuildStore(builder, val, cgen_get_var(v, ctx));
          }
       }
+      else if (kind == T_FILE_DECL)
+         cgen_open_file(v, ctx);
    }
 }
 
@@ -6006,22 +6032,8 @@ static void cgen_reset_function(tree_t t)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
 
-      if ((tree_kind(d) == T_FILE_DECL) && tree_has_value(d)) {
-         // Generate implicit call to FILE_OPEN
-         tree_t value = tree_value(d);
-         type_t value_type = tree_type(value);
-         LLVMValueRef fname = cgen_expr(value, &ctx);
-
-         LLVMValueRef args[] = {
-            LLVMConstNull(LLVMPointerType(LLVMInt8Type(), 0)),
-            cgen_get_var(d, &ctx),
-            cgen_array_data_ptr(value_type, fname),
-            cgen_array_len(value_type, 0, fname),
-            cgen_expr(tree_file_mode(d), &ctx)
-         };
-         LLVMBuildCall(builder, llvm_fn("_file_open"),
-                       args, ARRAY_LEN(args), "");
-      }
+      if (tree_kind(d) == T_FILE_DECL)
+         cgen_open_file(d, &ctx);
 
       void *global = tree_attr_ptr(d, global_const_i);
       if (global != NULL) {
