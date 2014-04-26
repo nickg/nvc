@@ -25,6 +25,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#define MAP_DEPTH 3
+
 typedef struct clist clist_t;
 typedef struct trie  trie_t;
 
@@ -41,7 +43,8 @@ struct trie {
    uint16_t  depth;
    uint32_t  write_index;
    trie_t   *up;
-   clist_t  *children;
+   clist_t  *list;
+   trie_t   *map[0];
 };
 
 struct ident_rd_ctx {
@@ -57,38 +60,53 @@ struct ident_wr_ctx {
    uint8_t   generation;
 };
 
-static trie_t root = {
-   .value       = '\0',
-   .write_gen   = 0,
-   .write_index = 0,
-   .depth       = 1,
-   .up          = NULL,
-   .children    = NULL
+typedef struct {
+   trie_t  trie;
+   trie_t *map[256];
+} root_t;
+
+static root_t root = {
+   {
+      .value       = '\0',
+      .write_gen   = 0,
+      .write_index = 0,
+      .depth       = 1,
+      .up          = NULL
+   }
 };
 
 static trie_t *alloc_node(char ch, trie_t *prev)
 {
-   trie_t *t = xmalloc(sizeof(trie_t));
+   const size_t mapsz = (prev->depth < MAP_DEPTH) ? 256 * sizeof(trie_t *) : 0;
+
+   trie_t *t = xmalloc(sizeof(trie_t) + mapsz);
    t->value     = ch;
    t->depth     = prev->depth + 1;
    t->up        = prev;
-   t->children  = NULL;
    t->write_gen = 0;
+   t->list      = NULL;
 
-   clist_t *c = xmalloc(sizeof(clist_t));
-   c->value    = ch;
-   c->down     = t;
-   c->left     = NULL;
-   c->right    = NULL;
+   if (mapsz > 0)
+      memset(t->map, '\0', mapsz);
 
-   clist_t *it, **where;
-   for (it = prev->children, where = &(prev->children);
-        it != NULL;
-        where = (ch < it->value ? &(it->left) : &(it->right)),
-           it = *where)
-      ;
+   if (prev->depth <= MAP_DEPTH)
+      prev->map[(unsigned char)ch] = t;
+   else {
+      clist_t *c = xmalloc(sizeof(clist_t));
+      c->value    = ch;
+      c->down     = t;
+      c->left     = NULL;
+      c->right    = NULL;
 
-   *where = c;
+      clist_t *it, **where;
+      for (it = prev->list, where = &(prev->list);
+           it != NULL;
+           where = (ch < it->value ? &(it->left) : &(it->right)),
+              it = *where)
+         ;
+
+      *where = c;
+   }
 
    return t;
 }
@@ -109,7 +127,7 @@ static void build_trie(const char *str, trie_t *prev, trie_t **end)
 static clist_t *search_node(trie_t *t, char ch)
 {
    clist_t *it;
-   for (it = t->children;
+   for (it = t->list;
         (it != NULL) && (it->value != ch);
         it = (ch < it->value ? it->left : it->right))
       ;
@@ -122,9 +140,16 @@ static bool search_trie(const char **str, trie_t *t, trie_t **end)
    assert(**str != '\0');
    assert(t != NULL);
 
-   clist_t *it = search_node(t, **str);
+   trie_t *next = NULL;
 
-   if (it == NULL) {
+   if (t->depth <= MAP_DEPTH)
+      next = t->map[(unsigned char)**str];
+   else {
+      clist_t *it = search_node(t, **str);
+      next = (it != NULL) ? it->down : NULL;
+   }
+
+   if (next == NULL) {
       *end = t;
       return false;
    }
@@ -132,11 +157,11 @@ static bool search_trie(const char **str, trie_t *t, trie_t **end)
       (*str)++;
 
       if (**str == '\0') {
-         *end = it->down;
+         *end = next;
          return true;
       }
       else
-         return search_trie(str, it->down, end);
+         return search_trie(str, next, end);
    }
 }
 
@@ -146,7 +171,7 @@ ident_t ident_new(const char *str)
    assert(*str != '\0');
 
    trie_t *result;
-   if (!search_trie(&str, &root, &result))
+   if (!search_trie(&str, &(root.trie), &result))
       build_trie(str, result, &result);
 
    return result;
@@ -158,7 +183,7 @@ bool ident_interned(const char *str)
    assert(*str != '\0');
 
    trie_t *result;
-   return search_trie(&str, &root, &result);
+   return search_trie(&str, &(root.trie), &result);
 }
 
 const char *istr(ident_t ident)
@@ -240,17 +265,24 @@ ident_t ident_read(ident_rd_ctx_t ctx)
          ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
       }
 
-      trie_t *p = &root;
+      trie_t *p = &(root.trie);
       char ch;
       while ((ch = read_u8(ctx->file)) != '\0') {
-         clist_t *it = search_node(p, ch);
-         if (it != NULL)
-            p = it->down;
+         trie_t *next = NULL;
+         if (p->depth <= MAP_DEPTH)
+            next = p->map[(unsigned char)ch];
+         else {
+            clist_t *it = search_node(p, ch);
+            next = (it != NULL) ? it->down : NULL;
+         }
+
+         if (next != NULL)
+            p = next;
          else
             p = alloc_node(ch, p);
       }
 
-      if (p == &root)
+      if (p == &(root.trie))
          return NULL;
       else {
          ctx->cache[ctx->cache_sz++] = p;
@@ -269,7 +301,7 @@ ident_t ident_uniq(const char *prefix)
 
    const char *start = prefix;
    trie_t *end;
-   if (search_trie(&start, &root, &end)) {
+   if (search_trie(&start, &(root.trie), &end)) {
       const size_t len = strlen(prefix) + 16;
       char buf[len];
       snprintf(buf, len, "%s%d", prefix, counter++);
@@ -383,7 +415,7 @@ bool icmp(ident_t i, const char *s)
    assert(i != NULL);
 
    trie_t *result;
-   if (!search_trie(&s, &root, &result))
+   if (!search_trie(&s, &(root.trie), &result))
       return false;
    else
       return result == i;

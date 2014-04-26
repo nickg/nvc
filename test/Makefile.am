@@ -3,6 +3,8 @@ check_PROGRAMS = test_lib test_ident test_parse test_sem test_simp \
 TESTS_ENVIRONMENT = BUILD_DIR=$(top_builddir)
 TESTS = $(check_PROGRAMS) run_regr.rb
 
+noinst_PROGRAMS = ident_perf
+
 src = $(top_srcdir)/src
 build = $(top_builddir)/src
 shared = $(src)/util.c
