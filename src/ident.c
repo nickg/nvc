@@ -25,20 +25,23 @@
 #include <string.h>
 #include <stdint.h>
 
+typedef struct clist clist_t;
+typedef struct trie  trie_t;
+
 struct clist {
-   char         value;
-   struct trie  *down;
-   struct clist *left;
-   struct clist *right;
+   char     value;
+   trie_t  *down;
+   clist_t *left;
+   clist_t *right;
 };
 
 struct trie {
-   char         value;
-   uint8_t      write_gen;
-   uint16_t     depth;
-   uint32_t     write_index;
-   struct trie  *up;
-   struct clist *children;
+   char      value;
+   uint8_t   write_gen;
+   uint16_t  depth;
+   uint32_t  write_index;
+   trie_t   *up;
+   clist_t  *children;
 };
 
 struct ident_rd_ctx {
@@ -54,7 +57,7 @@ struct ident_wr_ctx {
    uint8_t   generation;
 };
 
-static struct trie root = {
+static trie_t root = {
    .value       = '\0',
    .write_gen   = 0,
    .write_index = 0,
@@ -63,22 +66,22 @@ static struct trie root = {
    .children    = NULL
 };
 
-static struct trie *alloc_node(char ch, struct trie *prev)
+static trie_t *alloc_node(char ch, trie_t *prev)
 {
-   struct trie *t = xmalloc(sizeof(struct trie));
+   trie_t *t = xmalloc(sizeof(trie_t));
    t->value     = ch;
    t->depth     = prev->depth + 1;
    t->up        = prev;
    t->children  = NULL;
    t->write_gen = 0;
 
-   struct clist *c = xmalloc(sizeof(struct clist));
+   clist_t *c = xmalloc(sizeof(clist_t));
    c->value    = ch;
    c->down     = t;
    c->left     = NULL;
    c->right    = NULL;
 
-   struct clist *it, **where;
+   clist_t *it, **where;
    for (it = prev->children, where = &(prev->children);
         it != NULL;
         where = (ch < it->value ? &(it->left) : &(it->right)),
@@ -90,12 +93,12 @@ static struct trie *alloc_node(char ch, struct trie *prev)
    return t;
 }
 
-static void build_trie(const char *str, struct trie *prev, struct trie **end)
+static void build_trie(const char *str, trie_t *prev, trie_t **end)
 {
    assert(*str != '\0');
    assert(prev != NULL);
 
-   struct trie *t = alloc_node(*str, prev);
+   trie_t *t = alloc_node(*str, prev);
 
    if (*(++str) == '\0')
       *end = t;
@@ -103,9 +106,9 @@ static void build_trie(const char *str, struct trie *prev, struct trie **end)
       build_trie(str, t, end);
 }
 
-static struct clist *search_node(struct trie *t, char ch)
+static clist_t *search_node(trie_t *t, char ch)
 {
-   struct clist *it;
+   clist_t *it;
    for (it = t->children;
         (it != NULL) && (it->value != ch);
         it = (ch < it->value ? it->left : it->right))
@@ -114,12 +117,12 @@ static struct clist *search_node(struct trie *t, char ch)
    return it;
 }
 
-static bool search_trie(const char **str, struct trie *t, struct trie **end)
+static bool search_trie(const char **str, trie_t *t, trie_t **end)
 {
    assert(**str != '\0');
    assert(t != NULL);
 
-   struct clist *it = search_node(t, **str);
+   clist_t *it = search_node(t, **str);
 
    if (it == NULL) {
       *end = t;
@@ -142,7 +145,7 @@ ident_t ident_new(const char *str)
    assert(str != NULL);
    assert(*str != '\0');
 
-   struct trie *result;
+   trie_t *result;
    if (!search_trie(&str, &root, &result))
       build_trie(str, result, &result);
 
@@ -154,7 +157,7 @@ bool ident_interned(const char *str)
    assert(str != NULL);
    assert(*str != '\0');
 
-   struct trie *result;
+   trie_t *result;
    return search_trie(&str, &root, &result);
 }
 
@@ -165,7 +168,7 @@ const char *istr(ident_t ident)
    char *p = get_fmt_buf(ident->depth) + ident->depth - 1;
    *p = '\0';
 
-   struct trie *it;
+   trie_t *it;
    for (it = ident; it->value != '\0'; it = it->up) {
       assert(it != NULL);
       *(--p) = it->value;
@@ -237,10 +240,10 @@ ident_t ident_read(ident_rd_ctx_t ctx)
          ctx->cache = xrealloc(ctx->cache, ctx->cache_alloc * sizeof(ident_t));
       }
 
-      struct trie *p = &root;
+      trie_t *p = &root;
       char ch;
       while ((ch = read_u8(ctx->file)) != '\0') {
-         struct clist *it = search_node(p, ch);
+         clist_t *it = search_node(p, ch);
          if (it != NULL)
             p = it->down;
          else
@@ -265,7 +268,7 @@ ident_t ident_uniq(const char *prefix)
    static int counter = 0;
 
    const char *start = prefix;
-   struct trie *end;
+   trie_t *end;
    if (search_trie(&start, &root, &end)) {
       const size_t len = strlen(prefix) + 16;
       char buf[len];
@@ -274,7 +277,7 @@ ident_t ident_uniq(const char *prefix)
       return ident_new(buf);
    }
    else {
-      struct trie *result;
+      trie_t *result;
       build_trie(start, end, &result);
       return result;
    }
@@ -287,7 +290,7 @@ ident_t ident_prefix(ident_t a, ident_t b, char sep)
    else if (b == NULL)
       return a;
 
-   struct trie *result;
+   trie_t *result;
 
    if (sep != '\0') {
       // Append separator
@@ -379,14 +382,14 @@ bool icmp(ident_t i, const char *s)
 {
    assert(i != NULL);
 
-   struct trie *result;
+   trie_t *result;
    if (!search_trie(&s, &root, &result))
       return false;
    else
       return result == i;
 }
 
-static bool ident_glob_walk(const struct trie *i, const char *g,
+static bool ident_glob_walk(const trie_t *i, const char *g,
                             const char *const end)
 {
    if (i->value == '\0')
