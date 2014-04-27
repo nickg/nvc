@@ -1749,7 +1749,7 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
-static void sem_add_attributes(tree_t decl)
+static void sem_add_attributes(tree_t decl, bool is_signal)
 {
    type_t std_bool = sem_std_type("BOOLEAN");
 
@@ -1773,12 +1773,6 @@ static void sem_add_attributes(tree_t decl)
       sem_add_dimension_attr(decl, sem_std_type("BOOLEAN"),
                              "ASCENDING", "ascending");
    }
-
-   const tree_kind_t decl_kind = tree_kind(decl);
-
-   const bool is_signal =
-      (decl_kind == T_PORT_DECL && tree_class(decl) == C_SIGNAL)
-      || (decl_kind == T_SIGNAL_DECL);
 
    if (is_signal) {
       type_t std_time   = sem_std_type("TIME");
@@ -1915,7 +1909,7 @@ static tree_t sem_default_value(type_t type)
    }
 }
 
-static void sem_declare_fields(type_t type, ident_t prefix)
+static void sem_declare_fields(type_t type, ident_t prefix, bool is_signal)
 {
    // Insert a name into the scope for each field
    const int nfields = type_fields(type);
@@ -1924,9 +1918,11 @@ static void sem_declare_fields(type_t type, ident_t prefix)
       ident_t qual = ident_prefix(prefix, tree_ident(field), '.');
       scope_insert_alias(field, qual);
 
+      sem_add_attributes(field, is_signal);
+
       type_t field_type = tree_type(field);
       if (type_is_record(field_type))
-         sem_declare_fields(field_type, qual);
+         sem_declare_fields(field_type, qual, is_signal);
    }
 }
 
@@ -1972,21 +1968,25 @@ static bool sem_check_decl(tree_t t)
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
 
+   const bool is_signal =
+      ((kind == T_PORT_DECL) && (tree_class(t) == C_SIGNAL))
+      || (kind == T_SIGNAL_DECL);
+
    if (type_is_record(type)) {
-      sem_declare_fields(type, tree_ident(t));
+      sem_declare_fields(type, tree_ident(t), is_signal);
    }
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
       if (type_is_record(deref_type)) {
          // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, tree_ident(t));
+         sem_declare_fields(deref_type, tree_ident(t), is_signal);
       }
 
       if (kind == T_SIGNAL_DECL)
          sem_error(t, "signals may not have access type");
    }
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, is_signal);
    scope_apply_prefix(t);
 
    // Check if we are giving a value to a deferred constant
@@ -2030,16 +2030,16 @@ static bool sem_check_port_decl(tree_t t)
    }
 
    if (type_is_record(type))
-      sem_declare_fields(type, tree_ident(t));
+      sem_declare_fields(type, tree_ident(t), true);
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
       if (type_is_record(deref_type)) {
          // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, tree_ident(t));
+         sem_declare_fields(deref_type, tree_ident(t), true);
       }
    }
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, true);
    return true;
 }
 
@@ -2090,7 +2090,7 @@ static bool sem_check_alias(tree_t t)
    else
       tree_set_type(t, tree_type(value));
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2199,7 +2199,7 @@ static bool sem_check_func_decl(tree_t t)
       sem_error(t, "duplicate declaration of function %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2213,7 +2213,7 @@ static bool sem_check_func_body(tree_t t)
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    // If there is no declaration for this function add to the scope
    if (!sem_check_duplicate(t, T_FUNC_DECL)) {
@@ -2232,7 +2232,7 @@ static bool sem_check_func_body(tree_t t)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      sem_add_attributes(p);
+      sem_add_attributes(p, (tree_class(p) == C_SIGNAL));
       ok = scope_insert(p) && ok;
    }
 
@@ -2294,7 +2294,7 @@ static bool sem_check_proc_decl(tree_t t)
       sem_error(t, "duplicate declaration of procedure %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2307,7 +2307,7 @@ static bool sem_check_proc_body(tree_t t)
 
    scope_apply_prefix(t);
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    // If there is no declaration for this procedure add to the scope
    if (!sem_check_duplicate(t, T_PROC_DECL)) {
@@ -2323,7 +2323,7 @@ static bool sem_check_proc_body(tree_t t)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      sem_add_attributes(p);
+      sem_add_attributes(p, (tree_class(p) == C_SIGNAL));
       ok = scope_insert(p) && ok;
    }
 
@@ -2370,7 +2370,7 @@ static bool sem_check_sensitivity(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    scope_push(NULL);
 
@@ -2596,7 +2596,7 @@ static bool sem_check_component(tree_t t)
 
    scope_pop();
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    if (ok) {
       scope_apply_prefix(t);
@@ -2619,7 +2619,7 @@ static bool sem_check_entity(tree_t t)
 
    scope_insert(t);
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -2674,7 +2674,7 @@ static bool sem_check_arch(tree_t t)
 
    scope_push(NULL);
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    // Make the architecture and entity name visible
    scope_insert(t);
@@ -2690,7 +2690,7 @@ static bool sem_check_arch(tree_t t)
 
       type_t type = tree_type(p);
       if (type_is_record(type))
-         sem_declare_fields(type, tree_ident(p));
+         sem_declare_fields(type, tree_ident(p), true);
    }
 
    const int ngenerics = tree_generics(e);
@@ -4423,6 +4423,21 @@ static bool sem_check_ref(tree_t t)
    return true;
 }
 
+static tree_t sem_find_record_field(tree_t rref)
+{
+   ident_t fname = tree_ident(rref);
+   type_t value_type = tree_type(tree_value(rref));
+
+   const int nfields = type_fields(value_type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t field = type_field(value_type, i);
+      if (tree_ident(field) == fname)
+         return field;
+   }
+
+   return NULL;
+}
+
 static bool sem_check_record_ref(tree_t t)
 {
    tree_t value = tree_value(t);
@@ -4434,19 +4449,10 @@ static bool sem_check_record_ref(tree_t t)
       sem_error(value, "expected record type but found %s",
                 sem_type_str(value_type));
 
-   ident_t fname = tree_ident(t);
-
-   const int nfields = type_fields(value_type);
-   tree_t field;
-   for (int i = 0; i < nfields; i++, field = NULL) {
-      field = type_field(value_type, i);
-      if (tree_ident(field) == fname)
-         break;
-   }
-
+   tree_t field = sem_find_record_field(t);
    if (field == NULL)
       sem_error(t, "record type %s has no field %s",
-                sem_type_str(value_type), istr(fname));
+                sem_type_str(value_type), istr(tree_ident(t)));
 
    tree_set_type(t, tree_type(field));
    return true;
@@ -4609,6 +4615,11 @@ static bool sem_check_attr_ref(tree_t t)
 
    case T_ALL:
       decl = tree_ref(tree_value(name));
+      break;
+
+   case T_RECORD_REF:
+      decl = sem_find_record_field(name);
+      assert(decl != NULL);
       break;
 
    default:
@@ -5529,7 +5540,7 @@ static bool sem_check_block(tree_t t)
 {
    scope_push(NULL);
 
-   sem_add_attributes(t);
+   sem_add_attributes(t, false);
 
    bool ok = true;
 

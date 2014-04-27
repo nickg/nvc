@@ -87,4 +87,13 @@ package body p is
     begin
     end procedure;
 
+    procedure p7 is
+        type rec is record
+            vec : bit_vector(1 to 3);
+        end record;
+        variable a : rec;
+    begin
+        assert a.vec'length = 3;        -- OK
+    end procedure;
+
 end package body;
