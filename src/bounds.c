@@ -441,6 +441,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
 
    const bool check_scalar_subtype_range =
       !type_is_array(target_type)
+      && !type_is_record(target_type)
       && (target_kind == T_SUBTYPE);
 
    if (check_scalar_subtype_range) {

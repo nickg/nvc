@@ -116,4 +116,17 @@ begin
         p(((0, 1, 2, 3), (1 to 2 => 5)));  -- Error
     end process;
 
+    -- Reduced from Billowitch tc1374
+    process is
+        type t_rec3 is record
+            f1 : boolean;
+        end record;
+        subtype  st_rec3 is t_rec3 ;
+        type     t_arr3 is array (integer range <>, boolean range <>) of st_rec3 ;
+        subtype  st_arr3 is t_arr3 (1 to 5, true downto false) ;
+        variable v_st_arr3 : st_arr3;
+    begin
+        v_st_arr3(1, true) := (f1 => false);
+    end process;
+
 end architecture;
