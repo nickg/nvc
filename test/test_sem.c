@@ -1305,6 +1305,7 @@ START_TEST(test_signal)
       { 23, "not a suitable l-value" },
       { 24, "others association not allowed in aggregate signal target" },
       { 25, "cannot assign to input port P" },
+      { 30, "aggregate element must be locally static name" },
       { -1, NULL }
    };
    expect_errors(expect);

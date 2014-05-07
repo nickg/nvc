@@ -2826,9 +2826,13 @@ static bool sem_check_signal_target(tree_t target)
       const int nassocs = tree_assocs(target);
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(target, i);
+         tree_t value = tree_value(a);
 
-         if (!sem_check_signal_target(tree_value(a)))
+         if (!sem_check_signal_target(value))
             return false;
+
+         if (!sem_static_name(value))
+            sem_error(value, "aggregate element must be locally static name");
 
          assoc_kind_t kind = tree_subkind(a);
          switch (kind) {

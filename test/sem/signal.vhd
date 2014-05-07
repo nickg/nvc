@@ -24,4 +24,10 @@ begin
     (others => x) <= v;             -- Error
     (p, y, z) <= v;                 -- Error
 
+    process is
+        variable i : integer;
+    begin
+        (v(i), v(1), v(2)) <= v;        -- Error
+    end process;
+
 end architecture;
