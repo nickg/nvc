@@ -2840,7 +2840,7 @@ static bool sem_check_signal_target(tree_t target)
             sem_error(a, "others association not allowed in aggregate "
                       "signal target");
          case A_RANGE:
-            sem_error(a, "range association not allowd in aggregate "
+            sem_error(a, "range association not allowed in aggregate "
                       "signal target");
          case A_NAMED:
             sem_error(a, "sorry, named associations are not yet "
