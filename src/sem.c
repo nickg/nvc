@@ -109,6 +109,7 @@ static ident_t       std_standard_i;
 static ident_t       formal_i;
 static ident_t       locally_static_i;
 static ident_t       elab_copy_i;
+static ident_t       all_i;
 static bool          prefer_explicit = false;
 
 #define MAX_OVERLOADS 128
@@ -216,6 +217,21 @@ static tree_t scope_find(ident_t i)
 static tree_t scope_find_nth(ident_t i, int n)
 {
    return scope_find_in(i, top_scope, true, n);
+}
+
+static bool scope_walk(hash_iter_t *now, tree_t *decl)
+{
+   const void *key;
+   void *value;
+   while (hash_iter(top_scope->decls, now, &key, &value)) {
+      *decl = value;
+      if (tree_ident(*decl) != key)
+         continue;   // Skip aliases
+      else
+         return true;
+   }
+
+   return false;
 }
 
 static bool scope_can_overload(tree_t t)
@@ -1320,7 +1336,7 @@ static bool sem_check_use_clause(tree_t c)
 {
    ident_t cname = tree_ident(c);
 
-   const bool all = tree_has_ident2(c) && (icmp(tree_ident2(c), "all"));
+   const bool all = tree_has_ident2(c) && (tree_ident2(c) == all_i);
 
    ident_t lname = ident_until(cname, '.');
 
@@ -5884,43 +5900,82 @@ static bool sem_check_all(tree_t t)
    return true;
 }
 
-static bool sem_check_spec(tree_t t)
+static bool sem_bind(tree_t spec, tree_t inst)
 {
-   ident_t iname = tree_ident(t);
-   ident_t cname = tree_ident2(t);
-
-   tree_t inst = scope_find(iname);
-   if (inst == NULL)
-      sem_error(t, "instance %s not found", istr(iname));
-   else if (tree_kind(inst) != T_INSTANCE)
-      sem_error(t, "object %s is not an instance", istr(iname));
+   ident_t cname = tree_ident2(spec);
 
    tree_t comp = scope_find(cname);
    if (comp == NULL)
-      sem_error(t, "component %s not found", istr(cname));
+      sem_error(spec, "component %s not found", istr(cname));
    else if (tree_kind(comp) != T_COMPONENT)
-      sem_error(t, "object %s is not a component declaration", istr(cname));
+      sem_error(spec, "object %s is not a component declaration", istr(cname));
 
    if (tree_class(inst) != C_COMPONENT)
-      sem_error(t, "specification may only be used with component instances");
+      sem_error(spec, "specification may only be used with component "
+                "instances");
 
    if (!tree_has_ref(inst))
       return false;
 
    if (tree_ref(inst) != comp)
-      sem_error(t, "component mismatch for instance %s: expected %s but "
-                "specification has %s", istr(iname),
+      sem_error(spec, "component mismatch for instance %s: expected %s but "
+                "specification has %s", istr(tree_ident(spec)),
                 istr(tree_ident(tree_ref(inst))), istr(cname));
 
+   if (tree_has_spec(inst))
+      sem_error(spec, "instance %s is already bound by a specification",
+                istr(tree_ident(inst)));
+
+   tree_set_spec(inst, spec);
+   return true;
+}
+
+static bool sem_check_spec(tree_t t)
+{
    if (!sem_check(tree_value(t)))
       return false;
 
-   if (tree_has_spec(inst))
-      sem_error(t, "instance %s is already bound by a specification",
-                istr(iname));
+   ident_t iname = tree_has_ident(t) ? tree_ident(t) : NULL;
 
-   tree_set_spec(inst, t);
-   return true;
+   enum { NAMED, ALL, OTHERS } kind;
+
+   if (iname == NULL)
+      kind = OTHERS;
+   else if (iname == all_i)
+      kind = ALL;
+   else
+      kind = NAMED;
+
+   if (kind == NAMED) {
+      tree_t inst = scope_find(iname);
+      if (inst == NULL)
+         sem_error(t, "instance %s not found", istr(iname));
+      else if (tree_kind(inst) != T_INSTANCE)
+         sem_error(t, "object %s is not an instance", istr(iname));
+
+      return sem_bind(t, inst);
+   }
+   else {
+      ident_t cname = tree_ident2(t);
+      hash_iter_t it = HASH_BEGIN;
+      tree_t obj;
+      while (scope_walk(&it, &obj)) {
+         if (tree_kind(obj) != T_INSTANCE)
+            continue;
+
+         if (tree_class(obj) != C_COMPONENT)
+            continue;
+
+         if (tree_ident2(obj) == cname) {
+            if ((kind == ALL) || !tree_has_spec(obj)) {
+               if (!sem_bind(t, obj))
+                  return false;
+            }
+         }
+      }
+
+      return true;
+   }
 }
 
 static bool sem_check_binding(tree_t t)
@@ -5962,6 +6017,7 @@ static void sem_intern_strings(void)
    formal_i         = ident_new("formal");
    locally_static_i = ident_new("locally_static");
    elab_copy_i      = ident_new("elab_copy");
+   all_i            = ident_new("all");
 
    prefer_explicit  = opt_get_int("prefer-explicit");
 }

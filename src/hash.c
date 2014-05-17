@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -149,4 +149,21 @@ void hash_replace(hash_t *h, void *value, void *with)
       if (h->values[i] == value)
          h->values[i] = with;
    }
+}
+
+bool hash_iter(hash_t *h, hash_iter_t *now, const void **key, void **value)
+{
+   assert(*now != HASH_END);
+
+   while (*now < h->size) {
+      const unsigned old = (*now)++;
+      if (h->keys[old] != NULL) {
+         *key   = h->keys[old];
+         *value = h->values[old];
+         return true;
+      }
+   }
+
+   *now = HASH_END;
+   return false;
 }

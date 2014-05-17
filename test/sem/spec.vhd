@@ -35,6 +35,14 @@ architecture a of e is
 
     for i3: c1 use entity work.p;         -- Error
 
+    for all: c2 use entity work.c1_ent1;  -- OK
+
+    for i5: c1 use entity work.c1_ent1;   -- Error
+
+    for all: c2 use entity work.c1_ent1;   -- Error
+
+    for others: c1 use entity work.c1_ent1;  -- OK
+
 begin
 
     i1: component c1;
@@ -42,5 +50,14 @@ begin
     i2: entity work.e;
 
     i3: component c1;
+
+    i4: component c2;
+
+    b1: block is
+    begin
+        i5: component c1;
+    end block;
+
+    i6: component c1;
 
 end architecture;

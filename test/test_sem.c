@@ -1478,6 +1478,8 @@ START_TEST(test_spec)
       { 32, "instance I1 is already bound by a specification" },
       { 34, "cannot find unit WORK.NOT_HERE" },
       { 36, "unit WORK.P is not an entity" },
+      { 40, "instance I5 not found" },
+      { 42, "instance I4 is already bound by a specification" },
       { -1, NULL }
    };
    expect_errors(expect);
