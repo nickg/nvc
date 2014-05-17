@@ -1475,6 +1475,7 @@ START_TEST(test_spec)
       { 19, "object E is not a component declaration" },
       { 23, "instance BAD not found" },
       { 25, "specification may only be used with component instances" },
+      { 27, "instance I1 is already bound by a specification" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -267,6 +267,10 @@ void tree_set_reject(tree_t t, tree_t r);
 tree_t tree_name(tree_t t);
 void tree_set_name(tree_t t, tree_t n);
 
+tree_t tree_spec(tree_t t);
+bool tree_has_spec(tree_t t);
+void tree_set_spec(tree_t t, tree_t s);
+
 unsigned tree_nets(tree_t t);
 netid_t tree_net(tree_t t, unsigned n);
 void tree_add_net(tree_t t, netid_t n);

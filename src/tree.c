@@ -85,6 +85,7 @@ typedef struct {
 #define I_NAME      ONE_HOT(28)
 #define I_NETS      ONE_HOT(29)
 #define I_DVAL      ONE_HOT(30)
+#define I_SPEC      ONE_HOT(31)
 
 typedef union {
    ident_t        ident;
@@ -172,7 +173,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE | I_RANGE),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC),
 
    // T_IF
    (I_IDENT | I_VALUE | I_STMTS | I_ELSES),
@@ -307,7 +308,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
                           | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
-                          | I_NAME)
+                          | I_NAME | I_SPEC)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
                           | I_GENMAPS | I_ASSOCS | I_CONTEXT)
@@ -1020,6 +1021,23 @@ bool tree_has_ref(tree_t t)
 void tree_set_ref(tree_t t, tree_t decl)
 {
    lookup_item(t, I_REF)->tree = decl;
+}
+
+tree_t tree_spec(tree_t t)
+{
+   item_t *item = lookup_item(t, I_SPEC);
+   assert(item->tree != NULL);
+   return item->tree;
+}
+
+bool tree_has_spec(tree_t t)
+{
+   return lookup_item(t, I_SPEC)->tree != NULL;
+}
+
+void tree_set_spec(tree_t t, tree_t s)
+{
+   lookup_item(t, I_SPEC)->tree = s;
 }
 
 unsigned tree_contexts(tree_t t)

@@ -14,17 +14,17 @@ architecture a of e is
     component c2 is
     end component;
 
-    for i1: c2 use entity work.c1_ent1;  -- Error
+    for i1: c2 use entity work.c1_ent1;   -- Error
 
-    for i1: e use entity work.c1_ent1;  -- Error
+    for i1: e use entity work.c1_ent1;    -- Error
 
-    for i1: c1 use entity work.c1_ent1;  -- OK
+    for i1: c1 use entity work.c1_ent1;   -- OK
 
     for bad: c1 use entity work.c1_ent1;  -- Error
 
-    for i2: c1 use entity work.c1_ent1;  -- Error
+    for i2: c1 use entity work.c1_ent1;   -- Error
 
-    --for i1: c1 use entity work.c1_ent1;     -- Error
+    for i1: c1 use entity work.c1_ent1;   -- Error
 
     --for i3: c1 use entity work.not_here;  -- Error
 

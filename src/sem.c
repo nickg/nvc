@@ -5899,7 +5899,11 @@ static bool sem_check_spec(tree_t t)
                 "specification has %s", istr(iname),
                 istr(tree_ident(tree_ref(inst))), istr(cname));
 
-   // TODO: set_ref of instance to specification
+   if (tree_has_spec(inst))
+      sem_error(t, "instance %s is already bound by a specification",
+                istr(iname));
+
+   tree_set_spec(inst, t);
 
    return sem_check(tree_value(t));
 }
