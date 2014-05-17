@@ -322,4 +322,13 @@ begin
         ib(ibarray2d'left(1), ibarray2d'left(2)) := 5;  -- OK
     end process;
 
+    process is
+        type enum1 is (m1, m2, m3, m4, m5);
+        type abase is array (enum1 range <>) of boolean;
+        subtype a1 is abase(enum1 range m1 to m5);
+        variable V1 : A1;
+    begin
+        assert v1 = (false, false, false);  -- OK
+    end process;
+
 end architecture;

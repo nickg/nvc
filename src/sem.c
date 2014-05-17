@@ -4229,7 +4229,10 @@ static bool sem_check_aggregate(tree_t t)
       range_kind_t dir;
       if (unconstrained) {
          // The direction is determined by the index type
-         dir = type_dim(index_type, 0).kind;
+         if (type_kind(index_type) == T_ENUM)
+            dir = RANGE_TO;
+         else
+            dir = type_dim(index_type, 0).kind;
       }
       else {
          // The direction is determined by the context
@@ -4246,7 +4249,11 @@ static bool sem_check_aggregate(tree_t t)
 
          type_t std_int = sem_std_type("INTEGER");
 
-         left = type_dim(index_type, 0).left;
+         if (type_kind(index_type) == T_ENUM)
+            left = make_ref(type_enum_literal(index_type, 0));
+         else
+            left = type_dim(index_type, 0).left;
+
          right = call_builtin("add", index_type,
                               sem_int_lit(std_int, nassocs - 1),
                               left, NULL);

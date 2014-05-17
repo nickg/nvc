@@ -283,6 +283,9 @@ static void bounds_check_aggregate(tree_t t)
       assert(type_kind(base) == T_UARRAY);
 
       type_t index = type_index_constr(base, 0);
+      if (type_kind(index) == T_ENUM)
+         return;   // TODO
+
       range_t base_r = type_dim(index, 0);
 
       if ((tree_kind(base_r.left) == T_LITERAL)
