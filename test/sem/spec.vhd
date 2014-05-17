@@ -3,6 +3,11 @@ end entity;
 
 -------------------------------------------------------------------------------
 
+package p is
+end package;
+
+-------------------------------------------------------------------------------
+
 entity e is
 end entity;
 
@@ -26,7 +31,9 @@ architecture a of e is
 
     for i1: c1 use entity work.c1_ent1;   -- Error
 
-    --for i3: c1 use entity work.not_here;  -- Error
+    for i3: c1 use entity work.not_here;  -- Error
+
+    for i3: c1 use entity work.p;         -- Error
 
 begin
 

@@ -5005,6 +5005,20 @@ static bool sem_check_map(tree_t t, tree_t unit,
    return ok;
 }
 
+static bool sem_find_unit(tree_t t, ident_t name, tree_t *unit)
+{
+   ident_t lname = ident_until(name, '.');
+   lib_t lib = lib_find(istr(lname), false, false);
+   if (lib != NULL) {
+      if ((*unit = lib_get_check_stale(lib, name)) == NULL)
+         sem_error(t, "cannot find unit %s", istr(name));
+
+      return true;
+   }
+   else
+      sem_error(t, "missing library clause for %s", istr(lname));
+}
+
 static bool sem_check_instance(tree_t t)
 {
    tree_t unit = NULL;
@@ -5013,11 +5027,10 @@ static bool sem_check_instance(tree_t t)
    switch (tree_class(t)) {
    case C_ENTITY:
       {
-         // Find the referenced design unit
          ident_t prefix = ident_until(name, '-');
-         unit = lib_get_check_stale(lib_work(), prefix);
-         if (unit == NULL)
-            sem_error(t, "cannot find unit %s", istr(prefix));
+
+         if (!sem_find_unit(t, prefix, &unit))
+            return false;
 
          if (tree_kind(unit) != T_ENTITY)
             sem_error(t, "unit %s is not an entity", istr(prefix));
@@ -5899,13 +5912,15 @@ static bool sem_check_spec(tree_t t)
                 "specification has %s", istr(iname),
                 istr(tree_ident(tree_ref(inst))), istr(cname));
 
+   if (!sem_check(tree_value(t)))
+      return false;
+
    if (tree_has_spec(inst))
       sem_error(t, "instance %s is already bound by a specification",
                 istr(iname));
 
    tree_set_spec(inst, t);
-
-   return sem_check(tree_value(t));
+   return true;
 }
 
 static bool sem_check_binding(tree_t t)
@@ -5916,7 +5931,24 @@ static bool sem_check_binding(tree_t t)
    if (tree_genmaps(t) > 0)
       sem_error(t, "sorry, bindings with generic maps are not yet supported");
 
-   // TODO: find the referenced design unit
+   tree_t unit;
+   if (!sem_find_unit(t, tree_ident(t), &unit))
+      return false;
+
+   switch (tree_class(t)) {
+   case C_ENTITY:
+      if (tree_kind(unit) != T_ENTITY)
+         sem_error(t, "unit %s is not an entity", istr(tree_ident(t)));
+      break;
+
+   case C_CONFIGURATION:
+      //if (tree_kind(unit) != T_CONFIGURATION)
+      //   sem_error(t, "unit %s is not a configuration", istr(tree_ident(t)));
+      break;
+
+   default:
+      assert(false);
+   }
 
    return true;
 }

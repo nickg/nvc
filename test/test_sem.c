@@ -1466,16 +1466,18 @@ END_TEST
 
 START_TEST(test_spec)
 {
-   tree_t a, e;
+   tree_t a, e, p;
 
    input_from_file(TESTDIR "/sem/spec.vhd");
 
    const error_t expect[] = {
-      { 17, "component mismatch for instance I1: expected C1" },
-      { 19, "object E is not a component declaration" },
-      { 23, "instance BAD not found" },
-      { 25, "specification may only be used with component instances" },
-      { 27, "instance I1 is already bound by a specification" },
+      { 22, "component mismatch for instance I1: expected C1" },
+      { 24, "object E is not a component declaration" },
+      { 28, "instance BAD not found" },
+      { 30, "specification may only be used with component instances" },
+      { 32, "instance I1 is already bound by a specification" },
+      { 34, "cannot find unit WORK.NOT_HERE" },
+      { 36, "unit WORK.P is not an entity" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1484,6 +1486,11 @@ START_TEST(test_spec)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
 
    e = parse();
    fail_if(e == NULL);
