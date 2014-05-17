@@ -3263,8 +3263,8 @@ static LLVMValueRef cgen_record_aggregate(tree_t t, bool nest, bool is_const,
          LLVMTypeRef ltype = llvm_type(type_elem(value_type));
          v = LLVMConstArray(ltype, vals, nvals);
       }
-      else if (type_is_record(value_type))
-         v = cgen_record_aggregate(value, true, is_const, ctx);
+      else if (type_is_record(value_type) && is_const)
+         v = cgen_record_aggregate(value, true, true, ctx);
       else
          v = cgen_expr(value, ctx);
 
@@ -3313,6 +3313,8 @@ static LLVMValueRef cgen_record_aggregate(tree_t t, bool nest, bool is_const,
          LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
          if (type_is_array(ftype))
             cgen_array_copy(ftype, ftype, vals[i], ptr, NULL, ctx);
+         else if (type_is_record(ftype))
+            cgen_record_copy(ftype, vals[i], ptr);
          else
             LLVMBuildStore(builder, vals[i], ptr);
       }
@@ -6045,6 +6047,8 @@ static void cgen_reset_function(tree_t t)
          if (type_is_array(type) && cgen_const_bounds(type))
             cgen_array_copy(tree_type(value), type, init,
                             (LLVMValueRef)global, NULL, &ctx);
+         else if (type_is_record(type))
+            cgen_record_copy(type, init, (LLVMValueRef)global);
          else
             LLVMBuildStore(builder, init, (LLVMValueRef)global);
       }
