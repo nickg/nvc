@@ -236,6 +236,12 @@ START_TEST(test_proc)
    fail_unless(tree_triggers(s) == 2);
    fail_unless(tree_ident(tree_trigger(s, 0)) == ident_new("Y"));
    fail_unless(tree_ident(tree_trigger(s, 1)) == ident_new("X"));
+
+   ////////
+
+   p = tree_stmt(a, 3);
+   fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 2);
 }
 END_TEST
 

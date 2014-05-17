@@ -3,6 +3,7 @@ end entity;
 
 architecture test of proc is
     signal x, y : integer;
+    procedure proc(n : integer);
 begin
 
     -- Test rewrite of process sensitivity list
@@ -14,5 +15,8 @@ begin
     -- Test rewrite of concurrent assignments
     x <= y + 4;
     x <= y + 4 when y < 2 else x + 1 when x < 2 else 0;
-    
+
+    -- Concurrent procedure call to process
+    proc(n => 4);
+
 end architecture;

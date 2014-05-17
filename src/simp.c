@@ -50,9 +50,10 @@ static tree_t simp_call_args(tree_t t)
       tree_set_ident(new, tree_ident(t));
       tree_set_ref(new, tree_ref(t));
 
-      if (tree_kind(t) == T_FCALL)
+      tree_kind_t kind = tree_kind(t);
+      if (kind == T_FCALL)
          tree_set_type(new, tree_type(t));
-      else if (tree_kind(t) == T_PCALL)
+      else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
 
       for (int i = 0; i <= last_pos; i++)
