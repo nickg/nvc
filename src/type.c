@@ -35,20 +35,18 @@ DEFINE_ARRAY(type);
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(range);
 
-enum {
-   I_PARAMS       = (1 << 0),
-   I_INDEX_CONSTR = (1 << 1),
-   I_BASE         = (1 << 2),
-   I_ELEM         = (1 << 3),
-   I_FILE         = (1 << 4),
-   I_ACCESS       = (1 << 5),
-   I_RESOLUTION   = (1 << 6),
-   I_RESULT       = (1 << 7),
-   I_UNITS        = (1 << 8),
-   I_LITERALS     = (1 << 9),
-   I_DIMS         = (1 << 10),
-   I_FIELDS       = (1 << 11),
-};
+#define I_PARAMS       ONE_HOT(0)
+#define I_INDEX_CONSTR ONE_HOT(1)
+#define I_BASE         ONE_HOT(2)
+#define I_ELEM         ONE_HOT(3)
+#define I_FILE         ONE_HOT(4)
+#define I_ACCESS       ONE_HOT(5)
+#define I_RESOLUTION   ONE_HOT(6)
+#define I_RESULT       ONE_HOT(7)
+#define I_UNITS        ONE_HOT(8)
+#define I_LITERALS     ONE_HOT(9)
+#define I_DIMS         ONE_HOT(10)
+#define I_FIELDS       ONE_HOT(11)
 
 typedef union {
    type_array_t  type_array;
@@ -57,8 +55,6 @@ typedef union {
    tree_array_t  tree_array;
    range_array_t range_array;
 } item_t;
-
-typedef uint32_t imask_t;
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
@@ -159,7 +155,9 @@ static size_t max_types = 128;   // Grows at runtime
 static size_t n_types_alloc = 0;
 
 static uint32_t format_digest;
-static int item_lookup[T_LAST_TREE_KIND][32];
+static int      item_lookup[T_LAST_TREE_KIND][64];
+static size_t   object_size[T_LAST_TREE_KIND];
+static int      object_nitems[T_LAST_TREE_KIND];
 
 static void type_one_time_init(void)
 {
@@ -168,15 +166,19 @@ static void type_one_time_init(void)
       return;
 
    for (int i = 0; i < T_LAST_TYPE_KIND; i++) {
-      const int nitems = __builtin_popcount(has_map[i]);
+      const int nitems = __builtin_popcountll(has_map[i]);
       assert(nitems <= MAX_ITEMS);
 
+      object_size[i]   = sizeof(struct type) + (nitems * sizeof(item_t));
+      object_nitems[i] = nitems;
+
       // Knuth's multiplicative hash
-      format_digest += has_map[i] * UINT32_C(2654435761);
+      format_digest += (uint32_t)(has_map[i] >> 32) * UINT32_C(2654435761);
+      format_digest += (uint32_t)(has_map[i]) * UINT32_C(2654435761);
 
       int n = 0;
-      for (int j = 0; j < 32; j++) {
-         if (has_map[i] & (1 << j))
+      for (int j = 0; j < 64; j++) {
+         if (has_map[i] & ONE_HOT(j))
             item_lookup[i][j] = n++;
          else
             item_lookup[i][j] = -1;
@@ -713,9 +715,9 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    // Call type_ident here to generate an arbitrary name if needed
    ident_write(type_ident(t), ctx->ident_ctx);
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
@@ -778,9 +780,9 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    ctx->store[ctx->n_types++] = t;
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
@@ -907,9 +909,9 @@ void type_sweep(unsigned generation)
       type_t t = all_types[i];
       if (t->generation < generation) {
 
-         const uint32_t has = has_map[t->kind];
-         const int nitems = __builtin_popcount(has);
-         uint32_t mask = 1;
+         const imask_t has = has_map[t->kind];
+         const int nitems = object_nitems[t->kind];
+         imask_t mask = 1;
          for (int n = 0; n < nitems; mask <<= 1) {
             if (has & mask) {
                if (ITEM_TYPE_ARRAY & mask)
@@ -1041,9 +1043,9 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
    else
       t->generation = ctx->generation;
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
@@ -1084,9 +1086,9 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
    else
       t->generation = ctx->generation;
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
@@ -1161,9 +1163,9 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
    t->index      = UINT32_MAX;
 
    bool marked = false;
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
@@ -1221,9 +1223,9 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
 
    copy->ident = t->ident;
 
-   const uint32_t has = has_map[t->kind];
-   const int nitems = __builtin_popcount(has);
-   uint32_t mask = 1;
+   const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {

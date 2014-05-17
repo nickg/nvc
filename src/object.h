@@ -22,6 +22,10 @@
 // Structures shared between tree and type objects
 //
 
+#define ONE_HOT(x) (UINT64_C(1) << (x))
+
+typedef uint64_t imask_t;
+
 typedef struct {
    uint32_t        generation;
    uint32_t        index;

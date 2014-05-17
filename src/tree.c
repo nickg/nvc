@@ -54,8 +54,6 @@ typedef struct {
    attr_t   *table;
 } attr_tab_t;
 
-#define ONE_HOT(x) (UINT64_C(1) << (x))
-
 #define I_IDENT     ONE_HOT(0)
 #define I_VALUE     ONE_HOT(1)
 #define I_SEVERITY  ONE_HOT(2)
@@ -99,8 +97,6 @@ typedef union {
    range_t       *range;
    netid_array_t  netid_array;
 } item_t;
-
-typedef uint64_t imask_t;
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
@@ -443,7 +439,7 @@ static void tree_one_time_init(void)
    format_digest = type_format_digest() + format_fudge;
 
    for (int i = 0; i < T_LAST_TREE_KIND; i++) {
-      const int nitems = __builtin_popcount(has_map[i]);
+      const int nitems = __builtin_popcountll(has_map[i]);
       object_size[i]   = sizeof(struct tree) + (nitems * sizeof(item_t));
       object_nitems[i] = nitems;
 
