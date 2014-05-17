@@ -16,6 +16,12 @@ GitRev = IO::popen("git rev-parse --short HEAD").read.chomp
 Tool = 'nvc'
 Billowitch = "#{Prefix}/billowitch/compliant"
 
+def run_cmd(c)
+  Process.wait Process.spawn(c)
+  puts "#{c} aborted".red unless $?.exitstatus < 2
+  $?.exitstatus == 0
+end
+
 unless Dir.exists? VestsDir
   puts "VESTs source missing from #{VestsDir}"
   puts
@@ -39,7 +45,7 @@ Dir.foreach('.') do |item|
   FileUtils.rm_rf 'work'
 
   cmd = "#{Tool} -a #{Billowitch}/#{item}"
-  if system cmd then
+  if run_cmd cmd then
     # TODO: elaborate, run
     passes += 1
     print '+'.green

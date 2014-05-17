@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2012  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -563,7 +563,7 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
 #endif
 
    if (sig != SIGUSR1)
-      exit(EXIT_FAILURE);
+      exit(2);
 }
 
 static bool is_debugger_running(void)
