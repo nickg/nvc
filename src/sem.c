@@ -112,8 +112,6 @@ static ident_t       elab_copy_i;
 static ident_t       all_i;
 static bool          prefer_explicit = false;
 
-#define MAX_OVERLOADS 128
-
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
       errors++;                                       \
@@ -436,13 +434,8 @@ static void type_set_add(type_t t)
          return;
    }
 
-   if (top_type_set->n_members == top_type_set->alloc) {
-      top_type_set->alloc *= 2;
-      top_type_set->members =
-         xrealloc(top_type_set->members, top_type_set->alloc * sizeof(type_t));
-   }
-
-   top_type_set->members[top_type_set->n_members++] = t;
+   ARRAY_APPEND(top_type_set->members, t, top_type_set->n_members,
+                top_type_set->alloc);
 }
 
 static bool type_set_restrict(bool (*pred)(type_t))
@@ -538,10 +531,9 @@ static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 {
    type_t ftype = tree_type(d);
 
-   char *argname = xasprintf("_arg%d", type_params(ftype));
+   char *argname LOCAL = xasprintf("_arg%d", type_params(ftype));
    tree_t port = tree_new(T_PORT_DECL);
    tree_set_ident(port, ident_new(argname));
-   free(argname);
    tree_set_type(port, type);
    tree_set_subkind(port, mode);
    if (def != NULL)
@@ -3332,8 +3324,9 @@ static bool sem_check_fcall(tree_t t)
    if (!sem_check_params(t))
       return false;
 
-   tree_t overloads[MAX_OVERLOADS];
    int n_overloads = 0;
+   int max_overloads = 128;
+   tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
 
    tree_t decl;
    ident_t name = tree_ident(t);
@@ -3396,8 +3389,7 @@ static bool sem_check_fcall(tree_t t)
 
             if (!duplicate) {
                // Found a matching function definition
-               assert(n_overloads < MAX_OVERLOADS);
-               overloads[n_overloads++] = decl;
+               ARRAY_APPEND(overloads, decl, n_overloads, max_overloads);
             }
          }
       }
@@ -3501,8 +3493,9 @@ static bool sem_check_pcall(tree_t t)
    if (!sem_check_params(t))
       return false;
 
-   tree_t overloads[MAX_OVERLOADS];
    int n_overloads = 0;
+   int max_overloads = 128;
+   tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
 
    tree_t decl;
    int n = 0, found_proc = 0;
@@ -3522,7 +3515,7 @@ static bool sem_check_pcall(tree_t t)
             continue;
 
          // Found a matching function definition
-         overloads[n_overloads++] = decl;
+         ARRAY_APPEND(overloads, decl, n_overloads, max_overloads);
       }
    } while (decl != NULL);
 
@@ -4700,9 +4693,8 @@ static bool sem_check_attr_ref(tree_t t)
    if (tree_kind(a) == T_FUNC_DECL) {
       type_t ftype = tree_type(a);
 
-      char *buf = xasprintf("_arg%d", tree_ports(a) - 1);
+      char *buf LOCAL = xasprintf("_arg%d", tree_ports(a) - 1);
       ident_t pname = ident_new(buf);
-      free(buf);
 
       // For an expression X'A(..) add X as a final parameter
       bool already_added = false;

@@ -100,20 +100,15 @@ static int analyse(int argc, char **argv)
    }
 
    size_t unit_list_sz = 32;
-   tree_t *units = xmalloc(sizeof(tree_t) * unit_list_sz);
+   tree_t *units LOCAL = xmalloc(sizeof(tree_t) * unit_list_sz);
    int n_units = 0;
 
    for (int i = optind; i < argc; i++) {
       input_from_file(argv[i]);
 
       tree_t unit;
-      while ((unit = parse()) && sem_check(unit)) {
-         if (n_units == unit_list_sz) {
-            unit_list_sz *= 2;
-            units = xrealloc(units, sizeof(tree_t) * unit_list_sz);
-         }
-         units[n_units++] = unit;
-      }
+      while ((unit = parse()) && sem_check(unit))
+         ARRAY_APPEND(units, unit, n_units, unit_list_sz);
    }
 
    for (int i = 0; i < n_units; i++) {
@@ -141,8 +136,6 @@ static int analyse(int argc, char **argv)
       if (units[i] != NULL)
          cgen(units[i]);
    }
-
-   free(units);
 
    return EXIT_SUCCESS;
 }

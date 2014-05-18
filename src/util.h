@@ -110,4 +110,16 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 const char *tb_get(text_buf_t *tb);
 void tb_rewind(text_buf_t *tb);
 
+#define LOCAL __attribute__((cleanup(_local_free)))
+
+void _local_free(void *ptr);
+
+#define ARRAY_APPEND(array, item, count, max) do {      \
+      if (unlikely(count == max)) {                     \
+         max *= 2;                                      \
+         array = xrealloc(array, max * sizeof(*array)); \
+      }                                                 \
+      array[count++] = item;                            \
+   } while(0);
+
 #endif // _UTIL_H

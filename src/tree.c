@@ -557,13 +557,10 @@ tree_t tree_new(tree_kind_t kind)
    t->kind  = kind;
    t->index = UINT32_MAX;
 
-   if (all_trees == NULL)
+   if (unlikely(all_trees == NULL))
       all_trees = xmalloc(sizeof(tree_t) * max_trees);
-   else if (n_trees_alloc == max_trees) {
-      max_trees *= 2;
-      all_trees = xrealloc(all_trees, sizeof(tree_t) * max_trees);
-   }
-   all_trees[n_trees_alloc++] = t;
+
+   ARRAY_APPEND(all_trees, t, n_trees_alloc, max_trees);
 
    return t;
 }

@@ -956,3 +956,8 @@ void tb_rewind(text_buf_t *tb)
    tb->len = 0;
    tb->buf[0] = '\0';
 }
+
+void _local_free(void *ptr)
+{
+   free(*(void **)ptr);
+}

@@ -233,13 +233,10 @@ type_t type_new(type_kind_t kind)
    memset(t, '\0', sizeof(struct type));
    t->kind = kind;
 
-   if (all_types == NULL)
+   if (unlikely(all_types == NULL))
       all_types = xmalloc(sizeof(tree_t) * max_types);
-   else if (n_types_alloc == max_types) {
-      max_types *= 2;
-      all_types = xrealloc(all_types, sizeof(tree_t) * max_types);
-   }
-   all_types[n_types_alloc++] = t;
+
+   ARRAY_APPEND(all_types, t, n_types_alloc, max_types);
 
    return t;
 }
