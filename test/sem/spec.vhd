@@ -43,6 +43,8 @@ architecture a of e is
 
     for others: c1 use entity work.c1_ent1;  -- OK
 
+    for i7: c1 use open;                -- OK
+
 begin
 
     i1: component c1;
@@ -59,5 +61,7 @@ begin
     end block;
 
     i6: component c1;
+
+    i7: component c1;
 
 end architecture;

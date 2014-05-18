@@ -5929,9 +5929,12 @@ static bool sem_bind(tree_t spec, tree_t inst)
                 "specification has %s", istr(tree_ident(spec)),
                 istr(tree_ident(tree_ref(inst))), istr(cname));
 
-   if (tree_has_spec(inst))
-      sem_error(spec, "instance %s is already bound by a specification",
-                istr(tree_ident(inst)));
+   if (tree_has_spec(inst)) {
+      tree_t exist = tree_spec(inst);
+      if (tree_has_ident(exist))  // Not an OTHERS specification
+         sem_error(spec, "instance %s is already bound by a specification",
+                   istr(tree_ident(inst)));
+   }
 
    tree_set_spec(inst, spec);
    return true;
@@ -5939,8 +5942,10 @@ static bool sem_bind(tree_t spec, tree_t inst)
 
 static bool sem_check_spec(tree_t t)
 {
-   if (!sem_check(tree_value(t)))
-      return false;
+   if (tree_has_value(t)) {
+      if (!sem_check(tree_value(t)))
+         return false;
+   }
 
    ident_t iname = tree_has_ident(t) ? tree_ident(t) : NULL;
 
