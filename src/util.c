@@ -564,8 +564,12 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       exit(2);
 }
 
-static bool is_debugger_running(void)
+bool is_debugger_running(void)
 {
+   static int cached = -1;
+   if (cached != -1)
+      return cached;
+
 #if defined __APPLE__
 
    struct kinfo_proc info;
@@ -582,7 +586,7 @@ static bool is_debugger_running(void)
    if (rc != 0)
       fatal_errno("sysctl");
 
-   return (info.kp_proc.p_flag & P_TRACED) != 0;
+   return (cached = ((info.kp_proc.p_flag & P_TRACED) != 0));
 
 #elif defined __linux
 
@@ -597,7 +601,7 @@ static bool is_debugger_running(void)
       }
       fclose(f);
       if (valgrind)
-         return true;
+         return (cached = true);
    }
 
 #ifdef PR_SET_PTRACER
@@ -635,13 +639,13 @@ static bool is_debugger_running(void)
    else {
       int status;
       waitpid(pid, &status, 0);
-      return WEXITSTATUS(status);
+      return (cached = WEXITSTATUS(status));
    }
 
 #else
 
    // Not able to detect debugger on this platform
-   return false;
+   return (cached = false);
 
 #endif
 }

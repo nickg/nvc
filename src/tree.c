@@ -479,6 +479,9 @@ static void tree_one_time_init(void)
          printf("%-15s %d\n", tree_kind_str(i), (int)object_size[i]);
    }
 
+   if (is_debugger_running())
+      atexit(tree_gc);
+
    done = true;
 }
 
@@ -627,9 +630,8 @@ void tree_gc(void)
          all_trees[p++] = all_trees[i];
    }
 
-   if (getenv("NVC_GC_VERBOSE") != NULL)
-      printf("[gc: freed %zu trees; %zu allocated]\n",
-             n_trees_alloc - p, p);
+   if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running())
+      notef("GC: freed %zu trees; %zu allocated", n_trees_alloc - p, p);
 
    n_trees_alloc = p;
 
