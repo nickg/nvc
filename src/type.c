@@ -343,27 +343,16 @@ ident_t type_ident(type_t t)
    assert(t != NULL);
 
    if (t->ident == NULL) {
-      char *buf;
       switch (t->kind) {
       case T_SUBTYPE:
          return type_ident(type_base(t));
 
-      case T_ACCESS:
-         buf = xasprintf("access to %s",
-                  istr(type_ident(type_access(t))));
-         break;
-
       case T_NONE:
-         buf = xasprintf("none");
-         break;
+         return ident_new("none");
 
       default:
          assert(false);
       }
-
-      ident_t ident = ident_new(buf);
-      free(buf);
-      return ident;
    }
    else
       return t->ident;
