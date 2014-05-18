@@ -61,4 +61,11 @@ package body p is
         x.value := x.value + 1;
     end procedure;
 
+    procedure test3 is
+        type a;
+        type a is access integer;       -- OK
+        variable v : a;                 -- OK
+    begin
+    end procedure;
+
 end package body;

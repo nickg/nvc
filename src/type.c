@@ -588,47 +588,46 @@ void type_replace(type_t t, type_t a)
    t->ident = a->ident;
 
    const imask_t has = has_map[t->kind];
+   const int nitems = object_nitems[t->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            const type_array_t *from = &(a->items[n].type_array);
+            type_array_t *to = &(t->items[n].type_array);
 
-   if (has & I_DIMS) {
-      const int ndims = type_dims(a);
-      for (int i = 0; i < ndims; i++)
-         type_add_dim(t, type_dim(a, i));
-   }
+            type_array_resize(to, from->count, NULL);
 
-   switch (a->kind) {
-   case T_UARRAY:
-      for (unsigned i = 0; i < type_index_constrs(a); i++)
-         type_add_index_constr(t, type_index_constr(a, i));
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_TYPE & mask)
+            t->items[n].type = a->items[n].type;
+         else if (ITEM_TREE & mask)
+            t->items[n].tree = a->items[n].tree;
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *from = &(a->items[n].tree_array);
+            tree_array_t *to = &(t->items[n].tree_array);
 
-      // Fall-through
-   case T_CARRAY:
-      type_set_elem(t, type_elem(a));
-      break;
+            tree_array_resize(to, from->count, NULL);
 
-   case T_SUBTYPE:
-      type_set_base(t, type_base(a));
-      break;
+            for (size_t i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            const range_array_t *from = &(a->items[n].range_array);
+            range_array_t *to = &(t->items[n].range_array);
 
-   case T_FUNC:
-      type_set_result(t, type_result(a));
-      break;
+            range_t dummy;
+            range_array_resize(to, from->count, dummy);
 
-   case T_INTEGER:
-   case T_REAL:
-      break;
-
-   case T_ENUM:
-      for (unsigned i = 0; i < type_enum_literals(a); i++)
-         type_enum_add_literal(t, type_enum_literal(a, i));
-      break;
-
-   case T_RECORD:
-      for (unsigned i = 0; i < type_fields(a); i++)
-         type_add_field(t, type_field(a, i));
-      break;
-
-   default:
-      assert(false);
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
    }
 }
 

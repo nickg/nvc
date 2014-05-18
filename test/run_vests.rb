@@ -18,7 +18,7 @@ Billowitch = "#{Prefix}/billowitch/compliant"
 
 def run_cmd(c)
   Process.wait Process.spawn(c)
-  puts "#{c} aborted".red unless $?.exitstatus < 2
+  puts "#{c} aborted" unless $?.exitstatus < 2
   $?.exitstatus == 0
 end
 
