@@ -115,6 +115,12 @@ struct guard {
    guard_t    *next;
 };
 
+struct text_buf {
+   char  *buf;
+   size_t alloc;
+   size_t len;
+};
+
 static error_fn_t     error_fn = def_error_fn;
 static fatal_fn_t     fatal_fn = NULL;
 static bool           want_color = false;
@@ -937,4 +943,55 @@ void checked_sprintf(char *buf, int len, const char *fmt, ...)
       fatal_trace("checked_sprintf requires %d bytes but have %d", nbytes, len);
 
    va_end(ap);
+}
+
+text_buf_t *tb_new(void)
+{
+   text_buf_t *tb = xmalloc(sizeof(text_buf_t));
+   tb->alloc = 256;
+   tb->len   = 0;
+   tb->buf   = xmalloc(tb->alloc);
+
+   tb->buf[0] = '\0';
+
+   return tb;
+}
+
+void tb_free(text_buf_t *tb)
+{
+   free(tb->buf);
+   free(tb);
+}
+
+void _tb_cleanup(text_buf_t **tb)
+{
+   printf("_tb_cleanup tb=%p *tb=%p '%s'\n", tb, *tb, (*tb)->buf);
+   tb_free(*tb);
+}
+
+void tb_printf(text_buf_t *tb, const char *fmt, ...)
+{
+   int nchars, avail;
+   for (;;) {
+      va_list ap;
+      va_start(ap, fmt);
+
+      avail  = tb->alloc - tb->len;
+      nchars = vsnprintf(tb->buf + tb->len, avail, fmt, ap);
+
+      va_end(ap);
+
+      if (nchars < avail)
+         break;
+
+      tb->alloc *= 2;
+      tb->buf = xrealloc(tb->buf, tb->alloc);
+   }
+
+   tb->len += nchars;
+}
+
+const char *tb_get(text_buf_t *tb)
+{
+   return tb->buf;
 }

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -101,5 +101,16 @@ int next_power_of_2(int n);
 int ilog2(int64_t n);
 
 void *mmap_guarded(size_t sz, const char *tag);
+
+typedef struct text_buf text_buf_t;
+
+#define LOCAL_TEXT_BUF __attribute__((cleanup(_tb_cleanup))) text_buf_t *
+
+text_buf_t *tb_new(void);
+void tb_free(text_buf_t *tb);
+void _tb_cleanup(text_buf_t **tb);
+void tb_printf(text_buf_t *tb, const char *fmt, ...)
+   __attribute__((format(printf, 2, 3)));
+const char *tb_get(text_buf_t *tb);
 
 #endif // _UTIL_H

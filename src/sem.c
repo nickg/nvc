@@ -497,16 +497,17 @@ static void type_set_dump(void)
 }
 #endif
 
-static const char *type_set_fmt(void)
+static text_buf_t *type_set_fmt(void)
 {
-   static char buf[1024];
-   static_printf_begin(buf, sizeof(buf));
+   text_buf_t *tb = tb_new();
+
    if (top_type_set != NULL) {
       for (unsigned n = 0; n < top_type_set->n_members; n++)
-         static_printf(buf, "\n    %s",
-                       sem_type_str(top_type_set->members[n]));
+         tb_printf(tb, "\n    %s",
+                   sem_type_str(top_type_set->members[n]));
    }
-   return buf;
+
+   return tb;
 }
 
 static bool type_set_member(type_t t)
@@ -3416,8 +3417,7 @@ static bool sem_check_fcall(tree_t t)
       return true;   // Resolved to a builtin function
 
    if (matches > 1) {
-      char buf[1024];
-      static_printf_begin(buf, sizeof(buf));
+      LOCAL_TEXT_BUF tb = tb_new();
 
       const bool operator = !isalpha((int)*istr(name));
 
@@ -3425,9 +3425,9 @@ static bool sem_check_fcall(tree_t t)
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL) {
             const bool implicit = tree_attr_str(overloads[n], builtin_i);
-            static_printf(buf, "\n    %s%s",
-                          sem_type_str(tree_type(overloads[n])),
-                          implicit ? " (implicit)" : "");
+            tb_printf(tb, "\n    %s%s",
+                      sem_type_str(tree_type(overloads[n])),
+                      implicit ? " (implicit)" : "");
             if (implicit)
                nimplicit++;
             else
@@ -3436,42 +3436,41 @@ static bool sem_check_fcall(tree_t t)
       }
 
       if ((nimplicit == 1) && (nexplicit == 1))
-         static_printf(buf, "\nYou can use the --prefer-explicit option to "
-                       "hide the implicit %s",
-                       operator ? "operator" : "function");
+         tb_printf(tb, "\nYou can use the --prefer-explicit option to "
+                   "hide the implicit %s",
+                   operator ? "operator" : "function");
 
       sem_error(t, "ambiguous %s %s%s",
                 operator ? "use of operator" : "call to function",
-                istr(name), buf);
+                istr(name), tb_get(tb));
    }
 
    if (decl == NULL) {
-      char fn[512];
-      static_printf_begin(fn, sizeof(fn));
+      LOCAL_TEXT_BUF tb = tb_new();
 
       const char *fname = istr(name);
       const bool operator = !isalpha((int)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
-      static_printf(fn, "%s%s%s(", quote, fname, quote);
+      tb_printf(tb, "%s%s%s(", quote, fname, quote);
       for (unsigned i = 0; i < tree_params(t); i++)
-         static_printf(fn, "%s%s",
-                       (i == 0 ? "" : ", "),
-                       sem_type_str(tree_type(tree_value(tree_param(t, i)))));
-      static_printf(fn, ")");
+         tb_printf(tb, "%s%s",
+                   (i == 0 ? "" : ", "),
+                   sem_type_str(tree_type(tree_value(tree_param(t, i)))));
+      tb_printf(tb, ")");
 
       if ((top_type_set != NULL) && (top_type_set->n_members > 0)) {
-         static_printf(fn, " return");
+         tb_printf(tb, " return");
          for (int i = 0; i < top_type_set->n_members; i++)
-            static_printf(fn, "%s %s",
-                          (i > 0 ? " |" : ""),
-                          sem_type_str(top_type_set->members[i]));
+            tb_printf(tb, "%s %s",
+                      (i > 0 ? " |" : ""),
+                      sem_type_str(top_type_set->members[i]));
       }
 
       sem_error(t, (n == 1 ? "undefined %s %s"
                     : "no suitable overload for %s %s"),
                 operator ? "operator" : "function",
-                fn);
+                tb_get(tb));
    }
 
    // Pure function may not call an impure function
@@ -3541,35 +3540,34 @@ static bool sem_check_pcall(tree_t t)
       return true;   // Resolved to a builtin function
 
    if (matches > 1) {
-      char buf[1024];
-      static_printf_begin(buf, sizeof(buf));
+      LOCAL_TEXT_BUF tb = tb_new();
 
       for (int n = 0; n < n_overloads; n++) {
          if (overloads[n] != NULL)
-            static_printf(buf, "\n    %s",
-                          sem_type_str(tree_type(overloads[n])));
+            tb_printf(tb, "\n    %s",
+                      sem_type_str(tree_type(overloads[n])));
       }
 
       sem_error(t, "ambiguous call to procedure %s%s",
-                istr(tree_ident2(t)), buf);
+                istr(tree_ident2(t)), tb_get(tb));
    }
 
    if (decl == NULL) {
-      char fn[512];
-      static_printf_begin(fn, sizeof(fn));
+      LOCAL_TEXT_BUF tb = tb_new();
 
       const char *fname = istr(tree_ident2(t));
 
-      static_printf(fn, "%s(", fname);
-      for (unsigned i = 0; i < tree_params(t); i++)
-         static_printf(fn, "%s%s",
-                       (i == 0 ? "" : ", "),
-                       sem_type_str(tree_type(tree_value(tree_param(t, i)))));
-      static_printf(fn, ")");
+      tb_printf(tb, "%s(", fname);
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++)
+         tb_printf(tb, "%s%s",
+                   (i == 0 ? "" : ", "),
+                   sem_type_str(tree_type(tree_value(tree_param(t, i)))));
+      tb_printf(tb, ")");
 
       sem_error(t, (n == 1 ? "undefined procedure %s"
                     : "no suitable overload for procedure %s"),
-                fn);
+                tb_get(tb));
    }
 
    const int nparams = tree_params(t);
@@ -3802,8 +3800,10 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_value(tree_param(t, 0));
    tree_t right = tree_value(tree_param(t, 1));
 
-   if ((top_type_set->n_members > 0) && !type_set_restrict(sem_is_composite))
-      sem_error(t, "no composite type in context%s", type_set_fmt());
+   if ((top_type_set->n_members > 0) && !type_set_restrict(sem_is_composite)) {
+      LOCAL_TEXT_BUF ts = type_set_fmt();
+      sem_error(t, "no composite type in context%s", tb_get(ts));
+   }
 
    if (sem_ambiguous_rate(left) < sem_ambiguous_rate(right)) {
       if (!sem_check_concat_param(left, NULL)
@@ -3996,12 +3996,16 @@ static bool sem_check_aggregate(tree_t t)
    // The type of an aggregate must be determinable solely from the
    // context in which the aggregate appears
 
-   if (!type_set_restrict(sem_is_composite))
-      sem_error(t, "no composite type in context%s", type_set_fmt());
+   if (!type_set_restrict(sem_is_composite)) {
+      LOCAL_TEXT_BUF ts = type_set_fmt();
+      sem_error(t, "no composite type in context%s", tb_get(ts));
+   }
 
    type_t composite_type;
-   if (!type_set_uniq(&composite_type))
-      sem_error(t, "type of aggregate is ambiguous%s", type_set_fmt());
+   if (!type_set_uniq(&composite_type)) {
+      LOCAL_TEXT_BUF ts = type_set_fmt();
+      sem_error(t, "type of aggregate is ambiguous%s", tb_get(ts));
+   }
 
    type_t base_type = composite_type;
    while (type_kind(base_type) == T_SUBTYPE)
@@ -4410,12 +4414,16 @@ static bool sem_check_ref(tree_t t)
    if (decl == NULL) {
       if (n == 0)
          sem_error(t, "no visible declaration for %s", istr(name));
-      else if (n == 1)
+      else if (n == 1) {
+         LOCAL_TEXT_BUF ts = type_set_fmt();
          sem_error(t, "name %s cannot be used in this context%s",
-                   istr(name), type_set_fmt());
-      else
+                   istr(name), tb_get(ts));
+      }
+      else {
+         LOCAL_TEXT_BUF ts = type_set_fmt();
          sem_error(t, "no suitable overload for identifier %s in "
-                   "context%s", istr(name), type_set_fmt());
+                   "context%s", istr(name), tb_get(ts));
+      }
    }
 
    switch (tree_kind(decl)) {
