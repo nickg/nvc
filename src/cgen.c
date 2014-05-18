@@ -389,10 +389,9 @@ static LLVMTypeRef llvm_type(type_t t)
    }
 }
 
-static const char *cgen_mangle_func_name(tree_t decl)
+static text_buf_t *cgen_mangle_func_name(tree_t decl)
 {
-   static char buf[1024];
-   static_printf_begin(buf, sizeof(buf));
+   text_buf_t *tb = tb_new();
 
    type_t type = tree_type(decl);
 
@@ -411,7 +410,7 @@ static const char *cgen_mangle_func_name(tree_t decl)
          tree_t ch = tree_ref(value);
          assert(tree_kind(ch) == T_ENUM_LIT);
 
-         static_printf(buf, "%c", tree_pos(ch));
+         tb_printf(tb, "%c", tree_pos(ch));
       }
    }
    else {
@@ -434,19 +433,19 @@ static const char *cgen_mangle_func_name(tree_t decl)
       }
       *p = '\0';
 
-      static_printf(buf, "%s", tmp);
+      tb_printf(tb, "%s", tmp);
 
       const int nparams = type_params(type);
       for (int i = 0; i < nparams; i++) {
          type_t param = type_param(type, i);
-         static_printf(buf, "$%s", istr(type_ident(param)));
+         tb_printf(tb, "$%s", istr(type_ident(param)));
       }
 
       if (type_kind(type) == T_FUNC)
-         static_printf(buf, "_return_%s", istr(type_ident(type_result(type))));
+         tb_printf(tb, "_return_%s", istr(type_ident(type_result(type))));
    }
 
-   return buf;
+   return tb;
 }
 
 static bool cgen_is_const(tree_t t)
@@ -1444,8 +1443,8 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
 
 static LLVMValueRef cgen_fdecl(tree_t t, tree_t parent)
 {
-   const char *mangled = cgen_mangle_func_name(t);
-   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   LOCAL_TEXT_BUF mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(mangled));
    if (fn != NULL)
       return fn;
    else {
@@ -1466,15 +1465,15 @@ static LLVMValueRef cgen_fdecl(tree_t t, tree_t parent)
 
       return LLVMAddFunction(
          module,
-         mangled,
+         tb_get(mangled),
          LLVMFunctionType(llrtype, atypes, nargs, false));
    }
 }
 
 static LLVMValueRef cgen_pdecl(tree_t t)
 {
-   const char *mangled = cgen_mangle_func_name(t);
-   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   LOCAL_TEXT_BUF mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(mangled));
    if (fn != NULL)
       return fn;
    else {
@@ -1485,7 +1484,7 @@ static LLVMValueRef cgen_pdecl(tree_t t)
 
       return LLVMAddFunction(
          module,
-         cgen_mangle_func_name(t),
+         tb_get(mangled),
          LLVMFunctionType(llvm_void_ptr(),
                           atypes,
                           nargs,
@@ -5494,8 +5493,8 @@ static LLVMValueRef cgen_resolution_func(type_t type)
    LLVMValueRef wrapped =
       cgen_array_meta_1(type_param(ftype, 0), left, right, dir, vals);
 
-   const char *rfn_name = cgen_mangle_func_name(fdecl);
-   LLVMValueRef rfn = LLVMGetNamedFunction(module, rfn_name);
+   text_buf_t *rfn_name = cgen_mangle_func_name(fdecl);
+   LLVMValueRef rfn = LLVMGetNamedFunction(module, tb_get(rfn_name));
    if (rfn == NULL) {
       // The resolution function is not visible yet e.g. because it
       // is declared in another package
@@ -5503,7 +5502,7 @@ static LLVMValueRef cgen_resolution_func(type_t type)
       unsigned nargs;
       cgen_prototype(fdecl, args, &nargs, false, NULL);
 
-      rfn = LLVMAddFunction(module, rfn_name,
+      rfn = LLVMAddFunction(module, tb_get(rfn_name),
                             LLVMFunctionType(elem_type, args, nargs, false));
    }
 
@@ -5676,10 +5675,10 @@ static void cgen_proc_body(tree_t t, tree_t parent)
    LLVMTypeRef args[nports + 2];
    cgen_prototype(t, args, &nargs, true, parent);
 
-   const char *mangled = cgen_mangle_func_name(t);
-   LLVMValueRef fn = LLVMGetNamedFunction(module, mangled);
+   LOCAL_TEXT_BUF mangled = cgen_mangle_func_name(t);
+   LLVMValueRef fn = LLVMGetNamedFunction(module, tb_get(mangled));
    if (fn == NULL) {
-      fn = LLVMAddFunction(module, mangled,
+      fn = LLVMAddFunction(module, tb_get(mangled),
                            LLVMFunctionType(llvm_void_ptr(),
                                             args, nargs, false));
    }

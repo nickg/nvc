@@ -97,12 +97,6 @@ struct option {
    optval_t       value;
 };
 
-struct prbuf {
-   const char *buf;
-   char       *wptr;
-   size_t      remain;
-};
-
 struct color_escape {
    const char *name;
    int         value;
@@ -125,8 +119,6 @@ static error_fn_t     error_fn = def_error_fn;
 static fatal_fn_t     fatal_fn = NULL;
 static bool           want_color = false;
 static struct option *options = NULL;
-static struct prbuf   printf_bufs[MAX_PRINTF_BUFS];
-static int            next_printf_buf = 0;
 static guard_t       *guards;
 
 static const struct color_escape escapes[] = {
@@ -833,46 +825,6 @@ char *get_fmt_buf(size_t len)
    return *bufp;
 }
 
-void static_printf_begin(char *buf, size_t len)
-{
-   next_printf_buf = (next_printf_buf + 1) % MAX_PRINTF_BUFS;
-
-   struct prbuf *p = &(printf_bufs[next_printf_buf]);
-   p->buf    = buf;
-   p->wptr   = buf;
-   p->remain = len;
-
-   buf[len - 1] = '\0';
-}
-
-void static_printf(char *buf, const char *fmt, ...)
-{
-   struct prbuf *p = NULL;
-   int i = next_printf_buf;
-   do {
-      if (printf_bufs[i].buf == buf)
-         p = &(printf_bufs[i]);
-      i = (i == 0) ? (MAX_PRINTF_BUFS - 1) : (i - 1);
-   } while ((p == NULL) && (i != next_printf_buf));
-   assert(p != NULL);
-
-   if (p->remain == 0)
-      return;
-
-   va_list ap;
-   va_start(ap, fmt);
-
-   int n = vsnprintf(p->wptr, p->remain, fmt, ap);
-   if ((n < 0) || (n > p->remain))
-      p->remain = 0;
-   else {
-      p->remain -= n;
-      p->wptr   += n;
-   }
-
-   va_end(ap);
-}
-
 int next_power_of_2(int n)
 {
    n--;
@@ -933,8 +885,10 @@ void *mmap_guarded(size_t sz, const char *tag)
    return ptr;
 }
 
-void checked_sprintf(char *buf, int len, const char *fmt, ...)
+int checked_sprintf(char *buf, int len, const char *fmt, ...)
 {
+   assert(len > 0);
+
    va_list ap;
    va_start(ap, fmt);
 
@@ -943,6 +897,8 @@ void checked_sprintf(char *buf, int len, const char *fmt, ...)
       fatal_trace("checked_sprintf requires %d bytes but have %d", nbytes, len);
 
    va_end(ap);
+
+   return nbytes;
 }
 
 text_buf_t *tb_new(void)
@@ -965,8 +921,7 @@ void tb_free(text_buf_t *tb)
 
 void _tb_cleanup(text_buf_t **tb)
 {
-   printf("_tb_cleanup tb=%p *tb=%p '%s'\n", tb, *tb, (*tb)->buf);
-   tb_free(*tb);
+    tb_free(*tb);
 }
 
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
@@ -994,4 +949,10 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
 const char *tb_get(text_buf_t *tb)
 {
    return tb->buf;
+}
+
+void tb_rewind(text_buf_t *tb)
+{
+   tb->len = 0;
+   tb->buf[0] = '\0';
 }

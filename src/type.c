@@ -47,6 +47,7 @@ DEFINE_ARRAY(range);
 #define I_LITERALS     ONE_HOT(9)
 #define I_DIMS         ONE_HOT(10)
 #define I_FIELDS       ONE_HOT(11)
+#define I_TEXT_BUF     ONE_HOT(12)
 
 typedef union {
    type_array_t  type_array;
@@ -54,6 +55,7 @@ typedef union {
    tree_t        tree;
    tree_array_t  tree_array;
    range_array_t range_array;
+   text_buf_t   *text_buf;
 } item_t;
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
@@ -91,13 +93,13 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_ACCESS),
 
    // T_FUNC
-   (I_PARAMS | I_RESULT),
+   (I_PARAMS | I_RESULT | I_TEXT_BUF),
 
    // T_INCOMPLETE
    (0),
 
    // T_PROC
-   (I_PARAMS),
+   (I_PARAMS | I_TEXT_BUF),
 
    // T_NONE
    (0)
@@ -108,6 +110,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
 #define ITEM_TREE        (I_RESOLUTION)
 #define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS | I_UNITS)
 #define ITEM_RANGE_ARRAY (I_DIMS)
+#define ITEM_TEXT_BUF    (I_TEXT_BUF)
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
@@ -117,9 +120,10 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS", "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
-   "I_FILE",   "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",  "I_LITERALS",     "I_DIMS",       "I_FIELDS",
+   "I_PARAMS",  "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
+   "I_FILE",    "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
+   "I_UNITS",   "I_LITERALS",     "I_DIMS",       "I_FIELDS",
+   "I_TEXT_BUF"
 };
 
 struct type {
@@ -624,6 +628,8 @@ void type_replace(type_t t, type_t a)
             for (unsigned i = 0; i < from->count; i++)
                to->items[i] = from->items[i];
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -744,6 +750,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
                tree_write(a->items[i].right, ctx->tree_ctx);
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -813,6 +821,8 @@ type_t type_read(type_rd_ctx_t ctx)
                a->items[i].right = tree_read(ctx->tree_ctx);
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -868,23 +878,26 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
    case T_FUNC:
    case T_PROC:
       {
-         char *buf = get_fmt_buf(256);
-         static_printf_begin(buf, 256);
+         item_t *tbi = lookup_item(t, I_TEXT_BUF);
+         if (tbi->text_buf == NULL)
+            tbi->text_buf = tb_new();
+         else
+            tb_rewind(tbi->text_buf);
 
          const char *fname = (*fn)(istr(type_ident(t)));
 
-         static_printf(buf, "%s(", fname);
+         tb_printf(tbi->text_buf, "%s(", fname);
          const int nparams = type_params(t);
          for (int i = 0; i < nparams; i++)
-            static_printf(buf, "%s%s",
-                          (i == 0 ? "" : ", "),
-                          (*fn)(istr(type_ident(type_param(t, i)))));
-         static_printf(buf, ")");
+            tb_printf(tbi->text_buf, "%s%s",
+                      (i == 0 ? "" : ", "),
+                      (*fn)(istr(type_ident(type_param(t, i)))));
+         tb_printf(tbi->text_buf, ")");
          if (type_kind(t) == T_FUNC)
-            static_printf(buf, " return %s",
-                          (*fn)(istr(type_ident(type_result(t)))));
+            tb_printf(tbi->text_buf, " return %s",
+                      (*fn)(istr(type_ident(type_result(t)))));
 
-         return buf;
+         return tb_get(tbi->text_buf);
       }
 
    default:
@@ -923,6 +936,10 @@ void type_sweep(unsigned generation)
                   free(t->items[n].tree_array.items);
                else if (ITEM_RANGE_ARRAY & mask)
                   free(t->items[n].range_array.items);
+               else if (ITEM_TEXT_BUF & mask) {
+                  if (t->items[n].text_buf != NULL)
+                     tb_free(t->items[n].text_buf);
+               }
                else
                   item_without_type(mask);
                n++;
@@ -1068,6 +1085,8 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
                tree_visit_aux(a->items[i].right, ctx);
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1113,6 +1132,8 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
                assert(a->items[i].right);
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1188,6 +1209,8 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
                marked = tree_copy_mark(a->items[i].right, ctx) || marked;
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1262,6 +1285,8 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
                to->items[i].right = tree_copy_sweep(from->items[i].right, ctx);
             }
          }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
          else
             item_without_type(mask);
          n++;

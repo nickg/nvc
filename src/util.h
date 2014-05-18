@@ -90,15 +90,11 @@ const char *opt_get_str(const char *name);
 
 char *get_fmt_buf(size_t len);
 
-void static_printf_begin(char *buf, size_t len);
-void static_printf(char *buf, const char *fmt, ...)
-   __attribute__((format(printf, 2, 3)));
-
-void checked_sprintf(char *buf, int len, const char *fmt, ...)
+int checked_sprintf(char *buf, int len, const char *fmt, ...)
    __attribute__((format(printf, 3, 4)));
 
-int next_power_of_2(int n);
-int ilog2(int64_t n);
+int next_power_of_2(int n) __attribute__((pure));
+int ilog2(int64_t n) __attribute__((pure));
 
 void *mmap_guarded(size_t sz, const char *tag);
 
@@ -112,5 +108,6 @@ void _tb_cleanup(text_buf_t **tb);
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
 const char *tb_get(text_buf_t *tb);
+void tb_rewind(text_buf_t *tb);
 
 #endif // _UTIL_H

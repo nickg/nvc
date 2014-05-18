@@ -284,11 +284,13 @@ static const char *fmt_time(uint64_t t)
 
 static const char *fmt_group(const netgroup_t *g)
 {
-   static const int BUF_SZ = 256;
-   char *buf = get_fmt_buf(BUF_SZ);
-   static_printf_begin(buf, BUF_SZ);
+   static const size_t BUF_LEN = 512;
+   char *buf = get_fmt_buf(BUF_LEN);
 
-   static_printf(buf, "%s", istr(tree_ident(g->sig_decl)));
+   const char *eptr = buf + BUF_LEN;
+   char *p = buf;
+
+   p += checked_sprintf(p, eptr - p, "%s", istr(tree_ident(g->sig_decl)));
 
    groupid_t sig_group0 = netdb_lookup(netdb, tree_net(g->sig_decl, 0));
    netid_t sig_net0 = groups[sig_group0].first;
@@ -300,7 +302,7 @@ static const char *fmt_group(const netgroup_t *g)
       const int stride = type_width(type_elem(type));
       const int ndims = type_dims(type);
 
-      static_printf(buf, "[");
+      p += checked_sprintf(p, eptr - p, "[");
       for (int i = 0; i < ndims; i++) {
          int stride2 = stride;
          for (int j = i + 1; j < ndims; j++) {
@@ -313,12 +315,13 @@ static const char *fmt_group(const netgroup_t *g)
          }
 
          const int index = offset / stride2;
-         static_printf(buf, "%s%d", (i > 0) ? "," : "", index);
+         p += checked_sprintf(p, eptr - p, "%s%d", (i > 0) ? "," : "", index);
          if ((length / stride2) > 1)
-            static_printf(buf, "..%d", index + (length / stride2) - 1);
+            p += checked_sprintf(p, eptr - p, "..%d",
+                                 index + (length / stride2) - 1);
          offset %= stride2;
       }
-      static_printf(buf, "]");
+      p += checked_sprintf(p, eptr - p, "]");
 
       type = type_elem(type);
       length = stride;
@@ -334,14 +337,15 @@ static const char *fmt_net(netid_t nid)
 
 static const char *fmt_values(const void *values, int length)
 {
-   const size_t sz = (length * 2) + 1;
-   char *buf = get_fmt_buf(sz);
-   static_printf_begin(buf, sz);
+   const size_t len = (length * 2) + 1;
+   char *vbuf = get_fmt_buf(len);
 
+   char *p = vbuf;
    for (int i = 0; i < length; i++)
-      static_printf(buf, "%02x", ((uint8_t *)values)[i]);
+      p += checked_sprintf(p, vbuf + len - p, "%02x",
+                           ((uint8_t *)values)[i]);
 
-   return buf;
+   return vbuf;
 }
 
 static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
@@ -1749,23 +1753,21 @@ static event_t *rt_pop_run_queue(void)
 
 static void rt_iteration_limit(void)
 {
-   char buf[2048];
-   static_printf_begin(buf, sizeof(buf));
-
-   static_printf(buf, "Iteration limit of %d delta cycles reached. "
-                 "The following processes are active:\n",
-                 opt_get_int("stop-delta"));
+   text_buf_t *buf = tb_new();
+   tb_printf(buf, "Iteration limit of %d delta cycles reached. "
+             "The following processes are active:\n",
+             opt_get_int("stop-delta"));
 
    for (sens_list_t *it = resume; it != NULL; it = it->next) {
       tree_t p = it->proc->source;
       const loc_t *l = tree_loc(p);
-      static_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
-                    l->file, l->first_line);
+      tb_printf(buf, "  %-30s %s line %d\n", istr(tree_ident(p)),
+                l->file, l->first_line);
    }
 
-   static_printf(buf, "You can increase this limit with --stop-delta");
+   tb_printf(buf, "You can increase this limit with --stop-delta");
 
-   fatal("%s", buf);
+   fatal("%s", tb_get(buf));
 }
 
 static void rt_resume_processes(sens_list_t **list)

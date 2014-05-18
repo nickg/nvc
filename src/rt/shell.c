@@ -71,9 +71,10 @@ static void event_watch(event_watch_msg_t *event, tree_rd_ctx_t ctx)
 {
    tree_t decl = tree_read_recall(ctx, event->index);
 
-   printf("%s: update %s ", event->now_text, istr(tree_ident(decl)));
-   printf("%s -> ", pprint(decl, &(event->last), 1));
-   printf("%s\n", pprint(decl, &(event->value), 1));
+   LOCAL_TEXT_BUF last_tb = pprint(decl, &(event->last), 1);
+   LOCAL_TEXT_BUF now_tb  = pprint(decl, &(event->value), 1);
+   printf("%s: update %s %s -> %s\n", event->now_text, istr(tree_ident(decl)),
+          tb_get(last_tb), tb_get(now_tb));
 }
 
 static bool show_help(int objc, Tcl_Obj *const objv[], const char *help)
@@ -306,10 +307,11 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
                const char *type_str = type_pp(type);
                const char *short_name = strrchr(type_str, '.');
 
+               LOCAL_TEXT_BUF values_tb = pprint(t, reply->values, msg.len);
                printf("%-30s%-20s%s\n",
                       str,
                       (short_name != NULL ? short_name + 1 : type_str),
-                      pprint(t, reply->values, msg.len));
+                      tb_get(values_tb));
 
                free(reply);
             }

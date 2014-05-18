@@ -565,12 +565,12 @@ static void bounds_case_cover(interval_t **isp, tree_t t,
    }
 }
 
-static void bounds_fmt_case_missing(char *buf, int64_t low, int64_t high)
+static void bounds_fmt_case_missing(text_buf_t *tb, int64_t low, int64_t high)
 {
    if (low == high)
-      static_printf(buf, "\n    %"PRIi64, low);
+      tb_printf(tb, "\n    %"PRIi64, low);
    else
-      static_printf(buf, "\n    %"PRIi64" to %"PRIi64, low, high);
+      tb_printf(tb, "\n    %"PRIi64" to %"PRIi64, low, high);
 }
 
 static void bounds_check_case(tree_t t)
@@ -688,17 +688,16 @@ static void bounds_check_case(tree_t t)
       }
 
       if (!have_others) {
-         char buf[1024];
-         static_printf_begin(buf, sizeof(buf));
-         static_printf(buf, "case choices do not cover the following "
-                       "values of %s:", type_pp(type));
+         LOCAL_TEXT_BUF tb = tb_new();
+         tb_printf(tb, "case choices do not cover the following "
+                   "values of %s:", type_pp(type));
 
          bool missing = false;
          int64_t walk = tlow;
          interval_t *it, *tmp;
          for (it = covered, tmp = NULL; it != NULL; it = tmp) {
             if (it->low != walk) {
-               bounds_fmt_case_missing(buf, walk, it->low - 1);
+               bounds_fmt_case_missing(tb, walk, it->low - 1);
                missing = true;
             }
 
@@ -709,12 +708,12 @@ static void bounds_check_case(tree_t t)
          }
 
          if (walk != thigh + 1) {
-            bounds_fmt_case_missing(buf, walk, thigh);
+            bounds_fmt_case_missing(tb, walk, thigh);
             missing = true;
          }
 
          if (missing)
-            bounds_error(t, "%s", buf);
+            bounds_error(t, "%s", tb_get(tb));
       }
    }
 }

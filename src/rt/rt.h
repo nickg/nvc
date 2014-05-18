@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -82,7 +82,7 @@ void jit_bind_fn(const char *name, void *ptr);
 
 void shell_run(struct tree *e, struct tree_rd_ctx *ctx);
 
-const char *pprint(struct tree *t, const uint64_t *values, size_t len);
+text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 
 void vcd_init(const char *file, struct tree *top);
 void vcd_restart(void);
