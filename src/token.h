@@ -1,0 +1,156 @@
+//
+//  Copyright (C) 2014  Nick Gasson
+//
+//  This program is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  This program is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+
+#ifndef _TOKEN_H
+#define _TOKEN_H
+
+typedef union {
+   double  d;
+   char   *s;
+   int64_t n;
+} yylval_t;
+
+typedef enum {
+   tEOF,
+   tID,
+   tENTITY,
+   tIS,
+   tEND,
+   tGENERIC,
+   tPORT,
+   tCONSTANT,
+   tCOMPONENT,
+   tCONFIGURATION,
+   tARCHITECTURE,
+   tOF,
+   tBEGIN,
+   tFOR,
+   tTYPE,
+   tTO,
+   tALL,
+   tIN,
+   tOUT,
+   tBUFFER,
+   tBUS,
+   tUNAFFECTED,
+   tSIGNAL,
+   tDOWNTO,
+   tPROCESS,
+   tPOSTPONED,
+   tWAIT,
+   tREPORT,
+   tLPAREN,
+   tRPAREN,
+   tSEMI,
+   tASSIGN,
+   tCOLON,
+   tCOMMA,
+   tINT,
+   tSTRING,
+   tERROR,
+   tINOUT,
+   tLINKAGE,
+   tVARIABLE,
+   tIF,
+   tRANGE,
+   tSUBTYPE,
+   tUNITS,
+   tPACKAGE,
+   tLIBRARY,
+   tUSE,
+   tDOT,
+   tNULL,
+   tTICK,
+   tFUNCTION,
+   tIMPURE,
+   tRETURN,
+   tPURE,
+   tARRAY,
+   tBOX,
+   tASSOC,
+   tOTHERS,
+   tASSERT,
+   tSEVERITY,
+   tON,
+   tMAP,
+   tTHEN,
+   tELSE,
+   tELSIF,
+   tBODY,
+   tWHILE,
+   tLOOP,
+   tAFTER,
+   tALIAS,
+   tATTRIBUTE,
+   tPROCEDURE,
+   tEXIT,
+   tNEXT,
+   tWHEN,
+   tCASE,
+   tLABEL,
+   tGROUP,
+   tLITERAL,
+   tBAR,
+   tLSQUARE,
+   tRSQUARE,
+   tINERTIAL,
+   tTRANSPORT,
+   tREJECT,
+   tBITSTRING,
+   tBLOCK,
+   tWITH,
+   tSELECT,
+   tGENERATE,
+   tACCESS,
+   tFILE,
+   tOPEN,
+   tREAL,
+   tUNTIL,
+   tRECORD,
+   tNEW,
+   tSHARED,
+   tAND,
+   tOR,
+   tNAND,
+   tNOR,
+   tXOR,
+   tXNOR,
+   tEQ,
+   tNEQ,
+   tLT,
+   tLE,
+   tGT,
+   tGE,
+   tPLUS,
+   tMINUS,
+   tAMP,
+   tPOWER,
+   tOVER,
+   tSLL,
+   tSRL,
+   tSLA,
+   tSRA,
+   tROL,
+   tROR,
+   tMOD,
+   tREM,
+   tABS,
+   tNOT,
+   tTIMES
+} token_t;
+
+#endif

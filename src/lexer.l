@@ -25,15 +25,11 @@
 %{
 #include "tree.h"
 #include "util.h"
+#include "token.h"
 
 #include <ctype.h>
 #include <math.h>
 #include <string.h>
-
-typedef struct list list_t;
-typedef struct tree_list tree_list_t;
-
-#include "parse.h"
 
 #define YY_INPUT(buf, result, max_size) {    \
       result = get_next_char(buf, max_size); \
@@ -53,6 +49,8 @@ static int parse_int(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
+
+extern yylval_t yylval;
 
 void begin_token(char *tok);
 int get_next_char(char *b, int max_buffer);
