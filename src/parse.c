@@ -49,6 +49,7 @@ static token_t     peek2_tok;
 static bool        peek2_valid = false;
 static const char *hint_str = NULL;
 static int         n_correct = 0;
+static tree_t      assert_viol = NULL;
 
 yylval_t yylval;
 
@@ -86,6 +87,7 @@ typedef struct {
 #define CURRENT_LOC _diff_loc(&start_loc, &yylloc)
 
 static tree_t p_expression(void);
+static tree_t p_sequential_statement(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -346,6 +348,15 @@ static ident_t loc_to_ident(const loc_t *loc)
    return ident;
 }
 
+static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
+{
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+}
+
 static ident_t p_identifier(void)
 {
    // basic_identifier | extended_identifier
@@ -496,6 +507,12 @@ static tree_t p_function_call(ident_t prefix, tree_t expr1)
 
    tree_t t = tree_new(T_FCALL);
 
+   add_param(t, expr1, P_POS, NULL);
+
+   while (optional(tCOMMA)) {
+      add_param(t, p_expression(), P_POS, NULL);
+   }
+
    consume(tRPAREN);
 
    tree_set_loc(t, CURRENT_LOC);
@@ -514,10 +531,14 @@ static tree_t p_name(void)
       {
          ident_t op = p_operator_symbol();
 
-         tree_t t = tree_new(T_REF);
-         tree_set_ident(t, op);
-         tree_set_loc(t, CURRENT_LOC);
-         return t;
+         if (optional(tLPAREN))
+            return p_function_call(op, p_expression());
+         else {
+            tree_t t = tree_new(T_REF);
+            tree_set_ident(t, op);
+            tree_set_loc(t, CURRENT_LOC);
+            return t;
+         }
       }
 
    case tID:
@@ -712,8 +733,10 @@ static tree_t p_primary(void)
    case tINT:
    case tREAL:
    case tNULL:
-   case tSTRING:
       return p_literal();
+
+   case tSTRING:
+      return (peek2() == tLPAREN) ? p_name() : p_literal();
 
    case tID:
       return p_name();
@@ -828,16 +851,48 @@ static tree_t p_shift_expression(void)
    return left;
 }
 
+static ident_t p_relational_operator(void)
+{
+   switch (one_of(tEQ, tNEQ, tLT, tLE, tGT, tGE)) {
+   case tEQ:
+      return ident_new("\"=\"");
+   case tNEQ:
+      return ident_new("\"/=\"");
+   case tLT:
+      return ident_new("\"<\"");
+   case tLE:
+      return ident_new("\"<=\"");
+   case tGT:
+      return ident_new("\">\"");
+   case tGE:
+      return ident_new("\">=\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_relation(void)
 {
    // shift_expression [ relational_operator shift_expression ]
 
    BEGIN("relation");
 
-   tree_t left = p_shift_expression();
+   tree_t rel = p_shift_expression();
 
-   // XXX
-   return left;
+   while (scan(tEQ, tNEQ, tLT, tLE, tGT, tGE)) {
+      ident_t op   = p_relational_operator();
+      tree_t left  = rel;
+      tree_t right = p_shift_expression();
+
+      rel = tree_new(T_FCALL);
+      tree_set_ident(rel, op);
+      tree_set_loc(rel, CURRENT_LOC);
+
+      add_param(rel, left, P_POS, NULL);
+      add_param(rel, right, P_POS, NULL);
+   }
+
+   return rel;
 }
 
 static tree_t p_expression(void)
@@ -1221,9 +1276,21 @@ static tree_t p_assertion(void)
 
    if (optional(tREPORT))
       tree_set_message(s, p_expression());
+   else {
+      if (assert_viol == NULL)
+         assert_viol = str_to_agg("Assertion violation.", NULL, &LOC_INVALID);
+
+      tree_set_message(s, assert_viol);
+   }
 
    if (optional(tSEVERITY))
       tree_set_severity(s, p_expression());
+   else {
+      tree_t sev = tree_new(T_REF);
+      tree_set_ident(sev, ident_new("ERROR"));
+
+      tree_set_severity(s, sev);
+   }
 
    tree_set_loc(s, CURRENT_LOC);
    return s;
@@ -1614,7 +1681,7 @@ static tree_t p_wait_statement(ident_t label)
    // [ label : ] wait [ sensitivity_clause ] [ condition_clause ]
    //   [ timeout_clause ] ;
 
-   BEGIN("wait statement");
+   EXTEND("wait statement");
 
    tree_t t = tree_new(T_WAIT);
 
@@ -1631,13 +1698,204 @@ static tree_t p_wait_statement(ident_t label)
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(t, loc);
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
 
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(t, label);
+static tree_t p_assertion_statement(ident_t label)
+{
+   // [ label : ] assertion ;
 
+   EXTEND("assertion statement");
+
+   tree_t t = p_assertion();
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_report_statement(ident_t label)
+{
+   // [ label : ] report expression [ severity expression ] ;
+
+   EXTEND("report statement");
+
+   tree_t t = tree_new(T_ASSERT);
+
+   consume(tREPORT);
+
+   tree_set_message(t, p_expression());
+
+   if (optional(tSEVERITY))
+      tree_set_severity(t, p_expression());
+   else {
+      tree_t sev = tree_new(T_REF);
+      tree_set_ident(sev, ident_new("NOTE"));
+
+      tree_set_severity(t, sev);
+   }
+
+   consume(tSEMI);
+
+   tree_t false_ref = tree_new(T_REF);
+   tree_set_ident(false_ref, ident_new("FALSE"));
+
+   tree_set_value(t, false_ref);
+   tree_add_attr_int(t, ident_new("is_report"), 1);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static void p_sequence_of_statements(tree_t parent, add_func_t addf)
+{
+   // { sequential_statement }
+
+   BEGIN("sequence of statements");
+
+   while (scan(tID, tWAIT, tASSERT, tREPORT, tIF, tNULL, tRETURN,
+               tWHILE, tFOR, tLOOP))
+      (*addf)(parent, p_sequential_statement());
+}
+
+static tree_t p_if_statement(ident_t label)
+{
+   // [ label : ] if condition then sequence_of_statements
+   //   { elsif condition then sequence_of_statements }
+   //   [ else sequence_of_statements ] end if [ label ] ;
+
+   EXTEND("if statement");
+
+   tree_t t = tree_new(T_IF);
+
+   consume(tIF);
+
+   tree_set_value(t, p_expression());
+
+   consume(tTHEN);
+
+   p_sequence_of_statements(t, tree_add_stmt);
+
+   tree_t tail = t;
+
+   while (optional(tELSIF)) {
+      tree_t elsif = tree_new(T_IF);
+      tree_set_ident(elsif, ident_new("elsif"));
+      tree_set_value(elsif, p_expression());
+
+      consume(tTHEN);
+
+      p_sequence_of_statements(elsif, tree_add_stmt);
+
+      tree_set_loc(elsif, CURRENT_LOC);
+
+      tree_add_else_stmt(tail, elsif);
+      tail = elsif;
+   }
+
+   if (optional(tELSE))
+      p_sequence_of_statements(tail, tree_add_else_stmt);
+
+   consume(tEND);
+   consume(tIF);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_null_statement(ident_t label)
+{
+   // [ label : ] null ;
+
+   EXTEND("null statement");
+
+   consume(tNULL);
+   consume(tSEMI);
+
+   tree_t t = tree_new(T_NULL);
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_iteration_scheme(void)
+{
+   // while condition | for loop_parameter_specification
+
+   BEGIN("iteration scheme");
+
+   if (optional(tWHILE)) {
+      tree_t t = tree_new(T_WHILE);
+      tree_set_value(t, p_expression());
+      return t;
+   }
+   else if (optional(tFOR)) {
+      tree_t t = tree_new(T_FOR);
+
+      //p_loop_parameter_specification(t);
+
+      return t;
+   }
+   else {
+      tree_t true_ref = tree_new(T_REF);
+      tree_set_ident(true_ref, ident_new("TRUE"));
+
+      tree_t t = tree_new(T_WHILE);
+      tree_set_value(t, true_ref);
+      return t;
+   }
+}
+
+static tree_t p_loop_statement(ident_t label)
+{
+   // [ loop_label : ] [ iteration_scheme ] loop sequence_of_statements
+   //   end loop [ loop_label ] ;
+
+   tree_t t = p_iteration_scheme();
+
+   consume(tLOOP);
+
+   p_sequence_of_statements(t, tree_add_stmt);
+
+   consume(tEND);
+   consume(tLOOP);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_return_statement(ident_t label)
+{
+   // [ label : ] return [ expression ] ;
+
+   EXTEND("return statement");
+
+   consume(tRETURN);
+
+   tree_t t = tree_new(T_RETURN);
+
+   if (peek() != tSEMI)
+      tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
    return t;
 }
 
@@ -1660,6 +1918,26 @@ static tree_t p_sequential_statement(void)
    switch (peek()) {
    case tWAIT:
       return p_wait_statement(label);
+
+   case tASSERT:
+      return p_assertion_statement(label);
+
+   case tREPORT:
+      return p_report_statement(label);
+
+   case tIF:
+      return p_if_statement(label);
+
+   case tNULL:
+      return p_null_statement(label);
+
+   case tRETURN:
+      return p_return_statement(label);
+
+   case tWHILE:
+   case tLOOP:
+   case tFOR:
+      return p_loop_statement(label);
 
    case tID:
       break;
@@ -1690,8 +1968,7 @@ static void p_process_statement_part(tree_t proc)
 
    BEGIN("process statement part");
 
-   while (scan(tID, tWAIT))
-      tree_add_stmt(proc, p_sequential_statement());
+   p_sequence_of_statements(proc, tree_add_stmt);
 }
 
 static tree_t p_process_statement(ident_t label)
@@ -1959,6 +2236,8 @@ tree_t parse(void)
 {
    n_errors  = 0;
    n_correct = RECOVER_THRESH;
+
+   assert_viol = NULL;
 
    if (peek() == tEOF)
       return NULL;
