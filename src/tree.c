@@ -355,6 +355,7 @@ static const tree_kind_t change_allowed[][2] = {
    { T_FCALL,     T_TYPE_CONV   },
    { T_REF,       T_RECORD_REF  },
    { T_ARRAY_REF, T_ARRAY_SLICE },
+   { T_ASSERT,    T_CASSERT     },
 };
 
 struct tree {

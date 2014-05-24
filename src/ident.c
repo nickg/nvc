@@ -456,6 +456,22 @@ void ident_list_add(ident_list_t **list, ident_t i)
    *list = c;
 }
 
+void ident_list_push(ident_list_t **list, ident_t i)
+{
+   ident_list_t *c = xmalloc(sizeof(ident_list_t));
+   c->ident = i;
+   c->next  = NULL;
+
+   if (*list == NULL)
+      *list = c;
+   else {
+      ident_list_t *it;
+      for (it = *list; it->next != NULL; it = it->next)
+         ;
+      it->next = c;
+   }
+}
+
 void ident_list_free(ident_list_t *list)
 {
    ident_list_t *it = list;
@@ -464,4 +480,9 @@ void ident_list_free(ident_list_t *list)
       free(it);
       it = next;
    }
+}
+
+void _ident_list_cleanup(ident_list_t **list)
+{
+   free(*list);
 }

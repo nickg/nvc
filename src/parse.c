@@ -18,6 +18,7 @@
 #include "util.h"
 #include "phase.h"
 #include "token.h"
+#include "common.h"
 
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -56,11 +57,13 @@ int yylex(void);
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
-#define TRACE_PARSE    1
+#define TRACE_PARSE    0
 
 #if TRACE_PARSE
 static int depth = 0;
 #endif
+
+typedef void (*add_func_t)(tree_t, tree_t);
 
 typedef struct {
    const char *old_hint;
@@ -119,7 +122,13 @@ static const char *token_str(token_t tok)
       "constant", "component", "configuration", "architecture", "of", "begin",
       "for", "type", "to", "all", "in", "out", "buffer", "bus", "unaffected",
       "signal", "downto", "process", "postponed", "wait", "report", "(", ")",
-      ";", ":=", ":", ",", "integer"
+      ";", ":=", ":", ",", "integer", "string", "error", "inout", "linkage",
+      "variable", "if", "range", "subtype", "units", "package", "library",
+      "use", ".", "null", "'", "function", "impure", "return", "pure", "array",
+      "<>", "=>", "others", "assert", "severity", "on", "map", "then", "else",
+      "elsif", "body", "while", "loop", "after", "alias", "attribute",
+      "procedure", "exit", "next", "when", "case", "label", "group", "literal",
+      "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -273,6 +282,31 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
+static tree_t str_to_agg(const char *start, const char *end, const loc_t *loc)
+{
+   tree_t t = tree_new(T_AGGREGATE);
+   tree_set_loc(t, loc);
+
+   for (const char *p = start; *p != '\0' && p != end; p++) {
+      if (*p == -127)
+         continue;
+
+      const char ch[] = { '\'', *p, '\'', '\0' };
+
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, ident_new(ch));
+      tree_set_loc(ref, loc);
+
+      tree_t a = tree_new(T_ASSOC);
+      tree_set_subkind(a, A_POS);
+      tree_set_value(a, ref);
+
+      tree_add_assoc(t, a);
+   }
+
+   return t;
+}
+
 static ident_t p_identifier(void)
 {
    // basic_identifier | extended_identifier
@@ -286,14 +320,18 @@ static ident_t p_identifier(void)
       return ident_new("error");
 }
 
-static void p_identifier_list(void)
+static ident_list_t *p_identifier_list(void)
 {
    // identifier { , identifier }
 
-   p_identifier();
+   ident_list_t *result = NULL;
+
+   ident_list_add(&result, p_identifier());
 
    while (optional(tCOMMA))
-      p_identifier();
+      ident_list_push(&result, p_identifier());
+
+   return result;
 }
 
 static void p_library_clause(void)
@@ -428,23 +466,25 @@ static type_t p_subtype_indication(void)
 
    BEGIN("subtype indication");
 
-   type_t t = type_new(T_SUBTYPE);
-
    ident_t head = p_identifier();
 
+   type_t type = NULL;
    if (scan(tID)) {
+      type = type_new(T_SUBTYPE);
+
       tree_t rname = p_name(head);
       // XXX: check name is resolution_function_name
-      type_set_resolution(t, rname);
-      head = NULL;
-   }
+      type_set_resolution(type, rname);
 
-   type_t base = p_type_mark(head);
-   type_set_base(t, base);
+      type_t base = p_type_mark(NULL);
+      type_set_base(type, base);
+   }
+   else
+      type = p_type_mark(head);
 
    // p_constraint()
 
-   return t;
+   return type;
 }
 
 static tree_t p_abstract_literal(void)
@@ -502,6 +542,18 @@ static tree_t p_literal(void)
    case tREAL:
       return p_numeric_literal();
 
+   case tSTRING:
+      {
+         consume(tSTRING);
+
+         char *p = yylval.s;
+         size_t len = strlen(p);
+         tree_t t = str_to_agg(p + 1, p + len - 1, CURRENT_LOC);
+         free(p);
+
+         return t;
+      }
+
    default:
       expect(tNULL, tINT, tREAL);
       return tree_new(T_OPEN);
@@ -518,6 +570,7 @@ static tree_t p_primary(void)
    switch (peek()) {
    case tLPAREN:
       {
+         consume(tLPAREN);
          tree_t sub = p_expression();
          consume(tRPAREN);
          return sub;
@@ -526,10 +579,14 @@ static tree_t p_primary(void)
    case tINT:
    case tREAL:
    case tNULL:
+   case tSTRING:
       return p_literal();
 
+   case tID:
+      return p_name(NULL);
+
    default:
-      expect(tLPAREN, tLITERAL, tINT, tREAL, tNULL);
+      expect(tLPAREN, tLITERAL, tINT, tREAL, tNULL, tID, tSTRING);
       return tree_new(T_OPEN);
    }
 }
@@ -546,16 +603,44 @@ static tree_t p_factor(void)
    return operand;
 }
 
+static ident_t p_multiplying_operator(void)
+{
+   switch (one_of(tTIMES, tOVER, tMOD, tREM)) {
+   case tTIMES:
+      return ident_new("\"*\"");
+   case tOVER:
+      return ident_new("\"/\"");
+   case tMOD:
+      return ident_new("\"mod\"");
+   case tREM:
+      return ident_new("\"rem\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_term(void)
 {
    // factor { multiplying_operator factor }
 
    BEGIN("term");
 
-   tree_t left = p_factor();
+   tree_t term = p_factor();
 
-   // XXX
-   return left;
+   while (scan(tTIMES, tOVER, tMOD, tREM)) {
+      ident_t op   = p_multiplying_operator();
+      tree_t left  = term;
+      tree_t right = p_factor();
+
+      term = tree_new(T_FCALL);
+      tree_set_ident(term, op);
+      tree_set_loc(term, CURRENT_LOC);
+
+      add_param(term, left, P_POS, NULL);
+      add_param(term, right, P_POS, NULL);
+   }
+
+   return term;
 }
 
 static tree_t p_simple_expression(void)
@@ -610,7 +695,7 @@ static tree_t p_expression(void)
    return left;
 }
 
-static void p_interface_constant_declaration(void)
+static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
 {
    // [ constant ] identifier_list : [ in ] subtype_indication [ := expression ]
 
@@ -618,18 +703,34 @@ static void p_interface_constant_declaration(void)
 
    optional(tCONSTANT);
 
-   p_identifier_list();
+   LOCAL_IDENT_LIST ids = p_identifier_list();
 
    consume(tCOLON);
    optional(tIN);
 
-   p_subtype_indication();
+   type_t type = p_subtype_indication();
 
+   tree_t init = NULL;
    if (optional(tASSIGN))
-      p_expression();
+      init = p_expression();
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(T_PORT_DECL);
+      tree_set_ident(d, it->ident);
+      tree_set_loc(d, loc);
+      tree_set_subkind(d, PORT_IN);
+      tree_set_type(d, type);
+
+      if (init != NULL)
+         tree_set_value(d, init);
+
+      (*addf)(parent, d);
+   }
 }
 
-static void p_interface_signal_declaration(void)
+static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
 {
    // [signal] identifier_list : [ mode ] subtype_indication [ bus ]
    //    [ := expression ]
@@ -638,36 +739,55 @@ static void p_interface_signal_declaration(void)
 
    optional(tSIGNAL);
 
-   p_identifier_list();
+   LOCAL_IDENT_LIST ids = p_identifier_list();
 
    consume(tCOLON);
 
+   port_mode_t mode = PORT_IN;
    if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
-      p_mode();
+      mode = p_mode();
 
-   p_subtype_indication();
+   type_t type = p_subtype_indication();
 
    optional(tBUS);
 
+   tree_t init = NULL;
    if (optional(tASSIGN))
-      p_expression();
+      init = p_expression();
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(T_PORT_DECL);
+      tree_set_ident(d, it->ident);
+      tree_set_loc(d, loc);
+      tree_set_subkind(d, mode);
+      tree_set_type(d, type);
+      tree_set_class(d, C_SIGNAL);
+
+      if (init != NULL)
+         tree_set_value(d, init);
+
+      tree_add_port(parent, d);
+   }
 }
 
-static void p_interface_variable_declaration(void)
+static void p_interface_variable_declaration(tree_t parent)
 {
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
    BEGIN("interface variable declaration");
 }
 
-static void p_interface_file_declaration(void)
+static void p_interface_file_declaration(tree_t parent)
 {
    // file identifier_list : subtype_indication
 
    BEGIN("interface file declaration");
 }
 
-static void p_interface_declaration(class_t def_class)
+static void p_interface_declaration(class_t def_class, tree_t parent,
+                                    add_func_t addf)
 {
    // interface_constant_declaration | interface_signal_declaration
    //   | interface_variable_declaration | interface_file_declaration
@@ -677,34 +797,34 @@ static void p_interface_declaration(class_t def_class)
    const token_t p = peek();
    switch (p) {
    case tCONSTANT:
-      p_interface_constant_declaration();
+      p_interface_constant_declaration(parent, addf);
       break;
 
    case tSIGNAL:
-      p_interface_signal_declaration();
+      p_interface_signal_declaration(parent, addf);
       break;
 
    case tVARIABLE:
-      p_interface_variable_declaration();
+      p_interface_variable_declaration(parent);
       break;
 
    case tFILE:
-      p_interface_file_declaration();
+      p_interface_file_declaration(parent);
       break;
 
    case tID:
       {
          switch (def_class) {
          case C_CONSTANT:
-            p_interface_constant_declaration();
+            p_interface_constant_declaration(parent, addf);
             break;
 
          case C_SIGNAL:
-            p_interface_signal_declaration();
+            p_interface_signal_declaration(parent, addf);
             break;
 
          case C_VARIABLE:
-            p_interface_variable_declaration();
+            p_interface_variable_declaration(parent);
             break;
 
          default:
@@ -718,37 +838,38 @@ static void p_interface_declaration(class_t def_class)
    }
 }
 
-static void p_interface_element(class_t def_class)
+static void p_interface_element(class_t def_class, tree_t parent,
+                                add_func_t addf)
 {
    // interface_declaration
 
    BEGIN("interface element");
 
-   p_interface_declaration(def_class);
+   p_interface_declaration(def_class, parent, addf);
 }
 
-static void p_interface_list(class_t def_class)
+static void p_interface_list(class_t def_class, tree_t parent, add_func_t addf)
 {
    // interface_element { ; interface_element }
 
    BEGIN("interface list");
 
-   p_interface_element(def_class);
+   p_interface_element(def_class, parent, addf);
 
    while (optional(tSEMI))
-      p_interface_element(def_class);
+      p_interface_element(def_class, parent, addf);
 }
 
-static void p_port_list(void)
+static void p_port_list(tree_t parent)
 {
    // port_list ::= interface_list
 
    BEGIN("port list");
 
-   p_interface_list(C_SIGNAL);
+   p_interface_list(C_SIGNAL, parent, tree_add_port);
 }
 
-static void p_port_clause(void)
+static void p_port_clause(tree_t parent)
 {
    // port ( port_list ) ;
 
@@ -757,22 +878,22 @@ static void p_port_clause(void)
    consume(tPORT);
    consume(tLPAREN);
 
-   p_port_list();
+   p_port_list(parent);
 
    consume(tRPAREN);
    consume(tSEMI);
 }
 
-static void p_generic_list(void)
+static void p_generic_list(tree_t parent)
 {
    // generic_list ::= interface_list
 
    BEGIN("generic list");
 
-   p_interface_list(C_CONSTANT);
+   p_interface_list(C_CONSTANT, parent, tree_add_generic);
 }
 
-static void p_generic_clause(void)
+static void p_generic_clause(tree_t parent)
 {
    // generic ( generic_list ) ;
 
@@ -781,23 +902,235 @@ static void p_generic_clause(void)
    consume(tGENERIC);
    consume(tLPAREN);
 
-   p_generic_list();
+   p_generic_list(parent);
 
    consume(tRPAREN);
    consume(tSEMI);
 }
 
-static void p_entity_header(void)
+static void p_entity_header(tree_t entity)
 {
    // [ generic_clause ] [ port_clause ]
 
    BEGIN("entity header");
 
    if (scan(tGENERIC))
-      p_generic_clause();
+      p_generic_clause(entity);
 
    if (scan(tPORT))
-      p_port_clause();
+      p_port_clause(entity);
+}
+
+static void p_attribute_declaration(ident_t head, tree_t parent)
+{
+   // attribute identifier : type_mark ;
+
+   BEGIN("attribute declaration");
+
+   tree_t t = tree_new(T_ATTR_DECL);
+   tree_set_ident(t, head);
+   tree_set_type(t, p_type_mark(NULL));
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+
+   tree_add_decl(parent, t);
+}
+
+static class_t p_entity_class(void)
+{
+   // entity | procedure | type | signal | label | group | architecture
+   //   | function | subtype | variable | literal | file | configuration
+   //   | package | constant | component | units
+
+   BEGIN("entity class");
+
+   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL)) {
+   case tENTITY:
+      return C_ENTITY;
+   case tPROCEDURE:
+      return C_PROCEDURE;
+   case tSIGNAL:
+      return C_SIGNAL;
+   case tLABEL:
+      return C_LABEL;
+   default:
+      return C_DEFAULT;
+   }
+}
+
+static ident_list_t *p_entity_specification(class_t *class)
+{
+   // entity_name_list : entity_class
+
+   BEGIN("entity specification");
+
+   ident_list_t *ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   *class = p_entity_class();
+   return ids;
+}
+
+static void p_attribute_specification(ident_t head, tree_t parent)
+{
+   // attribute attribute_designator of entity_specification is expression ;
+
+   BEGIN("attribute specification");
+
+   class_t class;
+   LOCAL_IDENT_LIST ids = p_entity_specification(&class);
+
+   consume(tIS);
+
+   tree_t value = p_expression();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_ATTR_SPEC);
+      tree_set_loc(t, loc);
+      tree_set_class(t, class);
+      tree_set_ident(t, head);
+      tree_set_value(t, value);
+
+      tree_add_decl(parent, t);
+   }
+}
+
+static void p_entity_declarative_item(tree_t entity)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | signal_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | attribute_declaration | attribute_specification
+   //   | disconnection_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("entity declarative item");
+
+   switch (peek()) {
+   case tATTRIBUTE:
+      {
+         consume(tATTRIBUTE);
+         ident_t head = p_identifier();
+         switch (one_of(tCOLON, tOF)) {
+         case tCOLON:
+            p_attribute_declaration(head, entity);
+            break;
+
+         case tOF:
+            p_attribute_specification(head, entity);
+            break;
+
+         default:
+            break;
+         }
+      }
+      break;
+
+   default:
+      expect(tATTRIBUTE);
+   }
+}
+
+static void p_entity_declarative_part(tree_t entity)
+{
+   // { entity_declarative_item }
+
+   BEGIN("entity declarative part");
+
+   while (scan(tATTRIBUTE))
+      p_entity_declarative_item(entity);
+}
+
+static tree_t p_assertion(void)
+{
+   // assert condition [ report expression ] [ severity expression ]
+
+   BEGIN("assertion");
+
+   tree_t s = tree_new(T_ASSERT);
+
+   consume(tASSERT);
+
+   tree_set_value(s, p_expression());
+
+   if (optional(tREPORT))
+      tree_set_message(s, p_expression());
+
+   if (optional(tSEVERITY))
+      tree_set_severity(s, p_expression());
+
+   tree_set_loc(s, CURRENT_LOC);
+   return s;
+}
+
+static tree_t p_concurrent_assertion_statement(void)
+{
+   // [ label : ] [ postponed ] assertion ;
+
+   BEGIN("concurrent assertion statement");
+
+   const bool postponed = optional(tPOSTPONED);
+
+   tree_t s = p_assertion();
+   tree_change_kind(s, T_CASSERT);
+
+   consume(tSEMI);
+
+   tree_set_loc(s, CURRENT_LOC);
+
+   if (postponed)
+      tree_add_attr_int(s, ident_new("postponed"), 1);
+
+   return s;
+}
+
+static tree_t p_entity_statement(void)
+{
+   // concurrent_assertion_statement | concurrent_procedure_call_statement
+   //   | process_statement
+
+   BEGIN("entity statement");
+
+   switch (peek()) {
+   case tASSERT:
+      return p_concurrent_assertion_statement();
+
+   case tPOSTPONED:
+      {
+         consume(tPOSTPONED);
+
+         switch (one_of(tPROCESS, tASSERT)) {
+         case tPROCESS:
+            // p_process_statement()
+            return tree_new(T_NULL);
+         case tASSERT:
+            return p_concurrent_assertion_statement();
+         default:
+            return tree_new(T_NULL);
+         }
+      }
+
+   default:
+      expect(tASSERT, tPOSTPONED);
+      return tree_new(T_NULL);
+   }
+}
+
+static void p_entity_statement_part(tree_t entity)
+{
+   // { entity_statement }
+
+   BEGIN("entity statement part");
+
+   while (scan(tASSERT, tPROCESS, tPOSTPONED))
+      tree_add_stmt(entity, p_entity_statement());
 }
 
 static tree_t p_entity_declaration(void)
@@ -816,11 +1149,11 @@ static tree_t p_entity_declaration(void)
 
    consume(tIS);
 
-   p_entity_header();
+   p_entity_header(t);
+   p_entity_declarative_part(t);
 
-   // p_entity_header()
-   // p_entity_declarative_part()
-   //   [ begin entity_statement_part ]
+   if (optional(tBEGIN))
+      p_entity_statement_part(t);
 
    consume(tEND);
    optional(tENTITY);
@@ -957,6 +1290,9 @@ tree_t parse(void)
 {
    n_errors  = 0;
    n_correct = RECOVER_THRESH;
+
+   if (peek() == tEOF)
+      return NULL;
 
    tree_t unit = p_design_unit();
    if (n_errors > 0)

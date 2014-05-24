@@ -82,7 +82,12 @@ struct ident_list {
    ident_t       ident;
 };
 
+#define LOCAL_IDENT_LIST \
+   __attribute__((cleanup(_ident_list_cleanup))) ident_list_t *
+
 void ident_list_add(ident_list_t **list, ident_t i);
+void ident_list_push(ident_list_t **list, ident_t i);
 void ident_list_free(ident_list_t *list);
+void _ident_list_cleanup(ident_list_t **list);
 
 #endif // _IDENT_H
