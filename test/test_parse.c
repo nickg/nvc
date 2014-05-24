@@ -1861,8 +1861,8 @@ int main(void)
    TCase *tc_core = tcase_create("Core");
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_arch);
-#if 0
    tcase_add_test(tc_core, test_process);
+#if 0
    tcase_add_test(tc_core, test_seq);
    tcase_add_test(tc_core, test_types);
    tcase_add_test(tc_core, test_literal);

@@ -43,7 +43,10 @@ static const char *read_ptr;
 static const char *file_start;
 static size_t      file_sz;
 static int         n_errors = 0;
+static token_t     peek_tok;
 static bool        peek_valid = false;
+static token_t     peek2_tok;
+static bool        peek2_valid = false;
 static const char *hint_str = NULL;
 static int         n_correct = 0;
 
@@ -78,18 +81,6 @@ typedef struct {
    _push_state(&_state);
 
 #define CURRENT_LOC _diff_loc(&start_loc, &yylloc)
-
-static const token_t f_library_clause[] = { tLIBRARY };
-static const token_t f_use_clause[] = { tUSE };
-static const token_t f_entity_declaration[] = { tENTITY };
-static const token_t f_identifier[] = { tID };
-static const token_t f_port_clause[] = { tPORT };
-static const token_t f_generic_clause[] = { tGENERIC };
-static const token_t f_interface_constant_declaration[] = { tCONSTANT };
-static const token_t f_identifier_list[] = { tID };
-static const token_t f_interface_signal_declaration[] = { tSIGNAL };
-static const token_t f_interface_variable_declaration[] = { tSIGNAL };
-static const token_t f_interface_file_declaration[] = { tFILE };
 
 static tree_t p_expression(void);
 
@@ -139,13 +130,27 @@ static const char *token_str(token_t tok)
 
 static token_t peek(void)
 {
-   static token_t p;
-
    if (peek_valid)
-      return p;
+      return peek_tok;
    else {
+      assert(!peek2_valid);
       peek_valid = true;
-      return (p = yylex());
+      return (peek_tok = yylex());
+   }
+}
+
+static token_t peek2(void)
+{
+   if (!peek_valid) {
+      assert(!peek2_valid);
+      (void)peek();
+   }
+
+   if (peek2_valid)
+      return peek2_tok;
+   else {
+      peek2_valid = true;
+      return (peek2_tok = yylex());
    }
 }
 
@@ -167,7 +172,14 @@ static bool consume(token_t tok)
    if (start_loc.linebuf == NULL)
       start_loc = yylloc;
 
-   peek_valid = false;
+   if (peek2_valid) {
+      assert(peek_valid);
+      peek_tok = peek2_tok;
+   }
+   else
+      peek_valid = false;
+
+   peek2_valid = false;
 
    return (tok == got);
 }
@@ -305,6 +317,27 @@ static tree_t str_to_agg(const char *start, const char *end, const loc_t *loc)
    }
 
    return t;
+}
+
+static ident_t loc_to_ident(const loc_t *loc)
+{
+   int bufsz = 128;
+   char *buf = xmalloc(bufsz);
+   checked_sprintf(buf, bufsz, "line_%d", loc->first_line);
+   const int nprint = strlen(buf);
+
+   for (int i = 0; ident_interned(buf); i++) {
+      if (nprint + 1 > bufsz) {
+         bufsz *= 2;
+         buf = xrealloc(buf, bufsz);
+      }
+      buf[nprint] = 'a' + i;
+      buf[nprint + 1] = '\0';
+   }
+
+   ident_t ident = ident_new(buf);
+   free(buf);
+   return ident;
 }
 
 static ident_t p_identifier(void)
@@ -643,6 +676,20 @@ static tree_t p_term(void)
    return term;
 }
 
+static ident_t p_adding_operator(void)
+{
+   switch (one_of(tPLUS, tMINUS, tAMP)) {
+   case tPLUS:
+      return ident_new("\"+\"");
+   case tMINUS:
+      return ident_new("\"-\"");
+   case tAMP:
+      return ident_new("\"&\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_simple_expression(void)
 {
    // [ sign ] term { adding_operator term }
@@ -651,10 +698,22 @@ static tree_t p_simple_expression(void)
 
    // p_sign()
 
-   tree_t left = p_term();
+   tree_t expr = p_term();
 
-   // XXX
-   return left;
+   while (scan(tPLUS, tMINUS, tAMP)) {
+      ident_t op   = p_adding_operator();
+      tree_t left  = expr;
+      tree_t right = p_term();
+
+      expr = tree_new(T_FCALL);
+      tree_set_ident(expr, op);
+      tree_set_loc(expr, CURRENT_LOC);
+
+      add_param(expr, left, P_POS, NULL);
+      add_param(expr, right, P_POS, NULL);
+   }
+
+   return expr;
 }
 
 static tree_t p_shift_expression(void)
@@ -1186,6 +1245,441 @@ static tree_t p_primary_unit(void)
    }
 }
 
+static void p_signal_declaration(tree_t parent)
+{
+   // signal identifier_list : subtype_indication [ signal_kind ]
+   //   [ := expression ] ;
+
+   BEGIN("signal declaration");
+
+   consume(tSIGNAL);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   // [ signal_kind ]
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_SIGNAL_DECL);
+      tree_set_loc(t, loc);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
+static void p_block_declarative_item(tree_t parent)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | signal_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | component_declaration | attribute_declaration
+   //   | attribute_specification | configuration_specification
+   //   | disconnection_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("block declarative item");
+
+   switch (peek()) {
+   case tSIGNAL:
+      p_signal_declaration(parent);
+      break;
+
+   default:
+      expect(tSIGNAL);
+   }
+}
+
+static void p_variable_declaration(tree_t parent)
+{
+   // [ shared ] variable identifier_list : subtype_indication
+   //   [ := expression ] ;
+
+   BEGIN("variable declaration");
+
+   consume(tVARIABLE);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_VAR_DECL);
+      tree_set_loc(t, loc);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
+static void p_process_declarative_item(tree_t proc)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | variable_declaration
+   //   | file_declaration | alias_declaration | attribute_declaration
+   //   | attribute_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("process declarative item");
+
+   switch (peek()) {
+   case tVARIABLE:
+      p_variable_declaration(proc);
+      break;
+
+   default:
+      expect(tVARIABLE);
+   }
+}
+
+static void p_process_declarative_part(tree_t proc)
+{
+   // { process_declarative_item }
+
+   BEGIN("process declarative part");
+
+   while (scan(tVARIABLE))
+      p_process_declarative_item(proc);
+}
+
+static tree_t p_target(tree_t name)
+{
+   // name | aggregate
+
+   BEGIN("target");
+
+   if (name == NULL)
+      assert(false); // p_aggregate()
+   else
+      return name;
+}
+
+static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
+{
+   // [ label : ] target := expression ;
+
+   BEGIN("variable assignment statement");
+
+   tree_t t = tree_new(T_VAR_ASSIGN);
+
+   tree_set_target(t, p_target(name));
+
+   consume(tASSIGN);
+
+   tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   return t;
+}
+
+static tree_t p_waveform_element(void)
+{
+   // expression [ after expression ] | null [ after expression ]
+
+   BEGIN("waveform element");
+
+   tree_t w = tree_new(T_WAVEFORM);
+   tree_set_value(w, p_expression());
+
+   if (optional(tAFTER))
+      tree_set_delay(w, p_expression());
+
+   tree_set_loc(w, CURRENT_LOC);
+
+   return w;
+}
+
+static void p_waveform(tree_t stmt)
+{
+   // waveform_element { , waveform_element } | unaffected
+
+   BEGIN("waveform");
+
+   if (optional(tUNAFFECTED))
+      return;
+
+   tree_add_waveform(stmt, p_waveform_element());
+
+   while (optional(tCOMMA))
+      tree_add_waveform(stmt, p_waveform_element());
+}
+
+static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
+{
+   // [ label : ] target <= [ delay_mechanism ] waveform ;
+
+   BEGIN("signal assignment statement");
+
+   tree_t t = tree_new(T_SIGNAL_ASSIGN);
+
+   tree_set_target(t, p_target(name));
+
+   consume(tLE);
+
+   p_waveform(t);
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   return t;
+}
+
+static tree_t p_sequential_statement(void)
+{
+   // wait_statement | assertion_statement | report_statement
+   //   | signal_assignment_statement | variable_assignment_statement
+   //   | procedure_call_statement | if_statement | case_statement
+   //   | loop_statement | next_statement | exit_statement | return_statement
+   //   | null_statement
+
+   BEGIN("sequential statement");
+
+   ident_t label = NULL;
+   if ((peek() == tID) && (peek2() == tCOLON)) {
+      label = p_identifier();
+      consume(tCOLON);
+   }
+
+   tree_t name = NULL;
+   if (peek() == tID)
+      name = p_name(NULL);
+
+   switch (peek()) {
+   case tASSIGN:
+      return p_variable_assignment_statement(label, name);
+
+   case tLE:
+      return p_signal_assignment_statement(label, name);
+
+   default:
+      expect(tID);
+      return tree_new(T_NULL);
+   }
+}
+
+static void p_process_statement_part(tree_t proc)
+{
+   // { sequential_statement }
+
+   BEGIN("process statement part");
+
+   while (scan(tID))
+      tree_add_stmt(proc, p_sequential_statement());
+}
+
+static void p_sensitivity_list(tree_t proc)
+{
+   // name { , name }
+
+   BEGIN("sensitivity list");
+
+   tree_add_trigger(proc, p_name(NULL));
+
+   while (optional(tCOMMA))
+      tree_add_trigger(proc, p_name(NULL));
+}
+
+static tree_t p_process_statement(ident_t label)
+{
+   // [ process_label : ] [ postponed ] process [ ( sensitivity_list ) ] [ is ]
+   //   process_declarative_part begin process_statement_part end [ postponed ]
+   //   process [ process_label ] ;
+
+   BEGIN("process statement");
+
+   tree_t t = tree_new(T_PROCESS);
+
+   const bool postponed = optional(tPOSTPONED);
+
+   consume(tPROCESS);
+
+   if (optional(tLPAREN)) {
+      p_sensitivity_list(t);
+      consume(tRPAREN);
+   }
+
+   optional(tIS);
+
+   p_process_declarative_part(t);
+
+   consume(tBEGIN);
+
+   p_process_statement_part(t);
+
+   consume(tEND);
+   if (postponed)
+      optional(tPOSTPONED);
+   consume(tPROCESS);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   if (postponed)
+      tree_add_attr_int(t, ident_new("postponed"), 1);
+
+   return t;
+}
+
+static tree_t p_concurrent_statement(void)
+{
+   // block_statement | process_statement | concurrent_procedure_call_statement
+   //   | concurrent_assertion_statement
+   //   | concurrent_signal_assignment_statement
+   //   | component_instantiation_statement | generate_statement
+
+   BEGIN("concurrent statement");
+
+   ident_t label = NULL;
+   if ((peek() == tID) && (peek2() == tCOLON)) {
+      label = p_identifier();
+      consume(tCOLON);
+   }
+
+   tree_t name = NULL;
+   if (peek() == tID)
+      name = p_name(NULL);
+
+   (void)name;
+
+   switch (peek()) {
+   case tPROCESS:
+   case tPOSTPONED:
+      return p_process_statement(label);
+
+   default:
+      expect(tPROCESS);
+      return tree_new(T_BLOCK);
+   }
+}
+
+static void p_architecture_declarative_part(tree_t arch)
+{
+   // { block_declarative_item }
+
+   BEGIN("architecture declarative part");
+
+   while (scan(tSIGNAL, tPROCESS))
+      p_block_declarative_item(arch);
+}
+
+static void p_architecture_statement_part(tree_t arch)
+{
+   // { concurrent_statement }
+
+   BEGIN("architecture statement part");
+
+   while (scan(tID, tPROCESS, tPOSTPONED))
+      tree_add_stmt(arch, p_concurrent_statement());
+}
+
+static tree_t p_architecture_body(void)
+{
+   // architecture identifier of entity_name is architecture_declarative_part
+   //   begin architecture_statement_part end [ architecture ]
+   //   [ architecture_simple_name ] ;
+
+   BEGIN("architecture body");
+
+   tree_t t = tree_new(T_ARCH);
+
+   consume(tARCHITECTURE);
+   tree_set_ident(t, p_identifier());
+   consume(tOF);
+   tree_set_ident2(t, p_identifier());
+   consume(tIS);
+
+   p_architecture_declarative_part(t);
+
+   consume(tBEGIN);
+
+   p_architecture_statement_part(t);
+
+   consume(tEND);
+   optional(tARCHITECTURE);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_secondary_unit(void)
+{
+   // architecture_body | package_body
+
+   BEGIN("secondary unit");
+
+   switch (peek()) {
+   case tARCHITECTURE:
+      return p_architecture_body();
+
+   default:
+      expect(tARCHITECTURE);
+      return NULL;
+   }
+}
+
 static tree_t p_library_unit(void)
 {
    // primary_unit | secondary_unit
@@ -1196,8 +1690,11 @@ static tree_t p_library_unit(void)
    case tENTITY:
       return p_primary_unit();
 
+   case tARCHITECTURE:
+      return p_secondary_unit();
+
    default:
-      expect(tENTITY);
+      expect(tENTITY, tARCHITECTURE);
       return NULL;
    }
 }
