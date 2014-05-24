@@ -1862,8 +1862,8 @@ int main(void)
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_arch);
    tcase_add_test(tc_core, test_process);
-#if 0
    tcase_add_test(tc_core, test_seq);
+#if 0
    tcase_add_test(tc_core, test_types);
    tcase_add_test(tc_core, test_literal);
    tcase_add_test(tc_core, test_extended);

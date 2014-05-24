@@ -73,12 +73,15 @@ typedef struct {
    loc_t       old_start_loc;
 } state_t;
 
-#define BEGIN(s)                                                       \
+#define EXTEND(s)                                                      \
    __attribute__((cleanup(_pop_state))) const state_t _state =         \
       { hint_str, start_loc };                                         \
-   start_loc = LOC_INVALID;                                            \
-   hint_str  = s;                                                      \
+   hint_str = s;                                                       \
    _push_state(&_state);
+
+#define BEGIN(s)                                                       \
+   EXTEND(s);                                                          \
+   start_loc = LOC_INVALID;
 
 #define CURRENT_LOC _diff_loc(&start_loc, &yylloc)
 
@@ -120,6 +123,9 @@ static const char *token_str(token_t tok)
       "elsif", "body", "while", "loop", "after", "alias", "attribute",
       "procedure", "exit", "next", "when", "case", "label", "group", "literal",
       "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
+      "with", "select", "generate", "access", "file", "open", "real", "until",
+      "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
+      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -428,12 +434,12 @@ static port_mode_t p_mode(void)
    }
 }
 
-static tree_t p_simple_name(ident_t head)
+static tree_t p_simple_name(void)
 {
    // identifier
 
    tree_t t = tree_new(T_REF);
-   tree_set_ident(t, head);
+   tree_set_ident(t, p_identifier());
    tree_set_loc(t, CURRENT_LOC);
 
    return t;
@@ -453,43 +459,112 @@ static ident_t p_operator_symbol(void)
    return id;
 }
 
-static tree_t p_name(ident_t head)
+static tree_t p_slice_name(ident_t prefix, tree_t expr1)
+{
+   // prefix ( discrete_range )
+
+   EXTEND("slice name");
+
+   tree_t t = tree_new(T_ARRAY_SLICE);
+
+   range_t r = { .left = expr1 };
+
+   switch (one_of(tTO, tDOWNTO)) {
+   case tTO:
+      r.kind = RANGE_TO;
+      break;
+
+   case tDOWNTO:
+      r.kind = RANGE_DOWNTO;
+      break;
+   }
+
+   r.right = p_expression();
+
+   consume(tRPAREN);
+
+   tree_set_range(t, r);
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_function_call(ident_t prefix, tree_t expr1)
+{
+   // name [ ( actual_parameter_part ) ]
+
+   EXTEND("function call");
+
+   tree_t t = tree_new(T_FCALL);
+
+   consume(tRPAREN);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_name(void)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
    //   | slice_name | attribute_name
 
    BEGIN("name");
 
-   if (peek() == tSTRING) {
-      assert(head == NULL);
+   switch (peek()) {
+   case tSTRING:
+      {
+         ident_t op = p_operator_symbol();
 
-      ident_t op = p_operator_symbol();
-
-      tree_t t = tree_new(T_REF);
-      tree_set_ident(t, op);
-      tree_set_loc(t, CURRENT_LOC);
-      return t;
-   }
-   else {
-      if (head == NULL)
-         head = p_identifier();
-
-      switch (peek()) {
-      default:
-         return p_simple_name(head);
+         tree_t t = tree_new(T_REF);
+         tree_set_ident(t, op);
+         tree_set_loc(t, CURRENT_LOC);
+         return t;
       }
+
+   case tID:
+      break;
+
+   default:
+      expect(tSTRING, tID);
+      return tree_new(T_OPEN);
    }
+
+   switch (peek2()) {
+   case tLPAREN:
+      break;
+
+   default:
+      return p_simple_name();
+   }
+
+   ident_t prefix = p_identifier();
+
+   consume(tLPAREN);
+
+   tree_t expr1 = p_expression();
+
+   switch (peek()) {
+   case tRPAREN:
+   case tCOMMA:
+      return p_function_call(prefix, expr1);
+
+   case tTO:
+   case tDOWNTO:
+      return p_slice_name(prefix, expr1);
+
+   default:
+      expect(tRPAREN, tCOMMA, tTO, tDOWNTO);
+      return tree_new(T_OPEN);
+   }
+
+   consume(tRPAREN);
 }
 
-static type_t p_type_mark(ident_t head)
+static type_t p_type_mark(void)
 {
    // name
 
-   if (head == NULL)
-      head = p_identifier();
-
    type_t t = type_new(T_UNRESOLVED);
-   type_set_ident(t, head);
+   type_set_ident(t, p_identifier());
    return t;
 }
 
@@ -499,21 +574,19 @@ static type_t p_subtype_indication(void)
 
    BEGIN("subtype indication");
 
-   ident_t head = p_identifier();
-
    type_t type = NULL;
-   if (scan(tID)) {
+   if ((peek() == tID) && (peek2() == tID)) {
       type = type_new(T_SUBTYPE);
 
-      tree_t rname = p_name(head);
+      tree_t rname = p_name();
       // XXX: check name is resolution_function_name
       type_set_resolution(type, rname);
 
-      type_t base = p_type_mark(NULL);
+      type_t base = p_type_mark();
       type_set_base(type, base);
    }
    else
-      type = p_type_mark(head);
+      type = p_type_mark();
 
    // p_constraint()
 
@@ -544,13 +617,40 @@ static tree_t p_abstract_literal(void)
    return t;
 }
 
+static tree_t p_physical_literal(tree_t mult)
+{
+   // [ abstract_literal ] name
+
+   EXTEND("physical literal");
+
+   tree_t unit = tree_new(T_REF);
+   tree_set_ident(unit, p_identifier());
+   tree_set_loc(unit, CURRENT_LOC);
+
+   tree_t t = tree_new(T_FCALL);
+   tree_set_loc(t, CURRENT_LOC);
+   tree_set_ident(t, ident_new("\"*\""));
+
+   add_param(t, mult, P_POS, NULL);
+   add_param(t, unit, P_POS, NULL);
+
+   return t;
+}
+
 static tree_t p_numeric_literal(void)
 {
    // abstract_literal | physical_literal
 
    BEGIN("numeric literal");
 
-   return p_abstract_literal();
+   tree_t abs = NULL;
+   if (scan(tINT, tREAL))
+      abs = p_abstract_literal();
+
+   if (peek() == tID)
+      return p_physical_literal(abs);
+   else
+      return abs;
 }
 
 static tree_t p_literal(void)
@@ -616,7 +716,7 @@ static tree_t p_primary(void)
       return p_literal();
 
    case tID:
-      return p_name(NULL);
+      return p_name();
 
    default:
       expect(tLPAREN, tLITERAL, tINT, tREAL, tNULL, tID, tSTRING);
@@ -988,7 +1088,7 @@ static void p_attribute_declaration(ident_t head, tree_t parent)
 
    tree_t t = tree_new(T_ATTR_DECL);
    tree_set_ident(t, head);
-   tree_set_type(t, p_type_mark(NULL));
+   tree_set_type(t, p_type_mark());
 
    consume(tSEMI);
 
@@ -1387,7 +1487,7 @@ static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
 {
    // [ label : ] target := expression ;
 
-   BEGIN("variable assignment statement");
+   EXTEND("variable assignment statement");
 
    tree_t t = tree_new(T_VAR_ASSIGN);
 
@@ -1445,7 +1545,7 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 {
    // [ label : ] target <= [ delay_mechanism ] waveform ;
 
-   BEGIN("signal assignment statement");
+   EXTEND("signal assignment statement");
 
    tree_t t = tree_new(T_SIGNAL_ASSIGN);
 
@@ -1454,6 +1554,80 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    consume(tLE);
 
    p_waveform(t);
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   return t;
+}
+
+static void p_sensitivity_list(tree_t proc)
+{
+   // name { , name }
+
+   BEGIN("sensitivity list");
+
+   tree_add_trigger(proc, p_name());
+
+   while (optional(tCOMMA))
+      tree_add_trigger(proc, p_name());
+}
+
+static void p_sensitivity_clause(tree_t wait)
+{
+   // on sensitivity_list
+
+   BEGIN("sensitivity clause");
+
+   consume(tON);
+   p_sensitivity_list(wait);
+}
+
+static void p_condition_clause(tree_t wait)
+{
+   // until condition
+
+   BEGIN("condition clause");
+
+   consume(tUNTIL);
+   tree_set_value(wait, p_expression());
+}
+
+static void p_timeout_clause(tree_t wait)
+{
+   // for expression
+
+   BEGIN("timeout clause");
+
+   consume(tFOR);
+   tree_set_delay(wait, p_expression());
+}
+
+static tree_t p_wait_statement(ident_t label)
+{
+   // [ label : ] wait [ sensitivity_clause ] [ condition_clause ]
+   //   [ timeout_clause ] ;
+
+   BEGIN("wait statement");
+
+   tree_t t = tree_new(T_WAIT);
+
+   consume(tWAIT);
+
+   if (peek() == tON)
+      p_sensitivity_clause(t);
+
+   if (peek() == tUNTIL)
+      p_condition_clause(t);
+
+   if (peek() == tFOR)
+      p_timeout_clause(t);
 
    consume(tSEMI);
 
@@ -1483,9 +1657,19 @@ static tree_t p_sequential_statement(void)
       consume(tCOLON);
    }
 
-   tree_t name = NULL;
-   if (peek() == tID)
-      name = p_name(NULL);
+   switch (peek()) {
+   case tWAIT:
+      return p_wait_statement(label);
+
+   case tID:
+      break;
+
+   default:
+      expect(tWAIT, tID);
+      return tree_new(T_NULL);
+   }
+
+   tree_t name = p_name();
 
    switch (peek()) {
    case tASSIGN:
@@ -1495,7 +1679,7 @@ static tree_t p_sequential_statement(void)
       return p_signal_assignment_statement(label, name);
 
    default:
-      expect(tID);
+      expect(tASSIGN, tLE);
       return tree_new(T_NULL);
    }
 }
@@ -1506,20 +1690,8 @@ static void p_process_statement_part(tree_t proc)
 
    BEGIN("process statement part");
 
-   while (scan(tID))
+   while (scan(tID, tWAIT))
       tree_add_stmt(proc, p_sequential_statement());
-}
-
-static void p_sensitivity_list(tree_t proc)
-{
-   // name { , name }
-
-   BEGIN("sensitivity list");
-
-   tree_add_trigger(proc, p_name(NULL));
-
-   while (optional(tCOMMA))
-      tree_add_trigger(proc, p_name(NULL));
 }
 
 static tree_t p_process_statement(ident_t label)
@@ -1592,7 +1764,7 @@ static tree_t p_concurrent_statement(void)
 
    tree_t name = NULL;
    if (peek() == tID)
-      name = p_name(NULL);
+      name = p_name();
 
    (void)name;
 
