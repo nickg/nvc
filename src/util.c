@@ -197,6 +197,7 @@ static void paginate_msg(const char *fmt, va_list ap,
 
    const char *p = filtered;
    int col = start;
+   bool escape = false;
    while (*p != '\0') {
       if ((*p == '\n') || (*p == '\r') || (isspace((int)*p) && col >= right)) {
          // Can break line here
@@ -210,7 +211,14 @@ static void paginate_msg(const char *fmt, va_list ap,
       }
       else {
          fputc(*p, stderr);
-         ++col;
+         if (*p == '\033')
+            escape = true;
+         else if (escape) {
+            if (*p == 'm')
+               escape = false;
+         }
+         else
+            ++col;
       }
       ++p;
    }
