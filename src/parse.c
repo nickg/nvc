@@ -44,14 +44,23 @@ static size_t      file_sz;
 static int         n_errors = 0;
 static bool        peek_valid = false;
 static const char *hint_str = NULL;
+static int         n_correct = 0;
 
 yylval_t yylval;
 
 int yylex(void);
 
 #define F(list) list, ARRAY_LEN(list)
-#define scan(...) _scan(1, __VA_ARGS__)
-#define expect(...) _expect(1, __VA_ARGS__)
+#define scan(...) _scan(1, __VA_ARGS__, -1)
+#define expect(...) _expect(1, __VA_ARGS__, -1)
+#define one_of(...) _one_of(1, __VA_ARGS__, -1)
+
+#define RECOVER_THRESH 5
+#define TRACE_PARSE    1
+
+#if TRACE_PARSE
+static int depth = 0;
+#endif
 
 typedef struct {
    const char *old_hint;
@@ -59,9 +68,11 @@ typedef struct {
 } state_t;
 
 #define BEGIN(s)                                                       \
-   __attribute__((cleanup(_unbegin))) const state_t _state =           \
-      { _hint(s), start_loc };                                         \
-   start_loc = LOC_INVALID
+   __attribute__((cleanup(_pop_state))) const state_t _state =         \
+      { hint_str, start_loc };                                         \
+   start_loc = LOC_INVALID;                                            \
+   hint_str  = s;                                                      \
+   _push_state(&_state);
 
 #define CURRENT_LOC _diff_loc(&start_loc, &yylloc)
 
@@ -71,42 +82,34 @@ static const token_t f_entity_declaration[] = { tENTITY };
 static const token_t f_identifier[] = { tID };
 static const token_t f_port_clause[] = { tPORT };
 static const token_t f_generic_clause[] = { tGENERIC };
+static const token_t f_interface_constant_declaration[] = { tCONSTANT };
+static const token_t f_identifier_list[] = { tID };
+static const token_t f_interface_signal_declaration[] = { tSIGNAL };
+static const token_t f_interface_variable_declaration[] = { tSIGNAL };
+static const token_t f_interface_file_declaration[] = { tFILE };
 
-#define F_library_clause \
-   F(f_library_clause), NULL
-#define F_use_clause \
-   F(f_use_clause), NULL
-#define F_context_item \
-   F_library_clause, F_use_clause, NULL
-#define F_primary_unit \
-   F_entity_declaration, F_configuration_declaration, \
-      F_package_declaration, NULL
-#define F_configuration_declaration \
-   NULL   // TODO
-#define F_package_declaration \
-   NULL   // TODO
-#define F_entity_declaration \
-   F(f_entity_declaration), NULL
-#define F_library_unit \
-   F_primary_unit, NULL
-#define F_identifier \
-   F(f_identifier), NULL
-#define F_port_clause \
-   F(f_port_clause), NULL
-#define F_generic_clause \
-   F(f_generic_clause), NULL
+static tree_t p_expression(void);
 
-static const char *_hint(const char *s)
+static void _pop_state(const state_t *s)
 {
-   const char *old = hint_str;
-   hint_str = s;
-   return old;
-}
-
-static void _unbegin(const state_t *s)
-{
+#if TRACE_PARSE
+   depth--;
+   for (int i = 0; i < depth; i++)
+      printf(" ");
+   printf("<-- %s\n", hint_str);
+#endif
    hint_str  = s->old_hint;
    start_loc = s->old_start_loc;
+}
+
+static void _push_state(const state_t *s)
+{
+#if TRACE_PARSE
+   for (int i = 0; i < depth; i++)
+      printf(" ");
+   printf("--> %s\n", hint_str);
+   depth++;
+#endif
 }
 
 static const char *token_str(token_t tok)
@@ -137,20 +140,27 @@ static token_t peek(void)
    }
 }
 
-static void consume(token_t tok)
+static bool consume(token_t tok)
 {
    const token_t got = peek();
    if (tok != got) {
-      error_at(&yylloc, "expected $yellow$%s$$ but found $yellow$%s$$ while "
-               "parsing $yellow$%s$$",
-               token_str(tok), token_str(got), hint_str);
-      n_errors++;
+      if (n_correct >= RECOVER_THRESH) {
+         error_at(&yylloc, "expected $yellow$%s$$ but found $yellow$%s$$ while "
+                  "parsing $yellow$%s$$",
+                  token_str(tok), token_str(got), hint_str);
+         n_errors++;
+      }
+      n_correct = 0;
    }
+   else
+      n_correct++;
 
    if (start_loc.linebuf == NULL)
       start_loc = yylloc;
 
    peek_valid = false;
+
+   return (tok == got);
 }
 
 static bool optional(token_t tok)
@@ -163,11 +173,8 @@ static bool optional(token_t tok)
       return false;
 }
 
-static void _expect(int dummy, ...)
+static void _vexpect(va_list ap)
 {
-   va_list ap;
-   va_start(ap, dummy);
-
    LOCAL_TEXT_BUF tb = tb_new();
 
    tb_printf(tb, "unexpected $yellow$%s$$ while parsing $yellow$%s$$, "
@@ -175,27 +182,31 @@ static void _expect(int dummy, ...)
 
    bool first = true;
    for (;;) {
-      const token_t *list = va_arg(ap, const token_t *);
-      if (list == NULL)
+      const int tok = va_arg(ap, int);
+      if (tok == -1)
          break;
-
-      const size_t len = va_arg(ap, size_t);
 
       if (!first)
          tb_printf(tb, ", ");
 
-      for (size_t i = 0; i < len; i++) {
-         if (i != 0)
-            tb_printf(tb, ", ");
-         tb_printf(tb, "$yellow$%s$$", token_str(list[i]));
-      }
+      tb_printf(tb, "$yellow$%s$$", token_str(tok));
 
       first = false;
    }
 
-   error_at(&yylloc, tb_get(tb));
-   n_errors++;
+   if (n_correct >= RECOVER_THRESH) {
+      error_at(&yylloc, tb_get(tb));
+      n_errors++;
+   }
 
+   n_correct = 0;
+}
+
+static void _expect(int dummy, ...)
+{
+   va_list ap;
+   va_start(ap, dummy);
+   _vexpect(ap);
    va_end(ap);
 }
 
@@ -208,20 +219,44 @@ static bool _scan(int dummy, ...)
    bool found = false;
 
    while (!found) {
-      const token_t *list = va_arg(ap, const token_t *);
-      if (list == NULL)
+      const token_t tok = va_arg(ap, token_t);
+      if (tok == -1)
          break;
-
-      const size_t len = va_arg(ap, size_t);
-
-      for (size_t i = 0; i < len; i++) {
-         if (list[i] == p)
-            found = true;
-      }
+      else if (p == tok)
+         found = true;
    }
 
    va_end(ap);
    return found;
+}
+
+static int _one_of(int dummy, ...)
+{
+   va_list ap;
+   va_start(ap, dummy);
+
+   token_t p = peek();
+   bool found = false;
+
+   while (!found) {
+      const token_t tok = va_arg(ap, token_t);
+      if (p == tok)
+         found = true;
+   }
+
+   va_end(ap);
+
+   if (found) {
+      consume(p);
+      return p;
+   }
+   else {
+      va_start(ap, dummy);
+      _vexpect(ap);
+      va_end(ap);
+
+      return -1;
+   }
 }
 
 static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
@@ -240,10 +275,25 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
 
 static ident_t p_identifier(void)
 {
-   consume(tID);
-   ident_t i = ident_new(yylval.s);
-   free(yylval.s);
-   return i;
+   // basic_identifier | extended_identifier
+
+   if (consume(tID)) {
+      ident_t i = ident_new(yylval.s);
+      free(yylval.s);
+      return i;
+   }
+   else
+      return ident_new("error");
+}
+
+static void p_identifier_list(void)
+{
+   // identifier { , identifier }
+
+   p_identifier();
+
+   while (optional(tCOMMA))
+      p_identifier();
 }
 
 static void p_library_clause(void)
@@ -262,12 +312,18 @@ static void p_context_item(void)
 
    BEGIN("context item");
 
-   if (scan(F_library_clause))
+   switch (peek()) {
+   case tLIBRARY:
       p_library_clause();
-   else if (scan(F_use_clause))
+      break;
+
+   case tUSE:
       p_use_clause();
-   else
-      expect(F_library_clause, F_use_clause);
+      break;
+
+   default:
+      expect(tLIBRARY, tUSE);
+   }
 }
 
 static void p_context_clause(void)
@@ -276,18 +332,420 @@ static void p_context_clause(void)
 
    BEGIN("context clause");
 
-   while (scan(F_context_item)) {
+   while (scan(tLIBRARY, tUSE)) {
       p_context_item();
    }
 }
 
-static void p_generic_clause(void)
+static port_mode_t p_mode(void)
 {
-   // generic ( generic_list ) ;
+   // in | out | inout | buffer | linkage
 
-   BEGIN("generic clause");
+   switch (one_of(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE)) {
+   case tIN:
+      return PORT_IN;
+   case tOUT:
+      return PORT_OUT;
+   case tINOUT:
+      return PORT_INOUT;
+   case tBUFFER:
+      return PORT_BUFFER;
+   case tLINKAGE:
+      return PORT_LINKAGE;
+   default:
+      return PORT_INVALID;
+   }
+}
 
-   consume(tGENERIC);
+static tree_t p_simple_name(ident_t head)
+{
+   // identifier
+
+   tree_t t = tree_new(T_REF);
+   tree_set_ident(t, head);
+   tree_set_loc(t, CURRENT_LOC);
+
+   return t;
+}
+
+static ident_t p_operator_symbol(void)
+{
+   // string_literal
+
+   consume(tSTRING);
+
+   for (char *p = yylval.s; *p != '\0'; p++)
+      *p = tolower((int)*p);
+   ident_t id = ident_new(yylval.s);
+   free(yylval.s);
+
+   return id;
+}
+
+static tree_t p_name(ident_t head)
+{
+   // simple_name | operator_symbol | selected_name | indexed_name
+   //   | slice_name | attribute_name
+
+   BEGIN("name");
+
+   if (peek() == tSTRING) {
+      assert(head == NULL);
+
+      ident_t op = p_operator_symbol();
+
+      tree_t t = tree_new(T_REF);
+      tree_set_ident(t, op);
+      tree_set_loc(t, CURRENT_LOC);
+      return t;
+   }
+   else {
+      if (head == NULL)
+         head = p_identifier();
+
+      switch (peek()) {
+      default:
+         return p_simple_name(head);
+      }
+   }
+}
+
+static type_t p_type_mark(ident_t head)
+{
+   // name
+
+   if (head == NULL)
+      head = p_identifier();
+
+   type_t t = type_new(T_UNRESOLVED);
+   type_set_ident(t, head);
+   return t;
+}
+
+static type_t p_subtype_indication(void)
+{
+   // [ name ] type_mark [ constraint ]
+
+   BEGIN("subtype indication");
+
+   type_t t = type_new(T_SUBTYPE);
+
+   ident_t head = p_identifier();
+
+   if (scan(tID)) {
+      tree_t rname = p_name(head);
+      // XXX: check name is resolution_function_name
+      type_set_resolution(t, rname);
+      head = NULL;
+   }
+
+   type_t base = p_type_mark(head);
+   type_set_base(t, base);
+
+   // p_constraint()
+
+   return t;
+}
+
+static tree_t p_abstract_literal(void)
+{
+   // decimal_literal | based_literal
+
+   BEGIN("abstract literal");
+
+   tree_t t = tree_new(T_LITERAL);
+
+   switch (one_of(tINT, tREAL)) {
+   case tINT:
+      tree_set_subkind(t, L_INT);
+      tree_set_ival(t, yylval.n);
+      break;
+
+   case tREAL:
+      tree_set_subkind(t, L_REAL);
+      tree_set_dval(t, yylval.d);
+      break;
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_numeric_literal(void)
+{
+   // abstract_literal | physical_literal
+
+   BEGIN("numeric literal");
+
+   return p_abstract_literal();
+}
+
+static tree_t p_literal(void)
+{
+   // numeric_literal | enumeration_literal | string_literal
+   // | bit_string_literal | null
+
+   BEGIN("literal");
+
+   switch (peek()) {
+   case tNULL:
+      {
+         consume(tNULL);
+
+         tree_t t = tree_new(T_LITERAL);
+         tree_set_loc(t, CURRENT_LOC);
+         tree_set_subkind(t, L_NULL);
+         return t;
+      }
+
+   case tINT:
+   case tREAL:
+      return p_numeric_literal();
+
+   default:
+      expect(tNULL, tINT, tREAL);
+      return tree_new(T_OPEN);
+   }
+}
+
+static tree_t p_primary(void)
+{
+   // name | literal | aggregate | function_call | qualified_expression
+   //   | type_conversion | allocator | ( expression )
+
+   BEGIN("primary");
+
+   switch (peek()) {
+   case tLPAREN:
+      {
+         tree_t sub = p_expression();
+         consume(tRPAREN);
+         return sub;
+      }
+
+   case tINT:
+   case tREAL:
+   case tNULL:
+      return p_literal();
+
+   default:
+      expect(tLPAREN, tLITERAL, tINT, tREAL, tNULL);
+      return tree_new(T_OPEN);
+   }
+}
+
+static tree_t p_factor(void)
+{
+   // primary [ ** primary ] | abs primary | not primary
+
+   BEGIN("factor");
+
+   tree_t operand = p_primary();
+
+   // XXX
+   return operand;
+}
+
+static tree_t p_term(void)
+{
+   // factor { multiplying_operator factor }
+
+   BEGIN("term");
+
+   tree_t left = p_factor();
+
+   // XXX
+   return left;
+}
+
+static tree_t p_simple_expression(void)
+{
+   // [ sign ] term { adding_operator term }
+
+   BEGIN("simple expression");
+
+   // p_sign()
+
+   tree_t left = p_term();
+
+   // XXX
+   return left;
+}
+
+static tree_t p_shift_expression(void)
+{
+   // simple_expression [ shift_operator simple_expression ]
+
+   BEGIN("shift expression");
+
+   tree_t left = p_simple_expression();
+
+   // XXX
+   return left;
+}
+
+static tree_t p_relation(void)
+{
+   // shift_expression [ relational_operator shift_expression ]
+
+   BEGIN("relation");
+
+   tree_t left = p_shift_expression();
+
+   // XXX
+   return left;
+}
+
+static tree_t p_expression(void)
+{
+   // relation { and relation } | relation { or relation }
+   //   | relation { xor relation } | relation [ nand relation ]
+   //   | relation [ nor relation ] | relation { xnor relation }
+
+   BEGIN("expression");
+
+   tree_t left = p_relation();
+
+   // XXX
+   return left;
+}
+
+static void p_interface_constant_declaration(void)
+{
+   // [ constant ] identifier_list : [ in ] subtype_indication [ := expression ]
+
+   BEGIN("interface constant declaration");
+
+   optional(tCONSTANT);
+
+   p_identifier_list();
+
+   consume(tCOLON);
+   optional(tIN);
+
+   p_subtype_indication();
+
+   if (optional(tASSIGN))
+      p_expression();
+}
+
+static void p_interface_signal_declaration(void)
+{
+   // [signal] identifier_list : [ mode ] subtype_indication [ bus ]
+   //    [ := expression ]
+
+   BEGIN("interface signal declaration");
+
+   optional(tSIGNAL);
+
+   p_identifier_list();
+
+   consume(tCOLON);
+
+   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+      p_mode();
+
+   p_subtype_indication();
+
+   optional(tBUS);
+
+   if (optional(tASSIGN))
+      p_expression();
+}
+
+static void p_interface_variable_declaration(void)
+{
+   // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
+
+   BEGIN("interface variable declaration");
+}
+
+static void p_interface_file_declaration(void)
+{
+   // file identifier_list : subtype_indication
+
+   BEGIN("interface file declaration");
+}
+
+static void p_interface_declaration(class_t def_class)
+{
+   // interface_constant_declaration | interface_signal_declaration
+   //   | interface_variable_declaration | interface_file_declaration
+
+   BEGIN("interface declaration");
+
+   const token_t p = peek();
+   switch (p) {
+   case tCONSTANT:
+      p_interface_constant_declaration();
+      break;
+
+   case tSIGNAL:
+      p_interface_signal_declaration();
+      break;
+
+   case tVARIABLE:
+      p_interface_variable_declaration();
+      break;
+
+   case tFILE:
+      p_interface_file_declaration();
+      break;
+
+   case tID:
+      {
+         switch (def_class) {
+         case C_CONSTANT:
+            p_interface_constant_declaration();
+            break;
+
+         case C_SIGNAL:
+            p_interface_signal_declaration();
+            break;
+
+         case C_VARIABLE:
+            p_interface_variable_declaration();
+            break;
+
+         default:
+            assert(false);
+         }
+      }
+      break;
+
+   default:
+      expect(tCONSTANT, tSIGNAL, tVARIABLE, tFILE, tID);
+   }
+}
+
+static void p_interface_element(class_t def_class)
+{
+   // interface_declaration
+
+   BEGIN("interface element");
+
+   p_interface_declaration(def_class);
+}
+
+static void p_interface_list(class_t def_class)
+{
+   // interface_element { ; interface_element }
+
+   BEGIN("interface list");
+
+   p_interface_element(def_class);
+
+   while (optional(tSEMI))
+      p_interface_element(def_class);
+}
+
+static void p_port_list(void)
+{
+   // port_list ::= interface_list
+
+   BEGIN("port list");
+
+   p_interface_list(C_SIGNAL);
 }
 
 static void p_port_clause(void)
@@ -299,9 +757,34 @@ static void p_port_clause(void)
    consume(tPORT);
    consume(tLPAREN);
 
-   // p_port_list()
+   p_port_list();
 
    consume(tRPAREN);
+   consume(tSEMI);
+}
+
+static void p_generic_list(void)
+{
+   // generic_list ::= interface_list
+
+   BEGIN("generic list");
+
+   p_interface_list(C_CONSTANT);
+}
+
+static void p_generic_clause(void)
+{
+   // generic ( generic_list ) ;
+
+   BEGIN("generic clause");
+
+   consume(tGENERIC);
+   consume(tLPAREN);
+
+   p_generic_list();
+
+   consume(tRPAREN);
+   consume(tSEMI);
 }
 
 static void p_entity_header(void)
@@ -310,10 +793,10 @@ static void p_entity_header(void)
 
    BEGIN("entity header");
 
-   if (scan(F_generic_clause))
+   if (scan(tGENERIC))
       p_generic_clause();
 
-   if (scan(F_port_clause))
+   if (scan(tPORT))
       p_port_clause();
 }
 
@@ -342,7 +825,7 @@ static tree_t p_entity_declaration(void)
    consume(tEND);
    optional(tENTITY);
 
-   if (scan(F_identifier)) {
+   if (peek() == tID) {
       ident_t tail_id = p_identifier();
       (void)tail_id;
       // XXX: test me
@@ -360,10 +843,12 @@ static tree_t p_primary_unit(void)
 
    BEGIN("primary unit");
 
-   if (scan(F_entity_declaration))
+   switch (peek()) {
+   case tENTITY:
       return p_entity_declaration();
-   else {
-      expect(F_primary_unit);
+
+   default:
+      expect(tENTITY);
       return NULL;
    }
 }
@@ -374,10 +859,12 @@ static tree_t p_library_unit(void)
 
    BEGIN("library unit");
 
-   if (scan(F_primary_unit))
+   switch (peek()) {
+   case tENTITY:
       return p_primary_unit();
-   else {
-      expect(F_library_unit);
+
+   default:
+      expect(tENTITY);
       return NULL;
    }
 }
@@ -468,7 +955,8 @@ void input_from_file(const char *file)
 
 tree_t parse(void)
 {
-   n_errors = 0;
+   n_errors  = 0;
+   n_correct = RECOVER_THRESH;
 
    tree_t unit = p_design_unit();
    if (n_errors > 0)

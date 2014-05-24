@@ -30,7 +30,8 @@ typedef enum port_mode {
    PORT_IN,
    PORT_OUT,
    PORT_INOUT,
-   PORT_BUFFER
+   PORT_BUFFER,
+   PORT_LINKAGE
 } port_mode_t;
 
 typedef enum class {
