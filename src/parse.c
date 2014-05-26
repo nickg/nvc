@@ -1587,6 +1587,72 @@ static type_t p_file_type_definition(void)
    return t;
 }
 
+static void p_element_declaration(type_t rec)
+{
+   // identifier_list : element_subtype_definition ;
+
+   BEGIN("element declaration");
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t f = tree_new(T_FIELD_DECL);
+      tree_set_ident(f, it->ident);
+      tree_set_type(f, type);
+      tree_set_loc(f, CURRENT_LOC);
+
+      type_add_field(rec, f);
+   }
+}
+
+static type_t p_record_type_definition(void)
+{
+   // record element_declaration { element_declaration } end record
+   //   [ simple_name ]
+
+   BEGIN("record type definition");
+
+   consume(tRECORD);
+
+   type_t r = type_new(T_RECORD);
+
+   do {
+      p_element_declaration(r);
+   } while (peek() == tID);
+
+   consume(tEND);
+   consume(tRECORD);
+
+   if (peek() == tID) {
+      ident_t id = p_identifier();
+      (void)id;  // XXX: test this
+   }
+
+   return r;
+}
+
+static type_t p_composite_type_definition(void)
+{
+   // array_type_definition | record_type_definition
+
+   BEGIN("composite type definition");
+
+   switch (peek()) {
+   case tRECORD:
+      return p_record_type_definition();
+
+   default:
+      expect(tRECORD);
+      return type_new(T_NONE);
+   }
+}
+
 static type_t p_type_definition(void)
 {
    // scalar_type_definition | composite_type_definition
@@ -1604,8 +1670,11 @@ static type_t p_type_definition(void)
    case tFILE:
       return p_file_type_definition();
 
+   case tRECORD:
+      return p_composite_type_definition();
+
    default:
-      expect(tRANGE, tACCESS, tFILE);
+      expect(tRANGE, tACCESS, tFILE, tRECORD);
       return type_new(T_NONE);
    }
 }
