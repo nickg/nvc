@@ -509,7 +509,7 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_FOR);
    fail_unless(tree_stmts(s) == 1);
    fail_unless(tree_range(s).kind == RANGE_EXPR);
-   //fail_unless(tree_kind(tree_range(s).left) == T_ATTR_REF);
+   fail_unless(tree_kind(tree_range(s).left) == T_ATTR_REF);
    fail_unless(tree_range(s).right == NULL);
 
    // Exit

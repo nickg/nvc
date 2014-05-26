@@ -725,6 +725,32 @@ static range_t p_range(tree_t left)
    return r;
 }
 
+static range_t p_discrete_range(void)
+{
+   // subtype_indication | range
+
+   BEGIN("discrete range");
+
+   tree_t expr1 = p_expression();
+
+   switch (peek()) {
+   case tTO:
+   case tDOWNTO:
+   case tTICK:
+      return p_range(expr1);
+
+   default:
+      {
+         range_t r = {
+            .kind  = RANGE_EXPR,
+            .left  = expr1,
+            .right = NULL
+         };
+         return r;
+      }
+   }
+}
+
 static range_t p_range_constraint(void)
 {
    // range range
@@ -736,6 +762,19 @@ static range_t p_range_constraint(void)
    return p_range(p_expression());
 }
 
+static void p_index_constraint(type_t type)
+{
+   // ( discrete_range { , discrete_range } )
+
+   consume(tLPAREN);
+
+   do {
+      type_add_dim(type, p_discrete_range());
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+}
+
 static void p_constraint(type_t type)
 {
    // range_constraint | index_constraint
@@ -743,6 +782,10 @@ static void p_constraint(type_t type)
    switch (peek()) {
    case tRANGE:
       type_add_dim(type, p_range_constraint());
+      break;
+
+   case tLPAREN:
+      p_index_constraint(type);
       break;
 
    default:
@@ -772,7 +815,7 @@ static type_t p_subtype_indication(void)
    else
       type = p_type_mark();
 
-   if (scan(tRANGE)) {
+   if (scan(tRANGE, tLPAREN)) {
       if (!made_subtype) {
          type_t sub = type_new(T_SUBTYPE);
          type_set_base(sub, type);
@@ -2007,14 +2050,42 @@ static void p_signal_declaration(tree_t parent)
    }
 }
 
-static tree_t p_file_open_information(void)
+static void p_file_open_information(tree_t *mode, tree_t *name)
 {
    // [ open expression ] is file_logical_name
 
    BEGIN("file open information");
 
-   consume(tIS);
-   return p_expression();
+   if (optional(tOPEN))
+      *mode = p_expression();
+   else
+      *mode = NULL;
+
+   if (optional(tIS)) {
+      if ((*mode == NULL) && scan(tIN, tOUT)) {
+         // VHDL-87 compatibility
+         switch (one_of(tIN, tOUT)) {
+         case tIN:
+            *mode = tree_new(T_REF);
+            tree_set_ident(*mode, ident_new("READ_MODE"));
+            break;
+
+         case tOUT:
+            *mode = tree_new(T_REF);
+            tree_set_ident(*mode, ident_new("WRITE_MODE"));
+            break;
+         }
+      }
+
+      *name = p_expression();
+   }
+   else
+      *name = NULL;
+
+   if (*mode == NULL) {
+      *mode = tree_new(T_REF);
+      tree_set_ident(*mode, ident_new("READ_MODE"));
+   }
 }
 
 static void p_file_declaration(tree_t parent)
@@ -2031,17 +2102,8 @@ static void p_file_declaration(tree_t parent)
 
    type_t type = p_subtype_indication();
 
-   tree_t mode;
-   if (optional(tOPEN))
-      mode = p_expression();
-   else {
-      mode = tree_new(T_REF);
-      tree_set_ident(mode, ident_new("READ_MODE"));
-   }
-
-   tree_t name = NULL;
-   if (peek() == tIS)
-      name = p_file_open_information();
+   tree_t mode, name;
+   p_file_open_information(&mode, &name);
 
    consume(tSEMI);
 
@@ -2470,32 +2532,6 @@ static tree_t p_null_statement(ident_t label)
    tree_t t = tree_new(T_NULL);
    set_label_and_loc(t, label, CURRENT_LOC);
    return t;
-}
-
-static range_t p_discrete_range(void)
-{
-   // subtype_indication | range
-
-   BEGIN("discrete range");
-
-   tree_t expr1 = p_expression();
-
-   switch (peek()) {
-   case tTO:
-   case tDOWNTO:
-   case tTICK:
-      return p_range(expr1);
-
-   default:
-      {
-         range_t r = {
-            .kind  = RANGE_EXPR,
-            .left  = expr1,
-            .right = NULL
-         };
-         return r;
-      }
-   }
 }
 
 static void p_parameter_specification(tree_t loop)
