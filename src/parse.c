@@ -1021,15 +1021,39 @@ static ident_t p_adding_operator(void)
    }
 }
 
+static ident_t p_sign(void)
+{
+   switch (one_of(tPLUS, tMINUS)) {
+   case tPLUS:
+      return ident_new("\"+\"");
+   case tMINUS:
+      return ident_new("\"-\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_simple_expression(void)
 {
    // [ sign ] term { adding_operator term }
 
    BEGIN("simple expression");
 
-   // p_sign()
+   ident_t sign = NULL;
+   if (scan(tPLUS, tMINUS))
+      sign = p_sign();
 
    tree_t expr = p_term();
+
+   if (sign != NULL) {
+      tree_t tmp = tree_new(T_FCALL);
+      tree_set_ident(tmp, sign);
+      tree_set_loc(tmp, CURRENT_LOC);
+
+      add_param(tmp, expr, P_POS, NULL);
+
+      expr = tmp;
+   }
 
    while (scan(tPLUS, tMINUS, tAMP)) {
       ident_t op   = p_adding_operator();
@@ -2109,6 +2133,38 @@ static void p_file_declaration(tree_t parent)
    }
 }
 
+static void p_constant_declaration(tree_t parent)
+{
+   // constant identifier_list : subtype_indication [ := expression ] ;
+
+   BEGIN("constant declaration");
+
+   consume(tCONSTANT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_CONST_DECL);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      tree_set_loc(t, CURRENT_LOC);
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_block_declarative_item(tree_t parent)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -2138,8 +2194,12 @@ static void p_block_declarative_item(tree_t parent)
       p_file_declaration(parent);
       break;
 
+   case tCONSTANT:
+      p_constant_declaration(parent);
+      break;
+
    default:
-      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE);
+      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT);
    }
 }
 
@@ -2952,7 +3012,7 @@ static void p_architecture_declarative_part(tree_t arch)
 
    BEGIN("architecture declarative part");
 
-   while (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE))
+   while (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT))
       p_block_declarative_item(arch);
 }
 
