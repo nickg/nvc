@@ -349,6 +349,7 @@ static const char *item_text_map[] = {
 
 static const tree_kind_t change_allowed[][2] = {
    { T_REF,       T_FCALL       },
+   { T_REF,       T_PCALL       },
    { T_ARRAY_REF, T_FCALL       },
    { T_FCALL,     T_ARRAY_REF   },
    { T_FCALL,     T_PCALL       },

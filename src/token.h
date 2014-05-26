@@ -150,7 +150,8 @@ typedef enum {
    tREM,
    tABS,
    tNOT,
-   tTIMES
+   tTIMES,
+   tRRANGE
 } token_t;
 
 #endif

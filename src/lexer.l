@@ -189,6 +189,7 @@ ROR           {R}{O}{R}
 GROUP         {G}{R}{O}{U}{P}
 LABEL         {L}{A}{B}{E}{L}
 LITERAL       {L}{I}{T}{E}{R}{A}{L}
+RRANGE        {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 
 %%
 
@@ -288,6 +289,7 @@ LITERAL       {L}{I}{T}{E}{R}{A}{L}
 {LITERAL}       { TOKEN(tLITERAL); }
 {GROUP}         { TOKEN(tGROUP); }
 {LABEL}         { TOKEN(tLABEL); }
+{RRANGE}        { TOKEN(tRRANGE); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

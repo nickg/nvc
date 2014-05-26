@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -357,6 +357,50 @@ static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
    tree_set_ident(t, label);
 }
 
+static tree_t get_time(int64_t fs)
+{
+   tree_t lit = tree_new(T_LITERAL);
+   tree_set_subkind(lit, L_INT);
+   tree_set_ival(lit, fs);
+
+   tree_t unit = tree_new(T_REF);
+   tree_set_ident(unit, ident_new("FS"));
+
+   tree_t f = tree_new(T_FCALL);
+   tree_set_ident(f, ident_new("\"*\""));
+
+   tree_t left = tree_new(T_PARAM);
+   tree_set_subkind(left, P_POS);
+   tree_set_value(left, lit);
+
+   tree_t right = tree_new(T_PARAM);
+   tree_set_subkind(right, P_POS);
+   tree_set_value(right, unit);
+
+   tree_add_param(f, left);
+   tree_add_param(f, right);
+
+   return f;
+}
+
+static void set_delay_mechanism(tree_t t, tree_t reject)
+{
+   if (reject == NULL) {
+      // Inertial delay with same value as waveform
+      // LRM 93 section 8.4 the rejection limit in this case is
+      // specified by the time expression of the first waveform
+      tree_t w = (tree_kind(t) == T_CASSIGN
+                  ? tree_waveform(tree_cond(t, 0), 0)
+                  : tree_waveform(t, 0));
+      if (tree_has_delay(w))
+         tree_set_reject(t, tree_delay(w));
+      else
+         tree_set_reject(t, get_time(0));
+   }
+   else
+      tree_set_reject(t, reject);
+}
+
 static ident_t p_identifier(void)
 {
    // basic_identifier | extended_identifier
@@ -506,6 +550,7 @@ static tree_t p_function_call(ident_t prefix, tree_t expr1)
    EXTEND("function call");
 
    tree_t t = tree_new(T_FCALL);
+   tree_set_ident(t, prefix);
 
    add_param(t, expr1, P_POS, NULL);
 
@@ -742,7 +787,7 @@ static tree_t p_primary(void)
       return p_name();
 
    default:
-      expect(tLPAREN, tLITERAL, tINT, tREAL, tNULL, tID, tSTRING);
+      expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING);
       return tree_new(T_OPEN);
    }
 }
@@ -907,6 +952,44 @@ static tree_t p_expression(void)
 
    // XXX
    return left;
+}
+
+static void p_element_association(tree_t agg)
+{
+   // [ choices => ] expression
+
+   BEGIN("element association");
+
+   tree_t expr1 = p_expression();
+
+   if (scan(tCOMMA, tRPAREN)) {
+      tree_t t = tree_new(T_ASSOC);
+      tree_set_subkind(t, A_POS);
+      tree_set_value(t, expr1);
+      tree_set_loc(t, CURRENT_LOC);
+
+      tree_add_assoc(agg, t);
+   }
+}
+
+static tree_t p_aggregate(void)
+{
+   // ( element_association { , element_association } )
+
+   BEGIN("aggregate");
+
+   tree_t t = tree_new(T_AGGREGATE);
+
+   consume(tLPAREN);
+
+   do {
+      p_element_association(t);
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
 }
 
 static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
@@ -1216,6 +1299,144 @@ static void p_attribute_specification(ident_t head, tree_t parent)
    }
 }
 
+static range_t p_range(tree_t left)
+{
+   // attribute_name | simple_expression direction simple_expression
+
+   EXTEND("range");
+
+   range_t r = {};
+
+   switch (one_of(tTO, tDOWNTO, tTICK)) {
+   case tTO:
+      r.left  = left;
+      r.kind  = RANGE_TO;
+      r.right = p_expression();
+      break;
+
+   case tDOWNTO:
+      r.kind  = RANGE_DOWNTO;
+      r.left  = left;
+      r.right = p_expression();
+      break;
+
+   case tTICK:
+      {
+         switch (one_of(tRANGE, tRRANGE)) {
+         case tRANGE:
+            r.left = left;
+            r.kind = RANGE_EXPR;
+            break;
+
+         case tRRANGE:
+            r.right = left;
+            r.kind  = RANGE_EXPR;
+            break;
+         }
+      }
+   }
+
+   return r;
+}
+
+static range_t p_range_constraint(void)
+{
+   // range range
+
+   BEGIN("range constraint");
+
+   consume(tRANGE);
+
+   return p_range(p_expression());
+}
+
+static type_t p_integer_type_definition(void)
+{
+   // range_constraint
+
+   BEGIN("integer type definition");
+
+   type_t t = type_new(T_INTEGER);
+   type_add_dim(t, p_range_constraint());
+   return t;
+}
+
+static type_t p_scalar_type_definition(void)
+{
+   // enumeration_type_definition | integer_type_definition
+   //   | floating_type_definition | physical_type_definition
+
+   BEGIN("scalar type definition");
+
+   return p_integer_type_definition();
+}
+
+static type_t p_type_definition(void)
+{
+   // scalar_type_definition | composite_type_definition
+   //   | access_type_definition | file_type_definition
+
+   BEGIN("type definition");
+
+   return p_scalar_type_definition();
+}
+
+static type_t p_full_type_declaration(ident_t id)
+{
+   // type identifier is type_definition ;
+
+   EXTEND("full type declaration");
+
+   consume(tIS);
+
+   type_t t = p_type_definition();
+   type_set_ident(t, id);
+
+   consume(tSEMI);
+
+   return t;
+}
+
+static type_t p_incomplete_type_declaration(ident_t id)
+{
+   // type identifier ;
+
+   EXTEND("incomplete type declaration");
+
+   consume(tSEMI);
+
+   type_t t = type_new(T_INCOMPLETE);
+   type_set_ident(t, id);
+
+   return t;
+}
+
+static tree_t p_type_declaration(void)
+{
+   // full_type_declaration | incomplete_type_declaration
+
+   BEGIN("type declaration");
+
+   consume(tTYPE);
+
+   ident_t id = p_identifier();
+
+   type_t type;
+   if (peek() == tSEMI)
+      type = p_incomplete_type_declaration(id);
+   else
+      type = p_full_type_declaration(id);
+
+   type_set_ident(type, id);
+
+   tree_t t = tree_new(T_TYPE_DECL);
+   tree_set_ident(t, id);
+   tree_set_type(t, type);
+   tree_set_loc(t, CURRENT_LOC);
+
+   return t;
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -1245,6 +1466,10 @@ static void p_entity_declarative_item(tree_t entity)
             break;
          }
       }
+      break;
+
+   case tTYPE:
+      tree_add_decl(entity, p_type_declaration());
       break;
 
    default:
@@ -1467,8 +1692,12 @@ static void p_block_declarative_item(tree_t parent)
       p_signal_declaration(parent);
       break;
 
+   case tTYPE:
+      tree_add_decl(parent, p_type_declaration());
+      break;
+
    default:
-      expect(tSIGNAL);
+      expect(tSIGNAL, tTYPE);
    }
 }
 
@@ -1523,6 +1752,10 @@ static void p_process_declarative_item(tree_t proc)
       p_variable_declaration(proc);
       break;
 
+   case tTYPE:
+      tree_add_decl(proc, p_type_declaration());
+      break;
+
    default:
       expect(tVARIABLE);
    }
@@ -1544,10 +1777,7 @@ static tree_t p_target(tree_t name)
 
    BEGIN("target");
 
-   if (name == NULL)
-      assert(false); // p_aggregate()
-   else
-      return name;
+   return name;
 }
 
 static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
@@ -1608,6 +1838,34 @@ static void p_waveform(tree_t stmt)
       tree_add_waveform(stmt, p_waveform_element());
 }
 
+static tree_t p_delay_mechanism(void)
+{
+   // transport | [ reject expression ] inertial
+
+   BEGIN("delay mechanism");
+
+   switch (peek()) {
+   case tTRANSPORT:
+      consume(tTRANSPORT);
+      return get_time(0);
+
+   case tREJECT:
+      {
+         consume(tREJECT);
+         tree_t t = p_expression();
+         consume(tINERTIAL);
+         return t;
+      }
+
+   case tINERTIAL:
+      consume(tINERTIAL);
+      return NULL;
+
+   default:
+      return NULL;
+   }
+}
+
 static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 {
    // [ label : ] target <= [ delay_mechanism ] waveform ;
@@ -1620,17 +1878,14 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
 
    consume(tLE);
 
+   tree_t reject = p_delay_mechanism();
+
    p_waveform(t);
 
    consume(tSEMI);
 
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(t, loc);
-
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(t, label);
-
+   set_delay_mechanism(t, reject);
+   set_label_and_loc(t, label, CURRENT_LOC);
    return t;
 }
 
@@ -1755,7 +2010,7 @@ static void p_sequence_of_statements(tree_t parent, add_func_t addf)
    BEGIN("sequence of statements");
 
    while (scan(tID, tWAIT, tASSERT, tREPORT, tIF, tNULL, tRETURN,
-               tWHILE, tFOR, tLOOP))
+               tWHILE, tFOR, tLOOP, tEXIT, tCASE, tNEXT, tLPAREN))
       (*addf)(parent, p_sequential_statement());
 }
 
@@ -1826,9 +2081,48 @@ static tree_t p_null_statement(ident_t label)
    return t;
 }
 
+static range_t p_discrete_range(void)
+{
+   // subtype_indication | range
+
+   BEGIN("discrete range");
+
+   tree_t expr1 = p_expression();
+
+   switch (peek()) {
+   case tTO:
+   case tDOWNTO:
+   case tTICK:
+      return p_range(expr1);
+
+   default:
+      {
+         range_t r = {
+            .kind  = RANGE_EXPR,
+            .left  = expr1,
+            .right = NULL
+         };
+         return r;
+      }
+   }
+}
+
+static void p_parameter_specification(tree_t loop)
+{
+   // identifier in discrete_range
+
+   BEGIN("paremeter specification");
+
+   tree_set_ident(loop, p_identifier());
+
+   consume(tIN);
+
+   tree_set_range(loop, p_discrete_range());
+}
+
 static tree_t p_iteration_scheme(void)
 {
-   // while condition | for loop_parameter_specification
+   // while condition | for parameter_specification
 
    BEGIN("iteration scheme");
 
@@ -1839,9 +2133,7 @@ static tree_t p_iteration_scheme(void)
    }
    else if (optional(tFOR)) {
       tree_t t = tree_new(T_FOR);
-
-      //p_loop_parameter_specification(t);
-
+      p_parameter_specification(t);
       return t;
    }
    else {
@@ -1858,6 +2150,8 @@ static tree_t p_loop_statement(ident_t label)
 {
    // [ loop_label : ] [ iteration_scheme ] loop sequence_of_statements
    //   end loop [ loop_label ] ;
+
+   BEGIN("loop statement");
 
    tree_t t = p_iteration_scheme();
 
@@ -1892,6 +2186,157 @@ static tree_t p_return_statement(ident_t label)
 
    if (peek() != tSEMI)
       tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_exit_statement(ident_t label)
+{
+   // [ label : ] exit [ label ] [ when condition ] ;
+
+   EXTEND("exit statement");
+
+   consume(tEXIT);
+
+   tree_t t = tree_new(T_EXIT);
+
+   if (peek() == tID)
+      tree_set_ident2(t, p_identifier());
+
+   if (optional(tWHEN))
+      tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_next_statement(ident_t label)
+{
+   // [ label : ] next [ label ] [ when condition ] ;
+
+   EXTEND("next statement");
+
+   consume(tNEXT);
+
+   tree_t t = tree_new(T_NEXT);
+
+   if (peek() == tID)
+      tree_set_ident2(t, p_identifier());
+
+   if (optional(tWHEN))
+      tree_set_value(t, p_expression());
+
+   consume(tSEMI);
+
+   set_label_and_loc(t, label, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_procedure_call_statement(ident_t label, tree_t name)
+{
+   // [ label : ] procedure_call ;
+
+   EXTEND("procedure call statement");
+
+   consume(tSEMI);
+
+   tree_change_kind(name, T_PCALL);
+   tree_set_ident2(name, tree_ident(name));
+   set_label_and_loc(name, label, CURRENT_LOC);
+   return name;
+}
+
+static void p_choice(tree_t stmt)
+{
+   // simple_expression | discrete_range | simple_name | others
+
+   BEGIN("choice");
+
+   tree_t t = tree_new(T_ASSOC);
+
+   if (optional(tOTHERS))
+      tree_set_subkind(t, A_OTHERS);
+   else {
+      tree_t left = p_expression();
+
+      if (scan(tTO, tDOWNTO)) {
+         tree_set_subkind(t, A_RANGE);
+         tree_set_range(t, p_range(left));
+      }
+      else {
+         tree_set_subkind(t, A_NAMED);
+         tree_set_name(t, left);
+      }
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
+   tree_add_assoc(stmt, t);
+}
+
+static void p_choices(tree_t stmt)
+{
+   // choices ::= choice { | choice }
+
+   BEGIN("choices");
+
+   p_choice(stmt);
+
+   while (optional(tBAR))
+      p_choice(stmt);
+}
+
+static void p_case_statement_alternative(tree_t stmt)
+{
+   // when choices => sequence_of_statements
+
+   BEGIN("case statement alternative");
+
+   consume(tWHEN);
+
+   p_choices(stmt);
+
+   consume(tASSOC);
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, loc_to_ident(CURRENT_LOC));
+   p_sequence_of_statements(b, tree_add_stmt);
+
+   const int nassocs = tree_assocs(stmt);
+   for (int i = 0; i < nassocs; i++)
+      tree_set_value(tree_assoc(stmt, i), b);
+}
+
+static tree_t p_case_statement(ident_t label)
+{
+   // [ label : ] case expression is case_statement_alternative
+   //   { case_statement_alternative } end case [ label ] ;
+
+   EXTEND("case statement");
+
+   consume(tCASE);
+
+   tree_t t = tree_new(T_CASE);
+   tree_set_value(t, p_expression());
+
+   consume(tIS);
+
+   do {
+      p_case_statement_alternative(t);
+   } while (peek() == tWHEN);
+
+   consume(tEND);
+   consume(tCASE);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
 
    consume(tSEMI);
 
@@ -1934,13 +2379,39 @@ static tree_t p_sequential_statement(void)
    case tRETURN:
       return p_return_statement(label);
 
+   case tCASE:
+      return p_case_statement(label);
+
    case tWHILE:
    case tLOOP:
    case tFOR:
       return p_loop_statement(label);
 
+   case tEXIT:
+      return p_exit_statement(label);
+
+   case tNEXT:
+      return p_next_statement(label);
+
    case tID:
       break;
+
+   case tLPAREN:
+      {
+         tree_t agg = p_aggregate();
+
+         switch (peek()) {
+         case tASSIGN:
+            return p_variable_assignment_statement(label, agg);
+
+         case tLE:
+            return p_signal_assignment_statement(label, agg);
+
+         default:
+            expect(tASSIGN, tLE);
+            return tree_new(T_NULL);
+         }
+      }
 
    default:
       expect(tWAIT, tID);
@@ -1956,8 +2427,11 @@ static tree_t p_sequential_statement(void)
    case tLE:
       return p_signal_assignment_statement(label, name);
 
+   case tSEMI:
+      return p_procedure_call_statement(label, name);
+
    default:
-      expect(tASSIGN, tLE);
+      expect(tASSIGN, tLE, tSEMI);
       return tree_new(T_NULL);
    }
 }
@@ -2062,7 +2536,7 @@ static void p_architecture_declarative_part(tree_t arch)
 
    BEGIN("architecture declarative part");
 
-   while (scan(tSIGNAL, tPROCESS))
+   while (scan(tSIGNAL, tTYPE))
       p_block_declarative_item(arch);
 }
 
