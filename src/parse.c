@@ -609,7 +609,11 @@ static tree_t p_attribute_name(tree_t prefix)
 
    tree_t t = tree_new(T_ATTR_REF);
    tree_set_name(t, prefix);
-   tree_set_ident(t, p_identifier());
+
+   if (optional(tRANGE))
+      tree_set_ident(t, ident_new("RANGE"));
+   else
+      tree_set_ident(t, p_identifier());
 
    return t;
 }
@@ -693,7 +697,7 @@ static range_t p_range(tree_t left)
 
    range_t r = {};
 
-   switch (one_of(tTO, tDOWNTO, tTICK)) {
+   switch (one_of(tTO, tDOWNTO)) {
    case tTO:
       r.left  = left;
       r.kind  = RANGE_TO;
@@ -705,21 +709,6 @@ static range_t p_range(tree_t left)
       r.left  = left;
       r.right = p_expression();
       break;
-
-   case tTICK:
-      {
-         switch (one_of(tRANGE, tRRANGE)) {
-         case tRANGE:
-            r.left = left;
-            r.kind = RANGE_EXPR;
-            break;
-
-         case tRRANGE:
-            r.right = left;
-            r.kind  = RANGE_EXPR;
-            break;
-         }
-      }
    }
 
    return r;

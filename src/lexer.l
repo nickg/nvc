@@ -289,7 +289,6 @@ RRANGE        {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 {LITERAL}       { TOKEN(tLITERAL); }
 {GROUP}         { TOKEN(tGROUP); }
 {LABEL}         { TOKEN(tLABEL); }
-{RRANGE}        { TOKEN(tRRANGE); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }
