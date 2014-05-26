@@ -228,6 +228,8 @@ static void _vexpect(va_list ap)
       n_errors++;
    }
 
+   peek2_valid = false;
+
    n_correct = 0;
 }
 
@@ -381,6 +383,29 @@ static tree_t get_time(int64_t fs)
    tree_add_param(f, right);
 
    return f;
+}
+
+static tree_t int_to_physical(tree_t t, tree_t unit)
+{
+   tree_t ref = tree_new(T_REF);
+   tree_set_ident(ref, tree_ident(unit));
+
+   tree_t fcall = tree_new(T_FCALL);
+   tree_set_loc(fcall, tree_loc(t));
+   tree_set_ident(fcall, ident_new("\"*\""));
+
+   tree_t a = tree_new(T_PARAM);
+   tree_set_subkind(a, P_POS);
+   tree_set_value(a, t);
+
+   tree_t b = tree_new(T_PARAM);
+   tree_set_subkind(b, P_POS);
+   tree_set_value(b, ref);
+
+   tree_add_param(fcall, a);
+   tree_add_param(fcall, b);
+
+   return fcall;
 }
 
 static void set_delay_mechanism(tree_t t, tree_t reject)
@@ -634,15 +659,82 @@ static type_t p_type_mark(void)
    return t;
 }
 
+static range_t p_range(tree_t left)
+{
+   // attribute_name | simple_expression direction simple_expression
+
+   EXTEND("range");
+
+   range_t r = {};
+
+   switch (one_of(tTO, tDOWNTO, tTICK)) {
+   case tTO:
+      r.left  = left;
+      r.kind  = RANGE_TO;
+      r.right = p_expression();
+      break;
+
+   case tDOWNTO:
+      r.kind  = RANGE_DOWNTO;
+      r.left  = left;
+      r.right = p_expression();
+      break;
+
+   case tTICK:
+      {
+         switch (one_of(tRANGE, tRRANGE)) {
+         case tRANGE:
+            r.left = left;
+            r.kind = RANGE_EXPR;
+            break;
+
+         case tRRANGE:
+            r.right = left;
+            r.kind  = RANGE_EXPR;
+            break;
+         }
+      }
+   }
+
+   return r;
+}
+
+static range_t p_range_constraint(void)
+{
+   // range range
+
+   BEGIN("range constraint");
+
+   consume(tRANGE);
+
+   return p_range(p_expression());
+}
+
+static void p_constraint(type_t type)
+{
+   // range_constraint | index_constraint
+
+   switch (peek()) {
+   case tRANGE:
+      type_add_dim(type, p_range_constraint());
+      break;
+
+   default:
+      expect(tRANGE);
+   }
+}
+
 static type_t p_subtype_indication(void)
 {
    // [ name ] type_mark [ constraint ]
 
    BEGIN("subtype indication");
 
+   bool made_subtype = false;
    type_t type = NULL;
    if ((peek() == tID) && (peek2() == tID)) {
       type = type_new(T_SUBTYPE);
+      made_subtype = true;
 
       tree_t rname = p_name();
       // XXX: check name is resolution_function_name
@@ -654,7 +746,16 @@ static type_t p_subtype_indication(void)
    else
       type = p_type_mark();
 
-   // p_constraint()
+   if (scan(tRANGE)) {
+      if (!made_subtype) {
+         type_t sub = type_new(T_SUBTYPE);
+         type_set_base(sub, type);
+
+         type = sub;
+      }
+
+      p_constraint(type);
+   }
 
    return type;
 }
@@ -693,14 +794,18 @@ static tree_t p_physical_literal(tree_t mult)
    tree_set_ident(unit, p_identifier());
    tree_set_loc(unit, CURRENT_LOC);
 
-   tree_t t = tree_new(T_FCALL);
-   tree_set_loc(t, CURRENT_LOC);
-   tree_set_ident(t, ident_new("\"*\""));
+   if (mult != NULL) {
+      tree_t t = tree_new(T_FCALL);
+      tree_set_loc(t, CURRENT_LOC);
+      tree_set_ident(t, ident_new("\"*\""));
 
-   add_param(t, mult, P_POS, NULL);
-   add_param(t, unit, P_POS, NULL);
+      add_param(t, mult, P_POS, NULL);
+      add_param(t, unit, P_POS, NULL);
 
-   return t;
+      return t;
+   }
+   else
+      return unit;
 }
 
 static tree_t p_numeric_literal(void)
@@ -1299,65 +1404,98 @@ static void p_attribute_specification(ident_t head, tree_t parent)
    }
 }
 
-static range_t p_range(tree_t left)
-{
-   // attribute_name | simple_expression direction simple_expression
-
-   EXTEND("range");
-
-   range_t r = {};
-
-   switch (one_of(tTO, tDOWNTO, tTICK)) {
-   case tTO:
-      r.left  = left;
-      r.kind  = RANGE_TO;
-      r.right = p_expression();
-      break;
-
-   case tDOWNTO:
-      r.kind  = RANGE_DOWNTO;
-      r.left  = left;
-      r.right = p_expression();
-      break;
-
-   case tTICK:
-      {
-         switch (one_of(tRANGE, tRRANGE)) {
-         case tRANGE:
-            r.left = left;
-            r.kind = RANGE_EXPR;
-            break;
-
-         case tRRANGE:
-            r.right = left;
-            r.kind  = RANGE_EXPR;
-            break;
-         }
-      }
-   }
-
-   return r;
-}
-
-static range_t p_range_constraint(void)
-{
-   // range range
-
-   BEGIN("range constraint");
-
-   consume(tRANGE);
-
-   return p_range(p_expression());
-}
-
-static type_t p_integer_type_definition(void)
+static type_t p_integer_type_definition(range_t r)
 {
    // range_constraint
 
-   BEGIN("integer type definition");
+   EXTEND("integer type definition");
 
    type_t t = type_new(T_INTEGER);
-   type_add_dim(t, p_range_constraint());
+   type_add_dim(t, r);
+   return t;
+}
+
+static type_t p_real_type_definition(range_t r)
+{
+   // range_constraint
+
+   EXTEND("real type definition");
+
+   type_t t = type_new(T_REAL);
+   type_add_dim(t, r);
+   return t;
+}
+
+static tree_t p_base_unit_declaration(void)
+{
+   // identifier ;
+
+   BEGIN("base unit declaration");
+
+   ident_t id = p_identifier();
+   consume(tSEMI);
+
+   tree_t mult = tree_new(T_LITERAL);
+   tree_set_loc(mult, CURRENT_LOC);
+   tree_set_subkind(mult, L_INT);
+   tree_set_ival(mult, 1);
+
+   tree_t t = tree_new(T_UNIT_DECL);
+   tree_set_loc(t, CURRENT_LOC);
+   tree_set_value(t, mult);
+   tree_set_ident(t, id);
+
+   return t;
+}
+
+static tree_t p_secondary_unit_declaration(void)
+{
+   // identifier = physical_literal ;
+
+   BEGIN("secondary unit declaration");
+
+   ident_t id = p_identifier();
+   consume(tEQ);
+   tree_t value = p_physical_literal(p_abstract_literal());
+   consume(tSEMI);
+
+   tree_t u = tree_new(T_UNIT_DECL);
+   tree_set_ident(u, id);
+   tree_set_value(u, value);
+   tree_set_loc(u, CURRENT_LOC);
+
+   return u;
+}
+
+static type_t p_physical_type_definition(range_t r)
+{
+   // range_constraint units base_unit_declaration
+   //   { secondary_unit_declaration } end units [ name ]
+
+   EXTEND("physical type definition");
+
+   type_t t = type_new(T_PHYSICAL);
+
+   consume(tUNITS);
+
+   tree_t base = p_base_unit_declaration();
+   type_add_unit(t, base);
+
+   r.left  = int_to_physical(r.left, base);
+   r.right = int_to_physical(r.right, base);
+   type_add_dim(t, r);
+
+   while (scan(tINT, tREAL, tID))
+      type_add_unit(t, p_secondary_unit_declaration());
+
+   consume(tEND);
+   consume(tUNITS);
+
+   if (peek() == tID) {
+      ident_t id = p_identifier();
+      (void)id;  // XXX: test this
+   }
+
    return t;
 }
 
@@ -1368,7 +1506,30 @@ static type_t p_scalar_type_definition(void)
 
    BEGIN("scalar type definition");
 
-   return p_integer_type_definition();
+   switch (peek()) {
+   case tRANGE:
+      {
+         range_t r = p_range_constraint();
+
+         if (peek() == tUNITS)
+            return p_physical_type_definition(r);
+         else {
+            const bool real = ((tree_kind(r.left) == T_LITERAL)
+                               && (tree_subkind(r.left) == L_REAL))
+               || ((tree_kind(r.right) == T_LITERAL)
+                   && (tree_subkind(r.right) == L_REAL));
+
+            if (real)
+               return p_real_type_definition(r);
+            else
+               return p_integer_type_definition(r);
+         }
+      }
+
+   default:
+      expect(tRANGE);
+      return type_new(T_NONE);
+   }
 }
 
 static type_t p_type_definition(void)
@@ -1378,7 +1539,14 @@ static type_t p_type_definition(void)
 
    BEGIN("type definition");
 
-   return p_scalar_type_definition();
+   switch (peek()) {
+   case tRANGE:
+      return p_scalar_type_definition();
+
+   default:
+      expect(tRANGE);
+      return type_new(T_NONE);
+   }
 }
 
 static type_t p_full_type_declaration(ident_t id)
@@ -1437,6 +1605,36 @@ static tree_t p_type_declaration(void)
    return t;
 }
 
+static tree_t p_subtype_declaration(void)
+{
+   // subtype identifier is subtype_indication ;
+
+   BEGIN("subtype declaration");
+
+   consume(tSUBTYPE);
+   ident_t id = p_identifier();
+   consume(tIS);
+   type_t sub = p_subtype_indication();
+   consume(tSEMI);
+
+   if (type_kind(sub) != T_SUBTYPE) {
+      // Case where subtype_indication did not impose any
+      // constraint so we must create the subtype object here
+      type_t new = type_new(T_SUBTYPE);
+      type_set_base(new, sub);
+
+      sub = new;
+   }
+   type_set_ident(sub, id);
+
+   tree_t t = tree_new(T_TYPE_DECL);
+   tree_set_ident(t, id);
+   tree_set_type(t, sub);
+   tree_set_loc(t, CURRENT_LOC);
+
+   return t;
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -1472,8 +1670,12 @@ static void p_entity_declarative_item(tree_t entity)
       tree_add_decl(entity, p_type_declaration());
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(entity, p_subtype_declaration());
+      break;
+
    default:
-      expect(tATTRIBUTE);
+      expect(tATTRIBUTE, tTYPE, tSUBTYPE);
    }
 }
 
@@ -1696,8 +1898,12 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_type_declaration());
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(parent, p_subtype_declaration());
+      break;
+
    default:
-      expect(tSIGNAL, tTYPE);
+      expect(tSIGNAL, tTYPE, tSUBTYPE);
    }
 }
 
@@ -2536,7 +2742,7 @@ static void p_architecture_declarative_part(tree_t arch)
 
    BEGIN("architecture declarative part");
 
-   while (scan(tSIGNAL, tTYPE))
+   while (scan(tSIGNAL, tTYPE, tSUBTYPE))
       p_block_declarative_item(arch);
 }
 
