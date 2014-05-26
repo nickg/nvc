@@ -1558,6 +1558,35 @@ static type_t p_scalar_type_definition(void)
    }
 }
 
+static type_t p_access_type_definition(void)
+{
+   // access subtype_indication
+
+   BEGIN("access type definition");
+
+   consume(tACCESS);
+
+   type_t t = type_new(T_ACCESS);
+   type_set_access(t, p_subtype_indication());
+
+   return t;
+}
+
+static type_t p_file_type_definition(void)
+{
+   // file of type_mark
+
+   BEGIN("file type definition");
+
+   consume(tFILE);
+   consume(tOF);
+
+   type_t t = type_new(T_FILE);
+   type_set_file(t, p_type_mark());
+
+   return t;
+}
+
 static type_t p_type_definition(void)
 {
    // scalar_type_definition | composite_type_definition
@@ -1569,8 +1598,14 @@ static type_t p_type_definition(void)
    case tRANGE:
       return p_scalar_type_definition();
 
+   case tACCESS:
+      return p_access_type_definition();
+
+   case tFILE:
+      return p_file_type_definition();
+
    default:
-      expect(tRANGE);
+      expect(tRANGE, tACCESS, tFILE);
       return type_new(T_NONE);
    }
 }
@@ -1903,6 +1938,57 @@ static void p_signal_declaration(tree_t parent)
    }
 }
 
+static tree_t p_file_open_information(void)
+{
+   // [ open expression ] is file_logical_name
+
+   BEGIN("file open information");
+
+   consume(tIS);
+   return p_expression();
+}
+
+static void p_file_declaration(tree_t parent)
+{
+   // file identifier_list : subtype_indication [ file_open_information ] ;
+
+   BEGIN("file declaration");
+
+   consume(tFILE);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t mode;
+   if (optional(tOPEN))
+      mode = p_expression();
+   else {
+      mode = tree_new(T_REF);
+      tree_set_ident(mode, ident_new("READ_MODE"));
+   }
+
+   tree_t name = NULL;
+   if (peek() == tIS)
+      name = p_file_open_information();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_FILE_DECL);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      tree_set_file_mode(t, mode);
+      if (name != NULL)
+         tree_set_value(t, name);
+      tree_set_loc(t, CURRENT_LOC);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_block_declarative_item(tree_t parent)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -1928,8 +2014,12 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_subtype_declaration());
       break;
 
+   case tFILE:
+      p_file_declaration(parent);
+      break;
+
    default:
-      expect(tSIGNAL, tTYPE, tSUBTYPE);
+      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE);
    }
 }
 
@@ -2768,7 +2858,7 @@ static void p_architecture_declarative_part(tree_t arch)
 
    BEGIN("architecture declarative part");
 
-   while (scan(tSIGNAL, tTYPE, tSUBTYPE))
+   while (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE))
       p_block_declarative_item(arch);
 }
 
