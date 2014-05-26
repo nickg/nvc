@@ -50,7 +50,7 @@ static int resolve_ir1045(void);
 
 static int last_token = -1;
 
-extern yylval_t yylval;
+yylval_t yylval;
 
 void begin_token(char *tok);
 int get_next_char(char *b, int max_buffer);

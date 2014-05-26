@@ -32,6 +32,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+typedef struct tokenq tokenq_t;
+
+struct tokenq {
+   tokenq_t *next;
+   token_t   token;
+   yylval_t  lval;
+};
+
 static const char *perm_linebuf = NULL;
 static const char *perm_file_name = NULL;
 static int         n_token_next_start = 0;
@@ -43,15 +51,11 @@ static const char *read_ptr;
 static const char *file_start;
 static size_t      file_sz;
 static int         n_errors = 0;
-static token_t     peek_tok;
-static bool        peek_valid = false;
-static token_t     peek2_tok;
-static bool        peek2_valid = false;
 static const char *hint_str = NULL;
 static int         n_correct = 0;
 static tree_t      assert_viol = NULL;
-
-yylval_t yylval;
+static tokenq_t   *tokenq = NULL;
+static yylval_t    last_lval;
 
 int yylex(void);
 
@@ -138,28 +142,35 @@ static const char *token_str(token_t tok)
 
 static token_t peek(void)
 {
-   if (peek_valid)
-      return peek_tok;
-   else {
-      assert(!peek2_valid);
-      peek_valid = true;
-      return (peek_tok = yylex());
+   if (tokenq == NULL) {
+      extern yylval_t yylval;
+
+      tokenq = xmalloc(sizeof(tokenq_t));
+      tokenq->next  = NULL;
+      tokenq->token = yylex();
+      tokenq->lval  = yylval;
    }
+
+   return tokenq->token;
 }
 
 static token_t peek2(void)
 {
-   if (!peek_valid) {
-      assert(!peek2_valid);
+   if (tokenq == NULL)
       (void)peek();
+
+   if (tokenq->next == NULL) {
+      extern yylval_t yylval;
+
+      tokenq_t *next = xmalloc(sizeof(tokenq_t));
+      next->next  = NULL;
+      next->token = yylex();
+      next->lval  = yylval;
+
+      tokenq->next = next;
    }
 
-   if (peek2_valid)
-      return peek2_tok;
-   else {
-      peek2_valid = true;
-      return (peek2_tok = yylex());
-   }
+   return tokenq->next->token;
 }
 
 static bool consume(token_t tok)
@@ -180,14 +191,13 @@ static bool consume(token_t tok)
    if (start_loc.linebuf == NULL)
       start_loc = yylloc;
 
-   if (peek2_valid) {
-      assert(peek_valid);
-      peek_tok = peek2_tok;
-   }
-   else
-      peek_valid = false;
+   assert(tokenq != NULL);
 
-   peek2_valid = false;
+   last_lval = tokenq->lval;
+
+   tokenq_t *tmp = tokenq->next;
+   free(tokenq);
+   tokenq = tmp;
 
    return (tok == got);
 }
@@ -227,8 +237,6 @@ static void _vexpect(va_list ap)
       error_at(&yylloc, tb_get(tb));
       n_errors++;
    }
-
-   peek2_valid = false;
 
    n_correct = 0;
 }
@@ -431,8 +439,9 @@ static ident_t p_identifier(void)
    // basic_identifier | extended_identifier
 
    if (consume(tID)) {
-      ident_t i = ident_new(yylval.s);
-      free(yylval.s);
+      char *s = last_lval.s;
+      ident_t i = ident_new(s);
+      free(s);
       return i;
    }
    else
@@ -531,10 +540,11 @@ static ident_t p_operator_symbol(void)
 
    consume(tSTRING);
 
-   for (char *p = yylval.s; *p != '\0'; p++)
+   char *s = last_lval.s;
+   for (char *p = s; *p != '\0'; p++)
       *p = tolower((int)*p);
-   ident_t id = ident_new(yylval.s);
-   free(yylval.s);
+   ident_t id = ident_new(s);
+   free(s);
 
    return id;
 }
@@ -589,6 +599,21 @@ static tree_t p_function_call(ident_t prefix, tree_t expr1)
    return t;
 }
 
+static tree_t p_attribute_name(tree_t prefix)
+{
+   // prefix [ signature ] ' attribute_designator [ ( expression ) ]
+
+   EXTEND("attribute name");
+
+   consume(tTICK);
+
+   tree_t t = tree_new(T_ATTR_REF);
+   tree_set_name(t, prefix);
+   tree_set_ident(t, p_identifier());
+
+   return t;
+}
+
 static tree_t p_name(void)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
@@ -619,35 +644,36 @@ static tree_t p_name(void)
       return tree_new(T_OPEN);
    }
 
-   switch (peek2()) {
-   case tLPAREN:
-      break;
+   tree_t prefix = NULL;
 
-   default:
-      return p_simple_name();
+   if (peek2() == tLPAREN) {
+      ident_t id = p_identifier();
+      consume(tLPAREN);
+      tree_t expr1 = p_expression();
+
+      switch (peek()) {
+      case tRPAREN:
+      case tCOMMA:
+         prefix = p_function_call(id, expr1);
+         break;
+
+      case tTO:
+      case tDOWNTO:
+         prefix = p_slice_name(id, expr1);
+         break;
+
+      default:
+         expect(tRPAREN, tCOMMA, tTO, tDOWNTO);
+         prefix = tree_new(T_OPEN);
+      }
    }
+   else
+      prefix = p_simple_name();
 
-   ident_t prefix = p_identifier();
-
-   consume(tLPAREN);
-
-   tree_t expr1 = p_expression();
-
-   switch (peek()) {
-   case tRPAREN:
-   case tCOMMA:
-      return p_function_call(prefix, expr1);
-
-   case tTO:
-   case tDOWNTO:
-      return p_slice_name(prefix, expr1);
-
-   default:
-      expect(tRPAREN, tCOMMA, tTO, tDOWNTO);
-      return tree_new(T_OPEN);
-   }
-
-   consume(tRPAREN);
+   if (peek() == tTICK)
+      return p_attribute_name(prefix);
+   else
+      return prefix;
 }
 
 static type_t p_type_mark(void)
@@ -771,12 +797,12 @@ static tree_t p_abstract_literal(void)
    switch (one_of(tINT, tREAL)) {
    case tINT:
       tree_set_subkind(t, L_INT);
-      tree_set_ival(t, yylval.n);
+      tree_set_ival(t, last_lval.n);
       break;
 
    case tREAL:
       tree_set_subkind(t, L_REAL);
-      tree_set_dval(t, yylval.d);
+      tree_set_dval(t, last_lval.d);
       break;
    }
 
@@ -850,7 +876,7 @@ static tree_t p_literal(void)
       {
          consume(tSTRING);
 
-         char *p = yylval.s;
+         char *p = last_lval.s;
          size_t len = strlen(p);
          tree_t t = str_to_agg(p + 1, p + len - 1, CURRENT_LOC);
          free(p);
