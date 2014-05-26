@@ -38,6 +38,7 @@ struct tokenq {
    tokenq_t *next;
    token_t   token;
    yylval_t  lval;
+   loc_t     loc;
 };
 
 static const char *perm_linebuf = NULL;
@@ -149,6 +150,7 @@ static token_t peek(void)
       tokenq->next  = NULL;
       tokenq->token = yylex();
       tokenq->lval  = yylval;
+      tokenq->loc   = yylloc;
    }
 
    return tokenq->token;
@@ -166,6 +168,7 @@ static token_t peek2(void)
       next->next  = NULL;
       next->token = yylex();
       next->lval  = yylval;
+      next->loc   = yylloc;
 
       tokenq->next = next;
    }
@@ -178,8 +181,8 @@ static bool consume(token_t tok)
    const token_t got = peek();
    if (tok != got) {
       if (n_correct >= RECOVER_THRESH) {
-         error_at(&yylloc, "expected $yellow$%s$$ but found $yellow$%s$$ while "
-                  "parsing $yellow$%s$$",
+         error_at(&(tokenq->loc), "expected $yellow$%s$$ but found "
+                  "$yellow$%s$$ while parsing $yellow$%s$$",
                   token_str(tok), token_str(got), hint_str);
          n_errors++;
       }
@@ -189,7 +192,7 @@ static bool consume(token_t tok)
       n_correct++;
 
    if (start_loc.linebuf == NULL)
-      start_loc = yylloc;
+      start_loc = tokenq->loc;
 
    assert(tokenq != NULL);
 
@@ -234,7 +237,7 @@ static void _vexpect(va_list ap)
    }
 
    if (n_correct >= RECOVER_THRESH) {
-      error_at(&yylloc, tb_get(tb));
+      error_at(&(tokenq->loc), tb_get(tb));
       n_errors++;
    }
 
@@ -2009,6 +2012,68 @@ static tree_t p_entity_declaration(void)
    return t;
 }
 
+static void p_package_declarative_item(tree_t pack)
+{
+   // subprogram_declaration | type_declaration | subtype_declaration
+   //   | constant_declaration | signal_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | component_declaration | attribute_declaration
+   //   | attribute_specification | disconnection_specification | use_clause
+   //   | group_template_declaration | group_declaration
+
+   BEGIN("package declarative item");
+
+   switch (peek()) {
+   case tTYPE:
+      tree_add_decl(pack, p_type_declaration());
+      break;
+
+   default:
+      expect(tTYPE);
+   }
+}
+
+static void p_package_declarative_part(tree_t pack)
+{
+   // { package_declarative_item }
+
+   BEGIN("package declarative part");
+
+   while (scan(tTYPE))
+      p_package_declarative_item(pack);
+}
+
+static tree_t p_package_declaration(void)
+{
+   // package identifier is package_declarative_part end [ package ]
+   //   [ simple_name ] ;
+
+   BEGIN("package declaration");
+
+   consume(tPACKAGE);
+
+   tree_t p = tree_new(T_PACKAGE);
+   tree_set_ident(p, p_identifier());
+
+   consume(tIS);
+
+   p_package_declarative_part(p);
+
+   consume(tEND);
+   optional(tPACKAGE);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(p, CURRENT_LOC);
+   return p;
+}
+
 static tree_t p_primary_unit(void)
 {
    // entity_declaration | configuration_declaration | package_declaration
@@ -2018,6 +2083,9 @@ static tree_t p_primary_unit(void)
    switch (peek()) {
    case tENTITY:
       return p_entity_declaration();
+
+   case tPACKAGE:
+      return p_package_declaration();
 
    default:
       expect(tENTITY);
@@ -3092,8 +3160,14 @@ static tree_t p_library_unit(void)
    case tARCHITECTURE:
       return p_secondary_unit();
 
+   case tPACKAGE:
+      if (peek2() == tBODY)
+         return p_secondary_unit();
+      else
+         return p_primary_unit();
+
    default:
-      expect(tENTITY, tARCHITECTURE);
+      expect(tENTITY, tARCHITECTURE, tPACKAGE);
       return NULL;
    }
 }

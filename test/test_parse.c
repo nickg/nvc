@@ -1865,9 +1865,9 @@ int main(void)
    tcase_add_test(tc_core, test_seq);
    tcase_add_test(tc_core, test_types);
    tcase_add_test(tc_core, test_literal);
-#if 0
    tcase_add_test(tc_core, test_extended);
    tcase_add_test(tc_core, test_package);
+#if 0
    tcase_add_test(tc_core, test_enum);
    tcase_add_test(tc_core, test_qual);
    tcase_add_test(tc_core, test_func);
