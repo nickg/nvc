@@ -66,7 +66,7 @@ int yylex(void);
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
-#define TRACE_PARSE    0
+#define TRACE_PARSE    1
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -1933,6 +1933,82 @@ static tree_t p_concurrent_assertion_statement(void)
    return s;
 }
 
+static ident_t p_designator(void)
+{
+   // identifier | operator_symbol
+
+   BEGIN("designator");
+
+   switch (peek()) {
+   case tID:
+      return p_identifier();
+   case tSTRING:
+      return p_operator_symbol();
+   default:
+      expect(tID, tSTRING);
+      return ident_new("error");
+   }
+}
+
+static tree_t p_subprogram_specification(void)
+{
+   // procedure designator [ ( formal_parameter_list ) ]
+   //   | [ pure | impure ] function designator [ ( formal_parameter_list ) ]
+   //     return type_mark
+
+   BEGIN("subprogram specification");
+
+   tree_t t = NULL;
+   type_t type = NULL;
+
+   switch (one_of(tFUNCTION)) {
+   case tFUNCTION:
+      t = tree_new(T_FUNC_DECL);
+      type = type_new(T_FUNC);
+      break;
+
+   default:
+      return tree_new(T_FUNC_DECL);
+   }
+
+   tree_set_type(t, type);
+   tree_set_ident(t, p_designator());
+
+   if (optional(tLPAREN)) {
+      const class_t class =
+         (tree_kind(t) == T_FUNC_DECL) ? C_CONSTANT : C_VARIABLE;
+      p_interface_list(class, t, tree_add_port);
+      consume(tRPAREN);
+   }
+
+   if (tree_kind(t) == T_FUNC_DECL) {
+      consume(tRETURN);
+      type_set_result(type, p_type_mark());
+   }
+
+   return t;
+}
+
+static tree_t p_subprogram_body(tree_t spec)
+{
+   // subprogram_specification is subprogram_declarative_part begin
+   //   subprogram_statement_part end [ subprogram_kind ] [ designator ] ;
+
+   EXTEND("subprogram body");
+
+   return spec;
+}
+
+static tree_t p_subprogram_declaration(tree_t spec)
+{
+   // subprogram_specification ;
+
+   EXTEND("subprogram declaration");
+
+   consume(tSEMI);
+   return spec;
+}
+
 static tree_t p_entity_statement(void)
 {
    // concurrent_assertion_statement | concurrent_procedure_call_statement
@@ -2028,8 +2104,18 @@ static void p_package_declarative_item(tree_t pack)
       tree_add_decl(pack, p_type_declaration());
       break;
 
+   case tFUNCTION:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(pack, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(pack, p_subprogram_body(spec));
+      }
+      break;
+
    default:
-      expect(tTYPE);
+      expect(tTYPE, tFUNCTION);
    }
 }
 
@@ -2039,7 +2125,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE))
+   while (scan(tTYPE, tFUNCTION))
       p_package_declarative_item(pack);
 }
 
@@ -2266,8 +2352,18 @@ static void p_block_declarative_item(tree_t parent)
       p_constant_declaration(parent);
       break;
 
+   case tFUNCTION:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(parent, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(parent, p_subprogram_body(spec));
+      }
+      break;
+
    default:
-      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT);
+      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION);
    }
 }
 
