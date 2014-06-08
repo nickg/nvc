@@ -233,7 +233,7 @@ static bool consume(token_t tok)
    if (tok != got) {
       if (n_correct >= RECOVER_THRESH) {
          error_at(&(tokenq->loc), "expected $yellow$%s$$ but found "
-                  "$yellow$%s$$ while parsing $yellow$%s$$",
+                  "$yellow$%s$$ while parsing %s",
                   token_str(tok), token_str(got), hint_str);
          n_errors++;
       }
@@ -270,7 +270,7 @@ static void _vexpect(va_list ap)
 {
    LOCAL_TEXT_BUF tb = tb_new();
 
-   tb_printf(tb, "unexpected $yellow$%s$$ while parsing $yellow$%s$$, "
+   tb_printf(tb, "unexpected $yellow$%s$$ while parsing %s, "
              "expecting one of ", token_str(peek()), hint_str);
 
    bool first = true;
@@ -502,6 +502,17 @@ static ident_t p_identifier(void)
    }
    else
       return ident_new("error");
+}
+
+static ident_t p_selected_identifier(void)
+{
+   // identifier { . identifier }
+
+   ident_t id = p_identifier();
+   while (optional(tDOT))
+      id = ident_prefix(id, p_identifier(), '.');
+
+   return id;
 }
 
 static ident_list_t *p_identifier_list(void)
@@ -1723,7 +1734,7 @@ static class_t p_entity_class(void)
 
    BEGIN("entity class");
 
-   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL)) {
+   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
@@ -1732,6 +1743,8 @@ static class_t p_entity_class(void)
       return C_SIGNAL;
    case tLABEL:
       return C_LABEL;
+   case tFUNCTION:
+      return C_FUNCTION;
    default:
       return C_DEFAULT;
    }
@@ -2693,8 +2706,27 @@ static void p_package_declarative_item(tree_t pack)
       p_signal_declaration(pack);
       break;
 
+   case tATTRIBUTE:
+      {
+         consume(tATTRIBUTE);
+         ident_t head = p_identifier();
+         switch (one_of(tCOLON, tOF)) {
+         case tCOLON:
+            p_attribute_declaration(head, pack);
+            break;
+
+         case tOF:
+            p_attribute_specification(head, pack);
+            break;
+
+         default:
+            break;
+         }
+      }
+      break;
+
    default:
-      expect(tTYPE, tFUNCTION, tIMPURE, tPURE, tSUBTYPE, tSIGNAL);
+      expect(tTYPE, tFUNCTION, tIMPURE, tPURE, tSUBTYPE, tSIGNAL, tATTRIBUTE);
    }
 }
 
@@ -2704,7 +2736,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE, tFUNCTION, tPURE, tIMPURE, tSUBTYPE, tSIGNAL))
+   while (scan(tTYPE, tFUNCTION, tPURE, tIMPURE, tSUBTYPE, tSIGNAL, tATTRIBUTE))
       p_package_declarative_item(pack);
 }
 
@@ -3550,7 +3582,7 @@ static tree_t p_process_statement(ident_t label)
    //   process_declarative_part begin process_statement_part end [ postponed ]
    //   process [ process_label ] ;
 
-   BEGIN("process statement");
+   EXTEND("process statement");
 
    tree_t t = tree_new(T_PROCESS);
 
@@ -3597,6 +3629,166 @@ static tree_t p_process_statement(ident_t label)
    return t;
 }
 
+static tree_t p_formal_part(void)
+{
+   // formal_designator
+   //   | name ( formal_designator )
+   //   | type_mark ( formal_designator )
+
+   BEGIN("formal part");
+
+   return p_name();
+}
+
+static tree_t p_actual_part(void)
+{
+   // actual_designator
+   //   | name ( actual_designator )
+   //   | type_mark ( actual_designator )
+
+   BEGIN("actual part");
+
+   if (optional(tOPEN)) {
+      tree_t t = tree_new(T_OPEN);
+      tree_set_loc(t, CURRENT_LOC);
+      return t;
+   }
+   else
+      return p_expression();
+}
+
+static void p_association_element(tree_t map, add_func_t addf)
+{
+   // [ formal_part => ] actual_part
+
+   BEGIN("association element");
+
+   tree_t p = tree_new(T_PARAM);
+
+   const look_params_t lookp = {
+      .look     = { tASSOC },
+      .stop     = { tCOMMA, tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 0
+   };
+
+   if (look_for(&lookp)) {
+      tree_set_subkind(p, P_NAMED);
+      tree_set_name(p, p_formal_part());
+
+      consume(tASSOC);
+   }
+   else
+      tree_set_subkind(p, P_POS);
+
+   tree_set_value(p, p_actual_part());
+   tree_set_loc(p, CURRENT_LOC);
+
+   (*addf)(map, p);
+}
+
+static void p_association_list(tree_t map, add_func_t addf)
+{
+   // association_element { , association_element }
+
+   p_association_element(map, addf);
+
+   while (optional(tCOMMA))
+      p_association_element(map, addf);
+}
+
+static void p_port_map_aspect(tree_t inst)
+{
+   // port map ( association_list )
+
+   BEGIN("port map aspect");
+
+   consume(tPORT);
+   consume(tMAP);
+   consume(tLPAREN);
+
+   p_association_list(inst, tree_add_param);
+
+   consume(tRPAREN);
+}
+
+static void p_generic_map_aspect(tree_t inst)
+{
+   // generic map ( association_list )
+
+   BEGIN("generic map aspect");
+
+   consume(tGENERIC);
+   consume(tMAP);
+   consume(tLPAREN);
+
+   p_association_list(inst, tree_add_genmap);
+
+   consume(tRPAREN);
+}
+
+static tree_t p_instantiated_unit(void)
+{
+   // [ component ] name
+   //   | entity name [ ( identifier ) ]
+   //   | configuration name
+
+   BEGIN("instantiated unit");
+
+   tree_t t = tree_new(T_INSTANCE);
+
+   switch (peek()) {
+   case tENTITY:
+      consume(tENTITY);
+      tree_set_class(t, C_ENTITY);
+      break;
+
+   case tCONFIGURATION:
+      consume(tCONFIGURATION);
+      tree_set_class(t, C_CONFIGURATION);
+      break;
+
+   case tCOMPONENT:
+      consume(tCOMPONENT);
+      // Fall-through
+
+   default:
+      tree_set_class(t, C_COMPONENT);
+   }
+
+   tree_set_ident2(t, p_selected_identifier());
+
+   if ((tree_class(t) == C_ENTITY) && optional(tLPAREN)) {
+      tree_set_ident2(t, ident_prefix(tree_ident2(t), p_identifier(), '-'));
+      consume(tRPAREN);
+   }
+
+   return t;
+}
+
+static tree_t p_component_instantiation_statement(ident_t label)
+{
+   // label : instantiated_unit [ generic_map_aspect ] [ port_map_aspect ] ;
+
+   EXTEND("component instantiation statement");
+
+   tree_t t = p_instantiated_unit();
+   tree_set_ident(t, label);
+
+   if (peek() == tGENERIC)
+      p_generic_map_aspect(t);
+
+   if (peek() == tPORT)
+      p_port_map_aspect(t);
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -3612,20 +3804,30 @@ static tree_t p_concurrent_statement(void)
       consume(tCOLON);
    }
 
-   tree_t name = NULL;
-   if (peek() == tID)
-      name = p_name();
+   if (peek() == tID) {
+      switch (peek_nth(2)) {
+      case tSEMI:
+         return p_component_instantiation_statement(label);
+      default:
+         // concurrent assignment
+         assert(false);
+      }
+   }
+   else {
+      switch (peek()) {
+      case tPROCESS:
+      case tPOSTPONED:
+         return p_process_statement(label);
 
-   (void)name;
+      case tCOMPONENT:
+      case tENTITY:
+      case tCONFIGURATION:
+         return p_component_instantiation_statement(label);
 
-   switch (peek()) {
-   case tPROCESS:
-   case tPOSTPONED:
-      return p_process_statement(label);
-
-   default:
-      expect(tPROCESS);
-      return tree_new(T_BLOCK);
+      default:
+         expect(tPROCESS, tPOSTPONED);
+         return tree_new(T_BLOCK);
+      }
    }
 }
 

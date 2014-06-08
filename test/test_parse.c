@@ -1871,8 +1871,8 @@ int main(void)
    tcase_add_test(tc_core, test_qual);
    tcase_add_test(tc_core, test_func);
    tcase_add_test(tc_core, test_array);
-#if 0
    tcase_add_test(tc_core, test_instance);
+#if 0
    tcase_add_test(tc_core, test_conc);
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_attr);
