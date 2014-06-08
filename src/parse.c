@@ -677,6 +677,23 @@ static tree_t p_attribute_name(tree_t prefix)
    return t;
 }
 
+static tree_t p_selected_name(tree_t prefix)
+{
+   // prefix . suffix
+
+   EXTEND("selected name");
+
+   consume(tDOT);
+
+   // XXX: FIXME
+   assert(tree_kind(prefix) == T_REF);
+
+   ident_t suffix = p_identifier();
+   tree_set_ident(prefix, ident_prefix(tree_ident(prefix), suffix, '.'));
+
+   return prefix;
+}
+
 static tree_t p_name(void)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
@@ -733,18 +750,28 @@ static tree_t p_name(void)
    else
       prefix = p_simple_name();
 
-   if (peek() == tTICK)
+   switch (peek()) {
+   case tTICK:
       return p_attribute_name(prefix);
-   else
+   case tDOT:
+      return p_selected_name(prefix);
+   default:
       return prefix;
+   }
 }
 
 static type_t p_type_mark(void)
 {
    // name
 
+   BEGIN("type mark");
+
+   ident_t name = p_identifier();
+   while (optional(tDOT))
+      name = ident_prefix(name, p_identifier(), '.');
+
    type_t t = type_new(T_UNRESOLVED);
-   type_set_ident(t, p_identifier());
+   type_set_ident(t, name);
    return t;
 }
 
@@ -2169,8 +2196,12 @@ static void p_package_declarative_item(tree_t pack)
       }
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(pack, p_subtype_declaration());
+      break;
+
    default:
-      expect(tTYPE, tFUNCTION);
+      expect(tTYPE, tFUNCTION, tSUBTYPE);
    }
 }
 
@@ -2180,7 +2211,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE, tFUNCTION))
+   while (scan(tTYPE, tFUNCTION, tSUBTYPE))
       p_package_declarative_item(pack);
 }
 
