@@ -221,11 +221,8 @@ static bool look_for(const look_params_t *params)
    }
  stop_looking:
 
-   if (n >= 10)
+   if (n >= 100)
       warn_at(&(tokenq->loc), "look ahead depth %d", n);
-
-   printf("look_for n=%d found=%d nlook=%d nstop=%d\n",
-          n - 1, found, (int)ARRAY_LEN(params->look), (int)ARRAY_LEN(params->stop));
 
    return found;
 }
@@ -665,26 +662,17 @@ static port_mode_t p_mode(void)
    }
 }
 
-static tree_t p_simple_name(void)
-{
-   // identifier
-
-   tree_t t = tree_new(T_REF);
-   tree_set_ident(t, p_identifier());
-   tree_set_loc(t, CURRENT_LOC);
-
-   return t;
-}
-
-static tree_t p_slice_name(ident_t prefix, tree_t expr1)
+static tree_t p_slice_name(tree_t prefix)
 {
    // prefix ( discrete_range )
 
    EXTEND("slice name");
 
-   tree_t t = tree_new(T_ARRAY_SLICE);
+   consume(tLPAREN);
 
-   range_t r = { .left = expr1 };
+   tree_change_kind(prefix, T_ARRAY_SLICE);
+
+   range_t r = { .left = p_expression() };
 
    switch (one_of(tTO, tDOWNTO)) {
    case tTO:
@@ -700,30 +688,29 @@ static tree_t p_slice_name(ident_t prefix, tree_t expr1)
 
    consume(tRPAREN);
 
-   tree_set_range(t, r);
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_range(prefix, r);
+   tree_set_loc(prefix, CURRENT_LOC);
+   return prefix;
 }
 
-static tree_t p_function_call(ident_t prefix, tree_t expr1)
+static tree_t p_function_call(tree_t name)
 {
    // name [ ( actual_parameter_part ) ]
 
    EXTEND("function call");
 
-   tree_t t = tree_new(T_FCALL);
-   tree_set_ident(t, prefix);
+   tree_change_kind(name, T_FCALL);
 
-   add_param(t, expr1, P_POS, NULL);
+   consume(tLPAREN);
 
-   while (optional(tCOMMA)) {
-      add_param(t, p_expression(), P_POS, NULL);
-   }
+   do {
+      add_param(name, p_expression(), P_POS, NULL);
+   } while (optional(tCOMMA));
 
    consume(tRPAREN);
 
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_loc(name, CURRENT_LOC);
+   return name;
 }
 
 static tree_t p_attribute_name(tree_t prefix)
@@ -762,6 +749,27 @@ static tree_t p_selected_name(tree_t prefix)
    return prefix;
 }
 
+static tree_t p_indexed_name(tree_t prefix)
+{
+   // prefix ( expression { , expression } )
+
+   EXTEND("indexed name");
+
+   tree_t t = tree_new(T_ARRAY_REF);
+   tree_set_value(t, prefix);
+
+   consume(tLPAREN);
+
+   do {
+      add_param(t, p_expression(), P_POS, NULL);
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static tree_t p_name(void)
 {
    // simple_name | operator_symbol | selected_name | indexed_name
@@ -769,22 +777,15 @@ static tree_t p_name(void)
 
    BEGIN("name");
 
+   ident_t id = NULL;
+
    switch (peek()) {
    case tSTRING:
-      {
-         ident_t op = p_operator_symbol();
-
-         if (optional(tLPAREN))
-            return p_function_call(op, p_expression());
-         else {
-            tree_t t = tree_new(T_REF);
-            tree_set_ident(t, op);
-            tree_set_loc(t, CURRENT_LOC);
-            return t;
-         }
-      }
+      id = p_operator_symbol();
+      break;
 
    case tID:
+      id = p_identifier();
       break;
 
    default:
@@ -792,45 +793,46 @@ static tree_t p_name(void)
       return tree_new(T_OPEN);
    }
 
-   tree_t prefix = NULL;
+   tree_t name = tree_new(T_REF);
+   tree_set_ident(name, id);
+   tree_set_loc(name, CURRENT_LOC);
 
-   if (peek_nth(2) == tLPAREN) {
-      ident_t id = p_identifier();
-      consume(tLPAREN);
-      tree_t expr1 = p_expression();
-
+   for (;;) {
       switch (peek()) {
-      case tRPAREN:
-      case tCOMMA:
-         prefix = p_function_call(id, expr1);
+      case tLPAREN:
          break;
 
-      case tTO:
-      case tDOWNTO:
-         prefix = p_slice_name(id, expr1);
-         break;
+      case tDOT:
+         name = p_selected_name(name);
+         continue;
+
+      case tTICK:
+         if (peek_nth(2) == tLPAREN)
+            return name;   // Qualified expression
+         name = p_attribute_name(name);
+         continue;
 
       default:
-         expect(tRPAREN, tCOMMA, tTO, tDOWNTO);
-         prefix = tree_new(T_OPEN);
+         return name;
       }
-   }
-   else
-      prefix = p_simple_name();
 
-   switch (peek()) {
-   case tTICK:
-      switch (peek_nth(2)) {
-      case tID:
-      case tRANGE:
-         return p_attribute_name(prefix);
-      default:
-         return prefix;
-      }
-   case tDOT:
-      return p_selected_name(prefix);
-   default:
-      return prefix;
+      // Either a function call, indexed name, or selected name
+
+      const look_params_t lookp = {
+         .look     = { tDOWNTO, tTO },
+         .stop     = { tRPAREN },
+         .abort    = tSEMI,
+         .nest_in  = tLPAREN,
+         .nest_out = tRPAREN,
+         .depth    = 1
+      };
+
+      if (look_for(&lookp))
+         name = p_slice_name(name);
+      else if (tree_kind(name) == T_REF)
+         name = p_function_call(name);
+      else
+         name = p_indexed_name(name);
    }
 }
 
