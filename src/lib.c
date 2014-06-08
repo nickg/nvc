@@ -36,6 +36,9 @@
 #include <sys/time.h>
 
 typedef struct search_path search_path_t;
+typedef struct lib_unit    lib_unit_t;
+typedef struct lib_index   lib_index_t;
+typedef struct lib_list    lib_list_t;
 
 struct lib_unit {
    tree_t        top;
@@ -46,23 +49,23 @@ struct lib_unit {
 };
 
 struct lib_index {
-   ident_t           name;
-   tree_kind_t       kind;
-   struct lib_index *next;
+   ident_t      name;
+   tree_kind_t  kind;
+   lib_index_t *next;
 };
 
 struct lib {
-   char              path[PATH_MAX];
-   ident_t           name;
-   unsigned          n_units;
-   unsigned          units_alloc;
-   struct lib_unit  *units;
-   struct lib_index *index;
+   char         path[PATH_MAX];
+   ident_t      name;
+   unsigned     n_units;
+   unsigned     units_alloc;
+   lib_unit_t  *units;
+   lib_index_t *index;
 };
 
 struct lib_list {
-   lib_t           item;
-   struct lib_list *next;
+   lib_t       item;
+   lib_list_t *next;
 };
 
 struct search_path {
@@ -70,9 +73,9 @@ struct search_path {
    const char    *path;
 };
 
-static lib_t            work = NULL;
-static struct lib_list *loaded = NULL;
-static search_path_t   *search_paths = NULL;
+static lib_t          work = NULL;
+static lib_list_t    *loaded = NULL;
+static search_path_t *search_paths = NULL;
 
 static const char *standard_suffix(vhdl_standard_t std)
 {
@@ -118,7 +121,7 @@ static lib_t lib_init(const char *name, const char *rpath)
    if (realpath(rpath, l->path) == NULL)
       strncpy(l->path, rpath, PATH_MAX);
 
-   struct lib_list *el = xmalloc(sizeof(struct lib_list));
+   lib_list_t *el = xmalloc(sizeof(lib_list_t));
    el->item = l;
    el->next = loaded;
    loaded = el;
@@ -133,7 +136,7 @@ static lib_t lib_init(const char *name, const char *rpath)
          tree_kind_t kind = read_u16(f);
          assert(kind < T_LAST_TREE_KIND);
 
-         struct lib_index *in = xmalloc(sizeof(struct lib_index));
+         lib_index_t *in = xmalloc(sizeof(lib_index_t));
          in->name = name;
          in->kind = kind;
          in->next = l->index;
@@ -148,14 +151,14 @@ static lib_t lib_init(const char *name, const char *rpath)
    return l;
 }
 
-static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
-                                    tree_rd_ctx_t ctx, bool dirty,
-                                    lib_mtime_t mtime)
+static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
+                               tree_rd_ctx_t ctx, bool dirty,
+                               lib_mtime_t mtime)
 {
    assert(lib != NULL);
    assert(unit != NULL);
 
-   struct lib_unit *where = NULL;
+   lib_unit_t *where = NULL;
    ident_t name = tree_ident(unit);
 
    for (unsigned i = 0; (where == NULL) && (i < lib->n_units); i++) {
@@ -166,12 +169,12 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    if (where == NULL) {
       if (lib->n_units == 0) {
          lib->units_alloc = 16;
-         lib->units = xmalloc(sizeof(struct lib_unit) * lib->units_alloc);
+         lib->units = xmalloc(sizeof(lib_unit_t) * lib->units_alloc);
       }
       else if (lib->n_units == lib->units_alloc) {
          lib->units_alloc *= 2;
          lib->units = xrealloc(lib->units,
-                               sizeof(struct lib_unit) * lib->units_alloc);
+                               sizeof(lib_unit_t) * lib->units_alloc);
       }
 
       where = &(lib->units[lib->n_units++]);
@@ -183,14 +186,14 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    where->mtime    = mtime;
    where->kind     = tree_kind(unit);
 
-   struct lib_index *it;
+   lib_index_t *it;
    for (it = lib->index;
         (it != NULL) && (it->name != name);
         it = it->next)
       ;
 
    if (it == NULL) {
-      struct lib_index *new = xmalloc(sizeof(struct lib_index));
+      lib_index_t *new = xmalloc(sizeof(lib_index_t));
       new->name = name;
       new->kind = tree_kind(unit);
       new->next = lib->index;
@@ -345,7 +348,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
       return work;
 
    // Search in already loaded libraries
-   for (struct lib_list *it = loaded; it != NULL; it = it->next) {
+   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
       if (lib_name(it->item) == name_i)
          return it->item;
    }
@@ -408,7 +411,7 @@ void lib_free(lib_t lib)
 {
    assert(lib != NULL);
 
-   for (struct lib_list *it = loaded, *prev = NULL;
+   for (lib_list_t *it = loaded, *prev = NULL;
         it != NULL; loaded = it, it = it->next) {
 
       if (it->item == lib) {
@@ -498,7 +501,7 @@ static lib_mtime_t lib_stat_mtime(struct stat *st)
    return mt;
 }
 
-static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
+static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 {
    assert(lib != NULL);
 
@@ -524,7 +527,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
    if (d == NULL)
       fatal("%s: %s", lib->path, strerror(errno));
 
-   struct lib_unit *unit = NULL;
+   lib_unit_t *unit = NULL;
    const char *search = istr(ident);
    struct dirent *e;
    while ((e = readdir(d))) {
@@ -551,7 +554,7 @@ static struct lib_unit *lib_get_aux(lib_t lib, ident_t ident)
 
 lib_mtime_t lib_mtime(lib_t lib, ident_t ident)
 {
-   struct lib_unit *lu = lib_get_aux(lib, ident);
+   lib_unit_t *lu = lib_get_aux(lib, ident);
    assert(lu != NULL);
    return lu->mtime;
 }
@@ -570,7 +573,7 @@ bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt)
 
 tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
 {
-   struct lib_unit *lu = lib_get_aux(lib, ident);
+   lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       *ctx = lu->read_ctx;
       return lu->top;
@@ -581,7 +584,7 @@ tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
 
 tree_t lib_get(lib_t lib, ident_t ident)
 {
-   struct lib_unit *lu = lib_get_aux(lib, ident);
+   lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       if (lu->read_ctx != NULL) {
          tree_read_end(lu->read_ctx);
@@ -595,7 +598,7 @@ tree_t lib_get(lib_t lib, ident_t ident)
 
 tree_t lib_get_check_stale(lib_t lib, ident_t ident)
 {
-   struct lib_unit *lu = lib_get_aux(lib, ident);
+   lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
       if (lu->read_ctx != NULL) {
          tree_read_end(lu->read_ctx);
@@ -640,7 +643,7 @@ void lib_save(lib_t lib)
       }
    }
 
-   struct lib_index *it;
+   lib_index_t *it;
    int index_sz = 0;
    for (it = lib->index; it != NULL; it = it->next, ++index_sz)
       ;
@@ -665,7 +668,7 @@ void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
 {
    assert(lib != NULL);
 
-   struct lib_index *it;
+   lib_index_t *it;
    for (it = lib->index; it != NULL; it = it->next)
       (*fn)(it->name, it->kind, context);
 }
@@ -675,7 +678,7 @@ unsigned lib_index_size(lib_t lib)
    assert(lib != NULL);
 
    unsigned n = 0;
-   for (struct lib_index *it = lib->index; it != NULL; it = it->next)
+   for (lib_index_t *it = lib->index; it != NULL; it = it->next)
       n++;
 
    return n;
