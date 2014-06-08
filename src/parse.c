@@ -1679,6 +1679,41 @@ static type_t p_physical_type_definition(range_t r)
    return t;
 }
 
+static tree_t p_enumeration_literal(void)
+{
+   // identifier | character_literal
+
+   BEGIN("enumeration literal");
+
+   tree_t t = tree_new(T_ENUM_LIT);
+   tree_set_ident(t, p_identifier());
+   tree_set_loc(t, CURRENT_LOC);
+
+   return t;
+}
+
+static type_t p_enumeration_type_definition(void)
+{
+   // ( enumeration_literal { , enumeration_literal } )
+
+   BEGIN("enumeration type definition");
+
+   type_t t = type_new(T_ENUM);
+
+   consume(tLPAREN);
+
+   unsigned pos = 0;
+   do {
+      tree_t lit = p_enumeration_literal();
+      tree_set_pos(lit, pos++);
+      type_enum_add_literal(t, lit);
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+
+   return t;
+}
+
 static type_t p_scalar_type_definition(void)
 {
    // enumeration_type_definition | integer_type_definition
@@ -1705,6 +1740,9 @@ static type_t p_scalar_type_definition(void)
                return p_integer_type_definition(r);
          }
       }
+
+   case tLPAREN:
+      return p_enumeration_type_definition();
 
    default:
       expect(tRANGE);
@@ -1816,6 +1854,7 @@ static type_t p_type_definition(void)
 
    switch (peek()) {
    case tRANGE:
+   case tLPAREN:
       return p_scalar_type_definition();
 
    case tACCESS:
