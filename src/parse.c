@@ -64,9 +64,10 @@ int yylex(void);
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
+#define look_for(look, ...) _look_for(look, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
-#define TRACE_PARSE    1
+#define TRACE_PARSE    0
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -181,14 +182,44 @@ static token_t peek_nth(int n)
    return it->token;
 }
 
-static bool look_ahead_for(token_t look, token_t stop)
+static bool _look_for(token_t look, ...)
 {
+   token_t stop[16];
+   int nstop = 0;
+
+   va_list ap;
+   va_start(ap, look);
+
+   while ((stop[nstop++] = va_arg(ap, token_t)) != -1)
+      assert(nstop < ARRAY_LEN(stop));
+
+   va_end(ap);
+
    token_t tok = -1;
-   int n;
-   for (n = 1;
-        (tok != stop) && (tok != stop) && (tok != look);
-        tok = peek_nth(n++))
-      ;
+   int n, nest = 0;
+   for (n = 1; ;) {
+      tok = peek_nth(n++);
+
+      switch (tok) {
+      case tEOF:
+         goto stop_looking;
+      case tLPAREN:
+         nest++;
+         break;
+      case tRPAREN:
+         nest--;
+         break;
+      default:
+         if (tok == look)
+            goto stop_looking;
+      }
+
+      for (int i = 0; i < nstop; i++) {
+         if ((tok == stop[i]) && (nest <= 0))
+            goto stop_looking;
+      }
+   }
+ stop_looking:
 
    printf("look_ahead_for n=%d\n", n);
 
@@ -301,7 +332,9 @@ static int _one_of(int dummy, ...)
 
    while (!found) {
       const token_t tok = va_arg(ap, token_t);
-      if (p == tok)
+      if (tok == -1)
+         break;
+      else if (p == tok)
          found = true;
    }
 
@@ -871,8 +904,10 @@ static range_t p_discrete_range(void)
          type_set_ident(type, tree_ident(expr1));
 
          range_t r = p_range_constraint();
-         tree_set_type(r.left, type);
-         tree_set_type(r.right, type);
+         if (r.left != NULL)
+             tree_set_type(r.left, type);
+         if (r.right != NULL)
+            tree_set_type(r.right, type);
 
          return r;
       }
@@ -1060,18 +1095,66 @@ static tree_t p_literal(void)
    }
 }
 
+static void p_choice(tree_t parent)
+{
+   // simple_expression | discrete_range | simple_name | others
+
+   BEGIN("choice");
+
+   tree_t t = tree_new(T_ASSOC);
+
+   if (optional(tOTHERS))
+      tree_set_subkind(t, A_OTHERS);
+   else {
+      tree_t left = p_expression();
+
+      if (scan(tTO, tDOWNTO)) {
+         tree_set_subkind(t, A_RANGE);
+         tree_set_range(t, p_range(left));
+      }
+      else {
+         tree_set_subkind(t, A_NAMED);
+         tree_set_name(t, left);
+      }
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
+   tree_add_assoc(parent, t);
+}
+
+static void p_choices(tree_t parent)
+{
+   // choices ::= choice { | choice }
+
+   BEGIN("choices");
+
+   p_choice(parent);
+
+   while (optional(tBAR))
+      p_choice(parent);
+}
+
 static void p_element_association(tree_t agg)
 {
    // [ choices => ] expression
 
    BEGIN("element association");
 
-   tree_t expr1 = p_expression();
+   if (look_for(tASSOC, tCOMMA, tRPAREN)) {
+      const int nstart = tree_assocs(agg);
+      p_choices(agg);
 
-   if (scan(tCOMMA, tRPAREN)) {
+      consume(tASSOC);
+
+      tree_t value = p_expression();
+      const int nassocs = tree_assocs(agg);
+      for (int i = nstart; i < nassocs; i++)
+         tree_set_value(tree_assoc(agg, i), value);
+   }
+   else {
       tree_t t = tree_new(T_ASSOC);
       tree_set_subkind(t, A_POS);
-      tree_set_value(t, expr1);
+      tree_set_value(t, p_expression());
       tree_set_loc(t, CURRENT_LOC);
 
       tree_add_assoc(agg, t);
@@ -1084,28 +1167,15 @@ static tree_t p_aggregate(void)
 
    BEGIN("aggregate");
 
-   // XXX: make this more efficient by avoid the creation of a T_AGGREGATE
-   //      in parenthesied expression case
-
    tree_t t = tree_new(T_AGGREGATE);
 
    consume(tLPAREN);
 
-   int count = 0;
    do {
       p_element_association(t);
-      count++;
    } while (optional(tCOMMA));
 
    consume(tRPAREN);
-
-   if (count == 1) {
-      // The grammar is ambiguous between an aggregate with a
-      // single positional element and a parenthesised expression
-      tree_t a = tree_assoc(t, 0);
-      if (tree_subkind(a) == A_POS)
-         return tree_value(a);
-   }
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
@@ -1126,7 +1196,13 @@ static tree_t p_qualified_expression(tree_t name)
 
    consume(tTICK);
 
-   tree_set_value(t, p_aggregate());
+   if (look_for(tCOMMA, tRPAREN))
+      tree_set_value(t, p_aggregate());
+   else {
+      consume(tLPAREN);
+      tree_set_value(t, p_expression());
+      consume(tRPAREN);
+   }
    tree_set_loc(t, CURRENT_LOC);
 
    return t;
@@ -1141,7 +1217,9 @@ static tree_t p_primary(void)
 
    switch (peek()) {
    case tLPAREN:
-      {
+      if (look_for(tCOMMA, tRPAREN))
+         return p_aggregate();
+      else {
          consume(tLPAREN);
          tree_t sub = p_expression();
          consume(tRPAREN);
@@ -1970,7 +2048,7 @@ static type_t p_array_type_definition(void)
 
    BEGIN("array type definition");
 
-   if (look_ahead_for(tBOX, tRPAREN))
+   if (look_for(tBOX, tRPAREN))
       return p_unconstrained_array_definition();
    else
       return p_constrained_array_definition();
@@ -3266,45 +3344,6 @@ static tree_t p_procedure_call_statement(ident_t label, tree_t name)
    return name;
 }
 
-static void p_choice(tree_t stmt)
-{
-   // simple_expression | discrete_range | simple_name | others
-
-   BEGIN("choice");
-
-   tree_t t = tree_new(T_ASSOC);
-
-   if (optional(tOTHERS))
-      tree_set_subkind(t, A_OTHERS);
-   else {
-      tree_t left = p_expression();
-
-      if (scan(tTO, tDOWNTO)) {
-         tree_set_subkind(t, A_RANGE);
-         tree_set_range(t, p_range(left));
-      }
-      else {
-         tree_set_subkind(t, A_NAMED);
-         tree_set_name(t, left);
-      }
-   }
-
-   tree_set_loc(t, CURRENT_LOC);
-   tree_add_assoc(stmt, t);
-}
-
-static void p_choices(tree_t stmt)
-{
-   // choices ::= choice { | choice }
-
-   BEGIN("choices");
-
-   p_choice(stmt);
-
-   while (optional(tBAR))
-      p_choice(stmt);
-}
-
 static void p_case_statement_alternative(tree_t stmt)
 {
    // when choices => sequence_of_statements
@@ -3313,6 +3352,7 @@ static void p_case_statement_alternative(tree_t stmt)
 
    consume(tWHEN);
 
+   const int nstart = tree_assocs(stmt);
    p_choices(stmt);
 
    consume(tASSOC);
@@ -3322,7 +3362,7 @@ static void p_case_statement_alternative(tree_t stmt)
    p_sequence_of_statements(b, tree_add_stmt);
 
    const int nassocs = tree_assocs(stmt);
-   for (int i = 0; i < nassocs; i++)
+   for (int i = nstart; i < nassocs; i++)
       tree_set_value(tree_assoc(stmt, i), b);
 }
 
