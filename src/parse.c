@@ -66,7 +66,7 @@ int yylex(void);
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
-#define TRACE_PARSE    0
+#define TRACE_PARSE    1
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -156,24 +156,43 @@ static token_t peek(void)
    return tokenq->token;
 }
 
-static token_t peek2(void)
+static token_t peek_nth(int n)
 {
    if (tokenq == NULL)
       (void)peek();
 
-   if (tokenq->next == NULL) {
-      extern yylval_t yylval;
+   tokenq_t *it = tokenq;
+   while (--n) {
+      if (it->next == NULL) {
+         extern yylval_t yylval;
 
-      tokenq_t *next = xmalloc(sizeof(tokenq_t));
-      next->next  = NULL;
-      next->token = yylex();
-      next->lval  = yylval;
-      next->loc   = yylloc;
+         tokenq_t *next = xmalloc(sizeof(tokenq_t));
+         next->next  = NULL;
+         next->token = yylex();
+         next->lval  = yylval;
+         next->loc   = yylloc;
 
-      tokenq->next = next;
+         it->next = next;
+      }
+
+      it = it->next;
    }
 
-   return tokenq->next->token;
+   return it->token;
+}
+
+static bool look_ahead_for(token_t look, token_t stop)
+{
+   token_t tok = -1;
+   int n;
+   for (n = 1;
+        (tok != stop) && (tok != stop) && (tok != look);
+        tok = peek_nth(n++))
+      ;
+
+   printf("look_ahead_for n=%d\n", n);
+
+   return (tok == look);
 }
 
 static bool consume(token_t tok)
@@ -738,7 +757,7 @@ static tree_t p_name(void)
 
    tree_t prefix = NULL;
 
-   if (peek2() == tLPAREN) {
+   if (peek_nth(2) == tLPAREN) {
       ident_t id = p_identifier();
       consume(tLPAREN);
       tree_t expr1 = p_expression();
@@ -764,7 +783,7 @@ static tree_t p_name(void)
 
    switch (peek()) {
    case tTICK:
-      switch (peek2()) {
+      switch (peek_nth(2)) {
       case tID:
       case tRANGE:
          return p_attribute_name(prefix);
@@ -818,6 +837,17 @@ static range_t p_range(tree_t left)
    return r;
 }
 
+static range_t p_range_constraint(void)
+{
+   // range range
+
+   BEGIN("range constraint");
+
+   consume(tRANGE);
+
+   return p_range(p_expression());
+}
+
 static range_t p_discrete_range(void)
 {
    // subtype_indication | range
@@ -832,6 +862,21 @@ static range_t p_discrete_range(void)
    case tTICK:
       return p_range(expr1);
 
+   case tRANGE:
+      {
+         if (tree_kind(expr1) != T_REF)
+            assert(false);   // XXX: FIXME
+
+         type_t type = type_new(T_UNRESOLVED);
+         type_set_ident(type, tree_ident(expr1));
+
+         range_t r = p_range_constraint();
+         tree_set_type(r.left, type);
+         tree_set_type(r.right, type);
+
+         return r;
+      }
+
    default:
       {
          range_t r = {
@@ -842,17 +887,6 @@ static range_t p_discrete_range(void)
          return r;
       }
    }
-}
-
-static range_t p_range_constraint(void)
-{
-   // range range
-
-   BEGIN("range constraint");
-
-   consume(tRANGE);
-
-   return p_range(p_expression());
 }
 
 static void p_index_constraint(type_t type)
@@ -894,7 +928,7 @@ static type_t p_subtype_indication(void)
 
    bool made_subtype = false;
    type_t type = NULL;
-   if ((peek() == tID) && (peek2() == tID)) {
+   if ((peek() == tID) && (peek_nth(2) == tID)) {
       type = type_new(T_SUBTYPE);
       made_subtype = true;
 
@@ -1120,7 +1154,7 @@ static tree_t p_primary(void)
       return p_literal();
 
    case tSTRING:
-      return (peek2() == tLPAREN) ? p_name() : p_literal();
+      return (peek_nth(2) == tLPAREN) ? p_name() : p_literal();
 
    case tID:
       {
@@ -1877,6 +1911,71 @@ static type_t p_record_type_definition(void)
    return r;
 }
 
+static type_t p_index_subtype_definition(void)
+{
+   // type_mark range <>
+
+   BEGIN("index subtype definition");
+
+   type_t t = p_type_mark();
+
+   consume(tRANGE);
+   consume(tBOX);
+
+   return t;
+}
+
+static type_t p_unconstrained_array_definition(void)
+{
+   // array ( index_subtype_definition { , index_subtype_definition } )
+   //   of subtype_indication
+
+   BEGIN("unconstrained array definition");
+
+   consume(tARRAY);
+   consume(tLPAREN);
+
+   type_t t = type_new(T_UARRAY);
+   do {
+      type_add_index_constr(t, p_index_subtype_definition());
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+   consume(tOF);
+
+   type_set_elem(t, p_subtype_indication());
+   return t;
+}
+
+static type_t p_constrained_array_definition(void)
+{
+   // array index_constraint of element_subtype_indication
+
+   BEGIN("constrained array definition");
+
+   consume(tARRAY);
+
+   type_t t = type_new(T_CARRAY);
+   p_index_constraint(t);
+
+   consume(tOF);
+
+   type_set_elem(t, p_subtype_indication());
+   return t;
+}
+
+static type_t p_array_type_definition(void)
+{
+   // unconstrained_array_definition | constrained_array_definition
+
+   BEGIN("array type definition");
+
+   if (look_ahead_for(tBOX, tRPAREN))
+      return p_unconstrained_array_definition();
+   else
+      return p_constrained_array_definition();
+}
+
 static type_t p_composite_type_definition(void)
 {
    // array_type_definition | record_type_definition
@@ -1887,8 +1986,11 @@ static type_t p_composite_type_definition(void)
    case tRECORD:
       return p_record_type_definition();
 
+   case tARRAY:
+      return p_array_type_definition();
+
    default:
-      expect(tRECORD);
+      expect(tRECORD, tARRAY);
       return type_new(T_NONE);
    }
 }
@@ -1912,6 +2014,7 @@ static type_t p_type_definition(void)
       return p_file_type_definition();
 
    case tRECORD:
+   case tARRAY:
       return p_composite_type_definition();
 
    default:
@@ -2143,6 +2246,12 @@ static tree_t p_subprogram_specification(void)
    tree_t t = NULL;
    type_t type = NULL;
 
+   bool impure = false;
+   if (optional(tIMPURE))
+      impure = true;
+   else if (optional(tPURE))
+      ;
+
    switch (one_of(tFUNCTION)) {
    case tFUNCTION:
       t = tree_new(T_FUNC_DECL);
@@ -2155,6 +2264,9 @@ static tree_t p_subprogram_specification(void)
 
    tree_set_type(t, type);
    tree_set_ident(t, p_designator());
+
+   if (impure)
+      tree_add_attr_int(t, ident_new("impure"), 1);
 
    if (optional(tLPAREN)) {
       const class_t class =
@@ -2443,12 +2555,11 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    case tFUNCTION:
+   case tIMPURE:
+   case tPURE:
       {
          tree_t spec = p_subprogram_specification();
-         if (peek() == tSEMI)
-            tree_add_decl(pack, p_subprogram_declaration(spec));
-         else
-            tree_add_decl(pack, p_subprogram_body(spec));
+         tree_add_decl(pack, p_subprogram_declaration(spec));
       }
       break;
 
@@ -2461,7 +2572,7 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    default:
-      expect(tTYPE, tFUNCTION, tSUBTYPE, tSIGNAL);
+      expect(tTYPE, tFUNCTION, tIMPURE, tPURE, tSUBTYPE, tSIGNAL);
    }
 }
 
@@ -2471,7 +2582,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE, tFUNCTION, tSUBTYPE, tSIGNAL))
+   while (scan(tTYPE, tFUNCTION, tPURE, tIMPURE, tSUBTYPE, tSIGNAL))
       p_package_declarative_item(pack);
 }
 
@@ -2661,6 +2772,8 @@ static void p_block_declarative_item(tree_t parent)
       break;
 
    case tFUNCTION:
+   case tIMPURE:
+   case tPURE:
       {
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -2671,7 +2784,8 @@ static void p_block_declarative_item(tree_t parent)
       break;
 
    default:
-      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION);
+      expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
+             tPURE);
    }
 }
 
@@ -3256,7 +3370,7 @@ static tree_t p_sequential_statement(void)
    BEGIN("sequential statement");
 
    ident_t label = NULL;
-   if ((peek() == tID) && (peek2() == tCOLON)) {
+   if ((peek() == tID) && (peek_nth(2) == tCOLON)) {
       label = p_identifier();
       consume(tCOLON);
    }
@@ -3409,7 +3523,7 @@ static tree_t p_concurrent_statement(void)
    BEGIN("concurrent statement");
 
    ident_t label = NULL;
-   if ((peek() == tID) && (peek2() == tCOLON)) {
+   if ((peek() == tID) && (peek_nth(2) == tCOLON)) {
       label = p_identifier();
       consume(tCOLON);
    }
@@ -3498,6 +3612,8 @@ static void p_package_body_declarative_item(tree_t parent)
 
    switch (peek()) {
    case tFUNCTION:
+   case tIMPURE:
+   case tPURE:
       {
          tree_t spec = p_subprogram_specification();
          if (peek() == tSEMI)
@@ -3512,7 +3628,7 @@ static void p_package_body_declarative_item(tree_t parent)
       break;
 
    default:
-      expect(tFUNCTION, tSHARED);
+      expect(tFUNCTION, tSHARED, tIMPURE, tPURE);
    }
 }
 
@@ -3522,7 +3638,7 @@ static void p_package_body_declarative_part(tree_t unit)
 
    BEGIN("package body declarative part");
 
-   while (scan(tFUNCTION, tSHARED))
+   while (scan(tFUNCTION, tSHARED, tIMPURE, tPURE))
       p_package_body_declarative_item(unit);
 }
 
@@ -3595,7 +3711,7 @@ static void p_library_unit(tree_t unit)
       break;
 
    case tPACKAGE:
-      if (peek2() == tBODY)
+      if (peek_nth(2) == tBODY)
          p_secondary_unit(unit);
       else
          p_primary_unit(unit);
