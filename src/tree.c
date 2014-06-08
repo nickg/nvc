@@ -302,7 +302,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_PARAMS | I_GENMAPS | I_IDENT | I_IDENT2 | I_CLASS),
 
    // T_LIBRARY
-   (I_IDENT)
+   (I_IDENT),
+
+   // T_DESIGN_UNIT
+   (I_CONTEXT)
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -335,7 +338,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_FIELD_DECL",   "T_RECORD_REF",    "T_ALL",        "T_NEW",
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
-   "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY"
+   "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
+   "T_DESIGN_UNIT"
 };
 
 static const char *item_text_map[] = {
@@ -348,15 +352,19 @@ static const char *item_text_map[] = {
 };
 
 static const tree_kind_t change_allowed[][2] = {
-   { T_REF,       T_FCALL       },
-   { T_REF,       T_PCALL       },
-   { T_ARRAY_REF, T_FCALL       },
-   { T_FCALL,     T_ARRAY_REF   },
-   { T_FCALL,     T_PCALL       },
-   { T_FCALL,     T_TYPE_CONV   },
-   { T_REF,       T_RECORD_REF  },
-   { T_ARRAY_REF, T_ARRAY_SLICE },
-   { T_ASSERT,    T_CASSERT     },
+   { T_REF,         T_FCALL       },
+   { T_REF,         T_PCALL       },
+   { T_ARRAY_REF,   T_FCALL       },
+   { T_FCALL,       T_ARRAY_REF   },
+   { T_FCALL,       T_PCALL       },
+   { T_FCALL,       T_TYPE_CONV   },
+   { T_REF,         T_RECORD_REF  },
+   { T_ARRAY_REF,   T_ARRAY_SLICE },
+   { T_ASSERT,      T_CASSERT     },
+   { T_DESIGN_UNIT, T_ENTITY      },
+   { T_DESIGN_UNIT, T_PACKAGE     },
+   { T_DESIGN_UNIT, T_PACK_BODY   },
+   { T_DESIGN_UNIT, T_ARCH        },
 };
 
 struct tree {

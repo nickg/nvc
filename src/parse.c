@@ -66,7 +66,7 @@ int yylex(void);
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
-#define TRACE_PARSE    1
+#define TRACE_PARSE    0
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -465,17 +465,89 @@ static ident_list_t *p_identifier_list(void)
    return result;
 }
 
-static void p_library_clause(void)
+static ident_t p_operator_symbol(void)
 {
+   // string_literal
 
+   consume(tSTRING);
+
+   char *s = last_lval.s;
+   for (char *p = s; *p != '\0'; p++)
+      *p = tolower((int)*p);
+   ident_t id = ident_new(s);
+   free(s);
+
+   return id;
 }
 
-static void p_use_clause(void)
+static void p_library_clause(tree_t unit)
 {
+   // library logical_name_list ;
 
+   BEGIN("library clause");
+
+   consume(tLIBRARY);
 }
 
-static void p_context_item(void)
+static void p_use_clause(tree_t unit)
+{
+   // use selected_name { , selected_name } ;
+
+   // TODO: the structure of this is a hangover from the old Bison parser
+
+   BEGIN("use clause");
+
+   consume(tUSE);
+
+   do {
+      tree_t u = tree_new(T_USE);
+
+      ident_t i1 = p_identifier();
+      consume(tDOT);
+
+      switch (peek()) {
+      case tID:
+         tree_set_ident(u, ident_prefix(i1, p_identifier(), '.'));
+
+         if (optional(tDOT)) {
+            switch (peek()) {
+            case tID:
+               tree_set_ident2(u, p_identifier());
+               break;
+
+            case tSTRING:
+               tree_set_ident2(u, p_operator_symbol());
+               break;
+
+            case tALL:
+               consume(tALL);
+               tree_set_ident2(u, ident_new("all"));
+               break;
+
+            default:
+               expect(tID, tSTRING, tALL);
+            }
+         }
+         break;
+
+      case tALL:
+         consume(tALL);
+         tree_set_ident(u, i1);
+         tree_set_ident2(u, ident_new("all"));
+         break;
+
+      default:
+         expect(tID, tALL);
+      }
+
+      tree_set_loc(u, CURRENT_LOC);
+      tree_add_context(unit, u);
+   } while (optional(tCOMMA));
+
+   consume(tSEMI);
+}
+
+static void p_context_item(tree_t unit)
 {
    // library_clause | use_clause
 
@@ -483,11 +555,11 @@ static void p_context_item(void)
 
    switch (peek()) {
    case tLIBRARY:
-      p_library_clause();
+      p_library_clause(unit);
       break;
 
    case tUSE:
-      p_use_clause();
+      p_use_clause(unit);
       break;
 
    default:
@@ -495,15 +567,14 @@ static void p_context_item(void)
    }
 }
 
-static void p_context_clause(void)
+static void p_context_clause(tree_t unit)
 {
    // { context_item }
 
    BEGIN("context clause");
 
-   while (scan(tLIBRARY, tUSE)) {
-      p_context_item();
-   }
+   while (scan(tLIBRARY, tUSE))
+      p_context_item(unit);
 }
 
 static port_mode_t p_mode(void)
@@ -535,21 +606,6 @@ static tree_t p_simple_name(void)
    tree_set_loc(t, CURRENT_LOC);
 
    return t;
-}
-
-static ident_t p_operator_symbol(void)
-{
-   // string_literal
-
-   consume(tSTRING);
-
-   char *s = last_lval.s;
-   for (char *p = s; *p != '\0'; p++)
-      *p = tolower((int)*p);
-   ident_t id = ident_new(s);
-   free(s);
-
-   return id;
 }
 
 static tree_t p_slice_name(ident_t prefix, tree_t expr1)
@@ -2051,27 +2107,27 @@ static void p_entity_statement_part(tree_t entity)
       tree_add_stmt(entity, p_entity_statement());
 }
 
-static tree_t p_entity_declaration(void)
+static void p_entity_declaration(tree_t unit)
 {
    // entity identifier is entity_header entity_declarative_part
    //   [ begin entity_statement_part ] end [ entity ] [ entity_simple_name ] ;
 
    BEGIN("entity declaration");
 
-   tree_t t = tree_new(T_ENTITY);
+   tree_change_kind(unit, T_ENTITY);
 
    consume(tENTITY);
 
    ident_t id = p_identifier();
-   tree_set_ident(t, id);
+   tree_set_ident(unit, id);
 
    consume(tIS);
 
-   p_entity_header(t);
-   p_entity_declarative_part(t);
+   p_entity_header(unit);
+   p_entity_declarative_part(unit);
 
    if (optional(tBEGIN))
-      p_entity_statement_part(t);
+      p_entity_statement_part(unit);
 
    consume(tEND);
    optional(tENTITY);
@@ -2084,8 +2140,7 @@ static tree_t p_entity_declaration(void)
 
    consume(tSEMI);
 
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_loc(unit, CURRENT_LOC);
 }
 
 static void p_package_declarative_item(tree_t pack)
@@ -2129,7 +2184,7 @@ static void p_package_declarative_part(tree_t pack)
       p_package_declarative_item(pack);
 }
 
-static tree_t p_package_declaration(void)
+static void p_package_declaration(tree_t unit)
 {
    // package identifier is package_declarative_part end [ package ]
    //   [ simple_name ] ;
@@ -2138,12 +2193,12 @@ static tree_t p_package_declaration(void)
 
    consume(tPACKAGE);
 
-   tree_t p = tree_new(T_PACKAGE);
-   tree_set_ident(p, p_identifier());
+   tree_change_kind(unit, T_PACKAGE);
+   tree_set_ident(unit, p_identifier());
 
    consume(tIS);
 
-   p_package_declarative_part(p);
+   p_package_declarative_part(unit);
 
    consume(tEND);
    optional(tPACKAGE);
@@ -2156,11 +2211,10 @@ static tree_t p_package_declaration(void)
 
    consume(tSEMI);
 
-   tree_set_loc(p, CURRENT_LOC);
-   return p;
+   tree_set_loc(unit, CURRENT_LOC);
 }
 
-static tree_t p_primary_unit(void)
+static void p_primary_unit(tree_t unit)
 {
    // entity_declaration | configuration_declaration | package_declaration
 
@@ -2168,14 +2222,15 @@ static tree_t p_primary_unit(void)
 
    switch (peek()) {
    case tENTITY:
-      return p_entity_declaration();
+      p_entity_declaration(unit);
+      break;
 
    case tPACKAGE:
-      return p_package_declaration();
+      p_package_declaration(unit);
+      break;
 
    default:
       expect(tENTITY);
-      return NULL;
    }
 }
 
@@ -3190,7 +3245,7 @@ static void p_architecture_statement_part(tree_t arch)
       tree_add_stmt(arch, p_concurrent_statement());
 }
 
-static tree_t p_architecture_body(void)
+static void p_architecture_body(tree_t unit)
 {
    // architecture identifier of entity_name is architecture_declarative_part
    //   begin architecture_statement_part end [ architecture ]
@@ -3198,19 +3253,19 @@ static tree_t p_architecture_body(void)
 
    BEGIN("architecture body");
 
-   tree_t t = tree_new(T_ARCH);
+   tree_change_kind(unit, T_ARCH);
 
    consume(tARCHITECTURE);
-   tree_set_ident(t, p_identifier());
+   tree_set_ident(unit, p_identifier());
    consume(tOF);
-   tree_set_ident2(t, p_identifier());
+   tree_set_ident2(unit, p_identifier());
    consume(tIS);
 
-   p_architecture_declarative_part(t);
+   p_architecture_declarative_part(unit);
 
    consume(tBEGIN);
 
-   p_architecture_statement_part(t);
+   p_architecture_statement_part(unit);
 
    consume(tEND);
    optional(tARCHITECTURE);
@@ -3223,11 +3278,10 @@ static tree_t p_architecture_body(void)
 
    consume(tSEMI);
 
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
+   tree_set_loc(unit, CURRENT_LOC);
 }
 
-static tree_t p_secondary_unit(void)
+static void p_secondary_unit(tree_t unit)
 {
    // architecture_body | package_body
 
@@ -3235,15 +3289,15 @@ static tree_t p_secondary_unit(void)
 
    switch (peek()) {
    case tARCHITECTURE:
-      return p_architecture_body();
+      p_architecture_body(unit);
+      break;
 
    default:
       expect(tARCHITECTURE);
-      return NULL;
    }
 }
 
-static tree_t p_library_unit(void)
+static void p_library_unit(tree_t unit)
 {
    // primary_unit | secondary_unit
 
@@ -3251,20 +3305,22 @@ static tree_t p_library_unit(void)
 
    switch (peek()) {
    case tENTITY:
-      return p_primary_unit();
+      p_primary_unit(unit);
+      break;
 
    case tARCHITECTURE:
-      return p_secondary_unit();
+      p_secondary_unit(unit);
+      break;
 
    case tPACKAGE:
       if (peek2() == tBODY)
-         return p_secondary_unit();
+         p_secondary_unit(unit);
       else
-         return p_primary_unit();
+         p_primary_unit(unit);
+      break;
 
    default:
       expect(tENTITY, tARCHITECTURE, tPACKAGE);
-      return NULL;
    }
 }
 
@@ -3272,8 +3328,10 @@ static tree_t p_design_unit(void)
 {
    BEGIN("design unit");
 
-   p_context_clause();
-   tree_t unit = p_library_unit();
+   tree_t unit = tree_new(T_DESIGN_UNIT);
+
+   p_context_clause(unit);
+   p_library_unit(unit);
 
    return unit;
 }
