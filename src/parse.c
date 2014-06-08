@@ -31,6 +31,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <limits.h>
 
 typedef struct tokenq tokenq_t;
 
@@ -1477,10 +1478,35 @@ static tree_t p_expression(void)
 
    BEGIN("expression");
 
-   tree_t left = p_relation();
+   tree_t expr = p_relation();
 
-   // XXX
-   return left;
+   int loop_limit = (scan(tNOR, tNAND) ? 1 : INT_MAX);
+
+   while (loop_limit-- && scan(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
+      ident_t op;
+      switch (one_of(tAND, tOR, tXOR, tNAND, tNOR, tXNOR)) {
+      case tAND:  op = ident_new("\"and\""); break;
+      case tOR:   op = ident_new("\"or\""); break;
+      case tXOR:  op = ident_new("\"xor\""); break;
+      case tNAND: op = ident_new("\"nand\""); break;
+      case tNOR:  op = ident_new("\"nor\""); break;
+      case tXNOR: op = ident_new("\"xnor\""); break;
+      default:
+         op = ident_new("error");
+      }
+
+      tree_t left  = expr;
+      tree_t right = p_relation();
+
+      expr = tree_new(T_FCALL);
+      tree_set_ident(expr, op);
+      tree_set_loc(expr, CURRENT_LOC);
+
+      add_param(expr, left, P_POS, NULL);
+      add_param(expr, right, P_POS, NULL);
+   }
+
+   return expr;
 }
 
 static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
@@ -2983,7 +3009,10 @@ static tree_t p_target(tree_t name)
 
    BEGIN("target");
 
-   return name;
+   if (name == NULL)
+      return p_name();
+   else
+      return name;
 }
 
 static tree_t p_variable_assignment_statement(ident_t label, tree_t name)
@@ -3789,6 +3818,176 @@ static tree_t p_component_instantiation_statement(ident_t label)
    return t;
 }
 
+static tree_t p_options(tree_t stmt)
+{
+   // [ guarded ] [ delay_mechanism ]
+
+   BEGIN("options");
+
+   if (optional(tGUARDED))
+      tree_add_attr_int(stmt, ident_new("guarded"), 1);
+
+   return p_delay_mechanism();
+}
+
+static void p_conditional_waveforms(tree_t stmt)
+{
+   // { waveform when condition else } waveform [ when condition ]
+
+   BEGIN("conditional waveforms");
+
+   for (;;) {
+      tree_t c = tree_new(T_COND);
+      p_waveform(c);
+      tree_set_loc(c, CURRENT_LOC);
+
+      tree_add_cond(stmt, c);
+
+      if (optional(tWHEN)) {
+         tree_set_value(c, p_expression());
+
+         if (!optional(tELSE))
+            break;
+      }
+      else
+         break;
+   }
+}
+
+static tree_t p_conditional_signal_assignment(void)
+{
+   // target <= options conditional_waveforms ;
+
+   BEGIN("conditional signal assignment");
+
+   tree_t t = tree_new(T_CASSIGN);
+   tree_set_target(t, p_target(NULL));
+
+   consume(tLE);
+
+   tree_t reject = p_options(t);
+   p_conditional_waveforms(t);
+
+   const int nconds = tree_conds(t);
+   for (int i = 0; i < nconds; i++)
+      set_delay_mechanism(tree_cond(t, i), reject);
+
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static void p_selected_waveforms(tree_t stmt)
+{
+   // { waveform when choices , } waveform when choices
+
+   BEGIN("selected waveforms");
+
+   do {
+      tree_t a = tree_new(T_SIGNAL_ASSIGN);
+      p_waveform(a);
+
+      consume(tWHEN);
+
+      const int nstart = tree_assocs(stmt);
+      p_choices(stmt);
+
+      const int nassocs = tree_assocs(stmt);
+      for (int i = nstart; i < nassocs; i++)
+         tree_set_value(tree_assoc(stmt, i), a);
+
+      tree_set_loc(a, CURRENT_LOC);
+   } while (optional(tCOMMA));
+}
+
+static tree_t p_selected_signal_assignment(void)
+{
+   // with expression select target <= options selected_waveforms ;
+
+   BEGIN("selected signal assignment");
+
+   consume(tWITH);
+
+   tree_t t = tree_new(T_SELECT);
+   tree_set_value(t, p_expression());
+
+   consume(tSELECT);
+   tree_t target = p_target(NULL);
+   consume(tLE);
+   tree_t reject = p_options(t);
+   p_selected_waveforms(t);
+   consume(tSEMI);
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t s = tree_value(tree_assoc(t, i));
+      tree_set_target(s, target);
+      set_delay_mechanism(s, reject);
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_concurrent_signal_assignment_statement(ident_t label)
+{
+   // [ label : ] [ postponed ] conditional_signal_assignment
+   //   | [ label : ] [ postponed ] selected_signal_assignment
+
+   EXTEND("concurrent signal assignment statement");
+
+   const bool postponed = optional(tPOSTPONED);
+
+   tree_t t = (peek() == tWITH)
+      ? p_selected_signal_assignment()
+      : p_conditional_signal_assignment();
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   if (postponed)
+      tree_add_attr_int(t, ident_new("postponed"), 1);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_concurrent_procedure_call_statement(ident_t label)
+{
+   // [ label : ] [ postponed ] procedure_call ;
+
+   EXTEND("concurrent procedure call statement");
+
+   const bool postponed = optional(tPOSTPONED);
+
+   tree_t t = p_name();
+
+   const tree_kind_t kind = tree_kind(t);
+   if ((kind != T_REF) && (kind != T_FCALL))
+      assert(false);  // XXX: FIXME
+
+   tree_change_kind(t, T_CPCALL);
+
+   consume(tSEMI);
+
+   if (postponed)
+      tree_add_attr_int(t, ident_new("postponed"), 1);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   return t;
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -3805,12 +4004,21 @@ static tree_t p_concurrent_statement(void)
    }
 
    if (peek() == tID) {
-      switch (peek_nth(2)) {
-      case tSEMI:
+      if (peek_nth(2) == tSEMI)
          return p_component_instantiation_statement(label);
-      default:
-         // concurrent assignment
-         assert(false);
+      else {
+         const look_params_t lookp = {
+            .look     = { tLE },
+            .stop     = { tSEMI },
+            .nest_in  = tLPAREN,
+            .nest_out = tRPAREN,
+            .depth    = 0
+         };
+
+         if (look_for(&lookp))
+            return p_concurrent_signal_assignment_statement(label);
+         else
+            return p_concurrent_procedure_call_statement(label);
       }
    }
    else {
@@ -3823,6 +4031,9 @@ static tree_t p_concurrent_statement(void)
       case tENTITY:
       case tCONFIGURATION:
          return p_component_instantiation_statement(label);
+
+      case tWITH:
+         return p_concurrent_signal_assignment_statement(label);
 
       default:
          expect(tPROCESS, tPOSTPONED);
@@ -3847,7 +4058,7 @@ static void p_architecture_statement_part(tree_t arch)
 
    BEGIN("architecture statement part");
 
-   while (scan(tID, tPROCESS, tPOSTPONED))
+   while (scan(tID, tPROCESS, tPOSTPONED, tWITH))
       tree_add_stmt(arch, p_concurrent_statement());
 }
 

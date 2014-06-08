@@ -189,7 +189,7 @@ ROR           {R}{O}{R}
 GROUP         {G}{R}{O}{U}{P}
 LABEL         {L}{A}{B}{E}{L}
 LITERAL       {L}{I}{T}{E}{R}{A}{L}
-RRANGE        {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
+GUARDED       {G}{U}{A}{R}{D}{E}{D}
 
 %%
 
@@ -289,6 +289,7 @@ RRANGE        {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 {LITERAL}       { TOKEN(tLITERAL); }
 {GROUP}         { TOKEN(tGROUP); }
 {LABEL}         { TOKEN(tLABEL); }
+{GUARDED}       { TOKEN(tGUARDED); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }
