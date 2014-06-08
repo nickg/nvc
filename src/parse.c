@@ -41,6 +41,15 @@ struct tokenq {
    loc_t     loc;
 };
 
+typedef struct {
+   token_t look[4];
+   token_t stop[4];
+   token_t abort;
+   token_t nest_in;
+   token_t nest_out;
+   int     depth;
+} look_params_t;
+
 static const char *perm_linebuf = NULL;
 static const char *perm_file_name = NULL;
 static int         n_token_next_start = 0;
@@ -64,7 +73,6 @@ int yylex(void);
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
-#define look_for(look, ...) _look_for(look, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
@@ -182,48 +190,44 @@ static token_t peek_nth(int n)
    return it->token;
 }
 
-static bool _look_for(token_t look, ...)
+static bool look_for(const look_params_t *params)
 {
-   token_t stop[16];
-   int nstop = 0;
-
-   va_list ap;
-   va_start(ap, look);
-
-   while ((stop[nstop++] = va_arg(ap, token_t)) != -1)
-      assert(nstop < ARRAY_LEN(stop));
-
-   va_end(ap);
-
+   bool found = false;
    token_t tok = -1;
    int n, nest = 0;
    for (n = 1; ;) {
       tok = peek_nth(n++);
-
-      switch (tok) {
-      case tEOF:
+      if ((tok == tEOF) || (tok == params->abort))
          goto stop_looking;
-      case tLPAREN:
+      else if (tok == params->nest_in)
          nest++;
-         break;
-      case tRPAREN:
-         nest--;
-         break;
-      default:
-         if (tok == look)
-            goto stop_looking;
+
+      if (nest == params->depth) {
+         for (int i = 0; i < ARRAY_LEN(params->look); i++) {
+            if (tok == params->look[i]) {
+               found = true;
+               goto stop_looking;
+            }
+         }
+
+         for (int i = 0; i < ARRAY_LEN(params->stop); i++) {
+            if (tok == params->stop[i])
+               goto stop_looking;
+         }
       }
 
-      for (int i = 0; i < nstop; i++) {
-         if ((tok == stop[i]) && (nest <= 0))
-            goto stop_looking;
-      }
+      if (tok == params->nest_out)
+         nest--;
    }
  stop_looking:
 
-   printf("look_ahead_for n=%d\n", n);
+   if (n >= 10)
+      warn_at(&(tokenq->loc), "look ahead depth %d", n);
 
-   return (tok == look);
+   printf("look_for n=%d found=%d nlook=%d nstop=%d\n",
+          n - 1, found, (int)ARRAY_LEN(params->look), (int)ARRAY_LEN(params->stop));
+
+   return found;
 }
 
 static bool consume(token_t tok)
@@ -1140,7 +1144,16 @@ static void p_element_association(tree_t agg)
 
    BEGIN("element association");
 
-   if (look_for(tASSOC, tCOMMA, tRPAREN)) {
+   const look_params_t lookp = {
+      .look     = { tASSOC },
+      .stop     = { tCOMMA, tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 0
+   };
+
+   if (look_for(&lookp)) {
       const int nstart = tree_assocs(agg);
       p_choices(agg);
 
@@ -1196,7 +1209,16 @@ static tree_t p_qualified_expression(tree_t name)
 
    consume(tTICK);
 
-   if (look_for(tCOMMA, tRPAREN))
+   const look_params_t lookp = {
+      .look     = { tCOMMA, tASSOC },
+      .stop     = { tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 1
+   };
+
+   if (look_for(&lookp))
       tree_set_value(t, p_aggregate());
    else {
       consume(tLPAREN);
@@ -1217,13 +1239,24 @@ static tree_t p_primary(void)
 
    switch (peek()) {
    case tLPAREN:
-      if (look_for(tCOMMA, tRPAREN))
-         return p_aggregate();
-      else {
-         consume(tLPAREN);
-         tree_t sub = p_expression();
-         consume(tRPAREN);
-         return sub;
+      {
+         const look_params_t lookp = {
+            .look     = { tCOMMA, tASSOC },
+            .stop     = { tRPAREN },
+            .abort    = tSEMI,
+            .nest_in  = tLPAREN,
+            .nest_out = tRPAREN,
+            .depth    = 1
+         };
+
+         if (look_for(&lookp))
+            return p_aggregate();
+         else {
+            consume(tLPAREN);
+            tree_t sub = p_expression();
+            consume(tRPAREN);
+            return sub;
+         }
       }
 
    case tINT:
@@ -2048,7 +2081,16 @@ static type_t p_array_type_definition(void)
 
    BEGIN("array type definition");
 
-   if (look_for(tBOX, tRPAREN))
+   const look_params_t lookp = {
+      .look     = { tBOX },
+      .stop     = { tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 1
+   };
+
+   if (look_for(&lookp))
       return p_unconstrained_array_definition();
    else
       return p_constrained_array_definition();
