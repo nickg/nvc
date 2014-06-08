@@ -764,7 +764,13 @@ static tree_t p_name(void)
 
    switch (peek()) {
    case tTICK:
-      return p_attribute_name(prefix);
+      switch (peek2()) {
+      case tID:
+      case tRANGE:
+         return p_attribute_name(prefix);
+      default:
+         return prefix;
+      }
    case tDOT:
       return p_selected_name(prefix);
    default:
@@ -1020,6 +1026,78 @@ static tree_t p_literal(void)
    }
 }
 
+static void p_element_association(tree_t agg)
+{
+   // [ choices => ] expression
+
+   BEGIN("element association");
+
+   tree_t expr1 = p_expression();
+
+   if (scan(tCOMMA, tRPAREN)) {
+      tree_t t = tree_new(T_ASSOC);
+      tree_set_subkind(t, A_POS);
+      tree_set_value(t, expr1);
+      tree_set_loc(t, CURRENT_LOC);
+
+      tree_add_assoc(agg, t);
+   }
+}
+
+static tree_t p_aggregate(void)
+{
+   // ( element_association { , element_association } )
+
+   BEGIN("aggregate");
+
+   // XXX: make this more efficient by avoid the creation of a T_AGGREGATE
+   //      in parenthesied expression case
+
+   tree_t t = tree_new(T_AGGREGATE);
+
+   consume(tLPAREN);
+
+   int count = 0;
+   do {
+      p_element_association(t);
+      count++;
+   } while (optional(tCOMMA));
+
+   consume(tRPAREN);
+
+   if (count == 1) {
+      // The grammar is ambiguous between an aggregate with a
+      // single positional element and a parenthesised expression
+      tree_t a = tree_assoc(t, 0);
+      if (tree_subkind(a) == A_POS)
+         return tree_value(a);
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
+static tree_t p_qualified_expression(tree_t name)
+{
+   // type_mark ' ( expression ) | type_mark ' aggregate
+
+   EXTEND("qualified expression");
+
+   tree_t t = tree_new(T_QUALIFIED);
+
+   if (tree_kind(name) != T_REF)
+      assert(false);   // XXX: FIXME
+   else
+      tree_set_ident(t, tree_ident(name));
+
+   consume(tTICK);
+
+   tree_set_value(t, p_aggregate());
+   tree_set_loc(t, CURRENT_LOC);
+
+   return t;
+}
+
 static tree_t p_primary(void)
 {
    // name | literal | aggregate | function_call | qualified_expression
@@ -1045,7 +1123,15 @@ static tree_t p_primary(void)
       return (peek2() == tLPAREN) ? p_name() : p_literal();
 
    case tID:
-      return p_name();
+      {
+         tree_t name = p_name();
+         switch (peek()) {
+         case tTICK:
+            return p_qualified_expression(name);
+         default:
+            return name;
+         }
+      }
 
    default:
       expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING);
@@ -1237,44 +1323,6 @@ static tree_t p_expression(void)
 
    // XXX
    return left;
-}
-
-static void p_element_association(tree_t agg)
-{
-   // [ choices => ] expression
-
-   BEGIN("element association");
-
-   tree_t expr1 = p_expression();
-
-   if (scan(tCOMMA, tRPAREN)) {
-      tree_t t = tree_new(T_ASSOC);
-      tree_set_subkind(t, A_POS);
-      tree_set_value(t, expr1);
-      tree_set_loc(t, CURRENT_LOC);
-
-      tree_add_assoc(agg, t);
-   }
-}
-
-static tree_t p_aggregate(void)
-{
-   // ( element_association { , element_association } )
-
-   BEGIN("aggregate");
-
-   tree_t t = tree_new(T_AGGREGATE);
-
-   consume(tLPAREN);
-
-   do {
-      p_element_association(t);
-   } while (optional(tCOMMA));
-
-   consume(tRPAREN);
-
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
 }
 
 static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
