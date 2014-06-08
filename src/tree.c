@@ -365,6 +365,8 @@ static const tree_kind_t change_allowed[][2] = {
    { T_DESIGN_UNIT, T_PACKAGE     },
    { T_DESIGN_UNIT, T_PACK_BODY   },
    { T_DESIGN_UNIT, T_ARCH        },
+   { T_FUNC_DECL,   T_FUNC_BODY   },
+   { T_PROC_DECL,   T_PROC_BODY   },
 };
 
 struct tree {

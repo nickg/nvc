@@ -487,6 +487,18 @@ static void p_library_clause(tree_t unit)
    BEGIN("library clause");
 
    consume(tLIBRARY);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t l = tree_new(T_LIBRARY);
+      tree_set_ident(l, it->ident);
+      tree_set_loc(l, CURRENT_LOC);
+
+      tree_add_context(unit, l);
+   }
 }
 
 static void p_use_clause(tree_t unit)
@@ -2072,12 +2084,169 @@ static tree_t p_subprogram_specification(void)
    return t;
 }
 
+static void p_variable_declaration(tree_t parent)
+{
+   // [ shared ] variable identifier_list : subtype_indication
+   //   [ := expression ] ;
+
+   BEGIN("variable declaration");
+
+   const bool shared = optional(tSHARED);
+
+   consume(tVARIABLE);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_VAR_DECL);
+      tree_set_loc(t, loc);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      if (shared)
+         tree_add_attr_int(t, ident_new("shared"), 1);
+
+      tree_add_decl(parent, t);
+   }
+}
+
+static void p_signal_declaration(tree_t parent)
+{
+   // signal identifier_list : subtype_indication [ signal_kind ]
+   //   [ := expression ] ;
+
+   BEGIN("signal declaration");
+
+   consume(tSIGNAL);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   // [ signal_kind ]
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_SIGNAL_DECL);
+      tree_set_loc(t, loc);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
+static void p_subprogram_declarative_item(tree_t sub)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | variable_declaration
+   //   | file_declaration | alias_declaration | attribute_declaration
+   //   | attribute_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("subprogram delcarative item");
+
+   switch (peek()) {
+   case tVARIABLE:
+      p_variable_declaration(sub);
+      break;
+
+   default:
+      expect(tVARIABLE);
+   }
+}
+
+static void p_subprogram_declarative_part(tree_t sub)
+{
+   // { subprogram_declarative_item }
+
+   BEGIN("subprogram declarative part");
+
+   while (scan(tVARIABLE))
+      p_subprogram_declarative_item(sub);
+}
+
+static void p_sequence_of_statements(tree_t parent, add_func_t addf)
+{
+   // { sequential_statement }
+
+   BEGIN("sequence of statements");
+
+   while (scan(tID, tWAIT, tASSERT, tREPORT, tIF, tNULL, tRETURN,
+               tWHILE, tFOR, tLOOP, tEXIT, tCASE, tNEXT, tLPAREN))
+      (*addf)(parent, p_sequential_statement());
+}
+
 static tree_t p_subprogram_body(tree_t spec)
 {
    // subprogram_specification is subprogram_declarative_part begin
    //   subprogram_statement_part end [ subprogram_kind ] [ designator ] ;
 
    EXTEND("subprogram body");
+
+   consume(tIS);
+
+   const tree_kind_t kind =
+      (tree_kind(spec) == T_FUNC_DECL) ? T_FUNC_BODY : T_PROC_BODY;
+   tree_change_kind(spec, kind);
+
+   p_subprogram_declarative_part(spec);
+
+   consume(tBEGIN);
+
+   p_sequence_of_statements(spec, tree_add_stmt);
+
+   consume(tEND);
+
+   switch (peek()) {
+   case tFUNCTION:
+      consume(tFUNCTION);
+      // XXX: check is function;
+      break;
+
+   case tPROCEDURE:
+      consume(tPROCEDURE);
+      // XXX: check is procedure
+      break;
+
+   default:
+      break;
+   }
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
 
    return spec;
 }
@@ -2200,8 +2369,12 @@ static void p_package_declarative_item(tree_t pack)
       tree_add_decl(pack, p_subtype_declaration());
       break;
 
+   case tSIGNAL:
+      p_signal_declaration(pack);
+      break;
+
    default:
-      expect(tTYPE, tFUNCTION, tSUBTYPE);
+      expect(tTYPE, tFUNCTION, tSUBTYPE, tSIGNAL);
    }
 }
 
@@ -2211,7 +2384,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE, tFUNCTION, tSUBTYPE))
+   while (scan(tTYPE, tFUNCTION, tSUBTYPE, tSIGNAL))
       p_package_declarative_item(pack);
 }
 
@@ -2262,44 +2435,6 @@ static void p_primary_unit(tree_t unit)
 
    default:
       expect(tENTITY);
-   }
-}
-
-static void p_signal_declaration(tree_t parent)
-{
-   // signal identifier_list : subtype_indication [ signal_kind ]
-   //   [ := expression ] ;
-
-   BEGIN("signal declaration");
-
-   consume(tSIGNAL);
-
-   LOCAL_IDENT_LIST ids = p_identifier_list();
-
-   consume(tCOLON);
-
-   type_t type = p_subtype_indication();
-
-   // [ signal_kind ]
-
-   tree_t init = NULL;
-   if (optional(tASSIGN))
-      init = p_expression();
-
-   consume(tSEMI);
-
-   const loc_t *loc = CURRENT_LOC;
-
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_SIGNAL_DECL);
-      tree_set_loc(t, loc);
-      tree_set_ident(t, it->ident);
-      tree_set_type(t, type);
-
-      if (init != NULL)
-         tree_set_value(t, init);
-
-      tree_add_decl(parent, t);
    }
 }
 
@@ -2450,42 +2585,6 @@ static void p_block_declarative_item(tree_t parent)
 
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION);
-   }
-}
-
-static void p_variable_declaration(tree_t parent)
-{
-   // [ shared ] variable identifier_list : subtype_indication
-   //   [ := expression ] ;
-
-   BEGIN("variable declaration");
-
-   consume(tVARIABLE);
-
-   LOCAL_IDENT_LIST ids = p_identifier_list();
-
-   consume(tCOLON);
-
-   type_t type = p_subtype_indication();
-
-   tree_t init = NULL;
-   if (optional(tASSIGN))
-      init = p_expression();
-
-   consume(tSEMI);
-
-   const loc_t *loc = CURRENT_LOC;
-
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_VAR_DECL);
-      tree_set_loc(t, loc);
-      tree_set_ident(t, it->ident);
-      tree_set_type(t, type);
-
-      if (init != NULL)
-         tree_set_value(t, init);
-
-      tree_add_decl(parent, t);
    }
 }
 
@@ -2753,17 +2852,6 @@ static tree_t p_report_statement(ident_t label)
 
    set_label_and_loc(t, label, CURRENT_LOC);
    return t;
-}
-
-static void p_sequence_of_statements(tree_t parent, add_func_t addf)
-{
-   // { sequential_statement }
-
-   BEGIN("sequence of statements");
-
-   while (scan(tID, tWAIT, tASSERT, tREPORT, tIF, tNULL, tRETURN,
-               tWHILE, tFOR, tLOOP, tEXIT, tCASE, tNEXT, tLPAREN))
-      (*addf)(parent, p_sequential_statement());
 }
 
 static tree_t p_if_statement(ident_t label)
@@ -3312,6 +3400,78 @@ static void p_architecture_body(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
+static void p_package_body_declarative_item(tree_t parent)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | use_clause | group_template_declaration | group_declaration
+
+   BEGIN("package body declarative item");
+
+   switch (peek()) {
+   case tFUNCTION:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(parent, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(parent, p_subprogram_body(spec));
+      }
+      break;
+
+   case tSHARED:
+      p_variable_declaration(parent);
+      break;
+
+   default:
+      expect(tFUNCTION, tSHARED);
+   }
+}
+
+static void p_package_body_declarative_part(tree_t unit)
+{
+   // { package_body_declarative_item }
+
+   BEGIN("package body declarative part");
+
+   while (scan(tFUNCTION, tSHARED))
+      p_package_body_declarative_item(unit);
+}
+
+static void p_package_body(tree_t unit)
+{
+   // package body simple_name is package_body_declarative_part
+   //   end [ package body ] [ simple_name ] ;
+
+   BEGIN("package body");
+
+   consume(tPACKAGE);
+   consume(tBODY);
+
+   tree_change_kind(unit, T_PACK_BODY);
+   tree_set_ident(unit, p_identifier());
+
+   consume(tIS);
+
+   p_package_body_declarative_part(unit);
+
+   consume(tEND);
+
+   if (optional(tPACKAGE))
+      consume(tBODY);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(unit, CURRENT_LOC);
+}
+
 static void p_secondary_unit(tree_t unit)
 {
    // architecture_body | package_body
@@ -3323,8 +3483,12 @@ static void p_secondary_unit(tree_t unit)
       p_architecture_body(unit);
       break;
 
+   case tPACKAGE:
+      p_package_body(unit);
+      break;
+
    default:
-      expect(tARCHITECTURE);
+      expect(tARCHITECTURE, tPACKAGE);
    }
 }
 
