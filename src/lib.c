@@ -155,24 +155,34 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    assert(lib != NULL);
    assert(unit != NULL);
 
-   if (lib->n_units == 0) {
-      lib->units_alloc = 16;
-      lib->units = xmalloc(sizeof(struct lib_unit) * lib->units_alloc);
-   }
-   else if (lib->n_units == lib->units_alloc) {
-      lib->units_alloc *= 2;
-      lib->units = xrealloc(lib->units,
-                            sizeof(struct lib_unit) * lib->units_alloc);
-   }
-
-   unsigned n = lib->n_units++;
-   lib->units[n].top      = unit;
-   lib->units[n].read_ctx = ctx;
-   lib->units[n].dirty    = dirty;
-   lib->units[n].mtime    = mtime;
-   lib->units[n].kind     = tree_kind(unit);
-
+   struct lib_unit *where = NULL;
    ident_t name = tree_ident(unit);
+
+   for (unsigned i = 0; (where == NULL) && (i < lib->n_units); i++) {
+      if (tree_ident(lib->units[i].top) == tree_ident(unit))
+         where = &(lib->units[i]);
+   }
+
+   if (where == NULL) {
+      if (lib->n_units == 0) {
+         lib->units_alloc = 16;
+         lib->units = xmalloc(sizeof(struct lib_unit) * lib->units_alloc);
+      }
+      else if (lib->n_units == lib->units_alloc) {
+         lib->units_alloc *= 2;
+         lib->units = xrealloc(lib->units,
+                               sizeof(struct lib_unit) * lib->units_alloc);
+      }
+
+      where = &(lib->units[lib->n_units++]);
+   }
+
+   where->top      = unit;
+   where->read_ctx = ctx;
+   where->dirty    = dirty;
+   where->mtime    = mtime;
+   where->kind     = tree_kind(unit);
+
    struct lib_index *it;
    for (it = lib->index;
         (it != NULL) && (it->name != name);
@@ -190,7 +200,7 @@ static struct lib_unit *lib_put_aux(lib_t lib, tree_t unit,
    else
       it->kind = tree_kind(unit);
 
-   return &(lib->units[n]);
+   return where;
 }
 
 static lib_t lib_find_at(const char *name, const char *path)
