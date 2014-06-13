@@ -275,7 +275,7 @@ static void _vexpect(va_list ap)
       if (first && (tok != -1))
          tb_printf(tb, "one of ");
       else if (!first)
-         tb_printf(tb, ", ");
+         tb_printf(tb, (tok == -1) ? " or " : ", ");
 
       tb_printf(tb, "$yellow$%s$$", token_str(tmp));
 
@@ -1599,9 +1599,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
    BEGIN("interface signal declaration");
 
    optional(tSIGNAL);
-
    LOCAL_IDENT_LIST ids = p_identifier_list();
-
    consume(tCOLON);
 
    port_mode_t mode = PORT_IN;
@@ -1638,6 +1636,36 @@ static void p_interface_variable_declaration(tree_t parent)
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
    BEGIN("interface variable declaration");
+
+   optional(tVARIABLE);
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+   consume(tCOLON);
+
+   port_mode_t mode = PORT_IN;
+   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+      mode = p_mode();
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   const loc_t *loc = CURRENT_LOC;
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(T_PORT_DECL);
+      tree_set_ident(d, it->ident);
+      tree_set_loc(d, loc);
+      tree_set_subkind(d, mode);
+      tree_set_type(d, type);
+      tree_set_class(d, C_VARIABLE);
+
+      if (init != NULL)
+         tree_set_value(d, init);
+
+      tree_add_port(parent, d);
+   }
 }
 
 static void p_interface_file_declaration(tree_t parent)
@@ -2462,10 +2490,15 @@ static tree_t p_subprogram_specification(void)
    else if (optional(tPURE))
       ;
 
-   switch (one_of(tFUNCTION)) {
+   switch (one_of(tFUNCTION, tPROCEDURE)) {
    case tFUNCTION:
       t = tree_new(T_FUNC_DECL);
       type = type_new(T_FUNC);
+      break;
+
+   case tPROCEDURE:
+      t = tree_new(T_PROC_DECL);
+      type = type_new(T_PROC);
       break;
 
    default:
@@ -2803,7 +2836,7 @@ static void p_entity_statement_part(tree_t entity)
 
    BEGIN("entity statement part");
 
-   while (scan(tASSERT, tPROCESS, tPOSTPONED))
+   while (not_at_token(tEND))
       tree_add_stmt(entity, p_entity_statement());
 }
 
@@ -2860,6 +2893,7 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    case tFUNCTION:
+   case tPROCEDURE:
    case tIMPURE:
    case tPURE:
       {
@@ -2884,7 +2918,8 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    default:
-      expect(tTYPE, tFUNCTION, tIMPURE, tPURE, tSUBTYPE, tSIGNAL, tATTRIBUTE);
+      expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
+             tATTRIBUTE);
    }
 }
 
@@ -4116,7 +4151,7 @@ static void p_architecture_statement_part(tree_t arch)
 
    BEGIN("architecture statement part");
 
-   while (scan(tID, tPROCESS, tPOSTPONED, tWITH, tASSERT))
+   while (not_at_token(tEND))
       tree_add_stmt(arch, p_concurrent_statement());
 }
 
@@ -4167,6 +4202,7 @@ static void p_package_body_declarative_item(tree_t parent)
 
    switch (peek()) {
    case tFUNCTION:
+   case tPROCEDURE:
    case tIMPURE:
    case tPURE:
       {
@@ -4183,7 +4219,7 @@ static void p_package_body_declarative_item(tree_t parent)
       break;
 
    default:
-      expect(tFUNCTION, tSHARED, tIMPURE, tPURE);
+      expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE);
    }
 }
 
@@ -4193,7 +4229,7 @@ static void p_package_body_declarative_part(tree_t unit)
 
    BEGIN("package body declarative part");
 
-   while (scan(tFUNCTION, tSHARED, tIMPURE, tPURE))
+   while (not_at_token(tEND))
       p_package_body_declarative_item(unit);
 }
 
