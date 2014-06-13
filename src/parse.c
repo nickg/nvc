@@ -106,6 +106,7 @@ typedef struct {
 
 static tree_t p_expression(void);
 static tree_t p_sequential_statement(void);
+static tree_t p_concurrent_statement(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -469,6 +470,56 @@ static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
    if (label == NULL)
       label = loc_to_ident(loc);
    tree_set_ident(t, label);
+}
+
+static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
+{
+   tree_t t = tree_new(T_AGGREGATE);
+   tree_set_loc(t, loc);
+
+   char base_ch = str[0];
+   int base;
+   switch (base_ch) {
+   case 'X': case 'x': base = 16; break;
+   case 'O': case 'o': base = 8;  break;
+   case 'B': case 'b': base = 2;  break;
+   default:
+      //parse_error(loc, "invalid base '%c' for bit string", base_ch);
+      assert(false);  // XXX
+      return t;
+   }
+
+   tree_t one = tree_new(T_REF);
+   tree_set_ident(one, ident_new("'1'"));
+   tree_set_loc(one, loc);
+
+   tree_t zero = tree_new(T_REF);
+   tree_set_ident(zero, ident_new("'0'"));
+   tree_set_loc(zero, loc);
+
+   for (const char *p = str + 2; *p != '\"'; p++) {
+      if (*p == '_')
+         continue;
+
+      int n = (isdigit((int)*p) ? (*p - '0')
+               : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
+
+      if (n >= base) {
+         //parse_error(loc, "invalid digit '%c' in bit string", *p);
+         assert(false);   // XXX
+         return t;
+      }
+
+      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
+         tree_t a = tree_new(T_ASSOC);
+         tree_set_subkind(a, A_POS);
+         tree_set_value(a, (n / d) ? one : zero);
+
+         tree_add_assoc(t, a);
+      }
+   }
+
+   return t;
 }
 
 static tree_t get_time(int64_t fs)
@@ -1154,6 +1205,16 @@ static tree_t p_literal(void)
          return t;
       }
 
+   case tBITSTRING:
+      {
+         consume(tBITSTRING);
+
+         tree_t agg = bit_str_to_agg(last_lval.s, CURRENT_LOC);
+         free(last_lval.s);
+
+         return agg;
+      }
+
    default:
       expect(tNULL, tINT, tREAL);
       return tree_new(T_OPEN);
@@ -1323,6 +1384,7 @@ static tree_t p_primary(void)
    case tINT:
    case tREAL:
    case tNULL:
+   case tBITSTRING:
       return p_literal();
 
    case tSTRING:
@@ -1340,7 +1402,7 @@ static tree_t p_primary(void)
       }
 
    default:
-      expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING);
+      expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING);
       return tree_new(T_OPEN);
    }
 }
@@ -2880,6 +2942,38 @@ static void p_entity_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
+static void p_constant_declaration(tree_t parent)
+{
+   // constant identifier_list : subtype_indication [ := expression ] ;
+
+   BEGIN("constant declaration");
+
+   consume(tCONSTANT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_CONST_DECL);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      tree_set_loc(t, CURRENT_LOC);
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_package_declarative_item(tree_t pack)
 {
    // subprogram_declaration | type_declaration | subtype_declaration
@@ -2921,9 +3015,13 @@ static void p_package_declarative_item(tree_t pack)
          tree_add_decl(pack, p_attribute_declaration());
       break;
 
+   case tCONSTANT:
+      p_constant_declaration(pack);
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE);
+             tATTRIBUTE, tCONSTANT);
    }
 }
 
@@ -3052,38 +3150,6 @@ static void p_file_declaration(tree_t parent)
       if (name != NULL)
          tree_set_value(t, name);
       tree_set_loc(t, CURRENT_LOC);
-
-      tree_add_decl(parent, t);
-   }
-}
-
-static void p_constant_declaration(tree_t parent)
-{
-   // constant identifier_list : subtype_indication [ := expression ] ;
-
-   BEGIN("constant declaration");
-
-   consume(tCONSTANT);
-
-   LOCAL_IDENT_LIST ids = p_identifier_list();
-
-   consume(tCOLON);
-
-   type_t type = p_subtype_indication();
-
-   tree_t init = NULL;
-   if (optional(tASSIGN))
-      init = p_expression();
-
-   consume(tSEMI);
-
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_CONST_DECL);
-      tree_set_ident(t, it->ident);
-      tree_set_type(t, type);
-      tree_set_loc(t, CURRENT_LOC);
-      if (init != NULL)
-         tree_set_value(t, init);
 
       tree_add_decl(parent, t);
    }
@@ -4082,6 +4148,56 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
    return t;
 }
 
+static void p_block_statement_part(tree_t arch)
+{
+   // { concurrent_statement }
+
+   BEGIN("block statement part");
+
+   while (not_at_token(tEND))
+      tree_add_stmt(arch, p_concurrent_statement());
+}
+
+static void p_block_declarative_part(tree_t arch)
+{
+   // { block_declarative_item }
+
+   BEGIN("block declarative part");
+
+   while (not_at_token(tBEGIN))
+      p_block_declarative_item(arch);
+}
+
+static tree_t p_block_statement(ident_t label)
+{
+   // label : block [ ( expression ) ] [ is ] block_header
+   //   block_declarative_part begin block_statement_part end block [ label ] ;
+
+   EXTEND("block statement");
+
+   tree_t b = tree_new(T_BLOCK);
+   tree_set_ident(b, label);
+
+   consume(tBLOCK);
+   optional(tIS);
+   p_block_declarative_part(b);
+   consume(tBEGIN);
+   p_block_statement_part(b);
+   consume(tEND);
+   consume(tBLOCK);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(b, CURRENT_LOC);
+   return b;
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -4132,8 +4248,13 @@ static tree_t p_concurrent_statement(void)
       case tASSERT:
          return p_concurrent_assertion_statement(label);
 
+      case tBLOCK:
+         return p_block_statement(label);
+
       default:
-         expect(tPROCESS, tPOSTPONED);
+         // XXX: this is a bit broken as we allow instances without labels
+         expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
+                tWITH, tASSERT, tBLOCK);
          return tree_new(T_BLOCK);
       }
    }

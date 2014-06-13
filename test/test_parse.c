@@ -1533,6 +1533,7 @@ START_TEST(test_based)
    input_from_file(TESTDIR "/parse/based.vhd");
 
    p = parse();
+   fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
 
    d = tree_decl(p, 0);
@@ -1570,6 +1571,7 @@ START_TEST(test_bitstring)
    input_from_file(TESTDIR "/parse/bitstring.vhd");
 
    p = parse();
+   fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
 
    ident_t one = ident_new("'1'");
@@ -1645,6 +1647,7 @@ START_TEST(test_block)
    input_from_file(TESTDIR "/parse/block.vhd");
 
    a = parse();
+   fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 2);
 
@@ -1672,6 +1675,7 @@ START_TEST(test_comp)
    input_from_file(TESTDIR "/parse/comp.vhd");
 
    p = parse();
+   fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 2);
 
@@ -1701,6 +1705,7 @@ START_TEST(test_generate)
    input_from_file(TESTDIR "/parse/generate.vhd");
 
    a = parse();
+   fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 4);
 
@@ -1749,6 +1754,7 @@ START_TEST(test_access)
    input_from_file(TESTDIR "/parse/access.vhd");
 
    a = parse();
+   fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 1);
 
@@ -1878,10 +1884,10 @@ int main(void)
    tcase_add_test(tc_core, test_procedure);
    tcase_add_test(tc_core, test_ir1045);
    tcase_add_test(tc_core, test_concat);
-#if 0
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
    tcase_add_test(tc_core, test_block);
+#if 0
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_access);
