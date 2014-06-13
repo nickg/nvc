@@ -67,6 +67,8 @@ static int         n_correct = 0;
 static tree_t      assert_viol = NULL;
 static tokenq_t   *tokenq = NULL;
 static yylval_t    last_lval;
+static token_t     opt_hist[8];
+static int         nopt_hist = 0;
 
 int yylex(void);
 
@@ -241,36 +243,8 @@ static void drop_token(void)
    tokenq_t *tmp = tokenq->next;
    free(tokenq);
    tokenq = tmp;
-}
 
-static bool consume(token_t tok)
-{
-   const token_t got = peek();
-   if (tok != got) {
-      if (n_correct >= RECOVER_THRESH) {
-         error_at(&(tokenq->loc), "expected $yellow$%s$$ but found "
-                  "$yellow$%s$$ while parsing %s",
-                  token_str(tok), token_str(got), hint_str);
-         n_errors++;
-      }
-      n_correct = 0;
-   }
-   else
-      n_correct++;
-
-   drop_token();
-
-   return (tok == got);
-}
-
-static bool optional(token_t tok)
-{
-   if (peek() == tok) {
-      consume(tok);
-      return true;
-   }
-   else
-      return false;
+   nopt_hist = 0;
 }
 
 static void _vexpect(va_list ap)
@@ -278,18 +252,32 @@ static void _vexpect(va_list ap)
    LOCAL_TEXT_BUF tb = tb_new();
 
    tb_printf(tb, "unexpected $yellow$%s$$ while parsing %s, "
-             "expecting one of ", token_str(peek()), hint_str);
+             "expecting ", token_str(peek()), hint_str);
 
    bool first = true;
-   for (;;) {
-      const int tok = va_arg(ap, int);
-      if (tok == -1)
-         break;
 
-      if (!first)
+   for (int i = 0; i < nopt_hist; i++) {
+      if (first)
+         tb_printf(tb, "one of ");
+      else
          tb_printf(tb, ", ");
 
-      tb_printf(tb, "$yellow$%s$$", token_str(tok));
+      tb_printf(tb, "$yellow$%s$$", token_str(opt_hist[i]));
+
+      first = false;
+   }
+
+   int tok = va_arg(ap, int);
+   while (tok != -1) {
+      const int tmp = tok;
+      tok = va_arg(ap, int);
+
+      if (first && (tok != -1))
+         tb_printf(tb, "one of ");
+      else if (!first)
+         tb_printf(tb, ", ");
+
+      tb_printf(tb, "$yellow$%s$$", token_str(tmp));
 
       first = false;
    }
@@ -310,6 +298,33 @@ static void _expect(int dummy, ...)
    va_start(ap, dummy);
    _vexpect(ap);
    va_end(ap);
+}
+
+static bool consume(token_t tok)
+{
+   const token_t got = peek();
+   if (tok != got) {
+      expect(tok);
+      return false;
+   }
+   else {
+      n_correct++;
+      drop_token();
+      return true;
+   }
+}
+
+static bool optional(token_t tok)
+{
+   if (peek() == tok) {
+      consume(tok);
+      return true;
+   }
+   else {
+      if (nopt_hist < ARRAY_LEN(opt_hist))
+         opt_hist[nopt_hist++] = tok;
+      return false;
+   }
 }
 
 static bool _scan(int dummy, ...)
@@ -3050,6 +3065,26 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
+static tree_t p_alias_declaration(void)
+{
+   // alias alias_designator [ : subtype_indication ] is name [ signature ] ;
+
+   BEGIN("alias declaration");
+
+   tree_t t = tree_new(T_ALIAS);
+
+   consume(tALIAS);
+   tree_set_ident(t, p_identifier());
+   if (optional(tCOLON))
+      tree_set_type(t, p_subtype_indication());
+   consume(tIS);
+   tree_set_value(t, p_name());
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static void p_block_declarative_item(tree_t parent)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -3095,8 +3130,9 @@ static void p_block_declarative_item(tree_t parent)
       }
       break;
 
-      //case tALIAS:
-      //assert(false);
+   case tALIAS:
+      tree_add_decl(parent, p_alias_declaration());
+      break;
 
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
