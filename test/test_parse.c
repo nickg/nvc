@@ -1876,9 +1876,9 @@ int main(void)
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_procedure);
-#if 0
    tcase_add_test(tc_core, test_ir1045);
    tcase_add_test(tc_core, test_concat);
+#if 0
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
    tcase_add_test(tc_core, test_block);

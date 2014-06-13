@@ -1446,12 +1446,16 @@ static tree_t p_simple_expression(void)
    }
 
    while (scan(tPLUS, tMINUS, tAMP)) {
-      ident_t op   = p_adding_operator();
-      tree_t left  = expr;
-      tree_t right = p_term();
+      tree_t left = expr;
 
-      expr = tree_new(T_FCALL);
-      tree_set_ident(expr, op);
+      if (optional(tAMP))
+         expr = tree_new(T_CONCAT);
+      else {
+         expr = tree_new(T_FCALL);
+         tree_set_ident(expr, p_adding_operator());
+      }
+
+      tree_t right = p_term();
       tree_set_loc(expr, CURRENT_LOC);
 
       add_param(expr, left, P_POS, NULL);
