@@ -2974,6 +2974,40 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
+static tree_t p_component_declaration(void)
+{
+   // component identifier [ is ] [ generic_clause ] [ port_clause ]
+   //   end component [ simple_name ] ;
+
+   BEGIN("component declaration");
+
+   tree_t c = tree_new(T_COMPONENT);
+
+   consume(tCOMPONENT);
+   tree_set_ident(c, p_identifier());
+   optional(tIS);
+
+   if (peek() == tGENERIC)
+      p_generic_clause(c);
+
+   if (peek() == tPORT)
+      p_port_clause(c);
+
+   consume(tEND);
+   consume(tCOMPONENT);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(c, CURRENT_LOC);
+   return c;
+}
+
 static void p_package_declarative_item(tree_t pack)
 {
    // subprogram_declaration | type_declaration | subtype_declaration
@@ -3019,9 +3053,13 @@ static void p_package_declarative_item(tree_t pack)
       p_constant_declaration(pack);
       break;
 
+   case tCOMPONENT:
+      tree_add_decl(pack, p_component_declaration());
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT);
+             tATTRIBUTE, tCONSTANT, tCOMPONENT);
    }
 }
 

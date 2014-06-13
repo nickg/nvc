@@ -1887,8 +1887,8 @@ int main(void)
    tcase_add_test(tc_core, test_based);
    tcase_add_test(tc_core, test_bitstring);
    tcase_add_test(tc_core, test_block);
-#if 0
    tcase_add_test(tc_core, test_comp);
+#if 0
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_access);
    tcase_add_test(tc_core, test_spec);
