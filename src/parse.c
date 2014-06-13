@@ -3578,7 +3578,7 @@ static void p_parameter_specification(tree_t loop)
 
    BEGIN("paremeter specification");
 
-   tree_set_ident(loop, p_identifier());
+   tree_set_ident2(loop, p_identifier());
 
    consume(tIN);
 
@@ -4243,6 +4243,69 @@ static tree_t p_block_statement(ident_t label)
    return b;
 }
 
+static tree_t p_generation_scheme(void)
+{
+   // for parameter_specification | if condition
+
+   BEGIN("generation scheme");
+
+   switch (one_of(tIF, tFOR)) {
+   case tIF:
+      {
+         tree_t g = tree_new(T_IF_GENERATE);
+         tree_set_value(g, p_expression());
+         return g;
+      }
+
+   case tFOR:
+      {
+         tree_t g = tree_new(T_FOR_GENERATE);
+         p_parameter_specification(g);
+         return g;
+      }
+
+   default:
+      return tree_new(T_IF_GENERATE);
+   }
+}
+
+static tree_t p_generate_statement(ident_t label)
+{
+   // label : generation_scheme generate [ { block_declarative_item }
+   //   begin ] { concurrent_statement } end generate [ label ] ;
+
+   EXTEND("generate statement");
+
+   tree_t g = p_generation_scheme();
+   tree_set_ident(g, label);
+
+   consume(tGENERATE);
+
+   if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
+            tPURE, tALIAS, tATTRIBUTE)) {
+      while (not_at_token(tBEGIN))
+         p_block_declarative_item(g);
+      consume(tBEGIN);
+   }
+
+   while (not_at_token(tEND))
+      tree_add_stmt(g, p_concurrent_statement());
+
+   consume(tEND);
+   consume(tGENERATE);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(g, CURRENT_LOC);
+   return g;
+}
+
 static tree_t p_concurrent_statement(void)
 {
    // block_statement | process_statement | concurrent_procedure_call_statement
@@ -4296,10 +4359,14 @@ static tree_t p_concurrent_statement(void)
       case tBLOCK:
          return p_block_statement(label);
 
+      case tIF:
+      case tFOR:
+         return p_generate_statement(label);
+
       default:
          // XXX: this is a bit broken as we allow instances without labels
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
-                tWITH, tASSERT, tBLOCK);
+                tWITH, tASSERT, tBLOCK, tIF, tFOR);
          return tree_new(T_BLOCK);
       }
    }
