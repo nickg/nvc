@@ -2358,7 +2358,7 @@ static tree_t p_assertion(void)
    return s;
 }
 
-static tree_t p_concurrent_assertion_statement(void)
+static tree_t p_concurrent_assertion_statement(ident_t label)
 {
    // [ label : ] [ postponed ] assertion ;
 
@@ -2371,7 +2371,12 @@ static tree_t p_concurrent_assertion_statement(void)
 
    consume(tSEMI);
 
-   tree_set_loc(s, CURRENT_LOC);
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(s, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(s, label);
 
    if (postponed)
       tree_add_attr_int(s, ident_new("postponed"), 1);
@@ -2630,7 +2635,7 @@ static tree_t p_entity_statement(void)
 
    switch (peek()) {
    case tASSERT:
-      return p_concurrent_assertion_statement();
+      return p_concurrent_assertion_statement(NULL);
 
    case tPOSTPONED:
       {
@@ -2641,7 +2646,7 @@ static tree_t p_entity_statement(void)
             // p_process_statement()
             return tree_new(T_NULL);
          case tASSERT:
-            return p_concurrent_assertion_statement();
+            return p_concurrent_assertion_statement(NULL);
          default:
             return tree_new(T_NULL);
          }
@@ -4035,6 +4040,9 @@ static tree_t p_concurrent_statement(void)
       case tWITH:
          return p_concurrent_signal_assignment_statement(label);
 
+      case tASSERT:
+         return p_concurrent_assertion_statement(label);
+
       default:
          expect(tPROCESS, tPOSTPONED);
          return tree_new(T_BLOCK);
@@ -4058,7 +4066,7 @@ static void p_architecture_statement_part(tree_t arch)
 
    BEGIN("architecture statement part");
 
-   while (scan(tID, tPROCESS, tPOSTPONED, tWITH))
+   while (scan(tID, tPROCESS, tPOSTPONED, tWITH, tASSERT))
       tree_add_stmt(arch, p_concurrent_statement());
 }
 
