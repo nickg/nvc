@@ -1874,8 +1874,8 @@ int main(void)
    tcase_add_test(tc_core, test_instance);
    tcase_add_test(tc_core, test_conc);
    tcase_add_test(tc_core, test_alias);
-#if 0
    tcase_add_test(tc_core, test_attr);
+#if 0
    tcase_add_test(tc_core, test_procedure);
    tcase_add_test(tc_core, test_ir1045);
    tcase_add_test(tc_core, test_concat);

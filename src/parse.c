@@ -1782,21 +1782,22 @@ static void p_entity_header(tree_t entity)
       p_port_clause(entity);
 }
 
-static void p_attribute_declaration(ident_t head, tree_t parent)
+static tree_t p_attribute_declaration(void)
 {
    // attribute identifier : type_mark ;
 
    BEGIN("attribute declaration");
 
    tree_t t = tree_new(T_ATTR_DECL);
-   tree_set_ident(t, head);
-   tree_set_type(t, p_type_mark());
 
+   consume(tATTRIBUTE);
+   tree_set_ident(t, p_identifier());
+   consume(tCOLON);
+   tree_set_type(t, p_type_mark());
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
-
-   tree_add_decl(parent, t);
+   return t;
 }
 
 static class_t p_entity_class(void)
@@ -1807,7 +1808,8 @@ static class_t p_entity_class(void)
 
    BEGIN("entity class");
 
-   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION)) {
+   switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION,
+                  tCOMPONENT)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
@@ -1818,6 +1820,8 @@ static class_t p_entity_class(void)
       return C_LABEL;
    case tFUNCTION:
       return C_FUNCTION;
+   case tCOMPONENT:
+      return C_COMPONENT;
    default:
       return C_DEFAULT;
    }
@@ -1837,11 +1841,15 @@ static ident_list_t *p_entity_specification(class_t *class)
    return ids;
 }
 
-static void p_attribute_specification(ident_t head, tree_t parent)
+static void p_attribute_specification(tree_t parent)
 {
    // attribute attribute_designator of entity_specification is expression ;
 
    BEGIN("attribute specification");
+
+   consume(tATTRIBUTE);
+   ident_t head = p_identifier();
+   consume(tOF);
 
    class_t class;
    LOCAL_IDENT_LIST ids = p_entity_specification(&class);
@@ -1859,6 +1867,7 @@ static void p_attribute_specification(ident_t head, tree_t parent)
       tree_set_loc(t, loc);
       tree_set_class(t, class);
       tree_set_ident(t, head);
+      tree_set_ident2(t, it->ident);
       tree_set_value(t, value);
 
       tree_add_decl(parent, t);
@@ -2330,22 +2339,10 @@ static void p_entity_declarative_item(tree_t entity)
 
    switch (peek()) {
    case tATTRIBUTE:
-      {
-         consume(tATTRIBUTE);
-         ident_t head = p_identifier();
-         switch (one_of(tCOLON, tOF)) {
-         case tCOLON:
-            p_attribute_declaration(head, entity);
-            break;
-
-         case tOF:
-            p_attribute_specification(head, entity);
-            break;
-
-         default:
-            break;
-         }
-      }
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(entity);
+      else
+         tree_add_decl(entity, p_attribute_declaration());
       break;
 
    case tTYPE:
@@ -2880,22 +2877,10 @@ static void p_package_declarative_item(tree_t pack)
       break;
 
    case tATTRIBUTE:
-      {
-         consume(tATTRIBUTE);
-         ident_t head = p_identifier();
-         switch (one_of(tCOLON, tOF)) {
-         case tCOLON:
-            p_attribute_declaration(head, pack);
-            break;
-
-         case tOF:
-            p_attribute_specification(head, pack);
-            break;
-
-         default:
-            break;
-         }
-      }
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(pack);
+      else
+         tree_add_decl(pack, p_attribute_declaration());
       break;
 
    default:
@@ -3134,9 +3119,16 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_alias_declaration());
       break;
 
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(parent);
+      else
+         tree_add_decl(parent, p_attribute_declaration());
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE, tALIAS);
+             tPURE, tALIAS, tATTRIBUTE);
    }
 }
 
