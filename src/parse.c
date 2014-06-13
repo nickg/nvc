@@ -2043,14 +2043,18 @@ static type_t p_physical_type_definition(range_t r)
    consume(tUNITS);
 
    tree_t base = p_base_unit_declaration();
+   tree_set_type(base, t);
    type_add_unit(t, base);
 
    r.left  = int_to_physical(r.left, base);
    r.right = int_to_physical(r.right, base);
    type_add_dim(t, r);
 
-   while (scan(tINT, tREAL, tID))
-      type_add_unit(t, p_secondary_unit_declaration());
+   while (scan(tINT, tREAL, tID)) {
+      tree_t unit = p_secondary_unit_declaration();
+      tree_set_type(unit, t);
+      type_add_unit(t, unit);
+   }
 
    consume(tEND);
    consume(tUNITS);
@@ -2090,6 +2094,7 @@ static type_t p_enumeration_type_definition(void)
    do {
       tree_t lit = p_enumeration_literal();
       tree_set_pos(lit, pos++);
+      tree_set_type(lit, t);
       type_enum_add_literal(t, lit);
    } while (optional(tCOMMA));
 
@@ -2573,6 +2578,8 @@ static tree_t p_subprogram_specification(void)
 
    tree_set_type(t, type);
    tree_set_ident(t, p_designator());
+
+   type_set_ident(type, tree_ident(t));
 
    if (impure)
       tree_add_attr_int(t, ident_new("impure"), 1);
