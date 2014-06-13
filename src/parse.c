@@ -2626,6 +2626,114 @@ static tree_t p_subprogram_declaration(tree_t spec)
    return spec;
 }
 
+static void p_sensitivity_list(tree_t proc)
+{
+   // name { , name }
+
+   BEGIN("sensitivity list");
+
+   tree_add_trigger(proc, p_name());
+
+   while (optional(tCOMMA))
+      tree_add_trigger(proc, p_name());
+}
+
+static void p_process_declarative_item(tree_t proc)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | variable_declaration
+   //   | file_declaration | alias_declaration | attribute_declaration
+   //   | attribute_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("process declarative item");
+
+   switch (peek()) {
+   case tVARIABLE:
+      p_variable_declaration(proc);
+      break;
+
+   case tTYPE:
+      tree_add_decl(proc, p_type_declaration());
+      break;
+
+   default:
+      expect(tVARIABLE);
+   }
+}
+
+static void p_process_declarative_part(tree_t proc)
+{
+   // { process_declarative_item }
+
+   BEGIN("process declarative part");
+
+   while (scan(tVARIABLE))
+      p_process_declarative_item(proc);
+}
+
+static void p_process_statement_part(tree_t proc)
+{
+   // { sequential_statement }
+
+   BEGIN("process statement part");
+
+   p_sequence_of_statements(proc, tree_add_stmt);
+}
+
+static tree_t p_process_statement(ident_t label)
+{
+   // [ process_label : ] [ postponed ] process [ ( sensitivity_list ) ] [ is ]
+   //   process_declarative_part begin process_statement_part end [ postponed ]
+   //   process [ process_label ] ;
+
+   EXTEND("process statement");
+
+   tree_t t = tree_new(T_PROCESS);
+
+   const bool postponed = optional(tPOSTPONED);
+
+   consume(tPROCESS);
+
+   if (optional(tLPAREN)) {
+      p_sensitivity_list(t);
+      consume(tRPAREN);
+   }
+
+   optional(tIS);
+
+   p_process_declarative_part(t);
+
+   consume(tBEGIN);
+
+   p_process_statement_part(t);
+
+   consume(tEND);
+   if (postponed)
+      optional(tPOSTPONED);
+   consume(tPROCESS);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+   tree_set_loc(t, loc);
+
+   if (label == NULL)
+      label = loc_to_ident(loc);
+   tree_set_ident(t, label);
+
+   if (postponed)
+      tree_add_attr_int(t, ident_new("postponed"), 1);
+
+   return t;
+}
+
 static tree_t p_entity_statement(void)
 {
    // concurrent_assertion_statement | concurrent_procedure_call_statement
@@ -2637,20 +2745,8 @@ static tree_t p_entity_statement(void)
    case tASSERT:
       return p_concurrent_assertion_statement(NULL);
 
-   case tPOSTPONED:
-      {
-         consume(tPOSTPONED);
-
-         switch (one_of(tPROCESS, tASSERT)) {
-         case tPROCESS:
-            // p_process_statement()
-            return tree_new(T_NULL);
-         case tASSERT:
-            return p_concurrent_assertion_statement(NULL);
-         default:
-            return tree_new(T_NULL);
-         }
-      }
+   case tPROCESS:
+      return p_process_statement(NULL);
 
    default:
       expect(tASSERT, tPOSTPONED);
@@ -2974,40 +3070,6 @@ static void p_block_declarative_item(tree_t parent)
    }
 }
 
-static void p_process_declarative_item(tree_t proc)
-{
-   // subprogram_declaration | subprogram_body | type_declaration
-   //   | subtype_declaration | constant_declaration | variable_declaration
-   //   | file_declaration | alias_declaration | attribute_declaration
-   //   | attribute_specification | use_clause | group_template_declaration
-   //   | group_declaration
-
-   BEGIN("process declarative item");
-
-   switch (peek()) {
-   case tVARIABLE:
-      p_variable_declaration(proc);
-      break;
-
-   case tTYPE:
-      tree_add_decl(proc, p_type_declaration());
-      break;
-
-   default:
-      expect(tVARIABLE);
-   }
-}
-
-static void p_process_declarative_part(tree_t proc)
-{
-   // { process_declarative_item }
-
-   BEGIN("process declarative part");
-
-   while (scan(tVARIABLE))
-      p_process_declarative_item(proc);
-}
-
 static tree_t p_target(tree_t name)
 {
    // name | aggregate
@@ -3127,18 +3189,6 @@ static tree_t p_signal_assignment_statement(ident_t label, tree_t name)
    set_delay_mechanism(t, reject);
    set_label_and_loc(t, label, CURRENT_LOC);
    return t;
-}
-
-static void p_sensitivity_list(tree_t proc)
-{
-   // name { , name }
-
-   BEGIN("sensitivity list");
-
-   tree_add_trigger(proc, p_name());
-
-   while (optional(tCOMMA))
-      tree_add_trigger(proc, p_name());
 }
 
 static void p_sensitivity_clause(tree_t wait)
@@ -3599,68 +3649,6 @@ static tree_t p_sequential_statement(void)
       expect(tASSIGN, tLE, tSEMI);
       return tree_new(T_NULL);
    }
-}
-
-static void p_process_statement_part(tree_t proc)
-{
-   // { sequential_statement }
-
-   BEGIN("process statement part");
-
-   p_sequence_of_statements(proc, tree_add_stmt);
-}
-
-static tree_t p_process_statement(ident_t label)
-{
-   // [ process_label : ] [ postponed ] process [ ( sensitivity_list ) ] [ is ]
-   //   process_declarative_part begin process_statement_part end [ postponed ]
-   //   process [ process_label ] ;
-
-   EXTEND("process statement");
-
-   tree_t t = tree_new(T_PROCESS);
-
-   const bool postponed = optional(tPOSTPONED);
-
-   consume(tPROCESS);
-
-   if (optional(tLPAREN)) {
-      p_sensitivity_list(t);
-      consume(tRPAREN);
-   }
-
-   optional(tIS);
-
-   p_process_declarative_part(t);
-
-   consume(tBEGIN);
-
-   p_process_statement_part(t);
-
-   consume(tEND);
-   if (postponed)
-      optional(tPOSTPONED);
-   consume(tPROCESS);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
-   consume(tSEMI);
-
-   const loc_t *loc = CURRENT_LOC;
-   tree_set_loc(t, loc);
-
-   if (label == NULL)
-      label = loc_to_ident(loc);
-   tree_set_ident(t, label);
-
-   if (postponed)
-      tree_add_attr_int(t, ident_new("postponed"), 1);
-
-   return t;
 }
 
 static tree_t p_formal_part(void)
