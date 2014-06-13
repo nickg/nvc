@@ -74,6 +74,7 @@ int yylex(void);
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
+#define not_at_token(...) _not_at_token(1, __VA_ARGS__, -1)
 
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
@@ -228,6 +229,20 @@ static bool look_for(const look_params_t *params)
    return found;
 }
 
+static void drop_token(void)
+{
+   if (start_loc.linebuf == NULL)
+      start_loc = tokenq->loc;
+
+   assert(tokenq != NULL);
+
+   last_lval = tokenq->lval;
+
+   tokenq_t *tmp = tokenq->next;
+   free(tokenq);
+   tokenq = tmp;
+}
+
 static bool consume(token_t tok)
 {
    const token_t got = peek();
@@ -243,16 +258,7 @@ static bool consume(token_t tok)
    else
       n_correct++;
 
-   if (start_loc.linebuf == NULL)
-      start_loc = tokenq->loc;
-
-   assert(tokenq != NULL);
-
-   last_lval = tokenq->lval;
-
-   tokenq_t *tmp = tokenq->next;
-   free(tokenq);
-   tokenq = tmp;
+   drop_token();
 
    return (tok == got);
 }
@@ -294,6 +300,8 @@ static void _vexpect(va_list ap)
    }
 
    n_correct = 0;
+
+   drop_token();
 }
 
 static void _expect(int dummy, ...)
@@ -353,6 +361,30 @@ static int _one_of(int dummy, ...)
 
       return -1;
    }
+}
+
+static bool _not_at_token(int dummy, ...)
+{
+   const token_t p = peek();
+
+   if (p == tEOF)
+      return false;
+
+   va_list ap;
+   va_start(ap, dummy);
+
+   bool result = true;
+
+   while (result) {
+      const token_t tok = va_arg(ap, token_t);
+      if (tok == -1)
+         break;
+      else
+         result = result && (tok != p);
+   }
+
+   va_end(ap);
+   return result;
 }
 
 static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
@@ -2320,7 +2352,7 @@ static void p_entity_declarative_part(tree_t entity)
 
    BEGIN("entity declarative part");
 
-   while (scan(tATTRIBUTE))
+   while (not_at_token(tEND, tBEGIN))
       p_entity_declarative_item(entity);
 }
 
@@ -2554,7 +2586,7 @@ static void p_subprogram_declarative_part(tree_t sub)
 
    BEGIN("subprogram declarative part");
 
-   while (scan(tVARIABLE))
+   while (not_at_token(tBEGIN))
       p_subprogram_declarative_item(sub);
 }
 
@@ -2564,8 +2596,7 @@ static void p_sequence_of_statements(tree_t parent, add_func_t addf)
 
    BEGIN("sequence of statements");
 
-   while (scan(tID, tWAIT, tASSERT, tREPORT, tIF, tNULL, tRETURN,
-               tWHILE, tFOR, tLOOP, tEXIT, tCASE, tNEXT, tLPAREN))
+   while (not_at_token(tEND, tELSE, tELSIF, tWHEN))
       (*addf)(parent, p_sequential_statement());
 }
 
@@ -2668,7 +2699,7 @@ static void p_process_declarative_part(tree_t proc)
 
    BEGIN("process declarative part");
 
-   while (scan(tVARIABLE))
+   while (not_at_token(tBEGIN))
       p_process_declarative_item(proc);
 }
 
@@ -2863,7 +2894,7 @@ static void p_package_declarative_part(tree_t pack)
 
    BEGIN("package declarative part");
 
-   while (scan(tTYPE, tFUNCTION, tPURE, tIMPURE, tSUBTYPE, tSIGNAL, tATTRIBUTE))
+   while (not_at_token(tEND))
       p_package_declarative_item(pack);
 }
 
@@ -3064,9 +3095,12 @@ static void p_block_declarative_item(tree_t parent)
       }
       break;
 
+      //case tALIAS:
+      //assert(false);
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE);
+             tPURE, tALIAS);
    }
 }
 
@@ -4044,7 +4078,7 @@ static void p_architecture_declarative_part(tree_t arch)
 
    BEGIN("architecture declarative part");
 
-   while (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT))
+   while (not_at_token(tBEGIN))
       p_block_declarative_item(arch);
 }
 

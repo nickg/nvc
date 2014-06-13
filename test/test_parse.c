@@ -1873,8 +1873,8 @@ int main(void)
    tcase_add_test(tc_core, test_array);
    tcase_add_test(tc_core, test_instance);
    tcase_add_test(tc_core, test_conc);
-#if 0
    tcase_add_test(tc_core, test_alias);
+#if 0
    tcase_add_test(tc_core, test_attr);
    tcase_add_test(tc_core, test_procedure);
    tcase_add_test(tc_core, test_ir1045);
