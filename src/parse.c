@@ -108,6 +108,8 @@ typedef struct {
 static tree_t p_expression(void);
 static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
+static tree_t p_subprogram_declaration(tree_t spec);
+static tree_t p_subprogram_body(tree_t spec);
 
 static void _pop_state(const state_t *s)
 {
@@ -1735,13 +1737,15 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
    }
 }
 
-static void p_interface_variable_declaration(tree_t parent)
+static void p_interface_variable_declaration(tree_t parent, class_t def_class)
 {
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
    BEGIN("interface variable declaration");
 
-   optional(tVARIABLE);
+   if (optional(tVARIABLE))
+      def_class = C_VARIABLE;
+
    LOCAL_IDENT_LIST ids = p_identifier_list();
    consume(tCOLON);
 
@@ -1763,7 +1767,7 @@ static void p_interface_variable_declaration(tree_t parent)
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
-      tree_set_class(d, C_VARIABLE);
+      tree_set_class(d, def_class);
 
       if (init != NULL)
          tree_set_value(d, init);
@@ -1818,7 +1822,7 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       break;
 
    case tVARIABLE:
-      p_interface_variable_declaration(parent);
+      p_interface_variable_declaration(parent, C_VARIABLE);
       break;
 
    case tFILE:
@@ -1837,7 +1841,8 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
             break;
 
          case C_VARIABLE:
-            p_interface_variable_declaration(parent);
+         case C_DEFAULT:
+            p_interface_variable_declaration(parent, def_class);
             break;
 
          default:
@@ -2679,9 +2684,9 @@ static tree_t p_subprogram_specification(void)
       tree_add_attr_int(t, ident_new("impure"), 1);
 
    if (optional(tLPAREN)) {
-      const class_t class =
-         (tree_kind(t) == T_FUNC_DECL) ? C_CONSTANT : C_VARIABLE;
-      p_interface_list(class, t, tree_add_port);
+      //const class_t class =
+      //   (tree_kind(t) == T_FUNC_DECL) ? C_CONSTANT : C_VARIABLE;
+      p_interface_list(C_DEFAULT, t, tree_add_port);
       consume(tRPAREN);
    }
 
@@ -2819,8 +2824,29 @@ static void p_subprogram_declarative_item(tree_t sub)
       p_constant_declaration(sub);
       break;
 
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(sub, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(sub, p_subprogram_body(spec));
+      }
+      break;
+
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(sub);
+      else
+         tree_add_decl(sub, p_attribute_declaration());
+      break;
+
    default:
-      expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT);
+      expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT, tFUNCTION, tPROCEDURE,
+             tIMPURE, tPURE, tATTRIBUTE);
    }
 }
 
@@ -3193,6 +3219,7 @@ static void p_package_declarative_item(tree_t pack)
    //   | component_declaration | attribute_declaration
    //   | attribute_specification | disconnection_specification | use_clause
    //   | group_template_declaration | group_declaration
+   //
 
    BEGIN("package declarative item");
 
@@ -4665,6 +4692,9 @@ static void p_package_body_declarative_item(tree_t parent)
    //   | subtype_declaration | constant_declaration
    //   | shared_variable_declaration | file_declaration | alias_declaration
    //   | use_clause | group_template_declaration | group_declaration
+   //
+   // 2008: subprogram_instantiation_declaration | attribute_declaration
+   //         | attribute_specification | package_instantiation_declaration
 
    BEGIN("package body declarative item");
 
@@ -4686,8 +4716,19 @@ static void p_package_body_declarative_item(tree_t parent)
       p_variable_declaration(parent);
       break;
 
+   case tATTRIBUTE:
+      if (standard() < STD_08)
+         assert(false);  // XXX: fix this
+      else {
+         if (peek_nth(3) == tOF)
+            p_attribute_specification(parent);
+         else
+            tree_add_decl(parent, p_attribute_declaration());
+      }
+      break;
+
    default:
-      expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE);
+      expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE);
    }
 }
 

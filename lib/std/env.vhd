@@ -18,9 +18,12 @@ end package;
 
 package body env is
 
-    procedure stop_impl(finish, have_status : boolean; status : integer);
-
-    attribute foreign of stop_impl : procedure is "_nvc_env_stop";
+    procedure stop_impl(finish, have_status : boolean; status : integer) is
+        procedure nvc_env_stop(finish, have_status : boolean; status : integer);
+        attribute foreign of nvc_env_stop : procedure is "_nvc_env_stop";
+    begin
+        nvc_env_stop(finish, have_status, status);
+    end procedure;
 
     procedure stop(status : integer) is
     begin
