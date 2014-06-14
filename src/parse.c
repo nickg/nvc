@@ -79,6 +79,11 @@ int yylex(void);
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 #define not_at_token(...) _not_at_token(1, __VA_ARGS__, -1)
 
+#define parse_error(loc, ...) do {            \
+      error_at(loc, __VA_ARGS__);             \
+      n_errors++;                             \
+   } while (0)
+
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
 #define WARN_LOOKAHEAD 0
@@ -495,8 +500,7 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
    case 'O': case 'o': base = 8;  break;
    case 'B': case 'b': base = 2;  break;
    default:
-      //parse_error(loc, "invalid base '%c' for bit string", base_ch);
-      assert(false);  // XXX
+      parse_error(loc, "invalid base '%c' for bit string", base_ch);
       return t;
    }
 
@@ -516,8 +520,7 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
                : 10 + (isupper((int)*p) ? (*p - 'A') : (*p - 'a')));
 
       if (n >= base) {
-         //parse_error(loc, "invalid digit '%c' in bit string", *p);
-         assert(false);   // XXX
+         parse_error(loc, "invalid digit '%c' in bit string", *p);
          return t;
       }
 

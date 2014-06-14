@@ -8,6 +8,41 @@
 #include <stdio.h>
 #include <string.h>
 
+typedef struct error {
+   int        line;
+   const char *snippet;
+} error_t;
+
+static const error_t *error_lines = NULL;
+static error_fn_t     orig_error_fn = NULL;
+
+static void test_error_fn(const char *msg, const loc_t *loc)
+{
+   fail_if(error_lines == NULL);
+
+   bool unexpected = error_lines->line == -1
+      || error_lines->snippet == NULL
+      || error_lines->line != loc->first_line
+      || strstr(msg, error_lines->snippet) == NULL;
+
+   if (unexpected) {
+      orig_error_fn(msg, loc);
+      printf("expected line %d '%s'\n",
+             error_lines->line, error_lines->snippet);
+   }
+
+   fail_if(unexpected);
+
+   error_lines++;
+}
+
+static void expect_errors(const error_t *lines)
+{
+   fail_unless(orig_error_fn == NULL);
+   orig_error_fn = set_error_fn(test_error_fn);
+   error_lines = lines;
+}
+
 START_TEST(test_entity)
 {
    tree_t e, p, g, v, x, y;
@@ -1636,6 +1671,12 @@ START_TEST(test_bitstring)
 
    input_from_file(TESTDIR "/parse/bitstring.vhd");
 
+   const error_t expect[] = {
+      { 14, "invalid digit '9' in bit string" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
@@ -1702,7 +1743,7 @@ START_TEST(test_bitstring)
    p = parse();
    fail_unless(p == NULL);
 
-   fail_unless(parse_errors() == 0);
+   fail_unless(parse_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
 

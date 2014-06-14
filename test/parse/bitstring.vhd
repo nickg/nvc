@@ -8,3 +8,9 @@ package bitstring is
     constant d : t := X"a_b";
 
 end package;
+
+package bitstring_error is
+
+    constant e1 : t := O"9";            -- Error
+
+end package;
