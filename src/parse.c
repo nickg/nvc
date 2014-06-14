@@ -233,7 +233,7 @@ static bool look_for(const look_params_t *params)
    }
  stop_looking:
 
-   if (n >= 100)
+   if (n >= 500)
       warn_at(&(tokenq->loc), "look ahead depth %d", n);
 
    return found;
