@@ -15,6 +15,7 @@ begin
         x := y ror 1;
         x := work.foo."and"(1, 2);
         x(y'range) := y;
+        x := (1 => 1, x'range => 2);
     end process;
 
 end architecture;

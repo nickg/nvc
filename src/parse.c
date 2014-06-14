@@ -1117,7 +1117,7 @@ static tree_t p_name(void)
 
       const look_params_t lookp = {
          .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN },
+         .stop     = { tRPAREN, tCOMMA },
          .abort    = tSEMI,
          .nest_in  = tLPAREN,
          .nest_out = tRPAREN,
@@ -1342,7 +1342,7 @@ static void p_choice(tree_t parent)
    else {
       const look_params_t lookp = {
          .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN },
+         .stop     = { tRPAREN, tCOMMA },
          .abort    = tSEMI,
          .nest_in  = tLPAREN,
          .nest_out = tRPAREN,

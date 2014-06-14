@@ -1998,7 +1998,7 @@ START_TEST(test_expr)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 12);
+   fail_unless(tree_stmts(p) == 13);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -2038,6 +2038,12 @@ START_TEST(test_expr)
 
    e = tree_target(tree_stmt(p, 11));
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+
+   e = tree_value(tree_stmt(p, 12));
+   fail_unless(tree_kind(e) == T_AGGREGATE);
+   fail_unless(tree_assocs(e) == 2);
+   fail_unless(tree_subkind(tree_assoc(e, 0)) == A_NAMED);
+   fail_unless(tree_subkind(tree_assoc(e, 1)) == A_RANGE);
 
    a = parse();
    fail_unless(a == NULL);
