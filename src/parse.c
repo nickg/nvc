@@ -671,7 +671,7 @@ static void p_library_clause(tree_t unit)
    }
 }
 
-static void p_use_clause(tree_t unit)
+static void p_use_clause(tree_t unit, add_func_t addf)
 {
    // use selected_name { , selected_name } ;
 
@@ -723,7 +723,7 @@ static void p_use_clause(tree_t unit)
       }
 
       tree_set_loc(u, CURRENT_LOC);
-      tree_add_context(unit, u);
+      (*addf)(unit, u);
    } while (optional(tCOMMA));
 
    consume(tSEMI);
@@ -741,7 +741,7 @@ static void p_context_item(tree_t unit)
       break;
 
    case tUSE:
-      p_use_clause(unit);
+      p_use_clause(unit, tree_add_context);
       break;
 
    default:
@@ -3002,9 +3002,13 @@ static void p_subprogram_declarative_item(tree_t sub)
       tree_add_decl(sub, p_subtype_declaration());
       break;
 
+   case tUSE:
+      p_use_clause(sub, tree_add_decl);
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE);
+             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE, tUSE);
    }
 }
 

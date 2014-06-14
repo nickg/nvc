@@ -1474,7 +1474,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(tree_decls(p) == 3);
+   fail_unless(tree_decls(p) == 4);
 
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_PROC_BODY);
@@ -1493,6 +1493,11 @@ START_TEST(test_procedure)
    fail_unless(tree_kind(d) == T_PROC_BODY);
    fail_unless(tree_ports(d) == 0);
    fail_unless(tree_ident(d) == ident_new("BAZ"));
+
+   d = tree_decl(p, 3);
+   fail_unless(tree_kind(d) == T_PROC_BODY);
+   fail_unless(tree_ports(d) == 0);
+   fail_unless(tree_kind(tree_decl(d, 0)) == T_USE);
 
    p = parse();
    fail_unless(p == NULL);

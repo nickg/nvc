@@ -21,4 +21,9 @@ package body p is
     begin
     end procedure;
 
+    procedure tralala is
+        use work.foo;
+    begin
+    end procedure;
+
 end package body;
