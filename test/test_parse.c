@@ -1889,10 +1889,8 @@ int main(void)
    tcase_add_test(tc_core, test_block);
    tcase_add_test(tc_core, test_comp);
    tcase_add_test(tc_core, test_generate);
-#if 0
    tcase_add_test(tc_core, test_access);
    tcase_add_test(tc_core, test_spec);
-#endif
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

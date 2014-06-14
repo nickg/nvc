@@ -853,10 +853,30 @@ static tree_t p_selected_name(tree_t prefix)
    // XXX: FIXME
    assert(tree_kind(prefix) == T_REF);
 
-   ident_t suffix = p_identifier();
-   tree_set_ident(prefix, ident_prefix(tree_ident(prefix), suffix, '.'));
+   switch (peek()) {
+   case tID:
+      {
+         ident_t suffix = p_identifier();
+         tree_set_ident(prefix, ident_prefix(tree_ident(prefix), suffix, '.'));
 
-   return prefix;
+         return prefix;
+      }
+
+   case tALL:
+      {
+         consume(tALL);
+
+         tree_t all = tree_new(T_ALL);
+         tree_set_loc(all, CURRENT_LOC);
+         tree_set_value(all, prefix);
+
+         return all;
+      }
+
+   default:
+      expect(tID, tALL);
+      return prefix;
+   }
 }
 
 static tree_t p_indexed_name(tree_t prefix)
