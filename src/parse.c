@@ -58,6 +58,7 @@ static int         n_row = 0;
 static bool        last_was_newline = true;
 static loc_t       yylloc;
 static loc_t       start_loc;
+static loc_t       last_loc;
 static const char *read_ptr;
 static const char *file_start;
 static size_t      file_sz;
@@ -102,7 +103,7 @@ typedef struct {
    EXTEND(s);                                                          \
    start_loc = LOC_INVALID;
 
-#define CURRENT_LOC _diff_loc(&start_loc, &yylloc)
+#define CURRENT_LOC _diff_loc(&start_loc, &last_loc)
 
 static tree_t p_expression(void);
 static tree_t p_sequential_statement(void);
@@ -117,7 +118,8 @@ static void _pop_state(const state_t *s)
    printf("<-- %s\n", hint_str);
 #endif
    hint_str  = s->old_hint;
-   start_loc = s->old_start_loc;
+   if (s->old_start_loc.first_line != LINE_INVALID)
+      start_loc = s->old_start_loc;
 }
 
 static void _push_state(const state_t *s)
@@ -234,12 +236,13 @@ static bool look_for(const look_params_t *params)
 
 static void drop_token(void)
 {
-   if (start_loc.linebuf == NULL)
-      start_loc = tokenq->loc;
-
    assert(tokenq != NULL);
 
+   if (start_loc.last_line == LINE_INVALID)
+      start_loc = tokenq->loc;
+
    last_lval = tokenq->lval;
+   last_loc  = tokenq->loc;
 
    tokenq_t *tmp = tokenq->next;
    free(tokenq);

@@ -1877,6 +1877,45 @@ START_TEST(test_spec)
 }
 END_TEST
 
+START_TEST(test_loc)
+{
+   tree_t a, s, p;
+   const loc_t *l;
+
+   input_from_file(TESTDIR "/parse/loc.vhd");
+
+   a = parse();
+   fail_if(a == NULL);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CPCALL);
+   l = tree_loc(s);
+   fail_unless(l->first_line == 3);
+   fail_unless(l->last_line == 3);
+   fail_unless(l->first_column == 4);
+   fail_unless(l->last_column == 18);
+
+   p = tree_param(s, 0);
+   l = tree_loc(p);
+   fail_unless(l->first_line == 3);
+   fail_unless(l->last_line == 3);
+   fail_unless(l->first_column == 6);
+   fail_unless(l->last_column == 6);
+
+   p = tree_param(s, 2);
+   l = tree_loc(p);
+   fail_unless(l->first_line == 3);
+   fail_unless(l->last_line == 3);
+   fail_unless(l->first_column == 12);
+   fail_unless(l->last_column == 16);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1910,6 +1949,7 @@ int main(void)
    tcase_add_test(tc_core, test_generate);
    tcase_add_test(tc_core, test_access);
    tcase_add_test(tc_core, test_spec);
+   tcase_add_test(tc_core, test_loc);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
