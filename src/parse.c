@@ -2814,6 +2814,7 @@ static tree_t p_subprogram_specification(void)
       type_set_result(type, p_type_mark());
    }
 
+   tree_set_loc(t, CURRENT_LOC);
    return t;
 }
 
@@ -2963,9 +2964,13 @@ static void p_subprogram_declarative_item(tree_t sub)
          tree_add_decl(sub, p_attribute_declaration());
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(sub, p_subtype_declaration());
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE);
+             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE);
    }
 }
 
@@ -3033,6 +3038,7 @@ static tree_t p_subprogram_body(tree_t spec)
 
    consume(tSEMI);
 
+   tree_set_loc(spec, CURRENT_LOC);
    return spec;
 }
 
@@ -3077,8 +3083,30 @@ static void p_process_declarative_item(tree_t proc)
       tree_add_decl(proc, p_type_declaration());
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(proc, p_subtype_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(proc);
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(proc, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(proc, p_subprogram_body(spec));
+      }
+      break;
+
    default:
-      expect(tVARIABLE);
+      expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
+             tIMPURE, tPURE);
    }
 }
 
@@ -3683,9 +3711,13 @@ static void p_block_declarative_item(tree_t parent)
       p_configuration_specification(parent);
       break;
 
+   case tCOMPONENT:
+      tree_add_decl(parent, p_component_declaration());
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE, tALIAS, tATTRIBUTE, tFOR);
+             tPURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT);
    }
 }
 
