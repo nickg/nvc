@@ -4921,7 +4921,9 @@ static void p_package_body_declarative_item(tree_t parent)
 
    case tATTRIBUTE:
       if (standard() < STD_08)
-         assert(false);  // XXX: fix this
+         parse_error(CURRENT_LOC, "package body may not contain attribute "
+                     "declarations or specifications in VHDL-%s",
+                     standard_text(standard()));
       else {
          if (peek_nth(3) == tOF)
             p_attribute_specification(parent);
