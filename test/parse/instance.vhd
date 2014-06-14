@@ -19,9 +19,11 @@ begin
 
     g: entity work.foo
         generic map ( X => 1 )
-        port map ( a, b );            
+        port map ( a, b );
 
     h: entity work.foo
         port map ( a => open );
-    
+
+    i: foo port map ( x );
+
 end architecture;

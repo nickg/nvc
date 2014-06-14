@@ -2085,7 +2085,7 @@ static class_t p_entity_class(void)
    BEGIN("entity class");
 
    switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION,
-                  tCOMPONENT)) {
+                  tCOMPONENT, tVARIABLE)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
@@ -2098,6 +2098,8 @@ static class_t p_entity_class(void)
       return C_FUNCTION;
    case tCOMPONENT:
       return C_COMPONENT;
+   case tVARIABLE:
+      return C_VARIABLE;
    default:
       return C_DEFAULT;
    }
@@ -3104,9 +3106,16 @@ static void p_process_declarative_item(tree_t proc)
       }
       break;
 
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(proc);
+      else
+         tree_add_decl(proc, p_attribute_declaration());
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE);
+             tIMPURE, tPURE, tATTRIBUTE);
    }
 }
 
@@ -4665,7 +4674,8 @@ static tree_t p_concurrent_statement(void)
    }
 
    if (peek() == tID) {
-      if (peek_nth(2) == tSEMI)
+      const token_t p2 = peek_nth(2);
+      if ((p2 == tSEMI) || (p2 == tGENERIC) || (p2 == tPORT))
          return p_component_instantiation_statement(label);
       else {
          const look_params_t lookp = {

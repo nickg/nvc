@@ -1261,7 +1261,7 @@ START_TEST(test_instance)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 9);
+   fail_unless(tree_stmts(a) == 10);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_INSTANCE);
@@ -1307,6 +1307,10 @@ START_TEST(test_instance)
    fail_unless(tree_class(s) == C_ENTITY);
    fail_unless(tree_subkind(tree_param(s, 0)) == P_NAMED);
    fail_unless(tree_kind(tree_value(tree_param(s, 0))) == T_OPEN);
+
+   s = tree_stmt(a, 9);
+   fail_unless(tree_kind(s) == T_INSTANCE);
+   fail_unless(tree_class(s) == C_COMPONENT);
 
    a = parse();
    fail_unless(a == NULL);
