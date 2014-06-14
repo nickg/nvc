@@ -1742,7 +1742,7 @@ START_TEST(test_generate)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 4);
+   fail_unless(tree_stmts(a) == 5);
 
    g = tree_stmt(a, 0);
    fail_unless(tree_kind(g) == T_IF_GENERATE);
@@ -1774,6 +1774,12 @@ START_TEST(test_generate)
    fail_unless(tree_stmts(g) == 0);
    fail_unless(icmp(tree_ident(g), "G4"));
    fail_unless(icmp(tree_ident2(g), "I"));
+
+   g = tree_stmt(a, 4);
+   fail_unless(tree_kind(g) == T_FOR_GENERATE);
+   fail_unless(tree_decls(g) == 0);
+   fail_unless(tree_stmts(g) == 0);
+   fail_unless(icmp(tree_ident(g), "G5"));
 
    a = parse();
    fail_unless(a == NULL);

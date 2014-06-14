@@ -3149,9 +3149,13 @@ static void p_process_declarative_item(tree_t proc)
          tree_add_decl(proc, p_attribute_declaration());
       break;
 
+   case tUSE:
+      p_use_clause(proc, tree_add_decl);
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE);
+             tIMPURE, tPURE, tATTRIBUTE, tUSE);
    }
 }
 
@@ -3760,9 +3764,13 @@ static void p_block_declarative_item(tree_t parent)
       tree_add_decl(parent, p_component_declaration());
       break;
 
+   case tUSE:
+      p_use_clause(parent, tree_add_decl);
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT);
+             tPURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE);
    }
 }
 
@@ -4670,7 +4678,7 @@ static tree_t p_generate_statement(ident_t label)
    consume(tGENERATE);
 
    if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-            tPURE, tALIAS, tATTRIBUTE)) {
+            tPURE, tALIAS, tATTRIBUTE, tBEGIN)) {
       while (not_at_token(tBEGIN))
          p_block_declarative_item(g);
       consume(tBEGIN);

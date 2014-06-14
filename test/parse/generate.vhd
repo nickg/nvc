@@ -21,5 +21,9 @@ begin
 
     g4: for i in x'range generate
     end generate;
-    
+
+    g5: for i in x'range generate
+    begin
+    end generate;
+
 end architecture;
