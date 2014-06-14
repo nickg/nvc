@@ -81,6 +81,7 @@ int yylex(void);
 
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
+#define WARN_LOOKAHEAD 0
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -233,8 +234,10 @@ static bool look_for(const look_params_t *params)
    }
  stop_looking:
 
-   if (n >= 500)
+#if WARN_LOOKAHEAD > 0
+   if (n >= WARN_LOOKAHEAD)
       warn_at(&(tokenq->loc), "look ahead depth %d", n);
+#endif
 
    return found;
 }
@@ -1342,7 +1345,7 @@ static void p_choice(tree_t parent)
    else {
       const look_params_t lookp = {
          .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN, tCOMMA },
+         .stop     = { tRPAREN, tCOMMA, tASSOC },
          .abort    = tSEMI,
          .nest_in  = tLPAREN,
          .nest_out = tRPAREN,

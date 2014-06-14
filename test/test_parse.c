@@ -277,7 +277,7 @@ START_TEST(test_seq)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 15);
+   fail_unless(tree_stmts(a) == 16);
 
    // Wait statements
 
@@ -581,6 +581,15 @@ START_TEST(test_seq)
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(s) == T_SIGNAL_ASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
+
+   // Case statement range bug
+
+   p = tree_stmt(a, 15);
+
+   s = tree_stmt(p, 0);
+   fail_unless(tree_kind(s) == T_CASE);
+   fail_unless(tree_assocs(s) == 1);
+   fail_unless(tree_subkind(tree_assoc(s, 0)) == A_NAMED);
 
    a = parse();
    fail_unless(a == NULL);

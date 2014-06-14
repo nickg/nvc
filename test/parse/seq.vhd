@@ -152,4 +152,14 @@ begin
         ( x, y, z ) <= foo;
     end process;
 
+    -- Case statement range bug
+    process is
+    begin
+        case f is
+            when 1 =>
+                for i in x'range loop
+                end loop;
+        end case;
+    end process;
+
 end architecture;
