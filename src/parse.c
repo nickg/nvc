@@ -5128,18 +5128,18 @@ void input_from_file(const char *file)
    perm_file_name     = strdup(file);
    n_row              = 0;
    n_token_next_start = 0;
-}
-
-tree_t parse(void)
-{
-   n_errors  = 0;
-   n_correct = RECOVER_THRESH;
 
    while (tokenq != NULL) {
       tokenq_t *tmp = tokenq->next;
       free(tokenq);
       tokenq = tmp;
    }
+}
+
+tree_t parse(void)
+{
+   n_errors  = 0;
+   n_correct = RECOVER_THRESH;
 
    assert_viol = NULL;
 
