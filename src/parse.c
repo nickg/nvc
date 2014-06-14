@@ -1378,6 +1378,8 @@ static tree_t p_allocator(void)
 
    BEGIN("allocator");
 
+   consume(tNEW);
+
    tree_t new = tree_new(T_NEW);
    tree_set_value(new, p_expression());
    tree_set_loc(new, CURRENT_LOC);
@@ -3256,6 +3258,246 @@ static tree_t p_alias_declaration(void)
    return t;
 }
 
+static ident_list_t *p_instantiation_list(void)
+{
+   // label { , label } | others | all
+
+   switch (peek()) {
+   case tID:
+      return p_identifier_list();
+
+   case tOTHERS:
+      consume(tOTHERS);
+      return NULL;
+
+   case tALL:
+      {
+         consume(tALL);
+
+         ident_list_t *result = NULL;
+         ident_list_add(&result, ident_new("all"));
+         return result;
+      }
+
+   default:
+      expect(tID, tOTHERS, tALL);
+      return NULL;
+   }
+}
+
+static ident_list_t *p_component_specification(ident_t *comp_name)
+{
+   // instantiation_list : name
+
+   BEGIN("component specification");
+
+   ident_list_t *ids = p_instantiation_list();
+   consume(tCOLON);
+   *comp_name = p_identifier();
+
+   return ids;
+}
+
+static tree_t p_formal_part(void)
+{
+   // formal_designator
+   //   | name ( formal_designator )
+   //   | type_mark ( formal_designator )
+
+   BEGIN("formal part");
+
+   return p_name();
+}
+
+static tree_t p_actual_part(void)
+{
+   // actual_designator
+   //   | name ( actual_designator )
+   //   | type_mark ( actual_designator )
+
+   BEGIN("actual part");
+
+   if (optional(tOPEN)) {
+      tree_t t = tree_new(T_OPEN);
+      tree_set_loc(t, CURRENT_LOC);
+      return t;
+   }
+   else
+      return p_expression();
+}
+
+static void p_association_element(tree_t map, add_func_t addf)
+{
+   // [ formal_part => ] actual_part
+
+   BEGIN("association element");
+
+   tree_t p = tree_new(T_PARAM);
+
+   const look_params_t lookp = {
+      .look     = { tASSOC },
+      .stop     = { tCOMMA, tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 0
+   };
+
+   if (look_for(&lookp)) {
+      tree_set_subkind(p, P_NAMED);
+      tree_set_name(p, p_formal_part());
+
+      consume(tASSOC);
+   }
+   else
+      tree_set_subkind(p, P_POS);
+
+   tree_set_value(p, p_actual_part());
+   tree_set_loc(p, CURRENT_LOC);
+
+   (*addf)(map, p);
+}
+
+static void p_association_list(tree_t map, add_func_t addf)
+{
+   // association_element { , association_element }
+
+   p_association_element(map, addf);
+
+   while (optional(tCOMMA))
+      p_association_element(map, addf);
+}
+
+static void p_port_map_aspect(tree_t inst)
+{
+   // port map ( association_list )
+
+   BEGIN("port map aspect");
+
+   consume(tPORT);
+   consume(tMAP);
+   consume(tLPAREN);
+
+   p_association_list(inst, tree_add_param);
+
+   consume(tRPAREN);
+}
+
+static void p_generic_map_aspect(tree_t inst)
+{
+   // generic map ( association_list )
+
+   BEGIN("generic map aspect");
+
+   consume(tGENERIC);
+   consume(tMAP);
+   consume(tLPAREN);
+
+   p_association_list(inst, tree_add_genmap);
+
+   consume(tRPAREN);
+}
+
+static tree_t p_entity_aspect(void)
+{
+   // entity name [ ( identifier) ] | configuration name | open
+
+   switch (one_of(tENTITY, tCONFIGURATION, tOPEN)) {
+   case tENTITY:
+      {
+         tree_t bind = tree_new(T_BINDING);
+         tree_set_class(bind, C_ENTITY);
+         tree_set_ident(bind, p_selected_identifier());
+         if (optional(tLPAREN)) {
+            tree_set_ident2(bind, p_identifier());
+            consume(tRPAREN);
+         }
+
+         return bind;
+      }
+
+   case tCONFIGURATION:
+      {
+         tree_t bind = tree_new(T_BINDING);
+         tree_set_class(bind, C_CONFIGURATION);
+         tree_set_ident(bind, p_identifier());
+
+         return bind;
+      }
+
+   case tOPEN:
+   default:
+      return NULL;
+   }
+}
+
+static tree_t p_binding_indication(void)
+{
+   // [ use entity_aspect ] [ generic_map_aspect ] [ port_map_aspect ]
+
+   BEGIN("binding indication");
+
+   tree_t bind = NULL;
+   if (optional(tUSE))
+      bind = p_entity_aspect();
+   else
+      bind = tree_new(T_BINDING);
+
+   if (peek() == tGENERIC) {
+      assert(bind != NULL);   // XXX: check for open here
+      p_generic_map_aspect(bind);
+   }
+
+   if (peek() == tPORT) {
+      assert(bind != NULL);   // XXX: check for open here
+      p_port_map_aspect(bind);
+   }
+
+   if (bind != NULL)
+      tree_set_loc(bind, CURRENT_LOC);
+
+   return bind;
+}
+
+static void p_configuration_specification(tree_t parent)
+{
+   // for component_specification binding_indication ;
+
+   BEGIN("configuration specification");
+
+   consume(tFOR);
+
+   ident_t comp_name;
+   LOCAL_IDENT_LIST ids = p_component_specification(&comp_name);
+
+   tree_t bind = p_binding_indication();
+
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   if (ids != NULL) {
+      for (ident_list_t *it = ids; it != NULL; it = it->next) {
+         tree_t t = tree_new(T_SPEC);
+         tree_set_loc(t, loc);
+         tree_set_ident(t, it->ident);
+         tree_set_ident2(t, comp_name);
+         tree_set_value(t, bind);
+
+         tree_add_decl(parent, t);
+      }
+   }
+   else {
+      // Instantiation list was "others"
+      tree_t t = tree_new(T_SPEC);
+      tree_set_loc(t, loc);
+      tree_set_ident2(t, comp_name);
+      tree_set_value(t, bind);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_block_declarative_item(tree_t parent)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -3312,9 +3554,13 @@ static void p_block_declarative_item(tree_t parent)
          tree_add_decl(parent, p_attribute_declaration());
       break;
 
+   case tFOR:
+      p_configuration_specification(parent);
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE, tALIAS, tATTRIBUTE);
+             tPURE, tALIAS, tATTRIBUTE, tFOR);
    }
 }
 
@@ -3897,106 +4143,6 @@ static tree_t p_sequential_statement(void)
       expect(tASSIGN, tLE, tSEMI);
       return tree_new(T_NULL);
    }
-}
-
-static tree_t p_formal_part(void)
-{
-   // formal_designator
-   //   | name ( formal_designator )
-   //   | type_mark ( formal_designator )
-
-   BEGIN("formal part");
-
-   return p_name();
-}
-
-static tree_t p_actual_part(void)
-{
-   // actual_designator
-   //   | name ( actual_designator )
-   //   | type_mark ( actual_designator )
-
-   BEGIN("actual part");
-
-   if (optional(tOPEN)) {
-      tree_t t = tree_new(T_OPEN);
-      tree_set_loc(t, CURRENT_LOC);
-      return t;
-   }
-   else
-      return p_expression();
-}
-
-static void p_association_element(tree_t map, add_func_t addf)
-{
-   // [ formal_part => ] actual_part
-
-   BEGIN("association element");
-
-   tree_t p = tree_new(T_PARAM);
-
-   const look_params_t lookp = {
-      .look     = { tASSOC },
-      .stop     = { tCOMMA, tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 0
-   };
-
-   if (look_for(&lookp)) {
-      tree_set_subkind(p, P_NAMED);
-      tree_set_name(p, p_formal_part());
-
-      consume(tASSOC);
-   }
-   else
-      tree_set_subkind(p, P_POS);
-
-   tree_set_value(p, p_actual_part());
-   tree_set_loc(p, CURRENT_LOC);
-
-   (*addf)(map, p);
-}
-
-static void p_association_list(tree_t map, add_func_t addf)
-{
-   // association_element { , association_element }
-
-   p_association_element(map, addf);
-
-   while (optional(tCOMMA))
-      p_association_element(map, addf);
-}
-
-static void p_port_map_aspect(tree_t inst)
-{
-   // port map ( association_list )
-
-   BEGIN("port map aspect");
-
-   consume(tPORT);
-   consume(tMAP);
-   consume(tLPAREN);
-
-   p_association_list(inst, tree_add_param);
-
-   consume(tRPAREN);
-}
-
-static void p_generic_map_aspect(tree_t inst)
-{
-   // generic map ( association_list )
-
-   BEGIN("generic map aspect");
-
-   consume(tGENERIC);
-   consume(tMAP);
-   consume(tLPAREN);
-
-   p_association_list(inst, tree_add_genmap);
-
-   consume(tRPAREN);
 }
 
 static tree_t p_instantiated_unit(void)
