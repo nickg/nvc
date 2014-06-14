@@ -3727,8 +3727,12 @@ static tree_t p_target(tree_t name)
 
    BEGIN("target");
 
-   if (name == NULL)
-      return p_name();
+   if (name == NULL) {
+      if (peek() == tLPAREN)
+         return p_aggregate();
+      else
+         return p_name();
+   }
    else
       return name;
 }
@@ -4701,6 +4705,9 @@ static tree_t p_concurrent_statement(void)
       case tIF:
       case tFOR:
          return p_generate_statement(label);
+
+      case tLPAREN:
+         return p_concurrent_signal_assignment_statement(label);
 
       default:
          // XXX: this is a bit broken as we allow instances without labels

@@ -1324,7 +1324,7 @@ START_TEST(test_conc)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 5);
+   fail_unless(tree_stmts(a) == 6);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
@@ -1356,6 +1356,10 @@ START_TEST(test_conc)
 
    s = tree_stmt(a, 4);
    fail_unless(tree_kind(s) == T_CASSERT);
+
+   s = tree_stmt(a, 5);
+   fail_unless(tree_kind(s) == T_CASSIGN);
+   fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
 
    a = parse();
    fail_unless(a == NULL);

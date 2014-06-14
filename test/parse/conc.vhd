@@ -16,4 +16,6 @@ begin
 
     assert x = 5;
 
+    (a, b) <= c;
+
 end architecture;
