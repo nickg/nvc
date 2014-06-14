@@ -14,6 +14,7 @@ begin
         x := y rol 1;
         x := y ror 1;
         x := work.foo."and"(1, 2);
+        x(y'range) := y;
     end process;
 
 end architecture;

@@ -190,6 +190,7 @@ GROUP         {G}{R}{O}{U}{P}
 LABEL         {L}{A}{B}{E}{L}
 LITERAL       {L}{I}{T}{E}{R}{A}{L}
 GUARDED       {G}{U}{A}{R}{D}{E}{D}
+REVRANGE      {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 
 %%
 
@@ -290,6 +291,7 @@ GUARDED       {G}{U}{A}{R}{D}{E}{D}
 {GROUP}         { TOKEN(tGROUP); }
 {LABEL}         { TOKEN(tLABEL); }
 {GUARDED}       { TOKEN(tGUARDED); }
+{REVRANGE}      { TOKEN(tREVRANGE); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

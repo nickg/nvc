@@ -31,6 +31,8 @@ begin
         y(2) <= n(2);
         y(3)(5) <= n(2)(1);
         x(1 to 3) <= z(1 to 3);
+        a := (x'range => 5);
+        a := (x'reverse_range => 3);
     end process;
 
 end architecture;

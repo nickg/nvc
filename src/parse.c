@@ -152,7 +152,8 @@ static const char *token_str(token_t tok)
       "with", "select", "generate", "access", "file", "open", "real", "until",
       "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
-      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded"
+      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
+      "reverse_range"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -982,7 +983,9 @@ static tree_t p_attribute_name(tree_t prefix)
    tree_set_name(t, prefix);
 
    if (optional(tRANGE))
-      tree_set_ident(t, ident_new("range"));
+      tree_set_ident(t, ident_new("RANGE"));
+   else if (optional(tREVRANGE))
+      tree_set_ident(t, ident_new("REVERSE_RANGE"));
    else
       tree_set_ident(t, p_identifier());
 
@@ -1113,7 +1116,7 @@ static tree_t p_name(void)
       // Either a function call, indexed name, or selected name
 
       const look_params_t lookp = {
-         .look     = { tDOWNTO, tTO },
+         .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
          .stop     = { tRPAREN },
          .abort    = tSEMI,
          .nest_in  = tLPAREN,
@@ -1337,15 +1340,22 @@ static void p_choice(tree_t parent)
    if (optional(tOTHERS))
       tree_set_subkind(t, A_OTHERS);
    else {
-      tree_t left = p_expression();
+      const look_params_t lookp = {
+         .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
+         .stop     = { tRPAREN },
+         .abort    = tSEMI,
+         .nest_in  = tLPAREN,
+         .nest_out = tRPAREN,
+         .depth    = 0
+      };
 
-      if (scan(tTO, tDOWNTO)) {
+      if (look_for(&lookp)) {
          tree_set_subkind(t, A_RANGE);
-         tree_set_range(t, p_range(left));
+         tree_set_range(t, p_discrete_range());
       }
       else {
          tree_set_subkind(t, A_NAMED);
-         tree_set_name(t, left);
+         tree_set_name(t, p_expression());
       }
    }
 
@@ -1950,7 +1960,7 @@ static void p_interface_file_declaration(tree_t parent)
       tree_t d = tree_new(T_PORT_DECL);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
-      tree_set_subkind(d, PORT_INOUT);
+      tree_set_subkind(d, PORT_IN);
       tree_set_type(d, type);
       tree_set_class(d, C_FILE);
 

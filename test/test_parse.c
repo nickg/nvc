@@ -1244,6 +1244,18 @@ START_TEST(test_array)
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
    e = tree_value(tree_waveform(s, 0));
    fail_unless(tree_kind(e) == T_ARRAY_SLICE);
+   s = tree_stmt(p, 4);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_AGGREGATE);
+   fail_unless(tree_assocs(e) == 1);
+   fail_unless(tree_subkind(tree_assoc(e, 0)) == A_RANGE);
+   s = tree_stmt(p, 5);
+   fail_unless(tree_kind(s) == T_VAR_ASSIGN);
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_AGGREGATE);
+   fail_unless(tree_assocs(e) == 1);
+   fail_unless(tree_subkind(tree_assoc(e, 0)) == A_RANGE);
 
    p = parse();
    fail_unless(p == NULL);
@@ -1976,7 +1988,7 @@ START_TEST(test_expr)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 11);
+   fail_unless(tree_stmts(p) == 12);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -2013,6 +2025,9 @@ START_TEST(test_expr)
    e = tree_value(tree_stmt(p, 10));
    fail_unless(tree_kind(e) == T_FCALL);
    fail_unless(tree_ident(e) == ident_new("WORK.FOO.\"and\""));
+
+   e = tree_target(tree_stmt(p, 11));
+   fail_unless(tree_kind(e) == T_ARRAY_SLICE);
 
    a = parse();
    fail_unless(a == NULL);
