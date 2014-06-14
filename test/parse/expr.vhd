@@ -13,6 +13,7 @@ begin
         x := y sra 1;
         x := y rol 1;
         x := y ror 1;
+        x := work.foo."and"(1, 2);
     end process;
 
 end architecture;

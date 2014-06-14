@@ -1003,24 +1003,15 @@ static tree_t p_selected_name(tree_t prefix)
 
    consume(tDOT);
 
+   ident_t suffix = NULL;
    switch (peek()) {
    case tID:
-      {
-         ident_t suffix = p_identifier();
+      suffix = p_identifier();
+      break;
 
-         if (tree_kind(prefix) == T_REF) {
-            ident_t joined = ident_prefix(tree_ident(prefix), suffix, '.');
-            tree_set_ident(prefix, joined);
-            return prefix;
-         }
-         else {
-            tree_t rref = tree_new(T_RECORD_REF);
-            tree_set_value(rref, prefix);
-            tree_set_ident(rref, suffix);
-            tree_set_loc(rref, CURRENT_LOC);
-            return rref;
-         }
-      }
+   case tSTRING:
+      suffix = p_operator_symbol();
+      break;
 
    case tALL:
       {
@@ -1036,6 +1027,19 @@ static tree_t p_selected_name(tree_t prefix)
    default:
       expect(tID, tALL);
       return prefix;
+   }
+
+   if (tree_kind(prefix) == T_REF) {
+      ident_t joined = ident_prefix(tree_ident(prefix), suffix, '.');
+      tree_set_ident(prefix, joined);
+      return prefix;
+   }
+   else {
+      tree_t rref = tree_new(T_RECORD_REF);
+      tree_set_value(rref, prefix);
+      tree_set_ident(rref, suffix);
+      tree_set_loc(rref, CURRENT_LOC);
+      return rref;
    }
 }
 
@@ -3153,9 +3157,13 @@ static void p_process_declarative_item(tree_t proc)
       p_use_clause(proc, tree_add_decl);
       break;
 
+   case tALIAS:
+      tree_add_decl(proc, p_alias_declaration());
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tUSE);
+             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS);
    }
 }
 

@@ -1976,7 +1976,7 @@ START_TEST(test_expr)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 10);
+   fail_unless(tree_stmts(p) == 11);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -2009,6 +2009,10 @@ START_TEST(test_expr)
       fail_unless(tree_ident(e) == ident_new(buf));
       fail_unless(tree_params(e) == 2);
    }
+
+   e = tree_value(tree_stmt(p, 10));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("WORK.FOO.\"and\""));
 
    a = parse();
    fail_unless(a == NULL);
