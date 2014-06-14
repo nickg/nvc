@@ -1067,6 +1067,11 @@ START_TEST(test_func)
    fail_unless(tree_ports(f) == 2);
 
    p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   fail_unless(tree_decls(p) == 1);
+
+   p = parse();
    fail_unless(p == NULL);
 
    fail_unless(parse_errors() == 0);
@@ -1938,6 +1943,43 @@ START_TEST(test_loc)
 }
 END_TEST
 
+START_TEST(test_expr)
+{
+   tree_t a, p, e;
+
+   input_from_file(TESTDIR "/parse/expr.vhd");
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   fail_unless(tree_stmts(a) == 1);
+   fail_unless(tree_decls(a) == 0);
+
+   p = tree_stmt(a, 0);
+   fail_unless(tree_kind(p) == T_PROCESS);
+
+   e = tree_value(tree_stmt(p, 0));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"not\""));
+   fail_unless(tree_params(e) == 1);
+
+   e = tree_value(tree_stmt(p, 1));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"abs\""));
+   fail_unless(tree_params(e) == 1);
+
+   e = tree_value(tree_stmt(p, 2));
+   fail_unless(tree_kind(e) == T_FCALL);
+   fail_unless(tree_ident(e) == ident_new("\"**\""));
+   fail_unless(tree_params(e) == 2);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1972,6 +2014,7 @@ int main(void)
    tcase_add_test(tc_core, test_access);
    tcase_add_test(tc_core, test_spec);
    tcase_add_test(tc_core, test_loc);
+   tcase_add_test(tc_core, test_expr);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

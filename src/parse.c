@@ -151,7 +151,8 @@ static const char *token_str(token_t tok)
       "|", "[", "]", "inertial", "transport", "reject", "bit string", "block",
       "with", "select", "generate", "access", "file", "open", "real", "until",
       "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
-      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl"
+      "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
+      "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -1524,10 +1525,45 @@ static tree_t p_factor(void)
 
    BEGIN("factor");
 
+   ident_t op = NULL;
+   switch (peek()) {
+   case tNOT:
+      consume(tNOT);
+      op = ident_new("\"not\"");
+      break;
+
+   case tABS:
+      consume(tABS);
+      op = ident_new("\"abs\"");
+      break;
+
+   default:
+      break;
+   }
+
    tree_t operand = p_primary();
 
-   // XXX
-   return operand;
+   if (op != NULL) {
+      tree_t t = tree_new(T_FCALL);
+      tree_set_loc(t, CURRENT_LOC);
+      tree_set_ident(t, op);
+      add_param(t, operand, P_POS, NULL);
+
+      return t;
+   }
+   else if (optional(tPOWER)) {
+      tree_t second = p_primary();
+
+      tree_t t = tree_new(T_FCALL);
+      tree_set_loc(t, CURRENT_LOC);
+      tree_set_ident(t, ident_new("\"**\""));
+      add_param(t, operand, P_POS, NULL);
+      add_param(t, second, P_POS, NULL);
+
+      return t;
+   }
+   else
+      return operand;
 }
 
 static ident_t p_multiplying_operator(void)
@@ -2982,8 +3018,8 @@ static tree_t p_subprogram_body(tree_t spec)
       break;
    }
 
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
+   if ((peek() == tID) || (peek() == tSTRING)) {
+      ident_t tail_id = p_designator();
       (void)tail_id;
       // XXX: test me
    }
@@ -4733,8 +4769,17 @@ static void p_package_body_declarative_item(tree_t parent)
       }
       break;
 
+   case tTYPE:
+      tree_add_decl(parent, p_type_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(parent);
+      break;
+
    default:
-      expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE);
+      expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
+             tCONSTANT);
    }
 }
 
