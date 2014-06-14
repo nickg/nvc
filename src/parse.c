@@ -5125,6 +5125,12 @@ tree_t parse(void)
    n_errors  = 0;
    n_correct = RECOVER_THRESH;
 
+   while (tokenq != NULL) {
+      tokenq_t *tmp = tokenq->next;
+      free(tokenq);
+      tokenq = tmp;
+   }
+
    assert_viol = NULL;
 
    if (peek() == tEOF)
