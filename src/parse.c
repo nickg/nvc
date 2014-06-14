@@ -2688,52 +2688,6 @@ static void p_constant_declaration(tree_t parent)
    }
 }
 
-static void p_entity_declarative_item(tree_t entity)
-{
-   // subprogram_declaration | subprogram_body | type_declaration
-   //   | subtype_declaration | constant_declaration | signal_declaration
-   //   | shared_variable_declaration | file_declaration | alias_declaration
-   //   | attribute_declaration | attribute_specification
-   //   | disconnection_specification | use_clause | group_template_declaration
-   //   | group_declaration
-
-   BEGIN("entity declarative item");
-
-   switch (peek()) {
-   case tATTRIBUTE:
-      if (peek_nth(3) == tOF)
-         p_attribute_specification(entity);
-      else
-         tree_add_decl(entity, p_attribute_declaration());
-      break;
-
-   case tTYPE:
-      tree_add_decl(entity, p_type_declaration());
-      break;
-
-   case tSUBTYPE:
-      tree_add_decl(entity, p_subtype_declaration());
-      break;
-
-   case tCONSTANT:
-      p_constant_declaration(entity);
-      break;
-
-   default:
-      expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT);
-   }
-}
-
-static void p_entity_declarative_part(tree_t entity)
-{
-   // { entity_declarative_item }
-
-   BEGIN("entity declarative part");
-
-   while (not_at_token(tEND, tBEGIN))
-      p_entity_declarative_item(entity);
-}
-
 static tree_t p_assertion(void)
 {
    // assert condition [ report expression ] [ severity expression ]
@@ -2964,6 +2918,66 @@ static tree_t p_alias_declaration(void)
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
+}
+
+static void p_entity_declarative_item(tree_t entity)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | signal_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | attribute_declaration | attribute_specification
+   //   | disconnection_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("entity declarative item");
+
+   switch (peek()) {
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(entity);
+      else
+         tree_add_decl(entity, p_attribute_declaration());
+      break;
+
+   case tTYPE:
+      tree_add_decl(entity, p_type_declaration());
+      break;
+
+   case tSUBTYPE:
+      tree_add_decl(entity, p_subtype_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(entity);
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(entity, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(entity, p_subprogram_body(spec));
+      }
+      break;
+
+   default:
+      expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
+             tIMPURE, tPURE);
+   }
+}
+
+static void p_entity_declarative_part(tree_t entity)
+{
+   // { entity_declarative_item }
+
+   BEGIN("entity declarative part");
+
+   while (not_at_token(tEND, tBEGIN))
+      p_entity_declarative_item(entity);
 }
 
 static void p_subprogram_declarative_item(tree_t sub)
@@ -3753,6 +3767,7 @@ static void p_block_declarative_item(tree_t parent)
       break;
 
    case tFUNCTION:
+   case tPROCEDURE:
    case tIMPURE:
    case tPURE:
       {
@@ -3787,9 +3802,14 @@ static void p_block_declarative_item(tree_t parent)
       p_use_clause(parent, tree_add_decl);
       break;
 
+   case tSHARED:
+      p_variable_declaration(parent);
+      break;
+
    default:
       expect(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-             tPURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE);
+             tPURE, tPROCEDURE, tALIAS, tATTRIBUTE, tFOR, tCOMPONENT, tUSE,
+             tSHARED);
    }
 }
 
@@ -4592,6 +4612,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
       assert(false);  // XXX: FIXME
 
    tree_change_kind(t, T_CPCALL);
+   tree_set_ident2(t, tree_ident(t));
 
    consume(tSEMI);
 
