@@ -1854,6 +1854,7 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
       tree_set_loc(d, loc);
       tree_set_subkind(d, mode);
       tree_set_type(d, type);
+      tree_set_class(d, C_CONSTANT);
 
       if (init != NULL)
          tree_set_value(d, init);
@@ -1898,7 +1899,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
       if (init != NULL)
          tree_set_value(d, init);
 
-      tree_add_port(parent, d);
+      (*addf)(parent, d);
    }
 }
 

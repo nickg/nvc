@@ -33,3 +33,8 @@ begin
     assert (true ) report "should not assert" severity note;
     assert (false) report "should assert"     severity note;
 end entity seven;
+
+entity eight is
+   generic (
+       signal x : integer );
+end entity;

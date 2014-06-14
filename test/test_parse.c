@@ -150,6 +150,16 @@ START_TEST(test_entity)
    fail_unless(tree_kind(tree_stmt(e, 1)) == T_CASSERT);
 
    e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   fail_unless(tree_ident(e) == ident_new("EIGHT"));
+   fail_unless(tree_generics(e) == 1);
+
+   g = tree_generic(e, 0);
+   fail_unless(tree_kind(g) == T_PORT_DECL);
+   fail_unless(tree_class(g) == C_SIGNAL);
+
+   e = parse();
    fail_unless(e == NULL);
 
    fail_unless(parse_errors() == 0);
