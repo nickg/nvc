@@ -907,6 +907,12 @@ static tree_t p_attribute_name(tree_t prefix)
    else
       tree_set_ident(t, p_identifier());
 
+   if (optional(tLPAREN)) {
+      add_param(t, p_expression(), P_POS, NULL);
+      consume(tRPAREN);
+   }
+
+   tree_set_loc(t, CURRENT_LOC);
    return t;
 }
 
@@ -3852,7 +3858,7 @@ static tree_t p_if_statement(ident_t label)
 
    while (optional(tELSIF)) {
       tree_t elsif = tree_new(T_IF);
-      tree_set_ident(elsif, ident_new("elsif"));
+      tree_set_ident(elsif, ident_uniq("elsif"));
       tree_set_value(elsif, p_expression());
 
       consume(tTHEN);

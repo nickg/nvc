@@ -1392,14 +1392,14 @@ END_TEST
 
 START_TEST(test_attr)
 {
-   tree_t a, d;
+   tree_t a, d, s, r;
 
    input_from_file(TESTDIR "/parse/attr.vhd");
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 0);
+   fail_unless(tree_stmts(a) == 1);
    fail_unless(tree_decls(a) == 4);
 
    d = tree_decl(a, 0);
@@ -1428,6 +1428,12 @@ START_TEST(test_attr)
    fail_unless(tree_ident2(d) == ident_new("X"));
    fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_class(d) == C_LABEL);
+
+   s = tree_stmt(a, 0);
+   fail_unless(tree_kind(s) == T_CASSERT);
+   r = tree_value(s);
+   fail_unless(tree_kind(r) == T_ATTR_REF);
+   fail_unless(tree_params(r) == 1);
 
    a = parse();
    fail_unless(a == NULL);
@@ -1879,7 +1885,7 @@ END_TEST
 
 START_TEST(test_loc)
 {
-   tree_t a, s, p;
+   tree_t a, s, p, e;
    const loc_t *l;
 
    input_from_file(TESTDIR "/parse/loc.vhd");
@@ -1907,6 +1913,22 @@ START_TEST(test_loc)
    fail_unless(l->first_line == 3);
    fail_unless(l->last_line == 3);
    fail_unless(l->first_column == 12);
+   fail_unless(l->last_column == 16);
+
+   s = tree_stmt(a, 1);
+   fail_unless(tree_kind(s) == T_CASSERT);
+   l = tree_loc(s);
+   fail_unless(l->first_line == 4);
+   fail_unless(l->last_line == 4);
+   fail_unless(l->first_column == 4);
+   fail_unless(l->last_column == 17);
+
+   e = tree_value(s);
+   fail_unless(tree_kind(e) == T_ATTR_REF);
+   l = tree_loc(e);
+   fail_unless(l->first_line == 4);
+   fail_unless(l->last_line == 4);
+   fail_unless(l->first_column == 11);
    fail_unless(l->last_column == 16);
 
    a = parse();
