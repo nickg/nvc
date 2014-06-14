@@ -1671,7 +1671,12 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
    LOCAL_IDENT_LIST ids = p_identifier_list();
 
    consume(tCOLON);
-   optional(tIN);
+
+   // The grammar only allows IN here but we are more leniant to allow the
+   // semantic checker to generate a more helpful error message
+   port_mode_t mode = PORT_IN;
+   if (scan(tIN, tOUT, tINOUT, tBUFFER, tLINKAGE))
+      mode = p_mode();
 
    type_t type = p_subtype_indication();
 
@@ -1685,7 +1690,7 @@ static void p_interface_constant_declaration(tree_t parent, add_func_t addf)
       tree_t d = tree_new(T_PORT_DECL);
       tree_set_ident(d, it->ident);
       tree_set_loc(d, loc);
-      tree_set_subkind(d, PORT_IN);
+      tree_set_subkind(d, mode);
       tree_set_type(d, type);
 
       if (init != NULL)
@@ -2463,6 +2468,38 @@ static tree_t p_subtype_declaration(void)
    return t;
 }
 
+static void p_constant_declaration(tree_t parent)
+{
+   // constant identifier_list : subtype_indication [ := expression ] ;
+
+   BEGIN("constant declaration");
+
+   consume(tCONSTANT);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t init = NULL;
+   if (optional(tASSIGN))
+      init = p_expression();
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_CONST_DECL);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      tree_set_loc(t, CURRENT_LOC);
+      if (init != NULL)
+         tree_set_value(t, init);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -2490,8 +2527,12 @@ static void p_entity_declarative_item(tree_t entity)
       tree_add_decl(entity, p_subtype_declaration());
       break;
 
+   case tCONSTANT:
+      p_constant_declaration(entity);
+      break;
+
    default:
-      expect(tATTRIBUTE, tTYPE, tSUBTYPE);
+      expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT);
    }
 }
 
@@ -2987,38 +3028,6 @@ static void p_entity_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
-static void p_constant_declaration(tree_t parent)
-{
-   // constant identifier_list : subtype_indication [ := expression ] ;
-
-   BEGIN("constant declaration");
-
-   consume(tCONSTANT);
-
-   LOCAL_IDENT_LIST ids = p_identifier_list();
-
-   consume(tCOLON);
-
-   type_t type = p_subtype_indication();
-
-   tree_t init = NULL;
-   if (optional(tASSIGN))
-      init = p_expression();
-
-   consume(tSEMI);
-
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_CONST_DECL);
-      tree_set_ident(t, it->ident);
-      tree_set_type(t, type);
-      tree_set_loc(t, CURRENT_LOC);
-      if (init != NULL)
-         tree_set_value(t, init);
-
-      tree_add_decl(parent, t);
-   }
-}
-
 static tree_t p_component_declaration(void)
 {
    // component identifier [ is ] [ generic_clause ] [ port_clause ]
@@ -3051,121 +3060,6 @@ static tree_t p_component_declaration(void)
 
    tree_set_loc(c, CURRENT_LOC);
    return c;
-}
-
-static void p_package_declarative_item(tree_t pack)
-{
-   // subprogram_declaration | type_declaration | subtype_declaration
-   //   | constant_declaration | signal_declaration
-   //   | shared_variable_declaration | file_declaration | alias_declaration
-   //   | component_declaration | attribute_declaration
-   //   | attribute_specification | disconnection_specification | use_clause
-   //   | group_template_declaration | group_declaration
-
-   BEGIN("package declarative item");
-
-   switch (peek()) {
-   case tTYPE:
-      tree_add_decl(pack, p_type_declaration());
-      break;
-
-   case tFUNCTION:
-   case tPROCEDURE:
-   case tIMPURE:
-   case tPURE:
-      {
-         tree_t spec = p_subprogram_specification();
-         tree_add_decl(pack, p_subprogram_declaration(spec));
-      }
-      break;
-
-   case tSUBTYPE:
-      tree_add_decl(pack, p_subtype_declaration());
-      break;
-
-   case tSIGNAL:
-      p_signal_declaration(pack);
-      break;
-
-   case tATTRIBUTE:
-      if (peek_nth(3) == tOF)
-         p_attribute_specification(pack);
-      else
-         tree_add_decl(pack, p_attribute_declaration());
-      break;
-
-   case tCONSTANT:
-      p_constant_declaration(pack);
-      break;
-
-   case tCOMPONENT:
-      tree_add_decl(pack, p_component_declaration());
-      break;
-
-   default:
-      expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT, tCOMPONENT);
-   }
-}
-
-static void p_package_declarative_part(tree_t pack)
-{
-   // { package_declarative_item }
-
-   BEGIN("package declarative part");
-
-   while (not_at_token(tEND))
-      p_package_declarative_item(pack);
-}
-
-static void p_package_declaration(tree_t unit)
-{
-   // package identifier is package_declarative_part end [ package ]
-   //   [ simple_name ] ;
-
-   BEGIN("package declaration");
-
-   consume(tPACKAGE);
-
-   tree_change_kind(unit, T_PACKAGE);
-   tree_set_ident(unit, p_identifier());
-
-   consume(tIS);
-
-   p_package_declarative_part(unit);
-
-   consume(tEND);
-   optional(tPACKAGE);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
-   consume(tSEMI);
-
-   tree_set_loc(unit, CURRENT_LOC);
-}
-
-static void p_primary_unit(tree_t unit)
-{
-   // entity_declaration | configuration_declaration | package_declaration
-
-   BEGIN("primary unit");
-
-   switch (peek()) {
-   case tENTITY:
-      p_entity_declaration(unit);
-      break;
-
-   case tPACKAGE:
-      p_package_declaration(unit);
-      break;
-
-   default:
-      expect(tENTITY);
-   }
 }
 
 static void p_file_open_information(tree_t *mode, tree_t *name)
@@ -3235,6 +3129,128 @@ static void p_file_declaration(tree_t parent)
       tree_set_loc(t, CURRENT_LOC);
 
       tree_add_decl(parent, t);
+   }
+}
+
+static void p_package_declarative_item(tree_t pack)
+{
+   // subprogram_declaration | type_declaration | subtype_declaration
+   //   | constant_declaration | signal_declaration
+   //   | shared_variable_declaration | file_declaration | alias_declaration
+   //   | component_declaration | attribute_declaration
+   //   | attribute_specification | disconnection_specification | use_clause
+   //   | group_template_declaration | group_declaration
+
+   BEGIN("package declarative item");
+
+   switch (peek()) {
+   case tTYPE:
+      tree_add_decl(pack, p_type_declaration());
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(pack, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(pack, p_subprogram_body(spec));
+      }
+      break;
+
+   case tSUBTYPE:
+      tree_add_decl(pack, p_subtype_declaration());
+      break;
+
+   case tSIGNAL:
+      p_signal_declaration(pack);
+      break;
+
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(pack);
+      else
+         tree_add_decl(pack, p_attribute_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(pack);
+      break;
+
+   case tCOMPONENT:
+      tree_add_decl(pack, p_component_declaration());
+      break;
+
+   case tFILE:
+      p_file_declaration(pack);
+      break;
+
+   default:
+      expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
+             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE);
+   }
+}
+
+static void p_package_declarative_part(tree_t pack)
+{
+   // { package_declarative_item }
+
+   BEGIN("package declarative part");
+
+   while (not_at_token(tEND))
+      p_package_declarative_item(pack);
+}
+
+static void p_package_declaration(tree_t unit)
+{
+   // package identifier is package_declarative_part end [ package ]
+   //   [ simple_name ] ;
+
+   BEGIN("package declaration");
+
+   consume(tPACKAGE);
+
+   tree_change_kind(unit, T_PACKAGE);
+   tree_set_ident(unit, p_identifier());
+
+   consume(tIS);
+
+   p_package_declarative_part(unit);
+
+   consume(tEND);
+   optional(tPACKAGE);
+
+   if (peek() == tID) {
+      ident_t tail_id = p_identifier();
+      (void)tail_id;
+      // XXX: test me
+   }
+
+   consume(tSEMI);
+
+   tree_set_loc(unit, CURRENT_LOC);
+}
+
+static void p_primary_unit(tree_t unit)
+{
+   // entity_declaration | configuration_declaration | package_declaration
+
+   BEGIN("primary unit");
+
+   switch (peek()) {
+   case tENTITY:
+      p_entity_declaration(unit);
+      break;
+
+   case tPACKAGE:
+      p_package_declaration(unit);
+      break;
+
+   default:
+      expect(tENTITY);
    }
 }
 
