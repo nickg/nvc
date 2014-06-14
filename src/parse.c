@@ -2920,6 +2920,77 @@ static tree_t p_alias_declaration(void)
    return t;
 }
 
+static void p_file_open_information(tree_t *mode, tree_t *name)
+{
+   // [ open expression ] is file_logical_name
+
+   BEGIN("file open information");
+
+   if (optional(tOPEN))
+      *mode = p_expression();
+   else
+      *mode = NULL;
+
+   if (optional(tIS)) {
+      if ((*mode == NULL) && scan(tIN, tOUT)) {
+         // VHDL-87 compatibility
+         switch (one_of(tIN, tOUT)) {
+         case tIN:
+            *mode = tree_new(T_REF);
+            tree_set_ident(*mode, ident_new("READ_MODE"));
+            break;
+
+         case tOUT:
+            *mode = tree_new(T_REF);
+            tree_set_ident(*mode, ident_new("WRITE_MODE"));
+            break;
+         }
+      }
+
+      *name = p_expression();
+
+      if (*mode == NULL) {
+         *mode = tree_new(T_REF);
+         tree_set_ident(*mode, ident_new("READ_MODE"));
+      }
+   }
+   else
+      *name = NULL;
+}
+
+static void p_file_declaration(tree_t parent)
+{
+   // file identifier_list : subtype_indication [ file_open_information ] ;
+
+   BEGIN("file declaration");
+
+   consume(tFILE);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   tree_t mode, name;
+   p_file_open_information(&mode, &name);
+
+   consume(tSEMI);
+
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t t = tree_new(T_FILE_DECL);
+      tree_set_ident(t, it->ident);
+      tree_set_type(t, type);
+      if (name != NULL) {
+         tree_set_file_mode(t, mode);
+         tree_set_value(t, name);
+      }
+      tree_set_loc(t, CURRENT_LOC);
+
+      tree_add_decl(parent, t);
+   }
+}
+
 static void p_entity_declarative_item(tree_t entity)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -3035,9 +3106,13 @@ static void p_subprogram_declarative_item(tree_t sub)
       p_use_clause(sub, tree_add_decl);
       break;
 
+   case tFILE:
+      p_file_declaration(sub);
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE, tUSE);
+             tIMPURE, tPURE, tATTRIBUTE, tSUBTYPE, tUSE, tFILE);
    }
 }
 
@@ -3186,9 +3261,13 @@ static void p_process_declarative_item(tree_t proc)
       tree_add_decl(proc, p_alias_declaration());
       break;
 
+   case tFILE:
+      p_file_declaration(proc);
+      break;
+
    default:
       expect(tVARIABLE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS);
+             tIMPURE, tPURE, tATTRIBUTE, tUSE, tALIAS, tFILE);
    }
 }
 
@@ -3370,77 +3449,6 @@ static tree_t p_component_declaration(void)
    return c;
 }
 
-static void p_file_open_information(tree_t *mode, tree_t *name)
-{
-   // [ open expression ] is file_logical_name
-
-   BEGIN("file open information");
-
-   if (optional(tOPEN))
-      *mode = p_expression();
-   else
-      *mode = NULL;
-
-   if (optional(tIS)) {
-      if ((*mode == NULL) && scan(tIN, tOUT)) {
-         // VHDL-87 compatibility
-         switch (one_of(tIN, tOUT)) {
-         case tIN:
-            *mode = tree_new(T_REF);
-            tree_set_ident(*mode, ident_new("READ_MODE"));
-            break;
-
-         case tOUT:
-            *mode = tree_new(T_REF);
-            tree_set_ident(*mode, ident_new("WRITE_MODE"));
-            break;
-         }
-      }
-
-      *name = p_expression();
-
-      if (*mode == NULL) {
-         *mode = tree_new(T_REF);
-         tree_set_ident(*mode, ident_new("READ_MODE"));
-      }
-   }
-   else
-      *name = NULL;
-}
-
-static void p_file_declaration(tree_t parent)
-{
-   // file identifier_list : subtype_indication [ file_open_information ] ;
-
-   BEGIN("file declaration");
-
-   consume(tFILE);
-
-   LOCAL_IDENT_LIST ids = p_identifier_list();
-
-   consume(tCOLON);
-
-   type_t type = p_subtype_indication();
-
-   tree_t mode, name;
-   p_file_open_information(&mode, &name);
-
-   consume(tSEMI);
-
-   for (ident_list_t *it = ids; it != NULL; it = it->next) {
-      tree_t t = tree_new(T_FILE_DECL);
-      tree_set_ident(t, it->ident);
-      tree_set_type(t, type);
-      if (name != NULL) {
-         tree_set_file_mode(t, mode);
-         tree_set_value(t, name);
-      }
-      tree_set_loc(t, CURRENT_LOC);
-
-      tree_add_decl(parent, t);
-   }
-}
-
 static void p_package_declarative_item(tree_t pack)
 {
    // subprogram_declaration | type_declaration | subtype_declaration
@@ -3498,9 +3506,13 @@ static void p_package_declarative_item(tree_t pack)
       p_file_declaration(pack);
       break;
 
+   case tSHARED:
+      p_variable_declaration(pack);
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE);
+             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED);
    }
 }
 
@@ -4922,9 +4934,13 @@ static void p_package_body_declarative_item(tree_t parent)
       tree_add_decl(parent, p_subtype_declaration());
       break;
 
+   case tALIAS:
+      tree_add_decl(parent, p_alias_declaration());
+      break;
+
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE);
+             tCONSTANT, tSUBTYPE, tALIAS);
    }
 }
 
