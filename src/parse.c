@@ -1372,6 +1372,19 @@ static tree_t p_qualified_expression(tree_t name)
    return t;
 }
 
+static tree_t p_allocator(void)
+{
+   // new subtype_indication | new qualified_expression
+
+   BEGIN("allocator");
+
+   tree_t new = tree_new(T_NEW);
+   tree_set_value(new, p_expression());
+   tree_set_loc(new, CURRENT_LOC);
+
+   return new;
+}
+
 static tree_t p_primary(void)
 {
    // name | literal | aggregate | function_call | qualified_expression
@@ -1421,8 +1434,11 @@ static tree_t p_primary(void)
          }
       }
 
+   case tNEW:
+      return p_allocator();
+
    default:
-      expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING);
+      expect(tLPAREN, tINT, tREAL, tNULL, tID, tSTRING, tBITSTRING, tNEW);
       return tree_new(T_OPEN);
    }
 }
