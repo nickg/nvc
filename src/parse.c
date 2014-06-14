@@ -3398,14 +3398,14 @@ static void p_file_open_information(tree_t *mode, tree_t *name)
       }
 
       *name = p_expression();
+
+      if (*mode == NULL) {
+         *mode = tree_new(T_REF);
+         tree_set_ident(*mode, ident_new("READ_MODE"));
+      }
    }
    else
       *name = NULL;
-
-   if (*mode == NULL) {
-      *mode = tree_new(T_REF);
-      tree_set_ident(*mode, ident_new("READ_MODE"));
-   }
 }
 
 static void p_file_declaration(tree_t parent)
@@ -3431,9 +3431,10 @@ static void p_file_declaration(tree_t parent)
       tree_t t = tree_new(T_FILE_DECL);
       tree_set_ident(t, it->ident);
       tree_set_type(t, type);
-      tree_set_file_mode(t, mode);
-      if (name != NULL)
+      if (name != NULL) {
+         tree_set_file_mode(t, mode);
          tree_set_value(t, name);
+      }
       tree_set_loc(t, CURRENT_LOC);
 
       tree_add_decl(parent, t);
