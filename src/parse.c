@@ -110,6 +110,7 @@ static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
 static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
+static tree_t p_name(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -873,6 +874,85 @@ static tree_t p_slice_name(tree_t prefix)
    return t;
 }
 
+static tree_t p_formal_part(void)
+{
+   // formal_designator
+   //   | name ( formal_designator )
+   //   | type_mark ( formal_designator )
+
+   BEGIN("formal part");
+
+   return p_name();
+}
+
+static tree_t p_actual_part(void)
+{
+   // actual_designator
+   //   | name ( actual_designator )
+   //   | type_mark ( actual_designator )
+
+   BEGIN("actual part");
+
+   if (optional(tOPEN)) {
+      tree_t t = tree_new(T_OPEN);
+      tree_set_loc(t, CURRENT_LOC);
+      return t;
+   }
+   else
+      return p_expression();
+}
+
+static void p_association_element(tree_t map, add_func_t addf)
+{
+   // [ formal_part => ] actual_part
+
+   BEGIN("association element");
+
+   tree_t p = tree_new(T_PARAM);
+
+   const look_params_t lookp = {
+      .look     = { tASSOC },
+      .stop     = { tCOMMA, tRPAREN },
+      .abort    = tSEMI,
+      .nest_in  = tLPAREN,
+      .nest_out = tRPAREN,
+      .depth    = 0
+   };
+
+   if (look_for(&lookp)) {
+      tree_set_subkind(p, P_NAMED);
+      tree_set_name(p, p_formal_part());
+
+      consume(tASSOC);
+   }
+   else
+      tree_set_subkind(p, P_POS);
+
+   tree_set_value(p, p_actual_part());
+   tree_set_loc(p, CURRENT_LOC);
+
+   (*addf)(map, p);
+}
+
+static void p_association_list(tree_t map, add_func_t addf)
+{
+   // association_element { , association_element }
+
+   p_association_element(map, addf);
+
+   while (optional(tCOMMA))
+      p_association_element(map, addf);
+}
+
+static void p_actual_parameter_part(tree_t call)
+{
+   // association_list
+
+   BEGIN("actual parameter part");
+
+   p_association_list(call, tree_add_param);
+}
+
 static tree_t p_function_call(tree_t name)
 {
    // name [ ( actual_parameter_part ) ]
@@ -882,11 +962,7 @@ static tree_t p_function_call(tree_t name)
    tree_change_kind(name, T_FCALL);
 
    consume(tLPAREN);
-
-   do {
-      add_param(name, p_expression(), P_POS, NULL);
-   } while (optional(tCOMMA));
-
+   p_actual_parameter_part(name);
    consume(tRPAREN);
 
    tree_set_loc(name, CURRENT_LOC);
@@ -3372,76 +3448,6 @@ static ident_list_t *p_component_specification(ident_t *comp_name)
    *comp_name = p_identifier();
 
    return ids;
-}
-
-static tree_t p_formal_part(void)
-{
-   // formal_designator
-   //   | name ( formal_designator )
-   //   | type_mark ( formal_designator )
-
-   BEGIN("formal part");
-
-   return p_name();
-}
-
-static tree_t p_actual_part(void)
-{
-   // actual_designator
-   //   | name ( actual_designator )
-   //   | type_mark ( actual_designator )
-
-   BEGIN("actual part");
-
-   if (optional(tOPEN)) {
-      tree_t t = tree_new(T_OPEN);
-      tree_set_loc(t, CURRENT_LOC);
-      return t;
-   }
-   else
-      return p_expression();
-}
-
-static void p_association_element(tree_t map, add_func_t addf)
-{
-   // [ formal_part => ] actual_part
-
-   BEGIN("association element");
-
-   tree_t p = tree_new(T_PARAM);
-
-   const look_params_t lookp = {
-      .look     = { tASSOC },
-      .stop     = { tCOMMA, tRPAREN },
-      .abort    = tSEMI,
-      .nest_in  = tLPAREN,
-      .nest_out = tRPAREN,
-      .depth    = 0
-   };
-
-   if (look_for(&lookp)) {
-      tree_set_subkind(p, P_NAMED);
-      tree_set_name(p, p_formal_part());
-
-      consume(tASSOC);
-   }
-   else
-      tree_set_subkind(p, P_POS);
-
-   tree_set_value(p, p_actual_part());
-   tree_set_loc(p, CURRENT_LOC);
-
-   (*addf)(map, p);
-}
-
-static void p_association_list(tree_t map, add_func_t addf)
-{
-   // association_element { , association_element }
-
-   p_association_element(map, addf);
-
-   while (optional(tCOMMA))
-      p_association_element(map, addf);
 }
 
 static void p_port_map_aspect(tree_t inst)

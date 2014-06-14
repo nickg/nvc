@@ -121,6 +121,7 @@ begin
     begin
         foo(x, y, 1);
         bar;
+        foo(a => 1, b => 2, 3);
     end process;
 
     -- Case
