@@ -1681,16 +1681,48 @@ static tree_t p_simple_expression(void)
    return expr;
 }
 
+static ident_t p_shift_operator(void)
+{
+   switch (one_of(tSLL, tSRL, tSLA, tSRA, tROL, tROR)) {
+   case tSLL:
+      return ident_new("\"sll\"");
+   case tSRL:
+      return ident_new("\"srl\"");
+   case tSLA:
+      return ident_new("\"sla\"");
+   case tSRA:
+      return ident_new("\"sra\"");
+   case tROL:
+      return ident_new("\"rol\"");
+   case tROR:
+      return ident_new("\"ror\"");
+   default:
+      return ident_new("error");
+   }
+}
+
 static tree_t p_shift_expression(void)
 {
    // simple_expression [ shift_operator simple_expression ]
 
    BEGIN("shift expression");
 
-   tree_t left = p_simple_expression();
+   tree_t shift = p_simple_expression();
 
-   // XXX
-   return left;
+   while (scan(tSLL, tSRL, tSLA, tSRA, tROL, tROR)) {
+      ident_t op   = p_shift_operator();
+      tree_t left  = shift;
+      tree_t right = p_simple_expression();
+
+      shift = tree_new(T_FCALL);
+      tree_set_ident(shift, op);
+      tree_set_loc(shift, CURRENT_LOC);
+
+      add_param(shift, left, P_POS, NULL);
+      add_param(shift, right, P_POS, NULL);
+   }
+
+   return shift;
 }
 
 static ident_t p_relational_operator(void)

@@ -7,6 +7,12 @@ begin
         x := abs y;
         x := y ** z;
         x := f(4).z;
+        x := y sll 1;
+        x := y srl 1;
+        x := y sla 1;
+        x := y sra 1;
+        x := y rol 1;
+        x := y ror 1;
     end process;
 
 end architecture;

@@ -1965,7 +1965,7 @@ START_TEST(test_expr)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 4);
+   fail_unless(tree_stmts(p) == 10);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -1986,6 +1986,18 @@ START_TEST(test_expr)
    fail_unless(tree_kind(e) == T_RECORD_REF);
    fail_unless(tree_ident(e) == ident_new("Z"));
    fail_unless(tree_kind(tree_value(e)) == T_FCALL);
+
+   const char *shift_ops[] = { "sll", "srl", "sla", "sra", "rol", "ror" };
+
+   for (size_t i = 0; i < ARRAY_LEN(shift_ops); i++) {
+      char buf[16];
+      snprintf(buf, sizeof(buf), "\"%s\"", shift_ops[i]);
+
+      e = tree_value(tree_stmt(p, 4 + i));
+      fail_unless(tree_kind(e) == T_FCALL);
+      fail_unless(tree_ident(e) == ident_new(buf));
+      fail_unless(tree_params(e) == 2);
+   }
 
    a = parse();
    fail_unless(a == NULL);
