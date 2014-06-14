@@ -1,7 +1,7 @@
 package p is
 
     procedure foo(x : in integer; y : out integer);
-    
+
 end package;
 
 package body p is
@@ -11,5 +11,7 @@ package body p is
     begin
         y := x + 1;
     end procedure;
+
+    procedure bar(file x : text);
 
 end package body;

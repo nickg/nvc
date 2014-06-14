@@ -772,35 +772,100 @@ static port_mode_t p_mode(void)
    }
 }
 
+static range_t p_range(tree_t left)
+{
+   // attribute_name | simple_expression direction simple_expression
+
+   EXTEND("range");
+
+   range_t r = {};
+
+   switch (one_of(tTO, tDOWNTO)) {
+   case tTO:
+      r.left  = left;
+      r.kind  = RANGE_TO;
+      r.right = p_expression();
+      break;
+
+   case tDOWNTO:
+      r.kind  = RANGE_DOWNTO;
+      r.left  = left;
+      r.right = p_expression();
+      break;
+   }
+
+   return r;
+}
+
+static range_t p_range_constraint(void)
+{
+   // range range
+
+   BEGIN("range constraint");
+
+   consume(tRANGE);
+
+   return p_range(p_expression());
+}
+
+static range_t p_discrete_range(void)
+{
+   // subtype_indication | range
+
+   BEGIN("discrete range");
+
+   tree_t expr1 = p_expression();
+
+   switch (peek()) {
+   case tTO:
+   case tDOWNTO:
+   case tTICK:
+      return p_range(expr1);
+
+   case tRANGE:
+      {
+         if (tree_kind(expr1) != T_REF)
+            assert(false);   // XXX: FIXME
+
+         type_t type = type_new(T_UNRESOLVED);
+         type_set_ident(type, tree_ident(expr1));
+
+         range_t r = p_range_constraint();
+         if (r.left != NULL)
+             tree_set_type(r.left, type);
+         if (r.right != NULL)
+            tree_set_type(r.right, type);
+
+         return r;
+      }
+
+   default:
+      {
+         range_t r = {
+            .kind  = RANGE_EXPR,
+            .left  = expr1,
+            .right = NULL
+         };
+         return r;
+      }
+   }
+}
+
 static tree_t p_slice_name(tree_t prefix)
 {
    // prefix ( discrete_range )
 
    EXTEND("slice name");
 
+   tree_t t = tree_new(T_ARRAY_SLICE);
+   tree_set_value(t, prefix);
+
    consume(tLPAREN);
-
-   tree_change_kind(prefix, T_ARRAY_SLICE);
-
-   range_t r = { .left = p_expression() };
-
-   switch (one_of(tTO, tDOWNTO)) {
-   case tTO:
-      r.kind = RANGE_TO;
-      break;
-
-   case tDOWNTO:
-      r.kind = RANGE_DOWNTO;
-      break;
-   }
-
-   r.right = p_expression();
-
+   tree_set_range(t, p_discrete_range());
    consume(tRPAREN);
 
-   tree_set_range(prefix, r);
-   tree_set_loc(prefix, CURRENT_LOC);
-   return prefix;
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
 }
 
 static tree_t p_function_call(tree_t name)
@@ -979,85 +1044,6 @@ static type_t p_type_mark(void)
    type_t t = type_new(T_UNRESOLVED);
    type_set_ident(t, name);
    return t;
-}
-
-static range_t p_range(tree_t left)
-{
-   // attribute_name | simple_expression direction simple_expression
-
-   EXTEND("range");
-
-   range_t r = {};
-
-   switch (one_of(tTO, tDOWNTO)) {
-   case tTO:
-      r.left  = left;
-      r.kind  = RANGE_TO;
-      r.right = p_expression();
-      break;
-
-   case tDOWNTO:
-      r.kind  = RANGE_DOWNTO;
-      r.left  = left;
-      r.right = p_expression();
-      break;
-   }
-
-   return r;
-}
-
-static range_t p_range_constraint(void)
-{
-   // range range
-
-   BEGIN("range constraint");
-
-   consume(tRANGE);
-
-   return p_range(p_expression());
-}
-
-static range_t p_discrete_range(void)
-{
-   // subtype_indication | range
-
-   BEGIN("discrete range");
-
-   tree_t expr1 = p_expression();
-
-   switch (peek()) {
-   case tTO:
-   case tDOWNTO:
-   case tTICK:
-      return p_range(expr1);
-
-   case tRANGE:
-      {
-         if (tree_kind(expr1) != T_REF)
-            assert(false);   // XXX: FIXME
-
-         type_t type = type_new(T_UNRESOLVED);
-         type_set_ident(type, tree_ident(expr1));
-
-         range_t r = p_range_constraint();
-         if (r.left != NULL)
-             tree_set_type(r.left, type);
-         if (r.right != NULL)
-            tree_set_type(r.right, type);
-
-         return r;
-      }
-
-   default:
-      {
-         range_t r = {
-            .kind  = RANGE_EXPR,
-            .left  = expr1,
-            .right = NULL
-         };
-         return r;
-      }
-   }
 }
 
 static void p_index_constraint(type_t type)
@@ -1782,6 +1768,26 @@ static void p_interface_file_declaration(tree_t parent)
    // file identifier_list : subtype_indication
 
    BEGIN("interface file declaration");
+
+   consume(tFILE);
+
+   LOCAL_IDENT_LIST ids = p_identifier_list();
+
+   consume(tCOLON);
+
+   type_t type = p_subtype_indication();
+
+   const loc_t *loc = CURRENT_LOC;
+   for (ident_list_t *it = ids; it != NULL; it = it->next) {
+      tree_t d = tree_new(T_PORT_DECL);
+      tree_set_ident(d, it->ident);
+      tree_set_loc(d, loc);
+      tree_set_subkind(d, PORT_INOUT);
+      tree_set_type(d, type);
+      tree_set_class(d, C_FILE);
+
+      tree_add_port(parent, d);
+   }
 }
 
 static void p_interface_declaration(class_t def_class, tree_t parent,
@@ -2969,12 +2975,18 @@ static tree_t p_entity_statement(void)
 
    BEGIN("entity statement");
 
+   ident_t label = NULL;
+   if ((peek() == tID) && (peek_nth(2) == tCOLON)) {
+      label = p_identifier();
+      consume(tCOLON);
+   }
+
    switch (peek()) {
    case tASSERT:
-      return p_concurrent_assertion_statement(NULL);
+      return p_concurrent_assertion_statement(label);
 
    case tPROCESS:
-      return p_process_statement(NULL);
+      return p_process_statement(label);
 
    default:
       expect(tASSERT, tPOSTPONED);

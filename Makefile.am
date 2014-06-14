@@ -1,4 +1,4 @@
-SUBDIRS = thirdparty src lib test
+SUBDIRS = thirdparty src test #lib test
 
 EXTRA_DIST = autogen.sh data/coverage.css nvc.1
 

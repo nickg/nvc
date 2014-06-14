@@ -1455,7 +1455,7 @@ START_TEST(test_procedure)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(tree_decls(p) == 1);
+   fail_unless(tree_decls(p) == 2);
 
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_PROC_BODY);
@@ -1463,6 +1463,12 @@ START_TEST(test_procedure)
    fail_unless(tree_ident(d) == ident_new("FOO"));
    fail_unless(tree_decls(d) == 1);
    fail_unless(tree_stmts(d) == 1);
+
+   d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_PROC_DECL);
+   fail_unless(tree_ports(d) == 1);
+   fail_unless(tree_ident(d) == ident_new("BAR"));
+   fail_unless(tree_class(tree_port(d, 0)) == C_FILE);
 
    p = parse();
    fail_unless(p == NULL);
@@ -1760,13 +1766,21 @@ START_TEST(test_access)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
-   fail_unless(tree_stmts(p) == 3);
+   fail_unless(tree_stmts(p) == 5);
 
    s = tree_stmt(p, 0);
    fail_unless(tree_kind(tree_target(s)) == T_ALL);
 
    s = tree_stmt(p, 2);
    fail_unless(tree_kind(tree_value(s)) == T_NEW);
+
+   s = tree_stmt(p, 3);
+   fail_unless(tree_kind(tree_value(s)) == T_ARRAY_SLICE);
+   fail_unless(tree_kind(tree_value(tree_value(s))) == T_ALL);
+
+   s = tree_stmt(p, 4);
+   fail_unless(tree_kind(tree_value(s)) == T_ARRAY_REF);
+   fail_unless(tree_kind(tree_value(tree_value(s))) == T_ALL);
 
    a = parse();
    fail_unless(a == NULL);
