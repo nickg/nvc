@@ -2763,6 +2763,26 @@ static void p_signal_declaration(tree_t parent)
    }
 }
 
+static tree_t p_alias_declaration(void)
+{
+   // alias alias_designator [ : subtype_indication ] is name [ signature ] ;
+
+   BEGIN("alias declaration");
+
+   tree_t t = tree_new(T_ALIAS);
+
+   consume(tALIAS);
+   tree_set_ident(t, p_identifier());
+   if (optional(tCOLON))
+      tree_set_type(t, p_subtype_indication());
+   consume(tIS);
+   tree_set_value(t, p_name());
+   consume(tSEMI);
+
+   tree_set_loc(t, CURRENT_LOC);
+   return t;
+}
+
 static void p_subprogram_declarative_item(tree_t sub)
 {
    // subprogram_declaration | subprogram_body | type_declaration
@@ -2778,8 +2798,20 @@ static void p_subprogram_declarative_item(tree_t sub)
       p_variable_declaration(sub);
       break;
 
+   case tTYPE:
+      tree_add_decl(sub, p_type_declaration());
+      break;
+
+   case tALIAS:
+      tree_add_decl(sub, p_alias_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(sub);
+      break;
+
    default:
-      expect(tVARIABLE);
+      expect(tVARIABLE, tTYPE, tALIAS, tCONSTANT);
    }
 }
 
@@ -3264,26 +3296,6 @@ static void p_primary_unit(tree_t unit)
    default:
       expect(tENTITY);
    }
-}
-
-static tree_t p_alias_declaration(void)
-{
-   // alias alias_designator [ : subtype_indication ] is name [ signature ] ;
-
-   BEGIN("alias declaration");
-
-   tree_t t = tree_new(T_ALIAS);
-
-   consume(tALIAS);
-   tree_set_ident(t, p_identifier());
-   if (optional(tCOLON))
-      tree_set_type(t, p_subtype_indication());
-   consume(tIS);
-   tree_set_value(t, p_name());
-   consume(tSEMI);
-
-   tree_set_loc(t, CURRENT_LOC);
-   return t;
 }
 
 static ident_list_t *p_instantiation_list(void)

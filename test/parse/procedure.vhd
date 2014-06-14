@@ -14,4 +14,11 @@ package body p is
 
     procedure bar(file x : text);
 
+    procedure baz is
+        type foo;
+        alias x is y;
+        constant k : integer := 2;
+    begin
+    end procedure;
+
 end package body;
