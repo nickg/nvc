@@ -6,6 +6,7 @@ begin
         x := not y;
         x := abs y;
         x := y ** z;
+        x := f(4).z;
     end process;
 
 end architecture;

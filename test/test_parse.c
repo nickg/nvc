@@ -1957,6 +1957,7 @@ START_TEST(test_expr)
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_stmts(p) == 4);
 
    e = tree_value(tree_stmt(p, 0));
    fail_unless(tree_kind(e) == T_FCALL);
@@ -1972,6 +1973,11 @@ START_TEST(test_expr)
    fail_unless(tree_kind(e) == T_FCALL);
    fail_unless(tree_ident(e) == ident_new("\"**\""));
    fail_unless(tree_params(e) == 2);
+
+   e = tree_value(tree_stmt(p, 3));
+   fail_unless(tree_kind(e) == T_RECORD_REF);
+   fail_unless(tree_ident(e) == ident_new("Z"));
+   fail_unless(tree_kind(tree_value(e)) == T_FCALL);
 
    a = parse();
    fail_unless(a == NULL);

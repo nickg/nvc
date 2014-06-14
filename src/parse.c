@@ -982,7 +982,7 @@ static tree_t p_attribute_name(tree_t prefix)
    tree_set_name(t, prefix);
 
    if (optional(tRANGE))
-      tree_set_ident(t, ident_new("RANGE"));
+      tree_set_ident(t, ident_new("range"));
    else
       tree_set_ident(t, p_identifier());
 
@@ -1003,16 +1003,23 @@ static tree_t p_selected_name(tree_t prefix)
 
    consume(tDOT);
 
-   // XXX: FIXME
-   assert(tree_kind(prefix) == T_REF);
-
    switch (peek()) {
    case tID:
       {
          ident_t suffix = p_identifier();
-         tree_set_ident(prefix, ident_prefix(tree_ident(prefix), suffix, '.'));
 
-         return prefix;
+         if (tree_kind(prefix) == T_REF) {
+            ident_t joined = ident_prefix(tree_ident(prefix), suffix, '.');
+            tree_set_ident(prefix, joined);
+            return prefix;
+         }
+         else {
+            tree_t rref = tree_new(T_RECORD_REF);
+            tree_set_value(rref, prefix);
+            tree_set_ident(rref, suffix);
+            tree_set_loc(rref, CURRENT_LOC);
+            return rref;
+         }
       }
 
    case tALL:
@@ -4777,9 +4784,13 @@ static void p_package_body_declarative_item(tree_t parent)
       p_constant_declaration(parent);
       break;
 
+   case tSUBTYPE:
+      tree_add_decl(parent, p_subtype_declaration());
+      break;
+
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT);
+             tCONSTANT, tSUBTYPE);
    }
 }
 
