@@ -790,8 +790,8 @@ static range_t p_range(tree_t left)
 
    switch (one_of(tTO, tDOWNTO)) {
    case tTO:
-      r.left  = left;
       r.kind  = RANGE_TO;
+      r.left  = left;
       r.right = p_expression();
       break;
 

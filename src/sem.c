@@ -1215,17 +1215,20 @@ static bool sem_declare(tree_t decl, bool add_predefined)
 static bool sem_check_range(range_t *r, type_t context)
 {
    if (r->kind == RANGE_EXPR) {
-      const bool reverse = (r->left == NULL);
+      tree_t expr = r->left;
+      assert(r->right == NULL);
 
-      tree_t expr = reverse ? r->right : r->left;
+      const bool is_attr_ref = (tree_kind(expr) == T_ATTR_REF);
+      const bool reverse =
+         is_attr_ref && (tree_ident(expr) == ident_new("REVERSE_RANGE"));
 
-      assert(tree_kind(expr) == T_ATTR_REF
-             || tree_kind(expr) == T_REF);
+      assert(reverse || !is_attr_ref
+             || (tree_ident(expr) == ident_new("RANGE")));
+
+      assert(is_attr_ref || tree_kind(expr) == T_REF);
 
       ident_t name =
-         (tree_kind(expr) == T_ATTR_REF)
-         ? tree_ident(tree_name(expr))
-         : tree_ident(expr);
+         is_attr_ref ? tree_ident(tree_name(expr)) : tree_ident(expr);
 
       tree_t decl = scope_find(name);
       if (decl == NULL)
