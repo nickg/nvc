@@ -25,7 +25,7 @@ architecture a of issue38 is
         assert g'instance_name = ":issue38(a):g";
         assert g'path_name = ":issue38:g";
         return 0;
-    end function f;
+    end function g;
 begin
     assert (f('1') = 0);
     assert (g('1') = 0);

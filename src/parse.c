@@ -80,13 +80,16 @@ int yylex(void);
 #define not_at_token(...) _not_at_token(1, __VA_ARGS__, -1)
 
 #define parse_error(loc, ...) do {            \
-      error_at(loc, __VA_ARGS__);             \
-      n_errors++;                             \
+      if (n_correct >= RECOVER_THRESH) {      \
+         error_at(loc, __VA_ARGS__);          \
+         n_errors++;                          \
+      }                                       \
    } while (0)
 
 #define RECOVER_THRESH 5
 #define TRACE_PARSE    0
 #define WARN_LOOKAHEAD 0
+#define TRACE_RECOVERY 0
 
 #if TRACE_PARSE
 static int depth = 0;
@@ -262,6 +265,20 @@ static void drop_token(void)
    tokenq = tmp;
 
    nopt_hist = 0;
+}
+
+static void drop_tokens_until(token_t tok)
+{
+   token_t next;
+   do {
+      next = peek();
+      drop_token();
+   } while ((tok != next) && (tok != tEOF));
+
+#if TRACE_RECOVERY
+   if (peek() != tEOF)
+      fmt_loc(stdout, &(tokenq->loc));
+#endif
 }
 
 static void _vexpect(va_list ap)
@@ -3144,6 +3161,21 @@ static void p_sequence_of_statements(tree_t parent, add_func_t addf)
       (*addf)(parent, p_sequential_statement());
 }
 
+static void p_trailing_label(ident_t label)
+{
+   // [ label ]
+
+   if ((peek() == tID) || (peek() == tSTRING)) {
+      ident_t trailing = p_designator();
+      if (label == NULL)
+         parse_error(&last_loc, "unexpected trailing label for %s without "
+                     "label", hint_str);
+      else if (trailing != label)
+         parse_error(&last_loc, "expected trailing %s label to match %s",
+                     hint_str, istr(label));
+   }
+}
+
 static tree_t p_subprogram_body(tree_t spec)
 {
    // subprogram_specification is subprogram_declarative_part begin
@@ -3180,12 +3212,7 @@ static tree_t p_subprogram_body(tree_t spec)
       break;
    }
 
-   if ((peek() == tID) || (peek() == tSTRING)) {
-      ident_t tail_id = p_designator();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(tree_ident(spec));
    consume(tSEMI);
 
    tree_set_loc(spec, CURRENT_LOC);
@@ -3302,7 +3329,7 @@ static tree_t p_process_statement(ident_t label)
 {
    // [ process_label : ] [ postponed ] process [ ( sensitivity_list ) ] [ is ]
    //   process_declarative_part begin process_statement_part end [ postponed ]
-   //   process [ process_label ] ;
+   //   process [ label ] ;
 
    EXTEND("process statement");
 
@@ -3329,13 +3356,7 @@ static tree_t p_process_statement(ident_t label)
    if (postponed)
       optional(tPOSTPONED);
    consume(tPROCESS);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    const loc_t *loc = CURRENT_LOC;
@@ -3411,13 +3432,7 @@ static void p_entity_declaration(tree_t unit)
 
    consume(tEND);
    optional(tENTITY);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(id);
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
@@ -3444,13 +3459,7 @@ static tree_t p_component_declaration(void)
 
    consume(tEND);
    consume(tCOMPONENT);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(tree_ident(c));
    consume(tSEMI);
 
    tree_set_loc(c, CURRENT_LOC);
@@ -3552,13 +3561,7 @@ static void p_package_declaration(tree_t unit)
 
    consume(tEND);
    optional(tPACKAGE);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(tree_ident(unit));
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
@@ -4101,13 +4104,7 @@ static tree_t p_if_statement(ident_t label)
 
    consume(tEND);
    consume(tIF);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
@@ -4182,13 +4179,7 @@ static tree_t p_loop_statement(ident_t label)
 
    consume(tEND);
    consume(tLOOP);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
@@ -4314,13 +4305,7 @@ static tree_t p_case_statement(ident_t label)
 
    consume(tEND);
    consume(tCASE);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    set_label_and_loc(t, label, CURRENT_LOC);
@@ -4398,6 +4383,7 @@ static tree_t p_sequential_statement(void)
 
    default:
       expect(tWAIT, tID);
+      drop_tokens_until(tSEMI);
       return tree_new(T_NULL);
    }
 
@@ -4415,6 +4401,7 @@ static tree_t p_sequential_statement(void)
 
    default:
       expect(tASSIGN, tLE, tSEMI);
+      drop_tokens_until(tSEMI);
       return tree_new(T_NULL);
    }
 }
@@ -4687,13 +4674,7 @@ static tree_t p_block_statement(ident_t label)
    p_block_statement_part(b);
    consume(tEND);
    consume(tBLOCK);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    tree_set_loc(b, CURRENT_LOC);
@@ -4750,13 +4731,7 @@ static tree_t p_generate_statement(ident_t label)
 
    consume(tEND);
    consume(tGENERATE);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(label);
    consume(tSEMI);
 
    tree_set_loc(g, CURRENT_LOC);
@@ -4828,6 +4803,7 @@ static tree_t p_concurrent_statement(void)
          // XXX: this is a bit broken as we allow instances without labels
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
                 tWITH, tASSERT, tBLOCK, tIF, tFOR);
+         drop_tokens_until(tSEMI);
          return tree_new(T_BLOCK);
       }
    }
@@ -4877,13 +4853,7 @@ static void p_architecture_body(tree_t unit)
 
    consume(tEND);
    optional(tARCHITECTURE);
-
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(tree_ident(unit));
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);
@@ -4986,12 +4956,7 @@ static void p_package_body(tree_t unit)
    if (optional(tPACKAGE))
       consume(tBODY);
 
-   if (peek() == tID) {
-      ident_t tail_id = p_identifier();
-      (void)tail_id;
-      // XXX: test me
-   }
-
+   p_trailing_label(tree_ident(unit));
    consume(tSEMI);
 
    tree_set_loc(unit, CURRENT_LOC);

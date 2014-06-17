@@ -2102,6 +2102,33 @@ START_TEST(test_expr)
 }
 END_TEST
 
+START_TEST(test_error)
+{
+   tree_t a;
+
+   input_from_file(TESTDIR "/parse/error.vhd");
+
+   const error_t expect[] = {
+      {  4, "unexpected identifier while parsing concurrent procedure call "
+         "statement, expecting ;" },
+      {  8, "unexpected identifier while parsing concurrent procedure call "
+         "statement, expecting ;" },
+      { 14, "unexpected ; while parsing process statement, expecting process" },
+      { 20, "expected trailing process statement label to match FOO" },
+      { 24, "trailing label for process statement without label" },
+      { 31, "expected trailing if statement label to match MY_IF" },
+      { 33, "expected trailing subprogram body label to match \"+\"" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   a = parse();
+   fail_unless(a == NULL);
+
+   fail_unless(parse_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -2137,6 +2164,7 @@ int main(void)
    tcase_add_test(tc_core, test_spec);
    tcase_add_test(tc_core, test_loc);
    tcase_add_test(tc_core, test_expr);
+   tcase_add_test(tc_core, test_error);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
