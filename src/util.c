@@ -308,12 +308,8 @@ static void def_error_fn(const char *msg, const loc_t *loc)
 
 static char *prepare_msg(const char *fmt, va_list ap)
 {
-   char *color_fmt = filter_color(fmt);
-   char *strp = NULL;
-   if (vasprintf(&strp, color_fmt, ap) < 0)
-      abort();
-   free(color_fmt);
-   return strp;
+   char *strp LOCAL = xvasprintf(fmt, ap);
+   return filter_color(strp);
 }
 
 static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
