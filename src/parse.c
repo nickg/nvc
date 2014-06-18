@@ -317,7 +317,7 @@ static void _vexpect(va_list ap)
    }
 
    if (n_correct >= RECOVER_THRESH) {
-      error_at(&(tokenq->loc), tb_get(tb));
+      error_at(&(tokenq->loc), "%s", tb_get(tb));
       n_errors++;
    }
 
@@ -370,7 +370,7 @@ static bool _scan(int dummy, ...)
    bool found = false;
 
    while (!found) {
-      const token_t tok = va_arg(ap, token_t);
+      const int tok = va_arg(ap, token_t);
       if (tok == -1)
          break;
       else if (p == tok)
@@ -390,7 +390,7 @@ static int _one_of(int dummy, ...)
    bool found = false;
 
    while (!found) {
-      const token_t tok = va_arg(ap, token_t);
+      const int tok = va_arg(ap, token_t);
       if (tok == -1)
          break;
       else if (p == tok)
@@ -425,7 +425,7 @@ static bool _not_at_token(int dummy, ...)
    bool result = true;
 
    while (result) {
-      const token_t tok = va_arg(ap, token_t);
+      const int tok = va_arg(ap, token_t);
       if (tok == -1)
          break;
       else
