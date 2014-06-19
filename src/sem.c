@@ -1451,6 +1451,10 @@ static bool sem_readable(tree_t t)
          return true;
       }
 
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      return sem_readable(tree_value(t));
+
    default:
       return true;
    }
@@ -2876,7 +2880,7 @@ static bool sem_check_signal_target(tree_t target)
       case T_PORT_DECL:
          if (tree_subkind(decl) == PORT_IN)
             sem_error(target, "cannot assign to input port %s",
-                      istr(tree_ident(target)));
+                      istr(tree_ident(decl)));
          break;
 
       default:
@@ -3355,6 +3359,7 @@ static bool sem_check_fcall(tree_t t)
                // array references so must be an array reference
                tree_t ref = tree_new(T_REF);
                tree_set_ident(ref, name);
+               tree_set_loc(ref, tree_loc(t));
 
                tree_change_kind(t, T_ARRAY_REF);
                tree_set_value(t, ref);

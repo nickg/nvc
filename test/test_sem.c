@@ -164,6 +164,8 @@ START_TEST(test_ports)
       { 283, "conversion not allowed for formal O with mode OUT" },
       { 293, "output conversion not allowed for formal I with mode IN" },
       { 297, "output conversion for formal B must not have OPEN actual" },
+      { 311, "cannot assign to input port X" },
+      { 312, "cannot read output port Y" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -207,6 +209,20 @@ START_TEST(test_ports)
    sem_check(a);
 
    // Architecture conv
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   // Entity ent_with_vec
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   // Architecture test
 
    a = parse();
    fail_if(a == NULL);

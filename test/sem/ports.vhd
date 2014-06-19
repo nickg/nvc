@@ -300,3 +300,14 @@ begin
         port map ( func3(b) => func4(i) );  -- OK
 
 end architecture;
+
+entity ent_with_vec is
+    port ( x : in bit_vector(3 downto 0);
+           y : out bit_vector(3 downto 0) );
+end entity;
+
+architecture test of ent_with_vec is
+begin
+    x(1) <= '0';                        -- Error
+    y(1) <= y(0);                       -- Error
+end architecture;
