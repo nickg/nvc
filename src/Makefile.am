@@ -4,7 +4,6 @@ bin_PROGRAMS = nvc
 noinst_LIBRARIES = libcgen.a libnvc.a
 
 AM_CFLAGS = -Wall $(WERROR_CFLAGS) $(COV_CFLAGS) -I$(top_srcdir)/thirdparty
-AM_YFLAGS = -d --locations --report=all
 AM_LDFLAGS = -rdynamic $(LLVM_LDFLAGS) $(COV_LDFLAGS)
 
 libnvc_a_SOURCES = lib.c util.c ident.c parse.c lexer.l tree.c type.c \

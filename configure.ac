@@ -15,7 +15,6 @@ AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_MKDIR_P
-AC_PROG_YACC
 AM_PROG_LEX
 AC_PROG_RANLIB
 AC_EXEEXT
@@ -52,7 +51,6 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
-AX_PROG_BISON([], [AC_MSG_ERROR(GNU Bison not found)])
 AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in

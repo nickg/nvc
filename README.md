@@ -37,8 +37,7 @@ version 1.12 or later.
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command. LLVM 3.0 or later is required.
 
-NVC also depends on GNU Flex and Bison to generate the parser. The Bison version
-should be at least 2.5.
+NVC also depends GNU Flex to generate the lexical analyser.
 
 If a readline-compatible library is installed it will be used to provide
 line editing in the interactive mode.
@@ -48,7 +47,7 @@ line editing in the interactive mode.
 On a Debian derivative the following should be sufficient to install all required
 dependencies:
 
-    sudo apt-get install build-essential automake autoconf flex bison \
+    sudo apt-get install build-essential automake autoconf autoconf-archive flex \
         libreadline-dev tcl-dev check llvm-dev
 
 #### Mac OS X
