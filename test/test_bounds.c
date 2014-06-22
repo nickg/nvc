@@ -84,6 +84,7 @@ START_TEST(test_bounds)
       {  94, "value -1 out of bounds 0 to 2147483647 for parameter X" },
       { 107, "aggregate index 5 out of bounds 1 to 3" },
       { 116, "length of sub-aggregate 2 does not match expected length 4" },
+      { 137, "array index 14 out of bounds 0 to 2" },
       { -1, NULL }
    };
    expect_errors(expect);

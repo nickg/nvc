@@ -153,7 +153,7 @@ static tree_t simp_attr_ref(tree_t t)
    }
 }
 
-static tree_t simp_extract_aggregate(tree_t agg, int64_t index)
+static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
    range_t bounds = type_dim(tree_type(agg), 0);
    int64_t low, high;
@@ -196,7 +196,7 @@ static tree_t simp_extract_aggregate(tree_t agg, int64_t index)
       }
    }
 
-   assert(false);
+   return def;
 }
 
 static tree_t simp_array_ref(tree_t t)
@@ -221,7 +221,7 @@ static tree_t simp_array_ref(tree_t t)
 
    const tree_kind_t value_kind = tree_kind(value);
    if (value_kind == T_AGGREGATE)
-      return simp_extract_aggregate(value, indexes[0]);
+      return simp_extract_aggregate(value, indexes[0], t);
    else if (value_kind != T_REF)
       return t;   // Cannot fold nested array references
 
@@ -239,7 +239,7 @@ static tree_t simp_array_ref(tree_t t)
          if (tree_kind(v) != T_AGGREGATE)
             return t;
 
-         return simp_extract_aggregate(v, indexes[0]);
+         return simp_extract_aggregate(v, indexes[0], t);
       }
    default:
       return t;

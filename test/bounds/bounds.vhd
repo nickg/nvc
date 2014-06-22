@@ -129,4 +129,12 @@ begin
         v_st_arr3(1, true) := (f1 => false);
     end process;
 
+    process is
+        variable i : integer;
+        attribute a : bit_vector;
+        attribute a of i : variable is "101";
+    begin
+        assert i'a(14) = '0';           -- Error
+    end process;
+
 end architecture;
