@@ -1014,13 +1014,14 @@ START_TEST(test_attr)
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
-      { 30, "Z has no attribute FOO" },
-      { 52, "invalid attribute reference" },
-      { 54, "prefix of user defined attribute reference cannot denote" },
-      { 65, "expected attribute type INTEGER" },
-      { 66, "expected attribute type STRING" },
-      { 67, "no visible declaration for Q" },
-      { 85, "parameter must be locally static" },
+      {  30, "Z has no attribute FOO" },
+      {  52, "invalid attribute reference" },
+      {  54, "prefix of user defined attribute reference cannot denote" },
+      {  65, "expected attribute type INTEGER" },
+      {  66, "expected attribute type STRING" },
+      {  67, "no visible declaration for Q" },
+      {  85, "parameter must be locally static" },
+      { 127, "invalid array reference" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1058,12 +1059,12 @@ START_TEST(test_attr)
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   fail_unless(sem_check(e));
 
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(sem_check(a));
+   fail_if(sem_check(a));
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

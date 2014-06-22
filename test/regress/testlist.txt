@@ -225,3 +225,4 @@ issue63         normal
 driver5         normal
 textio3         normal
 record12        normal
+attr11          normal

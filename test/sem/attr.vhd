@@ -115,4 +115,16 @@ begin
     begin
         assert integer'image(0)(0) = '0';  -- OK
     end process;
+
+    process is
+        variable i : integer;
+        attribute a : bit_vector;
+        attribute a of i : variable is "101";
+        attribute b : integer;
+        attribute b of i : variable is 4;
+    begin
+        assert i'a(1) = '0';            -- OK
+        assert i'b(1) = 1;              -- Error
+    end process;
+
 end architecture;

@@ -370,6 +370,7 @@ static const tree_kind_t change_allowed[][2] = {
    { T_REF,         T_ARRAY_SLICE },
    { T_FCALL,       T_CPCALL      },
    { T_REF,         T_CPCALL      },
+   { T_ATTR_REF,    T_ARRAY_REF   },
 };
 
 struct tree {

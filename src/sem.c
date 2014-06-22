@@ -4798,6 +4798,18 @@ static bool sem_check_attr_ref(tree_t t)
    else if (!allow_user)
       sem_error(t, "prefix of user defined attribute reference cannot "
                 "denote a sub-element or slice of an object");
+   else if (tree_params(t) > 0) {
+      // This must be indexing an attribute with an array type
+      tree_t new = tree_new(T_ATTR_REF);
+      tree_set_name(new, tree_name(t));
+      tree_set_ident(new, tree_ident(t));
+      tree_set_loc(new, tree_loc(t));
+
+      tree_change_kind(t, T_ARRAY_REF);
+      tree_set_value(t, new);
+
+      return sem_check(t);
+   }
    else {
       tree_set_value(t, a);
       tree_set_type(t, tree_type(a));
