@@ -4528,7 +4528,7 @@ static bool sem_check_array_ref(tree_t t)
       type = sem_implicit_dereference(t, tree_value, tree_set_value);
 
    if (!type_is_array(type))
-      sem_error(t, "invalid array reference");
+      sem_error(t, "cannot index non-array type %s", sem_type_str(type));
 
    const int nindex  = sem_array_dimension(type);
    const int nparams = tree_params(t);

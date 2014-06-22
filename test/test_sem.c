@@ -1021,7 +1021,7 @@ START_TEST(test_attr)
       {  66, "expected attribute type STRING" },
       {  67, "no visible declaration for Q" },
       {  85, "parameter must be locally static" },
-      { 127, "invalid array reference" },
+      { 127, "cannot index non-array type universal integer" },
       { -1, NULL }
    };
    expect_errors(expect);
