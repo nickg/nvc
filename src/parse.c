@@ -2155,7 +2155,7 @@ static class_t p_entity_class(void)
    BEGIN("entity class");
 
    switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION,
-                  tCOMPONENT, tVARIABLE, tARCHITECTURE)) {
+                  tCOMPONENT, tVARIABLE, tARCHITECTURE, tTYPE)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
@@ -2172,6 +2172,8 @@ static class_t p_entity_class(void)
       return C_VARIABLE;
    case tARCHITECTURE:
       return C_ARCHITECTURE;
+   case tTYPE:
+      return C_TYPE;
    default:
       return C_DEFAULT;
    }
