@@ -577,11 +577,13 @@ START_TEST(test_seq)
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_ident2(s) == ident_new("FOO"));
    fail_unless(tree_params(s) == 3);
+   fail_unless(tree_has_ident(s));
 
    s = tree_stmt(p, 1);
    fail_unless(tree_kind(s) == T_PCALL);
    fail_unless(tree_ident2(s) == ident_new("BAR"));
    fail_unless(tree_params(s) == 0);
+   fail_unless(tree_has_ident(s));
 
    // Case
 
@@ -1394,7 +1396,7 @@ START_TEST(test_conc)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 6);
+   fail_unless(tree_stmts(a) == 7);
 
    s = tree_stmt(a, 0);
    fail_unless(tree_kind(s) == T_CASSIGN);
@@ -1430,6 +1432,11 @@ START_TEST(test_conc)
    s = tree_stmt(a, 5);
    fail_unless(tree_kind(s) == T_CASSIGN);
    fail_unless(tree_kind(tree_target(s)) == T_AGGREGATE);
+   fail_unless(tree_has_ident(s));
+
+   s = tree_stmt(a, 6);
+   fail_unless(tree_kind(s) == T_CPCALL);
+   fail_unless(tree_has_ident(s));
 
    a = parse();
    fail_unless(a == NULL);

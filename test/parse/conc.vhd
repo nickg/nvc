@@ -18,4 +18,6 @@ begin
 
     (a, b) <= c;
 
+    xxx;
+
 end architecture;

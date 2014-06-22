@@ -4757,7 +4757,8 @@ static tree_t p_concurrent_statement(void)
 
    if (peek() == tID) {
       const token_t p2 = peek_nth(2);
-      if ((p2 == tSEMI) || (p2 == tGENERIC) || (p2 == tPORT))
+      if (((label != NULL) && (p2 == tSEMI))
+          || (p2 == tGENERIC) || (p2 == tPORT))
          return p_component_instantiation_statement(label);
       else {
          const look_params_t lookp = {
