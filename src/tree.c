@@ -86,6 +86,7 @@ typedef struct {
 #define I_NETS      ONE_HOT(29)
 #define I_DVAL      ONE_HOT(30)
 #define I_SPEC      ONE_HOT(31)
+#define I_OPS       ONE_HOT(32)
 
 typedef union {
    ident_t        ident;
@@ -131,7 +132,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS),
 
    // T_TYPE_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_OPS),
 
    // T_VAR_ASSIGN
    (I_IDENT | I_VALUE | I_TARGET),
@@ -314,7 +315,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
                           | I_NAME | I_SPEC)
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
-                          | I_GENMAPS | I_ASSOCS | I_CONTEXT)
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS)
 #define ITEM_TYPE        (I_TYPE)
 #define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
 #define ITEM_RANGE       (I_RANGE)
@@ -349,6 +350,7 @@ static const char *item_text_map[] = {
    "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",  "I_POS",
    "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
    "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",    "I_NETS",
+   "I_OPS"
 };
 
 static const tree_kind_t change_allowed[][2] = {
@@ -1008,6 +1010,22 @@ void tree_add_trigger(tree_t t, tree_t s)
 {
    tree_assert_expr(s);
    tree_array_add(&(lookup_item(t, I_TRIGGERS)->tree_array), s);
+}
+
+unsigned tree_ops(tree_t t)
+{
+   return lookup_item(t, I_OPS)->tree_array.count;
+}
+
+tree_t tree_op(tree_t t, unsigned n)
+{
+   return tree_array_nth(&(lookup_item(t, I_OPS)->tree_array), n);
+}
+
+void tree_add_op(tree_t t, tree_t s)
+{
+   assert((s->kind == T_FUNC_DECL) || (s->kind == T_PROC_DECL));
+   tree_array_add(&(lookup_item(t, I_OPS)->tree_array), s);
 }
 
 tree_t tree_target(tree_t t)

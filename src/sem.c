@@ -578,18 +578,24 @@ static tree_t sem_builtin_fn(ident_t name, type_t result,
    return d;
 }
 
-static void sem_declare_binary(ident_t name, type_t lhs, type_t rhs,
-                               type_t result, const char *builtin)
+static void sem_declare_binary(tree_t decl, ident_t name, type_t lhs,
+                               type_t rhs, type_t result, const char *builtin)
 {
    tree_t d = sem_builtin_fn(name, result, builtin, lhs, rhs, NULL);
    scope_insert(d);
+
+   if (decl != NULL)
+      tree_add_op(decl, d);
 }
 
-static void sem_declare_unary(ident_t name, type_t operand,
+static void sem_declare_unary(tree_t decl, ident_t name, type_t operand,
                               type_t result, const char *builtin)
 {
    tree_t d = sem_builtin_fn(name, result, builtin, operand, NULL);
    scope_insert(d);
+
+   if (decl != NULL)
+      tree_add_op(decl, d);
 }
 
 static tree_t sem_bool_lit(type_t std_bool, bool v)
@@ -666,101 +672,101 @@ static void sem_declare_predefined_ops(tree_t decl)
    case T_CARRAY:
    case T_UARRAY:
       // Operators on arrays
-      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "aeq");
-      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "aneq");
+      sem_declare_binary(decl, ident_new("\"=\""), t, t, std_bool, "aeq");
+      sem_declare_binary(decl, ident_new("\"/=\""), t, t, std_bool, "aneq");
       if (sem_array_dimension(t) == 1) {
-         sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "alt");
-         sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "aleq");
-         sem_declare_binary(ident_new("\">\""), t, t, std_bool, "agt");
-         sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "ageq");
+         sem_declare_binary(decl, ident_new("\"<\""), t, t, std_bool, "alt");
+         sem_declare_binary(decl, ident_new("\"<=\""), t, t, std_bool, "aleq");
+         sem_declare_binary(decl, ident_new("\">\""), t, t, std_bool, "agt");
+         sem_declare_binary(decl, ident_new("\">=\""), t, t, std_bool, "ageq");
       }
       break;
 
    case T_RECORD:
       // Operators on records
-      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "req");
-      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "rneq");
+      sem_declare_binary(decl, ident_new("\"=\""), t, t, std_bool, "req");
+      sem_declare_binary(decl, ident_new("\"/=\""), t, t, std_bool, "rneq");
       break;
 
    case T_PHYSICAL:
       // Multiplication
-      sem_declare_binary(mult, t, std_int, t, "mul");
-      sem_declare_binary(mult, t, std_real, t, "mulpr");
-      sem_declare_binary(mult, std_int, t, t, "mul");
-      sem_declare_binary(mult, std_real, t, t, "mulrp");
+      sem_declare_binary(decl, mult, t, std_int, t, "mul");
+      sem_declare_binary(decl, mult, t, std_real, t, "mulpr");
+      sem_declare_binary(decl, mult, std_int, t, t, "mul");
+      sem_declare_binary(decl, mult, std_real, t, t, "mulrp");
 
       // Division
-      sem_declare_binary(div, t, std_int, t, "div");
-      sem_declare_binary(div, t, std_real, t, "divpr");
-      sem_declare_binary(div, t, t, std_int, "div");
+      sem_declare_binary(decl, div, t, std_int, t, "div");
+      sem_declare_binary(decl, div, t, std_real, t, "divpr");
+      sem_declare_binary(decl, div, t, t, std_int, "div");
 
       // Addition
-      sem_declare_binary(plus, t, t, t, "add");
+      sem_declare_binary(decl, plus, t, t, t, "add");
 
       // Subtraction
-      sem_declare_binary(minus, t, t, t, "sub");
+      sem_declare_binary(decl, minus, t, t, t, "sub");
 
       // Sign operators
-      sem_declare_unary(plus, t, t, "identity");
-      sem_declare_unary(minus, t, t, "neg");
+      sem_declare_unary(decl, plus, t, t, "identity");
+      sem_declare_unary(decl, minus, t, t, "neg");
 
       // Comparison
-      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");
-      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "leq");
-      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "gt");
-      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "geq");
+      sem_declare_binary(decl, ident_new("\"<\""), t, t, std_bool, "lt");
+      sem_declare_binary(decl, ident_new("\"<=\""), t, t, std_bool, "leq");
+      sem_declare_binary(decl, ident_new("\">\""), t, t, std_bool, "gt");
+      sem_declare_binary(decl, ident_new("\">=\""), t, t, std_bool, "geq");
 
       // Equality
-      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "eq");
-      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "neq");
+      sem_declare_binary(decl, ident_new("\"=\""), t, t, std_bool, "eq");
+      sem_declare_binary(decl, ident_new("\"/=\""), t, t, std_bool, "neq");
 
       // Absolute value
-      sem_declare_unary(ident_new("\"abs\""), t, t, "abs");
+      sem_declare_unary(decl, ident_new("\"abs\""), t, t, "abs");
 
       break;
 
    case T_INTEGER:
       // Modulus
-      sem_declare_binary(ident_new("\"mod\""), t, t, t, "mod");
+      sem_declare_binary(decl, ident_new("\"mod\""), t, t, t, "mod");
 
       // Remainder
-      sem_declare_binary(ident_new("\"rem\""), t, t, t, "rem");
+      sem_declare_binary(decl, ident_new("\"rem\""), t, t, t, "rem");
 
       // Fall-through
    case T_REAL:
       // Addition
-      sem_declare_binary(plus, t, t, t, "add");
+      sem_declare_binary(decl, plus, t, t, t, "add");
 
       // Subtraction
-      sem_declare_binary(minus, t, t, t, "sub");
+      sem_declare_binary(decl, minus, t, t, t, "sub");
 
       // Multiplication
-      sem_declare_binary(mult, t, t, t, "mul");
+      sem_declare_binary(decl, mult, t, t, t, "mul");
 
       // Division
-      sem_declare_binary(div, t, t, t, "div");
+      sem_declare_binary(decl, div, t, t, t, "div");
 
       // Sign operators
-      sem_declare_unary(plus, t, t, "identity");
-      sem_declare_unary(minus, t, t, "neg");
+      sem_declare_unary(decl, plus, t, t, "identity");
+      sem_declare_unary(decl, minus, t, t, "neg");
 
       // Exponentiation
-      sem_declare_binary(ident_new("\"**\""), t, std_int, t, "exp");
+      sem_declare_binary(decl, ident_new("\"**\""), t, std_int, t, "exp");
 
       // Absolute value
-      sem_declare_unary(ident_new("\"abs\""), t, t, "abs");
+      sem_declare_unary(decl, ident_new("\"abs\""), t, t, "abs");
 
       // Fall-through
    case T_ENUM:
-      sem_declare_binary(ident_new("\"<\""), t, t, std_bool, "lt");
-      sem_declare_binary(ident_new("\"<=\""), t, t, std_bool, "leq");
-      sem_declare_binary(ident_new("\">\""), t, t, std_bool, "gt");
-      sem_declare_binary(ident_new("\">=\""), t, t, std_bool, "geq");
+      sem_declare_binary(decl, ident_new("\"<\""), t, t, std_bool, "lt");
+      sem_declare_binary(decl, ident_new("\"<=\""), t, t, std_bool, "leq");
+      sem_declare_binary(decl, ident_new("\">\""), t, t, std_bool, "gt");
+      sem_declare_binary(decl, ident_new("\">=\""), t, t, std_bool, "geq");
 
       // Fall-through
    default:
-      sem_declare_binary(ident_new("\"=\""), t, t, std_bool, "eq");
-      sem_declare_binary(ident_new("\"/=\""), t, t, std_bool, "neq");
+      sem_declare_binary(decl, ident_new("\"=\""), t, t, std_bool, "eq");
+      sem_declare_binary(decl, ident_new("\"/=\""), t, t, std_bool, "neq");
 
       break;
    }
@@ -773,13 +779,13 @@ static void sem_declare_predefined_ops(tree_t decl)
    bool logical = (type_ident(t) == boolean_i || type_ident(t) == bit_i);
 
    if (logical) {
-      sem_declare_binary(ident_new("\"and\""), t, t, t, "and");
-      sem_declare_binary(ident_new("\"or\""), t, t, t, "or");
-      sem_declare_binary(ident_new("\"xor\""), t, t, t, "xor");
-      sem_declare_binary(ident_new("\"nand\""), t, t, t, "nand");
-      sem_declare_binary(ident_new("\"nor\""), t, t, t, "nor");
-      sem_declare_binary(ident_new("\"xnor\""), t, t, t, "xnor");
-      sem_declare_unary(ident_new("\"not\""), t, t, "not");
+      sem_declare_binary(decl, ident_new("\"and\""), t, t, t, "and");
+      sem_declare_binary(decl, ident_new("\"or\""), t, t, t, "or");
+      sem_declare_binary(decl, ident_new("\"xor\""), t, t, t, "xor");
+      sem_declare_binary(decl, ident_new("\"nand\""), t, t, t, "nand");
+      sem_declare_binary(decl, ident_new("\"nor\""), t, t, t, "nor");
+      sem_declare_binary(decl, ident_new("\"xnor\""), t, t, t, "xnor");
+      sem_declare_unary(decl, ident_new("\"not\""), t, t, "not");
    }
 
    bool vec_logical = false;
@@ -790,20 +796,20 @@ static void sem_declare_predefined_ops(tree_t decl)
    }
 
    if (vec_logical) {
-      sem_declare_binary(ident_new("\"and\""), t, t, t, "v_and");
-      sem_declare_binary(ident_new("\"or\""), t, t, t, "v_or");
-      sem_declare_binary(ident_new("\"xor\""), t, t, t, "v_xor");
-      sem_declare_binary(ident_new("\"nand\""), t, t, t, "v_nand");
-      sem_declare_binary(ident_new("\"nor\""), t, t, t, "v_nor");
-      sem_declare_binary(ident_new("\"xnor\""), t, t, t, "v_xnor");
-      sem_declare_unary(ident_new("\"not\""), t, t, "v_not");
+      sem_declare_binary(decl, ident_new("\"and\""), t, t, t, "v_and");
+      sem_declare_binary(decl, ident_new("\"or\""), t, t, t, "v_or");
+      sem_declare_binary(decl, ident_new("\"xor\""), t, t, t, "v_xor");
+      sem_declare_binary(decl, ident_new("\"nand\""), t, t, t, "v_nand");
+      sem_declare_binary(decl, ident_new("\"nor\""), t, t, t, "v_nor");
+      sem_declare_binary(decl, ident_new("\"xnor\""), t, t, t, "v_xnor");
+      sem_declare_unary(decl, ident_new("\"not\""), t, t, "v_not");
 
-      sem_declare_binary(ident_new("\"sll\""), t, std_int, t, "sll");
-      sem_declare_binary(ident_new("\"srl\""), t, std_int, t, "srl");
-      sem_declare_binary(ident_new("\"sla\""), t, std_int, t, "sla");
-      sem_declare_binary(ident_new("\"sra\""), t, std_int, t, "sra");
-      sem_declare_binary(ident_new("\"rol\""), t, std_int, t, "rol");
-      sem_declare_binary(ident_new("\"ror\""), t, std_int, t, "ror");
+      sem_declare_binary(decl, ident_new("\"sll\""), t, std_int, t, "sll");
+      sem_declare_binary(decl, ident_new("\"srl\""), t, std_int, t, "srl");
+      sem_declare_binary(decl, ident_new("\"sla\""), t, std_int, t, "sla");
+      sem_declare_binary(decl, ident_new("\"sra\""), t, std_int, t, "sra");
+      sem_declare_binary(decl, ident_new("\"rol\""), t, std_int, t, "rol");
+      sem_declare_binary(decl, ident_new("\"ror\""), t, std_int, t, "ror");
    }
 
    // Predefined procedures
@@ -835,6 +841,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          sem_add_port(file_open1, std_string, PORT_IN, NULL);
          sem_add_port(file_open1, open_kind, PORT_IN, make_ref(read_mode));
          scope_insert(file_open1);
+         tree_add_op(decl, file_open1);
 
          tree_t file_open2 = sem_builtin_proc(file_open_i, "file_open2");
          sem_add_port(file_open2, open_status, PORT_OUT, NULL);
@@ -842,10 +849,12 @@ static void sem_declare_predefined_ops(tree_t decl)
          sem_add_port(file_open2, std_string, PORT_IN, NULL);
          sem_add_port(file_open2, open_kind, PORT_IN, make_ref(read_mode));
          scope_insert(file_open2);
+         tree_add_op(decl, file_open2);
 
          tree_t file_close = sem_builtin_proc(file_close_i, "file_close");
          sem_add_port(file_close, t, PORT_INOUT, NULL);
          scope_insert(file_close);
+         tree_add_op(decl, file_close);
 
          tree_t read = sem_builtin_proc(read_i, "file_read");
          sem_add_port(read, t, PORT_INOUT, NULL);
@@ -853,13 +862,15 @@ static void sem_declare_predefined_ops(tree_t decl)
          if (type_is_array(of))
             sem_add_port(read, std_int, PORT_OUT, NULL);
          scope_insert(read);
+         tree_add_op(decl, read);
 
          tree_t write = sem_builtin_proc(write_i, "file_write");
          sem_add_port(write, t, PORT_INOUT, NULL);
          sem_add_port(write, of, PORT_IN, NULL);
          scope_insert(write);
+         tree_add_op(decl, write);
 
-         sem_declare_unary(endfile_i, t, std_bool, "endfile");
+         sem_declare_unary(decl, endfile_i, t, std_bool, "endfile");
       }
       break;
 
@@ -870,6 +881,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t deallocate = sem_builtin_proc(deallocate_i, "deallocate");
          sem_add_port(deallocate, t, PORT_INOUT, NULL);
          scope_insert(deallocate);
+         tree_add_op(decl, deallocate);
       }
       break;
 
@@ -1176,8 +1188,11 @@ static bool sem_declare(tree_t decl, bool add_predefined)
       return true;
 
    // Declare any predefined operators and attributes
-   if (add_predefined)
-      sem_declare_predefined_ops(decl);
+   if (add_predefined) {
+      const int nops = tree_ops(decl);
+      for (int i = 0; i < nops; i++)
+         scope_insert(tree_op(decl, i));
+   }
 
    // No futher processing needed for subtypes
    if (type_k == T_SUBTYPE)
@@ -1395,9 +1410,9 @@ static void sem_declare_universal(void)
    ident_t mult = ident_new("\"*\"");
    ident_t div  = ident_new("\"/\"");
 
-   sem_declare_binary(mult, ureal, uint, ureal, "mulri");
-   sem_declare_binary(mult, uint, ureal, ureal, "mulir");
-   sem_declare_binary(div, ureal, uint, ureal, "divri");
+   sem_declare_binary(NULL, mult, ureal, uint, ureal, "mulri");
+   sem_declare_binary(NULL, mult, uint, ureal, ureal, "mulir");
+   sem_declare_binary(NULL, div, ureal, uint, ureal, "divri");
 }
 
 static bool sem_check_context(tree_t t)

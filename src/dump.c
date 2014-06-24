@@ -242,6 +242,29 @@ static void dump_type(type_t type)
       printf("%s", type_pp(type));
 }
 
+static void dump_op(tree_t t, int indent)
+{
+   tab(indent);
+
+   printf("-- predefined %s [", istr(tree_ident(t)));
+
+   const int nports = tree_ports(t);
+   for (int i = 0; i < nports; i++) {
+      dump_type(tree_type(tree_port(t, i)));
+      if (i + 1 < nports)
+         printf(", ");
+   }
+
+   printf("]");
+
+   if (tree_kind(t) == T_FUNC_DECL) {
+      printf(" return ");
+      dump_type(type_result(tree_type(t)));
+   }
+
+   printf("\n");
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -310,6 +333,11 @@ static void dump_decl(tree_t t, int indent)
             dump_type(type);
       }
       printf(";\n");
+      {
+         const int nops = tree_ops(t);
+         for (int i = 0; i < nops; i++)
+            dump_op(tree_op(t, i), indent);
+      }
       return;
 
    case T_ALIAS:
