@@ -501,10 +501,11 @@ static void tree_one_time_init(void)
    done = true;
 }
 
-static item_t *lookup_item(tree_t t, imask_t mask)
+static inline item_t *lookup_item(tree_t t, imask_t mask)
 {
    assert(t != NULL);
    assert((mask & (mask - 1)) == 0);
+
    const imask_t has = has_map[t->kind];
 
    if (unlikely((has & mask) == 0)) {
@@ -517,7 +518,7 @@ static item_t *lookup_item(tree_t t, imask_t mask)
                   kind_text_map[t->kind], item_text_map[item]);
    }
 
-   const int tzc = __builtin_ctz(mask);
+   const int tzc = __builtin_ctzll(mask);
    const int n   = item_lookup[t->kind][tzc];
 
    return &(t->items[n]);
