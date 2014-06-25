@@ -1633,7 +1633,9 @@ static bool sem_check_type_decl(tree_t t)
          // Check the units
          const int nunits = type_units(type);
          for (int i = 0; i < nunits; i++) {
-            if (!sem_check_constrained(type_unit(type, i), type))
+            tree_t u = type_unit(type, i);
+            tree_set_type(u, type);
+            if (!sem_check_constrained(u, type))
                return false;
          }
       }

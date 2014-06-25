@@ -2301,7 +2301,6 @@ static type_t p_physical_type_definition(range_t r)
    consume(tUNITS);
 
    tree_t base = p_base_unit_declaration();
-   tree_set_type(base, t);
    type_add_unit(t, base);
 
    r.left  = int_to_physical(r.left, base);
@@ -2310,7 +2309,6 @@ static type_t p_physical_type_definition(range_t r)
 
    while (scan(tINT, tREAL, tID)) {
       tree_t unit = p_secondary_unit_declaration();
-      tree_set_type(unit, t);
       type_add_unit(t, unit);
    }
 
