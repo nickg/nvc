@@ -145,6 +145,18 @@ fi
 AM_CONDITIONAL([ENABLE_NATIVE], [test x$enable_native = xyes])
 AM_CONDITIONAL([IMPLIB_REQUIRED], [test x$implib_required = xyes])
 
+AC_ARG_ENABLE([vhpi],
+  [AS_HELP_STRING([--enable-vhpi],
+    [Enable VHPI plugins])],
+  [enable_vhpi=$enableval],
+  [enable_vhpi=no])
+
+AM_CONDITIONAL([ENABLE_VHPI], [test x$enable_vhpi = xyes])
+
+if test x$enable_vhpi = xyes; then
+  AC_DEFINE_UNQUOTED([ENABLE_VHPI], [1], [VHPI is enabled])
+fi
+
 AC_ARG_ENABLE([werror],
   [AS_HELP_STRING([--enable-werror], [Treat warnings as errors])],
   [enable_werror=$enableval]
@@ -185,8 +197,9 @@ AC_CHECK_PROG([RONN], [ronn], [1])
 AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile test/Makefile \
-           lib/Makefile lib/std/Makefile lib/ieee/Makefile \
-           lib/nvc/Makefile lib/synopsys/Makefile thirdparty/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile src/vhpi/Makefile \
+                 test/Makefile test/vhpi/Makefile lib/Makefile lib/std/Makefile \
+                 lib/ieee/Makefile lib/nvc/Makefile lib/synopsys/Makefile \
+                 thirdparty/Makefile])
 AC_OUTPUT
 

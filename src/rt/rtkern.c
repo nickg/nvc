@@ -26,6 +26,7 @@
 #include "netdb.h"
 #include "cover.h"
 #include "hash.h"
+#include "vhpi/vhpi_priv.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -2113,7 +2114,8 @@ static void rt_interrupt(void)
    fatal("interrupted");
 }
 
-void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
+void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
+                   const char *vhpi_plugins)
 {
    tree_rd_ctx = ctx;
 
@@ -2130,6 +2132,12 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx)
 
    rt_one_time_init();
    rt_setup(e);
+
+#ifdef ENABLE_VHPI
+   if (vhpi_plugins != NULL)
+      vhpi_load_plugins(vhpi_plugins);
+#endif
+
    rt_stats_ready();
    rt_initial(e);
    while (!rt_stop_now(stop_time))

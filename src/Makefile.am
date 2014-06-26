@@ -1,5 +1,9 @@
 SUBDIRS = rt
 
+if ENABLE_VHPI
+SUBDIRS += vhpi
+endif
+
 bin_PROGRAMS = nvc
 noinst_LIBRARIES = libcgen.a libnvc.a
 
@@ -28,6 +32,10 @@ endif
 
 nvc_LDADD = libnvc.a libcgen.a rt/libnvc-rt.a rt/libjit.a ../thirdparty/liblxt.a \
 	../thirdparty/libfst.a ../thirdparty/libfastlz.a $(LLVM_LIBS)
+
+if ENABLE_VHPI
+nvc_LDADD += vhpi/libvhpi.a
+endif
 
 if IMPLIB_REQUIRED
 

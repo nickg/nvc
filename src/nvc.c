@@ -298,6 +298,7 @@ static int run(int argc, char **argv)
       { "format",     required_argument, 0, 'f' },
       { "include",    required_argument, 0, 'i' },
       { "exclude",    required_argument, 0, 'e' },
+      { "load",       required_argument, 0, 'l' },
       { 0, 0, 0, 0 }
    };
 
@@ -306,9 +307,10 @@ static int run(int argc, char **argv)
 
    uint64_t stop_time = UINT64_MAX;
    const char *wave_fname = NULL;
+   const char *vhpi_plugins = NULL;
 
    int c, index = 0;
-   const char *spec = "bcw::";
+   const char *spec = "bcw::l:";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -358,6 +360,9 @@ static int run(int argc, char **argv)
       case 'e':
          wave_exclude_glob(optarg);
          break;
+      case 'l':
+         vhpi_plugins = optarg;
+         break;
       default:
          abort();
       }
@@ -405,7 +410,7 @@ static int run(int argc, char **argv)
    }
 
    if (mode == BATCH)
-      rt_batch_exec(e, stop_time, ctx);
+      rt_batch_exec(e, stop_time, ctx, vhpi_plugins);
    else {
       bool master = slave_fork();
       if (master)

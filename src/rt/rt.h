@@ -67,7 +67,8 @@ typedef enum {
    SCHED_STATIC     = (1 << 1)
 } sched_flags_t;
 
-void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx);
+void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
+                   const char *vhpi_plugins);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user);
 size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last);
