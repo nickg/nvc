@@ -33,7 +33,43 @@
 #include <dlfcn.h>
 #include <stdarg.h>
 
+typedef struct vhpi_cb  vhpi_cb_t;
+typedef struct vhpi_obj vhpi_obj_t;
+
+struct vhpi_cb {
+   int         reason;
+   bool        enabled;
+   bool        fired;
+   vhpiCbDataT data;
+};
+
+struct vhpi_obj {
+   uint32_t       magic;
+   vhpi_obj_t    *chain;
+   vhpiClassKindT kind;
+   union {
+      vhpi_cb_t cb;
+   };
+};
+
+static vhpi_obj_t *sim_cb_list = NULL;
+
 #define VHPI_MISSING fatal("VHPI function %s not implemented", __func__)
+#define VHPI_MAGIC   0xbadf00d
+
+static inline vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle)
+{
+   vhpi_obj_t *obj = (vhpi_obj_t *)handle;
+   if (unlikely(obj->magic != VHPI_MAGIC))
+      fatal_trace("bad magic on VHPI handle %p", handle);
+   return obj;
+}
+
+static inline void vhpi_obj_assert(vhpi_obj_t *obj, vhpiClassKindT kind)
+{
+   if (unlikely(obj->kind != kind))
+      fatal_trace("expected VHPI class kind %d but have %d", kind, obj->kind);
+}
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 {
@@ -42,7 +78,35 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
-   VHPI_MISSING;
+   printf("vhpi_register_cb flags=%x reason=%d obj=%p time=%p\n",
+          flags, cb_data_p->reason, cb_data_p->obj, cb_data_p->time);
+
+   vhpi_obj_t *obj = xmalloc(sizeof(vhpi_obj_t));
+   memset(obj, '\0', sizeof(vhpi_obj_t));
+
+   obj->kind  = vhpiCallbackK;
+   obj->chain = NULL;
+   obj->magic = VHPI_MAGIC;
+
+   obj->cb.reason  = cb_data_p->reason;
+   obj->cb.enabled = !(flags & vhpiDisableCb);
+   obj->cb.data    = *cb_data_p;
+
+   switch (cb_data_p->reason) {
+   case vhpiCbStartOfSimulation:
+   case vhpiCbEndOfSimulation:
+      obj->chain = sim_cb_list;
+      sim_cb_list = obj;
+      break;
+
+   default:
+      fatal("unsupported reason %d in vhpi_register_cb", cb_data_p->reason);
+   }
+
+   if (flags & vhpiReturnCb)
+      return (vhpiHandleT)obj;
+   else
+      return NULL;
 }
 
 int vhpi_remove_cb(vhpiHandleT cb_obj)
@@ -92,15 +156,45 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
    VHPI_MISSING;
 }
 
-vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT object)
+vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   printf("vhpi_get property=%d object=%p\n", property, handle);
+
+   vhpi_obj_t *obj = vhpi_get_obj(handle);
+
+   switch (property) {
+   case vhpiStateP:
+      vhpi_obj_assert(obj, vhpiCallbackK);
+      if (obj->cb.fired)
+         return vhpiMature;
+      else if (obj->cb.enabled)
+         return vhpiEnable;
+      else
+         return vhpiDisable;
+
+   default:
+      fatal_trace("unsupported property %d in vhpi_get", property);
+   }
 }
 
-const vhpiCharT * vhpi_get_str(vhpiStrPropertyT property,
-                               vhpiHandleT object)
+const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
+                              vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   printf("vhpi_get_str property=%d handle=%p\n", property, handle);
+
+   switch (property) {
+   case vhpiNameP:
+      if (handle == NULL)
+         return (vhpiCharT *)PACKAGE_NAME;
+      else
+         return NULL;
+
+   case vhpiToolVersionP:
+      return (vhpiCharT *)PACKAGE_VERSION;
+
+   default:
+      fatal_trace("unsupported property %d in vhpi_get_str", property);
+   }
 }
 
 vhpiRealT vhpi_get_real(vhpiRealPropertyT property,
@@ -243,7 +337,7 @@ void vhpi_load_plugins(const char *plugins)
    do {
       notef("loading VHPI plugin %s", tok);
 
-      void *handle = dlopen(tok, RTLD_NOW);
+      void *handle = dlopen(tok, RTLD_LAZY);
       if (handle == NULL)
          fatal("%s", dlerror());
 
@@ -260,4 +354,23 @@ void vhpi_load_plugins(const char *plugins)
          (*startup_funcs++)();
 
    } while ((tok = strtok(NULL, ",")));
+}
+
+static void vhpi_sim_event(int reason)
+{
+   for (vhpi_obj_t *it = sim_cb_list; it != NULL; it = it->chain) {
+      if ((it->cb.reason == reason) && it->cb.enabled) {
+         (*it->cb.data.cb_rtn)(&(it->cb.data));
+      }
+   }
+}
+
+void vhpi_start_of_sim(void)
+{
+   vhpi_sim_event(vhpiCbStartOfSimulation);
+}
+
+void vhpi_end_of_sim(void)
+{
+   vhpi_sim_event(vhpiCbEndOfSimulation);
 }

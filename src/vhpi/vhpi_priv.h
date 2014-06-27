@@ -29,5 +29,7 @@
 #define _VHPI_PRIV_H
 
 void vhpi_load_plugins(const char *plugins);
+void vhpi_start_of_sim(void);
+void vhpi_end_of_sim(void);
 
 #endif  // _VHPI_PRIV_H

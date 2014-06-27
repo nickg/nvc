@@ -2136,12 +2136,16 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
 #ifdef ENABLE_VHPI
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(vhpi_plugins);
+   vhpi_start_of_sim();
 #endif
 
    rt_stats_ready();
    rt_initial(e);
    while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
+#ifdef ENABLE_VHPI
+   vhpi_end_of_sim();
+#endif
    rt_cleanup(e);
    rt_emit_coverage(e);
 
