@@ -1107,7 +1107,6 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
 
    // Replace top-level ports with signals that can be driven from VHPI
 
-   map_list_t *top_maps = NULL;
    tree_t rformals[nports], ractuals[nports];
 
    for (int i = 0; i < nports; i++) {
@@ -1131,22 +1130,9 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
 
       tree_add_decl(arch, s);
 
-      elab_signal_nets(s, ctx);
-
-      map_list_t *m = xmalloc(sizeof(map_list_t));
-      m->next   = top_maps;
-      m->formal = p;
-      m->signal = s;
-      m->actual = make_ref(s);
-      m->name   = NULL;
-
       rformals[i] = p;
       ractuals[i] = s;
-
-      top_maps = m;
    }
-
-   elab_map_nets(top_maps);
 
    rewrite_params_t params = {
       .formals = rformals,
@@ -1183,8 +1169,8 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path, ':', ":%s", name);
 
-   elab_top_level_generics(arch, ctx);
    elab_top_level_ports(arch, ctx);
+   elab_top_level_generics(arch, ctx);
 
    elab_pseudo_context(ctx->out, t);
    elab_copy_context(ctx->out, t);
