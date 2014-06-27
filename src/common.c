@@ -446,3 +446,100 @@ tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
    tree_add_param(call, p);
    return p;
 }
+
+
+type_t array_aggregate_type(type_t array, int from_dim)
+{
+   if (type_is_unconstrained(array)) {
+      const int nindex = type_index_constrs(array);
+      assert(from_dim < nindex);
+
+      type_t type = type_new(T_UARRAY);
+      type_set_ident(type, type_ident(array));
+      type_set_elem(type, type_elem(array));
+
+      for (int i = from_dim; i < nindex; i++)
+         type_add_index_constr(type, type_index_constr(array, i));
+
+      return type;
+   }
+   else {
+      const int ndims = type_dims(array);
+      assert(from_dim < ndims);
+
+      type_t type = type_new(T_CARRAY);
+      type_set_ident(type, type_ident(array));
+      type_set_elem(type, type_elem(array));
+
+      for (int i = from_dim; i < ndims; i++)
+         type_add_dim(type, type_dim(array, i));
+
+      return type;
+   }
+}
+
+tree_t make_default_value(type_t type)
+{
+   type_t base = type_base_recur(type);
+
+   switch (type_kind(base)) {
+   case T_UARRAY:
+      assert(type_kind(type) == T_SUBTYPE);
+      // Fall-through
+
+   case T_CARRAY:
+      {
+         tree_t def = NULL;
+         const int ndims = type_dims(type);
+         for (int i = ndims - 1; i >= 0; i--) {
+            tree_t val = (def ? def : make_default_value(type_elem(base)));
+            def = tree_new(T_AGGREGATE);
+            tree_set_type(def, array_aggregate_type(type, i));
+
+            tree_t a = tree_new(T_ASSOC);
+            tree_set_subkind(a, A_OTHERS);
+            tree_set_value(a, val);
+
+            tree_add_assoc(def, a);
+         }
+         tree_set_type(def, type);
+         return def;
+      }
+
+   case T_INTEGER:
+   case T_PHYSICAL:
+   case T_REAL:
+      return type_dim(type, 0).left;
+
+   case T_ENUM:
+      return make_ref(type_enum_literal(base, 0));
+
+   case T_RECORD:
+      {
+         tree_t def = tree_new(T_AGGREGATE);
+         const int nfields = type_fields(base);
+         for (int i = 0; i < nfields; i++) {
+            tree_t field = type_field(base, i);
+
+            tree_t a = tree_new(T_ASSOC);
+            tree_set_subkind(a, A_POS);
+            tree_set_value(a, make_default_value(tree_type(field)));
+
+            tree_add_assoc(def, a);
+         }
+         tree_set_type(def, type);
+         return def;
+      }
+
+   case T_ACCESS:
+      {
+         tree_t null = tree_new(T_LITERAL);
+         tree_set_subkind(null, L_NULL);
+         tree_set_type(null, type);
+         return null;
+      }
+
+   default:
+      assert(false);
+   }
+}

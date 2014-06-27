@@ -42,6 +42,8 @@ int record_field_to_net(type_t type, ident_t name);
 class_t class_of(tree_t t);
 bool class_has_type(class_t c);
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name);
+type_t array_aggregate_type(type_t array, int from_dim);
+tree_t make_default_value(type_t type);
 
 //
 // Utility typedefs

@@ -1876,102 +1876,6 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    }
 }
 
-static type_t sem_array_aggregate_type(type_t array, int from_dim)
-{
-   if (type_is_unconstrained(array)) {
-      const int nindex = type_index_constrs(array);
-      assert(from_dim < nindex);
-
-      type_t type = type_new(T_UARRAY);
-      type_set_ident(type, type_ident(array));
-      type_set_elem(type, type_elem(array));
-
-      for (int i = from_dim; i < nindex; i++)
-         type_add_index_constr(type, type_index_constr(array, i));
-
-      return type;
-   }
-   else {
-      const int ndims = type_dims(array);
-      assert(from_dim < ndims);
-
-      type_t type = type_new(T_CARRAY);
-      type_set_ident(type, type_ident(array));
-      type_set_elem(type, type_elem(array));
-
-      for (int i = from_dim; i < ndims; i++)
-         type_add_dim(type, type_dim(array, i));
-
-      return type;
-   }
-}
-
-static tree_t sem_default_value(type_t type)
-{
-   type_t base = type_base_recur(type);
-
-   switch (type_kind(base)) {
-   case T_UARRAY:
-      assert(type_kind(type) == T_SUBTYPE);
-      // Fall-through
-
-   case T_CARRAY:
-      {
-         tree_t def = NULL;
-         const int ndims = type_dims(type);
-         for (int i = ndims - 1; i >= 0; i--) {
-            tree_t val = (def ? def : sem_default_value(type_elem(base)));
-            def = tree_new(T_AGGREGATE);
-            tree_set_type(def, sem_array_aggregate_type(type, i));
-
-            tree_t a = tree_new(T_ASSOC);
-            tree_set_subkind(a, A_OTHERS);
-            tree_set_value(a, val);
-
-            tree_add_assoc(def, a);
-         }
-         tree_set_type(def, type);
-         return def;
-      }
-
-   case T_INTEGER:
-   case T_PHYSICAL:
-   case T_REAL:
-      return type_dim(type, 0).left;
-
-   case T_ENUM:
-      return make_ref(type_enum_literal(base, 0));
-
-   case T_RECORD:
-      {
-         tree_t def = tree_new(T_AGGREGATE);
-         const int nfields = type_fields(base);
-         for (int i = 0; i < nfields; i++) {
-            tree_t field = type_field(base, i);
-
-            tree_t a = tree_new(T_ASSOC);
-            tree_set_subkind(a, A_POS);
-            tree_set_value(a, sem_default_value(tree_type(field)));
-
-            tree_add_assoc(def, a);
-         }
-         tree_set_type(def, type);
-         return def;
-      }
-
-   case T_ACCESS:
-      {
-         tree_t null = tree_new(T_LITERAL);
-         tree_set_subkind(null, L_NULL);
-         tree_set_type(null, type);
-         return null;
-      }
-
-   default:
-      assert(false);
-   }
-}
-
 static void sem_declare_fields(type_t type, ident_t prefix, bool is_signal)
 {
    // Insert a name into the scope for each field
@@ -2011,7 +1915,7 @@ static bool sem_check_decl(tree_t t)
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
 
    if (!tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL))
-      tree_set_value(t, sem_default_value(type));
+      tree_set_value(t, make_default_value(type));
    else if (tree_has_value(t)) {
       tree_t value = tree_value(t);
       if (!sem_check_constrained(value, type))
@@ -4123,7 +4027,7 @@ static bool sem_check_aggregate(tree_t t)
       if (ndims == 1)
          elem_type = type_elem(base_type);
       else
-         elem_type = sem_array_aggregate_type(composite_type, 1);
+         elem_type = array_aggregate_type(composite_type, 1);
 
       type_t index_type = sem_index_type(composite_type, 0);
 
@@ -5929,7 +5833,7 @@ static bool sem_check_new(tree_t t)
          type_set_base(type, base);
          type_add_dim(type, r);
 
-         tree_set_value(t, sem_default_value(type));
+         tree_set_value(t, make_default_value(type));
       }
       break;
 
@@ -5940,7 +5844,7 @@ static bool sem_check_new(tree_t t)
          if (!sem_check_type(value, &type))
             return false;
 
-         tree_set_value(t, sem_default_value(type));
+         tree_set_value(t, make_default_value(type));
       }
       break;
 

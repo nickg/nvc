@@ -1097,34 +1097,94 @@ static void elab_arch(tree_t t, const elab_ctx_t *ctx)
    tree_set_ident(t, ident_prefix(ctx->path, ident_new(":"), '\0'));
 }
 
-static void elab_entity(tree_t t, const elab_ctx_t *ctx)
+static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
 {
-   const int ngenerics = tree_generics(t);
+   tree_t ent = tree_ref(arch);
+
+   const int nports = tree_ports(ent);
+   if (nports == 0)
+      return;
+
+   // Replace top-level ports with signals that can be driven from VHPI
+
+   map_list_t *top_maps = NULL;
+   tree_t rformals[nports], ractuals[nports];
+
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(ent, i);
+      type_t type = tree_type(p);
+
+      if (type_is_unconstrained(type))
+         fatal_at(tree_loc(p), "port %s of top-level entity must not have "
+                  "unconstrained array type", istr(tree_ident(p)));
+
+      tree_t s = tree_new(T_SIGNAL_DECL);
+      tree_set_ident(s, tree_ident(p));
+      tree_set_loc(s, tree_loc(p));
+      tree_set_type(s, type);
+      tree_add_attr_int(s, fst_dir_i, tree_subkind(p));
+
+      if (tree_has_value(p))
+         tree_set_value(s, tree_value(p));
+      else
+         tree_set_value(s, make_default_value(type));
+
+      tree_add_decl(arch, s);
+
+      elab_signal_nets(s, ctx);
+
+      map_list_t *m = xmalloc(sizeof(map_list_t));
+      m->next   = top_maps;
+      m->formal = p;
+      m->signal = s;
+      m->actual = make_ref(s);
+      m->name   = NULL;
+
+      rformals[i] = p;
+      ractuals[i] = s;
+
+      top_maps = m;
+   }
+
+   elab_map_nets(top_maps);
+
+   rewrite_params_t params = {
+      .formals = rformals,
+      .actuals = ractuals,
+      .count   = nports
+   };
+
+   tree_rewrite(arch, rewrite_refs, &params);
+
+   if (tree_stmts(ent) > 0)
+      tree_rewrite(ent, rewrite_refs, &params);
+}
+
+static void elab_top_level_generics(tree_t arch, const elab_ctx_t *ctx)
+{
+   tree_t ent = tree_ref(arch);
+
+   const int ngenerics = tree_generics(ent);
    for (int i = 0; i < ngenerics; i++) {
-      tree_t g = tree_generic(t, i);
+      tree_t g = tree_generic(ent, i);
       if (!tree_has_value(g))
          fatal_at(tree_loc(g), "generic %s of top-level entity must have "
                   "default value", istr(tree_ident(g)));
    }
 
-   const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(t, i);
-      if (!tree_has_value(p) && (tree_subkind(p) != PORT_OUT))
-         fatal_at(tree_loc(p), "port %s of top-level entity must have "
-                  "default value", istr(tree_ident(p)));
-   }
+   (void)elab_map(ent, arch, tree_generics, tree_generic, NULL, NULL);
+}
 
+static void elab_entity(tree_t t, const elab_ctx_t *ctx)
+{
    tree_t arch = pick_arch(NULL, tree_ident(t), NULL);
    const char *name = simple_name(istr(tree_ident(t)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
    ident_t npath = hpathf(ctx->path, ':', ":%s", name);
 
-   map_list_t *maps = elab_map(t, arch, tree_ports, tree_port, NULL, NULL);
-   assert(maps == NULL);
-
-   (void)elab_map(t, arch, tree_generics, tree_generic, NULL, NULL);
+   elab_top_level_generics(arch, ctx);
+   elab_top_level_ports(arch, ctx);
 
    elab_pseudo_context(ctx->out, t);
    elab_copy_context(ctx->out, t);
