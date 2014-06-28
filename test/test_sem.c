@@ -1585,6 +1585,35 @@ START_TEST(test_supersede)
 }
 END_TEST
 
+START_TEST(test_implicit)
+{
+   tree_t a, e;
+
+   input_from_file(TESTDIR "/sem/implicit.vhd");
+
+   const error_t expect[] = {
+      { 12, "expected type TIME for attribute DELAYED" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1627,6 +1656,7 @@ int main(void)
    tcase_add_test(tc_core, test_spec);
    tcase_add_test(tc_core, test_issue53);
    tcase_add_test(tc_core, test_supersede);
+   tcase_add_test(tc_core, test_implicit);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

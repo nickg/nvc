@@ -1782,6 +1782,19 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
+static tree_t sem_time_parameter_attribute(ident_t name, const char *builtin,
+                                           type_t type, type_t result)
+{
+   // Helper for attributtes like 'STABLE and 'DELAYED that take an
+   // optional TIME argument
+
+   type_t std_time = sem_std_type("TIME");
+
+   tree_t fn = sem_builtin_fn(name, result, builtin, std_time, type, NULL);
+   tree_set_value(tree_port(fn, 0), sem_int_lit(std_time, 0));
+   return fn;
+}
+
 static void sem_add_attributes(tree_t decl, bool is_signal)
 {
    type_t std_bool = sem_std_type("BOOLEAN");
@@ -1808,12 +1821,17 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    }
 
    if (is_signal) {
-      type_t std_time   = sem_std_type("TIME");
+      type_t std_time = sem_std_type("TIME");
+      type_t std_bit  = sem_std_type("BIT");
 
-      ident_t event_i      = ident_new("EVENT");
-      ident_t last_value_i = ident_new("LAST_VALUE");
-      ident_t active_i     = ident_new("ACTIVE");
-      ident_t last_event_i = ident_new("LAST_EVENT");
+      ident_t event_i       = ident_new("EVENT");
+      ident_t last_value_i  = ident_new("LAST_VALUE");
+      ident_t active_i      = ident_new("ACTIVE");
+      ident_t last_event_i  = ident_new("LAST_EVENT");
+      ident_t delayed_i     = ident_new("DELAYED");
+      ident_t stable_i      = ident_new("STABLE");
+      ident_t quiet_i       = ident_new("QUIET");
+      ident_t transaction_i = ident_new("TRANSACTION");
 
       tree_add_attr_tree(decl, event_i,
                          sem_builtin_fn(event_i, std_bool, "event",
@@ -1827,6 +1845,18 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
       tree_add_attr_tree(decl, last_event_i,
                          sem_builtin_fn(last_event_i, std_time,
                                         "last_event", type, NULL));
+      tree_add_attr_tree(decl, delayed_i,
+                         sem_time_parameter_attribute(delayed_i, "delayed",
+                                                      type, type));
+      tree_add_attr_tree(decl, stable_i,
+                         sem_time_parameter_attribute(delayed_i, "stable",
+                                                      type, std_bool));
+      tree_add_attr_tree(decl, quiet_i,
+                         sem_time_parameter_attribute(delayed_i, "quiet",
+                                                      type, std_bool));
+      tree_add_attr_tree(decl, transaction_i,
+                         sem_builtin_fn(transaction_i, std_bit,
+                                        "transaction", type, NULL));
    }
 
    if (is_signal || (class == C_ARCHITECTURE) || (class == C_ENTITY)

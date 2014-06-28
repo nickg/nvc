@@ -7,7 +7,6 @@ package STANDARD is
     type INTEGER;
     type STRING;
     type REAL;
-    type TIME;
 
     type BOOLEAN is (FALSE, TRUE);
 
