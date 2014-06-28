@@ -23,8 +23,21 @@
 #include <string.h>
 #include <stdarg.h>
 #include <inttypes.h>
+#include <stdlib.h>
 
 #define MAX_BUILTIN_ARGS 2
+
+typedef struct imp_signal imp_signal_t;
+
+struct imp_signal {
+   imp_signal_t *next;
+   tree_t        signal;
+   tree_t        process;
+};
+
+typedef struct {
+   imp_signal_t *imp_signals;
+} simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
 static void simp_build_wait(tree_t ref, void *context);
@@ -127,7 +140,62 @@ static tree_t simp_ref(tree_t t)
    }
 }
 
-static tree_t simp_attr_ref(tree_t t)
+static tree_t simp_attr_delayed(tree_t t, simp_ctx_t *ctx)
+{
+   if (tree_kind(tree_ref(tree_name(t))) != T_SIGNAL_DECL)
+      return t;
+
+   t = simp_call_args(t);
+
+   tree_t name = tree_value(tree_param(t, 1));
+   assert(tree_kind(name) == T_REF);
+
+   char *sig_name LOCAL = xasprintf("delayed_%s", istr(tree_ident(name)));
+
+   tree_t delay = tree_value(tree_param(t, 0));
+
+   tree_t s = tree_new(T_SIGNAL_DECL);
+   tree_set_loc(s, tree_loc(t));
+   tree_set_ident(s, ident_uniq(sig_name));
+   tree_set_type(s, tree_type(name));
+   tree_set_value(s, tree_value(tree_ref(name)));
+
+   tree_t p = tree_new(T_PROCESS);
+   tree_set_loc(p, tree_loc(t));
+   tree_set_ident(p, ident_prefix(tree_ident(s), ident_new("p"), '_'));
+
+   tree_t r = make_ref(s);
+
+   tree_t a = tree_new(T_SIGNAL_ASSIGN);
+   tree_set_ident(a, ident_new("assign"));
+   tree_set_target(a, r);
+   tree_set_reject(a, get_int_lit(delay, 0));
+
+   tree_t wave = tree_new(T_WAVEFORM);
+   tree_set_value(wave, name);
+   tree_set_delay(wave, delay);
+
+   tree_add_waveform(a, wave);
+
+   tree_t wait = tree_new(T_WAIT);
+   tree_set_ident(wait, ident_new("wait"));
+   tree_add_attr_int(wait, ident_new("static"), 1);
+   tree_add_trigger(wait, name);
+
+   tree_add_stmt(p, a);
+   tree_add_stmt(p, wait);
+
+   imp_signal_t *imp = xmalloc(sizeof(imp_signal_t));
+   imp->next    = ctx->imp_signals;
+   imp->signal  = s;
+   imp->process = p;
+
+   ctx->imp_signals = imp;
+
+   return r;
+}
+
+static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_has_value(t))
       return tree_value(t);
@@ -138,18 +206,22 @@ static tree_t simp_attr_ref(tree_t t)
       ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
       assert(builtin != NULL);
 
-      // Convert attributes like 'EVENT to function calls
-      tree_t fcall = tree_new(T_FCALL);
-      tree_set_loc(fcall, tree_loc(t));
-      tree_set_type(fcall, tree_type(t));
-      tree_set_ident(fcall, tree_ident(t));
-      tree_set_ref(fcall, decl);
+      if (icmp(builtin, "delayed"))
+         return simp_attr_delayed(t, ctx);
+      else {
+         // Convert attributes like 'EVENT to function calls
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_loc(fcall, tree_loc(t));
+         tree_set_type(fcall, tree_type(t));
+         tree_set_ident(fcall, tree_ident(t));
+         tree_set_ref(fcall, decl);
 
-      const int nparams = tree_params(t);
-      for (int i = 0; i < nparams; i++)
-         tree_add_param(fcall, tree_param(t, i));
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++)
+            tree_add_param(fcall, tree_param(t, i));
 
-      return simp_fcall(fcall);
+         return simp_fcall(fcall);
+      }
    }
 }
 
@@ -736,15 +808,17 @@ static tree_t simp_if_generate(tree_t t)
    return t;
 }
 
-static tree_t simp_tree(tree_t t, void *context)
+static tree_t simp_tree(tree_t t, void *_ctx)
 {
+   simp_ctx_t *ctx = _ctx;
+
    switch (tree_kind(t)) {
    case T_PROCESS:
       return simp_process(t);
    case T_ARRAY_REF:
       return simp_array_ref(t);
    case T_ATTR_REF:
-      return simp_attr_ref(t);
+      return simp_attr_ref(t, ctx);
    case T_FCALL:
       return simp_fcall(t);
    case T_PCALL:
@@ -784,5 +858,18 @@ static tree_t simp_tree(tree_t t, void *context)
 
 void simplify(tree_t top)
 {
-   tree_rewrite(top, simp_tree, NULL);
+   simp_ctx_t ctx = {
+      .imp_signals = NULL
+   };
+
+   tree_rewrite(top, simp_tree, &ctx);
+
+   while (ctx.imp_signals != NULL) {
+      tree_add_decl(top, ctx.imp_signals->signal);
+      tree_add_stmt(top, ctx.imp_signals->process);
+
+      imp_signal_t *tmp = ctx.imp_signals->next;
+      free(ctx.imp_signals);
+      ctx.imp_signals = tmp;
+   }
 }
