@@ -19,7 +19,7 @@ Report bugs using the [GitHub issue tracker](https://github.com/nickg/nvc/issues
 
 ### Installing
 
-NVC is developped on Debian Linux and has been reported to work on OS X
+NVC is developed on Debian Linux and has been reported to work on OS X
 and Windows under Cygwin. Ports to other Unix-like systems are welcome.
 
 To build from a Git clone:
@@ -48,7 +48,7 @@ On a Debian derivative the following should be sufficient to install all require
 dependencies:
 
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
-        libreadline-dev tcl-dev check llvm-dev pkg-config
+        libreadline-dev tcl-dev check llvm-dev pkg-config libbz2-dev
 
 #### Mac OS X
 
