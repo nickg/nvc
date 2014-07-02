@@ -59,8 +59,9 @@ AC_DEFUN([AX_LLVM_C],
             if test -e "$ac_llvm_config_path"; then
                 LLVM_CFLAGS=`$ac_llvm_config_path --cflags`
                 LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
-                LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags)"
-                LLVM_LIBS="$($ac_llvm_config_path --libs $1)"
+                LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed -e 's/\-l[a-z]\+//g')"
+                # FIXME: LLVM > 3.4 has --system-libs we can use instead of --ldflags here
+                LLVM_LIBS="$($ac_llvm_config_path --libs $1) $($ac_llvm_config_path --ldflags)"
                 LLVM_VERSION="$($ac_llvm_config_path --version)"
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
                 LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
