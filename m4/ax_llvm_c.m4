@@ -61,7 +61,8 @@ AC_DEFUN([AX_LLVM_C],
                 LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
                 LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed -e 's/\-l[a-z]\+//g')"
                 # FIXME: LLVM > 3.4 has --system-libs we can use instead of --ldflags here
-                LLVM_LIBS="$($ac_llvm_config_path --libs $1) $($ac_llvm_config_path --ldflags)"
+                LLVM_SYSLIBS="$($ac_llvm_config_path --ldflags)"
+                LLVM_LIBS="$($ac_llvm_config_path --libs $1) $LLVM_SYSLIBS"
                 LLVM_VERSION="$($ac_llvm_config_path --version)"
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
                 LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
@@ -126,7 +127,7 @@ AC_DEFUN([AX_LLVM_C],
                         AC_LANG_POP([C++])])
 
                 if test "x$ax_cv_llvm_shared" = "xyes"; then
-                    LLVM_LIBS="$shlib"
+                    LLVM_LIBS="$shlib $LLVM_SYSLIBS"
                 fi
 
                 CFLAGS="$CFLAGS_SAVED"
