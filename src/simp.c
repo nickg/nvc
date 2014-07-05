@@ -64,7 +64,7 @@ static tree_t simp_call_args(tree_t t)
       tree_set_ref(new, tree_ref(t));
 
       tree_kind_t kind = tree_kind(t);
-      if (kind == T_FCALL)
+      if ((kind == T_FCALL) || (kind == T_ATTR_REF))
          tree_set_type(new, tree_type(t));
       else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
@@ -140,24 +140,32 @@ static tree_t simp_ref(tree_t t)
    }
 }
 
-static tree_t simp_attr_delayed(tree_t t, simp_ctx_t *ctx)
+static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_kind(tree_ref(tree_name(t))) != T_SIGNAL_DECL)
       return t;
 
    t = simp_call_args(t);
 
-   tree_t name = tree_value(tree_param(t, 1));
+   tree_t name = tree_value(tree_param(t, tree_params(t) - 1));
    assert(tree_kind(name) == T_REF);
 
-   char *sig_name LOCAL = xasprintf("delayed_%s", istr(tree_ident(name)));
+   ident_t builtin = tree_attr_str(tree_ref(t), ident_new("builtin"));
+   enum {
+      DELAYED,
+      TRANSACTION
+   } attr = icmp(builtin, "transaction") ? TRANSACTION : DELAYED;
+
+   char *sig_name LOCAL =
+      xasprintf("%s_%s", (attr == DELAYED) ? "delayed" : "transaction",
+                istr(tree_ident(name)));
 
    tree_t delay = tree_value(tree_param(t, 0));
 
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_loc(s, tree_loc(t));
    tree_set_ident(s, ident_uniq(sig_name));
-   tree_set_type(s, tree_type(name));
+   tree_set_type(s, tree_type(t));
    tree_set_value(s, tree_value(tree_ref(name)));
 
    tree_t p = tree_new(T_PROCESS);
@@ -169,20 +177,37 @@ static tree_t simp_attr_delayed(tree_t t, simp_ctx_t *ctx)
    tree_t a = tree_new(T_SIGNAL_ASSIGN);
    tree_set_ident(a, ident_new("assign"));
    tree_set_target(a, r);
-   tree_set_reject(a, get_int_lit(delay, 0));
 
-   tree_t wave = tree_new(T_WAVEFORM);
-   tree_set_value(wave, name);
-   tree_set_delay(wave, delay);
+   switch (attr) {
+   case DELAYED:
+      {
+         tree_t wave = tree_new(T_WAVEFORM);
+         tree_set_value(wave, name);
+         tree_set_delay(wave, delay);
 
-   tree_add_waveform(a, wave);
+         tree_add_waveform(a, wave);
+      }
+      break;
+
+   case TRANSACTION:
+      {
+         tree_t not = call_builtin("not", tree_type(r), r, NULL);
+
+         tree_t wave = tree_new(T_WAVEFORM);
+         tree_set_value(wave, not);
+
+         tree_add_waveform(a, wave);
+      }
+      break;
+   }
+
+   tree_add_stmt(p, a);
 
    tree_t wait = tree_new(T_WAIT);
    tree_set_ident(wait, ident_new("wait"));
    tree_add_attr_int(wait, ident_new("static"), 1);
    tree_add_trigger(wait, name);
 
-   tree_add_stmt(p, a);
    tree_add_stmt(p, wait);
 
    imp_signal_t *imp = xmalloc(sizeof(imp_signal_t));
@@ -206,8 +231,8 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
       ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
       assert(builtin != NULL);
 
-      if (icmp(builtin, "delayed"))
-         return simp_attr_delayed(t, ctx);
+      if (icmp(builtin, "delayed") || icmp(builtin, "transaction"))
+         return simp_attr_delayed_transaction(t, ctx);
       else {
          // Convert attributes like 'EVENT to function calls
          tree_t fcall = tree_new(T_FCALL);

@@ -1211,6 +1211,11 @@ void tree_set_reject(tree_t t, tree_t r)
    lookup_item(t, I_REJECT)->tree = r;
 }
 
+bool tree_has_reject(tree_t t)
+{
+   return lookup_item(t, I_REJECT)->tree != NULL;
+}
+
 tree_t tree_name(tree_t t)
 {
    item_t *item = lookup_item(t, I_NAME);

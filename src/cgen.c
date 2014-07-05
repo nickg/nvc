@@ -4079,7 +4079,11 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
 
 static void cgen_signal_assign(tree_t t, cgen_ctx_t *ctx)
 {
-   LLVMValueRef reject = cgen_expr(tree_reject(t), ctx);
+   LLVMValueRef reject = NULL;
+   if (tree_has_reject(t))
+      reject = cgen_expr(tree_reject(t), ctx);
+   else
+      reject = llvm_int64(0);
 
    const int nwaveforms = tree_waveforms(t);
    for (int i = 0; i < nwaveforms; i++) {
