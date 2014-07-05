@@ -1,6 +1,7 @@
 #include "vhpi_user.h"
 
 #include <stdio.h>
+#include <assert.h>
 
 static void start_of_sim(const vhpiCbDataT *cb_data)
 {
@@ -17,7 +18,14 @@ static void startup()
       .cb_rtn    = start_of_sim,
       .user_data = (char *)"some user data",
    };
-   vhpi_register_cb(&cb_data_s, vhpiReturnCb);
+   vhpiHandleT h = vhpi_register_cb(&cb_data_s, vhpiReturnCb);
+
+   assert(vhpi_get(vhpiStateP, h) == vhpiEnable);
+
+   vhpi_printf("tool is %s", vhpi_get_str(vhpiNameP, NULL));
+
+   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
+   vhpi_printf("root handle %p", root);
 }
 
 void (*vhpi_startup_routines[])() = {

@@ -2135,7 +2135,7 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
 
 #ifdef ENABLE_VHPI
    if (vhpi_plugins != NULL)
-      vhpi_load_plugins(vhpi_plugins);
+      vhpi_load_plugins(e, vhpi_plugins);
    vhpi_start_of_sim();
 #endif
 

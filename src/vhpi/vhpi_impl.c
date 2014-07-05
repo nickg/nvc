@@ -27,6 +27,8 @@
 
 #include "vhpi_user.h"
 #include "util.h"
+#include "hash.h"
+#include "tree.h"
 
 #include <string.h>
 #include <assert.h>
@@ -43,18 +45,27 @@ struct vhpi_cb {
    vhpiCbDataT data;
 };
 
+typedef enum {
+   VHPI_CALLBACK,
+   VHPI_TREE
+} vhpi_obj_kind_t;
+
 struct vhpi_obj {
-   uint32_t       magic;
-   vhpi_obj_t    *chain;
-   vhpiClassKindT kind;
+   uint32_t        magic;
+   vhpi_obj_t     *chain;
+   vhpiClassKindT  class;
+   vhpi_obj_kind_t kind;
    union {
       vhpi_cb_t cb;
+      tree_t    tree;
    };
 };
 
-static vhpi_obj_t *sim_cb_list = NULL;
+static vhpi_obj_t *sim_cb_list;
+static tree_t      top_level;
+static hash_t     *handle_hash;
 
-#define VHPI_MISSING fatal("VHPI function %s not implemented", __func__)
+#define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
 
 static inline vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle)
@@ -65,10 +76,26 @@ static inline vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle)
    return obj;
 }
 
-static inline void vhpi_obj_assert(vhpi_obj_t *obj, vhpiClassKindT kind)
+static inline void vhpi_obj_assert(vhpi_obj_t *obj, vhpiClassKindT class)
 {
-   if (unlikely(obj->kind != kind))
-      fatal_trace("expected VHPI class kind %d but have %d", kind, obj->kind);
+   if (unlikely(obj->class != class))
+      fatal_trace("expected VHPI class kind %d but have %d", class, obj->class);
+}
+
+static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
+{
+   vhpi_obj_t *obj = hash_get(handle_hash, t);
+   if (obj == NULL) {
+      obj = xmalloc(sizeof(vhpi_obj_t));
+      memset(obj, '\0', sizeof(vhpi_obj_t));
+
+      obj->magic = VHPI_MAGIC;
+      obj->kind  = VHPI_TREE;
+      obj->class = class;
+      obj->tree  = t;
+   }
+
+   return obj;
 }
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
@@ -84,7 +111,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    vhpi_obj_t *obj = xmalloc(sizeof(vhpi_obj_t));
    memset(obj, '\0', sizeof(vhpi_obj_t));
 
-   obj->kind  = vhpiCallbackK;
+   obj->class = vhpiCallbackK;
+   obj->kind  = VHPI_CALLBACK;
    obj->chain = NULL;
    obj->magic = VHPI_MAGIC;
 
@@ -143,7 +171,16 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
 
 vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 {
-   VHPI_MISSING;
+   printf("vhpi_handle type=%d referenceHandle=%p\n", type, referenceHandle);
+
+   switch (type) {
+   case vhpiRootInst:
+   case vhpiDesignUnit:
+      return (vhpiHandleT)vhpi_tree_to_obj(top_level, vhpiRootInstK);
+
+   default:
+      fatal_trace("type %d not supported in vhpi_handle", type);
+   }
 }
 
 vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT referenceHandle)
@@ -186,8 +223,11 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
    case vhpiNameP:
       if (handle == NULL)
          return (vhpiCharT *)PACKAGE_NAME;
-      else
-         return NULL;
+      else {
+         vhpi_obj_t *obj = vhpi_get_obj(handle);
+         assert(obj->kind == VHPI_TREE); // TODO: make error
+         return (vhpiCharT *)istr(tree_ident(obj->tree));  // TODO: cache this
+      }
 
    case vhpiToolVersionP:
       return (vhpiCharT *)PACKAGE_VERSION;
@@ -284,7 +324,7 @@ int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
 
 int vhpi_check_error(vhpiErrorInfoT *error_info_p)
 {
-   VHPI_MISSING;
+   return 0;  // TODO
 }
 
 int vhpi_release_handle(vhpiHandleT object)
@@ -328,8 +368,15 @@ int vhpi_is_printable(char ch)
       return 1;
 }
 
-void vhpi_load_plugins(const char *plugins)
+void vhpi_load_plugins(tree_t top, const char *plugins)
 {
+   top_level = top;
+
+   if (handle_hash != NULL)
+      hash_free(handle_hash);
+
+   handle_hash = hash_new(1024, true);
+
    char *plugins_copy LOCAL = strdup(plugins);
    assert(plugins_copy);
 
