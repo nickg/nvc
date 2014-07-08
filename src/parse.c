@@ -78,6 +78,7 @@ int yylex(void);
 #define expect(...) _expect(1, __VA_ARGS__, -1)
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
 #define not_at_token(...) ((peek() != tEOF) && !_scan(1, __VA_ARGS__, -1))
+#define peek() peek_nth(1)
 
 #define parse_error(loc, ...) do {            \
       if (n_correct >= RECOVER_THRESH) {      \
@@ -171,29 +172,11 @@ static const char *token_str(token_t tok)
       return token_strs[tok];
 }
 
-static token_t peek(void)
-{
-   if (tokenq == NULL) {
-      extern yylval_t yylval;
-
-      tokenq = xmalloc(sizeof(tokenq_t));
-      tokenq->next  = NULL;
-      tokenq->token = yylex();
-      tokenq->lval  = yylval;
-      tokenq->loc   = yylloc;
-   }
-
-   return tokenq->token;
-}
-
 static token_t peek_nth(int n)
 {
-   if (tokenq == NULL)
-      (void)peek();
-
    tokenq_t *it = tokenq;
-   while (--n) {
-      if (it->next == NULL) {
+   while ((it == NULL) || --n) {
+      if ((it == NULL) || (it->next == NULL)) {
          extern yylval_t yylval;
 
          tokenq_t *next = xmalloc(sizeof(tokenq_t));
@@ -202,10 +185,13 @@ static token_t peek_nth(int n)
          next->lval  = yylval;
          next->loc   = yylloc;
 
-         it->next = next;
+         if (it == NULL)
+            it = tokenq = next;
+         else
+            it = it->next = next;
       }
-
-      it = it->next;
+      else
+         it = it->next;
    }
 
    return it->token;
