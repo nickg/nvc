@@ -859,7 +859,7 @@ static void sem_declare_predefined_ops(tree_t decl)
          tree_t read = sem_builtin_proc(read_i, "file_read");
          sem_add_port(read, t, PORT_INOUT, NULL);
          sem_add_port(read, of, PORT_OUT, NULL);
-         if (type_is_array(of))
+         if (type_is_array(of) && type_is_unconstrained(of))
             sem_add_port(read, std_int, PORT_OUT, NULL);
          scope_insert(read);
          tree_add_op(decl, read);

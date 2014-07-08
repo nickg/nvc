@@ -228,3 +228,4 @@ record12        normal
 attr11          normal
 implicit1       normal
 implicit2       normal
+file2           normal

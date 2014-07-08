@@ -4690,7 +4690,7 @@ static void cgen_case(tree_t t, cgen_ctx_t *ctx)
 }
 
 static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args,
-                               type_t *arg_types)
+                               type_t *arg_types, int nargs)
 {
    if (icmp(builtin, "deallocate")) {
       LLVMValueRef ptr = LLVMBuildLoad(builder, args[0], "");
@@ -4755,15 +4755,18 @@ static void cgen_builtin_pcall(ident_t builtin, LLVMValueRef *args,
       if (type_is_array(arg_types[1])) {
          data   = cgen_array_data_ptr(arg_types[1], args[1]);
          inlen  = cgen_array_len(arg_types[1], 0, args[1]);
-         outlen = args[2];
+         outlen = (nargs == 4) ? args[2] : NULL;
       }
       else {
          LLVMTypeRef lltype = llvm_type(arg_types[1]);
          data   = args[1];
          inlen  = LLVMBuildIntCast(builder, LLVMSizeOf(lltype),
                                  LLVMInt32Type(), "");
-         outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
+         outlen = NULL;
       }
+
+      if (outlen == NULL)
+         outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
 
       LLVMValueRef args2[] = {
          args[0],
@@ -4801,7 +4804,7 @@ static void cgen_pcall(tree_t t, cgen_ctx_t *ctx)
       cgen_call_args(t, args, &nargs, arg_types, ctx);
 
       if (builtin != NULL)
-         cgen_builtin_pcall(builtin, args, arg_types);
+         cgen_builtin_pcall(builtin, args, arg_types, nargs);
       else {
          // Regular procedure call
          LLVMBuildCall(builder, cgen_pdecl(decl), args, nargs, "");
