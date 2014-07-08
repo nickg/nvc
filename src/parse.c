@@ -77,7 +77,7 @@ int yylex(void);
 #define scan(...) _scan(1, __VA_ARGS__, -1)
 #define expect(...) _expect(1, __VA_ARGS__, -1)
 #define one_of(...) _one_of(1, __VA_ARGS__, -1)
-#define not_at_token(...) _not_at_token(1, __VA_ARGS__, -1)
+#define not_at_token(...) ((peek() != tEOF) && !_scan(1, __VA_ARGS__, -1))
 
 #define parse_error(loc, ...) do {            \
       if (n_correct >= RECOVER_THRESH) {      \
@@ -410,30 +410,6 @@ static int _one_of(int dummy, ...)
 
       return -1;
    }
-}
-
-static bool _not_at_token(int dummy, ...)
-{
-   const token_t p = peek();
-
-   if (p == tEOF)
-      return false;
-
-   va_list ap;
-   va_start(ap, dummy);
-
-   bool result = true;
-
-   while (result) {
-      const int tok = va_arg(ap, token_t);
-      if (tok == -1)
-         break;
-      else
-         result = result && (tok != p);
-   }
-
-   va_end(ap);
-   return result;
 }
 
 static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
