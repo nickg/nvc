@@ -33,14 +33,11 @@
 #include <stdlib.h>
 #include <limits.h>
 
-typedef struct tokenq tokenq_t;
-
-struct tokenq {
-   tokenq_t *next;
-   token_t   token;
-   yylval_t  lval;
-   loc_t     loc;
-};
+typedef struct {
+   token_t  token;
+   yylval_t lval;
+   loc_t    loc;
+} tokenq_t;
 
 typedef struct {
    token_t look[4];
@@ -66,7 +63,10 @@ static int         n_errors = 0;
 static const char *hint_str = NULL;
 static int         n_correct = 0;
 static tree_t      assert_viol = NULL;
-static tokenq_t   *tokenq = NULL;
+static tokenq_t   *tokenq;
+static int         tokenq_sz;
+static int         tokenq_head;
+static int         tokenq_tail;
 static yylval_t    last_lval;
 static token_t     opt_hist[8];
 static int         nopt_hist = 0;
@@ -174,27 +174,45 @@ static const char *token_str(token_t tok)
 
 static token_t peek_nth(int n)
 {
-   tokenq_t *it = tokenq;
-   while ((it == NULL) || --n) {
-      if ((it == NULL) || (it->next == NULL)) {
+   const int orign = n;
+   const int have  = (tokenq_head - tokenq_tail) & (tokenq_sz - 1);
+
+   if (have < n) {
+      n -= have;
+
+      while (n--) {
+         int next = (tokenq_head + 1) & (tokenq_sz - 1);
+         if (unlikely(next == tokenq_tail)) {
+            const int newsz = tokenq_sz * 2;
+            tokenq_t *new = xmalloc(newsz * sizeof(tokenq_t));
+
+            tokenq_t *p = new;
+            for (int i = tokenq_tail; i != tokenq_head;
+                 i = (i + 1) & (tokenq_sz - 1))
+               *p++ = tokenq[i];
+
+            free(tokenq);
+
+            tokenq      = new;
+            tokenq_sz   = newsz;
+            tokenq_head = p - new;
+            tokenq_tail = 0;
+
+            next = (tokenq_head + 1) & (tokenq_sz - 1);
+         }
+
          extern yylval_t yylval;
 
-         tokenq_t *next = xmalloc(sizeof(tokenq_t));
-         next->next  = NULL;
-         next->token = yylex();
-         next->lval  = yylval;
-         next->loc   = yylloc;
+         tokenq[tokenq_head].token = yylex();
+         tokenq[tokenq_head].lval  = yylval;
+         tokenq[tokenq_head].loc   = yylloc;
 
-         if (it == NULL)
-            it = tokenq = next;
-         else
-            it = it->next = next;
+         tokenq_head = next;
       }
-      else
-         it = it->next;
    }
 
-   return it->token;
+   const int pos = (tokenq_tail + orign - 1) & (tokenq_sz - 1);
+   return tokenq[pos].token;
 }
 
 static bool look_for(const look_params_t *params)
@@ -230,7 +248,7 @@ static bool look_for(const look_params_t *params)
 
 #if WARN_LOOKAHEAD > 0
    if (n >= WARN_LOOKAHEAD)
-      warn_at(&(tokenq->loc), "look ahead depth %d", n);
+      warn_at(&(tokenq[tokenq_tail].loc), "look ahead depth %d", n);
 #endif
 
    return found;
@@ -238,17 +256,15 @@ static bool look_for(const look_params_t *params)
 
 static void drop_token(void)
 {
-   assert(tokenq != NULL);
+   assert(tokenq_head != tokenq_tail);
 
    if (start_loc.last_line == LINE_INVALID)
-      start_loc = tokenq->loc;
+      start_loc = tokenq[tokenq_tail].loc;
 
-   last_lval = tokenq->lval;
-   last_loc  = tokenq->loc;
+   last_lval = tokenq[tokenq_tail].lval;
+   last_loc  = tokenq[tokenq_tail].loc;
 
-   tokenq_t *tmp = tokenq->next;
-   free(tokenq);
-   tokenq = tmp;
+   tokenq_tail = (tokenq_tail + 1) & (tokenq_sz - 1);
 
    nopt_hist = 0;
 }
@@ -263,7 +279,7 @@ static void drop_tokens_until(token_t tok)
 
 #if TRACE_RECOVERY
    if (peek() != tEOF)
-      fmt_loc(stdout, &(tokenq->loc));
+      fmt_loc(stdout, &(tokenq[tokenq_tail].loc));
 #endif
 }
 
@@ -303,7 +319,7 @@ static void _vexpect(va_list ap)
    }
 
    if (n_correct >= RECOVER_THRESH) {
-      error_at(&(tokenq->loc), "%s", tb_get(tb));
+      error_at(&(tokenq[tokenq_tail].loc), "%s", tb_get(tb));
       n_errors++;
    }
 
@@ -5057,11 +5073,12 @@ void input_from_file(const char *file)
    n_row              = 0;
    n_token_next_start = 0;
 
-   while (tokenq != NULL) {
-      tokenq_t *tmp = tokenq->next;
-      free(tokenq);
-      tokenq = tmp;
+   if (tokenq == NULL) {
+      tokenq_sz = 128;
+      tokenq = xmalloc(tokenq_sz * sizeof(tokenq_t));
    }
+
+   tokenq_head = tokenq_tail = 0;
 }
 
 tree_t parse(void)
