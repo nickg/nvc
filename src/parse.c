@@ -1343,7 +1343,7 @@ static void p_choice(tree_t parent)
    else {
       const look_params_t lookp = {
          .look     = { tDOWNTO, tTO, tRANGE, tREVRANGE },
-         .stop     = { tRPAREN, tCOMMA, tASSOC },
+         .stop     = { tRPAREN, tCOMMA, tASSOC, tBAR },
          .abort    = tSEMI,
          .nest_in  = tLPAREN,
          .nest_out = tRPAREN,

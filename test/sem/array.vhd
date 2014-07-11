@@ -331,4 +331,10 @@ begin
         assert v1 = (false, false, false);  -- OK
     end process;
 
+    process is
+        variable x : int_array(1 to 3);
+    begin
+        x := (1 | 2 to 3 => 5);         -- OK
+    end process;
+
 end architecture;
