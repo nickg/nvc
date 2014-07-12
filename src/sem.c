@@ -4493,6 +4493,7 @@ static bool sem_check_ref(tree_t t)
    case T_FUNC_BODY:
       tree_change_kind(t, T_FCALL);
       tree_set_type(t, type_result(tree_type(decl)));
+      sem_copy_default_args(t, decl);
       break;
 
    case T_FIELD_DECL:

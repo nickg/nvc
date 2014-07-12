@@ -56,12 +56,18 @@ architecture a of ffold is
         end case;
     end function;
 
+    function adddef(x, y : in integer := 5) return integer is
+    begin
+        return x + y;
+    end function;
+
     signal s1 : integer := add1(5);
     signal s2 : integer := add4(1);
     signal s3 : integer := log2(11);
     signal s4 : integer := log2(integer(real'(5.5)));
     signal s5 : integer := case1(1);
     signal s6 : integer := case1(7);
+    signal s7 : integer := adddef;
 
 begin
 
