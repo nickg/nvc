@@ -4457,15 +4457,12 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
 
    LLVMBasicBlockRef else_bb = exit_bb;
    unsigned num_cases = 0;
-   tree_t last_stmt = NULL;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
       if (tree_subkind(a) == A_OTHERS)
          else_bb = LLVMAppendBasicBlock(ctx->fn, "case_others");
-      else if (tree_value(a) != last_stmt); {
+      else
          num_cases++;
-         last_stmt = tree_value(a);
-      }
    }
 
    LLVMValueRef val = cgen_expr(tree_value(t), ctx);
@@ -4474,7 +4471,7 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
    LLVMValueRef sw = LLVMBuildSwitch(builder, val, else_bb, num_cases);
 
    LLVMBasicBlockRef last_label = NULL;
-   last_stmt = NULL;
+   tree_t last_stmt = NULL;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(t, i);
       if (tree_value(a) == last_stmt) {
