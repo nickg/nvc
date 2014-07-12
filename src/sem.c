@@ -2026,6 +2026,8 @@ static bool sem_check_decl(tree_t t)
       // is determined by the initialiser
       if ((kind == T_CONST_DECL) && type_is_unconstrained(type))
          tree_set_type(t, (type = tree_type(value)));
+      else if (type_is_scalar(type))
+         tree_set_type(value, type);
    }
 
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
@@ -5537,6 +5539,8 @@ static bool sem_check_case(tree_t t)
                             sem_type_str(type));
                else if (!sem_locally_static(name))
                   sem_error(name, "case choice must be locally static");
+
+               tree_set_type(name, type);
             }
          }
          break;
