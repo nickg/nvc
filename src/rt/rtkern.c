@@ -69,7 +69,11 @@ struct rt_proc {
    bool      postponed;
 };
 
-typedef enum { E_DRIVER, E_PROCESS } event_kind_t;
+typedef enum {
+   E_DRIVER,
+   E_PROCESS,
+   E_TIMEOUT
+} event_kind_t;
 
 struct event {
    uint64_t      when;
@@ -1065,6 +1069,18 @@ static void _tracef(const char *fmt, ...)
    va_end(ap);
 }
 
+static void deltaq_insert(event_t *e)
+{
+   if (e->when == now) {
+      e->delta_chain = delta_proc;
+      delta_proc = e;
+   }
+   else {
+      e->delta_chain = NULL;
+      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
+   }
+}
+
 static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
 {
    event_t *e = rt_alloc(event_stack);
@@ -1073,14 +1089,7 @@ static void deltaq_insert_proc(uint64_t delta, rt_proc_t *wake)
    e->proc       = wake;
    e->wakeup_gen = wake->wakeup_gen;
 
-   if (delta == 0) {
-      e->delta_chain = delta_proc;
-      delta_proc = e;
-   }
-   else {
-      e->delta_chain = NULL;
-      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
-   }
+   deltaq_insert(e);
 }
 
 static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
@@ -1093,14 +1102,7 @@ static void deltaq_insert_driver(uint64_t delta, netgroup_t *group,
    e->proc       = driver;
    e->wakeup_gen = UINT32_MAX;
 
-   if (delta == 0) {
-      e->delta_chain = delta_driver;
-      delta_driver = e;
-   }
-   else {
-      e->delta_chain = NULL;
-      heap_insert(eventq_heap, heap_key(e->when, e->kind), e);
-   }
+   deltaq_insert(e);
 }
 
 #if TRACE_DELTAQ > 0
@@ -1857,6 +1859,8 @@ static void rt_cycle(int stop_delta)
       case E_DRIVER:
          rt_update_driver(event->group, event->proc);
          break;
+      case E_TIMEOUT:
+         assert(false); // TODO
       }
 
       rt_free(event_stack, event);
@@ -2133,19 +2137,15 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
    rt_one_time_init();
    rt_setup(e);
 
-#ifdef ENABLE_VHPI
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(e, vhpi_plugins);
-   vhpi_start_of_sim();
-#endif
+   vhpi_event(VHPI_START_OF_SIMULATION);
 
    rt_stats_ready();
    rt_initial(e);
    while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
-#ifdef ENABLE_VHPI
-   vhpi_end_of_sim();
-#endif
+   vhpi_event(VHPI_END_OF_SIMULATION);
    rt_cleanup(e);
    rt_emit_coverage(e);
 
@@ -2311,6 +2311,18 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 
    rt_cleanup(e);
    jit_shutdown();
+}
+
+void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
+{
+   event_t *e = rt_alloc(event_stack);
+   e->when       = now + when;
+   e->kind       = E_TIMEOUT;
+   e->group      = NULL;
+   e->proc       = NULL;
+   e->wakeup_gen = UINT32_MAX;
+
+   deltaq_insert(e);
 }
 
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)

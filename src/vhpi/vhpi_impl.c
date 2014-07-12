@@ -26,6 +26,7 @@
 //
 
 #include "vhpi_user.h"
+#include "vhpi_priv.h"
 #include "util.h"
 #include "hash.h"
 #include "tree.h"
@@ -65,6 +66,7 @@ struct vhpi_obj {
 };
 
 static vhpi_obj_t     *sim_cb_list;
+static vhpi_obj_t     *end_proc_cb_list;
 static tree_t          top_level;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
@@ -102,6 +104,11 @@ static void vhpi_error(vhpiSeverityT sev, loc_t *loc, const char *fmt, ...)
       errorf("%s", last_error.message);
 }
 
+static uint64_t vhpi_time_to_native(const vhpiTimeT *time)
+{
+   return ((uint64_t)time->high << 32) | (uint64_t)time->low;
+}
+
 static vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle, vhpi_obj_kind_t kind)
 {
    vhpi_obj_t *obj = (vhpi_obj_t *)handle;
@@ -128,6 +135,11 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
    }
 
    return obj;
+}
+
+static void vhpi_timeout_cb(uint64_t now, void *user)
+{
+   printf("vhpi_timeout_cb! now=%"PRIu64" user=%p\n", now, user);
 }
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
@@ -159,6 +171,21 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbEndOfSimulation:
       obj->chain = sim_cb_list;
       sim_cb_list = obj;
+      break;
+
+   case vhpiCbAfterDelay:
+      if (cb_data_p->time == NULL) {
+         vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
+         return NULL;
+      }
+
+      rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
+                        vhpi_timeout_cb, obj);
+      break;
+
+   case vhpiCbEndOfProcesses:
+      obj->chain = end_proc_cb_list;
+      end_proc_cb_list = obj;
       break;
 
    default:
@@ -531,21 +558,11 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
    } while ((tok = strtok(NULL, ",")));
 }
 
-static void vhpi_sim_event(int reason)
+void vhpi_event( vhpi_event_t reason)
 {
    for (vhpi_obj_t *it = sim_cb_list; it != NULL; it = it->chain) {
       if ((it->cb.reason == reason) && it->cb.enabled) {
          (*it->cb.data.cb_rtn)(&(it->cb.data));
       }
    }
-}
-
-void vhpi_start_of_sim(void)
-{
-   vhpi_sim_event(vhpiCbStartOfSimulation);
-}
-
-void vhpi_end_of_sim(void)
-{
-   vhpi_sim_event(vhpiCbEndOfSimulation);
 }

@@ -28,8 +28,25 @@
 #ifndef _VHPI_PRIV_H
 #define _VHPI_PRIV_H
 
+#include "config.h"
+#include "tree.h"
+
+typedef enum {
+   VHPI_START_OF_SIMULATION = 1034,
+   VHPI_END_OF_SIMULATION   = 1035,
+   VHPI_END_OF_PROCESSES    = 1018,
+} vhpi_event_t;
+
+#ifdef ENABLE_VHPI
+
 void vhpi_load_plugins(tree_t top, const char *plugins);
-void vhpi_start_of_sim(void);
-void vhpi_end_of_sim(void);
+void vhpi_event(vhpi_event_t kind);
+
+#else  // ENABLE_VHPI
+
+#define vhpi_load_plugins(top, plugins)
+#define vhpi_event(kind)
+
+#endif  // ENABLE_VHPI
 
 #endif  // _VHPI_PRIV_H
