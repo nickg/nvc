@@ -79,7 +79,7 @@ AC_DEFUN([AX_LLVM_C],
 
                 if test "$llvm_ver_num" -lt "34"; then
                     AC_DEFINE_UNQUOTED(LLVM_MANGLES_NAMES, [1],
-                        [LLVM managles symbol names])
+                        [LLVM mangles symbol names])
                 fi
 
                 AC_REQUIRE([AC_PROG_CXX])
