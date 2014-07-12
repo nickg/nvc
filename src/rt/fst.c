@@ -63,7 +63,7 @@ struct fst_data {
 
 static void fst_close(void)
 {
-   fstWriterEmitTimeChange(fst_ctx, rt_now());
+   fstWriterEmitTimeChange(fst_ctx, rt_now(NULL));
    fstWriterClose(fst_ctx);
 }
 

@@ -29,6 +29,7 @@
 #include "util.h"
 #include "hash.h"
 #include "tree.h"
+#include "rt/rt.h"
 
 #include <string.h>
 #include <assert.h>
@@ -286,7 +287,16 @@ int vhpi_format_value(const vhpiValueT *in_value_p,
 
 void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
 {
-   VHPI_MISSING;
+   unsigned deltas;
+   const uint64_t now = rt_now(&deltas);
+
+   if (time_p != NULL) {
+      time_p->high = now >> 32;
+      time_p->low  = now & 0xffffffff;
+   }
+
+   if (cycles != NULL)
+      *cycles = deltas;
 }
 
 int vhpi_get_next_time(vhpiTimeT *time_p)

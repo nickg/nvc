@@ -2398,7 +2398,9 @@ size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
    return offset;
 }
 
-uint64_t rt_now(void)
+uint64_t rt_now(unsigned *deltas)
 {
+   if (deltas != NULL)
+      *deltas = MAX(iteration, 0);
    return now;
 }

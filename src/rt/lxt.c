@@ -51,7 +51,7 @@ static const char bit_map[]       = "01";
 static void lxt_close_trace(void)
 {
    if (trace != NULL) {
-      lt_set_time64(trace, rt_now());
+      lt_set_time64(trace, rt_now(NULL));
       lt_close(trace);
       trace = NULL;
    }

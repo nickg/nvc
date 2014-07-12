@@ -7,6 +7,12 @@ static void start_of_sim(const vhpiCbDataT *cb_data)
 {
    vhpi_printf("start of sim callback! user data is '%s'",
                (char *)cb_data->user_data);
+
+   long cycles;
+   vhpiTimeT now;
+   vhpi_get_time(&now, &cycles);
+
+   assert((now.low == 0) && (now.high == 0) && (cycles == 0));
 }
 
 static void startup()
