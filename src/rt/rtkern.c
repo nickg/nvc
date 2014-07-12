@@ -2393,7 +2393,7 @@ size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max)
 {
    const int nnets = tree_nets(s);
    int offset = 0;
-   for (int i = 0; (i < nnets) && (offset < max); i++) {
+   while (offset < nnets) {
       netid_t nid = tree_net(s, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
@@ -2419,7 +2419,7 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
 
    const int nnets = tree_nets(s);
    int offset = 0;
-   for (int i = 0; i < nnets; i++) {
+   while (offset < nnets) {
       netid_t nid = tree_net(s, offset);
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 

@@ -448,6 +448,31 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          format = vhpiEnumVal;
       break;
 
+   case T_UARRAY:
+   case T_CARRAY:
+      {
+         type_t elem = type_elem(base);
+         switch (type_kind(elem)) {
+         case T_ENUM:
+            {
+               ident_t elem_name = type_ident(elem);
+               if ((elem_name == std_logic_i) || (elem_name == std_ulogic_i))
+                  format = vhpiLogicVecVal;
+               else if (type_enum_literals(elem) <= 256)
+                  format = vhpiSmallEnumVecVal;
+               else
+                  format = vhpiEnumVecVal;
+               break;
+            }
+
+         default:
+            vhpi_error(vhpiInternal, tree_loc(obj->tree), "arrays of type %s "
+                       "not supported in vhpi_get_value", type_pp(elem));
+            return 0;
+         }
+      }
+      break;
+
    default:
       vhpi_error(vhpiInternal, tree_loc(obj->tree), "type %s not supported in "
                  "vhpi_get_value", type_pp(type));
@@ -481,8 +506,28 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          assert(false);
       }
    }
-   else
-      assert(false);
+   else {
+      size_t elemsz = 0;
+      switch (format) {
+      case vhpiLogicVecVal:
+      case vhpiEnumVecVal:
+         elemsz = sizeof(vhpiEnumT);
+         break;
+      case vhpiSmallEnumVal:
+         elemsz = sizeof(vhpiSmallEnumT);
+         break;
+      default:
+         assert(false);
+      }
+
+      uint64_t *values LOCAL = xmalloc(sizeof(uint64_t) * elemsz);
+      value_p->numElems = rt_signal_value(obj->tree, values,
+                                          value_p->bufSize / elemsz);
+
+      printf("num=%d max=%d\n", value_p->numElems, (int)(value_p->bufSize / elemsz));
+
+      return 0;
+   }
 }
 
 int vhpi_put_value(vhpiHandleT handle,
