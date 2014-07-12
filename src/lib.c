@@ -209,21 +209,21 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
 static lib_t lib_find_at(const char *name, const char *path)
 {
    char dir[PATH_MAX];
-   const int nchars = snprintf(dir, sizeof(dir) - 4, "%s/%s", path, name);
+   char *p = dir + snprintf(dir, sizeof(dir) - 4 - strlen(name), "%s/", path);
 
-   // Convert to lower case
-   for (char *p = dir; *p != '\0'; p++)
-      *p = tolower((int)*p);
+   // Append library name converting to lower case
+   for (const char *n = name; *n != '\0'; n++)
+      *p++ = tolower((int)*n);
 
    // Try suffixing standard revision extensions first
    bool found = false;
    for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
-      snprintf(dir + nchars, 4, ".%s", standard_suffix(s));
+      snprintf(p, 4, ".%s", standard_suffix(s));
       found = (access(dir, F_OK) == 0);
    }
 
    if (!found) {
-      dir[nchars] = '\0';
+      *p = '\0';
       if (access(dir, F_OK) < 0)
          return NULL;
    }
