@@ -29,12 +29,14 @@
 #include "util.h"
 #include "hash.h"
 #include "tree.h"
+#include "common.h"
 #include "rt/rt.h"
 
 #include <string.h>
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 typedef struct vhpi_cb  vhpi_cb_t;
 typedef struct vhpi_obj vhpi_obj_t;
@@ -62,25 +64,54 @@ struct vhpi_obj {
    };
 };
 
-static vhpi_obj_t *sim_cb_list;
-static tree_t      top_level;
-static hash_t     *handle_hash;
+static vhpi_obj_t     *sim_cb_list;
+static tree_t          top_level;
+static hash_t         *handle_hash;
+static vhpiErrorInfoT  last_error;
 
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
 
-static inline vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle)
+static void vhpi_clear_error(void)
 {
-   vhpi_obj_t *obj = (vhpi_obj_t *)handle;
-   if (unlikely(obj->magic != VHPI_MAGIC))
-      fatal_trace("bad magic on VHPI handle %p", handle);
-   return obj;
+   free(last_error.message);
+   last_error.message  = NULL;
+   last_error.severity = 0;
 }
 
-static inline void vhpi_obj_assert(vhpi_obj_t *obj, vhpiClassKindT class)
+static void vhpi_error(vhpiSeverityT sev, loc_t *loc, const char *fmt, ...)
 {
-   if (unlikely(obj->class != class))
-      fatal_trace("expected VHPI class kind %d but have %d", class, obj->class);
+   vhpi_clear_error();
+
+   last_error.severity = sev;
+   last_error.str = NULL;
+
+   if (loc != NULL) {
+      last_error.file = (char *)loc->file;
+      last_error.line = loc->first_line;
+   }
+
+   va_list ap;
+   va_start(ap, fmt);
+   last_error.message = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   if (loc != NULL)
+      error_at(loc, "%s", last_error.message);
+   else
+      errorf("%s", last_error.message);
+}
+
+static vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle, vhpi_obj_kind_t kind)
+{
+   vhpi_obj_t *obj = (vhpi_obj_t *)handle;
+   assert(obj != NULL);
+   if (unlikely(obj->magic != VHPI_MAGIC))
+      vhpi_error(vhpiSystem, NULL, "bad magic on VHPI handle %p", handle);
+   else if (unlikely(obj->kind != kind))
+      vhpi_error(vhpiSystem, NULL, "expected VHPI object kind %d but have %d",
+                 kind, obj->kind);
+   return obj;
 }
 
 static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
@@ -108,6 +139,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
    printf("vhpi_register_cb flags=%x reason=%d obj=%p time=%p\n",
           flags, cb_data_p->reason, cb_data_p->obj, cb_data_p->time);
+
+   vhpi_clear_error();
 
    vhpi_obj_t *obj = xmalloc(sizeof(vhpi_obj_t));
    memset(obj, '\0', sizeof(vhpi_obj_t));
@@ -160,7 +193,32 @@ int vhpi_get_cb_info(vhpiHandleT object, vhpiCbDataT *cb_data_p)
 
 vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 {
-   VHPI_MISSING;
+   printf("vhpi_handle_by_name name=%s scope=%p\n", name, scope);
+
+   vhpi_clear_error();
+
+   vhpi_obj_t *obj = vhpi_get_obj(scope, VHPI_TREE);
+   if (obj == NULL)
+      return NULL;
+
+   ident_t search = NULL;
+   if (tree_kind(obj->tree) == T_ELAB)
+      search = ident_prefix(tree_attr_str(obj->tree, ident_new("simple_name")),
+                            ident_new(name), ':');
+   else
+      ident_prefix(tree_ident(obj->tree), ident_new(name), ':');
+
+   printf("search=%s\n", istr(search));
+
+   const int ndecls = tree_decls(top_level);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(top_level, i);
+      if (tree_ident(d) == search)
+         return (vhpiHandleT)vhpi_tree_to_obj(d, vhpiSignal);
+   }
+
+   vhpi_error(vhpiError, NULL, "object %s not found", istr(search));
+   return NULL;
 }
 
 vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
@@ -173,6 +231,8 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
 vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 {
    printf("vhpi_handle type=%d referenceHandle=%p\n", type, referenceHandle);
+
+   vhpi_clear_error();
 
    switch (type) {
    case vhpiRootInst:
@@ -198,17 +258,19 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 {
    printf("vhpi_get property=%d object=%p\n", property, handle);
 
-   vhpi_obj_t *obj = vhpi_get_obj(handle);
+   vhpi_clear_error();
 
    switch (property) {
    case vhpiStateP:
-      vhpi_obj_assert(obj, vhpiCallbackK);
-      if (obj->cb.fired)
-         return vhpiMature;
-      else if (obj->cb.enabled)
-         return vhpiEnable;
-      else
-         return vhpiDisable;
+      {
+         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_CALLBACK);
+         if (obj->cb.fired)
+            return vhpiMature;
+         else if (obj->cb.enabled)
+            return vhpiEnable;
+         else
+            return vhpiDisable;
+      }
 
    default:
       fatal_trace("unsupported property %d in vhpi_get", property);
@@ -220,14 +282,55 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
 {
    printf("vhpi_get_str property=%d handle=%p\n", property, handle);
 
+   vhpi_clear_error();
+
    switch (property) {
    case vhpiNameP:
       if (handle == NULL)
          return (vhpiCharT *)PACKAGE_NAME;
       else {
-         vhpi_obj_t *obj = vhpi_get_obj(handle);
-         assert(obj->kind == VHPI_TREE); // TODO: make error
-         return (vhpiCharT *)istr(tree_ident(obj->tree));  // TODO: cache this
+         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+         if (obj == NULL)
+            return NULL;
+
+         const char *full = NULL;
+         if (tree_kind(obj->tree) == T_ELAB)
+            full = istr(tree_attr_str(obj->tree, ident_new("simple_name")));
+         else
+            full = istr(tree_ident(obj->tree));
+
+         const char *last_sep = strrchr(full, ':');
+         if (last_sep == NULL)
+            return (vhpiCharT *)full;
+         else
+            return (vhpiCharT *)(last_sep + 1);
+      }
+
+   case vhpiFullNameP:
+      {
+         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+         if (obj == NULL)
+            return NULL;
+
+         if (tree_kind(obj->tree) == T_ELAB)
+            return (vhpiCharT *)istr(tree_attr_str(obj->tree,
+                                                   ident_new("simple_name")));
+         else
+            return (vhpiCharT *)istr(tree_ident(obj->tree));
+      }
+
+   case vhpiKindStrP:
+      {
+         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+         if (obj == NULL)
+            return NULL;
+
+         if (tree_kind(obj->tree) == T_ELAB)
+            return (vhpiCharT *)"elaborated design";
+         else if (class_has_type(class_of(obj->tree)))
+            return (vhpiCharT *)type_pp(tree_type(obj->tree));
+         else
+            return (vhpiCharT *)tree_kind_str(tree_kind(obj->tree));
       }
 
    case vhpiToolVersionP:
@@ -287,6 +390,8 @@ int vhpi_format_value(const vhpiValueT *in_value_p,
 
 void vhpi_get_time(vhpiTimeT *time_p, long *cycles)
 {
+   vhpi_clear_error();
+
    unsigned deltas;
    const uint64_t now = rt_now(&deltas);
 
@@ -311,6 +416,8 @@ int vhpi_control(vhpiSimControlT command, ...)
 
 int vhpi_printf(const char *format, ...)
 {
+   vhpi_clear_error();
+
    va_list ap;
    va_start(ap, format);
 
@@ -322,6 +429,8 @@ int vhpi_printf(const char *format, ...)
 
 int vhpi_vprintf(const char *format, va_list args)
 {
+   vhpi_clear_error();
+
    char *buf LOCAL = xvasprintf(format, args);
    notef("VHPI printf $green$%s$$", buf);
    return strlen(buf);
@@ -329,12 +438,19 @@ int vhpi_vprintf(const char *format, va_list args)
 
 int vhpi_compare_handles(vhpiHandleT handle1, vhpiHandleT handle2)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   return handle1 == handle2;
 }
 
 int vhpi_check_error(vhpiErrorInfoT *error_info_p)
 {
-   return 0;  // TODO
+   if (last_error.severity == 0)
+      return 0;
+   else {
+      *error_info_p = last_error;
+      return last_error.severity;
+   }
 }
 
 int vhpi_release_handle(vhpiHandleT object)
@@ -386,6 +502,8 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
       hash_free(handle_hash);
 
    handle_hash = hash_new(1024, true);
+
+   vhpi_clear_error();
 
    char *plugins_copy LOCAL = strdup(plugins);
    assert(plugins_copy);
