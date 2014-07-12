@@ -4469,6 +4469,8 @@ static void cgen_case_scalar(tree_t t, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef val = cgen_expr(tree_value(t), ctx);
+   cgen_check_scalar_bounds(tree_value(t), val, ctx);
+
    LLVMValueRef sw = LLVMBuildSwitch(builder, val, else_bb, num_cases);
 
    LLVMBasicBlockRef last_label = NULL;

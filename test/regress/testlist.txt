@@ -229,3 +229,4 @@ attr11          normal
 implicit1       normal
 implicit2       normal
 file2           normal
+case5           gold,fail
