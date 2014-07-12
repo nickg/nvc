@@ -115,6 +115,7 @@ struct netgroup {
    net_flags_t   flags;
    value_t      *resolved;
    value_t      *last_value;
+   value_t      *forcing;
    uint16_t      size;
    uint16_t      n_drivers;
    driver_t     *drivers;
@@ -1279,20 +1280,10 @@ static void rt_dump_pending(void)
 static void rt_reset_group(groupid_t gid, netid_t first, unsigned length)
 {
    netgroup_t *g = &(groups[gid]);
+   memset(g, '\0', sizeof(netgroup_t));
    g->first       = first;
    g->length      = length;
-   g->resolved    = NULL;
-   g->last_value  = NULL;
-   g->size        = 0;
-   g->flags       = 0;
-   g->n_drivers   = 0;
-   g->drivers     = NULL;
-   g->resolution  = NULL;
    g->last_event  = INT64_MAX;
-   g->sig_decl    = NULL;
-   g->free_values = NULL;
-   g->pending     = NULL;
-   g->watching    = NULL;
 }
 
 static void rt_free_delta_events(event_t *e)
@@ -1390,7 +1381,10 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
    const size_t valuesz = group->size * group->length;
 
    void *resolved = NULL;
-   if (group->resolution == NULL) {
+   if (unlikely(group->flags & NET_F_FORCED)) {
+      resolved = group->forcing->data;
+   }
+   else if (group->resolution == NULL) {
       resolved = values;
    }
    else if ((group->resolution->flags & R_IDENT) && (group->n_drivers == 1)) {
@@ -1424,7 +1418,7 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
          const int8_t r = group->resolution->tab2[driving[0]][driving[1]];
          ((int8_t *)resolved)[j] = r;
       }
-   }
+  }
    else {
       // Must actually call resolution function in general case
 
@@ -1876,6 +1870,7 @@ static void rt_cycle(int stop_delta)
 
    // Run all processes that resumed because of signal events
    rt_resume_processes(&resume);
+   vhpi_event(VHPI_END_OF_PROCESSES);
 
    for (unsigned i = 0; i < n_active_groups; i++) {
       netgroup_t *g = active_groups[i];
@@ -2139,10 +2134,10 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
 
    if (vhpi_plugins != NULL)
       vhpi_load_plugins(e, vhpi_plugins);
-   vhpi_event(VHPI_START_OF_SIMULATION);
 
    rt_stats_ready();
    rt_initial(e);
+   vhpi_event(VHPI_START_OF_SIMULATION);
    while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
    vhpi_event(VHPI_END_OF_SIMULATION);
@@ -2193,24 +2188,8 @@ static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
       sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
    reply_read_signal_msg_t *reply = xmalloc(rsz);
 
-   const int nnets = tree_nets(t);
-   int offset = 0;
-   for (int i = 0; (i < nnets) && (offset < msg->len); i++) {
-      netid_t nid = tree_net(t, offset);
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
-
-#define SIGNAL_READ_EXPAND_U64(type) do {                                 \
-         const type *sp = (type *)g->resolved->data;                      \
-         for (int i = 0; (i < g->length) && (offset + i < msg->len); i++) \
-            reply->values[offset + i] = sp[i];                            \
-      } while (0)
-
-      FOR_ALL_SIZES(g->size, SIGNAL_READ_EXPAND_U64);
-
-      offset += g->length;
-   }
-
-   reply->len = offset;
+   const size_t size = rt_signal_value(t, reply->values, msg->len);
+   msg->len = MIN(size, msg->len);
 
    slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
 
@@ -2229,10 +2208,10 @@ static void rt_slave_now(void)
 static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
    uint64_t value[1];
-   rt_signal_value(w, value, 1, false);
+   rt_watch_value(w, value, 1, false);
 
    uint64_t last[1];
-   rt_signal_value(w, last, 1, true);
+   rt_watch_value(w, last, 1, true);
 
    event_watch_msg_t event = {
       .index = tree_index(decl),
@@ -2366,7 +2345,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)
    }
 }
 
-size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
+size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last)
 {
    int offset = 0;
    for (int i = 0; (i < w->n_groups) && (offset < max); i++) {
@@ -2387,7 +2366,7 @@ size_t rt_signal_value(watch_t *w, uint64_t *buf, size_t max, bool last)
    return offset;
 }
 
-size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
+size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max)
 {
    size_t offset = 0;
    for (int i = 0; (i < w->n_groups) && (offset < max - 1); i++) {
@@ -2408,6 +2387,62 @@ size_t rt_string_value(watch_t *w, const char *map, char *buf, size_t max)
 
    buf[offset++] = '\0';
    return offset;
+}
+
+size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max)
+{
+   const int nnets = tree_nets(s);
+   int offset = 0;
+   for (int i = 0; (i < nnets) && (offset < max); i++) {
+      netid_t nid = tree_net(s, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+
+#define SIGNAL_READ_EXPAND_U64(type) do {                               \
+         const type *sp = (type *)g->resolved->data;                    \
+         for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
+            buf[offset + i] = sp[i];                                    \
+      } while (0)
+
+      FOR_ALL_SIZES(g->size, SIGNAL_READ_EXPAND_U64);
+
+      offset += g->length;
+   }
+
+   return offset;
+}
+
+bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
+                     bool propagate)
+{
+   TRACE("force signal %s to %s propagate=%d", istr(tree_ident(s)),
+         fmt_values(buf, count * sizeof(uint64_t)), propagate);
+
+   const int nnets = tree_nets(s);
+   int offset = 0;
+   for (int i = 0; i < nnets; i++) {
+      netid_t nid = tree_net(s, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+
+      g->flags |= NET_F_FORCED;
+
+      if (g->forcing == NULL)
+         g->forcing = rt_alloc_value(g);
+
+#define SIGNAL_FORCE_EXPAND_U64(type) do {                              \
+         type *dp = (type *)g->forcing->data;                           \
+         for (int i = 0; (i < g->length) && (offset + i < count); i++)  \
+            dp[i] = buf[offset + i];                                    \
+      } while (0)
+
+      FOR_ALL_SIZES(g->size, SIGNAL_FORCE_EXPAND_U64);
+
+      if (propagate)
+         rt_update_group(g, -1, g->forcing->data);
+
+      offset += g->length;
+   }
+
+   return (offset == count);
 }
 
 uint64_t rt_now(unsigned *deltas)

@@ -71,6 +71,10 @@ static tree_t          top_level;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
 
+static ident_t simple_name_i;
+static ident_t std_logic_i;
+static ident_t std_ulogic_i;
+
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
 
@@ -81,7 +85,9 @@ static void vhpi_clear_error(void)
    last_error.severity = 0;
 }
 
-static void vhpi_error(vhpiSeverityT sev, loc_t *loc, const char *fmt, ...)
+__attribute__((format(printf, 3, 4)))
+static void vhpi_error(vhpiSeverityT sev, const loc_t *loc,
+                       const char *fmt, ...)
 {
    vhpi_clear_error();
 
@@ -142,6 +148,13 @@ static void vhpi_timeout_cb(uint64_t now, void *user)
    printf("vhpi_timeout_cb! now=%"PRIu64" user=%p\n", now, user);
 }
 
+static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
+                                 watch_t *watch, void *user)
+{
+   printf("vhpi_signal_event_cb! sig=%s user=%p\n",
+          istr(tree_ident(sig)), user);
+}
+
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 {
    VHPI_MISSING;
@@ -176,7 +189,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbAfterDelay:
       if (cb_data_p->time == NULL) {
          vhpi_error(vhpiError, NULL, "missing time for vhpiCbAfterDelay");
-         return NULL;
+         goto failed;
       }
 
       rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
@@ -188,6 +201,20 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
       end_proc_cb_list = obj;
       break;
 
+   case vhpiCbValueChange:
+      {
+         vhpi_obj_t *sig = vhpi_get_obj(cb_data_p->obj, VHPI_TREE);
+         if (tree_kind(sig->tree) != T_SIGNAL_DECL) {
+            vhpi_error(vhpiError, tree_loc(sig->tree),
+                       "object %s is not a signal",
+                       istr(tree_ident(sig->tree)));
+            goto failed;
+         }
+
+         rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj);
+      }
+      break;
+
    default:
       fatal("unsupported reason %d in vhpi_register_cb", cb_data_p->reason);
    }
@@ -196,6 +223,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
       return (vhpiHandleT)obj;
    else
       return NULL;
+
+ failed:
+   free(obj);
+   return NULL;
 }
 
 int vhpi_remove_cb(vhpiHandleT cb_obj)
@@ -230,7 +261,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
    ident_t search = NULL;
    if (tree_kind(obj->tree) == T_ELAB)
-      search = ident_prefix(tree_attr_str(obj->tree, ident_new("simple_name")),
+      search = ident_prefix(tree_attr_str(obj->tree, simple_name_i),
                             ident_new(name), ':');
    else
       ident_prefix(tree_ident(obj->tree), ident_new(name), ':');
@@ -322,7 +353,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
 
          const char *full = NULL;
          if (tree_kind(obj->tree) == T_ELAB)
-            full = istr(tree_attr_str(obj->tree, ident_new("simple_name")));
+            full = istr(tree_attr_str(obj->tree, simple_name_i));
          else
             full = istr(tree_ident(obj->tree));
 
@@ -340,8 +371,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
             return NULL;
 
          if (tree_kind(obj->tree) == T_ELAB)
-            return (vhpiCharT *)istr(tree_attr_str(obj->tree,
-                                                   ident_new("simple_name")));
+            return (vhpiCharT *)istr(tree_attr_str(obj->tree, simple_name_i));
          else
             return (vhpiCharT *)istr(tree_ident(obj->tree));
       }
@@ -389,14 +419,119 @@ int vhpi_protected_call(vhpiHandleT varHdl,
 
 int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   vhpi_obj_t *obj = vhpi_get_obj(expr, VHPI_TREE);
+
+   if (tree_kind(obj->tree) != T_SIGNAL_DECL) {
+      vhpi_error(vhpiInternal, tree_loc(obj->tree), "vhpi_get_value is only "
+                 "supported for signal declaration objects");
+      return 0;
+   }
+
+   type_t type = tree_type(obj->tree);
+   type_t base = type_base_recur(type);
+
+   printf("vhpi_get_value expr=%s type=%s\n",
+          istr(tree_ident(obj->tree)), type_pp(type));
+
+   ident_t type_name = type_ident(type);
+
+   vhpiFormatT format;
+   switch (type_kind(base)) {
+   case T_ENUM:
+      if ((type_name == std_logic_i) || (type_name == std_ulogic_i))
+         format = vhpiLogicVal;
+      else if (type_enum_literals(base) <= 256)
+         format = vhpiSmallEnumVal;
+      else
+         format = vhpiEnumVal;
+      break;
+
+   default:
+      vhpi_error(vhpiInternal, tree_loc(obj->tree), "type %s not supported in "
+                 "vhpi_get_value", type_pp(type));
+      return 0;
+   }
+
+   if (value_p->format == vhpiObjTypeVal)
+      value_p->format = format;
+   else if (value_p->format != format) {
+      vhpi_error(vhpiError, tree_loc(obj->tree), "invalid format %d for object "
+                 "%s: expecting %d", value_p->format,
+                 istr(tree_ident(obj->tree)), format);
+      return 0;
+   }
+
+   if (type_is_scalar(type)) {
+      uint64_t value;
+      rt_signal_value(obj->tree, &value, 1);
+
+      switch (format) {
+      case vhpiLogicVal:
+      case vhpiEnumVal:
+         value_p->value.enumv = value;
+         return 0;
+
+      case vhpiSmallEnumVal:
+         value_p->value.smallenumv = value;
+         return 0;
+
+      default:
+         assert(false);
+      }
+   }
+   else
+      assert(false);
 }
 
-int vhpi_put_value(vhpiHandleT object,
+int vhpi_put_value(vhpiHandleT handle,
                    vhpiValueT *value_p,
                    vhpiPutValueModeT mode)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+
+   printf("vhpi_put_value object=%s mode=%d\n",
+          istr(tree_ident(obj->tree)), mode);
+
+   bool propagate = false;
+   switch (mode) {
+   case vhpiForcePropagate:
+      propagate = true;
+   case vhpiForce:
+      {
+         type_t type = tree_type(obj->tree);
+         if (type_is_scalar(type)) {
+            uint64_t value64;
+            switch (value_p->format) {
+            case vhpiLogicVal:
+            case vhpiEnumVal:
+               value64 = value_p->value.enumv;
+               break;
+
+            case vhpiSmallEnumVal:
+               value64 = value_p->value.smallenumv;
+               break;
+
+            default:
+               assert(false);
+            }
+
+            rt_force_signal(obj->tree, &value64, 1, propagate);
+         }
+         else {
+            assert(false);
+         }
+         return 0;
+      }
+
+   default:
+      vhpi_error(vhpiFailure, NULL, "mode %d not supported in vhpi_put_value",
+                 mode);
+      return 1;
+   }
 }
 
 int vhpi_schedule_transaction(vhpiHandleT drivHdl,
@@ -523,6 +658,10 @@ int vhpi_is_printable(char ch)
 
 void vhpi_load_plugins(tree_t top, const char *plugins)
 {
+   simple_name_i = ident_new("simple_name");
+   std_logic_i   = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
+   std_ulogic_i  = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+
    top_level = top;
 
    if (handle_hash != NULL)
@@ -558,7 +697,7 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
    } while ((tok = strtok(NULL, ",")));
 }
 
-void vhpi_event( vhpi_event_t reason)
+void vhpi_event(vhpi_event_t reason)
 {
    for (vhpi_obj_t *it = sim_cb_list; it != NULL; it = it->chain) {
       if ((it->cb.reason == reason) && it->cb.enabled) {

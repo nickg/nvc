@@ -49,7 +49,7 @@ static uint64_t last_time;
 static void vcd_fmt_int(tree_t decl, watch_t *w, vcd_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    char buf[data->size + 1];
    for (size_t i = 0; i < data->size; i++)
@@ -63,7 +63,7 @@ static void vcd_fmt_chars(tree_t decl, watch_t *w, vcd_data_t *data)
 {
    const int nvals = data->size;
    char buf[nvals + 1];
-   rt_string_value(w, data->map, buf, nvals + 1);
+   rt_watch_string(w, data->map, buf, nvals + 1);
 
    fprintf(vcd_file, "b%s %s\n", buf, data->key);
 }

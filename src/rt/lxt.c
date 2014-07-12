@@ -60,7 +60,7 @@ static void lxt_close_trace(void)
 static void lxt_fmt_int(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    lt_emit_value_int(trace, data->sym, 0, val);
 }
@@ -68,7 +68,7 @@ static void lxt_fmt_int(tree_t decl, watch_t *w, lxt_data_t *data)
 static void lxt_fmt_enum(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    tree_t lit = type_enum_literal(tree_type(decl), val);
    lt_emit_value_string(trace, data->sym, 0, (char *)istr(tree_ident(lit)));
@@ -77,7 +77,7 @@ static void lxt_fmt_enum(tree_t decl, watch_t *w, lxt_data_t *data)
 static void lxt_fmt_chars(tree_t decl, watch_t *w, lxt_data_t *data)
 {
    char bits[MAX_VALS + 1];
-   rt_string_value(w, data->map, bits, MAX_VALS + 1);
+   rt_watch_string(w, data->map, bits, MAX_VALS + 1);
    if (likely(data->map != NULL))
       lt_emit_value_bit_string(trace, data->sym, 0, bits);
    else

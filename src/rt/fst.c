@@ -70,7 +70,7 @@ static void fst_close(void)
 static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    char buf[data->size + 1];
    for (size_t i = 0; i < data->size; i++)
@@ -83,7 +83,7 @@ static void fst_fmt_int(tree_t decl, watch_t *w, fst_data_t *data)
 static void fst_fmt_physical(tree_t decl, watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    fst_unit_t *unit = data->type.units;
    while ((val % unit->mult) != 0)
@@ -101,7 +101,7 @@ static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
 {
    const int nvals = data->size;
    char buf[nvals + 1];
-   rt_string_value(w, data->type.map, buf, nvals + 1);
+   rt_watch_string(w, data->type.map, buf, nvals + 1);
    if (likely(data->type.map != NULL))
       fstWriterEmitValueChange(fst_ctx, data->handle, buf);
    else
@@ -112,7 +112,7 @@ static void fst_fmt_chars(tree_t decl, watch_t *w, fst_data_t *data)
 static void fst_fmt_enum(tree_t decl, watch_t *w, fst_data_t *data)
 {
    uint64_t val;
-   rt_signal_value(w, &val, 1, false);
+   rt_watch_value(w, &val, 1, false);
 
    tree_t lit = type_enum_literal(tree_type(decl), val);
    const char *str = istr(tree_ident(lit));
