@@ -39,6 +39,7 @@ static LLVMExecutionEngineRef exec_engine = NULL;
 static bool using_jit = true;
 static void *dl_handle = NULL;
 
+#ifdef LLVM_MANGLES_NAMES
 static char *jit_str_add(char *p, const char *s)
 {
    while (*s != '\0')
@@ -83,12 +84,19 @@ static void jit_native_name(const char *name, char *buf, size_t len)
    }
    *p = '\0';
 }
+#endif  // LLVM_MANGLES_NAMES
 
 static void *jit_search_loaded_syms(const char *name, bool required)
 {
    dlerror();   // Clear any previous error
+
+#ifdef LLVM_MANGLES_NAMES
    char dlname[1024];
    jit_native_name(name, dlname, sizeof(dlname));
+#else
+   const char *dlname = name;
+#endif
+
    void *sym = dlsym(dl_handle, dlname);
    const char *error = dlerror();
    if (error != NULL) {

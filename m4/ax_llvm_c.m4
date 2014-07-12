@@ -67,7 +67,7 @@ AC_DEFUN([AX_LLVM_C],
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
                 LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
-                llvm_ver_num="$(echo $LLVM_VERSION | sed s/\\.// | sed s/svn//g)"
+                llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\+\)\.\(@<:@0-9@:>@\+\).*/\1\2/'`
                 if test "$llvm_ver_num" -lt "30"; then
                     AC_MSG_ERROR([LLVM version 3.0 or later required])
                 fi
@@ -75,6 +75,11 @@ AC_DEFUN([AX_LLVM_C],
                 if test "$llvm_ver_num" -ge "32"; then
                     AC_DEFINE_UNQUOTED(LLVM_LLC_HAS_OBJ, [1],
                         [llc can produce .obj output files])
+                fi
+
+                if test "$llvm_ver_num" -lt "34"; then
+                    AC_DEFINE_UNQUOTED(LLVM_MANGLES_NAMES, [1],
+                        [LLVM managles symbol names])
                 fi
 
                 AC_REQUIRE([AC_PROG_CXX])
