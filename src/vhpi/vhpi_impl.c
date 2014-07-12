@@ -520,11 +520,25 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          assert(false);
       }
 
-      uint64_t *values LOCAL = xmalloc(sizeof(uint64_t) * elemsz);
-      value_p->numElems = rt_signal_value(obj->tree, values,
-                                          value_p->bufSize / elemsz);
+      const int max = value_p->bufSize / elemsz;
+      uint64_t *values LOCAL = xmalloc(sizeof(uint64_t) * max);
+      value_p->numElems = rt_signal_value(obj->tree, values, max);
 
-      printf("num=%d max=%d\n", value_p->numElems, (int)(value_p->bufSize / elemsz));
+      const int copy = MIN(value_p->numElems, max);
+
+      for (int i = 0; i < copy; i++) {
+         switch (format) {
+         case vhpiLogicVecVal:
+         case vhpiEnumVecVal:
+            value_p->value.enumvs[i] = values[i];
+            break;
+         case vhpiSmallEnumVal:
+            value_p->value.smallenumvs[i] = values[i];
+            break;
+         default:
+            assert(false);
+         }
+      }
 
       return 0;
    }
