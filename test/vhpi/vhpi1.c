@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define fail_if(x)                                                      \
    if (x) vhpi_assert(vhpiFailure, "assertion '%s' failed at %s:%d",    \
@@ -19,6 +21,54 @@ static void check_error(void)
       vhpi_assert(vhpiFailure, "unexpected error '%s'", info.message);
 }
 
+static void test_bin_str(void)
+{
+   vhpiHandleT root = vhpi_handle(vhpiRootInst, NULL);
+   check_error();
+
+   vhpiHandleT hb = vhpi_handle_by_name("b", root);
+   check_error();
+
+   vhpiHandleT hv = vhpi_handle_by_name("v", root);
+   check_error();
+
+   char b_str[2];
+   vhpiValueT b_value = {
+      .format    = vhpiBinStrVal,
+      .bufSize   = sizeof(b_str),
+      .value.str = (vhpiCharT *)b_str
+   };
+   vhpi_get_value(hb, &b_value);
+   check_error();
+
+   vhpi_printf("b bit string '%s'", b_str);
+   fail_unless(strcmp(b_str, "0") == 0);
+
+   vhpiValueT v_value = {
+      .format    = vhpiBinStrVal,
+      .bufSize   = 0,
+      .value.str = NULL
+   };
+   const int need = vhpi_get_value(hv, &v_value);
+   check_error();
+
+   vhpi_printf("need %d bytes for v string", need);
+
+   v_value.value.str = malloc(need);
+   v_value.bufSize   = need;
+   fail_if(v_value.value.str == NULL);
+   fail_unless(vhpi_get_value(hv, &v_value) == 0);
+   check_error();
+
+   vhpi_printf("v bit string '%s'", v_value.value.str);
+   fail_unless(strcmp((char *)v_value.value.str, "0011") == 0);
+   free(v_value.value.str);
+
+   vhpi_release_handle(root);
+   vhpi_release_handle(hb);
+   vhpi_release_handle(hv);
+}
+
 static void y_value_change(const vhpiCbDataT *cb_data)
 {
    vhpiValueT value = {
@@ -31,6 +81,8 @@ static void y_value_change(const vhpiCbDataT *cb_data)
    vhpi_printf("y value changed to %d", value.value.intg);
 
    if (value.value.intg == 75) {
+      test_bin_str();
+
       vhpi_control(vhpiFinish);
       check_error();
    }

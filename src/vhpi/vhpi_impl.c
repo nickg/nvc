@@ -84,6 +84,7 @@ static vhpiErrorInfoT  last_error;
 static ident_t simple_name_i;
 static ident_t std_logic_i;
 static ident_t std_ulogic_i;
+static ident_t bit_i;
 
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
@@ -133,7 +134,7 @@ static vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle, vhpi_obj_kind_t kind)
       return NULL;
    }
    else if (unlikely(obj->magic != VHPI_MAGIC)) {
-      vhpi_error(vhpiSystem, NULL, "bad magic on VHPI handle %p", handle);
+      vhpi_error(vhpiSystem, NULL, "bad magic on VHPI handle %p", obj);
       return NULL;
    }
    else if ((kind != VHPI_ANY) && (obj->kind != kind)) {
@@ -206,8 +207,11 @@ static void vhpi_check_for_leaks(void)
    const void *key;
    void *value;
    while (hash_iter(handle_hash, &now, &key, &value)) {
-      if (value != NULL)
-         leak_tree += vhpi_get_obj(value, VHPI_TREE)->refcnt;
+      if (value != NULL) {
+         vhpi_obj_t *obj = vhpi_get_obj(value, VHPI_TREE);
+         if (obj != NULL)
+            leak_tree += obj->refcnt;
+      }
    }
 
    leak_cb += vhpi_count_live_cbs(&global_cb_list);
@@ -257,14 +261,32 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+   if (obj != NULL)
+      (*obj->cb.data.cb_rtn)(&(obj->cb.data));
 }
 
 static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
                                  watch_t *watch, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+   if (obj != NULL)
+      (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+}
+
+static const char *vhpi_map_str_for_type(type_t type)
+{
+   ident_t type_name;
+   if (type_is_array(type))
+      type_name = type_ident(type_elem(type));
+   else
+      type_name = type_ident(type);
+
+   if ((type_name == std_logic_i) || (type_name == std_ulogic_i))
+      return "UX01ZWLH-";
+   else if (type_name == bit_i)
+      return "01";
+   else
+      assert(false);
 }
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
@@ -342,6 +364,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbValueChange:
       {
          vhpi_obj_t *sig = vhpi_get_obj(cb_data_p->obj, VHPI_TREE);
+         if (obj == NULL)
+            goto failed;
+
          if (tree_kind(sig->tree) != T_SIGNAL_DECL) {
             vhpi_error(vhpiError, tree_loc(sig->tree),
                        "object %s is not a signal",
@@ -463,14 +488,15 @@ vhpiHandleT vhpi_scan(vhpiHandleT iterator)
 
 vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 {
-   printf("vhpi_get property=%d object=%p\n", property, handle);
-
    vhpi_clear_error();
 
    switch (property) {
    case vhpiStateP:
       {
          vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_CALLBACK);
+         if (obj == NULL)
+            return vhpiMature;
+
          if (obj->cb.fired)
             return vhpiMature;
          else if (obj->cb.enabled)
@@ -482,7 +508,10 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    case vhpiSizeP:
       {
          vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         return type_width(tree_type(obj->tree));
+         if (obj == NULL)
+            return 0;
+         else
+            return type_width(tree_type(obj->tree));
       }
 
    default:
@@ -577,11 +606,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    vhpi_clear_error();
 
    vhpi_obj_t *obj = vhpi_get_obj(expr, VHPI_TREE);
+   if (obj == NULL)
+      return -1;
 
    if (tree_kind(obj->tree) != T_SIGNAL_DECL) {
       vhpi_error(vhpiInternal, tree_loc(obj->tree), "vhpi_get_value is only "
                  "supported for signal declaration objects");
-      return 0;
+      return -1;
    }
 
    type_t type = tree_type(obj->tree);
@@ -595,8 +626,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    vhpiFormatT format;
    switch (type_kind(base)) {
    case T_ENUM:
-      if ((type_name == std_logic_i) || (type_name == std_ulogic_i))
-         format = vhpiLogicVal;
+      if ((type_name == std_logic_i) || (type_name == std_ulogic_i)
+          || (type_name == bit_i)) {
+         if (value_p->format == vhpiBinStrVal)
+            format = value_p->format;
+         else
+            format = vhpiLogicVal;
+      }
       else if (type_enum_literals(base) <= 256)
          format = vhpiSmallEnumVal;
       else
@@ -615,8 +651,13 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          case T_ENUM:
             {
                ident_t elem_name = type_ident(elem);
-               if ((elem_name == std_logic_i) || (elem_name == std_ulogic_i))
-                  format = vhpiLogicVecVal;
+               if ((elem_name == std_logic_i) || (elem_name == std_ulogic_i)
+                   || (elem_name == bit_i)) {
+                  if (value_p->format == vhpiBinStrVal)
+                     format = value_p->format;
+                  else
+                     format = vhpiLogicVecVal;
+               }
                else if (type_enum_literals(elem) <= 256)
                   format = vhpiSmallEnumVecVal;
                else
@@ -627,7 +668,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          default:
             vhpi_error(vhpiInternal, tree_loc(obj->tree), "arrays of type %s "
                        "not supported in vhpi_get_value", type_pp(elem));
-            return 0;
+            return -1;
          }
       }
       break;
@@ -635,7 +676,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    default:
       vhpi_error(vhpiInternal, tree_loc(obj->tree), "type %s not supported in "
                  "vhpi_get_value", type_pp(type));
-      return 0;
+      return -1;
    }
 
    if (value_p->format == vhpiObjTypeVal)
@@ -644,10 +685,21 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       vhpi_error(vhpiError, tree_loc(obj->tree), "invalid format %d for object "
                  "%s: expecting %d", value_p->format,
                  istr(tree_ident(obj->tree)), format);
-      return 0;
+      return -1;
    }
 
-   if (type_is_scalar(type)) {
+   if (format == vhpiBinStrVal) {
+      const size_t need = rt_signal_string(obj->tree,
+                                           vhpi_map_str_for_type(type),
+                                           (char *)value_p->value.str,
+                                           value_p->bufSize);
+      printf("need=%d bufSize=%d\n", (int)need, (int)value_p->bufSize);
+      if (need > value_p->bufSize)
+         return need;
+      else
+         return 0;
+   }
+   else if (type_is_scalar(type)) {
       uint64_t value;
       rt_signal_value(obj->tree, &value, 1);
 
@@ -666,7 +718,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          return 0;
 
       default:
-         assert(false);
+            assert(false);
       }
    }
    else {
@@ -714,6 +766,8 @@ int vhpi_put_value(vhpiHandleT handle,
    vhpi_clear_error();
 
    vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+   if (obj == NULL)
+      return 1;
 
    printf("vhpi_put_value object=%s mode=%d\n",
           istr(tree_ident(obj->tree)), mode);
@@ -956,6 +1010,7 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
    simple_name_i = ident_new("simple_name");
    std_logic_i   = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
    std_ulogic_i  = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   bit_i         = ident_new("STD.STANDARD.BIT");
 
    top_level = top;
 

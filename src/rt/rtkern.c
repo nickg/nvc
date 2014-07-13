@@ -2400,27 +2400,57 @@ size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last)
    return offset;
 }
 
+static size_t rt_group_string(netgroup_t *group, const char *map,
+                              char *buf, const char *end1)
+{
+   char *bp = buf;
+   const char *vals = group->resolved->data;
+
+   if (likely(map != NULL)) {
+      for (int j = 0; j < group->length; j++) {
+         if (bp + 1 < end1)
+            *bp++ = map[(int)vals[j]];
+      }
+   }
+   else {
+      for (int j = 0; j < group->length; j++) {
+         if (bp + 1 < end1)
+            *bp++ = vals[j];
+      }
+   }
+
+   if (bp + 1 < end1)
+      *bp = '\0';
+
+   return bp - buf;
+}
+
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max)
 {
+   char *bp = buf;
    size_t offset = 0;
-   for (int i = 0; (i < w->n_groups) && (offset < max - 1); i++) {
+   for (int i = 0; i < w->n_groups; i++) {
       netgroup_t *g = w->groups[i];
-      const char *vals = g->resolved->data;
-
-      if (likely(map != NULL)) {
-         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
-            buf[offset + j] = map[(int)vals[j]];
-      }
-      else {
-         for (int j = 0; (j < g->length) && (offset + j < max - 1); j++)
-            buf[offset + j] = vals[j];
-      }
-
+      bp += rt_group_string(g, map, bp, buf + max);
       offset += g->length;
    }
 
-   buf[offset++] = '\0';
-   return offset;
+   return offset + 1;
+}
+
+size_t rt_signal_string(tree_t s, const char *map, char *buf, size_t max)
+{
+   char *bp = buf;
+   const int nnets = tree_nets(s);
+   int offset = 0;
+   while (offset < nnets) {
+      netid_t nid = tree_net(s, offset);
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
+      bp += rt_group_string(g, map, bp, buf + max);
+      offset += g->length;
+   }
+
+   return offset + 1;
 }
 
 size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max)

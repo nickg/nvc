@@ -78,6 +78,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
 size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last);
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max);
 size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max);
+size_t rt_signal_string(tree_t s, const char *map, char *buf, size_t max);
 bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
                      bool propagate);
 uint64_t rt_now(unsigned *deltas);
