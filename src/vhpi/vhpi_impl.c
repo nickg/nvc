@@ -246,7 +246,7 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
 
 static void vhpi_fire_event(vhpi_obj_t *obj)
 {
-   if (obj->cb.enabled) {
+   if (obj->cb.enabled && (!obj->cb.fired || obj->cb.repetitive)) {
       // Handle may be released by callback so take care not to
       // reference it afterwards
       const bool release = !obj->cb.has_handle && !obj->cb.repetitive;
@@ -343,11 +343,17 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    obj->cb.list_pos   = -1;
 
    switch (cb_data_p->reason) {
-   case vhpiCbEndOfProcesses:
+   case vhpiCbRepEndOfProcesses:
+   case vhpiCbRepLastKnownDeltaCycle:
+   case vhpiCbRepNextTimeStep:
       obj->cb.repetitive = true;
+      (obj->cb.reason)--;   // Non-repetitive constant
       // Fall-through
+   case vhpiCbEndOfProcesses:
    case vhpiCbStartOfSimulation:
    case vhpiCbEndOfSimulation:
+   case vhpiCbLastKnownDeltaCycle:
+   case vhpiCbNextTimeStep:
       vhpi_remember_cb(&global_cb_list, obj);
       break;
 
