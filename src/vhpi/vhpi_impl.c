@@ -255,6 +255,14 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
    vhpi_clear_error();
 
+   if (scope == NULL) {
+      const char *root_name = istr(tree_attr_str(top_level, simple_name_i)) + 1;
+      if (strcmp(root_name, name) == 0)
+         return (vhpiHandleT)vhpi_tree_to_obj(top_level, vhpiRootInstK);
+      else
+         return NULL;
+   }
+
    vhpi_obj_t *obj = vhpi_get_obj(scope, VHPI_TREE);
    if (obj == NULL)
       return NULL;
