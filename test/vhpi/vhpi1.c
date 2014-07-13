@@ -32,7 +32,7 @@ static void test_bin_str(void)
    vhpiHandleT hv = vhpi_handle_by_name("v", root);
    check_error();
 
-   char b_str[2];
+   char b_str[2] = { 0xff, 0xff };
    vhpiValueT b_value = {
       .format    = vhpiBinStrVal,
       .bufSize   = sizeof(b_str),
@@ -41,7 +41,7 @@ static void test_bin_str(void)
    vhpi_get_value(hb, &b_value);
    check_error();
 
-   vhpi_printf("b bit string '%s'", b_str);
+   vhpi_printf("b bit string '%s' %x", b_str);
    fail_unless(strcmp(b_str, "0") == 0);
 
    vhpiValueT v_value = {

@@ -46,6 +46,7 @@ struct vhpi_cb {
    int         reason;
    bool        enabled;
    bool        fired;
+   bool        pending;
    vhpiCbDataT data;
    int         list_pos;
    bool        has_handle;
@@ -63,10 +64,8 @@ struct vhpi_obj {
    vhpiClassKindT  class;
    vhpi_obj_kind_t kind;
    unsigned        refcnt;
-   union {
-      vhpi_cb_t cb;
-      tree_t    tree;
-   };
+   tree_t          tree;
+   vhpi_cb_t       cb;
 };
 
 typedef struct {
@@ -192,7 +191,7 @@ static int vhpi_count_live_cbs(cb_list_t *list)
 {
    int count = 0;
    for (unsigned i = 0; (i < list->max) && (count < list->num); i++) {
-      if (list->objects[i] != NULL)
+      if ((list->objects[i] != NULL) && list->objects[i]->cb.has_handle)
          count++;
    }
 
@@ -261,8 +260,16 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   if (obj != NULL)
+   if (obj != NULL) {
       (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+
+      if (!obj->cb.has_handle) {
+         vhpi_forget_cb(&rt_cb_list, obj);
+         vhpi_free_obj(obj);
+      }
+      else
+         obj->cb.pending = false;
+   }
 }
 
 static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
@@ -356,9 +363,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
       rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
                         vhpi_timeout_cb, obj);
+      obj->cb.pending = true;
 
-      if (flags & vhpiReturnCb)
-         vhpi_remember_cb(&rt_cb_list, obj);
+      vhpi_remember_cb(&rt_cb_list, obj);
       break;
 
    case vhpiCbValueChange:
@@ -374,10 +381,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             goto failed;
          }
 
+         obj->tree = sig->tree;
          rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj, false);
 
-         if (flags & vhpiReturnCb)
-            vhpi_remember_cb(&rt_cb_list, obj);
+         vhpi_remember_cb(&rt_cb_list, obj);
       }
       break;
 
@@ -395,9 +402,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    return NULL;
 }
 
-int vhpi_remove_cb(vhpiHandleT cb_obj)
+int vhpi_remove_cb(vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   return vhpi_release_handle(handle);
 }
 
 int vhpi_disable_cb(vhpiHandleT cb_obj)
@@ -946,15 +953,25 @@ int vhpi_release_handle(vhpiHandleT handle)
       case vhpiCbEndOfSimulation:
       case vhpiCbEndOfProcesses:
          vhpi_forget_cb(&global_cb_list, obj);
+         vhpi_free_obj(obj);
          break;
 
       case vhpiCbAfterDelay:
+         if (obj->cb.list_pos != -1)
+            vhpi_forget_cb(&rt_cb_list, obj);
+
+         if (!obj->cb.pending)
+            vhpi_free_obj(obj);
+         else
+            obj->cb.has_handle = false;
+         break;
+
       case vhpiCbValueChange:
          if (obj->cb.list_pos != -1)
             vhpi_forget_cb(&rt_cb_list, obj);
+         rt_set_event_cb(obj->tree, NULL, obj, false);
          break;
       }
-      vhpi_free_obj(obj);
       return 0;
 
    case VHPI_TREE:

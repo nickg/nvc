@@ -2344,7 +2344,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
    if (fn == NULL) {
       // Find the first entry in the watch list and disable it
       for (watch_t *it = watches; it != NULL; it = it->chain_all) {
-         if (it->signal == s) {
+         if ((it->signal == s) && (it->user_data == user)) {
             it->pending = true;   // TODO: not a good way of doing this
             break;
          }
@@ -2419,7 +2419,7 @@ static size_t rt_group_string(netgroup_t *group, const char *map,
       }
    }
 
-   if (bp + 1 < end1)
+   if (bp < end1)
       *bp = '\0';
 
    return bp - buf;
