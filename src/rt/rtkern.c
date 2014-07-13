@@ -1987,6 +1987,7 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 
    free(g->resolved);
    free(g->last_value);
+   free(g->forcing);
 
    for (int j = 0; j < g->n_drivers; j++) {
       while (g->drivers[j].waveforms != NULL) {
