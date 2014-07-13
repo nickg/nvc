@@ -280,7 +280,7 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top_level, i);
       if (tree_ident(d) == search)
-         return (vhpiHandleT)vhpi_tree_to_obj(d, vhpiSignal);
+         return (vhpiHandleT)vhpi_tree_to_obj(d, vhpiSigDeclK);
    }
 
    vhpi_error(vhpiError, NULL, "object %s not found", istr(search));
@@ -717,7 +717,7 @@ int vhpi_is_printable(char ch)
       return 1;
    else if (ch == 127)
       return 0;
-   else if (ch < 160)
+   else if ((unsigned char)ch < 160)
       return 0;
    else
       return 1;
