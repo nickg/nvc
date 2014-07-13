@@ -338,6 +338,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
             return vhpiDisable;
       }
 
+   case vhpiSizeP:
+      {
+         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
+         return type_width(tree_type(obj->tree));
+      }
+
    default:
       fatal_trace("unsupported property %d in vhpi_get", property);
    }
@@ -571,25 +577,53 @@ int vhpi_put_value(vhpiHandleT handle,
       {
          type_t type = tree_type(obj->tree);
          if (type_is_scalar(type)) {
-            uint64_t value64;
+            uint64_t expanded;
             switch (value_p->format) {
             case vhpiLogicVal:
             case vhpiEnumVal:
-               value64 = value_p->value.enumv;
+               expanded = value_p->value.enumv;
                break;
 
             case vhpiSmallEnumVal:
-               value64 = value_p->value.smallenumv;
+               expanded = value_p->value.smallenumv;
                break;
 
             default:
-               assert(false);
+               vhpi_error(vhpiFailure, tree_loc(obj->tree), " value format %d "
+                          "not supported in vhpi_put_value", value_p->format);
+               return 1;
             }
 
-            rt_force_signal(obj->tree, &value64, 1, propagate);
+            rt_force_signal(obj->tree, &expanded, 1, propagate);
          }
          else {
-            assert(false);
+            uint64_t *expanded = NULL;
+            int num_elems = 0;
+
+            switch (value_p->format) {
+            case vhpiLogicVecVal:
+            case vhpiEnumVecVal:
+               num_elems = value_p->bufSize / sizeof(vhpiEnumT);
+               expanded = xmalloc(sizeof(uint64_t) * num_elems);
+               for (int i = 0; i < num_elems; i++)
+                  expanded[i] = value_p->value.enumvs[i];
+               break;
+
+            case vhpiSmallEnumVecVal:
+               num_elems = value_p->bufSize / sizeof(vhpiSmallEnumT);
+               expanded = xmalloc(sizeof(uint64_t) * num_elems);
+               for (int i = 0; i < num_elems; i++)
+                  expanded[i] = value_p->value.smallenumvs[i];
+               break;
+
+            default:
+               vhpi_error(vhpiFailure, tree_loc(obj->tree), " value format %d "
+                          "not supported in vhpi_put_value", value_p->format);
+               return 1;
+            }
+
+            rt_force_signal(obj->tree, expanded, num_elems, propagate);
+            free(expanded);
          }
          return 0;
       }

@@ -79,9 +79,11 @@ struct event {
    uint64_t      when;
    event_kind_t  kind;
    uint32_t      wakeup_gen;
+   event_t      *delta_chain;
    rt_proc_t    *proc;
    netgroup_t   *group;
-   event_t      *delta_chain;
+   timeout_fn_t  timeout_fn;
+   void         *timeout_user;
 };
 
 struct waveform {
@@ -358,7 +360,7 @@ static inline uint64_t heap_key(uint64_t when, event_kind_t kind)
 {
    // Use the bottom bit of the key to indicate the kind
    // The highest priority should have the lowest enumeration value
-   return (when << 1) | (kind & 1);
+   return (when << 2) | (kind & 3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1112,11 +1114,18 @@ static void deltaq_walk(uint64_t key, void *user, void *context)
    event_t *e = user;
 
    fprintf(stderr, "%s\t", fmt_time(e->when));
-   if (e->kind == E_DRIVER)
+   switch (e->kind) {
+   case E_DRIVER:
       fprintf(stderr, "driver\t %s\n", fmt_group(e->group));
-   else
+      break;
+   case E_PROCESS:
       fprintf(stderr, "process\t %s%s\n", istr(tree_ident(e->proc->source)),
               (e->wakeup_gen == e->proc->wakeup_gen) ? "" : " (stale)");
+      break;
+   case E_TIMEOUT:
+      fprintf(stderr, "timeout\t %p %p\n", e->timeout_fn, e->timeout_user);
+      break;
+   }
 }
 
 static void deltaq_dump(void)
@@ -2296,11 +2305,13 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
 {
    event_t *e = rt_alloc(event_stack);
-   e->when       = now + when;
-   e->kind       = E_TIMEOUT;
-   e->group      = NULL;
-   e->proc       = NULL;
-   e->wakeup_gen = UINT32_MAX;
+   e->when         = now + when;
+   e->kind         = E_TIMEOUT;
+   e->group        = NULL;
+   e->proc         = NULL;
+   e->timeout_fn   = fn;
+   e->timeout_user = user;
+   e->wakeup_gen   = UINT32_MAX;
 
    deltaq_insert(e);
 }
