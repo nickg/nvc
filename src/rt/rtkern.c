@@ -1077,8 +1077,9 @@ static void _tracef(const char *fmt, ...)
 static void deltaq_insert(event_t *e)
 {
    if (e->when == now) {
-      e->delta_chain = delta_proc;
-      delta_proc = e;
+      event_t **chain = (e->kind == E_DRIVER) ? &delta_driver : &delta_proc;
+      e->delta_chain = *chain;
+      *chain = e;
    }
    else {
       e->delta_chain = NULL;
