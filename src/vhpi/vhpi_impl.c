@@ -46,7 +46,7 @@ struct vhpi_cb {
    int         reason;
    bool        enabled;
    bool        fired;
-   bool        pending;
+   bool        repetitive;
    vhpiCbDataT data;
    int         list_pos;
    bool        has_handle;
@@ -249,7 +249,7 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
    if (obj->cb.enabled) {
       // Handle may be released by callback so take care not to
       // reference it afterwards
-      const bool release = !(obj->cb.has_handle);
+      const bool release = !obj->cb.has_handle && !obj->cb.repetitive;
       obj->cb.fired = true;
       (*obj->cb.data.cb_rtn)(&(obj->cb.data));
       if (release)
@@ -260,24 +260,18 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   if (obj != NULL) {
-      (*obj->cb.data.cb_rtn)(&(obj->cb.data));
-
-      if (!obj->cb.has_handle) {
-         vhpi_forget_cb(&rt_cb_list, obj);
-         vhpi_free_obj(obj);
-      }
-      else
-         obj->cb.pending = false;
-   }
+   printf("timeout_cb %p\n", obj);
+   if (obj != NULL)
+      vhpi_fire_event(obj);
 }
 
 static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
                                  watch_t *watch, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
+   printf("signal_event_cb %p\n", obj);
    if (obj != NULL)
-      (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+      vhpi_fire_event(obj);
 }
 
 static const char *vhpi_map_str_for_type(type_t type)
@@ -349,9 +343,11 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    obj->cb.list_pos   = -1;
 
    switch (cb_data_p->reason) {
+   case vhpiCbEndOfProcesses:
+      obj->cb.repetitive = true;
+      // Fall-through
    case vhpiCbStartOfSimulation:
    case vhpiCbEndOfSimulation:
-   case vhpiCbEndOfProcesses:
       vhpi_remember_cb(&global_cb_list, obj);
       break;
 
@@ -363,7 +359,6 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
       rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
                         vhpi_timeout_cb, obj);
-      obj->cb.pending = true;
 
       vhpi_remember_cb(&rt_cb_list, obj);
       break;
@@ -382,6 +377,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
          }
 
          obj->tree = sig->tree;
+         obj->cb.repetitive = true;
+
          rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj, false);
 
          vhpi_remember_cb(&rt_cb_list, obj);
@@ -502,9 +499,9 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_CALLBACK);
          if (obj == NULL)
-            return vhpiMature;
+            return vhpiUndefined;
 
-         if (obj->cb.fired)
+         if (obj->cb.fired && !obj->cb.repetitive)
             return vhpiMature;
          else if (obj->cb.enabled)
             return vhpiEnable;
@@ -516,13 +513,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       {
          vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
          if (obj == NULL)
-            return 0;
+            return vhpiUndefined;
          else
             return type_width(tree_type(obj->tree));
       }
 
    default:
-      fatal_trace("unsupported property %d in vhpi_get", property);
+      vhpi_error(vhpiFailure, NULL, "unsupported property %d in vhpi_get",
+                 property);
+      return vhpiUndefined;
    }
 }
 
@@ -960,7 +959,7 @@ int vhpi_release_handle(vhpiHandleT handle)
          if (obj->cb.list_pos != -1)
             vhpi_forget_cb(&rt_cb_list, obj);
 
-         if (!obj->cb.pending)
+         if (obj->cb.fired)
             vhpi_free_obj(obj);
          else
             obj->cb.has_handle = false;
