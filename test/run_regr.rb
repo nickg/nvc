@@ -129,11 +129,19 @@ Dir.chdir 'logs'
 ENV['NVC_LIBPATH'] = LibPath
 ENV['NVC_CYG_LIB'] = "#{BuildDir}/src"
 
+HaveVHPI = !!ENV['HAVE_VHPI']
+
 passed = 0
 failed = 0
 
 read_tests.each do |t|
   printf "%15s : ", t[:name]
+  skip = (t[:flags].member? 'vhpi' and not HaveVHPI)
+  if skip then
+    puts "skipped".cyan
+    next
+  end
+
   mkdir_p t[:name]
   Dir.chdir t[:name] do
     File.unlink 'out' if File.exists? 'out'

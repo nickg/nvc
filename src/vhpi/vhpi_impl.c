@@ -202,14 +202,16 @@ static void vhpi_check_for_leaks(void)
 {
    int leak_tree = 0, leak_cb = 0;
 
-   hash_iter_t now = HASH_BEGIN;
-   const void *key;
-   void *value;
-   while (hash_iter(handle_hash, &now, &key, &value)) {
-      if (value != NULL) {
-         vhpi_obj_t *obj = vhpi_get_obj(value, VHPI_TREE);
-         if (obj != NULL)
-            leak_tree += obj->refcnt;
+   if (handle_hash != NULL) {
+      hash_iter_t now = HASH_BEGIN;
+      const void *key;
+      void *value;
+      while (hash_iter(handle_hash, &now, &key, &value)) {
+         if (value != NULL) {
+            vhpi_obj_t *obj = vhpi_get_obj(value, VHPI_TREE);
+            if (obj != NULL)
+               leak_tree += obj->refcnt;
+         }
       }
    }
 

@@ -7,6 +7,7 @@ SUBDIRS =
 
 if ENABLE_VHPI
 SUBDIRS += vhpi
+TESTS_ENVIRONMENT += HAVE_VHPI=1
 endif
 
 src = $(top_srcdir)/src

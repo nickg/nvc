@@ -231,3 +231,4 @@ implicit2       normal
 file2           normal
 case5           gold,fail
 toplevel1       normal
+vhpi1           normal,vhpi
