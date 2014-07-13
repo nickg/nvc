@@ -145,14 +145,15 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
 
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
-   printf("vhpi_timeout_cb! now=%"PRIu64" user=%p\n", now, user);
+   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
+   (*obj->cb.data.cb_rtn)(&(obj->cb.data));
 }
 
 static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
                                  watch_t *watch, void *user)
 {
-   printf("vhpi_signal_event_cb! sig=%s user=%p\n",
-          istr(tree_ident(sig)), user);
+   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
+   (*obj->cb.data.cb_rtn)(&(obj->cb.data));
 }
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)

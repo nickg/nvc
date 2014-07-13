@@ -1863,7 +1863,8 @@ static void rt_cycle(int stop_delta)
          rt_update_driver(event->group, event->proc);
          break;
       case E_TIMEOUT:
-         assert(false); // TODO
+         (*event->timeout_fn)(now, event->timeout_user);
+         break;
       }
 
       rt_free(event_stack, event);
