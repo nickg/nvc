@@ -260,7 +260,6 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   printf("timeout_cb %p\n", obj);
    if (obj != NULL)
       vhpi_fire_event(obj);
 }
@@ -269,7 +268,6 @@ static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
                                  watch_t *watch, void *user)
 {
    vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   printf("signal_event_cb %p\n", obj);
    if (obj != NULL)
       vhpi_fire_event(obj);
 }
@@ -324,9 +322,6 @@ int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 {
-   printf("vhpi_register_cb flags=%x reason=%d obj=%p time=%p\n",
-          flags, cb_data_p->reason, cb_data_p->obj, cb_data_p->time);
-
    vhpi_clear_error();
 
    vhpi_obj_t *obj = xmalloc(sizeof(vhpi_obj_t));
@@ -427,8 +422,6 @@ int vhpi_get_cb_info(vhpiHandleT object, vhpiCbDataT *cb_data_p)
 
 vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 {
-   printf("vhpi_handle_by_name name=%s scope=%p\n", name, scope);
-
    vhpi_clear_error();
 
    if (scope == NULL) {
@@ -450,8 +443,6 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
    else
       ident_prefix(tree_ident(obj->tree), ident_new(name), ':');
 
-   printf("search=%s\n", istr(search));
-
    const int ndecls = tree_decls(top_level);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(top_level, i);
@@ -472,8 +463,6 @@ vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
 
 vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
 {
-   printf("vhpi_handle type=%d referenceHandle=%p\n", type, referenceHandle);
-
    vhpi_clear_error();
 
    switch (type) {
@@ -534,8 +523,6 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
                               vhpiHandleT handle)
 {
-   printf("vhpi_get_str property=%d handle=%p\n", property, handle);
-
    vhpi_clear_error();
 
    switch (property) {
@@ -630,9 +617,6 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    type_t type = tree_type(obj->tree);
    type_t base = type_base_recur(type);
 
-   printf("vhpi_get_value expr=%s type=%s\n",
-          istr(tree_ident(obj->tree)), type_pp(type));
-
    ident_t type_name = type_ident(type);
 
    vhpiFormatT format;
@@ -705,7 +689,6 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
                                            vhpi_map_str_for_type(type),
                                            (char *)value_p->value.str,
                                            value_p->bufSize);
-      printf("need=%d bufSize=%d\n", (int)need, (int)value_p->bufSize);
       if (need > value_p->bufSize)
          return need;
       else
@@ -780,9 +763,6 @@ int vhpi_put_value(vhpiHandleT handle,
    vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
    if (obj == NULL)
       return 1;
-
-   printf("vhpi_put_value object=%s mode=%d\n",
-          istr(tree_ident(obj->tree)), mode);
 
    bool propagate = false;
    switch (mode) {
@@ -981,9 +961,7 @@ int vhpi_release_handle(vhpiHandleT handle)
 
    case VHPI_TREE:
       assert(obj->refcnt > 0);
-      printf("refcnt=%d\n", obj->refcnt);
       if (--(obj->refcnt) == 0) {
-         printf("free %s\n", istr(tree_ident(obj->tree)));
          hash_put(handle_hash, obj->tree, NULL);
          vhpi_free_obj(obj);
       }
