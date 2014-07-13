@@ -195,7 +195,7 @@ static void vcd_process_signal(tree_t d, int *next_key)
 
    tree_add_attr_ptr(d, vcd_data_i, data);
 
-   data->watch = rt_set_event_cb(d, vcd_event_cb, data);
+   data->watch = rt_set_event_cb(d, vcd_event_cb, data, true);
 
    vcd_key_fmt(*next_key, data->key);
 

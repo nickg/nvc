@@ -73,13 +73,15 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
                    const char *vhpi_plugins);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
-watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user);
+watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
+                         bool postponed);
 size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last);
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max);
 size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max);
 bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
                      bool propagate);
 uint64_t rt_now(unsigned *deltas);
+void rt_stop(void);
 
 void jit_init(ident_t top);
 void jit_shutdown(void);

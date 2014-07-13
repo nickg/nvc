@@ -317,7 +317,7 @@ static void fst_process_signal(tree_t d)
 
    tree_add_attr_ptr(d, fst_data_i, data);
 
-   data->watch = rt_set_event_cb(d, fst_event_cb, data);
+   data->watch = rt_set_event_cb(d, fst_event_cb, data, true);
 }
 
 static void fst_process_hier(tree_t h)

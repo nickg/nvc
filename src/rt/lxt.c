@@ -214,7 +214,7 @@ void lxt_restart(void)
 
       tree_add_attr_ptr(d, lxt_data_i, data);
 
-      watch_t *w = rt_set_event_cb(d, lxt_event_cb, data);
+      watch_t *w = rt_set_event_cb(d, lxt_event_cb, data, true);
 
       (*data->fmt)(d, w, data);
    }

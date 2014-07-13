@@ -161,6 +161,7 @@ struct watch {
    void          *user_data;
    range_kind_t   dir;
    size_t         length;
+   bool           postponed;
 };
 
 struct watch_list {
@@ -214,6 +215,7 @@ static void         *proc_tmp_stack = NULL;
 static uint32_t      global_tmp_alloc;
 static hash_t       *res_memo_hash = NULL;
 static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
+static bool          force_stop;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -1309,6 +1311,7 @@ static void rt_setup(tree_t top)
    now = 0;
    iteration = -1;
    active_proc = NULL;
+   force_stop = false;
 
    assert(resume == NULL);
 
@@ -1797,6 +1800,25 @@ static void rt_resume_processes(sens_list_t **list)
    *list = NULL;
 }
 
+static void rt_event_callback(bool postponed)
+{
+   watch_t **last = &callbacks;
+   watch_t *next = NULL, *it;
+   for (it = callbacks; it != NULL; it = next) {
+      next = it->chain_pending;
+      if (it->postponed == postponed) {
+         (*callbacks->fn)(now, callbacks->signal, callbacks,
+                          callbacks->user_data);
+         callbacks->pending = false;
+
+         *last = it->chain_pending;
+         it->chain_pending = NULL;
+      }
+      else
+         last = &(it->chain_pending);
+   }
+}
+
 static void rt_cycle(int stop_delta)
 {
    // Simulation cycle is described in LRM 93 section 12.6.4
@@ -1878,6 +1900,9 @@ static void rt_cycle(int stop_delta)
    else if (unlikely((stop_delta > 0) && (iteration == stop_delta)))
       rt_iteration_limit();
 
+   // Run all non-postponed event callbacks
+   rt_event_callback(false);
+
    // Run all processes that resumed because of signal events
    rt_resume_processes(&resume);
    vhpi_event(VHPI_END_OF_PROCESSES);
@@ -1893,16 +1918,8 @@ static void rt_cycle(int stop_delta)
       // Run any postponed processes
       rt_resume_processes(&postponed);
 
-      // Execute all event callbacks
-      while (callbacks != NULL) {
-         (*callbacks->fn)(now, callbacks->signal, callbacks,
-                          callbacks->user_data);
-         callbacks->pending = false;
-
-         watch_t *next = callbacks->chain_pending;
-         callbacks->chain_pending = NULL;
-         callbacks = next;
-      }
+      // Execute all postponed event callbacks
+      rt_event_callback(true);
    }
 }
 
@@ -2067,6 +2084,8 @@ static bool rt_stop_now(uint64_t stop_time)
    if ((delta_driver != NULL) || (delta_proc != NULL))
       return false;
    else if (heap_size(eventq_heap) == 0)
+      return true;
+   else if (force_stop)
       return true;
    else if (stop_time == UINT64_MAX)
       return false;
@@ -2239,7 +2258,7 @@ static void rt_slave_watch(slave_watch_msg_t *msg)
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   rt_set_event_cb(t, rt_slave_watch_cb, NULL);
+   rt_set_event_cb(t, rt_slave_watch_cb, NULL, true);
 }
 
 static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
@@ -2247,7 +2266,7 @@ static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
    tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
    assert(tree_kind(t) == T_SIGNAL_DECL);
 
-   rt_set_event_cb(t, NULL, NULL);
+   rt_set_event_cb(t, NULL, NULL, true);
 }
 
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
@@ -2317,7 +2336,8 @@ void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)
    deltaq_insert(e);
 }
 
-watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)
+watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
+                         bool postponed)
 {
    assert(tree_kind(s) == T_SIGNAL_DECL);
 
@@ -2344,6 +2364,7 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user)
       w->n_groups      = 0;
       w->user_data     = user;
       w->length        = 0;
+      w->postponed     = postponed;
 
       type_t type = tree_type(s);
       if (type_is_array(type))
@@ -2463,4 +2484,9 @@ uint64_t rt_now(unsigned *deltas)
    if (deltas != NULL)
       *deltas = MAX(iteration, 0);
    return now;
+}
+
+void rt_stop(void)
+{
+   force_stop = true;
 }

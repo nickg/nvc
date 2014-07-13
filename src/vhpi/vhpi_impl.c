@@ -47,6 +47,8 @@ struct vhpi_cb {
    bool        enabled;
    bool        fired;
    vhpiCbDataT data;
+   int         list_pos;
+   bool        has_handle;
 };
 
 typedef enum {
@@ -54,19 +56,27 @@ typedef enum {
    VHPI_TREE
 } vhpi_obj_kind_t;
 
+#define VHPI_ANY (vhpi_obj_kind_t)-1
+
 struct vhpi_obj {
    uint32_t        magic;
-   vhpi_obj_t     *chain;
    vhpiClassKindT  class;
    vhpi_obj_kind_t kind;
+   unsigned        refcnt;
    union {
       vhpi_cb_t cb;
       tree_t    tree;
    };
 };
 
-static vhpi_obj_t     *sim_cb_list;
-static vhpi_obj_t     *end_proc_cb_list;
+typedef struct {
+   vhpi_obj_t **objects;
+   unsigned     num;
+   unsigned     max;
+} cb_list_t;
+
+static cb_list_t       global_cb_list;
+static cb_list_t       rt_cb_list;
 static tree_t          top_level;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
@@ -80,8 +90,6 @@ static ident_t std_ulogic_i;
 
 static void vhpi_clear_error(void)
 {
-   free(last_error.message);
-   last_error.message  = NULL;
    last_error.severity = 0;
 }
 
@@ -98,6 +106,8 @@ static void vhpi_error(vhpiSeverityT sev, const loc_t *loc,
       last_error.file = (char *)loc->file;
       last_error.line = loc->first_line;
    }
+
+   free(last_error.message);
 
    va_list ap;
    va_start(ap, fmt);
@@ -118,13 +128,94 @@ static uint64_t vhpi_time_to_native(const vhpiTimeT *time)
 static vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle, vhpi_obj_kind_t kind)
 {
    vhpi_obj_t *obj = (vhpi_obj_t *)handle;
-   assert(obj != NULL);
-   if (unlikely(obj->magic != VHPI_MAGIC))
+   if (unlikely(obj == NULL)) {
+      vhpi_error(vhpiSystem, NULL, "unexpected NULL handle");
+      return NULL;
+   }
+   else if (unlikely(obj->magic != VHPI_MAGIC)) {
       vhpi_error(vhpiSystem, NULL, "bad magic on VHPI handle %p", handle);
-   else if (unlikely(obj->kind != kind))
+      return NULL;
+   }
+   else if ((kind != VHPI_ANY) && (obj->kind != kind)) {
       vhpi_error(vhpiSystem, NULL, "expected VHPI object kind %d but have %d",
                  kind, obj->kind);
-   return obj;
+      return NULL;
+   }
+   else
+      return obj;
+}
+
+static void vhpi_free_obj(vhpi_obj_t *obj)
+{
+   obj->magic = 0xbadc0de;
+   free(obj);
+}
+
+static void vhpi_remember_cb(cb_list_t *list, vhpi_obj_t *obj)
+{
+   if (unlikely(list->objects == NULL)) {
+      list->max = 64;
+      list->objects = xmalloc(list->max * sizeof(vhpi_obj_t));
+      memset(list->objects, '\0', list->max * sizeof(vhpi_obj_t));
+   }
+   else if (unlikely(list->num == list->max)) {
+      const unsigned oldmax = list->max;
+      list->max *= 2;
+      list->objects = xrealloc(list->objects, list->max * sizeof(vhpi_obj_t));
+      memset(list->objects + oldmax, '\0',
+             (list->max - oldmax)  * sizeof(vhpi_obj_t));
+   }
+
+   for (unsigned i = list->num;
+        i != (list->num - 1) % list->max;
+        i = (i + 1) % list->max) {
+      if (list->objects[i] == NULL) {
+         list->objects[i] = obj;
+         obj->cb.list_pos = i;
+         (list->num)++;
+         return;
+      }
+   }
+
+   assert(false);
+}
+
+static void vhpi_forget_cb(cb_list_t *list, vhpi_obj_t *obj)
+{
+   assert((obj->cb.list_pos >= 0) && (obj->cb.list_pos < list->max));
+   assert(list->objects[obj->cb.list_pos] == obj);
+   list->objects[obj->cb.list_pos] = NULL;
+}
+
+static int vhpi_count_live_cbs(cb_list_t *list)
+{
+   int count = 0;
+   for (unsigned i = 0; (i < list->max) && (count < list->num); i++) {
+      if (list->objects[i] != NULL)
+         count++;
+   }
+
+   return count;
+}
+
+static void vhpi_check_for_leaks(void)
+{
+   int leak_tree = 0, leak_cb = 0;
+
+   hash_iter_t now = HASH_BEGIN;
+   const void *key;
+   void *value;
+   while (hash_iter(handle_hash, &now, &key, &value)) {
+      if (value != NULL)
+         leak_tree += vhpi_get_obj(value, VHPI_TREE)->refcnt;
+   }
+
+   leak_cb += vhpi_count_live_cbs(&global_cb_list);
+   leak_cb += vhpi_count_live_cbs(&rt_cb_list);
+
+   if ((leak_tree > 0) || (leak_cb > 0))
+      warnf("VHPI plugin leaked %d tree handles and %d callback handles",
+            leak_tree, leak_cb);
 }
 
 static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
@@ -134,13 +225,33 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
       obj = xmalloc(sizeof(vhpi_obj_t));
       memset(obj, '\0', sizeof(vhpi_obj_t));
 
-      obj->magic = VHPI_MAGIC;
-      obj->kind  = VHPI_TREE;
-      obj->class = class;
-      obj->tree  = t;
+      obj->magic  = VHPI_MAGIC;
+      obj->kind   = VHPI_TREE;
+      obj->class  = class;
+      obj->tree   = t;
+      obj->refcnt = 1;
+
+      hash_put(handle_hash, t, obj);
+   }
+   else {
+      assert(obj->refcnt > 0);
+      (obj->refcnt)++;
    }
 
    return obj;
+}
+
+static void vhpi_fire_event(vhpi_obj_t *obj)
+{
+   if (obj->cb.enabled) {
+      // Handle may be released by callback so take care not to
+      // reference it afterwards
+      const bool release = !(obj->cb.has_handle);
+      obj->cb.fired = true;
+      (*obj->cb.data.cb_rtn)(&(obj->cb.data));
+      if (release)
+         vhpi_release_handle((vhpiHandleT)obj);
+   }
 }
 
 static void vhpi_timeout_cb(uint64_t now, void *user)
@@ -158,7 +269,34 @@ static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   va_list ap;
+   va_start(ap, formatmsg);
+   char *buf LOCAL = xvasprintf(formatmsg, ap);
+   va_end(ap);
+
+   switch (severity) {
+   case vhpiNote:
+      notef("%s", buf);
+      break;
+
+   case vhpiWarning:
+      warnf("%s", buf);
+      break;
+
+   case vhpiError:
+      errorf("%s", buf);
+      break;
+
+   case vhpiFailure:
+   case vhpiSystem:
+   case vhpiInternal:
+      fatal("%s", buf);
+      break;
+   }
+
+   return 0;
 }
 
 vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
@@ -173,18 +311,19 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
    obj->class = vhpiCallbackK;
    obj->kind  = VHPI_CALLBACK;
-   obj->chain = NULL;
    obj->magic = VHPI_MAGIC;
 
-   obj->cb.reason  = cb_data_p->reason;
-   obj->cb.enabled = !(flags & vhpiDisableCb);
-   obj->cb.data    = *cb_data_p;
+   obj->cb.reason     = cb_data_p->reason;
+   obj->cb.enabled    = !(flags & vhpiDisableCb);
+   obj->cb.data       = *cb_data_p;
+   obj->cb.has_handle = !!(flags & vhpiReturnCb);
+   obj->cb.list_pos   = -1;
 
    switch (cb_data_p->reason) {
    case vhpiCbStartOfSimulation:
    case vhpiCbEndOfSimulation:
-      obj->chain = sim_cb_list;
-      sim_cb_list = obj;
+   case vhpiCbEndOfProcesses:
+      vhpi_remember_cb(&global_cb_list, obj);
       break;
 
    case vhpiCbAfterDelay:
@@ -195,11 +334,9 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
       rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
                         vhpi_timeout_cb, obj);
-      break;
 
-   case vhpiCbEndOfProcesses:
-      obj->chain = end_proc_cb_list;
-      end_proc_cb_list = obj;
+      if (flags & vhpiReturnCb)
+         vhpi_remember_cb(&rt_cb_list, obj);
       break;
 
    case vhpiCbValueChange:
@@ -212,7 +349,10 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
             goto failed;
          }
 
-         rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj);
+         rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj, false);
+
+         if (flags & vhpiReturnCb)
+            vhpi_remember_cb(&rt_cb_list, obj);
       }
       break;
 
@@ -226,7 +366,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
       return NULL;
 
  failed:
-   free(obj);
+   vhpi_free_obj(obj);
    return NULL;
 }
 
@@ -463,6 +603,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
          format = vhpiEnumVal;
       break;
 
+   case T_INTEGER:
+      format = vhpiIntVal;
+      break;
+
    case T_UARRAY:
    case T_CARRAY:
       {
@@ -515,6 +659,10 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
       case vhpiSmallEnumVal:
          value_p->value.smallenumv = value;
+         return 0;
+
+      case vhpiIntVal:
+         value_p->value.intg = value;
          return 0;
 
       default:
@@ -589,8 +737,12 @@ int vhpi_put_value(vhpiHandleT handle,
                expanded = value_p->value.smallenumv;
                break;
 
+            case vhpiIntVal:
+               expanded = value_p->value.intg;
+               break;
+
             default:
-               vhpi_error(vhpiFailure, tree_loc(obj->tree), " value format %d "
+               vhpi_error(vhpiFailure, tree_loc(obj->tree), "value format %d "
                           "not supported in vhpi_put_value", value_p->format);
                return 1;
             }
@@ -675,7 +827,17 @@ int vhpi_get_next_time(vhpiTimeT *time_p)
 
 int vhpi_control(vhpiSimControlT command, ...)
 {
-   VHPI_MISSING;
+   switch (command) {
+   case vhpiFinish:
+   case vhpiStop:
+      notef("VHPI plugin requested end of simulation");
+      rt_stop();
+      return 0;
+
+   case vhpiReset:
+      vhpi_error(vhpiFailure, NULL, "vhpiReset not supported");
+      return 1;
+   }
 }
 
 int vhpi_printf(const char *format, ...)
@@ -717,9 +879,40 @@ int vhpi_check_error(vhpiErrorInfoT *error_info_p)
    }
 }
 
-int vhpi_release_handle(vhpiHandleT object)
+int vhpi_release_handle(vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_ANY);
+   if (obj == NULL)
+      return 1;
+
+   switch (obj->kind) {
+   case VHPI_CALLBACK:
+      switch (obj->cb.reason) {
+      case vhpiCbStartOfSimulation:
+      case vhpiCbEndOfSimulation:
+      case vhpiCbEndOfProcesses:
+         vhpi_forget_cb(&global_cb_list, obj);
+         break;
+
+      case vhpiCbAfterDelay:
+      case vhpiCbValueChange:
+         if (obj->cb.list_pos != -1)
+            vhpi_forget_cb(&rt_cb_list, obj);
+         break;
+      }
+      vhpi_free_obj(obj);
+      return 0;
+
+   case VHPI_TREE:
+      assert(obj->refcnt > 0);
+      printf("refcnt=%d\n", obj->refcnt);
+      if (--(obj->refcnt) == 0) {
+         printf("free %s\n", istr(tree_ident(obj->tree)));
+         hash_put(handle_hash, obj->tree, NULL);
+         vhpi_free_obj(obj);
+      }
+      return 0;
+   }
 }
 
 vhpiHandleT vhpi_create(vhpiClassKindT kind,
@@ -801,9 +994,16 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
 
 void vhpi_event(vhpi_event_t reason)
 {
-   for (vhpi_obj_t *it = sim_cb_list; it != NULL; it = it->chain) {
-      if ((it->cb.reason == reason) && it->cb.enabled) {
-         (*it->cb.data.cb_rtn)(&(it->cb.data));
+   unsigned i = 0, seen = 0;
+   for (; (i < global_cb_list.max) && (seen < global_cb_list.num); i++) {
+      vhpi_obj_t *obj = global_cb_list.objects[i];
+      if (obj != NULL) {
+         seen++;
+         if (obj->cb.reason == reason)
+            vhpi_fire_event(obj);
       }
    }
+
+   if (unlikely(reason == VHPI_END_OF_SIMULATION))
+      vhpi_check_for_leaks();
 }
