@@ -67,7 +67,7 @@ AC_DEFUN([AX_LLVM_C],
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
                 LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
-                llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\+\)\.\(@<:@0-9@:>@\+\).*/\1\2/'`
+                llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\{,\}\)\.\(@<:@0-9@:>@\{,\}\).*/\1\2/'`
                 if test "$llvm_ver_num" -lt "30"; then
                     AC_MSG_ERROR([LLVM version 3.0 or later required])
                 fi
