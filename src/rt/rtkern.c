@@ -1701,25 +1701,29 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
 
 static void rt_update_driver(netgroup_t *group, rt_proc_t *proc)
 {
-   // Find the driver owned by proc
-   int driver;
-   for (driver = 0; driver < group->n_drivers; driver++) {
-      if (likely(group->drivers[driver].proc == proc))
-         break;
-   }
-   assert(driver != group->n_drivers);
+   if (likely(proc != NULL)) {
+      // Find the driver owned by proc
+      int driver;
+      for (driver = 0; driver < group->n_drivers; driver++) {
+         if (likely(group->drivers[driver].proc == proc))
+            break;
+      }
+      assert(driver != group->n_drivers);
 
-   waveform_t *w_now  = group->drivers[driver].waveforms;
-   waveform_t *w_next = w_now->next;
+      waveform_t *w_now  = group->drivers[driver].waveforms;
+      waveform_t *w_next = w_now->next;
 
-   if (w_next != NULL && w_next->when == now) {
-      rt_update_group(group, driver, w_next->values->data);
-      group->drivers[driver].waveforms = w_next;
-      rt_free_value(group, w_now->values);
-      rt_free(waveform_stack, w_now);
+      if (likely((w_next != NULL) && (w_next->when == now))) {
+         rt_update_group(group, driver, w_next->values->data);
+         group->drivers[driver].waveforms = w_next;
+         rt_free_value(group, w_now->values);
+         rt_free(waveform_stack, w_now);
+      }
+      else
+         assert(w_now != NULL);
    }
-   else
-      assert(w_now != NULL);
+   else if (group->flags & NET_F_FORCED)
+      rt_update_group(group, -1, group->forcing->data);
 }
 
 static bool rt_stale_event(event_t *e)
@@ -2511,7 +2515,7 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
       FOR_ALL_SIZES(g->size, SIGNAL_FORCE_EXPAND_U64);
 
       if (propagate)
-         rt_update_group(g, -1, g->forcing->data);
+         deltaq_insert_driver(0, g, NULL);
 
       offset += g->length;
    }
