@@ -133,6 +133,7 @@ AC_DEFUN([AX_LLVM_C],
 
                 if test "x$ax_cv_llvm_shared" = "xyes"; then
                     LLVM_LIBS="$shlib $LLVM_SYSLIBS"
+                    succeeded=yes
                 fi
 
                 CFLAGS="$CFLAGS_SAVED"
