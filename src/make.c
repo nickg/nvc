@@ -326,30 +326,42 @@ static void make_clean(tree_t dummy, FILE *out)
    fprintf(out, "\trm -r %s\n", make_product(dummy, MAKE_LIB));
 }
 
+static void make_print_inputs(rule_t *r, FILE *out)
+{
+   for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
+      bool circular = false;
+      for (ident_list_t *o = r->outputs; o != NULL; o = o->next) {
+         if (it->ident == o->ident)
+            circular = true;
+      }
+
+      if (!circular)
+         fprintf(out, " %s", istr(it->ident));
+   }
+}
+
 static void make_print_rules(rule_t *rules, FILE *out)
 {
    const bool deps_only = opt_get_int("make-deps-only");
 
-   for (rule_t *r = rules; r != NULL; r = r->next) {
-      for (ident_list_t *it = r->outputs; it != NULL; it = it->next)
-         fprintf(out, "%s%s", istr(it->ident), (it->next == NULL) ? "" : " ");
-
-      fprintf(out, ":");
-
-      for (ident_list_t *it = r->inputs; it != NULL; it = it->next) {
-         bool circular = false;
-         for (ident_list_t *o = r->outputs; o != NULL; o = o->next) {
-            if (it->ident == o->ident)
-               circular = true;
+   if (deps_only) {
+      for (rule_t *r = rules; r != NULL; r = r->next) {
+         for (ident_list_t *it = r->outputs; it != NULL; it = it->next) {
+            fprintf(out, "%s:", istr(it->ident));
+            make_print_inputs(r, out);
+            fprintf(out, "\n\n");
          }
-
-         if (!circular)
-            fprintf(out, " %s", istr(it->ident));
       }
+   }
+   else {
+      for (rule_t *r = rules; r != NULL; r = r->next) {
+         for (ident_list_t *it = r->outputs; it != NULL; it = it->next)
+            fprintf(out, "%s%s", istr(it->ident),
+                    (it->next == NULL) ? "" : " ");
 
-      if (deps_only)
-         fprintf(out, "\n\n");
-      else {
+         fprintf(out, ":");
+         make_print_inputs(r, out);
+
          switch (r->kind) {
          case RULE_ANALYSE:
             fprintf(out, "\n\tnvc -a %s\n\n", istr(r->source));
