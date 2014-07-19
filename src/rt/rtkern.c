@@ -70,9 +70,9 @@ struct rt_proc {
 };
 
 typedef enum {
+   E_TIMEOUT,
    E_DRIVER,
-   E_PROCESS,
-   E_TIMEOUT
+   E_PROCESS
 } event_kind_t;
 
 struct event {
