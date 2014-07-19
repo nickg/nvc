@@ -31,9 +31,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <time.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <sys/file.h>
 
 typedef struct search_path search_path_t;
 typedef struct lib_unit    lib_unit_t;
@@ -61,6 +63,7 @@ struct lib {
    unsigned     units_alloc;
    lib_unit_t  *units;
    lib_index_t *index;
+   int          lock_fd;
 };
 
 struct lib_list {
@@ -76,6 +79,8 @@ struct search_path {
 static lib_t          work = NULL;
 static lib_list_t    *loaded = NULL;
 static search_path_t *search_paths = NULL;
+
+static const char *lib_file_path(lib_t lib, const char *name);
 
 static const char *standard_suffix(vhdl_standard_t std)
 {
@@ -110,13 +115,32 @@ static ident_t upcase_name(const char * name)
    return i;
 }
 
-static lib_t lib_init(const char *name, const char *rpath)
+static void lib_unlock(lib_t lib)
+{
+   if (flock(lib->lock_fd, LOCK_UN) < 0)
+      fatal_errno("flock");
+}
+
+static void lib_read_lock(lib_t lib)
+{
+   if (flock(lib->lock_fd, LOCK_SH) < 0)
+      fatal_errno("flock");
+}
+
+static void lib_write_lock(lib_t lib)
+{
+   if (flock(lib->lock_fd, LOCK_EX) < 0)
+      fatal_errno("flock");
+}
+
+static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
 {
    struct lib *l = xmalloc(sizeof(struct lib));
    l->n_units = 0;
    l->units   = NULL;
    l->name    = upcase_name(name);
    l->index   = NULL;
+   l->lock_fd = lock_fd;
 
    if (realpath(rpath, l->path) == NULL)
       strncpy(l->path, rpath, PATH_MAX);
@@ -125,6 +149,14 @@ static lib_t lib_init(const char *name, const char *rpath)
    el->item = l;
    el->next = loaded;
    loaded = el;
+
+   if (l->lock_fd == -1) {
+      const char *lock_path = lib_file_path(l, "_NVC_LIB");
+      if ((l->lock_fd = open(lock_path, O_RDONLY)) < 0)
+         fatal_errno("lib_init: %s", lock_path);
+
+      lib_read_lock(l);
+   }
 
    fbuf_t *f = lib_fbuf_open(l, "_index", FBUF_IN);
    if (f != NULL) {
@@ -148,6 +180,7 @@ static lib_t lib_init(const char *name, const char *rpath)
       fbuf_close(f);
    }
 
+   lib_unlock(l);
    return l;
 }
 
@@ -233,7 +266,7 @@ static lib_t lib_find_at(const char *name, const char *path)
    if (access(marker, F_OK) < 0)
       return NULL;
 
-   return lib_init(name, dir);
+   return lib_init(name, dir, -1);
 }
 
 static const char *lib_file_path(lib_t lib, const char *name)
@@ -261,25 +294,37 @@ lib_t lib_new(const char *name)
          fatal("invalid character '%c' in library name", *p);
    }
 
-   if (access(name, F_OK) == 0)
-      fatal("file %s already exists", name);
+   struct stat buf;
+   if (stat(name, &buf) == 0) {
+      if (!S_ISDIR(buf.st_mode))
+         fatal("path %s already exists and is not a directory", name);
+   }
 
-   if (mkdir(name, 0777) != 0)
+   if ((mkdir(name, 0777) != 0) && (errno != EEXIST))
       fatal_errno("mkdir: %s", name);
 
-   lib_t l = lib_init(name, name);
+   char *lockf LOCAL = xasprintf("%s/%s", name, "_NVC_LIB");
+   int fd = open(lockf, O_CREAT | O_EXCL | O_RDWR, 0777);
+   if (fd < 0) {
+      if (errno != EEXIST)
+         fatal_errno("lib_new: %s", lockf);
+   }
+   else {
+      if (flock(fd, LOCK_EX) < 0)
+         fatal_errno("flock");
 
-   FILE *tag = lib_fopen(l, "_NVC_LIB", "w");
-   fprintf(tag, "%s\n", PACKAGE_STRING);
-   fclose(tag);
+      const char *marker = PACKAGE_STRING "\n";
+      if (write(fd, marker, strlen(marker)) < 0)
+         fatal_errno("write: %s", name);
+   }
 
-   return l;
+   return lib_init(name, name, fd);
 }
 
 lib_t lib_tmp(void)
 {
    // For unit tests, avoids creating files
-   return lib_init("work", "");
+   return lib_init("work", "", 0);
 }
 
 static void push_path(const char *path)
@@ -522,6 +567,8 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    if (*(lib->path) == '\0')   // Temporary library
       return NULL;
 
+   lib_read_lock(lib);
+
    // Otherwise search in the filesystem
    DIR *d = opendir(lib->path);
    if (d == NULL)
@@ -549,6 +596,7 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
    }
 
    closedir(d);
+   lib_unlock(lib);
    return unit;
 }
 
@@ -628,6 +676,8 @@ void lib_save(lib_t lib)
 {
    assert(lib != NULL);
 
+   lib_write_lock(lib);
+
    for (unsigned n = 0; n < lib->n_units; n++) {
       if (lib->units[n].dirty) {
          const char *name = istr(tree_ident(lib->units[n].top));
@@ -662,6 +712,7 @@ void lib_save(lib_t lib)
 
    ident_write_end(ictx);
    fbuf_close(f);
+   lib_unlock(lib);
 }
 
 void lib_walk_index(lib_t lib, lib_index_fn_t fn, void *context)
