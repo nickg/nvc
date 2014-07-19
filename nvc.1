@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "April 2014" "" "NVC Manual"
+.TH "NVC" "1" "July 2014" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -118,6 +118,10 @@ Generate waveform data in format \fIfmt\fR\. Currently supported formats are: \f
 Signals that match \fIglob\fR are included in or excluded from the waveform dump\. See section \fISELECTING SIGNALS\fR for details on how to select particular signals\. These options can be given multiple times\.
 .
 .TP
+\fB\-\-load=\fR\fIplugin\fR
+Loads a VHPI plugin from the shared library \fIplugin\fR\. See section \fIVHPI\fR for details on the VHPI implementation\.
+.
+.TP
 \fB\-\-stats\fR
 Print time and memory statistics at the end of the run\.
 .
@@ -165,6 +169,40 @@ When the number of patterns becomes large, specifying them on the command line i
 .
 .P
 When both inclusion and exclusion patterns are present, exclusions have precedence over inclusions\. If no inclusion patterns are present then all signals are implicitly included\.
+.
+.SH "VHPI"
+NVC supports a subset of VHPI allowing access to signal values and events at runtime\. The standard VHPI header file \fBvhpi_user\.h\fR will be placed in the system include directory as part of the installation process\. VHPI plugins should be compiled as shared libraries; for example:
+.
+.IP "" 4
+.
+.nf
+
+$ cc \-shared \-fPIC my_plugin\.c \-o my_plugin\.so
+$ nvc \-r \-\-load my_plugin\.so my_tb
+.
+.fi
+.
+.IP "" 0
+.
+.P
+The plugin should define a global \fBvhpi_startup_routines\fR which is a NULL\-terminated list of functions to call when the plugin is loaded:
+.
+.IP "" 4
+.
+.nf
+
+void (*vhpi_startup_routines[])() = {
+   startup_1,
+   startup_2,
+   NULL
+};
+.
+.fi
+.
+.IP "" 0
+.
+.P
+TODO: describe VHPI functions implemented
 .
 .SH "LIBRARIES"
 Description of library search path, contents, etc\.

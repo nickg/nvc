@@ -116,6 +116,10 @@ specific options must be placed after the command.
    dump. See section [SELECTING SIGNALS][] for details on how to select
    particular signals. These options can be given multiple times.
 
+ * `--load=`_plugin_:
+   Loads a VHPI plugin from the shared library _plugin_. See
+   section [VHPI][] for details on the VHPI implementation.
+
  * `--stats`:
    Print time and memory statistics at the end of the run.
 
@@ -184,6 +188,27 @@ preceded by a `#` character.
 When both inclusion and exclusion patterns are present, exclusions have precedence
 over inclusions. If no inclusion patterns are present then all signals are
 implicitly included.
+
+## VHPI
+
+NVC supports a subset of VHPI allowing access to signal values and events at
+runtime. The standard VHPI header file `vhpi_user.h` will be placed in the system
+include directory as part of the installation process. VHPI plugins should be
+compiled as shared libraries; for example:
+
+    $ cc -shared -fPIC my_plugin.c -o my_plugin.so
+    $ nvc -r --load my_plugin.so my_tb
+
+The plugin should define a global `vhpi_startup_routines` which is a NULL-terminated
+list of functions to call when the plugin is loaded:
+
+    void (*vhpi_startup_routines[])() = {
+       startup_1,
+       startup_2,
+       NULL
+    };
+
+TODO: describe VHPI functions implemented
 
 ## LIBRARIES
 
