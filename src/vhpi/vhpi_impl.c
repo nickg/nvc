@@ -47,6 +47,7 @@ struct vhpi_cb {
    bool        enabled;
    bool        fired;
    bool        repetitive;
+   bool        released;
    vhpiCbDataT data;
    int         list_pos;
    bool        has_handle;
@@ -185,6 +186,7 @@ static void vhpi_forget_cb(cb_list_t *list, vhpi_obj_t *obj)
    assert((obj->cb.list_pos >= 0) && (obj->cb.list_pos < list->max));
    assert(list->objects[obj->cb.list_pos] == obj);
    list->objects[obj->cb.list_pos] = NULL;
+   obj->cb.list_pos = -1;
 }
 
 static int vhpi_count_live_cbs(cb_list_t *list)
@@ -248,7 +250,12 @@ static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
 
 static void vhpi_fire_event(vhpi_obj_t *obj)
 {
-   if (obj->cb.enabled && (!obj->cb.fired || obj->cb.repetitive)) {
+   if (obj->cb.released) {
+      // This handle has already been released by vhpi_release_handle
+      assert(obj->cb.list_pos == -1);
+      vhpi_free_obj(obj);
+   }
+   else if (obj->cb.enabled && (!obj->cb.fired || obj->cb.repetitive)) {
       // Handle may be released by callback so take care not to
       // reference it afterwards
       const bool release = !obj->cb.has_handle && !obj->cb.repetitive;
@@ -955,7 +962,7 @@ int vhpi_release_handle(vhpiHandleT handle)
          if (obj->cb.fired)
             vhpi_free_obj(obj);
          else
-            obj->cb.has_handle = false;
+            obj->cb.released = true;
          return 0;
 
       case vhpiCbValueChange:
