@@ -1812,9 +1812,8 @@ static void rt_event_callback(bool postponed)
    for (it = callbacks; it != NULL; it = next) {
       next = it->chain_pending;
       if (it->postponed == postponed) {
-         (*callbacks->fn)(now, callbacks->signal, callbacks,
-                          callbacks->user_data);
-         callbacks->pending = false;
+         (*it->fn)(now, it->signal, it, it->user_data);
+         it->pending = false;
 
          *last = it->chain_pending;
          it->chain_pending = NULL;
