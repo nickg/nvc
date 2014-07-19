@@ -939,9 +939,14 @@ int vhpi_release_handle(vhpiHandleT handle)
       case vhpiCbStartOfSimulation:
       case vhpiCbEndOfSimulation:
       case vhpiCbEndOfProcesses:
+      case vhpiCbNextTimeStep:
+      case vhpiCbRepEndOfProcesses:
+      case vhpiCbRepLastKnownDeltaCycle:
+      case vhpiCbRepNextTimeStep:
+      case vhpiCbLastKnownDeltaCycle:
          vhpi_forget_cb(&global_cb_list, obj);
          vhpi_free_obj(obj);
-         break;
+         return 0;
 
       case vhpiCbAfterDelay:
          if (obj->cb.list_pos != -1)
@@ -951,15 +956,17 @@ int vhpi_release_handle(vhpiHandleT handle)
             vhpi_free_obj(obj);
          else
             obj->cb.has_handle = false;
-         break;
+         return 0;
 
       case vhpiCbValueChange:
          if (obj->cb.list_pos != -1)
             vhpi_forget_cb(&rt_cb_list, obj);
          rt_set_event_cb(obj->tree, NULL, obj, false);
-         break;
+         return 0;
+
+      default:
+         assert(false);
       }
-      return 0;
 
    case VHPI_TREE:
       assert(obj->refcnt > 0);
