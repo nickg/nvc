@@ -54,27 +54,27 @@ synopsys-libs: $(synopsys_ieee_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:
 
-lib/ieee/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd
+lib/ieee/IEEE.STD_LOGIC_ARITH: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_arith.vhd
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
 	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_arith
 
-lib/ieee/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
+lib/ieee/IEEE.STD_LOGIC_UNSIGNED: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
 	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_unsigned
 
-lib/ieee/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd
+lib/ieee/IEEE.STD_LOGIC_SIGNED: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_signed.vhd
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_signed.vhd
 	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_signed
 
-lib/ieee/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/lib/synopsys/std_logic_textio.vhd
+lib/ieee/IEEE.STD_LOGIC_TEXTIO: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_textio.vhd
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_textio.vhd
 	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_textio
 
-lib/ieee/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd
+lib/ieee/IEEE.STD_LOGIC_MISC: $(bootstrap) $(srcdir)/lib/synopsys/std_logic_misc.vhd
 	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
 	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_misc
 
-lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd
+lib/synopsys/SYNOPSYS.ATTRIBUTES: $(bootstrap) $(srcdir)/lib/synopsys/attributes.vhd
 	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
 
 clean-synopsys:

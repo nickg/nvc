@@ -28,7 +28,7 @@ libs-nvc: $(nvc_DATA) $(nvc_SCRIPTS)
 
 lib/nvc/_NVC_LIB: lib/nvc/NVC.ENV
 
-lib/nvc/NVC.ENV: $(top_srcdir)/lib/std/env.vhd
+lib/nvc/NVC.ENV lib/nvc/NVC.ENV-body: $(bootstrap) $(top_srcdir)/lib/std/env.vhd
 	$(nvc) -L lib/ --work=lib/nvc -a $(top_srcdir)/lib/std/env.vhd
 	$(codegen) -L lib/ --work=lib/nvc --codegen env
 
