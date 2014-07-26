@@ -1914,9 +1914,6 @@ static void rt_cycle(int stop_delta)
    // Run all non-postponed event callbacks
    rt_event_callback(false);
 
-   if (!rt_next_cycle_is_delta())
-      vhpi_event(VHPI_LAST_KNOWN_DELTA_CYCLE);
-
    // Run all processes that resumed because of signal events
    rt_resume_processes(&resume);
    vhpi_event(VHPI_END_OF_PROCESSES);
@@ -1928,6 +1925,8 @@ static void rt_cycle(int stop_delta)
    n_active_groups = 0;
 
    if (!rt_next_cycle_is_delta()) {
+      vhpi_event(VHPI_LAST_KNOWN_DELTA_CYCLE);
+
       // Run any postponed processes
       rt_resume_processes(&postponed);
 
