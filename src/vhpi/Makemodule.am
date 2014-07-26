@@ -1,3 +1,5 @@
+if ENABLE_VHPI
+
 noinst_LIBRARIES += lib/libvhpi.a
 
 lib_libvhpi_a_SOURCES = \
@@ -5,3 +7,5 @@ lib_libvhpi_a_SOURCES = \
 	src/vhpi/vhpi_impl.c
 
 include_HEADERS += src/vhpi/vhpi_user.h
+
+endif
