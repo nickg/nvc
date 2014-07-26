@@ -72,7 +72,6 @@ redistributed and must be downloaded from an external source prior to building. 
 
 To recompile the standard libraries:
 
-    make -C lib clean
     make bootstrap
 
 Note this happens automatically when installing.
