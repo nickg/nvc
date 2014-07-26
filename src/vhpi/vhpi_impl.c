@@ -892,6 +892,10 @@ int vhpi_control(vhpiSimControlT command, ...)
    case vhpiReset:
       vhpi_error(vhpiFailure, NULL, "vhpiReset not supported");
       return 1;
+
+   default:
+      vhpi_error(vhpiFailure, NULL, "unsupported command in vhpi_control");
+      return 1;
    }
 }
 
@@ -982,6 +986,9 @@ int vhpi_release_handle(vhpiHandleT handle)
          vhpi_free_obj(obj);
       }
       return 0;
+
+   default:
+      assert(false);
    }
 }
 
