@@ -31,9 +31,9 @@ CLEANFILES += $(bootstrap)
 lib/.bootstrapped: bin/nvc$(EXEEXT)
 	[ -f $(bootstrap) ] || touch $(bootstrap)
 
-gen-deps: gen-deps-std gen-deps-ieee
+gen-deps: gen-deps-std gen-deps-ieee gen-deps-nvc gen-deps-synopsys
 
 bootstrap: clean-libs
-	$(MAKE) libs-std libs-ieee
+	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys
 
-clean-libs: clean-std clean-ieee
+clean-libs: clean-std clean-ieee clean-nvc clean-synopsys

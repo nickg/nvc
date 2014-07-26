@@ -32,6 +32,8 @@ include test/vhpi/Makemodule.am
 include lib/Makemodule.am
 include lib/std/Makemodule.am
 include lib/ieee/Makemodule.am
+include lib/nvc/Makemodule.am
+include lib/synopsys/Makemodule.am
 
 if HAVE_RONN
 nvc.1: nvc.1.md

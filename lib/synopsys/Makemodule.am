@@ -1,0 +1,87 @@
+# The Synopsys packages are not part of the IEEE standard but are
+# traditionally compiled into the IEEE library
+synopsys_ieeedir = $(pkgdatadir)/ieee
+synopsysdir = $(pkgdatadir)/synopsys
+synopsys_ieee_DATA = \
+	lib/ieee/IEEE.STD_LOGIC_ARITH \
+	lib/ieee/IEEE.STD_LOGIC_ARITH-body \
+	lib/ieee/_IEEE.STD_LOGIC_ARITH-body.bc \
+	lib/ieee/IEEE.STD_LOGIC_SIGNED \
+	lib/ieee/IEEE.STD_LOGIC_SIGNED-body \
+	lib/ieee/_IEEE.STD_LOGIC_SIGNED-body.bc \
+	lib/ieee/IEEE.STD_LOGIC_UNSIGNED \
+	lib/ieee/IEEE.STD_LOGIC_UNSIGNED-body \
+	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED-body.bc \
+	lib/ieee/IEEE.STD_LOGIC_TEXTIO \
+	lib/ieee/IEEE.STD_LOGIC_TEXTIO-body \
+	lib/ieee/_IEEE.STD_LOGIC_TEXTIO-body.bc \
+	lib/ieee/IEEE.STD_LOGIC_MISC \
+	lib/ieee/IEEE.STD_LOGIC_MISC-body \
+	lib/ieee/_IEEE.STD_LOGIC_MISC-body.bc
+synopsys_DATA = \
+	lib/synopsys/_NVC_LIB \
+	lib/synopsys/SYNOPSYS.ATTRIBUTES
+
+if ENABLE_NATIVE
+synopsys_ieee_so = \
+	lib/ieee/_IEEE.STD_LOGIC_ARITH-body.so \
+	lib/ieee/_IEEE.STD_LOGIC_SIGNED-body.so \
+	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED-body.so \
+	lib/ieee/_IEEE.STD_LOGIC_TEXTIO-body.so \
+	lib/ieee/_IEEE.STD_LOGIC_MISC-body.so
+
+if IMPLIB_REQUIRED
+synopsys_ieee_DATA += \
+	lib/ieee/_IEEE.STD_LOGIC_ARITH-body.a \
+	lib/ieee/_IEEE.STD_LOGIC_SIGNED-body.a \
+	lib/ieee/_IEEE.STD_LOGIC_UNSIGNED-body.a \
+	lib/ieee/_IEEE.STD_LOGIC_TEXTIO-body.a \
+	lib/ieee/_IEEE.STD_LOGIC_MISC-body.a
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+synopsys_ieee_SCRIPTS = $(synopsys_ieee_so)
+
+$(synopsys_ieee_SCRIPTS) : $(synopsys_ieee_DATA)
+else
+
+synopsys_ieee_DATA += $(synopsys_ieee_so)
+
+endif
+
+endif
+
+synopsys-libs: $(synopsys_ieee_DATA) $(synopsys_DATA)
+
+lib/synopsys/_NVC_LIB:
+
+lib/ieee/IEEE.STD_LOGIC_ARITH: $(srcdir)/lib/synopsys/std_logic_arith.vhd
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_arith.vhd
+	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_arith
+
+lib/ieee/IEEE.STD_LOGIC_UNSIGNED: $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_unsigned.vhd
+	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_unsigned
+
+lib/ieee/IEEE.STD_LOGIC_SIGNED: $(srcdir)/lib/synopsys/std_logic_signed.vhd
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_signed.vhd
+	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_signed
+
+lib/ieee/IEEE.STD_LOGIC_TEXTIO: $(srcdir)/lib/synopsys/std_logic_textio.vhd
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_textio.vhd
+	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_textio
+
+lib/ieee/IEEE.STD_LOGIC_MISC: $(srcdir)/lib/synopsys/std_logic_misc.vhd
+	$(nvc) -L lib/ --work=lib/ieee -a $(srcdir)/lib/synopsys/std_logic_misc.vhd
+	$(codegen) -L lib/ --work=lib/ieee --codegen std_logic_misc
+
+lib/synopsys/SYNOPSYS.ATTRIBUTES: $(srcdir)/lib/synopsys/attributes.vhd
+	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
+
+clean-synopsys:
+	-test ! -d synopsys || rm -r synopsys
+
+gen-deps-synopsys:
+	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only --native | \
+		$(deps_pp) > $(srcdir)/lib/synopsys/deps.mk
+
+include lib/synopsys/deps.mk

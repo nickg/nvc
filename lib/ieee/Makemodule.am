@@ -198,6 +198,6 @@ gen-deps-ieee:
 		--native | $(deps_pp) > $(srcdir)/lib/ieee/deps.mk
 
 clean-ieee:
-	-rm -rf lib/ieee
+	-test ! -d lib/ieee || rm -r lib/ieee
 
 include lib/ieee/deps.mk

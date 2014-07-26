@@ -1,0 +1,40 @@
+# VHDL-2008 has std.env package.
+nvcdir = $(pkgdatadir)/nvc
+nvc_DATA = \
+	lib/nvc/_NVC_LIB \
+	lib/nvc/NVC.ENV \
+	lib/nvc/NVC.ENV-body \
+	lib/nvc/_NVC.ENV-body.bc
+
+if ENABLE_NATIVE
+nvc_so = lib/nvc/_NVC.ENV-body.so
+
+if IMPLIB_REQUIRED
+nvc_DATA += lib/nvc/_NVC.ENV-body.a
+
+# Using SCRIPTS rather than data ensures execute bit gets set on Cygwin
+nvc_SCRIPTS = $(nvc_so)
+
+$(nvc_SCRIPTS) : $(nvc_DATA)
+else
+
+nvc_DATA += $(nvc_so)
+
+endif
+
+endif
+
+libs-nvc: $(nvc_DATA) $(nvc_SCRIPTS)
+
+lib/nvc/_NVC_LIB: lib/nvc/NVC.ENV
+
+lib/nvc/NVC.ENV: $(top_srcdir)/lib/std/env.vhd
+	$(nvc) -L lib/ --work=lib/nvc -a $(top_srcdir)/lib/std/env.vhd
+	$(codegen) -L lib/ --work=lib/nvc --codegen env
+
+clean-nvc:
+	-test ! -d lib/nvc || rm -r lib/nvc
+
+gen-deps-nvc:
+	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only --native | \
+		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
