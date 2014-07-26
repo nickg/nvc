@@ -2,7 +2,7 @@ AC_INIT([nvc], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
 AM_INIT_AUTOMAKE([1.12 -Wall -Wno-extra-portability color-tests
-                  serial-tests foreign])
+                  serial-tests foreign subdir-objects])
 AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
@@ -122,6 +122,7 @@ PKG_CHECK_EXISTS([check],
 
 AX_DEFINE_DIR([DATADIR], [datadir/nvc], [Installation data directory])
 AX_DEFINE_DIR([LIBDIR], [libdir], [Installation library directory])
+AX_DEFINE_DIR([TESTDIR], [srcdir/test], [Location of testcases])
 
 # CC may constain unwanted -std=... option.
 AC_DEFINE_UNQUOTED([SYSTEM_CC], ["$(which ${CC%% *})"], [System compiler])
@@ -197,9 +198,6 @@ AC_CHECK_PROG([RONN], [ronn], [1])
 AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
 
 AC_CONFIG_HEADERS([config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/rt/Makefile src/vhpi/Makefile \
-                 test/Makefile test/vhpi/Makefile lib/Makefile lib/std/Makefile \
-                 lib/ieee/Makefile lib/nvc/Makefile lib/synopsys/Makefile \
-                 thirdparty/Makefile])
+AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
 

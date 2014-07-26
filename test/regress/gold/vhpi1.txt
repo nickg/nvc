@@ -1,0 +1,20 @@
+loading VHPI plugin
+VHPI printf hello, world!
+VHPI printf tool is nvc
+VHPI printf root handle
+VHPI printf x handle
+VHPI printf y handle
+VHPI printf start of sim callback! user data is 'some user data'
+0ms+0: Report Note: x=5
+VHPI printf after_5ns callback!
+5ns+1: Report Note: x=70
+VHPI printf y value changed to 71
+6ns+1: Report Note: x=72
+VHPI printf y value changed to 73
+7ns+1: Report Note: x=74
+VHPI printf y value changed to 75
+VHPI printf b bit string '0'
+VHPI printf need 5 bytes for v string
+VHPI printf v bit string '0011'
+VHPI plugin requested end of simulation
+VHPI printf end of sim callback

@@ -1,0 +1,81 @@
+UNIT_TESTS = \
+	bin/test_lib \
+	bin/test_ident \
+	bin/test_parse \
+	bin/test_sem \
+	bin/test_simp \
+	bin/test_elab \
+	bin/test_heap \
+	bin/test_hash \
+	bin/test_group \
+	bin/test_bounds \
+	bin/test_value
+
+check_PROGRAMS += $(UNIT_TESTS)
+
+test_libs = $(CHECK_LIBS) lib/libnvc.a lib/libfastlz.a
+
+bin_test_lib_SOURCES = test/test_lib.c
+bin_test_lib_LDADD = $(test_libs)
+
+bin_test_ident_SOURCES = test/test_ident.c
+bin_test_ident_LDADD = $(test_libs)
+
+bin_test_parse_SOURCES = test/test_parse.c
+bin_test_parse_LDADD = $(test_libs)
+
+bin_test_sem_SOURCES = test/test_sem.c
+bin_test_sem_LDADD = $(test_libs)
+
+bin_test_simp_SOURCES = test/test_simp.c
+bin_test_simp_LDADD = $(test_libs)
+
+bin_test_elab_SOURCES = test/test_elab.c
+bin_test_elab_LDADD = $(test_libs)
+
+bin_test_heap_SOURCES = test/test_heap.c
+bin_test_heap_LDADD =  lib/librt.a $(test_libs)
+
+bin_test_hash_SOURCES = test/test_hash.c
+bin_test_hash_LDADD = $(test_libs)
+
+bin_test_group_SOURCES = test/test_group.c
+bin_test_group_LDADD = $(test_libs)
+
+bin_test_bounds_SOURCES = test/test_bounds.c
+bin_test_bounds_LDADD = $(test_libs)
+
+bin_test_value_SOURCES = test/test_value.c
+bin_test_value_LDADD = $(test_libs)
+
+TESTS_ENVIRONMENT = BUILD_DIR=$(top_builddir)
+TESTS = $(UNIT_TESTS) test/run_regr.rb
+
+if ENABLE_VHPI
+test/run_regr.rb: $(VHPI_PLUGINS)
+
+TESTS_ENVIRONMENT += HAVE_VHPI=1
+endif
+
+src = $(top_srcdir)/src
+build = $(top_builddir)/src
+shared = $(src)/util.c
+covdir = $(top_builddir)/coverage
+
+clean-test:
+	-test ! -d logs || rm -r logs
+
+if ENABLE_COVERAGE
+
+cov-reset:
+	rm -rf $(covdir)
+	find $(top_builddir) -name '*.gcda' -exec rm {} \;
+	lcov --directory $(build) --zerocounters
+
+cov-report:
+	mkdir -p $(covdir)
+	lcov --directory $(build) --capture --output-file $(covdir)/nvc.info
+	genhtml -o $(covdir) $(covdir)/nvc.info
+	-x-www-browser $(covdir)/index.html
+
+endif

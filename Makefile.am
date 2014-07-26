@@ -1,5 +1,3 @@
-SUBDIRS = thirdparty src lib test
-
 EXTRA_DIST = autogen.sh data/coverage.css nvc.1
 
 ACLOCAL_AMFLAGS = -I m4
@@ -8,18 +6,38 @@ pkgdata_DATA = data/coverage.css
 
 man_MANS = nvc.1
 
+AM_CPPFLAGS = -I$(top_srcdir)/thirdparty -I$(top_srcdir)/src
+AM_CFLAGS   = -Wall $(WERROR_CFLAGS) $(COV_CFLAGS)
+AM_LDFLAGS  = -rdynamic $(LLVM_LDFLAGS) $(COV_LDFLAGS)
+
+if FST_WRITER_PARALLEL
+AM_CC       = $(PTHREAD_CC)
+AM_CFLAGS  += $(PTHREAD_CFLAFGS)
+AM_LDFLAGS += $(PTHREAD_LIBS)
+endif
+
+bin_PROGRAMS =
+noinst_LIBRARIES =
+include_HEADERS =
+check_PROGRAMS =
+CLEANFILES =
+LIBDIRS =
+
+include thirdparty/Makemodule.am
+include src/Makemodule.am
+include src/rt/Makemodule.am
+include src/vhpi/Makemodule.am
+include test/Makemodule.am
+include test/vhpi/Makemodule.am
+include lib/Makemodule.am
+include lib/std/Makemodule.am
+include lib/ieee/Makemodule.am
+
 if HAVE_RONN
 nvc.1: nvc.1.md
 	$(AM_V_GEN)ronn --roff $(top_srcdir)/nvc.1.md --manual="NVC Manual"
 endif
 
-bootstrap: all
-	@cd lib && $(MAKE) $(AM_MAKEFLAGS) clean bootstrap
+clean-local: clean-libs clean-test
 
-gen-deps: all
-	@cd lib && $(MAKE) $(AM_MAKEFLAGS) $@
-
-cov-reset cov-report:
-	cd test && $(MAKE) $(AM_MAKEFLAGS) $@
-
-.PHONY: bootstrap cov-reset cov-report
+.PHONY: bootstrap cov-reset cov-report clean-libs clean-test

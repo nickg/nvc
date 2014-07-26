@@ -1,0 +1,57 @@
+bin_PROGRAMS += bin/nvc
+noinst_LIBRARIES += lib/libcgen.a lib/libnvc.a
+
+lib_libnvc_a_SOURCES = \
+	src/lib.c \
+	src/util.c \
+	src/ident.c \
+	src/parse.c \
+	src/lexer.l \
+	src/tree.c \
+	src/type.c \
+	src/sem.c \
+	src/elab.c \
+	src/simp.c \
+	src/dump.c \
+	src/opt.c \
+	src/link.c \
+	src/eval.c \
+	src/common.c \
+	src/fbuf.c \
+	src/hash.c \
+	src/group.c \
+	src/bounds.c \
+	src/make.c
+
+lib_libcgen_a_SOURCES = src/cgen.c
+lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+
+bin_nvc_SOURCES = src/nvc.c
+
+if FORCE_CXX_LINK
+nodist_EXTRA_bin_nvc_SOURCES = dummy.cxx
+endif
+
+bin_nvc_LDADD = \
+	lib/libnvc.a \
+	lib/libcgen.a \
+	lib/librt.a \
+	lib/libjit.a \
+	lib/liblxt.a \
+	lib/libfst.a \
+	lib/libfastlz.a \
+	$(LLVM_LIBS)
+
+if ENABLE_VHPI
+bin_nvc_LDADD += lib/libvhpi.a
+endif
+
+if IMPLIB_REQUIRED
+
+AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=libnvcimp.a
+
+pkgdata_DATA += libnvcimp.a
+
+libnvcimp.a: nvc$(EXEEXT)
+
+endif

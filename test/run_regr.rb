@@ -32,7 +32,7 @@ def native
 end
 
 def nvc
-  "#{valgrind}#{BuildDir}/src/nvc"
+  "#{valgrind}#{BuildDir}/bin/nvc"
 end
 
 def run_cmd(c, invert=false)
@@ -70,11 +70,13 @@ def elaborate(t)
 end
 
 def run(t)
-  stop = ""
+  cmd = "#{nvc} #{std t} -r"
   t[:flags].each do |f|
-    stop = "--stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
+    cmd += " --stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
+    cmd += " --load=#{BuildDir}/lib/#{t[:name]}.so" if f == 'vhpi'
   end
-  run_cmd "#{nvc} #{std t} -r #{stop} #{t[:name]}", t[:flags].member?('fail')
+  cmd += " #{t[:name]}"
+  run_cmd cmd, t[:flags].member?('fail')
 end
 
 def check(t)

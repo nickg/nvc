@@ -1,0 +1,7 @@
+noinst_LIBRARIES += lib/libfst.a lib/liblxt.a lib/libfastlz.a
+
+lib_liblxt_a_SOURCES = thirdparty/lxt_write.c
+
+lib_libfst_a_SOURCES = thirdparty/fstapi.c thirdparty/lz4.c
+
+lib_libfastlz_a_SOURCES = thirdparty/fastlz.c

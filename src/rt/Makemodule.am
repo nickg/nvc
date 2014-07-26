@@ -1,0 +1,18 @@
+noinst_LIBRARIES += lib/librt.a lib/libjit.a
+
+lib_librt_a_SOURCES = \
+	src/rt/rtkern.c \
+	src/rt/slave.c \
+	src/rt/shell.c \
+	src/rt/alloc.c \
+	src/rt/vcd.c \
+	src/rt/heap.c \
+	src/rt/pprint.c \
+	src/rt/netdb.c \
+	src/rt/cover.c \
+	src/rt/lxt.c \
+	src/rt/fst.c \
+	src/rt/wave.c
+
+lib_libjit_a_SOURCES = src/rt/jit.c
+lib_libjit_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

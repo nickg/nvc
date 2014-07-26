@@ -1,3 +1,3 @@
 #!/bin/sh
 export NVC_LIBPATH=./lib/std:./lib/ieee
-./src/nvc -a ../test/perf/$1.vhd && ./src/nvc -e --native $1 && ./src/nvc -r --stats $*
+./bin/nvc -a ../test/perf/$1.vhd && ./bin/nvc -e --native $1 && ./bin/nvc -r --stats $*
