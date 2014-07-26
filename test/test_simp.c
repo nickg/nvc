@@ -12,9 +12,6 @@ typedef struct error {
    const char *snippet;
 } error_t;
 
-static const error_t  *error_lines = NULL;
-static error_fn_t orig_error_fn = NULL;
-
 static void setup(void)
 {
    lib_set_work(lib_tmp());
@@ -296,8 +293,7 @@ END_TEST
 
 START_TEST(test_ffold)
 {
-   tree_t e, a, p, s;
-   range_t r;
+   tree_t e, a, p;
 
    input_from_file(TESTDIR "/simp/ffold.vhd");
 

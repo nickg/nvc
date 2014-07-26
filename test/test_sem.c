@@ -517,7 +517,7 @@ END_TEST
 
 START_TEST(test_std)
 {
-   tree_t a, e, d;
+   tree_t a, e;
 
    input_from_file(TESTDIR "/sem/std.vhd");
 
@@ -819,7 +819,7 @@ END_TEST
 
 START_TEST(test_seq)
 {
-   tree_t a, e, p;
+   tree_t a, e;
 
    input_from_file(TESTDIR "/sem/seq.vhd");
 
@@ -870,7 +870,7 @@ END_TEST
 
 START_TEST(test_conc)
 {
-   tree_t a, e, p;
+   tree_t a, e;
 
    input_from_file(TESTDIR "/sem/conc.vhd");
 
@@ -948,7 +948,7 @@ END_TEST
 
 START_TEST(test_concat)
 {
-   tree_t a, e, p;
+   tree_t a, e;
 
    input_from_file(TESTDIR "/sem/concat.vhd");
 
@@ -978,7 +978,7 @@ END_TEST
 
 START_TEST(test_conv)
 {
-   tree_t a, e, p;
+   tree_t a, e;
 
    input_from_file(TESTDIR "/sem/conv.vhd");
 
@@ -1107,8 +1107,7 @@ END_TEST
 
 START_TEST(test_record)
 {
-   tree_t p, d;
-   type_t t;
+   tree_t p;
 
    input_from_file(TESTDIR "/sem/record.vhd");
 
@@ -1150,8 +1149,7 @@ END_TEST
 
 START_TEST(test_file)
 {
-   tree_t p, d;
-   type_t t;
+   tree_t p;
 
    input_from_file(TESTDIR "/sem/file.vhd");
 
@@ -1185,8 +1183,7 @@ END_TEST
 
 START_TEST(test_access)
 {
-   tree_t p, d;
-   type_t t;
+   tree_t p;
 
    input_from_file(TESTDIR "/sem/access.vhd");
 
@@ -1530,7 +1527,7 @@ END_TEST
 
 START_TEST(test_issue53)
 {
-   tree_t a, e;
+   tree_t e;
 
    input_from_file(TESTDIR "/sem/issue53.vhd");
 

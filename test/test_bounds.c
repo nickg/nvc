@@ -57,8 +57,7 @@ static void expect_errors(const error_t *lines)
 
 START_TEST(test_bounds)
 {
-   tree_t e, a, p, s;
-   range_t r;
+   tree_t e, a;
 
    const error_t expect[] = {
       {  26, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
@@ -114,8 +113,7 @@ END_TEST
 
 START_TEST(test_case)
 {
-   tree_t e, a, p, s;
-   range_t r;
+   tree_t e, a;
 
    const error_t expect[] = {
       { 13, "missing choice C in case statement" },
