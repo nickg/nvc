@@ -1,7 +1,7 @@
 nvc = $(nvc_verbose)$(top_builddir)/bin/nvc
 
 if ENABLE_NATIVE
-codegen = $(codegen_verbose) NVC_CYG_LIB=$(top_builddir)/bin $(top_builddir)/bin/nvc
+codegen = $(codegen_verbose) NVC_CYG_LIB=$(top_builddir)/lib $(top_builddir)/bin/nvc
 else
 codegen = @true
 endif
@@ -28,7 +28,7 @@ bootstrap = lib/.bootstrapped
 
 CLEANFILES += $(bootstrap)
 
-lib/.bootstrapped: bin/nvc
+lib/.bootstrapped: bin/nvc$(EXEEXT)
 	[ -f $(bootstrap) ] || touch $(bootstrap)
 
 gen-deps: gen-deps-std gen-deps-ieee

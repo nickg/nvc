@@ -1,5 +1,9 @@
+if ENABLE_VHPI
+
 check_PROGRAMS += lib/vhpi1.so
 
 lib_vhpi1_so_SOURCES = test/vhpi/vhpi1.c
 lib_vhpi1_so_CFLAGS  = -fPIC -I$(top_srcdir)/src/vhpi $(AM_CFLAGS)
 lib_vhpi1_so_LDFLAGS = -shared $(AM_LDFLAGS)
+
+endif

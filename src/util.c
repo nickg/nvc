@@ -568,6 +568,8 @@ static void bt_sighandler(int sig, siginfo_t *info, void *secret)
       exit(2);
 }
 
+#endif  // NO_STACK_TRACE
+
 bool is_debugger_running(void)
 {
    static int cached = -1;
@@ -653,8 +655,6 @@ bool is_debugger_running(void)
 
 #endif
 }
-
-#endif  // NO_STACK_TRACE
 
 #ifdef __linux
 static void gdb_sighandler(int sig, siginfo_t *info)
