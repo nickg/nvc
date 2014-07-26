@@ -81,6 +81,7 @@ size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max);
 size_t rt_signal_string(tree_t s, const char *map, char *buf, size_t max);
 bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
                      bool propagate);
+bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 

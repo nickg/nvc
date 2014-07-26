@@ -767,6 +767,8 @@ int vhpi_put_value(vhpiHandleT handle,
                    vhpiValueT *value_p,
                    vhpiPutValueModeT mode)
 {
+   // See LRM 2008 section 22.5.3 for discussion of semantics
+
    vhpi_clear_error();
 
    vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
@@ -802,7 +804,13 @@ int vhpi_put_value(vhpiHandleT handle,
                return 1;
             }
 
-            rt_force_signal(obj->tree, &expanded, 1, propagate);
+            if (!propagate || rt_can_create_delta())
+               rt_force_signal(obj->tree, &expanded, 1, propagate);
+            else {
+               vhpi_error(vhpiError, tree_loc(obj->tree), "cannot force "
+                          "propagate signal during current simulation phase");
+               return 1;
+            }
          }
          else {
             uint64_t *expanded = NULL;

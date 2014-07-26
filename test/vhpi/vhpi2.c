@@ -34,6 +34,20 @@ static void last_known_delta_cycle(const vhpiCbDataT *cb_data)
    vhpi_printf("last_known_delta_cycle");
 
    fail_unless(sequence++ == 1);
+
+   vhpiValueT value = {
+      .format = vhpiObjTypeVal
+   };
+   vhpi_get_value(handle_x, &value);
+   check_error();
+   fail_unless(value.format == vhpiIntVal);
+   fail_unless(value.value.intg == 1);
+
+   value.value.intg = 1;
+   vhpi_put_value(handle_x, &value, vhpiForcePropagate);
+
+   vhpiErrorInfoT info;
+   fail_unless(vhpi_check_error(&info));
 }
 
 static void start_of_sim(const vhpiCbDataT *cb_data)

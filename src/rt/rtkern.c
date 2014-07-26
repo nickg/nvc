@@ -216,6 +216,7 @@ static uint32_t      global_tmp_alloc;
 static hash_t       *res_memo_hash = NULL;
 static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
 static bool          force_stop;
+static bool          can_create_delta;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -1313,6 +1314,7 @@ static void rt_setup(tree_t top)
    iteration = -1;
    active_proc = NULL;
    force_stop = false;
+   can_create_delta = true;
 
    assert(resume == NULL);
 
@@ -1925,6 +1927,7 @@ static void rt_cycle(int stop_delta)
    n_active_groups = 0;
 
    if (!rt_next_cycle_is_delta()) {
+      can_create_delta = false;
       vhpi_event(VHPI_LAST_KNOWN_DELTA_CYCLE);
 
       // Run any postponed processes
@@ -1932,6 +1935,8 @@ static void rt_cycle(int stop_delta)
 
       // Execute all postponed event callbacks
       rt_event_callback(true);
+
+      can_create_delta = true;
    }
 }
 
@@ -2493,6 +2498,8 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
    TRACE("force signal %s to %s propagate=%d", istr(tree_ident(s)),
          fmt_values(buf, count * sizeof(uint64_t)), propagate);
 
+   assert(!propagate || can_create_delta);
+
    const int nnets = tree_nets(s);
    int offset = 0;
    while (offset < nnets) {
@@ -2519,6 +2526,11 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
    }
 
    return (offset == count);
+}
+
+bool rt_can_create_delta(void)
+{
+   return can_create_delta;
 }
 
 uint64_t rt_now(unsigned *deltas)
