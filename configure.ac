@@ -75,8 +75,8 @@ if test ! x$have_tcl = xyes ; then
   AC_MSG_ERROR(TCL header file not found)
 fi
 
-VL_LIB_READLINE
-if test "x$vl_cv_lib_readline" = xno ; then
+AX_LIB_READLINE
+if test "x$ax_cv_lib_readline" = xno ; then
   AC_MSG_WARN(terminal line editing will not be supported)
 fi
 
