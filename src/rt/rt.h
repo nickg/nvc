@@ -27,6 +27,7 @@ typedef struct watch watch_t;
 
 typedef void (*sig_event_fn_t)(uint64_t now, tree_t, watch_t *, void *user);
 typedef void (*timeout_fn_t)(uint64_t now, void *user);
+typedef void (*rt_event_fn_t)(void *user);
 
 typedef enum {
    BOUNDS_ARRAY_TO,
@@ -69,6 +70,16 @@ typedef enum {
    SCHED_STATIC     = (1 << 1)
 } sched_flags_t;
 
+typedef enum {
+   RT_START_OF_SIMULATION,
+   RT_END_OF_SIMULATION,
+   RT_END_OF_PROCESSES,
+   RT_LAST_KNOWN_DELTA_CYCLE,
+   RT_NEXT_TIME_STEP,
+
+   RT_LAST_EVENT
+} rt_event_t;
+
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
                    const char *vhpi_plugins);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
@@ -77,6 +88,7 @@ void rt_slave_run(uint64_t time);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
                          bool postponed);
+void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user);
 size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last);
 size_t rt_watch_string(watch_t *w, const char *map, char *buf, size_t max);
 size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max);
@@ -110,5 +122,11 @@ void wave_include_glob(const char *glob);
 void wave_exclude_glob(const char *glob);
 void wave_include_file(const char *base);
 bool wave_should_dump(tree_t decl);
+
+#ifdef ENABLE_VHPI
+void vhpi_load_plugins(tree_t top, const char *plugins);
+#else
+#define vhpi_load_plugins(top, plugins)
+#endif
 
 #endif  // _RT_H

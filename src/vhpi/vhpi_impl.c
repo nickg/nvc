@@ -26,7 +26,6 @@
 //
 
 #include "vhpi_user.h"
-#include "vhpi_priv.h"
 #include "util.h"
 #include "hash.h"
 #include "tree.h"
@@ -281,6 +280,13 @@ static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
       vhpi_fire_event(obj);
 }
 
+static void vhpi_global_cb(void *user)
+{
+   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
+   if (obj != NULL)
+      vhpi_fire_event(obj);
+}
+
 static const char *vhpi_map_str_for_type(type_t type)
 {
    ident_t type_name;
@@ -295,6 +301,27 @@ static const char *vhpi_map_str_for_type(type_t type)
       return "01";
    else
       assert(false);
+}
+
+static rt_event_t vhpi_get_rt_event(int reason)
+{
+   switch (reason){
+   case vhpiCbNextTimeStep:
+   case vhpiCbRepNextTimeStep:
+      return RT_NEXT_TIME_STEP;
+   case vhpiCbRepEndOfProcesses:
+   case vhpiCbEndOfProcesses:
+      return RT_END_OF_PROCESSES;
+   case vhpiCbStartOfSimulation:
+      return RT_START_OF_SIMULATION;
+   case vhpiCbEndOfSimulation:
+      return RT_END_OF_SIMULATION;
+   case vhpiCbRepLastKnownDeltaCycle:
+   case vhpiCbLastKnownDeltaCycle:
+      return RT_LAST_KNOWN_DELTA_CYCLE;
+   default:
+      assert(false);
+   }
 }
 
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
@@ -358,6 +385,8 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbEndOfSimulation:
    case vhpiCbLastKnownDeltaCycle:
    case vhpiCbNextTimeStep:
+      rt_set_global_cb(vhpi_get_rt_event(cb_data_p->reason),
+                       vhpi_global_cb, obj);
       vhpi_remember_cb(&global_cb_list, obj);
       break;
 
@@ -1076,20 +1105,6 @@ void vhpi_load_plugins(tree_t top, const char *plugins)
          (*startup_funcs++)();
 
    } while ((tok = strtok(NULL, ",")));
-}
 
-void vhpi_event(vhpi_event_t reason)
-{
-   unsigned i = 0, seen = 0;
-   for (; (i < global_cb_list.max) && (seen < global_cb_list.num); i++) {
-      vhpi_obj_t *obj = global_cb_list.objects[i];
-      if (obj != NULL) {
-         seen++;
-         if (obj->cb.reason == reason)
-            vhpi_fire_event(obj);
-      }
-   }
-
-   if (unlikely(reason == VHPI_END_OF_SIMULATION))
-      vhpi_check_for_leaks();
+   atexit(vhpi_check_for_leaks);
 }

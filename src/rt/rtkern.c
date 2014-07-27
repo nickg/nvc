@@ -26,7 +26,6 @@
 #include "netdb.h"
 #include "cover.h"
 #include "hash.h"
-#include "vhpi/vhpi_priv.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -61,6 +60,7 @@ typedef struct sens_list  sens_list_t;
 typedef struct value      value_t;
 typedef struct watch_list watch_list_t;
 typedef struct res_memo   res_memo_t;
+typedef struct callback   callback_t;
 
 struct rt_proc {
    tree_t    source;
@@ -187,6 +187,12 @@ typedef enum {
    SIDE_EFFECT_OCCURRED
 } side_effect_t;
 
+struct callback {
+   rt_event_fn_t  fn;
+   void          *user;
+   callback_t    *next;
+};
+
 static struct rt_proc   *procs = NULL;
 static struct rt_proc   *active_proc = NULL;
 static struct loaded    *loaded = NULL;
@@ -217,11 +223,13 @@ static hash_t       *res_memo_hash = NULL;
 static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
 static bool          force_stop;
 static bool          can_create_delta;
+static callback_t   *global_cbs[RT_LAST_EVENT];
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
 static rt_alloc_stack_t sens_list_stack = NULL;
 static rt_alloc_stack_t watch_stack = NULL;
+static rt_alloc_stack_t callback_stack = NULL;
 
 static netgroup_t **active_groups;
 static unsigned     n_active_groups = 0;
@@ -1185,6 +1193,21 @@ static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn)
    return memo;
 }
 
+static void rt_global_event(rt_event_t kind)
+{
+   callback_t *it = global_cbs[kind];
+   if (unlikely(it != NULL)) {
+      while (it != NULL) {
+         callback_t *tmp = it->next;
+         (*it->fn)(it->user);
+         rt_free(callback_stack, it);
+         it = tmp;
+      }
+
+      global_cbs[kind] = NULL;
+   }
+}
+
 static value_t *rt_alloc_value(netgroup_t *g)
 {
    if (g->free_values == NULL) {
@@ -1844,7 +1867,7 @@ static void rt_cycle(int stop_delta)
       delta_proc = NULL;
    }
    else {
-      vhpi_event(VHPI_NEXT_TIME_STEP);
+      rt_global_event(RT_NEXT_TIME_STEP);
 
       for (;;) {
          rt_push_run_queue(heap_extract_min(eventq_heap));
@@ -1888,7 +1911,7 @@ static void rt_cycle(int stop_delta)
 
    // Run all processes that resumed because of signal events
    rt_resume_processes(&resume);
-   vhpi_event(VHPI_END_OF_PROCESSES);
+   rt_global_event(RT_END_OF_PROCESSES);
 
    for (unsigned i = 0; i < n_active_groups; i++) {
       netgroup_t *g = active_groups[i];
@@ -1898,7 +1921,7 @@ static void rt_cycle(int stop_delta)
 
    if (!rt_next_cycle_is_delta()) {
       can_create_delta = false;
-      vhpi_event(VHPI_LAST_KNOWN_DELTA_CYCLE);
+      rt_global_event(RT_LAST_KNOWN_DELTA_CYCLE);
 
       // Run any postponed processes
       rt_resume_processes(&postponed);
@@ -1982,6 +2005,7 @@ static void rt_one_time_init(void)
    waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
    sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
    watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
+   callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
 
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));
@@ -2058,10 +2082,19 @@ static void rt_cleanup(tree_t top)
       pending = next;
    }
 
+   for (int i = 0; i < RT_LAST_EVENT; i++) {
+      while (global_cbs[i] != NULL) {
+         callback_t *tmp = global_cbs[i]->next;
+         rt_free(callback_stack, global_cbs[i]);
+         global_cbs[i] = tmp;
+      }
+   }
+
    rt_alloc_stack_destroy(event_stack);
    rt_alloc_stack_destroy(waveform_stack);
    rt_alloc_stack_destroy(sens_list_stack);
    rt_alloc_stack_destroy(watch_stack);
+   rt_alloc_stack_destroy(callback_stack);
 
    hash_free(res_memo_hash);
 }
@@ -2154,10 +2187,10 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
 
    rt_stats_ready();
    rt_initial(e);
-   vhpi_event(VHPI_START_OF_SIMULATION);
+   rt_global_event(RT_START_OF_SIMULATION);
    while (!rt_stop_now(stop_time))
       rt_cycle(stop_delta);
-   vhpi_event(VHPI_END_OF_SIMULATION);
+   rt_global_event(RT_END_OF_SIMULATION);
    rt_cleanup(e);
    rt_emit_coverage(e);
 
@@ -2272,6 +2305,18 @@ watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
       rt_watch_signal(w);
       return w;
    }
+}
+
+void rt_set_global_cb(rt_event_t event, rt_event_fn_t fn, void *user)
+{
+   assert(event < RT_LAST_EVENT);
+
+   callback_t *cb = rt_alloc(callback_stack);
+   cb->next = global_cbs[event];
+   cb->fn   = fn;
+   cb->user = user;
+
+   global_cbs[event] = cb;
 }
 
 size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last)
