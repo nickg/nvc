@@ -45,6 +45,9 @@ tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name);
 type_t array_aggregate_type(type_t array, int from_dim);
 tree_t make_default_value(type_t type);
 
+const char *fmt_time_r(char *buf, size_t len, uint64_t t);
+const char *fmt_time(uint64_t t);
+
 //
 // Utility typedefs
 //

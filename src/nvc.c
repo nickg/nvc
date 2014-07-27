@@ -412,6 +412,7 @@ static int run(int argc, char **argv)
    if (mode == BATCH)
       rt_batch_exec(e, stop_time, ctx, vhpi_plugins);
    else {
+      slave_init(e, ctx);
       bool master = slave_fork();
       if (master)
          shell_run(e, ctx);

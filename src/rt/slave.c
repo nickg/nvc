@@ -17,6 +17,9 @@
 
 #include "slave.h"
 #include "util.h"
+#include "rt.h"
+#include "tree.h"
+#include "common.h"
 
 #include <stdlib.h>
 #include <assert.h>
@@ -29,6 +32,9 @@
 static bool  am_master = false;
 static pid_t slave_pid;
 static int   slave_fd = -1;
+
+static tree_t top_level;
+static tree_rd_ctx_t tree_rd_ctx;
 
 void slave_post_msg(slave_msg_t msg, const void *args, size_t len)
 {
@@ -148,4 +154,112 @@ int slave_wait(void)
       fatal("waitpid");
 
    return WEXITSTATUS(status);
+}
+
+static void slave_read_signal(slave_read_signal_msg_t *msg)
+{
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   const size_t rsz =
+      sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
+   reply_read_signal_msg_t *reply = xmalloc(rsz);
+
+   const size_t size = rt_signal_value(t, reply->values, msg->len);
+   msg->len = MIN(size, msg->len);
+
+   slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
+
+   free(reply);
+}
+
+static void slave_now(void)
+{
+   reply_now_msg_t reply = {
+      .now = rt_now(NULL)
+   };
+   fmt_time_r(reply.text, sizeof(reply.text), reply.now);
+   slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
+}
+
+static void slave_watch_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
+{
+   uint64_t value[1];
+   rt_watch_value(w, value, 1, false);
+
+   uint64_t last[1];
+   rt_watch_value(w, last, 1, true);
+
+   event_watch_msg_t event = {
+      .index = tree_index(decl),
+      .now   = now,
+      .value = value[0],
+      .last  = last[0]
+   };
+   fmt_time_r(event.now_text, sizeof(event.now_text), now);
+   slave_post_msg(EVENT_WATCH, &event, sizeof(event));
+}
+
+static void slave_watch(slave_watch_msg_t *msg)
+{
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   rt_set_event_cb(t, slave_watch_cb, NULL, true);
+}
+
+static void slave_unwatch(slave_unwatch_msg_t *msg)
+{
+   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
+   assert(tree_kind(t) == T_SIGNAL_DECL);
+
+   rt_set_event_cb(t, NULL, NULL, true);
+}
+
+bool slave_poll(void)
+{
+   char buf[256];
+   slave_msg_t msg;
+   size_t len = sizeof(buf);
+   slave_get_msg(&msg, buf, &len);
+
+   switch (msg) {
+   case SLAVE_QUIT:
+      return false;
+
+   case SLAVE_RESTART:
+      rt_restart(top_level);
+      break;
+
+   case SLAVE_RUN:
+      rt_slave_run(((slave_run_msg_t *)buf)->time);
+      break;
+
+   case SLAVE_READ_SIGNAL:
+      slave_read_signal((slave_read_signal_msg_t *)buf);
+      break;
+
+   case SLAVE_NOW:
+      slave_now();
+      break;
+
+   case SLAVE_WATCH:
+      slave_watch((slave_watch_msg_t *)buf);
+      break;
+
+   case SLAVE_UNWATCH:
+      slave_unwatch((slave_unwatch_msg_t *)buf);
+      break;
+
+   default:
+      assert(false);
+   }
+
+   return true;
+}
+
+void slave_init(tree_t top, tree_rd_ctx_t ctx)
+{
+   top_level = top;
+   tree_rd_ctx = ctx;
 }

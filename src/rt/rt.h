@@ -72,6 +72,8 @@ typedef enum {
 void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
                    const char *vhpi_plugins);
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
+void rt_restart(tree_t top);
+void rt_slave_run(uint64_t time);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
                          bool postponed);

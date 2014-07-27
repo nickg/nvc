@@ -263,36 +263,6 @@ static void _tracef(const char *fmt, ...);
 ////////////////////////////////////////////////////////////////////////////////
 // Utilities
 
-static const char *fmt_time_r(char *buf, size_t len, uint64_t t)
-{
-   static const struct {
-      uint64_t time;
-      const char *unit;
-   } units[] = {
-      { UINT64_C(1), "fs" },
-      { UINT64_C(1000), "ps" },
-      { UINT64_C(1000000), "ns" },
-      { UINT64_C(1000000000), "us" },
-      { UINT64_C(1000000000000), "ms" },
-      { 0, NULL }
-   };
-
-   int u = 0;
-   while (units[u + 1].unit && (t % units[u + 1].time == 0))
-      ++u;
-
-   snprintf(buf, len, "%"PRIu64"%s",
-            t / units[u].time, units[u].unit);
-
-   return buf;
-}
-
-static const char *fmt_time(uint64_t t)
-{
-   static const int BUF_SZ = 64;
-   return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
-}
-
 static const char *fmt_group(const netgroup_t *g)
 {
    static const size_t BUF_LEN = 512;
@@ -2203,7 +2173,7 @@ static void rt_slave_fatal(void)
    longjmp(fatal_jmp, 1);
 }
 
-static void rt_slave_run(slave_run_msg_t *msg)
+void rt_slave_run(uint64_t time)
 {
    if (aborted)
       errorf("simulation has aborted and must be restarted");
@@ -2215,7 +2185,7 @@ static void rt_slave_run(slave_run_msg_t *msg)
       const int stop_delta = opt_get_int("stop-delta");
 
       if (setjmp(fatal_jmp) == 0) {
-         const uint64_t end = now + msg->time;
+         const uint64_t end = now + time;
          while (!rt_stop_now(end))
             rt_cycle(stop_delta);
       }
@@ -2226,64 +2196,11 @@ static void rt_slave_run(slave_run_msg_t *msg)
    slave_post_msg(EVENT_STOP, NULL, 0);
 }
 
-static void rt_slave_read_signal(slave_read_signal_msg_t *msg)
+void rt_restart(tree_t top)
 {
-   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
-   assert(tree_kind(t) == T_SIGNAL_DECL);
-
-   const size_t rsz =
-      sizeof(reply_read_signal_msg_t) + (msg->len * sizeof(uint64_t));
-   reply_read_signal_msg_t *reply = xmalloc(rsz);
-
-   const size_t size = rt_signal_value(t, reply->values, msg->len);
-   msg->len = MIN(size, msg->len);
-
-   slave_post_msg(REPLY_READ_SIGNAL, reply, rsz);
-
-   free(reply);
-}
-
-static void rt_slave_now(void)
-{
-   reply_now_msg_t reply = {
-      .now = now
-   };
-   fmt_time_r(reply.text, sizeof(reply.text), now);
-   slave_post_msg(REPLY_NOW, &reply, sizeof(reply));
-}
-
-static void rt_slave_watch_cb(uint64_t now, tree_t decl, watch_t *w, void *user)
-{
-   uint64_t value[1];
-   rt_watch_value(w, value, 1, false);
-
-   uint64_t last[1];
-   rt_watch_value(w, last, 1, true);
-
-   event_watch_msg_t event = {
-      .index = tree_index(decl),
-      .now   = now,
-      .value = value[0],
-      .last  = last[0]
-   };
-   fmt_time_r(event.now_text, sizeof(event.now_text), now);
-   slave_post_msg(EVENT_WATCH, &event, sizeof(event));
-}
-
-static void rt_slave_watch(slave_watch_msg_t *msg)
-{
-   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
-   assert(tree_kind(t) == T_SIGNAL_DECL);
-
-   rt_set_event_cb(t, rt_slave_watch_cb, NULL, true);
-}
-
-static void rt_slave_unwatch(slave_unwatch_msg_t *msg)
-{
-   tree_t t = tree_read_recall(tree_rd_ctx, msg->index);
-   assert(tree_kind(t) == T_SIGNAL_DECL);
-
-   rt_set_event_cb(t, NULL, NULL, true);
+   rt_setup(top);
+   rt_initial(top);
+   aborted = false;
 }
 
 void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
@@ -2293,47 +2210,8 @@ void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
    jit_init(tree_ident(e));
    rt_one_time_init();
 
-   for (;;) {
-      char buf[256];
-      slave_msg_t msg;
-      size_t len = sizeof(buf);
-      slave_get_msg(&msg, buf, &len);
-
-      switch (msg) {
-      case SLAVE_QUIT:
-         jit_shutdown();
-         return;
-
-      case SLAVE_RESTART:
-         rt_setup(e);
-         rt_initial(e);
-         aborted = false;
-         break;
-
-      case SLAVE_RUN:
-         rt_slave_run((slave_run_msg_t *)buf);
-         break;
-
-      case SLAVE_READ_SIGNAL:
-         rt_slave_read_signal((slave_read_signal_msg_t *)buf);
-         break;
-
-      case SLAVE_NOW:
-         rt_slave_now();
-         break;
-
-      case SLAVE_WATCH:
-         rt_slave_watch((slave_watch_msg_t *)buf);
-         break;
-
-      case SLAVE_UNWATCH:
-         rt_slave_unwatch((slave_unwatch_msg_t *)buf);
-         break;
-
-      default:
-         assert(false);
-      }
-   }
+   while (slave_poll())
+      ;
 
    rt_cleanup(e);
    jit_shutdown();

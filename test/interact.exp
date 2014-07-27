@@ -24,13 +24,13 @@ expect_after timeout fail
 ############################################################
 
 name_test "compile source"
-system $build/src/nvc -a $test/expect.vhd
-system $build/src/nvc -e top
+system $build/bin/nvc -a $test/expect.vhd
+system $build/bin/nvc -e top
 
 ############################################################
 
 name_test "launch shell"
-spawn $build/src/nvc -r -c top
+spawn $build/bin/nvc -r -c top
 
 ############################################################
 

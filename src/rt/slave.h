@@ -24,6 +24,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "tree.h"
+
 typedef enum {
    // Messages from master to slave
    SLAVE_QUIT,
@@ -85,5 +87,7 @@ bool slave_msg_ready(void);
 bool slave_fork(void);
 void slave_kill(int sig);
 int slave_wait(void);
+bool slave_poll(void);
+void slave_init(tree_t top, tree_rd_ctx_t ctx);  // Temporary
 
 #endif

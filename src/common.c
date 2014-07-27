@@ -22,6 +22,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 static vhdl_standard_t current_std = STD_93;
 
@@ -542,4 +543,34 @@ tree_t make_default_value(type_t type)
    default:
       assert(false);
    }
+}
+
+const char *fmt_time_r(char *buf, size_t len, uint64_t t)
+{
+   static const struct {
+      uint64_t time;
+      const char *unit;
+   } units[] = {
+      { UINT64_C(1), "fs" },
+      { UINT64_C(1000), "ps" },
+      { UINT64_C(1000000), "ns" },
+      { UINT64_C(1000000000), "us" },
+      { UINT64_C(1000000000000), "ms" },
+      { 0, NULL }
+   };
+
+   int u = 0;
+   while (units[u + 1].unit && (t % units[u + 1].time == 0))
+      ++u;
+
+   snprintf(buf, len, "%"PRIu64"%s",
+            t / units[u].time, units[u].unit);
+
+   return buf;
+}
+
+const char *fmt_time(uint64_t t)
+{
+   static const int BUF_SZ = 64;
+   return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
 }
