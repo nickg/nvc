@@ -44,13 +44,14 @@ static void rt_alloc_add_objects(rt_alloc_stack_t s, size_t n)
    s->chunks = c;
 }
 
-rt_alloc_stack_t rt_alloc_stack_new(size_t size)
+rt_alloc_stack_t rt_alloc_stack_new(size_t size, const char *name)
 {
    struct rt_alloc_stack *s = xmalloc(sizeof(struct rt_alloc_stack));
    s->stack     = xmalloc(sizeof(void *) * INIT_ITEMS);
    s->stack_sz  = INIT_ITEMS;
    s->stack_top = 0;
    s->item_sz   = size;
+   s->name      = name;
    s->chunks    = NULL;
 
    rt_alloc_add_objects(s, INIT_ITEMS);
@@ -61,8 +62,8 @@ rt_alloc_stack_t rt_alloc_stack_new(size_t size)
 void rt_alloc_stack_destroy(rt_alloc_stack_t s)
 {
    if (s->stack_top != s->stack_sz)
-      fatal("memory leak of %zu items from %zu byte stack",
-            s->stack_sz - s->stack_top, s->item_sz);
+      fatal("memory leak of %zu items from %s stack",
+            s->stack_sz - s->stack_top, s->name);
 
    while (s->chunks != NULL) {
       rt_chunk_t *tmp = s->chunks->next;

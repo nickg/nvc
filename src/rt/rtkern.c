@@ -1978,10 +1978,10 @@ static void rt_one_time_init(void)
 
    trace_on = opt_get_int("rt_trace_en");
 
-   event_stack     = rt_alloc_stack_new(sizeof(event_t));
-   waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t));
-   sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t));
-   watch_stack     = rt_alloc_stack_new(sizeof(watch_t));
+   event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
+   waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
+   sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
+   watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
 
    n_active_alloc = 128;
    active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));

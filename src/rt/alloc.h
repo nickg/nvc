@@ -29,12 +29,13 @@ struct rt_alloc_stack {
    size_t      stack_sz;
    size_t      stack_top;
    size_t      item_sz;
+   const char *name;
    rt_chunk_t *chunks;
 };
 
 typedef struct rt_alloc_stack *rt_alloc_stack_t;
 
-rt_alloc_stack_t rt_alloc_stack_new(size_t size);
+rt_alloc_stack_t rt_alloc_stack_new(size_t size, const char *name);
 void rt_alloc_stack_destroy(rt_alloc_stack_t stack);
 void *rt_alloc_slow(rt_alloc_stack_t stack);
 
