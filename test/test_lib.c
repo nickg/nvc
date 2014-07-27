@@ -12,7 +12,7 @@ static lib_t work;
 
 static void setup(void)
 {
-   work = lib_new("work");
+   work = lib_new("/tmp/test_lib");
    fail_if(work == NULL);
 }
 
@@ -79,10 +79,12 @@ START_TEST(test_lib_fopen)
 
    lib_free(work);
 
-   work = lib_find("work", false, false);
+   lib_add_search_path("/tmp");
+   work = lib_find("test_lib", false, true);
    fail_if(work == NULL);
 
    f = lib_fopen(work, "_test", "r");
+   fail_if(f == NULL);
    char buf[12];
    fgets(buf, sizeof(buf), f);
 
@@ -178,7 +180,8 @@ START_TEST(test_lib_save)
    lib_save(work);
    lib_free(work);
 
-   work = lib_find("work", false, false);
+   lib_add_search_path("/tmp");
+   work = lib_find("test_lib", false, true);
    fail_if(work == NULL);
 
    {
