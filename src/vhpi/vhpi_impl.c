@@ -74,8 +74,7 @@ typedef struct {
    unsigned     max;
 } cb_list_t;
 
-static cb_list_t       global_cb_list;
-static cb_list_t       rt_cb_list;
+static cb_list_t       cb_list;
 static tree_t          top_level;
 static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
@@ -216,8 +215,7 @@ static void vhpi_check_for_leaks(void)
       }
    }
 
-   leak_cb += vhpi_count_live_cbs(&global_cb_list);
-   leak_cb += vhpi_count_live_cbs(&rt_cb_list);
+   leak_cb += vhpi_count_live_cbs(&cb_list);
 
    if ((leak_tree > 0) || (leak_cb > 0))
       warnf("VHPI plugin leaked %d tree handles and %d callback handles",
@@ -387,7 +385,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
    case vhpiCbNextTimeStep:
       rt_set_global_cb(vhpi_get_rt_event(cb_data_p->reason),
                        vhpi_global_cb, obj);
-      vhpi_remember_cb(&global_cb_list, obj);
+      vhpi_remember_cb(&cb_list, obj);
       break;
 
    case vhpiCbAfterDelay:
@@ -399,7 +397,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
       rt_set_timeout_cb(vhpi_time_to_native(cb_data_p->time),
                         vhpi_timeout_cb, obj);
 
-      vhpi_remember_cb(&rt_cb_list, obj);
+      vhpi_remember_cb(&cb_list, obj);
       break;
 
    case vhpiCbValueChange:
@@ -420,7 +418,7 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
          rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj, false);
 
-         vhpi_remember_cb(&rt_cb_list, obj);
+         vhpi_remember_cb(&cb_list, obj);
       }
       break;
 
@@ -992,13 +990,13 @@ int vhpi_release_handle(vhpiHandleT handle)
       case vhpiCbRepLastKnownDeltaCycle:
       case vhpiCbRepNextTimeStep:
       case vhpiCbLastKnownDeltaCycle:
-         vhpi_forget_cb(&global_cb_list, obj);
+         vhpi_forget_cb(&cb_list, obj);
          vhpi_free_obj(obj);
          return 0;
 
       case vhpiCbAfterDelay:
          if (obj->cb.list_pos != -1)
-            vhpi_forget_cb(&rt_cb_list, obj);
+            vhpi_forget_cb(&cb_list, obj);
 
          if (obj->cb.fired)
             vhpi_free_obj(obj);
@@ -1008,7 +1006,7 @@ int vhpi_release_handle(vhpiHandleT handle)
 
       case vhpiCbValueChange:
          if (obj->cb.list_pos != -1)
-            vhpi_forget_cb(&rt_cb_list, obj);
+            vhpi_forget_cb(&cb_list, obj);
          rt_set_event_cb(obj->tree, NULL, obj, false);
          return 0;
 
