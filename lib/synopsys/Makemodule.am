@@ -50,7 +50,7 @@ endif
 
 endif
 
-synopsys-libs: $(synopsys_ieee_DATA) $(synopsys_DATA)
+libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:
 
