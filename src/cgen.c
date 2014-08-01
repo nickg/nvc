@@ -560,28 +560,25 @@ static LLVMValueRef cgen_array_dir(type_t type, int dim, LLVMValueRef var)
          if ((r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO))
             return llvm_int8(r.kind);
          else {
-            if (r.kind == RANGE_DYN) {
-               // This can only appear when using 'RANGE
-               assert(tree_kind(r.left) == T_FCALL);
-               tree_t p = tree_param(r.left, 1);
-               tree_t value = tree_value(p);
-               assert(tree_kind(value) == T_REF);
+            // This can only appear when using 'RANGE or 'REVERSE_RANGE
+            assert(tree_kind(r.left) == T_FCALL);
+            tree_t p = tree_param(r.left, 1);
+            tree_t value = tree_value(p);
+            assert(tree_kind(value) == T_REF);
 
-               LLVMValueRef uarray;
-               tree_t decl = tree_ref(value);
-               if (class_of(decl) == C_SIGNAL)
-                  uarray = cgen_signal_nets(decl);
-               else
-                  uarray = cgen_get_var(decl, NULL);
-
-               return cgen_array_dir(type, dim, uarray);
-            }
-            else if (r.kind == RANGE_RDYN) {
-               // TODO: 'REVERSE_RANGE
-               assert(false);
-            }
+            LLVMValueRef uarray;
+            tree_t decl = tree_ref(value);
+            if (class_of(decl) == C_SIGNAL)
+               uarray = cgen_signal_nets(decl);
             else
-               assert(false);
+               uarray = cgen_get_var(decl, NULL);
+
+            LLVMValueRef dir = cgen_array_dir(type, dim, uarray);
+
+            if (r.kind == RANGE_RDYN)
+               return LLVMBuildXor(builder, dir, llvm_int8(1), "reverse");
+            else
+               return dir;
          }
       }
       else {
@@ -723,8 +720,10 @@ static LLVMValueRef cgen_tmp_var(type_t type, const char *name,
             LLVMBuildICmp(builder, LLVMIntEQ,
                           kind_ll, llvm_int8(RANGE_DOWNTO), "downto");
 
-         LLVMValueRef left  = cgen_expr(r.left, ctx);
-         LLVMValueRef right = cgen_expr(r.right, ctx);
+         const bool reverse = (r.kind == RANGE_RDYN);
+
+         LLVMValueRef left  = cgen_expr(reverse ? r.right : r.left, ctx);
+         LLVMValueRef right = cgen_expr(reverse ? r.left : r.right, ctx);
 
          // Check validity of array bounds against index constraint
          type_t index_type = tree_type(r.left);

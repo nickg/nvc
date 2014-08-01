@@ -233,3 +233,4 @@ case5           gold,fail
 toplevel1       normal
 vhpi1           gold,vhpi
 vhpi2           normal,vhpi
+issue69         normal
