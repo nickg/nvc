@@ -62,6 +62,7 @@ static ident_t deferred_i;
 static ident_t llvm_agg_i;
 static ident_t drives_all_i;
 static ident_t driver_init_i;
+static ident_t resolved_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -2761,11 +2762,23 @@ static LLVMValueRef cgen_ref(tree_t t, cgen_ctx_t *ctx)
 
    case T_SIGNAL_DECL:
       if (class_of(decl) == C_SIGNAL) {
-         LLVMValueRef nets = cgen_signal_nets(decl);
-         if (type_is_array(type))
-            return cgen_vec_load(nets, type, type, false, ctx);
-         else
-            return cgen_scalar_vec_load(nets, type, false, ctx);
+         LLVMValueRef resolved_var = tree_attr_ptr(decl, resolved_i);
+         if (resolved_var != NULL) {
+            LLVMValueRef resolved_mem =
+               LLVMBuildLoad(builder, resolved_var, "resolved");
+
+            if (type_is_array(type))
+               return resolved_mem;
+            else
+               return LLVMBuildLoad(builder, resolved_mem, "");
+         }
+         else {
+            LLVMValueRef nets = cgen_signal_nets(decl);
+            if (type_is_array(type))
+               return cgen_vec_load(nets, type, type, false, ctx);
+            else
+               return cgen_scalar_vec_load(nets, type, false, ctx);
+         }
       }
       else {
          LLVMValueRef var = cgen_get_var(decl, ctx);
@@ -2910,22 +2923,43 @@ static LLVMValueRef cgen_array_ref(tree_t t, cgen_ctx_t *ctx)
             idx = LLVMBuildMul(builder, idx, stride, "");
          }
 
-         LLVMValueRef nets;
-         if (type_is_unconstrained(type)) {
-            // Unwrap array to nets array
-            array = LLVMBuildExtractValue(builder, array, 0, "aptr");
-         }
+         LLVMValueRef resolved_var = tree_attr_ptr(decl, resolved_i);
+         if (resolved_var != NULL) {
+            LLVMValueRef resolved_mem =
+               LLVMBuildLoad(builder, resolved_var, "resolved");
 
-         LLVMValueRef indexes[] = { idx };
-         nets = LLVMBuildGEP(builder, array,
-                             indexes, ARRAY_LEN(indexes), "");
-
-         if (type_is_array(elem_type)) {
-            // Load this sub-array into a temporary variable
-            return cgen_vec_load(nets, elem_type, elem_type, false, ctx);
+            if (type_is_array(elem_type)) {
+               LLVMValueRef indexes[] = { llvm_int32(0), idx };
+               return LLVMBuildGEP(builder, resolved_mem,
+                                   indexes, ARRAY_LEN(indexes),
+                                   "elem_mem");
+            }
+            else {
+               LLVMValueRef indexes[] = { idx };
+               LLVMValueRef elem_mem = LLVMBuildGEP(builder, resolved_mem,
+                                                    indexes, ARRAY_LEN(indexes),
+                                                    "elem_mem");
+               return LLVMBuildLoad(builder, elem_mem, "");
+            }
          }
-         else
-            return cgen_scalar_vec_load(nets, elem_type, false, ctx);
+         else {
+            LLVMValueRef nets;
+            if (type_is_unconstrained(type)) {
+               // Unwrap array to nets array
+               array = LLVMBuildExtractValue(builder, array, 0, "aptr");
+            }
+
+            LLVMValueRef indexes[] = { idx };
+            nets = LLVMBuildGEP(builder, array,
+                                indexes, ARRAY_LEN(indexes), "");
+
+            if (type_is_array(elem_type)) {
+               // Load this sub-array into a temporary variable
+               return cgen_vec_load(nets, elem_type, elem_type, false, ctx);
+            }
+            else
+               return cgen_scalar_vec_load(nets, elem_type, false, ctx);
+         }
       }
 
    default:
@@ -3591,6 +3625,22 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
+static bool cgen_signal_sequential_nets(tree_t decl)
+{
+   const int nnets = tree_nets(decl);
+   int i;
+   netid_t last = NETID_INVALID;
+   for (i = 0; i < nnets; i++) {
+      const netid_t nid = tree_net(decl, i);
+      if ((last == NETID_INVALID) || (nid == last + 1))
+         last = nid;
+      else
+         break;
+   }
+
+   return (i == nnets) && (nnets > 0);
+}
+
 static void cgen_sched_event(tree_t on, bool is_static, cgen_ctx_t *ctx)
 {
    tree_kind_t expr_kind = tree_kind(on);
@@ -3653,20 +3703,8 @@ static void cgen_sched_event(tree_t on, bool is_static, cgen_ctx_t *ctx)
 
       // Try to optimise the case where the list of nets is sequential
       // and known at compile time
-      if ((kind == T_SIGNAL_DECL) && array) {
-         const int nnets = tree_nets(decl);
-         int i;
-         netid_t last = NETID_INVALID;
-         for (i = 0; i < nnets; i++) {
-            const netid_t nid = tree_net(decl, i);
-            if ((last == NETID_INVALID) || (nid == last + 1))
-               last = nid;
-            else
-               break;
-         }
-
-         sequential = (i == nnets);
-      }
+      if ((kind == T_SIGNAL_DECL) && array)
+         sequential = cgen_signal_sequential_nets(decl);
    }
    else {
       assert(array);
@@ -5615,6 +5653,21 @@ static void cgen_signal(tree_t t)
    }
 
    tree_add_attr_ptr(t, sig_nets_i, map_var);
+
+   // If the nets of this signal are sequential then we can optimise out
+   // calls to _vec_load
+   type_t type = tree_type(t);
+   if (cgen_signal_sequential_nets(t) && !type_is_record(type)) {
+      printf("has sequential nets: %s\n", istr(tree_ident(t)));
+
+      char *resolved_name LOCAL = xasprintf("%s_resolved", istr(tree_ident(t)));
+      LLVMTypeRef lltype = LLVMPointerType(
+         llvm_type(type_is_array(type) ? type_elem(type) : type), 0);
+      LLVMValueRef resolved_var = LLVMAddGlobal(module, lltype, resolved_name);
+      LLVMSetInitializer(resolved_var, LLVMConstNull(lltype));
+
+      tree_add_attr_ptr(t, resolved_i, resolved_var);
+   }
 }
 
 static void cgen_subprogram_locals(tree_t t, cgen_ctx_t *ctx)
@@ -6132,6 +6185,31 @@ static void cgen_reset_function(tree_t t)
       cgen_set_initial(d, &ctx);
    }
 
+   // Find the memory address of the resolved value for signals whose nets
+   // are contiguous
+   // This avoids calls to _vec_load at runtime
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+
+      LLVMValueRef resolved_var = tree_attr_ptr(d, resolved_i);
+      if (resolved_var == NULL)
+         continue;
+
+      LLVMValueRef args[] = {
+         llvm_int32(tree_net(d, 0))
+      };
+      LLVMValueRef res_mem =
+         LLVMBuildCall(builder, llvm_fn("_resolved_address"),
+                       args, ARRAY_LEN(args), "");
+
+      type_t type = tree_type(d);
+      LLVMTypeRef lltype = LLVMPointerType(
+         llvm_type(type_is_array(type) ? type_elem(type) : type), 0);
+      LLVMValueRef cast =
+         LLVMBuildPointerCast(builder, res_mem, lltype, "");
+      LLVMBuildStore(builder, cast, resolved_var);
+   }
+
    LLVMValueRef cover_stmts = LLVMGetNamedGlobal(module, "cover_stmts");
    if (cover_stmts != NULL) {
       LLVMValueRef memset_args[] = {
@@ -6320,6 +6398,14 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       return LLVMAddFunction(module, "_set_initial",
                              LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_resolved_address") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_resolved_address",
+                             LLVMFunctionType(llvm_void_ptr(),
                                               args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_alloc_driver") == 0) {
@@ -6632,6 +6718,7 @@ void cgen(tree_t top)
    llvm_agg_i     = ident_new("llvm_agg");
    drives_all_i   = ident_new("drives_all");
    driver_init_i  = ident_new("driver_init");
+   resolved_i     = ident_new("resolved");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

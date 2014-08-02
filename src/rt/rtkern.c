@@ -114,8 +114,8 @@ struct netgroup {
    netid_t       first;
    uint32_t      length;
    net_flags_t   flags;
-   value_t      *resolved;
-   value_t      *last_value;
+   void         *resolved;
+   void         *last_value;
    value_t      *forcing;
    uint16_t      size;
    uint16_t      n_drivers;
@@ -463,7 +463,7 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
          driver_t *d = &(g->drivers[driver]);
          d->proc = active_proc;
 
-         const void *src = (init == NULL) ? g->resolved->data : initp;
+         const void *src = (init == NULL) ? g->resolved : initp;
 
          // Assign the initial value of the driver
          waveform_t *dummy = rt_alloc(waveform_stack);
@@ -477,6 +477,14 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
 
       initp += g->length * g->size;
    }
+}
+
+void *_resolved_address(int32_t nid)
+{
+   groupid_t gid = netdb_lookup(netdb, nid);
+   netgroup_t *g = &(groups[gid]);
+
+   return g->resolved;
 }
 
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
@@ -493,6 +501,13 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
    if (resolution != NULL)
       memo = rt_memo_resolution_fn(tree_type(decl), resolution);
 
+   int total_size = 0;
+   for (int i = 0; i < nparts; i++)
+      total_size += size_list[i * 2] * size_list[(i * 2) + 1];
+
+   uint8_t *res_mem  = xmalloc(total_size * 2);
+   uint8_t *last_mem = res_mem + total_size;
+
    const uint8_t *src = values;
    int offset = 0, part = 0, remain = size_list[1];
    while (part < nparts) {
@@ -506,12 +521,19 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       g->sig_decl   = decl;
       g->resolution = memo;
       g->size       = size;
-      g->resolved   = rt_alloc_value(g);
-      g->last_value = rt_alloc_value(g);
+      g->resolved   = res_mem;
+      g->last_value = last_mem;
+
+      if (offset == 0)
+         g->flags |= NET_F_OWNS_MEM;
 
       const int nbytes = g->length * size;
-      memcpy(g->resolved->data, src, nbytes);
-      memcpy(g->last_value->data, src, nbytes);
+
+      res_mem += nbytes;
+      last_mem += nbytes;
+
+      memcpy(g->resolved, src, nbytes);
+      memcpy(g->last_value, src, nbytes);
 
       offset += g->length;
       src += nbytes;
@@ -702,7 +724,7 @@ void *_vec_load(const int32_t *nids, void *where,
    if (offset + g->length - skip > high) {
       // If the signal data is already contiguous return a pointer to
       // that rather than copying into the user buffer
-      void *r = unlikely(last) ? g->last_value->data : g->resolved->data;
+      void *r = unlikely(last) ? g->last_value : g->resolved;
       return (uint8_t *)r + (skip * g->size);
    }
 
@@ -711,9 +733,9 @@ void *_vec_load(const int32_t *nids, void *where,
       const int to_copy = MIN(high - offset + 1, g->length - skip);
       const int bytes   = to_copy * g->size;
 
-      const value_t *src = unlikely(last) ? g->last_value : g->resolved;
+      const void *src = unlikely(last) ? g->last_value : g->resolved;
 
-      memcpy(p, (uint8_t *)src->data + (skip * g->size), bytes);
+      memcpy(p, (uint8_t *)src + (skip * g->size), bytes);
 
       offset += g->length - skip;
       p += bytes;
@@ -1449,21 +1471,27 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
    }
 
    int32_t new_flags = NET_F_ACTIVE;
-   if (memcmp(group->resolved->data, resolved, valuesz) != 0)
+   if (memcmp(group->resolved, resolved, valuesz) != 0)
       new_flags |= NET_F_EVENT;
 
    // LAST_VALUE is the same as the initial value when
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
+#if 0
       // Swap last with current value to avoid a memcpy
       value_t *tmp = group->last_value;
       group->last_value = group->resolved;
       group->resolved = tmp;
+#else
+      memcpy(group->last_value, group->resolved, valuesz);
+
+#endif
 
       group->last_event = now;
 
-      memcpy(group->resolved->data, resolved, valuesz);
+
+      memcpy(group->resolved, resolved, valuesz);
    }
 
    return new_flags;
@@ -1475,7 +1503,7 @@ static void rt_group_inital(groupid_t gid, netid_t first, unsigned length)
    if ((g->n_drivers == 1) && (g->resolution == NULL))
       rt_resolve_group(g, -1, g->drivers[0].waveforms->values->data);
    else if (g->n_drivers > 0)
-      rt_resolve_group(g, -1, g->resolved->data);
+      rt_resolve_group(g, -1, g->resolved);
 }
 
 static void rt_initial(tree_t top)
@@ -1981,8 +2009,9 @@ static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
    assert(g->first == first);
    assert(g->length == length);
 
-   free(g->resolved);
-   free(g->last_value);
+   if (g->flags & NET_F_OWNS_MEM)
+      free(g->resolved);
+
    free(g->forcing);
 
    for (int j = 0; j < g->n_drivers; j++) {
@@ -2322,7 +2351,7 @@ static size_t rt_group_string(netgroup_t *group, const char *map,
                               char *buf, const char *end1)
 {
    char *bp = buf;
-   const char *vals = group->resolved->data;
+   const char *vals = group->resolved;
 
    if (likely(map != NULL)) {
       for (int j = 0; j < group->length; j++) {
@@ -2380,7 +2409,7 @@ size_t rt_signal_value(tree_t s, uint64_t *buf, size_t max)
       netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
 #define SIGNAL_READ_EXPAND_U64(type) do {                               \
-         const type *sp = (type *)g->resolved->data;                    \
+         const type *sp = (type *)g->resolved;                          \
          for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
             buf[offset + i] = sp[i];                                    \
       } while (0)
