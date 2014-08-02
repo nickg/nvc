@@ -5668,8 +5668,6 @@ static void cgen_signal(tree_t t)
    // calls to _vec_load
    type_t type = tree_type(t);
    if (cgen_signal_sequential_nets(t) && !type_is_record(type)) {
-      printf("has sequential nets: %s\n", istr(tree_ident(t)));
-
       char *resolved_name LOCAL = xasprintf("%s_resolved", istr(tree_ident(t)));
       LLVMTypeRef lltype = LLVMPointerType(
          llvm_type(type_is_array(type) ? type_elem(type) : type), 0);

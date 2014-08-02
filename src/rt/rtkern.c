@@ -1478,20 +1478,10 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
-#if 0
-      // Swap last with current value to avoid a memcpy
-      value_t *tmp = group->last_value;
-      group->last_value = group->resolved;
-      group->resolved = tmp;
-#else
       memcpy(group->last_value, group->resolved, valuesz);
-
-#endif
+      memcpy(group->resolved, resolved, valuesz);
 
       group->last_event = now;
-
-
-      memcpy(group->resolved, resolved, valuesz);
    }
 
    return new_flags;
