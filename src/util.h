@@ -108,7 +108,9 @@ void tb_free(text_buf_t *tb);
 void _tb_cleanup(text_buf_t **tb);
 void tb_printf(text_buf_t *tb, const char *fmt, ...)
    __attribute__((format(printf, 2, 3)));
+void tb_append(text_buf_t *tb, char ch);
 const char *tb_get(text_buf_t *tb);
+char *tb_claim(text_buf_t *tb);
 void tb_rewind(text_buf_t *tb);
 
 #define LOCAL __attribute__((cleanup(_local_free)))

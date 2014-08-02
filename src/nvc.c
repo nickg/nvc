@@ -19,7 +19,6 @@
 #include "phase.h"
 #include "common.h"
 #include "rt/rt.h"
-#include "rt/slave.h"
 
 #include <unistd.h>
 #include <getopt.h>
@@ -409,17 +408,19 @@ static int run(int argc, char **argv)
          free(tmp);
    }
 
-   if (mode == BATCH)
-      rt_batch_exec(e, stop_time, ctx, vhpi_plugins);
-   else {
-      slave_init(e, ctx);
-      bool master = slave_fork();
-      if (master)
-         shell_run(e, ctx);
-      else
-         rt_slave_exec(e, ctx);
-   }
+   rt_start_of_tool(e, ctx);
 
+   if (vhpi_plugins != NULL)
+      vhpi_load_plugins(e, vhpi_plugins);
+
+   rt_restart(e);
+
+   if (mode == COMMAND)
+      shell_run(e, ctx);
+   else
+      rt_run_sim(stop_time);
+
+   rt_end_of_tool(e);
    tree_read_end(ctx);
    return EXIT_SUCCESS;
 }

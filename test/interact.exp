@@ -66,8 +66,8 @@ expect -re ":top:clk *STD_LOGIC *'0'"
 expect "object not found: foo"
 expect "%" {send "show \[signals {we} {*dout} {addr*}\]\n"}
 expect -re ":top:we *STD_LOGIC *'0'"
-expect -re ":top:dout *STD_LOGIC *\"UUUUUUUU\""
-expect -re ":top:uut:addr_r *STD_LOGIC *\"00000000\""
+expect -re ":top:dout *STD_LOGIC_VECTOR *\"UUUUUUUU\""
+expect -re ":top:uut:addr_r *UNSIGNED *\"00000000\""
 
 ############################################################
 

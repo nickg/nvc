@@ -954,6 +954,24 @@ void tb_printf(text_buf_t *tb, const char *fmt, ...)
    tb->len += nchars;
 }
 
+void tb_append(text_buf_t *tb, char ch)
+{
+   if (tb->len + 1 <= tb->alloc) {
+      tb->alloc *= 2;
+      tb->buf = xrealloc(tb->buf, tb->alloc);
+   }
+
+   tb->buf[(tb->len)++] = ch;
+   tb->buf[tb->len] = '\0';
+}
+
+char *tb_claim(text_buf_t *tb)
+{
+   char *buf = tb->buf;
+   tb->buf = NULL;
+   return buf;
+}
+
 const char *tb_get(text_buf_t *tb)
 {
    return tb->buf;

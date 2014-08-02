@@ -19,7 +19,6 @@
 #include "tree.h"
 #include "lib.h"
 #include "util.h"
-#include "slave.h"
 #include "alloc.h"
 #include "heap.h"
 #include "common.h"
@@ -1975,47 +1974,6 @@ static tree_t rt_recall_tree(const char *unit, int32_t where)
    return rt_recall_tree(unit, where);
 }
 
-static void rt_one_time_init(void)
-{
-   jit_bind_fn("_std_standard_now", _std_standard_now);
-   jit_bind_fn("_sched_process", _sched_process);
-   jit_bind_fn("_sched_waveform", _sched_waveform);
-   jit_bind_fn("_sched_event", _sched_event);
-   jit_bind_fn("_assert_fail", _assert_fail);
-   jit_bind_fn("_vec_load", _vec_load);
-   jit_bind_fn("_image", _image);
-   jit_bind_fn("_debug_out", _debug_out);
-   jit_bind_fn("_set_initial", _set_initial);
-   jit_bind_fn("_file_open", _file_open);
-   jit_bind_fn("_file_close", _file_close);
-   jit_bind_fn("_file_write", _file_write);
-   jit_bind_fn("_file_read", _file_read);
-   jit_bind_fn("_endfile", _endfile);
-   jit_bind_fn("_bounds_fail", _bounds_fail);
-   jit_bind_fn("_bit_shift", _bit_shift);
-   jit_bind_fn("_bit_vec_op", _bit_vec_op);
-   jit_bind_fn("_test_net_flag", _test_net_flag);
-   jit_bind_fn("_last_event", _last_event);
-   jit_bind_fn("_div_zero", _div_zero);
-   jit_bind_fn("_null_deref", _null_deref);
-
-   trace_on = opt_get_int("rt_trace_en");
-
-   event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
-   waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
-   sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
-   watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
-   callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
-
-   n_active_alloc = 128;
-   active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));
-
-   global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
-   proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
-
-   global_tmp_alloc = 0;
-}
-
 static void rt_cleanup_group(groupid_t gid, netid_t first, unsigned length)
 {
    netgroup_t *g = &(groups[gid]);
@@ -2062,6 +2020,9 @@ static void rt_cleanup(tree_t top)
 
    while (heap_size(eventq_heap) > 0)
       rt_free(event_stack, heap_extract_min(eventq_heap));
+
+   rt_free_delta_events(delta_proc);
+   rt_free_delta_events(delta_driver);
 
    heap_free(eventq_heap);
    eventq_heap = NULL;
@@ -2163,14 +2124,11 @@ static void rt_interrupt(void)
    fatal("interrupted");
 }
 
-void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
-                   const char *vhpi_plugins)
+void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
 
-   jit_init(tree_ident(e));
-
-   const int stop_delta = opt_get_int("stop-delta");
+   jit_init(tree_ident(top));
 
    struct sigaction sa;
    sa.sa_sigaction = (void*)rt_interrupt;
@@ -2179,20 +2137,51 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
 
    sigaction(SIGINT, &sa, NULL);
 
-   rt_one_time_init();
-   rt_setup(e);
+   jit_bind_fn("_std_standard_now", _std_standard_now);
+   jit_bind_fn("_sched_process", _sched_process);
+   jit_bind_fn("_sched_waveform", _sched_waveform);
+   jit_bind_fn("_sched_event", _sched_event);
+   jit_bind_fn("_assert_fail", _assert_fail);
+   jit_bind_fn("_vec_load", _vec_load);
+   jit_bind_fn("_image", _image);
+   jit_bind_fn("_debug_out", _debug_out);
+   jit_bind_fn("_set_initial", _set_initial);
+   jit_bind_fn("_file_open", _file_open);
+   jit_bind_fn("_file_close", _file_close);
+   jit_bind_fn("_file_write", _file_write);
+   jit_bind_fn("_file_read", _file_read);
+   jit_bind_fn("_endfile", _endfile);
+   jit_bind_fn("_bounds_fail", _bounds_fail);
+   jit_bind_fn("_bit_shift", _bit_shift);
+   jit_bind_fn("_bit_vec_op", _bit_vec_op);
+   jit_bind_fn("_test_net_flag", _test_net_flag);
+   jit_bind_fn("_last_event", _last_event);
+   jit_bind_fn("_div_zero", _div_zero);
+   jit_bind_fn("_null_deref", _null_deref);
 
-   if (vhpi_plugins != NULL)
-      vhpi_load_plugins(e, vhpi_plugins);
+   trace_on = opt_get_int("rt_trace_en");
+
+   event_stack     = rt_alloc_stack_new(sizeof(event_t), "event");
+   waveform_stack  = rt_alloc_stack_new(sizeof(waveform_t), "waveform");
+   sens_list_stack = rt_alloc_stack_new(sizeof(sens_list_t), "sens_list");
+   watch_stack     = rt_alloc_stack_new(sizeof(watch_t), "watch");
+   callback_stack  = rt_alloc_stack_new(sizeof(callback_t), "callback");
+
+   n_active_alloc = 128;
+   active_groups = xmalloc(n_active_alloc * sizeof(struct netgroup *));
+
+   global_tmp_stack = mmap_guarded(GLOBAL_TMP_STACK_SZ, "global temp stack");
+   proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
+
+   global_tmp_alloc = 0;
 
    rt_stats_ready();
-   rt_initial(e);
-   rt_global_event(RT_START_OF_SIMULATION);
-   while (!rt_stop_now(stop_time))
-      rt_cycle(stop_delta);
-   rt_global_event(RT_END_OF_SIMULATION);
-   rt_cleanup(e);
-   rt_emit_coverage(e);
+}
+
+void rt_end_of_tool(tree_t top)
+{
+   rt_cleanup(top);
+   rt_emit_coverage(top);
 
    jit_shutdown();
 
@@ -2200,33 +2189,36 @@ void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
       rt_stats_print();
 }
 
-static void rt_slave_fatal(void)
+void rt_run_sim(uint64_t stop_time)
+{
+   const int stop_delta = opt_get_int("stop-delta");
+
+   rt_global_event(RT_START_OF_SIMULATION);
+   while (!rt_stop_now(stop_time))
+      rt_cycle(stop_delta);
+   rt_global_event(RT_END_OF_SIMULATION);
+}
+
+static void rt_interactive_fatal(void)
 {
    aborted = true;
    longjmp(fatal_jmp, 1);
 }
 
-void rt_slave_run(uint64_t time)
+void rt_run_interactive(uint64_t stop_time)
 {
    if (aborted)
       errorf("simulation has aborted and must be restarted");
    else if ((heap_size(eventq_heap) == 0) && (delta_proc == NULL))
       warnf("no future simulation events");
    else {
-      set_fatal_fn(rt_slave_fatal);
+      set_fatal_fn(rt_interactive_fatal);
 
-      const int stop_delta = opt_get_int("stop-delta");
-
-      if (setjmp(fatal_jmp) == 0) {
-         const uint64_t end = now + time;
-         while (!rt_stop_now(end))
-            rt_cycle(stop_delta);
-      }
+      if (setjmp(fatal_jmp) == 0)
+         rt_run_sim(stop_time);
 
       set_fatal_fn(NULL);
    }
-
-   slave_post_msg(EVENT_STOP, NULL, 0);
 }
 
 void rt_restart(tree_t top)
@@ -2234,20 +2226,6 @@ void rt_restart(tree_t top)
    rt_setup(top);
    rt_initial(top);
    aborted = false;
-}
-
-void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx)
-{
-   tree_rd_ctx = ctx;
-
-   jit_init(tree_ident(e));
-   rt_one_time_init();
-
-   while (slave_poll())
-      ;
-
-   rt_cleanup(e);
-   jit_shutdown();
 }
 
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user)

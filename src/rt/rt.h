@@ -80,11 +80,11 @@ typedef enum {
    RT_LAST_EVENT
 } rt_event_t;
 
-void rt_batch_exec(tree_t e, uint64_t stop_time, tree_rd_ctx_t ctx,
-                   const char *vhpi_plugins);
-void rt_slave_exec(tree_t e, tree_rd_ctx_t ctx);
+void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx);
+void rt_end_of_tool(tree_t top);
+void rt_run_sim(uint64_t stop_time);
+void rt_run_interactive(uint64_t stop_time);
 void rt_restart(tree_t top);
-void rt_slave_run(uint64_t time);
 void rt_set_timeout_cb(uint64_t when, timeout_fn_t fn, void *user);
 watch_t *rt_set_event_cb(tree_t s, sig_event_fn_t fn, void *user,
                          bool postponed);
@@ -105,7 +105,7 @@ void *jit_fun_ptr(const char *name, bool required);
 void *jit_var_ptr(const char *name, bool required);
 void jit_bind_fn(const char *name, void *ptr);
 
-void shell_run(struct tree *e, struct tree_rd_ctx *ctx);
+void shell_run(tree_t top, tree_rd_ctx_t ctx);
 
 text_buf_t *pprint(struct tree *t, const uint64_t *values, size_t len);
 

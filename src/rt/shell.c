@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 //
 
 #include "util.h"
-#include "slave.h"
 #include "rt.h"
 #include "tree.h"
 #include "common.h"
@@ -58,23 +57,26 @@ __attribute__((format(printf, 2, 3)))
 static int tcl_error(Tcl_Interp *interp, const char *fmt, ...)
 {
    va_list ap;
-   char buf[1024];
    va_start(ap, fmt);
-   vsnprintf(buf, sizeof(buf), fmt, ap);
+   char *buf LOCAL = xvasprintf(fmt, ap);
    va_end(ap);
 
    Tcl_SetObjResult(interp, Tcl_NewStringObj(buf, -1));
    return TCL_ERROR;
 }
 
-static void event_watch(event_watch_msg_t *event, tree_rd_ctx_t ctx)
+static void event_watch(uint64_t now, tree_t decl, watch_t *w, void *user)
 {
-   tree_t decl = tree_read_recall(ctx, event->index);
+   uint64_t value[1];
+   rt_watch_value(w, value, 1, false);
 
-   LOCAL_TEXT_BUF last_tb = pprint(decl, &(event->last), 1);
-   LOCAL_TEXT_BUF now_tb  = pprint(decl, &(event->value), 1);
-   printf("%s: update %s %s -> %s\n", event->now_text, istr(tree_ident(decl)),
-          tb_get(last_tb), tb_get(now_tb));
+   uint64_t last[1];
+   rt_watch_value(w, last, 1, true);
+
+   LOCAL_TEXT_BUF last_tb = pprint(decl, last, 1);
+   LOCAL_TEXT_BUF now_tb  = pprint(decl, value, 1);
+   printf("%s: update %s %s -> %s\n", fmt_time(rt_now(NULL)),
+          istr(tree_ident(decl)), tb_get(last_tb), tb_get(now_tb));
 }
 
 static bool show_help(int objc, Tcl_Obj *const objv[], const char *help)
@@ -93,21 +95,25 @@ static bool show_help(int objc, Tcl_Obj *const objv[], const char *help)
 static int shell_cmd_restart(ClientData cd, Tcl_Interp *interp,
                              int objc, Tcl_Obj *const objv[])
 {
-   slave_post_msg(SLAVE_RESTART, NULL, 0);
+   rt_restart((tree_t)cd);
    return TCL_OK;
 }
 
 static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
                          int objc, Tcl_Obj *const objv[])
 {
-   uint64_t time = UINT64_MAX;
+   static bool sim_running = false;
+
+   if (sim_running)
+      return tcl_error(interp, "simulation already running");
+
+   uint64_t stop_time = UINT64_MAX;
    if (objc == 3) {
       Tcl_WideInt base;
       int error = Tcl_GetWideIntFromObj(interp, objv[1], &base);
-      if (error != TCL_OK || base <= 0) {
-         fprintf(stderr, "invalid time\n");
-         return TCL_ERROR;
-      }
+      if (error != TCL_OK || base <= 0)
+         return tcl_error(interp, "invalid time");
+
       const char *unit = Tcl_GetString(objv[2]);
 
       uint64_t mult;
@@ -121,36 +127,14 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
          return TCL_ERROR;
       }
 
-      time = base * mult;
+      stop_time = rt_now(NULL) + (base * mult);
    }
-   else if (objc != 1) {
-      fprintf(stderr, "usage: run [time units]\n");
-      return TCL_ERROR;
-   }
+   else if (objc != 1)
+      return tcl_error(interp, "usage: run [time units]");
 
-   slave_run_msg_t msg = { .time = time };
-   slave_post_msg(SLAVE_RUN, &msg, sizeof(msg));
-
-   tree_rd_ctx_t tree_rd_ctx = cd;
-
-   slave_msg_t event;
-   do {
-      union {
-         event_watch_msg_t watch;
-      } payload;
-      size_t sz = sizeof(payload);
-      slave_get_msg(&event, &payload, &sz);
-
-      switch (event) {
-      case EVENT_STOP:
-         break;
-      case EVENT_WATCH:
-         event_watch(&payload.watch, tree_rd_ctx);
-         break;
-      default:
-         fatal("unhandled slave event %d", event);
-      }
-   } while (event != EVENT_STOP);
+   sim_running = true;
+   rt_run_interactive(stop_time);
+   sim_running = false;
 
    return TCL_OK;
 }
@@ -158,9 +142,7 @@ static int shell_cmd_run(ClientData cd, Tcl_Interp *interp,
 static int shell_cmd_quit(ClientData cd, Tcl_Interp *interp,
                           int objc, Tcl_Obj *const objv[])
 {
-   slave_post_msg(SLAVE_QUIT, NULL, 0);
-   bool *have_quit = (bool*)cd;
-   *have_quit = true;
+   fclose(stdin);
    return TCL_OK;
 }
 
@@ -282,38 +264,18 @@ static int shell_cmd_show(ClientData cd, Tcl_Interp *interp,
          switch (kind) {
          case T_SIGNAL_DECL:
             {
-               size_t len = 1;
-               type_t type = tree_type(t);
-               while (type_is_array(type)) {
-                  int64_t low = 0, high = 0;
-                  range_bounds(type_dim(type, 0), &low, &high);
-                  len *= (high - low + 1);
+               const size_t len = tree_nets(t);
+               uint64_t *values LOCAL = xmalloc(len * sizeof(uint64_t));
+               rt_signal_value(t, values, len);
 
-                  type = type_elem(type);
-               }
-
-               slave_read_signal_msg_t msg = {
-                  .index = tree_index(t),
-                  .len   = len
-               };
-               slave_post_msg(SLAVE_READ_SIGNAL, &msg, sizeof(msg));
-
-               const size_t rsz =
-                  sizeof(reply_read_signal_msg_t)
-                  + (msg.len * sizeof(uint64_t));
-               reply_read_signal_msg_t *reply = xmalloc(rsz);
-               slave_get_reply(REPLY_READ_SIGNAL, reply, rsz);
-
-               const char *type_str = type_pp(type);
+               const char *type_str = type_pp(tree_type(t));
                const char *short_name = strrchr(type_str, '.');
 
-               LOCAL_TEXT_BUF values_tb = pprint(t, reply->values, msg.len);
+               LOCAL_TEXT_BUF values_tb = pprint(t, values, len);
                printf("%-30s%-20s%s\n",
                       str,
                       (short_name != NULL ? short_name + 1 : type_str),
                       tb_get(values_tb));
-
-               free(reply);
             }
             break;
 
@@ -356,15 +318,12 @@ static int shell_cmd_now(ClientData cd, Tcl_Interp *interp,
                           "(try -help for usage)", what);
    }
 
-   slave_post_msg(SLAVE_NOW, NULL, 0);
-
-   reply_now_msg_t reply;
-   slave_get_reply(REPLY_NOW, &reply, sizeof(reply));
+   const uint64_t now = rt_now(NULL);
 
    if (!quiet)
-      printf("%s\n", reply.text);
+      printf("%s\n", fmt_time(now));
 
-   Tcl_SetObjResult(interp, Tcl_NewIntObj(reply.now));
+   Tcl_SetObjResult(interp, Tcl_NewIntObj(now));
    return TCL_OK;
 }
 
@@ -415,10 +374,7 @@ static int shell_cmd_watch(ClientData cd, Tcl_Interp *interp,
             return tcl_error(interp, "only scalar signals may be watched");
          // TODO: make this work for arrays
 
-         slave_watch_msg_t msg = {
-            .index = tree_index(t)
-         };
-         slave_post_msg(SLAVE_WATCH, &msg, sizeof(msg));
+         rt_set_event_cb(t, event_watch, NULL, false);
       }
    }
 
@@ -468,10 +424,7 @@ static int shell_cmd_unwatch(ClientData cd, Tcl_Interp *interp,
          else if (tree_kind(t) != T_SIGNAL_DECL)
             return tcl_error(interp, "not a signal: %s", str);
 
-         slave_unwatch_msg_t msg = {
-            .index = tree_index(t)
-         };
-         slave_post_msg(SLAVE_UNWATCH, &msg, sizeof(msg));
+         rt_set_event_cb(t, NULL, NULL, false);
       }
    }
 
@@ -516,42 +469,20 @@ static char *shell_get_line(void)
 #endif  // HAVE_LIBREADLINE
    }
 
-   size_t buflen = 256;
-   char *buf = xmalloc(buflen);
+   LOCAL_TEXT_BUF tb = tb_new();
 
    size_t off = 0;
    for (;;) {
-      if (off == buflen) {
-         buflen *= 2;
-         buf = xrealloc(buf, buflen);
-      }
-
       int ch = fgetc(stdin);
       switch (ch) {
       case EOF:
-         buf[off] = '\0';
-         return (off > 0 ? buf : NULL);
-
+         return (off > 0) ? tb_claim(tb) : NULL;
       case '\n':
-         buf[off] = '\0';
-         return buf;
-
+         return tb_claim(tb);
       default:
-         buf[off++] = ch;
+         tb_append(tb, ch);
       }
    }
-}
-
-static void shell_exit_handler(ClientData cd)
-{
-   bool *have_quit = cd;
-
-   if (!*have_quit)
-      slave_post_msg(SLAVE_QUIT, NULL, 0);
-
-   slave_wait();
-
-   printf("\nBye.\n");
 }
 
 static void show_banner(void)
@@ -577,14 +508,10 @@ void shell_run(tree_t e, struct tree_rd_ctx *ctx)
 
    Tcl_Interp *interp = Tcl_CreateInterp();
 
-   bool have_quit = false;
-
-   Tcl_CreateExitHandler(shell_exit_handler, &have_quit);
-
    shell_cmd_t shell_cmds[] = {
-      CMD(quit,      &have_quit, "Exit simulation"),
-      CMD(run,       ctx,        "Start or resume simulation"),
-      CMD(restart,   NULL,       "Restart simulation"),
+      CMD(quit,      NULL,       "Exit simulation"),
+      CMD(run,       NULL,       "Start or resume simulation"),
+      CMD(restart,   e,          "Restart simulation"),
       CMD(show,      decl_hash,  "Display simulation objects"),
       CMD(help,      shell_cmds, "Display this message"),
       CMD(copyright, NULL,       "Display copyright information"),
@@ -604,22 +531,19 @@ void shell_run(tree_t e, struct tree_rd_ctx *ctx)
 
    show_banner();
 
-   slave_post_msg(SLAVE_RESTART, NULL, 0);
-
    char *line;
-   while (!have_quit && (line = shell_get_line())) {
+   while ((line = shell_get_line())) {
       switch (Tcl_Eval(interp, line)) {
       case TCL_OK:
          break;
       case TCL_ERROR:
          errorf("%s", Tcl_GetStringResult(interp));
          break;
-      default:
-         assert(false);
       }
 
       free(line);
    }
 
-   Tcl_Exit(EXIT_SUCCESS);
+   printf("\nBye.\n");
+   Tcl_Finalize();
 }
