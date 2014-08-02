@@ -60,11 +60,12 @@ typedef enum {
 } bit_vec_op_kind_t;
 
 typedef enum {
-   NET_F_ACTIVE   = (1 << 0),
-   NET_F_EVENT    = (1 << 1),
-   NET_F_FORCED   = (1 << 2),
-   NET_F_OWNS_MEM = (1 << 3),
-   NET_F_GLOBAL   = (1 << 4)
+   NET_F_ACTIVE     = (1 << 0),
+   NET_F_EVENT      = (1 << 1),
+   NET_F_FORCED     = (1 << 2),
+   NET_F_OWNS_MEM   = (1 << 3),
+   NET_F_GLOBAL     = (1 << 4),
+   NET_F_LAST_VALUE = (1 << 5)
 } net_flags_t;
 
 typedef enum {

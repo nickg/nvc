@@ -497,10 +497,11 @@ void *_resolved_address(int32_t nid)
 
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
-                  const char *module)
+                  const char *module, int32_t needs_last)
 {
-   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
-         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+   TRACE("_set_initial net=%d values=%s nparts=%d index=%d needs_last=%d",
+         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index,
+         needs_last);
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -531,6 +532,9 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       g->size       = size;
       g->resolved   = res_mem;
       g->last_value = last_mem;
+
+      if (needs_last)
+         g->flags |= NET_F_LAST_VALUE;
 
       if (offset == 0)
          g->flags |= NET_F_OWNS_MEM;
@@ -720,14 +724,16 @@ void _nvc_env_stop(int32_t finish, int32_t have_status, int32_t status)
 void *_vec_load(const int32_t *nids, void *where,
                 int32_t low, int32_t high, int32_t last)
 {
-   //TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
-   //      fmt_net(nids[0]), where, low, high, last);
+   TRACE("_vec_load %s where=%p low=%d high=%d last=%d",
+         fmt_net(nids[0]), where, low, high, last);
 
    int offset = low;
 
    groupid_t gid = netdb_lookup(netdb, nids[offset]);
    netgroup_t *g = &(groups[gid]);
    int skip = nids[offset] - g->first;
+
+   assert((g->flags & NET_F_LAST_VALUE) || !last);
 
    if (offset + g->length - skip > high) {
       // If the signal data is already contiguous return a pointer to

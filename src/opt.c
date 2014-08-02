@@ -19,10 +19,13 @@
 #include "phase.h"
 
 #include <stdlib.h>
+#include <assert.h>
 
 static ident_t never_waits_i;
 static ident_t elide_bounds_i;
 static ident_t range_var_i;
+static ident_t last_value_i;
+static ident_t builtin_i;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Delete processes that contain just a single wait statement
@@ -147,6 +150,42 @@ static void opt_elide_array_ref_bounds(tree_t t)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Identify any potential use of the 'LAST_VALUE attribute
+//
+
+static void opt_tag_last_value(tree_t t)
+{
+   tree_t decl = tree_ref(t);
+
+   ident_t builtin = tree_attr_str(decl, builtin_i);
+   if ((builtin != NULL) && (builtin == last_value_i)) {
+      tree_t signal = tree_value(tree_param(t, 0));
+      tree_add_attr_int(signal, last_value_i, 1);
+   }
+   else {
+      // A regular subprogram call may pass parameters as class signal which
+      // could access 'LAST_VALUE in the body
+
+      const int nports = tree_ports(decl);
+      for (int i = 0; i < nports; i++) {
+         tree_t port = tree_port(decl, i);
+         if (tree_class(port) != C_SIGNAL)
+            continue;
+
+         tree_t value = tree_value(tree_param(t, i));
+         tree_kind_t kind;
+         while ((kind = tree_kind(value)) != T_REF) {
+            assert((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE));
+            value = tree_value(value);
+         }
+
+         fmt_loc(stdout, tree_loc(tree_ref(value)));
+         tree_add_attr_int(tree_ref(value), last_value_i, 1);
+      }
+   }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void opt_tag(tree_t t, void *ctx)
 {
@@ -163,6 +202,11 @@ static void opt_tag(tree_t t, void *ctx)
       opt_elide_array_ref_bounds(t);
       break;
 
+   case T_FCALL:
+   case T_PCALL:
+      opt_tag_last_value(t);
+      break;
+
    default:
       break;
    }
@@ -173,6 +217,8 @@ void opt(tree_t top)
    never_waits_i  = ident_new("never_waits");
    elide_bounds_i = ident_new("elide_bounds");
    range_var_i    = ident_new("range_var");
+   builtin_i      = ident_new("builtin");
+   last_value_i   = ident_new("last_value");
 
    if (tree_kind(top) == T_ELAB)
       opt_delete_wait_only(top);

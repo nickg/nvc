@@ -64,6 +64,7 @@ static ident_t drives_all_i;
 static ident_t driver_init_i;
 static ident_t resolved_i;
 static ident_t partial_map_i;
+static ident_t last_value_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -6121,7 +6122,8 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
       llvm_void_cast(cgen_resolution_func(decl_type)),
       llvm_int32(tree_index(d)),
       LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), "")
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      llvm_int32(tree_attr_int(d, last_value_i, 0))
    };
    LLVMBuildCall(builder, llvm_fn("_set_initial"),
                  args, ARRAY_LEN(args), "");
@@ -6408,7 +6410,8 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          llvm_void_ptr(),
          LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0)
+         LLVMPointerType(LLVMInt8Type(), 0),
+         LLVMInt32Type()
       };
       return LLVMAddFunction(module, "_set_initial",
                              LLVMFunctionType(LLVMVoidType(),
@@ -6734,6 +6737,7 @@ void cgen(tree_t top)
    driver_init_i  = ident_new("driver_init");
    resolved_i     = ident_new("resolved");
    partial_map_i  = ident_new("partial_map");
+   last_value_i   = ident_new("last_value");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))
