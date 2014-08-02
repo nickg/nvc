@@ -2978,7 +2978,6 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
       if (tree_kind(decl) == T_ALIAS) {
          LLVMValueRef array = cgen_alias(decl, ctx);
          return cgen_get_slice(array, type, decl, tree_range(t), false, ctx);
-
       }
       else {
          switch (class_of(decl)) {
@@ -2989,8 +2988,19 @@ static LLVMValueRef cgen_array_slice(tree_t t, cgen_ctx_t *ctx)
                                   tree_range(t), false, ctx);
 
          case C_SIGNAL:
-            return cgen_vec_load(cgen_signal_nets(decl), type, tree_type(t),
-                                 false, ctx);
+            {
+               LLVMValueRef resolved_var = tree_attr_ptr(decl, resolved_i);
+               if (resolved_var != NULL) {
+                  LLVMValueRef resolved_mem =
+                     LLVMBuildLoad(builder, resolved_var, "resolved");
+
+                  return cgen_get_slice(resolved_mem, type, NULL,
+                                        tree_range(t), false, ctx);
+               }
+               else
+                  return cgen_vec_load(cgen_signal_nets(decl), type,
+                                       tree_type(t), false, ctx);
+            }
 
          default:
             assert(false);
