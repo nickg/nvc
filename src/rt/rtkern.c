@@ -398,28 +398,36 @@ void _sched_event(void *_nids, int32_t n, int32_t flags)
    TRACE("_sched_event %s n=%d flags=%d proc %s", fmt_net(nids[0]), n,
          flags, istr(tree_ident(active_proc->source)));
 
-   if (n == 1) {
-      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[0])]);
-      rt_sched_event(&(g->pending), NETID_INVALID, NETID_INVALID,
+   netgroup_t *g0 = &(groups[netdb_lookup(netdb, nids[0])]);
+
+   if (g0->length == n) {
+      rt_sched_event(&(g0->pending), NETID_INVALID, NETID_INVALID,
                      active_proc, flags & SCHED_STATIC);
    }
    else {
-      int offset = 0;
-      while (offset < n) {
-         netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
-         offset += g->length;
+      const bool global = !!(flags & SCHED_SEQUENTIAL);
+      if (global) {
+         // Place on the global pending list
+         rt_sched_event(&pending, nids[0], nids[n - 1], active_proc,
+                        flags & SCHED_STATIC);
+      }
 
-         if ((flags & SCHED_SEQUENTIAL) && (offset < n)) {
-            // Place on the global pending list
-            rt_sched_event(&pending, nids[0], nids[n - 1], active_proc,
-                           flags & SCHED_STATIC);
-            break;
-         }
+      int offset = 0;
+      netgroup_t *g = g0;
+      for (;;) {
+         if (global)
+            g->flags |= NET_F_GLOBAL;
          else {
             // Place on the net group's pending list
             rt_sched_event(&(g->pending), NETID_INVALID, NETID_INVALID,
                            active_proc, flags & SCHED_STATIC);
          }
+
+         offset += g->length;
+         if (offset < n)
+            g = &(groups[netdb_lookup(netdb, nids[offset])]);
+         else
+            break;
       }
    }
 }
@@ -1679,25 +1687,27 @@ static void rt_update_group(netgroup_t *group, int driver, void *values)
       }
 
       // Now check the global pending list
-      for (it = pending; it != NULL; it = next) {
-         next = it->next;
+      if (group->flags & NET_F_GLOBAL) {
+         for (it = pending; it != NULL; it = next) {
+            next = it->next;
 
-         const netid_t x = group->first;
-         const netid_t y = group->first + group->length - 1;
-         const netid_t a = it->first;
-         const netid_t b = it->last;
+            const netid_t x = group->first;
+            const netid_t y = group->first + group->length - 1;
+            const netid_t a = it->first;
+            const netid_t b = it->last;
 
-         const bool hit = (x <= b) && (a <= y);
+            const bool hit = (x <= b) && (a <= y);
 
-         if (hit) {
-            rt_wakeup(it);
-            if (last == NULL)
-               pending = next;
+            if (hit) {
+               rt_wakeup(it);
+               if (last == NULL)
+                  pending = next;
+               else
+                  last->next = next;
+            }
             else
-               last->next = next;
+               last = it;
          }
-         else
-            last = it;
       }
 
       // Schedule any callbacks to run
