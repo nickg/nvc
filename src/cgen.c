@@ -5102,8 +5102,36 @@ static void cgen_proc_var_init(tree_t t, cgen_ctx_t *ctx)
                LLVMValueRef data = LLVMBuildArrayMalloc(builder, elem, len,
                                                         "proc_array");
 
-               LLVMValueRef new_meta =
-                  LLVMBuildInsertValue(builder, val, data, 0, "new_meta");
+               const int dims = cgen_array_dims(decl_type);
+               LLVMValueRef params[dims][3];
+               for (int i = 0; i < dims; i++) {
+                  range_t r = type_dim(decl_type, i);
+                  params[i][0] = cgen_expr(r.left, ctx);
+                  params[i][1] = cgen_expr(r.right, ctx);
+
+                  switch (r.kind) {
+                  case RANGE_TO:
+                  case RANGE_DOWNTO:
+                     params[i][2] = llvm_int8(r.kind);
+                     break;
+
+                  case RANGE_DYN:
+                     params[i][2] = cgen_array_dir(value_type, i, val);
+                     break;
+
+                  case RANGE_RDYN:
+                     params[i][2] =
+                        LLVMBuildXor(builder,
+                                     cgen_array_dir(value_type, i, val),
+                                     llvm_int8(1), "");
+                     break;
+
+                  case RANGE_EXPR:
+                     assert(false);
+                  }
+               }
+
+               LLVMValueRef new_meta = cgen_array_meta(decl_type, params, data);
 
                cgen_array_copy(value_type, decl_type, val, new_meta, NULL, ctx);
 
