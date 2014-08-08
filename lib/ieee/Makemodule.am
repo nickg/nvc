@@ -33,6 +33,7 @@ ieee_DATA = \
 if ENABLE_NATIVE
 ieee_so = \
 	lib/ieee/_IEEE.NUMERIC_STD.so \
+	lib/ieee/_IEEE.NUMERIC_BIT.so \
 	lib/ieee/_IEEE.STD_LOGIC_1164-body.so \
 	lib/ieee/_IEEE.NUMERIC_STD-body.so \
 	lib/ieee/_IEEE.NUMERIC_BIT-body.so \
