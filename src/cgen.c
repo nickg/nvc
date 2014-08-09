@@ -1319,7 +1319,8 @@ static LLVMValueRef cgen_local_var(tree_t d, cgen_ctx_t *ctx)
          else if (type_is_record(type))
             cgen_record_copy(type, init, var);
          else {
-            cgen_check_scalar_bounds(d, init, ctx);
+            if ((tree_kind(value) != T_REF) || (type != tree_type(value)))
+               cgen_check_scalar_bounds(d, init, ctx);
             LLVMBuildStore(builder, init, var);
          }
 
