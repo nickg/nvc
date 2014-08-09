@@ -495,13 +495,25 @@ void *_resolved_address(int32_t nid)
    return g->resolved;
 }
 
+void _needs_last_value(const int32_t *nids, int32_t n)
+{
+   TRACE("_needs_last_value %s n=%d", fmt_net(nids[0]), n);
+
+   int offset = 0;
+   while (offset < n) {
+      netgroup_t *g = &(groups[netdb_lookup(netdb, nids[offset])]);
+      g->flags |= NET_F_LAST_VALUE;
+
+      offset += g->length;
+   }
+}
+
 void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
-                  const char *module, int32_t needs_last)
+                  const char *module)
 {
-   TRACE("_set_initial net=%d values=%s nparts=%d index=%d needs_last=%d",
-         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index,
-         needs_last);
+   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
+         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
@@ -532,9 +544,6 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       g->size       = size;
       g->resolved   = res_mem;
       g->last_value = last_mem;
-
-      if (needs_last)
-         g->flags |= NET_F_LAST_VALUE;
 
       if (offset == 0)
          g->flags |= NET_F_OWNS_MEM;
@@ -1492,7 +1501,8 @@ static int32_t rt_resolve_group(netgroup_t *group, int driver, void *values)
    // there have been no events on the signal otherwise
    // only update it when there is an event
    if (new_flags & NET_F_EVENT) {
-      memcpy(group->last_value, group->resolved, valuesz);
+      if (group->flags & NET_F_LAST_VALUE)
+         memcpy(group->last_value, group->resolved, valuesz);
       memcpy(group->resolved, resolved, valuesz);
 
       group->last_event = now;

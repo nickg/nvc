@@ -6122,8 +6122,7 @@ static void cgen_set_initial(tree_t d, cgen_ctx_t *ctx)
       llvm_void_cast(cgen_resolution_func(decl_type)),
       llvm_int32(tree_index(d)),
       LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
-      llvm_int32(tree_attr_int(d, last_value_i, 0))
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
    };
    LLVMBuildCall(builder, llvm_fn("_set_initial"),
                  args, ARRAY_LEN(args), "");
@@ -6238,6 +6237,20 @@ static void cgen_reset_function(tree_t t)
 
       LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
                     memset_args, ARRAY_LEN(memset_args), "");
+   }
+
+   // Identify signals which potentially need 'LAST_VALUE
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      if (!tree_attr_int(d, last_value_i, 0))
+         continue;
+
+      LLVMValueRef args[] = {
+         cgen_signal_nets(d),
+         llvm_int32(tree_nets(d))
+      };
+      LLVMBuildCall(builder, llvm_fn("_needs_last_value"),
+                    args, ARRAY_LEN(args), "");
    }
 
    LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
@@ -6410,10 +6423,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          llvm_void_ptr(),
          LLVMInt32Type(),
-         LLVMPointerType(LLVMInt8Type(), 0),
-         LLVMInt32Type()
+         LLVMPointerType(LLVMInt8Type(), 0)
       };
       return LLVMAddFunction(module, "_set_initial",
+                             LLVMFunctionType(LLVMVoidType(),
+                                              args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_needs_last_value") == 0) {
+      LLVMTypeRef args[] = {
+         LLVMPointerType(LLVMInt32Type(), 0),
+         LLVMInt32Type()
+      };
+      return LLVMAddFunction(module, "_needs_last_value",
                              LLVMFunctionType(LLVMVoidType(),
                                               args, ARRAY_LEN(args), false));
    }

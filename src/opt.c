@@ -159,8 +159,12 @@ static void opt_tag_last_value(tree_t t)
 
    ident_t builtin = tree_attr_str(decl, builtin_i);
    if ((builtin != NULL) && (builtin == last_value_i)) {
-      tree_t signal = tree_value(tree_param(t, 0));
-      tree_add_attr_int(signal, last_value_i, 1);
+      tree_t signal = tree_ref(tree_value(tree_param(t, 0)));
+
+      // A signal in a package will not have nets assigned yet so we cannot
+      // optimise out 'LAST_VALUE
+      if (tree_nets(signal) > 0)
+         tree_add_attr_int(signal, last_value_i, 1);
    }
    else {
       // A regular subprogram call may pass parameters as class signal which
@@ -179,7 +183,6 @@ static void opt_tag_last_value(tree_t t)
             value = tree_value(value);
          }
 
-         fmt_loc(stdout, tree_loc(tree_ref(value)));
          tree_add_attr_int(tree_ref(value), last_value_i, 1);
       }
    }
