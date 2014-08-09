@@ -1722,10 +1722,8 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          args[i] = cgen_signal_lvalue(value, ctx);
 
          if (type_is_scalar(type)) {
-            cgen_check_scalar_bounds_hint(
-               port, value,
-               cgen_scalar_vec_load(args[i], type, false, ctx),
-               ctx);
+            cgen_check_scalar_bounds_hint(port, value,
+                                          cgen_expr(value, ctx), ctx);
          }
       }
       else {
