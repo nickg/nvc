@@ -3025,6 +3025,10 @@ static void p_entity_declarative_item(tree_t entity)
       p_constant_declaration(entity);
       break;
 
+   case tALIAS:
+      tree_add_decl(entity, p_alias_declaration());
+      break;
+
    case tFUNCTION:
    case tPROCEDURE:
    case tIMPURE:
@@ -3040,7 +3044,7 @@ static void p_entity_declarative_item(tree_t entity)
 
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE);
+             tIMPURE, tPURE, tALIAS);
    }
 }
 
