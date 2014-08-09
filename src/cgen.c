@@ -3150,7 +3150,7 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, bool use_tmp, cgen_ctx_t *ctx)
          llvm_void_cast(cgen_array_data_ptr(type, a)),
          LLVMBuildZExt(builder, others, LLVMInt8Type(), ""),
          cgen_array_len(type, -1, a),
-         llvm_int32(1),    // XXX: alignment of tmp_buf?
+         llvm_int32(4),
          llvm_int1(false)
       };
 
@@ -4340,9 +4340,13 @@ static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
    LLVMValueRef buf = LLVMBuildGEP(builder, stack,
                                    indexes, ARRAY_LEN(indexes), "");
 
-   // TODO: align here
    LLVMValueRef alloc_next =
-      LLVMBuildAdd(builder, alloc, bytes, "alloc_next");
+      LLVMBuildAnd(builder,
+                   LLVMBuildAdd(builder, alloc,
+                                LLVMBuildAdd(builder, bytes, llvm_int32(3), ""),
+                                "alloc_align_max"),
+                   llvm_int32(~3),
+                   "alloc_next");
 
    LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
 
