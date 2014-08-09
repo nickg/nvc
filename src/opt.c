@@ -160,6 +160,8 @@ static void opt_tag_last_value(tree_t t)
    ident_t builtin = tree_attr_str(decl, builtin_i);
    if ((builtin != NULL) && (builtin == last_value_i)) {
       tree_t signal = tree_ref(tree_value(tree_param(t, 0)));
+      if (tree_kind(signal) != T_SIGNAL_DECL)
+         return;
 
       // A signal in a package will not have nets assigned yet so we cannot
       // optimise out 'LAST_VALUE
