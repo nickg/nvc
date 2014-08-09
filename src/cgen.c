@@ -3134,6 +3134,29 @@ static LLVMValueRef cgen_dyn_aggregate(tree_t t, bool use_tmp, cgen_ctx_t *ctx)
    // Generate code to fill in the aggregate at run time
 
    type_t type = tree_type(t);
+   type_t elem_type = type_elem(type);
+
+   const bool can_use_memset =
+      (type_is_integer(elem_type) || type_is_enum(elem_type))
+      && (tree_assocs(t) == 1) && (tree_subkind(tree_assoc(t, 0)) == A_OTHERS)
+      && (bit_width(elem_type) <= 8);
+
+   if (can_use_memset) {
+      LLVMValueRef a = cgen_tmp_var(type, "dyn_memset_tmp", use_tmp, ctx);
+      LLVMValueRef others = cgen_expr(tree_value(tree_assoc(t, 0)), ctx);
+
+      LLVMValueRef memset_args[] = {
+         llvm_void_cast(cgen_array_data_ptr(type, a)),
+         LLVMBuildZExt(builder, others, LLVMInt8Type(), ""),
+         cgen_array_len(type, -1, a),
+         llvm_int32(1),    // XXX: alignment of tmp_buf?
+         llvm_int1(false)
+      };
+
+      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                    memset_args, ARRAY_LEN(memset_args), "");
+      return a;
+   }
 
    LLVMBasicBlockRef test_bb  = LLVMAppendBasicBlock(ctx->fn, "da_test");
    LLVMBasicBlockRef body_bb  = LLVMAppendBasicBlock(ctx->fn, "da_body");
