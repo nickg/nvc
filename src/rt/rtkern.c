@@ -483,8 +483,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)
 {
-   //TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
-   //      nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
+   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
+         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
 
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
