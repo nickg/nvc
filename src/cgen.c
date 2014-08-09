@@ -63,6 +63,7 @@ static ident_t llvm_agg_i;
 static ident_t drives_all_i;
 static ident_t driver_init_i;
 static ident_t resolved_i;
+static ident_t partial_map_i;
 
 typedef struct case_arc   case_arc_t;
 typedef struct case_state case_state_t;
@@ -5667,7 +5668,12 @@ static void cgen_signal(tree_t t)
    // If the nets of this signal are sequential then we can optimise out
    // calls to _vec_load
    type_t type = tree_type(t);
-   if (cgen_signal_sequential_nets(t) && !type_is_record(type)) {
+   const bool can_omit_vec_load =
+      cgen_signal_sequential_nets(t)
+      && !type_is_record(type)
+      && !tree_attr_int(t, partial_map_i, 0);
+
+   if (can_omit_vec_load) {
       char *resolved_name LOCAL = xasprintf("%s_resolved", istr(tree_ident(t)));
       LLVMTypeRef lltype = LLVMPointerType(
          llvm_type(type_is_array(type) ? type_elem(type) : type), 0);
@@ -6727,6 +6733,7 @@ void cgen(tree_t top)
    drives_all_i   = ident_new("drives_all");
    driver_init_i  = ident_new("driver_init");
    resolved_i     = ident_new("resolved");
+   partial_map_i  = ident_new("partial_map");
 
    tree_kind_t kind = tree_kind(top);
    if ((kind != T_ELAB) && (kind != T_PACK_BODY) && (kind != T_PACKAGE))

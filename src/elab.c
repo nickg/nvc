@@ -69,6 +69,7 @@ static ident_t all_i;
 static ident_t formal_i;
 static ident_t elab_copy_i;
 static ident_t shared_i;
+static ident_t partial_map_i;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -326,9 +327,11 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          name = n;
    }
 
+   const bool partial_map = (tree_kind(actual) != T_REF) || (name != NULL);
+
    switch (tree_kind(actual)) {
-   case T_ARRAY_REF:
    case T_REF:
+   case T_ARRAY_REF:
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
       {
@@ -348,6 +351,9 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          tree_kind_t decl_kind = tree_kind(decl);
          if (decl_kind == T_SIGNAL_DECL) {
             tree_t s = elab_port_to_signal(arch, formal, actual);
+
+            if (partial_map)
+               tree_add_attr_int(s, partial_map_i, 1);
 
             map_list_t *m = xmalloc(sizeof(map_list_t));
             m->next   = *maps;
@@ -1346,13 +1352,14 @@ static void elab_context_signals(const elab_ctx_t *ctx)
 
 tree_t elab(tree_t top)
 {
-   inst_name_i  = ident_new("INSTANCE_NAME");
-   fst_dir_i    = ident_new("fst_dir");
-   scope_pop_i  = ident_new("scope_pop");
-   all_i        = ident_new("all");
-   formal_i     = ident_new("formal");
-   elab_copy_i  = ident_new("elab_copy");
-   shared_i     = ident_new("shared");
+   inst_name_i   = ident_new("INSTANCE_NAME");
+   fst_dir_i     = ident_new("fst_dir");
+   scope_pop_i   = ident_new("scope_pop");
+   all_i         = ident_new("all");
+   formal_i      = ident_new("formal");
+   elab_copy_i   = ident_new("elab_copy");
+   shared_i      = ident_new("shared");
+   partial_map_i = ident_new("partial_map");
 
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),
