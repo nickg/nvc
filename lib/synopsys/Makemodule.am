@@ -78,7 +78,7 @@ lib/synopsys/SYNOPSYS.ATTRIBUTES: $(bootstrap) $(srcdir)/lib/synopsys/attributes
 	$(nvc) -L lib/ --work=lib/synopsys -a $(srcdir)/lib/synopsys/attributes.vhd
 
 clean-synopsys:
-	-test ! -d synopsys || rm -r synopsys
+	-test ! -d lib/synopsys || rm -r lib/synopsys
 
 gen-deps-synopsys:
 	$(nvc) -L lib/ --work=lib/synopsys --make --posix --deps-only --native | \
