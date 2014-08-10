@@ -2357,9 +2357,11 @@ static type_t p_scalar_type_definition(void)
          if (peek() == tUNITS)
             return p_physical_type_definition(r);
          else {
-            const bool real = ((tree_kind(r.left) == T_LITERAL)
+            const bool real = ((r.left != NULL)
+                               && (tree_kind(r.left) == T_LITERAL)
                                && (tree_subkind(r.left) == L_REAL))
-               || ((tree_kind(r.right) == T_LITERAL)
+               || ((r.right != NULL)
+                   && (tree_kind(r.right) == T_LITERAL)
                    && (tree_subkind(r.right) == L_REAL));
 
             if (real)
