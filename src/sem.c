@@ -5666,12 +5666,18 @@ static bool sem_check_attr_spec(tree_t t)
       sem_error(t, "expected attribute type %s", sem_type_str(type));
 
    // Attributes of labels are ignored currently
-   if (tree_class(t) == C_LABEL)
+   class_t class = tree_class(t);
+   if (class == C_LABEL)
       return true;
 
    tree_t obj_decl = scope_find(tree_ident2(t));
    if (obj_decl == NULL)
       sem_error(t, "no visible declaration for %s", istr(tree_ident2(t)));
+
+   class_t obj_class = class_of(obj_decl);
+   if (obj_class != class)
+      sem_error(t, "class of object %s is %s not %s", istr(tree_ident2(t)),
+                class_str(obj_class), class_str(class));
 
    tree_add_attr_tree(obj_decl, tree_ident(t), value);
 

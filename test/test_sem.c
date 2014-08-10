@@ -1022,6 +1022,7 @@ START_TEST(test_attr)
       {  67, "no visible declaration for Q" },
       {  85, "parameter must be locally static" },
       { 127, "cannot index non-array type universal integer" },
+      { 133, "class of object I is variable not signal" },
       { -1, NULL }
    };
    expect_errors(expect);
