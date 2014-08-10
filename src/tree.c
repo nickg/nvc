@@ -306,7 +306,10 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT),
 
    // T_DESIGN_UNIT
-   (I_CONTEXT)
+   (I_CONTEXT),
+
+   // T_CONFIG
+   (I_IDENT | I_IDENT2 | I_DECLS)
 };
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
@@ -340,7 +343,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
-   "T_DESIGN_UNIT"
+   "T_DESIGN_UNIT",  "T_CONFIG"
 };
 
 static const char *item_text_map[] = {
@@ -367,6 +370,7 @@ static const tree_kind_t change_allowed[][2] = {
    { T_DESIGN_UNIT, T_PACKAGE     },
    { T_DESIGN_UNIT, T_PACK_BODY   },
    { T_DESIGN_UNIT, T_ARCH        },
+   { T_DESIGN_UNIT, T_CONFIG      },
    { T_FUNC_DECL,   T_FUNC_BODY   },
    { T_PROC_DECL,   T_PROC_BODY   },
    { T_REF,         T_ARRAY_SLICE },

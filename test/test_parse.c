@@ -2143,6 +2143,28 @@ START_TEST(test_error)
 }
 END_TEST
 
+START_TEST(test_config)
+{
+   tree_t c;
+
+   input_from_file(TESTDIR "/parse/config.vhd");
+
+   c = parse();
+   fail_if(c == NULL);
+   fail_unless(tree_kind(c) == T_CONFIG);
+   fail_unless(tree_ident(c) == ident_new("A"));
+   fail_unless(tree_ident2(c) == ident_new("B"));
+   fail_unless(tree_decls(c) == 2);
+   fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
+   fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
+
+   c = parse();
+   fail_unless(c == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -2179,6 +2201,7 @@ int main(void)
    tcase_add_test(tc_core, test_loc);
    tcase_add_test(tc_core, test_expr);
    tcase_add_test(tc_core, test_error);
+   tcase_add_test(tc_core, test_config);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

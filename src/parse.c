@@ -3549,6 +3549,83 @@ static void p_package_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
+static void p_configuration_declarative_part(tree_t unit)
+{
+   // use_clause | attribute_specification | group_declaration
+
+   BEGIN("configuration declarative part");
+
+   switch (peek()) {
+   case tUSE:
+      p_use_clause(unit, tree_add_decl);
+      break;
+
+   case tATTRIBUTE:
+      p_attribute_specification(unit);
+      break;
+
+   default:
+      expect(tUSE, tATTRIBUTE);
+   }
+}
+
+static void p_block_specification(tree_t unit)
+{
+   // label | label [ ( index_specification ) ]
+
+   BEGIN("block specification");
+
+   p_identifier();
+
+   // TODO: [ ( index_specification ) ]
+}
+
+static void p_block_configuration(tree_t unit)
+{
+   // for block_specification { use_clause } { configuration_item } end for ;
+
+   BEGIN("block configuration");
+
+   consume(tFOR);
+
+   p_block_specification(unit);
+
+   consume(tEND);
+   consume(tFOR);
+   consume(tSEMI);
+}
+
+static void p_configuration_declaration(tree_t unit)
+{
+   // configuration identifier of name is configuration_declarative_part
+   //   block_configuration end [ configuration ] [ simple_name ] ;
+
+   BEGIN("configuration declaration");
+
+   consume(tCONFIGURATION);
+
+   tree_change_kind(unit, T_CONFIG);
+   tree_set_ident(unit, p_identifier());
+
+   consume(tOF);
+
+   tree_set_ident2(unit, p_identifier());
+
+   consume(tIS);
+
+   while (not_at_token(tFOR))
+      p_configuration_declarative_part(unit);
+
+   p_block_configuration(unit);
+
+   consume(tEND);
+   optional(tCONFIGURATION);
+   p_trailing_label(tree_ident(unit));
+   consume(tSEMI);
+
+   tree_set_loc(unit, CURRENT_LOC);
+}
+
 static void p_primary_unit(tree_t unit)
 {
    // entity_declaration | configuration_declaration | package_declaration
@@ -3564,8 +3641,12 @@ static void p_primary_unit(tree_t unit)
       p_package_declaration(unit);
       break;
 
+   case tCONFIGURATION:
+      p_configuration_declaration(unit);
+      break;
+
    default:
-      expect(tENTITY);
+      expect(tENTITY, tPACKAGE, tCONFIGURATION);
    }
 }
 
@@ -4973,6 +5054,7 @@ static void p_library_unit(tree_t unit)
 
    switch (peek()) {
    case tENTITY:
+   case tCONFIGURATION:
       p_primary_unit(unit);
       break;
 
@@ -4988,7 +5070,7 @@ static void p_library_unit(tree_t unit)
       break;
 
    default:
-      expect(tENTITY, tARCHITECTURE, tPACKAGE);
+      expect(tENTITY, tCONFIGURATION, tARCHITECTURE, tPACKAGE);
    }
 }
 

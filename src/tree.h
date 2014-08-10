@@ -142,6 +142,7 @@ typedef enum tree_kind {
    T_BINDING,
    T_LIBRARY,
    T_DESIGN_UNIT,
+   T_CONFIG,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
