@@ -14,6 +14,10 @@ typedef struct error {
 
 static void setup(void)
 {
+   const char *lib_dir = getenv("LIB_DIR");
+   if (lib_dir)
+      lib_add_search_path(lib_dir);
+
    lib_set_work(lib_tmp());
    opt_set_int("bootstrap", 0);
    opt_set_int("unit-test", 1);
