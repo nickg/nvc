@@ -92,6 +92,8 @@ int yylex(void);
 #define WARN_LOOKAHEAD 0
 #define TRACE_RECOVERY 0
 
+#define STD(x, y) (standard() >= (STD_##x) ? y : -1)
+
 #if TRACE_PARSE
 static int depth = 0;
 #endif
@@ -120,6 +122,7 @@ static tree_t p_sequential_statement(void);
 static tree_t p_concurrent_statement(void);
 static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
+static tree_t p_subprogram_specification(void);
 static tree_t p_name(void);
 
 static void _pop_state(const state_t *s)
@@ -163,7 +166,7 @@ static const char *token_str(token_t tok)
       "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
-      "reverse_range"
+      "reverse_range", "protected"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -2550,10 +2553,95 @@ static type_t p_composite_type_definition(void)
    }
 }
 
+static type_t p_protected_type_body(void)
+{
+   // protected body protected_type_body_declarative_part end protected body
+   //   [ simple name ]
+
+   BEGIN("protected type body");
+
+   return type_new(T_NONE);
+}
+
+static void p_protected_type_declarative_item(type_t type)
+{
+   // subprogram_declaration | [08] subprogram_instantiation_declaration
+   //   | attribute_specification | use_clause
+
+   BEGIN("protected type declarative item");
+
+   switch (peek()) {
+   case tATTRIBUTE:
+      p_attribute_specification(NULL /* XXX */);
+      break;
+
+   case tUSE:
+      p_use_clause(NULL, NULL /* XXX */);
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         (void)p_subprogram_declaration(spec);
+      }
+      break;
+
+   default:
+      expect(tATTRIBUTE, tUSE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE);
+   }
+}
+
+static void p_protected_type_declarative_part(type_t type)
+{
+   // { protected_type_declarative_item }
+
+   BEGIN("protected type declarative part");
+
+   while (not_at_token(tEND))
+      p_protected_type_declarative_item(type);
+}
+
+static type_t p_protected_type_declaration(void)
+{
+   // protected protected_type_declarative_part end protected [ simple_name ]
+
+   BEGIN("protected type declaration");
+
+   consume(tPROTECTED);
+
+   type_t type = type_new(T_PROTECTED);
+
+   p_protected_type_declarative_part(type);
+
+   consume(tEND);
+   consume(tPROTECTED);
+
+   if (peek() == tID)
+      type_set_ident(type, p_identifier());
+
+   return type;
+}
+
+static type_t p_protected_type_definition(void)
+{
+   // protected_type_declaration | protected_type_body
+
+   BEGIN("protected type definition");
+
+   if (peek_nth(2) == tBODY)
+      return p_protected_type_body();
+   else
+      return p_protected_type_declaration();
+}
+
 static type_t p_type_definition(void)
 {
    // scalar_type_definition | composite_type_definition
    //   | access_type_definition | file_type_definition
+   //   | [00] protected_type_definition
 
    BEGIN("type definition");
 
@@ -2572,8 +2660,11 @@ static type_t p_type_definition(void)
    case tARRAY:
       return p_composite_type_definition();
 
+   case tPROTECTED:
+      return p_protected_type_definition();
+
    default:
-      expect(tRANGE, tACCESS, tFILE, tRECORD);
+      expect(tRANGE, tACCESS, tFILE, tRECORD, STD(00, tPROTECTED));
       return type_new(T_NONE);
    }
 }

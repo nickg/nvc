@@ -39,6 +39,7 @@ typedef enum type_kind {
    T_INCOMPLETE,
    T_PROC,
    T_NONE,
+   T_PROTECTED,
 
    T_LAST_TYPE_KIND
 } type_kind_t;
