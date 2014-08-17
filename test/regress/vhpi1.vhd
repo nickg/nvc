@@ -15,4 +15,10 @@ begin
         y <= x + 1 after 1 ns;
     end process;
 
+    process is
+    begin
+        wait for 1 ms;
+        report "VHPI plugin did not end simulation" severity failure;
+    end process;
+
 end architecture;
