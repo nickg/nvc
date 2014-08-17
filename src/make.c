@@ -297,6 +297,13 @@ static void make_rule(tree_t t, rule_t **rules)
          deps[i] = NULL;
    }
 
+   lib_t std = lib_find("STD", false, true);
+   if (std != NULL) {
+      tree_t standard = lib_get(std, ident_new("STD.STANDARD"));
+      if (standard)
+         make_rule_add_input(r, make_product(standard, MAKE_TREE));
+   }
+
    if (tree_kind(t) == T_ARCH)
       tree_visit_only(t, make_instance_deps, r, T_INSTANCE);
 
