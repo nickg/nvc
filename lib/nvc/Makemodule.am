@@ -38,3 +38,5 @@ clean-nvc:
 gen-deps-nvc:
 	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only --native | \
 		$(deps_pp) > $(srcdir)/lib/nvc/deps.mk
+
+include lib/nvc/deps.mk
