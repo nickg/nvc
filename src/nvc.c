@@ -297,7 +297,9 @@ static int run(int argc, char **argv)
       { "format",     required_argument, 0, 'f' },
       { "include",    required_argument, 0, 'i' },
       { "exclude",    required_argument, 0, 'e' },
+#if ENABLE_VHPI
       { "load",       required_argument, 0, 'l' },
+#endif
       { 0, 0, 0, 0 }
    };
 
