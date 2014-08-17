@@ -512,11 +512,11 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
                   int32_t nparts, void *resolution, int32_t index,
                   const char *module)
 {
-   TRACE("_set_initial net=%d values=%s nparts=%d index=%d",
-         nid, fmt_values(values, size_list[0] * size_list[1]), nparts, index);
-
    tree_t decl = rt_recall_tree(module, index);
    assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   TRACE("_set_initial %s values=%s nparts=%d index=%d", istr(tree_ident(decl)),
+         fmt_values(values, size_list[0] * size_list[1]), nparts, index);
 
    res_memo_t *memo = NULL;
    if (resolution != NULL)
