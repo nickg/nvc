@@ -26,6 +26,7 @@
 #include "tree.h"
 #include "util.h"
 #include "token.h"
+#include "common.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -41,6 +42,18 @@
 
 #define TOKEN(t) return (last_token = (t))
 
+#define TOKEN_LRM(t, lrm)                                       \
+   if (standard() < lrm) {                                      \
+      warn_at(&yylloc, "%s is a reserved word in VHDL-%s",      \
+              yytext, standard_text(lrm));                      \
+      return parse_id(yytext);                                  \
+   }                                                            \
+   else                                                         \
+      return (last_token = (t));
+
+#define TOKEN_00(t) TOKEN_LRM(t, STD_00)
+#define TOKEN_08(t) TOKEN_LRM(t, STD_08)
+
 static int parse_id(const char *str);
 static int parse_ex_id(const char *str);
 static int parse_based_int(const char *str);
@@ -49,6 +62,8 @@ static int parse_int(const char *str);
 static int resolve_ir1045(void);
 
 static int last_token = -1;
+
+extern loc_t yylloc;
 
 yylval_t yylval;
 
@@ -191,6 +206,7 @@ LABEL         {L}{A}{B}{E}{L}
 LITERAL       {L}{I}{T}{E}{R}{A}{L}
 GUARDED       {G}{U}{A}{R}{D}{E}{D}
 REVRANGE      {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
+PROTECTED     {P}{R}{O}{T}{E}{C}{T}{E}{D}
 
 %%
 
@@ -292,6 +308,7 @@ REVRANGE      {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 {LABEL}         { TOKEN(tLABEL); }
 {GUARDED}       { TOKEN(tGUARDED); }
 {REVRANGE}      { TOKEN(tREVRANGE); }
+{PROTECTED}     { TOKEN_00(tPROTECTED); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

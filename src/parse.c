@@ -53,7 +53,6 @@ static const char *perm_file_name = NULL;
 static int         n_token_next_start = 0;
 static int         n_row = 0;
 static bool        last_was_newline = true;
-static loc_t       yylloc;
 static loc_t       start_loc;
 static loc_t       last_loc;
 static const char *read_ptr;
@@ -71,6 +70,7 @@ static yylval_t    last_lval;
 static token_t     opt_hist[8];
 static int         nopt_hist = 0;
 
+loc_t yylloc;
 int yylex(void);
 
 #define F(list) list, ARRAY_LEN(list)

@@ -152,7 +152,8 @@ typedef enum {
    tNOT,
    tTIMES,
    tGUARDED,
-   tREVRANGE
+   tREVRANGE,
+   tPROTECTED
 } token_t;
 
 #endif
