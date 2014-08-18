@@ -236,3 +236,4 @@ vhpi2           normal,vhpi
 issue69         normal
 issue70         normal
 elab22          normal
+array4          normal

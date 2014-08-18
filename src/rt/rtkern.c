@@ -538,6 +538,7 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       const int size = size_list[part * 2];
 
       assert(g->sig_decl == NULL);
+      assert(remain >= g->length);
 
       g->sig_decl   = decl;
       g->resolution = memo;
@@ -557,10 +558,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       memcpy(g->last_value, src, nbytes);
 
       offset += g->length;
-      src += nbytes;
-
+      src    += nbytes;
       remain -= g->length;
-      assert(remain >= 0);
 
       if (remain == 0) {
          part++;
