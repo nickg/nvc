@@ -5323,7 +5323,10 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
 
          if (all_const) {
             LLVMValueRef idx =
-               cgen_array_ref_offset(t, *driven_nets, true, ctx);
+               LLVMBuildMul(builder,
+                            cgen_array_ref_offset(t, *driven_nets, true, ctx),
+                            llvm_int32(type_width(tree_type(t))), "stride");
+
             *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
             *driven_length = type_width(tree_type(t));
          }

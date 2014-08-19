@@ -237,3 +237,4 @@ issue69         normal
 issue70         normal
 elab22          normal
 array4          normal
+issue72         normal
