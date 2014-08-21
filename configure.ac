@@ -159,7 +159,7 @@ if test x$enable_vhpi = xyes; then
 
   case $host_os in
     darwin*)
-      VHPI_LDFLAGS="-bundle -flat_namespace -undefined dynamic_lookup"
+      VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
       ;;
   esac
   AC_SUBST(VHPI_LDFLAGS)
