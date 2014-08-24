@@ -4079,7 +4079,12 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
          cgen_check_array_bounds(r.left, val_type, 0, nets, left, ctx);
          cgen_check_array_bounds(r.right, val_type, 0, nets, right, ctx);
 
-         LLVMValueRef off = cgen_array_off(left, nets, val_type, ctx, 0);
+         const int stride = type_width(type_elem(val_type));
+         LLVMValueRef off =
+            LLVMBuildMul(builder,
+                         cgen_array_off(left, nets, val_type, ctx, 0),
+                         llvm_int32(stride),
+                         "off");
 
          if (!cgen_const_bounds(val_type))
             nets = LLVMBuildExtractValue(builder, nets, 0, "");
@@ -5344,11 +5349,14 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
 
          range_t r = tree_range(t);
          if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
-            LLVMValueRef off =
-               cgen_array_off(cgen_expr(r.left, ctx), *driven_nets,
-                              tree_type(value), ctx, 0);
+            const int stride = type_width(type_elem(tree_type(t)));
+            LLVMValueRef idx =
+               LLVMBuildMul(builder,
+                            cgen_array_off(cgen_expr(r.left, ctx), *driven_nets,
+                                           tree_type(value), ctx, 0),
+                            llvm_int32(stride), "stride");
 
-            *driven_nets = LLVMBuildGEP(builder, *driven_nets, &off, 1, "");
+            *driven_nets = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
             *driven_length = type_width(tree_type(t));
          }
       }
