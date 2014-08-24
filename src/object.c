@@ -79,7 +79,8 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
 
    if (!allow)
       fatal_trace("cannot change %s kind %s to %s", class->name,
-                  tree_kind_str(object->kind), tree_kind_str(kind));
+                  class->kind_text_map[object->kind],
+                  class->kind_text_map[kind]);
 
    const imask_t old_has = class->has_map[object->kind];
    const imask_t new_has = class->has_map[kind];

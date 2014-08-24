@@ -173,6 +173,7 @@ typedef struct {
    const imask_t          *has_map;
    const int              *object_nitems;
    const size_t           *object_size;
+   const char            **kind_text_map;
 } object_class_t;
 
 typedef struct type_wr_ctx *type_wr_ctx_t;

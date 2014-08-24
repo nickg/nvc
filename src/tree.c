@@ -379,9 +379,9 @@ static const object_class_t tree_object = {
    .change_allowed = change_allowed,
    .has_map        = has_map,
    .object_nitems  = object_nitems,
-   .object_size    = object_size
+   .object_size    = object_size,
+   .kind_text_map  = kind_text_map
 };
-
 
 unsigned next_generation = 1;
 

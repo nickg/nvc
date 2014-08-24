@@ -89,6 +89,16 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_INCOMPLETE", "T_PROC",     "T_NONE",    "T_PROTECTED"
 };
 
+static const change_allowed_t change_allowed[] = {
+   { T_INCOMPLETE, T_INTEGER  },
+   { T_INCOMPLETE, T_REAL     },
+   { T_INCOMPLETE, T_PHYSICAL },
+   { T_INCOMPLETE, T_UARRAY   },
+   { T_INCOMPLETE, T_RECORD   },
+   { T_INCOMPLETE, T_ACCESS   },
+   { -1,           -1         }
+};
+
 struct type {
    ident_t     ident;
    object_t    object;
@@ -121,6 +131,15 @@ static uint32_t format_digest;
 static int      item_lookup[T_LAST_TREE_KIND][64];
 static size_t   object_size[T_LAST_TREE_KIND];
 static int      object_nitems[T_LAST_TREE_KIND];
+
+static const object_class_t type_object = {
+   .name           = "type",
+   .change_allowed = change_allowed,
+   .has_map        = has_map,
+   .object_nitems  = object_nitems,
+   .object_size    = object_size,
+   .kind_text_map  = kind_text_map
+};
 
 static void type_one_time_init(void)
 {
@@ -498,7 +517,8 @@ void type_replace(type_t t, type_t a)
    assert(t != NULL);
    assert(IS(t, T_INCOMPLETE));
 
-   t->object.kind = a->object.kind;
+   object_change_kind(&type_object, &(t->object), a->object.kind);
+
    t->ident = a->ident;
 
    const imask_t has = has_map[t->object.kind];
