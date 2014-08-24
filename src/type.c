@@ -35,20 +35,6 @@ DEFINE_ARRAY(type);
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(range);
 
-#define I_PARAMS       ONE_HOT(0)
-#define I_INDEX_CONSTR ONE_HOT(1)
-#define I_BASE         ONE_HOT(2)
-#define I_ELEM         ONE_HOT(3)
-#define I_FILE         ONE_HOT(4)
-#define I_ACCESS       ONE_HOT(5)
-#define I_RESOLUTION   ONE_HOT(6)
-#define I_RESULT       ONE_HOT(7)
-#define I_UNITS        ONE_HOT(8)
-#define I_LITERALS     ONE_HOT(9)
-#define I_DIMS         ONE_HOT(10)
-#define I_FIELDS       ONE_HOT(11)
-#define I_TEXT_BUF     ONE_HOT(12)
-
 typedef union {
    type_array_t  type_array;
    type_t        type;
@@ -81,7 +67,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_ELEM | I_DIMS),
 
    // T_UARRAY
-   (I_INDEX_CONSTR | I_ELEM),
+   (I_CONSTR | I_ELEM),
 
    // T_RECORD
    (I_FIELDS),
@@ -108,7 +94,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0)
 };
 
-#define ITEM_TYPE_ARRAY  (I_PARAMS | I_INDEX_CONSTR)
+#define ITEM_TYPE_ARRAY  (I_PARAMS | I_CONSTR)
 #define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT | I_FILE)
 #define ITEM_TREE        (I_RESOLUTION)
 #define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS | I_UNITS)
@@ -123,7 +109,7 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 static const char *item_text_map[] = {
-   "I_PARAMS",  "I_INDEX_CONSTR", "I_BASE",       "I_ELEM",
+   "I_PARAMS",  "I_CONSTR", "I_BASE",       "I_ELEM",
    "I_FILE",    "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
    "I_UNITS",   "I_LITERALS",     "I_DIMS",       "I_FIELDS",
    "I_TEXT_BUF"
@@ -628,24 +614,24 @@ void type_replace(type_t t, type_t a)
 
 unsigned type_index_constrs(type_t t)
 {
-   return lookup_item(t, I_INDEX_CONSTR)->type_array.count;
+   return lookup_item(t, I_CONSTR)->type_array.count;
 }
 
 void type_add_index_constr(type_t t, type_t c)
 {
-   type_array_add(&(lookup_item(t, I_INDEX_CONSTR)->type_array), c);
+   type_array_add(&(lookup_item(t, I_CONSTR)->type_array), c);
 }
 
 void type_change_index_constr(type_t t, unsigned n, type_t c)
 {
-   type_array_t *a = &(lookup_item(t, I_INDEX_CONSTR)->type_array);
+   type_array_t *a = &(lookup_item(t, I_CONSTR)->type_array);
    assert(n < a->count);
    a->items[n] = c;
 }
 
 type_t type_index_constr(type_t t, unsigned n)
 {
-   return type_array_nth(&(lookup_item(t, I_INDEX_CONSTR)->type_array), n);
+   return type_array_nth(&(lookup_item(t, I_CONSTR)->type_array), n);
 }
 
 void type_set_resolution(type_t t, tree_t r)

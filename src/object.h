@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2014  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -25,6 +25,52 @@
 #define ONE_HOT(x) (UINT64_C(1) << (x))
 
 typedef uint64_t imask_t;
+
+#define I_IDENT      ONE_HOT(0)
+#define I_VALUE      ONE_HOT(1)
+#define I_SEVERITY   ONE_HOT(2)
+#define I_MESSAGE    ONE_HOT(3)
+#define I_TARGET     ONE_HOT(4)
+#define I_IVAL       ONE_HOT(5)
+#define I_IDENT2     ONE_HOT(6)
+#define I_DECLS      ONE_HOT(7)
+#define I_STMTS      ONE_HOT(8)
+#define I_PORTS      ONE_HOT(9)
+#define I_GENERICS   ONE_HOT(10)
+#define I_PARAMS     ONE_HOT(11)
+#define I_GENMAPS    ONE_HOT(12)
+#define I_WAVES      ONE_HOT(13)
+#define I_CONDS      ONE_HOT(14)
+#define I_TYPE       ONE_HOT(15)
+#define I_SUBKIND    ONE_HOT(16)
+#define I_DELAY      ONE_HOT(17)
+#define I_REJECT     ONE_HOT(18)
+#define I_POS        ONE_HOT(19)
+#define I_REF        ONE_HOT(20)
+#define I_FILE_MODE  ONE_HOT(21)
+#define I_ASSOCS     ONE_HOT(22)
+#define I_CONTEXT    ONE_HOT(23)
+#define I_TRIGGERS   ONE_HOT(24)
+#define I_ELSES      ONE_HOT(25)
+#define I_CLASS      ONE_HOT(26)
+#define I_RANGE      ONE_HOT(27)
+#define I_NAME       ONE_HOT(28)
+#define I_NETS       ONE_HOT(29)
+#define I_DVAL       ONE_HOT(30)
+#define I_SPEC       ONE_HOT(31)
+#define I_OPS        ONE_HOT(32)
+#define I_CONSTR     ONE_HOT(33)
+#define I_BASE       ONE_HOT(34)
+#define I_ELEM       ONE_HOT(35)
+#define I_FILE       ONE_HOT(36)
+#define I_ACCESS     ONE_HOT(37)
+#define I_RESOLUTION ONE_HOT(38)
+#define I_RESULT     ONE_HOT(39)
+#define I_UNITS      ONE_HOT(40)
+#define I_LITERALS   ONE_HOT(41)
+#define I_DIMS       ONE_HOT(42)
+#define I_FIELDS     ONE_HOT(43)
+#define I_TEXT_BUF   ONE_HOT(44)
 
 typedef struct {
    uint32_t        generation;
