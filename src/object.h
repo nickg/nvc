@@ -90,15 +90,9 @@ DECLARE_ARRAY(range);
                                                                         \
          const imask_t has = has_map[t->kind];                          \
                                                                         \
-         if (unlikely((has & mask) == 0)) {                             \
-            int item;                                                   \
-            for (item = 0; (mask & (1 << item)) == 0; item++)           \
-               ;                                                        \
-                                                                        \
-            assert(item < ARRAY_LEN(item_text_map));                    \
-            fatal_trace(OBJECT_NAME " kind %s does not have item %s",   \
-                        kind_text_map[t->kind], item_text_map[item]);   \
-         }                                                              \
+         if (unlikely((has & mask) == 0))                               \
+            object_lookup_failed(OBJECT_NAME, kind_text_map,            \
+                                 item_text_map, t->kind, mask);         \
                                                                         \
          const int tzc = __builtin_ctzll(mask);                         \
          const int n   = item_lookup[t->kind][tzc];                     \
@@ -175,5 +169,9 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx);
 
 void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx);
 void type_visit_trees(type_t t, object_visit_ctx_t *ctx);
+
+__attribute__((noreturn))
+void object_lookup_failed(const char *name, const char **kind_text_map,
+                          const char **item_text_map, int kind, imask_t mask);
 
 #endif   // _OBJECT_H

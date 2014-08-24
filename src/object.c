@@ -21,3 +21,15 @@ DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 DEFINE_ARRAY(type);
 DEFINE_ARRAY(range);
+
+void object_lookup_failed(const char *name, const char **kind_text_map,
+                          const char **item_text_map, int kind, imask_t mask)
+{
+   int item;
+   for (item = 0; (mask & (1 << item)) == 0; item++)
+      ;
+
+   assert(item < ARRAY_LEN(item_text_map));
+   fatal_trace("%s kind %s does not have item %s", name,
+               kind_text_map[kind], item_text_map[item]);
+}
