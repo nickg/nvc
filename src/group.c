@@ -281,8 +281,9 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
          range_bounds(slice, &low, &high);
 
          const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
+         const int stride   = type_width(type_elem(type));
 
-         group_ref(value, ctx, low0, high - low + 1);
+         group_ref(value, ctx, low0 * stride, (high - low + 1) * stride);
       }
       else {
          tree_t decl = tree_ref(value);

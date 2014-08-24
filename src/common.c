@@ -432,6 +432,17 @@ bool class_has_type(class_t c)
    }
 }
 
+const char *class_str(class_t c)
+{
+   static const char *strs[] = {
+      "default", "signal", "variable", "constant", "file", "entity",
+      "component", "configuration", "architecture", "function", "package",
+      "type", "subtype", "label", "procedure", "literal", "units"
+   };
+   assert(c < ARRAY_LEN(strs));
+   return strs[c];
+}
+
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name)
 {
    tree_t p = tree_new(T_PARAM);

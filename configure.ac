@@ -156,6 +156,13 @@ AM_CONDITIONAL([ENABLE_VHPI], [test x$enable_vhpi = xyes])
 
 if test x$enable_vhpi = xyes; then
   AC_DEFINE_UNQUOTED([ENABLE_VHPI], [1], [VHPI is enabled])
+
+  case $host_os in
+    darwin*)
+      VHPI_LDFLAGS="-flat_namespace -undefined dynamic_lookup"
+      ;;
+  esac
+  AC_SUBST(VHPI_LDFLAGS)
 fi
 
 AC_ARG_ENABLE([werror],

@@ -23,6 +23,10 @@ void cover_tag(void)
 
 static void setup(void)
 {
+   const char *lib_dir = getenv("LIB_DIR");
+   if (lib_dir)
+      lib_add_search_path(lib_dir);
+
    lib_set_work(lib_tmp());
    opt_set_int("bootstrap", 0);
    opt_set_int("cover", 0);
@@ -80,8 +84,6 @@ static tree_t run_elab(void)
 
 START_TEST(test_elab1)
 {
-   tree_t top;
-
    input_from_file(TESTDIR "/elab/elab1.vhd");
 
    const error_t expect[] = {
@@ -89,14 +91,12 @@ START_TEST(test_elab1)
    };
    expect_errors(expect);
 
-   top = run_elab();
+   (void)run_elab();
 }
 END_TEST
 
 START_TEST(test_elab2)
 {
-   tree_t top;
-
    input_from_file(TESTDIR "/elab/elab2.vhd");
 
    const error_t expect[] = {
@@ -104,14 +104,12 @@ START_TEST(test_elab2)
    };
    expect_errors(expect);
 
-   top = run_elab();
+   (void)run_elab();
 }
 END_TEST
 
 START_TEST(test_elab3)
 {
-   tree_t top;
-
    input_from_file(TESTDIR "/elab/elab3.vhd");
 
    const error_t expect[] = {
@@ -119,14 +117,12 @@ START_TEST(test_elab3)
    };
    expect_errors(expect);
 
-   top = run_elab();
+   (void)run_elab();
 }
 END_TEST
 
 START_TEST(test_elab4)
 {
-   tree_t top;
-
    input_from_file(TESTDIR "/elab/elab4.vhd");
 
    const error_t expect[] = {
@@ -135,7 +131,7 @@ START_TEST(test_elab4)
    };
    expect_errors(expect);
 
-   top = run_elab();
+   (void)run_elab();
 }
 END_TEST
 

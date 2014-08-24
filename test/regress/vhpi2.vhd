@@ -13,4 +13,11 @@ begin
         y <= x + 1 after 1 ns;
     end process;
 
+    process is
+    begin
+        wait for 1 ms;
+        assert x = 1 report "VHPI plugin did not force X" severity failure;
+        wait;
+    end process;
+
 end architecture;

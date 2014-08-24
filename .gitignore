@@ -39,6 +39,10 @@ src/parse.output
 stamp-h1
 IDEAS
 PERF
+GPATH
+GRTAGS
+GSYMS
+GTAGS
 
 # IEEE sources cannot be freely redistributed
 lib/ieee/*.vhdl

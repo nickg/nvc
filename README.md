@@ -52,7 +52,35 @@ dependencies:
 
 #### Mac OS X
 
-TODO
+This covers recent releases of OS X (10.9.X).
+
+Install the Developer Command Line Tools. Either by installing Xcode and menu pull
+down to install Command Line Tools or by Developer download of the Developer Command
+Line Tools. This is essential for getting the include tree and making libraries, etc.
+available.
+
+Get LLVM from llvm.org. Executable images found at
+http://llvm.org/releases/download.html.  The most recent version will likely work,
+need at least LLVM 3.3.  The target name would be for example
+`Clang_for_x86_64_Darwin_10.9`.
+
+Install autotools. Either via Macports, Homebrew or directly.  Insure these are in
+your path.
+
+NVC installation is as described above with narrow exceptions.
+
+Consider passing `--with-llvm=<absolute_path_to_llvm_bin_directory>` as a
+command line argument to configure.  Apple provides `clang` and `clang++` as
+well as `gcc` and `g++` linked to them but no `llvm-config`, etc.
+
+This also implies you could manipulate your execution search path to use
+`clang` and `clang++` from your added LLVM distribution to use as CC and CXX:
+
+    configure CXX=clang++ CC=clang
+
+The consequence of this is that LLVM is more strictly C99/C10/C11 compliant
+while development of NVC is generally done with GNU GCC with more relaxed
+compliance constraints.
 
 #### Windows
 

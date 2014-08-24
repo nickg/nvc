@@ -127,4 +127,11 @@ begin
         assert i'b(1) = 1;              -- Error
     end process;
 
+    process is
+        variable i : integer;
+        attribute a : boolean;
+        attribute a of i : signal is true;  -- Error
+    begin
+    end process;
+
 end architecture;

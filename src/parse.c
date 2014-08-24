@@ -2133,7 +2133,8 @@ static class_t p_entity_class(void)
    BEGIN("entity class");
 
    switch (one_of(tENTITY, tPROCEDURE, tSIGNAL, tLABEL, tFUNCTION,
-                  tCOMPONENT, tVARIABLE, tARCHITECTURE, tTYPE)) {
+                  tCOMPONENT, tVARIABLE, tARCHITECTURE, tTYPE, tPACKAGE,
+                  tCONSTANT)) {
    case tENTITY:
       return C_ENTITY;
    case tPROCEDURE:
@@ -2152,6 +2153,10 @@ static class_t p_entity_class(void)
       return C_ARCHITECTURE;
    case tTYPE:
       return C_TYPE;
+   case tPACKAGE:
+      return C_PACKAGE;
+   case tCONSTANT:
+      return C_CONSTANT;
    default:
       return C_DEFAULT;
    }
@@ -2352,9 +2357,11 @@ static type_t p_scalar_type_definition(void)
          if (peek() == tUNITS)
             return p_physical_type_definition(r);
          else {
-            const bool real = ((tree_kind(r.left) == T_LITERAL)
+            const bool real = ((r.left != NULL)
+                               && (tree_kind(r.left) == T_LITERAL)
                                && (tree_subkind(r.left) == L_REAL))
-               || ((tree_kind(r.right) == T_LITERAL)
+               || ((r.right != NULL)
+                   && (tree_kind(r.right) == T_LITERAL)
                    && (tree_subkind(r.right) == L_REAL));
 
             if (real)
