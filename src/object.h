@@ -79,6 +79,24 @@ typedef uint64_t imask_t;
 #define I_FIELDS     ONE_HOT(43)
 #define I_TEXT_BUF   ONE_HOT(44)
 
+#define ITEM_IDENT       (I_IDENT | I_IDENT2)
+#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
+                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
+                          | I_NAME | I_SPEC | I_RESOLUTION)
+#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
+                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
+                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS \
+                          | I_LITERALS | I_FIELDS | I_UNITS)
+#define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
+                          | I_FILE)
+#define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
+#define ITEM_RANGE       (I_RANGE)
+#define ITEM_NETID_ARRAY (I_NETS)
+#define ITEM_DOUBLE      (I_DVAL)
+#define ITEM_TYPE_ARRAY  (I_PARAMS | I_CONSTR)
+#define ITEM_RANGE_ARRAY (I_DIMS)
+#define ITEM_TEXT_BUF    (I_TEXT_BUF)
+
 DECLARE_ARRAY(tree);
 DECLARE_ARRAY(netid);
 DECLARE_ARRAY(type);
@@ -92,7 +110,7 @@ DECLARE_ARRAY(range);
                                                                         \
          if (unlikely((has & mask) == 0))                               \
             object_lookup_failed(OBJECT_NAME, kind_text_map,            \
-                                 item_text_map, t->kind, mask);         \
+                                 t->kind, mask);                        \
                                                                         \
          const int tzc = __builtin_ctzll(mask);                         \
          const int n   = item_lookup[t->kind][tzc];                     \
@@ -172,6 +190,8 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx);
 
 __attribute__((noreturn))
 void object_lookup_failed(const char *name, const char **kind_text_map,
-                          const char **item_text_map, int kind, imask_t mask);
+                          int kind, imask_t mask);
+
+void item_without_type(imask_t mask);
 
 #endif   // _OBJECT_H

@@ -82,25 +82,11 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (0)
 };
 
-#define ITEM_TYPE_ARRAY  (I_PARAMS | I_CONSTR)
-#define ITEM_TYPE        (I_BASE | I_ELEM | I_ACCESS | I_RESULT | I_FILE)
-#define ITEM_TREE        (I_RESOLUTION)
-#define ITEM_TREE_ARRAY  (I_LITERALS | I_FIELDS | I_UNITS)
-#define ITEM_RANGE_ARRAY (I_DIMS)
-#define ITEM_TEXT_BUF    (I_TEXT_BUF)
-
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
    "T_UNRESOLVED", "T_SUBTYPE",  "T_INTEGER", "T_REAL",
    "T_ENUM",       "T_PHYSICAL", "T_CARRAY",  "T_UARRAY",
    "T_RECORD",     "T_FILE",     "T_ACCESS",  "T_FUNC",
    "T_INCOMPLETE", "T_PROC",     "T_NONE",    "T_PROTECTED"
-};
-
-static const char *item_text_map[] = {
-   "I_PARAMS",  "I_CONSTR", "I_BASE",       "I_ELEM",
-   "I_FILE",    "I_ACCESS",       "I_RESOLUTION", "I_RESULT",
-   "I_UNITS",   "I_LITERALS",     "I_DIMS",       "I_FIELDS",
-   "I_TEXT_BUF"
 };
 
 struct type {
@@ -167,16 +153,6 @@ static void type_one_time_init(void)
    }
 
    done = true;
-}
-
-static void item_without_type(imask_t mask)
-{
-   int item;
-   for (item = 0; (mask & (1 << item)) == 0; item++)
-      ;
-
-   assert(item < ARRAY_LEN(item_text_map));
-   fatal_trace("type item %s does not have a type", item_text_map[item]);
 }
 
 type_t type_new(type_kind_t kind)

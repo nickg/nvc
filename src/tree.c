@@ -264,19 +264,6 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS)
 };
 
-#define ITEM_IDENT       (I_IDENT | I_IDENT2)
-#define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
-                          | I_DELAY | I_REJECT | I_REF | I_FILE_MODE  \
-                          | I_NAME | I_SPEC)
-#define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
-                          | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
-                          | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS)
-#define ITEM_TYPE        (I_TYPE)
-#define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
-#define ITEM_RANGE       (I_RANGE)
-#define ITEM_NETID_ARRAY (I_NETS)
-#define ITEM_DOUBLE      (I_DVAL)
-
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_ENTITY",       "T_ARCH",          "T_PORT_DECL",  "T_FCALL",
    "T_LITERAL",      "T_SIGNAL_DECL",   "T_VAR_DECL",   "T_PROCESS",
@@ -296,16 +283,6 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
    "T_DESIGN_UNIT",  "T_CONFIG"
-};
-
-static const char *item_text_map[] = {
-   "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE", "I_TARGET",
-   "I_LITERAL",  "I_IDENT2",    "I_DECLS",    "I_STMTS",   "I_PORTS",
-   "I_GENERICS", "I_PARAMS",    "I_GENMAPS",  "I_WAVES",   "I_CONDS",
-   "I_TYPE",     "I_SUBKIND",   "I_DELAY",    "I_REJECT",  "I_POS",
-   "I_REF",      "I_FILE_MODE", "I_ASSOCS",   "I_CONTEXT", "I_TRIGGERS",
-   "I_ELSES",    "I_CLASS",     "I_RANGE",    "I_NAME",    "I_NETS",
-   "I_OPS"
 };
 
 static const tree_kind_t change_allowed[][2] = {
@@ -457,16 +434,6 @@ static void tree_one_time_init(void)
       atexit(tree_gc);
 
    done = true;
-}
-
-static void item_without_type(imask_t mask)
-{
-   int item;
-   for (item = 0; (mask & (1 << item)) == 0; item++)
-      ;
-
-   assert(item < ARRAY_LEN(item_text_map));
-   fatal_trace("tree item %s does not have a type", item_text_map[item]);
 }
 
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
