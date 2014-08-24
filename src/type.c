@@ -97,8 +97,7 @@ static const change_allowed_t change_allowed[] = {
 };
 
 struct type {
-   ident_t     ident;
-   object_t    object;
+   object_t object;
 };
 
 struct type_wr_ctx {

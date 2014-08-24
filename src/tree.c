@@ -289,8 +289,7 @@ static const change_allowed_t change_allowed[] = {
 };
 
 struct tree {
-   loc_t       loc;
-   object_t    object;
+   object_t object;
 };
 
 struct tree_wr_ctx {
@@ -484,7 +483,7 @@ const loc_t *tree_loc(tree_t t)
 {
    assert(t != NULL);
 
-   return &t->loc;
+   return &t->object.loc;
 }
 
 void tree_set_loc(tree_t t, const loc_t *loc)
@@ -492,7 +491,7 @@ void tree_set_loc(tree_t t, const loc_t *loc)
    assert(t != NULL);
    assert(loc != NULL);
 
-   t->loc = *loc;
+   t->object.loc = *loc;
 }
 
 ident_t tree_ident(tree_t t)
@@ -1286,7 +1285,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    t->object.index      = (ctx->n_trees)++;
 
    write_u16(t->object.kind, ctx->file);
-   write_loc(&t->loc, ctx);
+   write_loc(&t->object.loc, ctx);
 
    const imask_t has = has_map[t->object.kind];
    const int nitems = tree_object.object_nitems[t->object.kind];
@@ -1379,7 +1378,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    assert(marker < T_LAST_TREE_KIND);
 
    tree_t t = tree_new((tree_kind_t)marker);
-   t->loc = read_loc(ctx);
+   t->object.loc = read_loc(ctx);
 
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
@@ -1805,7 +1804,7 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
    tree_t copy = tree_new(t->object.kind);
    ctx->copied[t->object.index] = copy;
 
-   copy->loc = t->loc;
+   copy->object.loc = t->object.loc;
 
    const imask_t has = has_map[t->object.kind];
    const int nitems = tree_object.object_nitems[t->object.kind];

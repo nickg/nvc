@@ -677,6 +677,17 @@ static bool elab_should_copy(tree_t t)
    case T_SIGNAL_DECL:
    case T_GENVAR:
       return true;
+   case T_LITERAL:
+   case T_ASSOC:
+   case T_PARAM:
+   case T_WAVEFORM:
+   case T_ARRAY_SLICE:
+   case T_UNIT_DECL:
+   case T_USE:
+   case T_IF_GENERATE:
+   case T_CONCAT:
+   case T_LIBRARY:
+      return false;
    case T_VAR_DECL:
       if (tree_attr_int(t, shared_i, 0))
          return true;

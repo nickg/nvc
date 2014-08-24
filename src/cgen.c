@@ -6184,8 +6184,11 @@ static void cgen_reset_function(tree_t t)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
 
-      if (tree_kind(d) == T_FILE_DECL)
+      const tree_kind_t kind = tree_kind(d);
+      if (kind == T_FILE_DECL)
          cgen_open_file(d, &ctx);
+      else if (kind == T_HIER)
+         continue;
 
       void *global = tree_attr_ptr(d, global_const_i);
       if (global != NULL) {
@@ -6203,7 +6206,7 @@ static void cgen_reset_function(tree_t t)
             LLVMBuildStore(builder, init, (LLVMValueRef)global);
       }
 
-      if (tree_kind(d) != T_SIGNAL_DECL)
+      if (kind != T_SIGNAL_DECL)
          continue;
 
       const int nnets = tree_nets(d);
@@ -6242,6 +6245,8 @@ static void cgen_reset_function(tree_t t)
    // This avoids calls to _vec_load at runtime
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
 
       LLVMValueRef resolved_var = tree_attr_ptr(d, resolved_i);
       if (resolved_var == NULL)
@@ -6279,6 +6284,9 @@ static void cgen_reset_function(tree_t t)
    // Identify signals which potentially need 'LAST_VALUE
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+      if (tree_kind(d) != T_SIGNAL_DECL)
+         continue;
+
       if (!tree_attr_int(d, last_value_i, 0))
          continue;
 

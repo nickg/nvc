@@ -78,6 +78,7 @@ typedef uint64_t imask_t;
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
 #define I_TEXT_BUF   ONE_HOT(44)
+#define I_ATTRS      ONE_HOT(45)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
@@ -96,6 +97,7 @@ typedef uint64_t imask_t;
 #define ITEM_TYPE_ARRAY  (I_PARAMS | I_CONSTR)
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
+#define ITEM_ATTRS       (I_ATTRS)
 
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
@@ -122,6 +124,27 @@ DECLARE_ARRAY(range);
          &((t)->object.items[n]);                                       \
       })
 
+typedef enum {
+   A_STRING, A_INT, A_PTR, A_TREE
+} attr_kind_t;
+
+typedef struct {
+   attr_kind_t kind;
+   ident_t     name;
+   union {
+      ident_t sval;
+      int     ival;
+      void    *pval;
+      tree_t  tval;
+   };
+} attr_t;
+
+typedef struct {
+   uint16_t  alloc;
+   uint16_t  num;
+   attr_t   *table;
+} attr_tab_t;
+
 typedef union {
    ident_t        ident;
    tree_t         tree;
@@ -135,6 +158,7 @@ typedef union {
    range_array_t  range_array;
    text_buf_t    *text_buf;
    type_array_t   type_array;
+   attr_tab_t     attrs;
 } item_t;
 
 typedef struct {
@@ -142,6 +166,7 @@ typedef struct {
    unsigned tag : 2;
    uint16_t generation;
    uint32_t index;
+   loc_t    loc;
    item_t   items[0];
 } object_t;
 
