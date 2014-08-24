@@ -84,6 +84,28 @@ DECLARE_ARRAY(netid);
 DECLARE_ARRAY(type);
 DECLARE_ARRAY(range);
 
+#define lookup_item(t, mask) ({                                         \
+         assert(t != NULL);                                             \
+         assert((mask & (mask - 1)) == 0);                              \
+                                                                        \
+         const imask_t has = has_map[t->kind];                          \
+                                                                        \
+         if (unlikely((has & mask) == 0)) {                             \
+            int item;                                                   \
+            for (item = 0; (mask & (1 << item)) == 0; item++)           \
+               ;                                                        \
+                                                                        \
+            assert(item < ARRAY_LEN(item_text_map));                    \
+            fatal_trace(OBJECT_NAME " kind %s does not have item %s",   \
+                        kind_text_map[t->kind], item_text_map[item]);   \
+         }                                                              \
+                                                                        \
+         const int tzc = __builtin_ctzll(mask);                         \
+         const int n   = item_lookup[t->kind][tzc];                     \
+                                                                        \
+         &(t->items[n]);                                                \
+      })
+
 typedef union {
    ident_t        ident;
    tree_t         tree;

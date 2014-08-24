@@ -29,7 +29,8 @@
 #include <ctype.h>
 #include <float.h>
 
-#define MAX_ITEMS 3
+#define MAX_ITEMS   3
+#define OBJECT_NAME "type"
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
@@ -166,29 +167,6 @@ static void type_one_time_init(void)
    }
 
    done = true;
-}
-
-static inline item_t *lookup_item(type_t t, imask_t mask)
-{
-   assert(t != NULL);
-   assert((mask & (mask - 1)) == 0);
-
-   const imask_t has = has_map[t->kind];
-
-   if (unlikely((has & mask) == 0)){
-      int item;
-      for (item = 0; (mask & (1 << item)) == 0; item++)
-         ;
-
-      assert(item < ARRAY_LEN(item_text_map));
-      fatal_trace("type kind %s does not have item %s",
-                  kind_text_map[t->kind], item_text_map[item]);
-   }
-
-   const int tzc = __builtin_ctzll(mask);
-   const int n   = item_lookup[t->kind][tzc];
-
-   return &(t->items[n]);
 }
 
 static void item_without_type(imask_t mask)
