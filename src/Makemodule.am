@@ -21,7 +21,8 @@ lib_libnvc_a_SOURCES = \
 	src/hash.c \
 	src/group.c \
 	src/bounds.c \
-	src/make.c
+	src/make.c \
+	src/object.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

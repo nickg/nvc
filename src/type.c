@@ -31,19 +31,6 @@
 
 #define MAX_ITEMS 3
 
-DEFINE_ARRAY(type);
-DEFINE_ARRAY(tree);
-DEFINE_ARRAY(range);
-
-typedef union {
-   type_array_t  type_array;
-   type_t        type;
-   tree_t        tree;
-   tree_array_t  tree_array;
-   range_array_t range_array;
-   text_buf_t   *text_buf;
-} item_t;
-
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
    (I_RESOLUTION),

@@ -18,16 +18,16 @@
 #ifndef _ARRAY_H
 #define _ARRAY_H
 
+#include <assert.h>
+
 #define ARRAY_BASE_SZ 8
 
+//
 // Generic array template used in type and tree code
+//
+
 #define DEFINE_ARRAY(what)                                     \
-   typedef struct {                                            \
-      uint32_t  count;                                         \
-      what##_t *items;                                         \
-   } what##_array_t;                                           \
-                                                               \
-   static void what##_array_add(what##_array_t *a, what##_t t) \
+   void what##_array_add(what##_array_t *a, what##_t t)        \
    {                                                           \
       if (a->count == 0) {                                     \
          assert(a->items == NULL);                             \
@@ -42,15 +42,7 @@
       a->items[a->count++] = t;                                \
    }                                                           \
                                                                \
-   static inline what##_t what##_array_nth(what##_array_t *a,  \
-                                           unsigned n)         \
-   {                                                           \
-      assert(n < a->count);                                    \
-      return a->items[n];                                      \
-   }                                                           \
-                                                               \
-   __attribute__((unused))                                     \
-   static void what##_array_resize(what##_array_t *a,          \
+   void what##_array_resize(what##_array_t *a,                 \
                                    size_t n, what##_t fill)    \
    {                                                           \
       if (n > 0) {                                             \
@@ -62,5 +54,23 @@
       }                                                        \
       a->count = n;                                            \
    }                                                           \
+
+#define DECLARE_ARRAY(what)                                    \
+   typedef struct {                                            \
+      uint32_t  count;                                         \
+      what##_t *items;                                         \
+   } what##_array_t;                                           \
+                                                               \
+   void what##_array_add(what##_array_t *a, what##_t t);       \
+                                                               \
+   static inline what##_t what##_array_nth(what##_array_t *a,  \
+                                           unsigned n)         \
+   {                                                           \
+      assert(n < a->count);                                    \
+      return a->items[n];                                      \
+   }                                                           \
+                                                               \
+   void what##_array_resize(what##_array_t *a,                 \
+                            size_t n, what##_t fill);
 
 #endif  // _ARRAY_H

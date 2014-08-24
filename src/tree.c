@@ -30,9 +30,6 @@
 
 //#define EXTRA_READ_CHECKS
 
-DEFINE_ARRAY(tree);
-DEFINE_ARRAY(netid);
-
 typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
 } attr_kind_t;
@@ -53,18 +50,6 @@ typedef struct {
    uint16_t  num;
    attr_t   *table;
 } attr_tab_t;
-
-typedef union {
-   ident_t        ident;
-   tree_t         tree;
-   tree_array_t   tree_array;
-   type_t         type;
-   unsigned       subkind;
-   int64_t        ival;
-   double         dval;
-   range_t       *range;
-   netid_array_t  netid_array;
-} item_t;
 
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY

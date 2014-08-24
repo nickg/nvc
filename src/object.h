@@ -18,6 +18,13 @@
 #ifndef _OBJECT_H
 #define _OBJECT_H
 
+#include "util.h"
+#include "array.h"
+#include "tree.h"
+#include "type.h"
+
+#include <stdint.h>
+
 //
 // Structures shared between tree and type objects
 //
@@ -71,6 +78,26 @@ typedef uint64_t imask_t;
 #define I_DIMS       ONE_HOT(42)
 #define I_FIELDS     ONE_HOT(43)
 #define I_TEXT_BUF   ONE_HOT(44)
+
+DECLARE_ARRAY(tree);
+DECLARE_ARRAY(netid);
+DECLARE_ARRAY(type);
+DECLARE_ARRAY(range);
+
+typedef union {
+   ident_t        ident;
+   tree_t         tree;
+   tree_array_t   tree_array;
+   type_t         type;
+   unsigned       subkind;
+   int64_t        ival;
+   double         dval;
+   range_t       *range;
+   netid_array_t  netid_array;
+   range_array_t  range_array;
+   text_buf_t    *text_buf;
+   type_array_t   type_array;
+} item_t;
 
 typedef struct {
    uint32_t        generation;
