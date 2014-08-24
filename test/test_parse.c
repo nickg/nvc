@@ -2145,18 +2145,23 @@ END_TEST
 
 START_TEST(test_config)
 {
-   tree_t c;
+   tree_t c, s;
 
    input_from_file(TESTDIR "/parse/config.vhd");
 
    c = parse();
    fail_if(c == NULL);
    fail_unless(tree_kind(c) == T_CONFIG);
-   fail_unless(tree_ident(c) == ident_new("A"));
-   fail_unless(tree_ident2(c) == ident_new("B"));
-   fail_unless(tree_decls(c) == 2);
+   fail_unless(tree_ident(c) == ident_new("CONF"));
+   fail_unless(tree_ident2(c) == ident_new("ENT-ARCH"));
+   fail_unless(tree_decls(c) == 3);
    fail_unless(tree_kind(tree_decl(c, 0)) == T_USE);
    fail_unless(tree_kind(tree_decl(c, 1)) == T_ATTR_SPEC);
+
+   s = tree_decl(c, 2);
+   fail_unless(tree_kind(s) == T_SPEC);
+   fail_unless(tree_ident(s) == ident_new("all"));
+   fail_unless(tree_ident2(s) == ident_new("COMP"));
 
    c = parse();
    fail_unless(c == NULL);

@@ -121,6 +121,7 @@ static tree_t p_concurrent_statement(void);
 static tree_t p_subprogram_declaration(tree_t spec);
 static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_name(void);
+static void p_block_configuration(tree_t unit);
 
 static void _pop_state(const state_t *s)
 {
@@ -3556,107 +3557,6 @@ static void p_package_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
-static void p_configuration_declarative_part(tree_t unit)
-{
-   // use_clause | attribute_specification | group_declaration
-
-   BEGIN("configuration declarative part");
-
-   switch (peek()) {
-   case tUSE:
-      p_use_clause(unit, tree_add_decl);
-      break;
-
-   case tATTRIBUTE:
-      p_attribute_specification(unit);
-      break;
-
-   default:
-      expect(tUSE, tATTRIBUTE);
-   }
-}
-
-static void p_block_specification(tree_t unit)
-{
-   // label | label [ ( index_specification ) ]
-
-   BEGIN("block specification");
-
-   p_identifier();
-
-   // TODO: [ ( index_specification ) ]
-}
-
-static void p_block_configuration(tree_t unit)
-{
-   // for block_specification { use_clause } { configuration_item } end for ;
-
-   BEGIN("block configuration");
-
-   consume(tFOR);
-
-   p_block_specification(unit);
-
-   consume(tEND);
-   consume(tFOR);
-   consume(tSEMI);
-}
-
-static void p_configuration_declaration(tree_t unit)
-{
-   // configuration identifier of name is configuration_declarative_part
-   //   block_configuration end [ configuration ] [ simple_name ] ;
-
-   BEGIN("configuration declaration");
-
-   consume(tCONFIGURATION);
-
-   tree_change_kind(unit, T_CONFIG);
-   tree_set_ident(unit, p_identifier());
-
-   consume(tOF);
-
-   tree_set_ident2(unit, p_identifier());
-
-   consume(tIS);
-
-   while (not_at_token(tFOR))
-      p_configuration_declarative_part(unit);
-
-   p_block_configuration(unit);
-
-   consume(tEND);
-   optional(tCONFIGURATION);
-   p_trailing_label(tree_ident(unit));
-   consume(tSEMI);
-
-   tree_set_loc(unit, CURRENT_LOC);
-}
-
-static void p_primary_unit(tree_t unit)
-{
-   // entity_declaration | configuration_declaration | package_declaration
-
-   BEGIN("primary unit");
-
-   switch (peek()) {
-   case tENTITY:
-      p_entity_declaration(unit);
-      break;
-
-   case tPACKAGE:
-      p_package_declaration(unit);
-      break;
-
-   case tCONFIGURATION:
-      p_configuration_declaration(unit);
-      break;
-
-   default:
-      expect(tENTITY, tPACKAGE, tCONFIGURATION);
-   }
-}
-
 static ident_list_t *p_instantiation_list(void)
 {
    // label { , label } | others | all
@@ -3800,7 +3700,6 @@ static void p_configuration_specification(tree_t parent)
    LOCAL_IDENT_LIST ids = p_component_specification(&comp_name);
 
    tree_t bind = p_binding_indication();
-
    consume(tSEMI);
 
    const loc_t *loc = CURRENT_LOC;
@@ -3824,6 +3723,172 @@ static void p_configuration_specification(tree_t parent)
       tree_set_value(t, bind);
 
       tree_add_decl(parent, t);
+   }
+}
+
+static void p_configuration_declarative_part(tree_t unit)
+{
+   // use_clause | attribute_specification | group_declaration
+
+   BEGIN("configuration declarative part");
+
+   switch (peek()) {
+   case tUSE:
+      p_use_clause(unit, tree_add_decl);
+      break;
+
+   case tATTRIBUTE:
+      p_attribute_specification(unit);
+      break;
+
+   default:
+      expect(tUSE, tATTRIBUTE);
+   }
+}
+
+static void p_component_configuration(tree_t unit)
+{
+   // for component_specification [ binding_indication ; ]
+   //   [ block_configuration ] end for ;
+
+   BEGIN("component configuration");
+
+   consume(tFOR);
+
+   ident_t comp_name;
+   LOCAL_IDENT_LIST ids = p_component_specification(&comp_name);
+
+   // TODO: should be optional
+   tree_t bind = p_binding_indication();
+   consume(tSEMI);
+
+   const loc_t *loc = CURRENT_LOC;
+
+   if (ids != NULL) {
+      for (ident_list_t *it = ids; it != NULL; it = it->next) {
+         tree_t t = tree_new(T_SPEC);
+         tree_set_loc(t, loc);
+         tree_set_ident(t, it->ident);
+         tree_set_ident2(t, comp_name);
+         tree_set_value(t, bind);
+
+         tree_add_decl(unit, t);
+      }
+   }
+   else {
+      // Instantiation list was "others"
+      tree_t t = tree_new(T_SPEC);
+      tree_set_loc(t, loc);
+      tree_set_ident2(t, comp_name);
+      tree_set_value(t, bind);
+
+      tree_add_decl(unit, t);
+   }
+
+   // TODO: optional block_configuration
+
+   consume(tEND);
+   consume(tFOR);
+   consume(tSEMI);
+}
+
+static void p_configuration_item(tree_t unit)
+{
+   // block_configuration | component_configuration
+
+   BEGIN("configuration item");
+
+   const token_t third = peek_nth(3);
+   if ((third == tCOLON) || (third == tCOMMA))
+      p_component_configuration(unit);
+   else {
+      consume(tFOR);
+      parse_error(&last_loc, "nested block configuration not supported");
+      //p_block_configuration(unit);
+   }
+}
+
+static void p_block_specification(tree_t unit)
+{
+   // label | label [ ( index_specification ) ]
+
+   BEGIN("block specification");
+
+   tree_set_ident2(unit, ident_prefix(tree_ident2(unit), p_identifier(), '-'));
+
+   // TODO: [ ( index_specification ) ]
+}
+
+static void p_block_configuration(tree_t unit)
+{
+   // for block_specification { use_clause } { configuration_item } end for ;
+
+   BEGIN("block configuration");
+
+   consume(tFOR);
+
+   p_block_specification(unit);
+
+   while (not_at_token(tEND))
+      p_configuration_item(unit);
+
+   consume(tEND);
+   consume(tFOR);
+   consume(tSEMI);
+}
+
+static void p_configuration_declaration(tree_t unit)
+{
+   // configuration identifier of name is configuration_declarative_part
+   //   block_configuration end [ configuration ] [ simple_name ] ;
+
+   BEGIN("configuration declaration");
+
+   consume(tCONFIGURATION);
+
+   tree_change_kind(unit, T_CONFIG);
+   tree_set_ident(unit, p_identifier());
+
+   consume(tOF);
+
+   tree_set_ident2(unit, p_identifier());
+
+   consume(tIS);
+
+   while (not_at_token(tFOR))
+      p_configuration_declarative_part(unit);
+
+   p_block_configuration(unit);
+
+   consume(tEND);
+   optional(tCONFIGURATION);
+   p_trailing_label(tree_ident(unit));
+   consume(tSEMI);
+
+   tree_set_loc(unit, CURRENT_LOC);
+}
+
+static void p_primary_unit(tree_t unit)
+{
+   // entity_declaration | configuration_declaration | package_declaration
+
+   BEGIN("primary unit");
+
+   switch (peek()) {
+   case tENTITY:
+      p_entity_declaration(unit);
+      break;
+
+   case tPACKAGE:
+      p_package_declaration(unit);
+      break;
+
+   case tCONFIGURATION:
+      p_configuration_declaration(unit);
+      break;
+
+   default:
+      expect(tENTITY, tPACKAGE, tCONFIGURATION);
    }
 }
 
