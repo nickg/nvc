@@ -90,13 +90,9 @@ static const char *kind_text_map[T_LAST_TYPE_KIND] = {
 };
 
 struct type {
-   type_kind_t kind;
    ident_t     ident;
-   item_t      items[MAX_ITEMS];
-
-   // Serialisation accounting
-   uint32_t generation;
-   uint32_t index;
+   object_t    object;
+   item_t      ___XXX[MAX_ITEMS];
 };
 
 struct type_wr_ctx {
@@ -114,7 +110,7 @@ struct type_rd_ctx {
    unsigned       store_sz;
 };
 
-#define IS(t, k) ((t)->kind == (k))
+#define IS(t, k) ((t)->object.kind == (k))
 
 // Garbage collection
 static type_t *all_types = NULL;
@@ -161,7 +157,8 @@ type_t type_new(type_kind_t kind)
 
    struct type *t = xmalloc(sizeof(struct type));
    memset(t, '\0', sizeof(struct type));
-   t->kind = kind;
+   t->object.kind = kind;
+   t->object.index = UINT32_MAX;
 
    if (unlikely(all_types == NULL))
       all_types = xmalloc(sizeof(tree_t) * max_types);
@@ -175,15 +172,12 @@ type_kind_t type_kind(type_t t)
 {
    assert(t != NULL);
 
-   return t->kind;
+   return t->object.kind;
 }
 
 uint32_t type_index(type_t t)
 {
-   assert(t != NULL);
-   assert(t->index != UINT32_MAX);
-
-   return t->index;
+   return object_index(&(t->object));
 }
 
 bool type_eq(type_t a, type_t b)
@@ -241,7 +235,7 @@ bool type_eq(type_t a, type_t b)
    if (compare_c_u_arrays)
       return type_eq(type_elem(a), type_elem(b));
 
-   const imask_t has = has_map[a->kind];
+   const imask_t has = has_map[a->object.kind];
 
    if ((has & I_DIMS) && (type_dims(a) != type_dims(b)))
       return false;
@@ -270,7 +264,7 @@ ident_t type_ident(type_t t)
    assert(t != NULL);
 
    if (t->ident == NULL) {
-      switch (t->kind) {
+      switch (t->object.kind) {
       case T_SUBTYPE:
          return type_ident(type_base(t));
 
@@ -409,7 +403,7 @@ bool type_is_universal(type_t t)
 {
    assert(t != NULL);
 
-   switch (t->kind) {
+   switch (t->object.kind) {
    case T_INTEGER:
       return t->ident == type_universal_int()->ident;
    case T_REAL:
@@ -467,7 +461,7 @@ void type_add_param(type_t t, type_t p)
 
 unsigned type_fields(type_t t)
 {
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_fields(type_base(t));
    else
       return lookup_item(t, I_FIELDS)->tree_array.count;
@@ -475,7 +469,7 @@ unsigned type_fields(type_t t)
 
 tree_t type_field(type_t t, unsigned n)
 {
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_field(type_base(t), n);
    else
       return tree_array_nth(&(lookup_item(t, I_FIELDS)->tree_array), n);
@@ -504,17 +498,17 @@ void type_replace(type_t t, type_t a)
    assert(t != NULL);
    assert(IS(t, T_INCOMPLETE));
 
-   t->kind  = a->kind;
+   t->object.kind = a->object.kind;
    t->ident = a->ident;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *from = &(a->items[n].type_array);
-            type_array_t *to = &(t->items[n].type_array);
+            const type_array_t *from = &(a->object.items[n].type_array);
+            type_array_t *to = &(t->object.items[n].type_array);
 
             type_array_resize(to, from->count, NULL);
 
@@ -522,12 +516,12 @@ void type_replace(type_t t, type_t a)
                to->items[i] = from->items[i];
          }
          else if (ITEM_TYPE & mask)
-            t->items[n].type = a->items[n].type;
+            t->object.items[n].type = a->object.items[n].type;
          else if (ITEM_TREE & mask)
-            t->items[n].tree = a->items[n].tree;
+            t->object.items[n].tree = a->object.items[n].tree;
          else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(a->items[n].tree_array);
-            tree_array_t *to = &(t->items[n].tree_array);
+            const tree_array_t *from = &(a->object.items[n].tree_array);
+            tree_array_t *to = &(t->object.items[n].tree_array);
 
             tree_array_resize(to, from->count, NULL);
 
@@ -535,8 +529,8 @@ void type_replace(type_t t, type_t a)
                to->items[i] = from->items[i];
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            const range_array_t *from = &(a->items[n].range_array);
-            range_array_t *to = &(t->items[n].range_array);
+            const range_array_t *from = &(a->object.items[n].range_array);
+            range_array_t *to = &(t->object.items[n].range_array);
 
             range_t dummy;
             range_array_resize(to, from->count, dummy);
@@ -621,44 +615,44 @@ void type_write(type_t t, type_wr_ctx_t ctx)
       return;
    }
 
-   if (t->generation == ctx->generation) {
+   if (t->object.generation == ctx->generation) {
       // Already visited this type
       write_u16(UINT16_C(0xfffe), f);   // Back reference marker
-      write_u32(t->index, f);
+      write_u32(t->object.index, f);
       return;
    }
 
-   t->generation = ctx->generation;
-   t->index      = (ctx->n_types)++;
+   t->object.generation = ctx->generation;
+   t->object.index      = (ctx->n_types)++;
 
-   write_u16(t->kind, f);
+   write_u16(t->object.kind, f);
 
    // Call type_ident here to generate an arbitrary name if needed
    ident_write(type_ident(t), ctx->ident_ctx);
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
+            type_array_t *a = &(t->object.items[n].type_array);
             write_u16(a->count, f);
             for (unsigned i = 0; i < a->count; i++)
                type_write(a->items[i], ctx);
          }
          else if (ITEM_TYPE & mask)
-            type_write(t->items[n].type, ctx);
+            type_write(t->object.items[n].type, ctx);
          else if (ITEM_TREE & mask)
-            tree_write(t->items[n].tree, ctx->tree_ctx);
+            tree_write(t->object.items[n].tree, ctx->tree_ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             write_u16(a->count, f);
             for (unsigned i = 0; i < a->count; i++)
                tree_write(a->items[i], ctx->tree_ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
+            range_array_t *a = &(t->object.items[n].range_array);
             write_u16(a->count, f);
             for (unsigned i = 0; i < a->count; i++) {
                write_u8(a->items[i].kind, f);
@@ -703,31 +697,31 @@ type_t type_read(type_rd_ctx_t ctx)
    }
    ctx->store[ctx->n_types++] = t;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
+            type_array_t *a = &(t->object.items[n].type_array);
             type_array_resize(a, read_u16(f), NULL);
 
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = type_read(ctx);
          }
          else if (ITEM_TYPE & mask)
-            t->items[n].type = type_read(ctx);
+            t->object.items[n].type = type_read(ctx);
          else if (ITEM_TREE & mask)
-            t->items[n].tree = tree_read(ctx->tree_ctx);
+            t->object.items[n].tree = tree_read(ctx->tree_ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             tree_array_resize(a, read_u16(f), NULL);
 
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = tree_read(ctx->tree_ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
+            range_array_t *a = &(t->object.items[n].range_array);
             range_t dummy = { NULL, NULL, 0 };
             range_array_resize(a, read_u16(f), dummy);
 
@@ -835,26 +829,26 @@ void type_sweep(unsigned generation)
 {
    for (unsigned i = 0; i < n_types_alloc; i++) {
       type_t t = all_types[i];
-      if (t->generation < generation) {
+      if (t->object.generation < generation) {
 
-         const imask_t has = has_map[t->kind];
-         const int nitems = object_nitems[t->kind];
+         const imask_t has = has_map[t->object.kind];
+         const int nitems = object_nitems[t->object.kind];
          imask_t mask = 1;
          for (int n = 0; n < nitems; mask <<= 1) {
             if (has & mask) {
                if (ITEM_TYPE_ARRAY & mask)
-                  free(t->items[n].type_array.items);
+                  free(t->object.items[n].type_array.items);
                else if (ITEM_TYPE & mask)
                   ;
                else if (ITEM_TREE & mask)
                   ;
                else if (ITEM_TREE_ARRAY & mask)
-                  free(t->items[n].tree_array.items);
+                  free(t->object.items[n].tree_array.items);
                else if (ITEM_RANGE_ARRAY & mask)
-                  free(t->items[n].range_array.items);
+                  free(t->object.items[n].range_array.items);
                else if (ITEM_TEXT_BUF & mask) {
-                  if (t->items[n].text_buf != NULL)
-                     tb_free(t->items[n].text_buf);
+                  if (t->object.items[n].text_buf != NULL)
+                     tb_free(t->object.items[n].text_buf);
                }
                else
                   item_without_type(mask);
@@ -885,76 +879,76 @@ void type_sweep(unsigned generation)
 bool type_is_array(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_array(type_base(t));
    else
-      return (t->kind == T_CARRAY || t->kind == T_UARRAY);
+      return (t->object.kind == T_CARRAY || t->object.kind == T_UARRAY);
 }
 
 bool type_is_record(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_record(type_base(t));
    else
-      return (t->kind == T_RECORD);
+      return (t->object.kind == T_RECORD);
 }
 
 bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE) {
+   if (t->object.kind == T_SUBTYPE) {
       if (type_dims(t) == 0)
          return type_is_unconstrained(type_base(t));
       else
          return false;
    }
    else
-      return (t->kind == T_UARRAY);
+      return (t->object.kind == T_UARRAY);
 }
 
 bool type_is_enum(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_enum(type_base(t));
    else
-      return (t->kind == T_ENUM);
+      return (t->object.kind == T_ENUM);
 }
 
 bool type_is_integer(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_integer(type_base(t));
    else
-      return (t->kind == T_INTEGER);
+      return (t->object.kind == T_INTEGER);
 }
 
 bool type_is_real(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_real(type_base(t));
    else
-      return (t->kind == T_REAL);
+      return (t->object.kind == T_REAL);
 }
 
 bool type_is_scalar(type_t t)
 {
    assert(t != NULL);
-   if (t->kind == T_SUBTYPE)
+   if (t->object.kind == T_SUBTYPE)
       return type_is_scalar(type_base(t));
    else
-      return (t->kind == T_INTEGER)
-         || (t->kind == T_REAL)
-         || (t->kind == T_ENUM);
+      return (t->object.kind == T_INTEGER)
+         || (t->object.kind == T_REAL)
+         || (t->object.kind == T_ENUM);
 }
 
 type_t type_base_recur(type_t t)
 {
    assert(t != NULL);
-   while (t->kind == T_SUBTYPE)
+   while (t->object.kind == T_SUBTYPE)
       t = type_base(t);
    return t;
 }
@@ -970,32 +964,32 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
    if (t == NULL)
       return;
 
-   if (t->generation == ctx->generation)
+   if (t->object.generation == ctx->generation)
       return;
    else
-      t->generation = ctx->generation;
+      t->object.generation = ctx->generation;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
+            type_array_t *a = &(t->object.items[n].type_array);
             for (unsigned i = 0; i < a->count; i++)
                type_visit_trees(a->items[i], ctx);
          }
          else if (ITEM_TYPE & mask)
-            type_visit_trees(t->items[n].type, ctx);
+            type_visit_trees(t->object.items[n].type, ctx);
          else if (ITEM_TREE & mask)
-            tree_visit_aux(t->items[n].tree, ctx);
+            tree_visit_aux(t->object.items[n].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             for (unsigned i = 0; i < a->count; i++)
                tree_visit_aux(a->items[i], ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
+            range_array_t *a = &(t->object.items[n].range_array);
             for (unsigned i = 0; i < a->count; i++) {
                tree_visit_aux(a->items[i].left, ctx);
                tree_visit_aux(a->items[i].right, ctx);
@@ -1015,32 +1009,32 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
    if (t == NULL)
       return;
 
-   if (t->generation == ctx->generation)
+   if (t->object.generation == ctx->generation)
       return;
    else
-      t->generation = ctx->generation;
+      t->object.generation = ctx->generation;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
+            type_array_t *a = &(t->object.items[n].type_array);
             for (unsigned i = 0; i < a->count; i++)
                type_rewrite_trees(a->items[i], ctx);
          }
          else if (ITEM_TYPE & mask)
-            type_rewrite_trees(t->items[n].type, ctx);
+            type_rewrite_trees(t->object.items[n].type, ctx);
          else if (ITEM_TREE & mask)
-            t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
+            t->object.items[n].tree = tree_rewrite_aux(t->object.items[n].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = tree_rewrite_aux(a->items[i], ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
+            range_array_t *a = &(t->object.items[n].range_array);
             for (unsigned i = 0; i < a->count; i++) {
                a->items[i].left  = tree_rewrite_aux(a->items[i].left, ctx);
                a->items[i].right = tree_rewrite_aux(a->items[i].right, ctx);
@@ -1092,34 +1086,34 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
    if (t == NULL)
       return false;
 
-   if (t->generation == ctx->generation)
-      return (t->index != UINT32_MAX);
+   if (t->object.generation == ctx->generation)
+      return (t->object.index != UINT32_MAX);
 
-   t->generation = ctx->generation;
-   t->index      = UINT32_MAX;
+   t->object.generation = ctx->generation;
+   t->object.index      = UINT32_MAX;
 
    bool marked = false;
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->items[n].type_array);
+            type_array_t *a = &(t->object.items[n].type_array);
             for (unsigned i = 0; i < a->count; i++)
                marked = type_copy_mark(a->items[i], ctx) || marked;
          }
          else if (ITEM_TYPE & mask)
-            marked = type_copy_mark(t->items[n].type, ctx) || marked;
+            marked = type_copy_mark(t->object.items[n].type, ctx) || marked;
          else if (ITEM_TREE & mask)
-            marked = tree_copy_mark(t->items[n].tree, ctx) || marked;
+            marked = tree_copy_mark(t->object.items[n].tree, ctx) || marked;
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             for (unsigned i = 0; i < a->count; i++)
                marked = tree_copy_mark(a->items[i], ctx) || marked;
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->items[n].range_array);
+            range_array_t *a = &(t->object.items[n].range_array);
             for (unsigned i = 0; i < a->count; i++) {
                marked = tree_copy_mark(a->items[i].left, ctx) || marked;
                marked = tree_copy_mark(a->items[i].right, ctx) || marked;
@@ -1134,7 +1128,7 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
    }
 
    if (marked)
-      t->index = (ctx->index)++;
+      t->object.index = (ctx->index)++;
 
    return marked;
 }
@@ -1144,31 +1138,31 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
    if (t == NULL)
       return NULL;
 
-   assert(t->generation == ctx->generation);
+   assert(t->object.generation == ctx->generation);
 
-   if (t->index == UINT32_MAX)
+   if (t->object.index == UINT32_MAX)
       return t;
 
-   assert(t->index < ctx->index);
+   assert(t->object.index < ctx->index);
 
-   if (ctx->copied[t->index] != NULL) {
+   if (ctx->copied[t->object.index] != NULL) {
       // Already copied this type
-      return (type_t)ctx->copied[t->index];
+      return (type_t)ctx->copied[t->object.index];
    }
 
-   type_t copy = type_new(t->kind);
-   ctx->copied[t->index] = copy;
+   type_t copy = type_new(t->object.kind);
+   ctx->copied[t->object.index] = copy;
 
    copy->ident = t->ident;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *from = &(t->items[n].type_array);
-            type_array_t *to = &(copy->items[n].type_array);
+            const type_array_t *from = &(t->object.items[n].type_array);
+            type_array_t *to = &(copy->object.items[n].type_array);
 
             type_array_resize(to, from->count, NULL);
 
@@ -1176,12 +1170,12 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
                to->items[i] = type_copy_sweep(from->items[i], ctx);
          }
          else if (ITEM_TYPE & mask)
-            copy->items[n].type = type_copy_sweep(t->items[n].type, ctx);
+            copy->object.items[n].type = type_copy_sweep(t->object.items[n].type, ctx);
          else if (ITEM_TREE & mask)
-            copy->items[n].tree = tree_copy_sweep(t->items[n].tree, ctx);
+            copy->object.items[n].tree = tree_copy_sweep(t->object.items[n].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(t->items[n].tree_array);
-            tree_array_t *to = &(copy->items[n].tree_array);
+            const tree_array_t *from = &(t->object.items[n].tree_array);
+            tree_array_t *to = &(copy->object.items[n].tree_array);
 
             tree_array_resize(to, from->count, NULL);
 
@@ -1189,8 +1183,8 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
                to->items[i] = tree_copy_sweep(from->items[i], ctx);
          }
          else if (ITEM_RANGE_ARRAY & mask) {
-            const range_array_t *from = &(t->items[n].range_array);
-            range_array_t *to = &(copy->items[n].range_array);
+            const range_array_t *from = &(t->object.items[n].range_array);
+            range_array_t *to = &(copy->object.items[n].range_array);
 
             range_t dummy;
             range_array_resize(to, from->count, dummy);

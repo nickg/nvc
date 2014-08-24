@@ -309,12 +309,9 @@ static const tree_kind_t change_allowed[][2] = {
 };
 
 struct tree {
-   tree_kind_t kind;
    loc_t       loc;
    attr_tab_t  attrs;
-   uint32_t    generation;
-   uint32_t    index;
-   item_t      items[0];
+   object_t    object;
 };
 
 struct tree_wr_ctx {
@@ -439,7 +436,7 @@ static void tree_one_time_init(void)
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
 {
    for (size_t i = 0; i < len; i++) {
-      if (t->kind == list[i])
+      if (t->object.kind == list[i])
          return true;
    }
 
@@ -450,7 +447,8 @@ static void tree_assert_kind(tree_t t, const tree_kind_t *list, size_t len,
                              const char *what)
 {
    if (!tree_kind_in(t, list, len))
-      fatal_trace("tree kind %s is not %s", tree_kind_str(t->kind), what);
+      fatal_trace("tree kind %s is not %s",
+                  tree_kind_str(t->object.kind), what);
 }
 
 static void tree_assert_stmt(tree_t t)
@@ -476,8 +474,8 @@ tree_t tree_new(tree_kind_t kind)
 
    tree_t t = xmalloc(object_size[kind]);
    memset(t, '\0', object_size[kind]);
-   t->kind  = kind;
-   t->index = UINT32_MAX;
+   t->object.kind = kind;
+   t->object.index = UINT32_MAX;
 
    if (unlikely(all_trees == NULL))
       all_trees = xmalloc(sizeof(tree_t) * max_trees);
@@ -485,6 +483,24 @@ tree_t tree_new(tree_kind_t kind)
    ARRAY_APPEND(all_trees, t, n_trees_alloc, max_trees);
 
    return t;
+}
+
+void object_sweep(object_t *object)
+{
+   const imask_t has = has_map[object->kind];
+   const int nitems = object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TREE_ARRAY & mask)
+            free(object->items[n].tree_array.items);
+         else if (ITEM_NETID_ARRAY & mask)
+            free(object->items[n].netid_array.items);
+         else if (ITEM_RANGE & mask)
+            free(object->items[n].range);
+         n++;
+      }
+   }
 }
 
 void tree_gc(void)
@@ -516,22 +532,8 @@ void tree_gc(void)
    // Sweep
    for (unsigned i = 0; i < n_trees_alloc; i++) {
       tree_t t = all_trees[i];
-      if (t->generation < base_gen) {
-
-         const imask_t has = has_map[t->kind];
-         const int nitems = object_nitems[t->kind];
-         imask_t mask = 1;
-         for (int n = 0; n < nitems; mask <<= 1) {
-            if (has & mask) {
-               if (ITEM_TREE_ARRAY & mask)
-                  free(t->items[n].tree_array.items);
-               else if (ITEM_NETID_ARRAY & mask)
-                  free(t->items[n].netid_array.items);
-               else if (ITEM_RANGE & mask)
-                  free(t->items[n].range);
-               n++;
-            }
-         }
+      if (t->object.generation < base_gen) {
+         object_sweep(&(t->object));
 
          if (t->attrs.table != NULL)
             free(t->attrs.table);
@@ -609,7 +611,7 @@ bool tree_has_ident2(tree_t t)
 tree_kind_t tree_kind(tree_t t)
 {
    assert(t != NULL);
-   return t->kind;
+   return t->object.kind;
 }
 
 void tree_change_kind(tree_t t, tree_kind_t kind)
@@ -618,36 +620,36 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
 
    bool allow = false;
    for (size_t i = 0; (i < ARRAY_LEN(change_allowed)) && !allow; i++) {
-      allow = (change_allowed[i][0] == t->kind)
+      allow = (change_allowed[i][0] == t->object.kind)
          && (change_allowed[i][1] == kind);
    }
 
    if (!allow)
       fatal_trace("cannot change tree kind %s to %s",
-                  tree_kind_str(t->kind), tree_kind_str(kind));
+                  tree_kind_str(t->object.kind), tree_kind_str(kind));
 
-   const imask_t old_has = has_map[t->kind];
+   const imask_t old_has = has_map[t->object.kind];
    const imask_t new_has = has_map[kind];
 
-   const int old_nitems = object_nitems[t->kind];
+   const int old_nitems = object_nitems[t->object.kind];
    const int new_nitems = object_nitems[kind];
 
    const int max_items = MAX(old_nitems, new_nitems);
 
    item_t tmp[max_items];
-   memcpy(tmp, t->items, sizeof(item_t) * max_items);
+   memcpy(tmp, t->object.items, sizeof(item_t) * max_items);
 
    int op = 0, np = 0;
    for (imask_t mask = 1; np < new_nitems; mask <<= 1) {
       if ((old_has & mask) && (new_has & mask))
-         t->items[np++] = tmp[op++];
+         t->object.items[np++] = tmp[op++];
       else if (old_has & mask)
          ++op;
       else if (new_has & mask)
-         memset(&(t->items[np++]), '\0', sizeof(item_t));
+         memset(&(t->object.items[np++]), '\0', sizeof(item_t));
    }
 
-   t->kind = kind;
+   t->object.kind = kind;
 }
 
 unsigned tree_ports(tree_t t)
@@ -757,25 +759,25 @@ void tree_add_genmap(tree_t t, tree_t e)
 
 int64_t tree_ival(tree_t t)
 {
-   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
    return lookup_item(t, I_IVAL)->ival;
 }
 
 void tree_set_ival(tree_t t, int64_t i)
 {
-   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_INT));
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
    lookup_item(t, I_IVAL)->ival = i;
 }
 
 double tree_dval(tree_t t)
 {
-   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    return lookup_item(t, I_DVAL)->dval;
 }
 
 void tree_set_dval(tree_t t, double d)
 {
-   assert((t->kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    lookup_item(t, I_DVAL)->dval = d;
 }
 
@@ -793,7 +795,7 @@ tree_t tree_value(tree_t t)
 
 void tree_set_value(tree_t t, tree_t v)
 {
-   if ((v != NULL) && (t->kind != T_ASSOC) && (t->kind != T_SPEC))
+   if ((v != NULL) && (t->object.kind != T_ASSOC) && (t->object.kind != T_SPEC))
       tree_assert_expr(v);
    lookup_item(t, I_VALUE)->tree = v;
 }
@@ -842,7 +844,7 @@ tree_t tree_waveform(tree_t t, unsigned n)
 
 void tree_add_waveform(tree_t t, tree_t w)
 {
-   assert(w->kind == T_WAVEFORM);
+   assert(w->object.kind == T_WAVEFORM);
    tree_array_add(&(lookup_item(t, I_WAVES)->tree_array), w);
 }
 
@@ -874,7 +876,7 @@ tree_t tree_cond(tree_t t, unsigned n)
 
 void tree_add_cond(tree_t t, tree_t c)
 {
-   assert(c->kind == T_COND);
+   assert(c->object.kind == T_COND);
    tree_array_add(&(lookup_item(t, I_CONDS)->tree_array), c);
 }
 
@@ -924,7 +926,7 @@ tree_t tree_op(tree_t t, unsigned n)
 
 void tree_add_op(tree_t t, tree_t s)
 {
-   assert((s->kind == T_FUNC_DECL) || (s->kind == T_PROC_DECL));
+   assert((s->object.kind == T_FUNC_DECL) || (s->object.kind == T_PROC_DECL));
    tree_array_add(&(lookup_item(t, I_OPS)->tree_array), s);
 }
 
@@ -986,7 +988,7 @@ tree_t tree_context(tree_t t, unsigned n)
 
 void tree_add_context(tree_t t, tree_t ctx)
 {
-   assert((ctx->kind == T_USE) || (ctx->kind == T_LIBRARY));
+   assert((ctx->object.kind == T_USE) || (ctx->object.kind == T_LIBRARY));
    tree_array_add(&(lookup_item(t, I_CONTEXT)->tree_array), ctx);
 }
 
@@ -1002,7 +1004,7 @@ tree_t tree_assoc(tree_t t, unsigned n)
 
 void tree_add_assoc(tree_t t, tree_t a)
 {
-   assert(a->kind == T_ASSOC);
+   assert(a->object.kind == T_ASSOC);
 
    tree_array_t *array = &(lookup_item(t, I_ASSOCS)->tree_array);
 
@@ -1141,10 +1143,7 @@ void tree_set_file_mode(tree_t t, tree_t m)
 
 uint32_t tree_index(tree_t t)
 {
-   assert(t != NULL);
-   assert(t->index != UINT32_MAX);
-
-   return t->index;
+   return object_index(&(t->object));
 }
 
 void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
@@ -1153,38 +1152,36 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
    // to tree_visit - e.g. following references back to their declarations
    // Outside the garbage collector this is usually not what is required
 
-   // Helper from type.c
-
-   if (t == NULL || t->generation == ctx->generation)
+   if (t == NULL || t->object.generation == ctx->generation)
       return;
 
-   t->generation = ctx->generation;
+   t->object.generation = ctx->generation;
 
    const imask_t deep_mask = I_TYPE | I_REF;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
-            tree_visit_aux(t->items[i].tree, ctx);
+            tree_visit_aux(t->object.items[i].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            for (unsigned j = 0; j < t->items[i].tree_array.count; j++)
-               tree_visit_aux(t->items[i].tree_array.items[j], ctx);
+            for (unsigned j = 0; j < t->object.items[i].tree_array.count; j++)
+               tree_visit_aux(t->object.items[i].tree_array.items[j], ctx);
          }
          else if (ITEM_TYPE & mask)
-            type_visit_trees(t->items[i].type, ctx);
+            type_visit_trees(t->object.items[i].type, ctx);
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            if (t->items[i].range != NULL) {
-               tree_visit_aux(t->items[i].range->left, ctx);
-               tree_visit_aux(t->items[i].range->right, ctx);
+            if (t->object.items[i].range != NULL) {
+               tree_visit_aux(t->object.items[i].range->left, ctx);
+               tree_visit_aux(t->object.items[i].range->right, ctx);
             }
          }
          else if (ITEM_NETID_ARRAY & mask)
@@ -1210,7 +1207,7 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
       }
    }
 
-   if ((t->kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
+   if ((t->object.kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
       if (ctx->fn)
          (*ctx->fn)(t, ctx->context);
       ctx->count++;
@@ -1378,52 +1375,52 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
       return;
    }
 
-   if (t->generation == ctx->generation) {
+   if (t->object.generation == ctx->generation) {
       // Already visited this tree
       write_u16(UINT16_C(0xfffe), ctx->file);   // Back reference marker
-      write_u32(t->index, ctx->file);
+      write_u32(t->object.index, ctx->file);
       return;
    }
 
-   t->generation = ctx->generation;
-   t->index      = (ctx->n_trees)++;
+   t->object.generation = ctx->generation;
+   t->object.index      = (ctx->n_trees)++;
 
-   write_u16(t->kind, ctx->file);
+   write_u16(t->object.kind, ctx->file);
    write_loc(&t->loc, ctx);
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
-            ident_write(t->items[n].ident, ctx->ident_ctx);
+            ident_write(t->object.items[n].ident, ctx->ident_ctx);
          else if (ITEM_TREE & mask)
-            tree_write(t->items[n].tree, ctx);
+            tree_write(t->object.items[n].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask)
-            write_a(&(t->items[n].tree_array), ctx);
+            write_a(&(t->object.items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
-            type_write(t->items[n].type, ctx->type_ctx);
+            type_write(t->object.items[n].type, ctx->type_ctx);
          else if (ITEM_INT64 & mask)
-            write_u64(t->items[n].ival, ctx->file);
+            write_u64(t->object.items[n].ival, ctx->file);
          else if (ITEM_RANGE & mask) {
-            if (t->items[n].range != NULL) {
-               write_u8(t->items[n].range->kind, ctx->file);
-               tree_write(t->items[n].range->left, ctx);
-               tree_write(t->items[n].range->right, ctx);
+            if (t->object.items[n].range != NULL) {
+               write_u8(t->object.items[n].range->kind, ctx->file);
+               tree_write(t->object.items[n].range->left, ctx);
+               tree_write(t->object.items[n].range->right, ctx);
             }
             else
                write_u8(UINT8_C(0xff), ctx->file);
          }
          else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *a = &(t->items[n].netid_array);
+            const netid_array_t *a = &(t->object.items[n].netid_array);
             write_u32(a->count, ctx->file);
             for (unsigned i = 0; i < a->count; i++)
                write_u32(a->items[i], ctx->file);
          }
          else if (ITEM_DOUBLE & mask) {
             union { double d; uint64_t i; } u;
-            u.d = t->items[n].dval;
+            u.d = t->object.items[n].dval;
             write_u64(u.i, ctx->file);
          }
          else
@@ -1486,39 +1483,39 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
    // reference upwards
-   t->index = ctx->n_trees++;
+   t->object.index = ctx->n_trees++;
    if (ctx->n_trees == ctx->store_sz) {
       ctx->store_sz *= 2;
       ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
    }
-   ctx->store[t->index] = t;
+   ctx->store[t->object.index] = t;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
-            t->items[n].ident = ident_read(ctx->ident_ctx);
+            t->object.items[n].ident = ident_read(ctx->ident_ctx);
          else if (ITEM_TREE & mask)
-            t->items[n].tree = tree_read(ctx);
+            t->object.items[n].tree = tree_read(ctx);
          else if (ITEM_TREE_ARRAY & mask)
-            read_a(&(t->items[n].tree_array), ctx);
+            read_a(&(t->object.items[n].tree_array), ctx);
          else if (ITEM_TYPE & mask)
-            t->items[n].type = type_read(ctx->type_ctx);
+            t->object.items[n].type = type_read(ctx->type_ctx);
          else if (ITEM_INT64 & mask)
-            t->items[n].ival = read_u64(ctx->file);
+            t->object.items[n].ival = read_u64(ctx->file);
          else if (ITEM_RANGE & mask) {
             const uint8_t rmarker = read_u8(ctx->file);
             if (rmarker != UINT8_C(0xff)) {
-               t->items[n].range = xmalloc(sizeof(range_t));
-               t->items[n].range->kind  = rmarker;
-               t->items[n].range->left  = tree_read(ctx);
-               t->items[n].range->right = tree_read(ctx);
+               t->object.items[n].range = xmalloc(sizeof(range_t));
+               t->object.items[n].range->kind  = rmarker;
+               t->object.items[n].range->left  = tree_read(ctx);
+               t->object.items[n].range->right = tree_read(ctx);
             }
          }
          else if (ITEM_NETID_ARRAY & mask) {
-            netid_array_t *a = &(t->items[n].netid_array);
+            netid_array_t *a = &(t->object.items[n].netid_array);
             netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = read_u32(ctx->file);
@@ -1526,7 +1523,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          else if (ITEM_DOUBLE & mask) {
             union { uint64_t i; double d; } u;
             u.i = read_u64(ctx->file);
-            t->items[n].dval = u.d;
+            t->object.items[n].dval = u.d;
          }
          else
             item_without_type(mask);
@@ -1729,15 +1726,15 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
    if (t == NULL)
       return NULL;
 
-   if (t->generation == ctx->generation) {
+   if (t->object.generation == ctx->generation) {
       // Already rewritten this tree so return the cached version
-      return ctx->cache[t->index];
+      return ctx->cache[t->object.index];
    }
 
    const imask_t skip_mask = I_REF;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    int type_item = -1;
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
@@ -1745,9 +1742,9 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
-            t->items[n].tree = tree_rewrite_aux(t->items[n].tree, ctx);
+            t->object.items[n].tree = tree_rewrite_aux(t->object.items[n].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
 
             for (size_t i = 0; i < a->count; i++)
                a->items[i] = tree_rewrite_aux(a->items[i], ctx);
@@ -1767,7 +1764,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            range_t *r = t->items[n].range;
+            range_t *r = t->object.items[n].range;
             if (r != NULL) {
                r->left  = tree_rewrite_aux(r->left, ctx);
                r->right = tree_rewrite_aux(r->right, ctx);
@@ -1783,17 +1780,17 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
          n++;
    }
 
-   t->generation = ctx->generation;
-   t->index      = ctx->index++;
+   t->object.generation = ctx->generation;
+   t->object.index      = ctx->index++;
 
    // Rewrite this tree before we rewrite the type as there may
    // be a circular reference
-   ctx->cache[t->index] = (*ctx->fn)(t, ctx->context);
+   ctx->cache[t->object.index] = (*ctx->fn)(t, ctx->context);
 
    if (type_item != -1)
-      type_rewrite_trees(t->items[type_item].type, ctx);
+      type_rewrite_trees(t->object.items[type_item].type, ctx);
 
-   return ctx->cache[t->index];
+   return ctx->cache[t->object.index];
 }
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
@@ -1820,27 +1817,27 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
    if (t == NULL)
       return false;
 
-   if (t->generation == ctx->generation)
-      return (t->index != UINT32_MAX);
+   if (t->object.generation == ctx->generation)
+      return (t->object.index != UINT32_MAX);
 
-   t->generation = ctx->generation;
-   t->index      = UINT32_MAX;
+   t->object.generation = ctx->generation;
+   t->object.index      = UINT32_MAX;
 
    int type_item = -1;
    bool marked = false;
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
             ;
          else if (ITEM_TREE & mask)
-            marked = tree_copy_mark(t->items[n].tree, ctx) || marked;
+            marked = tree_copy_mark(t->object.items[n].tree, ctx) || marked;
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->items[n].tree_array);
+            tree_array_t *a = &(t->object.items[n].tree_array);
             for (unsigned i = 0; i < a->count; i++)
                marked = tree_copy_mark(a->items[i], ctx) || marked;
          }
@@ -1849,9 +1846,9 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
          else if (ITEM_INT64 & mask)
             ;
          else if (ITEM_RANGE & mask) {
-            if (t->items[n].range != NULL) {
-               marked = tree_copy_mark(t->items[n].range->left, ctx) || marked;
-               marked = tree_copy_mark(t->items[n].range->right, ctx) || marked;
+            if (t->object.items[n].range != NULL) {
+               marked = tree_copy_mark(t->object.items[n].range->left, ctx) || marked;
+               marked = tree_copy_mark(t->object.items[n].range->right, ctx) || marked;
             }
          }
          else if (ITEM_NETID_ARRAY & mask)
@@ -1866,14 +1863,14 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
       marked = (*ctx->callback)(t, ctx->context);
 
    if (marked)
-      t->index = (ctx->index)++;
+      t->object.index = (ctx->index)++;
 
    // Check type last as it may contain a circular reference
    if (type_item != -1)
-      marked = type_copy_mark(t->items[type_item].type, ctx) || marked;
+      marked = type_copy_mark(t->object.items[type_item].type, ctx) || marked;
 
-   if (marked && (t->index == UINT32_MAX))
-      t->index = (ctx->index)++;
+   if (marked && (t->object.index == UINT32_MAX))
+      t->object.index = (ctx->index)++;
 
    return marked;
 }
@@ -1883,37 +1880,37 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
    if (t == NULL)
       return NULL;
 
-   assert(t->generation == ctx->generation);
+   assert(t->object.generation == ctx->generation);
 
-   if (t->index == UINT32_MAX)
+   if (t->object.index == UINT32_MAX)
       return t;
 
-   assert(t->index < ctx->index);
+   assert(t->object.index < ctx->index);
 
-   if (ctx->copied[t->index] != NULL) {
+   if (ctx->copied[t->object.index] != NULL) {
       // Already copied this tree
-      return (tree_t)ctx->copied[t->index];
+      return (tree_t)ctx->copied[t->object.index];
    }
 
-   tree_t copy = tree_new(t->kind);
-   ctx->copied[t->index] = copy;
+   tree_t copy = tree_new(t->object.kind);
+   ctx->copied[t->object.index] = copy;
 
    copy->loc = t->loc;
 
-   const imask_t has = has_map[t->kind];
-   const int nitems = object_nitems[t->kind];
+   const imask_t has = has_map[t->object.kind];
+   const int nitems = object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
          if (ITEM_IDENT & mask)
-            copy->items[n].ident = t->items[n].ident;
+            copy->object.items[n].ident = t->object.items[n].ident;
          else if (ITEM_TREE & mask)
-            copy->items[n].tree = tree_copy_sweep(t->items[n].tree, ctx);
+            copy->object.items[n].tree = tree_copy_sweep(t->object.items[n].tree, ctx);
          else if (ITEM_DOUBLE & mask)
-            copy->items[n].dval = t->items[n].dval;
+            copy->object.items[n].dval = t->object.items[n].dval;
          else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(t->items[n].tree_array);
-            tree_array_t *to = &(copy->items[n].tree_array);
+            const tree_array_t *from = &(t->object.items[n].tree_array);
+            tree_array_t *to = &(copy->object.items[n].tree_array);
 
             tree_array_resize(to, from->count, NULL);
 
@@ -1921,21 +1918,21 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
                to->items[i] = tree_copy_sweep(from->items[i], ctx);
          }
          else if (ITEM_TYPE & mask)
-            copy->items[n].type = type_copy_sweep(t->items[n].type, ctx);
+            copy->object.items[n].type = type_copy_sweep(t->object.items[n].type, ctx);
          else if (ITEM_INT64 & mask)
-            copy->items[n].ival = t->items[n].ival;
+            copy->object.items[n].ival = t->object.items[n].ival;
          else if (ITEM_RANGE & mask) {
-            const range_t *from = t->items[n].range;
+            const range_t *from = t->object.items[n].range;
             if (from != NULL) {
-               range_t *to = copy->items[n].range = xmalloc(sizeof(range_t));
+               range_t *to = copy->object.items[n].range = xmalloc(sizeof(range_t));
                to->kind  = from->kind;
                to->left  = tree_copy_sweep(from->left, ctx);
                to->right = tree_copy_sweep(from->right, ctx);
             }
          }
          else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *from = &(t->items[n].netid_array);
-            netid_array_t *to = &(copy->items[n].netid_array);
+            const netid_array_t *from = &(t->object.items[n].netid_array);
+            netid_array_t *to = &(copy->object.items[n].netid_array);
 
             netid_array_resize(to, from->count, NETID_INVALID);
 
@@ -1970,7 +1967,7 @@ tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
 
    tree_copy_mark(t, &ctx);
 
-   if (t->index == UINT32_MAX)
+   if (t->object.index == UINT32_MAX)
       return t;   // Nothing to copy
 
    ctx.copied = xmalloc(sizeof(void *) * ctx.index);

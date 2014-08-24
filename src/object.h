@@ -106,16 +106,16 @@ DECLARE_ARRAY(range);
          assert(t != NULL);                                             \
          assert((mask & (mask - 1)) == 0);                              \
                                                                         \
-         const imask_t has = has_map[t->kind];                          \
+         const imask_t has = has_map[t->object.kind];                   \
                                                                         \
          if (unlikely((has & mask) == 0))                               \
             object_lookup_failed(OBJECT_NAME, kind_text_map,            \
-                                 t->kind, mask);                        \
+                                 t->object.kind, mask);                 \
                                                                         \
          const int tzc = __builtin_ctzll(mask);                         \
-         const int n   = item_lookup[t->kind][tzc];                     \
+         const int n   = item_lookup[t->object.kind][tzc];              \
                                                                         \
-         &(t->items[n]);                                                \
+         &(t->object.items[n]);                                         \
       })
 
 typedef union {
@@ -132,6 +132,13 @@ typedef union {
    text_buf_t    *text_buf;
    type_array_t   type_array;
 } item_t;
+
+typedef struct {
+   uint16_t kind;
+   uint16_t generation;
+   uint32_t index;
+   item_t   items[0];
+} object_t;
 
 typedef struct {
    uint32_t        generation;
@@ -193,5 +200,7 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask);
 
 void item_without_type(imask_t mask);
+
+uint32_t object_index(const object_t *object);
 
 #endif   // _OBJECT_H
