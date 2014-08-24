@@ -18,6 +18,7 @@
 #include "object.h"
 
 #include <string.h>
+#include <stdlib.h>
 
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
@@ -104,4 +105,57 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
    }
 
    object->kind = kind;
+}
+
+void object_init(object_class_t *class, int last_kind, size_t base_size)
+{
+   class->format_digest = 0;
+
+   class->object_size   = xmalloc(last_kind * sizeof(size_t));
+   class->object_nitems = xmalloc(last_kind * sizeof(int));
+   class->item_lookup   = xmalloc(last_kind * sizeof(int) * 64);
+
+   for (int i = 0; i < last_kind; i++) {
+      const int nitems = __builtin_popcountll(class->has_map[i]);
+      class->object_size[i]   = base_size + (nitems * sizeof(item_t));
+      class->object_nitems[i] = nitems;
+
+      // Knuth's multiplicative hash
+      class->format_digest +=
+         (uint32_t)(class->has_map[i] >> 32) * UINT32_C(2654435761);
+      class->format_digest +=
+         (uint32_t)(class->has_map[i]) * UINT32_C(2654435761);
+
+      int n = 0;
+      for (int j = 0; j < 64; j++) {
+         if (class->has_map[i] & ONE_HOT(j))
+            class->item_lookup[(i * 64) + j] = n++;
+         else
+            class->item_lookup[(i * 64) + j] = -1;
+      }
+   }
+
+   bool changed = false;
+   do {
+      changed = false;
+      for (int i = 0; i < last_kind; i++) {
+         size_t max_size = class->object_size[i];
+         for (size_t j = 0; class->change_allowed[j][0] != -1; j++) {
+            if (class->change_allowed[j][0] == i)
+               max_size = MAX(max_size,
+                              class->object_size[class->change_allowed[j][1]]);
+         }
+
+         if (max_size != class->object_size[i]) {
+            class->object_size[i] = max_size;
+            changed = true;
+         }
+      }
+   } while (changed);
+
+   if (getenv("NVC_TREE_SIZES") != NULL) {
+      for (int i = 0; i < T_LAST_TREE_KIND; i++)
+         printf("%-15s %d\n", class->kind_text_map[i],
+                (int)class->object_size[i]);
+   }
 }

@@ -97,25 +97,29 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 
+#define OBJECT_TAG_TREE  0
+#define OBJECT_TAG_TYPE  1
+
 DECLARE_ARRAY(tree);
 DECLARE_ARRAY(netid);
 DECLARE_ARRAY(type);
 DECLARE_ARRAY(range);
 
-#define lookup_item(t, mask) ({                                         \
-         assert(t != NULL);                                             \
+#define lookup_item(class, t, mask) ({                                  \
+         assert((t) != NULL);                                           \
          assert((mask & (mask - 1)) == 0);                              \
                                                                         \
-         const imask_t has = has_map[t->object.kind];                   \
+         const imask_t has = has_map[(t)->object.kind];                 \
                                                                         \
          if (unlikely((has & mask) == 0))                               \
-            object_lookup_failed(OBJECT_NAME, kind_text_map,            \
-                                 t->object.kind, mask);                 \
+            object_lookup_failed((class)->name, kind_text_map,          \
+                                 (t)->object.kind, mask);               \
                                                                         \
          const int tzc = __builtin_ctzll(mask);                         \
-         const int n   = item_lookup[t->object.kind][tzc];              \
+         const int off = ((t)->object.kind * 64) + tzc;                 \
+         const int n   = (class)->item_lookup[off];                     \
                                                                         \
-         &(t->object.items[n]);                                         \
+         &((t)->object.items[n]);                                       \
       })
 
 typedef union {
@@ -134,7 +138,8 @@ typedef union {
 } item_t;
 
 typedef struct {
-   uint16_t kind;
+   unsigned kind : 14;
+   unsigned tag : 2;
    uint16_t generation;
    uint32_t index;
    item_t   items[0];
@@ -171,9 +176,12 @@ typedef struct {
    const char             *name;
    const change_allowed_t *change_allowed;
    const imask_t          *has_map;
-   const int              *object_nitems;
-   const size_t           *object_size;
    const char            **kind_text_map;
+   const int               tag;
+   int                    *object_nitems;
+   size_t                 *object_size;
+   uint32_t                format_digest;
+   int                    *item_lookup;
 } object_class_t;
 
 typedef struct type_wr_ctx *type_wr_ctx_t;
@@ -215,5 +223,6 @@ void item_without_type(imask_t mask);
 uint32_t object_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
+void object_init(object_class_t *class, int last_kind, size_t base_size);
 
 #endif   // _OBJECT_H

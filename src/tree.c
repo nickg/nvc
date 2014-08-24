@@ -26,8 +26,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_FILES   512
-#define OBJECT_NAME "tree"
+#define MAX_FILES 512
 
 //#define EXTRA_READ_CHECKS
 
@@ -369,18 +368,12 @@ static tree_t *all_trees = NULL;
 static size_t max_trees = 128;   // Grows at runtime
 static size_t n_trees_alloc = 0;
 
-static uint32_t format_digest;
-static int      item_lookup[T_LAST_TREE_KIND][64];
-static size_t   object_size[T_LAST_TREE_KIND];
-static int      object_nitems[T_LAST_TREE_KIND];
-
-static const object_class_t tree_object = {
+static object_class_t tree_object = {
    .name           = "tree",
    .change_allowed = change_allowed,
    .has_map        = has_map,
-   .object_nitems  = object_nitems,
-   .object_size    = object_size,
-   .kind_text_map  = kind_text_map
+   .kind_text_map  = kind_text_map,
+   .tag            = OBJECT_TAG_TREE
 };
 
 unsigned next_generation = 1;
@@ -395,47 +388,9 @@ static void tree_one_time_init(void)
    // on-disk format not expressed in the tree items table above
    const uint32_t format_fudge = 2;
 
-   format_digest = type_format_digest() + format_fudge;
+   object_init(&tree_object, T_LAST_TREE_KIND, sizeof(struct tree));
 
-   for (int i = 0; i < T_LAST_TREE_KIND; i++) {
-      const int nitems = __builtin_popcountll(has_map[i]);
-      object_size[i]   = sizeof(struct tree) + (nitems * sizeof(item_t));
-      object_nitems[i] = nitems;
-
-      // Knuth's multiplicative hash
-      format_digest += (uint32_t)(has_map[i] >> 32) * UINT32_C(2654435761);
-      format_digest += (uint32_t)(has_map[i]) * UINT32_C(2654435761);
-
-      int n = 0;
-      for (int j = 0; j < 64; j++) {
-         if (has_map[i] & ONE_HOT(j))
-            item_lookup[i][j] = n++;
-         else
-            item_lookup[i][j] = -1;
-      }
-   }
-
-   bool changed = false;
-   do {
-      changed = false;
-      for (int i = 0; i < T_LAST_TREE_KIND; i++) {
-         size_t max_size = object_size[i];
-         for (size_t j = 0; j < ARRAY_LEN(change_allowed); j++) {
-            if (change_allowed[j][0] == i)
-               max_size = MAX(max_size, object_size[change_allowed[j][1]]);
-         }
-
-         if (max_size != object_size[i]) {
-            object_size[i] = max_size;
-            changed = true;
-         }
-      }
-   } while (changed);
-
-   if (getenv("NVC_TREE_SIZES") != NULL) {
-      for (int i = 0; i < T_LAST_TREE_KIND; i++)
-         printf("%-15s %d\n", tree_kind_str(i), (int)object_size[i]);
-   }
+   tree_object.format_digest += type_format_digest() + format_fudge;
 
    if (is_debugger_running())
       atexit(tree_gc);
@@ -482,8 +437,8 @@ tree_t tree_new(tree_kind_t kind)
 
    tree_one_time_init();
 
-   tree_t t = xmalloc(object_size[kind]);
-   memset(t, '\0', object_size[kind]);
+   tree_t t = xmalloc(tree_object.object_size[kind]);
+   memset(t, '\0', tree_object.object_size[kind]);
    t->object.kind = kind;
    t->object.index = UINT32_MAX;
 
@@ -498,7 +453,7 @@ tree_t tree_new(tree_kind_t kind)
 void object_sweep(object_t *object)
 {
    const imask_t has = has_map[object->kind];
-   const int nitems = object_nitems[object->kind];
+   const int nitems = tree_object.object_nitems[object->kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -586,36 +541,36 @@ void tree_set_loc(tree_t t, const loc_t *loc)
 
 ident_t tree_ident(tree_t t)
 {
-   item_t *item = lookup_item(t, I_IDENT);
+   item_t *item = lookup_item(&tree_object, t, I_IDENT);
    assert(item->ident != NULL);
    return item->ident;
 }
 
 bool tree_has_ident(tree_t t)
 {
-   return lookup_item(t, I_IDENT)->ident != NULL;
+   return lookup_item(&tree_object, t, I_IDENT)->ident != NULL;
 }
 
 void tree_set_ident(tree_t t, ident_t i)
 {
-   lookup_item(t, I_IDENT)->ident = i;
+   lookup_item(&tree_object, t, I_IDENT)->ident = i;
 }
 
 ident_t tree_ident2(tree_t t)
 {
-   item_t *item = lookup_item(t, I_IDENT2);
+   item_t *item = lookup_item(&tree_object, t, I_IDENT2);
    assert(item->ident != NULL);
    return item->ident;
 }
 
 void tree_set_ident2(tree_t t, ident_t i)
 {
-   lookup_item(t, I_IDENT2)->ident = i;
+   lookup_item(&tree_object, t, I_IDENT2)->ident = i;
 }
 
 bool tree_has_ident2(tree_t t)
 {
-   return lookup_item(t, I_IDENT2)->ident != NULL;
+   return lookup_item(&tree_object, t, I_IDENT2)->ident != NULL;
 }
 
 tree_kind_t tree_kind(tree_t t)
@@ -631,72 +586,75 @@ void tree_change_kind(tree_t t, tree_kind_t kind)
 
 unsigned tree_ports(tree_t t)
 {
-   return lookup_item(t, I_PORTS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_PORTS)->tree_array.count;
 }
 
 tree_t tree_port(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_PORTS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_PORTS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_port(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
-   tree_array_add(&(lookup_item(t, I_PORTS)->tree_array), d);
+   tree_array_add(&(lookup_item(&tree_object, t, I_PORTS)->tree_array), d);
 }
 
 unsigned tree_subkind(tree_t t)
 {
-   item_t *item = lookup_item(t, I_SUBKIND);
+   item_t *item = lookup_item(&tree_object, t, I_SUBKIND);
    return item->ival;
 }
 
 void tree_set_subkind(tree_t t, unsigned sub)
 {
-   lookup_item(t, I_SUBKIND)->ival = sub;
+   lookup_item(&tree_object, t, I_SUBKIND)->ival = sub;
 }
 
 unsigned tree_generics(tree_t t)
 {
-   return lookup_item(t, I_GENERICS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_GENERICS)->tree_array.count;
 }
 
 tree_t tree_generic(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_GENERICS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_GENERICS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_generic(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
-   tree_array_add(&(lookup_item(t, I_GENERICS)->tree_array), d);
+   tree_array_add(&(lookup_item(&tree_object, t, I_GENERICS)->tree_array), d);
 }
 
 type_t tree_type(tree_t t)
 {
-   item_t *item = lookup_item(t, I_TYPE);
+   item_t *item = lookup_item(&tree_object, t, I_TYPE);
    assert(item->type != NULL);
    return item->type;
 }
 
 void tree_set_type(tree_t t, type_t ty)
 {
-   lookup_item(t, I_TYPE)->type = ty;
+   lookup_item(&tree_object, t, I_TYPE)->type = ty;
 }
 
 bool tree_has_type(tree_t t)
 {
-   return lookup_item(t, I_TYPE)->type != NULL;
+   return lookup_item(&tree_object, t, I_TYPE)->type != NULL;
 }
 
 unsigned tree_params(tree_t t)
 {
-   return lookup_item(t, I_PARAMS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_PARAMS)->tree_array.count;
 }
 
 tree_t tree_param(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_PARAMS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_PARAMS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_param(tree_t t, tree_t e)
@@ -704,7 +662,7 @@ void tree_add_param(tree_t t, tree_t e)
    assert(tree_kind(e) == T_PARAM);
    tree_assert_expr(tree_value(e));
 
-   tree_array_t *array = &(lookup_item(t, I_PARAMS)->tree_array);
+   tree_array_t *array = &(lookup_item(&tree_object, t, I_PARAMS)->tree_array);
 
    if (tree_subkind(e) == P_POS)
       tree_set_pos(e, array->count);
@@ -714,58 +672,59 @@ void tree_add_param(tree_t t, tree_t e)
 
 unsigned tree_genmaps(tree_t t)
 {
-   return lookup_item(t, I_GENMAPS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_GENMAPS)->tree_array.count;
 }
 
 tree_t tree_genmap(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_GENMAPS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_GENMAPS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_genmap(tree_t t, tree_t e)
 {
    tree_assert_expr(tree_value(e));
 
-   tree_array_t *array = &(lookup_item(t, I_GENMAPS)->tree_array);
+   tree_array_t *array = &(lookup_item(&tree_object, t, I_GENMAPS)->tree_array);
 
    if (tree_subkind(e) == P_POS)
       tree_set_pos(e, array->count);
 
-   tree_array_add(&(lookup_item(t, I_GENMAPS)->tree_array), e);
+   tree_array_add(&(lookup_item(&tree_object, t, I_GENMAPS)->tree_array), e);
 }
 
 int64_t tree_ival(tree_t t)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
-   return lookup_item(t, I_IVAL)->ival;
+   return lookup_item(&tree_object, t, I_IVAL)->ival;
 }
 
 void tree_set_ival(tree_t t, int64_t i)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_INT));
-   lookup_item(t, I_IVAL)->ival = i;
+   lookup_item(&tree_object, t, I_IVAL)->ival = i;
 }
 
 double tree_dval(tree_t t)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
-   return lookup_item(t, I_DVAL)->dval;
+   return lookup_item(&tree_object, t, I_DVAL)->dval;
 }
 
 void tree_set_dval(tree_t t, double d)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
-   lookup_item(t, I_DVAL)->dval = d;
+   lookup_item(&tree_object, t, I_DVAL)->dval = d;
 }
 
 bool tree_has_value(tree_t t)
 {
-   return lookup_item(t, I_VALUE)->tree != NULL;
+   return lookup_item(&tree_object, t, I_VALUE)->tree != NULL;
 }
 
 tree_t tree_value(tree_t t)
 {
-   item_t *item = lookup_item(t, I_VALUE);
+   item_t *item = lookup_item(&tree_object, t, I_VALUE);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -774,97 +733,102 @@ void tree_set_value(tree_t t, tree_t v)
 {
    if ((v != NULL) && (t->object.kind != T_ASSOC) && (t->object.kind != T_SPEC))
       tree_assert_expr(v);
-   lookup_item(t, I_VALUE)->tree = v;
+   lookup_item(&tree_object, t, I_VALUE)->tree = v;
 }
 
 unsigned tree_decls(tree_t t)
 {
-   return lookup_item(t, I_DECLS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_DECLS)->tree_array.count;
 }
 
 tree_t tree_decl(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_DECLS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_DECLS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_decl(tree_t t, tree_t d)
 {
    tree_assert_decl(d);
-   tree_array_add(&(lookup_item(t, I_DECLS)->tree_array), d);
+   tree_array_add(&(lookup_item(&tree_object, t, I_DECLS)->tree_array), d);
 }
 
 unsigned tree_stmts(tree_t t)
 {
-   return lookup_item(t, I_STMTS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_STMTS)->tree_array.count;
 }
 
 tree_t tree_stmt(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_STMTS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_STMTS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_stmt(tree_t t, tree_t s)
 {
    tree_assert_stmt(s);
-   tree_array_add(&(lookup_item(t, I_STMTS)->tree_array), s);
+   tree_array_add(&(lookup_item(&tree_object, t, I_STMTS)->tree_array), s);
 }
 
 unsigned tree_waveforms(tree_t t)
 {
-   return lookup_item(t, I_WAVES)->tree_array.count;
+   return lookup_item(&tree_object, t, I_WAVES)->tree_array.count;
 }
 
 tree_t tree_waveform(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_WAVES)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_WAVES);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_waveform(tree_t t, tree_t w)
 {
    assert(w->object.kind == T_WAVEFORM);
-   tree_array_add(&(lookup_item(t, I_WAVES)->tree_array), w);
+   tree_array_add(&(lookup_item(&tree_object, t, I_WAVES)->tree_array), w);
 }
 
 unsigned tree_else_stmts(tree_t t)
 {
-   return lookup_item(t, I_ELSES)->tree_array.count;
+   return lookup_item(&tree_object, t, I_ELSES)->tree_array.count;
 }
 
 tree_t tree_else_stmt(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_ELSES)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_ELSES);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_else_stmt(tree_t t, tree_t s)
 {
    tree_assert_stmt(s);
-   tree_array_add(&(lookup_item(t, I_ELSES)->tree_array), s);
+   tree_array_add(&(lookup_item(&tree_object, t, I_ELSES)->tree_array), s);
 }
 
 unsigned tree_conds(tree_t t)
 {
-   return lookup_item(t, I_CONDS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_CONDS)->tree_array.count;
 }
 
 tree_t tree_cond(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_CONDS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_CONDS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_cond(tree_t t, tree_t c)
 {
    assert(c->object.kind == T_COND);
-   tree_array_add(&(lookup_item(t, I_CONDS)->tree_array), c);
+   tree_array_add(&(lookup_item(&tree_object, t, I_CONDS)->tree_array), c);
 }
 
 bool tree_has_delay(tree_t t)
 {
-   return lookup_item(t, I_DELAY)->tree != NULL;
+   return lookup_item(&tree_object, t, I_DELAY)->tree != NULL;
 }
 
 tree_t tree_delay(tree_t t)
 {
-   item_t *item = lookup_item(t, I_DELAY);
+   item_t *item = lookup_item(&tree_object, t, I_DELAY);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -872,118 +836,121 @@ tree_t tree_delay(tree_t t)
 void tree_set_delay(tree_t t, tree_t d)
 {
    tree_assert_expr(d);
-   lookup_item(t, I_DELAY)->tree = d;
+   lookup_item(&tree_object, t, I_DELAY)->tree = d;
 }
 
 unsigned tree_triggers(tree_t t)
 {
-   return lookup_item(t, I_TRIGGERS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_TRIGGERS)->tree_array.count;
 }
 
 tree_t tree_trigger(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_TRIGGERS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_TRIGGERS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_trigger(tree_t t, tree_t s)
 {
    tree_assert_expr(s);
-   tree_array_add(&(lookup_item(t, I_TRIGGERS)->tree_array), s);
+   tree_array_add(&(lookup_item(&tree_object, t, I_TRIGGERS)->tree_array), s);
 }
 
 unsigned tree_ops(tree_t t)
 {
-   return lookup_item(t, I_OPS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_OPS)->tree_array.count;
 }
 
 tree_t tree_op(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_OPS)->tree_array), n);
+   return tree_array_nth(&(lookup_item(&tree_object, t, I_OPS)->tree_array), n);
 }
 
 void tree_add_op(tree_t t, tree_t s)
 {
    assert((s->object.kind == T_FUNC_DECL) || (s->object.kind == T_PROC_DECL));
-   tree_array_add(&(lookup_item(t, I_OPS)->tree_array), s);
+   tree_array_add(&(lookup_item(&tree_object, t, I_OPS)->tree_array), s);
 }
 
 tree_t tree_target(tree_t t)
 {
-   item_t *item = lookup_item(t, I_TARGET);
+   item_t *item = lookup_item(&tree_object, t, I_TARGET);
    assert(item->tree != NULL);
    return item->tree;
 }
 
 void tree_set_target(tree_t t, tree_t lhs)
 {
-   lookup_item(t, I_TARGET)->tree = lhs;
+   lookup_item(&tree_object, t, I_TARGET)->tree = lhs;
 }
 
 tree_t tree_ref(tree_t t)
 {
-   item_t *item = lookup_item(t, I_REF);
+   item_t *item = lookup_item(&tree_object, t, I_REF);
    assert(item->tree != NULL);
    return item->tree;
 }
 
 bool tree_has_ref(tree_t t)
 {
-   return lookup_item(t, I_REF)->tree != NULL;
+   return lookup_item(&tree_object, t, I_REF)->tree != NULL;
 }
 
 void tree_set_ref(tree_t t, tree_t decl)
 {
-   lookup_item(t, I_REF)->tree = decl;
+   lookup_item(&tree_object, t, I_REF)->tree = decl;
 }
 
 tree_t tree_spec(tree_t t)
 {
-   item_t *item = lookup_item(t, I_SPEC);
+   item_t *item = lookup_item(&tree_object, t, I_SPEC);
    assert(item->tree != NULL);
    return item->tree;
 }
 
 bool tree_has_spec(tree_t t)
 {
-   return lookup_item(t, I_SPEC)->tree != NULL;
+   return lookup_item(&tree_object, t, I_SPEC)->tree != NULL;
 }
 
 void tree_set_spec(tree_t t, tree_t s)
 {
-   lookup_item(t, I_SPEC)->tree = s;
+   lookup_item(&tree_object, t, I_SPEC)->tree = s;
 }
 
 unsigned tree_contexts(tree_t t)
 {
-   return lookup_item(t, I_CONTEXT)->tree_array.count;
+   return lookup_item(&tree_object, t, I_CONTEXT)->tree_array.count;
 }
 
 tree_t tree_context(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_CONTEXT)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_CONTEXT);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_context(tree_t t, tree_t ctx)
 {
    assert((ctx->object.kind == T_USE) || (ctx->object.kind == T_LIBRARY));
-   tree_array_add(&(lookup_item(t, I_CONTEXT)->tree_array), ctx);
+   tree_array_add(&(lookup_item(&tree_object, t, I_CONTEXT)->tree_array), ctx);
 }
 
 unsigned tree_assocs(tree_t t)
 {
-   return lookup_item(t, I_ASSOCS)->tree_array.count;
+   return lookup_item(&tree_object, t, I_ASSOCS)->tree_array.count;
 }
 
 tree_t tree_assoc(tree_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_ASSOCS)->tree_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_ASSOCS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void tree_add_assoc(tree_t t, tree_t a)
 {
    assert(a->object.kind == T_ASSOC);
 
-   tree_array_t *array = &(lookup_item(t, I_ASSOCS)->tree_array);
+   tree_array_t *array = &(lookup_item(&tree_object, t, I_ASSOCS)->tree_array);
 
    if (tree_subkind(a) == A_POS)
       tree_set_pos(a, array->count);
@@ -993,24 +960,25 @@ void tree_add_assoc(tree_t t, tree_t a)
 
 unsigned tree_nets(tree_t t)
 {
-   return lookup_item(t, I_NETS)->netid_array.count;
+   return lookup_item(&tree_object, t, I_NETS)->netid_array.count;
 }
 
 netid_t tree_net(tree_t t, unsigned n)
 {
-   netid_t nid = netid_array_nth(&(lookup_item(t, I_NETS)->netid_array), n);
+   item_t *item = lookup_item(&tree_object, t, I_NETS);
+   netid_t nid = netid_array_nth(&(item->netid_array), n);
    assert(nid != NETID_INVALID);
    return nid;
 }
 
 void tree_add_net(tree_t t, netid_t n)
 {
-   netid_array_add(&(lookup_item(t, I_NETS)->netid_array), n);
+   netid_array_add(&(lookup_item(&tree_object, t, I_NETS)->netid_array), n);
 }
 
 void tree_change_net(tree_t t, unsigned n, netid_t i)
 {
-   item_t *item = lookup_item(t, I_NETS);
+   item_t *item = lookup_item(&tree_object, t, I_NETS);
 
    if (n >= item->netid_array.count)
       netid_array_resize(&(item->netid_array), n + 1, NETID_INVALID);
@@ -1020,7 +988,7 @@ void tree_change_net(tree_t t, unsigned n, netid_t i)
 
 tree_t tree_severity(tree_t t)
 {
-   item_t *item = lookup_item(t, I_SEVERITY);
+   item_t *item = lookup_item(&tree_object, t, I_SEVERITY);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -1028,12 +996,12 @@ tree_t tree_severity(tree_t t)
 void tree_set_severity(tree_t t, tree_t s)
 {
    tree_assert_expr(s);
-   lookup_item(t, I_SEVERITY)->tree = s;
+   lookup_item(&tree_object, t, I_SEVERITY)->tree = s;
 }
 
 tree_t tree_message(tree_t t)
 {
-   item_t *item = lookup_item(t, I_MESSAGE);
+   item_t *item = lookup_item(&tree_object, t, I_MESSAGE);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -1041,17 +1009,17 @@ tree_t tree_message(tree_t t)
 void tree_set_message(tree_t t, tree_t m)
 {
    tree_assert_expr(m);
-   lookup_item(t, I_MESSAGE)->tree = m;
+   lookup_item(&tree_object, t, I_MESSAGE)->tree = m;
 }
 
 range_t tree_range(tree_t t)
 {
-   return *(lookup_item(t, I_RANGE)->range);
+   return *(lookup_item(&tree_object, t, I_RANGE)->range);
 }
 
 void tree_set_range(tree_t t, range_t r)
 {
-   item_t *item = lookup_item(t, I_RANGE);
+   item_t *item = lookup_item(&tree_object, t, I_RANGE);
    if (item->range == NULL)
       item->range = xmalloc(sizeof(range_t));
    *(item->range) = r;
@@ -1059,27 +1027,27 @@ void tree_set_range(tree_t t, range_t r)
 
 unsigned tree_pos(tree_t t)
 {
-   return lookup_item(t, I_POS)->ival;
+   return lookup_item(&tree_object, t, I_POS)->ival;
 }
 
 void tree_set_pos(tree_t t, unsigned pos)
 {
-   lookup_item(t, I_POS)->ival = pos;
+   lookup_item(&tree_object, t, I_POS)->ival = pos;
 }
 
 class_t tree_class(tree_t t)
 {
-   return lookup_item(t, I_CLASS)->ival;
+   return lookup_item(&tree_object, t, I_CLASS)->ival;
 }
 
 void tree_set_class(tree_t t, class_t c)
 {
-   lookup_item(t, I_CLASS)->ival = c;
+   lookup_item(&tree_object, t, I_CLASS)->ival = c;
 }
 
 tree_t tree_reject(tree_t t)
 {
-   item_t *item = lookup_item(t, I_REJECT);
+   item_t *item = lookup_item(&tree_object, t, I_REJECT);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -1087,17 +1055,17 @@ tree_t tree_reject(tree_t t)
 void tree_set_reject(tree_t t, tree_t r)
 {
    tree_assert_expr(r);
-   lookup_item(t, I_REJECT)->tree = r;
+   lookup_item(&tree_object, t, I_REJECT)->tree = r;
 }
 
 bool tree_has_reject(tree_t t)
 {
-   return lookup_item(t, I_REJECT)->tree != NULL;
+   return lookup_item(&tree_object, t, I_REJECT)->tree != NULL;
 }
 
 tree_t tree_name(tree_t t)
 {
-   item_t *item = lookup_item(t, I_NAME);
+   item_t *item = lookup_item(&tree_object, t, I_NAME);
    assert(item->tree != NULL);
    return item->tree;
 }
@@ -1105,17 +1073,17 @@ tree_t tree_name(tree_t t)
 void tree_set_name(tree_t t, tree_t n)
 {
    tree_assert_expr(n);
-   lookup_item(t, I_NAME)->tree = n;
+   lookup_item(&tree_object, t, I_NAME)->tree = n;
 }
 
 tree_t tree_file_mode(tree_t t)
 {
-   return lookup_item(t, I_FILE_MODE)->tree;
+   return lookup_item(&tree_object, t, I_FILE_MODE)->tree;
 }
 
 void tree_set_file_mode(tree_t t, tree_t m)
 {
-   lookup_item(t, I_FILE_MODE)->tree = m;
+   lookup_item(&tree_object, t, I_FILE_MODE)->tree = m;
 }
 
 uint32_t tree_index(tree_t t)
@@ -1137,7 +1105,7 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
    const imask_t deep_mask = I_TYPE | I_REF;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int i = 0; i < nitems; mask <<= 1) {
       if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
@@ -1315,7 +1283,7 @@ static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
-   write_u32(format_digest, f);
+   write_u32(tree_object.format_digest, f);
    write_u8(standard(), f);
 
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
@@ -1366,7 +1334,7 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
    write_loc(&t->loc, ctx);
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1468,7 +1436,7 @@ tree_t tree_read(tree_rd_ctx_t ctx)
    ctx->store[t->object.index] = t;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1551,11 +1519,11 @@ tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
    tree_one_time_init();
 
    const uint32_t ver = read_u32(f);
-   if (ver != format_digest)
+   if (ver != tree_object.format_digest)
       fatal("%s: serialised format digest is %x expected %x. This design "
             "unit uses a library format from an earlier version of "
             PACKAGE_NAME " and should be reanalysed.",
-            fname, ver, format_digest);
+            fname, ver, tree_object.format_digest);
 
    const vhdl_standard_t std = read_u8(f);
    if (std > standard())
@@ -1711,7 +1679,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
    const imask_t skip_mask = I_REF;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    int type_item = -1;
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
@@ -1803,7 +1771,7 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
    int type_item = -1;
    bool marked = false;
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1875,7 +1843,7 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
    copy->loc = t->loc;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = tree_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {

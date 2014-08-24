@@ -29,8 +29,7 @@
 #include <ctype.h>
 #include <float.h>
 
-#define MAX_ITEMS   3
-#define OBJECT_NAME "type"
+#define MAX_ITEMS 3
 
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
@@ -127,18 +126,12 @@ static type_t *all_types = NULL;
 static size_t max_types = 128;   // Grows at runtime
 static size_t n_types_alloc = 0;
 
-static uint32_t format_digest;
-static int      item_lookup[T_LAST_TREE_KIND][64];
-static size_t   object_size[T_LAST_TREE_KIND];
-static int      object_nitems[T_LAST_TREE_KIND];
-
-static const object_class_t type_object = {
+static object_class_t type_object = {
    .name           = "type",
    .change_allowed = change_allowed,
    .has_map        = has_map,
-   .object_nitems  = object_nitems,
-   .object_size    = object_size,
-   .kind_text_map  = kind_text_map
+   .kind_text_map  = kind_text_map,
+   .tag            = OBJECT_TAG_TYPE
 };
 
 static void type_one_time_init(void)
@@ -147,25 +140,7 @@ static void type_one_time_init(void)
    if (likely(done))
       return;
 
-   for (int i = 0; i < T_LAST_TYPE_KIND; i++) {
-      const int nitems = __builtin_popcountll(has_map[i]);
-      assert(nitems <= MAX_ITEMS);
-
-      object_size[i]   = sizeof(struct type) + (nitems * sizeof(item_t));
-      object_nitems[i] = nitems;
-
-      // Knuth's multiplicative hash
-      format_digest += (uint32_t)(has_map[i] >> 32) * UINT32_C(2654435761);
-      format_digest += (uint32_t)(has_map[i]) * UINT32_C(2654435761);
-
-      int n = 0;
-      for (int j = 0; j < 64; j++) {
-         if (has_map[i] & ONE_HOT(j))
-            item_lookup[i][j] = n++;
-         else
-            item_lookup[i][j] = -1;
-      }
-   }
+   object_init(&type_object, T_LAST_TYPE_KIND, sizeof(struct type));
 
    done = true;
 }
@@ -313,36 +288,37 @@ void type_set_ident(type_t t, ident_t id)
 
 unsigned type_dims(type_t t)
 {
-   return lookup_item(t, I_DIMS)->range_array.count;
+   return lookup_item(&type_object, t, I_DIMS)->range_array.count;
 }
 
 range_t type_dim(type_t t, unsigned n)
 {
-   return range_array_nth(&(lookup_item(t, I_DIMS)->range_array), n);
+   item_t *item = lookup_item(&type_object, t, I_DIMS);
+   return range_array_nth(&(item->range_array), n);
 }
 
 void type_add_dim(type_t t, range_t r)
 {
-   range_array_add(&(lookup_item(t, I_DIMS)->range_array), r);
+   range_array_add(&(lookup_item(&type_object, t, I_DIMS)->range_array), r);
 }
 
 void type_change_dim(type_t t, unsigned n, range_t r)
 {
-   item_t *item = lookup_item(t, I_DIMS);
+   item_t *item = lookup_item(&type_object, t, I_DIMS);
    assert(n < item->range_array.count);
    item->range_array.items[n] = r;
 }
 
 type_t type_base(type_t t)
 {
-   item_t *item = lookup_item(t, I_BASE);
+   item_t *item = lookup_item(&type_object, t, I_BASE);
    assert(item->type != NULL);
    return item->type;
 }
 
 void type_set_base(type_t t, type_t b)
 {
-   lookup_item(t, I_BASE)->type = b;
+   lookup_item(&type_object, t, I_BASE)->type = b;
 }
 
 type_t type_elem(type_t t)
@@ -352,7 +328,7 @@ type_t type_elem(type_t t)
    if (IS(t, T_SUBTYPE))
       return type_elem(type_base(t));
    else {
-      item_t *item = lookup_item(t, I_ELEM);
+      item_t *item = lookup_item(&type_object, t, I_ELEM);
       assert(item->type != NULL);
       return item->type;
    }
@@ -360,7 +336,7 @@ type_t type_elem(type_t t)
 
 void type_set_elem(type_t t, type_t e)
 {
-   lookup_item(t, I_ELEM)->type = e;
+   lookup_item(&type_object, t, I_ELEM)->type = e;
 }
 
 static type_t type_make_universal(type_kind_t kind, const char *name,
@@ -434,48 +410,51 @@ bool type_is_universal(type_t t)
 
 unsigned type_units(type_t t)
 {
-   return lookup_item(t, I_UNITS)->tree_array.count;
+   return lookup_item(&type_object, t, I_UNITS)->tree_array.count;
 }
 
 tree_t type_unit(type_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_UNITS)->tree_array), n);
+   item_t *item = lookup_item(&type_object, t, I_UNITS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void type_add_unit(type_t t, tree_t u)
 {
-   tree_array_add(&(lookup_item(t, I_UNITS)->tree_array), u);
+   tree_array_add(&(lookup_item(&type_object, t, I_UNITS)->tree_array), u);
 }
 
 unsigned type_enum_literals(type_t t)
 {
-   return lookup_item(t, I_LITERALS)->tree_array.count;
+   return lookup_item(&type_object, t, I_LITERALS)->tree_array.count;
 }
 
 tree_t type_enum_literal(type_t t, unsigned n)
 {
-   return tree_array_nth(&(lookup_item(t, I_LITERALS)->tree_array), n);
+   item_t *item = lookup_item(&type_object, t, I_LITERALS);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
 void type_enum_add_literal(type_t t, tree_t lit)
 {
    assert(tree_kind(lit) == T_ENUM_LIT);
-   tree_array_add(&(lookup_item(t, I_LITERALS)->tree_array), lit);
+   tree_array_add(&(lookup_item(&type_object, t, I_LITERALS)->tree_array), lit);
 }
 
 unsigned type_params(type_t t)
 {
-   return lookup_item(t, I_PARAMS)->type_array.count;
+   return lookup_item(&type_object, t, I_PARAMS)->type_array.count;
 }
 
 type_t type_param(type_t t, unsigned n)
 {
-   return type_array_nth(&(lookup_item(t, I_PARAMS)->type_array), n);
+   item_t *item = lookup_item(&type_object, t, I_PARAMS);
+   return type_array_nth(&(item->type_array), n);
 }
 
 void type_add_param(type_t t, type_t p)
 {
-   type_array_add(&(lookup_item(t, I_PARAMS)->type_array), p);
+   type_array_add(&(lookup_item(&type_object, t, I_PARAMS)->type_array), p);
 }
 
 unsigned type_fields(type_t t)
@@ -483,33 +462,35 @@ unsigned type_fields(type_t t)
    if (t->object.kind == T_SUBTYPE)
       return type_fields(type_base(t));
    else
-      return lookup_item(t, I_FIELDS)->tree_array.count;
+      return lookup_item(&type_object, t, I_FIELDS)->tree_array.count;
 }
 
 tree_t type_field(type_t t, unsigned n)
 {
    if (t->object.kind == T_SUBTYPE)
       return type_field(type_base(t), n);
-   else
-      return tree_array_nth(&(lookup_item(t, I_FIELDS)->tree_array), n);
+   else {
+      item_t *item = lookup_item(&type_object, t, I_FIELDS);
+      return tree_array_nth(&(item->tree_array), n);
+   }
 }
 
 void type_add_field(type_t t, tree_t p)
 {
    assert(tree_kind(p) == T_FIELD_DECL);
-   tree_array_add(&(lookup_item(t, I_FIELDS)->tree_array), p);
+   tree_array_add(&(lookup_item(&type_object, t, I_FIELDS)->tree_array), p);
 }
 
 type_t type_result(type_t t)
 {
-   item_t *item = lookup_item(t, I_RESULT);
+   item_t *item = lookup_item(&type_object, t, I_RESULT);
    assert(item->type != NULL);
    return item->type;
 }
 
 void type_set_result(type_t t, type_t r)
 {
-   lookup_item(t, I_RESULT)->type = r;
+   lookup_item(&type_object, t, I_RESULT)->type = r;
 }
 
 void type_replace(type_t t, type_t a)
@@ -522,7 +503,7 @@ void type_replace(type_t t, type_t a)
    t->ident = a->ident;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -569,61 +550,62 @@ void type_replace(type_t t, type_t a)
 
 unsigned type_index_constrs(type_t t)
 {
-   return lookup_item(t, I_CONSTR)->type_array.count;
+   return lookup_item(&type_object, t, I_CONSTR)->type_array.count;
 }
 
 void type_add_index_constr(type_t t, type_t c)
 {
-   type_array_add(&(lookup_item(t, I_CONSTR)->type_array), c);
+   type_array_add(&(lookup_item(&type_object, t, I_CONSTR)->type_array), c);
 }
 
 void type_change_index_constr(type_t t, unsigned n, type_t c)
 {
-   type_array_t *a = &(lookup_item(t, I_CONSTR)->type_array);
+   type_array_t *a = &(lookup_item(&type_object, t, I_CONSTR)->type_array);
    assert(n < a->count);
    a->items[n] = c;
 }
 
 type_t type_index_constr(type_t t, unsigned n)
 {
-   return type_array_nth(&(lookup_item(t, I_CONSTR)->type_array), n);
+   item_t *item = lookup_item(&type_object, t, I_CONSTR);
+   return type_array_nth(&(item->type_array), n);
 }
 
 void type_set_resolution(type_t t, tree_t r)
 {
-   lookup_item(t, I_RESOLUTION)->tree = r;
+   lookup_item(&type_object, t, I_RESOLUTION)->tree = r;
 }
 
 bool type_has_resolution(type_t t)
 {
-   return lookup_item(t, I_RESOLUTION)->tree != NULL;
+   return lookup_item(&type_object, t, I_RESOLUTION)->tree != NULL;
 }
 
 tree_t type_resolution(type_t t)
 {
-   item_t *item = lookup_item(t, I_RESOLUTION);
+   item_t *item = lookup_item(&type_object, t, I_RESOLUTION);
    assert(item->tree != NULL);
    return item->tree;
 }
 
 type_t type_access(type_t t)
 {
-   return lookup_item(t, I_ACCESS)->type;
+   return lookup_item(&type_object, t, I_ACCESS)->type;
 }
 
 void type_set_access(type_t t, type_t a)
 {
-   lookup_item(t, I_ACCESS)->type = a;
+   lookup_item(&type_object, t, I_ACCESS)->type = a;
 }
 
 type_t type_file(type_t t)
 {
-   return lookup_item(t, I_FILE)->type;
+   return lookup_item(&type_object, t, I_FILE)->type;
 }
 
 void type_set_file(type_t t, type_t f)
 {
-   lookup_item(t, I_FILE)->type = f;
+   lookup_item(&type_object, t, I_FILE)->type = f;
 }
 
 void type_write(type_t t, type_wr_ctx_t ctx)
@@ -651,7 +633,7 @@ void type_write(type_t t, type_wr_ctx_t ctx)
    ident_write(type_ident(t), ctx->ident_ctx);
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -718,7 +700,7 @@ type_t type_read(type_rd_ctx_t ctx)
    ctx->store[ctx->n_types++] = t;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -808,7 +790,7 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
    case T_FUNC:
    case T_PROC:
       {
-         item_t *tbi = lookup_item(t, I_TEXT_BUF);
+         item_t *tbi = lookup_item(&type_object, t, I_TEXT_BUF);
          if (tbi->text_buf == NULL)
             tbi->text_buf = tb_new();
          else
@@ -852,7 +834,7 @@ void type_sweep(unsigned generation)
       if (t->object.generation < generation) {
 
          const imask_t has = has_map[t->object.kind];
-         const int nitems = object_nitems[t->object.kind];
+         const int nitems = type_object.object_nitems[t->object.kind];
          imask_t mask = 1;
          for (int n = 0; n < nitems; mask <<= 1) {
             if (has & mask) {
@@ -976,7 +958,7 @@ type_t type_base_recur(type_t t)
 uint32_t type_format_digest(void)
 {
    type_one_time_init();
-   return format_digest;
+   return type_object.format_digest;
 }
 
 void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
@@ -990,7 +972,7 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
       t->object.generation = ctx->generation;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1035,7 +1017,7 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
       t->object.generation = ctx->generation;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1114,7 +1096,7 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
 
    bool marked = false;
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
@@ -1176,7 +1158,7 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
    copy->ident = t->ident;
 
    const imask_t has = has_map[t->object.kind];
-   const int nitems = object_nitems[t->object.kind];
+   const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
    for (int n = 0; n < nitems; mask <<= 1) {
       if (has & mask) {
