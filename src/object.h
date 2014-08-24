@@ -165,6 +165,16 @@ typedef struct {
    bool             deep;
 } object_visit_ctx_t;
 
+typedef int change_allowed_t[2];
+
+typedef struct {
+   const char             *name;
+   const change_allowed_t *change_allowed;
+   const imask_t          *has_map;
+   const int              *object_nitems;
+   const size_t           *object_size;
+} object_class_t;
+
 typedef struct type_wr_ctx *type_wr_ctx_t;
 typedef struct type_rd_ctx *type_rd_ctx_t;
 
@@ -202,5 +212,7 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
 void item_without_type(imask_t mask);
 
 uint32_t object_index(const object_t *object);
+void object_change_kind(const object_class_t *class,
+                        object_t *object, int kind);
 
 #endif   // _OBJECT_H

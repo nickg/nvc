@@ -17,6 +17,8 @@
 
 #include "object.h"
 
+#include <string.h>
+
 DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 DEFINE_ARRAY(type);
@@ -62,4 +64,43 @@ uint32_t object_index(const object_t *object)
    assert(object->index != UINT32_MAX);
 
    return object->index;
+}
+
+void object_change_kind(const object_class_t *class, object_t *object, int kind)
+{
+   if (kind == object->kind)
+      return;
+
+   bool allow = false;
+   for (size_t i = 0; (class->change_allowed[i][0] != -1) && !allow; i++) {
+      allow = (class->change_allowed[i][0] == object->kind)
+         && (class->change_allowed[i][1] == kind);
+   }
+
+   if (!allow)
+      fatal_trace("cannot change %s kind %s to %s", class->name,
+                  tree_kind_str(object->kind), tree_kind_str(kind));
+
+   const imask_t old_has = class->has_map[object->kind];
+   const imask_t new_has = class->has_map[kind];
+
+   const int old_nitems = class->object_nitems[object->kind];
+   const int new_nitems = class->object_nitems[kind];
+
+   const int max_items = MAX(old_nitems, new_nitems);
+
+   item_t tmp[max_items];
+   memcpy(tmp, object->items, sizeof(item_t) * max_items);
+
+   int op = 0, np = 0;
+   for (imask_t mask = 1; np < new_nitems; mask <<= 1) {
+      if ((old_has & mask) && (new_has & mask))
+         object->items[np++] = tmp[op++];
+      else if (old_has & mask)
+         ++op;
+      else if (new_has & mask)
+         memset(&(object->items[np++]), '\0', sizeof(item_t));
+   }
+
+   object->kind = kind;
 }

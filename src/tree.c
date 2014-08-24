@@ -285,7 +285,7 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_DESIGN_UNIT",  "T_CONFIG"
 };
 
-static const tree_kind_t change_allowed[][2] = {
+static const change_allowed_t change_allowed[] = {
    { T_REF,         T_FCALL       },
    { T_REF,         T_PCALL       },
    { T_ARRAY_REF,   T_FCALL       },
@@ -306,6 +306,7 @@ static const tree_kind_t change_allowed[][2] = {
    { T_FCALL,       T_CPCALL      },
    { T_REF,         T_CPCALL      },
    { T_ATTR_REF,    T_ARRAY_REF   },
+   { -1,            -1            }
 };
 
 struct tree {
@@ -372,6 +373,15 @@ static uint32_t format_digest;
 static int      item_lookup[T_LAST_TREE_KIND][64];
 static size_t   object_size[T_LAST_TREE_KIND];
 static int      object_nitems[T_LAST_TREE_KIND];
+
+static const object_class_t tree_object = {
+   .name           = "tree",
+   .change_allowed = change_allowed,
+   .has_map        = has_map,
+   .object_nitems  = object_nitems,
+   .object_size    = object_size
+};
+
 
 unsigned next_generation = 1;
 
@@ -616,40 +626,7 @@ tree_kind_t tree_kind(tree_t t)
 
 void tree_change_kind(tree_t t, tree_kind_t kind)
 {
-   assert(t != NULL);
-
-   bool allow = false;
-   for (size_t i = 0; (i < ARRAY_LEN(change_allowed)) && !allow; i++) {
-      allow = (change_allowed[i][0] == t->object.kind)
-         && (change_allowed[i][1] == kind);
-   }
-
-   if (!allow)
-      fatal_trace("cannot change tree kind %s to %s",
-                  tree_kind_str(t->object.kind), tree_kind_str(kind));
-
-   const imask_t old_has = has_map[t->object.kind];
-   const imask_t new_has = has_map[kind];
-
-   const int old_nitems = object_nitems[t->object.kind];
-   const int new_nitems = object_nitems[kind];
-
-   const int max_items = MAX(old_nitems, new_nitems);
-
-   item_t tmp[max_items];
-   memcpy(tmp, t->object.items, sizeof(item_t) * max_items);
-
-   int op = 0, np = 0;
-   for (imask_t mask = 1; np < new_nitems; mask <<= 1) {
-      if ((old_has & mask) && (new_has & mask))
-         t->object.items[np++] = tmp[op++];
-      else if (old_has & mask)
-         ++op;
-      else if (new_has & mask)
-         memset(&(t->object.items[np++]), '\0', sizeof(item_t));
-   }
-
-   t->object.kind = kind;
+   object_change_kind(&tree_object, &(t->object), kind);
 }
 
 unsigned tree_ports(tree_t t)
