@@ -128,9 +128,7 @@ object_class_t type_object = {
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_TYPE,
-   .offset         = offsetof(struct type, object),
-   .last_kind      = T_LAST_TYPE_KIND,
-   .base_size      = sizeof(struct type)
+   .last_kind      = T_LAST_TYPE_KIND
 };
 
 type_t type_new(type_kind_t kind)

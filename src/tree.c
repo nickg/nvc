@@ -352,9 +352,7 @@ object_class_t tree_object = {
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_TREE,
-   .offset         = offsetof(struct tree, object),
-   .last_kind      = T_LAST_TREE_KIND,
-   .base_size      = sizeof(struct tree)
+   .last_kind      = T_LAST_TREE_KIND
 };
 
 unsigned next_generation = 1;

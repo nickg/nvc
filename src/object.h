@@ -203,12 +203,10 @@ typedef struct {
    const imask_t          *has_map;
    const char            **kind_text_map;
    const int               tag;
-   const ptrdiff_t         offset;
    const int               last_kind;
    int                    *object_nitems;
    size_t                 *object_size;
    int                    *item_lookup;
-   size_t                  base_size;
 } object_class_t;
 
 typedef struct type_wr_ctx *type_wr_ctx_t;

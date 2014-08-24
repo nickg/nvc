@@ -120,7 +120,7 @@ static void object_init(object_class_t *class)
 
    for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
-      class->object_size[i]   = class->base_size + (nitems * sizeof(item_t));
+      class->object_size[i]   = sizeof(object_t) + (nitems * sizeof(item_t));
       class->object_nitems[i] = nitems;
 
       // Knuth's multiplicative hash
@@ -175,7 +175,7 @@ void object_one_time_init(void)
       object_init(&type_object);
 
       // Increment this each time a incompatible change is made to the
-      // on-disk format not expressed in the tree items table above
+      // on-disk format not expressed in the tree and type items table
       const uint32_t format_fudge = 2;
 
       format_digest += format_fudge;
@@ -191,12 +191,11 @@ void *object_new(object_class_t *class, int kind)
 
    object_one_time_init();
 
-   char *mem = xcalloc(class->object_size[kind]);
-   object_t *object = (object_t *)(mem + class->offset);
+   object_t *object = xcalloc(class->object_size[kind]);
 
    object->kind  = kind;
    object->tag   = class->tag;
    object->index = UINT32_MAX;
 
-   return mem;
+   return object;
 }
