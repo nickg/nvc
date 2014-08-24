@@ -29,56 +29,54 @@
 #include <ctype.h>
 #include <float.h>
 
-#define MAX_ITEMS 3
-
 static const imask_t has_map[T_LAST_TYPE_KIND] = {
    // T_UNRESOLVED
-   (I_RESOLUTION),
+   (I_IDENT | I_RESOLUTION),
 
    // T_SUBTYPE
-   (I_BASE | I_RESOLUTION | I_DIMS),
+   (I_IDENT | I_BASE | I_RESOLUTION | I_DIMS),
 
    // T_INTEGER
-   (I_DIMS),
+   (I_IDENT | I_DIMS),
 
    // T_REAL
-   (I_DIMS),
+   (I_IDENT | I_DIMS),
 
    // T_ENUM
-   (I_LITERALS),
+   (I_IDENT | I_LITERALS),
 
    // T_PHYSICAL
-   (I_UNITS | I_DIMS),
+   (I_IDENT | I_UNITS | I_DIMS),
 
    // T_CARRAY
-   (I_ELEM | I_DIMS),
+   (I_IDENT | I_ELEM | I_DIMS),
 
    // T_UARRAY
-   (I_CONSTR | I_ELEM),
+   (I_IDENT | I_CONSTR | I_ELEM),
 
    // T_RECORD
-   (I_FIELDS),
+   (I_IDENT | I_FIELDS),
 
    // T_FILE
-   (I_FILE),
+   (I_IDENT | I_FILE),
 
    // T_ACCESS
-   (I_ACCESS),
+   (I_IDENT | I_ACCESS),
 
    // T_FUNC
-   (I_PARAMS | I_RESULT | I_TEXT_BUF),
+   (I_IDENT | I_PARAMS | I_RESULT | I_TEXT_BUF),
 
    // T_INCOMPLETE
-   (0),
+   (I_IDENT),
 
    // T_PROC
-   (I_PARAMS | I_TEXT_BUF),
+   (I_IDENT | I_PARAMS | I_TEXT_BUF),
 
    // T_NONE
-   (0),
+   (I_IDENT),
 
    // T_PROTECTED
-   (0)
+   (I_IDENT)
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
@@ -101,7 +99,6 @@ static const change_allowed_t change_allowed[] = {
 struct type {
    ident_t     ident;
    object_t    object;
-   item_t      ___XXX[MAX_ITEMS];
 };
 
 struct type_wr_ctx {
@@ -244,7 +241,8 @@ ident_t type_ident(type_t t)
 {
    assert(t != NULL);
 
-   if (t->ident == NULL) {
+   item_t *item = lookup_item(&type_object, t, I_IDENT);
+   if (item->ident == NULL) {
       switch (t->object.kind) {
       case T_SUBTYPE:
          return type_ident(type_base(t));
@@ -257,20 +255,19 @@ ident_t type_ident(type_t t)
       }
    }
    else
-      return t->ident;
+      return item->ident;
 }
 
 bool type_has_ident(type_t t)
 {
    assert(t != NULL);
-   return (t->ident != NULL);
+   return (lookup_item(&type_object, t, I_IDENT)->ident != NULL);
 }
 
 void type_set_ident(type_t t, ident_t id)
 {
    assert(t != NULL);
-
-   t->ident = id;
+   lookup_item(&type_object, t, I_IDENT)->ident = id;
 }
 
 unsigned type_dims(type_t t)
@@ -385,11 +382,12 @@ bool type_is_universal(type_t t)
 {
    assert(t != NULL);
 
+   item_t *item = lookup_item(&type_object, t, I_IDENT);
    switch (t->object.kind) {
    case T_INTEGER:
-      return t->ident == type_universal_int()->ident;
+      return item->ident == type_ident(type_universal_int());
    case T_REAL:
-      return t->ident == type_universal_real()->ident;
+      return item->ident == type_ident(type_universal_real());
    default:
       return false;
    }
@@ -487,8 +485,6 @@ void type_replace(type_t t, type_t a)
 
    object_change_kind(&type_object, &(t->object), a->object.kind);
 
-   t->ident = a->ident;
-
    const imask_t has = has_map[t->object.kind];
    const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
@@ -528,6 +524,8 @@ void type_replace(type_t t, type_t a)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            t->object.items[n].ident = a->object.items[n].ident;
          else
             item_without_type(mask);
          n++;
@@ -616,9 +614,6 @@ void type_write(type_t t, type_wr_ctx_t ctx)
 
    write_u16(t->object.kind, f);
 
-   // Call type_ident here to generate an arbitrary name if needed
-   ident_write(type_ident(t), ctx->ident_ctx);
-
    const imask_t has = has_map[t->object.kind];
    const int nitems = type_object.object_nitems[t->object.kind];
    imask_t mask = 1;
@@ -651,6 +646,8 @@ void type_write(type_t t, type_wr_ctx_t ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            ident_write(t->object.items[n].ident, ctx->ident_ctx);
          else
             item_without_type(mask);
          n++;
@@ -675,7 +672,6 @@ type_t type_read(type_rd_ctx_t ctx)
    assert(marker < T_LAST_TYPE_KIND);
 
    type_t t = type_new((type_kind_t)marker);
-   t->ident = ident_read(ctx->ident_ctx);
 
    // Stash pointer for later back references
    // This must be done early as a child node of this type may
@@ -722,6 +718,8 @@ type_t type_read(type_rd_ctx_t ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            t->object.items[n].ident = ident_read(ctx->ident_ctx);
          else
             item_without_type(mask);
          n++;
@@ -980,6 +978,8 @@ void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1026,6 +1026,8 @@ void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
             }
          }
          else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_IDENT & mask)
             ;
          else
             item_without_type(mask);
@@ -1104,6 +1106,8 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1135,8 +1139,6 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
 
    type_t copy = type_new(t->object.kind);
    ctx->copied[t->object.index] = copy;
-
-   copy->ident = t->ident;
 
    const imask_t has = has_map[t->object.kind];
    const int nitems = type_object.object_nitems[t->object.kind];
@@ -1180,6 +1182,8 @@ type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT & mask)
+            copy->object.items[n].ident = t->object.items[n].ident;
          else
             item_without_type(mask);
          n++;
