@@ -30,156 +30,136 @@
 
 //#define EXTRA_READ_CHECKS
 
-typedef enum {
-   A_STRING, A_INT, A_PTR, A_TREE
-} attr_kind_t;
-
-typedef struct {
-   attr_kind_t kind;
-   ident_t     name;
-   union {
-      ident_t sval;
-      int     ival;
-      void    *pval;
-      tree_t  tval;
-   };
-} attr_t;
-
-typedef struct {
-   uint16_t  alloc;
-   uint16_t  num;
-   attr_t   *table;
-} attr_tab_t;
-
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
-   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS),
+   (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_ARCH
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_REF),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_CONTEXT | I_REF | I_ATTRS),
 
    // T_PORT_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS),
+   (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_ATTRS),
 
    // T_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE | I_REF),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS),
 
    // T_LITERAL
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL),
 
    // T_SIGNAL_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_NETS),
+   (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS),
 
    // T_VAR_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS),
 
    // T_REF
-   (I_IDENT | I_TYPE | I_REF),
+   (I_IDENT | I_TYPE | I_REF | I_ATTRS),
 
    // T_WAIT
-   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS),
+   (I_IDENT | I_VALUE | I_DELAY | I_TRIGGERS | I_ATTRS),
 
    // T_TYPE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_OPS),
+   (I_IDENT | I_VALUE | I_TYPE | I_OPS | I_ATTRS),
 
    // T_VAR_ASSIGN
-   (I_IDENT | I_VALUE | I_TARGET),
+   (I_IDENT | I_VALUE | I_TARGET | I_ATTRS),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_SIGNAL_ASSIGN
-   (I_IDENT | I_TARGET | I_WAVES | I_REJECT),
+   (I_IDENT | I_TARGET | I_WAVES | I_REJECT | I_ATTRS),
 
    // T_QUALIFIED
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_ENUM_LIT
-   (I_IDENT | I_TYPE | I_POS),
+   (I_IDENT | I_TYPE | I_POS | I_ATTRS),
 
    // T_CONST_DECL
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_FUNC_DECL
-   (I_IDENT | I_VALUE | I_PORTS | I_TYPE),
+   (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
 
    // T_AGGREGATE
-   (I_TYPE | I_ASSOCS),
+   (I_TYPE | I_ASSOCS | I_ATTRS),
 
    // T_ASSERT
-   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_ATTRS),
 
    // T_ATTR_REF
    (I_NAME | I_VALUE | I_IDENT | I_PARAMS | I_TYPE | I_REF),
 
    // T_ARRAY_REF
-   (I_VALUE | I_PARAMS | I_TYPE),
+   (I_VALUE | I_PARAMS | I_TYPE | I_ATTRS),
 
    // T_ARRAY_SLICE
    (I_VALUE | I_TYPE | I_RANGE),
 
    // T_INSTANCE
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_GENMAPS | I_REF | I_CLASS | I_SPEC
+    | I_ATTRS),
 
    // T_IF
-   (I_IDENT | I_VALUE | I_STMTS | I_ELSES),
+   (I_IDENT | I_VALUE | I_STMTS | I_ELSES | I_ATTRS),
 
    // T_NULL
    (I_IDENT),
 
    // T_PACK_BODY
-   (I_IDENT | I_DECLS | I_CONTEXT),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_RETURN
-   (I_IDENT | I_VALUE),
+   (I_IDENT | I_VALUE | I_ATTRS),
 
    // T_CASSIGN
    (I_IDENT | I_TARGET | I_CONDS),
 
    // T_WHILE
-   (I_IDENT | I_VALUE | I_STMTS),
+   (I_IDENT | I_VALUE | I_STMTS | I_ATTRS),
 
    // T_WAVEFORM
    (I_VALUE | I_DELAY),
 
    // T_ALIAS
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_FOR
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGE),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_RANGE | I_ATTRS),
 
    // T_ATTR_DECL
-   (I_IDENT | I_TYPE),
+   (I_IDENT | I_TYPE | I_ATTRS),
 
    // T_ATTR_SPEC
    (I_IDENT | I_VALUE | I_IDENT2 | I_CLASS),
 
    // T_PROC_DECL
-   (I_IDENT | I_PORTS | I_TYPE),
+   (I_IDENT | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_EXIT
-   (I_IDENT | I_VALUE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
 
    // T_PCALL
-   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),
+   (I_IDENT | I_IDENT2 | I_PARAMS | I_REF | I_ATTRS),
 
    // T_CASE
-   (I_IDENT | I_VALUE | I_ASSOCS),
+   (I_IDENT | I_VALUE | I_ASSOCS | I_ATTRS),
 
    // T_BLOCK
-   (I_IDENT | I_DECLS | I_STMTS),
+   (I_IDENT | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_COND
    (I_VALUE | I_WAVES | I_REJECT),
@@ -200,19 +180,19 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
 
    // T_FOR_GENERATE
-   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGE),
+   (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGE | I_ATTRS),
 
    // T_FILE_DECL
-   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE),
+   (I_IDENT | I_VALUE | I_TYPE | I_FILE_MODE | I_ATTRS),
 
    // T_OPEN
    (I_TYPE),
 
    // T_FIELD_DECL
-   (I_IDENT | I_TYPE),
+   (I_IDENT | I_TYPE | I_ATTRS),
 
    // T_RECORD_REF
-   (I_IDENT | I_VALUE | I_TYPE),
+   (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_ALL
    (I_VALUE | I_TYPE),
@@ -230,7 +210,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE),
 
    // T_NEXT
-   (I_IDENT | I_VALUE | I_IDENT2),
+   (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
 
    // T_GENVAR
    (I_IDENT | I_TYPE),
@@ -245,7 +225,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2),
 
    // T_HIER
-   (I_IDENT | I_SUBKIND | I_IDENT2),
+   (I_IDENT | I_SUBKIND | I_IDENT2 | I_ATTRS),
 
    // T_SPEC
    (I_IDENT | I_IDENT2 | I_VALUE),
@@ -310,7 +290,6 @@ static const change_allowed_t change_allowed[] = {
 
 struct tree {
    loc_t       loc;
-   attr_tab_t  attrs;
    object_t    object;
 };
 
@@ -441,6 +420,8 @@ void object_sweep(object_t *object)
             free(object->items[n].netid_array.items);
          else if (ITEM_RANGE & mask)
             free(object->items[n].range);
+         else if (ITEM_ATTRS & mask)
+            free(object->items[n].attrs.table);
          n++;
       }
    }
@@ -477,9 +458,6 @@ void tree_gc(void)
       tree_t t = all_trees[i];
       if (t->object.generation < base_gen) {
          object_sweep(&(t->object));
-
-         if (t->attrs.table != NULL)
-            free(t->attrs.table);
 
          free(t);
 
@@ -1080,7 +1058,7 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
 
    t->object.generation = ctx->generation;
 
-   const imask_t deep_mask = I_TYPE | I_REF;
+   const imask_t deep_mask = I_TYPE | I_REF | I_ATTRS;
 
    const imask_t has = has_map[t->object.kind];
    const int nitems = tree_object.object_nitems[t->object.kind];
@@ -1109,25 +1087,24 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
          }
          else if (ITEM_NETID_ARRAY & mask)
             ;
+         else if (ITEM_ATTRS & mask) {
+            for (unsigned j = 0; j < t->object.items[i].attrs.num; i++) {
+               switch (t->object.items[i].attrs.table[j].kind) {
+               case A_TREE:
+                  tree_visit_aux(t->object.items[i].attrs.table[j].tval, ctx);
+                  break;
+
+               default:
+                  break;
+               }
+            }
+         }
          else
             item_without_type(mask);
       }
 
       if (has & mask)
          i++;
-   }
-
-   if (ctx->deep) {
-      for (unsigned i = 0; i < t->attrs.num; i++) {
-         switch (t->attrs.table[i].kind) {
-         case A_TREE:
-            tree_visit_aux(t->attrs.table[i].tval, ctx);
-            break;
-
-         default:
-            break;
-         }
-      }
    }
 
    if ((t->object.kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
@@ -1346,32 +1323,33 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
             u.d = t->object.items[n].dval;
             write_u64(u.i, ctx->file);
          }
+         else if (ITEM_ATTRS & mask) {
+            write_u16(t->object.items[n].attrs.num, ctx->file);
+            for (unsigned i = 0; i < t->object.items[n].attrs.num; i++) {
+               write_u16(t->object.items[n].attrs.table[i].kind, ctx->file);
+               ident_write(t->object.items[n].attrs.table[i].name, ctx->ident_ctx);
+
+               switch (t->object.items[n].attrs.table[i].kind) {
+               case A_STRING:
+                  ident_write(t->object.items[n].attrs.table[i].sval, ctx->ident_ctx);
+                  break;
+
+               case A_INT:
+                  write_u32(t->object.items[n].attrs.table[i].ival, ctx->file);
+                  break;
+
+               case A_TREE:
+                  tree_write(t->object.items[n].attrs.table[i].tval, ctx);
+                  break;
+
+               case A_PTR:
+                  fatal("pointer attributes cannot be saved");
+               }
+            }
+         }
          else
             item_without_type(mask);
          n++;
-      }
-   }
-
-   write_u16(t->attrs.num, ctx->file);
-   for (unsigned i = 0; i < t->attrs.num; i++) {
-      write_u16(t->attrs.table[i].kind, ctx->file);
-      ident_write(t->attrs.table[i].name, ctx->ident_ctx);
-
-      switch (t->attrs.table[i].kind) {
-      case A_STRING:
-         ident_write(t->attrs.table[i].sval, ctx->ident_ctx);
-         break;
-
-      case A_INT:
-         write_u32(t->attrs.table[i].ival, ctx->file);
-         break;
-
-      case A_TREE:
-         tree_write(t->attrs.table[i].tval, ctx);
-         break;
-
-      case A_PTR:
-         fatal("pointer attributes cannot be saved");
       }
    }
 
@@ -1448,37 +1426,39 @@ tree_t tree_read(tree_rd_ctx_t ctx)
             u.i = read_u64(ctx->file);
             t->object.items[n].dval = u.d;
          }
+         else if (ITEM_ATTRS & mask) {
+            t->object.items[n].attrs.num = read_u16(ctx->file);
+            if (t->object.items[n].attrs.num > 0) {
+               t->object.items[n].attrs.alloc = next_power_of_2(t->object.items[n].attrs.num);
+               t->object.items[n].attrs.table =
+                  xmalloc(sizeof(attr_t) * t->object.items[n].attrs.alloc);
+            }
+
+            for (unsigned i = 0; i < t->object.items[n].attrs.num; i++) {
+               t->object.items[n].attrs.table[i].kind = read_u16(ctx->file);
+               t->object.items[n].attrs.table[i].name = ident_read(ctx->ident_ctx);
+
+               switch (t->object.items[n].attrs.table[i].kind) {
+               case A_STRING:
+                  t->object.items[n].attrs.table[i].sval = ident_read(ctx->ident_ctx);
+                  break;
+
+               case A_INT:
+                  t->object.items[n].attrs.table[i].ival = read_u32(ctx->file);
+                  break;
+
+               case A_TREE:
+                  t->object.items[n].attrs.table[i].tval = tree_read(ctx);
+                  break;
+
+               default:
+                  abort();
+               }
+            }
+         }
          else
             item_without_type(mask);
          n++;
-      }
-   }
-
-   t->attrs.num = read_u16(ctx->file);
-   if (t->attrs.num > 0) {
-      t->attrs.alloc = next_power_of_2(t->attrs.num);
-      t->attrs.table = xmalloc(sizeof(attr_t) * t->attrs.alloc);
-   }
-
-   for (unsigned i = 0; i < t->attrs.num; i++) {
-      t->attrs.table[i].kind = read_u16(ctx->file);
-      t->attrs.table[i].name = ident_read(ctx->ident_ctx);
-
-      switch (t->attrs.table[i].kind) {
-      case A_STRING:
-         t->attrs.table[i].sval = ident_read(ctx->ident_ctx);
-         break;
-
-      case A_INT:
-         t->attrs.table[i].ival = read_u32(ctx->file);
-         break;
-
-      case A_TREE:
-         t->attrs.table[i].tval = tree_read(ctx);
-         break;
-
-      default:
-         abort();
       }
    }
 
@@ -1547,9 +1527,11 @@ static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
    assert(t != NULL);
    assert(name != NULL);
 
-   for (unsigned i = 0; i < t->attrs.num; i++) {
-      if (t->attrs.table[i].kind == kind && t->attrs.table[i].name == name)
-         return &(t->attrs.table[i]);
+   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
+   for (unsigned i = 0; i < item->attrs.num; i++) {
+      if ((item->attrs.table[i].kind == kind)
+          && (item->attrs.table[i].name == name))
+         return &(item->attrs.table[i]);
    }
 
    return NULL;
@@ -1564,21 +1546,23 @@ static attr_t *tree_add_attr(tree_t t, ident_t name, attr_kind_t kind)
    if (a != NULL)
       return a;
 
-   if (t->attrs.table == NULL) {
-      t->attrs.alloc = 8;
-      t->attrs.table = xmalloc(sizeof(attr_t) * t->attrs.alloc);
+   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
+
+   if (item->attrs.table == NULL) {
+      item->attrs.alloc = 8;
+      item->attrs.table = xmalloc(sizeof(attr_t) * item->attrs.alloc);
    }
-   else if (t->attrs.alloc == t->attrs.num) {
-      t->attrs.alloc *= 2;
-      t->attrs.table = xrealloc(t->attrs.table,
-                                sizeof(attr_t) * t->attrs.alloc);
+   else if (item->attrs.alloc == item->attrs.num) {
+      item->attrs.alloc *= 2;
+      item->attrs.table = xrealloc(item->attrs.table,
+                                   sizeof(attr_t) * item->attrs.alloc);
    }
 
-   unsigned i = t->attrs.num++;
-   t->attrs.table[i].kind = kind;
-   t->attrs.table[i].name = name;
+   unsigned i = item->attrs.num++;
+   item->attrs.table[i].kind = kind;
+   item->attrs.table[i].name = name;
 
-   return &(t->attrs.table[i]);
+   return &(item->attrs.table[i]);
 }
 
 void tree_remove_attr(tree_t t, ident_t name)
@@ -1586,17 +1570,20 @@ void tree_remove_attr(tree_t t, ident_t name)
    assert(t != NULL);
    assert(name != NULL);
 
+   item_t *item = lookup_item(&tree_object, t, I_ATTRS);
+
    unsigned i;
-   for (i = 0; (i < t->attrs.num) && (t->attrs.table[i].name != name); i++)
+   for (i = 0; (i < item->attrs.num)
+           && (item->attrs.table[i].name != name); i++)
       ;
 
-   if (i == t->attrs.num)
+   if (i == item->attrs.num)
       return;
 
-   for (; i + 1 < t->attrs.num; i++)
-      t->attrs.table[i] = t->attrs.table[i + 1];
+   for (; i + 1 < item->attrs.num; i++)
+      item->attrs.table[i] = item->attrs.table[i + 1];
 
-   t->attrs.num--;
+   item->attrs.num--;
 }
 
 void tree_add_attr_str(tree_t t, ident_t name, ident_t str)
@@ -1654,7 +1641,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
       return ctx->cache[t->object.index];
    }
 
-   const imask_t skip_mask = I_REF;
+   const imask_t skip_mask = (I_REF | I_ATTRS | I_NETS);
 
    const imask_t has = has_map[t->object.kind];
    const int nitems = tree_object.object_nitems[t->object.kind];
@@ -1693,8 +1680,6 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
                r->right = tree_rewrite_aux(r->right, ctx);
             }
          }
-         else if (ITEM_NETID_ARRAY & mask)
-            ;
          else
             item_without_type(mask);
       }
@@ -1775,6 +1760,8 @@ bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx)
             }
          }
          else if (ITEM_NETID_ARRAY & mask)
+            ;
+         else if (ITEM_ATTRS & mask)
             ;
          else
             item_without_type(mask);
@@ -1862,17 +1849,20 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
             for (unsigned i = 0; i < from->count; i++)
                to->items[i] = from->items[i];
          }
+         else if (ITEM_ATTRS & mask) {
+            if ((copy->object.items[n].attrs.num = t->object.items[n].attrs.num) > 0) {
+               copy->object.items[n].attrs.alloc = t->object.items[n].attrs.alloc;
+               copy->object.items[n].attrs.table =
+                  xmalloc(sizeof(attr_t) * copy->object.items[n].attrs.alloc);
+               for (unsigned i = 0; i < t->object.items[n].attrs.num; i++)
+                  copy->object.items[n].attrs.table[i] =
+                     t->object.items[n].attrs.table[i];
+            }
+         }
          else
             item_without_type(mask);
          n++;
       }
-   }
-
-   if ((copy->attrs.num = t->attrs.num) > 0) {
-      copy->attrs.alloc = t->attrs.alloc;
-      copy->attrs.table = xmalloc(sizeof(attr_t) * copy->attrs.alloc);
-      for (unsigned i = 0; i < t->attrs.num; i++)
-         copy->attrs.table[i] = t->attrs.table[i];
    }
 
    return copy;
