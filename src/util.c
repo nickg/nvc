@@ -242,6 +242,14 @@ void *xmalloc(size_t size)
    return p;
 }
 
+void *xcalloc(size_t size)
+{
+   void *p = calloc(1, size);
+   if (p == NULL)
+      abort();
+   return p;
+}
+
 void *xrealloc(void *ptr, size_t size)
 {
    ptr = realloc(ptr, size);

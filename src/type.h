@@ -132,6 +132,4 @@ type_t type_base_recur(type_t t);
 // Helper function to find number of sub-elemets
 unsigned type_width(type_t type);
 
-uint32_t type_format_digest(void);
-
 #endif  // _TYPE_H

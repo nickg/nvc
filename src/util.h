@@ -36,6 +36,7 @@
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 
 void *xmalloc(size_t size);
+void *xcalloc(size_t size);
 void *xrealloc(void *ptr, size_t size);
 
 char *xvasprintf(const char *fmt, va_list ap);

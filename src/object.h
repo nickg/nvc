@@ -178,10 +178,12 @@ typedef struct {
    const imask_t          *has_map;
    const char            **kind_text_map;
    const int               tag;
+   const ptrdiff_t         offset;
+   const int               last_kind;
    int                    *object_nitems;
    size_t                 *object_size;
-   uint32_t                format_digest;
    int                    *item_lookup;
+   size_t                  base_size;
 } object_class_t;
 
 typedef struct type_wr_ctx *type_wr_ctx_t;
@@ -223,6 +225,7 @@ void item_without_type(imask_t mask);
 uint32_t object_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
-void object_init(object_class_t *class, int last_kind, size_t base_size);
+void *object_new(object_class_t *class, int kind);
+void object_one_time_init(void);
 
 #endif   // _OBJECT_H

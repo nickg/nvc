@@ -37,6 +37,8 @@ static const char *item_text_map[] = {
    "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF"
 };
 
+uint32_t format_digest;    // XXX: make static
+
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
 {
@@ -107,23 +109,21 @@ void object_change_kind(const object_class_t *class, object_t *object, int kind)
    object->kind = kind;
 }
 
-void object_init(object_class_t *class, int last_kind, size_t base_size)
+static void object_init(object_class_t *class)
 {
-   class->format_digest = 0;
+   class->object_size   = xmalloc(class->last_kind * sizeof(size_t));
+   class->object_nitems = xmalloc(class->last_kind * sizeof(int));
+   class->item_lookup   = xmalloc(class->last_kind * sizeof(int) * 64);
 
-   class->object_size   = xmalloc(last_kind * sizeof(size_t));
-   class->object_nitems = xmalloc(last_kind * sizeof(int));
-   class->item_lookup   = xmalloc(last_kind * sizeof(int) * 64);
-
-   for (int i = 0; i < last_kind; i++) {
+   for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
-      class->object_size[i]   = base_size + (nitems * sizeof(item_t));
+      class->object_size[i]   = class->base_size + (nitems * sizeof(item_t));
       class->object_nitems[i] = nitems;
 
       // Knuth's multiplicative hash
-      class->format_digest +=
+      format_digest +=
          (uint32_t)(class->has_map[i] >> 32) * UINT32_C(2654435761);
-      class->format_digest +=
+      format_digest +=
          (uint32_t)(class->has_map[i]) * UINT32_C(2654435761);
 
       int n = 0;
@@ -138,7 +138,7 @@ void object_init(object_class_t *class, int last_kind, size_t base_size)
    bool changed = false;
    do {
       changed = false;
-      for (int i = 0; i < last_kind; i++) {
+      for (int i = 0; i < class->last_kind; i++) {
          size_t max_size = class->object_size[i];
          for (size_t j = 0; class->change_allowed[j][0] != -1; j++) {
             if (class->change_allowed[j][0] == i)
@@ -158,4 +158,42 @@ void object_init(object_class_t *class, int last_kind, size_t base_size)
          printf("%-15s %d\n", class->kind_text_map[i],
                 (int)class->object_size[i]);
    }
+}
+
+void object_one_time_init(void)
+{
+   extern object_class_t tree_object;
+   extern object_class_t type_object;
+
+   static bool done = false;
+
+   if (unlikely(!done)) {
+      object_init(&tree_object);
+      object_init(&type_object);
+
+      // Increment this each time a incompatible change is made to the
+      // on-disk format not expressed in the tree items table above
+      const uint32_t format_fudge = 2;
+
+      format_digest += format_fudge;
+
+      done = true;
+   }
+}
+
+void *object_new(object_class_t *class, int kind)
+{
+   if (unlikely(kind >= class->last_kind))
+      fatal_trace("invalid kind %d for %s object", kind, class->name);
+
+   object_one_time_init();
+
+   char *mem = xcalloc(class->object_size[kind]);
+   object_t *object = (object_t *)(mem + class->offset);
+
+   object->kind  = kind;
+   object->tag   = class->tag;
+   object->index = UINT32_MAX;
+
+   return mem;
 }

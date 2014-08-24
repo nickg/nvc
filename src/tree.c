@@ -368,35 +368,20 @@ static tree_t *all_trees = NULL;
 static size_t max_trees = 128;   // Grows at runtime
 static size_t n_trees_alloc = 0;
 
-static object_class_t tree_object = {
+object_class_t tree_object = {
    .name           = "tree",
    .change_allowed = change_allowed,
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
-   .tag            = OBJECT_TAG_TREE
+   .tag            = OBJECT_TAG_TREE,
+   .offset         = offsetof(struct tree, object),
+   .last_kind      = T_LAST_TREE_KIND,
+   .base_size      = sizeof(struct tree)
 };
 
 unsigned next_generation = 1;
 
-static void tree_one_time_init(void)
-{
-   static bool done = false;
-   if (likely(done))
-      return;
-
-   // Increment this each time a incompatible change is made to the
-   // on-disk format not expressed in the tree items table above
-   const uint32_t format_fudge = 2;
-
-   object_init(&tree_object, T_LAST_TREE_KIND, sizeof(struct tree));
-
-   tree_object.format_digest += type_format_digest() + format_fudge;
-
-   if (is_debugger_running())
-      atexit(tree_gc);
-
-   done = true;
-}
+extern uint32_t format_digest;  // XXX: remove
 
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
 {
@@ -433,14 +418,7 @@ static void tree_assert_decl(tree_t t)
 
 tree_t tree_new(tree_kind_t kind)
 {
-   assert(kind < T_LAST_TREE_KIND);
-
-   tree_one_time_init();
-
-   tree_t t = xmalloc(tree_object.object_size[kind]);
-   memset(t, '\0', tree_object.object_size[kind]);
-   t->object.kind = kind;
-   t->object.index = UINT32_MAX;
+   tree_t t = object_new(&tree_object, kind);
 
    if (unlikely(all_trees == NULL))
       all_trees = xmalloc(sizeof(tree_t) * max_trees);
@@ -1283,7 +1261,7 @@ static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
 
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
-   write_u32(tree_object.format_digest, f);
+   write_u32(format_digest, f);
    write_u8(standard(), f);
 
    struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
@@ -1516,14 +1494,14 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 
 tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 {
-   tree_one_time_init();
+   object_one_time_init();
 
    const uint32_t ver = read_u32(f);
-   if (ver != tree_object.format_digest)
+   if (ver != format_digest)
       fatal("%s: serialised format digest is %x expected %x. This design "
             "unit uses a library format from an earlier version of "
             PACKAGE_NAME " and should be reanalysed.",
-            fname, ver, tree_object.format_digest);
+            fname, ver, format_digest);
 
    const vhdl_standard_t std = read_u8(f);
    if (std > standard())

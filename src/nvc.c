@@ -659,6 +659,9 @@ int main(int argc, char **argv)
    else
       register_trace_signal_handlers();
 
+   if (is_debugger_running())
+      atexit(tree_gc);
+
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {

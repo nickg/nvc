@@ -126,33 +126,20 @@ static type_t *all_types = NULL;
 static size_t max_types = 128;   // Grows at runtime
 static size_t n_types_alloc = 0;
 
-static object_class_t type_object = {
+object_class_t type_object = {
    .name           = "type",
    .change_allowed = change_allowed,
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
-   .tag            = OBJECT_TAG_TYPE
+   .tag            = OBJECT_TAG_TYPE,
+   .offset         = offsetof(struct type, object),
+   .last_kind      = T_LAST_TYPE_KIND,
+   .base_size      = sizeof(struct type)
 };
-
-static void type_one_time_init(void)
-{
-   static bool done = false;
-   if (likely(done))
-      return;
-
-   object_init(&type_object, T_LAST_TYPE_KIND, sizeof(struct type));
-
-   done = true;
-}
 
 type_t type_new(type_kind_t kind)
 {
-   type_one_time_init();
-
-   struct type *t = xmalloc(sizeof(struct type));
-   memset(t, '\0', sizeof(struct type));
-   t->object.kind = kind;
-   t->object.index = UINT32_MAX;
+   type_t t = object_new(&type_object, kind);
 
    if (unlikely(all_types == NULL))
       all_types = xmalloc(sizeof(tree_t) * max_types);
@@ -764,7 +751,7 @@ void type_write_end(type_wr_ctx_t ctx)
 
 type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx, ident_rd_ctx_t ident_ctx)
 {
-   type_one_time_init();
+   object_one_time_init();
 
    struct type_rd_ctx *ctx = xmalloc(sizeof(struct type_rd_ctx));
    ctx->tree_ctx  = tree_ctx;
@@ -953,12 +940,6 @@ type_t type_base_recur(type_t t)
    while (t->object.kind == T_SUBTYPE)
       t = type_base(t);
    return t;
-}
-
-uint32_t type_format_digest(void)
-{
-   type_one_time_init();
-   return type_object.format_digest;
 }
 
 void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
