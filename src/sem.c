@@ -5994,8 +5994,8 @@ static bool sem_check_binding(tree_t t)
       break;
 
    case C_CONFIGURATION:
-      //if (tree_kind(unit) != T_CONFIGURATION)
-      //   sem_error(t, "unit %s is not a configuration", istr(tree_ident(t)));
+      if (tree_kind(unit) != T_CONFIG)
+         sem_error(t, "unit %s is not a configuration", istr(tree_ident(t)));
       break;
 
    default:
@@ -6003,6 +6003,58 @@ static bool sem_check_binding(tree_t t)
    }
 
    return true;
+}
+
+static bool sem_copy_instances(tree_t t, void *context)
+{
+   switch (tree_kind(t)) {
+   case T_INSTANCE:
+   case T_ARCH:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static bool sem_check_configuration(tree_t t)
+{
+   lib_t work = lib_work();
+
+   ident_t name_qual = ident_prefix(lib_name(work), tree_ident2(t), '.');
+   tree_t arch = lib_get(work, name_qual);
+   if (arch == NULL)
+      sem_error(t, "architecture %s of entity %s not found in library %s",
+                istr(ident_rfrom(name_qual, '-')),
+                istr(ident_until(name_qual, '-')),
+                istr(lib_name(work)));
+
+   tree_t copy = tree_copy(arch, sem_copy_instances, NULL);
+   tree_set_ident(copy, ident_prefix(name_qual, tree_ident(t), '-'));
+   lib_put(lib_work(), copy);
+
+   scope_push(NULL);
+
+   const int nadecls = tree_decls(copy);
+   for (int i = 0; i < nadecls; i++)
+      scope_insert(tree_decl(copy, i));
+
+   const int nastmts = tree_stmts(copy);
+   for (int i = 0; i < nastmts; i++)
+      scope_insert(tree_stmt(copy, i));
+
+   scope_push(NULL);
+
+   bool ok = true;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
+      ok = sem_check(tree_decl(t, i));
+
+   ok = scope_run_deferred_checks() && ok;
+
+   scope_pop();
+   scope_pop();
+
+   return ok;
 }
 
 static void sem_intern_strings(void)
@@ -6144,6 +6196,8 @@ bool sem_check(tree_t t)
       return sem_check_binding(t);
    case T_LIBRARY:
       return sem_check_library_clause(t);
+   case T_CONFIG:
+      return sem_check_configuration(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

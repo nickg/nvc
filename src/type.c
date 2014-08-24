@@ -1144,9 +1144,9 @@ unsigned type_width(type_t type)
       for (int i = 0; i < ndims; i++) {
          int64_t low, high;
          range_bounds(type_dim(type, i), &low, &high);
-         w *= MAX(high - low + 1, 0) * elem_w;
+         w *= MAX(high - low + 1, 0);
       }
-      return w;
+      return w * elem_w;
    }
    else if (type_is_record(type)) {
       type_t base = type_base_recur(type);

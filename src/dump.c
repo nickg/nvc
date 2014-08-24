@@ -438,14 +438,16 @@ static void dump_decl(tree_t t, int indent)
          }
          printf(" );\n");
       }
-      printf("    port (\n");
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         tab(4);
-         dump_port(tree_port(t, i), 2);
+      if (tree_ports(t) > 0) {
+         printf("    port (\n");
+         for (unsigned i = 0; i < tree_ports(t); i++) {
+            if (i > 0)
+               printf(";\n");
+            tab(4);
+            dump_port(tree_port(t, i), 2);
+         }
+         printf(" );\n");
       }
-      printf(" );\n");
       printf("  end component;\n");
       return;
 
@@ -683,7 +685,14 @@ static void dump_stmt(tree_t t, int indent)
       default:
          assert(false);
       }
-      printf("%s\n", istr(tree_ident2(t)));
+      printf("%s", istr(tree_ident2(t)));
+      if (tree_has_spec(t)) {
+         tree_t bind = tree_value(tree_spec(t));
+         printf(" -- bound to %s", istr(tree_ident(bind)));
+         if (tree_has_ident2(bind))
+            printf("(%s)", istr(tree_ident2(bind)));
+      }
+      printf("\n");
       if (tree_genmaps(t) > 0) {
          tab(indent + 4);
          dump_params(t, tree_genmap, tree_genmaps(t), "generic map");

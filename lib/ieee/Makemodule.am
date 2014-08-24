@@ -44,8 +44,7 @@ ieee_so = \
 	lib/ieee/_IEEE.VITAL_TIMING.so \
 	lib/ieee/_IEEE.VITAL_TIMING-body.so \
 	lib/ieee/_IEEE.VITAL_PRIMITIVES.so \
-	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.so \
-	lib/ieee/_IEEE.VITAL_TIMING.so
+	lib/ieee/_IEEE.VITAL_PRIMITIVES-body.so
 
 if IMPLIB_REQUIRED
 ieee_DATA += \

@@ -8,6 +8,50 @@
 
 #include "../src/group.c"
 
+typedef struct {
+   int  first;
+   int  last;
+} group_expect_t;
+
+void cover_tag(void)
+{
+   assert(false);
+}
+
+static void setup(void)
+{
+   const char *lib_dir = getenv("LIB_DIR");
+   if (lib_dir)
+      lib_add_search_path(lib_dir);
+
+   lib_set_work(lib_tmp());
+   opt_set_int("bootstrap", 0);
+   opt_set_int("cover", 0);
+   opt_set_int("unit-test", 1);
+   opt_set_int("prefer-explicit", 0);
+}
+
+static void teardown(void)
+{
+   lib_free(lib_work());
+}
+
+static tree_t run_elab(void)
+{
+   tree_t t, last_ent = NULL;
+   while ((t = parse())) {
+      sem_check(t);
+      fail_if(sem_errors() > 0);
+
+      simplify(t);
+
+      if (tree_kind(t) == T_ENTITY)
+         last_ent = t;
+   }
+
+   return elab(last_ent);
+}
+
 static void group_dump(group_nets_ctx_t *ctx)
 {
    for (group_t *it = ctx->groups; it != NULL; it = it->next)
@@ -40,6 +84,25 @@ static bool group_sanity_check(group_nets_ctx_t *ctx, netid_t max)
       group_dump(ctx);
 
    return !error;
+}
+
+static void group_expect(group_nets_ctx_t *ctx, const group_expect_t *expect,
+                         int n_expect)
+{
+   for (; n_expect-- > 0; expect++) {
+      const int length = expect->last - expect->first + 1;
+
+      bool found = false;
+      for (group_t *it = ctx->groups; (it != NULL) && !found; it = it->next) {
+         if ((it->first == expect->first) && (it->length = length))
+            found = true;
+      }
+
+      if (!found) {
+         group_dump(ctx);
+         fail("missing expected group %d..%d", expect->first, expect->last);
+      }
+   }
 }
 
 START_TEST(test_group_one)
@@ -133,6 +196,25 @@ START_TEST(test_group_six)
 }
 END_TEST
 
+START_TEST(test_issue72)
+{
+   input_from_file(TESTDIR "/group/issue72.vhd");
+
+   tree_t top = run_elab();
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const group_expect_t expect[] = {
+      { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }
+   };
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -140,12 +222,14 @@ int main(void)
    Suite *s = suite_create("group");
 
    TCase *tc_core = tcase_create("Core");
+   tcase_add_unchecked_fixture(tc_core, setup, teardown);
    tcase_add_test(tc_core, test_group_one);
    tcase_add_test(tc_core, test_group_two);
    tcase_add_test(tc_core, test_group_three);
    tcase_add_test(tc_core, test_group_four);
    tcase_add_test(tc_core, test_group_five);
    tcase_add_test(tc_core, test_group_six);
+   tcase_add_test(tc_core, test_issue72);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
