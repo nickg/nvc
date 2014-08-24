@@ -284,7 +284,7 @@ static const char *fmt_group(const netgroup_t *g)
    netid_t sig_net0 = groups[sig_group0].first;
    int offset = g->first - sig_net0;
 
-   int length = g->length;
+   const int length = g->length;
    type_t type = tree_type(g->sig_decl);
    while (type_is_array(type)) {
       const int stride = type_width(type_elem(type));
@@ -312,7 +312,6 @@ static const char *fmt_group(const netgroup_t *g)
       p += checked_sprintf(p, eptr - p, "]");
 
       type = type_elem(type);
-      length = stride;
    }
 
    return buf;
