@@ -40,14 +40,11 @@ static const char *item_text_map[] = {
 };
 
 static object_class_t *classes[4];
-
-// Garbage collection
-static object_t **all_objects = NULL;
-static size_t     max_objects = 256;   // Grows at runtime
-static size_t     n_objects_alloc = 0;
-
-uint32_t format_digest;    // XXX: make static
-extern unsigned next_generation;  // XXX
+static uint32_t        format_digest;
+static unsigned        next_generation = 1;
+static object_t      **all_objects = NULL;
+static size_t          max_objects = 256;   // Grows at runtime
+static size_t          n_objects_alloc = 0;
 
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
@@ -672,8 +669,6 @@ static loc_t read_loc(object_rd_ctx_t *ctx)
       return LOC_INVALID;
    else if (fmarker & UINT16_C(0x8000)) {
       uint16_t index = fmarker & UINT16_C(0x7fff);
-      if (index > MAX_FILES)
-         printf("%s %x\n", ctx->db_fname, index);
       assert(index < MAX_FILES);
       uint16_t len = read_u16(ctx->file);
       char *buf = xmalloc(len);
@@ -880,4 +875,9 @@ object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index)
 {
    assert(index < ctx->n_objects);
    return ctx->store[index];
+}
+
+unsigned object_next_generation(void)
+{
+   return next_generation++;
 }

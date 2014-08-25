@@ -252,6 +252,7 @@ void object_one_time_init(void);
 void object_gc(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
+unsigned object_next_generation(void);
 
 void object_write(object_t *object, object_wr_ctx_t *ctx);
 object_wr_ctx_t *object_write_begin(fbuf_t *f);

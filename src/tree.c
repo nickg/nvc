@@ -324,10 +324,6 @@ object_class_t tree_object = {
    .gc_num_roots   = 5
 };
 
-unsigned next_generation = 1;
-
-extern uint32_t format_digest;  // XXX: remove
-
 static bool tree_kind_in(tree_t t, const tree_kind_t *list, size_t len)
 {
    for (size_t i = 0; i < len; i++) {
@@ -947,7 +943,7 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
       .fn         = fn,
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
-      .generation = next_generation++,
+      .generation = object_next_generation(),
       .deep       = false
    };
 
@@ -966,7 +962,7 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
       .fn         = fn,
       .context    = context,
       .kind       = kind,
-      .generation = next_generation++,
+      .generation = object_next_generation(),
       .deep       = false
    };
 
@@ -1133,7 +1129,7 @@ tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
    object_rewrite_ctx_t ctx = {
       .index      = 0,
-      .generation = next_generation++,
+      .generation = object_next_generation(),
       .fn         = fn,
       .context    = context
    };
@@ -1294,7 +1290,7 @@ tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx)
 tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
 {
    object_copy_ctx_t ctx = {
-      .generation = next_generation++,
+      .generation = object_next_generation(),
       .index      = 0,
       .callback   = fn,
       .context    = context,
