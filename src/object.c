@@ -881,3 +881,208 @@ unsigned object_next_generation(void)
 {
    return next_generation++;
 }
+
+bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
+{
+   if (object == NULL)
+      return false;
+
+   if (object->generation == ctx->generation)
+      return (object->index != UINT32_MAX);
+
+   object->generation = ctx->generation;
+   object->index      = UINT32_MAX;
+
+   const object_class_t *class = classes[object->tag];
+
+   int type_item = -1;
+   bool marked = false;
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask)
+            marked = object_copy_mark((object_t *)object->items[n].tree, ctx)
+               || marked;
+         else if (ITEM_DOUBLE & mask)
+            ;
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(object->items[n].tree_array);
+            for (unsigned i = 0; i < a->count; i++)
+               marked = object_copy_mark((object_t *)a->items[i], ctx)
+                  || marked;
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(object->items[n].type_array);
+            for (unsigned i = 0; i < a->count; i++)
+               marked = object_copy_mark((object_t *)a->items[i], ctx)
+                  || marked;
+         }
+         else if (ITEM_TYPE & mask)
+            type_item = n;
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_RANGE & mask) {
+            range_t *r = object->items[n].range;
+            if (r != NULL) {
+               marked = object_copy_mark((object_t *)r->left, ctx) || marked;
+               marked = object_copy_mark((object_t *)r->right, ctx) || marked;
+            }
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(object->items[n].range_array);
+            for (unsigned i = 0; i < a->count; i++) {
+               marked = object_copy_mark((object_t *)a->items[i].left, ctx)
+                  || marked;
+               marked = object_copy_mark((object_t *)a->items[i].right, ctx)
+                  || marked;
+            }
+         }
+         else if (ITEM_NETID_ARRAY & mask)
+            ;
+         else if (ITEM_ATTRS & mask)
+            ;
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   if (!marked && (object->tag == OBJECT_TAG_TREE))
+      marked = (*ctx->callback)((tree_t)object, ctx->context);
+
+   if (marked)
+      object->index = (ctx->index)++;
+
+   // Check type last as it may contain a circular reference
+   if (type_item != -1)
+      marked = object_copy_mark((object_t *)object->items[type_item].type, ctx)
+         || marked;
+
+   if (marked && (object->index == UINT32_MAX))
+      object->index = (ctx->index)++;
+
+   return marked;
+}
+
+object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
+{
+   if (object == NULL)
+      return NULL;
+
+   assert(object->generation == ctx->generation);
+
+   if (object->index == UINT32_MAX)
+      return object;
+
+   assert(object->index < ctx->index);
+
+   if (ctx->copied[object->index] != NULL) {
+      // Already copied this object
+      return ctx->copied[object->index];
+   }
+
+   const object_class_t *class = classes[object->tag];
+
+   object_t *copy = object_new(class, object->kind);
+   ctx->copied[object->index] = copy;
+
+   copy->loc = object->loc;
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            copy->items[n].ident = object->items[n].ident;
+         else if (ITEM_TREE & mask)
+            copy->items[n].tree = (tree_t)
+               object_copy_sweep((object_t *)object->items[n].tree, ctx);
+         else if (ITEM_DOUBLE & mask)
+            copy->items[n].dval = object->items[n].dval;
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *from = &(object->items[n].tree_array);
+            tree_array_t *to = &(copy->items[n].tree_array);
+
+            tree_array_resize(to, from->count, NULL);
+
+            for (size_t i = 0; i < from->count; i++)
+               to->items[i] = (tree_t)
+                  object_copy_sweep((object_t *)from->items[i], ctx);
+         }
+         else if (ITEM_TYPE & mask)
+            copy->items[n].type = (type_t)
+               object_copy_sweep((object_t *)object->items[n].type, ctx);
+         else if (ITEM_INT64 & mask)
+            copy->items[n].ival = object->items[n].ival;
+         else if (ITEM_RANGE & mask) {
+            const range_t *from = object->items[n].range;
+            if (from != NULL) {
+               range_t *to = copy->items[n].range = xmalloc(sizeof(range_t));
+               to->kind  = from->kind;
+               to->left  =
+                  (tree_t)object_copy_sweep((object_t *)from->left, ctx);
+               to->right =
+                  (tree_t)object_copy_sweep((object_t *)from->right, ctx);
+            }
+         }
+         else if (ITEM_NETID_ARRAY & mask) {
+            const netid_array_t *from = &(object->items[n].netid_array);
+            netid_array_t *to = &(copy->items[n].netid_array);
+
+            netid_array_resize(to, from->count, NETID_INVALID);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_ATTRS & mask) {
+            if ((copy->items[n].attrs.num = object->items[n].attrs.num) > 0) {
+               copy->items[n].attrs.alloc = object->items[n].attrs.alloc;
+               copy->items[n].attrs.table =
+                  xmalloc(sizeof(attr_t) * copy->items[n].attrs.alloc);
+               for (unsigned i = 0; i < object->items[n].attrs.num; i++)
+                  copy->items[n].attrs.table[i] =
+                     object->items[n].attrs.table[i];
+            }
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            const range_array_t *from = &(object->items[n].range_array);
+            range_array_t *to = &(copy->items[n].range_array);
+
+            range_t dummy;
+            range_array_resize(to, from->count, dummy);
+
+            for (unsigned i = 0; i < from->count; i++) {
+               to->items[i].kind = from->items[i].kind;
+               to->items[i].left = (tree_t)
+                  object_copy_sweep((object_t *)from->items[i].left, ctx);
+               to->items[i].right = (tree_t)
+                  object_copy_sweep((object_t *)from->items[i].right, ctx);
+            }
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            const type_array_t *from = &(object->items[n].type_array);
+            type_array_t *to = &(object->items[n].type_array);
+
+            type_array_resize(to, from->count, NULL);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = (type_t)
+                  object_copy_sweep((object_t *)from->items[i], ctx);
+         }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   return copy;
+}

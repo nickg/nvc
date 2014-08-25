@@ -178,7 +178,7 @@ typedef struct {
    uint32_t        index;
    tree_copy_fn_t  callback;
    void           *context;
-   void          **copied;
+   object_t      **copied;
 } object_copy_ctx_t;
 
 typedef struct {
@@ -232,12 +232,6 @@ typedef struct {
    const char     *file_names[MAX_FILES];
 } object_rd_ctx_t;
 
-bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx);
-bool type_copy_mark(type_t t, object_copy_ctx_t *ctx);
-
-tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx);
-type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx);
-
 __attribute__((noreturn))
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask);
@@ -253,6 +247,8 @@ void object_gc(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
+object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx);
+bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx);
 
 void object_write(object_t *object, object_wr_ctx_t *ctx);
 object_wr_ctx_t *object_write_begin(fbuf_t *f);
