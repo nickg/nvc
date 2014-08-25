@@ -179,7 +179,7 @@ typedef struct {
 } object_copy_ctx_t;
 
 typedef struct {
-   tree_t            *cache;
+   object_t        **cache;
    uint32_t          index;
    uint32_t          generation;
    tree_rewrite_fn_t fn;
@@ -193,7 +193,6 @@ typedef struct {
    tree_kind_t      kind;
    unsigned         generation;
    bool             deep;
-   unsigned         tag;
 } object_visit_ctx_t;
 
 typedef int change_allowed_t[2];
@@ -234,9 +233,6 @@ type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
 type_t type_read(type_rd_ctx_t ctx);
 void type_read_end(type_rd_ctx_t ctx);
 
-tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx);
-void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx);
-
 __attribute__((noreturn))
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask);
@@ -250,5 +246,6 @@ object_t *object_new(object_class_t *class, int kind);
 void object_one_time_init(void);
 void object_gc(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
+object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 
 #endif   // _OBJECT_H

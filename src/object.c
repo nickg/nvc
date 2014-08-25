@@ -377,11 +377,113 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          i++;
    }
 
-   if (object->tag == ctx->tag) {
-      if ((object->kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
-         if (ctx->fn)
-            (*ctx->fn)((tree_t)object, ctx->context);
-         ctx->count++;
-      }
+   const bool visit =
+      ((object->tag == OBJECT_TAG_TREE) && (object->kind == ctx->kind))
+      || (ctx->kind == T_LAST_TREE_KIND);
+
+   if (visit) {
+      if ((object->tag == OBJECT_TAG_TREE) && (ctx->fn != NULL))
+         (*ctx->fn)((tree_t)object, ctx->context);
+      ctx->count++;
    }
+}
+
+object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
+{
+   if (object == NULL)
+      return NULL;
+
+   if (object->generation == ctx->generation) {
+      // Already rewritten this tree so return the cached version
+      return ctx->cache[object->index];
+   }
+
+   if (unlikely(ctx->cache == NULL))
+      ctx->cache = xcalloc(sizeof(object_t *) * n_objects_alloc);
+
+   const imask_t skip_mask = (I_REF | I_ATTRS | I_NETS);
+
+   const object_class_t *class = classes[object->tag];
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   int type_item = -1;
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask & ~skip_mask) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask)
+            object->items[n].tree =
+               (tree_t)object_rewrite((object_t *)object->items[n].tree, ctx);
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(object->items[n].tree_array);
+
+            for (size_t i = 0; i < a->count; i++)
+               a->items[i] =
+                  (tree_t)object_rewrite((object_t *)a->items[i], ctx);
+
+            // If an item was rewritten to NULL then delete it
+            size_t n = 0;
+            for (size_t i = 0; i < a->count; i++) {
+               if (a->items[i] != NULL)
+                  a->items[n++] = a->items[i];
+            }
+            a->count = n;
+         }
+         else if (ITEM_TYPE & mask)
+            type_item = n;
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_DOUBLE & mask)
+            ;
+         else if (ITEM_RANGE & mask) {
+            range_t *r = object->items[n].range;
+            if (r != NULL) {
+               r->left  = (tree_t)object_rewrite((object_t *)r->left, ctx);
+               r->right = (tree_t)object_rewrite((object_t *)r->right, ctx);
+            }
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(object->items[n].type_array);
+            for (unsigned i = 0; i < a->count; i++)
+               (void)object_rewrite((object_t *)a->items[i], ctx);
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(object->items[n].range_array);
+            for (unsigned i = 0; i < a->count; i++) {
+               a->items[i].left =
+                  (tree_t)object_rewrite((object_t *)a->items[i].left, ctx);
+               a->items[i].right =
+                  (tree_t)object_rewrite((object_t *)a->items[i].right, ctx);
+               assert(a->items[i].left);
+               assert(a->items[i].right);
+            }
+         }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else
+            item_without_type(mask);
+      }
+
+      if (has & mask)
+         n++;
+   }
+
+   object->generation = ctx->generation;
+   object->index      = ctx->index++;
+
+   if (object->tag == OBJECT_TAG_TREE) {
+      // Rewrite this tree before we rewrite the type as there may
+      // be a circular reference
+      ctx->cache[object->index] =
+         (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+   }
+   else
+      ctx->cache[object->index] = object;
+
+   if (type_item != -1)
+      (void)object_rewrite((object_t *)object->items[type_item].type, ctx);
+
+   return ctx->cache[object->index];
 }

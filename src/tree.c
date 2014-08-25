@@ -969,7 +969,6 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
       .fn         = fn,
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
-      .tag        = OBJECT_TAG_TREE,
       .generation = next_generation++,
       .deep       = false
    };
@@ -1457,91 +1456,17 @@ void tree_add_attr_tree(tree_t t, ident_t name, tree_t val)
    tree_add_attr(t, name, A_TREE)->tval = val;
 }
 
-tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
-{
-   if (t == NULL)
-      return NULL;
-
-   if (t->object.generation == ctx->generation) {
-      // Already rewritten this tree so return the cached version
-      return ctx->cache[t->object.index];
-   }
-
-   const imask_t skip_mask = (I_REF | I_ATTRS | I_NETS);
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = tree_object.object_nitems[t->object.kind];
-   int type_item = -1;
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask & ~skip_mask) {
-         if (ITEM_IDENT & mask)
-            ;
-         else if (ITEM_TREE & mask)
-            t->object.items[n].tree = tree_rewrite_aux(t->object.items[n].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->object.items[n].tree_array);
-
-            for (size_t i = 0; i < a->count; i++)
-               a->items[i] = tree_rewrite_aux(a->items[i], ctx);
-
-            // If an item was rewritten to NULL then delete it
-            size_t n = 0;
-            for (size_t i = 0; i < a->count; i++) {
-               if (a->items[i] != NULL)
-                  a->items[n++] = a->items[i];
-            }
-            a->count = n;
-         }
-         else if (ITEM_TYPE & mask)
-            type_item = n;
-         else if (ITEM_INT64 & mask)
-            ;
-         else if (ITEM_DOUBLE & mask)
-            ;
-         else if (ITEM_RANGE & mask) {
-            range_t *r = t->object.items[n].range;
-            if (r != NULL) {
-               r->left  = tree_rewrite_aux(r->left, ctx);
-               r->right = tree_rewrite_aux(r->right, ctx);
-            }
-         }
-         else
-            item_without_type(mask);
-      }
-
-      if (has & mask)
-         n++;
-   }
-
-   t->object.generation = ctx->generation;
-   t->object.index      = ctx->index++;
-
-   // Rewrite this tree before we rewrite the type as there may
-   // be a circular reference
-   ctx->cache[t->object.index] = (*ctx->fn)(t, ctx->context);
-
-   if (type_item != -1)
-      type_rewrite_trees(t->object.items[type_item].type, ctx);
-
-   return ctx->cache[t->object.index];
-}
-
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
-   size_t cache_sz = sizeof(tree_t) * 100000 /* XXX */;
-   tree_t *cache = xcalloc(cache_sz);
-
    object_rewrite_ctx_t ctx = {
-      .cache      = cache,
       .index      = 0,
       .generation = next_generation++,
       .fn         = fn,
       .context    = context
    };
 
-   tree_t result = tree_rewrite_aux(t, &ctx);
-   free(cache);
+   tree_t result = (tree_t)object_rewrite(&(t->object), &ctx);
+   free(ctx.cache);
    return result;
 }
 
