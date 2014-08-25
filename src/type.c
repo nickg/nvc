@@ -459,54 +459,7 @@ void type_replace(type_t t, type_t a)
    assert(t != NULL);
    assert(t->object.kind == T_INCOMPLETE);
 
-   object_change_kind(&type_object, &(t->object), a->object.kind);
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = type_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            const type_array_t *from = &(a->object.items[n].type_array);
-            type_array_t *to = &(t->object.items[n].type_array);
-
-            type_array_resize(to, from->count, NULL);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_TYPE & mask)
-            t->object.items[n].type = a->object.items[n].type;
-         else if (ITEM_TREE & mask)
-            t->object.items[n].tree = a->object.items[n].tree;
-         else if (ITEM_TREE_ARRAY & mask) {
-            const tree_array_t *from = &(a->object.items[n].tree_array);
-            tree_array_t *to = &(t->object.items[n].tree_array);
-
-            tree_array_resize(to, from->count, NULL);
-
-            for (size_t i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            const range_array_t *from = &(a->object.items[n].range_array);
-            range_array_t *to = &(t->object.items[n].range_array);
-
-            range_t dummy;
-            range_array_resize(to, from->count, dummy);
-
-            for (unsigned i = 0; i < from->count; i++)
-               to->items[i] = from->items[i];
-         }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_IDENT & mask)
-            t->object.items[n].ident = a->object.items[n].ident;
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
+   object_replace(&(t->object), &(a->object));
 }
 
 unsigned type_index_constrs(type_t t)

@@ -249,6 +249,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
 unsigned object_next_generation(void);
 object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx);
 bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx);
+void object_replace(object_t *t, object_t *a);
 
 void object_write(object_t *object, object_wr_ctx_t *ctx);
 object_wr_ctx_t *object_write_begin(fbuf_t *f);

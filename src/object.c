@@ -1086,3 +1086,57 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
 
    return copy;
 }
+
+void object_replace(object_t *t, object_t *a)
+{
+   const object_class_t *class = classes[t->tag];
+
+   object_change_kind(class, t, a->kind);
+
+   const imask_t has = class->has_map[t->kind];
+   const int nitems = class->object_nitems[t->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TYPE_ARRAY & mask) {
+            const type_array_t *from = &(a->items[n].type_array);
+            type_array_t *to = &(t->items[n].type_array);
+
+            type_array_resize(to, from->count, NULL);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_TYPE & mask)
+            t->items[n].type = a->items[n].type;
+         else if (ITEM_TREE & mask)
+            t->items[n].tree = a->items[n].tree;
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *from = &(a->items[n].tree_array);
+            tree_array_t *to = &(t->items[n].tree_array);
+
+            tree_array_resize(to, from->count, NULL);
+
+            for (size_t i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            const range_array_t *from = &(a->items[n].range_array);
+            range_array_t *to = &(t->items[n].range_array);
+
+            range_t dummy;
+            range_array_resize(to, from->count, dummy);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_IDENT & mask)
+            t->items[n].ident = a->items[n].ident;
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+}
