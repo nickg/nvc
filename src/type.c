@@ -64,13 +64,13 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_ACCESS),
 
    // T_FUNC
-   (I_IDENT | I_PARAMS | I_RESULT | I_TEXT_BUF),
+   (I_IDENT | I_PTYPES | I_RESULT | I_TEXT_BUF),
 
    // T_INCOMPLETE
    (I_IDENT),
 
    // T_PROC
-   (I_IDENT | I_PARAMS | I_TEXT_BUF),
+   (I_IDENT | I_PTYPES | I_TEXT_BUF),
 
    // T_NONE
    (I_IDENT),
@@ -100,13 +100,6 @@ struct type {
    object_t object;
 };
 
-struct type_wr_ctx {
-   tree_wr_ctx_t  tree_ctx;
-   ident_wr_ctx_t ident_ctx;
-   unsigned       generation;
-   unsigned       n_types;
-};
-
 struct type_rd_ctx {
    tree_rd_ctx_t  tree_ctx;
    ident_rd_ctx_t ident_ctx;
@@ -114,8 +107,6 @@ struct type_rd_ctx {
    type_t         *store;
    unsigned       store_sz;
 };
-
-#define IS(t, k) ((t)->object.kind == (k))
 
 object_class_t type_object = {
    .name           = "type",
@@ -208,7 +199,7 @@ bool type_eq(type_t a, type_t b)
          return false;
    }
 
-   if (has & I_PARAMS) {
+   if (has & I_PTYPES) {
       if (type_params(a) != type_params(b))
          return false;
 
@@ -294,7 +285,7 @@ type_t type_elem(type_t t)
 {
    assert(t != NULL);
 
-   if (IS(t, T_SUBTYPE))
+   if (t->object.kind == T_SUBTYPE)
       return type_elem(type_base(t));
    else {
       item_t *item = lookup_item(&type_object, t, I_ELEM);
@@ -413,18 +404,18 @@ void type_enum_add_literal(type_t t, tree_t lit)
 
 unsigned type_params(type_t t)
 {
-   return lookup_item(&type_object, t, I_PARAMS)->type_array.count;
+   return lookup_item(&type_object, t, I_PTYPES)->type_array.count;
 }
 
 type_t type_param(type_t t, unsigned n)
 {
-   item_t *item = lookup_item(&type_object, t, I_PARAMS);
+   item_t *item = lookup_item(&type_object, t, I_PTYPES);
    return type_array_nth(&(item->type_array), n);
 }
 
 void type_add_param(type_t t, type_t p)
 {
-   type_array_add(&(lookup_item(&type_object, t, I_PARAMS)->type_array), p);
+   type_array_add(&(lookup_item(&type_object, t, I_PTYPES)->type_array), p);
 }
 
 unsigned type_fields(type_t t)
@@ -466,7 +457,7 @@ void type_set_result(type_t t, type_t r)
 void type_replace(type_t t, type_t a)
 {
    assert(t != NULL);
-   assert(IS(t, T_INCOMPLETE));
+   assert(t->object.kind == T_INCOMPLETE);
 
    object_change_kind(&type_object, &(t->object), a->object.kind);
 
@@ -576,180 +567,6 @@ type_t type_file(type_t t)
 void type_set_file(type_t t, type_t f)
 {
    lookup_item(&type_object, t, I_FILE)->type = f;
-}
-
-void type_write(type_t t, type_wr_ctx_t ctx)
-{
-   fbuf_t *f = tree_write_file(ctx->tree_ctx);
-
-   if (t == NULL) {
-      write_u16(UINT16_C(0xffff), f);   // Null marker
-      return;
-   }
-
-   if (t->object.generation == ctx->generation) {
-      // Already visited this type
-      write_u16(UINT16_C(0xfffe), f);   // Back reference marker
-      write_u32(t->object.index, f);
-      return;
-   }
-
-   t->object.generation = ctx->generation;
-   t->object.index      = (ctx->n_types)++;
-
-   write_u16(t->object.kind, f);
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = type_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->object.items[n].type_array);
-            write_u16(a->count, f);
-            for (unsigned i = 0; i < a->count; i++)
-               type_write(a->items[i], ctx);
-         }
-         else if (ITEM_TYPE & mask)
-            type_write(t->object.items[n].type, ctx);
-         else if (ITEM_TREE & mask)
-            tree_write(t->object.items[n].tree, ctx->tree_ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->object.items[n].tree_array);
-            write_u16(a->count, f);
-            for (unsigned i = 0; i < a->count; i++)
-               tree_write(a->items[i], ctx->tree_ctx);
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->object.items[n].range_array);
-            write_u16(a->count, f);
-            for (unsigned i = 0; i < a->count; i++) {
-               write_u8(a->items[i].kind, f);
-               tree_write(a->items[i].left, ctx->tree_ctx);
-               tree_write(a->items[i].right, ctx->tree_ctx);
-            }
-         }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_IDENT & mask)
-            ident_write(t->object.items[n].ident, ctx->ident_ctx);
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
-}
-
-type_t type_read(type_rd_ctx_t ctx)
-{
-   fbuf_t *f = tree_read_file(ctx->tree_ctx);
-
-   uint16_t marker = read_u16(f);
-   if (marker == UINT16_C(0xffff))
-      return NULL;   // Null marker
-   else if (marker == UINT16_C(0xfffe)) {
-      // Back reference marker
-      unsigned index = read_u32(f);
-      assert(index < ctx->n_types);
-      return ctx->store[index];
-   }
-
-   assert(marker < T_LAST_TYPE_KIND);
-
-   type_t t = type_new((type_kind_t)marker);
-
-   // Stash pointer for later back references
-   // This must be done early as a child node of this type may
-   // reference upwards
-   if (ctx->n_types == ctx->store_sz) {
-      ctx->store_sz *= 2;
-      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(type_t));
-   }
-   ctx->store[ctx->n_types++] = t;
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = type_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->object.items[n].type_array);
-            type_array_resize(a, read_u16(f), NULL);
-
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = type_read(ctx);
-         }
-         else if (ITEM_TYPE & mask)
-            t->object.items[n].type = type_read(ctx);
-         else if (ITEM_TREE & mask)
-            t->object.items[n].tree = tree_read(ctx->tree_ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->object.items[n].tree_array);
-            tree_array_resize(a, read_u16(f), NULL);
-
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = tree_read(ctx->tree_ctx);
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->object.items[n].range_array);
-            range_t dummy = { NULL, NULL, 0 };
-            range_array_resize(a, read_u16(f), dummy);
-
-            for (unsigned i = 0; i < a->count; i++) {
-               a->items[i].kind  = read_u8(f);
-               a->items[i].left  = tree_read(ctx->tree_ctx);
-               a->items[i].right = tree_read(ctx->tree_ctx);
-            }
-         }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_IDENT & mask)
-            t->object.items[n].ident = ident_read(ctx->ident_ctx);
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
-
-   return t;
-}
-
-type_wr_ctx_t type_write_begin(tree_wr_ctx_t tree_ctx, ident_wr_ctx_t ident_ctx)
-{
-   extern unsigned next_generation;
-
-   struct type_wr_ctx *ctx = xmalloc(sizeof(struct type_wr_ctx));
-   ctx->tree_ctx   = tree_ctx;
-   ctx->ident_ctx  = ident_ctx;
-   ctx->generation = next_generation++;
-   ctx->n_types    = 0;
-
-   return ctx;
-}
-
-void type_write_end(type_wr_ctx_t ctx)
-{
-   free(ctx);
-}
-
-type_rd_ctx_t type_read_begin(tree_rd_ctx_t tree_ctx, ident_rd_ctx_t ident_ctx)
-{
-   object_one_time_init();
-
-   struct type_rd_ctx *ctx = xmalloc(sizeof(struct type_rd_ctx));
-   ctx->tree_ctx  = tree_ctx;
-   ctx->ident_ctx = ident_ctx;
-   ctx->store_sz  = 32;
-   ctx->store     = xmalloc(ctx->store_sz * sizeof(type_t));
-   ctx->n_types   = 0;
-
-   return ctx;
-}
-
-void type_read_end(type_rd_ctx_t ctx)
-{
-   free(ctx->store);
-   free(ctx);
 }
 
 const char *type_pp_minify(type_t t, minify_fn_t fn)

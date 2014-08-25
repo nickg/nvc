@@ -16,6 +16,7 @@
 //
 
 #include "object.h"
+#include "common.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -189,7 +190,7 @@ void object_one_time_init(void)
 
       // Increment this each time a incompatible change is made to the
       // on-disk format not expressed in the tree and type items table
-      const uint32_t format_fudge = 2;
+      const uint32_t format_fudge = 4;
 
       format_digest += format_fudge;
 
@@ -197,7 +198,7 @@ void object_one_time_init(void)
    }
 }
 
-object_t *object_new(object_class_t *class, int kind)
+object_t *object_new(const object_class_t *class, int kind)
 {
    if (unlikely(kind >= class->last_kind))
       fatal_trace("invalid kind %d for %s object", kind, class->name);
@@ -486,4 +487,397 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       (void)object_rewrite((object_t *)object->items[type_item].type, ctx);
 
    return ctx->cache[object->index];
+}
+
+static void write_loc(loc_t *l, object_wr_ctx_t *ctx)
+{
+   if (l->file == NULL) {
+      write_u16(UINT16_C(0xfffe), ctx->file);  // Invalid location marker
+      return;
+   }
+
+   uint16_t findex;
+   for (findex = 0;
+        (findex < MAX_FILES)
+           && (ctx->file_names[findex] != NULL)
+           && (strcmp(ctx->file_names[findex], l->file) != 0);
+        findex++)
+      ;
+   assert(findex != MAX_FILES);
+
+   if (ctx->file_names[findex] == NULL) {
+      const size_t len = strlen(l->file) + 1;
+
+      ctx->file_names[findex] = l->file;
+
+      write_u16(findex | UINT16_C(0x8000), ctx->file);
+      write_u16(len, ctx->file);
+      write_raw(l->file, len, ctx->file);
+   }
+   else
+      write_u16(findex, ctx->file);
+
+   const uint64_t merged =
+      ((uint64_t)l->first_line << 44)
+      | ((uint64_t)l->first_column << 32)
+      | ((uint64_t)l->last_line << 12)
+      | (uint64_t)l->last_column;
+
+   write_u64(merged, ctx->file);
+}
+
+void object_write(object_t *object, object_wr_ctx_t *ctx)
+{
+   if (object == NULL) {
+      write_u16(UINT16_C(0xffff), ctx->file);  // Null marker
+      return;
+   }
+
+   if (object->generation == ctx->generation) {
+      // Already visited this tree
+      write_u16(UINT16_C(0xfffe), ctx->file);   // Back reference marker
+      write_u32(object->index, ctx->file);
+      return;
+   }
+
+   object->generation = ctx->generation;
+   object->index      = (ctx->n_objects)++;
+
+   write_u16(object->kind, ctx->file);
+
+   if (object->tag == OBJECT_TAG_TREE)
+      write_loc(&object->loc, ctx);
+
+   const object_class_t *class = classes[object->tag];
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            ident_write(object->items[n].ident, ctx->ident_ctx);
+         else if (ITEM_TREE & mask)
+            object_write((object_t *)object->items[n].tree, ctx);
+         else if (ITEM_TYPE & mask)
+            object_write((object_t *)object->items[n].type, ctx);
+         else if (ITEM_TREE_ARRAY & mask) {
+            const tree_array_t *a = &(object->items[n].tree_array);
+            write_u32(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++)
+               object_write((object_t *)a->items[i], ctx);
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            const type_array_t *a = &(object->items[n].type_array);
+            write_u16(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++)
+               object_write((object_t *)a->items[i], ctx);
+         }
+         else if (ITEM_INT64 & mask)
+            write_u64(object->items[n].ival, ctx->file);
+         else if (ITEM_RANGE & mask) {
+            if (object->items[n].range != NULL) {
+               write_u8(object->items[n].range->kind, ctx->file);
+               object_write((object_t *)object->items[n].range->left, ctx);
+               object_write((object_t *)object->items[n].range->right, ctx);
+            }
+            else
+               write_u8(UINT8_C(0xff), ctx->file);
+         }
+         else if (ITEM_NETID_ARRAY & mask) {
+            const netid_array_t *a = &(object->items[n].netid_array);
+            write_u32(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++)
+               write_u32(a->items[i], ctx->file);
+         }
+         else if (ITEM_DOUBLE & mask) {
+            union { double d; uint64_t i; } u;
+            u.d = object->items[n].dval;
+            write_u64(u.i, ctx->file);
+         }
+         else if (ITEM_ATTRS & mask) {
+            const attr_tab_t *attrs = &(object->items[n].attrs);
+            write_u16(attrs->num, ctx->file);
+            for (unsigned i = 0; i < attrs->num; i++) {
+               write_u16(attrs->table[i].kind, ctx->file);
+               ident_write(attrs->table[i].name, ctx->ident_ctx);
+
+               switch (attrs->table[i].kind) {
+               case A_STRING:
+                  ident_write(attrs->table[i].sval, ctx->ident_ctx);
+                  break;
+
+               case A_INT:
+                  write_u32(attrs->table[i].ival, ctx->file);
+                  break;
+
+               case A_TREE:
+                  object_write((object_t *)attrs->table[i].tval, ctx);
+                  break;
+
+               case A_PTR:
+                  fatal("pointer attributes cannot be saved");
+               }
+            }
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(object->items[n].range_array);
+            write_u16(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++) {
+               write_u8(a->items[i].kind, ctx->file);
+               object_write((object_t *)a->items[i].left, ctx);
+               object_write((object_t *)a->items[i].right, ctx);
+            }
+         }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+}
+
+object_wr_ctx_t *object_write_begin(fbuf_t *f)
+{
+   write_u32(format_digest, f);
+   write_u8(standard(), f);
+
+   object_wr_ctx_t *ctx = xmalloc(sizeof(object_wr_ctx_t));
+   ctx->file       = f;
+   ctx->generation = next_generation++;
+   ctx->n_objects  = 0;
+   ctx->ident_ctx  = ident_write_begin(f);
+   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
+
+   return ctx;
+}
+
+void object_write_end(object_wr_ctx_t *ctx)
+{
+   ident_write_end(ctx->ident_ctx);
+   free(ctx);
+}
+
+fbuf_t *object_write_file(object_wr_ctx_t *ctx)
+{
+   return ctx->file;
+}
+
+static loc_t read_loc(object_rd_ctx_t *ctx)
+{
+   const char *fname;
+   uint16_t fmarker = read_u16(ctx->file);
+   if (fmarker == UINT16_C(0xfffe))
+      return LOC_INVALID;
+   else if (fmarker & UINT16_C(0x8000)) {
+      uint16_t index = fmarker & UINT16_C(0x7fff);
+      if (index > MAX_FILES)
+         printf("%s %x\n", ctx->db_fname, index);
+      assert(index < MAX_FILES);
+      uint16_t len = read_u16(ctx->file);
+      char *buf = xmalloc(len);
+      read_raw(buf, len, ctx->file);
+
+      ctx->file_names[index] = buf;
+      fname = buf;
+   }
+   else {
+      assert(fmarker < MAX_FILES);
+      fname = ctx->file_names[fmarker];
+      assert(fname != NULL);
+   }
+
+   loc_t l = { .file = fname, .linebuf = NULL };
+
+   const uint64_t merged = read_u64(ctx->file);
+
+   l.first_line   = (merged >> 44) & 0xfffff;
+   l.first_column = (merged >> 32) & 0xfff;
+   l.last_line    = (merged >> 12) & 0xfffff;
+   l.last_column  = merged & 0xfff;
+
+   return l;
+}
+
+object_t *object_read(object_rd_ctx_t *ctx, int tag)
+{
+   uint16_t marker = read_u16(ctx->file);
+   if (marker == UINT16_C(0xffff))
+      return NULL;    // Null marker
+   else if (marker == UINT16_C(0xfffe)) {
+      // Back reference marker
+      unsigned index = read_u32(ctx->file);
+      assert(index < ctx->n_objects);
+      return ctx->store[index];
+   }
+
+   const object_class_t *class = classes[tag];
+
+   assert(marker < class->last_kind);
+
+   object_t *object = object_new(class, marker);
+
+   if (tag == OBJECT_TAG_TREE)
+      object->loc = read_loc(ctx);
+
+   // Stash pointer for later back references
+   // This must be done early as a child node of this type may
+   // reference upwards
+   object->index = ctx->n_objects++;
+   if (ctx->n_objects == ctx->store_sz) {
+      ctx->store_sz *= 2;
+      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
+   }
+   ctx->store[object->index] = object;
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_IDENT & mask)
+            object->items[n].ident = ident_read(ctx->ident_ctx);
+         else if (ITEM_TREE & mask)
+            object->items[n].tree = (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+         else if (ITEM_TYPE & mask)
+            object->items[n].tree = (tree_t)object_read(ctx, OBJECT_TAG_TYPE);
+         else if (ITEM_TREE_ARRAY & mask) {
+            tree_array_t *a = &(object->items[n].tree_array);
+            tree_array_resize(a, read_u32(ctx->file), NULL);
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(object->items[n].type_array);
+            type_array_resize(a, read_u16(ctx->file), NULL);
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = (type_t)object_read(ctx, OBJECT_TAG_TYPE);
+         }
+         else if (ITEM_INT64 & mask)
+            object->items[n].ival = read_u64(ctx->file);
+         else if (ITEM_RANGE & mask) {
+            const uint8_t rmarker = read_u8(ctx->file);
+            if (rmarker != UINT8_C(0xff)) {
+               object->items[n].range = xmalloc(sizeof(range_t));
+               object->items[n].range->kind = rmarker;
+               object->items[n].range->left =
+                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+               object->items[n].range->right =
+                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+            }
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(object->items[n].range_array);
+            range_t dummy = { NULL, NULL, 0 };
+            range_array_resize(a, read_u16(ctx->file), dummy);
+
+            for (unsigned i = 0; i < a->count; i++) {
+               a->items[i].kind  = read_u8(ctx->file);
+               a->items[i].left  =
+                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+               a->items[i].right =
+                  (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+            }
+         }
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_NETID_ARRAY & mask) {
+            netid_array_t *a = &(object->items[n].netid_array);
+            netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = read_u32(ctx->file);
+         }
+         else if (ITEM_DOUBLE & mask) {
+            union { uint64_t i; double d; } u;
+            u.i = read_u64(ctx->file);
+            object->items[n].dval = u.d;
+         }
+         else if (ITEM_ATTRS & mask) {
+            attr_tab_t *attrs = &(object->items[n].attrs);
+
+            attrs->num = read_u16(ctx->file);
+            if (attrs->num > 0) {
+               attrs->alloc = next_power_of_2(attrs->num);
+               attrs->table = xmalloc(sizeof(attr_t) * attrs->alloc);
+            }
+
+            for (unsigned i = 0; i < attrs->num; i++) {
+               attrs->table[i].kind = read_u16(ctx->file);
+               attrs->table[i].name = ident_read(ctx->ident_ctx);
+
+               switch (attrs->table[i].kind) {
+               case A_STRING:
+                  attrs->table[i].sval = ident_read(ctx->ident_ctx);
+                  break;
+
+               case A_INT:
+                  attrs->table[i].ival = read_u32(ctx->file);
+                  break;
+
+               case A_TREE:
+                  attrs->table[i].tval =
+                     (tree_t)object_read(ctx, OBJECT_TAG_TREE);
+                  break;
+
+               default:
+                  abort();
+               }
+            }
+         }
+         else
+            item_without_type(mask);
+         n++;
+      }
+   }
+
+   return object;
+}
+
+object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
+{
+   object_one_time_init();
+
+   const uint32_t ver = read_u32(f);
+   if (ver != format_digest)
+      fatal("%s: serialised format digest is %x expected %x. This design "
+            "unit uses a library format from an earlier version of "
+            PACKAGE_NAME " and should be reanalysed.",
+            fname, ver, format_digest);
+
+   const vhdl_standard_t std = read_u8(f);
+   if (std > standard())
+      fatal("%s: design unit was analysed using standard revision %s which "
+            "is more recent that the currently selected standard %s",
+            fname, standard_text(std), standard_text(standard()));
+
+   object_rd_ctx_t *ctx = xmalloc(sizeof(object_rd_ctx_t));
+   ctx->file      = f;
+   ctx->ident_ctx = ident_read_begin(f);
+   ctx->store_sz  = 128;
+   ctx->store     = xmalloc(ctx->store_sz * sizeof(tree_t));
+   ctx->n_objects = 0;
+   ctx->db_fname  = strdup(fname);
+   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
+
+   return ctx;
+}
+
+void object_read_end(object_rd_ctx_t *ctx)
+{
+   ident_read_end(ctx->ident_ctx);
+   free(ctx->store);
+   free(ctx->db_fname);
+   free(ctx);
+}
+
+fbuf_t *object_read_file(object_rd_ctx_t *ctx)
+{
+   return ctx->file;
+}
+
+object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index)
+{
+   assert(index < ctx->n_objects);
+   return ctx->store[index];
 }

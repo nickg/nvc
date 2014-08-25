@@ -79,6 +79,7 @@ typedef uint64_t imask_t;
 #define I_FIELDS     ONE_HOT(43)
 #define I_TEXT_BUF   ONE_HOT(44)
 #define I_ATTRS      ONE_HOT(45)
+#define I_PTYPES     ONE_HOT(46)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
@@ -94,7 +95,7 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)
-#define ITEM_TYPE_ARRAY  (I_PARAMS | I_CONSTR)
+#define ITEM_TYPE_ARRAY  (I_PTYPES | I_CONSTR)
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
@@ -102,10 +103,12 @@ typedef uint64_t imask_t;
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
 
-DECLARE_ARRAY(tree);
+#define MAX_FILES 512
+
 DECLARE_ARRAY(netid);
-DECLARE_ARRAY(type);
 DECLARE_ARRAY(range);
+DECLARE_ARRAY(tree);
+DECLARE_ARRAY(type);
 
 #define lookup_item(class, t, mask) ({                                  \
          assert((t) != NULL);                                           \
@@ -211,27 +214,29 @@ typedef struct {
    int                    *item_lookup;
 } object_class_t;
 
-typedef struct type_wr_ctx *type_wr_ctx_t;
-typedef struct type_rd_ctx *type_rd_ctx_t;
+typedef struct {
+   fbuf_t         *file;
+   ident_wr_ctx_t  ident_ctx;
+   unsigned        generation;
+   unsigned        n_objects;
+   const char     *file_names[MAX_FILES];
+} object_wr_ctx_t;
 
-struct tree_wr_ctx;
-struct tree_rd_ctx;
+typedef struct {
+   fbuf_t         *file;
+   ident_rd_ctx_t  ident_ctx;
+   unsigned        n_objects;
+   object_t      **store;
+   unsigned        store_sz;
+   char           *db_fname;
+   const char     *file_names[MAX_FILES];
+} object_rd_ctx_t;
 
 bool tree_copy_mark(tree_t t, object_copy_ctx_t *ctx);
 bool type_copy_mark(type_t t, object_copy_ctx_t *ctx);
 
 tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx);
 type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx);
-
-type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
-                               ident_wr_ctx_t ident_ctx);
-void type_write(type_t t, type_wr_ctx_t ctx);
-void type_write_end(type_wr_ctx_t ctx);
-
-type_rd_ctx_t type_read_begin(struct tree_rd_ctx *tree_ctx,
-                              ident_rd_ctx_t ident_ctx);
-type_t type_read(type_rd_ctx_t ctx);
-void type_read_end(type_rd_ctx_t ctx);
 
 __attribute__((noreturn))
 void object_lookup_failed(const char *name, const char **kind_text_map,
@@ -242,10 +247,21 @@ void item_without_type(imask_t mask);
 uint32_t object_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
-object_t *object_new(object_class_t *class, int kind);
+object_t *object_new(const object_class_t *class, int kind);
 void object_one_time_init(void);
 void object_gc(void);
 void object_visit(object_t *object, object_visit_ctx_t *ctx);
 object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx);
+
+void object_write(object_t *object, object_wr_ctx_t *ctx);
+object_wr_ctx_t *object_write_begin(fbuf_t *f);
+void object_write_end(object_wr_ctx_t *ctx);
+fbuf_t *object_write_file(object_wr_ctx_t *ctx);
+
+object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname);
+void object_read_end(object_rd_ctx_t *ctx);
+fbuf_t *object_read_file(object_rd_ctx_t *ctx);
+object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index);
+object_t *object_read(object_rd_ctx_t *ctx, int tag);
 
 #endif   // _OBJECT_H

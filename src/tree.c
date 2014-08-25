@@ -26,8 +26,6 @@
 #include <string.h>
 #include <ctype.h>
 
-#define MAX_FILES 512
-
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
    (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_ATTRS),
@@ -288,26 +286,6 @@ static const change_allowed_t change_allowed[] = {
 
 struct tree {
    object_t object;
-};
-
-struct tree_wr_ctx {
-   fbuf_t         *file;
-   type_wr_ctx_t   type_ctx;
-   ident_wr_ctx_t  ident_ctx;
-   unsigned        generation;
-   unsigned        n_trees;
-   const char     *file_names[MAX_FILES];
-};
-
-struct tree_rd_ctx {
-   fbuf_t         *file;
-   type_rd_ctx_t   type_ctx;
-   ident_rd_ctx_t  ident_ctx;
-   unsigned        n_trees;
-   tree_t         *store;
-   unsigned        store_sz;
-   char           *db_fname;
-   const char     *file_names[MAX_FILES];
 };
 
 static const tree_kind_t stmt_kinds[] = {
@@ -997,354 +975,49 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
    return ctx.count;
 }
 
-static void write_loc(loc_t *l, tree_wr_ctx_t ctx)
-{
-   if (l->file == NULL) {
-      write_u16(UINT16_C(0xfffe), ctx->file);  // Invalid location marker
-      return;
-   }
-
-   uint16_t findex;
-   for (findex = 0;
-        (findex < MAX_FILES)
-           && (ctx->file_names[findex] != NULL)
-           && (strcmp(ctx->file_names[findex], l->file) != 0);
-        findex++)
-      ;
-   assert(findex != MAX_FILES);
-
-   if (ctx->file_names[findex] == NULL) {
-      const size_t len = strlen(l->file) + 1;
-
-      ctx->file_names[findex] = l->file;
-
-      write_u16(findex | UINT16_C(0x8000), ctx->file);
-      write_u16(len, ctx->file);
-      write_raw(l->file, len, ctx->file);
-   }
-   else
-      write_u16(findex, ctx->file);
-
-   const uint64_t merged =
-      ((uint64_t)l->first_line << 44)
-      | ((uint64_t)l->first_column << 32)
-      | ((uint64_t)l->last_line << 12)
-      | (uint64_t)l->last_column;
-
-   write_u64(merged, ctx->file);
-}
-
-static loc_t read_loc(tree_rd_ctx_t ctx)
-{
-   const char *fname;
-   uint16_t fmarker = read_u16(ctx->file);
-   if (fmarker == UINT16_C(0xfffe))
-      return LOC_INVALID;
-   else if (fmarker & UINT16_C(0x8000)) {
-      uint16_t index = fmarker & UINT16_C(0x7fff);
-      assert(index < MAX_FILES);
-      uint16_t len = read_u16(ctx->file);
-      char *buf = xmalloc(len);
-      read_raw(buf, len, ctx->file);
-
-      ctx->file_names[index] = buf;
-      fname = buf;
-   }
-   else {
-      assert(fmarker < MAX_FILES);
-      fname = ctx->file_names[fmarker];
-      assert(fname != NULL);
-   }
-
-   loc_t l = { .file = fname, .linebuf = NULL };
-
-   const uint64_t merged = read_u64(ctx->file);
-
-   l.first_line   = (merged >> 44) & 0xfffff;
-   l.first_column = (merged >> 32) & 0xfff;
-   l.last_line    = (merged >> 12) & 0xfffff;
-   l.last_column  = merged & 0xfff;
-
-   return l;
-}
-
-static void write_a(tree_array_t *a, tree_wr_ctx_t ctx)
-{
-   write_u32(a->count, ctx->file);
-   for (unsigned i = 0; i < a->count; i++)
-      tree_write(a->items[i], ctx);
-}
-
-static void read_a(tree_array_t *a, tree_rd_ctx_t ctx)
-{
-   tree_array_resize(a, read_u32(ctx->file), NULL);
-   for (unsigned i = 0; i < a->count; i++)
-      a->items[i] = tree_read(ctx);
-}
-
 tree_wr_ctx_t tree_write_begin(fbuf_t *f)
 {
-   write_u32(format_digest, f);
-   write_u8(standard(), f);
-
-   struct tree_wr_ctx *ctx = xmalloc(sizeof(struct tree_wr_ctx));
-   ctx->file       = f;
-   ctx->generation = next_generation++;
-   ctx->n_trees    = 0;
-   ctx->ident_ctx  = ident_write_begin(f);
-   ctx->type_ctx   = type_write_begin(ctx, ctx->ident_ctx);
-   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
-
-   return ctx;
+   return (tree_wr_ctx_t)object_write_begin(f);
 }
 
 void tree_write_end(tree_wr_ctx_t ctx)
 {
-   ident_write_end(ctx->ident_ctx);
-   type_write_end(ctx->type_ctx);
-   free(ctx);
+   object_write_end((object_wr_ctx_t *)ctx);
 }
 
 fbuf_t *tree_write_file(tree_wr_ctx_t ctx)
 {
-   return ctx->file;
+   return object_write_file((object_wr_ctx_t *)ctx);
 }
 
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
-   if (t == NULL) {
-      write_u16(UINT16_C(0xffff), ctx->file);  // Null marker
-      return;
-   }
-
-   if (t->object.generation == ctx->generation) {
-      // Already visited this tree
-      write_u16(UINT16_C(0xfffe), ctx->file);   // Back reference marker
-      write_u32(t->object.index, ctx->file);
-      return;
-   }
-
-   t->object.generation = ctx->generation;
-   t->object.index      = (ctx->n_trees)++;
-
-   write_u16(t->object.kind, ctx->file);
-   write_loc(&t->object.loc, ctx);
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = tree_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            ident_write(t->object.items[n].ident, ctx->ident_ctx);
-         else if (ITEM_TREE & mask)
-            tree_write(t->object.items[n].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask)
-            write_a(&(t->object.items[n].tree_array), ctx);
-         else if (ITEM_TYPE & mask)
-            type_write(t->object.items[n].type, ctx->type_ctx);
-         else if (ITEM_INT64 & mask)
-            write_u64(t->object.items[n].ival, ctx->file);
-         else if (ITEM_RANGE & mask) {
-            if (t->object.items[n].range != NULL) {
-               write_u8(t->object.items[n].range->kind, ctx->file);
-               tree_write(t->object.items[n].range->left, ctx);
-               tree_write(t->object.items[n].range->right, ctx);
-            }
-            else
-               write_u8(UINT8_C(0xff), ctx->file);
-         }
-         else if (ITEM_NETID_ARRAY & mask) {
-            const netid_array_t *a = &(t->object.items[n].netid_array);
-            write_u32(a->count, ctx->file);
-            for (unsigned i = 0; i < a->count; i++)
-               write_u32(a->items[i], ctx->file);
-         }
-         else if (ITEM_DOUBLE & mask) {
-            union { double d; uint64_t i; } u;
-            u.d = t->object.items[n].dval;
-            write_u64(u.i, ctx->file);
-         }
-         else if (ITEM_ATTRS & mask) {
-            write_u16(t->object.items[n].attrs.num, ctx->file);
-            for (unsigned i = 0; i < t->object.items[n].attrs.num; i++) {
-               write_u16(t->object.items[n].attrs.table[i].kind, ctx->file);
-               ident_write(t->object.items[n].attrs.table[i].name, ctx->ident_ctx);
-
-               switch (t->object.items[n].attrs.table[i].kind) {
-               case A_STRING:
-                  ident_write(t->object.items[n].attrs.table[i].sval, ctx->ident_ctx);
-                  break;
-
-               case A_INT:
-                  write_u32(t->object.items[n].attrs.table[i].ival, ctx->file);
-                  break;
-
-               case A_TREE:
-                  tree_write(t->object.items[n].attrs.table[i].tval, ctx);
-                  break;
-
-               case A_PTR:
-                  fatal("pointer attributes cannot be saved");
-               }
-            }
-         }
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
+   object_write(&(t->object), (object_wr_ctx_t *)ctx);
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
 {
-   uint16_t marker = read_u16(ctx->file);
-   if (marker == UINT16_C(0xffff))
-      return NULL;    // Null marker
-   else if (marker == UINT16_C(0xfffe)) {
-      // Back reference marker
-      unsigned index = read_u32(ctx->file);
-      assert(index < ctx->n_trees);
-      return ctx->store[index];
-   }
-
-   assert(marker < T_LAST_TREE_KIND);
-
-   tree_t t = tree_new((tree_kind_t)marker);
-   t->object.loc = read_loc(ctx);
-
-   // Stash pointer for later back references
-   // This must be done early as a child node of this type may
-   // reference upwards
-   t->object.index = ctx->n_trees++;
-   if (ctx->n_trees == ctx->store_sz) {
-      ctx->store_sz *= 2;
-      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(tree_t));
-   }
-   ctx->store[t->object.index] = t;
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = tree_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_IDENT & mask)
-            t->object.items[n].ident = ident_read(ctx->ident_ctx);
-         else if (ITEM_TREE & mask)
-            t->object.items[n].tree = tree_read(ctx);
-         else if (ITEM_TREE_ARRAY & mask)
-            read_a(&(t->object.items[n].tree_array), ctx);
-         else if (ITEM_TYPE & mask)
-            t->object.items[n].type = type_read(ctx->type_ctx);
-         else if (ITEM_INT64 & mask)
-            t->object.items[n].ival = read_u64(ctx->file);
-         else if (ITEM_RANGE & mask) {
-            const uint8_t rmarker = read_u8(ctx->file);
-            if (rmarker != UINT8_C(0xff)) {
-               t->object.items[n].range = xmalloc(sizeof(range_t));
-               t->object.items[n].range->kind  = rmarker;
-               t->object.items[n].range->left  = tree_read(ctx);
-               t->object.items[n].range->right = tree_read(ctx);
-            }
-         }
-         else if (ITEM_NETID_ARRAY & mask) {
-            netid_array_t *a = &(t->object.items[n].netid_array);
-            netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
-            for (unsigned i = 0; i < a->count; i++)
-               a->items[i] = read_u32(ctx->file);
-         }
-         else if (ITEM_DOUBLE & mask) {
-            union { uint64_t i; double d; } u;
-            u.i = read_u64(ctx->file);
-            t->object.items[n].dval = u.d;
-         }
-         else if (ITEM_ATTRS & mask) {
-            t->object.items[n].attrs.num = read_u16(ctx->file);
-            if (t->object.items[n].attrs.num > 0) {
-               t->object.items[n].attrs.alloc = next_power_of_2(t->object.items[n].attrs.num);
-               t->object.items[n].attrs.table =
-                  xmalloc(sizeof(attr_t) * t->object.items[n].attrs.alloc);
-            }
-
-            for (unsigned i = 0; i < t->object.items[n].attrs.num; i++) {
-               t->object.items[n].attrs.table[i].kind = read_u16(ctx->file);
-               t->object.items[n].attrs.table[i].name = ident_read(ctx->ident_ctx);
-
-               switch (t->object.items[n].attrs.table[i].kind) {
-               case A_STRING:
-                  t->object.items[n].attrs.table[i].sval = ident_read(ctx->ident_ctx);
-                  break;
-
-               case A_INT:
-                  t->object.items[n].attrs.table[i].ival = read_u32(ctx->file);
-                  break;
-
-               case A_TREE:
-                  t->object.items[n].attrs.table[i].tval = tree_read(ctx);
-                  break;
-
-               default:
-                  abort();
-               }
-            }
-         }
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
-
-   return t;
+   return (tree_t)object_read((object_rd_ctx_t *)ctx, OBJECT_TAG_TREE);
 }
 
 tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 {
-   object_one_time_init();
-
-   const uint32_t ver = read_u32(f);
-   if (ver != format_digest)
-      fatal("%s: serialised format digest is %x expected %x. This design "
-            "unit uses a library format from an earlier version of "
-            PACKAGE_NAME " and should be reanalysed.",
-            fname, ver, format_digest);
-
-   const vhdl_standard_t std = read_u8(f);
-   if (std > standard())
-      fatal("%s: design unit was analysed using standard revision %s which "
-            "is more recent that the currently selected standard %s",
-            fname, standard_text(std), standard_text(standard()));
-
-   struct tree_rd_ctx *ctx = xmalloc(sizeof(struct tree_rd_ctx));
-   ctx->file      = f;
-   ctx->ident_ctx = ident_read_begin(f);
-   ctx->type_ctx  = type_read_begin(ctx, ctx->ident_ctx);
-   ctx->store_sz  = 128;
-   ctx->store     = xmalloc(ctx->store_sz * sizeof(tree_t));
-   ctx->n_trees   = 0;
-   ctx->db_fname  = strdup(fname);
-   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
-
-   return ctx;
+   return (tree_rd_ctx_t)object_read_begin(f, fname);
 }
 
 void tree_read_end(tree_rd_ctx_t ctx)
 {
-   ident_read_end(ctx->ident_ctx);
-   type_read_end(ctx->type_ctx);
-   free(ctx->store);
-   free(ctx->db_fname);
-   free(ctx);
+   object_read_end((object_rd_ctx_t *)ctx);
 }
 
 fbuf_t *tree_read_file(tree_rd_ctx_t ctx)
 {
-   return ctx->file;
+   return object_read_file((object_rd_ctx_t *)ctx);
 }
 
 tree_t tree_read_recall(tree_rd_ctx_t ctx, uint32_t index)
 {
-   assert(index < ctx->n_trees);
-   return ctx->store[index];
+   return (tree_t)object_read_recall((object_rd_ctx_t *)ctx, index);
 }
 
 static attr_t *tree_find_attr(tree_t t, ident_t name, attr_kind_t kind)
