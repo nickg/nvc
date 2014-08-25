@@ -76,7 +76,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT),
 
    // T_PROTECTED
-   (I_IDENT)
+   (I_IDENT | I_DECLS)
 };
 
 static const char *kind_text_map[T_LAST_TYPE_KIND] = {
@@ -440,6 +440,22 @@ void type_add_field(type_t t, tree_t p)
 {
    assert(tree_kind(p) == T_FIELD_DECL);
    tree_array_add(&(lookup_item(&type_object, t, I_FIELDS)->tree_array), p);
+}
+
+unsigned type_decls(type_t t)
+{
+   return lookup_item(&type_object, t, I_DECLS)->tree_array.count;
+}
+
+tree_t type_decl(type_t t, unsigned n)
+{
+   item_t *item = lookup_item(&type_object, t, I_DECLS);
+   return tree_array_nth(&(item->tree_array), n);
+}
+
+void type_add_decl(type_t t, tree_t p)
+{
+   tree_array_add(&(lookup_item(&type_object, t, I_DECLS)->tree_array), p);
 }
 
 type_t type_result(type_t t)

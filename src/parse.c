@@ -2180,7 +2180,7 @@ static ident_list_t *p_entity_specification(class_t *class)
    return ids;
 }
 
-static void p_attribute_specification(tree_t parent)
+static void p_attribute_specification(tree_t parent, add_func_t addf)
 {
    // attribute attribute_designator of entity_specification is expression ;
 
@@ -2209,7 +2209,7 @@ static void p_attribute_specification(tree_t parent)
       tree_set_ident2(t, it->ident);
       tree_set_value(t, value);
 
-      tree_add_decl(parent, t);
+      (*addf)(parent, t);
    }
 }
 
@@ -2575,11 +2575,11 @@ static void p_protected_type_declarative_item(type_t type)
 
    switch (peek()) {
    case tATTRIBUTE:
-      p_attribute_specification(NULL /* XXX */);
+      p_attribute_specification((tree_t)type, (add_func_t)type_add_unit);
       break;
 
    case tUSE:
-      p_use_clause(NULL, NULL /* XXX */);
+      p_use_clause((tree_t)type, (add_func_t)type_add_unit);
       break;
 
    case tFUNCTION:
@@ -2588,7 +2588,7 @@ static void p_protected_type_declarative_item(type_t type)
    case tPURE:
       {
          tree_t spec = p_subprogram_specification();
-         (void)p_subprogram_declaration(spec);
+         type_add_decl(type, p_subprogram_declaration(spec));
       }
       break;
 
@@ -3107,7 +3107,7 @@ static void p_entity_declarative_item(tree_t entity)
    switch (peek()) {
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(entity);
+         p_attribute_specification(entity, tree_add_decl);
       else
          tree_add_decl(entity, p_attribute_declaration());
       break;
@@ -3199,7 +3199,7 @@ static void p_subprogram_declarative_item(tree_t sub)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(sub);
+         p_attribute_specification(sub, tree_add_decl);
       else
          tree_add_decl(sub, p_attribute_declaration());
       break;
@@ -3364,7 +3364,7 @@ static void p_process_declarative_item(tree_t proc)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(proc);
+         p_attribute_specification(proc, tree_add_decl);
       else
          tree_add_decl(proc, p_attribute_declaration());
       break;
@@ -3587,7 +3587,7 @@ static void p_package_declarative_item(tree_t pack)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(pack);
+         p_attribute_specification(pack, tree_add_decl);
       else
          tree_add_decl(pack, p_attribute_declaration());
       break;
@@ -3829,7 +3829,7 @@ static void p_configuration_declarative_part(tree_t unit)
       break;
 
    case tATTRIBUTE:
-      p_attribute_specification(unit);
+      p_attribute_specification(unit, tree_add_decl);
       break;
 
    default:
@@ -4035,7 +4035,7 @@ static void p_block_declarative_item(tree_t parent)
 
    case tATTRIBUTE:
       if (peek_nth(3) == tOF)
-         p_attribute_specification(parent);
+         p_attribute_specification(parent, tree_add_decl);
       else
          tree_add_decl(parent, p_attribute_declaration());
       break;
@@ -5123,7 +5123,7 @@ static void p_package_body_declarative_item(tree_t parent)
                      standard_text(standard()));
       else {
          if (peek_nth(3) == tOF)
-            p_attribute_specification(parent);
+            p_attribute_specification(parent, tree_add_decl);
          else
             tree_add_decl(parent, p_attribute_declaration());
       }

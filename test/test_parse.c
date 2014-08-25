@@ -2,6 +2,7 @@
 #include "util.h"
 #include "tree.h"
 #include "phase.h"
+#include "common.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -2170,6 +2171,38 @@ START_TEST(test_config)
 }
 END_TEST
 
+START_TEST(test_protected)
+{
+   tree_t p, d, s;
+   type_t t;
+
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/parse/protected.vhd");
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   fail_unless(tree_decls(p) == 1);
+
+   d = tree_decl(p, 0);
+   fail_unless(tree_kind(d) == T_TYPE_DECL);
+   fail_unless(tree_ident(d) == ident_new("SHAREDCOUNTER"));
+   t = tree_type(d);
+   fail_unless(type_kind(t) == T_PROTECTED);
+   fail_unless(type_decls(t) == 3);
+
+   s = type_decl(t, 0);
+   fail_unless(tree_kind(s) == T_PROC_DECL);
+   fail_unless(tree_ident(s) == ident_new("INCREMENT"));
+
+   p = parse();
+   fail_unless(p == NULL);
+
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -2207,6 +2240,7 @@ int main(void)
    tcase_add_test(tc_core, test_expr);
    tcase_add_test(tc_core, test_error);
    tcase_add_test(tc_core, test_config);
+   tcase_add_test(tc_core, test_protected);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
