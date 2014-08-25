@@ -28,8 +28,6 @@
 
 #define MAX_FILES 512
 
-//#define EXTRA_READ_CHECKS
-
 static const imask_t has_map[T_LAST_TREE_KIND] = {
    // T_ENTITY
    (I_IDENT | I_PORTS | I_GENERICS | I_CONTEXT | I_DECLS | I_STMTS | I_ATTRS),
@@ -1115,10 +1113,6 @@ fbuf_t *tree_write_file(tree_wr_ctx_t ctx)
 
 void tree_write(tree_t t, tree_wr_ctx_t ctx)
 {
-#ifdef EXTRA_READ_CHECKS
-   write_u16(UINT16_C(0xf11f), ctx->file);
-#endif  // EXTRA_READ_CHECKS
-
    if (t == NULL) {
       write_u16(UINT16_C(0xffff), ctx->file);  // Null marker
       return;
@@ -1201,20 +1195,10 @@ void tree_write(tree_t t, tree_wr_ctx_t ctx)
          n++;
       }
    }
-
-#ifdef EXTRA_READ_CHECKS
-   write_u16(UINT16_C(0xdead), ctx->file);
-#endif  // EXTRA_READ_CHECKS
 }
 
 tree_t tree_read(tree_rd_ctx_t ctx)
 {
-#ifdef EXTRA_READ_CHECKS
-   uint16_t start = read_u16(ctx->file);
-   if (start != UINT16_C(0xf11f))
-      fatal("bad tree start marker %x", start);
-#endif  // EXTRA_READ_CHECKS
-
    uint16_t marker = read_u16(ctx->file);
    if (marker == UINT16_C(0xffff))
       return NULL;    // Null marker
@@ -1310,13 +1294,6 @@ tree_t tree_read(tree_rd_ctx_t ctx)
          n++;
       }
    }
-
-#ifdef EXTRA_READ_CHECKS
-   uint16_t term = read_u16(ctx->file);
-   if (term != UINT16_C(0xdead))
-      fatal("bad tree termination marker %x kind=%d",
-            term, t->kind);
-#endif  // EXTRA_READ_CHECKS
 
    return t;
 }
@@ -1553,8 +1530,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
    size_t cache_sz = sizeof(tree_t) * 100000 /* XXX */;
-   tree_t *cache = xmalloc(cache_sz);
-   memset(cache, '\0', cache_sz);
+   tree_t *cache = xcalloc(cache_sz);
 
    object_rewrite_ctx_t ctx = {
       .cache      = cache,
@@ -1732,8 +1708,7 @@ tree_t tree_copy(tree_t t, tree_copy_fn_t fn, void *context)
    if (t->object.index == UINT32_MAX)
       return t;   // Nothing to copy
 
-   ctx.copied = xmalloc(sizeof(void *) * ctx.index);
-   memset(ctx.copied, '\0', sizeof(void *) * ctx.index);
+   ctx.copied = xcalloc(sizeof(void *) * ctx.index);
 
    tree_t copy = tree_copy_sweep(t, &ctx);
 
