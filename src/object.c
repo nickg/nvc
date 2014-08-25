@@ -324,8 +324,9 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          else if (ITEM_TREE & mask)
             object_visit((object_t *)object->items[i].tree, ctx);
          else if (ITEM_TREE_ARRAY & mask) {
-            for (unsigned j = 0; j < object->items[i].tree_array.count; j++)
-               object_visit((object_t *)object->items[i].tree_array.items[j], ctx);
+            tree_array_t *a = &(object->items[i].tree_array);
+            for (unsigned j = 0; j < a->count; j++)
+               object_visit((object_t *)a->items[j], ctx);
          }
          else if (ITEM_TYPE_ARRAY & mask) {
             type_array_t *a = &(object->items[i].type_array);
@@ -356,10 +357,11 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          else if (ITEM_TEXT_BUF & mask)
             ;
          else if (ITEM_ATTRS & mask) {
-            for (unsigned j = 0; j < object->items[i].attrs.num; j++) {
-               switch (object->items[i].attrs.table[j].kind) {
+            attr_tab_t *attrs = &(object->items[i].attrs);
+            for (unsigned j = 0; j < attrs->num; j++) {
+               switch (attrs->table[j].kind) {
                case A_TREE:
-                  object_visit((object_t *)object->items[i].attrs.table[j].tval, ctx);
+                  object_visit((object_t *)attrs->table[j].tval, ctx);
                   break;
 
                default:
