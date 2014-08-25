@@ -337,22 +337,15 @@ static tree_kind_t decl_kinds[] = {
    T_USE
 };
 
-static tree_kind_t top_level_kinds[] = {
-   T_ARCH, T_ENTITY, T_PACKAGE,  T_ELAB, T_PACK_BODY
-};
-
-// Garbage collection
-static tree_t *all_trees = NULL;
-static size_t max_trees = 128;   // Grows at runtime
-static size_t n_trees_alloc = 0;
-
 object_class_t tree_object = {
    .name           = "tree",
    .change_allowed = change_allowed,
    .has_map        = has_map,
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_TREE,
-   .last_kind      = T_LAST_TREE_KIND
+   .last_kind      = T_LAST_TREE_KIND,
+   .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY },
+   .gc_num_roots   = 5
 };
 
 unsigned next_generation = 1;
@@ -394,87 +387,12 @@ static void tree_assert_decl(tree_t t)
 
 tree_t tree_new(tree_kind_t kind)
 {
-   tree_t t = object_new(&tree_object, kind);
-
-   if (unlikely(all_trees == NULL))
-      all_trees = xmalloc(sizeof(tree_t) * max_trees);
-
-   ARRAY_APPEND(all_trees, t, n_trees_alloc, max_trees);
-
-   return t;
-}
-
-void object_sweep(object_t *object)
-{
-   const imask_t has = has_map[object->kind];
-   const int nitems = tree_object.object_nitems[object->kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TREE_ARRAY & mask)
-            free(object->items[n].tree_array.items);
-         else if (ITEM_NETID_ARRAY & mask)
-            free(object->items[n].netid_array.items);
-         else if (ITEM_RANGE & mask)
-            free(object->items[n].range);
-         else if (ITEM_ATTRS & mask)
-            free(object->items[n].attrs.table);
-         n++;
-      }
-   }
+   return (tree_t)object_new(&tree_object, kind);
 }
 
 void tree_gc(void)
 {
-   // Generation will be updated by tree_visit
-   const unsigned base_gen = next_generation;
-
-   // Mark
-   for (unsigned i = 0; i < n_trees_alloc; i++) {
-      assert(all_trees[i] != NULL);
-
-      bool top_level = tree_kind_in(all_trees[i], top_level_kinds,
-                                    ARRAY_LEN(top_level_kinds));
-
-      if (top_level) {
-         object_visit_ctx_t ctx = {
-            .count      = 0,
-            .fn         = NULL,
-            .context    = NULL,
-            .kind       = T_LAST_TREE_KIND,
-            .generation = next_generation++,
-            .deep       = true
-         };
-
-         tree_visit_aux(all_trees[i], &ctx);
-      }
-   }
-
-   // Sweep
-   for (unsigned i = 0; i < n_trees_alloc; i++) {
-      tree_t t = all_trees[i];
-      if (t->object.generation < base_gen) {
-         object_sweep(&(t->object));
-
-         free(t);
-
-         all_trees[i] = NULL;
-      }
-   }
-
-   // Compact
-   size_t p = 0;
-   for (unsigned i = 0; i < n_trees_alloc; i++) {
-      if (all_trees[i] != NULL)
-         all_trees[p++] = all_trees[i];
-   }
-
-   if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running())
-      notef("GC: freed %zu trees; %zu allocated", n_trees_alloc - p, p);
-
-   n_trees_alloc = p;
-
-   type_sweep(base_gen);
+   object_gc();
 }
 
 const loc_t *tree_loc(tree_t t)
@@ -1085,7 +1003,7 @@ void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
          else if (ITEM_NETID_ARRAY & mask)
             ;
          else if (ITEM_ATTRS & mask) {
-            for (unsigned j = 0; j < t->object.items[i].attrs.num; i++) {
+            for (unsigned j = 0; j < t->object.items[i].attrs.num; j++) {
                switch (t->object.items[i].attrs.table[j].kind) {
                case A_TREE:
                   tree_visit_aux(t->object.items[i].attrs.table[j].tval, ctx);
@@ -1700,7 +1618,7 @@ tree_t tree_rewrite_aux(tree_t t, object_rewrite_ctx_t *ctx)
 
 tree_t tree_rewrite(tree_t t, tree_rewrite_fn_t fn, void *context)
 {
-   size_t cache_sz = sizeof(tree_t) * n_trees_alloc;
+   size_t cache_sz = sizeof(tree_t) * 100000 /* XXX */;
    tree_t *cache = xmalloc(cache_sz);
    memset(cache, '\0', cache_sz);
 

@@ -117,11 +117,6 @@ struct type_rd_ctx {
 
 #define IS(t, k) ((t)->object.kind == (k))
 
-// Garbage collection
-static type_t *all_types = NULL;
-static size_t max_types = 128;   // Grows at runtime
-static size_t n_types_alloc = 0;
-
 object_class_t type_object = {
    .name           = "type",
    .change_allowed = change_allowed,
@@ -133,14 +128,7 @@ object_class_t type_object = {
 
 type_t type_new(type_kind_t kind)
 {
-   type_t t = object_new(&type_object, kind);
-
-   if (unlikely(all_types == NULL))
-      all_types = xmalloc(sizeof(tree_t) * max_types);
-
-   ARRAY_APPEND(all_types, t, n_types_alloc, max_types);
-
-   return t;
+   return (type_t)object_new(&type_object, kind);
 }
 
 type_kind_t type_kind(type_t t)
@@ -807,57 +795,6 @@ static const char *type_minify_identity(const char *s)
 const char *type_pp(type_t t)
 {
    return type_pp_minify(t, type_minify_identity);
-}
-
-void type_sweep(unsigned generation)
-{
-   for (unsigned i = 0; i < n_types_alloc; i++) {
-      type_t t = all_types[i];
-      if (t->object.generation < generation) {
-
-         const imask_t has = has_map[t->object.kind];
-         const int nitems = type_object.object_nitems[t->object.kind];
-         imask_t mask = 1;
-         for (int n = 0; n < nitems; mask <<= 1) {
-            if (has & mask) {
-               if (ITEM_TYPE_ARRAY & mask)
-                  free(t->object.items[n].type_array.items);
-               else if (ITEM_TYPE & mask)
-                  ;
-               else if (ITEM_TREE & mask)
-                  ;
-               else if (ITEM_TREE_ARRAY & mask)
-                  free(t->object.items[n].tree_array.items);
-               else if (ITEM_RANGE_ARRAY & mask)
-                  free(t->object.items[n].range_array.items);
-               else if (ITEM_TEXT_BUF & mask) {
-                  if (t->object.items[n].text_buf != NULL)
-                     tb_free(t->object.items[n].text_buf);
-               }
-               else
-                  item_without_type(mask);
-               n++;
-            }
-         }
-
-         free(t);
-
-         all_types[i] = NULL;
-      }
-   }
-
-   // Compact
-   size_t p = 0;
-   for (unsigned i = 0; i < n_types_alloc; i++) {
-      if (all_types[i] != NULL)
-         all_types[p++] = all_types[i];
-   }
-
-   if (getenv("NVC_GC_VERBOSE") != NULL)
-      printf("[gc: freed %zu types; %zu allocated]\n",
-             n_types_alloc - p, p);
-
-   n_types_alloc = p;
 }
 
 bool type_is_array(type_t t)

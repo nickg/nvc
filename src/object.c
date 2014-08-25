@@ -38,7 +38,15 @@ static const char *item_text_map[] = {
    "I_ATTRS"
 };
 
+static object_class_t *classes[4];
+
+// Garbage collection
+static object_t **all_objects = NULL;
+static size_t     max_objects = 256;   // Grows at runtime
+static size_t     n_objects_alloc = 0;
+
 uint32_t format_digest;    // XXX: make static
+extern unsigned next_generation;  // XXX
 
 void object_lookup_failed(const char *name, const char **kind_text_map,
                           int kind, imask_t mask)
@@ -118,6 +126,11 @@ static void object_init(object_class_t *class)
    class->object_nitems = xmalloc(class->last_kind * sizeof(int));
    class->item_lookup   = xmalloc(class->last_kind * sizeof(int) * 64);
 
+   assert(class->last_kind < (1 << (sizeof(uint8_t) * 8)));
+
+   assert(class->tag < ARRAY_LEN(classes));
+   classes[class->tag] = class;
+
    for (int i = 0; i < class->last_kind; i++) {
       const int nitems = __builtin_popcountll(class->has_map[i]);
       class->object_size[i]   = sizeof(object_t) + (nitems * sizeof(item_t));
@@ -184,7 +197,7 @@ void object_one_time_init(void)
    }
 }
 
-void *object_new(object_class_t *class, int kind)
+object_t *object_new(object_class_t *class, int kind)
 {
    if (unlikely(kind >= class->last_kind))
       fatal_trace("invalid kind %d for %s object", kind, class->name);
@@ -197,5 +210,93 @@ void *object_new(object_class_t *class, int kind)
    object->tag   = class->tag;
    object->index = UINT32_MAX;
 
+   if (unlikely(all_objects == NULL))
+      all_objects = xmalloc(sizeof(object_t *) * max_objects);
+
+   ARRAY_APPEND(all_objects, object, n_objects_alloc, max_objects);
+
    return object;
+}
+
+static void object_sweep(object_t *object)
+{
+   const object_class_t *class = classes[object->tag];
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int n = 0; n < nitems; mask <<= 1) {
+      if (has & mask) {
+         if (ITEM_TREE_ARRAY & mask)
+            free(object->items[n].tree_array.items);
+         else if (ITEM_NETID_ARRAY & mask)
+            free(object->items[n].netid_array.items);
+         else if (ITEM_RANGE & mask)
+            free(object->items[n].range);
+         else if (ITEM_ATTRS & mask)
+            free(object->items[n].attrs.table);
+         else if (ITEM_RANGE_ARRAY & mask)
+            free(object->items[n].range_array.items);
+         else if (ITEM_TEXT_BUF & mask) {
+            if (object->items[n].text_buf != NULL)
+               tb_free(object->items[n].text_buf);
+         }
+         n++;
+      }
+   }
+
+   free(object);
+}
+
+void object_gc(void)
+{
+   // Generation will be updated by tree_visit
+   const unsigned base_gen = next_generation;
+
+   // Mark
+   for (unsigned i = 0; i < n_objects_alloc; i++) {
+      assert(all_objects[i] != NULL);
+
+      const object_class_t *class = classes[all_objects[i]->tag];
+
+      bool top_level = false;
+      for (int j = 0; (j < class->gc_num_roots) && !top_level; j++) {
+         if (class->gc_roots[j] == all_objects[i]->kind)
+            top_level = true;
+      }
+
+      if (top_level) {
+         object_visit_ctx_t ctx = {
+            .count      = 0,
+            .fn         = NULL,
+            .context    = NULL,
+            .kind       = T_LAST_TREE_KIND,
+            .generation = next_generation++,
+            .deep       = true
+         };
+
+         tree_visit_aux((tree_t)all_objects[i], &ctx);
+      }
+   }
+
+   // Sweep
+   for (unsigned i = 0; i < n_objects_alloc; i++) {
+      object_t *object = all_objects[i];
+      if (object->generation < base_gen) {
+         object_sweep(object);
+         all_objects[i] = NULL;
+      }
+   }
+
+   // Compact
+   size_t p = 0;
+   for (unsigned i = 0; i < n_objects_alloc; i++) {
+      if (all_objects[i] != NULL)
+         all_objects[p++] = all_objects[i];
+   }
+
+   if ((getenv("NVC_GC_VERBOSE") != NULL) || is_debugger_running())
+      notef("GC: freed %zu objects; %zu allocated", n_objects_alloc - p, p);
+
+   n_objects_alloc = p;
 }

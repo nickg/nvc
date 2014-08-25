@@ -162,8 +162,8 @@ typedef union {
 } item_t;
 
 typedef struct {
-   unsigned kind : 14;
-   unsigned tag : 2;
+   uint8_t  kind;
+   uint8_t  tag;
    uint16_t generation;
    uint32_t index;
    loc_t    loc;
@@ -204,6 +204,8 @@ typedef struct {
    const char            **kind_text_map;
    const int               tag;
    const int               last_kind;
+   const int               gc_roots[6];
+   const int               gc_num_roots;
    int                    *object_nitems;
    size_t                 *object_size;
    int                    *item_lookup;
@@ -220,8 +222,6 @@ bool type_copy_mark(type_t t, object_copy_ctx_t *ctx);
 
 tree_t tree_copy_sweep(tree_t t, object_copy_ctx_t *ctx);
 type_t type_copy_sweep(type_t t, object_copy_ctx_t *ctx);
-
-void type_sweep(unsigned generation);
 
 type_wr_ctx_t type_write_begin(struct tree_wr_ctx *tree_ctx,
                                ident_wr_ctx_t ident_ctx);
@@ -248,7 +248,8 @@ void item_without_type(imask_t mask);
 uint32_t object_index(const object_t *object);
 void object_change_kind(const object_class_t *class,
                         object_t *object, int kind);
-void *object_new(object_class_t *class, int kind);
+object_t *object_new(object_class_t *class, int kind);
 void object_one_time_init(void);
+void object_gc(void);
 
 #endif   // _OBJECT_H
