@@ -36,7 +36,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS"
+   "I_ATTRS",    "I_PTYPES",    "I_BODY"
 };
 
 static object_class_t *classes[4];
@@ -52,8 +52,6 @@ void object_lookup_failed(const char *name, const char **kind_text_map,
    int item;
    for (item = 0; (mask & (1ull << item)) == 0; item++)
       ;
-
-   printf("item=%d len=%d\n", item, (int)ARRAY_LEN(item_text_map));
 
    assert(item < ARRAY_LEN(item_text_map));
    fatal_trace("%s kind %s does not have item %s", name,

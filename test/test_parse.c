@@ -2183,7 +2183,7 @@ START_TEST(test_protected)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 1);
+   fail_unless(tree_decls(p) == 2);
 
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_TYPE_DECL);
@@ -2195,6 +2195,11 @@ START_TEST(test_protected)
    s = type_decl(t, 0);
    fail_unless(tree_kind(s) == T_PROC_DECL);
    fail_unless(tree_ident(s) == ident_new("INCREMENT"));
+
+   d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_PROT_BODY);
+   fail_unless(tree_ident(d) == ident_new("SHAREDCOUNTER"));
+   fail_unless(tree_decls(d) == 4);
 
    p = parse();
    fail_unless(p == NULL);

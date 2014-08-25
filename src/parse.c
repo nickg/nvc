@@ -125,6 +125,7 @@ static tree_t p_subprogram_body(tree_t spec);
 static tree_t p_subprogram_specification(void);
 static tree_t p_name(void);
 static void p_block_configuration(tree_t unit);
+static tree_t p_protected_type_body(void);
 
 static void _pop_state(const state_t *s)
 {
@@ -2556,16 +2557,6 @@ static type_t p_composite_type_definition(void)
    }
 }
 
-static type_t p_protected_type_body(void)
-{
-   // protected body protected_type_body_declarative_part end protected body
-   //   [ simple name ]
-
-   BEGIN("protected type body");
-
-   return type_new(T_NONE);
-}
-
 static void p_protected_type_declarative_item(type_t type)
 {
    // subprogram_declaration | [08] subprogram_instantiation_declaration
@@ -2634,10 +2625,10 @@ static type_t p_protected_type_definition(void)
 
    BEGIN("protected type definition");
 
-   if (peek_nth(2) == tBODY)
-      return p_protected_type_body();
-   else
-      return p_protected_type_declaration();
+   // Protected type bodies are trees rather than types and so handled
+   // elsewhere to simplify the parser
+
+   return p_protected_type_declaration();
 }
 
 static type_t p_type_definition(void)
@@ -2712,20 +2703,45 @@ static tree_t p_type_declaration(void)
 
    ident_t id = p_identifier();
 
-   type_t type;
-   if (peek() == tSEMI)
-      type = p_incomplete_type_declaration(id);
-   else
-      type = p_full_type_declaration(id);
+   // Protected type bodies are broken out here to avoid having to
+   // return a dummy type for them in p_full_type_declaration
 
-   type_set_ident(type, id);
+   const bool is_prot_body =
+      (peek_nth(1) == tIS)
+      && (peek_nth(2) == tPROTECTED)
+      && (peek_nth(3) == tBODY);
 
-   tree_t t = tree_new(T_TYPE_DECL);
-   tree_set_ident(t, id);
-   tree_set_type(t, type);
-   tree_set_loc(t, CURRENT_LOC);
+   if (is_prot_body) {
+      consume(tIS);
+      tree_t body = p_protected_type_body();
+      consume(tSEMI);
 
-   return t;
+      if (tree_has_ident(body)) {
+         if (tree_ident(body) != id)
+            parse_error(CURRENT_LOC, "expected protected body trailing label "
+                        "to match %s", istr(id));
+      }
+      else
+         tree_set_ident(body, id);
+
+      return body;
+   }
+   else {
+      type_t type;
+      if (peek() == tSEMI)
+         type = p_incomplete_type_declaration(id);
+      else
+         type = p_full_type_declaration(id);
+
+      type_set_ident(type, id);
+
+      tree_t t = tree_new(T_TYPE_DECL);
+      tree_set_ident(t, id);
+      tree_set_type(t, type);
+      tree_set_loc(t, CURRENT_LOC);
+
+      return t;
+   }
 }
 
 static tree_t p_subtype_declaration(void)
@@ -3091,6 +3107,96 @@ static void p_file_declaration(tree_t parent)
 
       tree_add_decl(parent, t);
    }
+}
+
+static void p_protected_type_body_declarative_item(tree_t body)
+{
+   // subprogram_declaration | subprogram_body | type_declaration
+   //   | subtype_declaration | constant_declaration | variable_declaration
+   //   | file_declaration | alias_declaration | attribute_declaration
+   //   | attribute_specification | use_clause | group_template_declaration
+   //   | group_declaration
+
+   BEGIN("protected type body declarative item");
+
+   switch (peek()) {
+   case tATTRIBUTE:
+      if (peek_nth(3) == tOF)
+         p_attribute_specification(body, tree_add_decl);
+      else
+         tree_add_decl(body, p_attribute_declaration());
+      break;
+
+   case tTYPE:
+      tree_add_decl(body, p_type_declaration());
+      break;
+
+   case tSUBTYPE:
+      tree_add_decl(body, p_subtype_declaration());
+      break;
+
+   case tCONSTANT:
+      p_constant_declaration(body);
+      break;
+
+   case tALIAS:
+      tree_add_decl(body, p_alias_declaration());
+      break;
+
+   case tFUNCTION:
+   case tPROCEDURE:
+   case tIMPURE:
+   case tPURE:
+      {
+         tree_t spec = p_subprogram_specification();
+         if (peek() == tSEMI)
+            tree_add_decl(body, p_subprogram_declaration(spec));
+         else
+            tree_add_decl(body, p_subprogram_body(spec));
+      }
+      break;
+
+   case tVARIABLE:
+      p_variable_declaration(body);
+      break;
+
+   default:
+      expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
+             tIMPURE, tPURE, tALIAS, tVARIABLE);
+   }
+}
+
+static void p_protected_type_body_declarative_part(tree_t body)
+{
+   // { protected_type_body_declarative_item }
+
+   BEGIN("protected type body declarative part");
+
+   while (not_at_token(tEND))
+      p_protected_type_body_declarative_item(body);
+}
+
+static tree_t p_protected_type_body(void)
+{
+   // protected body protected_type_body_declarative_part end protected body
+   //   [ simple name ]
+
+   BEGIN("protected type body");
+
+   consume(tPROTECTED);
+   consume(tBODY);
+
+   tree_t body = tree_new(T_PROT_BODY);
+   p_protected_type_body_declarative_part(body);
+
+   consume(tEND);
+   consume(tPROTECTED);
+   consume(tBODY);
+
+   if (peek() == tID)
+      tree_set_ident(body, p_identifier());
+
+   return body;
 }
 
 static void p_entity_declarative_item(tree_t entity)
