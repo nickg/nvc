@@ -874,53 +874,6 @@ type_t type_base_recur(type_t t)
    return t;
 }
 
-void type_visit_trees(type_t t, object_visit_ctx_t *ctx)
-{
-   if (t == NULL)
-      return;
-
-   if (t->object.generation == ctx->generation)
-      return;
-   else
-      t->object.generation = ctx->generation;
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = type_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int n = 0; n < nitems; mask <<= 1) {
-      if (has & mask) {
-         if (ITEM_TYPE_ARRAY & mask) {
-            type_array_t *a = &(t->object.items[n].type_array);
-            for (unsigned i = 0; i < a->count; i++)
-               type_visit_trees(a->items[i], ctx);
-         }
-         else if (ITEM_TYPE & mask)
-            type_visit_trees(t->object.items[n].type, ctx);
-         else if (ITEM_TREE & mask)
-            tree_visit_aux(t->object.items[n].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            tree_array_t *a = &(t->object.items[n].tree_array);
-            for (unsigned i = 0; i < a->count; i++)
-               tree_visit_aux(a->items[i], ctx);
-         }
-         else if (ITEM_RANGE_ARRAY & mask) {
-            range_array_t *a = &(t->object.items[n].range_array);
-            for (unsigned i = 0; i < a->count; i++) {
-               tree_visit_aux(a->items[i].left, ctx);
-               tree_visit_aux(a->items[i].right, ctx);
-            }
-         }
-         else if (ITEM_TEXT_BUF & mask)
-            ;
-         else if (ITEM_IDENT & mask)
-            ;
-         else
-            item_without_type(mask);
-         n++;
-      }
-   }
-}
-
 void type_rewrite_trees(type_t t, object_rewrite_ctx_t *ctx)
 {
    if (t == NULL)

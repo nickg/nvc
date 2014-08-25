@@ -962,73 +962,6 @@ uint32_t tree_index(tree_t t)
    return object_index(&(t->object));
 }
 
-void tree_visit_aux(tree_t t, object_visit_ctx_t *ctx)
-{
-   // If `deep' then will follow links above the tree originally passed
-   // to tree_visit - e.g. following references back to their declarations
-   // Outside the garbage collector this is usually not what is required
-
-   if (t == NULL || t->object.generation == ctx->generation)
-      return;
-
-   t->object.generation = ctx->generation;
-
-   const imask_t deep_mask = I_TYPE | I_REF | I_ATTRS;
-
-   const imask_t has = has_map[t->object.kind];
-   const int nitems = tree_object.object_nitems[t->object.kind];
-   imask_t mask = 1;
-   for (int i = 0; i < nitems; mask <<= 1) {
-      if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
-         if (ITEM_IDENT & mask)
-            ;
-         else if (ITEM_TREE & mask)
-            tree_visit_aux(t->object.items[i].tree, ctx);
-         else if (ITEM_TREE_ARRAY & mask) {
-            for (unsigned j = 0; j < t->object.items[i].tree_array.count; j++)
-               tree_visit_aux(t->object.items[i].tree_array.items[j], ctx);
-         }
-         else if (ITEM_TYPE & mask)
-            type_visit_trees(t->object.items[i].type, ctx);
-         else if (ITEM_INT64 & mask)
-            ;
-         else if (ITEM_DOUBLE & mask)
-            ;
-         else if (ITEM_RANGE & mask) {
-            if (t->object.items[i].range != NULL) {
-               tree_visit_aux(t->object.items[i].range->left, ctx);
-               tree_visit_aux(t->object.items[i].range->right, ctx);
-            }
-         }
-         else if (ITEM_NETID_ARRAY & mask)
-            ;
-         else if (ITEM_ATTRS & mask) {
-            for (unsigned j = 0; j < t->object.items[i].attrs.num; j++) {
-               switch (t->object.items[i].attrs.table[j].kind) {
-               case A_TREE:
-                  tree_visit_aux(t->object.items[i].attrs.table[j].tval, ctx);
-                  break;
-
-               default:
-                  break;
-               }
-            }
-         }
-         else
-            item_without_type(mask);
-      }
-
-      if (has & mask)
-         i++;
-   }
-
-   if ((t->object.kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
-      if (ctx->fn)
-         (*ctx->fn)(t, ctx->context);
-      ctx->count++;
-   }
-}
-
 unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 {
    assert(t != NULL);
@@ -1038,11 +971,12 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
       .fn         = fn,
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
+      .tag        = OBJECT_TAG_TREE,
       .generation = next_generation++,
       .deep       = false
    };
 
-   tree_visit_aux(t, &ctx);
+   object_visit(&(t->object), &ctx);
 
    return ctx.count;
 }
@@ -1061,7 +995,7 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
       .deep       = false
    };
 
-   tree_visit_aux(t, &ctx);
+   object_visit(&(t->object), &ctx);
 
    return ctx.count;
 }

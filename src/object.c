@@ -275,7 +275,7 @@ void object_gc(void)
             .deep       = true
          };
 
-         tree_visit_aux((tree_t)all_objects[i], &ctx);
+         object_visit(all_objects[i], &ctx);
       }
    }
 
@@ -299,4 +299,89 @@ void object_gc(void)
       notef("GC: freed %zu objects; %zu allocated", n_objects_alloc - p, p);
 
    n_objects_alloc = p;
+}
+
+void object_visit(object_t *object, object_visit_ctx_t *ctx)
+{
+   // If `deep' then will follow links above the tree originally passed
+   // to tree_visit - e.g. following references back to their declarations
+   // Outside the garbage collector this is usually not what is required
+
+   if ((object == NULL) || (object->generation == ctx->generation))
+      return;
+
+   object->generation = ctx->generation;
+
+   const imask_t deep_mask = I_TYPE | I_REF | I_ATTRS;
+
+   const object_class_t *class = classes[object->tag];
+
+   const imask_t has = class->has_map[object->kind];
+   const int nitems = class->object_nitems[object->kind];
+   imask_t mask = 1;
+   for (int i = 0; i < nitems; mask <<= 1) {
+      if (has & mask & ~(ctx->deep ? 0 : deep_mask)) {
+         if (ITEM_IDENT & mask)
+            ;
+         else if (ITEM_TREE & mask)
+            object_visit((object_t *)object->items[i].tree, ctx);
+         else if (ITEM_TREE_ARRAY & mask) {
+            for (unsigned j = 0; j < object->items[i].tree_array.count; j++)
+               object_visit((object_t *)object->items[i].tree_array.items[j], ctx);
+         }
+         else if (ITEM_TYPE_ARRAY & mask) {
+            type_array_t *a = &(object->items[i].type_array);
+            for (unsigned j = 0; j < a->count; j++)
+               object_visit((object_t *)a->items[j], ctx);
+         }
+         else if (ITEM_TYPE & mask)
+            object_visit((object_t *)object->items[i].type, ctx);
+         else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_DOUBLE & mask)
+            ;
+         else if (ITEM_RANGE & mask) {
+            if (object->items[i].range != NULL) {
+               object_visit((object_t *)object->items[i].range->left, ctx);
+               object_visit((object_t *)object->items[i].range->right, ctx);
+            }
+         }
+         else if (ITEM_RANGE_ARRAY & mask) {
+            range_array_t *a = &(object->items[i].range_array);
+            for (unsigned j = 0; j < a->count; j++) {
+               object_visit((object_t *)a->items[j].left, ctx);
+               object_visit((object_t *)a->items[j].right, ctx);
+            }
+         }
+         else if (ITEM_NETID_ARRAY & mask)
+            ;
+         else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_ATTRS & mask) {
+            for (unsigned j = 0; j < object->items[i].attrs.num; j++) {
+               switch (object->items[i].attrs.table[j].kind) {
+               case A_TREE:
+                  object_visit((object_t *)object->items[i].attrs.table[j].tval, ctx);
+                  break;
+
+               default:
+                  break;
+               }
+            }
+         }
+         else
+            item_without_type(mask);
+      }
+
+      if (has & mask)
+         i++;
+   }
+
+   if (object->tag == ctx->tag) {
+      if ((object->kind == ctx->kind) || (ctx->kind == T_LAST_TREE_KIND)) {
+         if (ctx->fn)
+            (*ctx->fn)((tree_t)object, ctx->context);
+         ctx->count++;
+      }
+   }
 }
