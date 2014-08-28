@@ -687,7 +687,10 @@ static bool elab_should_copy(tree_t t)
    case T_IF_GENERATE:
    case T_CONCAT:
    case T_LIBRARY:
-      return false;
+   case T_TYPE_CONV:
+   case T_ALL:
+   case T_OPEN:
+       return false;
    case T_VAR_DECL:
       if (tree_attr_int(t, shared_i, 0))
          return true;
