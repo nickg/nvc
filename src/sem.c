@@ -375,22 +375,22 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       if ((kind == T_ATTR_SPEC) || (kind == T_USE))
          continue;
 
-      const char *tmp = istr(tree_ident(decl));
+      ident_t dname = tree_ident(decl);
 
       // Make unqualified and package qualified names visible
       if (!unqual_only) {
          if (!sem_declare(decl, true))
             return false;
 
-         const char *pqual = strchr(tmp, '.');
+         ident_t pqual = ident_from(dname, '.');
          if (pqual != NULL)
-            scope_insert_alias(decl, ident_new(pqual + 1));
+            scope_insert_alias(decl, pqual);
       }
 
       if (all) {
-         const char *unqual = strrchr(tmp, '.');
+         ident_t unqual = ident_rfrom(dname, '.');
          if (unqual != NULL)
-            scope_insert_alias(decl, ident_new(unqual + 1));
+            scope_insert_alias(decl, unqual);
       }
    }
 

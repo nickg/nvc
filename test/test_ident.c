@@ -185,6 +185,14 @@ START_TEST(test_rfrom)
 }
 END_TEST
 
+START_TEST(test_from)
+{
+   ident_t i;
+   i = ident_new("foo.bar.yah");
+   fail_unless(ident_from(i, '.') == ident_new("bar.yah"));
+}
+END_TEST
+
 START_TEST(test_icmp)
 {
    ident_t i, j;
@@ -252,6 +260,7 @@ int main(void)
    tcase_add_test(tc_core, test_icmp);
    tcase_add_test(tc_core, test_glob);
    tcase_add_test(tc_core, test_rfrom);
+   tcase_add_test(tc_core, test_from);
    tcase_add_test(tc_core, test_interned);
    suite_add_tcase(s, tc_core);
 

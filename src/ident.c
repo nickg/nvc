@@ -194,10 +194,8 @@ const char *istr(ident_t ident)
    *p = '\0';
 
    trie_t *it;
-   for (it = ident; it->value != '\0'; it = it->up) {
-      assert(it != NULL);
+   for (it = ident; it->value != '\0'; it = it->up)
       *(--p) = it->value;
-   }
 
    return p;
 }
@@ -392,6 +390,25 @@ ident_t ident_runtil(ident_t i, char c)
    return i;
 }
 
+ident_t ident_from(ident_t i, char c)
+{
+   assert(i != NULL);
+
+   char buf[i->depth + 1];
+   char *p = buf + i->depth;
+   *p-- = '\0';
+
+   char *from = NULL;
+   while (i->value != '\0') {
+      if (i->value == c)
+         from = p + 1;
+      *p-- = i->value;
+      i = i->up;
+   }
+
+   return (from == NULL) ? NULL : ident_new(from);
+}
+
 ident_t ident_rfrom(ident_t i, char c)
 {
    assert(i != NULL);
@@ -407,7 +424,7 @@ ident_t ident_rfrom(ident_t i, char c)
       i = i->up;
    }
 
-   return (i->value == '\0') ? NULL : i;
+   return NULL;
 }
 
 bool icmp(ident_t i, const char *s)

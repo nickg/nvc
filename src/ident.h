@@ -54,6 +54,9 @@ ident_t ident_runtil(ident_t i, char c);
 // Return the suffix of i from the final c
 ident_t ident_rfrom(ident_t i, char c);
 
+// Return the suffix of i from the first c
+ident_t ident_from(ident_t i, char c);
+
 // Compare identifier against a NULL-terminated string
 bool icmp(ident_t i, const char *s);
 
