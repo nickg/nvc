@@ -1478,10 +1478,15 @@ static LLVMValueRef cgen_fdecl(tree_t t, tree_t parent)
       else
          llrtype = llvm_type(rtype);
 
-      return LLVMAddFunction(
+      fn = LLVMAddFunction(
          module,
          tb_get(mangled),
          LLVMFunctionType(llrtype, atypes, nargs, false));
+
+      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+      LLVMAddFunctionAttr(fn, LLVMReadOnlyAttribute);
+
+      return fn;
    }
 }
 
@@ -1497,13 +1502,17 @@ static LLVMValueRef cgen_pdecl(tree_t t)
       LLVMTypeRef atypes[nports + 1];
       cgen_prototype(t, atypes, &nargs, true, NULL);
 
-      return LLVMAddFunction(
+      fn = LLVMAddFunction(
          module,
          tb_get(mangled),
          LLVMFunctionType(llvm_void_ptr(),
                           atypes,
                           nargs,
                           false));
+
+      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+
+      return fn;
    }
 }
 
@@ -6444,11 +6453,12 @@ static void optimise(void)
 
 static LLVMValueRef cgen_support_fn(const char *name)
 {
+   LLVMValueRef fn = NULL;
    if (strcmp(name, "_sched_process") == 0) {
       LLVMTypeRef args[] = { LLVMInt64Type() };
-      return LLVMAddFunction(module, "_sched_process",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_sched_process",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_sched_waveform") == 0) {
       LLVMTypeRef args[] = {
@@ -6458,9 +6468,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt64Type(),
          LLVMInt64Type()
       };
-      return LLVMAddFunction(module, "_sched_waveform",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_sched_waveform",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_sched_event") == 0) {
       LLVMTypeRef args[] = {
@@ -6468,9 +6478,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_sched_event",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_sched_event",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_set_initial") == 0) {
       LLVMTypeRef args[] = {
@@ -6482,26 +6492,26 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
-      return LLVMAddFunction(module, "_set_initial",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_set_initial",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_needs_last_value") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(LLVMInt32Type(), 0),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_needs_last_value",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_needs_last_value",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_resolved_address") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_resolved_address",
-                             LLVMFunctionType(llvm_void_ptr(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_resolved_address",
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_alloc_driver") == 0) {
       LLVMTypeRef args[] = {
@@ -6511,9 +6521,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          llvm_void_ptr()
       };
-      return LLVMAddFunction(module, "_alloc_driver",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_alloc_driver",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_assert_fail") == 0) {
       LLVMTypeRef args[] = {
@@ -6523,9 +6533,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
-      return LLVMAddFunction(module, "_assert_fail",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_assert_fail",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_vec_load") == 0) {
       LLVMTypeRef args[] = {
@@ -6535,9 +6545,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      return LLVMAddFunction(module, "_vec_load",
-                             LLVMFunctionType(llvm_void_ptr(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_vec_load",
+                           LLVMFunctionType(llvm_void_ptr(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_image") == 0) {
       LLVMTypeRef args[] = {
@@ -6546,35 +6556,35 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMPointerType(LLVMInt8Type(), 0),
          LLVMPointerType(llvm_uarray_type(LLVMInt8Type(), 1), 0)
       };
-      return LLVMAddFunction(module, "_image",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_image",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_debug_out",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_debug_out",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_debug_dump") == 0) {
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_debug_dump",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_debug_dump",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.pow.f64") == 0) {
       LLVMTypeRef args[] = {
          LLVMDoubleType(),
          LLVMDoubleType()
       };
-      return LLVMAddFunction(module, "llvm.pow.f64",
-                             LLVMFunctionType(LLVMDoubleType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "llvm.pow.f64",
+                           LLVMFunctionType(LLVMDoubleType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.memset.p0i8.i32") == 0) {
       LLVMTypeRef args[] = {
@@ -6584,18 +6594,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      return LLVMAddFunction(module, "llvm.memset.p0i8.i32",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "llvm.memset.p0i8.i32",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "llvm.expect.i1") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt1Type(),
          LLVMInt1Type()
       };
-      return LLVMAddFunction(module, "llvm.expect.i1",
-                             LLVMFunctionType(LLVMInt1Type(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "llvm.expect.i1",
+                           LLVMFunctionType(LLVMInt1Type(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strncmp(name, "llvm.memcpy", 11) == 0) {
       int width;
@@ -6609,9 +6619,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt1Type()
       };
-      return LLVMAddFunction(module, cgen_memcpy_name(width),
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, cgen_memcpy_name(width),
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_open") == 0) {
       LLVMTypeRef args[] = {
@@ -6621,9 +6631,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt8Type()
       };
-      return LLVMAddFunction(module, "_file_open",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_file_open",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_write") == 0) {
       LLVMTypeRef args[] = {
@@ -6631,9 +6641,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          llvm_void_ptr(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_file_write",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_file_write",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_read") == 0) {
       LLVMTypeRef args[] = {
@@ -6642,25 +6652,25 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt32Type(), 0)
       };
-      return LLVMAddFunction(module, "_file_read",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_file_read",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_file_close") == 0) {
       LLVMTypeRef args[] = {
          LLVMPointerType(llvm_void_ptr(), 0)
       };
-      return LLVMAddFunction(module, "_file_close",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_file_close",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_endfile") == 0) {
       LLVMTypeRef args[] = {
          llvm_void_ptr()
       };
-      return LLVMAddFunction(module, "_endfile",
-                             LLVMFunctionType(LLVMInt1Type(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_endfile",
+                           LLVMFunctionType(LLVMInt1Type(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_bounds_fail") == 0) {
       LLVMTypeRef args[] = {
@@ -6672,27 +6682,30 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_bounds_fail",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_bounds_fail",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
    }
    else if (strcmp(name, "_div_zero") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
-      return LLVMAddFunction(module, "_div_zero",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_div_zero",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
    }
    else if (strcmp(name, "_null_deref") == 0) {
       LLVMTypeRef args[] = {
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
-      return LLVMAddFunction(module, "_null_deref",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_null_deref",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
+      LLVMAddFunctionAttr(fn, LLVMNoReturnAttribute);
    }
    else if (strcmp(name, "_bit_shift") == 0) {
       LLVMTypeRef args[] = {
@@ -6703,9 +6716,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
       };
-      return LLVMAddFunction(module, "_bit_shift",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_bit_shift",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_bit_vec_op") == 0) {
       LLVMTypeRef args[] = {
@@ -6718,9 +6731,9 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt8Type(),
          LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
       };
-      return LLVMAddFunction(module, "_bit_vec_op",
-                             LLVMFunctionType(LLVMVoidType(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_bit_vec_op",
+                           LLVMFunctionType(LLVMVoidType(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_test_net_flag") == 0) {
       LLVMTypeRef args[] = {
@@ -6728,18 +6741,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_test_net_flag",
-                             LLVMFunctionType(LLVMInt1Type(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_test_net_flag",
+                           LLVMFunctionType(LLVMInt1Type(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_last_event") == 0) {
       LLVMTypeRef args[] = {
          llvm_void_ptr(),
          LLVMInt32Type()
       };
-      return LLVMAddFunction(module, "_last_event",
-                             LLVMFunctionType(LLVMInt64Type(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_last_event",
+                           LLVMFunctionType(LLVMInt64Type(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_value_attr") == 0) {
       LLVMTypeRef args[] = {
@@ -6748,15 +6761,18 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt8Type(), 0)
       };
-      return LLVMAddFunction(module, "_value_attr",
-                             LLVMFunctionType(LLVMInt64Type(),
-                                              args, ARRAY_LEN(args), false));
+      fn = LLVMAddFunction(module, "_value_attr",
+                           LLVMFunctionType(LLVMInt64Type(),
+                                            args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_std_standard_now") == 0)
-      return LLVMAddFunction(module, "_std_standard_now",
-                             LLVMFunctionType(LLVMInt64Type(), NULL, 0, false));
-   else
-      return NULL;
+      fn = LLVMAddFunction(module, "_std_standard_now",
+                           LLVMFunctionType(LLVMInt64Type(), NULL, 0, false));
+
+   if (fn != NULL)
+      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+
+   return fn;
 }
 
 static void cgen_module_name(tree_t top)
