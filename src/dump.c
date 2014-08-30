@@ -741,11 +741,21 @@ static void dump_context(tree_t t)
    const int nctx = tree_contexts(t);
    for (int i = 0; i < nctx; i++) {
       tree_t c = tree_context(t, i);
-      printf("use %s", istr(tree_ident(c)));
-      if (tree_has_ident2(c)) {
-         printf(".%s", istr(tree_ident2(c)));
+      switch (tree_kind(c)) {
+      case T_LIBRARY:
+         printf("library %s;\n", istr(tree_ident(c)));
+         break;
+
+      case T_USE:
+         printf("use %s", istr(tree_ident(c)));
+         if (tree_has_ident2(c)) {
+            printf(".%s", istr(tree_ident2(c)));
+         }
+         printf(";\n");
+
+      default:
+         break;
       }
-      printf(";\n");
    }
 
    if (nctx > 0)
