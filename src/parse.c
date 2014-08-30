@@ -3196,6 +3196,7 @@ static tree_t p_protected_type_body(void)
    if (peek() == tID)
       tree_set_ident(body, p_identifier());
 
+   tree_set_loc(body, CURRENT_LOC);
    return body;
 }
 

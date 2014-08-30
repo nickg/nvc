@@ -105,6 +105,10 @@ unsigned type_decls(type_t t);
 tree_t type_decl(type_t t, unsigned n);
 void type_add_decl(type_t t, tree_t e);
 
+tree_t type_body(type_t t);
+void type_set_body(type_t t, tree_t b);
+bool type_has_body(type_t t);
+
 void type_replace(type_t t, type_t a);
 
 void type_set_resolution(type_t t, tree_t r);

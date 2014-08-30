@@ -110,6 +110,7 @@ static ident_t       formal_i;
 static ident_t       locally_static_i;
 static ident_t       elab_copy_i;
 static ident_t       all_i;
+static ident_t       shared_i;
 static bool          prefer_explicit = false;
 
 #define sem_error(t, ...) do {                        \
@@ -1102,6 +1103,10 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
          case T_RECORD:
             break;
 
+         case T_PROTECTED:
+            sem_error(t, "subtypes may not have protected base types");
+            break;
+
          default:
             sem_error(t, "sorry, this form of subtype is not supported");
          }
@@ -1779,6 +1784,20 @@ static bool sem_check_type_decl(tree_t t)
          return true;
       }
 
+   case T_PROTECTED:
+      // Rules for protected types are in LRM 02 section 3.5
+      {
+         scope_push(tree_ident(t));
+
+         bool ok = true;
+         const int ndecls = type_decls(type);
+         for (int i = 0; i < ndecls; i++)
+            ok = sem_check(type_decl(type, i)) && ok;
+
+         scope_pop();
+         return ok;
+      }
+
    default:
       sem_declare_predefined_ops(t);
       return true;
@@ -1917,9 +1936,17 @@ static bool sem_check_decl(tree_t t)
    if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
 
-   if (!tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL))
+   const bool needs_default_value =
+      !tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL)
+      && (type_kind(type) != T_PROTECTED);
+
+   if (needs_default_value)
       tree_set_value(t, make_default_value(type));
    else if (tree_has_value(t)) {
+      if (type_kind(type) == T_PROTECTED)
+         sem_error(t, "variable %s with protected type may not have an "
+                   "initial value", istr(tree_ident(t)));
+
       tree_t value = tree_value(t);
       if (!sem_check_constrained(value, type))
          return false;
@@ -1960,6 +1987,13 @@ static bool sem_check_decl(tree_t t)
 
    sem_add_attributes(t, is_signal);
    scope_apply_prefix(t);
+
+   // From VHDL-2000 onwards shared variables must be protected types
+   if ((standard() >= STD_00) && tree_attr_int(t, shared_i, 0)) {
+      if (type_kind(type) != T_PROTECTED)
+         sem_error(t, "shared variable %s must have protected type",
+                   istr(tree_ident(t)));
+   }
 
    // Check if we are giving a value to a deferred constant
    tree_t deferred;
@@ -6057,6 +6091,49 @@ static bool sem_check_configuration(tree_t t)
    return ok;
 }
 
+static bool sem_check_prot_body(tree_t t)
+{
+   // Rules for protected type bodies are in LRM 00 section 3.5.2
+
+   ident_t name = tree_ident(t);
+
+   tree_t tdecl = scope_find(name);
+   if (tdecl == NULL)
+      sem_error(t, "no protected type declaration for %s found", istr(name));
+   else if (tree_kind(tdecl) != T_TYPE_DECL)
+      sem_error(t, "object %s is not a protected type declaration", istr(name));
+
+   type_t type = tree_type(tdecl);
+   if (type_kind(type) != T_PROTECTED)
+      sem_error(t, "object %s is not a protected type declaration", istr(name));
+
+   if (type_has_body(type))
+      sem_error(t, "protected type %s already has body", istr(name));
+
+   type_set_body(type, t);
+
+   scope_push(NULL);
+
+   const int ntdecls = type_decls(type);
+   for (int i = 0; i < ntdecls; i++) {
+      tree_t d = type_decl(type, i);
+
+      (void)sem_declare(d, true);
+
+      ident_t unqual = ident_rfrom(tree_ident(d), '.');
+      if (unqual != NULL)
+         scope_insert_alias(d, unqual);
+   }
+
+   bool ok = true;
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++)
+      ok = sem_check(tree_decl(t, i)) && ok;
+
+   scope_pop();
+   return ok;
+}
+
 static void sem_intern_strings(void)
 {
    // Intern some commonly used strings
@@ -6067,6 +6144,7 @@ static void sem_intern_strings(void)
    locally_static_i = ident_new("locally_static");
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
+   shared_i         = ident_new("shared");
 
    prefer_explicit  = opt_get_int("prefer-explicit");
 }
@@ -6198,6 +6276,8 @@ bool sem_check(tree_t t)
       return sem_check_library_clause(t);
    case T_CONFIG:
       return sem_check_configuration(t);
+   case T_PROT_BODY:
+      return sem_check_prot_body(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }
