@@ -1,4 +1,5 @@
 entity static is
+    generic ( G : integer := 1 );
 end entity;
 
 architecture test of static is
@@ -20,6 +21,25 @@ begin
             when byte'right =>          -- OK
                 null;
             when bv'hello =>            -- OK
+                null;
+            when others =>
+                null;
+        end case;
+    end process;
+
+    process is
+        variable v : bit_vector(3 downto 0);
+        constant c : bit_vector := "1010";
+        constant d : bit_vector(G downto 0) := (others => '0');
+    begin
+        case v is
+            when c =>                   -- Error
+                null;
+            when others =>
+                null;
+        end case;
+        case v is
+            when d =>                   -- Error
                 null;
             when others =>
                 null;

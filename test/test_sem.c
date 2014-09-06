@@ -1341,6 +1341,13 @@ START_TEST(test_static)
 
    input_from_file(TESTDIR "/sem/static.vhd");
 
+   const error_t expect[] = {
+      { 36, "case choice must be locally static" },
+      { 42, "case choice must be locally static" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
@@ -1349,6 +1356,7 @@ START_TEST(test_static)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
 
    e = parse();
    fail_if(e == NULL);
@@ -1362,12 +1370,6 @@ START_TEST(test_static)
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   sem_check(a);
    fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST

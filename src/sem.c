@@ -111,6 +111,7 @@ static ident_t       locally_static_i;
 static ident_t       elab_copy_i;
 static ident_t       all_i;
 static ident_t       shared_i;
+static ident_t       unconstrained_i;
 static bool          prefer_explicit = false;
 
 #define sem_error(t, ...) do {                        \
@@ -4322,7 +4323,7 @@ static bool sem_check_aggregate(tree_t t)
       tree_set_type(t, composite_type);
 
    if (unconstrained)
-      tree_add_attr_int(t, ident_new("unconstrained"), 1);
+      tree_add_attr_int(t, unconstrained_i, 1);
 
    return true;
 }
@@ -5208,6 +5209,9 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
+      if (tree_attr_int(t, unconstrained_i, 0))
+         return false;
+
       if (type_is_array(type)) {
          range_t r = type_dim(type, 0);
          if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
@@ -6145,6 +6149,7 @@ static void sem_intern_strings(void)
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
    shared_i         = ident_new("shared");
+   unconstrained_i  = ident_new("unconstrained");
 
    prefer_explicit  = opt_get_int("prefer-explicit");
 }
