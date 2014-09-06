@@ -25,6 +25,8 @@ begin
         report real'image(-5.262e2);
         report real'image(1.23456);
         report real'image(2.0 ** (-1));
+        report real'image(real'low);
+        report real'image(real'high);
         wait;
     end process;
 

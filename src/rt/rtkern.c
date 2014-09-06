@@ -801,7 +801,7 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
             double  d;
             int64_t i;
          } u = { .i = val };
-         len = snprintf(buf, max, "%lf", u.d);
+         len = snprintf(buf, max, "%g", u.d);
       }
       break;
 
