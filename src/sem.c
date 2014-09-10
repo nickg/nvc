@@ -1916,6 +1916,24 @@ static void sem_declare_fields(type_t type, ident_t prefix, bool is_signal)
    }
 }
 
+static void sem_declare_methods(type_t type, ident_t prefix)
+{
+   const int ndecls = type_decls(type);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = type_decl(type, i);
+      if (tree_kind(decl) == T_USE)
+         continue;
+
+      ident_t suffix = ident_rfrom(tree_ident(decl), '.');
+      ident_t qual = ident_prefix(prefix, suffix, '.');
+      scope_insert_alias(decl, qual);
+
+      type_t decl_type = tree_type(decl);
+      if (type_is_record(decl_type))
+         sem_declare_fields(decl_type, qual, false);
+   }
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1972,9 +1990,10 @@ static bool sem_check_decl(tree_t t)
       ((kind == T_PORT_DECL) && (tree_class(t) == C_SIGNAL))
       || (kind == T_SIGNAL_DECL);
 
-   if (type_is_record(type)) {
+   if (type_is_record(type))
       sem_declare_fields(type, tree_ident(t), is_signal);
-   }
+   else if (type_is_protected(type))
+      sem_declare_methods(type, tree_ident(t));
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
       if (type_is_record(deref_type)) {

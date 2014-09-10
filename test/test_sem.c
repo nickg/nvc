@@ -1671,6 +1671,8 @@ START_TEST(test_protected)
       { 47, "subtypes may not have protected base types" },
       { 49, "shared variable X must have protected type" },
       { 53, "variable Y with protected type may not have an initial value" },
+      { 94, "no visible declaration for X.COUNTER" },
+      { 95, "no matching procedure X.DECREMENT" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1679,6 +1681,11 @@ START_TEST(test_protected)
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
 
    a = parse();
    fail_if(a == NULL);

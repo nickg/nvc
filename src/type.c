@@ -623,6 +623,15 @@ bool type_is_record(type_t t)
       return (t->object.kind == T_RECORD);
 }
 
+bool type_is_protected(type_t t)
+{
+   assert(t != NULL);
+   if (t->object.kind == T_SUBTYPE)
+      return type_is_protected(type_base(t));
+   else
+      return (t->object.kind == T_PROTECTED);
+}
+
 bool type_is_unconstrained(type_t t)
 {
    assert(t != NULL);
