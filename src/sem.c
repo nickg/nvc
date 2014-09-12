@@ -99,6 +99,7 @@ static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
 static unsigned sem_array_dimension(type_t a);
+static void sem_add_attributes(tree_t decl, bool is_signal);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -1732,6 +1733,8 @@ static bool sem_check_type_decl(tree_t t)
             if (!sem_check(f))
                return false;
 
+            sem_add_attributes(f, true);
+
             // Each field name must be distinct
             ident_t f_name = tree_ident(f);
             for (int j = 0; j < i; j++) {
@@ -1899,7 +1902,7 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    }
 }
 
-static void sem_declare_fields(type_t type, ident_t prefix, bool is_signal)
+static void sem_declare_fields(type_t type, ident_t prefix)
 {
    // Insert a name into the scope for each field
    const int nfields = type_fields(type);
@@ -1908,11 +1911,9 @@ static void sem_declare_fields(type_t type, ident_t prefix, bool is_signal)
       ident_t qual = ident_prefix(prefix, tree_ident(field), '.');
       scope_insert_alias(field, qual);
 
-      sem_add_attributes(field, is_signal);
-
       type_t field_type = tree_type(field);
       if (type_is_record(field_type))
-         sem_declare_fields(field_type, qual, is_signal);
+         sem_declare_fields(field_type, qual);
    }
 }
 
@@ -1930,7 +1931,7 @@ static void sem_declare_methods(type_t type, ident_t prefix)
 
       type_t decl_type = tree_type(decl);
       if (type_is_record(decl_type))
-         sem_declare_fields(decl_type, qual, false);
+         sem_declare_fields(decl_type, qual);
    }
 }
 
@@ -1991,14 +1992,14 @@ static bool sem_check_decl(tree_t t)
       || (kind == T_SIGNAL_DECL);
 
    if (type_is_record(type))
-      sem_declare_fields(type, tree_ident(t), is_signal);
+      sem_declare_fields(type, tree_ident(t));
    else if (type_is_protected(type))
       sem_declare_methods(type, tree_ident(t));
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
       if (type_is_record(deref_type)) {
          // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, tree_ident(t), is_signal);
+         sem_declare_fields(deref_type, tree_ident(t));
       }
 
       if (kind == T_SIGNAL_DECL)
@@ -2056,12 +2057,12 @@ static bool sem_check_port_decl(tree_t t)
    }
 
    if (type_is_record(type))
-      sem_declare_fields(type, tree_ident(t), true);
+      sem_declare_fields(type, tree_ident(t));
    else if (type_kind(type) == T_ACCESS) {
       type_t deref_type = type_access(type);
       if (type_is_record(deref_type)) {
          // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, tree_ident(t), true);
+         sem_declare_fields(deref_type, tree_ident(t));
       }
    }
 
@@ -2716,7 +2717,7 @@ static bool sem_check_arch(tree_t t)
 
       type_t type = tree_type(p);
       if (type_is_record(type))
-         sem_declare_fields(type, tree_ident(p), true);
+         sem_declare_fields(type, tree_ident(p));
    }
 
    const int ngenerics = tree_generics(e);
