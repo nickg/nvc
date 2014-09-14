@@ -6135,6 +6135,7 @@ static bool sem_check_prot_body(tree_t t)
       sem_error(t, "protected type %s already has body", istr(name));
 
    type_set_body(type, t);
+   tree_set_type(t, type);
 
    scope_push(NULL);
 

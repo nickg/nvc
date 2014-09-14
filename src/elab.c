@@ -898,6 +898,31 @@ static void elab_signal_nets(tree_t decl, const elab_ctx_t *ctx)
    }
 }
 
+static void elab_prot_body_decls(tree_t body)
+{
+   type_t type = tree_type(body);
+
+   const int ntdecls = type_decls(type);
+   for (int i = 0; i < ntdecls; i++) {
+      tree_t d = type_decl(type, i);
+
+      ident_t base = ident_rfrom(tree_ident(d), '.');
+      tree_set_ident(d, ident_prefix(tree_ident(body), base, '.'));
+   }
+
+   const int ndecls = tree_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(body, i);
+
+      const tree_kind_t kind = tree_kind(d);
+      if ((kind != T_FUNC_DECL) && (kind != T_FUNC_BODY)
+          && (kind != T_PROC_DECL) && (kind != T_PROC_BODY))
+         continue;
+
+      tree_set_ident(d, ident_prefix(tree_ident(body), tree_ident(d), '.'));
+   }
+}
+
 static void elab_decls(tree_t t, const elab_ctx_t *ctx)
 {
    tree_add_attr_str(t, inst_name_i,
@@ -925,6 +950,11 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          tree_set_ident(d, npath);
          tree_add_decl(ctx->out, d);
          tree_add_attr_str(d, inst_name_i, ninst);
+         break;
+      case T_PROT_BODY:
+         tree_set_ident(d, npath);
+         elab_prot_body_decls(d);
+         tree_add_decl(ctx->out, d);
          break;
       case T_FUNC_DECL:
       case T_PROC_DECL:
