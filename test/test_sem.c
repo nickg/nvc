@@ -1672,7 +1672,7 @@ START_TEST(test_protected)
       { 49, "shared variable X must have protected type" },
       { 53, "variable Y with protected type may not have an initial value" },
       { 94, "no visible declaration for X.COUNTER" },
-      { 95, "no matching procedure X.DECREMENT" },
+      { 95, "no suitable overload for procedure X.DECREMENT" },
       { -1, NULL }
    };
    expect_errors(expect);

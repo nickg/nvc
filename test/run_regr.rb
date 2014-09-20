@@ -56,6 +56,8 @@ end
 def std(t)
   if t[:flags].member? '2008' then
     '--std=2008'
+  elsif t[:flags].member? '2000' then
+    '--std=2000'
   else
     ''
   end

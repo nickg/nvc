@@ -113,6 +113,7 @@ static ident_t       elab_copy_i;
 static ident_t       all_i;
 static ident_t       shared_i;
 static ident_t       unconstrained_i;
+static ident_t       protected_i;
 static bool          prefer_explicit = false;
 
 #define sem_error(t, ...) do {                        \
@@ -530,7 +531,7 @@ static type_t sem_std_type(const char *name)
    return tree_type(decl);
 }
 
-static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
+static tree_t sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 {
    type_t ftype = tree_type(d);
 
@@ -544,6 +545,8 @@ static void sem_add_port(tree_t d, type_t type, port_mode_t mode, tree_t def)
 
    tree_add_port(d, port);
    type_add_param(ftype, type);
+
+   return port;
 }
 
 static tree_t sem_builtin_proc(ident_t name, const char *builtin, ...)
@@ -1795,8 +1798,16 @@ static bool sem_check_type_decl(tree_t t)
 
          bool ok = true;
          const int ndecls = type_decls(type);
-         for (int i = 0; i < ndecls; i++)
-            ok = sem_check(type_decl(type, i)) && ok;
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = type_decl(type, i);
+            ok = sem_check(d) && ok;
+
+            tree_kind_t kind = tree_kind(d);
+            if ((kind == T_FUNC_DECL) || (kind == T_PROC_DECL)) {
+               tree_t port = sem_add_port(d, type, PORT_INOUT, NULL);
+               tree_add_attr_int(port, protected_i, 1);
+            }
+         }
 
          scope_pop();
          return ok;
@@ -3227,7 +3238,8 @@ static int sem_required_args(tree_t decl)
    const int ndecls = tree_ports(decl);
    int n = 0;
    for (int i = 0; i < ndecls; i++) {
-      if (!tree_has_value(tree_port(decl, i)))
+      tree_t port = tree_port(decl, i);
+      if (!tree_has_value(port) && !tree_attr_int(port, protected_i, 0))
          n++;
    }
 
@@ -3281,6 +3293,18 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
       if (found == NULL) {
          if (tree_has_value(port))
             found = add_param(call, tree_value(port), P_NAMED, make_ref(port));
+         else if (tree_attr_int(port, protected_i, 0)) {
+            ident_t name = (tree_kind(call) == T_PCALL)
+               ? tree_ident2(call) : tree_ident(call);
+            ident_t prefix = ident_until(name, '.');
+
+            tree_t var = scope_find(prefix);
+            assert(var != NULL);
+            assert(tree_kind(var) == T_VAR_DECL);
+
+            add_param(call, make_ref(var), P_NAMED, make_ref(port));
+            continue;
+         }
          else
             sem_error(call, "missing actual for formal %s without "
                       "default value", istr(name));
@@ -6152,8 +6176,18 @@ static bool sem_check_prot_body(tree_t t)
 
    bool ok = true;
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+
+      ok = sem_check(d) && ok;
+
+      tree_kind_t kind = tree_kind(d);
+      if ((kind == T_FUNC_DECL) || (kind == T_FUNC_BODY)
+          || (kind == T_PROC_DECL) || (kind == T_PROC_BODY)) {
+         tree_t port = sem_add_port(d, type, PORT_INOUT, NULL);
+         tree_add_attr_int(port, protected_i, 1);
+      }
+   }
 
    scope_pop();
    return ok;
@@ -6171,6 +6205,7 @@ static void sem_intern_strings(void)
    all_i            = ident_new("all");
    shared_i         = ident_new("shared");
    unconstrained_i  = ident_new("unconstrained");
+   protected_i      = ident_new("protected");
 
    prefer_explicit  = opt_get_int("prefer-explicit");
 }

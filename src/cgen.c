@@ -354,15 +354,43 @@ static LLVMTypeRef llvm_type(type_t t)
          }
       }
 
+   case T_PROTECTED:
+      {
+         char *rec_name LOCAL = xasprintf("%s.%d", istr(type_ident(t)),
+                                          type_index(t));
+         LLVMTypeRef lltype = LLVMGetTypeByName(module, rec_name);
+         if (lltype != NULL)
+            return lltype;
+
+         lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), rec_name);
+         if (lltype == NULL)
+            fatal("failed to add protected type %s", rec_name);
+
+         tree_t body = type_body(t);
+
+         const int ndecls = tree_decls(body);
+         LLVMTypeRef llfields[ndecls];
+
+         int out = 0;
+         for (int i = 0; i < ndecls; i++) {
+            tree_t decl = tree_decl(body, i);
+            if (tree_kind(decl) != T_VAR_DECL)
+               continue;
+
+            llfields[out++] = llvm_type(tree_type(decl));
+         }
+
+         LLVMStructSetBody(lltype, llfields, out, true);
+         return lltype;
+      }
+
    case T_RECORD:
       {
-         char *rec_name = xasprintf("%s.%d", istr(type_ident(t)),
-                                    type_index(t));
+         char *rec_name LOCAL = xasprintf("%s.%d", istr(type_ident(t)),
+                                          type_index(t));
          LLVMTypeRef lltype = LLVMGetTypeByName(module, rec_name);
-         if (lltype != NULL) {
-            free(rec_name);
+         if (lltype != NULL)
             return lltype;
-         }
 
          lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), rec_name);
          if (lltype == NULL)
@@ -377,7 +405,6 @@ static LLVMTypeRef llvm_type(type_t t)
          }
 
          LLVMStructSetBody(lltype, llfields, nfields, true);
-         free(rec_name);
          return lltype;
       }
 
@@ -1447,7 +1474,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
 
    *nargs = nports;
 
-   if (parent != NULL)
+   if ((parent != NULL) &&(tree_kind(parent) != T_PROT_BODY))
       args[(*nargs)++] = cgen_nest_struct_type(parent);
 
    if (procedure) {
@@ -5783,6 +5810,26 @@ static void cgen_subprogram_locals(tree_t t, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_protected_subprogram(tree_t sub, tree_t body, LLVMValueRef fn)
+{
+   // Protected object argument is final parameter
+   const bool proc = (tree_kind(sub) == T_PROC_BODY);
+   const unsigned nargs = LLVMCountParams(fn);
+   LLVMValueRef obj = LLVMGetParam(fn, proc ? (nargs - 2) : (nargs - 1));
+
+   int vars = 0;
+   const int ndecls = tree_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(body, i);
+
+      if (tree_kind(d) != T_VAR_DECL)
+         continue;
+
+      LLVMValueRef gep = LLVMBuildStructGEP(builder, obj, vars++, "");
+      tree_add_attr_ptr(d, local_var_i, gep);
+   }
+}
+
 static void cgen_func_body(tree_t t, tree_t parent)
 {
    cgen_nested_subprograms(t);
@@ -5821,6 +5868,9 @@ static void cgen_func_body(tree_t t, tree_t parent)
          assert(false);
       }
    }
+
+   if ((parent != NULL) && (tree_kind(parent) == T_PROT_BODY))
+      cgen_protected_subprogram(t, parent, fn);
 
    cgen_subprogram_locals(t, &ctx);
 
@@ -5957,6 +6007,9 @@ static void cgen_proc_body(tree_t t, tree_t parent)
    }
    else
       cgen_subprogram_locals(t, &ctx);
+
+   if ((parent != NULL) && (tree_kind(parent) == T_PROT_BODY))
+      cgen_protected_subprogram(t, parent, fn);
 
    for (int i = 0; i < nstmts; i++)
       cgen_stmt(tree_stmt(t, i), &ctx);
@@ -6347,12 +6400,11 @@ static void cgen_file_decl(tree_t t)
 
 static void cgen_shared_var(tree_t t)
 {
-   type_t type  = tree_type(t);
-   tree_t value = tree_value(t);
+   type_t type = tree_type(t);
 
    LLVMValueRef var;
    if (type_is_array(type)) {
-      var = cgen_expr(value, NULL);
+      var = cgen_expr(tree_value(t), NULL);
       LLVMSetValueName(var, istr(tree_ident(t)));
       LLVMSetLinkage(var, LLVMExternalLinkage);
       LLVMSetGlobalConstant(var, false);
@@ -6360,11 +6412,37 @@ static void cgen_shared_var(tree_t t)
    else {
       var = LLVMAddGlobal(module, llvm_type(type), istr(tree_ident(t)));
 
-      LLVMValueRef init = cgen_expr(value, NULL);
+      LLVMValueRef init;
+      if (type_is_protected(type)) {
+         LLVMTypeRef lltype = llvm_type(type);
+         init = LLVMGetUndef(lltype);
+      }
+      else
+         init = cgen_expr(tree_value(t), NULL);
+
       LLVMSetInitializer(var, init);
    }
 
    tree_add_attr_ptr(t, local_var_i, var);
+}
+
+static void cgen_prot_body(tree_t t)
+{
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+
+      switch (tree_kind(d)) {
+      case T_FUNC_BODY:
+         cgen_func_body(d, t);
+         break;
+      case T_PROC_BODY:
+         cgen_proc_body(d, t);
+         break;
+      default:
+         break;
+      }
+   }
 }
 
 static void cgen_coverage_state(tree_t t)
@@ -6421,6 +6499,9 @@ static void cgen_top(tree_t t)
       case T_HIER:
       case T_COMPONENT:
       case T_USE:
+         break;
+      case T_PROT_BODY:
+         cgen_prot_body(decl);
          break;
       default:
          fatal("cannot generate code for top level declaration %s",
