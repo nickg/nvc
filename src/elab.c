@@ -919,7 +919,8 @@ static void elab_prot_body_decls(tree_t body)
           && (kind != T_PROC_DECL) && (kind != T_PROC_BODY))
          continue;
 
-      tree_set_ident(d, ident_prefix(tree_ident(body), tree_ident(d), '.'));
+      tree_set_ident(d, ident_prefix(tree_ident(body),
+                                     ident_rfrom(tree_ident(d), '.'), '.'));
    }
 }
 

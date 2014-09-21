@@ -6161,7 +6161,7 @@ static bool sem_check_prot_body(tree_t t)
    type_set_body(type, t);
    tree_set_type(t, type);
 
-   scope_push(NULL);
+   scope_push(ident_prefix(top_scope->prefix, name, '.'));
 
    const int ntdecls = type_decls(type);
    for (int i = 0; i < ntdecls; i++) {
@@ -6178,8 +6178,10 @@ static bool sem_check_prot_body(tree_t t)
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
+      ident_t unqual = tree_ident(d);
 
       ok = sem_check(d) && ok;
+      scope_insert_alias(d, unqual);
 
       tree_kind_t kind = tree_kind(d);
       if ((kind == T_FUNC_DECL) || (kind == T_FUNC_BODY)
