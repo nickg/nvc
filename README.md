@@ -48,7 +48,7 @@ On a Debian derivative the following should be sufficient to install all require
 dependencies:
 
     sudo apt-get install build-essential automake autoconf autoconf-archive flex \
-        libreadline-dev tcl-dev check llvm-dev pkg-config libbz2-dev
+        libreadline-dev tcl-dev check llvm-dev pkg-config libbz2-dev zlib1g-dev
 
 #### Mac OS X
 
