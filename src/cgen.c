@@ -5341,7 +5341,7 @@ static void cgen_nested_subprograms(tree_t t)
 static bool cgen_driver_nets(tree_t t, tree_t *decl,
                              LLVMValueRef *all_nets, int64_t *all_length,
                              LLVMValueRef *driven_nets, int64_t *driven_length,
-                             cgen_ctx_t *ctx)
+                             bool *has_non_const, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
@@ -5362,10 +5362,12 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
    case T_ARRAY_REF:
       {
          if (!cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
-                               driven_nets, driven_length, ctx))
+                               driven_nets, driven_length, has_non_const, ctx))
             return false;
          else if (*driven_nets == NULL)
             return false;
+         else if (*has_non_const)
+            return true;
 
          bool all_const = true;
          const int nparams = tree_params(t);
@@ -5383,6 +5385,8 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
             *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
             *driven_length = type_width(tree_type(t));
          }
+         else
+            *has_non_const = true;
       }
       break;
 
@@ -5390,10 +5394,12 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
       {
          tree_t value = tree_value(t);
          if (!cgen_driver_nets(value, decl, all_nets, all_length,
-                               driven_nets, driven_length, ctx))
+                               driven_nets, driven_length, has_non_const, ctx))
             return false;
          else if (*driven_nets == NULL)
             return false;
+         else if (*has_non_const)
+            return true;
 
          range_t r = tree_range(t);
          if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
@@ -5407,6 +5413,8 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
             *driven_nets = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
             *driven_length = type_width(tree_type(t));
          }
+         else
+            *has_non_const = true;
       }
       break;
 
@@ -5414,10 +5422,12 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
       {
          tree_t value = tree_value(t);
          if (!cgen_driver_nets(value, decl, all_nets, all_length,
-                               driven_nets, driven_length, ctx))
+                               driven_nets, driven_length, has_non_const, ctx))
             return false;
          else if (*driven_nets == NULL)
             return false;
+         else if (*has_non_const)
+            return true;
 
          type_t rtype = tree_type(value);
          const netid_t offset = record_field_to_net(rtype, tree_ident(t));
@@ -5455,9 +5465,10 @@ static void cgen_driver_target(tree_t t, cgen_ctx_t *ctx)
    tree_t decl = NULL;
    LLVMValueRef all_nets = NULL, driven_nets = NULL;
    int64_t all_length = 0, driven_length = 0;
+   bool has_non_const = false;
 
    if (!cgen_driver_nets(t, &decl, &all_nets, &all_length,
-                         &driven_nets, &driven_length, ctx))
+                         &driven_nets, &driven_length, &has_non_const, ctx))
       return;
 
    assert(decl != NULL);
