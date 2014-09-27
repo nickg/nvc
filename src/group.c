@@ -176,9 +176,9 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 {
-   tree_t decl =
-      (tree_kind(target) == T_SIGNAL_DECL) ? target : tree_ref(target);
+   assert(tree_kind(target) == T_REF);
 
+   tree_t decl = tree_ref(target);
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
       group_decl(decl, ctx, start, n);
@@ -188,6 +188,16 @@ static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
       break;
    default:
       break;
+   }
+}
+
+static void ungroup_ref(tree_t target, group_nets_ctx_t *ctx)
+{
+   tree_t decl = tree_ref(target);
+   if (tree_kind(decl) == T_SIGNAL_DECL) {
+      const int nnets = tree_nets(decl);
+      for (int i = 0; i < nnets; i++)
+         group_add(ctx, tree_net(decl, i), 1);
    }
 }
 
@@ -262,19 +272,19 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
-static bool group_calc_offset(tree_t t, int *offset, tree_t *decl)
+static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
 {
    switch (tree_kind(t)) {
    case T_REF:
       *offset = 0;
-      *decl   = tree_ref(t);
+      *ref    = t;
       return true;
 
    case T_ARRAY_REF:
       {
          tree_t value = tree_value(t);
          int offset0;
-         if (!group_calc_offset(value, &offset0, decl))
+         if (!group_calc_offset(value, &offset0, ref))
             return false;
 
          if (tree_params(t) != 1)
@@ -303,61 +313,26 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
    tree_t value = tree_value(target);
    type_t type  = tree_type(value);
 
-   //const int width  = type_width(type);
-   //const int stride = type_width(type_elem(type));
-
    range_t slice = tree_range(target);
 
    const bool folded =
       (tree_kind(slice.left) == T_LITERAL)
       && (tree_kind(slice.right) == T_LITERAL);
 
-   switch (tree_kind(value)) {
-   case T_REF:
-      if (folded) {
-         int64_t low, high;
-         range_bounds(slice, &low, &high);
+   tree_t ref = NULL;
+   int offset;
+   if (group_calc_offset(value, &offset, &ref) && folded) {
+      int64_t low, high;
+      range_bounds(slice, &low, &high);
 
-         const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
-         const int stride   = type_width(type_elem(type));
+      const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
+      const int stride   = type_width(type_elem(type));
+      const int length   = MAX(high - low + 1, 0);
 
-         group_ref(value, ctx, low0 * stride, (high - low + 1) * stride);
-      }
-      else {
-         tree_t decl = tree_ref(value);
-         if (tree_kind(decl) == T_SIGNAL_DECL) {
-            const int nnets = tree_nets(decl);
-            for (int i = 0; i < nnets; i++)
-               group_add(ctx, tree_net(decl, i), 1);
-         }
-      }
-      break;
-
-   case T_ARRAY_REF:
-      {
-         tree_t decl = NULL;
-         int offset;
-         if (group_calc_offset(value, &offset, &decl) && folded) {
-            int64_t low, high;
-            range_bounds(slice, &low, &high);
-
-            const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
-            const int stride   = type_width(type_elem(type));
-
-            group_ref(decl, ctx, low0 * stride, (high - low + 1) * stride);
-         }
-         else {
-            const int nnets = tree_nets(decl);
-            for (int i = 0; i < nnets; i++)
-               group_add(ctx, tree_net(decl, i), 1);
-         }
-      }
-      break;
-
-   default:
-      fatal_at(tree_loc(value), "tree kind %s not yet supported as slice value",
-               tree_kind_str(tree_kind(value)));
+      group_ref(ref, ctx, low0 * stride, length * stride);
    }
+   else
+      ungroup_ref(ref, ctx);
 }
 
 static void group_record_ref(tree_t t, group_nets_ctx_t *ctx)

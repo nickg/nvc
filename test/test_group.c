@@ -89,12 +89,21 @@ static bool group_sanity_check(group_nets_ctx_t *ctx, netid_t max)
 static void group_expect(group_nets_ctx_t *ctx, const group_expect_t *expect,
                          int n_expect)
 {
+   int ngroups = 0;
+   for (group_t *it = ctx->groups; it != NULL; it = it->next)
+      ngroups++;
+
+   if (ngroups != n_expect) {
+      group_dump(ctx);
+      fail("expected %d groups but have %d", n_expect, ngroups);
+   }
+
    for (; n_expect-- > 0; expect++) {
       const int length = expect->last - expect->first + 1;
 
       bool found = false;
       for (group_t *it = ctx->groups; (it != NULL) && !found; it = it->next) {
-         if ((it->first == expect->first) && (it->length = length))
+         if ((it->first == expect->first) && (it->length == length))
             found = true;
       }
 
@@ -208,6 +217,9 @@ START_TEST(test_issue72)
    };
    tree_visit(top, group_nets_visit_fn, &ctx);
 
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
    const group_expect_t expect[] = {
       { 0, 1 }, { 2, 3 }, { 4, 5 }, { 6, 7 }
    };
@@ -227,9 +239,36 @@ START_TEST(test_issue73)
    };
    tree_visit(top, group_nets_visit_fn, &ctx);
 
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
    const group_expect_t expect[] = {
       { 0, 1 }, { 2, 3 }, { 4, 7 }
    };
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
+START_TEST(test_slice1)
+{
+   input_from_file(TESTDIR "/group/slice1.vhd");
+
+   tree_t top = run_elab();
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 0, 3 }, { 4, 4 }, { 5, 5 }, { 6, 7 },
+      { 12, 15 }, { 8, 9 }, { 10, 10 }, { 11, 11 }
+   };
+
    group_expect(&ctx, expect, ARRAY_LEN(expect));
 }
 END_TEST
@@ -250,6 +289,7 @@ int main(void)
    tcase_add_test(tc_core, test_group_six);
    tcase_add_test(tc_core, test_issue72);
    tcase_add_test(tc_core, test_issue73);
+   tcase_add_test(tc_core, test_slice1);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
