@@ -273,6 +273,33 @@ START_TEST(test_slice1)
 }
 END_TEST
 
+START_TEST(test_arrayref1)
+{
+   input_from_file(TESTDIR "/group/arrayref1.vhd");
+
+   tree_t top = run_elab();
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 1, 1 }, { 0, 0 }, { 2, 2 },     // X
+      { 3, 3 }, { 4, 4 },               // Y
+      { 5, 5 },                         // I
+      { 6, 6 }, { 7, 7 }, { 8, 8 }, { 9, 9 },   // P  (sub-optimal!)
+      { 10, 11 }, { 12, 13 }            // Q
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -290,6 +317,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue72);
    tcase_add_test(tc_core, test_issue73);
    tcase_add_test(tc_core, test_slice1);
+   tcase_add_test(tc_core, test_arrayref1);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
