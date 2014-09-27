@@ -215,6 +215,25 @@ START_TEST(test_issue72)
 }
 END_TEST
 
+START_TEST(test_issue73)
+{
+   input_from_file(TESTDIR "/group/issue73.vhd");
+
+   tree_t top = run_elab();
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const group_expect_t expect[] = {
+      { 0, 1 }, { 2, 3 }, { 4, 7 }
+   };
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
 int main(void)
 {
    srandom((unsigned)time(NULL));
@@ -230,6 +249,7 @@ int main(void)
    tcase_add_test(tc_core, test_group_five);
    tcase_add_test(tc_core, test_group_six);
    tcase_add_test(tc_core, test_issue72);
+   tcase_add_test(tc_core, test_issue73);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

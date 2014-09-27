@@ -176,7 +176,9 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 
 static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
 {
-   tree_t decl = tree_ref(target);
+   tree_t decl =
+      (tree_kind(target) == T_SIGNAL_DECL) ? target : tree_ref(target);
+
    switch (tree_kind(decl)) {
    case T_SIGNAL_DECL:
       group_decl(decl, ctx, start, n);
@@ -260,6 +262,42 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
+static bool group_calc_offset(tree_t t, int *offset, tree_t *decl)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      *offset = 0;
+      *decl   = tree_ref(t);
+      return true;
+
+   case T_ARRAY_REF:
+      {
+         tree_t value = tree_value(t);
+         int offset0;
+         if (!group_calc_offset(value, &offset0, decl))
+            return false;
+
+         if (tree_params(t) != 1)
+            return false;   // XXX
+
+         tree_t index = tree_value(tree_param(t, 0));
+
+         if (tree_kind(index) != T_LITERAL)
+            return false;
+
+         type_t type = tree_type(t);
+         const int stride = type_width(type_elem(type));
+
+         *offset = stride * rebase_index(type, 0, assume_int(index));
+         return true;
+      }
+
+   default:
+      fatal_at(tree_loc(t), "tree kind %s not yet supported for offset "
+               "calculation", tree_kind_str(tree_kind(t)));
+   }
+}
+
 static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
 {
    tree_t value = tree_value(target);
@@ -288,6 +326,27 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
       else {
          tree_t decl = tree_ref(value);
          if (tree_kind(decl) == T_SIGNAL_DECL) {
+            const int nnets = tree_nets(decl);
+            for (int i = 0; i < nnets; i++)
+               group_add(ctx, tree_net(decl, i), 1);
+         }
+      }
+      break;
+
+   case T_ARRAY_REF:
+      {
+         tree_t decl = NULL;
+         int offset;
+         if (group_calc_offset(value, &offset, &decl) && folded) {
+            int64_t low, high;
+            range_bounds(slice, &low, &high);
+
+            const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
+            const int stride   = type_width(type_elem(type));
+
+            group_ref(decl, ctx, low0 * stride, (high - low + 1) * stride);
+         }
+         else {
             const int nnets = tree_nets(decl);
             for (int i = 0; i < nnets; i++)
                group_add(ctx, tree_net(decl, i), 1);
@@ -435,6 +494,15 @@ void group_nets(tree_t top)
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    group_write_netdb(top, &ctx);
+
+   if (getenv("NVC_GROUP_STATS") != NULL) {
+      const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+      int ngroups = 0;
+      for (group_t *it = ctx.groups; it != NULL; it = it->next)
+         ngroups++;
+
+      notef("nets:groups ratio %.3f", (float)nnets / (float)ngroups);
+   }
 
    while (ctx.groups != NULL) {
       group_t *tmp = ctx.groups->next;
