@@ -8,7 +8,8 @@ architecture test of arrayref is
     signal y : bit_vector(1 downto 0);  -- 3..4
     signal i : integer;                 -- 5..5
     signal p : bv2d(0 to 1);            -- 6..9
-    signal q : bv2d(0 to 1);            -- 10..13
+    signal q : bv2d(0 to 2);            -- 10..15
+    signal r : bv2d(0 to 2);            -- 16..21
 begin
 
     x(0) <= '1';
@@ -20,5 +21,7 @@ begin
     p(1) <= "00";
 
     q(i) <= "10";
+
+    r(2)(i) <= '1';
 
 end architecture;

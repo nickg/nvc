@@ -93,10 +93,7 @@ static void group_expect(group_nets_ctx_t *ctx, const group_expect_t *expect,
    for (group_t *it = ctx->groups; it != NULL; it = it->next)
       ngroups++;
 
-   if (ngroups != n_expect) {
-      group_dump(ctx);
-      fail("expected %d groups but have %d", n_expect, ngroups);
-   }
+   const int n_expect_orig = n_expect;
 
    for (; n_expect-- > 0; expect++) {
       const int length = expect->last - expect->first + 1;
@@ -111,6 +108,11 @@ static void group_expect(group_nets_ctx_t *ctx, const group_expect_t *expect,
          group_dump(ctx);
          fail("missing expected group %d..%d", expect->first, expect->last);
       }
+   }
+
+   if (ngroups != n_expect_orig) {
+      group_dump(ctx);
+      fail("expected %d groups but have %d", n_expect_orig, ngroups);
    }
 }
 
@@ -291,11 +293,12 @@ START_TEST(test_arrayref1)
    fail_unless(group_sanity_check(&ctx, nnets - 1));
 
    const group_expect_t expect[] = {
-      { 1, 1 }, { 0, 0 }, { 2, 2 },     // X
-      { 3, 3 }, { 4, 4 },               // Y
-      { 5, 5 },                         // I
-      { 6, 6 }, { 7, 7 }, { 8, 8 }, { 9, 9 },   // P  (sub-optimal!)
-      { 10, 11 }, { 12, 13 }            // Q
+      { 1, 1 }, { 0, 0 }, { 2, 2 },        // X
+      { 3, 3 }, { 4, 4 },                  // Y
+      { 5, 5 },                            // I
+      { 6, 6 }, { 7, 7 }, { 8, 9 },        // P
+      { 10, 11 }, { 12, 13 }, { 14, 15 },  // Q
+      { 16, 19 }, { 21, 21 }, { 20, 20 }   // R
    };
 
    group_expect(&ctx, expect, ARRAY_LEN(expect));

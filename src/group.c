@@ -208,70 +208,6 @@ static int64_t rebase_index(type_t array_type, int dim, int64_t value)
    return (r.kind == RANGE_TO) ? value - left : left - value;
 }
 
-static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
-{
-   tree_t value = tree_value(target);
-
-   switch (tree_kind(value)) {
-   case T_REF:
-      {
-         type_t type = tree_type(value);
-         if (type_is_unconstrained(type))
-            return;
-
-         const int width  = type_width(type);
-         const int stride = type_width(type_elem(type));
-
-         if (tree_params(target) == 1) {
-            tree_t index = tree_value(tree_param(target, 0));
-
-            if (tree_kind(index) == T_LITERAL) {
-               const int64_t offset =
-                  stride * rebase_index(type, 0, assume_int(index));
-               group_ref(value, ctx, offset, stride);
-            }
-            else {
-               for (int i = 0; i < width; i += stride)
-                  group_ref(value, ctx, i, stride);
-            }
-         }
-         else {
-            // Ungroup multi-dimensional arrays
-            // TODO: this is inefficient
-            for (int i = 0; i < width; i += stride)
-               group_ref(value, ctx, i, stride);
-         }
-      }
-      break;
-
-   case T_ARRAY_REF:
-   case T_ARRAY_SLICE:
-      {
-         // We could handle this better but for now just map each
-         // net to a single group
-         while (tree_kind(value) != T_REF)
-            value = tree_value(value);
-
-         tree_t decl = tree_ref(value);
-         if (tree_kind(decl) != T_SIGNAL_DECL)
-            return;
-
-         const int nnets = tree_nets(decl);
-         for (int i = 0; i < nnets; i++)
-            group_add(ctx, tree_net(decl, i), 1);
-      }
-      break;
-
-   case T_AGGREGATE:
-      // This can appear due to assignments to open ports with a
-      // default value
-      break;
-
-   default:
-      assert(false);
-   }
-}
-
 static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
 {
    switch (tree_kind(t)) {
@@ -302,16 +238,64 @@ static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
          return true;
       }
 
+   case T_AGGREGATE:
+      // This can appear due to assignments to open ports with a
+      // default value
+      *offset = 0;
+      *ref    = NULL;
+      return false;
+
    default:
       fatal_at(tree_loc(t), "tree kind %s not yet supported for offset "
                "calculation", tree_kind_str(tree_kind(t)));
    }
 }
 
+static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
+{
+   tree_t value = tree_value(target);
+
+   type_t type = tree_type(value);
+   if (type_is_unconstrained(type))
+      return;    // Only in procedure
+
+   const int width  = type_width(type);
+   const int stride = type_width(type_elem(type));
+
+   tree_t ref = NULL;
+   int offset;
+   if (group_calc_offset(value, &offset, &ref)) {
+      if (tree_params(target) == 1) {
+         tree_t index = tree_value(tree_param(target, 0));
+
+         if (tree_kind(index) == T_LITERAL) {
+            const int64_t indexi =
+               stride * rebase_index(type, 0, assume_int(index));
+            group_ref(ref, ctx, offset + indexi, stride);
+         }
+         else {
+            for (int i = 0; i < width; i += stride)
+               group_ref(ref, ctx, offset + i, stride);
+         }
+      }
+      else {
+         // Ungroup multi-dimensional arrays
+         // TODO: this is inefficient
+         for (int i = 0; i < width; i += stride)
+            group_ref(ref, ctx, offset + i, stride);
+      }
+   }
+   else if (ref != NULL)
+      ungroup_ref(ref, ctx);
+}
+
 static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
 {
    tree_t value = tree_value(target);
    type_t type  = tree_type(value);
+
+   if (type_is_unconstrained(type))
+      return;    // Only in procedure
 
    range_t slice = tree_range(target);
 
@@ -331,7 +315,7 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
 
       group_ref(ref, ctx, offset + (low0 * stride), length * stride);
    }
-   else
+   else if (ref != NULL)
       ungroup_ref(ref, ctx);
 }
 
