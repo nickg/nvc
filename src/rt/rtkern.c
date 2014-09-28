@@ -2347,10 +2347,9 @@ size_t rt_watch_value(watch_t *w, uint64_t *buf, size_t max, bool last)
       netgroup_t *g = w->groups[i];
 
 #define SIGNAL_VALUE_EXPAND_U64(type) do {                              \
-         const value_t *v = (last ? g->last_value : g->resolved);       \
-         const type *sp = (type *)v->data;                              \
-         for (int i = 0; (i < g->length) && (offset + i < max); i++)    \
-            buf[offset + i] = sp[i];                                    \
+         const type *sp = (type *)(last ? g->last_value : g->resolved); \
+         for (int j = 0; (j < g->length) && (offset + j < max); j++)    \
+            buf[offset + j] = sp[j];                                    \
       } while (0)
 
       FOR_ALL_SIZES(g->size, SIGNAL_VALUE_EXPAND_U64);
