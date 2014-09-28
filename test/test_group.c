@@ -243,7 +243,7 @@ START_TEST(test_issue73)
    fail_unless(group_sanity_check(&ctx, nnets - 1));
 
    const group_expect_t expect[] = {
-      { 0, 1 }, { 2, 3 }, { 4, 7 },   // X
+      { 0, 2 }, { 3, 3 }, { 4, 5 }, { 6, 7 },  // X
       { 8, 8 }, { 9, 9 }, { 10, 10 }, { 11, 11 }, { 12, 12 }, { 13, 13 },
       { 14, 14 }, { 15, 15}   // Y (sub-optimal!)
    };

@@ -295,7 +295,7 @@ static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
          if (tree_kind(index) != T_LITERAL)
             return false;
 
-         type_t type = tree_type(t);
+         type_t type = tree_type(value);
          const int stride = type_width(type_elem(type));
 
          *offset = stride * rebase_index(type, 0, assume_int(index));
@@ -329,7 +329,7 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
       const int stride   = type_width(type_elem(type));
       const int length   = MAX(high - low + 1, 0);
 
-      group_ref(ref, ctx, low0 * stride, length * stride);
+      group_ref(ref, ctx, offset + (low0 * stride), length * stride);
    }
    else
       ungroup_ref(ref, ctx);

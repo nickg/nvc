@@ -9,7 +9,8 @@ begin
 
     x(0)(1 downto 0) <= "00";
     x(0)(3 downto 2) <= "11";
-    x(1)(3 downto 0) <= "0101";
+    x(1)(0 downto 0) <= "0";
+    x(1)(3 downto 1) <= "101";
 
     process (y) is
     begin
