@@ -341,7 +341,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          tree_t ref = actual;
          tree_kind_t ref_kind;
          while ((ref_kind = tree_kind(ref)) != T_REF) {
-            if (ref_kind == T_AGGREGATE)
+            if ((ref_kind == T_AGGREGATE) || (ref_kind == T_LITERAL))
                return actual;
             else
                ref = tree_value(ref);

@@ -4253,6 +4253,9 @@ static LLVMValueRef cgen_signal_lvalue(tree_t t, cgen_ctx_t *ctx)
                              ARRAY_LEN(indexes), "record_ref");
       }
 
+   case T_LITERAL:
+      return NULL;
+
    default:
       assert(false);
    }
@@ -5513,6 +5516,9 @@ static bool cgen_driver_nets(tree_t t, tree_t *decl,
          *driven_length = type_width(tree_type(t));
       }
       break;
+
+   case T_LITERAL:
+      return false;
 
    default:
       assert(false);

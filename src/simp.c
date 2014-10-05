@@ -250,6 +250,35 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    }
 }
 
+static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
+                                          tree_t def)
+{
+   type_t type = tree_type(literal);
+
+   range_t bounds = type_dim(type, 0);
+   int64_t low, high;
+   range_bounds(bounds, &low, &high);
+
+   const bool to = (bounds.kind == RANGE_TO);
+
+   type_t elem = type_base_recur(type_elem(type));
+
+   const int pos = to ? (index + low) : (high - index);
+   if ((pos < 0) || (pos > tree_chars(literal)))
+      return def;
+
+   ident_t ch = tree_char(literal, pos);
+
+   const int nlits = type_enum_literals(elem);
+   for (int i = 0; i < nlits; i++) {
+      tree_t elit = type_enum_literal(elem, i);
+      if (tree_ident(elit) == ch)
+         return make_ref(elit);
+   }
+
+   assert(false);
+}
+
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)
 {
    range_t bounds = type_dim(tree_type(agg), 0);
@@ -319,6 +348,8 @@ static tree_t simp_array_ref(tree_t t)
    const tree_kind_t value_kind = tree_kind(value);
    if (value_kind == T_AGGREGATE)
       return simp_extract_aggregate(value, indexes[0], t);
+   else if (value_kind == T_LITERAL)
+      return simp_extract_string_literal(value, indexes[0], t);
    else if (value_kind != T_REF)
       return t;   // Cannot fold nested array references
 
