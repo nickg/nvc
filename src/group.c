@@ -239,6 +239,7 @@ static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
       }
 
    case T_AGGREGATE:
+   case T_LITERAL:
       // This can appear due to assignments to open ports with a
       // default value
       *offset = 0;

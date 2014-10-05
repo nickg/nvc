@@ -1537,6 +1537,33 @@ static LLVMValueRef cgen_pdecl(tree_t t)
    }
 }
 
+static LLVMValueRef *cgen_string_literal(tree_t t, int *nvals,
+                                         LLVMTypeRef *elem_type)
+{
+   type_t elem = type_base_recur(type_elem(tree_type(t)));
+   LLVMTypeRef et = llvm_type(elem);
+
+   const int nchars = tree_chars(t);
+   LLVMValueRef *tmp = xmalloc(nchars * sizeof(LLVMValueRef));
+
+   const int nlits = type_enum_literals(elem);
+   for (int i = 0; i < nchars; i++) {
+      ident_t ch = tree_char(t, i);
+      for (int j = 0; j < nlits; j++) {
+         if (tree_ident(type_enum_literal(elem, j)) == ch) {
+            tmp[i] = LLVMConstInt(et, j, false);
+            break;
+         }
+      }
+   }
+
+   if (elem_type != NULL)
+      *elem_type = et;
+   if (nvals != NULL)
+      *nvals = nchars;
+   return tmp;
+}
+
 static LLVMValueRef cgen_literal(tree_t t)
 {
    LLVMTypeRef lltype = llvm_type(tree_type(t));
@@ -1553,22 +1580,9 @@ static LLVMValueRef cgen_literal(tree_t t)
          if (prev != NULL)
             return prev;
 
-         type_t elem = type_base_recur(type_elem(tree_type(t)));
-         LLVMTypeRef et = llvm_type(elem);
-
-         const int nchars = tree_chars(t);
-         LLVMValueRef *tmp = xmalloc(nchars * sizeof(LLVMValueRef));
-
-         const int nlits = type_enum_literals(elem);
-         for (int i = 0; i < nchars; i++) {
-            ident_t ch = tree_char(t, i);
-            for (int j = 0; j < nlits; j++) {
-               if (tree_ident(type_enum_literal(elem, j)) == ch) {
-                  tmp[i] = LLVMConstInt(et, j, false);
-                  break;
-               }
-            }
-         }
+         int nchars;
+         LLVMTypeRef et;
+         LLVMValueRef *tmp = cgen_string_literal(t, &nchars, &et);
 
          LLVMTypeRef at = LLVMArrayType(et, nchars);
          LLVMValueRef global = LLVMAddGlobal(module, at, "string_literal");
@@ -3133,11 +3147,13 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
       tree_t a = tree_assoc(t, i);
       tree_t value = tree_value(a);
 
+      const tree_kind_t value_kind = tree_kind(value);
+
       LLVMValueRef *sub;
       int nsub;
       if (dim < ndims - 1)
          sub = cgen_const_aggregate(value, type, dim + 1, &nsub, ctx);
-      else if (tree_kind(value) == T_AGGREGATE) {
+      else if (value_kind == T_AGGREGATE) {
          sub  = xmalloc(sizeof(LLVMValueRef));
          nsub = 1;
 
@@ -3156,6 +3172,17 @@ static LLVMValueRef *cgen_const_aggregate(tree_t t, type_t type, int dim,
                                          cgen_is_const(value), ctx);
          else
             assert(false);
+      }
+      else if ((value_kind == T_LITERAL) && (tree_subkind(value) == L_STRING)) {
+         sub  = xmalloc(sizeof(LLVMValueRef));
+         nsub = 1;
+
+         int nchars;
+         LLVMTypeRef et;
+         LLVMValueRef *tmp = cgen_string_literal(value, &nchars, &et);
+
+         *sub = LLVMConstArray(et, tmp, nchars);
+         free(tmp);
       }
       else {
          sub  = xmalloc(sizeof(LLVMValueRef));
@@ -3401,7 +3428,9 @@ static LLVMValueRef cgen_record_aggregate(tree_t t, bool nest, bool is_const,
       if (type_is_array(value_type) && is_const) {
          int nvals;
          LLVMValueRef *vals =
-            cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
+            (tree_kind(value) == T_LITERAL)
+            ? cgen_string_literal(value, &nvals, NULL)
+            : cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
          LLVMTypeRef ltype = llvm_type(type_elem(value_type));
          v = LLVMConstArray(ltype, vals, nvals);
       }
@@ -4676,30 +4705,46 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
       where->stmts = stmts;
    }
    else {
-      int64_t this = 0;
       bool found = false;
-      const int nassocs = tree_assocs(value);
-      for (int i = 0; (i < nassocs) && !found; i++) {
-         tree_t a = tree_assoc(value, i);
-         switch (tree_subkind(a)) {
-         case A_NAMED:
-            if (assume_int(tree_name(a)) == n) {
-               this = assume_int(tree_value(a));
+      int64_t this = 0;
+      if (tree_kind(value) == T_LITERAL) {
+         assert(tree_subkind(value) == L_STRING);
+         ident_t ch = tree_char(value, depth);
+
+         type_t elem = type_base_recur(type_elem(tree_type(value)));
+
+         const int nlits = type_enum_literals(elem);
+         for (int i = 0; !found && (i < nlits); i++) {
+            if (tree_ident(type_enum_literal(elem, i)) == ch) {
+               this  = i;
                found = true;
             }
-            break;
+         }
+      }
+      else {
+         const int nassocs = tree_assocs(value);
+         for (int i = 0; (i < nassocs) && !found; i++) {
+            tree_t a = tree_assoc(value, i);
+            switch (tree_subkind(a)) {
+            case A_NAMED:
+               if (assume_int(tree_name(a)) == n) {
+                  this = assume_int(tree_value(a));
+                  found = true;
+               }
+               break;
 
-         case A_POS:
-            if (tree_pos(a) == (unsigned)depth) {
+            case A_POS:
+               if (tree_pos(a) == (unsigned)depth) {
+                  this = assume_int(tree_value(a));
+                  found = true;
+               }
+               break;
+
+            case A_OTHERS:
                this = assume_int(tree_value(a));
                found = true;
+               break;
             }
-            break;
-
-         case A_OTHERS:
-            this = assume_int(tree_value(a));
-            found = true;
-            break;
          }
       }
       assert(found);
@@ -4806,7 +4851,7 @@ static void cgen_case_array(tree_t t, cgen_ctx_t *ctx)
             tree_t name = tree_name(a);
             tree_kind_t kind = tree_kind(name);
 
-            if (kind != T_AGGREGATE) {
+            if ((kind != T_AGGREGATE) && (kind != T_LITERAL)) {
                assert(kind == T_REF);
                tree_t decl = tree_ref(name);
                assert(tree_kind(decl) == T_CONST_DECL);
@@ -4814,7 +4859,7 @@ static void cgen_case_array(tree_t t, cgen_ctx_t *ctx)
                kind = tree_kind(name);
             }
 
-            assert(kind == T_AGGREGATE);
+            assert((kind == T_AGGREGATE) || (kind == T_LITERAL));
 
             cgen_case_add_branch(&root, left, right, 0, dirmul,
                                  name, tree_value(a));

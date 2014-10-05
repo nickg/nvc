@@ -16,6 +16,7 @@ architecture test of const5 is
                 cnt := cnt + 1;
             end if;
         end loop;
+        report integer'image(cnt);
         assert cnt = pop;
     end procedure;
 
