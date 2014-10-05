@@ -25,6 +25,7 @@ DEFINE_ARRAY(tree);
 DEFINE_ARRAY(netid);
 DEFINE_ARRAY(type);
 DEFINE_ARRAY(range);
+DEFINE_ARRAY(ident);
 
 static const char *item_text_map[] = {
    "I_IDENT",    "I_VALUE",     "I_SEVERITY", "I_MESSAGE",    "I_TARGET",
@@ -36,7 +37,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS",    "I_PTYPES"
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS"
 };
 
 static object_class_t *classes[4];
@@ -367,6 +368,8 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
                }
             }
          }
+         else if (ITEM_IDENT_ARRAY & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -459,6 +462,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
             }
          }
          else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_IDENT_ARRAY & mask)
             ;
          else
             item_without_type(mask);
@@ -626,6 +631,12 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                object_write((object_t *)a->items[i].right, ctx);
             }
          }
+         else if (ITEM_IDENT_ARRAY & mask) {
+            ident_array_t *a = &(object->items[n].ident_array);
+            write_u32(a->count, ctx->file);
+            for (unsigned i = 0; i < a->count; i++)
+               ident_write(a->items[i], ctx->ident_ctx);
+         }
          else if (ITEM_TEXT_BUF & mask)
             ;
          else
@@ -782,6 +793,12 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
             netid_array_resize(a, read_u32(ctx->file), NETID_INVALID);
             for (unsigned i = 0; i < a->count; i++)
                a->items[i] = read_u32(ctx->file);
+         }
+         else if (ITEM_IDENT_ARRAY & mask) {
+            ident_array_t *a = &(object->items[n].ident_array);
+            ident_array_resize(a, read_u32(ctx->file), NULL);
+            for (unsigned i = 0; i < a->count; i++)
+               a->items[i] = ident_read(ctx->ident_ctx);
          }
          else if (ITEM_DOUBLE & mask) {
             union { uint64_t i; double d; } u;
@@ -947,6 +964,8 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             ;
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_IDENT_ARRAY & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -1037,6 +1056,15 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
             netid_array_t *to = &(copy->items[n].netid_array);
 
             netid_array_resize(to, from->count, NETID_INVALID);
+
+            for (unsigned i = 0; i < from->count; i++)
+               to->items[i] = from->items[i];
+         }
+         else if (ITEM_IDENT_ARRAY & mask) {
+            const ident_array_t *from = &(object->items[n].ident_array);
+            ident_array_t *to = &(copy->items[n].ident_array);
+
+            ident_array_resize(to, from->count, NULL);
 
             for (unsigned i = 0; i < from->count; i++)
                to->items[i] = from->items[i];

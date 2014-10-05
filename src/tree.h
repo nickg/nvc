@@ -69,7 +69,8 @@ typedef enum assoc_kind {
 typedef enum literal_kind {
    L_INT,
    L_REAL,
-   L_NULL
+   L_NULL,
+   L_STRING
 } literal_kind_t;
 
 typedef enum tree_kind {
@@ -279,6 +280,10 @@ void tree_set_spec(tree_t t, tree_t s);
 unsigned tree_ops(tree_t t);
 tree_t tree_op(tree_t t, unsigned n);
 void tree_add_op(tree_t t, tree_t s);
+
+unsigned tree_chars(tree_t t);
+ident_t tree_char(tree_t t, unsigned n);
+void tree_add_char(tree_t t, ident_t id);
 
 unsigned tree_nets(tree_t t);
 netid_t tree_net(tree_t t, unsigned n);

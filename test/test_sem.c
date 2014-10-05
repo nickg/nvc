@@ -684,6 +684,7 @@ START_TEST(test_array)
       { 279, "type NUM_ARRAY is unconstrained" },
       { 285, "object K does not have a range" },
       { 295, "type of index universal integer does not match" },
+      { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1317,7 +1318,7 @@ START_TEST(test_signal)
 
    const error_t expect[] = {
       { 14, "no composite type in context" },
-      { 15, "no composite type in context" },
+      { 15, "no one dimensional arrays of character type in context" },
       { 16, "not a suitable l-value" },
       { 17, "others association not allowed in aggregate signal target" },
       { 18, "cannot assign to input port P" },

@@ -337,4 +337,10 @@ begin
         x := (1 | 2 to 3 => 5);         -- OK
     end process;
 
+    process is
+        variable b : bit_vector(1 to 3);  -- OK
+    begin
+        b := "1fe";                     -- Error
+    end process;
+
 end architecture;

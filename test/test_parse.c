@@ -412,7 +412,8 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("ERROR"));
-   fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_message(s)) == L_STRING);
 
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_ASSERT);
@@ -420,7 +421,8 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_value(s)) == ident_new("FALSE"));
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
-   fail_unless(tree_kind(tree_message(s)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_message(s)) == L_STRING);
    fail_unless(tree_attr_int(s, ident_new("is_report"), 0) == 1);
 
    // Function calls
@@ -740,14 +742,15 @@ START_TEST(test_types)
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_ident(d) == ident_new("F1"));
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
 
    d = tree_decl(a, 11);
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_ident(d) == ident_new("F2"));
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
+   fail_unless(tree_subkind(tree_value(d)) == L_STRING);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("READ_MODE"));
 
@@ -770,7 +773,7 @@ START_TEST(test_types)
    fail_unless(tree_kind(d) == T_FILE_DECL);
    fail_unless(tree_ident(d) == ident_new("F4"));
    fail_unless(tree_has_value(d));
-   fail_unless(tree_kind(tree_value(d)) == T_AGGREGATE);
+   fail_unless(tree_kind(tree_value(d)) == T_LITERAL);
    fail_unless(tree_kind(tree_file_mode(d)) == T_REF);
    fail_unless(tree_ident(tree_file_mode(d)) == ident_new("WRITE_MODE"));
 
@@ -834,13 +837,22 @@ START_TEST(test_literal)
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("A"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_AGGREGATE);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   fail_unless(tree_subkind(v) == L_STRING);
+   fail_unless(tree_chars(v) == 6);
+   fail_unless(tree_char(v, 0) == ident_new("'h'"));
+   fail_unless(tree_char(v, 1) == ident_new("'e'"));
+   fail_unless(tree_char(v, 2) == ident_new("'l'"));
+   fail_unless(tree_char(v, 3) == ident_new("'\"'"));
+   fail_unless(tree_char(v, 4) == ident_new("'l'"));
+   fail_unless(tree_char(v, 5) == ident_new("'o'"));
 
    d = tree_decl(a, 4);
    fail_unless(tree_kind(d) == T_CONST_DECL);
    fail_unless(tree_ident(d) == ident_new("B"));
    v = tree_value(d);
-   fail_unless(tree_kind(v) == T_AGGREGATE);
+   fail_unless(tree_kind(v) == T_LITERAL);
+   fail_unless(tree_subkind(v) == L_STRING);
 
    d = tree_decl(a, 5);
    fail_unless(tree_ident(d) == ident_new("D"));
@@ -1700,60 +1712,72 @@ START_TEST(test_bitstring)
    ident_t zero = ident_new("'0'");
 
    a = tree_value(tree_decl(p, 0));
-   fail_unless(tree_assocs(a) == 16);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 3))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 4))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 5))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 6))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 7))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 8))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 9))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 10))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 11))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 12))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 13))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 14))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 15))) == zero);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 16);
+   fail_unless(tree_char(a, 0) == zero);
+   fail_unless(tree_char(a, 1) == zero);
+   fail_unless(tree_char(a, 2) == zero);
+   fail_unless(tree_char(a, 3) == one);
+   fail_unless(tree_char(a, 4) == zero);
+   fail_unless(tree_char(a, 5) == zero);
+   fail_unless(tree_char(a, 6) == one);
+   fail_unless(tree_char(a, 7) == zero);
+   fail_unless(tree_char(a, 8) == zero);
+   fail_unless(tree_char(a, 9) == zero);
+   fail_unless(tree_char(a, 10) == one);
+   fail_unless(tree_char(a, 11) == one);
+   fail_unless(tree_char(a, 12) == zero);
+   fail_unless(tree_char(a, 13) == one);
+   fail_unless(tree_char(a, 14) == zero);
+   fail_unless(tree_char(a, 15) == zero);
 
    a = tree_value(tree_decl(p, 1));
-   fail_unless(tree_assocs(a) == 12);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == one);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 12);
+   fail_unless(tree_char(a, 0) == zero);
+   fail_unless(tree_char(a, 1) == zero);
+   fail_unless(tree_char(a, 2) == one);
 
    a = tree_value(tree_decl(p, 2));
-   fail_unless(tree_assocs(a) == 8);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 3))) == zero);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 8);
+   fail_unless(tree_char(a, 0) == one);
+   fail_unless(tree_char(a, 1) == zero);
+   fail_unless(tree_char(a, 2) == one);
+   fail_unless(tree_char(a, 3) == zero);
 
    a = tree_value(tree_decl(p, 3));
-   fail_unless(tree_assocs(a) == 3);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == one);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 3);
+   fail_unless(tree_char(a, 0) == one);
+   fail_unless(tree_char(a, 1) == zero);
+   fail_unless(tree_char(a, 2) == one);
 
    a = tree_value(tree_decl(p, 4));
-   fail_unless(tree_assocs(a) == 4);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 3))) == one);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 4);
+   fail_unless(tree_char(a, 0) == one);
+   fail_unless(tree_char(a, 1) == one);
+   fail_unless(tree_char(a, 2) == one);
+   fail_unless(tree_char(a, 3) == one);
 
    a = tree_value(tree_decl(p, 5));
-   fail_unless(tree_assocs(a) == 8);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 0))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 1))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 2))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 3))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 4))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 5))) == zero);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 6))) == one);
-   fail_unless(tree_ident(tree_value(tree_assoc(a, 7))) == one);
+   fail_unless(tree_kind(a) == T_LITERAL);
+   fail_unless(tree_subkind(a) == L_STRING);
+   fail_unless(tree_chars(a) == 8);
+   fail_unless(tree_char(a, 0) == one);
+   fail_unless(tree_char(a, 1) == zero);
+   fail_unless(tree_char(a, 2) == one);
+   fail_unless(tree_char(a, 3) == zero);
+   fail_unless(tree_char(a, 4) == one);
+   fail_unless(tree_char(a, 5) == zero);
+   fail_unless(tree_char(a, 6) == one);
+   fail_unless(tree_char(a, 7) == one);
 
    p = parse();
    fail_unless(p == NULL);

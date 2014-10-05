@@ -40,7 +40,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS),
 
    // T_LITERAL
-   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL),
+   (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_ATTRS),
 
    // T_SIGNAL_DECL
    (I_IDENT | I_VALUE | I_TYPE | I_NETS | I_ATTRS),
@@ -561,6 +561,25 @@ void tree_set_dval(tree_t t, double d)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    lookup_item(&tree_object, t, I_DVAL)->dval = d;
+}
+
+unsigned tree_chars(tree_t t)
+{
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
+   return lookup_item(&tree_object, t, I_CHARS)->ident_array.count;
+}
+
+ident_t tree_char(tree_t t, unsigned n)
+{
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
+   item_t *item = lookup_item(&tree_object, t, I_CHARS);
+   return ident_array_nth(&(item->ident_array), n);
+}
+
+void tree_add_char(tree_t t, ident_t id)
+{
+   assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
+   ident_array_add(&(lookup_item(&tree_object, t, I_CHARS)->ident_array), id);
 }
 
 bool tree_has_value(tree_t t)

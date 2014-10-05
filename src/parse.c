@@ -433,26 +433,23 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
-static tree_t str_to_agg(const char *start, const char *end, const loc_t *loc)
+static tree_t str_to_literal(const char *start, const char *end,
+                             const loc_t *loc)
 {
-   tree_t t = tree_new(T_AGGREGATE);
-   tree_set_loc(t, loc);
 
-   for (const char *p = start; *p != '\0' && p != end; p++) {
+   tree_t t = tree_new(T_LITERAL);
+   tree_set_loc(t, loc);
+   tree_set_subkind(t, L_STRING);
+
+   char last = '\0';
+   for (const char *p = start; *p != '\0' && p != end; last = *p++) {
       if (*p == -127)
+         continue;
+      else if (*p == '"' && last == '"')
          continue;
 
       const char ch[] = { '\'', *p, '\'', '\0' };
-
-      tree_t ref = tree_new(T_REF);
-      tree_set_ident(ref, ident_new(ch));
-      tree_set_loc(ref, loc);
-
-      tree_t a = tree_new(T_ASSOC);
-      tree_set_subkind(a, A_POS);
-      tree_set_value(a, ref);
-
-      tree_add_assoc(t, a);
+      tree_add_char(t, ident_new(ch));
    }
 
    return t;
@@ -488,10 +485,11 @@ static void set_label_and_loc(tree_t t, ident_t label, const loc_t *loc)
    tree_set_ident(t, label);
 }
 
-static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
+static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
 {
-   tree_t t = tree_new(T_AGGREGATE);
+   tree_t t = tree_new(T_LITERAL);
    tree_set_loc(t, loc);
+   tree_set_subkind(t, L_STRING);
 
    char base_ch = str[0];
    int base;
@@ -504,13 +502,8 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
       return t;
    }
 
-   tree_t one = tree_new(T_REF);
-   tree_set_ident(one, ident_new("'1'"));
-   tree_set_loc(one, loc);
-
-   tree_t zero = tree_new(T_REF);
-   tree_set_ident(zero, ident_new("'0'"));
-   tree_set_loc(zero, loc);
+   ident_t one = ident_new("'1'");
+   ident_t zero = ident_new("'0'");
 
    for (const char *p = str + 2; *p != '\"'; p++) {
       if (*p == '_')
@@ -524,13 +517,8 @@ static tree_t bit_str_to_agg(const char *str, const loc_t *loc)
          return t;
       }
 
-      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1) {
-         tree_t a = tree_new(T_ASSOC);
-         tree_set_subkind(a, A_POS);
-         tree_set_value(a, (n / d) ? one : zero);
-
-         tree_add_assoc(t, a);
-      }
+      for (int d = (base >> 1); d > 0; n = n % d, d >>= 1)
+         tree_add_char(t, (n / d) ? one : zero);
    }
 
    return t;
@@ -1313,7 +1301,7 @@ static tree_t p_literal(void)
 
          char *p = last_lval.s;
          size_t len = strlen(p);
-         tree_t t = str_to_agg(p + 1, p + len - 1, CURRENT_LOC);
+         tree_t t = str_to_literal(p + 1, p + len - 1, CURRENT_LOC);
          free(p);
 
          return t;
@@ -1323,10 +1311,9 @@ static tree_t p_literal(void)
       {
          consume(tBITSTRING);
 
-         tree_t agg = bit_str_to_agg(last_lval.s, CURRENT_LOC);
+         tree_t t = bit_str_to_literal(last_lval.s, CURRENT_LOC);
          free(last_lval.s);
-
-         return agg;
+         return t;
       }
 
    default:
@@ -2822,7 +2809,8 @@ static tree_t p_assertion(void)
       tree_set_message(s, p_expression());
    else {
       if (assert_viol == NULL)
-         assert_viol = str_to_agg("Assertion violation.", NULL, &LOC_INVALID);
+         assert_viol = str_to_literal("Assertion violation.", NULL,
+                                      &LOC_INVALID);
 
       tree_set_message(s, assert_viol);
    }

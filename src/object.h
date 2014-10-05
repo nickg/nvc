@@ -80,6 +80,7 @@ typedef uint64_t imask_t;
 #define I_TEXT_BUF   ONE_HOT(44)
 #define I_ATTRS      ONE_HOT(45)
 #define I_PTYPES     ONE_HOT(46)
+#define I_CHARS      ONE_HOT(47)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
@@ -99,6 +100,7 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
+#define ITEM_IDENT_ARRAY (I_CHARS)
 
 #define OBJECT_TAG_TREE  0
 #define OBJECT_TAG_TYPE  1
@@ -109,6 +111,7 @@ DECLARE_ARRAY(netid);
 DECLARE_ARRAY(range);
 DECLARE_ARRAY(tree);
 DECLARE_ARRAY(type);
+DECLARE_ARRAY(ident);
 
 #define lookup_item(class, t, mask) ({                                  \
          assert((t) != NULL);                                           \
@@ -162,6 +165,7 @@ typedef union {
    text_buf_t    *text_buf;
    type_array_t   type_array;
    attr_tab_t     attrs;
+   ident_array_t  ident_array;
 } item_t;
 
 typedef struct {

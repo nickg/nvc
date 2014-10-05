@@ -3069,7 +3069,13 @@ static int sem_ambiguous_rate(tree_t t)
    case T_CONCAT:
       return 40;
    case T_LITERAL:
-      return (tree_subkind(t) == L_NULL) ? 0 : -10;
+      {
+         switch (tree_subkind(t)) {
+         case L_NULL:   return 0;
+         case L_STRING: return 90;
+         default:       return -10;
+         }
+      }
    case T_TYPE_CONV:
       return -50;
    case T_FCALL:
@@ -3991,6 +3997,116 @@ static bool sem_check_concat(tree_t t)
    return true;
 }
 
+static bool sem_is_character_array(type_t t)
+{
+   // According LRM 93 section 3.1.1 an enumeration type is a character
+   // type if at least one of its enumeration literals is a character
+   // literal
+
+   if (!type_is_array(t))
+      return false;
+
+   if (sem_array_dimension(t) != 1)
+      return false;
+
+   type_t elem = type_base_recur(type_elem(t));
+
+   if (!type_is_enum(elem))
+      return false;
+
+   const int nlits = type_enum_literals(elem);
+   for (int i = 0; i < nlits; i++) {
+      tree_t lit = type_enum_literal(elem, i);
+      if (ident_char(tree_ident(lit), 0) == '\'')
+         return true;
+   }
+
+   return false;
+}
+
+static bool sem_check_string_literal(tree_t t)
+{
+   // String literals are in LRM 93 section 7.3.1
+
+   // The type must be determinable soley from the context excluding the
+   // literal itself but using the fact that the type must be a one
+   // dimensional array of a character type
+
+   if (!type_set_restrict(sem_is_character_array))
+      sem_error(t, "no one dimensional arrays of character type in context");
+
+   type_t type;
+   if (!type_set_uniq(&type)) {
+      LOCAL_TEXT_BUF ts = type_set_fmt();
+      sem_error(t, "type of string literal is ambiguous%s", tb_get(ts));
+   }
+
+   type_t elem = type_base_recur(type_elem(type));
+
+   const int nlits = type_enum_literals(elem);
+   const int nchars = tree_chars(t);
+   for (int i = 0; i < nchars; i++) {
+      ident_t ch = tree_char(t, i);
+
+      bool valid = false;
+      for (int j = 0; !valid && (j < nlits); j++) {
+         if (ch == tree_ident(type_enum_literal(elem, j)))
+            valid = true;
+      }
+
+      if (!valid)
+         sem_error(t, "invalid character %s in string literal of type %s",
+                   istr(ch), sem_type_str(type));
+   }
+
+   if (type_is_unconstrained(type)) {
+      // Construct a new array type: the direction and bounds are the same
+      // as those for a positional array aggregate
+
+      type_t tmp = type_new(T_SUBTYPE);
+      type_set_ident(tmp, type_ident(type));
+      type_set_base(tmp, type);
+
+      type_t index_type = sem_index_type(type, 0);
+
+      // The direction is determined by the index type
+      range_kind_t dir;
+      if (type_kind(index_type) == T_ENUM)
+         dir = RANGE_TO;
+      else
+         dir = type_dim(index_type, 0).kind;
+
+      // The left bound is the left of the index type and the right bound
+      // is determined by the number of elements
+
+      tree_t left = NULL, right = NULL;
+      type_t std_int = sem_std_type("INTEGER");
+
+      if (type_kind(index_type) == T_ENUM)
+         left = make_ref(type_enum_literal(index_type, 0));
+      else
+         left = type_dim(index_type, 0).left;
+
+      right = call_builtin("add", index_type,
+                           sem_int_lit(std_int, nchars - 1),
+                           left, NULL);
+
+      range_t r = {
+         .kind  = dir,
+         .left  = left,
+         .right = right
+      };
+      type_add_dim(tmp, r);
+
+      tree_set_type(t, tmp);
+      tree_add_attr_int(t, unconstrained_i, 1);
+   }
+   else
+      tree_set_type(t, type);
+
+   return true;
+}
+
 static bool sem_check_literal(tree_t t)
 {
    if (tree_has_type(t) && (type_kind(tree_type(t)) != T_UNRESOLVED))
@@ -4017,6 +4133,9 @@ static bool sem_check_literal(tree_t t)
          tree_set_type(t, access_type);
       }
       break;
+
+   case L_STRING:
+      return sem_check_string_literal(t);
 
    default:
       assert(false);
@@ -5161,6 +5280,32 @@ static bool sem_check_if(tree_t t)
       && sem_check_stmts(t, tree_else_stmt, tree_else_stmts(t));
 }
 
+static bool sem_subtype_locally_static(type_t type)
+{
+   // Rules for locally static subtypes are in LRM 93 7.4.1
+
+   if (type_is_unconstrained(type))
+      return false;
+
+   switch (type_kind(type)) {
+   case T_CARRAY:
+   case T_SUBTYPE:
+      {
+         const int ndims = type_dims(type);
+         for (int i = 0; i < ndims; i++) {
+            range_t r = type_dim(type, i);
+            if (!sem_locally_static(r.left)
+                || !sem_locally_static(r.right))
+               return false;
+         }
+
+         return true;
+      }
+   default:
+      return true;
+   }
+}
+
 static bool sem_locally_static(tree_t t)
 {
    // Rules for locally static expressions are in LRM 93 7.4.1
@@ -5179,8 +5324,13 @@ static bool sem_locally_static(tree_t t)
       return true;
 
    // A constant reference with a locally static value
-   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_CONST_DECL))
-      return sem_locally_static(tree_value(tree_ref(t)));
+   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_CONST_DECL)) {
+      tree_t decl = tree_ref(t);
+      tree_t value = tree_value(decl);
+      return sem_subtype_locally_static(tree_type(decl))
+         && sem_locally_static(value)
+         && !tree_attr_int(value, unconstrained_i, 0);
+   }
 
    // An alias of a locally static name
    if (kind == T_ALIAS)
@@ -5212,29 +5362,8 @@ static bool sem_locally_static(tree_t t)
       else if (tree_kind(decl) == T_FUNC_DECL) {
          assert(tree_attr_str(decl, builtin_i));
 
-         // Check for locally static subtype
          type_t type = tree_type(tree_ref(tree_name(t)));
-
-         if (type_is_unconstrained(type))
-            return false;
-
-         switch (type_kind(type)) {
-         case T_CARRAY:
-         case T_SUBTYPE:
-            {
-               const int ndims = type_dims(type);
-               for (int i = 0; i < ndims; i++) {
-                  range_t r = type_dim(type, i);
-                  if (!sem_locally_static(r.left)
-                      || !sem_locally_static(r.right))
-                     return false;
-               }
-
-               return true;
-            }
-         default:
-            return true;
-         }
+         return sem_subtype_locally_static(type);
       }
 
       // A user-defined attribute whose value is a locally static expression
