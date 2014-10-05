@@ -427,20 +427,14 @@ static text_buf_t *cgen_mangle_func_name(tree_t decl)
 
    tree_t foreign = tree_attr_tree(decl, foreign_i);
    if (foreign != NULL) {
-      assert(tree_kind(foreign) == T_AGGREGATE);
+      if (tree_kind(foreign) != T_LITERAL)
+         fatal_at(tree_loc(decl), "foreign attribute must have string "
+                  "literal value");
 
-      const int nassocs = tree_assocs(foreign);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(foreign, i);
-         assert(tree_subkind(a) == A_POS);
-
-         tree_t value = tree_value(a);
-         assert(tree_kind(value) == T_REF);
-
-         tree_t ch = tree_ref(value);
-         assert(tree_kind(ch) == T_ENUM_LIT);
-
-         tb_printf(tb, "%c", tree_pos(ch));
+      const int nchars = tree_chars(foreign);
+      for (int i = 0; i < nchars; i++) {
+         ident_t ch = tree_char(foreign, i);
+         tb_printf(tb, "%c", ident_char(ch, 1));
       }
    }
    else {
@@ -1553,6 +1547,40 @@ static LLVMValueRef cgen_literal(tree_t t)
       return LLVMConstReal(lltype, tree_dval(t));
    case L_NULL:
       return LLVMConstNull(lltype);
+   case L_STRING:
+      {
+         LLVMValueRef prev = tree_attr_ptr(t, llvm_agg_i);
+         if (prev != NULL)
+            return prev;
+
+         type_t elem = type_base_recur(type_elem(tree_type(t)));
+         LLVMTypeRef et = llvm_type(elem);
+
+         const int nchars = tree_chars(t);
+         LLVMValueRef *tmp = xmalloc(nchars * sizeof(LLVMValueRef));
+
+         const int nlits = type_enum_literals(elem);
+         for (int i = 0; i < nchars; i++) {
+            ident_t ch = tree_char(t, i);
+            for (int j = 0; j < nlits; j++) {
+               if (tree_ident(type_enum_literal(elem, j)) == ch) {
+                  tmp[i] = LLVMConstInt(et, j, false);
+                  break;
+               }
+            }
+         }
+
+         LLVMTypeRef at = LLVMArrayType(et, nchars);
+         LLVMValueRef global = LLVMAddGlobal(module, at, "string_literal");
+         LLVMSetGlobalConstant(global, true);
+         LLVMSetLinkage(global, LLVMInternalLinkage);
+         LLVMSetInitializer(global, LLVMConstArray(et, tmp, nchars));
+
+         tree_add_attr_ptr(t, llvm_agg_i, global);
+
+         free(tmp);
+         return global;
+      }
    default:
       assert(false);
    }
