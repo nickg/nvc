@@ -1564,7 +1564,7 @@ static LLVMValueRef *cgen_string_literal(tree_t t, int *nvals,
    return tmp;
 }
 
-static LLVMValueRef cgen_literal(tree_t t)
+static LLVMValueRef cgen_literal(tree_t t, cgen_ctx_t *ctx)
 {
    LLVMTypeRef lltype = llvm_type(tree_type(t));
    switch (tree_subkind(t)) {
@@ -1593,7 +1593,23 @@ static LLVMValueRef cgen_literal(tree_t t)
          tree_add_attr_ptr(t, llvm_agg_i, global);
 
          free(tmp);
-         return global;
+
+         type_t type = tree_type(t);
+         if (cgen_const_bounds(type))
+            return global;
+         else {
+            LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+            LLVMValueRef raw = LLVMBuildGEP(builder, global,
+                                            indexes, ARRAY_LEN(indexes), "");
+
+            range_t r = type_dim(type, 0);
+            return cgen_array_meta_1(
+               type,
+               cgen_expr(r.left, ctx),
+               cgen_expr(r.right, ctx),
+               llvm_int8(r.kind),
+               raw);
+         }
       }
    default:
       assert(false);
@@ -3732,7 +3748,7 @@ static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_LITERAL:
-      return cgen_literal(t);
+      return cgen_literal(t, ctx);
    case T_FCALL:
       return cgen_fcall(t, ctx);
    case T_REF:

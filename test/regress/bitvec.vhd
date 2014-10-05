@@ -2,6 +2,13 @@ entity bitvec is
 end entity;
 
 architecture test of bitvec is
+
+    function get_bitvec(x, y : integer) return bit_vector is
+        variable r : bit_vector(x to y) := "00";
+    begin
+        return r;
+    end function;
+
 begin
 
     process is
@@ -15,6 +22,7 @@ begin
         assert (b xnor "0111") = "0101";
         assert (b nand "1010") = "0111";
         assert (b nor "0110") = "0000";
+        assert get_bitvec(1, 2) = "00";
         wait;
     end process;
 
