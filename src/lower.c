@@ -23,6 +23,7 @@
 #include <stdlib.h>
 
 static ident_t builtin_i;
+static ident_t foreign_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr);
@@ -58,12 +59,30 @@ static vcode_reg_t lower_fcall(tree_t fcall)
    if (builtin != NULL)
       return lower_builtin(fcall, builtin);
 
+   tree_t foreign = tree_attr_tree(decl, foreign_i);
+   ident_t name = tree_ident(decl);
+   if (foreign != NULL) {
+      if (tree_kind(foreign) != T_LITERAL)
+         fatal_at(tree_loc(decl), "foreign attribute must have string "
+                  "literal value");
+
+      const int nchars = tree_chars(foreign);
+      char buf[nchars + 1];
+      for (int i = 0; i < nchars; i++) {
+         ident_t ch = tree_char(foreign, i);
+         buf[i] = ident_char(ch, 1);
+      }
+      buf[nchars] = '\0';
+
+      name = ident_new(buf);
+   }
+
    const int nargs = tree_params(fcall);
    vcode_reg_t args[nargs];
    for (int i = 0; i < nargs; i++)
       args[i] = lower_func_arg(fcall, i);
 
-   return emit_fcall(tree_ident(decl), args, nargs);
+   return emit_fcall(name, args, nargs);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
@@ -105,7 +124,7 @@ static void lower_wait(tree_t wait)
    vcode_block_t resume = emit_block();
    emit_wait(resume, rfor);
 
-   vcode_emit_to(resume);
+   vcode_select_block(resume);
 }
 
 static void lower_stmt(tree_t stmt)
@@ -131,8 +150,11 @@ static void lower_process(tree_t proc)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(proc, i));
 
+   if (!vcode_block_finished())
+      emit_jump(0);
+
    if (verbose)
-      vcode_dump(vu);
+      vcode_dump();
 
    tree_set_code(proc, vu);
 }
@@ -150,6 +172,7 @@ static void lower_elab(tree_t unit)
 void lower_unit(tree_t unit)
 {
    builtin_i = ident_new("builtin");
+   foreign_i = ident_new("FOREIGN");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

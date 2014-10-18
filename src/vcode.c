@@ -34,7 +34,7 @@ typedef struct {
    union {
       vcode_cmp_t   cmp;
       ident_t       func;
-      vcode_block_t resume;
+      vcode_block_t target;
       int64_t       value;
    };
 } op_t;
@@ -67,7 +67,7 @@ static vcode_reg_t vcode_get_reg(void)
    return active_unit->nregs++;
 }
 
-static op_t *vcode_get_op(vcode_op_t kind)
+static op_t *vcode_add_op(vcode_op_t kind)
 {
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
@@ -95,6 +95,100 @@ void vcode_close(void)
    active_block = -1;
 }
 
+int vcode_count_blocks(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->nblocks;
+}
+
+int vcode_count_ops(void)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+   return active_unit->blocks[active_block].nops;
+}
+
+vcode_op_t vcode_get_op(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+   return b->ops[op].kind;
+}
+
+ident_t vcode_get_func(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+   assert(b->ops[op].kind == VCODE_OP_FCALL);
+   return b->ops[op].func;
+}
+
+int64_t vcode_get_value(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+   assert(b->ops[op].kind == VCODE_OP_CONST);
+   return b->ops[op].value;
+}
+
+vcode_cmp_t vcode_get_cmp(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+   assert(b->ops[op].kind == VCODE_OP_CMP);
+   return b->ops[op].cmp;
+}
+
+vcode_block_t vcode_get_target(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert((o->kind == VCODE_OP_WAIT) || (o->kind == VCODE_OP_JUMP));
+   return o->target;
+}
+
+bool vcode_block_finished(void)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   const block_t *b = &(active_unit->blocks[active_block]);
+   if (b->nops == 0)
+      return false;
+   else {
+      vcode_op_t kind = b->ops[b->nops - 1].kind;
+      return (kind == VCODE_OP_WAIT) || (kind == VCODE_OP_JUMP);
+   }
+}
+
+const char *vcode_op_string(vcode_op_t op)
+{
+   static const char *strs[] = {
+      "cmp", "fcall", "wait", "const", "assert", "jump"
+   };
+   if (op >= ARRAY_LEN(strs))
+      return "???";
+   else
+      return strs[op];
+}
+
 static void vcode_dump_reg(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
@@ -103,8 +197,12 @@ static void vcode_dump_reg(vcode_reg_t reg)
       color_printf("$green$r%d$$", reg);
 }
 
-void vcode_dump(vcode_unit_t vu)
+void vcode_dump(void)
 {
+   assert(active_unit != NULL);
+
+   const vcode_unit_t vu = active_unit;
+
    printf("\n");
    color_printf("Name       $cyan$%s$$\n", istr(vu->name));
    color_printf("Type       $cyan$%s$$\n", "process");
@@ -124,7 +222,7 @@ void vcode_dump(vcode_unit_t vu)
          case VCODE_OP_CMP:
             {
                vcode_dump_reg(op->result);
-               printf(" := cmp ");
+               printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
                switch (op->cmp) {
                case VCODE_CMP_EQ: printf(" == "); break;
@@ -136,7 +234,7 @@ void vcode_dump(vcode_unit_t vu)
          case VCODE_OP_CONST:
             {
                vcode_dump_reg(op->result);
-               printf(" := const %"PRIi64"", op->value);
+               printf(" := %s %"PRIi64"", vcode_op_string(op->kind), op->value);
             }
             break;
 
@@ -144,7 +242,8 @@ void vcode_dump(vcode_unit_t vu)
             {
                vcode_dump_reg(op->result);
                printf("");
-               color_printf(" := fcall $magenta$%s$$", istr(op->func));
+               color_printf(" := %s $magenta$%s$$", vcode_op_string(op->kind),
+                            istr(op->func));
                for (int i = 0; i < op->nargs; i++) {
                   if (i > 0)
                      printf(", ");
@@ -155,7 +254,8 @@ void vcode_dump(vcode_unit_t vu)
 
          case VCODE_OP_WAIT:
             {
-               color_printf("wait $yellow$%d$$", op->resume);
+               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+                            op->target);
                if (op->args[0] != VCODE_INVALID_REG) {
                   printf(" for ");
                   vcode_dump_reg(op->args[0]);
@@ -163,9 +263,16 @@ void vcode_dump(vcode_unit_t vu)
             }
             break;
 
+         case VCODE_OP_JUMP:
+            {
+               color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
+                            op->target);
+            }
+            break;
+
          case VCODE_OP_ASSERT:
             {
-               printf("assert ");
+               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
             }
             break;
@@ -190,7 +297,13 @@ vcode_block_t emit_block(void)
    return active_unit->nblocks++;
 }
 
-void vcode_emit_to(vcode_block_t block)
+void vcode_select_unit(vcode_unit_t unit)
+{
+   active_unit  = unit;
+   active_block = VCODE_INVALID_BLOCK;
+}
+
+void vcode_select_block(vcode_block_t block)
 {
    assert(active_unit != NULL);
    active_block = block;
@@ -202,20 +315,20 @@ vcode_unit_t emit_process(ident_t name)
    vu->name = name;
 
    active_unit = vu;
-   vcode_emit_to(emit_block());
+   vcode_select_block(emit_block());
 
    return vu;
 }
 
 void emit_assert(vcode_reg_t value)
 {
-   op_t *op = vcode_get_op(VCODE_OP_ASSERT);
+   op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   op_t *op = vcode_get_op(VCODE_OP_CMP);
+   op_t *op = vcode_add_op(VCODE_OP_CMP);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
    op->cmp = cmp;
@@ -224,7 +337,7 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_fcall(ident_t func, const vcode_reg_t *args, int nargs)
 {
-   op_t *op = vcode_get_op(VCODE_OP_FCALL);
+   op_t *op = vcode_add_op(VCODE_OP_FCALL);
    op->func = func;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(op, args[i]);
@@ -233,14 +346,20 @@ vcode_reg_t emit_fcall(ident_t func, const vcode_reg_t *args, int nargs)
 
 vcode_reg_t emit_const(int64_t value)
 {
-   op_t *op = vcode_get_op(VCODE_OP_CONST);
+   op_t *op = vcode_add_op(VCODE_OP_CONST);
    op->value = value;
    return (op->result = vcode_get_reg());
 }
 
-void emit_wait(vcode_block_t resume, vcode_reg_t time)
+void emit_wait(vcode_block_t target, vcode_reg_t time)
 {
-   op_t *op = vcode_get_op(VCODE_OP_WAIT);
-   op->resume = resume;
+   op_t *op = vcode_add_op(VCODE_OP_WAIT);
+   op->target = target;
    vcode_add_arg(op, time);
+}
+
+void emit_jump(vcode_block_t target)
+{
+   op_t *op = vcode_add_op(VCODE_OP_JUMP);
+   op->target = target;
 }
