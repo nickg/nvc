@@ -25,12 +25,14 @@
 #define MAX_REGS   32
 #define MAX_OPS    32
 #define MAX_ARGS   8
+#define MAX_TYPES  16
 
 typedef struct {
-   vcode_op_t  kind;
-   vcode_reg_t args[MAX_ARGS];
-   int         nargs;
-   vcode_reg_t result;
+   vcode_op_t   kind;
+   vcode_reg_t  args[MAX_ARGS];
+   int          nargs;
+   vcode_reg_t  result;
+   vcode_type_t type;
    union {
       vcode_cmp_t   cmp;
       ident_t       func;
@@ -45,24 +47,35 @@ typedef struct {
 } block_t;
 
 typedef struct {
-
+   vcode_type_t type;
 } reg_t;
 
+typedef struct {
+   vtype_kind_t kind;
+   int64_t      low;
+   int64_t      high;
+} vtype_t;
+
 struct vcode_unit {
-   ident_t  name;
-   block_t  blocks[MAX_BLOCKS];
-   int      nblocks;
-   reg_t    regs[MAX_REGS];
-   int      nregs;
+   ident_t name;
+   block_t blocks[MAX_BLOCKS];
+   int     nblocks;
+   reg_t   regs[MAX_REGS];
+   int     nregs;
+   vtype_t types[MAX_TYPES];
+   int     ntypes;
 };
 
 static vcode_unit_t  active_unit = NULL;
 static vcode_block_t active_block = VCODE_INVALID_BLOCK;
 
-static vcode_reg_t vcode_get_reg(void)
+static vcode_reg_t vcode_add_reg(vcode_type_t type)
 {
    assert(active_unit != NULL);
    assert(active_unit->nregs < MAX_REGS);
+
+   reg_t *r = &(active_unit->regs[active_unit->nregs]);
+   r->type = type;
 
    return active_unit->nregs++;
 }
@@ -87,6 +100,14 @@ static void vcode_add_arg(op_t *op, vcode_reg_t arg)
 {
    assert(op->nargs < MAX_ARGS);
    op->args[op->nargs++] = arg;
+}
+
+vcode_type_t vcode_reg_type(vcode_reg_t reg)
+{
+   assert(active_unit != NULL);
+   assert(reg < active_unit->nregs);
+
+   return active_unit->regs[reg].type;
 }
 
 void vcode_close(void)
@@ -189,12 +210,50 @@ const char *vcode_op_string(vcode_op_t op)
       return strs[op];
 }
 
-static void vcode_dump_reg(vcode_reg_t reg)
+static int vcode_dump_reg(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
-      color_printf("$red$invalid$$");
+      return color_printf("$red$invalid$$");
    else
-      color_printf("$green$r%d$$", reg);
+      return color_printf("$green$r%d$$", reg);
+}
+
+static vtype_t *vcode_type_data(vcode_type_t type)
+{
+   assert(active_unit != NULL);
+   assert(type < active_unit->ntypes);
+   return &(active_unit->types[type]);
+}
+
+static void vcode_pretty_print_int(int64_t n)
+{
+   if (n == INT64_MAX)
+      printf("2^63 - 1");
+   else if (n == INT64_MIN)
+      printf("-2^63");
+   else if (n == INT32_MAX)
+      printf("2^31 - 1");
+   else if (n == INT32_MIN)
+      printf("-2^31");
+   else
+      printf("%"PRIx64, n);
+}
+
+static void vcode_dump_type(int col, vcode_type_t type)
+{
+   while (col < 40)
+      col += printf(" ");
+
+   color_printf("$cyan$// ");
+   vtype_t *vt = vcode_type_data(type);
+   switch (vt->kind) {
+   case VCODE_TYPE_INT:
+      vcode_pretty_print_int(vt->low);
+      printf(" .. ");
+      vcode_pretty_print_int(vt->high);
+      break;
+   }
+   color_printf("$$ ");
 }
 
 void vcode_dump(void)
@@ -205,17 +264,19 @@ void vcode_dump(void)
 
    printf("\n");
    color_printf("Name       $cyan$%s$$\n", istr(vu->name));
-   color_printf("Type       $cyan$%s$$\n", "process");
+   color_printf("Kind       $cyan$%s$$\n", "process");
    color_printf("Blocks     %d\n", vu->nblocks);
    color_printf("Registers  %d\n", vu->nregs);
+   color_printf("Types      %d\n", vu->ntypes);
 
    for (int i = 0; i < vu->nblocks; i++) {
       const block_t *b = &(vu->blocks[i]);
       for (int j = 0; j < b->nops; j++) {
+         int col = 0;
          if (j == 0)
-            color_printf("  $yellow$%2d:$$ ", i);
+            col += color_printf("  $yellow$%2d:$$ ", i);
          else
-            printf("      ");
+            col += printf("      ");
 
          const op_t *op = &(b->ops[j]);
          switch (op->kind) {
@@ -233,22 +294,26 @@ void vcode_dump(void)
 
          case VCODE_OP_CONST:
             {
-               vcode_dump_reg(op->result);
-               printf(" := %s %"PRIi64"", vcode_op_string(op->kind), op->value);
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %"PRIi64"",
+                             vcode_op_string(op->kind),
+                             op->value);
+               vcode_dump_type(col, op->type);
             }
             break;
 
          case VCODE_OP_FCALL:
             {
-               vcode_dump_reg(op->result);
-               printf("");
-               color_printf(" := %s $magenta$%s$$", vcode_op_string(op->kind),
-                            istr(op->func));
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $magenta$%s$$",
+                                   vcode_op_string(op->kind),
+                                   istr(op->func));
                for (int i = 0; i < op->nargs; i++) {
                   if (i > 0)
-                     printf(", ");
-                  vcode_dump_reg(op->args[i]);
+                     col += printf(", ");
+                  col += vcode_dump_reg(op->args[i]);
                }
+               vcode_dump_type(col, op->type);
             }
             break;
 
@@ -289,6 +354,77 @@ void vcode_dump(void)
    printf("\n");
 }
 
+bool vtype_eq(vcode_type_t a, vcode_type_t b)
+{
+   assert(active_unit != NULL);
+
+   if (a == b)
+      return true;
+   else {
+      assert(a < active_unit->ntypes);
+      assert(b < active_unit->ntypes);
+
+      const vtype_t *at = &(active_unit->types[a]);
+      const vtype_t *bt = &(active_unit->types[b]);
+
+      if (at->kind != bt->kind)
+         return false;
+      else {
+         switch (at->kind) {
+         case VCODE_TYPE_INT:
+            return (at->low == bt->low) && (at->high == bt->high);
+         }
+      }
+   }
+}
+
+vcode_type_t vtype_int(int64_t low, int64_t high)
+{
+   assert(active_unit != NULL);
+   assert(low <= high);
+
+   for (int i = 0; i < active_unit->ntypes; i++) {
+      const vtype_t *t = &(active_unit->types[i]);
+      if ((t->kind == VCODE_TYPE_INT) && (t->low == low) && (t->high == high))
+         return i;
+   }
+
+   assert(active_unit->ntypes < MAX_TYPES);
+   vcode_type_t r = active_unit->ntypes++;
+
+   vtype_t *n = &(active_unit->types[r]);
+   n->kind = VCODE_TYPE_INT;
+   n->low  = low;
+   n->high = high;
+
+   return r;
+}
+
+vcode_type_t vtype_bool(void)
+{
+   return vtype_int(0, 1);
+}
+
+vtype_kind_t vtype_kind(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   return vt->kind;
+}
+
+int64_t vtype_low(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_INT);
+   return vt->low;
+}
+
+int64_t vtype_high(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_INT);
+   return vt->high;
+}
+
 vcode_block_t emit_block(void)
 {
    assert(active_unit != NULL);
@@ -322,6 +458,9 @@ vcode_unit_t emit_process(ident_t name)
 
 void emit_assert(vcode_reg_t value)
 {
+   if (!vtype_eq(vcode_reg_type(value), vtype_bool()))
+      fatal_trace("value parameter to assert is not bool");
+
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
 }
@@ -332,23 +471,26 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
    op->cmp = cmp;
-   return (op->result = vcode_get_reg());
+   return (op->result = vcode_add_reg(vtype_bool()));
 }
 
-vcode_reg_t emit_fcall(ident_t func, const vcode_reg_t *args, int nargs)
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
+                       const vcode_reg_t *args, int nargs)
 {
    op_t *op = vcode_add_op(VCODE_OP_FCALL);
    op->func = func;
+   op->type = type;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(op, args[i]);
-   return (op->result = vcode_get_reg());
+   return (op->result = vcode_add_reg(type));
 }
 
-vcode_reg_t emit_const(int64_t value)
+vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    op_t *op = vcode_add_op(VCODE_OP_CONST);
    op->value = value;
-   return (op->result = vcode_get_reg());
+   op->type  = type;
+   return (op->result = vcode_add_reg(type));
 }
 
 void emit_wait(vcode_block_t target, vcode_reg_t time)

@@ -22,8 +22,7 @@
 #include "ident.h"
 #include "prim.h"
 
-typedef struct vtype *vtype_t;
-
+typedef int vcode_type_t;
 typedef int vcode_block_t;
 typedef int vcode_var_t;
 typedef int vcode_reg_t;
@@ -41,11 +40,20 @@ typedef enum {
    VCODE_OP_JUMP
 } vcode_op_t;
 
+typedef enum {
+   VCODE_TYPE_INT
+} vtype_kind_t;
+
 #define VCODE_INVALID_REG   -1
 #define VCODE_INVALID_BLOCK -1
 
-vtype_t vtype_int(int64_t low, int64_t high);
-vtype_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
+vcode_type_t vtype_int(int64_t low, int64_t high);
+vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
+vcode_type_t vtype_bool(void);
+bool vtype_eq(vcode_type_t a, vcode_type_t b);
+vtype_kind_t vtype_kind(vcode_type_t type);
+int64_t vtype_low(vcode_type_t type);
+int64_t vtype_high(vcode_type_t type);
 
 void vcode_close(void);
 void vcode_dump(void);
@@ -60,16 +68,18 @@ int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 vcode_block_t vcode_get_target(int op);
 bool vcode_block_finished(void);
+vcode_type_t vcode_reg_type(vcode_reg_t reg);
 
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(ident_t name);
-vcode_reg_t emit_const(int64_t value);
+vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 void emit_add(vcode_reg_t target, vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_fcall(ident_t func, const vcode_reg_t *args, int nargs);
+vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
+                       const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 

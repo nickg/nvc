@@ -18,15 +18,48 @@
 #include "util.h"
 #include "phase.h"
 #include "vcode.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
 static ident_t builtin_i;
 static ident_t foreign_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr);
+
+static vcode_type_t lower_type(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      {
+         vcode_type_t base = lower_type(type_base(type));
+
+         const int64_t blow  = vtype_low(base);
+         const int64_t bhigh = vtype_high(base);
+
+         range_t r = type_dim(type, 0);
+         const int64_t slow  = assume_int(r.left);
+         const int64_t shigh = assume_int(r.right);
+
+         assert(slow >= blow);
+         assert(shigh <= bhigh);
+
+         return vtype_int(slow, shigh);
+      }
+
+   case T_PHYSICAL:
+      {
+         range_t r = type_dim(type, 0);
+         return vtype_int(assume_int(r.left), assume_int(r.right));
+      }
+
+   default:
+      fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
+   }
+}
 
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
@@ -82,14 +115,14 @@ static vcode_reg_t lower_fcall(tree_t fcall)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_func_arg(fcall, i);
 
-   return emit_fcall(name, args, nargs);
+   return emit_fcall(name, lower_type(tree_type(fcall)), args, nargs);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
 {
    switch (tree_subkind(lit)) {
    case L_INT:
-      return emit_const(tree_ival(lit));
+      return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",

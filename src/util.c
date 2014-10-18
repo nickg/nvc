@@ -330,14 +330,26 @@ static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
    free(strp);
 }
 
-void color_printf(const char *fmt, ...)
+int color_printf(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
    char *strp LOCAL = prepare_msg(fmt, ap, true);
    va_end(ap);
 
+   bool escape = false;
+   int len = 0;
+   for (const char *p = strp; *p != '\0'; p++) {
+      if (*p == '\033')
+         escape = true;
+      if (escape)
+         escape = (*p != 'm');
+      else
+         len += 1;
+   }
+
    printf("%s", strp);
+   return len;
 }
 
 void error_at(const loc_t *loc, const char *fmt, ...)
