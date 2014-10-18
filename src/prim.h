@@ -63,4 +63,6 @@ typedef struct tree_rd_ctx *tree_rd_ctx_t;
 
 typedef struct trie *ident_t;
 
+typedef struct vcode_unit *vcode_unit_t;
+
 #endif  // _PRIM_H

@@ -49,7 +49,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_ATTRS),
 
    // T_PROCESS
-   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_TRIGGERS | I_ATTRS | I_CODE),
 
    // T_REF
    (I_IDENT | I_TYPE | I_REF | I_ATTRS),
@@ -113,7 +113,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
 
    // T_FUNC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE),
 
    // T_RETURN
    (I_IDENT | I_VALUE | I_ATTRS),
@@ -143,7 +143,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_PROC_BODY
-   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_PORTS | I_TYPE | I_ATTRS | I_CODE),
 
    // T_EXIT
    (I_IDENT | I_VALUE | I_IDENT2 | I_ATTRS),
@@ -764,6 +764,23 @@ bool tree_has_ref(tree_t t)
 void tree_set_ref(tree_t t, tree_t decl)
 {
    lookup_item(&tree_object, t, I_REF)->tree = decl;
+}
+
+vcode_unit_t tree_code(tree_t t)
+{
+   item_t *item = lookup_item(&tree_object, t, I_CODE);
+   assert(item->code != NULL);
+   return item->code;
+}
+
+bool tree_has_code(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_CODE)->code != NULL;
+}
+
+void tree_set_code(tree_t t, vcode_unit_t code)
+{
+   lookup_item(&tree_object, t, I_CODE)->code = code;
 }
 
 tree_t tree_spec(tree_t t)

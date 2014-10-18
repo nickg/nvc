@@ -37,7 +37,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS"
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CODE"
 };
 
 static object_class_t *classes[4];
@@ -370,6 +370,8 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          }
          else if (ITEM_IDENT_ARRAY & mask)
             ;
+         else if (ITEM_CODE & mask)
+            ;
          else
             item_without_type(mask);
       }
@@ -464,6 +466,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          else if (ITEM_TEXT_BUF & mask)
             ;
          else if (ITEM_IDENT_ARRAY & mask)
+            ;
+         else if (ITEM_CODE & mask)
             ;
          else
             item_without_type(mask);
@@ -638,6 +642,8 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
                ident_write(a->items[i], ctx->ident_ctx);
          }
          else if (ITEM_TEXT_BUF & mask)
+            ;
+         else if (ITEM_CODE & mask)
             ;
          else
             item_without_type(mask);
@@ -837,6 +843,8 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
                }
             }
          }
+         else if (ITEM_CODE & mask)
+            ;
          else
             item_without_type(mask);
          n++;
@@ -965,6 +973,8 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
          else if (ITEM_TEXT_BUF & mask)
             ;
          else if (ITEM_IDENT_ARRAY & mask)
+            ;
+         else if (ITEM_CODE & mask)
             ;
          else
             item_without_type(mask);
@@ -1106,6 +1116,8 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
          }
          else if (ITEM_TEXT_BUF & mask)
             ;
+         else if (ITEM_CODE & mask)
+            copy->items[n].code = NULL;
          else
             item_without_type(mask);
          n++;

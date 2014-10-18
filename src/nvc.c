@@ -199,6 +199,7 @@ static int elaborate(int argc, char **argv)
    // meta data to trees
    lib_save(lib_work());
 
+   lower_unit(e);
    cgen(e);
    link_bc(e);
 

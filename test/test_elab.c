@@ -6,22 +6,6 @@
 #include <stdio.h>
 #include <string.h>
 
-static tree_t run_elab(void)
-{
-   tree_t t, last_ent = NULL;
-   while ((t = parse())) {
-      sem_check(t);
-      fail_if(sem_errors() > 0);
-
-      simplify(t);
-
-      if (tree_kind(t) == T_ENTITY)
-         last_ent = t;
-   }
-
-   return elab(last_ent);
-}
-
 START_TEST(test_elab1)
 {
    input_from_file(TESTDIR "/elab/elab1.vhd");

@@ -1,5 +1,6 @@
 #include "test_util.h"
 #include "lib.h"
+#include "phase.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -78,4 +79,20 @@ int nvc_run_test(Suite *s)
    srunner_free(sr);
 
    return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+tree_t run_elab(void)
+{
+   tree_t t, last_ent = NULL;
+   while ((t = parse())) {
+      sem_check(t);
+      fail_if(sem_errors() > 0);
+
+      simplify(t);
+
+      if (tree_kind(t) == T_ENTITY)
+         last_ent = t;
+   }
+
+   return elab(last_ent);
 }

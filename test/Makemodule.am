@@ -9,13 +9,14 @@ UNIT_TESTS = \
 	bin/test_hash \
 	bin/test_group \
 	bin/test_bounds \
-	bin/test_value
+	bin/test_value \
+	bin/test_lower
 
 check_PROGRAMS += $(UNIT_TESTS)
 
 noinst_LIBRARIES += test/libtest_util.a
 
-test_libs = lib/libnvc.a lib/libfastlz.a test/libtest_util.a $(CHECK_LIBS)
+test_libs = test/libtest_util.a lib/libnvc.a lib/libfastlz.a $(CHECK_LIBS)
 
 test_libtest_util_a_SOURCES = test/test_util.c
 
@@ -51,6 +52,9 @@ bin_test_bounds_LDADD = $(test_libs)
 
 bin_test_value_SOURCES = test/test_value.c
 bin_test_value_LDADD = $(test_libs)
+
+bin_test_lower_SOURCES = test/test_lower.c
+bin_test_lower_LDADD = $(test_libs)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \

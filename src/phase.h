@@ -19,6 +19,7 @@
 #define _PHASE_H
 
 #include "tree.h"
+#include "vcode.h"
 
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.
@@ -78,5 +79,8 @@ tree_t parse(void);
 
 // Number of errors found while parsing last unit
 int parse_errors(void);
+
+// Generate vcode for a design unit
+void lower_unit(tree_t unit);
 
 #endif  // _PHASE_H
