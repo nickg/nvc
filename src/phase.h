@@ -19,7 +19,6 @@
 #define _PHASE_H
 
 #include "tree.h"
-#include "vcode.h"
 
 // Annotate types and perform other semantics checks on a tree.
 // Returns false on error.

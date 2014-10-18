@@ -134,13 +134,15 @@ static const struct color_escape escapes[] = {
    { "white",   ANSI_FG_WHITE },
 };
 
-static char *filter_color(const char *str)
+static char *filter_color(const char *str, bool force)
 {
    // Replace color strings like "$red$foo$$bar" with ANSI escaped
    // strings like "\033[31mfoo\033[0mbar"
 
-   char *copy = xmalloc(strlen(str) * 2);
+   const size_t maxlen = strlen(str) * 2;
+   char *copy = xmalloc(maxlen);
    char *p = copy;
+   char *eptr = copy + maxlen;
 
    const char *escape_start = NULL;
 
@@ -152,11 +154,11 @@ static char *filter_color(const char *str)
             const char *e = escape_start + 1;
             const size_t len = str - e;
 
-            if (want_color) {
+            if (want_color || force) {
                bool found = false;
                for (int i = 0; i < ARRAY_LEN(escapes); i++) {
                   if (strncmp(e, escapes[i].name, len) == 0) {
-                     p += snprintf(p, copy - p, "\033[%dm", escapes[i].value);
+                     p += snprintf(p, eptr - p, "\033[%dm", escapes[i].value);
                      found = true;
                      break;
                   }
@@ -193,7 +195,7 @@ static void paginate_msg(const char *fmt, va_list ap,
 {
    char *strp = xvasprintf(fmt, ap);
 
-   char *filtered = filter_color(strp);
+   char *filtered = filter_color(strp, false);
 
    const char *p = filtered;
    int col = start;
@@ -314,18 +316,28 @@ static void def_error_fn(const char *msg, const loc_t *loc)
    fmt_loc(stderr, loc);
 }
 
-static char *prepare_msg(const char *fmt, va_list ap)
+static char *prepare_msg(const char *fmt, va_list ap, bool force_color)
 {
    char *strp LOCAL = xvasprintf(fmt, ap);
-   return filter_color(strp);
+   return filter_color(strp, force_color);
 }
 
 static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
 {
-   char *strp = prepare_msg(fmt, ap);
+   char *strp = prepare_msg(fmt, ap, false);
    (*fn)("%s", strp);
    fmt_loc(stderr, loc);
    free(strp);
+}
+
+void color_printf(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *strp LOCAL = prepare_msg(fmt, ap, true);
+   va_end(ap);
+
+   printf("%s", strp);
 }
 
 void error_at(const loc_t *loc, const char *fmt, ...)
@@ -333,7 +345,7 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char *strp = prepare_msg(fmt, ap);
+   char *strp = prepare_msg(fmt, ap, false);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
    free(strp);
 

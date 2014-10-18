@@ -43,6 +43,9 @@ char *xvasprintf(const char *fmt, va_list ap);
 char *xasprintf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 
+void color_printf(const char *fmt, ...)
+   __attribute__((format(printf, 1, 2)));
+
 void errorf(const char *fmt, ...)
    __attribute__((format(printf, 1, 2)));
 void warnf(const char *fmt, ...)

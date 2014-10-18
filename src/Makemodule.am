@@ -23,7 +23,8 @@ lib_libnvc_a_SOURCES = \
 	src/bounds.c \
 	src/make.c \
 	src/object.c \
-	src/lower.c
+	src/lower.c \
+	src/vcode.c
 
 lib_libcgen_a_SOURCES = src/cgen.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
