@@ -67,6 +67,10 @@ case $host_os in
     ;;
 esac
 
+AC_SEARCH_LIBS([dlopen], [dl dld], [], [
+  AC_MSG_ERROR([unable to find the dlopen() function])
+])
+
 AC_CHECK_HEADERS([tcl.h tcl/tcl.h], [have_tcl=yes; break], [])
 AC_SEARCH_LIBS([Tcl_CreateInterp], [tcl tcl86], [],
   [AC_MSG_ERROR(TCL library not found)], [])
