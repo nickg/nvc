@@ -1,70 +1,10 @@
+#include "test_util.h"
 #include "type.h"
 #include "util.h"
 #include "phase.h"
 
-#include <check.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
-
-typedef struct error {
-   int        line;
-   const char *snippet;
-} error_t;
-
-static const error_t  *error_lines = NULL;
-static error_fn_t orig_error_fn = NULL;
-
-void cover_tag(void)
-{
-   assert(false);
-}
-
-static void setup(void)
-{
-   const char *lib_dir = getenv("LIB_DIR");
-   if (lib_dir)
-      lib_add_search_path(lib_dir);
-
-   lib_set_work(lib_tmp());
-   opt_set_int("bootstrap", 0);
-   opt_set_int("cover", 0);
-   opt_set_int("unit-test", 1);
-   opt_set_int("prefer-explicit", 0);
-}
-
-static void teardown(void)
-{
-   lib_free(lib_work());
-}
-
-static void test_error_fn(const char *msg, const loc_t *loc)
-{
-   fail_if(error_lines == NULL);
-
-   bool unexpected = error_lines->line == -1
-      || error_lines->snippet == NULL
-      || error_lines->line != loc->first_line
-      || strstr(msg, error_lines->snippet) == NULL;
-
-   if (unexpected) {
-      orig_error_fn(msg, loc);
-      printf("expected line %d '%s'\n",
-             error_lines->line, error_lines->snippet);
-   }
-
-   fail_if(unexpected);
-
-   error_lines++;
-}
-
-static void expect_errors(const error_t *lines)
-{
-   fail_unless(orig_error_fn == NULL);
-   orig_error_fn = set_error_fn(test_error_fn);
-   error_lines = lines;
-}
 
 static tree_t run_elab(void)
 {
@@ -317,36 +257,24 @@ END_TEST
 
 int main(void)
 {
-   register_trace_signal_handlers();
-
-   setenv("NVC_LIBPATH", "../lib/std", 1);
-
    Suite *s = suite_create("elab");
 
-   TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, teardown);
-   tcase_add_test(tc_core, test_elab1);
-   tcase_add_test(tc_core, test_elab2);
-   tcase_add_test(tc_core, test_elab3);
-   tcase_add_test(tc_core, test_elab4);
-   tcase_add_test(tc_core, test_open);
-   tcase_add_test(tc_core, test_genagg);
-   tcase_add_test(tc_core, test_comp);
-   tcase_add_test(tc_core, test_issue17);
-   tcase_add_test(tc_core, test_issue19);
-   tcase_add_test(tc_core, test_bounds10);
-   tcase_add_test(tc_core, test_copy1);
-   tcase_add_test(tc_core, test_record);
-   tcase_add_test(tc_core, test_ifgen);
-   tcase_add_test(tc_core, test_open2);
-   suite_add_tcase(s, tc_core);
+   TCase *tc = nvc_unit_test();
+   tcase_add_test(tc, test_elab1);
+   tcase_add_test(tc, test_elab2);
+   tcase_add_test(tc, test_elab3);
+   tcase_add_test(tc, test_elab4);
+   tcase_add_test(tc, test_open);
+   tcase_add_test(tc, test_genagg);
+   tcase_add_test(tc, test_comp);
+   tcase_add_test(tc, test_issue17);
+   tcase_add_test(tc, test_issue19);
+   tcase_add_test(tc, test_bounds10);
+   tcase_add_test(tc, test_copy1);
+   tcase_add_test(tc, test_record);
+   tcase_add_test(tc, test_ifgen);
+   tcase_add_test(tc, test_open2);
+   suite_add_tcase(s, tc);
 
-   SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
-
-   int nfail = srunner_ntests_failed(sr);
-
-   srunner_free(sr);
-
-   return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   return nvc_run_test(s);
 }

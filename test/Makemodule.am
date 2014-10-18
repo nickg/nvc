@@ -13,7 +13,11 @@ UNIT_TESTS = \
 
 check_PROGRAMS += $(UNIT_TESTS)
 
-test_libs = $(CHECK_LIBS) lib/libnvc.a lib/libfastlz.a
+noinst_LIBRARIES += test/libtest_util.a
+
+test_libs = lib/libnvc.a lib/libfastlz.a test/libtest_util.a $(CHECK_LIBS)
+
+test_libtest_util_a_SOURCES = test/test_util.c
 
 bin_test_lib_SOURCES = test/test_lib.c
 bin_test_lib_LDADD = $(test_libs)
