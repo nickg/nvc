@@ -569,8 +569,9 @@ static void usage(void)
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          " -L PATH\t\tAdd PATH to library search paths\n"
+          "     --messages=STYLE\tSelect full or compact message format\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
@@ -649,6 +650,16 @@ static vhdl_standard_t parse_standard(const char *str)
    fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
 }
 
+static message_style_t parse_message_style(const char *str)
+{
+   if (strcmp(optarg, "full") == 0)
+      return MESSAGE_FULL;
+   else if (strcmp(optarg, "compact") == 0)
+      return MESSAGE_COMPACT;
+
+   fatal("invalid message style '%s' (allowed are 'full' and 'compact')", str);
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -665,13 +676,14 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",    no_argument,       0, 'h' },
-      { "version", no_argument,       0, 'v' },
-      { "work",    required_argument, 0, 'w' },
-      { "dump",    no_argument,       0, 'd' },
-      { "codegen", no_argument,       0, 'c' },
-      { "make",    no_argument,       0, 'm' },
-      { "std",     required_argument, 0, 's' },
+      { "help",     no_argument,       0, 'h' },
+      { "version",  no_argument,       0, 'v' },
+      { "work",     required_argument, 0, 'w' },
+      { "dump",     no_argument,       0, 'd' },
+      { "codegen",  no_argument,       0, 'c' },
+      { "make",     no_argument,       0, 'm' },
+      { "std",      required_argument, 0, 's' },
+      { "messages", required_argument, 0, 'M' },
       { 0, 0, 0, 0 }
    };
 
@@ -696,6 +708,9 @@ int main(int argc, char **argv)
          break;
       case 's':
          set_standard(parse_standard(optarg));
+         break;
+      case 'M':
+         set_message_style(parse_message_style(optarg));
          break;
       case 'a':
       case 'e':

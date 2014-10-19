@@ -126,4 +126,11 @@ void _local_free(void *ptr);
       array[count++] = item;                            \
    } while(0);
 
+typedef enum {
+   MESSAGE_FULL,
+   MESSAGE_COMPACT
+} message_style_t;
+
+void set_message_style(message_style_t style);
+
 #endif // _UTIL_H
