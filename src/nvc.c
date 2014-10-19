@@ -82,8 +82,7 @@ static int analyse(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised analyse option %s", argv[optind - 1]);
       case 'b':
          opt_set_int("bootstrap", 1);
          break;
@@ -172,8 +171,7 @@ static int elaborate(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised elaborate option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -222,8 +220,7 @@ static int codegen(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised codegen option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -319,8 +316,7 @@ static int run(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised run option %s", argv[optind - 1]);
       case 't':
          opt_set_int("rt_trace_en", 1);
          break;
@@ -447,8 +443,7 @@ static int make_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised make option %s", argv[optind - 1]);
       case 'd':
          opt_set_int("make-deps-only", 1);
          break;
@@ -488,10 +483,10 @@ static int dump_cmd(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      {"elab", no_argument, 0, 'e'},
-      {"body", no_argument, 0, 'b'},
-      {"nets", no_argument, 0, 'n'},
-      {0, 0, 0, 0}
+      { "elab", no_argument, 0, 'e' },
+      { "body", no_argument, 0, 'b' },
+      { "nets", no_argument, 0, 'n' },
+      { 0, 0, 0, 0 }
    };
 
    bool add_elab = false, add_body = false, nets = false;
@@ -504,8 +499,7 @@ static int dump_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised dump option %s", argv[optind - 1]);
       case 'e':
          add_elab = true;
          break;
@@ -561,16 +555,16 @@ static void usage(void)
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
           "\n"
           "COMMAND is one of:\n"
-          " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
+          " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
-          " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
-          " --dump [OPTION]... UNIT\t\tPrint out previously analysed UNIT\n"
+          " --codegen UNIT\t\t\tGenerate native shared library for UNIT\n"
+          " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " -h, --help\t\tDisplay this message and exit\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
+          " -h, --help\t\tDisplay this message and exit\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
@@ -687,6 +681,8 @@ int main(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
+   opterr = 0;
+
    int c, index = 0;
    const char *spec = "aehrvL:";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
@@ -723,8 +719,7 @@ int main(int argc, char **argv)
          argv += (optind - 1);
          goto getopt_out;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised global option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -745,7 +740,7 @@ int main(int argc, char **argv)
    case 'm':
       return make_cmd(argc, argv);
    default:
-      fprintf(stderr, "%s: missing command\n", PACKAGE);
+      fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
    }
 }
