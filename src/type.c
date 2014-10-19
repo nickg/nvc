@@ -323,7 +323,7 @@ type_t type_universal_int(void)
    if (t == NULL) {
       tree_t min = tree_new(T_LITERAL);
       tree_set_subkind(min, L_INT);
-      tree_set_ival(min, -INT_MAX);
+      tree_set_ival(min, INT_MIN);
 
       tree_t max = tree_new(T_LITERAL);
       tree_set_subkind(max, L_INT);
@@ -342,7 +342,7 @@ type_t type_universal_real(void)
    if (t == NULL) {
       tree_t min = tree_new(T_LITERAL);
       tree_set_subkind(min, L_REAL);
-      tree_set_dval(min, -DBL_MAX);
+      tree_set_dval(min, DBL_MIN);
 
       tree_t max = tree_new(T_LITERAL);
       tree_set_subkind(max, L_REAL);

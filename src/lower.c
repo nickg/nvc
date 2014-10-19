@@ -26,6 +26,7 @@
 
 static ident_t builtin_i;
 static ident_t foreign_i;
+static ident_t vcode_var_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr);
@@ -34,23 +35,10 @@ static vcode_type_t lower_type(type_t type)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      {
-         vcode_type_t base = lower_type(type_base(type));
-
-         const int64_t blow  = vtype_low(base);
-         const int64_t bhigh = vtype_high(base);
-
-         range_t r = type_dim(type, 0);
-         const int64_t slow  = assume_int(r.left);
-         const int64_t shigh = assume_int(r.right);
-
-         assert(slow >= blow);
-         assert(shigh <= bhigh);
-
-         return vtype_int(slow, shigh);
-      }
+      return lower_type(type_base(type));
 
    case T_PHYSICAL:
+   case T_INTEGER:
       {
          range_t r = type_dim(type, 0);
          return vtype_int(assume_int(r.left), assume_int(r.right));
@@ -75,11 +63,14 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
-   if (icmp(builtin, "eq")) {
+   if (icmp(builtin, "eq"))
       return emit_cmp(VCODE_CMP_EQ,
                       lower_func_arg(fcall, 0),
                       lower_func_arg(fcall, 1));
-   }
+   else if (icmp(builtin, "mul"))
+      return emit_mul(lower_func_arg(fcall, 0), lower_func_arg(fcall, 1));
+   else if (icmp(builtin, "add"))
+      return emit_add(lower_func_arg(fcall, 0), lower_func_arg(fcall, 1));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -130,6 +121,23 @@ static vcode_reg_t lower_literal(tree_t lit)
    }
 }
 
+static vcode_var_t lower_get_var(tree_t decl)
+{
+   vcode_var_t var = tree_attr_int(decl, vcode_var_i, VCODE_INVALID_VAR);
+   if (var == VCODE_INVALID_VAR) {
+      vcode_dump();
+      fatal_trace("missing vcode var for %s", istr(tree_ident(decl)));
+   }
+
+   return var;
+}
+
+static vcode_reg_t lower_ref(tree_t ref)
+{
+   tree_t decl = tree_ref(ref);
+   return emit_load(lower_get_var(decl));
+}
+
 static vcode_reg_t lower_expr(tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -137,6 +145,8 @@ static vcode_reg_t lower_expr(tree_t expr)
       return lower_fcall(expr);
    case T_LITERAL:
       return lower_literal(expr);
+   case T_REF:
+      return lower_ref(expr);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -150,14 +160,27 @@ static void lower_assert(tree_t stmt)
 
 static void lower_wait(tree_t wait)
 {
-   vcode_reg_t rfor = VCODE_INVALID_REG;
-   if (tree_has_value(wait))
-      rfor = lower_expr(tree_value(wait));
+   vcode_reg_t delay = VCODE_INVALID_REG;
+   if (tree_has_delay(wait))
+      delay = lower_expr(tree_delay(wait));
 
    vcode_block_t resume = emit_block();
-   emit_wait(resume, rfor);
+   emit_wait(resume, delay);
 
    vcode_select_block(resume);
+}
+
+static void lower_var_assign(tree_t stmt)
+{
+   vcode_reg_t value = lower_expr(tree_value(stmt));
+
+   tree_t target = tree_target(stmt);
+   assert(tree_kind(target) == T_REF);
+
+   tree_t decl = tree_ref(target);
+   assert(type_is_scalar(tree_type(decl)));
+
+   emit_store(value, lower_get_var(decl));
 }
 
 static void lower_stmt(tree_t stmt)
@@ -169,9 +192,31 @@ static void lower_stmt(tree_t stmt)
    case T_WAIT:
       lower_wait(stmt);
       break;
+   case T_VAR_ASSIGN:
+      lower_var_assign(stmt);
+      break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
                tree_kind_str(tree_kind(stmt)));
+   }
+}
+
+static void lower_decl(tree_t decl)
+{
+   switch (tree_kind(decl)) {
+   case T_VAR_DECL:
+      {
+         vcode_var_t var = emit_var(lower_type(tree_type(decl)),
+                                    tree_ident(decl));
+         tree_add_attr_int(decl, vcode_var_i, var);
+
+         if (tree_has_value(decl))
+            emit_store(lower_expr(tree_value(decl)), var);
+      }
+      break;
+   default:
+      fatal_at(tree_loc(decl), "cannot lower decl kind %s",
+               tree_kind_str(tree_kind(decl)));
    }
 }
 
@@ -179,17 +224,29 @@ static void lower_process(tree_t proc)
 {
    vcode_unit_t vu = emit_process(tree_ident(proc));
 
+   const int ndecls = tree_decls(proc);
+   for (int i = 0; i < ndecls; i++)
+      lower_decl(tree_decl(proc, i));
+
+   vcode_block_t start_bb = emit_block();
+   emit_jump(start_bb);
+   vcode_select_block(start_bb);
+
    const int nstmts = tree_stmts(proc);
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(proc, i));
 
    if (!vcode_block_finished())
-      emit_jump(0);
+      emit_jump(start_bb);
 
    if (verbose)
       vcode_dump();
 
+   assert(!tree_has_code(proc));
    tree_set_code(proc, vu);
+
+   for (int i = 0; i < ndecls; i++)
+      tree_remove_attr(tree_decl(proc, i), vcode_var_i);
 }
 
 static void lower_elab(tree_t unit)
@@ -204,8 +261,9 @@ static void lower_elab(tree_t unit)
 
 void lower_unit(tree_t unit)
 {
-   builtin_i = ident_new("builtin");
-   foreign_i = ident_new("FOREIGN");
+   builtin_i   = ident_new("builtin");
+   foreign_i   = ident_new("FOREIGN");
+   vcode_var_i = ident_new("vcode_var");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

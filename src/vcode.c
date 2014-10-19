@@ -20,12 +20,14 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <string.h>
 
 #define MAX_BLOCKS 32
 #define MAX_REGS   32
 #define MAX_OPS    32
 #define MAX_ARGS   8
 #define MAX_TYPES  16
+#define MAX_VARS   8
 
 typedef struct {
    vcode_op_t   kind;
@@ -38,6 +40,7 @@ typedef struct {
       ident_t       func;
       vcode_block_t target;
       int64_t       value;
+      vcode_var_t   address;
    };
 } op_t;
 
@@ -56,6 +59,11 @@ typedef struct {
    int64_t      high;
 } vtype_t;
 
+typedef struct {
+   vcode_type_t type;
+   ident_t      name;
+} var_t;
+
 struct vcode_unit {
    ident_t name;
    block_t blocks[MAX_BLOCKS];
@@ -64,6 +72,8 @@ struct vcode_unit {
    int     nregs;
    vtype_t types[MAX_TYPES];
    int     ntypes;
+   var_t   vars[MAX_VARS];
+   int     nvars;
 };
 
 static vcode_unit_t  active_unit = NULL;
@@ -202,7 +212,8 @@ bool vcode_block_finished(void)
 const char *vcode_op_string(vcode_op_t op)
 {
    static const char *strs[] = {
-      "cmp", "fcall", "wait", "const", "assert", "jump"
+      "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
+      "mul", "add"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -225,18 +236,33 @@ static vtype_t *vcode_type_data(vcode_type_t type)
    return &(active_unit->types[type]);
 }
 
+static var_t *vcode_var_data(vcode_var_t var)
+{
+   assert(active_unit != NULL);
+   assert(var < active_unit->nvars);
+   return &(active_unit->vars[var]);
+}
+static reg_t *vcode_reg_data(vcode_reg_t reg)
+{
+   assert(active_unit != NULL);
+   assert(reg < active_unit->nregs);
+   return &(active_unit->regs[reg]);
+}
+
 static void vcode_pretty_print_int(int64_t n)
 {
    if (n == INT64_MAX)
       printf("2^63 - 1");
    else if (n == INT64_MIN)
       printf("-2^63");
+   else if (n == INT64_MIN + 1)
+      printf("-2^63");   // XXX: bug in lexer/parser
    else if (n == INT32_MAX)
       printf("2^31 - 1");
    else if (n == INT32_MIN)
       printf("-2^31");
    else
-      printf("%"PRIx64, n);
+      printf("%"PRIi64, n);
 }
 
 static void vcode_dump_type(int col, vcode_type_t type)
@@ -268,7 +294,16 @@ void vcode_dump(void)
    color_printf("Blocks     %d\n", vu->nblocks);
    color_printf("Registers  %d\n", vu->nregs);
    color_printf("Types      %d\n", vu->ntypes);
+   color_printf("Variables  %d\n", vu->nvars);
 
+   for (int i = 0; i < vu->nvars; i++) {
+      const var_t *v = &(vu->vars[i]);
+      int col = color_printf("  $magenta$%s$$", istr(v->name));
+      vcode_dump_type(col, v->type);
+      printf("\n");
+   }
+
+   printf("Begin\n");
    for (int i = 0; i < vu->nblocks; i++) {
       const block_t *b = &(vu->blocks[i]);
       for (int j = 0; j < b->nops; j++) {
@@ -339,6 +374,41 @@ void vcode_dump(void)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
+            }
+            break;
+
+         case VCODE_OP_LOAD:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $magenta$%s$$",
+                                   vcode_op_string(op->kind),
+                                   istr(vcode_var_data(op->address)->name));
+               vcode_dump_type(col, op->type);
+            }
+            break;
+
+         case VCODE_OP_STORE:
+            {
+               color_printf("$magenta$%s$$ := ",
+                            istr(vcode_var_data(op->address)->name));
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args[0]);
+            }
+            break;
+
+         case VCODE_OP_MUL:
+         case VCODE_OP_ADD:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               switch (op->kind) {
+               case VCODE_OP_MUL: col += printf(" * "); break;
+               case VCODE_OP_ADD: col += printf(" + "); break;
+               default: break;
+               }
+               col += vcode_dump_reg(op->args[1]);
+               vcode_dump_type(col, op->type);
             }
             break;
          }
@@ -458,20 +528,32 @@ vcode_unit_t emit_process(ident_t name)
 
 void emit_assert(vcode_reg_t value)
 {
-   if (!vtype_eq(vcode_reg_type(value), vtype_bool()))
-      fatal_trace("value parameter to assert is not bool");
-
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
+
+   if (!vtype_eq(vcode_reg_type(value), vtype_bool())) {
+      vcode_dump();
+      fatal_trace("value parameter to assert is not bool");
+   }
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 {
+   if (cmp == VCODE_CMP_EQ && lhs == rhs)
+      return emit_const(vtype_bool(), 1);
+
    op_t *op = vcode_add_op(VCODE_OP_CMP);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
-   op->cmp = cmp;
-   return (op->result = vcode_add_reg(vtype_bool()));
+   op->cmp    = cmp;
+   op->result = vcode_add_reg(vtype_bool());
+
+   if (!vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs))) {
+      vcode_dump();
+      fatal_trace("arguments to cmp are not the same type");
+   }
+
+   return op->result;
 }
 
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
@@ -487,6 +569,15 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
 
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
+   // Reuse any previous constant in this block with the same type and value
+   block_t *b = &(active_unit->blocks[active_block]);
+   for (int i = b->nops - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops[i]);
+      if (op->kind == VCODE_OP_CONST && op->value == value
+          && vtype_eq(type, op->type))
+         return op->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CONST);
    op->value = value;
    op->type  = type;
@@ -504,4 +595,94 @@ void emit_jump(vcode_block_t target)
 {
    op_t *op = vcode_add_op(VCODE_OP_JUMP);
    op->target = target;
+}
+
+vcode_var_t emit_var(vcode_type_t type, ident_t name)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->nvars < MAX_VARS);
+
+   var_t *v = &(active_unit->vars[active_unit->nvars]);
+   v->type = type;
+   v->name = name;
+
+   return active_unit->nvars++;
+}
+
+vcode_reg_t emit_load(vcode_var_t var)
+{
+   // Try scanning backwards through the block for another load or store to
+   // this variable
+   block_t *b = &(active_unit->blocks[active_block]);
+   for (int i = b->nops - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops[i]);
+      if ((op->kind == VCODE_OP_LOAD) && (op->address == var))
+         return op->result;
+      else if ((op->kind == VCODE_OP_STORE) && (op->address == var))
+         return op->args[0];
+   }
+
+   var_t *v = vcode_var_data(var);
+
+   op_t *op = vcode_add_op(VCODE_OP_LOAD);
+   op->address = var;
+   op->result  = vcode_add_reg(v->type);
+
+   if (vtype_kind(v->type) != VCODE_TYPE_INT) {
+      vcode_dump();
+      fatal_trace("cannot load non-scalar type");
+   }
+
+   return op->result;
+}
+
+void emit_store(vcode_reg_t reg, vcode_var_t var)
+{
+   // Any previous store to this variable in this block is dead
+   block_t *b = &(active_unit->blocks[active_block]);
+   for (int i = 0; i < b->nops; i++) {
+      op_t *op = &(b->ops[i]);
+      if (op->kind == VCODE_OP_STORE && op->address == var) {
+         b->nops--;
+         memmove(op, op + 1, sizeof(op_t) * (b->nops - i));
+      }
+   }
+
+   var_t *v = vcode_var_data(var);
+   reg_t *r = vcode_reg_data(reg);
+
+   op_t *op = vcode_add_op(VCODE_OP_STORE);
+   vcode_add_arg(op, reg);
+   op->address = var;
+
+   if (!vtype_eq(v->type, r->type)) {
+      vcode_dump();
+      fatal_trace("variable and stored value do not have same type");
+   }
+}
+
+static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   op_t *op = vcode_add_op(kind);
+   vcode_add_arg(op, lhs);
+   vcode_add_arg(op, rhs);
+   op->result = vcode_add_reg(vcode_reg_type(lhs));
+
+   if (!vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs))) {
+      vcode_dump();
+      fatal_trace("arguments to %s are not the same type",
+                  vcode_op_string(kind));
+   }
+
+   return op->result;
+}
+
+vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_arith(VCODE_OP_MUL, lhs, rhs);
+}
+
+vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_arith(VCODE_OP_ADD, lhs, rhs);
 }

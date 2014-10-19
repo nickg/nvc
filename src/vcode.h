@@ -37,7 +37,11 @@ typedef enum {
    VCODE_OP_WAIT,
    VCODE_OP_CONST,
    VCODE_OP_ASSERT,
-   VCODE_OP_JUMP
+   VCODE_OP_JUMP,
+   VCODE_OP_LOAD,
+   VCODE_OP_STORE,
+   VCODE_OP_MUL,
+   VCODE_OP_ADD
 } vcode_op_t;
 
 typedef enum {
@@ -46,6 +50,7 @@ typedef enum {
 
 #define VCODE_INVALID_REG   -1
 #define VCODE_INVALID_BLOCK -1
+#define VCODE_INVALID_VAR   -1
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
@@ -73,14 +78,17 @@ vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);
 vcode_block_t emit_block(void);
-vcode_var_t emit_var(ident_t name);
+vcode_var_t emit_var(vcode_type_t type, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
-void emit_add(vcode_reg_t target, vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
+vcode_reg_t emit_load(vcode_var_t var);
+void emit_store(vcode_reg_t reg, vcode_var_t var);
 
 #endif  // _VCODE_H

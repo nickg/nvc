@@ -104,20 +104,17 @@ START_TEST(test_wait1)
    vcode_select_unit(v0);
 
    const check_bb_t bb0[] = {
-      { VCODE_OP_FCALL, .func = "_std_standard_now" },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_WAIT,  .target = 1 }
+      { VCODE_OP_JUMP, .target = 1 }
    };
 
    check_bb(0, bb0, ARRAY_LEN(bb0));
 
    const check_bb_t bb1[] = {
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
-      { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT,  .target = 2 }
    };
 
@@ -125,19 +122,48 @@ START_TEST(test_wait1)
 
    const check_bb_t bb2[] = {
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
-      { VCODE_OP_CONST, .value = 1000001 },
+      { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WAIT,  .target = 3 }
    };
 
    check_bb(2, bb2, ARRAY_LEN(bb2));
 
    const check_bb_t bb3[] = {
-      { VCODE_OP_JUMP, .target = 0 }
+      { VCODE_OP_FCALL, .func = "_std_standard_now" },
+      { VCODE_OP_CONST, .value = 1000001 },
+      { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT,  .target = 4 }
    };
 
    check_bb(3, bb3, ARRAY_LEN(bb3));
+
+   const check_bb_t bb4[] = {
+      { VCODE_OP_JUMP, .target = 1 }
+   };
+
+   check_bb(4, bb4, ARRAY_LEN(bb4));
+}
+END_TEST
+
+START_TEST(test_assign1)
+{
+   input_from_file(TESTDIR "/lower/assign1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
 }
 END_TEST
 
@@ -147,6 +173,7 @@ int main(void)
 
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_wait1);
+   tcase_add_test(tc, test_assign1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
