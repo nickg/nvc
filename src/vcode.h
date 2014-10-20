@@ -41,7 +41,9 @@ typedef enum {
    VCODE_OP_LOAD,
    VCODE_OP_STORE,
    VCODE_OP_MUL,
-   VCODE_OP_ADD
+   VCODE_OP_ADD,
+   VCODE_OP_BOUNDS,
+   VCODE_OP_COMMENT
 } vcode_op_t;
 
 typedef enum {
@@ -56,6 +58,7 @@ vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
+bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
 int64_t vtype_high(vcode_type_t type);
@@ -78,7 +81,7 @@ vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);
 vcode_block_t emit_block(void);
-vcode_var_t emit_var(vcode_type_t type, ident_t name);
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
@@ -90,5 +93,6 @@ void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
+void emit_bounds(vcode_reg_t reg, vcode_type_t bounds);
 
 #endif  // _VCODE_H

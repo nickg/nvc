@@ -49,6 +49,17 @@ static vcode_type_t lower_type(type_t type)
    }
 }
 
+static vcode_type_t lower_bounds(type_t type)
+{
+   if (type_kind(type) == T_SUBTYPE) {
+      assert(type_is_scalar(type));
+      range_t r = type_dim(type, 0);
+      return vtype_int(assume_int(r.left), assume_int(r.right));
+   }
+   else
+      return lower_type(type);
+}
+
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
    assert(nth < tree_params(fcall));
@@ -180,6 +191,7 @@ static void lower_var_assign(tree_t stmt)
    tree_t decl = tree_ref(target);
    assert(type_is_scalar(tree_type(decl)));
 
+   emit_bounds(value, lower_bounds(tree_type(decl)));
    emit_store(value, lower_get_var(decl));
 }
 
@@ -206,12 +218,17 @@ static void lower_decl(tree_t decl)
    switch (tree_kind(decl)) {
    case T_VAR_DECL:
       {
-         vcode_var_t var = emit_var(lower_type(tree_type(decl)),
-                                    tree_ident(decl));
+         type_t type = tree_type(decl);
+         vcode_type_t vtype = lower_type(type);
+         vcode_type_t vbounds = lower_bounds(type);
+         vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
          tree_add_attr_int(decl, vcode_var_i, var);
 
-         if (tree_has_value(decl))
-            emit_store(lower_expr(tree_value(decl)), var);
+         if (tree_has_value(decl)) {
+            vcode_reg_t value = lower_expr(tree_value(decl));
+            emit_bounds(value, vbounds);
+            emit_store(value, var);
+         }
       }
       break;
    default:

@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <string.h>
+#include <stdlib.h>
 
 #define MAX_BLOCKS 32
 #define MAX_REGS   32
@@ -41,6 +42,7 @@ typedef struct {
       vcode_block_t target;
       int64_t       value;
       vcode_var_t   address;
+      char         *comment;
    };
 } op_t;
 
@@ -51,6 +53,7 @@ typedef struct {
 
 typedef struct {
    vcode_type_t type;
+   vcode_type_t bounds;
 } reg_t;
 
 typedef struct {
@@ -61,6 +64,7 @@ typedef struct {
 
 typedef struct {
    vcode_type_t type;
+   vcode_type_t bounds;
    ident_t      name;
 } var_t;
 
@@ -79,13 +83,40 @@ struct vcode_unit {
 static vcode_unit_t  active_unit = NULL;
 static vcode_block_t active_block = VCODE_INVALID_BLOCK;
 
+static inline int64_t sadd64(int64_t a, int64_t b)
+{
+   if (a > 0) {
+      if (b > INT64_MAX - a)
+         return INT64_MAX;
+   }
+   else if (b < INT64_MIN - a)
+      return INT64_MIN;
+
+   return a + b;
+}
+
+static inline int64_t smul64(int64_t a, int64_t b)
+{
+   if ((a > 0 && b > 0) || (a < 0 && b < 0)) {
+      if ((b > INT32_MAX && a > INT32_MAX)
+          || (b < INT32_MIN && a < INT32_MIN))
+         return INT64_MAX;
+   }
+   else if ((b < INT32_MIN && a > INT32_MAX)
+            || (b > INT32_MAX && a < INT32_MIN))
+      return INT64_MAX;
+
+   return a * b;
+}
+
 static vcode_reg_t vcode_add_reg(vcode_type_t type)
 {
    assert(active_unit != NULL);
    assert(active_unit->nregs < MAX_REGS);
 
    reg_t *r = &(active_unit->regs[active_unit->nregs]);
-   r->type = type;
+   r->type   = type;
+   r->bounds = type;
 
    return active_unit->nregs++;
 }
@@ -104,6 +135,16 @@ static op_t *vcode_add_op(vcode_op_t kind)
    op->result = VCODE_INVALID_REG;
 
    return op;
+}
+
+static void vcode_add_comment(const char *fmt, ...)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COMMENT);
+
+   va_list ap;
+   va_start(ap, fmt);
+   op->comment = xvasprintf(fmt, ap);
+   va_end(ap);
 }
 
 static void vcode_add_arg(op_t *op, vcode_reg_t arg)
@@ -242,6 +283,7 @@ static var_t *vcode_var_data(vcode_var_t var)
    assert(var < active_unit->nvars);
    return &(active_unit->vars[var]);
 }
+
 static reg_t *vcode_reg_data(vcode_reg_t reg)
 {
    assert(active_unit != NULL);
@@ -265,19 +307,32 @@ static void vcode_pretty_print_int(int64_t n)
       printf("%"PRIi64, n);
 }
 
-static void vcode_dump_type(int col, vcode_type_t type)
+static void vcode_dump_one_type(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   switch (vt->kind) {
+   case VCODE_TYPE_INT:
+      if (vt->low != vt->high) {
+         vcode_pretty_print_int(vt->low);
+         printf(" .. ");
+         vcode_pretty_print_int(vt->high);
+      }
+      else
+         vcode_pretty_print_int(vt->low);
+      break;
+   }
+}
+
+static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
 {
    while (col < 40)
       col += printf(" ");
 
    color_printf("$cyan$// ");
-   vtype_t *vt = vcode_type_data(type);
-   switch (vt->kind) {
-   case VCODE_TYPE_INT:
-      vcode_pretty_print_int(vt->low);
-      printf(" .. ");
-      vcode_pretty_print_int(vt->high);
-      break;
+   vcode_dump_one_type(type);
+   if (!vtype_eq(type, bounds)) {
+      printf(" => ");
+      vcode_dump_one_type(bounds);
    }
    color_printf("$$ ");
 }
@@ -299,7 +354,7 @@ void vcode_dump(void)
    for (int i = 0; i < vu->nvars; i++) {
       const var_t *v = &(vu->vars[i]);
       int col = color_printf("  $magenta$%s$$", istr(v->name));
-      vcode_dump_type(col, v->type);
+      vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
    }
 
@@ -333,7 +388,8 @@ void vcode_dump(void)
                col += printf(" := %s %"PRIi64"",
                              vcode_op_string(op->kind),
                              op->value);
-               vcode_dump_type(col, op->type);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
             }
             break;
 
@@ -348,7 +404,8 @@ void vcode_dump(void)
                      col += printf(", ");
                   col += vcode_dump_reg(op->args[i]);
                }
-               vcode_dump_type(col, op->type);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
             }
             break;
 
@@ -383,7 +440,8 @@ void vcode_dump(void)
                col += color_printf(" := %s $magenta$%s$$",
                                    vcode_op_string(op->kind),
                                    istr(vcode_var_data(op->address)->name));
-               vcode_dump_type(col, op->type);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
             }
             break;
 
@@ -408,7 +466,26 @@ void vcode_dump(void)
                default: break;
                }
                col += vcode_dump_reg(op->args[1]);
-               vcode_dump_type(col, op->type);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
+
+         case VCODE_OP_BOUNDS:
+            {
+               vtype_t *vt = vcode_type_data(op->type);
+               printf("bounds ");
+               vcode_dump_reg(op->args[0]);
+               printf(" in ");
+               vcode_pretty_print_int(vt->low);
+               printf(" .. ");
+               vcode_pretty_print_int(vt->high);
+            }
+            break;
+
+         case VCODE_OP_COMMENT:
+            {
+               color_printf("$cyan$// %s$$ ", op->comment);
             }
             break;
          }
@@ -446,6 +523,14 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
          }
       }
    }
+}
+
+bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
+{
+   const vtype_t *tt = vcode_type_data(type);
+   const vtype_t *bt = vcode_type_data(bounds);
+
+   return bt->low >= tt->low && bt->high <= tt->high;
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
@@ -528,6 +613,11 @@ vcode_unit_t emit_process(ident_t name)
 
 void emit_assert(vcode_reg_t value)
 {
+   if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
+      vcode_add_comment("Always true assertion on r%d", value);
+      return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
 
@@ -579,9 +669,19 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST);
-   op->value = value;
-   op->type  = type;
-   return (op->result = vcode_add_reg(type));
+   op->value  = value;
+   op->type   = type;
+   op->result = vcode_add_reg(type);
+
+   if (vtype_kind(type) != VCODE_TYPE_INT) {
+      vcode_dump();
+      fatal("constant must have integer type");
+   }
+
+   reg_t *r = vcode_reg_data(op->result);
+   r->bounds = vtype_int(value, value);
+
+   return op->result;
 }
 
 void emit_wait(vcode_block_t target, vcode_reg_t time)
@@ -597,14 +697,15 @@ void emit_jump(vcode_block_t target)
    op->target = target;
 }
 
-vcode_var_t emit_var(vcode_type_t type, ident_t name)
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
 {
    assert(active_unit != NULL);
    assert(active_unit->nvars < MAX_VARS);
 
    var_t *v = &(active_unit->vars[active_unit->nvars]);
-   v->type = type;
-   v->name = name;
+   v->type   = type;
+   v->bounds = bounds;
+   v->name   = name;
 
    return active_unit->nvars++;
 }
@@ -632,6 +733,9 @@ vcode_reg_t emit_load(vcode_var_t var)
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
+
+   reg_t *r = vcode_reg_data(op->result);
+   r->bounds = v->bounds;
 
    return op->result;
 }
@@ -679,10 +783,46 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   return emit_arith(VCODE_OP_MUL, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
+
+   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+
+   const int64_t ll = smul64(bl->low, br->low);
+   const int64_t lh = smul64(bl->low, br->high);
+   const int64_t hl = smul64(bl->high, br->low);
+   const int64_t hh = smul64(bl->high, br->high);
+
+   const int64_t min = MIN(MIN(ll, lh), MIN(hl, hh));
+   const int64_t max = MAX(MAX(ll, lh), MAX(hl, hh));
+
+   reg_t *rr = vcode_reg_data(reg);
+   rr->bounds = vtype_int(min, max);
+
+   return reg;
 }
 
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   return emit_arith(VCODE_OP_ADD, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
+
+   vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
+   vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
+
+   reg_t *rr = vcode_reg_data(reg);
+   rr->bounds = vtype_int(sadd64(bl->low, br->low), sadd64(bl->high, br->high));
+
+   return reg;
+}
+
+void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
+{
+   if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
+      vcode_add_comment("Elided bounds check for r%d", reg);
+      return;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_BOUNDS);
+   vcode_add_arg(op, reg);
+   op->type = bounds;
 }
