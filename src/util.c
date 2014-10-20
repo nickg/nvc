@@ -443,7 +443,8 @@ void fmt_loc(FILE *f, const struct loc *loc)
       return;
 
    if (message_style == MESSAGE_COMPACT) {
-      fprintf(f, "%s:%d:%d: ", loc->file, loc->first_line, loc->first_column);
+      fprintf(f, "%s:%d:%d: ", loc->file, loc->first_line,
+              loc->first_column + 1);
       return;
    }
 
