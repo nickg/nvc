@@ -68,15 +68,20 @@ void vcode_dump(void);
 void vcode_select_unit(vcode_unit_t vu);
 void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
+const char *vcode_op_string(vcode_op_t op);
+bool vcode_block_finished(void);
+vcode_type_t vcode_reg_type(vcode_reg_t reg);
+
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
-const char *vcode_op_string(vcode_op_t op);
 ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 vcode_block_t vcode_get_target(int op);
-bool vcode_block_finished(void);
-vcode_type_t vcode_reg_type(vcode_reg_t reg);
+vcode_var_t vcode_get_address(int op);
+
+int vcode_count_vars(void);
+ident_t vcode_var_name(vcode_var_t var);
 
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);

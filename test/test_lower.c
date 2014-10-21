@@ -8,6 +8,7 @@ typedef struct {
    int64_t       value;
    vcode_cmp_t   cmp;
    vcode_block_t target;
+   const char   *name;
 } check_bb_t;
 
 #define vcode_fail_unless(vu, expr) do {                \
@@ -22,20 +23,22 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
    fail_unless(bb < vcode_count_blocks());
    vcode_select_block(bb);
 
-   if (vcode_count_ops() != len) {
-      vcode_dump();
-      fail("expected %d ops in block %d but have %d",
-           len, bb, vcode_count_ops());
-   }
+   const int nops = vcode_count_ops();
 
-   for (int i = 0; i < len; i++) {
-      const check_bb_t *e = &(expect[i]);
+   int eptr = 0, actual = nops;
+   for (int i = 0; i < nops && eptr < len; i++) {
+      const vcode_op_t vop = vcode_get_op(i);
+      if (vop == VCODE_OP_COMMENT) {
+         actual--;
+         continue;
+      }
 
-      if (vcode_get_op(i) != e->op) {
+      const check_bb_t *e = &(expect[eptr++]);
+
+      if (vop != e->op) {
          vcode_dump();
          fail("expected op %d in block %d to be %s but was %s",
-              i, bb, vcode_op_string(e->op),
-              vcode_op_string(vcode_get_op(i)));
+              i, bb, vcode_op_string(e->op), vcode_op_string(vop));
       }
 
       switch (e->op) {
@@ -82,9 +85,25 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
+      case VCODE_OP_STORE:
+         {
+            ident_t name = vcode_var_name(vcode_get_address(i));
+            if (name != ident_new(e->name)) {
+               vcode_dump();
+               fail("expected op %d in block %d to have address name %s but "
+                    "has %s", i, bb, e->name, istr(name));
+            }
+         }
+         break;
+
       default:
-         fail("cannot check op %s", vcode_op_string(expect[i].op));
+         fail("cannot check op %s", vcode_op_string(e->op));
       }
+   }
+
+   if (actual != eptr) {
+      vcode_dump();
+      fail("expected %d ops in block %d but have %d", len, bb, actual);
    }
 }
 
@@ -142,7 +161,7 @@ START_TEST(test_wait1)
    check_bb(3, bb3, ARRAY_LEN(bb3));
 
    const check_bb_t bb4[] = {
-      { VCODE_OP_JUMP, .target = 1 }
+      { VCODE_OP_JUMP,  .target = 1 }
    };
 
    check_bb(4, bb4, ARRAY_LEN(bb4));
@@ -163,6 +182,18 @@ START_TEST(test_assign1)
 
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
    vcode_select_unit(v0);
+
+   fail_unless(vcode_count_vars() == 2);
+
+   const check_bb_t bb0[] = {
+      { VCODE_OP_CONST, .value = 64 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = -4 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_JUMP,  .target = 1 }
+   };
+
+   check_bb(0, bb0, ARRAY_LEN(bb0));
 
 }
 END_TEST

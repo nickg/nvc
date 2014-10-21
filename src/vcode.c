@@ -104,7 +104,7 @@ static inline int64_t smul64(int64_t a, int64_t b)
    }
    else if ((b < INT32_MIN && a > INT32_MAX)
             || (b > INT32_MAX && a < INT32_MIN))
-      return INT64_MAX;
+      return INT64_MIN;
 
    return a * b;
 }
@@ -180,6 +180,20 @@ int vcode_count_ops(void)
    return active_unit->blocks[active_block].nops;
 }
 
+int vcode_count_vars(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->nvars;
+}
+
+ident_t vcode_var_name(vcode_var_t var)
+{
+   assert(active_unit != NULL);
+   assert(var < active_unit->nvars);
+
+   return active_unit->vars[var].name;
+}
+
 vcode_op_t vcode_get_op(int op)
 {
    assert(active_unit != NULL);
@@ -210,6 +224,19 @@ int64_t vcode_get_value(int op)
    assert(op < b->nops);
    assert(b->ops[op].kind == VCODE_OP_CONST);
    return b->ops[op].value;
+}
+
+vcode_var_t vcode_get_address(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(o->kind == VCODE_OP_LOAD || o->kind == VCODE_OP_STORE);
+   return o->address;
 }
 
 vcode_cmp_t vcode_get_cmp(int op)
@@ -254,7 +281,7 @@ const char *vcode_op_string(vcode_op_t op)
 {
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
-      "mul", "add"
+      "mul", "add", "bounds", "comment"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -474,7 +501,7 @@ void vcode_dump(void)
          case VCODE_OP_BOUNDS:
             {
                vtype_t *vt = vcode_type_data(op->type);
-               printf("bounds ");
+               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
                printf(" in ");
                vcode_pretty_print_int(vt->low);
