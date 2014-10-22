@@ -161,6 +161,60 @@ vcode_type_t vcode_reg_type(vcode_reg_t reg)
    return active_unit->regs[reg].type;
 }
 
+void vcode_opt(void)
+{
+   // Prune assignments to unused registers
+
+   int *uses = xmalloc(active_unit->nregs * sizeof(int));
+
+   int pruned = 0;
+   do {
+      memset(uses, '\0', active_unit->nregs * sizeof(int));
+      pruned = 0;
+
+      for (int i = active_unit->nblocks - 1; i >= 0; i--) {
+         block_t *b = &(active_unit->blocks[i]);
+
+         for (int j = b->nops - 1; j >= 0; j--) {
+            op_t *o = &(b->ops[j]);
+
+            for (int k = 0; k < o->nargs; k++) {
+               if (o->args[k] != VCODE_INVALID_REG)
+                  uses[o->args[k]]++;
+            }
+
+            switch (o->kind) {
+            case VCODE_OP_CONST:
+            case VCODE_OP_LOAD:
+            case VCODE_OP_FCALL:
+            case VCODE_OP_ADD:
+            case VCODE_OP_MUL:
+            case VCODE_OP_CMP:
+               if (uses[o->result] == -1) {
+                  vcode_dump();
+                  fatal("defintion of r%d does not dominate all uses",
+                        o->result);
+               }
+               else if (uses[o->result] == 0) {
+                  o->comment = xasprintf("Dead %s definition of r%d",
+                                         vcode_op_string(o->kind), o->result);
+                  o->kind = VCODE_OP_COMMENT;
+                  pruned++;
+               }
+               uses[o->result] = -1;
+               break;
+
+            default:
+               break;
+            }
+         }
+
+      }
+   } while (pruned > 0);
+
+   free(uses);
+}
+
 void vcode_close(void)
 {
    active_unit  = NULL;
@@ -237,6 +291,43 @@ vcode_var_t vcode_get_address(int op)
    op_t *o = &(b->ops[op]);
    assert(o->kind == VCODE_OP_LOAD || o->kind == VCODE_OP_STORE);
    return o->address;
+}
+
+vcode_var_t vcode_get_type(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(o->kind == VCODE_OP_BOUNDS);
+   return o->type;
+}
+
+int vcode_count_args(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   return b->ops[op].nargs;
+}
+
+vcode_reg_t vcode_get_arg(int op, int arg)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(arg < o->nargs);
+   return o->args[arg];
 }
 
 vcode_cmp_t vcode_get_cmp(int op)

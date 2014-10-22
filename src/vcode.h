@@ -63,6 +63,7 @@ vtype_kind_t vtype_kind(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
 int64_t vtype_high(vcode_type_t type);
 
+void vcode_opt(void);
 void vcode_close(void);
 void vcode_dump(void);
 void vcode_select_unit(vcode_unit_t vu);
@@ -79,6 +80,9 @@ int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 vcode_block_t vcode_get_target(int op);
 vcode_var_t vcode_get_address(int op);
+int vcode_count_args(int op);
+vcode_reg_t vcode_get_arg(int op, int arg);
+vcode_type_t vcode_get_type(int op);
 
 int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);

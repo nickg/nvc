@@ -256,6 +256,8 @@ static void lower_process(tree_t proc)
    if (!vcode_block_finished())
       emit_jump(start_bb);
 
+   vcode_opt();
+
    if (verbose)
       vcode_dump();
 

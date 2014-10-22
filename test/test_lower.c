@@ -2,6 +2,8 @@
 #include "phase.h"
 #include "vcode.h"
 
+#include <inttypes.h>
+
 typedef struct {
    vcode_op_t    op;
    const char   *func;
@@ -9,14 +11,13 @@ typedef struct {
    vcode_cmp_t   cmp;
    vcode_block_t target;
    const char   *name;
+   bool          delay;
+   int64_t       low;
+   int64_t       high;
 } check_bb_t;
 
-#define vcode_fail_unless(vu, expr) do {                \
-      if (!(expr)) {                                    \
-         vcode_dump(vu);                                \
-         fail_unless(expr);                             \
-      }                                                 \
-   } while (0);
+#define CAT(x, y) x##y
+#define CHECK_BB(n) check_bb(n, CAT(bb, n), ARRAY_LEN(CAT(bb, n)))
 
 static void check_bb(int bb, const check_bb_t *expect, int len)
 {
@@ -75,6 +76,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             fail("expected op %d in block %d to have wait target %d but has %d",
                  i, bb, e->target, vcode_get_target(i));
          }
+         else if (e->delay && vcode_get_arg(i, 0) == VCODE_INVALID_REG) {
+            vcode_dump();
+            fail("expected op %d in block %d to have wait delay", i, bb);
+         }
          break;
 
       case VCODE_OP_JUMP:
@@ -86,12 +91,33 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_STORE:
+      case VCODE_OP_LOAD:
          {
             ident_t name = vcode_var_name(vcode_get_address(i));
             if (name != ident_new(e->name)) {
                vcode_dump();
                fail("expected op %d in block %d to have address name %s but "
                     "has %s", i, bb, e->name, istr(name));
+            }
+         }
+         break;
+
+      case VCODE_OP_ADD:
+      case VCODE_OP_MUL:
+         break;
+
+      case VCODE_OP_BOUNDS:
+         {
+            vcode_type_t bounds = vcode_get_type(i);
+            if (e->low != vtype_low(bounds)) {
+               vcode_dump();
+               fail("expect op %d in block %d to have low bound %"PRIi64
+                    " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
+            }
+            else if (e->high != vtype_high(bounds)) {
+               vcode_dump();
+               fail("expect op %d in block %d to have high bound %"PRIi64
+                    " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
             }
          }
          break;
@@ -126,7 +152,7 @@ START_TEST(test_wait1)
       { VCODE_OP_JUMP, .target = 1 }
    };
 
-   check_bb(0, bb0, ARRAY_LEN(bb0));
+   CHECK_BB(0);
 
    const check_bb_t bb1[] = {
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
@@ -137,7 +163,7 @@ START_TEST(test_wait1)
       { VCODE_OP_WAIT,  .target = 2 }
    };
 
-   check_bb(1, bb1, ARRAY_LEN(bb1));
+   CHECK_BB(1);
 
    const check_bb_t bb2[] = {
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
@@ -148,7 +174,7 @@ START_TEST(test_wait1)
       { VCODE_OP_WAIT,  .target = 3 }
    };
 
-   check_bb(2, bb2, ARRAY_LEN(bb2));
+   CHECK_BB(2);
 
    const check_bb_t bb3[] = {
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
@@ -158,13 +184,13 @@ START_TEST(test_wait1)
       { VCODE_OP_WAIT,  .target = 4 }
    };
 
-   check_bb(3, bb3, ARRAY_LEN(bb3));
+   CHECK_BB(3);
 
    const check_bb_t bb4[] = {
       { VCODE_OP_JUMP,  .target = 1 }
    };
 
-   check_bb(4, bb4, ARRAY_LEN(bb4));
+   CHECK_BB(4);
 }
 END_TEST
 
@@ -193,8 +219,57 @@ START_TEST(test_assign1)
       { VCODE_OP_JUMP,  .target = 1 }
    };
 
-   check_bb(0, bb0, ARRAY_LEN(bb0));
+   CHECK_BB(0);
 
+   const check_bb_t bb1[] = {
+      { VCODE_OP_CONST, .value = 4000000 },
+      { VCODE_OP_WAIT,  .target = 2, .delay = true }
+   };
+
+   CHECK_BB(1);
+
+   const check_bb_t bb2[] = {
+      { VCODE_OP_LOAD,  .name = "X" },
+      { VCODE_OP_CONST, .value = 64 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_LOAD,  .name = "Y" },
+      { VCODE_OP_CONST, .value = -4 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_MUL },
+      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_CONST,  .value = -8 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_WAIT,  .target = 3, .delay = true }
+   };
+
+   CHECK_BB(2);
+
+   const check_bb_t bb3[] = {
+      { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_LOAD, .name = "Y" },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 12 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 4 }
+   };
+
+   CHECK_BB(3);
+
+   const check_bb_t bb4[] = {
+      { VCODE_OP_JUMP, .target = 1 }
+   };
+
+   CHECK_BB(4);
 }
 END_TEST
 
