@@ -179,8 +179,10 @@ bool type_eq(type_t a, type_t b)
    // may be declared in different scopes with the same name but
    // shouldn't compare equal
 
-   if (type_ident(a) != type_ident(b))
-      return false;
+   if (type_has_ident(a) && type_has_ident(b)) {
+      if (type_ident(a) != type_ident(b))
+         return false;
+   }
 
    // Access types are equal if the pointed to type is the same
    if (kind_a == T_ACCESS)
@@ -418,6 +420,13 @@ void type_add_param(type_t t, type_t p)
    type_array_add(&(lookup_item(&type_object, t, I_PTYPES)->type_array), p);
 }
 
+void type_change_param(type_t t, unsigned n, type_t p)
+{
+   type_array_t *a = &(lookup_item(&type_object, t, I_PTYPES)->type_array);
+   assert(n < a->count);
+   a->items[n] = p;
+}
+
 unsigned type_fields(type_t t)
 {
    if (t->object.kind == T_SUBTYPE)
@@ -574,18 +583,20 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
          else
             tb_rewind(tbi->text_buf);
 
-         const char *fname = (*fn)(istr(type_ident(t)));
-
-         tb_printf(tbi->text_buf, "%s(", fname);
+         if (type_has_ident(t)) {
+            const char *fname = (*fn)(istr(type_ident(t)));
+            tb_printf(tbi->text_buf, "%s ", fname);
+         }
+         tb_printf(tbi->text_buf, "[");
          const int nparams = type_params(t);
          for (int i = 0; i < nparams; i++)
             tb_printf(tbi->text_buf, "%s%s",
                       (i == 0 ? "" : ", "),
                       (*fn)(istr(type_ident(type_param(t, i)))));
-         tb_printf(tbi->text_buf, ")");
          if (type_kind(t) == T_FUNC)
             tb_printf(tbi->text_buf, " return %s",
                       (*fn)(istr(type_ident(type_result(t)))));
+         tb_printf(tbi->text_buf, "]");
 
          return tb_get(tbi->text_buf);
       }
