@@ -1470,7 +1470,7 @@ START_TEST(test_alias)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    fail_unless(tree_stmts(a) == 0);
-   fail_unless(tree_decls(a) == 2);
+   fail_unless(tree_decls(a) == 6);
 
    d = tree_decl(a, 0);
    fail_unless(tree_kind(d) == T_ALIAS);
@@ -1483,6 +1483,20 @@ START_TEST(test_alias)
    fail_unless(tree_ident(d) == ident_new("BLAH"));
    fail_unless(tree_kind(tree_value(d)) == T_REF);
    fail_unless(tree_has_type(d));
+
+   d = tree_decl(a, 2);
+   fail_unless(tree_kind(d) == T_ALIAS);
+   fail_unless(tree_ident(d) == ident_new("FUNCI"));
+   fail_unless(tree_kind(tree_value(d)) == T_REF);
+   fail_unless(tree_has_type(d));
+   fail_unless(type_kind(tree_type(d)) == T_FUNC);
+
+   d = tree_decl(a, 3);
+   fail_unless(tree_kind(d) == T_ALIAS);
+   fail_unless(tree_ident(d) == ident_new("PROCI"));
+   fail_unless(tree_kind(tree_value(d)) == T_REF);
+   fail_unless(tree_has_type(d));
+   fail_unless(type_kind(tree_type(d)) == T_PROC);
 
    a = parse();
    fail_unless(a == NULL);

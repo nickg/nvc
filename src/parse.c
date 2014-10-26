@@ -3006,6 +3006,36 @@ static void p_signal_declaration(tree_t parent)
    }
 }
 
+static type_t p_signature(void)
+{
+   // [ [ type_mark { , type_mark } ] [ return type_mark ] ]
+
+   BEGIN("signature");
+
+   const look_params_t lookp = {
+      .look   = { tRETURN },
+      .stop   = { tRSQUARE },
+      .abort  = tSEMI
+   };
+
+   type_t type = type_new(look_for(&lookp) ? T_FUNC : T_PROC);
+
+   consume(tLSQUARE);
+
+   if (not_at_token(tRETURN, tRSQUARE)) {
+      type_add_param(type, p_type_mark());
+      while (optional(tCOMMA))
+         type_add_param(type, p_type_mark());
+   }
+
+   if (optional(tRETURN))
+      type_set_result(type, p_type_mark());
+
+   consume(tRSQUARE);
+
+   return type;
+}
+
 static tree_t p_alias_declaration(void)
 {
    // alias alias_designator [ : subtype_indication ] is name [ signature ] ;
@@ -3014,12 +3044,23 @@ static tree_t p_alias_declaration(void)
 
    tree_t t = tree_new(T_ALIAS);
 
+   bool has_subtype_indication = false;
    consume(tALIAS);
    tree_set_ident(t, p_identifier());
-   if (optional(tCOLON))
+   if (optional(tCOLON)) {
       tree_set_type(t, p_subtype_indication());
+      has_subtype_indication = true;
+   }
    consume(tIS);
    tree_set_value(t, p_name());
+
+   if (peek() == tLSQUARE) {
+      tree_set_type(t, p_signature());
+      if (has_subtype_indication)
+         parse_error(CURRENT_LOC, "alias declaration may not contain both a "
+                     "signature and a subtype indication");
+   }
+
    consume(tSEMI);
 
    tree_set_loc(t, CURRENT_LOC);
