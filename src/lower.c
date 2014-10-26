@@ -30,19 +30,41 @@ static ident_t vcode_var_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr);
+static vcode_type_t lower_bounds(type_t type);
 
 static vcode_type_t lower_type(type_t type)
 {
    switch (type_kind(type)) {
    case T_SUBTYPE:
-      return lower_type(type_base(type));
+      if (type_is_array(type)) {
+         const int ndims = type_dims(type);
+         assert(ndims > 0);
+         vcode_type_t bounds[ndims];
+         for (int i = 0; i < ndims; i++) {
+            range_t r = type_dim(type, i);
+            int64_t low, high;
+            range_bounds(r, &low, &high);
+            bounds[i] = vtype_int(low, high);
+         }
+
+         type_t elem = type_elem(type);
+         return vtype_carray(bounds, ndims, lower_type(elem),
+                             lower_bounds(elem));
+      }
+      else
+         return lower_type(type_base(type));
 
    case T_PHYSICAL:
    case T_INTEGER:
       {
          range_t r = type_dim(type, 0);
-         return vtype_int(assume_int(r.left), assume_int(r.right));
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+         return vtype_int(low, high);
       }
+
+   case T_ENUM:
+      return vtype_int(0, type_enum_literals(type) - 1);
 
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
@@ -51,10 +73,11 @@ static vcode_type_t lower_type(type_t type)
 
 static vcode_type_t lower_bounds(type_t type)
 {
-   if (type_kind(type) == T_SUBTYPE) {
-      assert(type_is_scalar(type));
+   if (type_is_scalar(type) && type_kind(type) == T_SUBTYPE) {
       range_t r = type_dim(type, 0);
-      return vtype_int(assume_int(r.left), assume_int(r.right));
+      int64_t low, high;
+      range_bounds(r, &low, &high);
+      return vtype_int(low, high);
    }
    else
       return lower_type(type);
@@ -149,6 +172,12 @@ static vcode_reg_t lower_ref(tree_t ref)
    return emit_load(lower_get_var(decl));
 }
 
+static vcode_reg_t lower_aggregate(tree_t expr)
+{
+   const int64_t values[] = { 1, 2, 3, 4 };
+   return emit_const_array(lower_type(tree_type(expr)), values, ARRAY_LEN(values));
+}
+
 static vcode_reg_t lower_expr(tree_t expr)
 {
    switch (tree_kind(expr)) {
@@ -158,6 +187,8 @@ static vcode_reg_t lower_expr(tree_t expr)
       return lower_literal(expr);
    case T_REF:
       return lower_ref(expr);
+   case T_AGGREGATE:
+      return lower_aggregate(expr);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));

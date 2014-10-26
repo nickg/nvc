@@ -29,6 +29,7 @@
 #define MAX_ARGS   8
 #define MAX_TYPES  16
 #define MAX_VARS   8
+#define MAX_DIM    4
 
 typedef struct {
    vcode_op_t   kind;
@@ -43,6 +44,10 @@ typedef struct {
       int64_t       value;
       vcode_var_t   address;
       char         *comment;
+      struct {
+         int64_t *values;
+         int      nvalues;
+      } array;
    };
 } op_t;
 
@@ -57,9 +62,19 @@ typedef struct {
 } reg_t;
 
 typedef struct {
-   vtype_kind_t kind;
-   int64_t      low;
-   int64_t      high;
+   vtype_kind_t  kind;
+   union {
+      struct {
+         int64_t low;
+         int64_t high;
+      };
+      struct {
+         vcode_type_t dim[MAX_DIM];
+         unsigned     ndim;
+         vcode_type_t elem;
+         vcode_type_t bounds;
+      };
+   };
 } vtype_t;
 
 typedef struct {
@@ -372,7 +387,7 @@ const char *vcode_op_string(vcode_op_t op)
 {
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
-      "mul", "add", "bounds", "comment"
+      "mul", "add", "bounds", "comment", "const array"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -412,13 +427,13 @@ static reg_t *vcode_reg_data(vcode_reg_t reg)
 static void vcode_pretty_print_int(int64_t n)
 {
    if (n == INT64_MAX)
-      printf("2^63 - 1");
+      printf("2^63-1");
    else if (n == INT64_MIN)
       printf("-2^63");
    else if (n == INT64_MIN + 1)
       printf("-2^63");   // XXX: bug in lexer/parser
    else if (n == INT32_MAX)
-      printf("2^31 - 1");
+      printf("2^31-1");
    else if (n == INT32_MIN)
       printf("-2^31");
    else
@@ -432,11 +447,28 @@ static void vcode_dump_one_type(vcode_type_t type)
    case VCODE_TYPE_INT:
       if (vt->low != vt->high) {
          vcode_pretty_print_int(vt->low);
-         printf(" .. ");
+         printf("..");
          vcode_pretty_print_int(vt->high);
       }
       else
          vcode_pretty_print_int(vt->low);
+      break;
+
+   case VCODE_TYPE_CARRAY:
+      {
+         printf("[");
+         for (unsigned i = 0; i < vt->ndim; i++) {
+            if (i > 0)
+               printf(", ");
+            vcode_dump_one_type(vt->dim[i]);
+         }
+         printf("] : ");
+         vcode_dump_one_type(vt->elem);
+         if (!vtype_eq(vt->elem, vt->bounds)) {
+            printf(" => ");
+            vcode_dump_one_type(vt->bounds);
+         }
+      }
       break;
    }
 }
@@ -606,6 +638,22 @@ void vcode_dump(void)
                color_printf("$cyan$// %s$$ ", op->comment);
             }
             break;
+
+         case VCODE_OP_CONST_ARRAY:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := const [");
+               for (int i = 0; i < op->array.nvalues; i++) {
+                  if (i > 0)
+                     col += printf(",");
+                  col += printf("%"PRIi64, op->array.values[i]);
+               }
+
+               col += printf("]");
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
          }
 
          printf("\n");
@@ -638,6 +686,19 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
          switch (at->kind) {
          case VCODE_TYPE_INT:
             return (at->low == bt->low) && (at->high == bt->high);
+         case VCODE_TYPE_CARRAY:
+            {
+               if (at->ndim != bt->ndim)
+                  return false;
+
+               for (unsigned i = 0; i < at->ndim; i++) {
+                  if (!vtype_eq(at->dim[i], bt->dim[i]))
+                     return false;
+               }
+
+               return vtype_eq(at->elem, bt->elem)
+                  && vtype_eq(at->bounds, bt->bounds);
+            }
          }
       }
    }
@@ -648,7 +709,18 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    const vtype_t *tt = vcode_type_data(type);
    const vtype_t *bt = vcode_type_data(bounds);
 
-   return bt->low >= tt->low && bt->high <= tt->high;
+   if (bt->kind != tt->kind) {
+      vcode_dump();
+      fatal_trace("type mismatch in vtype_includes");
+   }
+
+   switch (bt->kind) {
+   case VCODE_TYPE_INT:
+      return bt->low >= tt->low && bt->high <= tt->high;
+
+   case VCODE_TYPE_CARRAY:
+      return vtype_eq(type, bounds);
+   }
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
@@ -676,6 +748,32 @@ vcode_type_t vtype_int(int64_t low, int64_t high)
 vcode_type_t vtype_bool(void)
 {
    return vtype_int(0, 1);
+}
+
+vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
+                          vcode_type_t elem, vcode_type_t bounds)
+{
+   assert(active_unit != NULL);
+
+   assert(active_unit->ntypes < MAX_TYPES);
+   vcode_type_t r = active_unit->ntypes++;
+
+   vtype_t *n = &(active_unit->types[r]);
+   n->kind   = VCODE_TYPE_CARRAY;
+   n->elem   = elem;
+   n->bounds = bounds;
+   n->ndim   = ndim;
+   for (int i = 0; i < ndim; i++)
+      n->dim[i] = dim[i];
+
+   for (int i = 0; i < active_unit->ntypes - 1; i++) {
+      if (vtype_eq(i, r)) {
+         active_unit->ntypes--;
+         return i;
+      }
+   }
+
+   return r;
 }
 
 vtype_kind_t vtype_kind(vcode_type_t type)
@@ -793,11 +891,28 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 
    if (vtype_kind(type) != VCODE_TYPE_INT) {
       vcode_dump();
-      fatal("constant must have integer type");
+      fatal_trace("constant must have integer type");
    }
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = vtype_int(value, value);
+
+   return op->result;
+}
+
+vcode_reg_t emit_const_array(vcode_type_t type, const int64_t *values, int num)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
+   op->array.values  = xmalloc(num * sizeof(int64_t));
+   op->array.nvalues = num;
+   memcpy(op->array.values, values, num * sizeof(int64_t));
+   op->type   = type;
+   op->result = vcode_add_reg(type);
+
+   if (vtype_kind(type) != VCODE_TYPE_CARRAY) {
+      vcode_dump();
+      fatal_trace("constant array must have constrained array type");
+   }
 
    return op->result;
 }

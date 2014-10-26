@@ -43,11 +43,13 @@ typedef enum {
    VCODE_OP_MUL,
    VCODE_OP_ADD,
    VCODE_OP_BOUNDS,
-   VCODE_OP_COMMENT
+   VCODE_OP_COMMENT,
+   VCODE_OP_CONST_ARRAY
 } vcode_op_t;
 
 typedef enum {
-   VCODE_TYPE_INT
+   VCODE_TYPE_INT,
+   VCODE_TYPE_CARRAY
 } vtype_kind_t;
 
 #define VCODE_INVALID_REG   -1
@@ -57,6 +59,8 @@ typedef enum {
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
+vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
+                          vcode_type_t elem, vcode_type_t bounds);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -92,6 +96,7 @@ vcode_unit_t emit_process(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
+vcode_reg_t emit_const_array(vcode_type_t type, const int64_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value);

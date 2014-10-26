@@ -273,6 +273,23 @@ START_TEST(test_assign1)
 }
 END_TEST
 
+START_TEST(test_assign2)
+{
+   input_from_file(TESTDIR "/lower/assign2.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -280,6 +297,7 @@ int main(void)
    TCase *tc = nvc_unit_test();
    tcase_add_test(tc, test_wait1);
    tcase_add_test(tc, test_assign1);
+   tcase_add_test(tc, test_assign2);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
