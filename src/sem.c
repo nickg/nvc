@@ -1553,11 +1553,40 @@ static bool sem_check_type(tree_t t, type_t *ptype)
          if (type_decl == NULL)
             sem_error(t, "type %s is not declared", sem_type_str(*ptype));
 
+         while (tree_kind(type_decl) == T_ALIAS) {
+            tree_t value = tree_value(type_decl);
+            if (tree_kind(value) != T_REF)
+               break;
+
+            type_decl = tree_ref(value);
+         }
+
          if (tree_kind(type_decl) != T_TYPE_DECL)
             sem_error(t, "name %s does not refer to a type",
                       istr(tree_ident(type_decl)));
 
          *ptype = tree_type(type_decl);
+      }
+      return true;
+
+   case T_FUNC:
+      {
+         type_t result = type_result(*ptype);
+         if (!sem_check_type(t, &result))
+            return false;
+         type_set_result(*ptype, result);
+      }
+
+      // Fall-through
+   case T_PROC:
+      {
+         const int nparams = type_params(*ptype);
+         for (int i = 0; i < nparams; i++) {
+            type_t param = type_param(*ptype, i);
+            if (!sem_check_type(t, &param))
+               return false;
+            type_change_param(*ptype, i, param);
+         }
       }
       return true;
 
@@ -2106,27 +2135,85 @@ static bool sem_check_alias(tree_t t)
    // Rules for aliases are given in LRM 93 section 4.3.3
 
    tree_t value = tree_value(t);
+   bool object = true;
 
-   if (!sem_check(value))
-      return false;
+   type_t type = NULL;
+   if (tree_has_type(t))
+       type = tree_type(t);
 
-   if (!sem_static_name(value))
-      sem_error(value, "aliased name is not static");
+   if (type && (type_kind(type) == T_FUNC || type_kind(type) == T_PROC)) {
+      // Alias of subprogram
+      // Rules for matching signatures are in LRM 93 section 2.3.2
 
-   if (tree_has_type(t)) {
-      type_t type = tree_type(t);
+      if (tree_kind(value) != T_REF)
+         sem_error(value, "invalid name in subprogram alias");
+
       if (!sem_check_type(t, &type))
          return false;
-
-      if (!type_eq(type, tree_type(value)))
-         sem_error(t, "type of aliased object %s does not match expected "
-                   "type %s", sem_type_str(tree_type(value)),
-                   sem_type_str(type));
-
       tree_set_type(t, type);
+
+      int n = 0;
+      bool match = false;
+      tree_t decl;
+      do {
+         if ((decl = scope_find_nth(tree_ident(value), n++))) {
+            switch (tree_kind(decl)) {
+            case T_FUNC_BODY:
+            case T_FUNC_DECL:
+            case T_PROC_BODY:
+            case T_PROC_DECL:
+               match = type_eq(type, tree_type(decl));
+               break;
+            default:
+               break;
+            }
+         }
+      } while (!match && decl != NULL);
+
+      if (!match)
+         sem_error(t, "no visible subprogram %s matches signature %s",
+                   istr(tree_ident(value)), sem_type_str(type));
+
+      tree_set_ref(value, decl);
+      object = false;
    }
-   else
-      tree_set_type(t, tree_type(value));
+   else {
+      // Check for alias of type
+      tree_t decl = NULL;
+      if (tree_kind(value) == T_REF && (decl = scope_find(tree_ident(value)))) {
+         if (tree_kind(decl) == T_TYPE_DECL) {
+            if (type != NULL)
+               sem_error(t, "non-object alias may not have subtype indication");
+
+            tree_set_ref(value, decl);
+            tree_set_type(value, tree_type(decl));
+            tree_set_type(t, tree_type(decl));
+            object = false;
+         }
+      }
+   }
+
+   if (object) {
+      if (!sem_check(value))
+         return false;
+
+      if (!sem_static_name(value))
+         sem_error(value, "aliased name is not static");
+
+      if (type != NULL) {
+         if (!sem_check_type(t, &type))
+            return false;
+
+         if (!type_eq(type, tree_type(value)))
+            sem_error(t, "type of aliased object %s does not match expected "
+                      "type %s", sem_type_str(tree_type(value)),
+                      sem_type_str(type));
+
+         tree_set_type(t, type);
+      }
+      else
+         tree_set_type(t, tree_type(value));
+   }
 
    sem_add_attributes(t, false);
 
@@ -3392,6 +3479,14 @@ static bool sem_check_fcall(tree_t t)
             tree_change_kind(t, T_TYPE_CONV);
             tree_set_ref(t, decl);
             return sem_check_conversion(t);
+         case T_ALIAS:
+            if (tree_has_type(decl) && type_kind(func_type) == T_FUNC) {
+               decl = tree_ref(tree_value(decl));
+               func_type = tree_type(decl);
+               found_func++;
+               break;
+            }
+            // Fall-through
          default:
             if (type_is_array(func_type)
                 || ((type_kind(func_type) == T_ACCESS)
@@ -3493,12 +3588,11 @@ static bool sem_check_fcall(tree_t t)
       const bool operator = !isalpha((int)fname[0]);
       const char *quote = (operator && fname[0] != '"') ? "\"" : "";
 
-      tb_printf(tb, "%s%s%s(", quote, fname, quote);
+      tb_printf(tb, "%s%s%s [", quote, fname, quote);
       for (unsigned i = 0; i < tree_params(t); i++)
          tb_printf(tb, "%s%s",
                    (i == 0 ? "" : ", "),
                    sem_type_str(tree_type(tree_value(tree_param(t, i)))));
-      tb_printf(tb, ")");
 
       if ((top_type_set != NULL) && (top_type_set->n_members > 0)) {
          tb_printf(tb, " return");
@@ -3507,6 +3601,8 @@ static bool sem_check_fcall(tree_t t)
                       (i > 0 ? " |" : ""),
                       sem_type_str(top_type_set->members[i]));
       }
+
+      tb_printf(tb, "]");
 
       sem_error(t, (n == 1 ? "undefined %s %s"
                     : "no suitable overload for %s %s"),
@@ -3555,6 +3651,13 @@ static bool sem_check_pcall(tree_t t)
          case T_PROC_BODY:
             found_proc++;
             break;
+         case T_ALIAS:
+            if (tree_has_type(decl) && type_kind(tree_type(decl)) == T_PROC) {
+               decl = tree_ref(tree_value(decl));
+               found_proc++;
+               break;
+            }
+            // Fall-through
          default:
             continue;   // Look for the next matching name
          }
@@ -3599,13 +3702,13 @@ static bool sem_check_pcall(tree_t t)
 
       const char *fname = istr(tree_ident2(t));
 
-      tb_printf(tb, "%s(", fname);
+      tb_printf(tb, "%s [", fname);
       const int nparams = tree_params(t);
       for (int i = 0; i < nparams; i++)
          tb_printf(tb, "%s%s",
                    (i == 0 ? "" : ", "),
                    sem_type_str(tree_type(tree_value(tree_param(t, i)))));
-      tb_printf(tb, ")");
+      tb_printf(tb, "]");
 
       sem_error(t, (n == 1 ? "undefined procedure %s"
                     : "no suitable overload for procedure %s"),
@@ -4046,17 +4149,22 @@ static bool sem_check_string_literal(tree_t t)
    const int nlits = type_enum_literals(elem);
    const int nchars = tree_chars(t);
    for (int i = 0; i < nchars; i++) {
-      ident_t ch = tree_char(t, i);
+      tree_t ch = tree_char(t, i);
 
+      ident_t ch_i = tree_ident(ch);
       bool valid = false;
       for (int j = 0; !valid && (j < nlits); j++) {
-         if (ch == tree_ident(type_enum_literal(elem, j)))
+         tree_t lit = type_enum_literal(elem, j);
+         if (ch_i == tree_ident(lit)) {
+            tree_set_ref(ch, lit);
+            tree_set_type(ch, elem);
             valid = true;
+         }
       }
 
       if (!valid)
          sem_error(t, "invalid character %s in string literal of type %s",
-                   istr(ch), sem_type_str(type));
+                   istr(ch_i), sem_type_str(type));
    }
 
    if (type_is_unconstrained(type)) {

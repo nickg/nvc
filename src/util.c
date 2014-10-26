@@ -34,6 +34,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <assert.h>
+#include <limits.h>
 
 #include <sys/types.h>
 #include <sys/mman.h>
@@ -115,11 +116,12 @@ struct text_buf {
    size_t len;
 };
 
-static error_fn_t     error_fn = def_error_fn;
-static fatal_fn_t     fatal_fn = NULL;
-static bool           want_color = false;
-static struct option *options = NULL;
-static guard_t       *guards;
+static error_fn_t      error_fn = def_error_fn;
+static fatal_fn_t      fatal_fn = NULL;
+static bool            want_color = false;
+static struct option  *options = NULL;
+static guard_t        *guards;
+static message_style_t message_style = MESSAGE_FULL;
 
 static const struct color_escape escapes[] = {
    { "",        ANSI_RESET },
@@ -281,9 +283,13 @@ static void fmt_color(int color, const char *prefix,
                       const char *fmt, va_list ap)
 {
    set_attr(color);
-   fprintf(stderr, "** %s: ", prefix);
+   if (message_style == MESSAGE_COMPACT)
+      fprintf(stderr, "%c%s: ", tolower(prefix[0]), prefix + 1);
+   else
+      fprintf(stderr, "** %s: ", prefix);
    set_attr(ANSI_RESET);
-   paginate_msg(fmt, ap, strlen(prefix) + 5, 10, PAGINATE_RIGHT);
+   paginate_msg(fmt, ap, strlen(prefix) + 5, 10,
+                (message_style == MESSAGE_COMPACT) ? INT_MAX : PAGINATE_RIGHT);
 }
 
 void errorf(const char *fmt, ...)
@@ -312,8 +318,11 @@ void notef(const char *fmt, ...)
 
 static void def_error_fn(const char *msg, const loc_t *loc)
 {
+   if (message_style == MESSAGE_COMPACT)
+      fmt_loc(stderr, loc);
    errorf("%s", msg);
-   fmt_loc(stderr, loc);
+   if (message_style == MESSAGE_FULL)
+      fmt_loc(stderr, loc);
 }
 
 static char *prepare_msg(const char *fmt, va_list ap, bool force_color)
@@ -325,8 +334,11 @@ static char *prepare_msg(const char *fmt, va_list ap, bool force_color)
 static void msg_at(print_fn_t fn, const loc_t *loc, const char *fmt, va_list ap)
 {
    char *strp = prepare_msg(fmt, ap, false);
+   if (message_style == MESSAGE_COMPACT)
+      fmt_loc(stderr, loc);
    (*fn)("%s", strp);
-   fmt_loc(stderr, loc);
+   if (message_style == MESSAGE_FULL)
+      fmt_loc(stderr, loc);
    free(strp);
 }
 
@@ -453,6 +465,12 @@ void fmt_loc(FILE *f, const struct loc *loc)
 {
    if ((loc == NULL) || (loc->first_line == LINE_INVALID))
       return;
+
+   if (message_style == MESSAGE_COMPACT) {
+      fprintf(f, "%s:%d:%d: ", loc->file, loc->first_line,
+              loc->first_column + 1);
+      return;
+   }
 
    fprintf(f, "\tFile %s, Line %u\n", loc->file, loc->first_line);
 
@@ -892,6 +910,18 @@ int ilog2(int64_t n)
    }
 }
 
+int64_t ipow(int64_t x, int64_t y)
+{
+   int64_t r = 1;
+   while (y) {
+      if (y & 1)
+         r *= x;
+      y >>= 1;
+      x *= x;
+   }
+   return r;
+}
+
 void *mmap_guarded(size_t sz, const char *tag)
 {
    const long pagesz = sysconf(_SC_PAGESIZE);
@@ -1018,4 +1048,12 @@ void tb_rewind(text_buf_t *tb)
 void _local_free(void *ptr)
 {
    free(*(void **)ptr);
+}
+
+void set_message_style(message_style_t style)
+{
+   message_style = style;
+
+   if (style == MESSAGE_COMPACT)
+      want_color = false;
 }

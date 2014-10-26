@@ -61,4 +61,49 @@ begin
         end case;
     end process;
 
+    process is
+        variable x : bit_vector(1 to 3);
+        variable y : bit_vector(0 to 0);
+        subtype small is integer range 0 to 9;
+        type int_vector is array (integer range <>) of integer;
+        type small_vector is array (integer range <>) of small;
+        variable p : int_vector(1 to 2);
+        variable q : small_vector(1 to 2);
+    begin
+        case y is
+            when "0" =>
+                null;
+            when "1" =>
+                null;
+        end case;                       -- OK
+        case x is
+            when "000" | "001" =>
+                null;
+        end case;                       -- Missing 6 values
+        case x is
+            when ('0', '1') =>          -- Too few values
+                null;
+            when ('1', '0', '1', '1') =>     -- Too many values
+                null;
+            when "10" =>                -- Too few values
+                null;
+            when "1111" =>              -- Too many values
+                null;
+            when others =>
+                null;
+        end case;
+        case p is
+            when (0, 1) =>
+                null;
+            when (1, 1) =>
+                null;
+        end case;                       -- Missing lots of values
+        case q is
+            when (0, 1) =>
+                null;
+            when (1, 1) =>
+                null;
+        end case;                       -- Missing 98 values
+    end process;
+
 end architecture;

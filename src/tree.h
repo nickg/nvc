@@ -286,8 +286,8 @@ tree_t tree_op(tree_t t, unsigned n);
 void tree_add_op(tree_t t, tree_t s);
 
 unsigned tree_chars(tree_t t);
-ident_t tree_char(tree_t t, unsigned n);
-void tree_add_char(tree_t t, ident_t id);
+tree_t tree_char(tree_t t, unsigned n);
+void tree_add_char(tree_t t, tree_t ref);
 
 unsigned tree_nets(tree_t t);
 netid_t tree_net(tree_t t, unsigned n);

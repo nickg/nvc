@@ -569,17 +569,17 @@ unsigned tree_chars(tree_t t)
    return lookup_item(&tree_object, t, I_CHARS)->ident_array.count;
 }
 
-ident_t tree_char(tree_t t, unsigned n)
+tree_t tree_char(tree_t t, unsigned n)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
    item_t *item = lookup_item(&tree_object, t, I_CHARS);
-   return ident_array_nth(&(item->ident_array), n);
+   return tree_array_nth(&(item->tree_array), n);
 }
 
-void tree_add_char(tree_t t, ident_t id)
+void tree_add_char(tree_t t, tree_t ref)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_STRING));
-   ident_array_add(&(lookup_item(&tree_object, t, I_CHARS)->ident_array), id);
+   tree_array_add(&(lookup_item(&tree_object, t, I_CHARS)->tree_array), ref);
 }
 
 bool tree_has_value(tree_t t)

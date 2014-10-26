@@ -100,6 +100,7 @@ int checked_sprintf(char *buf, int len, const char *fmt, ...)
 
 int next_power_of_2(int n) __attribute__((pure));
 int ilog2(int64_t n) __attribute__((pure));
+int64_t ipow(int64_t x, int64_t y)  __attribute__((pure));
 
 void *mmap_guarded(size_t sz, const char *tag);
 
@@ -128,5 +129,12 @@ void _local_free(void *ptr);
       }                                                 \
       array[count++] = item;                            \
    } while(0);
+
+typedef enum {
+   MESSAGE_FULL,
+   MESSAGE_COMPACT
+} message_style_t;
+
+void set_message_style(message_style_t style);
 
 #endif // _UTIL_H

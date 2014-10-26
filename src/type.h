@@ -82,6 +82,7 @@ void type_add_unit(type_t t, tree_t u);
 unsigned type_params(type_t t);
 type_t type_param(type_t t, unsigned n);
 void type_add_param(type_t t, type_t p);
+void type_change_param(type_t t, unsigned n, type_t p);
 
 type_t type_result(type_t t);
 void type_set_result(type_t t, type_t r);
@@ -134,6 +135,7 @@ bool type_is_integer(type_t t);
 bool type_is_real(type_t t);
 bool type_is_scalar(type_t t);
 bool type_is_protected(type_t t);
+bool type_is_access(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

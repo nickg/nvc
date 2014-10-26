@@ -82,8 +82,7 @@ static int analyse(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised analyse option %s", argv[optind - 1]);
       case 'b':
          opt_set_int("bootstrap", 1);
          break;
@@ -172,8 +171,7 @@ static int elaborate(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised elaborate option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -223,8 +221,7 @@ static int codegen(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised codegen option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -320,8 +317,7 @@ static int run(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised run option %s", argv[optind - 1]);
       case 't':
          opt_set_int("rt_trace_en", 1);
          break;
@@ -448,8 +444,7 @@ static int make_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised make option %s", argv[optind - 1]);
       case 'd':
          opt_set_int("make-deps-only", 1);
          break;
@@ -489,10 +484,10 @@ static int dump_cmd(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      {"elab", no_argument, 0, 'e'},
-      {"body", no_argument, 0, 'b'},
-      {"nets", no_argument, 0, 'n'},
-      {0, 0, 0, 0}
+      { "elab", no_argument, 0, 'e' },
+      { "body", no_argument, 0, 'b' },
+      { "nets", no_argument, 0, 'n' },
+      { 0, 0, 0, 0 }
    };
 
    bool add_elab = false, add_body = false, nets = false;
@@ -505,8 +500,7 @@ static int dump_cmd(int argc, char **argv)
          // Set a flag
          break;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised dump option %s", argv[optind - 1]);
       case 'e':
          add_elab = true;
          break;
@@ -562,16 +556,17 @@ static void usage(void)
    printf("Usage: %s [OPTION]... COMMAND [OPTION]...\n"
           "\n"
           "COMMAND is one of:\n"
-          " -a [OPTION]... FILE...\tAnalyse FILEs into work library\n"
+          " -a [OPTION]... FILE...\t\tAnalyse FILEs into work library\n"
           " -e [OPTION]... UNIT\t\tElaborate and generate code for UNIT\n"
           " -r [OPTION]... UNIT\t\tExecute previously elaborated UNIT\n"
-          " --codegen UNIT\t\tGenerate native shared library for UNIT\n"
-          " --dump [OPTION]... UNIT\t\tPrint out previously analysed UNIT\n"
+          " --codegen UNIT\t\t\tGenerate native shared library for UNIT\n"
+          " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          "     --messages=STYLE\tSelect full or compact message format\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
           " -v, --version\t\tDisplay version and copyright information\n"
           "     --work=NAME\tUse NAME as the work library\n"
@@ -650,6 +645,16 @@ static vhdl_standard_t parse_standard(const char *str)
    fatal("invalid standard revision: %s (allowed 1993, 2000, 2002, 2008)", str);
 }
 
+static message_style_t parse_message_style(const char *str)
+{
+   if (strcmp(optarg, "full") == 0)
+      return MESSAGE_FULL;
+   else if (strcmp(optarg, "compact") == 0)
+      return MESSAGE_COMPACT;
+
+   fatal("invalid message style '%s' (allowed are 'full' and 'compact')", str);
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -666,15 +671,18 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",    no_argument,       0, 'h' },
-      { "version", no_argument,       0, 'v' },
-      { "work",    required_argument, 0, 'w' },
-      { "dump",    no_argument,       0, 'd' },
-      { "codegen", no_argument,       0, 'c' },
-      { "make",    no_argument,       0, 'm' },
-      { "std",     required_argument, 0, 's' },
+      { "help",     no_argument,       0, 'h' },
+      { "version",  no_argument,       0, 'v' },
+      { "work",     required_argument, 0, 'w' },
+      { "dump",     no_argument,       0, 'd' },
+      { "codegen",  no_argument,       0, 'c' },
+      { "make",     no_argument,       0, 'm' },
+      { "std",      required_argument, 0, 's' },
+      { "messages", required_argument, 0, 'M' },
       { 0, 0, 0, 0 }
    };
+
+   opterr = 0;
 
    int c, index = 0;
    const char *spec = "aehrvL:";
@@ -698,6 +706,9 @@ int main(int argc, char **argv)
       case 's':
          set_standard(parse_standard(optarg));
          break;
+      case 'M':
+         set_message_style(parse_message_style(optarg));
+         break;
       case 'a':
       case 'e':
       case 'd':
@@ -709,8 +720,7 @@ int main(int argc, char **argv)
          argv += (optind - 1);
          goto getopt_out;
       case '?':
-         // getopt_long already printed an error message
-         exit(EXIT_FAILURE);
+         fatal("unrecognised global option %s", argv[optind - 1]);
       default:
          abort();
       }
@@ -731,7 +741,7 @@ int main(int argc, char **argv)
    case 'm':
       return make_cmd(argc, argv);
    default:
-      fprintf(stderr, "%s: missing command\n", PACKAGE);
+      fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
    }
 }

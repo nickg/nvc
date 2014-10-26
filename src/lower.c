@@ -126,10 +126,8 @@ static vcode_reg_t lower_fcall(tree_t fcall)
 
       const int nchars = tree_chars(foreign);
       char buf[nchars + 1];
-      for (int i = 0; i < nchars; i++) {
-         ident_t ch = tree_char(foreign, i);
-         buf[i] = ident_char(ch, 1);
-      }
+      for (int i = 0; i < nchars; i++)
+         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
       buf[nchars] = '\0';
 
       name = ident_new(buf);

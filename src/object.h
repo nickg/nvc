@@ -90,7 +90,7 @@ typedef uint64_t imask_t;
 #define ITEM_TREE_ARRAY  (I_DECLS | I_STMTS | I_PORTS | I_GENERICS | I_WAVES \
                           | I_CONDS | I_TRIGGERS | I_ELSES | I_PARAMS  \
                           | I_GENMAPS | I_ASSOCS | I_CONTEXT | I_OPS \
-                          | I_LITERALS | I_FIELDS | I_UNITS)
+                          | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS)
 #define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
                           | I_FILE)
 #define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
@@ -101,7 +101,6 @@ typedef uint64_t imask_t;
 #define ITEM_RANGE_ARRAY (I_DIMS)
 #define ITEM_TEXT_BUF    (I_TEXT_BUF)
 #define ITEM_ATTRS       (I_ATTRS)
-#define ITEM_IDENT_ARRAY (I_CHARS)
 #define ITEM_CODE        (I_CODE)
 
 #define OBJECT_TAG_TREE  0

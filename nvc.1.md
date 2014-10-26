@@ -52,6 +52,11 @@ specific options must be placed after the command.
    Add _path_ to the list of directories to search for libraries (see
    [LIBRARIES][] section below).
 
+ * `--messages` _style_:
+   Select either the _full_ or _compact_ message format. The default full message
+   format is designed for readability whereas the compact messages can be easily
+   parsed by tools.
+
  * `--std=`_rev_:
    Select the VHDL standard revision to use. Specify either the full year such as
    _1993_ or the decade such as _93_. The allowed revisions are 1993, 2000, 2002,

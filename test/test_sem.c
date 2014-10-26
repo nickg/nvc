@@ -84,7 +84,7 @@ START_TEST(test_integer)
       { 20, "MY_INT1 does not match type of target MY_INT2" },
       { 30, "MY_INT1 does not match type of target MY_INT2_SUB" },
       { 35, "type NOTHING is not declared" },
-      { 48, "no suitable overload for operator \"*\"(MY_INT2, MY_INT1)" },
+      { 48, "no suitable overload for operator \"*\" [MY_INT2, MY_INT1" },
       { 57, "MY_INT2 has no attribute CAKE" },
       { -1, NULL }
    };
@@ -661,7 +661,7 @@ START_TEST(test_array)
       { 46, "type of initial value universal integer does not match" },
       { 55, "type of value universal integer does not match type of" },
       { 57, "type of value INT_ARRAY does not match type" },
-      { 65, "for operator \"=\"(INT_ARRAY, TEN_INTS)" },
+      { 65, "for operator \"=\" [INT_ARRAY, TEN_INTS return BOOLEAN]" },
       { 88, "array W has 2 dimensions but 1 indices given" },
       { 89, "array W has 2 dimensions but 3 indices given" },
       { 98, "type of index universal integer does not match type" },
@@ -679,7 +679,7 @@ START_TEST(test_array)
       { 241, "no visible declaration for I" },
       { 246, "universal integer bound must be numeric literal or attribute" },
       { 252, "expected 1 constraints for type INT_ARRAY but found 2" },
-      { 272, "no suitable overload for operator \"<\"(INT2D, INT2D)" },
+      { 272, "no suitable overload for operator \"<\" [INT2D, INT2D" },
       { 277, "type NOT_HERE is not declared" },
       { 279, "type NUM_ARRAY is unconstrained" },
       { 285, "object K does not have a range" },
@@ -1419,9 +1419,9 @@ START_TEST(test_universal)
    sem_check(e);
 
    const error_t expect[] = {
-      { 12, "no suitable overload for operator \"*\"(REAL" },
-      { 14, "no suitable overload for operator \"*\"(INTEGER" },
-      { 16, "no suitable overload for operator \"/\"(universal real" },
+      { 12, "no suitable overload for operator \"*\" [REAL" },
+      { 14, "no suitable overload for operator \"*\" [INTEGER" },
+      { 16, "no suitable overload for operator \"/\" [universal real" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1700,6 +1700,45 @@ START_TEST(test_protected)
 }
 END_TEST
 
+START_TEST(test_alias)
+{
+   tree_t e, a;
+
+   input_from_file(TESTDIR "/sem/alias.vhd");
+
+   const error_t expect[] = {
+      { 10, "non-object alias may not have subtype indication" },
+      { 12, "name X does not refer to a type" },
+      { 22, "no visible subprogram FOO matches signature [INTEGER "
+        "return INTEGER]" },
+      { 23, "no visible subprogram FOO matches signature [BIT]" },
+      { 24, "invalid name in subprogram alias" },
+      { 25, "type BLAH is not declared" },
+      { 32, "no visible subprogram BAR matches signature [INTEGER]" },
+      { 40, "ambiguous use of enumeration literal '1'" },
+      { 41, "no visible declaration for FOO_INT" },
+      { 42, "no suitable overload for procedure BAR_BIT [CHARACTER]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1745,6 +1784,7 @@ int main(void)
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
+   tcase_add_test(tc_core, test_alias);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
