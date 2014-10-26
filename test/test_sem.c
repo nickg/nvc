@@ -1700,6 +1700,36 @@ START_TEST(test_protected)
 }
 END_TEST
 
+START_TEST(test_alias)
+{
+   tree_t e, a;
+
+   input_from_file(TESTDIR "/sem/alias.vhd");
+
+   const error_t expect[] = {
+      { 10, "non-object alias may not have subtype indication" },
+      { 12, "name X does not refer to a type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1745,6 +1775,7 @@ int main(void)
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
+   tcase_add_test(tc_core, test_alias);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

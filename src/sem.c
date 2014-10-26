@@ -1553,6 +1553,14 @@ static bool sem_check_type(tree_t t, type_t *ptype)
          if (type_decl == NULL)
             sem_error(t, "type %s is not declared", sem_type_str(*ptype));
 
+         while (tree_kind(type_decl) == T_ALIAS) {
+            tree_t value = tree_value(type_decl);
+            if (tree_kind(value) != T_REF)
+               break;
+
+            type_decl = tree_ref(value);
+         }
+
          if (tree_kind(type_decl) != T_TYPE_DECL)
             sem_error(t, "name %s does not refer to a type",
                       istr(tree_ident(type_decl)));
@@ -2106,27 +2114,43 @@ static bool sem_check_alias(tree_t t)
    // Rules for aliases are given in LRM 93 section 4.3.3
 
    tree_t value = tree_value(t);
+   bool object = true;
 
-   if (!sem_check(value))
-      return false;
+   tree_t decl;
+   if (tree_kind(value) == T_REF && (decl = scope_find(tree_ident(value)))) {
+      if (tree_kind(decl) == T_TYPE_DECL) {
+         if (tree_has_type(t))
+            sem_error(t, "non-object alias may not have subtype indication");
 
-   if (!sem_static_name(value))
-      sem_error(value, "aliased name is not static");
+         tree_set_ref(value, decl);
+         tree_set_type(value, tree_type(decl));
+         tree_set_type(t, tree_type(decl));
+         object = false;
+      }
+   }
 
-   if (tree_has_type(t)) {
-      type_t type = tree_type(t);
-      if (!sem_check_type(t, &type))
+   if (object) {
+      if (!sem_check(value))
          return false;
 
-      if (!type_eq(type, tree_type(value)))
-         sem_error(t, "type of aliased object %s does not match expected "
-                   "type %s", sem_type_str(tree_type(value)),
-                   sem_type_str(type));
+      if (!sem_static_name(value))
+         sem_error(value, "aliased name is not static");
 
-      tree_set_type(t, type);
+      if (tree_has_type(t)) {
+         type_t type = tree_type(t);
+         if (!sem_check_type(t, &type))
+            return false;
+
+         if (!type_eq(type, tree_type(value)))
+            sem_error(t, "type of aliased object %s does not match expected "
+                      "type %s", sem_type_str(tree_type(value)),
+                      sem_type_str(type));
+
+         tree_set_type(t, type);
+      }
+      else
+         tree_set_type(t, tree_type(value));
    }
-   else
-      tree_set_type(t, tree_type(value));
 
    sem_add_attributes(t, false);
 
