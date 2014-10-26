@@ -242,3 +242,4 @@ protected1      normal,2000
 protected2      normal,2000
 slice3          normal
 alias9          normal
+issue79         normal

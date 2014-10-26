@@ -1288,6 +1288,12 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
       src_ptr = llvm_void_cast(src_ptr);
       dst_ptr = llvm_void_cast(dst_ptr);
    }
+   else if (type_is_access(elem_type)) {
+      width = 8;
+      align = 1;
+      bytes = LLVMBuildIntCast(builder, LLVMSizeOf(llvm_void_ptr()),
+                               LLVMInt32Type(), "sizeof");
+   }
    else {
       width = bit_width(src_type);
       const int b = byte_width(src_type);
