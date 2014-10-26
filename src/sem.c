@@ -4149,17 +4149,22 @@ static bool sem_check_string_literal(tree_t t)
    const int nlits = type_enum_literals(elem);
    const int nchars = tree_chars(t);
    for (int i = 0; i < nchars; i++) {
-      ident_t ch = tree_char(t, i);
+      tree_t ch = tree_char(t, i);
 
+      ident_t ch_i = tree_ident(ch);
       bool valid = false;
       for (int j = 0; !valid && (j < nlits); j++) {
-         if (ch == tree_ident(type_enum_literal(elem, j)))
+         tree_t lit = type_enum_literal(elem, j);
+         if (ch_i == tree_ident(lit)) {
+            tree_set_ref(ch, lit);
+            tree_set_type(ch, elem);
             valid = true;
+         }
       }
 
       if (!valid)
          sem_error(t, "invalid character %s in string literal of type %s",
-                   istr(ch), sem_type_str(type));
+                   istr(ch_i), sem_type_str(type));
    }
 
    if (type_is_unconstrained(type)) {

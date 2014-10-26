@@ -433,7 +433,7 @@ static text_buf_t *cgen_mangle_func_name(tree_t decl)
 
       const int nchars = tree_chars(foreign);
       for (int i = 0; i < nchars; i++) {
-         ident_t ch = tree_char(foreign, i);
+         ident_t ch = tree_ident(tree_char(foreign, i));
          tb_printf(tb, "%c", ident_char(ch, 1));
       }
    }
@@ -1546,16 +1546,8 @@ static LLVMValueRef *cgen_string_literal(tree_t t, int *nvals,
    const int nchars = tree_chars(t);
    LLVMValueRef *tmp = xmalloc(nchars * sizeof(LLVMValueRef));
 
-   const int nlits = type_enum_literals(elem);
-   for (int i = 0; i < nchars; i++) {
-      ident_t ch = tree_char(t, i);
-      for (int j = 0; j < nlits; j++) {
-         if (tree_ident(type_enum_literal(elem, j)) == ch) {
-            tmp[i] = LLVMConstInt(et, j, false);
-            break;
-         }
-      }
-   }
+   for (int i = 0; i < nchars; i++)
+      tmp[i] = LLVMConstInt(et, tree_pos(tree_ref(tree_char(t, i))), false);
 
    if (elem_type != NULL)
       *elem_type = et;
@@ -4728,17 +4720,9 @@ static void cgen_case_add_branch(case_state_t *where, int left, int right,
       int64_t this = 0;
       if (tree_kind(value) == T_LITERAL) {
          assert(tree_subkind(value) == L_STRING);
-         ident_t ch = tree_char(value, depth);
-
-         type_t elem = type_base_recur(type_elem(tree_type(value)));
-
-         const int nlits = type_enum_literals(elem);
-         for (int i = 0; !found && (i < nlits); i++) {
-            if (tree_ident(type_enum_literal(elem, i)) == ch) {
-               this  = i;
-               found = true;
-            }
-         }
+         tree_t ch = tree_char(value, depth);
+         this  = tree_pos(tree_ref(ch));
+         found = true;
       }
       else {
          const int nassocs = tree_assocs(value);

@@ -261,22 +261,11 @@ static tree_t simp_extract_string_literal(tree_t literal, int64_t index,
 
    const bool to = (bounds.kind == RANGE_TO);
 
-   type_t elem = type_base_recur(type_elem(type));
-
    const int pos = to ? (index + low) : (high - index);
    if ((pos < 0) || (pos > tree_chars(literal)))
       return def;
 
-   ident_t ch = tree_char(literal, pos);
-
-   const int nlits = type_enum_literals(elem);
-   for (int i = 0; i < nlits; i++) {
-      tree_t elit = type_enum_literal(elem, i);
-      if (tree_ident(elit) == ch)
-         return make_ref(elit);
-   }
-
-   assert(false);
+   return tree_char(literal, pos);
 }
 
 static tree_t simp_extract_aggregate(tree_t agg, int64_t index, tree_t def)

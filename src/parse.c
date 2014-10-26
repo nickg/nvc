@@ -449,7 +449,9 @@ static tree_t str_to_literal(const char *start, const char *end,
          continue;
 
       const char ch[] = { '\'', *p, '\'', '\0' };
-      tree_add_char(t, ident_new(ch));
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, ident_new(ch));
+      tree_add_char(t, ref);
    }
 
    return t;
@@ -502,8 +504,13 @@ static tree_t bit_str_to_literal(const char *str, const loc_t *loc)
       return t;
    }
 
-   ident_t one = ident_new("'1'");
-   ident_t zero = ident_new("'0'");
+   tree_t one = tree_new(T_REF);
+   tree_set_ident(one, ident_new("'1'"));
+   tree_set_loc(one, loc);
+
+   tree_t zero = tree_new(T_REF);
+   tree_set_ident(zero, ident_new("'0'"));
+   tree_set_loc(zero, loc);
 
    for (const char *p = str + 2; *p != '\"'; p++) {
       if (*p == '_')
