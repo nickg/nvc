@@ -3703,9 +3703,13 @@ static void p_package_declarative_item(tree_t pack)
       p_variable_declaration(pack);
       break;
 
+   case tALIAS:
+      tree_add_decl(pack, p_alias_declaration());
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED);
+             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS);
    }
 }
 

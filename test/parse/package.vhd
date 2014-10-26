@@ -33,5 +33,6 @@ library foo;
 package three is
 
     signal s : integer;
+    alias sa is s;
 
 end package;

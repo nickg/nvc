@@ -981,10 +981,12 @@ START_TEST(test_package)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(tree_decls(p) == 1);
+   fail_unless(tree_decls(p) == 2);
    fail_unless(tree_ident(p) == ident_new("THREE"));
    d = tree_decl(p, 0);
    fail_unless(tree_kind(d) == T_SIGNAL_DECL);
+   d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_ALIAS);
 
    fail_unless(tree_contexts(p) == 1);
    c = tree_context(p, 0);
