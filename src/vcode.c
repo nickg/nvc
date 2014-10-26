@@ -44,10 +44,6 @@ typedef struct {
       int64_t       value;
       vcode_var_t   address;
       char         *comment;
-      struct {
-         int64_t *values;
-         int      nvalues;
-      } array;
    };
 } op_t;
 
@@ -345,6 +341,19 @@ vcode_reg_t vcode_get_arg(int op, int arg)
    return o->args[arg];
 }
 
+vcode_reg_t vcode_get_result(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(o->result != VCODE_INVALID_REG);
+   return o->result;
+}
+
 vcode_cmp_t vcode_get_cmp(int op)
 {
    assert(active_unit != NULL);
@@ -475,8 +484,12 @@ static void vcode_dump_one_type(vcode_type_t type)
 
 static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
 {
-   while (col < 40)
-      col += printf(" ");
+   if (col >= 40)
+      printf(" ");
+   else {
+      while (col < 40)
+         col += printf(" ");
+   }
 
    color_printf("$cyan$// ");
    vcode_dump_one_type(type);
@@ -643,10 +656,10 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := const [");
-               for (int i = 0; i < op->array.nvalues; i++) {
+               for (int i = 0; i < op->nargs; i++) {
                   if (i > 0)
                      col += printf(",");
-                  col += printf("%"PRIi64, op->array.values[i]);
+                  col += vcode_dump_reg(op->args[i]);
                }
 
                col += printf("]");
@@ -900,14 +913,14 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    return op->result;
 }
 
-vcode_reg_t emit_const_array(vcode_type_t type, const int64_t *values, int num)
+vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 {
    op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
-   op->array.values  = xmalloc(num * sizeof(int64_t));
-   op->array.nvalues = num;
-   memcpy(op->array.values, values, num * sizeof(int64_t));
    op->type   = type;
    op->result = vcode_add_reg(type);
+
+   for (int i = 0; i < num; i++)
+      vcode_add_arg(op, values[i]);
 
    if (vtype_kind(type) != VCODE_TYPE_CARRAY) {
       vcode_dump();

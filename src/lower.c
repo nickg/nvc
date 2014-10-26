@@ -83,6 +83,32 @@ static vcode_type_t lower_bounds(type_t type)
       return lower_type(type);
 }
 
+static bool lower_is_const(tree_t t)
+{
+   if (tree_kind(t) == T_AGGREGATE) {
+      bool is_const = true;
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+         is_const = is_const && lower_is_const(tree_value(a));
+      }
+      return is_const;
+   }
+   else
+      return tree_kind(t) == T_LITERAL
+         || (tree_kind(t) == T_REF && tree_kind(tree_ref(t)) == T_ENUM_LIT);
+}
+
+static bool lower_const_bounds(type_t type)
+{
+   if (type_is_unconstrained(type))
+      return false;
+   else {
+      range_t r = type_dim(type, 0);
+      return lower_is_const(r.left) && lower_is_const(r.right);
+   }
+}
+
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
    assert(nth < tree_params(fcall));
@@ -167,13 +193,171 @@ static vcode_var_t lower_get_var(tree_t decl)
 static vcode_reg_t lower_ref(tree_t ref)
 {
    tree_t decl = tree_ref(ref);
-   return emit_load(lower_get_var(decl));
+   type_t type = tree_type(decl);
+
+   tree_kind_t kind = tree_kind(decl);
+   switch (kind) {
+   case T_ENUM_LIT:
+      return emit_const(lower_type(type), tree_pos(decl));
+
+   case T_VAR_DECL:
+      return emit_load(lower_get_var(decl));
+
+   default:
+      vcode_dump();
+      fatal_trace("cannot lower reference to %s", tree_kind_str(kind));
+   }
+}
+
+static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
+                            unsigned n, bool backwards)
+{
+   while (n--) {
+      *dst = *src;
+      ++src;
+      dst += (backwards ? -1 : 1);
+   }
+}
+
+static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
+                                                int dim, int *n_elems)
+{
+   *n_elems = 1;
+   const int ndims = type_dims(type);
+   for (int i = dim; i < ndims; i++) {
+      range_t r = type_dim(type, i);
+
+      int64_t low, high;
+      range_bounds(r, &low, &high);
+
+      if (high < low)
+         *n_elems = 0;
+      else
+         *n_elems *= (high - low + 1);
+   }
+
+   if (*n_elems == 0)
+      return NULL;
+
+   vcode_reg_t *vals = xmalloc(*n_elems * sizeof(vcode_reg_t));
+
+   for (int i = 0; i < *n_elems; i++)
+      vals[i] = VCODE_INVALID_VAR;
+
+   range_t r = type_dim(type, dim);
+   const int64_t left = assume_int(r.left);
+   const bool is_downto = (r.kind == RANGE_DOWNTO);
+
+   const int nassocs = tree_assocs(t);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(t, i);
+      tree_t value = tree_value(a);
+
+      const tree_kind_t value_kind = tree_kind(value);
+
+      vcode_reg_t tmp = VCODE_INVALID_REG;
+      vcode_reg_t *sub = &tmp;
+      int nsub;
+      if (dim < ndims - 1)
+         sub = lower_const_array_aggregate(value, type, dim + 1, &nsub);
+      else if (value_kind == T_AGGREGATE) {
+         sub  = xmalloc(sizeof(vcode_reg_t));   // XXX
+         nsub = 1;
+
+         assert(false);
+         /*
+         type_t sub_type = tree_type(value);
+         if (type_is_array(sub_type)) {
+            int nvals;
+            LLVMValueRef *v = cgen_const_aggregate(value, sub_type,
+                                                   0, &nvals, ctx);
+            LLVMTypeRef ltype = llvm_type(type_elem(sub_type));
+
+            *sub = LLVMConstArray(ltype, v, nvals);
+            free(v);
+         }
+         else if (type_is_record(sub_type))
+            *sub = cgen_record_aggregate(value, true,
+                                         cgen_is_const(value), ctx);
+         else
+         assert(false);*/
+      }
+      else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING) {
+         /*
+         sub  = xmalloc(sizeof(LLVMValueRef));
+         nsub = 1;
+
+         int nchars;
+         LLVMTypeRef et;
+         LLVMValueRef *tmp = cgen_string_literal(value, &nchars, &et);
+
+         *sub = LLVMConstArray(et, tmp, nchars);
+         free(tmp);*/
+         assert(false);
+      }
+      else {
+         tmp  = lower_expr(value);
+         nsub = 1;
+      }
+
+      switch (tree_subkind(a)) {
+      case A_POS:
+         lower_copy_vals(vals + (i * nsub), sub, nsub, false);
+         break;
+
+      case A_NAMED:
+         {
+            const int64_t name = assume_int(tree_name(a));
+            const int64_t off  = is_downto ? left - name : name - left;
+            lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+         }
+         break;
+
+      case A_OTHERS:
+         assert((*n_elems % nsub) == 0);
+         for (int j = 0; j < (*n_elems / nsub); j++) {
+            if (vals[j * nsub] == VCODE_INVALID_REG)
+               lower_copy_vals(vals + (j * nsub), sub, nsub, false);
+         }
+         break;
+
+      case A_RANGE:
+         {
+            int64_t r_low, r_high;
+            range_bounds(tree_range(a), &r_low, &r_high);
+
+            for (int j = r_low; j <= r_high; j++) {
+               const int64_t off = is_downto ? left - j : j - left;
+               lower_copy_vals(vals + (off * nsub), sub, nsub, false);
+            }
+         }
+         break;
+      }
+
+      if (sub != &tmp)
+         free(sub);
+   }
+
+   for (int i = 0; i < *n_elems; i++)
+      assert(vals[i] != VCODE_INVALID_VAR);
+
+   return vals;
 }
 
 static vcode_reg_t lower_aggregate(tree_t expr)
 {
-   const int64_t values[] = { 1, 2, 3, 4 };
-   return emit_const_array(lower_type(tree_type(expr)), values, ARRAY_LEN(values));
+   type_t type = tree_type(expr);
+   assert(type_is_array(type));
+
+   if (lower_const_bounds(type) && lower_is_const(expr)) {
+      int nvals;
+      vcode_reg_t *values LOCAL =
+         lower_const_array_aggregate(expr, type, 0, &nvals);
+
+      return emit_const_array(lower_type(type), values, nvals);
+   }
+   else
+      assert(false);
 }
 
 static vcode_reg_t lower_expr(tree_t expr)

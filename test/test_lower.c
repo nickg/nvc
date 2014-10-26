@@ -14,10 +14,12 @@ typedef struct {
    bool          delay;
    int64_t       low;
    int64_t       high;
+   int           length;
 } check_bb_t;
 
 #define CAT(x, y) x##y
 #define CHECK_BB(n) check_bb(n, CAT(bb, n), ARRAY_LEN(CAT(bb, n)))
+#define EXPECT_BB(n) const check_bb_t CAT(bb, n)[]
 
 static void check_bb(int bb, const check_bb_t *expect, int len)
 {
@@ -104,6 +106,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_ADD:
       case VCODE_OP_MUL:
+         break;
+
+      case VCODE_OP_CONST_ARRAY:
+         if (vcode_count_args(i) != e->length) {
+            vcode_dump();
+            fail("expected op %d in block %d to have %d array elements but "
+                 "has %d", i, bb, e->length, vcode_count_args(i));
+         }
          break;
 
       case VCODE_OP_BOUNDS:
@@ -287,6 +297,19 @@ START_TEST(test_assign2)
 
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
    vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 8 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP,  .target = 1 }
+   };
+
+   CHECK_BB(0);
+
+   for (int i = 0; i < 8; i++)
+      fail_unless(vcode_get_arg(2, i) == vcode_get_result((i == 6) ? 0 : 1));
 }
 END_TEST
 

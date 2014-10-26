@@ -87,6 +87,7 @@ vcode_var_t vcode_get_address(int op);
 int vcode_count_args(int op);
 vcode_reg_t vcode_get_arg(int op, int arg);
 vcode_type_t vcode_get_type(int op);
+vcode_reg_t vcode_get_result(int op);
 
 int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);
@@ -96,7 +97,7 @@ vcode_unit_t emit_process(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
-vcode_reg_t emit_const_array(vcode_type_t type, const int64_t *values, int num);
+vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value);
