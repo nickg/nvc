@@ -886,6 +886,18 @@ int ilog2(int64_t n)
    }
 }
 
+int64_t ipow(int64_t x, int64_t y)
+{
+   int64_t r = 1;
+   while (y) {
+      if (y & 1)
+         r *= x;
+      y >>= 1;
+      x *= x;
+   }
+   return r;
+}
+
 void *mmap_guarded(size_t sz, const char *tag)
 {
    const long pagesz = sysconf(_SC_PAGESIZE);

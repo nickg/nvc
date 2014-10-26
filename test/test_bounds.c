@@ -120,15 +120,22 @@ START_TEST(test_case)
    tree_t e, a;
 
    const error_t expect[] = {
-      { 13, "missing choice C in case statement" },
-      { 19, "missing choice B in case statement" },
-      { 30, "10 to 19" },
-      { 36, "4 to 2147483647" },
-      { 44, "2147483647" },
-      { 51, "value 50 is already covered" },
-      { 53, "range 60 to 64 is already covered" },
-      { 59, "value -1 outside STD.STANDARD.NATURAL bounds" },
-      { 58, "0 to 2147483647" },
+      {  13, "missing choice C in case statement" },
+      {  19, "missing choice B in case statement" },
+      {  30, "10 to 19" },
+      {  36, "4 to 2147483647" },
+      {  44, "2147483647" },
+      {  51, "value 50 is already covered" },
+      {  53, "range 60 to 64 is already covered" },
+      {  59, "value -1 outside STD.STANDARD.NATURAL bounds" },
+      {  58, "0 to 2147483647" },
+      {  79, "choices cover only 2 of 8 possible values" },
+      {  84, "expected 3 elements in aggregate but have 2" },
+      {  86, "expected 3 elements in aggregate but have 4" },
+      {  88, "expected 3 elements in string literal but have 2" },
+      {  90, "expected 3 elements in string literal but have 4" },
+      {  95, "choices do not cover all possible values" },
+      { 101, "choices cover only 2 of 100 possible values" },
       { -1, NULL }
    };
    expect_errors(expect);

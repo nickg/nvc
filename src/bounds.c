@@ -41,6 +41,29 @@ static ident_t builtin_i;
 #define bounds_error(t, ...) \
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
 
+static void bounds_check_string_literal(tree_t t)
+{
+   type_t type = tree_type(t);
+   if (type_is_unconstrained(type))
+      return;
+
+   int64_t expect;
+   if (folded_length(type_dim(type, 0), &expect) && expect != tree_chars(t))
+      bounds_error(t, "expected %"PRIi64" elements in string literal but "
+                   "have %d", expect, tree_chars(t));
+}
+
+static void bounds_check_literal(tree_t t)
+{
+   switch (tree_subkind(t)) {
+   case L_STRING:
+      bounds_check_string_literal(t);
+      break;
+   default:
+      break;
+   }
+}
+
 static tree_t bounds_check_call_args(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -577,8 +600,9 @@ static void bounds_check_case(tree_t t)
 {
    type_t type = tree_type(tree_value(t));
 
-   // Check the choices cover all elements of an enumerated type
    if (type_is_enum(type)) {
+      // Check the choices cover all elements of an enumerated type
+
       unsigned nlits, low, high;
       if (type_kind(type) == T_SUBTYPE) {
          assert(type_dims(type) == 1);
@@ -716,6 +740,62 @@ static void bounds_check_case(tree_t t)
             bounds_error(t, "%s", tb_get(tb));
       }
    }
+   else if (type_is_array(type)) {
+      // Calculate how many values each element has
+      type_t elem = type_elem(type);
+      int64_t elemsz = 0;
+      switch (type_kind(elem)) {
+      case T_SUBTYPE:
+      case T_CARRAY:
+      case T_INTEGER:
+         {
+            int64_t low, high;
+            if (!folded_bounds(type_dim(elem, 0), &low, &high))
+               return;
+            elemsz = high - low + 1;
+         }
+         break;
+      case T_ENUM:
+         elemsz = type_enum_literals(elem);
+         break;
+      default:
+         return;
+      }
+
+      int64_t length;
+      if (!folded_length(type_dim(type, 0), &length))
+          return;
+
+      const int64_t expect =
+         elemsz > INT32_MAX ? INT64_MAX : ipow(elemsz, length);
+
+      int64_t have = 0;
+      const int nassocs = tree_assocs(t);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(t, i);
+
+         switch (tree_subkind(a)) {
+         case A_OTHERS:
+            have = expect;
+            continue;
+
+         case A_NAMED:
+            have++;
+            break;
+
+         case A_RANGE:
+            assert(false);
+         }
+      }
+
+      if (have != expect) {
+         if (expect == INT64_MAX)
+            bounds_error(t, "choices do not cover all possible values");
+         else
+            bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
+                         " possible values", have, expect);
+      }
+   }
 }
 
 static void bounds_visit_fn(tree_t t, void *context)
@@ -737,13 +817,20 @@ static void bounds_visit_fn(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_CONST_DECL:
    case T_VAR_DECL:
-      return bounds_check_decl(t);
+      bounds_check_decl(t);
+      break;
    case T_SIGNAL_ASSIGN:
-      return bounds_check_signal_assign(t);
+      bounds_check_signal_assign(t);
+      break;
    case T_VAR_ASSIGN:
-      return bounds_check_var_assign(t);
+      bounds_check_var_assign(t);
+      break;
    case T_CASE:
-      return bounds_check_case(t);
+      bounds_check_case(t);
+      break;
+   case T_LITERAL:
+      bounds_check_literal(t);
+      break;
    default:
       break;
    }
