@@ -123,14 +123,21 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
-   if (icmp(builtin, "eq"))
-      return emit_cmp(VCODE_CMP_EQ,
-                      lower_func_arg(fcall, 0),
-                      lower_func_arg(fcall, 1));
-   else if (icmp(builtin, "mul"))
-      return emit_mul(lower_func_arg(fcall, 0), lower_func_arg(fcall, 1));
-   else if (icmp(builtin, "add"))
-      return emit_add(lower_func_arg(fcall, 0), lower_func_arg(fcall, 1));
+   if (icmp(builtin, "eq")) {
+      vcode_reg_t r0 = lower_func_arg(fcall, 0);
+      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+      return emit_cmp(VCODE_CMP_EQ, r0, r1);
+   }
+   else if (icmp(builtin, "mul")) {
+      vcode_reg_t r0 = lower_func_arg(fcall, 0);
+      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+      return emit_mul(r0, r1);
+   }
+   else if (icmp(builtin, "add")) {
+      vcode_reg_t r0 = lower_func_arg(fcall, 0);
+      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+      return emit_add(r0, r1);
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }

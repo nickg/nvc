@@ -714,6 +714,8 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
             }
          }
       }
+
+      return false;
    }
 }
 
@@ -734,6 +736,8 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_CARRAY:
       return vtype_eq(type, bounds);
    }
+
+   return false;
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
