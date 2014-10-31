@@ -25,9 +25,9 @@
 
 #define MAX_BLOCKS 32
 #define MAX_REGS   32
-#define MAX_OPS    32
+#define MAX_OPS    64
 #define MAX_ARGS   8
-#define MAX_TYPES  16
+#define MAX_TYPES  32
 #define MAX_VARS   8
 #define MAX_DIM    4
 
@@ -443,7 +443,7 @@ const char *vcode_op_string(vcode_op_t op)
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
-      "cast", "load indirect"
+      "cast", "load indirect", "store indirect"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -666,6 +666,14 @@ void vcode_dump(void)
                color_printf("$magenta$%s$$ := ",
                             istr(vcode_var_data(op->address)->name));
                printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args[0]);
+            }
+            break;
+
+         case VCODE_OP_STORE_INDIRECT:
+            {
+               vcode_dump_reg(op->args[1]);
+               printf(":= %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
             }
             break;
@@ -1153,8 +1161,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
       fatal_trace("cannot load non-scalar type");
    }
 
-   //reg_t *r = vcode_reg_data(op->result);
-   //r->bounds = v->bounds;
+   vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
 
    return op->result;
 }
@@ -1181,6 +1188,21 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
    if (!vtype_eq(v->type, r->type)) {
       vcode_dump();
       fatal_trace("variable and stored value do not have same type");
+   }
+}
+
+void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
+{
+   reg_t *p = vcode_reg_data(ptr);
+   reg_t *r = vcode_reg_data(reg);
+
+   op_t *op = vcode_add_op(VCODE_OP_STORE_INDIRECT);
+   vcode_add_arg(op, reg);
+   vcode_add_arg(op, ptr);
+
+   if (!vtype_eq(vtype_pointed(p->type), r->type)) {
+      vcode_dump();
+      fatal_trace("pointer and stored value do not have same type");
    }
 }
 
@@ -1242,11 +1264,13 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
 
-   if (vtype_kind(vcode_reg_type(reg)) != VCODE_TYPE_POINTER) {
+   reg_t *rr = vcode_reg_data(reg);
+   if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+      rr->bounds = vcode_reg_data(lhs)->bounds;
+   else {
       vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
       vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
 
-      reg_t *rr = vcode_reg_data(reg);
       rr->bounds = vtype_int(sadd64(bl->low, br->low),
                              sadd64(bl->high, br->high));
    }
@@ -1262,7 +1286,10 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
 
-   if (vtype_kind(vcode_reg_type(reg)) != VCODE_TYPE_POINTER) {
+   reg_t *rr = vcode_reg_data(reg);
+   if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+      rr->bounds = vcode_reg_data(lhs)->bounds;
+   else {
       vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
       vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
 
@@ -1301,20 +1328,23 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    vcode_add_arg(op, offset);
    op->address = var;
 
-   vcode_type_t var_type = vcode_var_type(var);
-   if (vtype_kind(var_type) != VCODE_TYPE_CARRAY) {
+   vtype_t *vt = vcode_type_data(vcode_var_type(var));
+
+   if (vt->kind != VCODE_TYPE_CARRAY) {
       vcode_dump();
       fatal_trace("indexed variable %s is not an array",
                   istr(vcode_var_name(var)));
    }
 
-   op->type   = vtype_pointer(vtype_elem(var_type));
+   op->type   = vtype_pointer(vt->elem);
    op->result = vcode_add_reg(op->type);
 
    if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("index offset r%d does not have offset type", offset);
    }
+
+   vcode_reg_data(op->result)->bounds = vt->bounds;
 
    return op->result;
 }

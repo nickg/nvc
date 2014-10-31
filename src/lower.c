@@ -109,6 +109,14 @@ static bool lower_const_bounds(type_t type)
    }
 }
 
+static vcode_reg_t lower_reify(vcode_reg_t reg)
+{
+   if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+      return emit_load_indirect(reg);
+   else
+      return reg;
+}
+
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
    assert(nth < tree_params(fcall));
@@ -118,7 +126,7 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
    assert(tree_subkind(param) == P_POS);
    assert(tree_pos(param) == nth);
 
-   return lower_expr(tree_value(param));
+   return lower_reify(lower_expr(tree_value(param)));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -303,12 +311,7 @@ static vcode_reg_t lower_array_ref(tree_t ref)
       idx = emit_add(idx, lower_array_off(offset, base, value_type, i));
    }
 
-   vcode_reg_t result = emit_add(base, idx);
-
-   if (type_is_scalar(tree_type(ref)))
-      return emit_load_indirect(result);
-   else
-      return result;
+   return emit_add(base, idx);
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
@@ -503,13 +506,17 @@ static void lower_var_assign(tree_t stmt)
    vcode_reg_t value = lower_expr(tree_value(stmt));
 
    tree_t target = tree_target(stmt);
-   assert(tree_kind(target) == T_REF);
-
-   tree_t decl = tree_ref(target);
-   assert(type_is_scalar(tree_type(decl)));
-
-   emit_bounds(value, lower_bounds(tree_type(decl)));
-   emit_store(value, lower_get_var(decl));
+   type_t type = tree_type(target);
+   if (type_is_scalar(type)) {
+      vcode_reg_t loaded_value = lower_reify(value);
+      emit_bounds(loaded_value, lower_bounds(type));
+      if (tree_kind(target) == T_REF)
+         emit_store(loaded_value, lower_get_var(tree_ref(target)));
+      else
+         emit_store_indirect(loaded_value, lower_expr(target));
+   }
+   else
+      assert(false);
 }
 
 static void lower_stmt(tree_t stmt)
@@ -547,6 +554,8 @@ static void lower_decl(tree_t decl)
             emit_store(value, var);
          }
       }
+      break;
+   case T_TYPE_DECL:
       break;
    default:
       fatal_at(tree_loc(decl), "cannot lower decl kind %s",

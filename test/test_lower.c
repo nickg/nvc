@@ -109,6 +109,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_MUL:
       case VCODE_OP_CAST:
       case VCODE_OP_LOAD_INDIRECT:
+      case VCODE_OP_STORE_INDIRECT:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -306,6 +307,9 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
       { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_JUMP,  .target = 1 }
    };
 
@@ -329,6 +333,15 @@ START_TEST(test_assign2)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP },
       { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_INDEX, .name = "Y" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_WAIT, .target = 2 }
    };
 

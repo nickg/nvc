@@ -48,7 +48,8 @@ typedef enum {
    VCODE_OP_INDEX,
    VCODE_OP_SUB,
    VCODE_OP_CAST,
-   VCODE_OP_LOAD_INDIRECT
+   VCODE_OP_LOAD_INDIRECT,
+   VCODE_OP_STORE_INDIRECT,
 } vcode_op_t;
 
 typedef enum {
@@ -123,6 +124,7 @@ void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
 vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
+void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
