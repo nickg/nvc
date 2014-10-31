@@ -94,6 +94,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_STORE:
       case VCODE_OP_LOAD:
+      case VCODE_OP_INDEX:
          {
             ident_t name = vcode_var_name(vcode_get_address(i));
             if (name != ident_new(e->name)) {
@@ -106,6 +107,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_ADD:
       case VCODE_OP_MUL:
+      case VCODE_OP_CAST:
+      case VCODE_OP_LOAD_INDIRECT:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -310,6 +313,26 @@ START_TEST(test_assign2)
 
    for (int i = 0; i < 8; i++)
       fail_unless(vcode_get_arg(2, i) == vcode_get_result((i == 6) ? 0 : 1));
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
 }
 END_TEST
 

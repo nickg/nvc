@@ -208,12 +208,107 @@ static vcode_reg_t lower_ref(tree_t ref)
       return emit_const(lower_type(type), tree_pos(decl));
 
    case T_VAR_DECL:
-      return emit_load(lower_get_var(decl));
+      {
+         vcode_var_t var = lower_get_var(decl);
+         if (type_is_array(type))
+            return emit_index(var, emit_const(vtype_offset(), 0));
+         else
+            return emit_load(var);
+      }
 
    default:
       vcode_dump();
       fatal_trace("cannot lower reference to %s", tree_kind_str(kind));
    }
+}
+
+static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
+                                   type_t type, unsigned dim)
+{
+   // Convert VHDL offset 'off' to a zero-based array offset
+
+   vcode_reg_t zeroed = VCODE_INVALID_REG;
+   if (!lower_const_bounds(type)) {
+      assert(false);
+#if 0
+      assert(array != NULL);
+
+      LLVMValueRef dim_struct = cgen_uarray_dim(array, dim);
+
+      LLVMValueRef dir =
+         LLVMBuildExtractValue(builder, dim_struct, 2, "dir");
+      LLVMValueRef is_downto =
+         LLVMBuildICmp(builder, LLVMIntEQ, dir,
+                       llvm_int8(RANGE_DOWNTO), "is_downto");
+      LLVMValueRef left =
+         LLVMBuildExtractValue(builder, dim_struct, 0, "left");
+
+      LLVMValueRef downto_zero = LLVMBuildSub(builder, left, off, "");
+      LLVMValueRef to_zero     = LLVMBuildSub(builder, off, left, "");
+
+      zeroed = LLVMBuildSelect(builder, is_downto, downto_zero, to_zero, "");
+#endif
+   }
+   else {
+      range_t r = type_dim(type, dim);
+      vcode_reg_t left = lower_expr(r.left);
+      if (r.kind == RANGE_TO)
+         zeroed = emit_sub(off, left);
+      else
+         zeroed = emit_sub(left, off);
+   }
+
+   return emit_cast(vtype_offset(), zeroed);
+}
+
+static vcode_reg_t lower_array_ref(tree_t ref)
+{
+   tree_t value = tree_value(ref);
+   type_t value_type = tree_type(value);
+
+   vcode_reg_t base = lower_expr(value);
+   assert(vtype_kind(vcode_reg_type(base)) == VCODE_TYPE_POINTER);
+
+   tree_t alias = NULL;
+   if (tree_kind(value) == T_REF) {
+      tree_t decl = tree_ref(value);
+      if (tree_kind(decl) == T_ALIAS)
+         alias = decl;
+   }
+
+   vcode_reg_t idx = emit_const(vtype_offset(), 0);
+   const int nparams = tree_params(ref);
+   for (int i = 0; i < nparams; i++) {
+      tree_t p = tree_param(ref, i);
+      assert(tree_subkind(p) == P_POS);
+
+      vcode_reg_t offset = lower_expr(tree_value(p));
+
+      //if (!elide_bounds)
+      //   cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta),
+      //                           offset, ctx);
+
+      if (alias != NULL) {
+         assert(false);
+         //offset = cgen_unalias_index(alias, offset, meta, ctx);
+         //type = tree_type(tree_value(alias));
+      }
+
+      if (i > 0) {
+         assert(false);
+         //LLVMValueRef stride = cgen_array_len(type, i, meta);
+         //idx = LLVMBuildMul(builder, idx, stride, "stride");
+      }
+
+      idx = emit_add(idx, lower_array_off(offset, base, value_type, i));
+   }
+
+   vcode_reg_t result = emit_add(base, idx);
+
+   if (type_is_scalar(tree_type(ref)))
+      return emit_load_indirect(result);
+   else
+      return result;
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
@@ -378,6 +473,8 @@ static vcode_reg_t lower_expr(tree_t expr)
       return lower_ref(expr);
    case T_AGGREGATE:
       return lower_aggregate(expr);
+   case T_ARRAY_REF:
+      return lower_array_ref(expr);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));

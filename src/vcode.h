@@ -44,12 +44,18 @@ typedef enum {
    VCODE_OP_ADD,
    VCODE_OP_BOUNDS,
    VCODE_OP_COMMENT,
-   VCODE_OP_CONST_ARRAY
+   VCODE_OP_CONST_ARRAY,
+   VCODE_OP_INDEX,
+   VCODE_OP_SUB,
+   VCODE_OP_CAST,
+   VCODE_OP_LOAD_INDIRECT
 } vcode_op_t;
 
 typedef enum {
    VCODE_TYPE_INT,
-   VCODE_TYPE_CARRAY
+   VCODE_TYPE_CARRAY,
+   VCODE_TYPE_POINTER,
+   VCODE_TYPE_OFFSET
 } vtype_kind_t;
 
 #define VCODE_INVALID_REG   -1
@@ -61,11 +67,15 @@ vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
 vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
                           vcode_type_t elem, vcode_type_t bounds);
+vcode_type_t vtype_pointer(vcode_type_t to);
+vcode_type_t vtype_offset(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
-int64_t vtype_high(vcode_type_t type);
+int64_t vtype_high(vcode_type_t etype);
+vcode_type_t vtype_elem(vcode_type_t type);
+vcode_type_t vtype_pointed(vcode_type_t type);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -75,7 +85,9 @@ void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
+
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
+vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
@@ -91,6 +103,7 @@ vcode_reg_t vcode_get_result(int op);
 
 int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);
+vcode_type_t vcode_var_type(vcode_var_t var);
 
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);
@@ -99,6 +112,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
@@ -107,7 +121,10 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
+vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds);
+vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
+vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
 
 #endif  // _VCODE_H

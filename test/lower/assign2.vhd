@@ -7,9 +7,8 @@ begin
     process is
         variable x : bit_vector(7 downto 0) := (1 => '1', others => '0');
     begin
-        --assert x(0) = '0';
-        --assert x(1) = '1';
-        --assert x(4) = x(5);
+        assert x(0) = '0';
+        assert x(4) = x(7);
         --x(2) := '1';
         --assert x(2) = '1';
         wait;
