@@ -26,6 +26,7 @@ typedef int vcode_type_t;
 typedef int vcode_block_t;
 typedef int vcode_var_t;
 typedef int vcode_reg_t;
+typedef int vcode_signal_t;
 
 typedef enum {
    VCODE_CMP_EQ
@@ -50,6 +51,7 @@ typedef enum {
    VCODE_OP_CAST,
    VCODE_OP_LOAD_INDIRECT,
    VCODE_OP_STORE_INDIRECT,
+   VCODE_OP_RETURN
 } vcode_op_t;
 
 typedef enum {
@@ -58,6 +60,11 @@ typedef enum {
    VCODE_TYPE_POINTER,
    VCODE_TYPE_OFFSET
 } vtype_kind_t;
+
+typedef enum {
+   VCODE_UNIT_PROCESS,
+   VCODE_UNIT_CONTEXT
+} vunit_kind_t;
 
 #define VCODE_INVALID_REG   -1
 #define VCODE_INVALID_BLOCK -1
@@ -108,8 +115,11 @@ vcode_type_t vcode_var_type(vcode_var_t var);
 
 vcode_unit_t emit_func(ident_t name);
 vcode_unit_t emit_process(ident_t name);
+vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
+vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
+                           ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
@@ -128,5 +138,6 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
+void emit_return(vcode_reg_t reg);
 
 #endif  // _VCODE_H

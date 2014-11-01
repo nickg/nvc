@@ -23,13 +23,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define MAX_BLOCKS 32
-#define MAX_REGS   32
-#define MAX_OPS    64
-#define MAX_ARGS   8
-#define MAX_TYPES  32
-#define MAX_VARS   8
-#define MAX_DIM    4
+#define MAX_BLOCKS  32
+#define MAX_REGS    32
+#define MAX_OPS     64
+#define MAX_ARGS    8
+#define MAX_TYPES   32
+#define MAX_VARS    8
+#define MAX_DIM     4
+#define MAX_SIGNALS 16
 
 typedef struct {
    vcode_op_t   kind;
@@ -80,16 +81,25 @@ typedef struct {
    ident_t      name;
 } var_t;
 
+typedef struct {
+   vcode_type_t type;
+   vcode_type_t bounds;
+   ident_t      name;
+} signal_t;
+
 struct vcode_unit {
-   ident_t name;
-   block_t blocks[MAX_BLOCKS];
-   int     nblocks;
-   reg_t   regs[MAX_REGS];
-   int     nregs;
-   vtype_t types[MAX_TYPES];
-   int     ntypes;
-   var_t   vars[MAX_VARS];
-   int     nvars;
+   vunit_kind_t kind;
+   ident_t      name;
+   block_t      blocks[MAX_BLOCKS];
+   int          nblocks;
+   reg_t        regs[MAX_REGS];
+   int          nregs;
+   vtype_t      types[MAX_TYPES];
+   int          ntypes;
+   var_t        vars[MAX_VARS];
+   int          nvars;
+   signal_t     signals[MAX_SIGNALS];
+   int          nsignals;
 };
 
 static vcode_unit_t  active_unit = NULL;
@@ -443,7 +453,7 @@ const char *vcode_op_string(vcode_op_t op)
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
-      "cast", "load indirect", "store indirect"
+      "cast", "load indirect", "store indirect", "return"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -551,17 +561,33 @@ void vcode_dump(void)
 
    printf("\n");
    color_printf("Name       $cyan$%s$$\n", istr(vu->name));
-   color_printf("Kind       $cyan$%s$$\n", "process");
-   color_printf("Blocks     %d\n", vu->nblocks);
-   color_printf("Registers  %d\n", vu->nregs);
-   color_printf("Types      %d\n", vu->ntypes);
-   color_printf("Variables  %d\n", vu->nvars);
+   color_printf("Kind       $cyan$");
+   switch (vu->kind) {
+   case VCODE_UNIT_PROCESS: printf("process"); break;
+   case VCODE_UNIT_CONTEXT: printf("context"); break;
+   }
+   color_printf("$$\n");
+   printf("Blocks     %d\n", vu->nblocks);
+   printf("Registers  %d\n", vu->nregs);
+   printf("Types      %d\n", vu->ntypes);
+   printf("Variables  %d\n", vu->nvars);
 
    for (int i = 0; i < vu->nvars; i++) {
       const var_t *v = &(vu->vars[i]);
       int col = color_printf("  $magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
+   }
+
+   if (vu->kind == VCODE_UNIT_CONTEXT) {
+      printf("Signals    %d\n", vu->nsignals);
+
+      for (int i = 0; i < vu->nsignals; i++) {
+         const signal_t *s = &(vu->signals[i]);
+         int col = color_printf("  $white$%s$$", istr(s->name));
+         vcode_dump_type(col, s->type, s->bounds);
+         printf("\n");
+      }
    }
 
    printf("Begin\n");
@@ -673,7 +699,7 @@ void vcode_dump(void)
          case VCODE_OP_STORE_INDIRECT:
             {
                vcode_dump_reg(op->args[1]);
-               printf(":= %s ", vcode_op_string(op->kind));
+               printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
             }
             break;
@@ -752,6 +778,14 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->args[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
+
+         case VCODE_OP_RETURN:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               if (op->nargs > 0)
+                  vcode_dump_reg(op->args[0]);
             }
             break;
          }
@@ -986,6 +1020,19 @@ void vcode_select_block(vcode_block_t block)
 vcode_unit_t emit_process(ident_t name)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vu->kind = VCODE_UNIT_PROCESS;
+   vu->name = name;
+
+   active_unit = vu;
+   vcode_select_block(emit_block());
+
+   return vu;
+}
+
+vcode_unit_t emit_context(ident_t name)
+{
+   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vu->kind = VCODE_UNIT_CONTEXT;
    vu->name = name;
 
    active_unit = vu;
@@ -1109,6 +1156,21 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    v->name   = name;
 
    return active_unit->nvars++;
+}
+
+vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
+                           ident_t name)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->nsignals < MAX_SIGNALS);
+   assert(active_unit->kind == VCODE_UNIT_CONTEXT);
+
+   signal_t *s = &(active_unit->signals[active_unit->nsignals]);
+   s->type   = type;
+   s->bounds = bounds;
+   s->name   = name;
+
+   return active_unit->nsignals++;
 }
 
 vcode_reg_t emit_load(vcode_var_t var)
@@ -1386,4 +1448,14 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
 
    vcode_dump();
    fatal_trace("invalid type conversion in cast");
+}
+
+void emit_return(vcode_reg_t reg)
+{
+   op_t *op = vcode_add_op(VCODE_OP_RETURN);
+   if (reg != VCODE_INVALID_REG)
+      vcode_add_arg(op, reg);
+
+   if (active_unit->kind != VCODE_UNIT_CONTEXT)
+      fatal_trace("cannot return from this unit type");
 }

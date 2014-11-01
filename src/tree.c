@@ -82,7 +82,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_PORTS | I_TYPE | I_ATTRS),
 
    // T_ELAB
-   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS),
+   (I_IDENT | I_DECLS | I_STMTS | I_CONTEXT | I_ATTRS | I_CODE),
 
    // T_AGGREGATE
    (I_TYPE | I_ASSOCS | I_ATTRS),

@@ -555,7 +555,18 @@ static void lower_decl(tree_t decl)
          }
       }
       break;
+   case T_SIGNAL_DECL:
+      {
+         type_t type = tree_type(decl);
+         vcode_type_t stype = lower_type(type);
+         vcode_type_t sbounds = lower_bounds(type);
+         vcode_signal_t sig = emit_signal(stype, sbounds, tree_ident(decl));
+         (void)sig;
+         //tree_add_attr_int(decl, vcode_var_i, var);
+      }
+      break;
    case T_TYPE_DECL:
+   case T_HIER:
       break;
    default:
       fatal_at(tree_loc(decl), "cannot lower decl kind %s",
@@ -596,6 +607,20 @@ static void lower_process(tree_t proc)
 
 static void lower_elab(tree_t unit)
 {
+   vcode_unit_t context = emit_context(tree_ident(unit));
+   tree_set_code(unit, context);
+
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++)
+      lower_decl(tree_decl(unit, i));
+
+   emit_return(VCODE_INVALID_REG);
+
+   vcode_opt();
+
+   if (verbose)
+      vcode_dump();
+
    const int nstmts = tree_stmts(unit);
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(unit, i);
