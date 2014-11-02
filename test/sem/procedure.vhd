@@ -143,4 +143,9 @@ package body p is
         end if;
     end procedure;
 
+    procedure test9(x : out integer) is
+    begin
+        x <= 5;                         -- Error
+    end procedure;
+
 end package body;

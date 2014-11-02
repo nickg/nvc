@@ -3041,6 +3041,8 @@ static bool sem_check_signal_target(tree_t target)
          if (tree_subkind(decl) == PORT_IN)
             sem_error(target, "cannot assign to input port %s",
                       istr(tree_ident(decl)));
+         else if (tree_class(decl) != C_SIGNAL)
+            sem_error(target, "target of signal assignment is not a signal");
          break;
 
       default:
