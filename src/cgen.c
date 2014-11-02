@@ -1978,7 +1978,12 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
          for (int i = 0; i < nports; i++) {
             tree_t p = tree_port(ctx->fdecl, i);
 
-            LLVMValueRef var = tree_attr_ptr(p, local_var_i);
+            LLVMValueRef var = NULL;
+            if (tree_class(p) == C_SIGNAL)
+               var = tree_attr_ptr(p, sig_nets_i);
+            else
+               var = tree_attr_ptr(p, local_var_i);
+            assert(var != NULL);
 
             type_t type = tree_type(p);
             if (type_is_array(type) && cgen_const_bounds(type)) {
