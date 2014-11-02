@@ -50,8 +50,9 @@ struct import_list {
 };
 
 typedef enum {
-   SCOPE_PACKAGE = (1 << 0),
-   SCOPE_FORMAL  = (1 << 1)
+   SCOPE_PACKAGE   = (1 << 0),
+   SCOPE_FORMAL    = (1 << 1),
+   SCOPE_PROTECTED = (1 << 2)
 } scope_flags_t;
 
 struct scope {
@@ -130,7 +131,7 @@ static void scope_push(ident_t prefix)
    s->imported = NULL;
    s->down     = top_scope;
    s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
-   s->flags    = 0;
+   s->flags    = (top_scope ? top_scope->flags : 0);
    s->deferred = NULL;
 
    top_scope = s;
@@ -1824,18 +1825,19 @@ static bool sem_check_type_decl(tree_t t)
       // Rules for protected types are in LRM 02 section 3.5
       {
          scope_push(tree_ident(t));
+         top_scope->flags |= SCOPE_PROTECTED;
+
+         // Make protected type visible inside type definition
+         scope_insert(t);
+         ident_t unqual = ident_rfrom(tree_ident(t), '.');
+         if (unqual != NULL)
+            scope_insert_alias(t, unqual);
 
          bool ok = true;
          const int ndecls = type_decls(type);
          for (int i = 0; i < ndecls; i++) {
             tree_t d = type_decl(type, i);
             ok = sem_check(d) && ok;
-
-            tree_kind_t kind = tree_kind(d);
-            if ((kind == T_FUNC_DECL) || (kind == T_PROC_DECL)) {
-               tree_t port = sem_add_port(d, type, PORT_INOUT, NULL);
-               tree_add_attr_int(port, protected_i, 1);
-            }
          }
 
          scope_pop();
@@ -2234,6 +2236,17 @@ static bool sem_check_access_class(tree_t port)
    return true;
 }
 
+static void sem_add_protected_arg(tree_t decl)
+{
+   tree_t prot = scope_find(top_scope->prefix);
+   assert(prot);
+
+   tree_t port = sem_add_port(decl, tree_type(prot), PORT_INOUT, NULL);
+   tree_set_loc(port, tree_loc(decl));
+   tree_set_ident(port, protected_i);
+   tree_add_attr_int(port, protected_i, 1);
+}
+
 static bool sem_check_func_ports(tree_t t)
 {
    type_t ftype = tree_type(t);
@@ -2265,6 +2278,9 @@ static bool sem_check_func_ports(tree_t t)
       return false;
 
    type_set_result(ftype, rtype);
+
+   if (top_scope->flags & SCOPE_PROTECTED)
+      sem_add_protected_arg(t);
 
    return true;
 }
@@ -2406,6 +2422,9 @@ static bool sem_check_proc_ports(tree_t t)
 
       type_add_param(ptype, tree_type(p));
    }
+
+   if (top_scope->flags & SCOPE_PROTECTED)
+      sem_add_protected_arg(t);
 
    return true;
 }
@@ -3391,9 +3410,17 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
                ? tree_ident2(call) : tree_ident(call);
             ident_t prefix = ident_until(name, '.');
 
-            tree_t var = scope_find(prefix);
-            assert(var != NULL);
-            assert(tree_kind(var) == T_VAR_DECL);
+            tree_t var = NULL;
+            if (prefix == name) {
+               // Call to protected subprogram from inside protected object
+               assert(top_scope->flags & SCOPE_PROTECTED);
+               var = scope_find(protected_i);
+               assert(var && tree_kind(var) == T_PORT_DECL);
+            }
+            else {
+               var = scope_find(prefix);
+               assert(var && tree_kind(var) == T_VAR_DECL);
+            }
 
             add_param(call, make_ref(var), P_NAMED, make_ref(port));
             continue;
@@ -6399,6 +6426,7 @@ static bool sem_check_prot_body(tree_t t)
    tree_set_type(t, type);
 
    scope_push(ident_prefix(top_scope->prefix, name, '.'));
+   top_scope->flags |= SCOPE_PROTECTED;
 
    const int ntdecls = type_decls(type);
    for (int i = 0; i < ntdecls; i++) {
@@ -6419,13 +6447,6 @@ static bool sem_check_prot_body(tree_t t)
 
       ok = sem_check(d) && ok;
       scope_insert_alias(d, unqual);
-
-      tree_kind_t kind = tree_kind(d);
-      if ((kind == T_FUNC_DECL) || (kind == T_FUNC_BODY)
-          || (kind == T_PROC_DECL) || (kind == T_PROC_BODY)) {
-         tree_t port = sem_add_port(d, type, PORT_INOUT, NULL);
-         tree_add_attr_int(port, protected_i, 1);
-      }
    }
 
    scope_pop();

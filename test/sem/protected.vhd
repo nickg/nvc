@@ -62,6 +62,7 @@ architecture a2 of e is
         procedure increment (N: Integer := 1);
         procedure decrement (N: Integer := 1);
         impure function value return Integer;
+        procedure foo (x : in integer);
     end protected SharedCounter;
 
     type SharedCounter is protected body
@@ -81,6 +82,16 @@ architecture a2 of e is
         begin
             return counter;
         end function value;
+
+        procedure bar (x : in integer ) is
+        begin
+            null;
+        end procedure;
+
+        procedure foo (x : in integer ) is
+        begin
+            bar(x + 1);
+        end procedure;
     end protected body;
 
     shared variable x : SharedCounter;  -- OK
@@ -97,3 +108,11 @@ begin
     end process;
 
 end architecture;
+
+package issue85 is
+
+    type protected_t is protected
+        procedure add(argument : inout protected_t);  -- OK
+    end protected protected_t;
+
+end package;

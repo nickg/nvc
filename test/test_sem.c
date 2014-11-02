@@ -1657,23 +1657,23 @@ END_TEST
 
 START_TEST(test_protected)
 {
-   tree_t e, a;
+   tree_t e, a, p;
 
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/sem/protected.vhd");
 
    const error_t expect[] = {
-      { 13, "type NOT_HERE is not declared" },
-      { 16, "no protected type declaration for BAD2 found" },
-      { 19, "object INTEGER is not a protected type declaration" },
-      { 22, "object NOW is not a protected type declaration" },
-      { 44, "protected type SHAREDCOUNTER already has body" },
-      { 47, "subtypes may not have protected base types" },
-      { 49, "shared variable X must have protected type" },
-      { 53, "variable Y with protected type may not have an initial value" },
-      { 94, "no visible declaration for X.COUNTER" },
-      { 95, "no suitable overload for procedure X.DECREMENT" },
+      {  13, "type NOT_HERE is not declared" },
+      {  16, "no protected type declaration for BAD2 found" },
+      {  19, "object INTEGER is not a protected type declaration" },
+      {  22, "object NOW is not a protected type declaration" },
+      {  44, "protected type SHAREDCOUNTER already has body" },
+      {  47, "subtypes may not have protected base types" },
+      {  49, "shared variable X must have protected type" },
+      {  53, "variable Y with protected type may not have an initial value" },
+      { 105, "no visible declaration for X.COUNTER" },
+      { 106, "no suitable overload for procedure X.DECREMENT" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1692,6 +1692,11 @@ START_TEST(test_protected)
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

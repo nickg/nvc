@@ -86,7 +86,7 @@ START_TEST(test_lib_fopen)
    f = lib_fopen(work, "_test", "r");
    fail_if(f == NULL);
    char buf[12];
-   fgets(buf, sizeof(buf), f);
+   fail_if(fgets(buf, sizeof(buf), f) == NULL);
 
    fail_unless(strcmp(buf, "hello world") == 0);
 
