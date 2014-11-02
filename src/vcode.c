@@ -86,6 +86,7 @@ typedef struct {
    vcode_type_t type;
    vcode_type_t bounds;
    ident_t      name;
+   vcode_var_t  shadow;
 } signal_t;
 
 struct vcode_unit {
@@ -190,6 +191,19 @@ static vtype_t *vcode_type_data(vcode_type_t type)
    assert(active_unit != NULL);
    assert(type < active_unit->ntypes);
    return &(active_unit->types[type]);
+}
+
+static var_t *vcode_var_data(vcode_var_t var)
+{
+   assert(active_unit != NULL);
+   vcode_unit_t unit = active_unit;
+   if (var & 0x80000000) {
+      assert(unit->context || unit->kind == VCODE_UNIT_CONTEXT);
+      unit = unit->context;
+   }
+   var &= 0x7fffffff;
+   assert(var < active_unit->nvars);
+   return &(active_unit->vars[var]);
 }
 
 vcode_type_t vcode_reg_type(vcode_reg_t reg)
@@ -300,20 +314,12 @@ int vcode_count_vars(void)
 
 ident_t vcode_var_name(vcode_var_t var)
 {
-   assert(active_unit != NULL);
-   assert(var < active_unit->nvars);
-   assert(var != VCODE_INVALID_VAR);
-
-   return active_unit->vars[var].name;
+   return vcode_var_data(var)->name;
 }
 
 vcode_type_t vcode_var_type(vcode_var_t var)
 {
-   assert(active_unit != NULL);
-   assert(var < active_unit->nvars);
-   assert(var != VCODE_INVALID_VAR);
-
-   return active_unit->vars[var].type;
+   return vcode_var_data(var)->type;
 }
 
 vcode_op_t vcode_get_op(int op)
@@ -471,13 +477,6 @@ static int vcode_dump_reg(vcode_reg_t reg)
       return color_printf("$green$r%d$$", reg);
 }
 
-static var_t *vcode_var_data(vcode_var_t var)
-{
-   assert(active_unit != NULL);
-   assert(var < active_unit->nvars);
-   return &(active_unit->vars[var]);
-}
-
 static void vcode_pretty_print_int(int64_t n)
 {
    if (n == INT64_MAX)
@@ -597,6 +596,9 @@ void vcode_dump(void)
          int col = color_printf("  $white$%s$$", istr(s->name));
          vcode_dump_type(col, s->type, s->bounds);
          printf("\n");
+         if (s->shadow != VCODE_INVALID_VAR)
+            color_printf("    Shadow $magenta$%s$$\n",
+                         istr(vcode_var_name(s->shadow)));
       }
    }
 
@@ -1194,11 +1196,13 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    v->bounds = bounds;
    v->name   = name;
 
-   return active_unit->nvars++;
+   const int32_t mask =
+      active_unit->kind == VCODE_UNIT_CONTEXT ? 0x80000000 : 0;
+   return active_unit->nvars++ | mask;
 }
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
-                           ident_t name)
+                           ident_t name, vcode_var_t shadow)
 {
    assert(active_unit != NULL);
    assert(active_unit->nsignals < MAX_SIGNALS);
@@ -1208,6 +1212,7 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
    s->type   = type;
    s->bounds = bounds;
    s->name   = name;
+   s->shadow = shadow;
 
    return active_unit->nsignals++;
 }

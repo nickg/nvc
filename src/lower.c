@@ -537,6 +537,22 @@ static void lower_stmt(tree_t stmt)
    }
 }
 
+static bool lower_signal_sequential_nets(tree_t decl)
+{
+   const int nnets = tree_nets(decl);
+   int i;
+   netid_t last = NETID_INVALID;
+   for (i = 0; i < nnets; i++) {
+      const netid_t nid = tree_net(decl, i);
+      if ((last == NETID_INVALID) || (nid == last + 1))
+         last = nid;
+      else
+         break;
+   }
+
+   return (i == nnets) && (nnets > 0);
+}
+
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -558,9 +574,19 @@ static void lower_decl(tree_t decl)
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(decl);
-         vcode_type_t stype = vtype_signal(lower_type(type));
-         vcode_type_t sbounds = lower_bounds(type);
-         vcode_signal_t sig = emit_signal(stype, sbounds, tree_ident(decl));
+         vcode_type_t ltype = lower_type(type);
+         vcode_type_t bounds = lower_bounds(type);
+         ident_t name = tree_ident(decl);
+
+         vcode_var_t shadow = VCODE_INVALID_VAR;
+         if (lower_signal_sequential_nets(decl)) {
+            shadow = emit_var(vtype_pointer(ltype), bounds,
+                              ident_prefix(ident_new("shadow"), name, '_'));
+            // TODO: init shadow
+         }
+
+         vcode_type_t stype = vtype_signal(ltype);
+         vcode_signal_t sig = emit_signal(stype, bounds, name, shadow);
          tree_add_attr_int(decl, vcode_obj_i, sig);
       }
       break;

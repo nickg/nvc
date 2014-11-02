@@ -22,11 +22,11 @@
 #include "ident.h"
 #include "prim.h"
 
-typedef int vcode_type_t;
-typedef int vcode_block_t;
-typedef int vcode_var_t;
-typedef int vcode_reg_t;
-typedef int vcode_signal_t;
+typedef int32_t vcode_type_t;
+typedef int32_t vcode_block_t;
+typedef int32_t vcode_var_t;
+typedef int32_t vcode_reg_t;
+typedef int32_t vcode_signal_t;
 
 typedef enum {
    VCODE_CMP_EQ
@@ -121,7 +121,7 @@ vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
-                           ident_t name);
+                           ident_t name, vcode_var_t shadow);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
