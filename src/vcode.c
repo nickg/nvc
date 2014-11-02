@@ -189,21 +189,36 @@ static reg_t *vcode_reg_data(vcode_reg_t reg)
 static vtype_t *vcode_type_data(vcode_type_t type)
 {
    assert(active_unit != NULL);
-   assert(type < active_unit->ntypes);
-   return &(active_unit->types[type]);
+   vcode_unit_t unit = active_unit;
+   if (type & 0x80000000) {
+      assert(unit->context || unit->kind == VCODE_UNIT_CONTEXT);
+      unit = unit->context;
+   }
+   type &= 0x7fffffff;
+   assert(type < unit->ntypes);
+   return &(unit->types[type]);
+}
+
+static signal_t *vcode_signal_data(vcode_signal_t sig)
+{
+   assert(active_unit != NULL);
+   vcode_unit_t unit = active_unit->context;
+   assert(sig < unit->nsignals);
+   return &(unit->signals[sig]);
 }
 
 static var_t *vcode_var_data(vcode_var_t var)
 {
    assert(active_unit != NULL);
+   assert(var != VCODE_INVALID_VAR);
    vcode_unit_t unit = active_unit;
    if (var & 0x80000000) {
       assert(unit->context || unit->kind == VCODE_UNIT_CONTEXT);
       unit = unit->context;
    }
    var &= 0x7fffffff;
-   assert(var < active_unit->nvars);
-   return &(active_unit->vars[var]);
+   assert(var < unit->nvars);
+   return &(unit->vars[var]);
 }
 
 vcode_type_t vcode_reg_type(vcode_reg_t reg)
@@ -320,6 +335,11 @@ ident_t vcode_var_name(vcode_var_t var)
 vcode_type_t vcode_var_type(vcode_var_t var)
 {
    return vcode_var_data(var)->type;
+}
+
+vcode_var_t vcode_signal_shadow(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->shadow;
 }
 
 vcode_op_t vcode_get_op(int op)
@@ -823,8 +843,8 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       assert(a < active_unit->ntypes);
       assert(b < active_unit->ntypes);
 
-      const vtype_t *at = &(active_unit->types[a]);
-      const vtype_t *bt = &(active_unit->types[b]);
+      const vtype_t *at = vcode_type_data(a);
+      const vtype_t *bt = vcode_type_data(b);
 
       if (at->kind != bt->kind)
          return false;
@@ -886,16 +906,26 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    return false;
 }
 
+static vcode_type_t vtype_new(vcode_type_t new)
+{
+   for (int i = 0; i < active_unit->ntypes - 1; i++) {
+      if (vtype_eq(i, new)) {
+         active_unit->ntypes--;
+         new = i;
+         break;
+      }
+   }
+
+   if (active_unit->kind == VCODE_UNIT_CONTEXT)
+      new |= 0x80000000;
+
+   return new;
+}
+
 vcode_type_t vtype_int(int64_t low, int64_t high)
 {
    assert(active_unit != NULL);
    assert(low <= high);
-
-   for (int i = 0; i < active_unit->ntypes; i++) {
-      const vtype_t *t = &(active_unit->types[i]);
-      if ((t->kind == VCODE_TYPE_INT) && (t->low == low) && (t->high == high))
-         return i;
-   }
 
    assert(active_unit->ntypes < MAX_TYPES);
    vcode_type_t r = active_unit->ntypes++;
@@ -905,7 +935,7 @@ vcode_type_t vtype_int(int64_t low, int64_t high)
    n->low  = low;
    n->high = high;
 
-   return r;
+   return vtype_new(r);
 }
 
 vcode_type_t vtype_bool(void)
@@ -929,14 +959,7 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    for (int i = 0; i < ndim; i++)
       n->dim[i] = dim[i];
 
-   for (int i = 0; i < active_unit->ntypes - 1; i++) {
-      if (vtype_eq(i, r)) {
-         active_unit->ntypes--;
-         return i;
-      }
-   }
-
-   return r;
+   return vtype_new(r);
 }
 
 vcode_type_t vtype_pointer(vcode_type_t to)
@@ -950,14 +973,7 @@ vcode_type_t vtype_pointer(vcode_type_t to)
    n->kind    = VCODE_TYPE_POINTER;
    n->pointed = to;
 
-   for (int i = 0; i < active_unit->ntypes - 1; i++) {
-      if (vtype_eq(i, r)) {
-         active_unit->ntypes--;
-         return i;
-      }
-   }
-
-   return r;
+   return vtype_new(r);
 }
 
 vcode_type_t vtype_signal(vcode_type_t base)
@@ -971,14 +987,7 @@ vcode_type_t vtype_signal(vcode_type_t base)
    n->kind = VCODE_TYPE_SIGNAL;
    n->base = base;
 
-   for (int i = 0; i < active_unit->ntypes - 1; i++) {
-      if (vtype_eq(i, r)) {
-         active_unit->ntypes--;
-         return i;
-      }
-   }
-
-   return r;
+   return vtype_new(r);
 }
 
 vcode_type_t vtype_offset(void)
@@ -991,14 +1000,7 @@ vcode_type_t vtype_offset(void)
    vtype_t *n = &(active_unit->types[r]);
    n->kind = VCODE_TYPE_OFFSET;
 
-   for (int i = 0; i < active_unit->ntypes - 1; i++) {
-      if (vtype_eq(i, r)) {
-         active_unit->ntypes--;
-         return i;
-      }
-   }
-
-   return r;
+   return vtype_new(r);
 }
 
 vtype_kind_t vtype_kind(vcode_type_t type)
@@ -1073,8 +1075,9 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
 vcode_unit_t emit_context(ident_t name)
 {
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
-   vu->kind = VCODE_UNIT_CONTEXT;
-   vu->name = name;
+   vu->kind    = VCODE_UNIT_CONTEXT;
+   vu->name    = name;
+   vu->context = vu;
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1196,9 +1199,13 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    v->bounds = bounds;
    v->name   = name;
 
-   const int32_t mask =
-      active_unit->kind == VCODE_UNIT_CONTEXT ? 0x80000000 : 0;
-   return active_unit->nvars++ | mask;
+   if (active_unit->kind == VCODE_UNIT_CONTEXT) {
+      assert(type & 0x80000000);
+      assert(bounds & 0x80000000);
+      return active_unit->nvars++ | 0x80000000;
+   }
+   else
+      return active_unit->nvars++;
 }
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
@@ -1434,23 +1441,31 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    vcode_add_arg(op, offset);
    op->address = var;
 
-   vtype_t *vt = vcode_type_data(vcode_var_type(var));
+   vcode_type_t typeref = vcode_var_type(var);
+   vtype_t *vt = vcode_type_data(typeref);
+   switch (vt->kind) {
+   case VCODE_TYPE_CARRAY:
+      op->type = vtype_pointer(vt->elem);
+      op->result = vcode_add_reg(op->type);
+      vcode_reg_data(op->result)->bounds = vt->bounds;
+      break;
 
-   if (vt->kind != VCODE_TYPE_CARRAY) {
+   case VCODE_TYPE_POINTER:
+      op->type = typeref;
+      op->result = vcode_add_reg(op->type);
+      vcode_reg_data(op->result)->bounds = vcode_var_data(var)->bounds;
+      break;
+
+   default:
       vcode_dump();
-      fatal_trace("indexed variable %s is not an array",
+      fatal_trace("indexed variable %s is not an array or pointer",
                   istr(vcode_var_name(var)));
    }
-
-   op->type   = vtype_pointer(vt->elem);
-   op->result = vcode_add_reg(op->type);
 
    if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("index offset r%d does not have offset type", offset);
    }
-
-   vcode_reg_data(op->result)->bounds = vt->bounds;
 
    return op->result;
 }

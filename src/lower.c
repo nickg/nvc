@@ -205,6 +205,17 @@ static vcode_var_t lower_get_var(tree_t decl)
    return var;
 }
 
+static vcode_signal_t lower_get_signal(tree_t decl)
+{
+   vcode_signal_t sig = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_SIGNAL);
+   if (sig == VCODE_INVALID_SIGNAL) {
+      vcode_dump();
+      fatal_trace("missing vcode signal for %s", istr(tree_ident(decl)));
+   }
+
+   return sig;
+}
+
 static vcode_reg_t lower_ref(tree_t ref)
 {
    tree_t decl = tree_ref(ref);
@@ -222,6 +233,18 @@ static vcode_reg_t lower_ref(tree_t ref)
             return emit_index(var, emit_const(vtype_offset(), 0));
          else
             return emit_load(var);
+      }
+
+   case T_SIGNAL_DECL:
+      {
+         vcode_signal_t sig = lower_get_signal(decl);
+         vcode_var_t shadow = vcode_signal_shadow(sig);
+         if (shadow != VCODE_INVALID_VAR) {
+            vcode_reg_t r = emit_index(shadow, emit_const(vtype_offset(), 0));
+            return type_is_array(type) ? r : emit_load_indirect(r);
+         }
+         else
+            assert(false);
       }
 
    default:

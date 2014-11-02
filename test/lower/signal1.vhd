@@ -8,7 +8,7 @@ begin
     process is
     begin
         assert x = 5;
-        x <= 6;
+--        x <= 6;
         wait;
     end process;
 

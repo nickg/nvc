@@ -67,9 +67,10 @@ typedef enum {
    VCODE_UNIT_CONTEXT
 } vunit_kind_t;
 
-#define VCODE_INVALID_REG   -1
-#define VCODE_INVALID_BLOCK -1
-#define VCODE_INVALID_VAR   -1
+#define VCODE_INVALID_REG    -1
+#define VCODE_INVALID_BLOCK  -1
+#define VCODE_INVALID_VAR    -1
+#define VCODE_INVALID_SIGNAL -1
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
@@ -98,6 +99,8 @@ bool vcode_block_finished(void);
 
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
+
+vcode_var_t vcode_signal_shadow(vcode_signal_t sig);
 
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);

@@ -70,6 +70,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_ASSERT:
+      case VCODE_OP_RETURN:
          break;
 
       case VCODE_OP_WAIT:
@@ -361,8 +362,39 @@ START_TEST(test_signal1)
    tree_t e = run_elab();
    lower_unit(e);
 
+   vcode_unit_t vc = tree_code(e);
+   vcode_select_unit(vc);
+
+   {
+      EXPECT_BB(0) = {
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
    vcode_select_unit(v0);
+
+   {
+      EXPECT_BB(0) = {
+         { VCODE_OP_JUMP, .target = 1 }
+      };
+
+      CHECK_BB(0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_INDEX, .name = "shadow_:signal1:x" },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_WAIT, .target = 2 }
+      };
+
+      CHECK_BB(1);
+   }
 }
 END_TEST
 
