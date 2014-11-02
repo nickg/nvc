@@ -58,7 +58,8 @@ typedef enum {
    VCODE_TYPE_INT,
    VCODE_TYPE_CARRAY,
    VCODE_TYPE_POINTER,
-   VCODE_TYPE_OFFSET
+   VCODE_TYPE_OFFSET,
+   VCODE_TYPE_SIGNAL
 } vtype_kind_t;
 
 typedef enum {
@@ -76,6 +77,7 @@ vcode_type_t vtype_bool(void);
 vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
                           vcode_type_t elem, vcode_type_t bounds);
 vcode_type_t vtype_pointer(vcode_type_t to);
+vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
@@ -114,7 +116,7 @@ ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
 
 vcode_unit_t emit_func(ident_t name);
-vcode_unit_t emit_process(ident_t name);
+vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);

@@ -26,7 +26,7 @@
 
 static ident_t builtin_i;
 static ident_t foreign_i;
-static ident_t vcode_var_i;
+static ident_t vcode_obj_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr);
@@ -196,7 +196,7 @@ static vcode_reg_t lower_literal(tree_t lit)
 
 static vcode_var_t lower_get_var(tree_t decl)
 {
-   vcode_var_t var = tree_attr_int(decl, vcode_var_i, VCODE_INVALID_VAR);
+   vcode_var_t var = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_VAR);
    if (var == VCODE_INVALID_VAR) {
       vcode_dump();
       fatal_trace("missing vcode var for %s", istr(tree_ident(decl)));
@@ -546,7 +546,7 @@ static void lower_decl(tree_t decl)
          vcode_type_t vtype = lower_type(type);
          vcode_type_t vbounds = lower_bounds(type);
          vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
-         tree_add_attr_int(decl, vcode_var_i, var);
+         tree_add_attr_int(decl, vcode_obj_i, var);
 
          if (tree_has_value(decl)) {
             vcode_reg_t value = lower_expr(tree_value(decl));
@@ -558,11 +558,10 @@ static void lower_decl(tree_t decl)
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(decl);
-         vcode_type_t stype = lower_type(type);
+         vcode_type_t stype = vtype_signal(lower_type(type));
          vcode_type_t sbounds = lower_bounds(type);
          vcode_signal_t sig = emit_signal(stype, sbounds, tree_ident(decl));
-         (void)sig;
-         //tree_add_attr_int(decl, vcode_var_i, var);
+         tree_add_attr_int(decl, vcode_obj_i, sig);
       }
       break;
    case T_TYPE_DECL:
@@ -574,9 +573,9 @@ static void lower_decl(tree_t decl)
    }
 }
 
-static void lower_process(tree_t proc)
+static void lower_process(tree_t proc, vcode_unit_t context)
 {
-   vcode_unit_t vu = emit_process(tree_ident(proc));
+   vcode_unit_t vu = emit_process(tree_ident(proc), context);
 
    const int ndecls = tree_decls(proc);
    for (int i = 0; i < ndecls; i++)
@@ -602,7 +601,7 @@ static void lower_process(tree_t proc)
    tree_set_code(proc, vu);
 
    for (int i = 0; i < ndecls; i++)
-      tree_remove_attr(tree_decl(proc, i), vcode_var_i);
+      tree_remove_attr(tree_decl(proc, i), vcode_obj_i);
 }
 
 static void lower_elab(tree_t unit)
@@ -625,15 +624,18 @@ static void lower_elab(tree_t unit)
    for (int i = 0; i < nstmts; i++) {
       tree_t s = tree_stmt(unit, i);
       assert(tree_kind(s) == T_PROCESS);
-      lower_process(s);
+      lower_process(s, context);
    }
+
+   for (int i = 0; i < ndecls; i++)
+      tree_remove_attr(tree_decl(unit, i), vcode_obj_i);
 }
 
 void lower_unit(tree_t unit)
 {
    builtin_i   = ident_new("builtin");
    foreign_i   = ident_new("FOREIGN");
-   vcode_var_i = ident_new("vcode_var");
+   vcode_obj_i = ident_new("vcode_obj");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

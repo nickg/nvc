@@ -72,6 +72,7 @@ typedef struct {
          vcode_type_t bounds;
       };
       vcode_type_t pointed;
+      vcode_type_t base;
    };
 } vtype_t;
 
@@ -89,6 +90,7 @@ typedef struct {
 
 struct vcode_unit {
    vunit_kind_t kind;
+   vcode_unit_t context;
    ident_t      name;
    block_t      blocks[MAX_BLOCKS];
    int          nblocks;
@@ -529,6 +531,12 @@ static void vcode_dump_one_type(vcode_type_t type)
       printf(">");
       break;
 
+   case VCODE_TYPE_SIGNAL:
+      printf("$<");
+      vcode_dump_one_type(vt->base);
+      printf(">");
+      break;
+
    case VCODE_TYPE_OFFSET:
       printf("#");
       break;
@@ -567,6 +575,8 @@ void vcode_dump(void)
    case VCODE_UNIT_CONTEXT: printf("context"); break;
    }
    color_printf("$$\n");
+   if (vu->kind != VCODE_UNIT_CONTEXT)
+      color_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
    printf("Blocks     %d\n", vu->nblocks);
    printf("Registers  %d\n", vu->nregs);
    printf("Types      %d\n", vu->ntypes);
@@ -837,6 +847,8 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
             return vtype_eq(at->pointed, bt->pointed);
          case VCODE_TYPE_OFFSET:
             return true;
+         case VCODE_TYPE_SIGNAL:
+            return vtype_eq(at->base, bt->base);
          }
       }
 
@@ -864,6 +876,9 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_OFFSET:
       return false;
+
+   case VCODE_TYPE_SIGNAL:
+      return vtype_includes(tt->base, bt->base);
    }
 
    return false;
@@ -932,6 +947,27 @@ vcode_type_t vtype_pointer(vcode_type_t to)
    vtype_t *n = &(active_unit->types[r]);
    n->kind    = VCODE_TYPE_POINTER;
    n->pointed = to;
+
+   for (int i = 0; i < active_unit->ntypes - 1; i++) {
+      if (vtype_eq(i, r)) {
+         active_unit->ntypes--;
+         return i;
+      }
+   }
+
+   return r;
+}
+
+vcode_type_t vtype_signal(vcode_type_t base)
+{
+   assert(active_unit != NULL);
+
+   assert(active_unit->ntypes < MAX_TYPES);
+   vcode_type_t r = active_unit->ntypes++;
+
+   vtype_t *n = &(active_unit->types[r]);
+   n->kind = VCODE_TYPE_SIGNAL;
+   n->base = base;
 
    for (int i = 0; i < active_unit->ntypes - 1; i++) {
       if (vtype_eq(i, r)) {
@@ -1017,11 +1053,14 @@ void vcode_select_block(vcode_block_t block)
    active_block = block;
 }
 
-vcode_unit_t emit_process(ident_t name)
+vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
 {
+   assert(context->kind == VCODE_UNIT_CONTEXT);
+
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
-   vu->kind = VCODE_UNIT_PROCESS;
-   vu->name = name;
+   vu->kind    = VCODE_UNIT_PROCESS;
+   vu->name    = name;
+   vu->context = context;
 
    active_unit = vu;
    vcode_select_block(emit_block());
