@@ -622,6 +622,8 @@ START_TEST(test_func)
       { 180, "no suitable overload for function TEST20" },
       { 181, "missing actual for formal Y without default value" },
       { 182, "no suitable overload for function TEST20" },
+      { 239, "class variable of subprogram body WORK.FUNC2.TEST25 paramteter" },
+      { 245, "class constant of subprogram body WORK.FUNC2.TEST26 paramteter" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -634,6 +636,16 @@ START_TEST(test_func)
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACK_BODY);
+   sem_check(p);
+
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
 
    p = parse();
