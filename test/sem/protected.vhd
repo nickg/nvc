@@ -108,3 +108,11 @@ begin
     end process;
 
 end architecture;
+
+package issue85 is
+
+    type protected_t is protected
+        procedure add(argument : inout protected_t);  -- OK
+    end protected protected_t;
+
+end package;

@@ -1827,6 +1827,12 @@ static bool sem_check_type_decl(tree_t t)
          scope_push(tree_ident(t));
          top_scope->flags |= SCOPE_PROTECTED;
 
+         // Make protected type visible inside type definition
+         scope_insert(t);
+         ident_t unqual = ident_rfrom(tree_ident(t), '.');
+         if (unqual != NULL)
+            scope_insert_alias(t, unqual);
+
          bool ok = true;
          const int ndecls = type_decls(type);
          for (int i = 0; i < ndecls; i++) {
