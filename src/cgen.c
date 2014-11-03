@@ -489,11 +489,6 @@ static bool cgen_is_const(tree_t t)
                   && tree_kind(tree_ref(t)) == T_ENUM_LIT));
 }
 
-static bool cgen_is_real(type_t type)
-{
-   return type_kind(type_base_recur(type)) == T_REAL;
-}
-
 static bool cgen_const_bounds(type_t type)
 {
    if (type_is_unconstrained(type))
@@ -1302,7 +1297,7 @@ static void cgen_array_copy(type_t src_type, type_t dest_type,
    }
 
    // Cast real values to 64-bit integers
-   const bool real = cgen_is_real(elem_type);
+   const bool real = type_is_real(elem_type);
    if (real) {
       LLVMTypeRef pi64 = LLVMPointerType(LLVMInt64Type(), 0);
       src_ptr = LLVMBuildPointerCast(builder, src_ptr, pi64, "src_pi64");
@@ -2536,7 +2531,8 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
    // Regular builtin functions
    if (builtin) {
       assert(nparams > 0);
-      const bool real = cgen_is_real(arg_types[0]);
+      const bool real   = type_is_real(arg_types[0]);
+      const bool access = type_is_access(arg_types[0]);
 
       if (icmp(builtin, "mul")) {
          if (real)
@@ -2594,7 +2590,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return LLVMBuildFPToSI(builder, r, llvm_type(rtype), "");
       }
       else if (icmp(builtin, "eq")) {
-         if (!real)
+         if (!real && !access)
             cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUEQ, args[0], args[1], "")
@@ -2602,7 +2598,7 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_logical(t, r);
       }
       else if (icmp(builtin, "neq")) {
-         if (!real)
+         if (!real && !access)
             cgen_widen(rtype, args, nparams);
          LLVMValueRef r = real
             ? LLVMBuildFCmp(builder, LLVMRealUNE, args[0], args[1], "")
@@ -4159,7 +4155,7 @@ static void cgen_var_assign(tree_t t, cgen_ctx_t *ctx)
       cgen_check_bounds(value, kind, rhs, min, max, ctx);
    }
 
-   if (type_is_universal(value_type) && !cgen_is_real(value_type))
+   if (type_is_universal(value_type) && !type_is_real(value_type))
       rhs = LLVMBuildIntCast(builder, rhs, llvm_type(target_type), "");
 
    LLVMValueRef lhs = cgen_var_lvalue(target, ctx);
