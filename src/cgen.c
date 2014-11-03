@@ -502,8 +502,12 @@ static bool cgen_const_bounds(type_t type)
 static int cgen_array_dims(type_t type)
 {
    assert(type_is_array(type));
-   if (type_is_unconstrained(type))
-      return type_index_constrs(type);
+   if (type_is_unconstrained(type)) {
+      if (type_kind(type) == T_SUBTYPE)
+         return cgen_array_dims(type_base(type));
+      else
+         return type_index_constrs(type);
+   }
    else
       return type_dims(type);
 }
@@ -1480,7 +1484,7 @@ static void cgen_prototype(tree_t t, LLVMTypeRef *args,
                                     || type_is_record(type))
                                    && !array);
 
-            if (need_ptr || (array && (type_kind(type) != T_UARRAY)))
+            if (need_ptr || (array && !type_is_unconstrained(type)))
                args[i] = LLVMPointerType(llvm_type(type), 0);
             else
                args[i] = llvm_type(type);
@@ -1939,7 +1943,7 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
       // constrained formal then we need to unwrap the array
       const bool unwrap =
          type_is_array(formal_type)
-         && (type_kind(formal_type) != T_UARRAY)
+         && !type_is_unconstrained(formal_type)
          && (class != C_SIGNAL)
          && (builtin == NULL);
       if (unwrap) {

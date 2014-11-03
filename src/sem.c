@@ -1272,41 +1272,38 @@ static bool sem_check_range(range_t *r, type_t context)
 
       type_t type = tree_type(decl);
       type_kind_t kind = type_kind(type);
-      switch (kind) {
-      case T_CARRAY:
-      case T_SUBTYPE:
-         {
-            range_t d0 = type_dim(type, 0);
-            *r = type_dim(type, 0);
-            if (reverse) {
-               r->left  = b;
-               r->right = a;
-               r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
-            }
-            else {
-               r->left  = a;
-               r->right = b;
-               r->kind  = d0.kind;
-            }
-         }
-         break;
-      case T_ENUM:
-      case T_INTEGER:
-         if (tree_kind(decl) == T_TYPE_DECL) {
-         case T_UARRAY:
-            // If this is an unconstrained array then we can
-            // only find out the direction at runtime
-            r->kind  = (kind == T_UARRAY
-                        ? (reverse ? RANGE_RDYN : RANGE_DYN)
-                        : (reverse ? RANGE_DOWNTO : RANGE_TO));
-            r->left  = a;
-            r->right = b;
-            break;
-         }
-         // Fall-through
-      default:
+      bool is_static = false;
+      if (kind == T_SUBTYPE || type_is_array(type))
+         is_static = !type_is_unconstrained(type);
+      else if (tree_kind(decl) == T_TYPE_DECL
+               && (kind == T_ENUM || kind == T_INTEGER))
+         is_static = false;
+      else
          sem_error(r->left, "object %s does not have a range",
                    istr(tree_ident(r->left)));
+
+      if (is_static) {
+         range_t d0 = type_dim(type, 0);
+         *r = type_dim(type, 0);
+         if (reverse) {
+            r->left  = b;
+            r->right = a;
+            r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
+         }
+         else {
+            r->left  = a;
+            r->right = b;
+            r->kind  = d0.kind;
+         }
+      }
+      else {
+         // If this is an unconstrained array then we can
+         // only find out the direction at runtime
+         r->kind  = (type_is_array(type)
+                     ? (reverse ? RANGE_RDYN : RANGE_DYN)
+                     : (reverse ? RANGE_DOWNTO : RANGE_TO));
+         r->left  = a;
+         r->right = b;
       }
    }
 

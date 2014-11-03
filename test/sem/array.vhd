@@ -343,4 +343,22 @@ begin
         b := "1fe";                     -- Error
     end process;
 
+    issue86: block is
+        type integer_vector is array (natural range <>) of integer;
+        subtype ElementType        is integer ;
+        subtype ArrayofElementType is integer_vector;
+
+        function inside0 (constant E : ElementType;
+                          constant A : in ArrayofElementType) return boolean is
+        begin
+            for i in A'range loop       -- OK (issue #86)
+                if E = A(i) then
+                    return TRUE;
+                end if ;
+            end loop ;
+            return FALSE ;
+        end function inside0;
+    begin
+    end block;
+
 end architecture;
