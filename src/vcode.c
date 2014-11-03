@@ -39,12 +39,13 @@ typedef struct {
    vcode_reg_t  result;
    vcode_type_t type;
    union {
-      vcode_cmp_t   cmp;
-      ident_t       func;
-      vcode_block_t target;
-      int64_t       value;
-      vcode_var_t   address;
-      char         *comment;
+      vcode_cmp_t    cmp;
+      ident_t        func;
+      vcode_block_t  target;
+      int64_t        value;
+      vcode_var_t    address;
+      char          *comment;
+      vcode_signal_t signal;
    };
 } op_t;
 
@@ -87,6 +88,8 @@ typedef struct {
    vcode_type_t bounds;
    ident_t      name;
    vcode_var_t  shadow;
+   netid_t     *nets;
+   size_t       nnets;
 } signal_t;
 
 struct vcode_unit {
@@ -337,9 +340,42 @@ vcode_type_t vcode_var_type(vcode_var_t var)
    return vcode_var_data(var)->type;
 }
 
+int vcode_count_signals(void)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_CONTEXT);
+
+   return active_unit->nsignals;
+}
+
+ident_t vcode_signal_name(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->name;
+}
+
 vcode_var_t vcode_signal_shadow(vcode_signal_t sig)
 {
    return vcode_signal_data(sig)->shadow;
+}
+
+size_t vcode_signal_count_nets(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->nnets;
+}
+
+const netid_t *vcode_signal_nets(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->nets;
+}
+
+vcode_type_t vcode_signal_type(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->type;
+}
+
+vcode_type_t vcode_signal_bounds(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->bounds;
 }
 
 vcode_op_t vcode_get_op(int op)
@@ -385,6 +421,19 @@ vcode_var_t vcode_get_address(int op)
    op_t *o = &(b->ops[op]);
    assert(o->kind == VCODE_OP_LOAD || o->kind == VCODE_OP_STORE
           || o->kind == VCODE_OP_INDEX);
+   return o->address;
+}
+
+vcode_signal_t vcode_get_signal(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(o->kind == VCODE_OP_NETS);
    return o->address;
 }
 
@@ -481,7 +530,8 @@ const char *vcode_op_string(vcode_op_t op)
    static const char *strs[] = {
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
-      "cast", "load indirect", "store indirect", "return"
+      "cast", "load indirect", "store indirect", "return", "nets",
+      "sched waveform"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -619,6 +669,10 @@ void vcode_dump(void)
          if (s->shadow != VCODE_INVALID_VAR)
             color_printf("    Shadow $magenta$%s$$\n",
                          istr(vcode_var_name(s->shadow)));
+         printf("    Nets   [");
+         for (size_t j = 0; j < s->nnets; j++)
+            printf("%s%d", j > 0 ? "," : "", s->nets[j]);
+         printf("]\n");
       }
    }
 
@@ -806,7 +860,7 @@ void vcode_dump(void)
          case VCODE_OP_CAST:
             {
                col += vcode_dump_reg(op->result);
-               col += printf(" := cast ");
+               col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
@@ -820,6 +874,27 @@ void vcode_dump(void)
                   vcode_dump_reg(op->args[0]);
             }
             break;
+
+         case VCODE_OP_NETS:
+            {
+               col += vcode_dump_reg(op->result);
+               col += color_printf(" := %s $white$%s$$",
+                                   vcode_op_string(op->kind),
+                                   istr(vcode_signal_name(op->signal)));
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
+
+         case VCODE_OP_SCHED_WAVEFORM:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args[1]);
+               printf(" values ");
+               vcode_dump_reg(op->args[2]);
+            }
          }
 
          printf("\n");
@@ -1209,7 +1284,8 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
 }
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
-                           ident_t name, vcode_var_t shadow)
+                           ident_t name, vcode_var_t shadow,
+                           netid_t *nets, size_t nnets)
 {
    assert(active_unit != NULL);
    assert(active_unit->nsignals < MAX_SIGNALS);
@@ -1220,6 +1296,8 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
    s->bounds = bounds;
    s->name   = name;
    s->shadow = shadow;
+   s->nets   = nets;
+   s->nnets  = nnets;
 
    return active_unit->nsignals++;
 }
@@ -1517,4 +1595,42 @@ void emit_return(vcode_reg_t reg)
 
    if (active_unit->kind != VCODE_UNIT_CONTEXT)
       fatal_trace("cannot return from this unit type");
+}
+
+vcode_reg_t emit_nets(vcode_signal_t sig)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NETS);
+   op->signal = sig;
+
+   vcode_type_t stype = vcode_signal_type(sig);
+   op->type = stype;
+
+   op->result = vcode_add_reg(stype);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vcode_signal_bounds(sig);
+
+   return op->result;
+}
+
+void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
+                         vcode_reg_t values)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SCHED_WAVEFORM);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, nnets);
+   vcode_add_arg(op, values);
+
+   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL) {
+      vcode_dump();
+      fatal_trace("sched_waveform target is not signal");
+   }
+   else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET) {
+      vcode_dump();
+      fatal_trace("sched_waveform net count is not offset type");
+   }
+   else if (vtype_kind(vcode_reg_type(values)) != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("sched_waveform values is not pointer type");
+   }
 }

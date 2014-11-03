@@ -65,4 +65,8 @@ typedef struct trie *ident_t;
 
 typedef struct vcode_unit *vcode_unit_t;
 
+typedef uint32_t netid_t;
+
+#define NETID_INVALID UINT32_MAX
+
 #endif  // _PRIM_H

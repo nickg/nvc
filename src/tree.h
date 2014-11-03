@@ -149,10 +149,6 @@ typedef enum tree_kind {
    T_LAST_TREE_KIND
 } tree_kind_t;
 
-typedef uint32_t netid_t;
-
-#define NETID_INVALID UINT32_MAX
-
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);

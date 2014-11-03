@@ -24,12 +24,17 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+typedef enum {
+   EXPR_LVALUE,
+   EXPR_RVALUE
+} expr_ctx_t;
+
 static ident_t builtin_i;
 static ident_t foreign_i;
 static ident_t vcode_obj_i;
 static bool    verbose = false;
 
-static vcode_reg_t lower_expr(tree_t expr);
+static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_type_t lower_bounds(type_t type);
 
 static vcode_type_t lower_type(type_t type)
@@ -126,7 +131,7 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
    assert(tree_subkind(param) == P_POS);
    assert(tree_pos(param) == nth);
 
-   return lower_reify(lower_expr(tree_value(param)));
+   return lower_reify(lower_expr(tree_value(param), EXPR_RVALUE));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -150,7 +155,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
 
-static vcode_reg_t lower_fcall(tree_t fcall)
+static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(fcall);
 
@@ -216,36 +221,49 @@ static vcode_signal_t lower_get_signal(tree_t decl)
    return sig;
 }
 
-static vcode_reg_t lower_ref(tree_t ref)
+static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
+{
+   type_t type = tree_type(decl);
+
+   vcode_var_t var = lower_get_var(decl);
+   if (type_is_array(type))
+      return emit_index(var, emit_const(vtype_offset(), 0));
+   else
+      return emit_load(var);
+}
+
+static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
+{
+   type_t type = tree_type(decl);
+
+   vcode_signal_t sig = lower_get_signal(decl);
+   if (ctx == EXPR_LVALUE)
+      return emit_nets(sig);
+   else {
+      vcode_var_t shadow = vcode_signal_shadow(sig);
+      if (shadow != VCODE_INVALID_VAR) {
+         vcode_reg_t r = emit_index(shadow, emit_const(vtype_offset(), 0));
+         return type_is_array(type) ? r : emit_load_indirect(r);
+      }
+      else
+         assert(false);
+   }
+}
+
+static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
-   type_t type = tree_type(decl);
 
    tree_kind_t kind = tree_kind(decl);
    switch (kind) {
    case T_ENUM_LIT:
-      return emit_const(lower_type(type), tree_pos(decl));
+      return emit_const(lower_type(tree_type(decl)), tree_pos(decl));
 
    case T_VAR_DECL:
-      {
-         vcode_var_t var = lower_get_var(decl);
-         if (type_is_array(type))
-            return emit_index(var, emit_const(vtype_offset(), 0));
-         else
-            return emit_load(var);
-      }
+      return lower_var_ref(decl, ctx);
 
    case T_SIGNAL_DECL:
-      {
-         vcode_signal_t sig = lower_get_signal(decl);
-         vcode_var_t shadow = vcode_signal_shadow(sig);
-         if (shadow != VCODE_INVALID_VAR) {
-            vcode_reg_t r = emit_index(shadow, emit_const(vtype_offset(), 0));
-            return type_is_array(type) ? r : emit_load_indirect(r);
-         }
-         else
-            assert(false);
-      }
+      return lower_signal_ref(decl, ctx);
 
    default:
       vcode_dump();
@@ -282,7 +300,7 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    }
    else {
       range_t r = type_dim(type, dim);
-      vcode_reg_t left = lower_expr(r.left);
+      vcode_reg_t left = lower_expr(r.left, EXPR_RVALUE);
       if (r.kind == RANGE_TO)
          zeroed = emit_sub(off, left);
       else
@@ -292,12 +310,12 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), zeroed);
 }
 
-static vcode_reg_t lower_array_ref(tree_t ref)
+static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
    type_t value_type = tree_type(value);
 
-   vcode_reg_t base = lower_expr(value);
+   vcode_reg_t base = lower_expr(value, ctx == EXPR_LVALUE ?: EXPR_RVALUE);
    assert(vtype_kind(vcode_reg_type(base)) == VCODE_TYPE_POINTER);
 
    tree_t alias = NULL;
@@ -313,7 +331,7 @@ static vcode_reg_t lower_array_ref(tree_t ref)
       tree_t p = tree_param(ref, i);
       assert(tree_subkind(p) == P_POS);
 
-      vcode_reg_t offset = lower_expr(tree_value(p));
+      vcode_reg_t offset = lower_expr(tree_value(p), EXPR_RVALUE);
 
       //if (!elide_bounds)
       //   cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta),
@@ -424,7 +442,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          assert(false);
       }
       else {
-         tmp  = lower_expr(value);
+         tmp  = lower_expr(value, EXPR_RVALUE);
          nsub = 1;
       }
 
@@ -472,7 +490,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
    return vals;
 }
 
-static vcode_reg_t lower_aggregate(tree_t expr)
+static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
 {
    type_t type = tree_type(expr);
    assert(type_is_array(type));
@@ -488,19 +506,19 @@ static vcode_reg_t lower_aggregate(tree_t expr)
       assert(false);
 }
 
-static vcode_reg_t lower_expr(tree_t expr)
+static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
    case T_FCALL:
-      return lower_fcall(expr);
+      return lower_fcall(expr, ctx);
    case T_LITERAL:
       return lower_literal(expr);
    case T_REF:
-      return lower_ref(expr);
+      return lower_ref(expr, ctx);
    case T_AGGREGATE:
-      return lower_aggregate(expr);
+      return lower_aggregate(expr, ctx);
    case T_ARRAY_REF:
-      return lower_array_ref(expr);
+      return lower_array_ref(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -509,14 +527,14 @@ static vcode_reg_t lower_expr(tree_t expr)
 
 static void lower_assert(tree_t stmt)
 {
-   emit_assert(lower_expr(tree_value(stmt)));
+   emit_assert(lower_expr(tree_value(stmt), EXPR_RVALUE));
 }
 
 static void lower_wait(tree_t wait)
 {
    vcode_reg_t delay = VCODE_INVALID_REG;
    if (tree_has_delay(wait))
-      delay = lower_expr(tree_delay(wait));
+      delay = lower_expr(tree_delay(wait), EXPR_RVALUE);
 
    vcode_block_t resume = emit_block();
    emit_wait(resume, delay);
@@ -526,7 +544,7 @@ static void lower_wait(tree_t wait)
 
 static void lower_var_assign(tree_t stmt)
 {
-   vcode_reg_t value = lower_expr(tree_value(stmt));
+   vcode_reg_t value = lower_expr(tree_value(stmt), EXPR_RVALUE);
 
    tree_t target = tree_target(stmt);
    type_t type = tree_type(target);
@@ -536,10 +554,16 @@ static void lower_var_assign(tree_t stmt)
       if (tree_kind(target) == T_REF)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
-         emit_store_indirect(loaded_value, lower_expr(target));
+         emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
    else
       assert(false);
+}
+
+static void lower_signal_assign(tree_t stmt)
+{
+   vcode_reg_t nets = lower_expr(tree_target(stmt), EXPR_LVALUE);
+   (void)nets;
 }
 
 static void lower_stmt(tree_t stmt)
@@ -553,6 +577,9 @@ static void lower_stmt(tree_t stmt)
       break;
    case T_VAR_ASSIGN:
       lower_var_assign(stmt);
+      break;
+   case T_SIGNAL_ASSIGN:
+      lower_signal_assign(stmt);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
@@ -588,7 +615,7 @@ static void lower_decl(tree_t decl)
          tree_add_attr_int(decl, vcode_obj_i, var);
 
          if (tree_has_value(decl)) {
-            vcode_reg_t value = lower_expr(tree_value(decl));
+            vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
             emit_bounds(value, vbounds);
             emit_store(value, var);
          }
@@ -608,8 +635,14 @@ static void lower_decl(tree_t decl)
             // TODO: init shadow
          }
 
+         const int nnets = tree_nets(decl);
+         netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
+         for (int i = 0; i < nnets; i++)
+            nets[i] = tree_net(decl, i);
+
          vcode_type_t stype = vtype_signal(ltype);
-         vcode_signal_t sig = emit_signal(stype, bounds, name, shadow);
+         vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
+                                          nets, nnets);
          tree_add_attr_int(decl, vcode_obj_i, sig);
       }
       break;

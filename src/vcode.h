@@ -51,7 +51,9 @@ typedef enum {
    VCODE_OP_CAST,
    VCODE_OP_LOAD_INDIRECT,
    VCODE_OP_STORE_INDIRECT,
-   VCODE_OP_RETURN
+   VCODE_OP_RETURN,
+   VCODE_OP_NETS,
+   VCODE_OP_SCHED_WAVEFORM
 } vcode_op_t;
 
 typedef enum {
@@ -100,7 +102,13 @@ bool vcode_block_finished(void);
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 
+int vcode_count_signals(void);
 vcode_var_t vcode_signal_shadow(vcode_signal_t sig);
+ident_t vcode_signal_name(vcode_signal_t sig);
+size_t vcode_signal_count_nets(vcode_signal_t sig);
+const netid_t *vcode_signal_nets(vcode_signal_t sig);
+vcode_type_t vcode_signal_type(vcode_signal_t sig);
+vcode_type_t vcode_signal_bounds(vcode_signal_t sig);
 
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
@@ -113,6 +121,7 @@ int vcode_count_args(int op);
 vcode_reg_t vcode_get_arg(int op, int arg);
 vcode_type_t vcode_get_type(int op);
 vcode_reg_t vcode_get_result(int op);
+vcode_signal_t vcode_get_signal(int op);
 
 int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);
@@ -124,7 +133,8 @@ vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
-                           ident_t name, vcode_var_t shadow);
+                           ident_t name, vcode_var_t shadow,
+                           netid_t *nets, size_t nnets);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
@@ -144,5 +154,8 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
+vcode_reg_t emit_nets(vcode_signal_t sig);
+void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
+                         vcode_reg_t values);
 
 #endif  // _VCODE_H

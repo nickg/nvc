@@ -106,6 +106,17 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          }
          break;
 
+      case VCODE_OP_NETS:
+         {
+            ident_t name = vcode_signal_name(vcode_get_signal(i));
+            if (name != ident_new(e->name)) {
+               vcode_dump();
+               fail("expected op %d in block %d to have signal name %s but "
+                    "has %s", i, bb, e->name, istr(name));
+            }
+         }
+         break;
+
       case VCODE_OP_ADD:
       case VCODE_OP_MUL:
       case VCODE_OP_CAST:
@@ -373,6 +384,11 @@ START_TEST(test_signal1)
       CHECK_BB(0);
    }
 
+   fail_unless(vcode_count_signals() == 1);
+   fail_unless(icmp(vcode_signal_name(0), ":signal1:x"));
+   fail_unless(vcode_signal_count_nets(0) == 1);
+   fail_unless(vcode_signal_nets(0)[0] == 0);
+
    vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
    vcode_select_unit(v0);
 
@@ -390,6 +406,7 @@ START_TEST(test_signal1)
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_NETS, .name = ":signal1:x" },
          { VCODE_OP_WAIT, .target = 2 }
       };
 
