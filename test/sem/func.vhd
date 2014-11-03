@@ -229,3 +229,22 @@ package body func is
     end function;
 
 end package body;
+
+package func2 is
+    procedure test25(constant x : integer);
+end package;
+
+package body func2 is
+
+    procedure test25(variable x : integer) is  -- Error
+    begin
+    end procedure;
+
+    function test26(signal x : integer) return integer;
+
+    function test26(x : integer) return integer is  -- Error
+    begin
+        return 1;
+    end function;
+
+end package body;

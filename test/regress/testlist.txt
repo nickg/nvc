@@ -245,3 +245,4 @@ alias9          normal
 issue79         normal
 issue84         normal,2000
 issue82         normal
+issue86         normal

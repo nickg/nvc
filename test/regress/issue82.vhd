@@ -4,7 +4,7 @@ package nested_pkg is
 end package;
 
 package body nested_pkg is
-  procedure parent_proc(sig : out integer; var : inout integer) is
+  procedure parent_proc(signal sig : out integer; var : inout integer) is
     procedure nested_proc is
     begin
         assert var /= 4;

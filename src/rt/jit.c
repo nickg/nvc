@@ -166,7 +166,11 @@ static void jit_init_llvm(const char *path)
    LLVMDisposeMemoryBuffer(buf);
 
    LLVMInitializeNativeTarget();
+#ifdef LLVM_HAS_MCJIT
+   LLVMLinkInMCJIT();
+#else
    LLVMLinkInJIT();
+#endif
 
    if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
       fatal("error creating execution engine: %s", error);

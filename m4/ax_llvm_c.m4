@@ -82,6 +82,11 @@ AC_DEFUN([AX_LLVM_C],
                         [LLVM mangles symbol names])
                 fi
 
+                if test "$llvm_ver_num" -ge "36"; then
+                    AC_DEFINE_UNQUOTED(LLVM_HAS_MCJIT, [1],
+                        [LLVM uses MCJIT instead of old JIT])
+                fi
+
                 AC_REQUIRE([AC_PROG_CXX])
 
                 CFLAGS_SAVED="$CFLAGS"

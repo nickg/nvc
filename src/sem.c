@@ -1272,41 +1272,38 @@ static bool sem_check_range(range_t *r, type_t context)
 
       type_t type = tree_type(decl);
       type_kind_t kind = type_kind(type);
-      switch (kind) {
-      case T_CARRAY:
-      case T_SUBTYPE:
-         {
-            range_t d0 = type_dim(type, 0);
-            *r = type_dim(type, 0);
-            if (reverse) {
-               r->left  = b;
-               r->right = a;
-               r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
-            }
-            else {
-               r->left  = a;
-               r->right = b;
-               r->kind  = d0.kind;
-            }
-         }
-         break;
-      case T_ENUM:
-      case T_INTEGER:
-         if (tree_kind(decl) == T_TYPE_DECL) {
-         case T_UARRAY:
-            // If this is an unconstrained array then we can
-            // only find out the direction at runtime
-            r->kind  = (kind == T_UARRAY
-                        ? (reverse ? RANGE_RDYN : RANGE_DYN)
-                        : (reverse ? RANGE_DOWNTO : RANGE_TO));
-            r->left  = a;
-            r->right = b;
-            break;
-         }
-         // Fall-through
-      default:
+      bool is_static = false;
+      if (kind == T_SUBTYPE || type_is_array(type))
+         is_static = !type_is_unconstrained(type);
+      else if (tree_kind(decl) == T_TYPE_DECL
+               && (kind == T_ENUM || kind == T_INTEGER))
+         is_static = false;
+      else
          sem_error(r->left, "object %s does not have a range",
                    istr(tree_ident(r->left)));
+
+      if (is_static) {
+         range_t d0 = type_dim(type, 0);
+         *r = type_dim(type, 0);
+         if (reverse) {
+            r->left  = b;
+            r->right = a;
+            r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
+         }
+         else {
+            r->left  = a;
+            r->right = b;
+            r->kind  = d0.kind;
+         }
+      }
+      else {
+         // If this is an unconstrained array then we can
+         // only find out the direction at runtime
+         r->kind  = (type_is_array(type)
+                     ? (reverse ? RANGE_RDYN : RANGE_DYN)
+                     : (reverse ? RANGE_DOWNTO : RANGE_TO));
+         r->left  = a;
+         r->right = b;
       }
    }
 
@@ -2587,6 +2584,60 @@ static bool sem_check_package(tree_t t)
    return ok;
 }
 
+static bool sem_check_paramter_class_match(tree_t decl, tree_t body)
+{
+   const int nports = tree_ports(body);
+   for (int k = 0; k < nports; k++) {
+      tree_t pd = tree_port(decl, k);
+      tree_t pb = tree_port(body, k);
+      if (tree_class(pd) != tree_class(pb))
+         sem_error(pb, "class %s of subprogram body %s paramteter %s does not "
+                   "match class %s in declaration", class_str(tree_class(pb)),
+                   istr(tree_ident(body)), istr(tree_ident(pb)),
+                   class_str(tree_class(pd)));
+   }
+
+   return true;
+}
+
+static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
+{
+   // Check for any subprogram declarations without bodies
+   bool ok = true;
+   const int ndecls = tree_decls(spec);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(spec, i);
+      tree_kind_t dkind = tree_kind(d);
+      if (dkind == T_FUNC_DECL || dkind == T_PROC_DECL) {
+         type_t dtype = tree_type(d);
+
+         bool found = false;
+         const int nbody_decls = tree_decls(body);
+         const int start = (body == spec ? i + 1 : 0);
+         for (int j = start; !found && (j < nbody_decls); j++) {
+            tree_t b = tree_decl(body, j);
+            tree_kind_t bkind = tree_kind(b);
+            if (bkind == T_FUNC_BODY || bkind == T_PROC_BODY) {
+               if (type_eq(dtype, tree_type(b))) {
+                  found = true;
+                  ok = sem_check_paramter_class_match(d, b) && ok;
+               }
+            }
+         }
+
+         if (!found && !opt_get_int("unit-test"))
+            warn_at(tree_loc(d), "missing body for %s %s",
+                    (dkind == T_FUNC_DECL) ? "function" : "procedure",
+                    sem_type_str(dtype));
+      }
+   }
+
+   if (body != spec)
+      ok = sem_check_missing_subprogram_body(body, body) && ok;
+
+   return ok;
+}
+
 static bool sem_check_package_body(tree_t t)
 {
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
@@ -2631,33 +2682,9 @@ static bool sem_check_package_body(tree_t t)
       }
    }
 
-   if (ok && (pack != NULL) && !opt_get_int("unit-test")) {
-      // Check for any subprogram declarations without bodies
-      const int ndecls = tree_decls(pack);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = tree_decl(pack, i);
-         tree_kind_t dkind = tree_kind(d);
-         if ((dkind == T_FUNC_DECL) || (dkind == T_PROC_DECL)) {
-            type_t dtype = tree_type(d);
-
-            bool found = false;
-            const int nbody_decls = tree_decls(t);
-            for (int j = 0; !found && (j < nbody_decls); j++) {
-               tree_t b = tree_decl(t, j);
-               tree_kind_t bkind = tree_kind(b);
-               if ((bkind == T_FUNC_BODY) || (bkind == T_PROC_BODY)) {
-                  if (type_eq(dtype, tree_type(b)))
-                     found = true;
-               }
-            }
-
-            if (!found)
-               warn_at(tree_loc(d), "missing body for %s %s",
-                       (dkind == T_FUNC_DECL) ? "function" : "procedure",
-                       sem_type_str(dtype));
-         }
-      }
-   }
+   if (pack != NULL)
+      ok = ok && sem_check_missing_subprogram_body(t, pack)
+         && sem_check_missing_subprogram_body(t, t);
 
    scope_pop();
    scope_pop();
@@ -2848,6 +2875,8 @@ static bool sem_check_arch(tree_t t)
          sem_declare(d, true);
    }
 
+   ok = ok && sem_check_missing_subprogram_body(t, t);
+
    // Now check the architecture itself
 
    const int ndecls = tree_decls(t);
@@ -3009,6 +3038,8 @@ static bool sem_check_signal_target(tree_t target)
          if (tree_subkind(decl) == PORT_IN)
             sem_error(target, "cannot assign to input port %s",
                       istr(tree_ident(decl)));
+         else if (tree_class(decl) != C_SIGNAL)
+            sem_error(target, "target of signal assignment is not a signal");
          break;
 
       default:
