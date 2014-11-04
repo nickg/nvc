@@ -894,6 +894,10 @@ void vcode_dump(void)
                vcode_dump_reg(op->args[1]);
                printf(" values ");
                vcode_dump_reg(op->args[2]);
+               printf(" reject ");
+               vcode_dump_reg(op->args[3]);
+               printf(" after ");
+               vcode_dump_reg(op->args[4]);
             }
          }
 
@@ -1614,12 +1618,15 @@ vcode_reg_t emit_nets(vcode_signal_t sig)
 }
 
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
-                         vcode_reg_t values)
+                         vcode_reg_t values, vcode_reg_t reject,
+                         vcode_reg_t after)
 {
    op_t *op = vcode_add_op(VCODE_OP_SCHED_WAVEFORM);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, nnets);
    vcode_add_arg(op, values);
+   vcode_add_arg(op, reject);
+   vcode_add_arg(op, after);
 
    if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL) {
       vcode_dump();
@@ -1628,9 +1635,5 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
    else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("sched_waveform net count is not offset type");
-   }
-   else if (vtype_kind(vcode_reg_type(values)) != VCODE_TYPE_POINTER) {
-      vcode_dump();
-      fatal_trace("sched_waveform values is not pointer type");
    }
 }

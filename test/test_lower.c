@@ -122,6 +122,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_CAST:
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
+      case VCODE_OP_SCHED_WAVEFORM:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -406,7 +407,12 @@ START_TEST(test_signal1)
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_NETS, .name = ":signal1:x" },
+         { VCODE_OP_CONST, .value = 6 },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_SCHED_WAVEFORM },
          { VCODE_OP_WAIT, .target = 2 }
       };
 

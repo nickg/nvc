@@ -562,8 +562,37 @@ static void lower_var_assign(tree_t stmt)
 
 static void lower_signal_assign(tree_t stmt)
 {
+   vcode_reg_t reject;
+   if (tree_has_reject(stmt))
+      reject = lower_expr(tree_reject(stmt), EXPR_RVALUE);
+   else
+      reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+
+   tree_t target = tree_target(stmt);
+   type_t target_type = tree_type(target);
+
    vcode_reg_t nets = lower_expr(tree_target(stmt), EXPR_LVALUE);
-   (void)nets;
+
+   const int nwaveforms = tree_waveforms(stmt);
+   for (int i = 0; i < nwaveforms; i++) {
+      tree_t w = tree_waveform(stmt, i);
+
+      vcode_reg_t rhs = lower_expr(tree_value(w), EXPR_RVALUE);
+
+      if (type_is_scalar(target_type))
+         emit_bounds(lower_reify(rhs), lower_bounds(target_type));
+      else
+         assert(false);
+
+      vcode_reg_t after;
+      if (tree_has_delay(w))
+         after = lower_expr(tree_delay(w), EXPR_RVALUE);
+      else
+         after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
+
+      emit_sched_waveform(nets, emit_const(vtype_offset(), 1),
+                          rhs, reject, after);
+   }
 }
 
 static void lower_stmt(tree_t stmt)

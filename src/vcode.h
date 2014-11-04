@@ -156,6 +156,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
 vcode_reg_t emit_nets(vcode_signal_t sig);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
-                         vcode_reg_t values);
+                         vcode_reg_t values, vcode_reg_t reject,
+                         vcode_reg_t after);
 
 #endif  // _VCODE_H
