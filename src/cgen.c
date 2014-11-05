@@ -1958,63 +1958,75 @@ static void cgen_call_args(tree_t t, LLVMValueRef *args, unsigned *nargs,
 
    *nargs = nparams;
 
-   if (tree_attr_int(decl, nest_level_i, 0) > 0) {
+   const int callee_nest_level = tree_attr_int(decl, nest_level_i, 0);
+   if (callee_nest_level > 0) {
       // Nested subprograms take extra structure of pointers to
       // parent state
 
       tree_t parent = (ctx->proc != NULL) ? ctx->proc : ctx->fdecl;
 
-      LLVMValueRef parent_state = LLVMGetUndef(cgen_nest_struct_type(parent));
-      unsigned offset = 0;
+      LLVMValueRef parent_state = NULL;
 
-      const bool chained = (ctx->fdecl != NULL) && (ctx->nest_state != NULL);
-      if (chained)
-         parent_state = LLVMBuildInsertValue(builder, parent_state,
-                                             ctx->nest_state, offset++, "");
+      const int caller_nest_level =
+         ctx->fdecl == NULL ? 0 : tree_attr_int(ctx->fdecl, nest_level_i, 0);
 
-      if (ctx->fdecl != NULL) {
-         const int nports = tree_ports(ctx->fdecl);
-         for (int i = 0; i < nports; i++) {
-            tree_t p = tree_port(ctx->fdecl, i);
-
-            LLVMValueRef var = NULL;
-            if (tree_class(p) == C_SIGNAL)
-               var = tree_attr_ptr(p, sig_nets_i);
-            else
-               var = tree_attr_ptr(p, local_var_i);
-            assert(var != NULL);
-
-            type_t type = tree_type(p);
-            if (type_is_array(type) && cgen_const_bounds(type)) {
-               LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
-               var = LLVMBuildGEP(builder, var,
-                                  indexes, ARRAY_LEN(indexes), "");
-            }
-
-            parent_state = LLVMBuildInsertValue(
-               builder,
-               parent_state,
-               var,
-               offset++,
-               istr(tree_ident(p)));
-         }
+      if (callee_nest_level <= caller_nest_level) {
+         assert(ctx->fdecl != NULL && ctx->nest_state != NULL);
+         parent_state = ctx->nest_state;
       }
+      else {
+         parent_state = LLVMGetUndef(cgen_nest_struct_type(parent));
+         unsigned offset = 0;
 
-      const int ndecls = tree_decls(parent);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = tree_decl(parent, i);
-         switch (tree_kind(d)) {
-         case T_CONST_DECL:
-         case T_VAR_DECL:
-            parent_state = LLVMBuildInsertValue(
-               builder,
-               parent_state,
-               cgen_get_var(d, ctx),
-               offset++,
-               istr(tree_ident(d)));
-            break;
-         default:
-            break;
+         const bool chained = (ctx->fdecl != NULL) && (ctx->nest_state != NULL);
+         if (chained)
+            parent_state = LLVMBuildInsertValue(builder, parent_state,
+                                                ctx->nest_state, offset++, "");
+
+         if (ctx->fdecl != NULL) {
+            const int nports = tree_ports(ctx->fdecl);
+            for (int i = 0; i < nports; i++) {
+               tree_t p = tree_port(ctx->fdecl, i);
+
+               LLVMValueRef var = NULL;
+               if (tree_class(p) == C_SIGNAL)
+                  var = tree_attr_ptr(p, sig_nets_i);
+               else
+                  var = tree_attr_ptr(p, local_var_i);
+               assert(var != NULL);
+
+               type_t type = tree_type(p);
+               if (type_is_array(type) && cgen_const_bounds(type)) {
+                  LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(0) };
+                  var = LLVMBuildGEP(builder, var,
+                                     indexes, ARRAY_LEN(indexes), "");
+               }
+
+               parent_state = LLVMBuildInsertValue(
+                  builder,
+                  parent_state,
+                  var,
+                  offset++,
+                  istr(tree_ident(p)));
+            }
+         }
+
+         const int ndecls = tree_decls(parent);
+         for (int i = 0; i < ndecls; i++) {
+            tree_t d = tree_decl(parent, i);
+            switch (tree_kind(d)) {
+            case T_CONST_DECL:
+            case T_VAR_DECL:
+               parent_state = LLVMBuildInsertValue(
+                  builder,
+                  parent_state,
+                  cgen_get_var(d, ctx),
+                  offset++,
+                  istr(tree_ident(d)));
+               break;
+            default:
+               break;
+            }
          }
       }
 
