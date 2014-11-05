@@ -11,7 +11,7 @@ end package;
 package body pack is
 
     type SharedCounter is protected body
-        constant INIT : integer := 0;
+        constant INIT : integer := 5;
         variable counter: Integer := INIT;
         variable dummy: Integer;
 
@@ -46,20 +46,20 @@ begin
 
     process is
     begin
-        assert x.value = 0;
+        assert x.value = 5;
         x.increment;
         report "value is now " & integer'image(x.value);
         x.increment(2);
-        assert x.value = 3;
+        assert x.value = 8;
         wait;
     end process;
 
     process is
     begin
         wait for 1 ns;
-        assert x.value = 3;
+        assert x.value = 8;
         x.decrement;
-        assert x.value = 2;
+        assert x.value = 7;
         wait;
     end process;
 

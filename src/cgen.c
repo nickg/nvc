@@ -6560,8 +6560,20 @@ static void cgen_shared_var(tree_t t)
 
       LLVMValueRef init;
       if (type_is_protected(type)) {
-         LLVMTypeRef lltype = llvm_type(type);
-         init = LLVMGetUndef(lltype);
+         tree_t body = type_body(type);
+
+         const int ndecls = tree_decls(body);
+         LLVMValueRef fields[ndecls];
+         int nelem = 0;
+         for (int i = 0; i < ndecls; i++) {
+            tree_t f = tree_decl(body, i);
+            if (tree_kind(f) != T_VAR_DECL)
+               continue;
+
+            fields[nelem++] = cgen_expr(tree_value(f), NULL);
+         }
+
+         init = LLVMConstNamedStruct(llvm_type(type), fields, nelem);
       }
       else
          init = cgen_expr(tree_value(t), NULL);
