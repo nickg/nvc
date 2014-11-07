@@ -53,7 +53,8 @@ typedef enum {
    VCODE_OP_STORE_INDIRECT,
    VCODE_OP_RETURN,
    VCODE_OP_NETS,
-   VCODE_OP_SCHED_WAVEFORM
+   VCODE_OP_SCHED_WAVEFORM,
+   VCODE_OP_COND,
 } vcode_op_t;
 
 typedef enum {
@@ -116,6 +117,7 @@ ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 vcode_block_t vcode_get_target(int op);
+vcode_block_t vcode_get_target_else(int op);
 vcode_var_t vcode_get_address(int op);
 int vcode_count_args(int op);
 vcode_reg_t vcode_get_arg(int op, int arg);
@@ -158,5 +160,6 @@ vcode_reg_t emit_nets(vcode_signal_t sig);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after);
+void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 
 #endif  // _VCODE_H

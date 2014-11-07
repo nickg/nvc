@@ -36,6 +36,7 @@ static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_type_t lower_bounds(type_t type);
+static void lower_stmt(tree_t stmt);
 
 static vcode_type_t lower_type(type_t type)
 {
@@ -122,6 +123,11 @@ static vcode_reg_t lower_reify(vcode_reg_t reg)
       return reg;
 }
 
+static vcode_reg_t lower_reify_expr(tree_t expr)
+{
+   return lower_reify(lower_expr(expr, EXPR_RVALUE));
+}
+
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
    assert(nth < tree_params(fcall));
@@ -131,7 +137,7 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
    assert(tree_subkind(param) == P_POS);
    assert(tree_pos(param) == nth);
 
-   return lower_reify(lower_expr(tree_value(param), EXPR_RVALUE));
+   return lower_reify_expr(tree_value(param));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -595,6 +601,38 @@ static void lower_signal_assign(tree_t stmt)
    }
 }
 
+static void lower_if(tree_t stmt)
+{
+   vcode_reg_t value = lower_reify_expr(tree_value(stmt));
+
+   const int nelses = tree_else_stmts(stmt);
+
+   vcode_block_t btrue = emit_block();
+   vcode_block_t bfalse = nelses > 0 ? emit_block() : VCODE_INVALID_BLOCK;
+   vcode_block_t bmerge = emit_block();
+
+   emit_cond(value, btrue, nelses > 0 ? bfalse : bmerge);
+
+   vcode_select_block(btrue);
+
+   const int nstmts = tree_stmts(stmt);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(stmt, i));
+
+   emit_jump(bmerge);
+
+   if (nelses > 0) {
+      vcode_select_block(bfalse);
+
+      for (int i = 0; i < nelses; i++)
+         lower_stmt(tree_else_stmt(stmt, i));
+
+      emit_jump(bmerge);
+   }
+
+   vcode_select_block(bmerge);
+}
+
 static void lower_stmt(tree_t stmt)
 {
    switch (tree_kind(stmt)) {
@@ -609,6 +647,9 @@ static void lower_stmt(tree_t stmt)
       break;
    case T_SIGNAL_ASSIGN:
       lower_signal_assign(stmt);
+      break;
+   case T_IF:
+      lower_if(stmt);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",

@@ -33,15 +33,16 @@
 #define MAX_SIGNALS 16
 
 typedef struct {
-   vcode_op_t   kind;
-   vcode_reg_t  args[MAX_ARGS];
-   int          nargs;
-   vcode_reg_t  result;
-   vcode_type_t type;
+   vcode_op_t    kind;
+   vcode_reg_t   args[MAX_ARGS];
+   int           nargs;
+   vcode_reg_t   result;
+   vcode_type_t  type;
+   vcode_block_t target;
    union {
+      vcode_block_t  target_else;
       vcode_cmp_t    cmp;
       ident_t        func;
-      vcode_block_t  target;
       int64_t        value;
       vcode_var_t    address;
       char          *comment;
@@ -153,6 +154,11 @@ static op_t *vcode_add_op(vcode_op_t kind)
 {
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
+
+   if (vcode_block_finished()) {
+      vcode_dump();
+      fatal_trace("attempt to add to already finished block %d", active_block);
+   }
 
    block_t *block = &(active_unit->blocks[active_block]);
 
@@ -268,18 +274,17 @@ void vcode_opt(void)
          for (int j = b->nops - 1; j >= 0; j--) {
             op_t *o = &(b->ops[j]);
 
-            for (int k = 0; k < o->nargs; k++) {
-               if (o->args[k] != VCODE_INVALID_REG)
-                  uses[o->args[k]]++;
-            }
-
             switch (o->kind) {
             case VCODE_OP_CONST:
             case VCODE_OP_LOAD:
+            case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_FCALL:
             case VCODE_OP_ADD:
+            case VCODE_OP_SUB:
             case VCODE_OP_MUL:
             case VCODE_OP_CMP:
+            case VCODE_OP_INDEX:
+            case VCODE_OP_NETS:
                if (uses[o->result] == -1) {
                   vcode_dump();
                   fatal("defintion of r%d does not dominate all uses",
@@ -288,7 +293,8 @@ void vcode_opt(void)
                else if (uses[o->result] == 0) {
                   o->comment = xasprintf("Dead %s definition of r%d",
                                          vcode_op_string(o->kind), o->result);
-                  o->kind = VCODE_OP_COMMENT;
+                  o->kind  = VCODE_OP_COMMENT;
+                  o->nargs = 0;
                   pruned++;
                }
                uses[o->result] = -1;
@@ -296,6 +302,11 @@ void vcode_opt(void)
 
             default:
                break;
+            }
+
+            for (int k = 0; k < o->nargs; k++) {
+               if (o->args[k] != VCODE_INVALID_REG)
+                  uses[o->args[k]]++;
             }
          }
 
@@ -507,8 +518,22 @@ vcode_block_t vcode_get_target(int op)
    assert(op < b->nops);
 
    op_t *o = &(b->ops[op]);
-   assert((o->kind == VCODE_OP_WAIT) || (o->kind == VCODE_OP_JUMP));
+   assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
+      || o->kind == VCODE_OP_COND);
    return o->target;
+}
+
+vcode_block_t vcode_get_target_else(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+   assert(op < b->nops);
+
+   op_t *o = &(b->ops[op]);
+   assert(o->kind == VCODE_OP_COND);
+   return o->target_else;
 }
 
 bool vcode_block_finished(void)
@@ -521,7 +546,8 @@ bool vcode_block_finished(void)
       return false;
    else {
       vcode_op_t kind = b->ops[b->nops - 1].kind;
-      return (kind == VCODE_OP_WAIT) || (kind == VCODE_OP_JUMP);
+      return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
+         || kind == VCODE_OP_COND;
    }
 }
 
@@ -531,7 +557,7 @@ const char *vcode_op_string(vcode_op_t op)
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
-      "sched waveform"
+      "sched waveform", "cond"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -742,6 +768,15 @@ void vcode_dump(void)
             {
                color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
                             op->target);
+            }
+            break;
+
+         case VCODE_OP_COND:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args[0]);
+               color_printf(" then $yellow$%d$$ else $yellow$%d$$",
+                            op->target, op->target_else);
             }
             break;
 
@@ -1635,5 +1670,18 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
    else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("sched_waveform net count is not offset type");
+   }
+}
+
+void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COND);
+   vcode_add_arg(op, test);
+   op->target = btrue;
+   op->target_else = bfalse;
+
+   if (!vtype_eq(vcode_reg_type(test), vtype_bool())) {
+      vcode_dump();
+      fatal_trace("cond test is not a bool");
    }
 }

@@ -10,6 +10,7 @@ typedef struct {
    int64_t       value;
    vcode_cmp_t   cmp;
    vcode_block_t target;
+   vcode_block_t target_else;
    const char   *name;
    bool          delay;
    int64_t       low;
@@ -84,6 +85,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             fail("expected op %d in block %d to have wait delay", i, bb);
          }
          break;
+
+      case VCODE_OP_COND:
+         if (e->target_else != vcode_get_target_else(i)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have else target %d but has %d",
+                 i, bb, e->target, vcode_get_target(i));
+         }
+         // Fall-through
 
       case VCODE_OP_JUMP:
          if (e->target != vcode_get_target(i)) {
@@ -421,6 +430,79 @@ START_TEST(test_signal1)
 }
 END_TEST
 
+START_TEST(test_cond1)
+{
+   input_from_file(TESTDIR "/lower/cond1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = -2147483648 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_JUMP,  .target = 1 }
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "shadow_:cond1:x" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD, .name = "Y" },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 2, .target_else = 3 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_JUMP, .target = 3 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "shadow_:cond1:x" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD, .name = "Y" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 5 }
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_JUMP, .target = 6 }
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_JUMP, .target = 6 }
+   };
+
+   CHECK_BB(5);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -430,6 +512,7 @@ int main(void)
    tcase_add_test(tc, test_assign1);
    tcase_add_test(tc, test_assign2);
    tcase_add_test(tc, test_signal1);
+   tcase_add_test(tc, test_cond1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
