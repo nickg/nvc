@@ -412,8 +412,7 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_value(s)) == ident_new("TRUE"));
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("ERROR"));
-   fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
-   fail_unless(tree_subkind(tree_message(s)) == L_STRING);
+   fail_if(tree_has_message(s));
 
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_ASSERT);
@@ -421,6 +420,7 @@ START_TEST(test_seq)
    fail_unless(tree_ident(tree_value(s)) == ident_new("FALSE"));
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
+   fail_unless(tree_has_message(s));
    fail_unless(tree_kind(tree_message(s)) == T_LITERAL);
    fail_unless(tree_subkind(tree_message(s)) == L_STRING);
    fail_unless(tree_attr_int(s, ident_new("is_report"), 0) == 1);

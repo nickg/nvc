@@ -61,7 +61,6 @@ static size_t      file_sz;
 static int         n_errors = 0;
 static const char *hint_str = NULL;
 static int         n_correct = 0;
-static tree_t      assert_viol = NULL;
 static tokenq_t   *tokenq;
 static int         tokenq_sz;
 static int         tokenq_head;
@@ -2814,13 +2813,6 @@ static tree_t p_assertion(void)
 
    if (optional(tREPORT))
       tree_set_message(s, p_expression());
-   else {
-      if (assert_viol == NULL)
-         assert_viol = str_to_literal("Assertion violation.", NULL,
-                                      &LOC_INVALID);
-
-      tree_set_message(s, assert_viol);
-   }
 
    if (optional(tSEVERITY))
       tree_set_severity(s, p_expression());
@@ -5481,8 +5473,6 @@ tree_t parse(void)
 {
    n_errors  = 0;
    n_correct = RECOVER_THRESH;
-
-   assert_viol = NULL;
 
    if (peek() == tEOF)
       return NULL;

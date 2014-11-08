@@ -888,6 +888,11 @@ tree_t tree_message(tree_t t)
    return item->tree;
 }
 
+bool tree_has_message(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_MESSAGE)->tree != NULL;
+}
+
 void tree_set_message(tree_t t, tree_t m)
 {
    tree_assert_expr(m);
