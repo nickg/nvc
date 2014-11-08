@@ -732,9 +732,9 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    const int ndecls = tree_decls(proc);
    for (int i = 0; i < ndecls; i++)
       lower_decl(tree_decl(proc, i));
+   emit_return(VCODE_INVALID_REG);
 
    vcode_block_t start_bb = emit_block();
-   emit_jump(start_bb);
    vcode_select_block(start_bb);
 
    const int nstmts = tree_stmts(proc);

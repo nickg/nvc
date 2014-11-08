@@ -1643,9 +1643,6 @@ void emit_return(vcode_reg_t reg)
    op_t *op = vcode_add_op(VCODE_OP_RETURN);
    if (reg != VCODE_INVALID_REG)
       vcode_add_arg(op, reg);
-
-   if (active_unit->kind != VCODE_UNIT_CONTEXT)
-      fatal_trace("cannot return from this unit type");
 }
 
 vcode_reg_t emit_nets(vcode_signal_t sig)

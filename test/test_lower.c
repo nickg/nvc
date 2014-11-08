@@ -185,7 +185,7 @@ START_TEST(test_wait1)
    vcode_select_unit(v0);
 
    const check_bb_t bb0[] = {
-      { VCODE_OP_JUMP, .target = 1 }
+      { VCODE_OP_RETURN }
    };
 
    CHECK_BB(0);
@@ -252,7 +252,7 @@ START_TEST(test_assign1)
       { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_CONST, .value = -4 },
       { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_JUMP,  .target = 1 }
+      { VCODE_OP_RETURN }
    };
 
    CHECK_BB(0);
@@ -332,7 +332,7 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_JUMP,  .target = 1 }
+      { VCODE_OP_RETURN }
    };
 
    CHECK_BB(0);
@@ -404,7 +404,7 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
-         { VCODE_OP_JUMP, .target = 1 }
+         { VCODE_OP_RETURN }
       };
 
       CHECK_BB(0);
@@ -448,7 +448,7 @@ START_TEST(test_cond1)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = -2147483648 },
       { VCODE_OP_STORE, .name = "Y" },
-      { VCODE_OP_JUMP,  .target = 1 }
+      { VCODE_OP_RETURN }
    };
 
    CHECK_BB(0);
