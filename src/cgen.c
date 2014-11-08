@@ -3605,6 +3605,18 @@ static LLVMValueRef cgen_aggregate(tree_t t, cgen_ctx_t *ctx)
       assert(false);
 }
 
+static LLVMValueRef cgen_tmp_alloc_checkpoint(void)
+{
+   LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+   return LLVMBuildLoad(builder, _tmp_alloc_ptr, "checkpoint");
+}
+
+static void cgen_tmp_alloc_restore(LLVMValueRef checkpoint)
+{
+   LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+   LLVMBuildStore(builder, checkpoint, _tmp_alloc_ptr);
+}
+
 static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
 {
    assert(tree_params(t) == 2);
@@ -3612,6 +3624,8 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
       tree_value(tree_param(t, 0)),
       tree_value(tree_param(t, 1))
    };
+
+   LLVMValueRef checkpoint = cgen_tmp_alloc_checkpoint();
 
    LLVMValueRef args_ll[] = {
       cgen_expr(args[0], ctx),
@@ -3668,6 +3682,7 @@ static LLVMValueRef cgen_concat(tree_t t, cgen_ctx_t *ctx)
       LLVMBuildStore(builder, args_ll[1], ptr);
    }
 
+   cgen_tmp_alloc_restore(checkpoint);
    return var;
 }
 
