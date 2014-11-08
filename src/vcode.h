@@ -144,7 +144,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-void emit_assert(vcode_reg_t value);
+void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);

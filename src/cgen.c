@@ -274,7 +274,7 @@ static void cgen_op_assert(int i, cgen_ctx_t *ctx)
    LLVMValueRef message =
       LLVMBuildGEP(builder, global, index, ARRAY_LEN(index), "");
 
-   LLVMValueRef severity = llvm_int8(0); //cgen_expr(tree_severity(t), ctx);
+   LLVMValueRef severity = ctx->regs[vcode_get_arg(i, 1)];
 
    LLVMValueRef args[] = {
       message,

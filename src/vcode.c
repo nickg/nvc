@@ -47,6 +47,7 @@ typedef struct {
       vcode_var_t    address;
       char          *comment;
       vcode_signal_t signal;
+      uint32_t       index;
    };
 } op_t;
 
@@ -185,6 +186,17 @@ static void vcode_add_arg(op_t *op, vcode_reg_t arg)
 {
    assert(op->nargs < MAX_ARGS);
    op->args[op->nargs++] = arg;
+}
+
+static op_t *vcode_op_data(int op)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   block_t *b = &(active_unit->blocks[active_block]);
+
+   assert(op < b->nops);
+   return &(b->ops[op]);
 }
 
 static reg_t *vcode_reg_data(vcode_reg_t reg)
@@ -397,45 +409,26 @@ vcode_type_t vcode_signal_bounds(vcode_signal_t sig)
 
 vcode_op_t vcode_get_op(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-   return b->ops[op].kind;
-}
+   return vcode_op_data(op)->kind;
+ }
 
 ident_t vcode_get_func(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-   assert(b->ops[op].kind == VCODE_OP_FCALL);
-   return b->ops[op].func;
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_FCALL);
+   return o->func;
 }
 
 int64_t vcode_get_value(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-   assert(b->ops[op].kind == VCODE_OP_CONST);
-   return b->ops[op].value;
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_CONST);
+   return o->value;
 }
 
 vcode_var_t vcode_get_address(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_LOAD || o->kind == VCODE_OP_STORE
           || o->kind == VCODE_OP_INDEX);
    return o->address;
@@ -443,87 +436,54 @@ vcode_var_t vcode_get_address(int op)
 
 vcode_signal_t vcode_get_signal(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_NETS);
    return o->address;
 }
 
 vcode_var_t vcode_get_type(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_BOUNDS);
    return o->type;
 }
 
 int vcode_count_args(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   return b->ops[op].nargs;
+   return vcode_op_data(op)->nargs;
 }
 
 vcode_reg_t vcode_get_arg(int op, int arg)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(arg < o->nargs);
    return o->args[arg];
 }
 
 vcode_reg_t vcode_get_result(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->result != VCODE_INVALID_REG);
    return o->result;
 }
 
 vcode_cmp_t vcode_get_cmp(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_CMP);
+   return o->cmp;
+}
 
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-   assert(b->ops[op].kind == VCODE_OP_CMP);
-   return b->ops[op].cmp;
+uint32_t vcode_get_index(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_ASSERT);
+   return o->index;
 }
 
 vcode_block_t vcode_get_target(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
       || o->kind == VCODE_OP_COND);
    return o->target;
@@ -531,13 +491,7 @@ vcode_block_t vcode_get_target(int op)
 
 vcode_block_t vcode_get_target_else(int op)
 {
-   assert(active_unit != NULL);
-   assert(active_block != VCODE_INVALID_BLOCK);
-
-   block_t *b = &(active_unit->blocks[active_block]);
-   assert(op < b->nops);
-
-   op_t *o = &(b->ops[op]);
+   op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_COND);
    return o->target_else;
 }
@@ -790,6 +744,8 @@ void vcode_dump(void)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
+               printf(" severity ");
+               vcode_dump_reg(op->args[1]);
             }
             break;
 
@@ -1211,7 +1167,7 @@ vcode_unit_t emit_context(ident_t name)
    return vu;
 }
 
-void emit_assert(vcode_reg_t value)
+void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index)
 {
    if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
       vcode_add_comment("Always true assertion on r%d", value);
@@ -1220,6 +1176,8 @@ void emit_assert(vcode_reg_t value)
 
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
+   vcode_add_arg(op, severity);
+   op->index = index;
 
    if (!vtype_eq(vcode_reg_type(value), vtype_bool())) {
       vcode_dump();

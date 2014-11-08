@@ -533,7 +533,10 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 
 static void lower_assert(tree_t stmt)
 {
-   emit_assert(lower_expr(tree_value(stmt), EXPR_RVALUE));
+   vcode_reg_t value    = lower_reify_expr(tree_value(stmt));
+   vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
+
+   emit_assert(value, severity, tree_index(stmt));
 }
 
 static void lower_wait(tree_t wait)

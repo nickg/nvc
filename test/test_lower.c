@@ -194,6 +194,7 @@ START_TEST(test_wait1)
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT,  .target = 2 }
@@ -205,6 +206,7 @@ START_TEST(test_wait1)
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_WAIT,  .target = 3 }
@@ -216,6 +218,7 @@ START_TEST(test_wait1)
       { VCODE_OP_FCALL, .func = "_std_standard_now" },
       { VCODE_OP_CONST, .value = 1000001 },
       { VCODE_OP_CMP,   .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT,  .target = 4 }
    };
@@ -268,6 +271,7 @@ START_TEST(test_assign1)
       { VCODE_OP_LOAD,  .name = "X" },
       { VCODE_OP_CONST, .value = 64 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_LOAD,  .name = "Y" },
       { VCODE_OP_CONST, .value = -4 },
@@ -295,6 +299,7 @@ START_TEST(test_assign1)
       { VCODE_OP_ADD },
       { VCODE_OP_CONST, .value = 12 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 4 }
    };
@@ -348,6 +353,7 @@ START_TEST(test_assign2)
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP },
+      { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_ADD },
@@ -415,6 +421,7 @@ START_TEST(test_signal1)
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_NETS, .name = ":signal1:x" },
