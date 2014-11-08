@@ -2,7 +2,9 @@ stddir = $(pkgdatadir)/std
 std_DATA = \
 	lib/std/_NVC_LIB \
 	lib/std/_index \
-	lib/std/STD.STANDARD \
+	lib/std/STD.STANDARD
+
+#\
 	lib/std/STD.TEXTIO \
 	lib/std/_STD.TEXTIO.bc \
 	lib/std/STD.TEXTIO-body \
@@ -12,7 +14,9 @@ std_08dir = $(pkgdatadir)/std.08
 std_08_DATA = \
 	lib/std.08/_NVC_LIB \
 	lib/std.08/_index \
-	lib/std.08/STD.STANDARD \
+	lib/std.08/STD.STANDARD
+
+#\
 	lib/std.08/STD.TEXTIO \
 	lib/std.08/_STD.TEXTIO.bc \
 	lib/std.08/STD.TEXTIO-body \
