@@ -41,6 +41,7 @@ typedef struct {
    LLVMBasicBlockRef *blocks;
    LLVMValueRef       fn;
    LLVMValueRef       state;
+   size_t             var_base;
 } cgen_ctx_t;
 
 static LLVMModuleRef  module = NULL;
@@ -201,6 +202,13 @@ static LLVMValueRef cgen_get_arg(int i, int arg, cgen_ctx_t *ctx)
    return ctx->regs[r];
 }
 
+static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
+{
+   assert(ctx->state != NULL);
+   return LLVMBuildStructGEP(builder, ctx->state, ctx->var_base + var,
+                             istr(vcode_var_name(var)));
+}
+
 static LLVMValueRef cgen_array_len(vcode_reg_t reg)
 {
    vcode_type_t type = vcode_reg_type(reg);
@@ -276,8 +284,8 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
    char *name LOCAL = xasprintf("%s_const_array_r%d",
                                 istr(vcode_unit_name()), result);
 
-   LLVMValueRef global =
-      LLVMAddGlobal(module, cgen_type(type), name);
+   LLVMValueRef global = LLVMAddGlobal(module, cgen_type(type), name);
+   LLVMSetLinkage(global, LLVMInternalLinkage);
 
    const int length = vcode_count_args(op);
    LLVMValueRef *tmp LOCAL = xmalloc(length * sizeof(LLVMValueRef));
@@ -328,12 +336,11 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
 static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef test = ctx->regs[vcode_get_arg(op, 0)];
-   LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
    LLVMBasicBlockRef thenbb = LLVMAppendBasicBlock(ctx->fn, "assert_fail");
    LLVMBasicBlockRef elsebb = LLVMAppendBasicBlock(ctx->fn, "assert_pass");
 
-   LLVMBuildCondBr(builder, failed, thenbb, elsebb);
+   LLVMBuildCondBr(builder, test, elsebb, thenbb);
 
    LLVMPositionBuilderAtEnd(builder, thenbb);
 
@@ -380,17 +387,54 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, elsebb);
 }
 
-static void cgen_op_wait(int i, cgen_ctx_t *ctx)
+static void cgen_op_wait(int op, cgen_ctx_t *ctx)
 {
-   vcode_reg_t after = vcode_get_arg(i, 0);
+   vcode_reg_t after = vcode_get_arg(op, 0);
    if (after != VCODE_INVALID_REG)
       cgen_sched_process(ctx->regs[after]);
 
    assert(ctx->state != NULL);
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
-   LLVMBuildStore(builder, llvm_int32(vcode_get_target(i)), state_ptr);
+   LLVMBuildStore(builder, llvm_int32(vcode_get_target(op)), state_ptr);
 
    LLVMBuildRetVoid(builder);
+}
+
+static void cgen_op_store(int op, cgen_ctx_t *ctx)
+{
+   vcode_var_t var = vcode_get_address(op);
+   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
+}
+
+static void cgen_op_load(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_var_t var = vcode_get_address(op);
+   ctx->regs[result] = LLVMBuildLoad(builder, cgen_get_var(var, ctx),
+                                     cgen_reg_name(result));
+}
+
+static void cgen_op_add(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildAdd(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_get_arg(op, 1, ctx),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_mul(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildMul(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_get_arg(op, 1, ctx),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
+{
+   // TODO
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -425,6 +469,21 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CONST_ARRAY:
       cgen_op_const_array(i, ctx);
+      break;
+   case VCODE_OP_STORE:
+      cgen_op_store(i, ctx);
+      break;
+   case VCODE_OP_LOAD:
+      cgen_op_load(i, ctx);
+      break;
+   case VCODE_OP_ADD:
+      cgen_op_add(i, ctx);
+      break;
+   case VCODE_OP_MUL:
+      cgen_op_mul(i, ctx);
+      break;
+   case VCODE_OP_BOUNDS:
+      cgen_op_bounds(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -473,19 +532,24 @@ static void cgen_code(cgen_ctx_t *ctx)
       cgen_block(i, ctx);
 }
 
-static LLVMValueRef cgen_state_struct(void)
+static void cgen_state_struct(cgen_ctx_t *ctx)
 {
-   LLVMTypeRef fields[] = {
-      LLVMInt32Type()        // State
-   };
+   ctx->var_base = 1;
+
+   const int nvars   = vcode_count_vars();
+   const int nfields = nvars + ctx->var_base;
+
+   LLVMTypeRef fields[nfields];
+   fields[0] = LLVMInt32Type();
+
+   for (int i = 0; i < nvars; i++)
+      fields[ctx->var_base + i] = cgen_type(vcode_var_type(i));
 
    char *name LOCAL = xasprintf("%s__state", istr(vcode_unit_name()));
-   LLVMTypeRef state_ty = LLVMStructType(fields, ARRAY_LEN(fields), false);
-   LLVMValueRef state = LLVMAddGlobal(module, state_ty, name);
-   LLVMSetLinkage(state, LLVMInternalLinkage);
-   LLVMSetInitializer(state, LLVMGetUndef(state_ty));
-
-   return state;
+   LLVMTypeRef state_ty = LLVMStructType(fields, nfields, false);
+   ctx->state = LLVMAddGlobal(module, state_ty, name);
+   LLVMSetLinkage(ctx->state, LLVMInternalLinkage);
+   LLVMSetInitializer(ctx->state, LLVMGetUndef(state_ty));
 }
 
 static void cgen_jump_table(cgen_ctx_t *ctx)
@@ -527,9 +591,9 @@ static void cgen_process(vcode_unit_t code)
    LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
    cgen_ctx_t ctx = {
-      .fn    = fn,
-      .state = cgen_state_struct()
+      .fn    = fn
    };
+   cgen_state_struct(&ctx);
    cgen_alloc_context(&ctx);
 
    // If the parameter is non-zero jump to the init block
