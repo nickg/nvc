@@ -511,6 +511,9 @@ START_TEST(test_cond1)
 
    EXPECT_BB(6) = {
       { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 100 },
+      { VCODE_OP_CONST, .value = 111 },
+      { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_REPORT },
       { VCODE_OP_WAIT, .target = 7 }
    };

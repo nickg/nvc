@@ -88,9 +88,12 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
 int64_t vtype_low(vcode_type_t type);
-int64_t vtype_high(vcode_type_t etype);
+int64_t vtype_high(vcode_type_t type);
 vcode_type_t vtype_elem(vcode_type_t type);
 vcode_type_t vtype_pointed(vcode_type_t type);
+vcode_type_t vtype_bounds(vcode_type_t type);
+int vtype_dims(vcode_type_t type);
+vcode_type_t vtype_dim(vcode_type_t type, int dim);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -146,8 +149,9 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index);
-void emit_report(vcode_reg_t severity, uint32_t index);
+void emit_assert(vcode_reg_t value, vcode_reg_t message,
+                 vcode_reg_t severity, uint32_t index);
+void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);

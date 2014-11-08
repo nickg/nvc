@@ -193,11 +193,28 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    return emit_fcall(name, lower_type(tree_type(fcall)), args, nargs);
 }
 
+static vcode_reg_t lower_string_literal(tree_t lit)
+{
+   type_t ltype = tree_type(lit);
+   vcode_type_t vtype = lower_type(type_elem(ltype));
+
+   const int nchars = tree_chars(lit);
+   vcode_reg_t *tmp LOCAL = xmalloc(nchars * sizeof(vcode_reg_t));
+
+   for (int i = 0; i < nchars; i++)
+      tmp[i] = emit_const(vtype, tree_pos(tree_ref(tree_char(lit, i))));
+
+   return emit_const_array(lower_type(ltype), tmp, nchars);
+}
+
 static vcode_reg_t lower_literal(tree_t lit)
 {
    switch (tree_subkind(lit)) {
    case L_INT:
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
+
+   case L_STRING:
+      return lower_string_literal(lit);
 
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",
@@ -537,11 +554,15 @@ static void lower_assert(tree_t stmt)
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
+   vcode_reg_t message = VCODE_INVALID_REG;
+   if (tree_has_message(stmt))
+      message = lower_expr(tree_message(stmt), EXPR_RVALUE);
+
    if (is_report)
-      emit_report(severity, tree_index(stmt));
+      emit_report(message, severity, tree_index(stmt));
    else {
       vcode_reg_t value = lower_reify_expr(tree_value(stmt));
-      emit_assert(value, severity, tree_index(stmt));
+      emit_assert(value, message, severity, tree_index(stmt));
    }
 }
 

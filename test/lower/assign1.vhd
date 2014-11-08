@@ -9,8 +9,8 @@ begin
         variable y : integer := -4;
     begin
         wait for 4 ns;
-        assert x = 64 report "x not 64";
-        assert y = -4 report "y not -4";
+        assert x = 64;
+        assert y = -4;
         x := y * 2;
         assert x = -8;
         x := 5;

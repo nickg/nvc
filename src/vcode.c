@@ -24,9 +24,9 @@
 #include <stdlib.h>
 
 #define MAX_BLOCKS  32
-#define MAX_REGS    32
+#define MAX_REGS    64
 #define MAX_OPS     64
-#define MAX_ARGS    8
+#define MAX_ARGS    16
 #define MAX_TYPES   32
 #define MAX_VARS    8
 #define MAX_DIM     4
@@ -744,7 +744,10 @@ void vcode_dump(void)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
-               printf(" report ??");
+               if (op->args[2] != VCODE_INVALID_REG) {
+                  printf(" report ");
+                  vcode_dump_reg(op->args[2]);
+               }
                printf(" severity ");
                vcode_dump_reg(op->args[1]);
             }
@@ -753,7 +756,7 @@ void vcode_dump(void)
          case VCODE_OP_REPORT:
             {
                printf("%s ", vcode_op_string(op->kind));
-               printf("??");
+               vcode_dump_reg(op->args[1]);
                printf(" severity ");
                vcode_dump_reg(op->args[0]);
             }
@@ -1102,6 +1105,28 @@ vcode_type_t vtype_elem(vcode_type_t type)
    return vt->elem;
 }
 
+vcode_type_t vtype_bounds(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_CARRAY);
+   return vt->bounds;
+}
+
+int vtype_dims(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_CARRAY);
+   return vt->ndim;
+}
+
+vcode_type_t vtype_dim(vcode_type_t type, int dim)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_CARRAY);
+   assert(dim < vt->ndim);
+   return vt->dim[dim];
+}
+
 vcode_type_t vtype_pointed(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
@@ -1177,7 +1202,8 @@ vcode_unit_t emit_context(ident_t name)
    return vu;
 }
 
-void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index)
+void emit_assert(vcode_reg_t value, vcode_reg_t message,
+                 vcode_reg_t severity, uint32_t index)
 {
    if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
       vcode_add_comment("Always true assertion on r%d", value);
@@ -1187,6 +1213,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index)
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
    vcode_add_arg(op, value);
    vcode_add_arg(op, severity);
+   vcode_add_arg(op, message);
    op->index = index;
 
    if (!vtype_eq(vcode_reg_type(value), vtype_bool())) {
@@ -1195,10 +1222,11 @@ void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index)
    }
 }
 
-void emit_report(vcode_reg_t severity, uint32_t index)
+void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index)
 {
    op_t *op = vcode_add_op(VCODE_OP_REPORT);
    vcode_add_arg(op, severity);
+   vcode_add_arg(op, message);
    op->index = index;
 }
 
