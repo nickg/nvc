@@ -3115,7 +3115,7 @@ static bool sem_check_cassign(tree_t t)
       if (tree_has_value(c)) {
          tree_t test = tree_value(c);
 
-         if (!sem_check(test))
+         if (!sem_check_constrained(test, std_bool))
             return false;
 
          if (!type_eq(tree_type(test), std_bool))

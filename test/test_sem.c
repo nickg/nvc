@@ -463,7 +463,7 @@ START_TEST(test_ambiguous)
    fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
 
-   for (int i = 0; i < 4; i++) {
+   for (int i = 0; i < 5; i++) {
       a = parse();
       fail_if(a == NULL);
       fail_unless(tree_kind(a) == T_ARCH);
