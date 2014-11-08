@@ -17,6 +17,7 @@ begin
             y := 3;
             null;
         end if;
+        report "done";
         wait;
     end process;
 

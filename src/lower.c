@@ -533,10 +533,16 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 
 static void lower_assert(tree_t stmt)
 {
-   vcode_reg_t value    = lower_reify_expr(tree_value(stmt));
+   const int is_report = tree_attr_int(stmt, ident_new("is_report"), 0);
+
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
-   emit_assert(value, severity, tree_index(stmt));
+   if (is_report)
+      emit_report(severity, tree_index(stmt));
+   else {
+      vcode_reg_t value = lower_reify_expr(tree_value(stmt));
+      emit_assert(value, severity, tree_index(stmt));
+   }
 }
 
 static void lower_wait(tree_t wait)

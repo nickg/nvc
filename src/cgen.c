@@ -240,22 +240,33 @@ static void cgen_op_cmp(int i, cgen_ctx_t *ctx)
    }
 }
 
-static void cgen_op_assert(int i, cgen_ctx_t *ctx)
+static void cgen_op_report(int op, cgen_ctx_t *ctx)
 {
-   const int is_report = 0;//tree_attr_int(t, ident_new("is_report"), 0);
+   LLVMValueRef severity = ctx->regs[vcode_get_arg(op, 0)];
 
-   LLVMBasicBlockRef thenbb, elsebb = NULL;
-   if (!is_report) {
-      LLVMValueRef test = ctx->regs[vcode_get_arg(i, 0)];
-      LLVMValueRef failed = LLVMBuildNot(builder, test, "");
+   LLVMValueRef args[] = {
+      LLVMConstNull(llvm_void_ptr()),
+      llvm_int32(0),
+      severity,
+      llvm_int32(vcode_get_index(op)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_assert_fail"),
+                 args, ARRAY_LEN(args), "");
+}
 
-      thenbb = LLVMAppendBasicBlock(ctx->fn, "assert_fail");
-      elsebb = LLVMAppendBasicBlock(ctx->fn, "assert_pass");
+static void cgen_op_assert(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef test = ctx->regs[vcode_get_arg(op, 0)];
+   LLVMValueRef failed = LLVMBuildNot(builder, test, "");
 
-      LLVMBuildCondBr(builder, failed, thenbb, elsebb);
+   LLVMBasicBlockRef thenbb = LLVMAppendBasicBlock(ctx->fn, "assert_fail");
+   LLVMBasicBlockRef elsebb = LLVMAppendBasicBlock(ctx->fn, "assert_pass");
 
-      LLVMPositionBuilderAtEnd(builder, thenbb);
-   }
+   LLVMBuildCondBr(builder, failed, thenbb, elsebb);
+
+   LLVMPositionBuilderAtEnd(builder, thenbb);
 
    const char def_str[] = "Assertion violation.";
 
@@ -274,23 +285,21 @@ static void cgen_op_assert(int i, cgen_ctx_t *ctx)
    LLVMValueRef message =
       LLVMBuildGEP(builder, global, index, ARRAY_LEN(index), "");
 
-   LLVMValueRef severity = ctx->regs[vcode_get_arg(i, 1)];
+   LLVMValueRef severity = ctx->regs[vcode_get_arg(op, 1)];
 
    LLVMValueRef args[] = {
       message,
       message_len,
       severity,
-      llvm_int32(0 /*tree_index(t)*/),
+      llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), "")
    };
    LLVMBuildCall(builder, llvm_fn("_assert_fail"),
                  args, ARRAY_LEN(args), "");
 
-   if (!is_report) {
-      LLVMBuildBr(builder, elsebb);
-      LLVMPositionBuilderAtEnd(builder, elsebb);
-   }
+   LLVMBuildBr(builder, elsebb);
+   LLVMPositionBuilderAtEnd(builder, elsebb);
 }
 
 static void cgen_op_wait(int i, cgen_ctx_t *ctx)
@@ -327,6 +336,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_ASSERT:
       cgen_op_assert(i, ctx);
+      break;
+   case VCODE_OP_REPORT:
+      cgen_op_report(i, ctx);
       break;
    case VCODE_OP_WAIT:
       cgen_op_wait(i, ctx);

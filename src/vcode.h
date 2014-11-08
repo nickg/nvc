@@ -55,6 +55,7 @@ typedef enum {
    VCODE_OP_NETS,
    VCODE_OP_SCHED_WAVEFORM,
    VCODE_OP_COND,
+   VCODE_OP_REPORT
 } vcode_op_t;
 
 typedef enum {
@@ -118,6 +119,7 @@ vcode_op_t vcode_get_op(int op);
 ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
+uint32_t vcode_get_index(int op);
 vcode_block_t vcode_get_target(int op);
 vcode_block_t vcode_get_target_else(int op);
 vcode_var_t vcode_get_address(int op);
@@ -145,6 +147,7 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index);
+void emit_report(vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);

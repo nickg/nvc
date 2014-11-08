@@ -14,5 +14,5 @@ begin
         assert now = 1000001 fs;
         end_wait: wait;
     end process;
-    
+
 end architecture;

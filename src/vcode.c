@@ -477,7 +477,7 @@ vcode_cmp_t vcode_get_cmp(int op)
 uint32_t vcode_get_index(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_ASSERT);
+   assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT);
    return o->index;
 }
 
@@ -517,7 +517,7 @@ const char *vcode_op_string(vcode_op_t op)
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
-      "sched waveform", "cond"
+      "sched waveform", "cond", "report"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -744,8 +744,18 @@ void vcode_dump(void)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
+               printf(" report ??");
                printf(" severity ");
                vcode_dump_reg(op->args[1]);
+            }
+            break;
+
+         case VCODE_OP_REPORT:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               printf("??");
+               printf(" severity ");
+               vcode_dump_reg(op->args[0]);
             }
             break;
 
@@ -1183,6 +1193,13 @@ void emit_assert(vcode_reg_t value, vcode_reg_t severity, uint32_t index)
       vcode_dump();
       fatal_trace("value parameter to assert is not bool");
    }
+}
+
+void emit_report(vcode_reg_t severity, uint32_t index)
+{
+   op_t *op = vcode_add_op(VCODE_OP_REPORT);
+   vcode_add_arg(op, severity);
+   op->index = index;
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
