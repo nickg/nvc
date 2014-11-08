@@ -230,6 +230,12 @@ static var_t *vcode_var_data(vcode_var_t var)
    return &(unit->vars[var]);
 }
 
+int vcode_count_regs(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->nregs;
+}
+
 vcode_type_t vcode_reg_type(vcode_reg_t reg)
 {
    return vcode_reg_data(reg)->type;
@@ -1169,6 +1175,12 @@ void vcode_select_block(vcode_block_t block)
 {
    assert(active_unit != NULL);
    active_block = block;
+}
+
+ident_t vcode_unit_name(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->name;
 }
 
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context)

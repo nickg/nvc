@@ -99,7 +99,9 @@ void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
+ident_t vcode_unit_name(void);
 
+int vcode_count_regs(void);
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 
