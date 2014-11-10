@@ -304,13 +304,21 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
+   const bool is_signed = vtype_low(vcode_reg_type(result)) < 0;
+
+   LLVMIntPredicate pred;
    switch (vcode_get_cmp(op)) {
-   case VCODE_CMP_EQ:
-      ctx->regs[result] =
-         LLVMBuildICmp(builder, LLVMIntEQ, cgen_get_arg(op, 0, ctx),
-                       cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
-      break;
+   case VCODE_CMP_EQ:  pred = LLVMIntEQ; break;
+   case VCODE_CMP_NEQ: pred = LLVMIntNE; break;
+   case VCODE_CMP_LT:  pred = is_signed ? LLVMIntSLT : LLVMIntULT; break;
+   case VCODE_CMP_GT:  pred = is_signed ? LLVMIntSGT : LLVMIntUGT; break;
+   case VCODE_CMP_LEQ: pred = is_signed ? LLVMIntSLE : LLVMIntULE; break;
+   case VCODE_CMP_GEQ: pred = is_signed ? LLVMIntSGE : LLVMIntUGE; break;
    }
+
+   ctx->regs[result] =
+      LLVMBuildICmp(builder, pred, cgen_get_arg(op, 0, ctx),
+                    cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
 }
 
 static void cgen_op_report(int op, cgen_ctx_t *ctx)

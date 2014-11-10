@@ -130,33 +130,55 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
 
 static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 {
-   assert(nth < tree_params(fcall));
+   if (nth < tree_params(fcall)) {
+      tree_t param = tree_param(fcall, nth);
 
-   tree_t param = tree_param(fcall, nth);
+      assert(tree_subkind(param) == P_POS);
+      assert(tree_pos(param) == nth);
 
-   assert(tree_subkind(param) == P_POS);
-   assert(tree_pos(param) == nth);
-
-   return lower_reify_expr(tree_value(param));
+      return lower_reify_expr(tree_value(param));
+   }
+   else
+      return VCODE_INVALID_REG;
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
-   if (icmp(builtin, "eq")) {
-      vcode_reg_t r0 = lower_func_arg(fcall, 0);
-      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+   vcode_reg_t r0 = lower_func_arg(fcall, 0);
+   vcode_reg_t r1 = lower_func_arg(fcall, 1);
+
+   if (icmp(builtin, "eq"))
       return emit_cmp(VCODE_CMP_EQ, r0, r1);
-   }
-   else if (icmp(builtin, "mul")) {
-      vcode_reg_t r0 = lower_func_arg(fcall, 0);
-      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+   else if (icmp(builtin, "neq"))
+      return emit_cmp(VCODE_CMP_NEQ, r0, r1);
+   else if (icmp(builtin, "lt"))
+      return emit_cmp(VCODE_CMP_LT, r0, r1);
+   else if (icmp(builtin, "gt"))
+      return emit_cmp(VCODE_CMP_GT, r0, r1);
+   else if (icmp(builtin, "leq"))
+      return emit_cmp(VCODE_CMP_LEQ, r0, r1);
+   else if (icmp(builtin, "geq"))
+      return emit_cmp(VCODE_CMP_GEQ, r0, r1);
+   else if (icmp(builtin, "mul"))
       return emit_mul(r0, r1);
-   }
-   else if (icmp(builtin, "add")) {
-      vcode_reg_t r0 = lower_func_arg(fcall, 0);
-      vcode_reg_t r1 = lower_func_arg(fcall, 1);
+   else if (icmp(builtin, "add"))
       return emit_add(r0, r1);
-   }
+   else if (icmp(builtin, "sub"))
+      return emit_sub(r0, r1);
+   else if (icmp(builtin, "div"))
+      return emit_div(r0, r1);
+   else if (icmp(builtin, "exp"))
+      return emit_exp(r0, r1);
+   else if (icmp(builtin, "mod"))
+      return emit_mod(r0, r1);
+   else if (icmp(builtin, "rem"))
+      return emit_rem(r0, r1);
+   else if (icmp(builtin, "neg"))
+      return emit_neg(r0);
+   else if (icmp(builtin, "abs"))
+      return emit_abs(r0);
+   else if (icmp(builtin, "identity"))
+      return r0;
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }

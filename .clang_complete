@@ -1,2 +1,3 @@
--include build/config.h
--include src
+-I./build/
+-I./src/
+-std=c99

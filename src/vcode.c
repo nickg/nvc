@@ -25,7 +25,7 @@
 
 #define MAX_BLOCKS  32
 #define MAX_REGS    64
-#define MAX_OPS     64
+#define MAX_OPS     128
 #define MAX_ARGS    16
 #define MAX_TYPES   32
 #define MAX_VARS    8
@@ -517,7 +517,8 @@ const char *vcode_op_string(vcode_op_t op)
       "cmp", "fcall", "wait", "const", "assert", "jump", "load", "store",
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
-      "sched waveform", "cond", "report"
+      "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
+      "rem"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -680,7 +681,12 @@ void vcode_dump(void)
                printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args[0]);
                switch (op->cmp) {
-               case VCODE_CMP_EQ: printf(" == "); break;
+               case VCODE_CMP_EQ:  printf(" == "); break;
+               case VCODE_CMP_NEQ: printf(" != "); break;
+               case VCODE_CMP_LT:  printf(" < "); break;
+               case VCODE_CMP_GT:  printf(" > "); break;
+               case VCODE_CMP_LEQ: printf(" <= "); break;
+               case VCODE_CMP_GEQ: printf(" >= "); break;
                }
                vcode_dump_reg(op->args[1]);
             }
@@ -817,6 +823,10 @@ void vcode_dump(void)
          case VCODE_OP_MUL:
          case VCODE_OP_ADD:
          case VCODE_OP_SUB:
+         case VCODE_OP_DIV:
+         case VCODE_OP_EXP:
+         case VCODE_OP_MOD:
+         case VCODE_OP_REM:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -825,6 +835,10 @@ void vcode_dump(void)
                case VCODE_OP_MUL: col += printf(" * "); break;
                case VCODE_OP_ADD: col += printf(" + "); break;
                case VCODE_OP_SUB: col += printf(" - "); break;
+               case VCODE_OP_DIV: col += printf(" / "); break;
+               case VCODE_OP_EXP: col += printf(" ** "); break;
+               case VCODE_OP_MOD: col += printf(" %% "); break;
+               case VCODE_OP_REM: col += printf(" %% "); break;
                default: break;
                }
                col += vcode_dump_reg(op->args[1]);
@@ -908,6 +922,16 @@ void vcode_dump(void)
                vcode_dump_reg(op->args[3]);
                printf(" after ");
                vcode_dump_reg(op->args[4]);
+            }
+
+         case VCODE_OP_NEG:
+         case VCODE_OP_ABS:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
             }
          }
 
@@ -1498,6 +1522,44 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   int64_t lconst, rconst;
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+      return emit_const(vcode_reg_type(lhs), lconst / rconst);
+
+   return emit_arith(VCODE_OP_DIV, lhs, rhs);
+}
+
+vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   int64_t lconst, rconst;
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+      return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
+
+   return emit_arith(VCODE_OP_EXP, lhs, rhs);
+}
+
+vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   int64_t lconst, rconst;
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst)
+       && lconst > 0 && rconst > 0)
+      return emit_const(vcode_reg_type(lhs), lconst % rconst);
+
+   return emit_arith(VCODE_OP_MOD, lhs, rhs);
+}
+
+vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   int64_t lconst, rconst;
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst)
+       && lconst > 0 && rconst > 0)
+      return emit_const(vcode_reg_type(lhs), lconst % rconst);
+
+   return emit_arith(VCODE_OP_REM, lhs, rhs);
+}
+
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
@@ -1696,4 +1758,30 @@ void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
       vcode_dump();
       fatal_trace("cond test is not a bool");
    }
+}
+
+vcode_reg_t emit_neg(vcode_reg_t lhs)
+{
+   int64_t lconst;
+   if (vcode_reg_const(lhs, &lconst))
+      return emit_const(vcode_reg_type(lhs), -lconst);
+
+   op_t *op = vcode_add_op(VCODE_OP_NEG);
+   vcode_add_arg(op, lhs);
+   op->result = vcode_add_reg(vcode_reg_type(lhs));
+
+   return op->result;
+}
+
+vcode_reg_t emit_abs(vcode_reg_t lhs)
+{
+   int64_t lconst;
+   if (vcode_reg_const(lhs, &lconst))
+      return emit_const(vcode_reg_type(lhs), -lconst);
+
+   op_t *op = vcode_add_op(VCODE_OP_ABS);
+   vcode_add_arg(op, lhs);
+   op->result = vcode_add_reg(vcode_reg_type(lhs));
+
+   return op->result;
 }

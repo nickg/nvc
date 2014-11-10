@@ -29,7 +29,12 @@ typedef int32_t vcode_reg_t;
 typedef int32_t vcode_signal_t;
 
 typedef enum {
-   VCODE_CMP_EQ
+   VCODE_CMP_EQ,
+   VCODE_CMP_NEQ,
+   VCODE_CMP_LT,
+   VCODE_CMP_GT,
+   VCODE_CMP_LEQ,
+   VCODE_CMP_GEQ,
 } vcode_cmp_t;
 
 typedef enum {
@@ -55,7 +60,13 @@ typedef enum {
    VCODE_OP_NETS,
    VCODE_OP_SCHED_WAVEFORM,
    VCODE_OP_COND,
-   VCODE_OP_REPORT
+   VCODE_OP_REPORT,
+   VCODE_OP_DIV,
+   VCODE_OP_NEG,
+   VCODE_OP_EXP,
+   VCODE_OP_ABS,
+   VCODE_OP_MOD,
+   VCODE_OP_REM
 } vcode_op_t;
 
 typedef enum {
@@ -149,6 +160,10 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);
 void emit_assert(vcode_reg_t value, vcode_reg_t message,
                  vcode_reg_t severity, uint32_t index);
 void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index);
@@ -170,5 +185,7 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after);
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
+vcode_reg_t emit_neg(vcode_reg_t lhs);
+vcode_reg_t emit_abs(vcode_reg_t lhs);
 
 #endif  // _VCODE_H
