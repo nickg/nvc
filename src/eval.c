@@ -276,6 +276,10 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args, int n)
          r = MAX(r, args[i]);
       return get_int_lit(t, r);
    }
+   else if (icmp(builtin, "mod"))
+      return get_int_lit(t, llabs(args[0]) % llabs(args[1]));
+   else if (icmp(builtin, "rem"))
+      return get_int_lit(t, args[0] % args[1]);
    else
       return t;
 }
