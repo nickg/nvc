@@ -17,6 +17,7 @@
 
 #include "util.h"
 #include "vcode.h"
+#include "array.h"
 
 #include <assert.h>
 #include <inttypes.h>
@@ -94,20 +95,30 @@ typedef struct {
    size_t       nnets;
 } signal_t;
 
-struct vcode_unit {
-   vunit_kind_t kind;
-   vcode_unit_t context;
+typedef struct {
+   vcode_type_t type;
+   vcode_type_t bounds;
    ident_t      name;
-   block_t      blocks[MAX_BLOCKS];
-   int          nblocks;
-   reg_t        regs[MAX_REGS];
-   int          nregs;
-   vtype_t      types[MAX_TYPES];
-   int          ntypes;
-   var_t        vars[MAX_VARS];
-   int          nvars;
-   signal_t     signals[MAX_SIGNALS];
-   int          nsignals;
+   vcode_reg_t  reg;
+} param_t;
+
+DECLARE_AND_DEFINE_ARRAY(param);
+
+struct vcode_unit {
+   vunit_kind_t  kind;
+   vcode_unit_t  context;
+   ident_t       name;
+   block_t       blocks[MAX_BLOCKS];
+   int           nblocks;
+   reg_t         regs[MAX_REGS];
+   int           nregs;
+   vtype_t       types[MAX_TYPES];
+   int           ntypes;
+   var_t         vars[MAX_VARS];
+   int           nvars;
+   signal_t      signals[MAX_SIGNALS];
+   int           nsignals;
+   param_array_t params;
 };
 
 static vcode_unit_t  active_unit = NULL;
@@ -629,6 +640,7 @@ void vcode_dump(void)
    switch (vu->kind) {
    case VCODE_UNIT_PROCESS: printf("process"); break;
    case VCODE_UNIT_CONTEXT: printf("context"); break;
+   case VCODE_UNIT_FUNCTION: printf("function"); break;
    }
    color_printf("$$\n");
    if (vu->kind != VCODE_UNIT_CONTEXT)
@@ -660,6 +672,20 @@ void vcode_dump(void)
          for (size_t j = 0; j < s->nnets; j++)
             printf("%s%d", j > 0 ? "," : "", s->nets[j]);
          printf("]\n");
+      }
+   }
+   else if (vu->kind == VCODE_UNIT_FUNCTION) {
+      printf("Parameters %d\n", vu->params.count);
+
+      for (size_t i = 0; i < vu->params.count; i++) {
+         const param_t *p = &(vu->params.items[i]);
+         int col = printf("  ");
+         col += vcode_dump_reg(p->reg);
+         while (col < 8)
+            col += printf(" ");
+         col += color_printf("$magenta$%s$$", istr(p->name));
+         vcode_dump_type(col, p->type, p->bounds);
+         printf("\n");
       }
    }
 
@@ -923,6 +949,7 @@ void vcode_dump(void)
                printf(" after ");
                vcode_dump_reg(op->args[4]);
             }
+            break;
 
          case VCODE_OP_NEG:
          case VCODE_OP_ABS:
@@ -933,6 +960,7 @@ void vcode_dump(void)
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
+            break;
          }
 
          printf("\n");
@@ -1198,6 +1226,21 @@ ident_t vcode_unit_name(void)
    return active_unit->name;
 }
 
+vcode_unit_t emit_function(ident_t name, vcode_unit_t context)
+{
+   assert(context->kind == VCODE_UNIT_CONTEXT);
+
+   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vu->kind    = VCODE_UNIT_FUNCTION;
+   vu->name    = name;
+   vu->context = context;
+
+   active_unit = vu;
+   vcode_select_block(emit_block());
+
+   return vu;
+}
+
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
 {
    assert(context->kind == VCODE_UNIT_CONTEXT);
@@ -1359,6 +1402,25 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    }
    else
       return active_unit->nvars++;
+}
+
+vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
+{
+   assert(active_unit != NULL);
+
+   param_t p = {
+      .type   = type,
+      .bounds = bounds,
+      .name   = name,
+      .reg    = vcode_add_reg(type)
+   };
+
+   param_array_add(&(active_unit->params), p);
+
+   reg_t *rr = vcode_reg_data(p.reg);
+   rr->bounds = bounds;
+
+   return p.reg;
 }
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,

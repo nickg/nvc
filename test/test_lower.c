@@ -529,6 +529,46 @@ START_TEST(test_cond1)
 }
 END_TEST
 
+START_TEST(test_pack1)
+{
+   input_from_file(TESTDIR "/lower/pack1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t t, body = NULL;
+   while ((t = parse())) {
+      sem_check(t);
+      fail_if(sem_errors() > 0);
+
+      simplify(t);
+
+      if (tree_kind(t) == T_PACK_BODY)
+         body = t;
+   }
+
+   fail_if(body == NULL);
+   lower_unit(body);
+
+   tree_t add1 = tree_decl(body, 0);
+   fail_unless(tree_kind(add1) == T_FUNC_BODY);
+
+   vcode_unit_t v0 = tree_code(add1);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 START_TEST(test_arith1)
 {
    input_from_file(TESTDIR "/lower/arith1.vhd");
@@ -640,6 +680,7 @@ int main(void)
    tcase_add_test(tc, test_signal1);
    tcase_add_test(tc, test_cond1);
    tcase_add_test(tc, test_arith1);
+   tcase_add_test(tc, test_pack1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

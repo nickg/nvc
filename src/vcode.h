@@ -79,7 +79,8 @@ typedef enum {
 
 typedef enum {
    VCODE_UNIT_PROCESS,
-   VCODE_UNIT_CONTEXT
+   VCODE_UNIT_CONTEXT,
+   VCODE_UNIT_FUNCTION
 } vunit_kind_t;
 
 #define VCODE_INVALID_REG    -1
@@ -147,7 +148,7 @@ int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
 
-vcode_unit_t emit_func(ident_t name);
+vcode_unit_t emit_function(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
@@ -155,6 +156,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            ident_t name, vcode_var_t shadow,
                            netid_t *nets, size_t nnets);
+vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);

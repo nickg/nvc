@@ -306,7 +306,7 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
 
    const bool is_signed = vtype_low(vcode_reg_type(result)) < 0;
 
-   LLVMIntPredicate pred;
+   LLVMIntPredicate pred = 0;
    switch (vcode_get_cmp(op)) {
    case VCODE_CMP_EQ:  pred = LLVMIntEQ; break;
    case VCODE_CMP_NEQ: pred = LLVMIntNE; break;

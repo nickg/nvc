@@ -73,4 +73,8 @@
    void what##_array_resize(what##_array_t *a,                 \
                             size_t n, what##_t fill);
 
+#define DECLARE_AND_DEFINE_ARRAY(what) \
+   DECLARE_ARRAY(what);                \
+   DEFINE_ARRAY(what)
+
 #endif  // _ARRAY_H

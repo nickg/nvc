@@ -295,6 +295,16 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    }
 }
 
+static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
+{
+   vcode_reg_t reg = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_REG);
+   if (reg == VCODE_INVALID_REG) {
+      vcode_dump();
+      fatal_trace("missing register for parameter %s", istr(tree_ident(decl)));
+   }
+   return reg;
+}
+
 static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
@@ -306,6 +316,9 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 
    case T_VAR_DECL:
       return lower_var_ref(decl, ctx);
+
+   case T_PORT_DECL:
+      return lower_param_ref(decl, ctx);
 
    case T_SIGNAL_DECL:
       return lower_signal_ref(decl, ctx);
@@ -360,7 +373,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    tree_t value = tree_value(ref);
    type_t value_type = tree_type(value);
 
-   vcode_reg_t base = lower_expr(value, ctx == EXPR_LVALUE ?: EXPR_RVALUE);
+   vcode_reg_t base = lower_expr(value, ctx == EXPR_LVALUE ? ctx : EXPR_RVALUE);
    assert(vtype_kind(vcode_reg_type(base)) == VCODE_TYPE_POINTER);
 
    tree_t alias = NULL;
@@ -685,6 +698,24 @@ static void lower_if(tree_t stmt)
    vcode_select_block(bmerge);
 }
 
+static void lower_return(tree_t stmt)
+{
+   if (tree_has_value(stmt)) {
+      tree_t value = tree_value(stmt);
+      vcode_reg_t result = lower_reify_expr(value);
+
+      type_t type = tree_type(value);
+      if (type_is_scalar(type))
+         emit_bounds(result, lower_bounds(type));
+      else
+         assert(false);
+
+      emit_return(result);
+   }
+   else
+      emit_return(VCODE_INVALID_REG);
+}
+
 static void lower_stmt(tree_t stmt)
 {
    switch (tree_kind(stmt)) {
@@ -702,6 +733,9 @@ static void lower_stmt(tree_t stmt)
       break;
    case T_IF:
       lower_if(stmt);
+      break;
+   case T_RETURN:
+      lower_return(stmt);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
@@ -777,6 +811,52 @@ static void lower_decl(tree_t decl)
    }
 }
 
+static void lower_finished(void)
+{
+   vcode_opt();
+
+   if (verbose)
+      vcode_dump();
+}
+
+static void lower_cleanup(tree_t scope)
+{
+   if (tree_kind(scope) == T_FUNC_BODY) {
+      const int nports = tree_ports(scope);
+      for (int i = 0; i < nports; i++)
+         tree_remove_attr(tree_port(scope, i), vcode_obj_i);
+   }
+
+   const int ndecls = tree_decls(scope);
+   for (int i = 0; i < ndecls; i++)
+      tree_remove_attr(tree_decl(scope, i), vcode_obj_i);
+}
+
+static void lower_func_body(tree_t body, vcode_unit_t context)
+{
+   vcode_unit_t vu = emit_function(tree_ident(body), context);
+
+   const int nports = tree_ports(body);
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(body, i);
+      type_t type = tree_type(p);
+      vcode_reg_t reg = emit_param(lower_type(type), lower_bounds(type),
+                                   tree_ident(p));
+      tree_add_attr_int(p, vcode_obj_i, reg);
+   }
+
+   const int nstmts = tree_stmts(body);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(body, i));
+
+   lower_finished();
+
+   assert(!tree_has_code(body));
+   tree_set_code(body, vu);
+
+   lower_cleanup(body);
+}
+
 static void lower_process(tree_t proc, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
@@ -796,16 +876,12 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    if (!vcode_block_finished())
       emit_jump(start_bb);
 
-   vcode_opt();
-
-   if (verbose)
-      vcode_dump();
+   lower_finished();
 
    assert(!tree_has_code(proc));
    tree_set_code(proc, vu);
 
-   for (int i = 0; i < ndecls; i++)
-      tree_remove_attr(tree_decl(proc, i), vcode_obj_i);
+   lower_cleanup(proc);
 }
 
 static void lower_elab(tree_t unit)
@@ -819,10 +895,7 @@ static void lower_elab(tree_t unit)
 
    emit_return(VCODE_INVALID_REG);
 
-   vcode_opt();
-
-   if (verbose)
-      vcode_dump();
+   lower_finished();
 
    const int nstmts = tree_stmts(unit);
    for (int i = 0; i < nstmts; i++) {
@@ -831,8 +904,39 @@ static void lower_elab(tree_t unit)
       lower_process(s, context);
    }
 
-   for (int i = 0; i < ndecls; i++)
-      tree_remove_attr(tree_decl(unit, i), vcode_obj_i);
+   lower_cleanup(unit);
+}
+
+static void lower_pack_body(tree_t unit)
+{
+   vcode_unit_t context = emit_context(tree_ident(unit));
+   tree_set_code(unit, context);
+
+   const int ndecls = tree_decls(unit);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      const tree_kind_t kind = tree_kind(d);
+      if (kind != T_PROC_BODY && kind != T_FUNC_BODY)
+         lower_decl(d);
+   }
+
+   emit_return(VCODE_INVALID_REG);
+
+   lower_finished();
+
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(unit, i);
+      const tree_kind_t kind = tree_kind(d);
+      switch (kind) {
+      case T_FUNC_BODY:
+         lower_func_body(d, context);
+         break;
+      default:
+         break;
+      }
+   }
+
+   lower_cleanup(unit);
 }
 
 void lower_unit(tree_t unit)
@@ -847,8 +951,11 @@ void lower_unit(tree_t unit)
    case T_ELAB:
       lower_elab(unit);
       break;
+   case T_PACK_BODY:
+      lower_pack_body(unit);
+      break;
    default:
-      fatal("cannot lower to level unit kind %s to vcode",
+      fatal("cannot lower unit kind %s to vcode",
             tree_kind_str(tree_kind(unit)));
    }
 

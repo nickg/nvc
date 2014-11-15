@@ -131,8 +131,10 @@ static int analyse(int argc, char **argv)
    lib_save(lib_work());
 
    for (int i = 0; i < n_units; i++) {
-      if (units[i] != NULL)
+      if (units[i] != NULL) {
+         lower_unit(units[i]);
          cgen(units[i]);
+      }
    }
 
    return EXIT_SUCCESS;
