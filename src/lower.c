@@ -37,6 +37,7 @@ static bool    verbose = false;
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt);
+static void lower_func_body(tree_t body, vcode_unit_t context);
 
 static vcode_type_t lower_type(type_t type)
 {
@@ -117,7 +118,9 @@ static bool lower_const_bounds(type_t type)
 
 static vcode_reg_t lower_reify(vcode_reg_t reg)
 {
-   if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+   if (reg == VCODE_INVALID_REG)
+      return reg;
+   else if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
       return emit_load_indirect(reg);
    else
       return reg;
@@ -179,6 +182,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_abs(r0);
    else if (icmp(builtin, "identity"))
       return r0;
+   else if (icmp(builtin, "image"))
+      return emit_image(r0, tree_index(tree_param(fcall, 0)));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -322,6 +327,9 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 
    case T_SIGNAL_DECL:
       return lower_signal_ref(decl, ctx);
+
+   case T_TYPE_DECL:
+      return VCODE_INVALID_REG;
 
    default:
       vcode_dump();
@@ -832,6 +840,33 @@ static void lower_cleanup(tree_t scope)
       tree_remove_attr(tree_decl(scope, i), vcode_obj_i);
 }
 
+static void lower_decls(tree_t scope)
+{
+   const int ndecls = tree_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(scope, i);
+      const tree_kind_t kind = tree_kind(d);
+      if (kind != T_PROC_BODY && kind != T_FUNC_BODY)
+         lower_decl(d);
+   }
+}
+
+static void lower_subprograms(tree_t scope, vcode_unit_t context)
+{
+   const int ndecls = tree_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(scope, i);
+      const tree_kind_t kind = tree_kind(d);
+      switch (kind) {
+      case T_FUNC_BODY:
+         lower_func_body(d, context);
+         break;
+      default:
+         break;
+      }
+   }
+}
+
 static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_function(tree_ident(body), context);
@@ -844,6 +879,8 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
                                    tree_ident(p));
       tree_add_attr_int(p, vcode_obj_i, reg);
    }
+
+   lower_decls(body);
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
@@ -861,9 +898,8 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
 
-   const int ndecls = tree_decls(proc);
-   for (int i = 0; i < ndecls; i++)
-      lower_decl(tree_decl(proc, i));
+   lower_decls(proc);
+
    emit_return(VCODE_INVALID_REG);
 
    vcode_block_t start_bb = emit_block();
@@ -889,9 +925,7 @@ static void lower_elab(tree_t unit)
    vcode_unit_t context = emit_context(tree_ident(unit));
    tree_set_code(unit, context);
 
-   const int ndecls = tree_decls(unit);
-   for (int i = 0; i < ndecls; i++)
-      lower_decl(tree_decl(unit, i));
+   lower_decls(unit);
 
    emit_return(VCODE_INVALID_REG);
 
@@ -904,6 +938,7 @@ static void lower_elab(tree_t unit)
       lower_process(s, context);
    }
 
+   lower_subprograms(unit, context);
    lower_cleanup(unit);
 }
 
@@ -912,30 +947,13 @@ static void lower_pack_body(tree_t unit)
    vcode_unit_t context = emit_context(tree_ident(unit));
    tree_set_code(unit, context);
 
-   const int ndecls = tree_decls(unit);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(unit, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (kind != T_PROC_BODY && kind != T_FUNC_BODY)
-         lower_decl(d);
-   }
+   lower_decls(unit);
 
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();
 
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(unit, i);
-      const tree_kind_t kind = tree_kind(d);
-      switch (kind) {
-      case T_FUNC_BODY:
-         lower_func_body(d, context);
-         break;
-      default:
-         break;
-      }
-   }
-
+   lower_subprograms(unit, context);
    lower_cleanup(unit);
 }
 

@@ -16,6 +16,7 @@ typedef struct {
    int64_t       low;
    int64_t       high;
    int           length;
+   int           args;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -52,6 +53,11 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             fail("expected op %d in block %d to call %s but calls %s",
                  i, bb, e->func, istr(vcode_get_func(i)));
          }
+         else if (e->args != vcode_count_args(i)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have %d arguments but has %d",
+                 i, bb, e->args, vcode_count_args(i));
+         }
          break;
 
       case VCODE_OP_CONST:
@@ -73,6 +79,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ASSERT:
       case VCODE_OP_REPORT:
       case VCODE_OP_RETURN:
+      case VCODE_OP_IMAGE:
          break;
 
       case VCODE_OP_WAIT:
@@ -529,46 +536,6 @@ START_TEST(test_cond1)
 }
 END_TEST
 
-START_TEST(test_pack1)
-{
-   input_from_file(TESTDIR "/lower/pack1.vhd");
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
-   tree_t t, body = NULL;
-   while ((t = parse())) {
-      sem_check(t);
-      fail_if(sem_errors() > 0);
-
-      simplify(t);
-
-      if (tree_kind(t) == T_PACK_BODY)
-         body = t;
-   }
-
-   fail_if(body == NULL);
-   lower_unit(body);
-
-   tree_t add1 = tree_decl(body, 0);
-   fail_unless(tree_kind(add1) == T_FUNC_BODY);
-
-   vcode_unit_t v0 = tree_code(add1);
-   vcode_select_unit(v0);
-
-   EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
-      { VCODE_OP_RETURN }
-   };
-
-   CHECK_BB(0);
-}
-END_TEST
-
 START_TEST(test_arith1)
 {
    input_from_file(TESTDIR "/lower/arith1.vhd");
@@ -669,6 +636,85 @@ START_TEST(test_arith1)
 }
 END_TEST
 
+START_TEST(test_pack1)
+{
+   input_from_file(TESTDIR "/lower/pack1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t t, body = NULL;
+   while ((t = parse())) {
+      sem_check(t);
+      fail_if(sem_errors() > 0);
+
+      simplify(t);
+
+      if (tree_kind(t) == T_PACK_BODY)
+         body = t;
+   }
+
+   fail_if(body == NULL);
+   lower_unit(body);
+
+   tree_t add1 = tree_decl(body, 0);
+   fail_unless(tree_kind(add1) == T_FUNC_BODY);
+
+   vcode_unit_t v0 = tree_code(add1);
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_func1)
+{
+   input_from_file(TESTDIR "/lower/func1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = INT32_MIN },
+      { VCODE_OP_STORE, .name = "R" },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_FCALL, .func = ":func1:add1", .args = 1 },
+      { VCODE_OP_STORE, .name = "R" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_IMAGE },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -681,6 +727,7 @@ int main(void)
    tcase_add_test(tc, test_cond1);
    tcase_add_test(tc, test_arith1);
    tcase_add_test(tc, test_pack1);
+   tcase_add_test(tc, test_func1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

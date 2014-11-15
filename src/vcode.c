@@ -529,7 +529,7 @@ const char *vcode_op_string(vcode_op_t op)
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem"
+      "rem", "image"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -583,6 +583,20 @@ static void vcode_dump_one_type(vcode_type_t type)
                printf(", ");
             vcode_dump_one_type(vt->dim[i]);
          }
+         printf("] : ");
+         vcode_dump_one_type(vt->elem);
+         if (!vtype_eq(vt->elem, vt->bounds)) {
+            printf(" => ");
+            vcode_dump_one_type(vt->bounds);
+         }
+      }
+      break;
+
+   case VCODE_TYPE_UARRAY:
+      {
+         printf("[");
+         for (unsigned i = 0; i < vt->ndim; i++)
+            printf("%s*", i > 0 ? ", " : "");
          printf("] : ");
          vcode_dump_one_type(vt->elem);
          if (!vtype_eq(vt->elem, vt->bounds)) {
@@ -732,7 +746,7 @@ void vcode_dump(void)
          case VCODE_OP_FCALL:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
+               col += color_printf(" := %s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
                for (int i = 0; i < op->nargs; i++) {
@@ -961,6 +975,16 @@ void vcode_dump(void)
                vcode_dump_type(col, r->type, r->bounds);
             }
             break;
+
+         case VCODE_OP_IMAGE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
          }
 
          printf("\n");
@@ -1006,6 +1030,11 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
                return vtype_eq(at->elem, bt->elem)
                   && vtype_eq(at->bounds, bt->bounds);
             }
+         case VCODE_TYPE_UARRAY:
+            return at->ndim == bt->ndim
+               && vtype_eq(at->elem, bt->elem)
+               && vtype_eq(at->bounds, bt->bounds);
+
          case VCODE_TYPE_POINTER:
             return vtype_eq(at->pointed, bt->pointed);
          case VCODE_TYPE_OFFSET:
@@ -1034,6 +1063,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
       return bt->low >= tt->low && bt->high <= tt->high;
 
    case VCODE_TYPE_CARRAY:
+   case VCODE_TYPE_UARRAY:
       return vtype_eq(type, bounds);
 
    case VCODE_TYPE_POINTER:
@@ -1099,6 +1129,22 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    n->ndim   = ndim;
    for (int i = 0; i < ndim; i++)
       n->dim[i] = dim[i];
+
+   return vtype_new(r);
+}
+
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
+{
+   assert(active_unit != NULL);
+
+   assert(active_unit->ntypes < MAX_TYPES);
+   vcode_type_t r = active_unit->ntypes++;
+
+   vtype_t *n = &(active_unit->types[r]);
+   n->kind   = VCODE_TYPE_UARRAY;
+   n->elem   = elem;
+   n->bounds = bounds;
+   n->ndim   = ndim;
 
    return vtype_new(r);
 }
@@ -1844,6 +1890,17 @@ vcode_reg_t emit_abs(vcode_reg_t lhs)
    op_t *op = vcode_add_op(VCODE_OP_ABS);
    vcode_add_arg(op, lhs);
    op->result = vcode_add_reg(vcode_reg_type(lhs));
+
+   return op->result;
+}
+
+vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
+{
+   op_t *op = vcode_add_op(VCODE_OP_IMAGE);
+   vcode_add_arg(op, value);
+
+   op->result = vcode_add_reg(
+      vtype_uarray(1, vtype_int(0, 255), vtype_int(0, 127)));
 
    return op->result;
 }

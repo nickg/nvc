@@ -66,7 +66,8 @@ typedef enum {
    VCODE_OP_EXP,
    VCODE_OP_ABS,
    VCODE_OP_MOD,
-   VCODE_OP_REM
+   VCODE_OP_REM,
+   VCODE_OP_IMAGE
 } vcode_op_t;
 
 typedef enum {
@@ -74,7 +75,8 @@ typedef enum {
    VCODE_TYPE_CARRAY,
    VCODE_TYPE_POINTER,
    VCODE_TYPE_OFFSET,
-   VCODE_TYPE_SIGNAL
+   VCODE_TYPE_SIGNAL,
+   VCODE_TYPE_UARRAY
 } vtype_kind_t;
 
 typedef enum {
@@ -93,6 +95,7 @@ vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
 vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
                           vcode_type_t elem, vcode_type_t bounds);
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds);
 vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
@@ -189,5 +192,6 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
+vcode_reg_t emit_image(vcode_reg_t value, uint32_t index);
 
 #endif  // _VCODE_H
