@@ -2000,7 +2000,7 @@ static bool sem_check_decl(tree_t t)
       && (type_kind(type) != T_PROTECTED);
 
    if (needs_default_value)
-      tree_set_value(t, make_default_value(type));
+      tree_set_value(t, make_default_value(type, tree_loc(t)));
    else if (tree_has_value(t)) {
       if (type_kind(type) == T_PROTECTED)
          sem_error(t, "variable %s with protected type may not have an "
@@ -6223,7 +6223,7 @@ static bool sem_check_new(tree_t t)
          type_set_base(type, base);
          type_add_dim(type, r);
 
-         tree_set_value(t, make_default_value(type));
+         tree_set_value(t, make_default_value(type, tree_loc(value)));
       }
       break;
 
@@ -6234,7 +6234,7 @@ static bool sem_check_new(tree_t t)
          if (!sem_check_type(value, &type))
             return false;
 
-         tree_set_value(t, make_default_value(type));
+         tree_set_value(t, make_default_value(type, tree_loc(t)));
       }
       break;
 

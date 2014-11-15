@@ -715,6 +715,29 @@ START_TEST(test_func1)
 }
 END_TEST
 
+START_TEST(test_issue94)
+{
+   input_from_file(TESTDIR "/lower/issue94.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("lower");
@@ -728,6 +751,7 @@ int main(void)
    tcase_add_test(tc, test_arith1);
    tcase_add_test(tc, test_pack1);
    tcase_add_test(tc, test_func1);
+   tcase_add_test(tc, test_issue94);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

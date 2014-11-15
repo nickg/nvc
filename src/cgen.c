@@ -276,7 +276,6 @@ static LLVMValueRef cgen_array_len(vcode_reg_t reg, cgen_ctx_t *ctx)
 
          LLVMValueRef dim_struct = cgen_uarray_dim(meta, 0 /* XXX */);
 
-         LLVMDumpModule(module);
          LLVMValueRef downto = LLVMBuildICmp(
             builder, LLVMIntEQ,
             LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),

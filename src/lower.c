@@ -39,57 +39,6 @@ static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt);
 static void lower_func_body(tree_t body, vcode_unit_t context);
 
-static vcode_type_t lower_type(type_t type)
-{
-   switch (type_kind(type)) {
-   case T_SUBTYPE:
-      if (type_is_array(type)) {
-         const int ndims = type_dims(type);
-         assert(ndims > 0);
-         vcode_type_t bounds[ndims];
-         for (int i = 0; i < ndims; i++) {
-            range_t r = type_dim(type, i);
-            int64_t low, high;
-            range_bounds(r, &low, &high);
-            bounds[i] = vtype_int(low, high);
-         }
-
-         type_t elem = type_elem(type);
-         return vtype_carray(bounds, ndims, lower_type(elem),
-                             lower_bounds(elem));
-      }
-      else
-         return lower_type(type_base(type));
-
-   case T_PHYSICAL:
-   case T_INTEGER:
-      {
-         range_t r = type_dim(type, 0);
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-         return vtype_int(low, high);
-      }
-
-   case T_ENUM:
-      return vtype_int(0, type_enum_literals(type) - 1);
-
-   default:
-      fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
-   }
-}
-
-static vcode_type_t lower_bounds(type_t type)
-{
-   if (type_is_scalar(type) && type_kind(type) == T_SUBTYPE) {
-      range_t r = type_dim(type, 0);
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-      return vtype_int(low, high);
-   }
-   else
-      return lower_type(type);
-}
-
 static bool lower_is_const(tree_t t)
 {
    if (tree_kind(t) == T_AGGREGATE) {
@@ -111,9 +60,80 @@ static bool lower_const_bounds(type_t type)
    if (type_is_unconstrained(type))
       return false;
    else {
-      range_t r = type_dim(type, 0);
-      return lower_is_const(r.left) && lower_is_const(r.right);
+      const int ndims = type_dims(type);
+      for (int i = 0; i < ndims; i++) {
+         range_t r = type_dim(type, i);
+         if (!lower_is_const(r.left) || !lower_is_const(r.right))
+            return false;
+      }
+
+      return true;
    }
+}
+
+static vcode_type_t lower_type(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_SUBTYPE:
+      if (type_is_array(type)) {
+         type_t elem = type_elem(type);
+         vcode_type_t elem_type   = lower_type(elem);
+         vcode_type_t elem_bounds = lower_bounds(elem);
+
+         const int ndims = type_dims(type);
+         assert(ndims > 0);
+
+         if (lower_const_bounds(type)) {
+            vcode_type_t bounds[ndims];
+            for (int i = 0; i < ndims; i++) {
+               range_t r = type_dim(type, i);
+               int64_t low, high;
+               range_bounds(r, &low, &high);
+               bounds[i] = vtype_int(low, high);
+            }
+
+            return vtype_carray(bounds, ndims, elem_type, elem_bounds);
+         }
+         else
+            return vtype_uarray(ndims, elem_type, elem_bounds);
+      }
+      else
+         return lower_type(type_base(type));
+
+   case T_PHYSICAL:
+   case T_INTEGER:
+      {
+         range_t r = type_dim(type, 0);
+         int64_t low, high;
+         range_bounds(r, &low, &high);
+         return vtype_int(low, high);
+      }
+
+   case T_ENUM:
+      return vtype_int(0, type_enum_literals(type) - 1);
+
+   case T_UARRAY:
+      {
+         type_t elem = type_elem(type);
+         return vtype_uarray(type_index_constrs(type), lower_type(elem),
+                             lower_bounds(elem));
+      }
+
+   default:
+      fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
+   }
+}
+
+static vcode_type_t lower_bounds(type_t type)
+{
+   if (type_is_scalar(type) && type_kind(type) == T_SUBTYPE) {
+      range_t r = type_dim(type, 0);
+      int64_t low, high;
+      range_bounds(r, &low, &high);
+      return vtype_int(low, high);
+   }
+   else
+      return lower_type(type);
 }
 
 static vcode_reg_t lower_reify(vcode_reg_t reg)
@@ -556,6 +576,164 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
    return vals;
 }
 
+static vcode_reg_t lower_array_len(type_t type, vcode_reg_t reg)
+{
+   if (type_is_unconstrained(type)) {
+      assert(reg != VCODE_INVALID_REG);
+      assert(false);
+   }
+   else {
+      assert(type_dims(type) == 1);
+      range_t r = type_dim(type, 0);
+      vcode_reg_t left_reg  = lower_reify_expr(r.left);
+      vcode_reg_t right_reg = lower_reify_expr(r.right);
+
+      // XXX: handle null range here
+      vcode_reg_t diff = VCODE_INVALID_REG;
+      switch (r.kind) {
+      case RANGE_TO:
+         diff = emit_sub(right_reg, left_reg);
+         break;
+      case RANGE_DOWNTO:
+         diff = emit_sub(left_reg, right_reg);
+         break;
+      case RANGE_DYN:
+      case RANGE_RDYN:
+      case RANGE_EXPR:
+         assert(false);
+      }
+
+      return emit_cast(vtype_offset(),
+                       emit_add(diff, emit_const(vcode_reg_type(left_reg), 1)));
+   }
+}
+
+static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
+{
+   type_t agg_type = tree_type(agg);
+   type_t elem_type = type_elem(type);
+
+   emit_comment("Begin dynamic aggregrate line %d", tree_loc(agg)->first_line);
+
+   vcode_reg_t def = VCODE_INVALID_REG;
+   const int nassocs = tree_assocs(agg);
+   for (int i = 0; def == VCODE_INVALID_REG && i < nassocs; i++) {
+      tree_t a = tree_assoc(agg, i);
+      if (tree_subkind(a) == A_OTHERS)
+         def = lower_expr(tree_value(a), EXPR_RVALUE);
+   }
+
+   assert(!type_is_unconstrained(agg_type));
+   range_t r = type_dim(agg_type, 0);
+
+   assert(r.kind == RANGE_TO || r.kind == RANGE_DOWNTO);  // XXX
+   vcode_reg_t is_downto = emit_const(vtype_bool(), r.kind == RANGE_DOWNTO);
+
+   vcode_reg_t left_reg  = lower_reify_expr(r.left);
+   vcode_reg_t right_reg = lower_reify_expr(r.right);
+   vcode_reg_t len_reg   = lower_array_len(agg_type, VCODE_INVALID_REG);
+   (void)right_reg;
+   (void)left_reg;
+
+   vcode_reg_t mem_reg = emit_alloca(lower_type(elem_type),
+                                     lower_bounds(elem_type), len_reg);
+   (void)mem_reg;
+
+   vcode_type_t offset_type = vtype_offset();
+   vcode_reg_t ivar = emit_alloca(offset_type, offset_type, VCODE_INVALID_REG);
+   emit_store_indirect(emit_const(offset_type, 0), ivar);
+
+   vcode_block_t test_bb = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_jump(test_bb);
+
+   // Loop test
+   vcode_select_block(test_bb);
+   vcode_reg_t i_loaded = emit_load_indirect(ivar);
+   vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, i_loaded, len_reg);
+   emit_cond(ge, exit_bb, body_bb);
+
+   // Loop body
+   vcode_select_block(body_bb);
+
+   vcode_reg_t what = def;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(agg, i);
+
+      assoc_kind_t kind = tree_subkind(a);
+      vcode_reg_t value_reg = NULL;
+      if (kind != A_OTHERS) {
+         assert(def != VCODE_INVALID_REG);
+         value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
+      }
+
+      switch (kind) {
+      case A_POS:
+         {
+            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded,
+                                      emit_const(offset_type, tree_pos(a)));
+            what = emit_select(eq, value_reg, what);
+         }
+         break;
+
+      case A_NAMED:
+         {
+            vcode_reg_t name_reg = lower_reify_expr(tree_name(a));
+            vcode_reg_t off_reg =
+               emit_select(is_downto,
+                           emit_sub(left_reg, name_reg),
+                           emit_sub(name_reg, left_reg));
+
+            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, off_reg);
+            what = emit_select(eq, value_reg, what);
+         }
+         break;
+
+      case A_RANGE:
+         {
+            range_t r = tree_range(a);
+
+            vcode_cmp_t lpred =
+               (r.kind == RANGE_TO ? VCODE_CMP_GEQ : VCODE_CMP_LEQ);
+            vcode_cmp_t rpred =
+               (r.kind == RANGE_TO ? VCODE_CMP_LEQ : VCODE_CMP_GEQ);
+
+            vcode_reg_t lcmp_reg =
+               emit_cmp(lpred, i_loaded,
+                        emit_cast(offset_type, lower_reify_expr(r.left)));
+            vcode_reg_t rcmp_reg =
+               emit_cmp(rpred, i_loaded,
+                        emit_cast(offset_type, lower_reify_expr(r.right)));
+
+            vcode_reg_t in_reg = emit_or(lcmp_reg, rcmp_reg);
+            what = emit_select(in_reg, value_reg, what);
+         }
+         break;
+
+      case A_OTHERS:
+         break;
+      }
+   }
+
+   vcode_reg_t ptr_reg = emit_add(mem_reg, i_loaded);
+   emit_store_indirect(what, ptr_reg);
+
+   emit_store_indirect(emit_add(i_loaded, emit_const(offset_type, 1)), ivar);
+   emit_jump(test_bb);
+
+   // Epilogue
+   vcode_select_block(exit_bb);
+   emit_comment("End dynamic aggregrate line %d", tree_loc(agg)->first_line);
+
+   // emit_wrap(...);
+
+   vcode_dump();
+   fatal("dyn aggregate not implemented");
+   return VCODE_INVALID_REG;
+}
+
 static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
 {
    type_t type = tree_type(expr);
@@ -569,7 +747,7 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
       return emit_const_array(lower_type(type), values, nvals);
    }
    else
-      assert(false);
+      return lower_dyn_aggregate(expr, type);
 }
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
@@ -812,6 +990,7 @@ static void lower_decl(tree_t decl)
       break;
    case T_TYPE_DECL:
    case T_HIER:
+   case T_CONST_DECL:
       break;
    default:
       fatal_at(tree_loc(decl), "cannot lower decl kind %s",

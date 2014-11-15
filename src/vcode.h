@@ -67,7 +67,10 @@ typedef enum {
    VCODE_OP_ABS,
    VCODE_OP_MOD,
    VCODE_OP_REM,
-   VCODE_OP_IMAGE
+   VCODE_OP_IMAGE,
+   VCODE_OP_ALLOCA,
+   VCODE_OP_SELECT,
+   VCODE_OP_OR
 } vcode_op_t;
 
 typedef enum {
@@ -166,6 +169,8 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            ident_t name, vcode_var_t shadow,
                            netid_t *nets, size_t nnets);
+vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
+                        vcode_reg_t count);
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
@@ -200,5 +205,9 @@ void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse);
 vcode_reg_t emit_neg(vcode_reg_t lhs);
 vcode_reg_t emit_abs(vcode_reg_t lhs);
 vcode_reg_t emit_image(vcode_reg_t value, uint32_t index);
+void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
+                        vcode_reg_t rfalse);
+vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs);
 
 #endif  // _VCODE_H

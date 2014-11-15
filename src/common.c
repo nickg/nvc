@@ -490,7 +490,7 @@ type_t array_aggregate_type(type_t array, int from_dim)
    }
 }
 
-tree_t make_default_value(type_t type)
+tree_t make_default_value(type_t type, const loc_t *loc)
 {
    type_t base = type_base_recur(type);
 
@@ -504,7 +504,7 @@ tree_t make_default_value(type_t type)
          tree_t def = NULL;
          const int ndims = type_dims(type);
          for (int i = ndims - 1; i >= 0; i--) {
-            tree_t val = (def ? def : make_default_value(type_elem(base)));
+            tree_t val = (def ? def : make_default_value(type_elem(base), loc));
             def = tree_new(T_AGGREGATE);
             tree_set_type(def, array_aggregate_type(type, i));
 
@@ -515,6 +515,7 @@ tree_t make_default_value(type_t type)
             tree_add_assoc(def, a);
          }
          tree_set_type(def, type);
+         tree_set_loc(def, loc);
          return def;
       }
 
@@ -529,13 +530,15 @@ tree_t make_default_value(type_t type)
    case T_RECORD:
       {
          tree_t def = tree_new(T_AGGREGATE);
+         tree_set_loc(def, loc);
          const int nfields = type_fields(base);
          for (int i = 0; i < nfields; i++) {
             tree_t field = type_field(base, i);
 
             tree_t a = tree_new(T_ASSOC);
             tree_set_subkind(a, A_POS);
-            tree_set_value(a, make_default_value(tree_type(field)));
+            tree_set_value(a, make_default_value(tree_type(field),
+                                                 tree_loc(field)));
 
             tree_add_assoc(def, a);
          }
@@ -546,6 +549,7 @@ tree_t make_default_value(type_t type)
    case T_ACCESS:
       {
          tree_t null = tree_new(T_LITERAL);
+         tree_set_loc(null, loc);
          tree_set_subkind(null, L_NULL);
          tree_set_type(null, type);
          return null;

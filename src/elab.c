@@ -1177,7 +1177,7 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
       if (tree_has_value(p))
          tree_set_value(s, tree_value(p));
       else
-         tree_set_value(s, make_default_value(type));
+         tree_set_value(s, make_default_value(type, tree_loc(p)));
 
       tree_add_decl(arch, s);
 

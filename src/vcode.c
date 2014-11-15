@@ -531,7 +531,7 @@ const char *vcode_op_string(vcode_op_t op)
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem", "image"
+      "rem", "image", "alloca", "select", "or"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -749,6 +749,17 @@ void vcode_dump(void)
             }
             break;
 
+         case VCODE_OP_ALLOCA:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               if (op->nargs > 0)
+                  col += vcode_dump_reg(op->args[0]);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
+
          case VCODE_OP_FCALL:
             {
                col += vcode_dump_reg(op->result);
@@ -873,6 +884,7 @@ void vcode_dump(void)
          case VCODE_OP_EXP:
          case VCODE_OP_MOD:
          case VCODE_OP_REM:
+         case VCODE_OP_OR:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -885,6 +897,7 @@ void vcode_dump(void)
                case VCODE_OP_EXP: col += printf(" ** "); break;
                case VCODE_OP_MOD: col += printf(" %% "); break;
                case VCODE_OP_REM: col += printf(" %% "); break;
+               case VCODE_OP_OR:  col += printf(" || "); break;
                default: break;
                }
                col += vcode_dump_reg(op->args[1]);
@@ -991,6 +1004,19 @@ void vcode_dump(void)
                vcode_dump_type(col, r->type, r->bounds);
             }
             break;
+
+         case VCODE_OP_SELECT:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               col += printf(" then ");
+               col += vcode_dump_reg(op->args[1]);
+               col += printf(" else ");
+               col += vcode_dump_reg(op->args[1]);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
          }
 
          printf("\n");
@@ -1420,6 +1446,22 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
    return (op->result = vcode_add_reg(type));
 }
 
+vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
+                        vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
+   op->type   = type;
+   op->result = vcode_add_reg(vtype_pointer(type));
+
+   if (count != VCODE_INVALID_REG)
+      vcode_add_arg(op, count);
+
+   reg_t *r = vcode_reg_data(op->result);
+   r->bounds = bounds;
+
+   return op->result;
+}
+
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
@@ -1554,7 +1596,8 @@ vcode_reg_t emit_load(vcode_var_t var)
    op->address = var;
    op->result  = vcode_add_reg(v->type);
 
-   if (vtype_kind(v->type) != VCODE_TYPE_INT) {
+   vtype_kind_t type_kind = vtype_kind(v->type);
+   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -1580,7 +1623,8 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
    vcode_type_t deref = vtype_pointed(rtype);
    op->result = vcode_add_reg(deref);
 
-   if (vtype_kind(deref) != VCODE_TYPE_INT) {
+   vtype_kind_t type_kind = vtype_kind(deref);
+   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -1624,7 +1668,11 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    vcode_add_arg(op, reg);
    vcode_add_arg(op, ptr);
 
-   if (!vtype_eq(vtype_pointed(p->type), r->type)) {
+   if (vtype_kind(p->type) != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("store indirect target is not a pointer");
+   }
+   else if (!vtype_eq(vtype_pointed(p->type), r->type)) {
       vcode_dump();
       fatal_trace("pointer and stored value do not have same type");
    }
@@ -1632,6 +1680,15 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
 
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
+   // Reuse any previous operation in this block with the same arguments
+   block_t *b = &(active_unit->blocks[active_block]);
+   for (int i = b->nops - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops[i]);
+      if (op->kind == kind && op->nargs == 2 && op->args[0] == lhs
+          && op->args[1] == rhs)
+         return op->result;
+   }
+
    op_t *op = vcode_add_op(kind);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
@@ -1765,7 +1822,9 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
 {
-   if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
+   if (reg == VCODE_INVALID_REG)
+      return;
+   else if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
       vcode_add_comment("Elided bounds check for r%d", reg);
       return;
    }
@@ -1961,4 +2020,38 @@ vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
       vtype_uarray(1, vtype_int(0, 255), vtype_int(0, 127)));
 
    return op->result;
+}
+
+void emit_comment(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   vcode_add_op(VCODE_OP_COMMENT)->comment = xvasprintf(fmt, ap);
+   va_end(ap);
+}
+
+vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
+                        vcode_reg_t rfalse)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SELECT);
+   vcode_add_arg(op, test);
+   vcode_add_arg(op, rtrue);
+   vcode_add_arg(op, rfalse);
+   op->result = vcode_add_reg(vcode_reg_type(rtrue));
+
+   if (!vtype_eq(vcode_reg_type(test), vtype_bool())) {
+      vcode_dump();
+      fatal_trace("select test must have bool type");
+   }
+   else if (!vtype_eq(vcode_reg_type(rtrue), vcode_reg_type(rfalse))) {
+      vcode_dump();
+      fatal_trace("select arguments are not the same type");
+   }
+
+   return op->result;
+}
+
+vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_arith(VCODE_OP_OR, lhs, rhs);
 }
