@@ -183,7 +183,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "identity"))
       return r0;
    else if (icmp(builtin, "image"))
-      return emit_image(r0, tree_index(tree_param(fcall, 0)));
+      return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -869,7 +869,8 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
 
 static void lower_func_body(tree_t body, vcode_unit_t context)
 {
-   vcode_unit_t vu = emit_function(tree_ident(body), context);
+   vcode_unit_t vu = emit_function(tree_ident(body), context,
+                                   lower_type(type_result(tree_type(body))));
 
    const int nports = tree_ports(body);
    for (int i = 0; i < nports; i++) {

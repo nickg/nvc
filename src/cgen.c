@@ -195,9 +195,9 @@ static const char *cgen_reg_name(vcode_reg_t r)
    return buf;
 }
 
-static LLVMValueRef cgen_get_arg(int i, int arg, cgen_ctx_t *ctx)
+static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
 {
-   vcode_reg_t r = vcode_get_arg(i, arg);
+   vcode_reg_t r = vcode_get_arg(op, arg);
    assert(ctx->regs[r] != NULL);
    return ctx->regs[r];
 }
@@ -209,7 +209,49 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
                              istr(vcode_var_name(var)));
 }
 
-static LLVMValueRef cgen_array_len(vcode_reg_t reg)
+static bool cgen_is_uarray_struct(LLVMValueRef meta)
+{
+   return LLVMGetTypeKind(LLVMTypeOf(meta)) == LLVMStructTypeKind;
+}
+
+static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
+{
+   assert(cgen_is_uarray_struct(meta));
+   LLVMValueRef dim_array =
+      LLVMBuildExtractValue(builder, meta, 1, "dim_array");
+   return LLVMBuildExtractValue(builder, dim_array, dim, "dim");
+}
+
+static LLVMValueRef cgen_array_data_ptr(vcode_reg_t reg, cgen_ctx_t *ctx)
+{
+   char name[32];
+   checked_sprintf(name, sizeof(name), "r%d_aptr", reg);
+
+   vcode_type_t type = vcode_reg_type(reg);
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_CARRAY:
+      {
+         LLVMValueRef indexes[] = { llvm_int32(0) };
+         return LLVMBuildPointerCast(
+            builder,
+            LLVMBuildGEP(builder, ctx->regs[reg],
+                         indexes, ARRAY_LEN(indexes), ""),
+            LLVMPointerType(cgen_type(vtype_elem(type)), 0), name);
+      }
+      break;
+
+   case VCODE_TYPE_UARRAY:
+      {
+         assert(cgen_is_uarray_struct(ctx->regs[reg]));
+         return LLVMBuildExtractValue(builder, ctx->regs[reg], 0, name);
+      }
+
+   default:
+      fatal_trace("non-array type in %s", __func__);
+   }
+}
+
+static LLVMValueRef cgen_array_len(vcode_reg_t reg, cgen_ctx_t *ctx)
 {
    vcode_type_t type = vcode_reg_type(reg);
    switch (vtype_kind(type)) {
@@ -224,8 +266,43 @@ static LLVMValueRef cgen_array_len(vcode_reg_t reg)
          return llvm_int32(high - low + 1);
       }
 
+   case VCODE_TYPE_UARRAY:
+      {
+         assert(vtype_dims(type) == 1);
+
+         LLVMValueRef meta = ctx->regs[reg];
+         assert(meta != NULL);
+         assert(cgen_is_uarray_struct(meta));
+
+         LLVMValueRef dim_struct = cgen_uarray_dim(meta, 0 /* XXX */);
+
+         LLVMDumpModule(module);
+         LLVMValueRef downto = LLVMBuildICmp(
+            builder, LLVMIntEQ,
+            LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),
+            llvm_int8(RANGE_DOWNTO),
+            "downto");
+         LLVMValueRef left =
+            LLVMBuildExtractValue(builder, dim_struct, 0, "left");
+         LLVMValueRef right =
+            LLVMBuildExtractValue(builder, dim_struct, 1, "right");
+         LLVMValueRef diff =
+            LLVMBuildSelect(builder, downto,
+                            LLVMBuildSub(builder, left, right, ""),
+                            LLVMBuildSub(builder, right, left, ""),
+                            "diff");
+         LLVMValueRef len =
+            LLVMBuildAdd(builder, diff, llvm_int32(1), "len");
+         LLVMValueRef neg = LLVMBuildICmp(builder, LLVMIntSLT, len,
+                                          llvm_int32(0), "negative");
+         LLVMValueRef clamp =
+            LLVMBuildSelect(builder, neg, llvm_int32(0), len, "len_clamp");
+
+         return clamp;
+      }
+
    default:
-      assert(false);
+      fatal_trace("non-array type in %s", __func__);
    }
 }
 
@@ -235,11 +312,10 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
-static void cgen_op_return(int i)
+static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
-   if (vcode_count_args(i) > 0) {
-      assert(false);
-   }
+   if (vcode_count_args(op) > 0)
+      LLVMBuildRet(builder, cgen_get_arg(op, 0, ctx));
    else
       LLVMBuildRetVoid(builder);
 }
@@ -265,7 +341,12 @@ static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
 
-   ctx->regs[result] = LLVMBuildCall(builder, fn, NULL, 0,
+   const int nargs = vcode_count_args(op);
+   LLVMValueRef args[nargs];
+   for (int i = 0; i < nargs; i++)
+      args[i] = cgen_get_arg(op, i, ctx);
+
+   ctx->regs[result] = LLVMBuildCall(builder, fn, args, nargs,
                                      cgen_reg_name(result));
 }
 
@@ -326,8 +407,8 @@ static void cgen_op_report(int op, cgen_ctx_t *ctx)
    vcode_reg_t mreg = vcode_get_arg(op, 1);
 
    LLVMValueRef severity    = ctx->regs[vcode_get_arg(op, 0)];
-   LLVMValueRef message     = ctx->regs[mreg];
-   LLVMValueRef message_len = cgen_array_len(mreg);
+   LLVMValueRef message     = cgen_array_data_ptr(mreg, ctx);
+   LLVMValueRef message_len = cgen_array_len(mreg, ctx);
 
    LLVMValueRef args[] = {
       message,
@@ -374,8 +455,8 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
       message = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index), "");
    }
    else {
-      message     = ctx->regs[mreg];
-      message_len = cgen_array_len(mreg);
+      message     = cgen_array_data_ptr(mreg, ctx);
+      message_len = cgen_array_len(mreg, ctx);
    }
 
    LLVMValueRef severity = ctx->regs[vcode_get_arg(op, 1)];
@@ -445,12 +526,35 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    // TODO
 }
 
+static void cgen_op_image(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t arg = vcode_get_arg(op, 0);
+
+   const bool is_signed = vtype_kind(vcode_reg_type(arg)) == VCODE_TYPE_INT;
+   const bool real = false;
+   LLVMOpcode cop = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
+   LLVMValueRef res = LLVMBuildAlloca(builder,
+                                      llvm_uarray_type(LLVMInt8Type(), 1),
+                                      "image");
+   LLVMValueRef iargs[] = {
+      LLVMBuildCast(builder, cop, ctx->regs[arg], LLVMInt64Type(), ""),
+      llvm_int32(vcode_get_index(op)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      res
+   };
+   LLVMBuildCall(builder, llvm_fn("_image"), iargs, ARRAY_LEN(iargs), "");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildLoad(builder, res, cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
    switch (op) {
    case VCODE_OP_RETURN:
-      cgen_op_return(i);
+      cgen_op_return(i, ctx);
       break;
    case VCODE_OP_JUMP:
       cgen_op_jump(i, ctx);
@@ -492,6 +596,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_BOUNDS:
       cgen_op_bounds(i, ctx);
+      break;
+   case VCODE_OP_IMAGE:
+      cgen_op_image(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -538,6 +645,46 @@ static void cgen_code(cgen_ctx_t *ctx)
    const int nblocks = vcode_count_blocks();
    for (int i = 0; i < nblocks; i++)
       cgen_block(i, ctx);
+}
+
+static void cgen_params(cgen_ctx_t *ctx)
+{
+   const int nparams = vcode_count_params();
+   for (int i = 0; i < nparams; i++)
+      ctx->regs[vcode_param_reg(i)] = LLVMGetParam(ctx->fn, i);
+}
+
+static LLVMTypeRef cgen_subprogram_type(void)
+{
+   const int nparams = vcode_count_params();
+   LLVMTypeRef params[nparams];
+   for (int i = 0; i < nparams; i++)
+      params[i] = cgen_type(vcode_param_type(i));
+
+   return LLVMFunctionType(cgen_type(vcode_unit_result()),
+                           params, nparams, false);
+}
+
+static void cgen_function(vcode_unit_t code)
+{
+   vcode_select_unit(code);
+   assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
+   assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
+
+   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+                                     cgen_subprogram_type());
+
+   LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+   LLVMAddFunctionAttr(fn, LLVMReadOnlyAttribute);
+
+   cgen_ctx_t ctx = {
+      .fn = fn
+   };
+   cgen_alloc_context(&ctx);
+
+   cgen_params(&ctx);
+   cgen_code(&ctx);
+   cgen_free_context(&ctx);
 }
 
 static void cgen_state_struct(cgen_ctx_t *ctx)
@@ -589,6 +736,7 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 static void cgen_process(vcode_unit_t code)
 {
    vcode_select_unit(code);
+   assert(vcode_unit_kind() == VCODE_UNIT_PROCESS);
 
    LLVMTypeRef pargs[] = { LLVMInt32Type() };
    LLVMTypeRef ftype = LLVMFunctionType(LLVMVoidType(), pargs, 1, false);
@@ -599,7 +747,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
    cgen_ctx_t ctx = {
-      .fn    = fn
+      .fn = fn
    };
    cgen_state_struct(&ctx);
    cgen_alloc_context(&ctx);
@@ -669,6 +817,18 @@ static void cgen_top(tree_t t)
    cgen_coverage_state(t);
 
    cgen_reset_function(vcode);
+
+   const int ndecls = tree_decls(t);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      switch (tree_kind(d)) {
+      case T_FUNC_BODY:
+         cgen_function(tree_code(d));
+         break;
+      default:
+         break;
+      }
+   }
 
    if (tree_kind(t) == T_ELAB) {
       const int nstmts = tree_stmts(t);

@@ -119,6 +119,12 @@ int vcode_count_blocks(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
 ident_t vcode_unit_name(void);
+vunit_kind_t vcode_unit_kind(void);
+vcode_type_t vcode_unit_result(void);
+
+int vcode_count_params(void);
+vcode_type_t vcode_param_type(int param);
+vcode_reg_t vcode_param_reg(int param);
 
 int vcode_count_regs(void);
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
@@ -151,7 +157,8 @@ int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
 
-vcode_unit_t emit_function(ident_t name, vcode_unit_t context);
+vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
+                           vcode_type_t result);
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);

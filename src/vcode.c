@@ -108,6 +108,7 @@ struct vcode_unit {
    vunit_kind_t  kind;
    vcode_unit_t  context;
    ident_t       name;
+   vcode_type_t  result;
    block_t       blocks[MAX_BLOCKS];
    int           nblocks;
    reg_t         regs[MAX_REGS];
@@ -488,7 +489,8 @@ vcode_cmp_t vcode_get_cmp(int op)
 uint32_t vcode_get_index(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT);
+   assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
+          || o->kind == VCODE_OP_IMAGE);
    return o->index;
 }
 
@@ -689,6 +691,10 @@ void vcode_dump(void)
       }
    }
    else if (vu->kind == VCODE_UNIT_FUNCTION) {
+      color_printf("Result     $cyan$");
+      vcode_dump_one_type(vu->result);
+      color_printf("$$\n");
+
       printf("Parameters %d\n", vu->params.count);
 
       for (size_t i = 0; i < vu->params.count; i++) {
@@ -1199,21 +1205,21 @@ vtype_kind_t vtype_kind(vcode_type_t type)
 vcode_type_t vtype_elem(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY);
+   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
    return vt->elem;
 }
 
 vcode_type_t vtype_bounds(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY);
+   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
    return vt->bounds;
 }
 
 int vtype_dims(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY);
+   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
    return vt->ndim;
 }
 
@@ -1246,6 +1252,32 @@ int64_t vtype_high(vcode_type_t type)
    return vt->high;
 }
 
+int vcode_count_params(void)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+
+   return active_unit->params.count;
+}
+
+vcode_type_t vcode_param_type(int param)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(param < active_unit->params.count);
+
+   return active_unit->params.items[param].type;
+}
+
+vcode_reg_t vcode_param_reg(int param)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(param < active_unit->params.count);
+
+   return active_unit->params.items[param].reg;
+}
+
 vcode_block_t emit_block(void)
 {
    assert(active_unit != NULL);
@@ -1272,7 +1304,21 @@ ident_t vcode_unit_name(void)
    return active_unit->name;
 }
 
-vcode_unit_t emit_function(ident_t name, vcode_unit_t context)
+vcode_type_t vcode_unit_result(void)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind = VCODE_UNIT_FUNCTION);
+   return active_unit->result;
+}
+
+vunit_kind_t vcode_unit_kind(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->kind;
+}
+
+vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
+                           vcode_type_t result)
 {
    assert(context->kind == VCODE_UNIT_CONTEXT);
 
@@ -1280,6 +1326,7 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context)
    vu->kind    = VCODE_UNIT_FUNCTION;
    vu->name    = name;
    vu->context = context;
+   vu->result  = result;
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1814,8 +1861,18 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
 void emit_return(vcode_reg_t reg)
 {
    op_t *op = vcode_add_op(VCODE_OP_RETURN);
-   if (reg != VCODE_INVALID_REG)
+   if (reg != VCODE_INVALID_REG) {
+      if (active_unit->kind != VCODE_UNIT_FUNCTION) {
+         vcode_dump();
+         fatal_trace("returning value fron non-function unit");
+      }
+      else if (!vtype_eq(active_unit->result, vcode_reg_type(reg))) {
+         vcode_dump();
+         fatal_trace("return value incorrect type");
+      }
+
       vcode_add_arg(op, reg);
+   }
 }
 
 vcode_reg_t emit_nets(vcode_signal_t sig)
@@ -1898,6 +1955,7 @@ vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
 {
    op_t *op = vcode_add_op(VCODE_OP_IMAGE);
    vcode_add_arg(op, value);
+   op->index = index;
 
    op->result = vcode_add_reg(
       vtype_uarray(1, vtype_int(0, 255), vtype_int(0, 127)));
