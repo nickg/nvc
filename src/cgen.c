@@ -404,6 +404,7 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef global = LLVMAddGlobal(module, cgen_type(type), name);
    LLVMSetLinkage(global, LLVMInternalLinkage);
+   LLVMSetGlobalConstant(global, true);
 
    const int length = vcode_count_args(op);
    LLVMValueRef *tmp LOCAL = xmalloc(length * sizeof(LLVMValueRef));
@@ -484,6 +485,7 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
          global = LLVMAddGlobal(module, LLVMTypeOf(init), "default_message");
          LLVMSetInitializer(global, init);
          LLVMSetLinkage(global, LLVMInternalLinkage);
+         LLVMSetGlobalConstant(global, true);
       }
 
       message_len = llvm_int32(def_len);
@@ -555,10 +557,17 @@ static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
 static void cgen_op_add(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildAdd(builder,
-                                    cgen_get_arg(op, 0, ctx),
-                                    cgen_get_arg(op, 1, ctx),
-                                    cgen_reg_name(result));
+   if (vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_POINTER) {
+      LLVMValueRef index[] = { cgen_get_arg(op, 1, ctx) };
+      ctx->regs[result] = LLVMBuildGEP(builder, cgen_get_arg(op, 0, ctx),
+                                       index, ARRAY_LEN(index),
+                                       cgen_reg_name(result));
+   }
+   else
+      ctx->regs[result] = LLVMBuildAdd(builder,
+                                       cgen_get_arg(op, 0, ctx),
+                                       cgen_get_arg(op, 1, ctx),
+                                       cgen_reg_name(result));
 }
 
 static void cgen_op_sub(int op, cgen_ctx_t *ctx)
