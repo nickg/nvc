@@ -83,10 +83,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_WAIT:
-         if (e->target != vcode_get_target(i)) {
+         if (e->target != vcode_get_target(i, 0)) {
             vcode_dump();
             fail("expected op %d in block %d to have wait target %d but has %d",
-                 i, bb, e->target, vcode_get_target(i));
+                 i, bb, e->target, vcode_get_target(i, 0));
          }
          else if (e->delay && vcode_get_arg(i, 0) == VCODE_INVALID_REG) {
             vcode_dump();
@@ -95,18 +95,18 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_COND:
-         if (e->target_else != vcode_get_target_else(i)) {
+         if (e->target_else != vcode_get_target(i, 1)) {
             vcode_dump();
             fail("expected op %d in block %d to have else target %d but has %d",
-                 i, bb, e->target, vcode_get_target(i));
+                 i, bb, e->target, vcode_get_target(i, 1));
          }
          // Fall-through
 
       case VCODE_OP_JUMP:
-         if (e->target != vcode_get_target(i)) {
+         if (e->target != vcode_get_target(i, 0)) {
             vcode_dump();
             fail("expected op %d in block %d to have jump target %d but has %d",
-                 i, bb, e->target, vcode_get_target(i));
+                 i, bb, e->target, vcode_get_target(i, 0));
          }
          break;
 

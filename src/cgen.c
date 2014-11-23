@@ -205,7 +205,8 @@ static const char *cgen_reg_name(vcode_reg_t r)
 static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
 {
    vcode_reg_t r = vcode_get_arg(op, arg);
-   assert(ctx->regs[r] != NULL);
+   if (unlikely(ctx->regs[r] == NULL))
+      fatal_trace("definition of register r%d is NULL", r);
    return ctx->regs[r];
 }
 
@@ -358,7 +359,7 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_jump(int i, cgen_ctx_t *ctx)
 {
-   LLVMBuildBr(builder, ctx->blocks[vcode_get_target(i)]);
+   LLVMBuildBr(builder, ctx->blocks[vcode_get_target(i, 0)]);
 }
 
 static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
@@ -520,7 +521,7 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
 
    assert(ctx->state != NULL);
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
-   LLVMBuildStore(builder, llvm_int32(vcode_get_target(op)), state_ptr);
+   LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
 
    LLVMBuildRetVoid(builder);
 }
@@ -569,6 +570,32 @@ static void cgen_op_sub(int op, cgen_ctx_t *ctx)
                                     cgen_reg_name(result));
 }
 
+static void cgen_op_or(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildOr(builder,
+                                   cgen_get_arg(op, 0, ctx),
+                                   cgen_get_arg(op, 1, ctx),
+                                   cgen_reg_name(result));
+}
+
+static void cgen_op_and(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildAnd(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_get_arg(op, 1, ctx),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_not(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildNot(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_reg_name(result));
+}
+
 static void cgen_op_mul(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -576,6 +603,23 @@ static void cgen_op_mul(int op, cgen_ctx_t *ctx)
                                     cgen_get_arg(op, 0, ctx),
                                     cgen_get_arg(op, 1, ctx),
                                     cgen_reg_name(result));
+}
+
+static void cgen_op_phi(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildPhi(builder, cgen_type(vcode_reg_type(result)),
+                                    cgen_reg_name(result));
+
+   const int nargs = vcode_count_args(op);
+   LLVMValueRef values[nargs];
+   LLVMBasicBlockRef bbs[nargs];
+   for (int i = 0; i < nargs; i++) {
+      values[i] = cgen_get_arg(op, i, ctx);
+      bbs[i] = ctx->blocks[vcode_get_target(op, i)];
+   }
+
+   LLVMAddIncoming(ctx->regs[result], values, bbs, nargs);
 }
 
 static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
@@ -612,13 +656,19 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    vcode_type_t arg_type = vcode_reg_type(arg);
-   LLVMOpcode lop = LLVMBitCast;
-   if (vtype_kind(arg_type) == VCODE_TYPE_INT)
-      lop = (vtype_low(arg_type) < 0) ? LLVMSExt : LLVMZExt;
+   if (vtype_kind(arg_type) == VCODE_TYPE_CARRAY) {
+      // This is a no-op as constrained arrays are implemented as pointers
+      ctx->regs[result] = ctx->regs[arg];
+   }
+   else {
+      LLVMOpcode lop = LLVMBitCast;
+      if (vtype_kind(arg_type) == VCODE_TYPE_INT)
+         lop = (vtype_low(arg_type) < 0) ? LLVMSExt : LLVMZExt;
 
-   ctx->regs[result] = LLVMBuildCast(builder, lop, ctx->regs[arg],
-                                     cgen_type(arg_type),
-                                     cgen_reg_name(result));
+      ctx->regs[result] = LLVMBuildCast(builder, lop, ctx->regs[arg],
+                                        cgen_type(arg_type),
+                                        cgen_reg_name(result));
+   }
 }
 
 static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
@@ -638,8 +688,8 @@ static void cgen_op_cond(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef test = cgen_get_arg(op, 0, ctx);
    LLVMBuildCondBr(builder, test,
-                   ctx->blocks[vcode_get_target(op)],
-                   ctx->blocks[vcode_get_target_else(op)]);
+                   ctx->blocks[vcode_get_target(op, 0)],
+                   ctx->blocks[vcode_get_target(op, 1)]);
 }
 
 static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
@@ -681,6 +731,19 @@ static void cgen_op_unwrap(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildExtractValue(builder, cgen_get_arg(op, 0, ctx),
                                              0, cgen_reg_name(result));
+}
+
+static void cgen_op_index(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   vcode_var_t var = vcode_get_address(op);
+
+   LLVMValueRef index[] = {
+      llvm_int32(0),
+      cgen_get_arg(op, 0, ctx)
+   };
+   ctx->regs[result] = LLVMBuildGEP(builder, cgen_get_var(var, ctx), index,
+                                    ARRAY_LEN(index), cgen_reg_name(result));
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -728,6 +791,15 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_SUB:
       cgen_op_sub(i, ctx);
       break;
+   case VCODE_OP_OR:
+      cgen_op_or(i, ctx);
+      break;
+   case VCODE_OP_AND:
+      cgen_op_and(i, ctx);
+      break;
+   case VCODE_OP_NOT:
+      cgen_op_not(i, ctx);
+      break;
    case VCODE_OP_MUL:
       cgen_op_mul(i, ctx);
       break;
@@ -758,8 +830,11 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_UNWRAP:
       cgen_op_unwrap(i, ctx);
       break;
-   case VCODE_OP_ARRAY_CMP:
-      cgen_op_array_cmp(i, ctx);
+   case VCODE_OP_INDEX:
+      cgen_op_index(i, ctx);
+      break;
+   case VCODE_OP_PHI:
+      cgen_op_phi(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -900,7 +975,7 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
       if (vcode_get_op(last) != VCODE_OP_WAIT)
          continue;
 
-      const vcode_block_t target = vcode_get_target(last);
+      const vcode_block_t target = vcode_get_target(last, 0);
       if (have[target])
          continue;
 

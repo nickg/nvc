@@ -74,12 +74,19 @@ static bool lower_const_bounds(type_t type)
 
 static vcode_reg_t lower_array_data(vcode_reg_t reg)
 {
-   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(reg));
-   if (vtkind == VCODE_TYPE_UARRAY)
+   vcode_type_t type = vcode_reg_type(reg);
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_UARRAY:
       return emit_unwrap(reg);
-   else {
-      assert(vtkind == VCODE_TYPE_POINTER);
+
+   case VCODE_TYPE_POINTER:
       return reg;
+
+   case VCODE_TYPE_CARRAY:
+      return emit_cast(vtype_pointer(vtype_elem(type)), reg);
+
+   default:
+      fatal_trace("invalid type in lower_array_data");
    }
 }
 
@@ -95,7 +102,7 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
    }
 }
 
-static vcode_reg_t lower_array_len(type_t type, vcode_reg_t reg)
+static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 {
    const bool have_uarray =
       reg != VCODE_INVALID_REG
@@ -107,7 +114,7 @@ static vcode_reg_t lower_array_len(type_t type, vcode_reg_t reg)
    }
    else {
       assert(type_dims(type) == 1);
-      range_t r = type_dim(type, 0);
+      range_t r = type_dim(type, dim);
       vcode_reg_t left_reg  = lower_reify_expr(r.left);
       vcode_reg_t right_reg = lower_reify_expr(r.right);
 
@@ -236,6 +243,7 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
       return VCODE_INVALID_REG;
 }
 
+#if 0
 static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
 {
    assert(type_is_array(type));
@@ -258,10 +266,108 @@ static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
       return emit_wrap(data, dims, ndims);
    }
 }
+#endif
 
-static type_t lower_param_type(tree_t call, int param)
+static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
+                                         vcode_reg_t rhs_data,
+                                         vcode_reg_t lhs_array,
+                                         vcode_reg_t rhs_array,
+                                         type_t left_type, type_t right_type,
+                                         vcode_cmp_t pred)
 {
-   return tree_type(tree_value(tree_param(call, param)));
+   // Behaviour of relational operators on arrays is described in
+   // LRM 93 section 7.2.2
+
+   assert(pred == VCODE_CMP_EQ || pred == VCODE_CMP_LT
+          || pred == VCODE_CMP_LEQ);
+
+   vcode_reg_t left_len  = lower_array_len(left_type, 0, lhs_array);
+   vcode_reg_t right_len = lower_array_len(right_type, 0, rhs_array);
+
+   vcode_reg_t i_reg = emit_alloca(vtype_offset(), vtype_offset(),
+                                   VCODE_INVALID_REG);
+   emit_store_indirect(emit_const(vtype_offset(), 0), i_reg);
+
+   vcode_block_t init_bb = vcode_active_block();
+   vcode_block_t test_bb = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, left_len, right_len);
+
+   if (pred == VCODE_CMP_EQ)
+      emit_cond(len_eq, test_bb, exit_bb);
+   else
+      emit_jump(test_bb);
+
+   // Loop test
+
+   vcode_select_block(test_bb);
+
+   vcode_reg_t i_loaded = emit_load_indirect(i_reg);
+   vcode_reg_t len_ge_l = emit_cmp(VCODE_CMP_GEQ, i_loaded, left_len);
+   vcode_reg_t len_ge_r = emit_cmp(VCODE_CMP_GEQ, i_loaded, right_len);
+   emit_cond(emit_or(len_ge_l, len_ge_r), exit_bb, body_bb);
+
+   // Loop body
+
+   vcode_select_block(body_bb);
+
+   vcode_reg_t l_ptr = emit_add(lhs_data, i_loaded);
+   vcode_reg_t r_ptr = emit_add(rhs_data, i_loaded);
+
+   type_t elem_type = type_elem(left_type);
+   vcode_reg_t cmp, eq;
+   if (type_is_array(elem_type)) {
+      cmp = eq = lower_array_cmp_inner(l_ptr, r_ptr,
+                                       VCODE_INVALID_REG,
+                                       VCODE_INVALID_REG,
+                                       type_elem(left_type),
+                                       type_elem(right_type), pred);
+      body_bb = vcode_active_block();
+   }
+   else {
+      if (type_is_record(elem_type)) {
+         assert(false);
+         //cmp = eq = cgen_record_eq(l_ptr, r_ptr, elem_type, pred, ctx);
+         //body_bb = LLVMGetInsertBlock(builder);
+      }
+      else {
+         vcode_reg_t l_val = emit_load_indirect(l_ptr);
+         vcode_reg_t r_val = emit_load_indirect(r_ptr);
+
+         cmp = emit_cmp(pred, l_val, r_val);
+         eq  = (pred == VCODE_CMP_EQ) ? cmp
+            : emit_cmp(VCODE_CMP_EQ, l_val, r_val);
+      }
+   }
+
+   vcode_reg_t inc = emit_add(i_loaded, emit_const(vtype_offset(), 1));
+   emit_store_indirect(inc, i_reg);
+
+   vcode_reg_t i_eq_len = emit_cmp(VCODE_CMP_EQ, inc, left_len);
+   vcode_reg_t done = emit_or(emit_not(eq), emit_and(len_eq, i_eq_len));
+
+   emit_cond(done, exit_bb, test_bb);
+
+   // Epilogue
+
+   vcode_select_block(exit_bb);
+
+   vcode_reg_t   values[] = { cmp,     len_ge_l, len_eq  };
+   vcode_block_t bbs[]    = { body_bb, test_bb,  init_bb };
+   return emit_phi(values, bbs, (pred == VCODE_CMP_EQ) ? 3 : 2);
+}
+
+static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
+                                   tree_t fcall, vcode_cmp_t pred)
+{
+   return lower_array_cmp_inner(lower_array_data(r0),
+                                lower_array_data(r1),
+                                r0, r1,
+                                tree_type(tree_value(tree_param(fcall, 0))),
+                                tree_type(tree_value(tree_param(fcall, 1))),
+                                pred);
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -301,12 +407,20 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_abs(r0);
    else if (icmp(builtin, "identity"))
       return r0;
+   else if (icmp(builtin, "not"))
+      return emit_not(r0);
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
    else if (icmp(builtin, "aeq"))
-      return emit_array_cmp(VCODE_CMP_EQ,
-                            lower_wrap(lower_param_type(fcall, 0), r0),
-                            lower_wrap(lower_param_type(fcall, 1), r1));
+      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_EQ);
+   else if (icmp(builtin, "alt"))
+      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_LT);
+   else if (icmp(builtin, "aleq"))
+      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_LEQ);
+   else if (icmp(builtin, "agt"))
+      return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LEQ));
+   else if (icmp(builtin, "ageq"))
+      return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LT));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -700,7 +814,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 
    vcode_reg_t left_reg  = lower_reify_expr(r.left);
    vcode_reg_t right_reg = lower_reify_expr(r.right);
-   vcode_reg_t len_reg   = lower_array_len(agg_type, VCODE_INVALID_REG);
+   vcode_reg_t len_reg   = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
 
    vcode_reg_t mem_reg = emit_alloca(lower_type(elem_type),
                                      lower_bounds(elem_type), len_reg);

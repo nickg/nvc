@@ -76,7 +76,9 @@ typedef enum {
    VCODE_OP_UARRAY_RIGHT,
    VCODE_OP_UARRAY_DIR,
    VCODE_OP_UNWRAP,
-   VCODE_OP_ARRAY_CMP,
+   VCODE_OP_NOT,
+   VCODE_OP_PHI,
+   VCODE_OP_AND,
 } vcode_op_t;
 
 typedef enum {
@@ -138,6 +140,7 @@ bool vcode_block_finished(void);
 ident_t vcode_unit_name(void);
 vunit_kind_t vcode_unit_kind(void);
 vcode_type_t vcode_unit_result(void);
+vcode_block_t vcode_active_block(void);
 
 int vcode_count_params(void);
 vcode_type_t vcode_param_type(int param);
@@ -161,8 +164,7 @@ ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
-vcode_block_t vcode_get_target(int op);
-vcode_block_t vcode_get_target_else(int op);
+vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
 int vcode_count_args(int op);
 vcode_reg_t vcode_get_arg(int op, int arg);
@@ -223,11 +225,15 @@ void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
 vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_and(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims);
 vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_not(vcode_reg_t arg);
+vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
+                     unsigned count);
 
 #endif  // _VCODE_H
