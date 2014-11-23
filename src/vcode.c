@@ -533,7 +533,7 @@ const char *vcode_op_string(vcode_op_t op)
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap"
+      "uarray right", "uarray dir", "unwrap", "array cmp"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -724,6 +724,7 @@ void vcode_dump(void)
          const op_t *op = &(b->ops[j]);
          switch (op->kind) {
          case VCODE_OP_CMP:
+         case VCODE_OP_ARRAY_CMP:
             {
                vcode_dump_reg(op->result);
                printf(" := %s ", vcode_op_string(op->kind));
@@ -1112,13 +1113,10 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
                      return false;
                }
 
-               return vtype_eq(at->elem, bt->elem)
-                  && vtype_eq(at->bounds, bt->bounds);
+               return vtype_eq(at->elem, bt->elem);
             }
          case VCODE_TYPE_UARRAY:
-            return at->ndim == bt->ndim
-               && vtype_eq(at->elem, bt->elem)
-               && vtype_eq(at->bounds, bt->bounds);
+            return at->ndim == bt->ndim && vtype_eq(at->elem, bt->elem);
 
          case VCODE_TYPE_POINTER:
             return vtype_eq(at->pointed, bt->pointed);
@@ -1472,12 +1470,13 @@ void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index)
    op->index = index;
 }
 
-vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_cmp_op(vcode_op_t opkind, vcode_cmp_t cmp,
+                               vcode_reg_t lhs, vcode_reg_t rhs)
 {
    if (cmp == VCODE_CMP_EQ && lhs == rhs)
       return emit_const(vtype_bool(), 1);
 
-   op_t *op = vcode_add_op(VCODE_OP_CMP);
+   op_t *op = vcode_add_op(opkind);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
    op->cmp    = cmp;
@@ -1485,10 +1484,21 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 
    if (!vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs))) {
       vcode_dump();
-      fatal_trace("arguments to cmp are not the same type");
+      fatal_trace("arguments to %s are not the same type",
+                  vcode_op_string(opkind));
    }
 
    return op->result;
+}
+
+vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_cmp_op(VCODE_OP_CMP, cmp, lhs, rhs);
+}
+
+vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_cmp_op(VCODE_OP_ARRAY_CMP, cmp, lhs, rhs);
 }
 
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
@@ -2130,14 +2140,17 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
    }
 
    vcode_type_t ptr_type = vcode_reg_type(data);
-   if (vtype_kind(ptr_type) != VCODE_TYPE_POINTER) {
+   const vtype_kind_t ptrkind = vtype_kind(ptr_type);
+   if (ptrkind != VCODE_TYPE_POINTER && ptrkind != VCODE_TYPE_CARRAY) {
       vcode_dump();
       fatal_trace("wrapped data is not pointer");
    }
 
+   vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
+      ? vtype_pointed(ptr_type) : vtype_elem(ptr_type);
+
    op->result = vcode_add_reg(vtype_uarray(dim_types, ndims,
-                                           vtype_pointed(ptr_type),
-                                           vcode_reg_bounds(data)));
+                                           elem, vcode_reg_bounds(data)));
 
    return op->result;
 }

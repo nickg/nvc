@@ -76,6 +76,7 @@ typedef enum {
    VCODE_OP_UARRAY_RIGHT,
    VCODE_OP_UARRAY_DIR,
    VCODE_OP_UNWRAP,
+   VCODE_OP_ARRAY_CMP,
 } vcode_op_t;
 
 typedef enum {
@@ -227,5 +228,6 @@ vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
+vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 
 #endif  // _VCODE_H

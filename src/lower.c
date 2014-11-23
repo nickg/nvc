@@ -228,10 +228,40 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
       assert(tree_subkind(param) == P_POS);
       assert(tree_pos(param) == nth);
 
-      return lower_reify_expr(tree_value(param));
+      tree_t value = tree_value(param);
+      vcode_reg_t reg = lower_expr(value, EXPR_RVALUE);
+      return type_is_scalar(tree_type(value)) ? lower_reify(reg) : reg;
    }
    else
       return VCODE_INVALID_REG;
+}
+
+static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
+{
+   assert(type_is_array(type));
+   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(data));
+   if (vtkind == VCODE_TYPE_UARRAY)
+      return data;
+   else {
+      //assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_CARRAY);
+      assert(!type_is_unconstrained(type));
+
+      const int ndims = type_dims(type);
+      vcode_dim_t dims[ndims];
+      for (int i = 0; i < ndims; i++) {
+         range_t r = type_dim(type, i);
+         dims[i].left  = lower_reify_expr(r.left);
+         dims[i].right = lower_reify_expr(r.right);
+         dims[i].dir   = emit_const(vtype_bool(), r.kind == RANGE_DOWNTO);
+      }
+
+      return emit_wrap(data, dims, ndims);
+   }
+}
+
+static type_t lower_param_type(tree_t call, int param)
+{
+   return tree_type(tree_value(tree_param(call, param)));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -273,6 +303,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return r0;
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
+   else if (icmp(builtin, "aeq"))
+      return emit_array_cmp(VCODE_CMP_EQ,
+                            lower_wrap(lower_param_type(fcall, 0), r0),
+                            lower_wrap(lower_param_type(fcall, 1), r1));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }

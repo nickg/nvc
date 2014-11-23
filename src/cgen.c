@@ -758,6 +758,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_UNWRAP:
       cgen_op_unwrap(i, ctx);
       break;
+   case VCODE_OP_ARRAY_CMP:
+      cgen_op_array_cmp(i, ctx);
+      break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
    }
