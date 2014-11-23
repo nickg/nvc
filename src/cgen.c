@@ -42,6 +42,7 @@ typedef struct {
    LLVMValueRef       fn;
    LLVMValueRef       state;
    size_t             var_base;
+   LLVMValueRef      *locals;
 } cgen_ctx_t;
 
 static LLVMModuleRef  module = NULL;
@@ -122,7 +123,7 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
    LLVMTypeRef dim_fields[] = {
       LLVMInt32Type(),      // Left
       LLVMInt32Type(),      // Right
-      LLVMInt8Type()        // Direction
+      LLVMInt1Type()        // Direction
    };
 
    LLVMTypeRef dim_struct =
@@ -183,6 +184,12 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       }
       break;
 
+   case VCODE_TYPE_UARRAY:
+      return llvm_uarray_type(cgen_type(vtype_elem(type)), vtype_dims(type));
+
+   case VCODE_TYPE_OFFSET:
+      return LLVMInt32Type();
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }
@@ -204,9 +211,39 @@ static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 {
-   assert(ctx->state != NULL);
-   return LLVMBuildStructGEP(builder, ctx->state, ctx->var_base + var,
-                             istr(vcode_var_name(var)));
+   if (ctx->state != NULL)
+      return LLVMBuildStructGEP(builder, ctx->state, ctx->var_base + var,
+                                istr(vcode_var_name(var)));
+   else {
+      assert(ctx->locals != NULL);
+      return ctx->locals[var];
+   }
+}
+
+static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
+{
+   LLVMValueRef _tmp_stack_ptr = LLVMGetNamedGlobal(module, "_tmp_stack");
+   LLVMValueRef _tmp_alloc_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+
+   LLVMValueRef alloc = LLVMBuildLoad(builder, _tmp_alloc_ptr, "alloc");
+   LLVMValueRef stack = LLVMBuildLoad(builder, _tmp_stack_ptr, "stack");
+
+   LLVMValueRef indexes[] = { alloc };
+   LLVMValueRef buf = LLVMBuildGEP(builder, stack,
+                                   indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef alloc_next =
+      LLVMBuildAnd(builder,
+                   LLVMBuildAdd(builder, alloc,
+                                LLVMBuildAdd(builder, bytes, llvm_int32(3), ""),
+                                "alloc_align_max"),
+                   llvm_int32(~3),
+                   "alloc_next");
+
+   LLVMBuildStore(builder, alloc_next, _tmp_alloc_ptr);
+
+   return LLVMBuildPointerCast(builder, buf,
+                               LLVMPointerType(type, 0), "tmp_buf");
 }
 
 static bool cgen_is_uarray_struct(LLVMValueRef meta)
@@ -494,6 +531,11 @@ static void cgen_op_store(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
 }
 
+static void cgen_op_store_indirect(int op, cgen_ctx_t *ctx)
+{
+   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_arg(op, 1, ctx));
+}
+
 static void cgen_op_load(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -502,10 +544,26 @@ static void cgen_op_load(int op, cgen_ctx_t *ctx)
                                      cgen_reg_name(result));
 }
 
+static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   ctx->regs[result] = LLVMBuildLoad(builder, ptr, cgen_reg_name(result));
+}
+
 static void cgen_op_add(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildAdd(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_get_arg(op, 1, ctx),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_sub(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildSub(builder,
                                     cgen_get_arg(op, 0, ctx),
                                     cgen_get_arg(op, 1, ctx),
                                     cgen_reg_name(result));
@@ -546,6 +604,83 @@ static void cgen_op_image(int op, cgen_ctx_t *ctx)
 
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildLoad(builder, res, cgen_reg_name(result));
+}
+
+static void cgen_op_cast(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t arg    = vcode_get_arg(op, 0);
+   vcode_reg_t result = vcode_get_result(op);
+
+   vcode_type_t arg_type = vcode_reg_type(arg);
+   LLVMOpcode lop = LLVMBitCast;
+   if (vtype_kind(arg_type) == VCODE_TYPE_INT)
+      lop = (vtype_low(arg_type) < 0) ? LLVMSExt : LLVMZExt;
+
+   ctx->regs[result] = LLVMBuildCast(builder, lop, ctx->regs[arg],
+                                     cgen_type(arg_type),
+                                     cgen_reg_name(result));
+}
+
+static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   LLVMTypeRef type   = cgen_type(vcode_get_type(op));
+
+   if (vcode_count_args(op) == 0)
+      ctx->regs[result] = LLVMBuildAlloca(builder, type, cgen_reg_name(result));
+   else {
+      vcode_reg_t count  = vcode_get_arg(op, 0);
+      ctx->regs[result] = cgen_tmp_alloc(ctx->regs[count], type);
+   }
+}
+
+static void cgen_op_cond(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef test = cgen_get_arg(op, 0, ctx);
+   LLVMBuildCondBr(builder, test,
+                   ctx->blocks[vcode_get_target(op)],
+                   ctx->blocks[vcode_get_target_else(op)]);
+}
+
+static void cgen_op_wrap(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   const int dims = vcode_count_args(op) / 3;
+   LLVMTypeRef uarray_type = cgen_type(vcode_reg_type(result));
+
+   LLVMTypeRef field_types[LLVMCountStructElementTypes(uarray_type)];
+   LLVMGetStructElementTypes(uarray_type, field_types);
+
+   LLVMTypeRef dim_struct = LLVMGetElementType(field_types[1]);
+
+   LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
+
+   for (int i = 0; i < dims; i++) {
+      LLVMValueRef left  = cgen_get_arg(op, (i * 3) + 1, ctx);
+      LLVMValueRef right = cgen_get_arg(op, (i * 3) + 2, ctx);
+      LLVMValueRef dir   = cgen_get_arg(op, (i * 3) + 3, ctx);
+
+      LLVMValueRef d = LLVMGetUndef(dim_struct);
+      d = LLVMBuildInsertValue(builder, d, left, 0, "");
+      d = LLVMBuildInsertValue(builder, d, right, 1, "");
+      d = LLVMBuildInsertValue(builder, d, dir, 2, "");
+
+      dim_array = LLVMBuildInsertValue(builder, dim_array, d, i, "");
+   }
+
+   LLVMValueRef var = LLVMGetUndef(uarray_type);
+   var = LLVMBuildInsertValue(builder, var, cgen_get_arg(op, 0, ctx), 0, "");
+
+   ctx->regs[result] = LLVMBuildInsertValue(builder, var, dim_array, 1,
+                                            cgen_reg_name(result));
+}
+
+static void cgen_op_unwrap(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, cgen_get_arg(op, 0, ctx),
+                                             0, cgen_reg_name(result));
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -590,6 +725,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_ADD:
       cgen_op_add(i, ctx);
       break;
+   case VCODE_OP_SUB:
+      cgen_op_sub(i, ctx);
+      break;
    case VCODE_OP_MUL:
       cgen_op_mul(i, ctx);
       break;
@@ -598,6 +736,27 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_IMAGE:
       cgen_op_image(i, ctx);
+      break;
+   case VCODE_OP_CAST:
+      cgen_op_cast(i, ctx);
+      break;
+   case VCODE_OP_ALLOCA:
+      cgen_op_alloca(i, ctx);
+      break;
+   case VCODE_OP_STORE_INDIRECT:
+      cgen_op_store_indirect(i, ctx);
+      break;
+   case VCODE_OP_LOAD_INDIRECT:
+      cgen_op_load_indirect(i, ctx);
+      break;
+   case VCODE_OP_COND:
+      cgen_op_cond(i, ctx);
+      break;
+   case VCODE_OP_WRAP:
+      cgen_op_wrap(i, ctx);
+      break;
+   case VCODE_OP_UNWRAP:
+      cgen_op_unwrap(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -626,6 +785,9 @@ static void cgen_alloc_context(cgen_ctx_t *ctx)
    ctx->regs   = xcalloc(nregs * sizeof(LLVMValueRef));
    ctx->blocks = xcalloc(nblocks * sizeof(LLVMBasicBlockRef));
 
+   if (ctx->state == NULL)
+      ctx->locals = xcalloc(vcode_count_vars() * sizeof(LLVMValueRef));
+
    for (int i = 0; i < nblocks; i++) {
       char *name = xasprintf("vcode_block_%d", i);
       ctx->blocks[i] = LLVMAppendBasicBlock(ctx->fn, name);
@@ -637,6 +799,7 @@ static void cgen_free_context(cgen_ctx_t *ctx)
 {
    free(ctx->regs);
    free(ctx->blocks);
+   free(ctx->locals);
 }
 
 static void cgen_code(cgen_ctx_t *ctx)
@@ -651,6 +814,16 @@ static void cgen_params(cgen_ctx_t *ctx)
    const int nparams = vcode_count_params();
    for (int i = 0; i < nparams; i++)
       ctx->regs[vcode_param_reg(i)] = LLVMGetParam(ctx->fn, i);
+}
+
+static void cgen_locals(cgen_ctx_t *ctx)
+{
+   LLVMPositionBuilderAtEnd(builder, ctx->blocks[0]);
+
+   const int nvars = vcode_count_vars();
+   for (int i = 0; i < nvars; i++)
+      ctx->locals[i] = LLVMBuildAlloca(builder, cgen_type(vcode_var_type(i)),
+                                       istr(vcode_var_name(i)));
 }
 
 static LLVMTypeRef cgen_subprogram_type(void)
@@ -682,6 +855,7 @@ static void cgen_function(vcode_unit_t code)
    cgen_alloc_context(&ctx);
 
    cgen_params(&ctx);
+   cgen_locals(&ctx);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
 }

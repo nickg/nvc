@@ -726,20 +726,13 @@ START_TEST(test_issue94)
 
    tree_t e = run_elab();
    lower_unit(e);
-
-   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
-   vcode_select_unit(v0);
-
-   EXPECT_BB(0) = {
-      { VCODE_OP_RETURN }
-   };
-
-   CHECK_BB(0);
 }
 END_TEST
 
 int main(void)
 {
+   term_init();
+
    Suite *s = suite_create("lower");
 
    TCase *tc = nvc_unit_test();

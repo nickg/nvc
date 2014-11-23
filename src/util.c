@@ -346,7 +346,7 @@ int color_printf(const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   char *strp LOCAL = prepare_msg(fmt, ap, true);
+   char *strp LOCAL = prepare_msg(fmt, ap, false);
    va_end(ap);
 
    bool escape = false;
@@ -784,7 +784,8 @@ void term_init(void)
       "dumb"
    };
 
-   want_color = isatty(STDERR_FILENO) && (nvc_no_color == NULL);
+   want_color = isatty(STDERR_FILENO) && isatty(STDOUT_FILENO)
+      && (nvc_no_color == NULL);
 
    if (want_color && (term != NULL)) {
       for (size_t i = 0; i < ARRAY_LEN(term_blacklist); i++) {

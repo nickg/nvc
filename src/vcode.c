@@ -49,6 +49,7 @@ typedef struct {
       char          *comment;
       vcode_signal_t signal;
       uint32_t       index;
+      unsigned       dim;
    };
 } op_t;
 
@@ -456,7 +457,7 @@ vcode_signal_t vcode_get_signal(int op)
 vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_BOUNDS);
+   assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA);
    return o->type;
 }
 
@@ -531,7 +532,8 @@ const char *vcode_op_string(vcode_op_t op)
       "mul", "add", "bounds", "comment", "const array", "index", "sub",
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
-      "rem", "image", "alloca", "select", "or"
+      "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
+      "uarray right", "uarray dir", "unwrap"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1013,10 +1015,61 @@ void vcode_dump(void)
                col += printf(" then ");
                col += vcode_dump_reg(op->args[1]);
                col += printf(" else ");
-               col += vcode_dump_reg(op->args[1]);
+               col += vcode_dump_reg(op->args[2]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
+            break;
+
+         case VCODE_OP_WRAP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               col += printf(" [");
+               for (int i = 1; i < op->nargs; i += 3) {
+                  if (i > 1)
+                     col += printf(", ");
+                  col += vcode_dump_reg(op->args[i + 0]);
+                  col += printf(" ");
+                  col += vcode_dump_reg(op->args[i + 1]);
+                  col += printf(" ");
+                  col += vcode_dump_reg(op->args[i + 2]);
+               }
+               col += printf("]");
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_UARRAY_LEFT:
+         case VCODE_OP_UARRAY_RIGHT:
+         case VCODE_OP_UARRAY_DIR:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               col += printf(" dim %d", op->dim);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_UNWRAP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args[0]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
          }
 
          printf("\n");
@@ -1165,7 +1218,8 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    return vtype_new(r);
 }
 
-vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
+                          vcode_type_t elem, vcode_type_t bounds)
 {
    assert(active_unit != NULL);
 
@@ -1177,6 +1231,8 @@ vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
    n->elem   = elem;
    n->bounds = bounds;
    n->ndim   = ndim;
+   for (int i = 0; i < ndim; i++)
+      n->dim[i] = dim_types[i];
 
    return vtype_new(r);
 }
@@ -1597,7 +1653,8 @@ vcode_reg_t emit_load(vcode_var_t var)
    op->result  = vcode_add_reg(v->type);
 
    vtype_kind_t type_kind = vtype_kind(v->type);
-   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET) {
+   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
+       && type_kind != VCODE_TYPE_UARRAY) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -1624,7 +1681,8 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
    op->result = vcode_add_reg(deref);
 
    vtype_kind_t type_kind = vtype_kind(deref);
-   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET) {
+   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
+       && type_kind != VCODE_TYPE_UARRAY) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -2016,8 +2074,11 @@ vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
    vcode_add_arg(op, value);
    op->index = index;
 
+   vcode_type_t dim_types[1] = {
+      vtype_int(1, INT32_MAX)
+   };
    op->result = vcode_add_reg(
-      vtype_uarray(1, vtype_int(0, 255), vtype_int(0, 127)));
+      vtype_uarray(dim_types, 1, vtype_int(0, 255), vtype_int(0, 127)));
 
    return op->result;
 }
@@ -2054,4 +2115,83 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
 vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    return emit_arith(VCODE_OP_OR, lhs, rhs);
+}
+
+vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
+{
+   op_t *op = vcode_add_op(VCODE_OP_WRAP);
+   vcode_add_arg(op, data);
+   vcode_type_t dim_types[ndims];
+   for (int i = 0; i < ndims; i++) {
+      vcode_add_arg(op, dims[i].left);
+      vcode_add_arg(op, dims[i].right);
+      vcode_add_arg(op, dims[i].dir);
+      dim_types[i] = vcode_reg_type(dims[i].left);
+   }
+
+   vcode_type_t ptr_type = vcode_reg_type(data);
+   if (vtype_kind(ptr_type) != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("wrapped data is not pointer");
+   }
+
+   op->result = vcode_add_reg(vtype_uarray(dim_types, ndims,
+                                           vtype_pointed(ptr_type),
+                                           vcode_reg_bounds(data)));
+
+   return op->result;
+}
+
+static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
+                                  vcode_reg_t array, unsigned dim)
+{
+   op_t *op = vcode_add_op(o);
+   vcode_add_arg(op, array);
+   op->dim = dim;
+
+   vcode_type_t atype = vcode_reg_type(array);
+   if (vtype_kind(atype) != VCODE_TYPE_UARRAY) {
+      vcode_dump();
+      fatal_trace("cannot use %s with non-uarray type", vcode_op_string(o));
+   }
+
+   vtype_t *vt = vcode_type_data(atype);
+   if (dim >= vt->ndim) {
+      vcode_dump();
+      fatal_trace("invalid dimension %d", dim);
+   }
+
+   if (rtype == VCODE_INVALID_TYPE)
+      rtype = vt->dim[dim];
+
+   return (op->result = vcode_add_reg(rtype));
+}
+
+vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim)
+{
+   return emit_uarray_op(VCODE_OP_UARRAY_LEFT, VCODE_INVALID_TYPE, array, dim);
+}
+
+vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim)
+{
+   return emit_uarray_op(VCODE_OP_UARRAY_RIGHT, VCODE_INVALID_TYPE, array, dim);
+}
+
+vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
+{
+   return emit_uarray_op(VCODE_OP_UARRAY_DIR, vtype_bool(), array, dim);
+}
+
+vcode_reg_t emit_unwrap(vcode_reg_t array)
+{
+   op_t *op = vcode_add_op(VCODE_OP_UNWRAP);
+   vcode_add_arg(op, array);
+
+   vtype_t *vt = vcode_type_data(vcode_reg_type(array));
+   if (vt->kind != VCODE_TYPE_UARRAY) {
+      vcode_dump();
+      fatal_trace("unwrap can only only be used with uarray types");
+   }
+
+   return (op->result = vcode_add_reg(vtype_pointer(vt->elem)));
 }

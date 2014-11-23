@@ -70,7 +70,12 @@ typedef enum {
    VCODE_OP_IMAGE,
    VCODE_OP_ALLOCA,
    VCODE_OP_SELECT,
-   VCODE_OP_OR
+   VCODE_OP_OR,
+   VCODE_OP_WRAP,
+   VCODE_OP_UARRAY_LEFT,
+   VCODE_OP_UARRAY_RIGHT,
+   VCODE_OP_UARRAY_DIR,
+   VCODE_OP_UNWRAP,
 } vcode_op_t;
 
 typedef enum {
@@ -88,17 +93,25 @@ typedef enum {
    VCODE_UNIT_FUNCTION
 } vunit_kind_t;
 
+typedef struct {
+   vcode_reg_t left;
+   vcode_reg_t right;
+   vcode_reg_t dir;
+} vcode_dim_t;
+
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
 #define VCODE_INVALID_SIGNAL -1
+#define VCODE_INVALID_TYPE   -1
 
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
 vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
                           vcode_type_t elem, vcode_type_t bounds);
-vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds);
+vcode_type_t vtype_uarray(const vcode_type_t *dim_types,
+                          int ndim, vcode_type_t elem, vcode_type_t bounds);
 vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
@@ -209,5 +222,10 @@ void emit_comment(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
 vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims);
+vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim);
+vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);
+vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
+vcode_reg_t emit_unwrap(vcode_reg_t array);
 
 #endif  // _VCODE_H
