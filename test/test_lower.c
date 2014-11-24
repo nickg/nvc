@@ -144,9 +144,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_NEG:
       case VCODE_OP_ABS:
       case VCODE_OP_CAST:
+      case VCODE_OP_OR:
+      case VCODE_OP_AND:
+      case VCODE_OP_NOT:
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_SCHED_WAVEFORM:
+      case VCODE_OP_ALLOCA:
+      case VCODE_OP_PHI:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -745,12 +750,62 @@ START_TEST(test_arrayop1)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = INT32_MIN },
-      { VCODE_OP_STORE, .name = "R" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_STORE, .name = "X" },
       { VCODE_OP_RETURN }
    };
 
    CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_COND, .target = 2, .target_else = 4 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 3 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_ADD },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_NOT },
+      { VCODE_OP_OR },
+      { VCODE_OP_COND, .target = 4, .target_else = 2 }
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_PHI },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 5 }
+   };
+
+   CHECK_BB(4);
 }
 END_TEST
 

@@ -51,12 +51,10 @@ static LLVMValueRef   mod_name = NULL;
 
 static LLVMValueRef cgen_support_fn(const char *name);
 
-#if 0
 static LLVMValueRef llvm_int1(bool b)
 {
    return LLVMConstInt(LLVMInt1Type(), b, false);
 }
-#endif
 
 static LLVMValueRef llvm_int8(int8_t i)
 {
@@ -85,20 +83,16 @@ static LLVMTypeRef llvm_void_ptr(void)
    return LLVMPointerType(LLVMInt8Type(), 0);
 }
 
-#if 0
 static LLVMValueRef llvm_void_cast(LLVMValueRef ptr)
 {
    return LLVMBuildPointerCast(builder, ptr, llvm_void_ptr(), "");
 }
-#endif
 
-#if 0
 static LLVMValueRef llvm_sizeof(LLVMTypeRef type)
 {
    return LLVMBuildIntCast(builder, LLVMSizeOf(type),
                            LLVMInt32Type(), "");
 }
-#endif
 
 static LLVMValueRef llvm_fn(const char *name)
 {
@@ -200,6 +194,14 @@ static const char *cgen_reg_name(vcode_reg_t r)
    static char buf[32];
    checked_sprintf(buf, sizeof(buf), "r%d", r);
    return buf;
+}
+
+static const char *cgen_memcpy_name(int width)
+{
+   static char name[64];
+   checked_sprintf(name, sizeof(name),
+                   "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
+   return name;
 }
 
 static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
@@ -531,7 +533,21 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
 static void cgen_op_store(int op, cgen_ctx_t *ctx)
 {
    vcode_var_t var = vcode_get_address(op);
-   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
+
+   vcode_type_t type = vcode_reg_type(vcode_get_arg(op, 0));
+   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
+      LLVMValueRef memcpy_args[] = {
+         llvm_void_cast(cgen_get_var(var, ctx)),
+         llvm_void_cast(cgen_get_arg(op, 0, ctx)),
+         llvm_sizeof(cgen_type(type)),
+         llvm_int32(4),
+         llvm_int1(0)
+      };
+      LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(8)),
+                    memcpy_args, ARRAY_LEN(memcpy_args), "");
+   }
+   else
+      LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
 }
 
 static void cgen_op_store_indirect(int op, cgen_ctx_t *ctx)
@@ -1109,14 +1125,6 @@ static void cgen_optimise(void)
 
    LLVMRunPassManager(pass_mgr, module);
    LLVMDisposePassManager(pass_mgr);
-}
-
-static const char *cgen_memcpy_name(int width)
-{
-   static char name[64];
-   checked_sprintf(name, sizeof(name),
-                   "llvm.memcpy.p0i%d.p0i%d.i32", width, width);
-   return name;
 }
 
 static LLVMValueRef cgen_support_fn(const char *name)

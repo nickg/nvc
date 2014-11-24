@@ -362,6 +362,7 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
 static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
                                    tree_t fcall, vcode_cmp_t pred)
 {
+   emit_comment("Begin array cmp line %d", tree_loc(fcall)->first_line);
    return lower_array_cmp_inner(lower_array_data(r0),
                                 lower_array_data(r1),
                                 r0, r1,

@@ -287,7 +287,7 @@ static bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
       return false;
 
    vtype_t *bounds = vcode_type_data(r->bounds);
-   if (bounds->low == bounds->high) {
+   if (bounds->kind == VCODE_TYPE_INT && bounds->low == bounds->high) {
       *value = bounds->low;
       return true;
    }
@@ -1510,6 +1510,15 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    if (cmp == VCODE_CMP_EQ && lhs == rhs)
       return emit_const(vtype_bool(), 1);
 
+   // Reuse any previous operation in this block with the same arguments
+   block_t *b = &(active_unit->blocks[active_block]);
+   for (int i = b->nops - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops[i]);
+      if (op->kind == VCODE_OP_CMP && op->nargs == 2 && op->args[0] == lhs
+          && op->args[1] == rhs && op->cmp == cmp)
+         return op->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CMP);
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
@@ -2146,11 +2155,47 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    return op->result;
 }
 
+static vcode_reg_t emit_logical_identity(vcode_op_t op, vcode_reg_t reg, bool b)
+{
+   switch (op) {
+   case VCODE_OP_AND: return b ? reg : emit_const(vtype_bool(), 0);
+   case VCODE_OP_OR:  return b ? emit_const(vtype_bool(), 1) : reg;
+   default:
+      fatal_trace("missing logicial identity for %s", vcode_op_string(op));
+   }
+}
+
 static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
 {
+   vcode_type_t vtbool = vtype_bool();
+
+   int64_t lconst, rconst;
+   const bool l_is_const = vcode_reg_const(lhs, &lconst);
+   const bool r_is_const = vcode_reg_const(rhs, &rconst);
+   if (l_is_const && r_is_const) {
+      switch (op) {
+      case VCODE_OP_AND: return emit_const(vtbool, l_is_const && r_is_const);
+      case VCODE_OP_OR:  return emit_const(vtbool, l_is_const || r_is_const);
+      default:
+         fatal_trace("cannot constant fold logical %s", vcode_op_string(op));
+      }
+   }
+   else if (l_is_const)
+      return emit_logical_identity(op, rhs, !!lconst);
+   else if (r_is_const)
+      return emit_logical_identity(op, lhs, !!rconst);
+   else if (lhs == rhs) {
+      switch (op) {
+      case VCODE_OP_AND:
+      case VCODE_OP_OR:
+         return lhs;
+      default:
+         fatal_trace("cannot simplify X %s X", vcode_op_string(op));
+      }
+   }
+
    vcode_reg_t result = emit_arith(op, lhs, rhs);
 
-   vcode_type_t vtbool = vtype_bool();
    if (!vtype_eq(vcode_reg_type(lhs), vtbool)
        || !vtype_eq(vcode_reg_type(rhs), vtbool)) {
       vcode_dump();
