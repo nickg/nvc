@@ -108,17 +108,30 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       reg != VCODE_INVALID_REG
       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
 
+   vcode_reg_t len_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type) || have_uarray) {
       assert(reg != VCODE_INVALID_REG);
-      assert(false);
+
+      vcode_reg_t left_reg  = emit_uarray_left(reg, dim);
+      vcode_reg_t right_reg = emit_uarray_right(reg, dim);
+
+      vcode_reg_t diff = emit_select(emit_uarray_dir(reg, dim),
+                                     emit_sub(left_reg, right_reg),
+                                     emit_sub(right_reg, left_reg));
+
+      len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
    }
    else {
       assert(type_dims(type) == 1);
       range_t r = type_dim(type, dim);
+
+      int64_t low, high;
+      if (folded_bounds(r, &low, &high))
+         return emit_const(vtype_offset(), MAX(high - low + 1, 0));
+
       vcode_reg_t left_reg  = lower_reify_expr(r.left);
       vcode_reg_t right_reg = lower_reify_expr(r.right);
 
-      // XXX: handle null range here
       vcode_reg_t diff = VCODE_INVALID_REG;
       switch (r.kind) {
       case RANGE_TO:
@@ -130,12 +143,18 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       case RANGE_DYN:
       case RANGE_RDYN:
       case RANGE_EXPR:
-         assert(false);
+         fatal_trace("unexpected range direction in lower_array_len");
       }
 
-      return emit_cast(vtype_offset(),
-                       emit_add(diff, emit_const(vcode_reg_type(left_reg), 1)));
+      len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
    }
+
+   vcode_type_t offset_type = vtype_offset();
+   vcode_reg_t cast_reg = emit_cast(offset_type, len_reg);
+   vcode_reg_t zero_reg = emit_const(offset_type, 0);
+   vcode_reg_t neg_reg = emit_cmp(VCODE_CMP_LT, cast_reg, zero_reg);
+
+   return emit_select(neg_reg, zero_reg, cast_reg);
 }
 
 static vcode_type_t lower_type(type_t type)

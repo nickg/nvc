@@ -367,20 +367,25 @@ static void cgen_op_jump(int i, cgen_ctx_t *ctx)
 static void cgen_op_fcall(int op, cgen_ctx_t *ctx)
 {
    ident_t func = vcode_get_func(op);
+   const int nargs = vcode_count_args(op);
 
    vcode_reg_t result = vcode_get_result(op);
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
    if (fn == NULL) {
+      LLVMTypeRef atypes[nargs];
+      for (int i = 0; i < nargs; i++)
+         atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
+
       fn = LLVMAddFunction(
          module,
          istr(func),
-         LLVMFunctionType(cgen_type(vcode_reg_type(result)), NULL, 0, false));
+         LLVMFunctionType(cgen_type(vcode_reg_type(result)),
+                          atypes, nargs, false));
 
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
 
-   const int nargs = vcode_count_args(op);
    LLVMValueRef args[nargs];
    for (int i = 0; i < nargs; i++)
       args[i] = cgen_get_arg(op, i, ctx);
@@ -771,6 +776,46 @@ static void cgen_op_index(int op, cgen_ctx_t *ctx)
                                     ARRAY_LEN(index), cgen_reg_name(result));
 }
 
+static void cgen_op_select(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildSelect(builder,
+                                       cgen_get_arg(op, 0, ctx),
+                                       cgen_get_arg(op, 1, ctx),
+                                       cgen_get_arg(op, 2, ctx),
+                                       cgen_reg_name(result));
+}
+
+static void cgen_op_uarray_left(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
+                                      vcode_get_dim(op));
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, dim, 0,
+                                             cgen_reg_name(result));
+}
+
+static void cgen_op_uarray_right(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
+                                      vcode_get_dim(op));
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, dim, 1,
+                                             cgen_reg_name(result));
+}
+
+static void cgen_op_uarray_dir(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
+                                      vcode_get_dim(op));
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildExtractValue(builder, dim, 2,
+                                             cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -860,6 +905,18 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_PHI:
       cgen_op_phi(i, ctx);
+      break;
+   case VCODE_OP_SELECT:
+      cgen_op_select(i, ctx);
+      break;
+   case VCODE_OP_UARRAY_LEFT:
+      cgen_op_uarray_left(i, ctx);
+      break;
+   case VCODE_OP_UARRAY_RIGHT:
+      cgen_op_uarray_right(i, ctx);
+      break;
+   case VCODE_OP_UARRAY_DIR:
+      cgen_op_uarray_dir(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

@@ -171,6 +171,7 @@ vcode_reg_t vcode_get_arg(int op, int arg);
 vcode_type_t vcode_get_type(int op);
 vcode_reg_t vcode_get_result(int op);
 vcode_signal_t vcode_get_signal(int op);
+unsigned vcode_get_dim(int op);
 
 int vcode_count_vars(void);
 ident_t vcode_var_name(vcode_var_t var);

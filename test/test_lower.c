@@ -17,6 +17,7 @@ typedef struct {
    int64_t       high;
    int           length;
    int           args;
+   int           dim;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -80,6 +81,17 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_REPORT:
       case VCODE_OP_RETURN:
       case VCODE_OP_IMAGE:
+      case VCODE_OP_UNWRAP:
+         break;
+
+      case VCODE_OP_UARRAY_LEFT:
+      case VCODE_OP_UARRAY_RIGHT:
+      case VCODE_OP_UARRAY_DIR:
+         if (e->dim != vcode_get_dim(i)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have dimension %d but has %d",
+                 i, bb, e->dim, vcode_get_dim(i));
+         }
          break;
 
       case VCODE_OP_WAIT:
@@ -152,6 +164,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_ALLOCA:
       case VCODE_OP_PHI:
+      case VCODE_OP_SELECT:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -769,7 +782,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_ALLOCA },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_COND, .target = 2, .target_else = 4 }
+      { VCODE_OP_JUMP, .target = 2 }
    };
 
    CHECK_BB(1);
@@ -809,6 +822,52 @@ START_TEST(test_arrayop1)
 }
 END_TEST
 
+START_TEST(test_array1)
+{
+   input_from_file(TESTDIR "/lower/array1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_FCALL, .name = ":array1:func" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_UARRAY_LEFT, .dim = 0 },
+      { VCODE_OP_UARRAY_RIGHT, .dim = 0 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_SUB },
+      { VCODE_OP_UARRAY_DIR },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CMP },
+      { VCODE_OP_COND, .target = 2, .target_else = 4 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -826,6 +885,7 @@ int main(void)
    tcase_add_test(tc, test_func1);
    tcase_add_test(tc, test_issue94);
    tcase_add_test(tc, test_arrayop1);
+   tcase_add_test(tc, test_array1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

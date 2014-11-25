@@ -287,7 +287,7 @@ static bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
       return false;
 
    vtype_t *bounds = vcode_type_data(r->bounds);
-   if (bounds->kind == VCODE_TYPE_INT && bounds->low == bounds->high) {
+   if (bounds->low == bounds->high) {
       *value = bounds->low;
       return true;
    }
@@ -459,6 +459,14 @@ vcode_signal_t vcode_get_signal(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_NETS);
    return o->address;
+}
+
+unsigned vcode_get_dim(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_UARRAY_LEFT || o->kind == VCODE_OP_UARRAY_RIGHT
+          || o->kind == VCODE_OP_UARRAY_DIR);
+   return o->dim;
 }
 
 vcode_var_t vcode_get_type(int op)
@@ -1301,6 +1309,8 @@ vcode_type_t vtype_offset(void)
 
    vtype_t *n = &(active_unit->types[r]);
    n->kind = VCODE_TYPE_OFFSET;
+   n->low  = INT64_MIN;
+   n->high = INT64_MAX;
 
    return vtype_new(r);
 }
@@ -1507,8 +1517,32 @@ void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index)
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 {
-   if (cmp == VCODE_CMP_EQ && lhs == rhs)
-      return emit_const(vtype_bool(), 1);
+   if (lhs == rhs) {
+      if (cmp == VCODE_CMP_EQ)
+         return emit_const(vtype_bool(), 1);
+      else if (cmp == VCODE_CMP_NEQ)
+         return emit_const(vtype_bool(), 0);
+   }
+
+   int64_t lconst, rconst;
+   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst)) {
+      switch (cmp) {
+      case VCODE_CMP_EQ:
+         return emit_const(vtype_bool(), lconst == rconst);
+      case VCODE_CMP_NEQ:
+         return emit_const(vtype_bool(), lconst != rconst);
+      case VCODE_CMP_LT:
+         return emit_const(vtype_bool(), lconst < rconst);
+      case VCODE_CMP_GT:
+         return emit_const(vtype_bool(), lconst > rconst);
+      case VCODE_CMP_LEQ:
+         return emit_const(vtype_bool(), lconst <= rconst);
+      case VCODE_CMP_GEQ:
+         return emit_const(vtype_bool(), lconst >= rconst);
+      default:
+         fatal_trace("cannot fold comparison %d", cmp);
+      }
+   }
 
    // Reuse any previous operation in this block with the same arguments
    block_t *b = &(active_unit->blocks[active_block]);
@@ -2074,6 +2108,12 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
 
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
 {
+   int64_t tconst;
+   if (vcode_reg_const(test, &tconst)) {
+      emit_jump(!!tconst ? btrue : bfalse);
+      return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_COND);
    vcode_add_arg(op, test);
    vcode_add_target(op, btrue);
@@ -2137,6 +2177,10 @@ void emit_comment(const char *fmt, ...)
 vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse)
 {
+   int64_t tconst;
+   if (vcode_reg_const(test, &tconst))
+      return !!tconst ? rtrue : rfalse;
+
    op_t *op = vcode_add_op(VCODE_OP_SELECT);
    vcode_add_arg(op, test);
    vcode_add_arg(op, rtrue);
