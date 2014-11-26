@@ -653,6 +653,71 @@ static void cgen_op_mul(int op, cgen_ctx_t *ctx)
                                     cgen_reg_name(result));
 }
 
+static void cgen_op_div(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildSDiv(builder,
+                                     cgen_get_arg(op, 0, ctx),
+                                     cgen_get_arg(op, 1, ctx),
+                                     cgen_reg_name(result));
+}
+
+static void cgen_op_rem(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildSRem(builder,
+                                     cgen_get_arg(op, 0, ctx),
+                                     cgen_get_arg(op, 1, ctx),
+                                     cgen_reg_name(result));
+}
+
+static void cgen_op_mod(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildURem(builder,
+                                     cgen_get_arg(op, 0, ctx),
+                                     cgen_get_arg(op, 1, ctx),
+                                     cgen_reg_name(result));
+}
+
+static void cgen_op_exp(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   // TODO: implement this without the cast
+   LLVMValueRef cast[] = {
+      LLVMBuildUIToFP(builder, cgen_get_arg(op, 0, ctx), LLVMDoubleType(), ""),
+      LLVMBuildUIToFP(builder, cgen_get_arg(op, 1, ctx), LLVMDoubleType(), "")
+   };
+   ctx->regs[result] = LLVMBuildFPToUI(
+      builder,
+      LLVMBuildCall(builder, llvm_fn("llvm.pow.f64"), cast, 2, ""),
+      cgen_type(vcode_reg_type(result)),
+      "pow");
+}
+
+static void cgen_op_neg(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildNeg(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_abs(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef arg  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(arg), 0, false);
+   ctx->regs[result] = LLVMBuildSelect(
+      builder,
+      LLVMBuildICmp(builder, LLVMIntSLT, arg, zero, ""),
+      LLVMBuildNeg(builder, arg, ""),
+      arg,
+      cgen_reg_name(result));
+}
+
 static void cgen_op_phi(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -937,6 +1002,24 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_UARRAY_DIR:
       cgen_op_uarray_dir(i, ctx);
+      break;
+   case VCODE_OP_DIV:
+      cgen_op_div(i, ctx);
+      break;
+   case VCODE_OP_NEG:
+      cgen_op_neg(i, ctx);
+      break;
+   case VCODE_OP_EXP:
+      cgen_op_exp(i, ctx);
+      break;
+   case VCODE_OP_ABS:
+      cgen_op_abs(i, ctx);
+      break;
+   case VCODE_OP_REM:
+      cgen_op_rem(i, ctx);
+      break;
+   case VCODE_OP_MOD:
+      cgen_op_mod(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
