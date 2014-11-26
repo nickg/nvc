@@ -131,6 +131,24 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
    return LLVMStructType(fields, ARRAY_LEN(fields), false);
 }
 
+#if 0
+static void debug_out(LLVMValueRef val)
+{
+   LLVMValueRef args[] = { val };
+   LLVMBuildCall(builder, llvm_fn("_debug_out"),
+                 args, ARRAY_LEN(args), "");
+}
+#endif
+
+#if 0
+static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
+{
+   LLVMValueRef args[] = { llvm_void_cast(ptr), len };
+   LLVMBuildCall(builder, llvm_fn("_debug_dump"),
+                 args, ARRAY_LEN(args), "");
+}
+#endif
+
 static LLVMTypeRef cgen_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
@@ -709,8 +727,10 @@ static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
    if (vcode_count_args(op) == 0)
       ctx->regs[result] = LLVMBuildAlloca(builder, type, cgen_reg_name(result));
    else {
-      vcode_reg_t count  = vcode_get_arg(op, 0);
-      ctx->regs[result] = cgen_tmp_alloc(ctx->regs[count], type);
+      vcode_reg_t count = vcode_get_arg(op, 0);
+      LLVMValueRef bytes = LLVMBuildMul(builder, ctx->regs[count],
+                                        llvm_sizeof(type), "bytes");
+      ctx->regs[result] = cgen_tmp_alloc(bytes, type);
    }
 }
 
