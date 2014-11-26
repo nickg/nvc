@@ -27,9 +27,9 @@
 //
 
 #define DEFINE_ARRAY(what)                                     \
-   void what##_array_add(what##_array_t *a, what##_t t)        \
+   what##_t *what##_array_alloc(what##_array_t *a)             \
    {                                                           \
-      if (a->count == 0) {                                     \
+      if (unlikely(a->count == 0)) {                           \
          assert(a->items == NULL);                             \
          a->items = xmalloc(sizeof(what##_t) * ARRAY_BASE_SZ); \
       }                                                        \
@@ -39,7 +39,12 @@
          a->items = xrealloc(a->items, sizeof(what##_t) * sz); \
       }                                                        \
                                                                \
-      a->items[a->count++] = t;                                \
+      return &(a->items[a->count++]);                          \
+   }                                                           \
+                                                               \
+   void what##_array_add(what##_array_t *a, what##_t t)        \
+   {                                                           \
+      *what##_array_alloc(a) = t;                              \
    }                                                           \
                                                                \
    void what##_array_resize(what##_array_t *a,                 \
@@ -62,6 +67,14 @@
    } what##_array_t;                                           \
                                                                \
    void what##_array_add(what##_array_t *a, what##_t t);       \
+   what##_t *what##_array_alloc(what##_array_t *a);            \
+                                                               \
+   static inline what##_t *what##_array_nth_ptr(               \
+      what##_array_t *a, unsigned n)                           \
+   {                                                           \
+      assert(n < a->count);                                    \
+      return &(a->items[n]);                                   \
+   }                                                           \
                                                                \
    static inline what##_t what##_array_nth(what##_array_t *a,  \
                                            unsigned n)         \

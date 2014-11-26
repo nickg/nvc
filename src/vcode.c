@@ -25,11 +25,9 @@
 #include <stdlib.h>
 
 #define MAX_BLOCKS  64
-#define MAX_REGS    1024
 #define MAX_OPS     128
 #define MAX_ARGS    16
 #define MAX_TYPES   32
-#define MAX_VARS    8
 #define MAX_DIM     4
 #define MAX_SIGNALS 16
 #define MAX_TARGETS 4
@@ -105,6 +103,8 @@ typedef struct {
 } param_t;
 
 DECLARE_AND_DEFINE_ARRAY(param);
+DECLARE_AND_DEFINE_ARRAY(var);
+DECLARE_AND_DEFINE_ARRAY(reg);
 
 struct vcode_unit {
    vunit_kind_t  kind;
@@ -113,12 +113,10 @@ struct vcode_unit {
    vcode_type_t  result;
    block_t       blocks[MAX_BLOCKS];
    int           nblocks;
-   reg_t         regs[MAX_REGS];
-   int           nregs;
+   reg_array_t   regs;
    vtype_t       types[MAX_TYPES];
    int           ntypes;
-   var_t         vars[MAX_VARS];
-   int           nvars;
+   var_array_t   vars;
    signal_t      signals[MAX_SIGNALS];
    int           nsignals;
    param_array_t params;
@@ -156,13 +154,13 @@ static inline int64_t smul64(int64_t a, int64_t b)
 static vcode_reg_t vcode_add_reg(vcode_type_t type)
 {
    assert(active_unit != NULL);
-   assert(active_unit->nregs < MAX_REGS);
 
-   reg_t *r = &(active_unit->regs[active_unit->nregs]);
+   vcode_reg_t reg = active_unit->regs.count;
+   reg_t *r = reg_array_alloc(&(active_unit->regs));
    r->type   = type;
    r->bounds = type;
 
-   return active_unit->nregs++;
+   return reg;
 }
 
 static op_t *vcode_add_op(vcode_op_t kind)
@@ -222,9 +220,8 @@ static op_t *vcode_op_data(int op)
 static reg_t *vcode_reg_data(vcode_reg_t reg)
 {
    assert(active_unit != NULL);
-   assert(reg < active_unit->nregs);
    assert(reg != VCODE_INVALID_REG);
-   return &(active_unit->regs[reg]);
+   return reg_array_nth_ptr(&(active_unit->regs), reg);
 }
 
 static vtype_t *vcode_type_data(vcode_type_t type)
@@ -258,14 +255,13 @@ static var_t *vcode_var_data(vcode_var_t var)
       unit = unit->context;
    }
    var &= 0x7fffffff;
-   assert(var < unit->nvars);
-   return &(unit->vars[var]);
+   return var_array_nth_ptr(&(unit->vars), var);
 }
 
 int vcode_count_regs(void)
 {
    assert(active_unit != NULL);
-   return active_unit->nregs;
+   return active_unit->regs.count;
 }
 
 vcode_type_t vcode_reg_type(vcode_reg_t reg)
@@ -299,11 +295,11 @@ void vcode_opt(void)
 {
    // Prune assignments to unused registers
 
-   int *uses = xmalloc(active_unit->nregs * sizeof(int));
+   int *uses = xmalloc(active_unit->regs.count * sizeof(int));
 
    int pruned = 0;
    do {
-      memset(uses, '\0', active_unit->nregs * sizeof(int));
+      memset(uses, '\0', active_unit->regs.count * sizeof(int));
       pruned = 0;
 
       for (int i = active_unit->nblocks - 1; i >= 0; i--) {
@@ -376,7 +372,7 @@ int vcode_count_ops(void)
 int vcode_count_vars(void)
 {
    assert(active_unit != NULL);
-   return active_unit->nvars;
+   return active_unit->vars.count;
 }
 
 ident_t vcode_var_name(vcode_var_t var)
@@ -673,12 +669,12 @@ void vcode_dump(void)
    if (vu->kind != VCODE_UNIT_CONTEXT)
       color_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
    printf("Blocks     %d\n", vu->nblocks);
-   printf("Registers  %d\n", vu->nregs);
+   printf("Registers  %d\n", vu->regs.count);
    printf("Types      %d\n", vu->ntypes);
-   printf("Variables  %d\n", vu->nvars);
+   printf("Variables  %d\n", vu->vars.count);
 
-   for (int i = 0; i < vu->nvars; i++) {
-      const var_t *v = &(vu->vars[i]);
+   for (int i = 0; i < vu->vars.count; i++) {
+      const var_t *v = &(vu->vars.items[i]);
       int col = color_printf("  $magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
@@ -1655,9 +1651,9 @@ void emit_jump(vcode_block_t target)
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
 {
    assert(active_unit != NULL);
-   assert(active_unit->nvars < MAX_VARS);
 
-   var_t *v = &(active_unit->vars[active_unit->nvars]);
+   vcode_var_t var = active_unit->vars.count;
+   var_t *v = var_array_alloc(&(active_unit->vars));
    v->type   = type;
    v->bounds = bounds;
    v->name   = name;
@@ -1665,29 +1661,26 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    if (active_unit->kind == VCODE_UNIT_CONTEXT) {
       assert(type & 0x80000000);
       assert(bounds & 0x80000000);
-      return active_unit->nvars++ | 0x80000000;
+      return var | 0x80000000;
    }
    else
-      return active_unit->nvars++;
+      return var;
 }
 
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
 {
    assert(active_unit != NULL);
 
-   param_t p = {
-      .type   = type,
-      .bounds = bounds,
-      .name   = name,
-      .reg    = vcode_add_reg(type)
-   };
+   param_t *p = param_array_alloc(&(active_unit->params));
+   p->type   = type;
+   p->bounds = bounds;
+   p->name   = name;
+   p->reg    = vcode_add_reg(type);
 
-   param_array_add(&(active_unit->params), p);
-
-   reg_t *rr = vcode_reg_data(p.reg);
+   reg_t *rr = vcode_reg_data(p->reg);
    rr->bounds = bounds;
 
-   return p.reg;
+   return p->reg;
 }
 
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
