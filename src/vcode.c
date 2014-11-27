@@ -25,7 +25,6 @@
 #include <stdlib.h>
 
 #define MAX_BLOCKS  64
-#define MAX_OPS     128
 #define MAX_ARGS    16
 #define MAX_TYPES   32
 #define MAX_DIM     4
@@ -52,9 +51,10 @@ typedef struct {
    };
 } op_t;
 
+DECLARE_AND_DEFINE_ARRAY(op);
+
 typedef struct {
-   op_t ops[MAX_OPS];
-   int  nops;
+   op_array_t ops;
 } block_t;
 
 typedef struct {
@@ -175,9 +175,8 @@ static op_t *vcode_add_op(vcode_op_t kind)
 
    block_t *block = &(active_unit->blocks[active_block]);
 
-   assert(block->nops < MAX_OPS);
-
-   op_t *op = &(block->ops[block->nops++]);
+   op_t *op = op_array_alloc(&(block->ops));
+   memset(op, '\0', sizeof(op_t));
    op->kind   = kind;
    op->result = VCODE_INVALID_REG;
 
@@ -212,9 +211,7 @@ static op_t *vcode_op_data(int op)
    assert(active_block != VCODE_INVALID_BLOCK);
 
    block_t *b = &(active_unit->blocks[active_block]);
-
-   assert(op < b->nops);
-   return &(b->ops[op]);
+   return op_array_nth_ptr(&(b->ops), op);
 }
 
 static reg_t *vcode_reg_data(vcode_reg_t reg)
@@ -305,8 +302,8 @@ void vcode_opt(void)
       for (int i = active_unit->nblocks - 1; i >= 0; i--) {
          block_t *b = &(active_unit->blocks[i]);
 
-         for (int j = b->nops - 1; j >= 0; j--) {
-            op_t *o = &(b->ops[j]);
+         for (int j = b->ops.count - 1; j >= 0; j--) {
+            op_t *o = &(b->ops.items[j]);
 
             switch (o->kind) {
             case VCODE_OP_CONST:
@@ -366,7 +363,7 @@ int vcode_count_ops(void)
 {
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
-   return active_unit->blocks[active_block].nops;
+   return active_unit->blocks[active_block].ops.count;
 }
 
 int vcode_count_vars(void)
@@ -521,10 +518,10 @@ bool vcode_block_finished(void)
    assert(active_block != VCODE_INVALID_BLOCK);
 
    const block_t *b = &(active_unit->blocks[active_block]);
-   if (b->nops == 0)
+   if (b->ops.count == 0)
       return false;
    else {
-      vcode_op_t kind = b->ops[b->nops - 1].kind;
+      vcode_op_t kind = b->ops.items[b->ops.count - 1].kind;
       return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
          || kind == VCODE_OP_COND;
    }
@@ -719,14 +716,14 @@ void vcode_dump(void)
    printf("Begin\n");
    for (int i = 0; i < vu->nblocks; i++) {
       const block_t *b = &(vu->blocks[i]);
-      for (int j = 0; j < b->nops; j++) {
+      for (int j = 0; j < b->ops.count; j++) {
          int col = 0;
          if (j == 0)
             col += color_printf("  $yellow$%2d:$$ ", i);
          else
             col += printf("      ");
 
-         const op_t *op = &(b->ops[j]);
+         const op_t *op = &(b->ops.items[j]);
          switch (op->kind) {
          case VCODE_OP_CMP:
             {
@@ -1109,7 +1106,7 @@ void vcode_dump(void)
          printf("\n");
       }
 
-      if (b->nops == 0)
+      if (b->ops.count == 0)
          color_printf("  $yellow$%2d:$$ $red$Empty basic block$$\n", i);
    }
 
@@ -1542,8 +1539,8 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 
    // Reuse any previous operation in this block with the same arguments
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_CMP && op->nargs == 2 && op->args[0] == lhs
           && op->args[1] == rhs && op->cmp == cmp)
          return op->result;
@@ -1594,8 +1591,8 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_CONST && op->value == value
           && vtype_eq(type, op->type))
          return op->result;
@@ -1707,8 +1704,8 @@ vcode_reg_t emit_load(vcode_var_t var)
    // Try scanning backwards through the block for another load or store to
    // this variable
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if ((op->kind == VCODE_OP_LOAD) && (op->address == var))
          return op->result;
       else if ((op->kind == VCODE_OP_STORE) && (op->address == var))
@@ -1765,11 +1762,11 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
 {
    // Any previous store to this variable in this block is dead
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = 0; i < b->nops; i++) {
-      op_t *op = &(b->ops[i]);
+   for (int i = 0; i < b->ops.count; i++) {
+      op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_STORE && op->address == var) {
-         b->nops--;
-         memmove(op, op + 1, sizeof(op_t) * (b->nops - i));
+         b->ops.count--;
+         memmove(op, op + 1, sizeof(op_t) * (b->ops.count - i));
       }
    }
 
@@ -1809,8 +1806,8 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
    // Reuse any previous operation in this block with the same arguments
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if (op->kind == kind && op->nargs == 2 && op->args[0] == lhs
           && op->args[1] == rhs)
          return op->result;
@@ -1965,8 +1962,8 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 {
    // Try to find a previous index of this var by this offset
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_INDEX && op->address == var
           && op->args[0] == offset)
          return op->result;
@@ -2013,8 +2010,8 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
 
    // Try to find a previous cast of this register to this type
    block_t *b = &(active_unit->blocks[active_block]);
-   for (int i = b->nops - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops[i]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_CAST && vtype_eq(op->type, type)
           && op->args[0] == reg)
          return op->result;
