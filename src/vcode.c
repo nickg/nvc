@@ -24,21 +24,15 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define MAX_BLOCKS  64
-#define MAX_ARGS    16
-#define MAX_TYPES   32
-#define MAX_DIM     4
-#define MAX_SIGNALS 16
-#define MAX_TARGETS 4
+DECLARE_AND_DEFINE_ARRAY(vcode_reg);
+DECLARE_AND_DEFINE_ARRAY(vcode_block);
 
 typedef struct {
-   vcode_op_t    kind;
-   vcode_reg_t   args[MAX_ARGS];
-   int           nargs;
-   vcode_reg_t   result;
-   vcode_type_t  type;
-   vcode_block_t targets[MAX_TARGETS];
-   int           ntargets;
+   vcode_op_t          kind;
+   vcode_reg_array_t   args;
+   vcode_reg_t         result;
+   vcode_type_t        type;
+   vcode_block_array_t targets;
    union {
       vcode_cmp_t    cmp;
       ident_t        func;
@@ -61,6 +55,8 @@ typedef struct {
    vcode_type_t type;
    vcode_type_t bounds;
 } reg_t;
+
+#define MAX_DIM 4
 
 typedef struct {
    vtype_kind_t  kind;
@@ -105,21 +101,21 @@ typedef struct {
 DECLARE_AND_DEFINE_ARRAY(param);
 DECLARE_AND_DEFINE_ARRAY(var);
 DECLARE_AND_DEFINE_ARRAY(reg);
+DECLARE_AND_DEFINE_ARRAY(block);
+DECLARE_AND_DEFINE_ARRAY(signal);
+DECLARE_AND_DEFINE_ARRAY(vtype);
 
 struct vcode_unit {
-   vunit_kind_t  kind;
-   vcode_unit_t  context;
-   ident_t       name;
-   vcode_type_t  result;
-   block_t       blocks[MAX_BLOCKS];
-   int           nblocks;
-   reg_array_t   regs;
-   vtype_t       types[MAX_TYPES];
-   int           ntypes;
-   var_array_t   vars;
-   signal_t      signals[MAX_SIGNALS];
-   int           nsignals;
-   param_array_t params;
+   vunit_kind_t   kind;
+   vcode_unit_t   context;
+   ident_t        name;
+   vcode_type_t   result;
+   block_array_t  blocks;
+   reg_array_t    regs;
+   vtype_array_t  types;
+   var_array_t    vars;
+   signal_array_t signals;
+   param_array_t  params;
 };
 
 static vcode_unit_t  active_unit = NULL;
@@ -157,6 +153,7 @@ static vcode_reg_t vcode_add_reg(vcode_type_t type)
 
    vcode_reg_t reg = active_unit->regs.count;
    reg_t *r = reg_array_alloc(&(active_unit->regs));
+   memset(r, '\0', sizeof(reg_t));
    r->type   = type;
    r->bounds = type;
 
@@ -173,7 +170,7 @@ static op_t *vcode_add_op(vcode_op_t kind)
       fatal_trace("attempt to add to already finished block %d", active_block);
    }
 
-   block_t *block = &(active_unit->blocks[active_block]);
+   block_t *block = &(active_unit->blocks.items[active_block]);
 
    op_t *op = op_array_alloc(&(block->ops));
    memset(op, '\0', sizeof(op_t));
@@ -195,14 +192,12 @@ static void vcode_add_comment(const char *fmt, ...)
 
 static void vcode_add_arg(op_t *op, vcode_reg_t arg)
 {
-   assert(op->nargs < MAX_ARGS);
-   op->args[op->nargs++] = arg;
+   vcode_reg_array_add(&(op->args), arg);
 }
 
 static void vcode_add_target(op_t *op, vcode_block_t block)
 {
-   assert(op->ntargets < MAX_TARGETS);
-   op->targets[op->ntargets++] = block;
+   vcode_block_array_add(&(op->targets), block);
 }
 
 static op_t *vcode_op_data(int op)
@@ -210,7 +205,7 @@ static op_t *vcode_op_data(int op)
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
 
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    return op_array_nth_ptr(&(b->ops), op);
 }
 
@@ -230,16 +225,14 @@ static vtype_t *vcode_type_data(vcode_type_t type)
       unit = unit->context;
    }
    type &= 0x7fffffff;
-   assert(type < unit->ntypes);
-   return &(unit->types[type]);
+   return vtype_array_nth_ptr(&(unit->types), type);
 }
 
 static signal_t *vcode_signal_data(vcode_signal_t sig)
 {
    assert(active_unit != NULL);
    vcode_unit_t unit = active_unit->context;
-   assert(sig < unit->nsignals);
-   return &(unit->signals[sig]);
+   return signal_array_nth_ptr(&(unit->signals), sig);
 }
 
 static var_t *vcode_var_data(vcode_var_t var)
@@ -299,8 +292,8 @@ void vcode_opt(void)
       memset(uses, '\0', active_unit->regs.count * sizeof(int));
       pruned = 0;
 
-      for (int i = active_unit->nblocks - 1; i >= 0; i--) {
-         block_t *b = &(active_unit->blocks[i]);
+      for (int i = active_unit->blocks.count - 1; i >= 0; i--) {
+         block_t *b = &(active_unit->blocks.items[i]);
 
          for (int j = b->ops.count - 1; j >= 0; j--) {
             op_t *o = &(b->ops.items[j]);
@@ -325,7 +318,7 @@ void vcode_opt(void)
                   o->comment = xasprintf("Dead %s definition of r%d",
                                          vcode_op_string(o->kind), o->result);
                   o->kind  = VCODE_OP_COMMENT;
-                  o->nargs = 0;
+                  vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
                   pruned++;
                }
                uses[o->result] = -1;
@@ -335,9 +328,9 @@ void vcode_opt(void)
                break;
             }
 
-            for (int k = 0; k < o->nargs; k++) {
-               if (o->args[k] != VCODE_INVALID_REG)
-                  uses[o->args[k]]++;
+            for (int k = 0; k < o->args.count; k++) {
+               if (o->args.items[k] != VCODE_INVALID_REG)
+                  uses[o->args.items[k]]++;
             }
          }
 
@@ -356,14 +349,14 @@ void vcode_close(void)
 int vcode_count_blocks(void)
 {
    assert(active_unit != NULL);
-   return active_unit->nblocks;
+   return active_unit->blocks.count;
 }
 
 int vcode_count_ops(void)
 {
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
-   return active_unit->blocks[active_block].ops.count;
+   return active_unit->blocks.items[active_block].ops.count;
 }
 
 int vcode_count_vars(void)
@@ -387,7 +380,7 @@ int vcode_count_signals(void)
    assert(active_unit != NULL);
    assert(active_unit->kind == VCODE_UNIT_CONTEXT);
 
-   return active_unit->nsignals;
+   return active_unit->signals.count;
 }
 
 ident_t vcode_signal_name(vcode_signal_t sig)
@@ -471,14 +464,13 @@ vcode_var_t vcode_get_type(int op)
 
 int vcode_count_args(int op)
 {
-   return vcode_op_data(op)->nargs;
+   return vcode_op_data(op)->args.count;
 }
 
 vcode_reg_t vcode_get_arg(int op, int arg)
 {
    op_t *o = vcode_op_data(op);
-   assert(arg < o->nargs);
-   return o->args[arg];
+   return vcode_reg_array_nth(&(o->args), arg);
 }
 
 vcode_reg_t vcode_get_result(int op)
@@ -508,8 +500,7 @@ vcode_block_t vcode_get_target(int op, int nth)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
           || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PHI);
-   assert(nth < o->ntargets);
-   return o->targets[nth];
+   return vcode_block_array_nth(&(o->targets), nth);
 }
 
 bool vcode_block_finished(void)
@@ -517,7 +508,7 @@ bool vcode_block_finished(void)
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
 
-   const block_t *b = &(active_unit->blocks[active_block]);
+   const block_t *b = &(active_unit->blocks.items[active_block]);
    if (b->ops.count == 0)
       return false;
    else {
@@ -665,9 +656,9 @@ void vcode_dump(void)
    color_printf("$$\n");
    if (vu->kind != VCODE_UNIT_CONTEXT)
       color_printf("Context    $cyan$%s$$\n", istr(vu->context->name));
-   printf("Blocks     %d\n", vu->nblocks);
+   printf("Blocks     %d\n", vu->blocks.count);
    printf("Registers  %d\n", vu->regs.count);
-   printf("Types      %d\n", vu->ntypes);
+   printf("Types      %d\n", vu->types.count);
    printf("Variables  %d\n", vu->vars.count);
 
    for (int i = 0; i < vu->vars.count; i++) {
@@ -678,10 +669,10 @@ void vcode_dump(void)
    }
 
    if (vu->kind == VCODE_UNIT_CONTEXT) {
-      printf("Signals    %d\n", vu->nsignals);
+      printf("Signals    %d\n", vu->signals.count);
 
-      for (int i = 0; i < vu->nsignals; i++) {
-         const signal_t *s = &(vu->signals[i]);
+      for (int i = 0; i < vu->signals.count; i++) {
+         const signal_t *s = &(vu->signals.items[i]);
          int col = color_printf("  $white$%s$$", istr(s->name));
          vcode_dump_type(col, s->type, s->bounds);
          printf("\n");
@@ -714,8 +705,8 @@ void vcode_dump(void)
    }
 
    printf("Begin\n");
-   for (int i = 0; i < vu->nblocks; i++) {
-      const block_t *b = &(vu->blocks[i]);
+   for (int i = 0; i < vu->blocks.count; i++) {
+      const block_t *b = &(vu->blocks.items[i]);
       for (int j = 0; j < b->ops.count; j++) {
          int col = 0;
          if (j == 0)
@@ -729,7 +720,7 @@ void vcode_dump(void)
             {
                vcode_dump_reg(op->result);
                printf(" := %s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
                switch (op->cmp) {
                case VCODE_CMP_EQ:  printf(" == "); break;
                case VCODE_CMP_NEQ: printf(" != "); break;
@@ -738,7 +729,7 @@ void vcode_dump(void)
                case VCODE_CMP_LEQ: printf(" <= "); break;
                case VCODE_CMP_GEQ: printf(" >= "); break;
                }
-               vcode_dump_reg(op->args[1]);
+               vcode_dump_reg(op->args.items[1]);
             }
             break;
 
@@ -757,8 +748,8 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               if (op->nargs > 0)
-                  col += vcode_dump_reg(op->args[0]);
+               if (op->args.count > 0)
+                  col += vcode_dump_reg(op->args.items[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -770,10 +761,10 @@ void vcode_dump(void)
                col += color_printf(" := %s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
-               for (int i = 0; i < op->nargs; i++) {
+               for (int i = 0; i < op->args.count; i++) {
                   if (i > 0)
                      col += printf(", ");
-                  col += vcode_dump_reg(op->args[i]);
+                  col += vcode_dump_reg(op->args.items[i]);
                }
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
@@ -783,10 +774,10 @@ void vcode_dump(void)
          case VCODE_OP_WAIT:
             {
                color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
-                            op->targets[0]);
-               if (op->args[0] != VCODE_INVALID_REG) {
+                            op->targets.items[0]);
+               if (op->args.items[0] != VCODE_INVALID_REG) {
                   printf(" for ");
-                  vcode_dump_reg(op->args[0]);
+                  vcode_dump_reg(op->args.items[0]);
                }
             }
             break;
@@ -794,38 +785,38 @@ void vcode_dump(void)
          case VCODE_OP_JUMP:
             {
                color_printf("%s $yellow$%d$$", vcode_op_string(op->kind),
-                            op->targets[0]);
+                            op->targets.items[0]);
             }
             break;
 
          case VCODE_OP_COND:
             {
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
                color_printf(" then $yellow$%d$$ else $yellow$%d$$",
-                            op->targets[0], op->targets[1]);
+                            op->targets.items[0], op->targets.items[1]);
             }
             break;
 
          case VCODE_OP_ASSERT:
             {
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
-               if (op->args[2] != VCODE_INVALID_REG) {
+               vcode_dump_reg(op->args.items[0]);
+               if (op->args.items[2] != VCODE_INVALID_REG) {
                   printf(" report ");
-                  vcode_dump_reg(op->args[2]);
+                  vcode_dump_reg(op->args.items[2]);
                }
                printf(" severity ");
-               vcode_dump_reg(op->args[1]);
+               vcode_dump_reg(op->args.items[1]);
             }
             break;
 
          case VCODE_OP_REPORT:
             {
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[1]);
+               vcode_dump_reg(op->args.items[1]);
                printf(" severity ");
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -844,7 +835,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -855,15 +846,15 @@ void vcode_dump(void)
                color_printf("$magenta$%s$$ := ",
                             istr(vcode_var_data(op->address)->name));
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
          case VCODE_OP_STORE_INDIRECT:
             {
-               vcode_dump_reg(op->args[1]);
+               vcode_dump_reg(op->args.items[1]);
                printf(" := %s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -873,7 +864,7 @@ void vcode_dump(void)
                col += color_printf(" := %s $magenta$%s$$ + ",
                                    vcode_op_string(op->kind),
                                    istr(vcode_var_data(op->address)->name));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -893,7 +884,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                switch (op->kind) {
                case VCODE_OP_MUL: col += printf(" * "); break;
                case VCODE_OP_ADD: col += printf(" + "); break;
@@ -906,7 +897,7 @@ void vcode_dump(void)
                case VCODE_OP_AND:  col += printf(" && "); break;
                default: break;
                }
-               col += vcode_dump_reg(op->args[1]);
+               col += vcode_dump_reg(op->args.items[1]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -916,7 +907,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -928,7 +919,7 @@ void vcode_dump(void)
             {
                vtype_t *vt = vcode_type_data(op->type);
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
                printf(" in ");
                vcode_pretty_print_int(vt->low);
                printf(" .. ");
@@ -946,10 +937,10 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := const [");
-               for (int k = 0; k < op->nargs; k++) {
+               for (int k = 0; k < op->args.count; k++) {
                   if (k > 0)
                      col += printf(",");
-                  col += vcode_dump_reg(op->args[k]);
+                  col += vcode_dump_reg(op->args.items[k]);
                }
 
                col += printf("]");
@@ -962,7 +953,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -971,8 +962,8 @@ void vcode_dump(void)
          case VCODE_OP_RETURN:
             {
                printf("%s ", vcode_op_string(op->kind));
-               if (op->nargs > 0)
-                  vcode_dump_reg(op->args[0]);
+               if (op->args.count > 0)
+                  vcode_dump_reg(op->args.items[0]);
             }
             break;
 
@@ -990,15 +981,15 @@ void vcode_dump(void)
          case VCODE_OP_SCHED_WAVEFORM:
             {
                printf("%s ", vcode_op_string(op->kind));
-               vcode_dump_reg(op->args[0]);
+               vcode_dump_reg(op->args.items[0]);
                printf(" count ");
-               vcode_dump_reg(op->args[1]);
+               vcode_dump_reg(op->args.items[1]);
                printf(" values ");
-               vcode_dump_reg(op->args[2]);
+               vcode_dump_reg(op->args.items[2]);
                printf(" reject ");
-               vcode_dump_reg(op->args[3]);
+               vcode_dump_reg(op->args.items[3]);
                printf(" after ");
-               vcode_dump_reg(op->args[4]);
+               vcode_dump_reg(op->args.items[4]);
             }
             break;
 
@@ -1007,7 +998,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -1017,7 +1008,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -1027,11 +1018,11 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                col += printf(" then ");
-               col += vcode_dump_reg(op->args[1]);
+               col += vcode_dump_reg(op->args.items[1]);
                col += printf(" else ");
-               col += vcode_dump_reg(op->args[2]);
+               col += vcode_dump_reg(op->args.items[2]);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -1041,16 +1032,16 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                col += printf(" [");
-               for (int i = 1; i < op->nargs; i += 3) {
+               for (int i = 1; i < op->args.count; i += 3) {
                   if (i > 1)
                      col += printf(", ");
-                  col += vcode_dump_reg(op->args[i + 0]);
+                  col += vcode_dump_reg(op->args.items[i + 0]);
                   col += printf(" ");
-                  col += vcode_dump_reg(op->args[i + 1]);
+                  col += vcode_dump_reg(op->args.items[i + 1]);
                   col += printf(" ");
-                  col += vcode_dump_reg(op->args[i + 2]);
+                  col += vcode_dump_reg(op->args.items[i + 2]);
                }
                col += printf("]");
                if (op->result != VCODE_INVALID_REG) {
@@ -1066,7 +1057,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                col += printf(" dim %d", op->dim);
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
@@ -1079,7 +1070,7 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
-               col += vcode_dump_reg(op->args[0]);
+               col += vcode_dump_reg(op->args.items[0]);
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -1091,10 +1082,10 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s", vcode_op_string(op->kind));
-               for (int i = 0; i < op->nargs; i++) {
+               for (int i = 0; i < op->args.count; i++) {
                   col += printf(" [");
-                  col += vcode_dump_reg(op->args[i]);
-                  col += color_printf(" $yellow$%d$$]", op->targets[i]);
+                  col += vcode_dump_reg(op->args.items[i]);
+                  col += color_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
@@ -1121,9 +1112,6 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
    if (a == b)
       return true;
    else {
-      assert(a < active_unit->ntypes);
-      assert(b < active_unit->ntypes);
-
       const vtype_t *at = vcode_type_data(a);
       const vtype_t *bt = vcode_type_data(b);
 
@@ -1190,20 +1178,22 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    return false;
 }
 
-static vcode_type_t vtype_new(vcode_type_t new)
+static vcode_type_t vtype_new(vtype_t *new)
 {
-   for (int i = 0; i < active_unit->ntypes - 1; i++) {
-      if (vtype_eq(i, new)) {
-         active_unit->ntypes--;
-         new = i;
+   vcode_type_t index = active_unit->types.count - 1;
+
+   for (int i = 0; i < index; i++) {
+      if (vtype_eq(i, index)) {
+         active_unit->types.count--;
+         index = i;
          break;
       }
    }
 
    if (active_unit->kind == VCODE_UNIT_CONTEXT)
-      new |= 0x80000000;
+      index |= 0x80000000;
 
-   return new;
+   return index;
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
@@ -1211,15 +1201,12 @@ vcode_type_t vtype_int(int64_t low, int64_t high)
    assert(active_unit != NULL);
    assert(low <= high);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_INT;
    n->low  = low;
    n->high = high;
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_bool(void)
@@ -1232,10 +1219,7 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
 {
    assert(active_unit != NULL);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
    n->bounds = bounds;
@@ -1243,7 +1227,7 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    for (int i = 0; i < ndim; i++)
       n->dim[i] = dim[i];
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
@@ -1251,10 +1235,7 @@ vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
 {
    assert(active_unit != NULL);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind   = VCODE_TYPE_UARRAY;
    n->elem   = elem;
    n->bounds = bounds;
@@ -1262,50 +1243,41 @@ vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
    for (int i = 0; i < ndim; i++)
       n->dim[i] = dim_types[i];
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_pointer(vcode_type_t to)
 {
    assert(active_unit != NULL);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind    = VCODE_TYPE_POINTER;
    n->pointed = to;
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_signal(vcode_type_t base)
 {
    assert(active_unit != NULL);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_SIGNAL;
    n->base = base;
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vcode_type_t vtype_offset(void)
 {
    assert(active_unit != NULL);
 
-   assert(active_unit->ntypes < MAX_TYPES);
-   vcode_type_t r = active_unit->ntypes++;
-
-   vtype_t *n = &(active_unit->types[r]);
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_OFFSET;
    n->low  = INT64_MIN;
    n->high = INT64_MAX;
 
-   return vtype_new(r);
+   return vtype_new(n);
 }
 
 vtype_kind_t vtype_kind(vcode_type_t type)
@@ -1393,9 +1365,13 @@ vcode_reg_t vcode_param_reg(int param)
 vcode_block_t emit_block(void)
 {
    assert(active_unit != NULL);
-   assert(active_unit->nblocks < MAX_BLOCKS);
 
-   return active_unit->nblocks++;
+   vcode_block_t bnum = active_unit->blocks.count;
+
+   block_t *bptr = block_array_alloc(&(active_unit->blocks));
+   memset(bptr, '\0', sizeof(block_t));
+
+   return bnum;
 }
 
 void vcode_select_unit(vcode_unit_t unit)
@@ -1538,11 +1514,11 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    }
 
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CMP && op->nargs == 2 && op->args[0] == lhs
-          && op->args[1] == rhs && op->cmp == cmp)
+      if (op->kind == VCODE_OP_CMP && op->args.count == 2 && op->args.items[0] == lhs
+          && op->args.items[1] == rhs && op->cmp == cmp)
          return op->result;
    }
 
@@ -1590,7 +1566,7 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_CONST && op->value == value
@@ -1651,6 +1627,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
 
    vcode_var_t var = active_unit->vars.count;
    var_t *v = var_array_alloc(&(active_unit->vars));
+   memset(v, '\0', sizeof(var_t));
    v->type   = type;
    v->bounds = bounds;
    v->name   = name;
@@ -1669,6 +1646,7 @@ vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
    assert(active_unit != NULL);
 
    param_t *p = param_array_alloc(&(active_unit->params));
+   memset(p, '\0', sizeof(param_t));
    p->type   = type;
    p->bounds = bounds;
    p->name   = name;
@@ -1685,10 +1663,12 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            netid_t *nets, size_t nnets)
 {
    assert(active_unit != NULL);
-   assert(active_unit->nsignals < MAX_SIGNALS);
    assert(active_unit->kind == VCODE_UNIT_CONTEXT);
 
-   signal_t *s = &(active_unit->signals[active_unit->nsignals]);
+   vcode_signal_t snum = active_unit->signals.count;
+
+   signal_t *s = signal_array_alloc(&(active_unit->signals));
+   memset(s, '\0', sizeof(signal_t));
    s->type   = type;
    s->bounds = bounds;
    s->name   = name;
@@ -1696,20 +1676,20 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
    s->nets   = nets;
    s->nnets  = nnets;
 
-   return active_unit->nsignals++;
+   return snum;
 }
 
 vcode_reg_t emit_load(vcode_var_t var)
 {
    // Try scanning backwards through the block for another load or store to
    // this variable
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if ((op->kind == VCODE_OP_LOAD) && (op->address == var))
          return op->result;
       else if ((op->kind == VCODE_OP_STORE) && (op->address == var))
-         return op->args[0];
+         return op->args.items[0];
    }
 
    var_t *v = vcode_var_data(var);
@@ -1761,7 +1741,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 void emit_store(vcode_reg_t reg, vcode_var_t var)
 {
    // Any previous store to this variable in this block is dead
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = 0; i < b->ops.count; i++) {
       op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_STORE && op->address == var) {
@@ -1805,11 +1785,11 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
-      if (op->kind == kind && op->nargs == 2 && op->args[0] == lhs
-          && op->args[1] == rhs)
+      if (op->kind == kind && op->args.count == 2 && op->args.items[0] == lhs
+          && op->args.items[1] == rhs)
          return op->result;
    }
 
@@ -1961,11 +1941,11 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 {
    // Try to find a previous index of this var by this offset
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_INDEX && op->address == var
-          && op->args[0] == offset)
+          && op->args.items[0] == offset)
          return op->result;
    }
 
@@ -2009,11 +1989,11 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
       return emit_const(type, value);
 
    // Try to find a previous cast of this register to this type
-   block_t *b = &(active_unit->blocks[active_block]);
+   block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_CAST && vtype_eq(op->type, type)
-          && op->args[0] == reg)
+          && op->args.items[0] == reg)
          return op->result;
    }
 
