@@ -116,7 +116,12 @@ struct vcode_unit {
    var_array_t    vars;
    signal_array_t signals;
    param_array_t  params;
+   unsigned       depth;
 };
+
+#define MASK_CONTEXT(x)   ((x) >> 24)
+#define MASK_INDEX(x)     ((x) & 0xffffff)
+#define MAKE_HANDLE(c, i) (((c) & 0xff) << 24 | ((i) & 0xffffff))
 
 static vcode_unit_t  active_unit = NULL;
 static vcode_block_t active_block = VCODE_INVALID_BLOCK;
@@ -220,12 +225,13 @@ static vtype_t *vcode_type_data(vcode_type_t type)
 {
    assert(active_unit != NULL);
    vcode_unit_t unit = active_unit;
-   if (type & 0x80000000) {
-      assert(unit->context || unit->kind == VCODE_UNIT_CONTEXT);
+
+   int depth = MASK_CONTEXT(type);
+   assert(depth <= unit->depth);
+   while (depth != unit->depth)
       unit = unit->context;
-   }
-   type &= 0x7fffffff;
-   return vtype_array_nth_ptr(&(unit->types), type);
+
+   return vtype_array_nth_ptr(&(unit->types), MASK_INDEX(type));
 }
 
 static signal_t *vcode_signal_data(vcode_signal_t sig)
@@ -240,12 +246,13 @@ static var_t *vcode_var_data(vcode_var_t var)
    assert(active_unit != NULL);
    assert(var != VCODE_INVALID_VAR);
    vcode_unit_t unit = active_unit;
-   if (var & 0x80000000) {
-      assert(unit->context || unit->kind == VCODE_UNIT_CONTEXT);
+
+   int depth = MASK_CONTEXT(var);
+   assert(depth <= unit->depth);
+   while (depth != unit->depth)
       unit = unit->context;
-   }
-   var &= 0x7fffffff;
-   return var_array_nth_ptr(&(unit->vars), var);
+
+   return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
 }
 
 int vcode_count_regs(void)
@@ -1180,20 +1187,18 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
 
 static vcode_type_t vtype_new(vtype_t *new)
 {
-   vcode_type_t index = active_unit->types.count - 1;
+   int index = active_unit->types.count - 1;
+   vcode_type_t type = MAKE_HANDLE(active_unit->depth, index);
 
    for (int i = 0; i < index; i++) {
-      if (vtype_eq(i, index)) {
+      vcode_type_t this = MAKE_HANDLE(active_unit->depth, i);
+      if (vtype_eq(this, type)) {
          active_unit->types.count--;
-         index = i;
-         break;
+         return this;
       }
    }
 
-   if (active_unit->kind == VCODE_UNIT_CONTEXT)
-      index |= 0x80000000;
-
-   return index;
+   return type;
 }
 
 vcode_type_t vtype_int(int64_t low, int64_t high)
@@ -1411,6 +1416,14 @@ vunit_kind_t vcode_unit_kind(void)
    return active_unit->kind;
 }
 
+static unsigned vcode_unit_depth(vcode_unit_t unit)
+{
+   int hops = 0;
+   for (; unit->kind != VCODE_UNIT_CONTEXT; unit = unit->context)
+      hops++;
+   return hops;
+}
+
 vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
                            vcode_type_t result)
 {
@@ -1421,6 +1434,7 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
    vu->name    = name;
    vu->context = context;
    vu->result  = result;
+   vu->depth   = vcode_unit_depth(vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1436,6 +1450,7 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
    vu->kind    = VCODE_UNIT_PROCESS;
    vu->name    = name;
    vu->context = context;
+   vu->depth   = vcode_unit_depth(vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1632,13 +1647,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    v->bounds = bounds;
    v->name   = name;
 
-   if (active_unit->kind == VCODE_UNIT_CONTEXT) {
-      assert(type & 0x80000000);
-      assert(bounds & 0x80000000);
-      return var | 0x80000000;
-   }
-   else
-      return var;
+   return MAKE_HANDLE(active_unit->depth, var);
 }
 
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
