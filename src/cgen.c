@@ -233,11 +233,12 @@ static LLVMValueRef cgen_get_arg(int op, int arg, cgen_ctx_t *ctx)
 static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 {
    if (ctx->state != NULL)
-      return LLVMBuildStructGEP(builder, ctx->state, ctx->var_base + var,
+      return LLVMBuildStructGEP(builder, ctx->state,
+                                ctx->var_base + vcode_var_index(var),
                                 istr(vcode_var_name(var)));
    else {
       assert(ctx->locals != NULL);
-      return ctx->locals[var];
+      return ctx->locals[vcode_var_index(var)];
    }
 }
 
@@ -1084,9 +1085,11 @@ static void cgen_locals(cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, ctx->blocks[0]);
 
    const int nvars = vcode_count_vars();
-   for (int i = 0; i < nvars; i++)
-      ctx->locals[i] = LLVMBuildAlloca(builder, cgen_type(vcode_var_type(i)),
-                                       istr(vcode_var_name(i)));
+   for (int i = 0; i < nvars; i++) {
+      vcode_var_t var = vcode_var_handle(i);
+      ctx->locals[i] = LLVMBuildAlloca(builder, cgen_type(vcode_var_type(var)),
+                                       istr(vcode_var_name(var)));
+   }
 }
 
 static LLVMTypeRef cgen_subprogram_type(void)
@@ -1133,8 +1136,10 @@ static void cgen_state_struct(cgen_ctx_t *ctx)
    LLVMTypeRef fields[nfields];
    fields[0] = LLVMInt32Type();
 
-   for (int i = 0; i < nvars; i++)
-      fields[ctx->var_base + i] = cgen_type(vcode_var_type(i));
+   for (int i = 0; i < nvars; i++) {
+      vcode_var_t var = vcode_var_handle(i);
+      fields[ctx->var_base + i] = cgen_type(vcode_var_type(var));
+   }
 
    char *name LOCAL = xasprintf("%s__state", istr(vcode_unit_name()));
    LLVMTypeRef state_ty = LLVMStructType(fields, nfields, false);
