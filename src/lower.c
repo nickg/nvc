@@ -116,9 +116,11 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       vcode_reg_t left_reg  = emit_uarray_left(reg, dim);
       vcode_reg_t right_reg = emit_uarray_right(reg, dim);
 
+
+      vcode_reg_t downto_reg = emit_sub(left_reg, right_reg);
+      vcode_reg_t upto_reg   = emit_sub(right_reg, left_reg);
       vcode_reg_t diff = emit_select(emit_uarray_dir(reg, dim),
-                                     emit_sub(left_reg, right_reg),
-                                     emit_sub(right_reg, left_reg));
+                                     downto_reg, upto_reg);
 
       len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
    }
@@ -383,9 +385,10 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
                                    tree_t fcall, vcode_cmp_t pred)
 {
    emit_comment("Begin array cmp line %d", tree_loc(fcall)->first_line);
-   return lower_array_cmp_inner(lower_array_data(r0),
-                                lower_array_data(r1),
-                                r0, r1,
+
+   vcode_reg_t r0_data = lower_array_data(r0);
+   vcode_reg_t r1_data = lower_array_data(r1);
+   return lower_array_cmp_inner(r0_data, r1_data, r0, r1,
                                 tree_type(tree_value(tree_param(fcall, 0))),
                                 tree_type(tree_value(tree_param(fcall, 1))),
                                 pred);
@@ -618,9 +621,9 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    if (vtype_kind(vcode_reg_type(array)) == VCODE_TYPE_UARRAY) {
       vcode_reg_t left_reg = lower_array_left(type, dim, array);
 
-      zeroed = emit_select(emit_uarray_dir(array, dim),
-                           emit_sub(off, left_reg),
-                           emit_sub(left_reg, off));
+      vcode_reg_t upto   = emit_sub(left_reg, off);
+      vcode_reg_t downto = emit_sub(off, left_reg);
+      zeroed = emit_select(emit_uarray_dir(array, dim), downto, upto);
    }
    else {
       assert(!type_is_unconstrained(type));
@@ -891,11 +894,11 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 
       case A_NAMED:
          {
-            vcode_reg_t name_reg = lower_reify_expr(tree_name(a));
-            vcode_reg_t off_reg =
-               emit_select(is_downto,
-                           emit_sub(left_reg, name_reg),
-                           emit_sub(name_reg, left_reg));
+            vcode_reg_t name_reg   = lower_reify_expr(tree_name(a));
+            vcode_reg_t upto_reg   = emit_sub(left_reg, name_reg);
+            vcode_reg_t downto_reg = emit_sub(name_reg, left_reg);
+
+            vcode_reg_t off_reg = emit_select(is_downto, downto_reg, upto_reg);
 
             vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, off_reg);
             what = emit_select(eq, value_reg, what);
