@@ -69,6 +69,7 @@
    void what##_array_add(what##_array_t *a, what##_t t);       \
    what##_t *what##_array_alloc(what##_array_t *a);            \
                                                                \
+   __attribute__ ((unused))                                    \
    static inline what##_t *what##_array_nth_ptr(               \
       what##_array_t *a, unsigned n)                           \
    {                                                           \
@@ -76,6 +77,7 @@
       return &(a->items[n]);                                   \
    }                                                           \
                                                                \
+   __attribute__ ((unused))                                    \
    static inline what##_t what##_array_nth(what##_array_t *a,  \
                                            unsigned n)         \
    {                                                           \

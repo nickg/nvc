@@ -18,6 +18,7 @@ typedef struct {
    int           length;
    int           args;
    int           dim;
+   int           hops;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -49,6 +50,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       switch (e->op) {
       case VCODE_OP_FCALL:
+      case VCODE_OP_NESTED_FCALL:
          if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
             vcode_dump();
             fail("expected op %d in block %d to call %s but calls %s",
@@ -188,6 +190,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
                fail("expect op %d in block %d to have high bound %"PRIi64
                     " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
             }
+         }
+         break;
+
+      case VCODE_OP_PARAM_UPREF:
+         if (vcode_get_hops(i) != e->hops) {
+            vcode_dump();
+            fail("expect op %d in block %d to have hop count %d"
+                 " but has %d", i, bb, e->hops, vcode_get_hops(i));
          }
          break;
 
@@ -868,6 +878,77 @@ START_TEST(test_array1)
 }
 END_TEST
 
+START_TEST(test_nest1)
+{
+   input_from_file(TESTDIR "/lower/nest1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   tree_t p = tree_stmt(e, 0);
+
+   {
+      vcode_unit_t v0 = tree_code(p);
+      vcode_select_unit(v0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X", .args = 1 },
+         { VCODE_OP_CONST, .value = 7 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_WAIT, .target = 2 }
+      };
+
+      CHECK_BB(1);
+   }
+
+   tree_t f1 = tree_decl(p, 2);
+   fail_unless(tree_kind(f1) == T_FUNC_BODY);
+
+   {
+      vcode_unit_t v0 = tree_code(f1);
+      vcode_select_unit(v0);
+
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X"));
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X_DO_IT" },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   tree_t f2 = tree_decl(f1, 0);
+   fail_unless(tree_kind(f2) == T_FUNC_BODY);
+
+   {
+      vcode_unit_t v0 = tree_code(f2);
+      vcode_select_unit(v0);
+
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X_DO_IT"));
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_LOAD, .name = "X" },
+         { VCODE_OP_PARAM_UPREF, .hops = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -886,6 +967,7 @@ int main(void)
    tcase_add_test(tc, test_issue94);
    tcase_add_test(tc, test_arrayop1);
    tcase_add_test(tc, test_array1);
+   tcase_add_test(tc, test_nest1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

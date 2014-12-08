@@ -42,6 +42,7 @@ typedef struct {
       vcode_signal_t signal;
       uint32_t       index;
       unsigned       dim;
+      unsigned       hops;
    };
 } op_t;
 
@@ -165,6 +166,13 @@ static vcode_reg_t vcode_add_reg(vcode_type_t type)
    return reg;
 }
 
+static block_t *vcode_block_data(void)
+{
+   assert(active_unit != NULL);
+   assert(active_block != -1);
+   return &(active_unit->blocks.items[active_block]);
+}
+
 static op_t *vcode_add_op(vcode_op_t kind)
 {
    assert(active_unit != NULL);
@@ -175,7 +183,7 @@ static op_t *vcode_add_op(vcode_op_t kind)
       fatal_trace("attempt to add to already finished block %d", active_block);
    }
 
-   block_t *block = &(active_unit->blocks.items[active_block]);
+   block_t *block = vcode_block_data();
 
    op_t *op = op_array_alloc(&(block->ops));
    memset(op, '\0', sizeof(op_t));
@@ -372,6 +380,23 @@ int vcode_count_vars(void)
    return active_unit->vars.count;
 }
 
+vcode_var_t vcode_var_handle(int index)
+{
+   assert(active_unit != NULL);
+   assert(index < active_unit->vars.count);
+   return MAKE_HANDLE(active_unit->depth, index);
+}
+
+int vcode_var_index(vcode_var_t var)
+{
+   return MASK_INDEX(var);
+}
+
+int vcode_var_context(vcode_var_t var)
+{
+   return MASK_CONTEXT(var);
+}
+
 ident_t vcode_var_name(vcode_var_t var)
 {
    return vcode_var_data(var)->name;
@@ -428,7 +453,7 @@ vcode_op_t vcode_get_op(int op)
 ident_t vcode_get_func(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_FCALL);
+   assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL);
    return o->func;
 }
 
@@ -460,6 +485,13 @@ unsigned vcode_get_dim(int op)
    assert(o->kind == VCODE_OP_UARRAY_LEFT || o->kind == VCODE_OP_UARRAY_RIGHT
           || o->kind == VCODE_OP_UARRAY_DIR);
    return o->dim;
+}
+
+int vcode_get_hops(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_PARAM_UPREF);
+   return o->hops;
 }
 
 vcode_var_t vcode_get_type(int op)
@@ -533,7 +565,8 @@ const char *vcode_op_string(vcode_op_t op)
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap", "not", "phi", "and"
+      "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
+      "nested fcall", "param upref"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -644,6 +677,19 @@ static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
       vcode_dump_one_type(bounds);
    }
    color_printf("$$ ");
+}
+
+static int vcode_dump_var(vcode_var_t var)
+{
+   if (MASK_CONTEXT(var) != active_unit->depth) {
+      vcode_unit_t owner = active_unit;
+      for (int i = 0; i < MASK_CONTEXT(var); i++)
+         owner = owner->context;
+      return color_printf("$magenta$%s@%s$$", istr(vcode_var_name(var)),
+                          istr(owner->name));
+   }
+   else
+      return color_printf("$magenta$%s$$", istr(vcode_var_name(var)));
 }
 
 void vcode_dump(void)
@@ -763,6 +809,7 @@ void vcode_dump(void)
             break;
 
          case VCODE_OP_FCALL:
+         case VCODE_OP_NESTED_FCALL:
             {
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s $magenta$%s$$ ",
@@ -830,9 +877,8 @@ void vcode_dump(void)
          case VCODE_OP_LOAD:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
-                                   vcode_op_string(op->kind),
-                                   istr(vcode_var_data(op->address)->name));
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_var(op->address);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -850,9 +896,8 @@ void vcode_dump(void)
 
          case VCODE_OP_STORE:
             {
-               color_printf("$magenta$%s$$ := ",
-                            istr(vcode_var_data(op->address)->name));
-               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_var(op->address);
+               printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
             break;
@@ -1094,6 +1139,18 @@ void vcode_dump(void)
                   col += vcode_dump_reg(op->args.items[i]);
                   col += color_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+
+         case VCODE_OP_PARAM_UPREF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %d, ", vcode_op_string(op->kind),
+                             op->hops);
+               col += vcode_dump_reg(op->args.items[0]);
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -1394,13 +1451,26 @@ void vcode_select_block(vcode_block_t block)
 vcode_block_t vcode_active_block(void)
 {
    assert(active_unit != NULL);
+   assert(active_block != -1);
    return active_block;
+}
+
+vcode_unit_t vcode_active_unit(void)
+{
+   assert(active_unit != NULL);
+   return active_unit;
 }
 
 ident_t vcode_unit_name(void)
 {
    assert(active_unit != NULL);
    return active_unit->name;
+}
+
+int vcode_unit_depth(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->depth;
 }
 
 vcode_type_t vcode_unit_result(void)
@@ -1416,7 +1486,13 @@ vunit_kind_t vcode_unit_kind(void)
    return active_unit->kind;
 }
 
-static unsigned vcode_unit_depth(vcode_unit_t unit)
+vcode_unit_t vcode_unit_context(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->context;
+}
+
+static unsigned vcode_unit_calc_depth(vcode_unit_t unit)
 {
    int hops = 0;
    for (; unit->kind != VCODE_UNIT_CONTEXT; unit = unit->context)
@@ -1427,14 +1503,12 @@ static unsigned vcode_unit_depth(vcode_unit_t unit)
 vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
                            vcode_type_t result)
 {
-   assert(context->kind == VCODE_UNIT_CONTEXT);
-
    vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
    vu->kind    = VCODE_UNIT_FUNCTION;
    vu->name    = name;
    vu->context = context;
    vu->result  = result;
-   vu->depth   = vcode_unit_depth(vu);
+   vu->depth   = vcode_unit_calc_depth(vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1450,7 +1524,7 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
    vu->kind    = VCODE_UNIT_PROCESS;
    vu->name    = name;
    vu->context = context;
-   vu->depth   = vcode_unit_depth(vu);
+   vu->depth   = vcode_unit_calc_depth(vu);
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -1551,15 +1625,27 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    return op->result;
 }
 
+static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
+                                 const vcode_reg_t *args, int nargs)
+{
+   op_t *o = vcode_add_op(op);
+   o->func = func;
+   o->type = type;
+   for (int i = 0; i < nargs; i++)
+      vcode_add_arg(o, args[i]);
+   return (o->result = vcode_add_reg(type));
+}
+
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs)
 {
-   op_t *op = vcode_add_op(VCODE_OP_FCALL);
-   op->func = func;
-   op->type = type;
-   for (int i = 0; i < nargs; i++)
-      vcode_add_arg(op, args[i]);
-   return (op->result = vcode_add_reg(type));
+   return emit_fcall_op(VCODE_OP_FCALL, func, type, args, nargs);
+}
+
+vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
+                              const vcode_reg_t *args, int nargs)
+{
+   return emit_fcall_op(VCODE_OP_NESTED_FCALL, func, type, args, nargs);
 }
 
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
@@ -1692,7 +1778,7 @@ vcode_reg_t emit_load(vcode_var_t var)
 {
    // Try scanning backwards through the block for another load or store to
    // this variable
-   block_t *b = &(active_unit->blocks.items[active_block]);
+   block_t *b = vcode_block_data();
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if ((op->kind == VCODE_OP_LOAD) && (op->address == var))
@@ -1750,7 +1836,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 void emit_store(vcode_reg_t reg, vcode_var_t var)
 {
    // Any previous store to this variable in this block is dead
-   block_t *b = &(active_unit->blocks.items[active_block]);
+   block_t *b = vcode_block_data();
    for (int i = 0; i < b->ops.count; i++) {
       op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_STORE && op->address == var) {
@@ -1794,7 +1880,7 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = &(active_unit->blocks.items[active_block]);
+   block_t *b = vcode_block_data();
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if (op->kind == kind && op->args.count == 2 && op->args.items[0] == lhs
@@ -2352,4 +2438,37 @@ vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
    }
 
    return (op->result = vcode_add_reg(vcode_reg_type(values[0])));
+}
+
+vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
+{
+   op_t *op = vcode_add_op(VCODE_OP_PARAM_UPREF);
+   op->hops = hops;
+   vcode_add_arg(op, reg);
+
+   if (hops <= 0) {
+      vcode_dump();
+      fatal_trace("invalid hop count");
+   }
+
+   vcode_unit_t vu = active_unit;
+   for (int i = 0; i < hops; i++)
+      vu = vu->context;
+
+   if (vu->kind == VCODE_UNIT_CONTEXT) {
+      vcode_dump();
+      fatal_trace("upref context is not a subprogram");
+   }
+   else if (reg >= vu->params.count) {
+      vcode_dump();
+      fatal_trace("upref register is not a parameter");
+   }
+
+   param_t *p = &(vu->params.items[reg]);
+   op->result = vcode_add_reg(p->type);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = p->bounds;
+
+   return op->result;
 }

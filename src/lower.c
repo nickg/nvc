@@ -31,6 +31,7 @@ typedef enum {
 
 static ident_t builtin_i;
 static ident_t foreign_i;
+static ident_t nested_i;
 static ident_t vcode_obj_i;
 static bool    verbose = false;
 
@@ -474,7 +475,11 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_func_arg(fcall, i);
 
-   return emit_fcall(name, lower_type(tree_type(fcall)), args, nargs);
+   vcode_type_t rtype = lower_type(tree_type(fcall));
+   if (tree_attr_int(decl, nested_i, 0))
+      return emit_nested_fcall(name, rtype, args, nargs);
+   else
+      return emit_fcall(name, rtype, args, nargs);
 }
 
 static vcode_reg_t lower_string_literal(tree_t lit)
@@ -564,7 +569,12 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       vcode_dump();
       fatal_trace("missing register for parameter %s", istr(tree_ident(decl)));
    }
-   return reg;
+
+   const int depth = tree_attr_int(decl, nested_i, 0);
+   if (depth > 0 && vcode_unit_depth() != depth)
+      return emit_param_upref(vcode_unit_depth() - depth, reg);
+   else
+      return reg;
 }
 
 static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
@@ -1238,12 +1248,16 @@ static void lower_decls(tree_t scope)
 
 static void lower_subprograms(tree_t scope, vcode_unit_t context)
 {
+   const bool nested = tree_kind(scope) != T_ELAB;
+
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
       switch (kind) {
       case T_FUNC_BODY:
+         if (nested)
+            tree_add_attr_int(d, nested_i, 1);
          lower_func_body(d, context);
          break;
       default:
@@ -1252,10 +1266,25 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
    }
 }
 
+static bool lower_has_subprograms(tree_t scope)
+{
+   const int ndecls = tree_decls(scope);
+   for (int i = 0; i < ndecls; i++) {
+      const tree_kind_t kind = tree_kind(tree_decl(scope, i));
+      if (kind == T_FUNC_BODY || kind == T_PROC_BODY)
+         return true;
+   }
+
+   return false;
+}
+
 static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_function(tree_ident(body), context,
                                    lower_type(type_result(tree_type(body))));
+   vcode_block_t bb = vcode_active_block();
+
+   const bool has_subprograms = lower_has_subprograms(body);
 
    const int nports = tree_ports(body);
    for (int i = 0; i < nports; i++) {
@@ -1264,9 +1293,17 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
       vcode_reg_t reg = emit_param(lower_type(type), lower_bounds(type),
                                    tree_ident(p));
       tree_add_attr_int(p, vcode_obj_i, reg);
+      if (has_subprograms)
+         tree_add_attr_int(p, nested_i, vcode_unit_depth());
    }
 
    lower_decls(body);
+
+   if (has_subprograms) {
+      lower_subprograms(body, vu);
+      vcode_select_unit(vu);
+      vcode_select_block(bb);
+   }
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
@@ -1285,8 +1322,10 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
 
    lower_decls(proc);
-
    emit_return(VCODE_INVALID_REG);
+
+   lower_subprograms(proc, vu);
+   vcode_select_unit(vu);
 
    vcode_block_t start_bb = emit_block();
    vcode_select_block(start_bb);
@@ -1348,6 +1387,7 @@ void lower_unit(tree_t unit)
    builtin_i   = ident_new("builtin");
    foreign_i   = ident_new("FOREIGN");
    vcode_obj_i = ident_new("vcode_obj");
+   nested_i    = ident_new("nested");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

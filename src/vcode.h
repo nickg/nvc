@@ -79,6 +79,8 @@ typedef enum {
    VCODE_OP_NOT,
    VCODE_OP_PHI,
    VCODE_OP_AND,
+   VCODE_OP_NESTED_FCALL,
+   VCODE_OP_PARAM_UPREF,
 } vcode_op_t;
 
 typedef enum {
@@ -138,9 +140,12 @@ int vcode_count_blocks(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
 ident_t vcode_unit_name(void);
+int vcode_unit_depth(void);
 vunit_kind_t vcode_unit_kind(void);
 vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
+vcode_unit_t vcode_active_unit(void);
+vcode_unit_t vcode_unit_context(void);
 
 int vcode_count_params(void);
 vcode_type_t vcode_param_type(int param);
@@ -172,8 +177,12 @@ vcode_type_t vcode_get_type(int op);
 vcode_reg_t vcode_get_result(int op);
 vcode_signal_t vcode_get_signal(int op);
 unsigned vcode_get_dim(int op);
+int vcode_get_hops(int op);
 
 int vcode_count_vars(void);
+vcode_var_t vcode_var_handle(int index);
+int vcode_var_index(vcode_var_t var);
+int vcode_var_context(vcode_var_t var);
 ident_t vcode_var_name(vcode_var_t var);
 vcode_type_t vcode_var_type(vcode_var_t var);
 
@@ -204,6 +213,8 @@ void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
+vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
+                              const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
@@ -236,5 +247,6 @@ vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
                      unsigned count);
+vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 
 #endif  // _VCODE_H

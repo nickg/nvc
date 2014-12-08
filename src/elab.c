@@ -1060,11 +1060,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static void elab_process(tree_t t, const elab_ctx_t *ctx)
+static void elab_rename_subprograms(tree_t t, ident_t prefix)
 {
-   // Rename local functions in this process to avoid collisions in the
-   // global LLVM namespace
-
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(t, i);
@@ -1073,12 +1070,24 @@ static void elab_process(tree_t t, const elab_ctx_t *ctx)
       case T_FUNC_BODY:
       case T_PROC_DECL:
       case T_PROC_BODY:
-         tree_set_ident(d, ident_prefix(ctx->path, tree_ident(d), '_'));
+         {
+            ident_t new = ident_prefix(prefix, tree_ident(d), '_');
+            tree_set_ident(d, new);
+            elab_rename_subprograms(d, new);
+         }
          break;
       default:
          break;
       }
    }
+}
+
+static void elab_process(tree_t t, const elab_ctx_t *ctx)
+{
+   // Rename local functions in this process to avoid collisions in the
+   // global LLVM namespace
+
+   elab_rename_subprograms(t, ctx->path);
 
    tree_add_attr_str(t, inst_name_i,
                      ident_prefix(ctx->inst, ident_new(":"), '\0'));

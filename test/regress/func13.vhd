@@ -2,6 +2,8 @@ entity func13 is
 end entity;
 
 architecture test of func13 is
+    signal five : integer := 5;
+    signal zero : integer := 0;
 begin
 
     process is
@@ -26,11 +28,11 @@ begin
 
     begin
         x := 2;
-        assert add_to_x(5) = 7;
+        assert add_to_x(five) = 7;
         x := 3;
-        assert add_to_x(5) = 8;
+        assert add_to_x(five) = 8;
         y := X"00";
-        assert get_bit(0) = '0';
+        assert get_bit(zero) = '0';
         wait;
     end process;
 
