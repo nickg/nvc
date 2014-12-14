@@ -33,6 +33,8 @@ static ident_t builtin_i;
 static ident_t foreign_i;
 static ident_t nested_i;
 static ident_t vcode_obj_i;
+static ident_t drives_all_i;
+static ident_t driver_init_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
@@ -115,7 +117,6 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 
       vcode_reg_t left_reg  = emit_uarray_left(reg, dim);
       vcode_reg_t right_reg = emit_uarray_right(reg, dim);
-
 
       vcode_reg_t downto_reg = emit_sub(left_reg, right_reg);
       vcode_reg_t upto_reg   = emit_sub(right_reg, left_reg);
@@ -557,7 +558,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
    else {
       vcode_var_t shadow = vcode_signal_shadow(sig);
       if (shadow != VCODE_INVALID_VAR) {
-         vcode_reg_t r = emit_index(shadow, emit_const(vtype_offset(), 0));
+         vcode_reg_t r = emit_load(shadow);
          return type_is_array(type) ? r : emit_load_indirect(r);
       }
       else
@@ -1190,11 +1191,9 @@ static void lower_decl(tree_t decl)
          ident_t name = tree_ident(decl);
 
          vcode_var_t shadow = VCODE_INVALID_VAR;
-         if (lower_signal_sequential_nets(decl)) {
+         if (lower_signal_sequential_nets(decl))
             shadow = emit_var(vtype_pointer(ltype), bounds,
-                              ident_prefix(ident_new("shadow"), name, '_'));
-            // TODO: init shadow
-         }
+                              ident_prefix(ident_new("resolved"), name, '_'));
 
          const int nnets = tree_nets(decl);
          netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
@@ -1205,6 +1204,12 @@ static void lower_decl(tree_t decl)
          vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
                                           nets, nnets);
          tree_add_attr_int(decl, vcode_obj_i, sig);
+
+         emit_set_initial(sig, lower_expr(tree_value(decl), EXPR_RVALUE),
+                          tree_index(decl));
+
+         if (shadow != VCODE_INVALID_VAR)
+            emit_resolved_address(shadow, sig);
       }
       break;
    case T_TYPE_DECL:
@@ -1320,11 +1325,197 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
    lower_cleanup(body);
 }
 
+static bool lower_driver_nets(tree_t t, tree_t *decl,
+                              vcode_reg_t *all_nets, int64_t *all_length,
+                              vcode_reg_t *driven_nets, int64_t *driven_length,
+                              bool *has_non_const, tree_t proc)
+{
+   switch (tree_kind(t)) {
+   case T_REF:
+      {
+         *decl = tree_ref(t);
+
+         if (tree_attr_ptr(*decl, drives_all_i) == proc)
+            return false;
+         else if ((tree_kind(*decl) != T_SIGNAL_DECL)
+                  || (tree_nets(*decl) == 0))
+            return false;
+
+         *all_nets = *driven_nets = lower_signal_ref(*decl, EXPR_LVALUE);
+         *all_length = *driven_length = type_width(tree_type(*decl));
+      }
+      break;
+
+#if 0
+   case T_ARRAY_REF:
+      {
+         if (!cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
+                               driven_nets, driven_length, has_non_const, ctx))
+            return false;
+         else if (*driven_nets == NULL)
+            return false;
+         else if (*has_non_const)
+            return true;
+
+         bool all_const = true;
+         const int nparams = tree_params(t);
+         for (int i = 0; (i < nparams) && all_const; i++) {
+            if (!cgen_is_const(tree_value(tree_param(t, i))))
+               all_const = false;
+         }
+
+         if (all_const) {
+            LLVMValueRef idx =
+               LLVMBuildMul(builder,
+                            cgen_array_ref_offset(t, *driven_nets, true, ctx),
+                            llvm_int32(type_width(tree_type(t))), "stride");
+
+            *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
+            *driven_length = type_width(tree_type(t));
+         }
+         else
+            *has_non_const = true;
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t value = tree_value(t);
+         if (!cgen_driver_nets(value, decl, all_nets, all_length,
+                               driven_nets, driven_length, has_non_const, ctx))
+            return false;
+         else if (*driven_nets == NULL)
+            return false;
+         else if (*has_non_const)
+            return true;
+
+         range_t r = tree_range(t);
+         if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
+            const int stride = type_width(type_elem(tree_type(t)));
+            LLVMValueRef idx =
+               LLVMBuildMul(builder,
+                            cgen_array_off(cgen_expr(r.left, ctx), *driven_nets,
+                                           tree_type(value), ctx, 0),
+                            llvm_int32(stride), "stride");
+
+            *driven_nets = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
+            *driven_length = type_width(tree_type(t));
+         }
+         else
+            *has_non_const = true;
+      }
+      break;
+
+   case T_RECORD_REF:
+      {
+         tree_t value = tree_value(t);
+         if (!cgen_driver_nets(value, decl, all_nets, all_length,
+                               driven_nets, driven_length, has_non_const, ctx))
+            return false;
+         else if (*driven_nets == NULL)
+            return false;
+         else if (*has_non_const)
+            return true;
+
+         type_t rtype = tree_type(value);
+         const netid_t offset = record_field_to_net(rtype, tree_ident(t));
+
+         LLVMValueRef indexes[] = { llvm_int32(offset) };
+         LLVMValueRef field_nets = LLVMBuildGEP(builder, *driven_nets, indexes,
+                                                ARRAY_LEN(indexes), "");
+
+         *driven_nets   = field_nets;
+         *driven_length = type_width(tree_type(t));
+      }
+      break;
+#endif
+
+   case T_LITERAL:
+      return false;
+
+   default:
+      assert(false);
+   }
+
+   return true;
+}
+
+static void lower_driver_target(tree_t expr, tree_t proc)
+{
+   if (tree_kind(expr) == T_AGGREGATE) {
+      const int nassocs = tree_assocs(expr);
+      for (int i = 0; i < nassocs; i++) {
+         tree_t a = tree_assoc(expr, i);
+         assert(tree_subkind(a) == A_POS);
+
+         lower_driver_target(tree_value(a), proc);
+      }
+
+      return;
+   }
+
+   tree_t decl = NULL;
+   vcode_reg_t all_nets = VCODE_INVALID_REG, driven_nets = VCODE_INVALID_REG;
+   int64_t all_length = 0, driven_length = 0;
+   bool has_non_const = false;
+
+   if (!lower_driver_nets(expr, &decl, &all_nets, &all_length,
+                          &driven_nets, &driven_length, &has_non_const, proc))
+      return;
+
+   assert(decl != NULL);
+
+   if (all_length == driven_length)
+      tree_add_attr_ptr(decl, drives_all_i, proc);
+
+   vcode_reg_t init_reg = VCODE_INVALID_REG;
+   tree_t init = tree_attr_tree(decl, driver_init_i);
+   if (init != NULL)
+      init_reg = lower_expr(init, EXPR_RVALUE);
+
+   vcode_reg_t all_length_reg = emit_const(vtype_offset(), all_length);
+   vcode_reg_t driven_length_reg = emit_const(vtype_offset(), driven_length);
+   emit_alloc_driver(all_nets, all_length_reg, driven_nets,
+                     driven_length_reg, init_reg);
+}
+
+static void lower_driver_fn(tree_t t, void *_ctx)
+{
+   tree_t proc = (tree_t)_ctx;
+
+   switch (tree_kind(t)) {
+   case T_SIGNAL_ASSIGN:
+      lower_driver_target(tree_target(t), proc);
+      break;
+
+   case T_PCALL:
+      {
+         tree_t pdecl = tree_ref(t);
+         const int nparams = tree_params(t);
+         assert(nparams == tree_ports(pdecl));
+
+         for (int i = 0; i < nparams; i++) {
+            tree_t port = tree_port(pdecl, i);
+            if (tree_class(port) == C_SIGNAL && tree_subkind(port) != PORT_IN) {
+               tree_t param = tree_param(t, i);
+               assert(tree_subkind(param) == P_POS);
+               lower_driver_target(tree_value(param), proc);
+            }
+         }
+      }
+      break;
+
+   default:
+      return;
+   }
+}
+
 static void lower_process(tree_t proc, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
 
    lower_decls(proc);
+   tree_visit(proc, lower_driver_fn, proc);
    emit_return(VCODE_INVALID_REG);
 
    lower_subprograms(proc, vu);
@@ -1387,10 +1578,12 @@ static void lower_pack_body(tree_t unit)
 
 void lower_unit(tree_t unit)
 {
-   builtin_i   = ident_new("builtin");
-   foreign_i   = ident_new("FOREIGN");
-   vcode_obj_i = ident_new("vcode_obj");
-   nested_i    = ident_new("nested");
+   builtin_i     = ident_new("builtin");
+   foreign_i     = ident_new("FOREIGN");
+   vcode_obj_i   = ident_new("vcode_obj");
+   nested_i      = ident_new("nested");
+   drives_all_i  = ident_new("drives_all");
+   driver_init_i = ident_new("driver_init");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

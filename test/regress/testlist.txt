@@ -4,246 +4,246 @@ assign1         normal
 wait2           gold,normal
 arith1          normal
 signal1         normal
-attr1           normal
-signal2         normal
-signal3         normal
-assign2         normal
-assign3         normal
-signal4         normal
-wait3           normal
-wait4           normal
-wait5           normal
-elab1           normal
-image           gold,normal
-cond1           gold,normal
-counter         normal,stop=50ns,gold
-cond2           gold,normal
-vecorder        normal
-elab2           normal
-func1           normal
-signal5         normal
-while1          gold,normal
-signal6         gold,normal
-slice1          normal
-logical1        normal
-lfsr            normal,stop=510ns
-link1           normal
-for1            gold,normal
-operator1       normal
-fact            gold,normal
-func2           normal
-alias1          gold,normal
-alias2          gold,normal
-func3           normal
-func4           normal
-operator2       normal
-array1          normal
-agg1            normal
-agg2            normal
-case1           normal
-func5           normal
-ieee1           normal
-ieee2           normal,stop=15ns
-cond3           normal
-concat1         normal
-concat2         normal
-null1           normal
-agg3            normal
-proc1           normal
-alias3          normal
-proc2           normal
+# attr1           normal
+# signal2         normal
+# signal3         normal
+# assign2         normal
+# assign3         normal
+# signal4         normal
+# wait3           normal
+# wait4           normal
+# wait5           normal
+# elab1           normal
+# image           gold,normal
+# cond1           gold,normal
+# counter         normal,stop=50ns,gold
+# cond2           gold,normal
+# vecorder        normal
+# elab2           normal
+# func1           normal
+# signal5         normal
+# while1          gold,normal
+# signal6         gold,normal
+# slice1          normal
+# logical1        normal
+# lfsr            normal,stop=510ns
+# link1           normal
+# for1            gold,normal
+# operator1       normal
+# fact            gold,normal
+# func2           normal
+# alias1          gold,normal
+# alias2          gold,normal
+# func3           normal
+# func4           normal
+# operator2       normal
+# array1          normal
+# agg1            normal
+# agg2            normal
+# case1           normal
+# func5           normal
+# ieee1           normal
+# ieee2           normal,stop=15ns
+# cond3           normal
+# concat1         normal
+# concat2         normal
+# null1           normal
+# agg3            normal
+# proc1           normal
+# alias3          normal
+# proc2           normal
 operator3       normal
-agg4            normal
-ieee3           normal
-default1        normal
-generic1        normal
-signal7         normal
-synopsys1       normal
-block1          normal
-elab3           normal,gold
-func6           normal
-case2           normal
-case3           normal
-wait6           normal,gold
-elab4           normal
-elab5           normal
-signal8         normal
-ram1            normal
-wait7           normal
-const1          normal
-driver1         normal
-driver2         normal
-delay1          normal
-record1         normal
-proc3           normal
-access1         normal,gold
-proc4           normal
-file1           normal
-real1           normal,gold
-shared1         normal
-proc5           normal
-proc6           normal
-assert2         normal,gold
-concat3         normal
-const2          normal
-func7           normal
-func8           normal
-ieee4           normal
-bounds1         gold,fail
-bounds2         gold,fail
-bounds3         gold,fail
-bounds4         gold,fail
-signal9         normal
-bounds5         gold,fail
-loop1           normal
-record2         normal
-access2         normal
-func9           normal
-record3         normal
-issue8          normal
-issue9          normal
-record4         normal
-record5         normal
-const3          normal,gold
-proc7           normal,gold
-attr2           normal
-func10          normal
-attr3           normal,gold
-proc8           normal,gold
-wait8           normal
-func11          normal
-const4          normal
-shift1          normal
-wait9           normal
-wait10          normal
-attr4           normal
-bounds6         gold,fail
-elab6           normal
-elab7           normal
-bounds7         gold,fail
-arith2          gold,fail
-attr5           normal
-attr6           normal
-elab8           normal
-arith3          normal
-bounds8         gold,fail
-bounds9         gold,fail
-access3         normal
-access4         normal
-textio1         normal,gold
-proc9           normal
-elab9           normal,gold
-elab10          normal,gold
-conv1           normal
-elab11          normal
-link2           normal
-driver3         normal
-elab12          normal
-issue10         normal
-elab13          normal,gold
-delay2          normal
-issue13         normal
-attr7           normal
-shift2          normal
-case4           normal
-signal10        normal
-signal11        normal,gold
-wait11          normal
-bounds11        gold,fail
-wait12          normal,gold
-array2          normal
-driver4         normal
-comp1           normal
-bitvec          normal
-elab14          normal
-operator4       normal
-issue16         normal
-elab15          normal
-const5          normal
-issue18         normal
-elab16          normal
-signal12        normal
-const6          normal
-func12          normal
-agg5            normal
-elab17          normal
-null2           normal
-func13          normal
-proc10          normal
-array3          normal
-slice2          normal
-attr8           normal
-attr9           normal
-bounds12        gold,fail
-bounds13        gold,fail
-access5         normal
-record6         normal
-agg6            normal
-func14          normal
-operator5       normal
-alias4          normal
-alias5          normal,gold
-alias6          normal
-alias7          normal
-const7          normal
-bounds14        gold,fail
-bounds15        gold,fail
-bounds16        gold,fail
-bounds17        gold,fail
-signal13        normal
-elab18          normal
-wait13          normal
-shared2         normal
-func15          normal
-elab19          normal
-concat4         normal
-issue29         normal
-assert3         normal,gold
-alias8          normal
-textio2         normal
-elab20          normal
-issue38         normal
-stop1           normal,gold
-stop2           normal,gold,2008
-record7         normal
-record8         normal
-elab21          normal
-record9         normal
-record10        normal
-real2           normal
-issue45         normal,gold
-for2            normal,gold
-issue57         normal
-attr10          normal
-assert4         normal
-issue56         normal
-issue53         normal
-issue59         normal
-issue60         normal
-record11        normal
-issue63         normal
-driver5         normal
-textio3         normal
-record12        normal
-attr11          normal
-implicit1       normal
-implicit2       normal
-file2           normal
-case5           gold,fail
-toplevel1       normal
-vhpi1           gold,vhpi
-vhpi2           normal,vhpi
-issue69         normal
-issue70         normal
-elab22          normal
-array4          normal
-issue72         normal
-protected1      normal,2000
-protected2      normal,2000
-slice3          normal
-alias9          normal
-issue79         normal
-issue84         normal,2000
-issue82         normal
-issue86         normal
+# agg4            normal
+# ieee3           normal
+# default1        normal
+# generic1        normal
+# signal7         normal
+# synopsys1       normal
+# block1          normal
+# elab3           normal,gold
+# func6           normal
+# case2           normal
+# case3           normal
+# wait6           normal,gold
+# elab4           normal
+# elab5           normal
+# signal8         normal
+# ram1            normal
+# wait7           normal
+# const1          normal
+# driver1         normal
+# driver2         normal
+# delay1          normal
+# record1         normal
+# proc3           normal
+# access1         normal,gold
+# proc4           normal
+# file1           normal
+# real1           normal,gold
+# shared1         normal
+# proc5           normal
+# proc6           normal
+# assert2         normal,gold
+# concat3         normal
+# const2          normal
+# func7           normal
+# func8           normal
+# ieee4           normal
+# bounds1         gold,fail
+# bounds2         gold,fail
+# bounds3         gold,fail
+# bounds4         gold,fail
+# signal9         normal
+# bounds5         gold,fail
+# loop1           normal
+# record2         normal
+# access2         normal
+# func9           normal
+# record3         normal
+# issue8          normal
+# issue9          normal
+# record4         normal
+# record5         normal
+# const3          normal,gold
+# proc7           normal,gold
+# attr2           normal
+# func10          normal
+# attr3           normal,gold
+# proc8           normal,gold
+# wait8           normal
+# func11          normal
+# const4          normal
+# shift1          normal
+# wait9           normal
+# wait10          normal
+# attr4           normal
+# bounds6         gold,fail
+# elab6           normal
+# elab7           normal
+# bounds7         gold,fail
+# arith2          gold,fail
+# attr5           normal
+# attr6           normal
+# elab8           normal
+# arith3          normal
+# bounds8         gold,fail
+# bounds9         gold,fail
+# access3         normal
+# access4         normal
+# textio1         normal,gold
+# proc9           normal
+# elab9           normal,gold
+# elab10          normal,gold
+# conv1           normal
+# elab11          normal
+# link2           normal
+# driver3         normal
+# elab12          normal
+# issue10         normal
+# elab13          normal,gold
+# delay2          normal
+# issue13         normal
+# attr7           normal
+# shift2          normal
+# case4           normal
+# signal10        normal
+# signal11        normal,gold
+# wait11          normal
+# bounds11        gold,fail
+# wait12          normal,gold
+# array2          normal
+# driver4         normal
+# comp1           normal
+# bitvec          normal
+# elab14          normal
+# operator4       normal
+# issue16         normal
+# elab15          normal
+# const5          normal
+# issue18         normal
+# elab16          normal
+# signal12        normal
+# const6          normal
+# func12          normal
+# agg5            normal
+# elab17          normal
+# null2           normal
+# func13          normal
+# proc10          normal
+# array3          normal
+# slice2          normal
+# attr8           normal
+# attr9           normal
+# bounds12        gold,fail
+# bounds13        gold,fail
+# access5         normal
+# record6         normal
+# agg6            normal
+# func14          normal
+# operator5       normal
+# alias4          normal
+# alias5          normal,gold
+# alias6          normal
+# alias7          normal
+# const7          normal
+# bounds14        gold,fail
+# bounds15        gold,fail
+# bounds16        gold,fail
+# bounds17        gold,fail
+# signal13        normal
+# elab18          normal
+# wait13          normal
+# shared2         normal
+# func15          normal
+# elab19          normal
+# concat4         normal
+# issue29         normal
+# assert3         normal,gold
+# alias8          normal
+# textio2         normal
+# elab20          normal
+# issue38         normal
+# stop1           normal,gold
+# stop2           normal,gold,2008
+# record7         normal
+# record8         normal
+# elab21          normal
+# record9         normal
+# record10        normal
+# real2           normal
+# issue45         normal,gold
+# for2            normal,gold
+# issue57         normal
+# attr10          normal
+# assert4         normal
+# issue56         normal
+# issue53         normal
+# issue59         normal
+# issue60         normal
+# record11        normal
+# issue63         normal
+# driver5         normal
+# textio3         normal
+# record12        normal
+# attr11          normal
+# implicit1       normal
+# implicit2       normal
+# file2           normal
+# case5           gold,fail
+# toplevel1       normal
+# vhpi1           gold,vhpi
+# vhpi2           normal,vhpi
+# issue69         normal
+# issue70         normal
+# elab22          normal
+# array4          normal
+# issue72         normal
+# protected1      normal,2000
+# protected2      normal,2000
+# slice3          normal
+# alias9          normal
+# issue79         normal
+# issue84         normal,2000
+# issue82         normal
+# issue86         normal
 issue94         normal

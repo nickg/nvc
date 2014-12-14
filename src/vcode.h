@@ -81,6 +81,9 @@ typedef enum {
    VCODE_OP_AND,
    VCODE_OP_NESTED_FCALL,
    VCODE_OP_PARAM_UPREF,
+   VCODE_OP_RESOLVED_ADDRESS,
+   VCODE_OP_SET_INITIAL,
+   VCODE_OP_ALLOC_DRIVER,
 } vcode_op_t;
 
 typedef enum {
@@ -248,5 +251,10 @@ vcode_reg_t emit_not(vcode_reg_t arg);
 vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
                      unsigned count);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
+void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
+void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index);
+void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
+                       vcode_reg_t driven_nets, vcode_reg_t driven_length,
+                       vcode_reg_t init);
 
 #endif  // _VCODE_H

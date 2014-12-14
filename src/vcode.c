@@ -33,14 +33,14 @@ typedef struct {
    vcode_reg_t         result;
    vcode_type_t        type;
    vcode_block_array_t targets;
+   vcode_var_t         address;
+   uint32_t            index;
    union {
       vcode_cmp_t    cmp;
       ident_t        func;
       int64_t        value;
-      vcode_var_t    address;
       char          *comment;
       vcode_signal_t signal;
-      uint32_t       index;
       unsigned       dim;
       unsigned       hops;
    };
@@ -246,6 +246,7 @@ static signal_t *vcode_signal_data(vcode_signal_t sig)
 {
    assert(active_unit != NULL);
    vcode_unit_t unit = active_unit->context;
+   assert(unit->kind == VCODE_UNIT_CONTEXT);
    return signal_array_nth_ptr(&(unit->signals), sig);
 }
 
@@ -468,14 +469,15 @@ vcode_var_t vcode_get_address(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_LOAD || o->kind == VCODE_OP_STORE
-          || o->kind == VCODE_OP_INDEX);
+          || o->kind == VCODE_OP_INDEX || o->kind == VCODE_OP_RESOLVED_ADDRESS);
    return o->address;
 }
 
 vcode_signal_t vcode_get_signal(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_NETS);
+   assert(o->kind == VCODE_OP_NETS || o->kind == VCODE_OP_RESOLVED_ADDRESS
+          || o->kind == VCODE_OP_SET_INITIAL);
    return o->address;
 }
 
@@ -530,7 +532,7 @@ uint32_t vcode_get_index(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
-          || o->kind == VCODE_OP_IMAGE);
+          || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL);
    return o->index;
 }
 
@@ -566,7 +568,8 @@ const char *vcode_op_string(vcode_op_t op)
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
-      "nested fcall", "param upref"
+      "nested fcall", "param upref", "resolved address", "set initial",
+      "alloc driver"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1144,6 +1147,7 @@ void vcode_dump(void)
                   vcode_dump_type(col, r->type, r->bounds);
                }
             }
+            break;
 
          case VCODE_OP_PARAM_UPREF:
             {
@@ -1156,6 +1160,41 @@ void vcode_dump(void)
                   vcode_dump_type(col, r->type, r->bounds);
                }
             }
+            break;
+
+         case VCODE_OP_RESOLVED_ADDRESS:
+            {
+               vcode_dump_var(op->address);
+               color_printf(" := %s $white$%s$$", vcode_op_string(op->kind),
+                            istr(vcode_signal_name(op->signal)));
+            }
+            break;
+
+         case VCODE_OP_SET_INITIAL:
+            {
+               color_printf("$white$%s$$ := %s ",
+                            istr(vcode_signal_name(op->signal)),
+                            vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_ALLOC_DRIVER:
+            {
+               printf("%s nets ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf("+");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" driven ");
+               vcode_dump_reg(op->args.items[2]);
+               printf("+");
+               vcode_dump_reg(op->args.items[3]);
+               if (op->args.items[4] != VCODE_INVALID_REG) {
+                  printf(" init ");
+                  vcode_dump_reg(op->args.items[4]);
+               }
+            }
+            break;
          }
 
          printf("\n");
@@ -1795,7 +1834,7 @@ vcode_reg_t emit_load(vcode_var_t var)
 
    vtype_kind_t type_kind = vtype_kind(v->type);
    if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY) {
+       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -1823,7 +1862,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 
    vtype_kind_t type_kind = vtype_kind(deref);
    if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY) {
+       && type_kind != VCODE_TYPE_UARRAY&& type_kind != VCODE_TYPE_POINTER) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -2057,15 +2096,9 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       vcode_reg_data(op->result)->bounds = vt->bounds;
       break;
 
-   case VCODE_TYPE_POINTER:
-      op->type = typeref;
-      op->result = vcode_add_reg(op->type);
-      vcode_reg_data(op->result)->bounds = vcode_var_data(var)->bounds;
-      break;
-
    default:
       vcode_dump();
-      fatal_trace("indexed variable %s is not an array or pointer",
+      fatal_trace("indexed variable %s is not an array",
                   istr(vcode_var_name(var)));
    }
 
@@ -2471,4 +2504,31 @@ vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
    rr->bounds = p->bounds;
 
    return op->result;
+}
+
+void emit_resolved_address(vcode_var_t var, vcode_signal_t signal)
+{
+   op_t *op = vcode_add_op(VCODE_OP_RESOLVED_ADDRESS);
+   op->signal  = signal;
+   op->address = var;
+}
+
+void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SET_INITIAL);
+   op->signal = signal;
+   op->index  = index;
+   vcode_add_arg(op, value);
+}
+
+void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
+                       vcode_reg_t driven_nets, vcode_reg_t driven_length,
+                       vcode_reg_t init)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ALLOC_DRIVER);
+   vcode_add_arg(op, all_nets);
+   vcode_add_arg(op, all_length);
+   vcode_add_arg(op, driven_nets);
+   vcode_add_arg(op, driven_length);
+   vcode_add_arg(op, init);
 }

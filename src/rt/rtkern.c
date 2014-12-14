@@ -490,7 +490,7 @@ void *_resolved_address(int32_t nid)
 {
    groupid_t gid = netdb_lookup(netdb, nid);
    netgroup_t *g = &(groups[gid]);
-
+   TRACE("_resolved_address %d %p", nid, g->resolved);
    return g->resolved;
 }
 

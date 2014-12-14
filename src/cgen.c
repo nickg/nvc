@@ -203,9 +203,17 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_OFFSET:
       return LLVMInt32Type();
 
+   case VCODE_TYPE_POINTER:
+      return LLVMPointerType(cgen_type(vtype_pointed(type)), 0);
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }
+}
+
+static LLVMTypeRef cgen_net_id_type(void)
+{
+   return LLVMInt32Type();
 }
 
 static const char *cgen_reg_name(vcode_reg_t r)
@@ -251,12 +259,33 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
    const int var_depth = vcode_var_context(var);
    assert(my_depth >= var_depth);
 
-   if (my_depth == var_depth) {
+   if (var_depth == 0) {
+      // Shared global variable
+      LLVMValueRef global =
+         LLVMGetNamedGlobal(module, istr(vcode_var_name(var)));
+      if (global == NULL)
+         fatal_trace("missing LLVM global for %s", istr(vcode_var_name(var)));
+
+      return global;
+   }
+   else if (my_depth == var_depth) {
       // Variable is inside current context
-      if (ctx->state != NULL)
-         return LLVMBuildStructGEP(builder, ctx->state,
-                                   ctx->var_base + vcode_var_index(var),
-                                   istr(vcode_var_name(var)));
+      if (ctx->state != NULL) {
+         LLVMValueRef ptr =
+            LLVMBuildStructGEP(builder, ctx->state,
+                               ctx->var_base + vcode_var_index(var),
+                               istr(vcode_var_name(var)));
+
+         if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
+            LLVMValueRef index[] = {
+               llvm_int32(0),
+               llvm_int32(0)
+            };
+            return LLVMBuildGEP(builder, ptr, index, ARRAY_LEN(index), "");
+         }
+         else
+            return ptr;
+      }
       else {
          assert(ctx->locals != NULL);
          return ctx->locals[vcode_var_index(var)];
@@ -941,14 +970,15 @@ static void cgen_op_unwrap(int op, cgen_ctx_t *ctx)
 static void cgen_op_index(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   vcode_var_t var = vcode_get_address(op);
 
-   LLVMValueRef index[] = {
-      llvm_int32(0),
+   LLVMValueRef var = cgen_get_var(vcode_get_address(op), ctx);
+   const char *name = cgen_reg_name(result);
+
+   LLVMValueRef index_ptr[] = {
       cgen_get_arg(op, 0, ctx)
    };
-   ctx->regs[result] = LLVMBuildGEP(builder, cgen_get_var(var, ctx), index,
-                                    ARRAY_LEN(index), cgen_reg_name(result));
+   ctx->regs[result] = LLVMBuildGEP(builder, var, index_ptr,
+                                    ARRAY_LEN(index_ptr), name);
 }
 
 static void cgen_op_select(int op, cgen_ctx_t *ctx)
@@ -1011,6 +1041,121 @@ static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildExtractValue(builder, display,
                                              nvars + vcode_get_arg(op, 0),
                                              cgen_reg_name(result));
+}
+
+static void cgen_op_resolved_address(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef args[] = {
+      llvm_int32(vcode_signal_nets(vcode_get_signal(op))[0])
+   };
+   LLVMValueRef res_mem = LLVMBuildCall(builder, llvm_fn("_resolved_address"),
+                                        args, ARRAY_LEN(args), "");
+
+   vcode_var_t shadow = vcode_get_address(op);
+   vcode_type_t type = vcode_var_type(shadow);
+
+   LLVMValueRef cast = LLVMBuildPointerCast(builder, res_mem,
+                                            cgen_type(type), "");
+
+   LLVMBuildStore(builder, cast, cgen_get_var(shadow, ctx));
+}
+
+static void cgen_op_nets(int op, cgen_ctx_t *ctx)
+{
+   vcode_signal_t sig = vcode_get_signal(op);
+
+   char *buf LOCAL = xasprintf("%s_nets", istr(vcode_signal_name(sig)));
+   LLVMValueRef nets = LLVMGetNamedGlobal(module, buf);
+   assert(nets);
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      llvm_int32(0)
+   };
+   ctx->regs[result] = LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
+{
+   // Need to get a pointer to the data
+   LLVMValueRef value = cgen_get_arg(op, 2, ctx);
+   LLVMTypeRef lltype = LLVMTypeOf(value);
+   LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
+   LLVMBuildStore(builder, value, valptr);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(cgen_get_arg(op, 0, ctx)),
+      llvm_void_cast(valptr),
+      cgen_get_arg(op, 1, ctx),
+      cgen_get_arg(op, 4, ctx),
+      cgen_get_arg(op, 3, ctx)
+   };
+   LLVMBuildCall(builder, llvm_fn("_sched_waveform"),
+                 args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
+{
+   vcode_signal_t sig = vcode_get_signal(op);
+
+   // Need to get a pointer to the data
+   LLVMValueRef value = cgen_get_arg(op, 0, ctx);
+   LLVMTypeRef lltype = LLVMTypeOf(value);
+   LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
+   LLVMBuildStore(builder, value, valptr);
+
+   LLVMValueRef n_elems = llvm_int32(1);
+   LLVMValueRef size    = llvm_sizeof(lltype);
+
+   LLVMValueRef nparts    = llvm_int32(1);
+   LLVMValueRef size_list = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
+                                                 llvm_int32(2), "size_list");
+
+   LLVMValueRef zero[] = { llvm_int32(0) };
+   LLVMBuildStore(builder, size,
+                  LLVMBuildGEP(builder, size_list, zero, 1, ""));
+
+   LLVMValueRef one[] = { llvm_int32(1) };
+   LLVMBuildStore(builder, n_elems,
+                  LLVMBuildGEP(builder, size_list, one, 1, ""));
+
+   // Assuming array nets are sequential
+   netid_t nid = vcode_signal_nets(sig)[0];
+
+   LLVMValueRef args[] = {
+      llvm_int32(nid),
+      llvm_void_cast(valptr),
+      size_list,
+      nparts,
+      LLVMConstNull(llvm_void_ptr()),
+      /*llvm_void_cast(cgen_resolution_func(decl_type))*/
+      llvm_int32(vcode_get_index(op)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_set_initial"),
+                 args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_alloc_driver(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef init = NULL;
+   if (vcode_get_arg(op, 4) != VCODE_INVALID_REG)
+      init = llvm_void_cast(cgen_get_arg(op, 4, ctx));
+   else
+      init = LLVMConstNull(llvm_void_ptr());
+
+   LLVMValueRef args[] = {
+      cgen_get_arg(op, 0, ctx),
+      cgen_get_arg(op, 1, ctx),
+      cgen_get_arg(op, 2, ctx),
+      cgen_get_arg(op, 3, ctx),
+      init
+   };
+   LLVMBuildCall(builder, llvm_fn("_alloc_driver"), args, ARRAY_LEN(args), "");
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -1138,6 +1283,21 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_PARAM_UPREF:
       cgen_op_param_upref(i, ctx);
+      break;
+   case VCODE_OP_RESOLVED_ADDRESS:
+      cgen_op_resolved_address(i, ctx);
+      break;
+   case VCODE_OP_NETS:
+      cgen_op_nets(i, ctx);
+      break;
+   case VCODE_OP_SCHED_WAVEFORM:
+      cgen_op_sched_waveform(i, ctx);
+      break;
+   case VCODE_OP_SET_INITIAL:
+      cgen_op_set_initial(i, ctx);
+      break;
+   case VCODE_OP_ALLOC_DRIVER:
+      cgen_op_alloc_driver(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -1344,10 +1504,8 @@ static void cgen_process(vcode_unit_t code)
    cgen_free_context(&ctx);
 }
 
-static void cgen_reset_function(vcode_unit_t vcode)
+static void cgen_reset_function(void)
 {
-   vcode_select_unit(vcode);
-
    char *name LOCAL = xasprintf("%s_reset", istr(vcode_unit_name()));
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
@@ -1399,13 +1557,54 @@ static void cgen_subprograms(tree_t t)
    }
 }
 
+static void cgen_shared_variables(void)
+{
+   const int nvars = vcode_count_vars();
+   for (int i = 0; i < nvars; i++) {
+      vcode_var_t var = vcode_var_handle(i);
+
+      LLVMTypeRef type = cgen_type(vcode_var_type(var));
+      LLVMValueRef global = LLVMAddGlobal(module, type,
+                                          istr(vcode_var_name(var)));
+      LLVMSetInitializer(global, LLVMConstNull(type));
+      LLVMSetLinkage(global, LLVMInternalLinkage);
+   }
+}
+
+static void cgen_signals(void)
+{
+   const int nsignals = vcode_count_signals();
+   for (int i = 0 ; i < nsignals; i++) {
+      char *buf LOCAL = xasprintf("%s_nets", istr(vcode_signal_name(i)));
+
+      const int nnets     = vcode_signal_count_nets(i);
+      const netid_t *nets = vcode_signal_nets(i);
+
+      LLVMTypeRef nid_type = cgen_net_id_type();
+      LLVMTypeRef map_type = LLVMArrayType(nid_type, nnets);
+
+      LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
+      LLVMSetLinkage(map_var, LLVMInternalLinkage);
+      LLVMSetGlobalConstant(map_var, true);
+
+      LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
+      for (int i = 0; i < nnets; i++)
+         init[i] = LLVMConstInt(nid_type, nets[i], false);
+
+      LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+      free(init);
+   }
+}
+
 static void cgen_top(tree_t t)
 {
    vcode_unit_t vcode = tree_code(t);
+   vcode_select_unit(vcode);
 
    cgen_coverage_state(t);
-
-   cgen_reset_function(vcode);
+   cgen_shared_variables();
+   cgen_signals();
+   cgen_reset_function();
    cgen_subprograms(t);
 
    if (tree_kind(t) == T_ELAB) {

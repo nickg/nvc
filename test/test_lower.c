@@ -138,6 +138,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_NETS:
+      case VCODE_OP_RESOLVED_ADDRESS:
          {
             ident_t name = vcode_signal_name(vcode_get_signal(i));
             if (name != ident_new(e->name)) {
@@ -167,6 +168,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALLOCA:
       case VCODE_OP_PHI:
       case VCODE_OP_SELECT:
+      case VCODE_OP_SET_INITIAL:
+      case VCODE_OP_ALLOC_DRIVER:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -437,6 +440,9 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_SET_INITIAL },
+         { VCODE_OP_RESOLVED_ADDRESS, .name = ":signal1:x" },
          { VCODE_OP_RETURN }
       };
 
@@ -453,6 +459,9 @@ START_TEST(test_signal1)
 
    {
       EXPECT_BB(0) = {
+         { VCODE_OP_NETS, .name = ":signal1:x" },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ALLOC_DRIVER },
          { VCODE_OP_RETURN }
       };
 
@@ -460,8 +469,7 @@ START_TEST(test_signal1)
 
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_INDEX, .name = "shadow_:signal1:x" },
+         { VCODE_OP_LOAD, .name = "resolved_:signal1:x" },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 5 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -504,8 +512,7 @@ START_TEST(test_cond1)
    CHECK_BB(0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_INDEX, .name = "shadow_:cond1:x" },
+      { VCODE_OP_LOAD, .name = "resolved_:cond1:x" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -523,8 +530,7 @@ START_TEST(test_cond1)
    CHECK_BB(2);
 
    EXPECT_BB(3) = {
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_INDEX, .name = "shadow_:cond1:x" },
+      { VCODE_OP_LOAD, .name = "resolved_:cond1:x" },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
