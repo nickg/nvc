@@ -83,6 +83,13 @@ typedef enum {
    RT_LAST_EVENT
 } rt_event_t;
 
+typedef enum {
+   SEVERITY_NOTE,
+   SEVERITY_WARNING,
+   SEVERITY_ERROR,
+   SEVERITY_FAILURE
+} rt_severity_t;
+
 void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx);
 void rt_end_of_tool(tree_t top);
 void rt_run_sim(uint64_t stop_time);
@@ -101,6 +108,7 @@ bool rt_force_signal(tree_t s, const uint64_t *buf, size_t count,
 bool rt_can_create_delta(void);
 uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
+void rt_set_exit_severity(rt_severity_t severity);
 
 void jit_init(ident_t top);
 void jit_shutdown(void);

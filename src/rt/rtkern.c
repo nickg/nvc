@@ -45,7 +45,6 @@
 
 #define TRACE_DELTAQ  1
 #define TRACE_PENDING 0
-#define EXIT_SEVERITY 2
 
 typedef void (*proc_fn_t)(int32_t reset);
 typedef uint64_t (*resolution_fn_t)(void *vals, int32_t n);
@@ -223,6 +222,7 @@ static side_effect_t init_side_effect = SIDE_EFFECT_ALLOW;
 static bool          force_stop;
 static bool          can_create_delta;
 static callback_t   *global_cbs[RT_LAST_EVENT];
+static rt_severity_t exit_severity = SEVERITY_ERROR;
 
 static rt_alloc_stack_t event_stack = NULL;
 static rt_alloc_stack_t waveform_stack = NULL;
@@ -577,7 +577,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    // c) The value of the message string
    // d) The name of the design unit containing the assertion
 
-   assert(severity < 4);
+   assert(severity <= SEVERITY_FAILURE);
 
    const char *levels[] = {
       "Note", "Warning", "Error", "Failure"
@@ -602,15 +602,13 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
    void (*fn)(const loc_t *loc, const char *fmt, ...);
 
    switch (severity) {
-   case 0: fn = note_at; break;
-   case 1: fn = warn_at; break;
-   case 2:
-   case 3: fn = error_at; break;
-   default:
-      assert(false);
+   case SEVERITY_NOTE:    fn = note_at; break;
+   case SEVERITY_WARNING: fn = warn_at; break;
+   case SEVERITY_ERROR:
+   case SEVERITY_FAILURE: fn = error_at; break;
    }
 
-   if (severity >= EXIT_SEVERITY)
+   if (severity >= exit_severity)
       fn = fatal_at;
 
    (*fn)(loc, "%s+%d: %s %s: %s\r\tProcess %s",
@@ -2486,4 +2484,9 @@ uint64_t rt_now(unsigned *deltas)
 void rt_stop(void)
 {
    force_stop = true;
+}
+
+void rt_set_exit_severity(rt_severity_t severity)
+{
+   exit_severity = severity;
 }

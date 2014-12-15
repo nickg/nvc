@@ -105,6 +105,11 @@ specific options must be placed after the command.
  * `-c`, `--command`:
    Run in interactive TCL command line mode. See [TCL SHELL][] section below.
 
+ * `--exit-severity=`_level_:
+   Terminate the simulation after an assertion failures of severity greater than
+   or equal to _level_. Valid levels are `note`, `warning`, `error`, and `failure`.
+   The default is `error`.
+
  * `--format=`_fmt_:
    Generate waveform data in format _fmt_. Currently supported formats are:
    `fst`, `lxt`, and `vcd`. The FST and LXT formats are native to GtkWave.
