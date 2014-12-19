@@ -84,6 +84,8 @@ typedef enum {
    VCODE_OP_RESOLVED_ADDRESS,
    VCODE_OP_SET_INITIAL,
    VCODE_OP_ALLOC_DRIVER,
+   VCODE_OP_EVENT,
+   VCODE_OP_ACTIVE,
 } vcode_op_t;
 
 typedef enum {
@@ -256,5 +258,7 @@ void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index);
 void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
                        vcode_reg_t driven_nets, vcode_reg_t driven_length,
                        vcode_reg_t init);
+vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
+vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 
 #endif  // _VCODE_H

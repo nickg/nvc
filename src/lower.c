@@ -42,6 +42,9 @@ static vcode_reg_t lower_reify_expr(tree_t expr);
 static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt);
 static void lower_func_body(tree_t body, vcode_unit_t context);
+static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
+
+typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 
 static bool lower_is_const(tree_t t)
 {
@@ -395,8 +398,26 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
                                 pred);
 }
 
+static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
+{
+   tree_t decl = tree_ref(ref);
+   assert(tree_kind(decl) == T_SIGNAL_DECL);
+
+   vcode_reg_t nets   = lower_signal_ref(decl, EXPR_LVALUE);
+   vcode_reg_t length = emit_const(vtype_offset(), tree_nets(decl));
+
+   return (*fn)(nets, length);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
+   if (icmp(builtin, "event"))
+      return lower_signal_flag(tree_value(tree_param(fcall, 0)),
+                               emit_event_flag);
+   else if (icmp(builtin, "active"))
+      return lower_signal_flag(tree_value(tree_param(fcall, 0)),
+                               emit_active_flag);
+
    vcode_reg_t r0 = lower_func_arg(fcall, 0);
    vcode_reg_t r1 = lower_func_arg(fcall, 1);
 

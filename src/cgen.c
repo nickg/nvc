@@ -1158,6 +1158,32 @@ static void cgen_op_alloc_driver(int op, cgen_ctx_t *ctx)
    LLVMBuildCall(builder, llvm_fn("_alloc_driver"), args, ARRAY_LEN(args), "");
 }
 
+static void cgen_net_flag(int op, net_flags_t flag, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef nets    = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef n_elems = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      n_elems,
+      llvm_int32(flag)
+   };
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_test_net_flag"), args,
+                                     ARRAY_LEN(args), cgen_reg_name(result));
+}
+
+static void cgen_op_event(int op, cgen_ctx_t *ctx)
+{
+   cgen_net_flag(op, NET_F_EVENT, ctx);
+}
+
+static void cgen_op_active(int op, cgen_ctx_t *ctx)
+{
+   cgen_net_flag(op, NET_F_ACTIVE, ctx);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1298,6 +1324,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_ALLOC_DRIVER:
       cgen_op_alloc_driver(i, ctx);
+      break;
+   case VCODE_OP_ACTIVE:
+      cgen_op_active(i, ctx);
+      break;
+   case VCODE_OP_EVENT:
+      cgen_op_event(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

@@ -569,7 +569,7 @@ const char *vcode_op_string(vcode_op_t op)
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
-      "alloc driver"
+      "alloc driver", "event", "active"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1192,6 +1192,21 @@ void vcode_dump(void)
                if (op->args.items[4] != VCODE_INVALID_REG) {
                   printf(" init ");
                   vcode_dump_reg(op->args.items[4]);
+               }
+            }
+            break;
+
+         case VCODE_OP_ACTIVE:
+         case VCODE_OP_EVENT:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[1]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
                }
             }
             break;
@@ -2169,6 +2184,13 @@ void emit_return(vcode_reg_t reg)
 
 vcode_reg_t emit_nets(vcode_signal_t sig)
 {
+   block_t *b = &(active_unit->blocks.items[active_block]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
+      if (op->kind == VCODE_OP_NETS && op->signal == sig)
+         return op->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_NETS);
    op->signal = sig;
 
@@ -2531,4 +2553,29 @@ void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
    vcode_add_arg(op, driven_nets);
    vcode_add_arg(op, driven_length);
    vcode_add_arg(op, init);
+}
+
+static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
+                                    vcode_reg_t len)
+{
+   op_t *op = vcode_add_op(opkind);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, len);
+
+   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL) {
+      vcode_dump();
+      fatal_trace("argument to %s is not a signal", vcode_op_string(opkind));
+   }
+
+   return (op->result = vcode_add_reg(vtype_bool()));
+}
+
+vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len)
+{
+   return emit_signal_flag(VCODE_OP_EVENT, nets, len);
+}
+
+vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len)
+{
+   return emit_signal_flag(VCODE_OP_ACTIVE, nets, len);
 }

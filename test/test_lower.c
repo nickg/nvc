@@ -170,6 +170,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_SELECT:
       case VCODE_OP_SET_INITIAL:
       case VCODE_OP_ALLOC_DRIVER:
+      case VCODE_OP_EVENT:
+      case VCODE_OP_ACTIVE:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -955,6 +957,42 @@ START_TEST(test_nest1)
 }
 END_TEST
 
+START_TEST(test_signal2)
+{
+   input_from_file(TESTDIR "/lower/signal2.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_NETS, .name = ":signal2:x" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_EVENT },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_ACTIVE },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -974,6 +1012,7 @@ int main(void)
    tcase_add_test(tc, test_arrayop1);
    tcase_add_test(tc, test_array1);
    tcase_add_test(tc, test_nest1);
+   tcase_add_test(tc, test_signal2);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
