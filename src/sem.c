@@ -2952,10 +2952,16 @@ static bool sem_check_var_assign(tree_t t)
    if (!suitable)
       sem_error(target, "invalid target of variable assignment");
 
-   if (!type_eq(tree_type(target), tree_type(value)))
+   type_t target_type = tree_type(target);
+   type_t value_type  = tree_type(value);
+
+   if (!type_eq(target_type, value_type))
       sem_error(t, "type of value %s does not match type of target %s",
-                sem_type_str(tree_type(value)),
-                sem_type_str(tree_type(target)));
+                sem_type_str(value_type),
+                sem_type_str(target_type));
+
+   if (type_is_universal(value_type))
+      tree_set_type(value, target_type);
 
    return ok;
 }
@@ -2974,10 +2980,14 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
       if (!sem_readable(value))
          return false;
 
-      if (!type_eq(expect, tree_type(value)))
+      type_t value_type = tree_type(value);
+
+      if (!type_eq(expect, value_type))
          sem_error(t, "type of value %s does not match type of target %s",
-                   sem_type_str(tree_type(value)),
-                   sem_type_str(expect));
+                   sem_type_str(value_type), sem_type_str(expect));
+
+      if (type_is_universal(value_type))
+         tree_set_type(value, expect);
 
       if (tree_has_delay(waveform)) {
          tree_t delay = tree_delay(waveform);
@@ -2985,7 +2995,8 @@ static bool sem_check_waveforms(tree_t t, type_t expect)
             return false;
 
          if (!type_eq(tree_type(delay), std_time))
-            sem_error(delay, "type of delay must be %s", sem_type_str(std_time));
+            sem_error(delay, "type of delay must be %s",
+                      sem_type_str(std_time));
       }
    }
 
@@ -3461,11 +3472,16 @@ static bool sem_copy_default_args(tree_t call, tree_t decl)
                       "default value", istr(name));
       }
 
+      // Constrain the type of any universal arguments
+      tree_t value = tree_value(found);
+      if (tree_has_type(value) && type_is_universal(tree_type(value)))
+         tree_set_type(value, tree_type(port));
+
       // Check IN and INOUT parameters can be read
       if (tree_kind(call) != T_ATTR_REF) {
          port_mode_t mode = tree_subkind(port);
          if ((mode == PORT_IN) || (mode == PORT_INOUT)) {
-            if (!sem_readable(tree_value(found)))
+            if (!sem_readable(value))
                return false;
          }
       }

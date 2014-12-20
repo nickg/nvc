@@ -2579,3 +2579,22 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len)
 {
    return emit_signal_flag(VCODE_OP_ACTIVE, nets, len);
 }
+
+vcode_reg_t emit_widen(vcode_reg_t reg, vcode_type_t type)
+{
+   vtype_t *from = vcode_type_data(vcode_reg_type(reg));
+   vtype_t *to   = vcode_type_data(type);
+
+   if (from->kind != VCODE_TYPE_INT || to->kind != VCODE_TYPE_INT)
+      return reg;
+
+   const int64_t from_range = from->high - from->low + 1;
+   const int64_t to_range   = to->high - to->low + 1;
+
+   printf("to_range=%"PRIi64" from_range=%"PRIi64"\n", to_range, from_range);
+   if (to_range > from_range) {
+      assert(false);
+   }
+   else
+      return reg;
+}

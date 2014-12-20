@@ -993,6 +993,59 @@ START_TEST(test_signal2)
 }
 END_TEST
 
+START_TEST(test_attr1)
+{
+   input_from_file(TESTDIR "/lower/attr1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_LOAD, .name = "X" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_LOAD, .name = "Z" },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_LOAD, .name = "Y" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1013,6 +1066,7 @@ int main(void)
    tcase_add_test(tc, test_array1);
    tcase_add_test(tc, test_nest1);
    tcase_add_test(tc, test_signal2);
+   tcase_add_test(tc, test_attr1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

@@ -467,6 +467,20 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LEQ));
    else if (icmp(builtin, "ageq"))
       return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LT));
+   else if (icmp(builtin, "succ"))
+      return emit_add(r0, emit_const(vcode_reg_type(r0), 1));
+   else if (icmp(builtin, "pred"))
+      return emit_sub(r0, emit_const(vcode_reg_type(r0), 1));
+   else if (icmp(builtin, "leftof")) {
+      range_t r = type_dim(tree_type(fcall), 0);
+      const int dir = (r.kind == RANGE_TO ? -1 : 1);
+      return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
+   }
+   else if (icmp(builtin, "rightof")) {
+      range_t r = type_dim(tree_type(fcall), 0);
+      const int dir = (r.kind == RANGE_TO ? 1 : -1);;
+      return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
