@@ -87,6 +87,8 @@ typedef enum {
    VCODE_OP_EVENT,
    VCODE_OP_ACTIVE,
    VCODE_OP_CONST_RECORD,
+   VCODE_OP_RECORD_REF,
+   VCODE_OP_COPY,
 } vcode_op_t;
 
 typedef enum {
@@ -186,6 +188,7 @@ vcode_reg_t vcode_get_result(int op);
 vcode_signal_t vcode_get_signal(int op);
 unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
+int vcode_get_field(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_var_handle(int index);
@@ -264,5 +267,7 @@ void emit_alloc_driver(vcode_reg_t all_nets, vcode_reg_t all_length,
                        vcode_reg_t init);
 vcode_reg_t emit_event_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
+vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
+void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 
 #endif  // _VCODE_H

@@ -64,6 +64,8 @@ static bool lower_is_const(tree_t t)
 
 static bool lower_const_bounds(type_t type)
 {
+   assert(type_is_array(type));
+
    if (type_is_unconstrained(type))
       return false;
    else {
@@ -397,16 +399,13 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
 }
 
 static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
-                                   tree_t fcall, vcode_cmp_t pred)
+                                   type_t r0_type, type_t r1_type,
+                                   vcode_cmp_t pred)
 {
-   emit_comment("Begin array cmp line %d", tree_loc(fcall)->first_line);
-
    vcode_reg_t r0_data = lower_array_data(r0);
    vcode_reg_t r1_data = lower_array_data(r1);
    return lower_array_cmp_inner(r0_data, r1_data, r0, r1,
-                                tree_type(tree_value(tree_param(fcall, 0))),
-                                tree_type(tree_value(tree_param(fcall, 1))),
-                                pred);
+                                r0_type, r1_type, pred);
 }
 
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
@@ -418,6 +417,38 @@ static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
    vcode_reg_t length = emit_const(vtype_offset(), tree_nets(decl));
 
    return (*fn)(nets, length);
+}
+
+static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
+{
+   vcode_reg_t result = emit_const(vtype_bool(), true);
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      vcode_reg_t lfield = emit_record_ref(r0, i);
+      vcode_reg_t rfield = emit_record_ref(r1, i);
+
+      vcode_reg_t cmp = VCODE_INVALID_REG;
+      type_t ftype = tree_type(type_field(type, i));
+      if (type_is_array(ftype))
+         cmp = lower_array_cmp(lfield, rfield, ftype, ftype, VCODE_CMP_EQ);
+      else if (type_is_record(ftype))
+         cmp = lower_record_eq(lfield, rfield, ftype);
+      else {
+         vcode_reg_t lload = emit_load_indirect(lfield);
+         vcode_reg_t rload = emit_load_indirect(rfield);
+         cmp = emit_cmp(VCODE_CMP_EQ, lload, rload);
+      }
+
+      result = emit_and(result, cmp);
+   }
+
+   return result;
+}
+
+static type_t lower_arg_type(tree_t fcall, int nth)
+{
+   return tree_type(tree_value(tree_param(fcall, nth)));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -473,15 +504,20 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
    else if (icmp(builtin, "aeq"))
-      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_EQ);
+      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                             lower_arg_type(fcall, 1), VCODE_CMP_EQ);
    else if (icmp(builtin, "alt"))
-      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_LT);
+      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                             lower_arg_type(fcall, 1), VCODE_CMP_LT);
    else if (icmp(builtin, "aleq"))
-      return lower_array_cmp(r0, r1, fcall, VCODE_CMP_LEQ);
+      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                             lower_arg_type(fcall, 1), VCODE_CMP_LEQ);
    else if (icmp(builtin, "agt"))
-      return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LEQ));
+      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                                      lower_arg_type(fcall, 1), VCODE_CMP_LEQ));
    else if (icmp(builtin, "ageq"))
-      return emit_not(lower_array_cmp(r0, r1, fcall, VCODE_CMP_LT));
+      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                                      lower_arg_type(fcall, 1), VCODE_CMP_LT));
    else if (icmp(builtin, "succ"))
       return emit_add(r0, emit_const(vcode_reg_type(r0), 1));
    else if (icmp(builtin, "pred"))
@@ -496,6 +532,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       const int dir = (r.kind == RANGE_TO ? 1 : -1);;
       return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
    }
+   else if (icmp(builtin, "req"))
+      return lower_record_eq(r0, r1, lower_arg_type(fcall, 0));
+   else if (icmp(builtin, "rneq"))
+      return emit_not(lower_record_eq(r0, r1, lower_arg_type(fcall, 0)));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -594,6 +634,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
    vcode_var_t var = lower_get_var(decl);
    if (type_is_array(type) && lower_const_bounds(type))
       return emit_index(var, emit_const(vtype_offset(), 0));
+   else if (type_is_record(type))
+      return emit_index(var, VCODE_INVALID_REG);
    else
       return emit_load(var);
 }
@@ -1124,6 +1166,16 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
       return lower_dyn_aggregate(expr, type);
 }
 
+static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
+{
+   tree_t value = tree_value(expr);
+   vcode_reg_t record = lower_expr(value, ctx);
+
+   const int index = lower_field_index(tree_type(value), tree_ident(expr));
+
+   return emit_record_ref(record, index);
+}
+
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
@@ -1137,6 +1189,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_aggregate(expr, ctx);
    case T_ARRAY_REF:
       return lower_array_ref(expr, ctx);
+   case T_RECORD_REF:
+      return lower_record_ref(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -1181,7 +1235,7 @@ static void lower_var_assign(tree_t stmt)
    type_t type = tree_type(target);
    const bool can_use_store =
       type_is_scalar(type)
-      || (type_is_array(type) || lower_const_bounds(type));
+      || type_is_array(type);    // XXXX
 
    if (can_use_store) {
       vcode_reg_t loaded_value = lower_reify(value);
@@ -1192,8 +1246,8 @@ static void lower_var_assign(tree_t stmt)
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
    else {
-      vcode_dump();
-      assert(false);
+      vcode_reg_t count = emit_const(vtype_offset(), 1);   // XXX
+      emit_copy(lower_expr(target, EXPR_LVALUE), value, count);
    }
 }
 
@@ -1336,8 +1390,15 @@ static void lower_decl(tree_t decl)
 
          if (tree_has_value(decl)) {
             vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
-            emit_bounds(value, vbounds);
-            emit_store(value, var);
+            if (type_is_record(type)) {
+               vcode_reg_t count = emit_const(vtype_offset(), 1);
+               vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
+               emit_copy(dest, value, count);
+            }
+            else {
+               emit_bounds(value, vbounds);
+               emit_store(value, var);
+            }
          }
       }
       break;

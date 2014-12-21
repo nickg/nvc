@@ -44,6 +44,7 @@ typedef struct {
       vcode_signal_t signal;
       unsigned       dim;
       unsigned       hops;
+      unsigned       field;
    };
 } op_t;
 
@@ -495,6 +496,13 @@ int vcode_get_hops(int op)
    return o->hops;
 }
 
+int vcode_get_field(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_RECORD_REF);
+   return o->field;
+}
+
 vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
@@ -568,7 +576,7 @@ const char *vcode_op_string(vcode_op_t op)
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
-      "alloc driver", "event", "active", "const record"
+      "alloc driver", "event", "active", "const record", "record ref", "copy"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -927,10 +935,13 @@ void vcode_dump(void)
          case VCODE_OP_INDEX:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ + ",
+               col += color_printf(" := %s $magenta$%s$$",
                                    vcode_op_string(op->kind),
                                    istr(vcode_var_data(op->address)->name));
-               col += vcode_dump_reg(op->args.items[0]);
+               if (op->args.count > 0) {
+                  col += printf(" + ");
+                  col += vcode_dump_reg(op->args.items[0]);
+               }
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -1221,6 +1232,29 @@ void vcode_dump(void)
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
                }
+            }
+            break;
+
+         case VCODE_OP_RECORD_REF:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" field %d", op->field);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_COPY:
+            {
+               vcode_dump_reg(op->args.items[0]);
+               printf(" := %s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[1]);
+               printf(" count " );
+               vcode_dump_reg(op->args.items[2]);
             }
             break;
          }
@@ -1804,9 +1838,24 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
 {
+   // Reuse any previous constant in this block with the same type and value
+   block_t *b = &(active_unit->blocks.items[active_block]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
+      if (op->kind == VCODE_OP_CONST_RECORD && vtype_eq(type, op->type)
+          && op->args.count == num) {
+         bool same_regs = true;
+         for (int i = 0; i < num; i++)
+            same_regs = same_regs && op->args.items[i] == values[i];
+
+         if (same_regs)
+            return op->result;
+      }
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
    op->type   = type;
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(vtype_pointer(type));
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
@@ -2156,13 +2205,16 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_INDEX && op->address == var
-          && op->args.items[0] == offset)
+          && ((offset == VCODE_INVALID_REG && op->args.count == 0)
+              || (offset != VCODE_INVALID_REG && op->args.items[0] == offset)))
          return op->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_INDEX);
-   vcode_add_arg(op, offset);
    op->address = var;
+
+   if (offset != VCODE_INVALID_REG)
+      vcode_add_arg(op, offset);
 
    vcode_type_t typeref = vcode_var_type(var);
    vtype_t *vt = vcode_type_data(typeref);
@@ -2173,15 +2225,22 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       vcode_reg_data(op->result)->bounds = vt->bounds;
       break;
 
+   case VCODE_TYPE_RECORD:
+      op->type = vtype_pointer(typeref);
+      op->result = vcode_add_reg(op->type);
+      break;
+
    default:
       vcode_dump();
       fatal_trace("indexed variable %s is not an array",
                   istr(vcode_var_name(var)));
    }
 
-   if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET) {
-      vcode_dump();
-      fatal_trace("index offset r%d does not have offset type", offset);
+   if (offset != VCODE_INVALID_REG) {
+      if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET) {
+         vcode_dump();
+         fatal_trace("index offset r%d does not have offset type", offset);
+      }
    }
 
    return op->result;
@@ -2642,21 +2701,67 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len)
    return emit_signal_flag(VCODE_OP_ACTIVE, nets, len);
 }
 
-vcode_reg_t emit_widen(vcode_reg_t reg, vcode_type_t type)
+vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 {
-   vtype_t *from = vcode_type_data(vcode_reg_type(reg));
-   vtype_t *to   = vcode_type_data(type);
-
-   if (from->kind != VCODE_TYPE_INT || to->kind != VCODE_TYPE_INT)
-      return reg;
-
-   const int64_t from_range = from->high - from->low + 1;
-   const int64_t to_range   = to->high - to->low + 1;
-
-   printf("to_range=%"PRIi64" from_range=%"PRIi64"\n", to_range, from_range);
-   if (to_range > from_range) {
-      assert(false);
+   // Try scanning backwards through the block for another record ref
+   block_t *b = vcode_block_data();
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
+      if (op->kind == VCODE_OP_RECORD_REF && op->args.items[0] == record
+          && op->field == field)
+         return op->result;
    }
-   else
-      return reg;
+
+   op_t *op = vcode_add_op(VCODE_OP_RECORD_REF);
+   op->field = field;
+   vcode_add_arg(op, record);
+
+   vtype_t *rptype = vcode_type_data(vcode_reg_type(record));
+
+   if (rptype->kind != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("argument to record ref must be a pointer");
+   }
+
+   vtype_t *rtype = vcode_type_data(rptype->pointed);
+
+   if (rtype->kind != VCODE_TYPE_RECORD) {
+      vcode_dump();
+      fatal_trace("argument must be pointer to array");
+   }
+   else if (field >= rtype->fields.count) {
+      vcode_dump();
+      fatal_trace("invalid field %d", field);
+   }
+
+   vcode_type_t result_type = vtype_pointer(rtype->fields.items[field]);
+   return (op->result = vcode_add_reg(result_type));
+}
+
+void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COPY);
+   vcode_add_arg(op, dest);
+   vcode_add_arg(op, src);
+   vcode_add_arg(op, count);
+
+   vcode_type_t dtype = vcode_reg_type(dest);
+   vcode_type_t stype = vcode_reg_type(dest);
+
+   if (vtype_kind(dtype) != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("destination type is not a pointer");
+   }
+   else if (vtype_kind(stype) != VCODE_TYPE_POINTER) {
+      vcode_dump();
+      fatal_trace("source type is not a pointer");
+   }
+   else if (!vtype_eq(dtype, stype)) {
+      vcode_dump();
+      fatal_trace("source and destination types do not match");
+   }
+   else if (vtype_kind(vcode_reg_type(count)) != VCODE_TYPE_OFFSET) {
+      vcode_dump();
+      fatal_trace("count is not offset type");
+   }
 }

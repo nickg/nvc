@@ -19,6 +19,7 @@ typedef struct {
    int           args;
    int           dim;
    int           hops;
+   int           field;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -172,6 +173,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ALLOC_DRIVER:
       case VCODE_OP_EVENT:
       case VCODE_OP_ACTIVE:
+      case VCODE_OP_CONST_RECORD:
+      case VCODE_OP_COPY:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -203,6 +206,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump();
             fail("expect op %d in block %d to have hop count %d"
                  " but has %d", i, bb, e->hops, vcode_get_hops(i));
+         }
+         break;
+
+      case VCODE_OP_RECORD_REF:
+         if (vcode_get_field(i) != e->field) {
+            vcode_dump();
+            fail("expect op %d in block %d to have field %d"
+                 " but has %d", i, bb, e->field, vcode_get_field(i));
          }
          break;
 
@@ -1046,6 +1057,69 @@ START_TEST(test_attr1)
 }
 END_TEST
 
+START_TEST(test_record1)
+{
+   input_from_file(TESTDIR "/lower/record1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST_RECORD },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_INDEX, .name = "A" },
+      { VCODE_OP_COPY },
+      { VCODE_OP_INDEX, .name = "B" },
+      { VCODE_OP_COPY },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_INDEX, .name = "A" },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_INDEX, .name = "B" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_COPY },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_RECORD_REF, .field = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_AND },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1067,6 +1141,7 @@ int main(void)
    tcase_add_test(tc, test_nest1);
    tcase_add_test(tc, test_signal2);
    tcase_add_test(tc, test_attr1);
+   tcase_add_test(tc, test_record1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
