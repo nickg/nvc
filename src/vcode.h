@@ -94,7 +94,8 @@ typedef enum {
    VCODE_TYPE_POINTER,
    VCODE_TYPE_OFFSET,
    VCODE_TYPE_SIGNAL,
-   VCODE_TYPE_UARRAY
+   VCODE_TYPE_UARRAY,
+   VCODE_TYPE_RECORD
 } vtype_kind_t;
 
 typedef enum {
@@ -135,6 +136,7 @@ vcode_type_t vtype_pointed(vcode_type_t type);
 vcode_type_t vtype_bounds(vcode_type_t type);
 int vtype_dims(vcode_type_t type);
 vcode_type_t vtype_dim(vcode_type_t type, int dim);
+vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields);
 
 void vcode_opt(void);
 void vcode_close(void);

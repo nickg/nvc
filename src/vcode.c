@@ -26,6 +26,7 @@
 
 DECLARE_AND_DEFINE_ARRAY(vcode_reg);
 DECLARE_AND_DEFINE_ARRAY(vcode_block);
+DECLARE_AND_DEFINE_ARRAY(vcode_type);
 
 typedef struct {
    vcode_op_t          kind;
@@ -57,23 +58,21 @@ typedef struct {
    vcode_type_t bounds;
 } reg_t;
 
-#define MAX_DIM 4
-
 typedef struct {
-   vtype_kind_t  kind;
+   vtype_kind_t       kind;
    union {
       struct {
          int64_t low;
          int64_t high;
       };
       struct {
-         vcode_type_t dim[MAX_DIM];
-         unsigned     ndim;
-         vcode_type_t elem;
-         vcode_type_t bounds;
+         vcode_type_array_t dims;
+         vcode_type_t       elem;
+         vcode_type_t       bounds;
       };
-      vcode_type_t pointed;
-      vcode_type_t base;
+      vcode_type_t       pointed;
+      vcode_type_t       base;
+      vcode_type_array_t fields;
    };
 } vtype_t;
 
@@ -618,10 +617,10 @@ static void vcode_dump_one_type(vcode_type_t type)
    case VCODE_TYPE_CARRAY:
       {
          printf("[");
-         for (unsigned i = 0; i < vt->ndim; i++) {
+         for (unsigned i = 0; i < vt->dims.count; i++) {
             if (i > 0)
                printf(", ");
-            vcode_dump_one_type(vt->dim[i]);
+            vcode_dump_one_type(vt->dims.items[i]);
          }
          printf("] : ");
          vcode_dump_one_type(vt->elem);
@@ -635,7 +634,7 @@ static void vcode_dump_one_type(vcode_type_t type)
    case VCODE_TYPE_UARRAY:
       {
          printf("[");
-         for (unsigned i = 0; i < vt->ndim; i++)
+         for (unsigned i = 0; i < vt->dims.count; i++)
             printf("%s*", i > 0 ? ", " : "");
          printf("] : ");
          vcode_dump_one_type(vt->elem);
@@ -660,6 +659,18 @@ static void vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_OFFSET:
       printf("#");
+      break;
+
+   case VCODE_TYPE_RECORD:
+      {
+         printf("{");
+         for (unsigned i = 0; i < vt->fields.count; i++) {
+            if (i > 0)
+               printf(", ");
+            vcode_dump_one_type(vt->fields.items[i]);
+         }
+         printf("}");
+      }
       break;
    }
 }
@@ -1241,18 +1252,19 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
             return (at->low == bt->low) && (at->high == bt->high);
          case VCODE_TYPE_CARRAY:
             {
-               if (at->ndim != bt->ndim)
+               if (at->dims.count != bt->dims.count)
                   return false;
 
-               for (unsigned i = 0; i < at->ndim; i++) {
-                  if (!vtype_eq(at->dim[i], bt->dim[i]))
+               for (unsigned i = 0; i < at->dims.count; i++) {
+                  if (!vtype_eq(at->dims.items[i], bt->dims.items[i]))
                      return false;
                }
 
                return vtype_eq(at->elem, bt->elem);
             }
          case VCODE_TYPE_UARRAY:
-            return at->ndim == bt->ndim && vtype_eq(at->elem, bt->elem);
+            return at->dims.count == bt->dims.count
+               && vtype_eq(at->elem, bt->elem);
 
          case VCODE_TYPE_POINTER:
             return vtype_eq(at->pointed, bt->pointed);
@@ -1260,6 +1272,18 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
             return true;
          case VCODE_TYPE_SIGNAL:
             return vtype_eq(at->base, bt->base);
+         case VCODE_TYPE_RECORD:
+            {
+               if (at->fields.count != bt->fields.count)
+                  return false;
+
+               for (unsigned i = 0; i < at->fields.count; i++) {
+                  if (!vtype_eq(at->fields.items[i], bt->fields.items[i]))
+                     return false;
+               }
+
+               return true;
+            }
          }
       }
 
@@ -1283,6 +1307,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
 
    case VCODE_TYPE_CARRAY:
    case VCODE_TYPE_UARRAY:
+   case VCODE_TYPE_RECORD:
       return vtype_eq(type, bounds);
 
    case VCODE_TYPE_POINTER:
@@ -1339,9 +1364,20 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
    n->bounds = bounds;
-   n->ndim   = ndim;
    for (int i = 0; i < ndim; i++)
-      n->dim[i] = dim[i];
+      vcode_type_array_add(&(n->dims), dim[i]);
+
+   return vtype_new(n);
+}
+
+vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_RECORD;
+   for (int i = 0; i < nfields; i++)
+      vcode_type_array_add(&(n->fields), field_types[i]);
 
    return vtype_new(n);
 }
@@ -1355,9 +1391,8 @@ vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
    n->kind   = VCODE_TYPE_UARRAY;
    n->elem   = elem;
    n->bounds = bounds;
-   n->ndim   = ndim;
    for (int i = 0; i < ndim; i++)
-      n->dim[i] = dim_types[i];
+      vcode_type_array_add(&(n->dims), dim_types[i]);
 
    return vtype_new(n);
 }
@@ -1420,15 +1455,14 @@ int vtype_dims(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
-   return vt->ndim;
+   return vt->dims.count;
 }
 
 vcode_type_t vtype_dim(vcode_type_t type, int dim)
 {
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_CARRAY);
-   assert(dim < vt->ndim);
-   return vt->dim[dim];
+   return vcode_type_array_nth(&(vt->dims), dim);
 }
 
 vcode_type_t vtype_pointed(vcode_type_t type)
@@ -2441,13 +2475,13 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
    }
 
    vtype_t *vt = vcode_type_data(atype);
-   if (dim >= vt->ndim) {
+   if (dim >= vt->dims.count) {
       vcode_dump();
       fatal_trace("invalid dimension %d", dim);
    }
 
    if (rtype == VCODE_INVALID_TYPE)
-      rtype = vt->dim[dim];
+      rtype = vt->dims.items[dim];
 
    return (op->result = vcode_add_reg(rtype));
 }
