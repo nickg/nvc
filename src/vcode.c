@@ -506,7 +506,8 @@ int vcode_get_field(int op)
 vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA);
+   assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA
+          || o->kind == VCODE_OP_COPY);
    return o->type;
 }
 
@@ -1502,6 +1503,20 @@ vcode_type_t vtype_dim(vcode_type_t type, int dim)
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_CARRAY);
    return vcode_type_array_nth(&(vt->dims), dim);
+}
+
+int vtype_fields(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_RECORD);
+   return vt->fields.count;
+}
+
+vcode_type_t vtype_field(vcode_type_t type, int field)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_RECORD);
+   return vcode_type_array_nth(&(vt->fields), field);
 }
 
 vcode_type_t vtype_pointed(vcode_type_t type)
@@ -2764,4 +2779,6 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
       vcode_dump();
       fatal_trace("count is not offset type");
    }
+
+   op->type = vtype_pointed(dtype);
 }

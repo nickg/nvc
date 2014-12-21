@@ -129,6 +129,7 @@ vcode_type_t vtype_uarray(const vcode_type_t *dim_types,
 vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
+vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -139,7 +140,8 @@ vcode_type_t vtype_pointed(vcode_type_t type);
 vcode_type_t vtype_bounds(vcode_type_t type);
 int vtype_dims(vcode_type_t type);
 vcode_type_t vtype_dim(vcode_type_t type, int dim);
-vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields);
+int vtype_fields(vcode_type_t type);
+vcode_type_t vtype_field(vcode_type_t type, int field);
 
 void vcode_opt(void);
 void vcode_close(void);

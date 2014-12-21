@@ -206,6 +206,17 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_POINTER:
       return LLVMPointerType(cgen_type(vtype_pointed(type)), 0);
 
+   case VCODE_TYPE_RECORD:
+      {
+         const int nfields = vtype_fields(type);
+         LLVMTypeRef fields[nfields];
+
+         for (int i = 0; i < nfields; i++)
+            fields[i] = cgen_type(vtype_field(type, i));
+
+         return LLVMStructType(fields, nfields, true);
+      }
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }
@@ -976,7 +987,7 @@ static void cgen_op_index(int op, cgen_ctx_t *ctx)
    const char *name = cgen_reg_name(result);
 
    LLVMValueRef index_ptr[] = {
-      cgen_get_arg(op, 0, ctx)
+      (vcode_count_args(op) > 0) ?cgen_get_arg(op, 0, ctx) : llvm_int32(0)
    };
    ctx->regs[result] = LLVMBuildGEP(builder, var, index_ptr,
                                     ARRAY_LEN(index_ptr), name);
@@ -1185,6 +1196,49 @@ static void cgen_op_active(int op, cgen_ctx_t *ctx)
    cgen_net_flag(op, NET_F_ACTIVE, ctx);
 }
 
+static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMTypeRef lltype = cgen_type(vtype_pointed(vcode_reg_type(result)));
+   LLVMValueRef mem = LLVMBuildAlloca(builder, lltype, cgen_reg_name(result));
+
+   const int nargs = vcode_count_args(op);
+   for (int i = 0; i < nargs; i++) {
+      LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
+      LLVMBuildStore(builder, cgen_get_arg(op, i, ctx), ptr);
+   }
+
+   ctx->regs[result] = mem;
+}
+
+static void cgen_op_copy(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dest  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef src   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef count = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef size  = llvm_sizeof(cgen_type(vcode_get_type(op)));
+   LLVMValueRef bytes = LLVMBuildMul(builder, size, count, "bytes");
+
+   LLVMValueRef memcpy_args[] = {
+      llvm_void_cast(dest),
+      llvm_void_cast(src),
+      bytes,
+      llvm_int32(4),
+      llvm_int1(0)
+   };
+   LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(8)),
+                 memcpy_args, ARRAY_LEN(memcpy_args), "");
+}
+
+static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildStructGEP(builder, cgen_get_arg(op, 0, ctx),
+                                          vcode_get_field(op),
+                                          cgen_reg_name(result));}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1331,6 +1385,15 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_EVENT:
       cgen_op_event(i, ctx);
+      break;
+   case VCODE_OP_CONST_RECORD:
+      cgen_op_const_record(i, ctx);
+      break;
+   case VCODE_OP_COPY:
+      cgen_op_copy(i, ctx);
+      break;
+   case VCODE_OP_RECORD_REF:
+      cgen_op_record_ref(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
