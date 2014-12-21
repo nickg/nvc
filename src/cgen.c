@@ -397,7 +397,7 @@ static LLVMValueRef cgen_array_len(vcode_reg_t reg, cgen_ctx_t *ctx)
          LLVMValueRef downto = LLVMBuildICmp(
             builder, LLVMIntEQ,
             LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),
-            llvm_int8(RANGE_DOWNTO),
+            llvm_int1(RANGE_DOWNTO),
             "downto");
          LLVMValueRef left =
             LLVMBuildExtractValue(builder, dim_struct, 0, "left");

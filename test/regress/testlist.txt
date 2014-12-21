@@ -20,7 +20,7 @@ signal2         normal
 # cond2           gold,normal
 # vecorder        normal
 # elab2           normal
-# func1           normal
+func1           normal
 # signal5         normal
 # while1          gold,normal
 # signal6         gold,normal
