@@ -568,7 +568,7 @@ const char *vcode_op_string(vcode_op_t op)
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
-      "alloc driver", "event", "active"
+      "alloc driver", "event", "active", "const record"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1000,18 +1000,20 @@ void vcode_dump(void)
             break;
 
          case VCODE_OP_CONST_ARRAY:
+         case VCODE_OP_CONST_RECORD:
             {
                col += vcode_dump_reg(op->result);
-               col += printf(" := const [");
+               col += printf(" := const %c",
+                             op->kind == VCODE_OP_CONST_ARRAY ? '[' : '{');
                for (int k = 0; k < op->args.count; k++) {
                   if (k > 0)
                      col += printf(",");
                   col += vcode_dump_reg(op->args.items[k]);
                }
 
-               col += printf("]");
+               putchar(op->kind == VCODE_OP_CONST_ARRAY ? ']' : '}');
                reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_type(col + 1, r->type, r->bounds);
             }
             break;
 
@@ -1361,6 +1363,7 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    assert(active_unit != NULL);
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
    n->bounds = bounds;
@@ -1375,6 +1378,7 @@ vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields)
    assert(active_unit != NULL);
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   memset(n, '\0', sizeof(vtype_t));
    n->kind = VCODE_TYPE_RECORD;
    for (int i = 0; i < nfields; i++)
       vcode_type_array_add(&(n->fields), field_types[i]);
@@ -1388,6 +1392,7 @@ vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
    assert(active_unit != NULL);
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_UARRAY;
    n->elem   = elem;
    n->bounds = bounds;
@@ -1792,6 +1797,23 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    if (vtype_kind(type) != VCODE_TYPE_CARRAY) {
       vcode_dump();
       fatal_trace("constant array must have constrained array type");
+   }
+
+   return op->result;
+}
+
+vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
+   op->type   = type;
+   op->result = vcode_add_reg(type);
+
+   for (int i = 0; i < num; i++)
+      vcode_add_arg(op, values[i]);
+
+   if (vtype_kind(type) != VCODE_TYPE_RECORD) {
+      vcode_dump();
+      fatal_trace("constant record must have record type");
    }
 
    return op->result;

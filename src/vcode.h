@@ -86,6 +86,7 @@ typedef enum {
    VCODE_OP_ALLOC_DRIVER,
    VCODE_OP_EVENT,
    VCODE_OP_ACTIVE,
+   VCODE_OP_CONST_RECORD,
 } vcode_op_t;
 
 typedef enum {
@@ -207,6 +208,7 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);
 vcode_reg_t emit_const(vcode_type_t type, int64_t value);
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num);
+vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);

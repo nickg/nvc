@@ -222,6 +222,16 @@ static vcode_type_t lower_type(type_t type)
                              lower_bounds(elem));
       }
 
+   case T_RECORD:
+      {
+         const int nfields = type_fields(type);
+         vcode_type_t fields[nfields];
+         for (int i = 0; i < nfields; i++)
+            fields[i] = lower_type(tree_type(type_field(type, i)));
+
+         return vtype_record(fields, nfields);
+      }
+
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
    }
@@ -998,9 +1008,109 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    return emit_wrap(mem_reg, &dim0, 1);
 }
 
+static int lower_field_index(type_t type, ident_t field)
+{
+   // Lookup the position of this field in the record type
+
+   const int nfields = type_fields(type);
+   for (int i = 0; i < nfields; i++) {
+      if (tree_ident(type_field(type, i)) == field)
+         return i;
+   }
+   assert(false);
+}
+
+static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
+                                          bool is_const, expr_ctx_t ctx)
+{
+   type_t type = tree_type(expr);
+   const int nfields = type_fields(type);
+   const int nassocs = tree_assocs(expr);
+
+   vcode_reg_t vals[nfields];
+   for (int i = 0; i < nfields; i++)
+      vals[i] = VCODE_INVALID_REG;
+
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(expr, i);
+
+      tree_t value = tree_value(a);
+      type_t value_type = tree_type(value);
+      vcode_reg_t v = VCODE_INVALID_REG;
+      if (type_is_array(value_type) && is_const) {
+         if (tree_kind(value) == T_LITERAL)
+            v = lower_string_literal(value);
+         else {
+            assert(false);
+#if 0
+            LLVMValueRef *vals =
+               ? cgen_string_literal(value, &nvals, NULL)
+               : cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
+            LLVMTypeRef ltype = llvm_type(type_elem(value_type));
+            v = LLVMConstArray(ltype, vals, nvals);
+#endif
+         }
+      }
+      else if (type_is_record(value_type) && is_const)
+         v = lower_record_aggregate(value, true, true, ctx);
+      else
+         v = lower_expr(value, ctx);
+
+      switch (tree_subkind(a)) {
+      case A_POS:
+         vals[tree_pos(a)] = v;
+         break;
+
+      case A_NAMED:
+         {
+            int index = lower_field_index(type, tree_ident(tree_name(a)));
+            vals[index] = v;
+         }
+         break;
+
+      case A_OTHERS:
+         for (int j = 0; j < nfields; j++) {
+            if (vals[j] == VCODE_INVALID_REG)
+               vals[j] = v;
+         }
+         break;
+
+      case A_RANGE:
+         assert(false);
+      }
+   }
+
+   for (int i = 0; i < nfields; i++)
+      assert(vals[i] != VCODE_INVALID_REG);
+
+   if (is_const)
+      return emit_const_record(lower_type(type), vals, nfields);
+   else {
+      assert(false);
+#if 0
+      for (int i = 0; i < nfields; i++) {
+         type_t ftype = tree_type(type_field(type, i));
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
+         if (type_is_array(ftype))
+            cgen_array_copy(ftype, ftype, vals[i], ptr, NULL, ctx);
+         else if (type_is_record(ftype))
+            cgen_record_copy(ftype, vals[i], ptr);
+         else
+            LLVMBuildStore(builder, vals[i], ptr);
+      }
+
+      return mem;
+#endif
+   }
+}
+
 static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
 {
    type_t type = tree_type(expr);
+
+   if (type_is_record(type))
+      return lower_record_aggregate(expr, false, true, ctx);
+
    assert(type_is_array(type));
 
    if (lower_const_bounds(type) && lower_is_const(expr)) {
