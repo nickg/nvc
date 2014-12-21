@@ -1424,8 +1424,11 @@ static void lower_decl(tree_t decl)
                                           nets, nnets);
          tree_add_attr_int(decl, vcode_obj_i, sig);
 
-         emit_set_initial(sig, lower_expr(tree_value(decl), EXPR_RVALUE),
-                          tree_index(decl));
+         // Internal signals that were generated from ports will not have
+         // an initial value
+         if (tree_has_value(decl))
+            emit_set_initial(sig, lower_expr(tree_value(decl), EXPR_RVALUE),
+                             tree_index(decl));
 
          if (shadow != VCODE_INVALID_VAR)
             emit_resolved_address(shadow, sig);
