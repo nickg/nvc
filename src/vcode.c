@@ -1950,8 +1950,11 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_type_t lhs_type = vcode_reg_type(lhs);
    vcode_type_t rhs_type = vcode_reg_type(rhs);
 
-   if (vtype_kind(lhs_type) == VCODE_TYPE_POINTER
-       && vtype_kind(rhs_type) == VCODE_TYPE_OFFSET)
+   const vtype_kind_t ltypek = vtype_kind(vcode_reg_type(lhs));
+   const bool is_pointer =
+      ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL;
+
+   if (is_pointer && vtype_kind(rhs_type) == VCODE_TYPE_OFFSET)
       ;
    else if (!vtype_eq(lhs_type, rhs_type)) {
       vcode_dump();
@@ -2027,17 +2030,20 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
 
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 {
+   const vtype_kind_t ltypek = vtype_kind(vcode_reg_type(lhs));
+   const bool is_pointer =
+      ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL;
+
    int64_t lconst, rconst;
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), lconst + rconst);
-   else if (vtype_kind(vcode_reg_type(lhs)) == VCODE_TYPE_POINTER
-            && vcode_reg_const(rhs, &rconst) && rconst == 0)
+   else if (is_pointer && vcode_reg_const(rhs, &rconst) && rconst == 0)
       return lhs;
 
    vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
 
    reg_t *rr = vcode_reg_data(reg);
-   if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+   if (is_pointer)
       rr->bounds = vcode_reg_data(lhs)->bounds;
    else {
       vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);

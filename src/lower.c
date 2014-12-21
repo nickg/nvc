@@ -86,6 +86,7 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
       return emit_unwrap(reg);
 
    case VCODE_TYPE_POINTER:
+   case VCODE_TYPE_SIGNAL:
       return reg;
 
    case VCODE_TYPE_CARRAY:
@@ -455,6 +456,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return r0;
    else if (icmp(builtin, "not"))
       return emit_not(r0);
+   else if (icmp(builtin, "and"))
+      return emit_and(r0, r1);
+   else if (icmp(builtin, "or"))
+      return emit_or(r0, r1);
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
    else if (icmp(builtin, "aeq"))
@@ -674,15 +679,10 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), zeroed);
 }
 
-static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
+static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 {
    tree_t value = tree_value(ref);
    type_t value_type = tree_type(value);
-
-   vcode_reg_t base = lower_array_data(lower_expr(value, ctx));
-
-   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(base));
-   assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY);
 
    tree_t alias = NULL;
    if (tree_kind(value) == T_REF) {
@@ -715,10 +715,23 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
          //idx = LLVMBuildMul(builder, idx, stride, "stride");
       }
 
-      idx = emit_add(idx, lower_array_off(offset, base, value_type, i));
+      idx = emit_add(idx, lower_array_off(offset, array, value_type, i));
    }
 
-   return emit_add(base, idx);
+   return idx;
+}
+
+static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
+{
+   tree_t value = tree_value(ref);
+
+   vcode_reg_t base = lower_array_data(lower_expr(value, ctx));
+
+   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(base));
+   assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
+          || vtkind == VCODE_TYPE_SIGNAL);
+
+   return emit_add(base, lower_array_ref_offset(ref, base));
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
@@ -1381,13 +1394,13 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
-#if 0
    case T_ARRAY_REF:
       {
-         if (!cgen_driver_nets(tree_value(t), decl, all_nets, all_length,
-                               driven_nets, driven_length, has_non_const, ctx))
+         if (!lower_driver_nets(tree_value(t), decl, all_nets, all_length,
+                                driven_nets, driven_length,
+                                has_non_const, proc))
             return false;
-         else if (*driven_nets == NULL)
+         else if (*driven_nets == VCODE_INVALID_REG)
             return false;
          else if (*has_non_const)
             return true;
@@ -1395,17 +1408,16 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          bool all_const = true;
          const int nparams = tree_params(t);
          for (int i = 0; (i < nparams) && all_const; i++) {
-            if (!cgen_is_const(tree_value(tree_param(t, i))))
+            if (!lower_is_const(tree_value(tree_param(t, i))))
                all_const = false;
          }
 
          if (all_const) {
-            LLVMValueRef idx =
-               LLVMBuildMul(builder,
-                            cgen_array_ref_offset(t, *driven_nets, true, ctx),
-                            llvm_int32(type_width(tree_type(t))), "stride");
+            vcode_reg_t idx =
+               emit_mul(lower_array_ref_offset(t, *driven_nets),
+                        emit_const(vtype_offset(), type_width(tree_type(t))));
 
-            *driven_nets   = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
+            *driven_nets   = emit_add(*driven_nets, idx);
             *driven_length = type_width(tree_type(t));
          }
          else
@@ -1413,6 +1425,7 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
+#if 0
    case T_ARRAY_SLICE:
       {
          tree_t value = tree_value(t);

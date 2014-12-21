@@ -715,7 +715,8 @@ static void cgen_op_load_indirect(int op, cgen_ctx_t *ctx)
 static void cgen_op_add(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   if (vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_POINTER) {
+   vtype_kind_t kind = vtype_kind(vcode_reg_type(result));
+   if (kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_SIGNAL) {
       LLVMValueRef index[] = { cgen_get_arg(op, 1, ctx) };
       ctx->regs[result] = LLVMBuildGEP(builder, cgen_get_arg(op, 0, ctx),
                                        index, ARRAY_LEN(index),
