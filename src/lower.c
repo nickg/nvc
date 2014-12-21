@@ -43,6 +43,8 @@ static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt);
 static void lower_func_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
+static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
+                                          bool is_const, expr_ctx_t ctx);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 
@@ -199,6 +201,24 @@ static vcode_type_t lower_type(type_t type)
       }
       else
          return lower_type(type_base(type));
+
+   case T_CARRAY:
+      {
+         type_t elem = type_elem(type);
+         vcode_type_t elem_type   = lower_type(elem);
+         vcode_type_t elem_bounds = lower_bounds(elem);
+
+         const int ndims = type_dims(type);
+         vcode_type_t bounds[ndims];
+         for (int i = 0; i < ndims; i++) {
+            range_t r = type_dim(type, i);
+            int64_t low, high;
+            range_bounds(r, &low, &high);
+            bounds[i] = vtype_int(low, high);
+         }
+
+         return vtype_carray(bounds, ndims, elem_type, elem_bounds);
+      }
 
    case T_PHYSICAL:
    case T_INTEGER:
@@ -834,17 +854,14 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
 
       vcode_reg_t tmp = VCODE_INVALID_REG;
       vcode_reg_t *sub = &tmp;
-      int nsub;
+      int nsub = 1;
       if (dim < ndims - 1)
          sub = lower_const_array_aggregate(value, type, dim + 1, &nsub);
       else if (value_kind == T_AGGREGATE) {
-         sub  = xmalloc(sizeof(vcode_reg_t));   // XXX
-         nsub = 1;
-
-         assert(false);
-         /*
          type_t sub_type = tree_type(value);
          if (type_is_array(sub_type)) {
+            assert(false);
+#if 0
             int nvals;
             LLVMValueRef *v = cgen_const_aggregate(value, sub_type,
                                                    0, &nvals, ctx);
@@ -852,12 +869,13 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
 
             *sub = LLVMConstArray(ltype, v, nvals);
             free(v);
+#endif
          }
          else if (type_is_record(sub_type))
-            *sub = cgen_record_aggregate(value, true,
-                                         cgen_is_const(value), ctx);
+            *sub = lower_record_aggregate(value, true,
+                                          lower_is_const(value), EXPR_RVALUE);
          else
-         assert(false);*/
+            assert(false);
       }
       else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING) {
          /*
@@ -872,10 +890,8 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          free(tmp);*/
          assert(false);
       }
-      else {
-         tmp  = lower_expr(value, EXPR_RVALUE);
-         nsub = 1;
-      }
+      else
+         tmp = lower_expr(value, EXPR_RVALUE);
 
       switch (tree_subkind(a)) {
       case A_POS:
@@ -1126,7 +1142,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       assert(vals[i] != VCODE_INVALID_REG);
 
    if (is_const)
-      return emit_const_record(lower_type(type), vals, nfields);
+      return emit_const_record(lower_type(type), vals, nfields, !nest);
    else {
       assert(false);
 #if 0

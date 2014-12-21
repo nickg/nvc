@@ -20,6 +20,7 @@
 #include "lib.h"
 #include "common.h"
 #include "vcode.h"
+#include "array.h"
 #include "rt/rt.h"
 #include "rt/cover.h"
 
@@ -45,6 +46,13 @@ typedef struct {
    size_t             var_base;
    LLVMValueRef      *locals;
 } cgen_ctx_t;
+
+typedef struct {
+   unsigned     count;
+   LLVMValueRef size;
+} size_list_t;
+
+DECLARE_AND_DEFINE_ARRAY(size_list);
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
@@ -1109,6 +1117,27 @@ static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_append_size_list(size_list_array_t *list,
+                                  vcode_type_t elem, unsigned count)
+{
+   size_list_t *result = size_list_array_alloc(list);
+   result->size  = llvm_sizeof(cgen_type(elem));
+   result->count = count;
+}
+
+static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
+{
+   switch (vtype_kind(type)) {
+   case VCODE_TYPE_INT:
+      cgen_append_size_list(list, type, 1);
+      break;
+   case VCODE_TYPE_CARRAY:
+   default:
+      fatal_trace("cannot handle type %d in size list",
+                  vtype_kind(type));
+   }
+}
+
 static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
@@ -1119,20 +1148,23 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
    LLVMBuildStore(builder, value, valptr);
 
-   LLVMValueRef n_elems = llvm_int32(1);
-   LLVMValueRef size    = llvm_sizeof(lltype);
+   vcode_type_t type = vcode_reg_type(vcode_get_arg(op, 0));
+   size_list_array_t size_list = { 0, NULL };
+   cgen_size_list(&size_list, type);
 
-   LLVMValueRef nparts    = llvm_int32(1);
-   LLVMValueRef size_list = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
-                                                 llvm_int32(2), "size_list");
+   LLVMValueRef list_mem = LLVMBuildArrayAlloca(builder, LLVMInt32Type(),
+                                                llvm_int32(size_list.count * 2),
+                                                "size_list");
 
-   LLVMValueRef zero[] = { llvm_int32(0) };
-   LLVMBuildStore(builder, size,
-                  LLVMBuildGEP(builder, size_list, zero, 1, ""));
+   for (unsigned i = 0; i < size_list.count; i++) {
+      LLVMValueRef zero[] = { llvm_int32((i * 2) + 0) };
+      LLVMBuildStore(builder, size_list.items[i].size,
+                     LLVMBuildGEP(builder, list_mem, zero, 1, ""));
 
-   LLVMValueRef one[] = { llvm_int32(1) };
-   LLVMBuildStore(builder, n_elems,
-                  LLVMBuildGEP(builder, size_list, one, 1, ""));
+      LLVMValueRef one[] = { llvm_int32((i * 2) + 1) };
+      LLVMBuildStore(builder, llvm_int32(size_list.items[i].count),
+                     LLVMBuildGEP(builder, list_mem, one, 1, ""));
+   }
 
    // Assuming array nets are sequential
    netid_t nid = vcode_signal_nets(sig)[0];
@@ -1140,8 +1172,8 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    LLVMValueRef args[] = {
       llvm_int32(nid),
       llvm_void_cast(valptr),
-      size_list,
-      nparts,
+      list_mem,
+      llvm_int32(size_list.count),
       LLVMConstNull(llvm_void_ptr()),
       /*llvm_void_cast(cgen_resolution_func(decl_type))*/
       llvm_int32(vcode_get_index(op)),
@@ -1150,6 +1182,8 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    };
    LLVMBuildCall(builder, llvm_fn("_set_initial"),
                  args, ARRAY_LEN(args), "");
+
+   free(size_list.items);
 }
 
 static void cgen_op_alloc_driver(int op, cgen_ctx_t *ctx)
@@ -1199,17 +1233,29 @@ static void cgen_op_active(int op, cgen_ctx_t *ctx)
 static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-
-   LLVMTypeRef lltype = cgen_type(vtype_pointed(vcode_reg_type(result)));
-   LLVMValueRef mem = LLVMBuildAlloca(builder, lltype, cgen_reg_name(result));
+   vcode_type_t rtype = vcode_reg_type(result);
 
    const int nargs = vcode_count_args(op);
-   for (int i = 0; i < nargs; i++) {
-      LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
-      LLVMBuildStore(builder, cgen_get_arg(op, i, ctx), ptr);
-   }
 
-   ctx->regs[result] = mem;
+   if (vtype_kind(rtype) == VCODE_TYPE_POINTER) {
+      LLVMTypeRef lltype = cgen_type(vtype_pointed(rtype));
+      LLVMValueRef mem = LLVMBuildAlloca(builder, lltype,
+                                         cgen_reg_name(result));
+
+      for (int i = 0; i < nargs; i++) {
+         LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
+         LLVMBuildStore(builder, cgen_get_arg(op, i, ctx), ptr);
+      }
+
+      ctx->regs[result] = mem;
+   }
+   else {
+      LLVMValueRef fields[nargs];
+      for (int i = 0; i < nargs; i++)
+         fields[i] = cgen_get_arg(op, i, ctx);
+
+      ctx->regs[result] = LLVMConstStruct(fields, nargs, true);
+   }
 }
 
 static void cgen_op_copy(int op, cgen_ctx_t *ctx)

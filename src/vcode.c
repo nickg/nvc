@@ -1851,7 +1851,8 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
    return op->result;
 }
 
-vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
+vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
+                              bool allocate)
 {
    // Reuse any previous constant in this block with the same type and value
    block_t *b = &(active_unit->blocks.items[active_block]);
@@ -1868,9 +1869,11 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
       }
    }
 
+   vcode_type_t rtype = allocate ? vtype_pointer(type) : type;
+
    op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
    op->type   = type;
-   op->result = vcode_add_reg(vtype_pointer(type));
+   op->result = vcode_add_reg(rtype);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
