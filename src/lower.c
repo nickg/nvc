@@ -1214,6 +1214,57 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
    return emit_record_ref(record, index);
 }
 
+static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
+{
+   assert(tree_params(expr) == 2);
+   const tree_t args[] = {
+      tree_value(tree_param(expr, 0)),
+      tree_value(tree_param(expr, 1))
+   };
+
+   const type_t arg_types[] = {
+      tree_type(args[0]),
+      tree_type(args[1])
+   };
+
+   const vcode_reg_t arg_regs[] = {
+      lower_expr(args[0], ctx),
+      lower_expr(args[1], ctx)
+   };
+
+   vcode_reg_t var_reg = VCODE_INVALID_REG;
+   type_t type = tree_type(expr);
+   if (type_is_unconstrained(type)) {
+      assert(false);
+   }
+   else {
+      type_t elem = type_elem(type);
+      var_reg = emit_alloca(lower_type(elem), lower_bounds(elem),
+                            lower_array_total_len(type, VCODE_INVALID_REG));
+   }
+
+   vcode_reg_t ptr = var_reg;
+
+   if (type_is_array(arg_types[0])) {
+      vcode_reg_t src_len = lower_array_total_len(arg_types[0], arg_regs[0]);
+      emit_copy(ptr, arg_regs[0], src_len);
+      ptr = emit_add(ptr, src_len);
+   }
+   else {
+      emit_store_indirect(arg_regs[0], ptr);
+      ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+   }
+
+   if (type_is_array(arg_types[1])) {
+      vcode_reg_t src_len = lower_array_total_len(arg_types[1], arg_regs[1]);
+      emit_copy(ptr, arg_regs[1], src_len);
+   }
+   else
+      emit_store_indirect(arg_regs[1], ptr);
+
+   return var_reg;
+}
+
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
@@ -1229,6 +1280,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_array_ref(expr, ctx);
    case T_RECORD_REF:
       return lower_record_ref(expr, ctx);
+   case T_CONCAT:
+      return lower_concat(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
