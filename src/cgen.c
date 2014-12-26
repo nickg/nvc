@@ -1297,7 +1297,18 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    ctx->regs[result] = LLVMBuildStructGEP(builder, cgen_get_arg(op, 0, ctx),
                                           vcode_get_field(op),
-                                          cgen_reg_name(result));}
+                                          cgen_reg_name(result));
+}
+
+static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef args[] = {
+      llvm_void_cast(cgen_get_arg(op, 0, ctx)),
+      cgen_get_arg(op, 1, ctx),
+      llvm_int32(vcode_get_flags(op)),
+   };
+   LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
+}
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
@@ -1454,6 +1465,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RECORD_REF:
       cgen_op_record_ref(i, ctx);
+      break;
+   case VCODE_OP_SCHED_EVENT:
+      cgen_op_sched_event(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

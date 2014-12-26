@@ -45,6 +45,7 @@ typedef struct {
       unsigned       dim;
       unsigned       hops;
       unsigned       field;
+      unsigned       flags;
    };
 } op_t;
 
@@ -458,6 +459,13 @@ ident_t vcode_get_func(int op)
    return o->func;
 }
 
+unsigned vcode_get_flags(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_SCHED_EVENT);
+   return o->flags;
+}
+
 int64_t vcode_get_value(int op)
 {
    op_t *o = vcode_op_data(op);
@@ -478,7 +486,7 @@ vcode_signal_t vcode_get_signal(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_NETS || o->kind == VCODE_OP_RESOLVED_ADDRESS
           || o->kind == VCODE_OP_SET_INITIAL);
-   return o->address;
+   return o->signal;
 }
 
 unsigned vcode_get_dim(int op)
@@ -577,7 +585,8 @@ const char *vcode_op_string(vcode_op_t op)
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
-      "alloc driver", "event", "active", "const record", "record ref", "copy"
+      "alloc driver", "event", "active", "const record", "record ref", "copy",
+      "sched event"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1256,6 +1265,16 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[1]);
                printf(" count " );
                vcode_dump_reg(op->args.items[2]);
+            }
+            break;
+
+         case VCODE_OP_SCHED_EVENT:
+            {
+               printf("%s on ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" count ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" flags %x", op->flags);
             }
             break;
          }
@@ -2797,4 +2816,12 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    }
 
    op->type = vtype_pointed(dtype);
+}
+
+void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
+{
+   op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
+   vcode_add_arg(op, nets);
+   vcode_add_arg(op, n_elems);
+   op->flags = flags;
 }

@@ -20,6 +20,7 @@ typedef struct {
    int           dim;
    int           hops;
    int           field;
+   int           flags;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -214,6 +215,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump();
             fail("expect op %d in block %d to have field %d"
                  " but has %d", i, bb, e->field, vcode_get_field(i));
+         }
+         break;
+
+      case VCODE_OP_SCHED_EVENT:
+         if (vcode_get_flags(i) != e->flags) {
+            vcode_dump();
+            fail("expected op %d in block %d to have flags %x but "
+                 "has %x", i, bb, e->flags, vcode_get_flags(i));
          }
          break;
 
@@ -1193,6 +1202,33 @@ START_TEST(test_signal4)
 }
 END_TEST
 
+START_TEST(test_staticwait)
+{
+   input_from_file(TESTDIR "/lower/staticwait.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NETS, .name = ":staticwait:x" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ALLOC_DRIVER },
+      { VCODE_OP_SCHED_EVENT, .flags = 2 },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1217,6 +1253,7 @@ int main(void)
    tcase_add_test(tc, test_record1);
    tcase_add_test(tc, test_assign3);
    tcase_add_test(tc, test_signal4);
+   tcase_add_test(tc, test_staticwait);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

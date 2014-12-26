@@ -19,6 +19,7 @@
 #include "phase.h"
 #include "vcode.h"
 #include "common.h"
+#include "rt/rt.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ static ident_t nested_i;
 static ident_t vcode_obj_i;
 static ident_t drives_all_i;
 static ident_t driver_init_i;
+static ident_t static_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
@@ -1251,8 +1253,123 @@ static void lower_assert(tree_t stmt)
    }
 }
 
+static bool lower_signal_sequential_nets(tree_t decl)
+{
+   const int nnets = tree_nets(decl);
+   int i;
+   netid_t last = NETID_INVALID;
+   for (i = 0; i < nnets; i++) {
+      const netid_t nid = tree_net(decl, i);
+      if ((last == NETID_INVALID) || (nid == last + 1))
+         last = nid;
+      else
+         break;
+   }
+
+   return (i == nnets) && (nnets > 0);
+}
+
+static void lower_sched_event(tree_t on, bool is_static)
+{
+   tree_kind_t expr_kind = tree_kind(on);
+   if (expr_kind != T_REF && expr_kind != T_ARRAY_REF
+       && expr_kind != T_ARRAY_SLICE) {
+      // It is possible for constant folding to replace a signal with
+      // a constant which will then appear in a sensitivity list so
+      // just ignore it
+      return;
+   }
+
+   tree_t decl = NULL;
+   switch (expr_kind) {
+   case T_REF:
+      decl = tree_ref(on);
+      break;
+
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      decl = tree_ref(tree_value(on));
+      break;
+
+   default:
+      assert(false);
+   }
+
+   tree_kind_t kind = tree_kind(decl);
+   if (kind == T_ALIAS) {
+      lower_sched_event(tree_value(decl), is_static);
+      return;
+   }
+   else if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL) {
+      // As above, a port could have been rewritten to reference a
+      // constant declaration or enumeration literal, in which case
+      // just ignore it too
+      return;
+   }
+
+   type_t type = tree_type(decl);
+   type_t expr_type = tree_type(on);
+
+   const bool array = type_is_array(type);
+
+   vcode_reg_t n_elems = VCODE_INVALID_REG, nets = VCODE_INVALID_REG;
+   bool sequential = false;
+   if (expr_kind == T_REF) {
+      nets = lower_signal_ref(decl, EXPR_LVALUE);
+
+      if (array)
+         n_elems = lower_array_total_len(type, nets);
+      else if (type_is_record(type))
+         n_elems = emit_const(vtype_offset(), type_width(type));
+      else
+         n_elems = emit_const(vtype_offset(), 1);
+
+      if (array && !lower_const_bounds(type)) {
+         // Unwrap the meta-data to get nets array
+         nets = emit_unwrap(nets);
+      }
+
+      // Try to optimise the case where the list of nets is sequential
+      // and known at compile time
+      if (kind == T_SIGNAL_DECL && array)
+         sequential = lower_signal_sequential_nets(decl);
+   }
+   else {
+      assert(array);
+      nets = lower_expr(on, EXPR_LVALUE);
+
+      if (type_is_array(expr_type))
+         n_elems = lower_array_total_len(expr_type, VCODE_INVALID_REG);
+      else
+         n_elems = emit_const(vtype_offset(),1);
+   }
+
+   const int flags =
+      (sequential ? SCHED_SEQUENTIAL : 0)
+      | (is_static ? SCHED_STATIC : 0);
+
+   emit_sched_event(nets, n_elems, flags);
+}
+
 static void lower_wait(tree_t wait)
 {
+   const bool is_static = tree_attr_int(wait, static_i, 0);
+   assert(!is_static || (!tree_has_delay(wait) && !tree_has_value(wait)));
+
+   vcode_block_t active_bb = vcode_active_block();
+   if (is_static) {
+      // This process is always sensitive to the same set of signals so
+      // only call _sched_event once at startup
+      vcode_select_block(0);
+   }
+
+   const int ntriggers = tree_triggers(wait);
+   for (int i = 0; i < ntriggers; i++)
+      lower_sched_event(tree_trigger(wait, i), is_static);
+
+   if (is_static)
+      vcode_select_block(active_bb);
+
    vcode_reg_t delay = VCODE_INVALID_REG;
    if (tree_has_delay(wait))
       delay = lower_expr(tree_delay(wait), EXPR_RVALUE);
@@ -1405,22 +1522,6 @@ static void lower_stmt(tree_t stmt)
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
                tree_kind_str(tree_kind(stmt)));
    }
-}
-
-static bool lower_signal_sequential_nets(tree_t decl)
-{
-   const int nnets = tree_nets(decl);
-   int i;
-   netid_t last = NETID_INVALID;
-   for (i = 0; i < nnets; i++) {
-      const netid_t nid = tree_net(decl, i);
-      if ((last == NETID_INVALID) || (nid == last + 1))
-         last = nid;
-      else
-         break;
-   }
-
-   return (i == nnets) && (nnets > 0);
 }
 
 static void lower_decl(tree_t decl)
@@ -1792,7 +1893,6 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 
    lower_decls(proc);
    tree_visit(proc, lower_driver_fn, proc);
-   emit_return(VCODE_INVALID_REG);
 
    lower_subprograms(proc, vu);
    vcode_select_unit(vu);
@@ -1806,6 +1906,9 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 
    if (!vcode_block_finished())
       emit_jump(start_bb);
+
+   vcode_select_block(0);
+   emit_return(VCODE_INVALID_REG);
 
    lower_finished();
 
@@ -1860,6 +1963,7 @@ void lower_unit(tree_t unit)
    nested_i      = ident_new("nested");
    drives_all_i  = ident_new("drives_all");
    driver_init_i = ident_new("driver_init");
+   static_i      = ident_new("static");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 
