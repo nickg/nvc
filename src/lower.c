@@ -169,6 +169,23 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
    return emit_select(neg_reg, zero_reg, cast_reg);
 }
 
+static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
+{
+   const int ndim =
+      type_kind(type) == T_UARRAY ? type_index_constrs(type) : type_dims(type);
+
+   vcode_reg_t total = VCODE_INVALID_REG;
+   for (int i = 0; i < ndim; i++) {
+      vcode_reg_t this = lower_array_len(type, i, reg);
+      if (total == VCODE_INVALID_REG)
+         total = this;
+      else
+         total = emit_mul(this, total);
+   }
+
+   return total;
+}
+
 static vcode_type_t lower_type(type_t type)
 {
    switch (type_kind(type)) {
@@ -526,6 +543,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "aeq"))
       return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
                              lower_arg_type(fcall, 1), VCODE_CMP_EQ);
+   else if (icmp(builtin, "aneq"))
+      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
+                                      lower_arg_type(fcall, 1), VCODE_CMP_EQ));
    else if (icmp(builtin, "alt"))
       return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
                              lower_arg_type(fcall, 1), VCODE_CMP_LT);
@@ -1247,11 +1267,14 @@ static void lower_var_assign(tree_t stmt)
 {
    vcode_reg_t value = lower_expr(tree_value(stmt), EXPR_RVALUE);
 
+   vtype_kind_t value_kind = vtype_kind(vcode_reg_type(value));
+
    tree_t target = tree_target(stmt);
    type_t type = tree_type(target);
    const bool can_use_store =
       type_is_scalar(type)
-      || type_is_array(type);    // XXXX
+      || value_kind == VCODE_TYPE_UARRAY
+      || value_kind == VCODE_TYPE_CARRAY;
 
    if (can_use_store) {
       vcode_reg_t loaded_value = lower_reify(value);
@@ -1262,7 +1285,10 @@ static void lower_var_assign(tree_t stmt)
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
    else {
-      vcode_reg_t count = emit_const(vtype_offset(), 1);   // XXX
+      vcode_reg_t count =
+         type_is_array(type)
+         ? lower_array_total_len(type, value)
+         : emit_const(vtype_offset(), 1);
       emit_copy(lower_expr(target, EXPR_LVALUE), value, count);
    }
 }

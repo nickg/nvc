@@ -52,6 +52,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       switch (e->op) {
       case VCODE_OP_FCALL:
       case VCODE_OP_NESTED_FCALL:
+      case VCODE_OP_PHI:
          if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
             vcode_dump();
             fail("expected op %d in block %d to call %s but calls %s",
@@ -167,7 +168,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_SCHED_WAVEFORM:
       case VCODE_OP_ALLOCA:
-      case VCODE_OP_PHI:
       case VCODE_OP_SELECT:
       case VCODE_OP_SET_INITIAL:
       case VCODE_OP_ALLOC_DRIVER:
@@ -810,7 +810,6 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
@@ -842,7 +841,7 @@ START_TEST(test_arrayop1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_PHI },
+      { VCODE_OP_PHI, .args = 2 },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 5 }
    };
@@ -1057,6 +1056,46 @@ START_TEST(test_attr1)
 }
 END_TEST
 
+START_TEST(test_assign3)
+{
+   input_from_file(TESTDIR "/lower/assign3.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_INDEX, .name = "Y" },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_PHI, .args = 2 },
+      { VCODE_OP_NOT },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 5 }
+   };
+
+   CHECK_BB(4);
+}
+END_TEST
+
 START_TEST(test_record1)
 {
    input_from_file(TESTDIR "/lower/record1.vhd");
@@ -1142,6 +1181,7 @@ int main(void)
    tcase_add_test(tc, test_signal2);
    tcase_add_test(tc, test_attr1);
    tcase_add_test(tc, test_record1);
+   tcase_add_test(tc, test_assign3);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

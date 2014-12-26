@@ -2619,8 +2619,20 @@ vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
 {
    op_t *op = vcode_add_op(VCODE_OP_PHI);
    for (unsigned i = 0; i < count; i++) {
-      vcode_add_arg(op, values[i]);
-      vcode_add_target(op, blocks[i]);
+      // Check input block is predecessor of active block
+      block_t *b = &(active_unit->blocks.items[blocks[i]]);
+      assert(b->ops.count > 0);
+      op_t *last = &(b->ops.items[b->ops.count - 1]);
+      bool valid = false;
+      for (unsigned j = 0; !valid && j < last->targets.count; j++) {
+         if (last->targets.items[j] == active_block)
+            valid = true;
+      }
+
+      if (valid) {
+         vcode_add_arg(op, values[i]);
+         vcode_add_target(op, blocks[i]);
+      }
 
       vcode_type_t vt = vcode_reg_type(values[i]);
       for (unsigned j = 0; j < i; j++) {

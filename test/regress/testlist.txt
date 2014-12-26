@@ -7,8 +7,8 @@ signal1         normal
 attr1           normal
 signal2         normal
 signal3         normal
-# assign2         normal
-# assign3         normal
+assign2         normal
+assign3         normal
 # signal4         normal
 # wait3           normal
 # wait4           normal
