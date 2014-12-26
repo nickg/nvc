@@ -1315,7 +1315,7 @@ static void lower_signal_assign(tree_t stmt)
       if (type_is_scalar(target_type))
          emit_bounds(lower_reify(rhs), lower_bounds(target_type));
       else
-         assert(false);
+         ;  // TODO: bounds check
 
       vcode_reg_t after;
       if (tree_has_delay(w))
@@ -1323,8 +1323,12 @@ static void lower_signal_assign(tree_t stmt)
       else
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
-      emit_sched_waveform(nets, emit_const(vtype_offset(), 1),
-                          rhs, reject, after);
+      vcode_reg_t count =
+         type_is_array(target_type)
+         ? lower_array_total_len(target_type, rhs)
+         : emit_const(vtype_offset(), 1);
+
+      emit_sched_waveform(nets, count, rhs, reject, after);
    }
 }
 
@@ -1452,9 +1456,17 @@ static void lower_decl(tree_t decl)
          ident_t name = tree_ident(decl);
 
          vcode_var_t shadow = VCODE_INVALID_VAR;
-         if (lower_signal_sequential_nets(decl))
-            shadow = emit_var(vtype_pointer(ltype), bounds,
+         if (lower_signal_sequential_nets(decl)) {
+            vcode_type_t shadow_type   = ltype;
+            vcode_type_t shadow_bounds = bounds;
+            if (type_is_array(type)) {
+               shadow_type = vtype_elem(ltype);
+               shadow_bounds = vtype_elem(bounds);
+            }
+
+            shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
                               ident_prefix(ident_new("resolved"), name, '_'));
+         }
 
          const int nnets = tree_nets(decl);
          netid_t *nets = xmalloc(sizeof(netid_t) * nnets);

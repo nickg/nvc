@@ -1098,13 +1098,23 @@ static void cgen_op_nets(int op, cgen_ctx_t *ctx)
                                     cgen_reg_name(result));
 }
 
+static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
+{
+   if (vtype_kind(vcode_reg_type(vcode_get_arg(op, arg))) == VCODE_TYPE_INT) {
+      // Need to get a pointer to the data
+      LLVMValueRef value = cgen_get_arg(op, arg, ctx);
+      LLVMTypeRef lltype = LLVMTypeOf(value);
+      LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
+      LLVMBuildStore(builder, value, valptr);
+      return valptr;
+   }
+   else
+      return cgen_get_arg(op, arg, ctx);
+}
+
 static void cgen_op_sched_waveform(int op, cgen_ctx_t *ctx)
 {
-   // Need to get a pointer to the data
-   LLVMValueRef value = cgen_get_arg(op, 2, ctx);
-   LLVMTypeRef lltype = LLVMTypeOf(value);
-   LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
-   LLVMBuildStore(builder, value, valptr);
+   LLVMValueRef valptr = cgen_pointer_to_arg_data(op, 2, ctx);
 
    LLVMValueRef args[] = {
       llvm_void_cast(cgen_get_arg(op, 0, ctx)),
@@ -1149,14 +1159,10 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
 static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
+   vcode_type_t type  = vcode_reg_type(vcode_get_arg(op, 0));
 
-   // Need to get a pointer to the data
-   LLVMValueRef value = cgen_get_arg(op, 0, ctx);
-   LLVMTypeRef lltype = LLVMTypeOf(value);
-   LLVMValueRef valptr = LLVMBuildAlloca(builder, lltype, "");
-   LLVMBuildStore(builder, value, valptr);
+   LLVMValueRef valptr = cgen_pointer_to_arg_data(op, 0, ctx);
 
-   vcode_type_t type = vcode_reg_type(vcode_get_arg(op, 0));
    size_list_array_t size_list = { 0, NULL };
    cgen_size_list(&size_list, type);
 

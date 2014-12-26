@@ -1335,7 +1335,8 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
 
    if (bt->kind != tt->kind) {
       vcode_dump();
-      fatal_trace("type mismatch in vtype_includes");
+      fatal_trace("type mismatch in vtype_includes: %d and %d",
+                  bt->kind, tt->kind);
    }
 
    switch (bt->kind) {

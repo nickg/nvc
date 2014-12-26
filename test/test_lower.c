@@ -1158,6 +1158,41 @@ START_TEST(test_record1)
 }
 END_TEST
 
+START_TEST(test_signal4)
+{
+   input_from_file(TESTDIR "/lower/signal4.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_LOAD, .name = "resolved_:signal4:s" },
+      { VCODE_OP_LOAD_INDIRECT},
+      { VCODE_OP_INDEX, .name = "V" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_NETS, .name = ":signal4:s" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_COPY },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1181,6 +1216,7 @@ int main(void)
    tcase_add_test(tc, test_attr1);
    tcase_add_test(tc, test_record1);
    tcase_add_test(tc, test_assign3);
+   tcase_add_test(tc, test_signal4);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
