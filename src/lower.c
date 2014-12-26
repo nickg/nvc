@@ -673,7 +673,7 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 
    vcode_var_t var = lower_get_var(decl);
    if (type_is_array(type) && lower_const_bounds(type))
-      return emit_index(var, emit_const(vtype_offset(), 0));
+      return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type))
       return emit_index(var, VCODE_INVALID_REG);
    else

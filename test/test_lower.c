@@ -406,7 +406,6 @@ START_TEST(test_assign2)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_ADD },
@@ -802,13 +801,13 @@ START_TEST(test_arrayop1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_ALLOCA },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_JUMP, .target = 2 }
    };
@@ -1072,13 +1071,13 @@ START_TEST(test_assign3)
    vcode_select_unit(v0);
 
    EXPECT_BB(1) = {
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ALLOCA },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_JUMP, .target = 2 }
    };
