@@ -46,7 +46,7 @@ func1           normal
 # ieee2           normal,stop=15ns
 # cond3           normal
 concat1         normal
-# concat2         normal
+concat2         normal
 # null1           normal
 # agg3            normal
 # proc1           normal

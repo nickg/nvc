@@ -1,10 +1,6 @@
 entity concat2 is
 end entity;
 
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
-
 architecture test of concat2 is
     type int_array is array (integer range <>) of integer;
 

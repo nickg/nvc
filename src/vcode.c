@@ -2286,6 +2286,9 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
 {
+   if (vtype_eq(vcode_reg_type(reg), type))
+      return reg;
+
    int64_t value;
    if (vcode_reg_const(reg, &value))
       return emit_const(type, value);
@@ -2304,9 +2307,6 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
    op->type   = type;
    op->result = vcode_add_reg(type);
 
-   reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = vcode_reg_bounds(reg);
-
    static const vcode_type_t allowed[][2] = {
       { VCODE_TYPE_INT,    VCODE_TYPE_OFFSET  },
       { VCODE_TYPE_CARRAY, VCODE_TYPE_POINTER },
@@ -2314,6 +2314,11 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
 
    vtype_kind_t from = vtype_kind(vcode_reg_type(reg));
    vtype_kind_t to   = vtype_kind(type);
+
+   if (from == VCODE_TYPE_INT) {
+      reg_t *rr = vcode_reg_data(op->result);
+      rr->bounds = vcode_reg_bounds(reg);
+   }
 
    for (size_t i = 0; i < ARRAY_LEN(allowed); i++) {
       if (from == allowed[i][0] && to == allowed[i][1])
@@ -2328,6 +2333,8 @@ void emit_return(vcode_reg_t reg)
 {
    op_t *op = vcode_add_op(VCODE_OP_RETURN);
    if (reg != VCODE_INVALID_REG) {
+      vcode_add_arg(op, reg);
+
       if (active_unit->kind != VCODE_UNIT_FUNCTION) {
          vcode_dump();
          fatal_trace("returning value fron non-function unit");
@@ -2336,8 +2343,6 @@ void emit_return(vcode_reg_t reg)
          vcode_dump();
          fatal_trace("return value incorrect type");
       }
-
-      vcode_add_arg(op, reg);
    }
 }
 
@@ -2796,7 +2801,7 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    vcode_add_arg(op, count);
 
    vcode_type_t dtype = vcode_reg_type(dest);
-   vcode_type_t stype = vcode_reg_type(dest);
+   vcode_type_t stype = vcode_reg_type(src);
 
    if (vtype_kind(dtype) != VCODE_TYPE_POINTER) {
       vcode_dump();
