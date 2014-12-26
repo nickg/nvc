@@ -1843,6 +1843,10 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
          vtype = vtype_pointer(lower_type(type_elem(type)));
          vbounds = vtype;
       }
+      else if (type_is_record(type)) {
+         vtype = vtype_pointer(lower_type(type));
+         vbounds = vtype;
+      }
       else {
          vtype = lower_type(type);
          vbounds = lower_bounds(type);

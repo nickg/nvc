@@ -73,7 +73,7 @@ operator3       normal
 # const1          normal
 # driver1         normal
 # driver2         normal
-# delay1          normal
+delay1          normal
 record1         normal
 # proc3           normal
 # access1         normal,gold
@@ -101,7 +101,7 @@ record1         normal
 # func9           normal
 # record3         normal
 # issue8          normal
-# issue9          normal
+issue9          normal
 # record4         normal
 # record5         normal
 # const3          normal,gold
