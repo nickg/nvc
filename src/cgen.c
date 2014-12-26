@@ -1132,6 +1132,14 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       cgen_append_size_list(list, type, 1);
       break;
    case VCODE_TYPE_CARRAY:
+      {
+         assert(vtype_dims(type) == 1);
+         vcode_type_t dim = vtype_dim(type, 0);
+         const int64_t low  = vtype_low(dim);
+         const int64_t high = vtype_high(dim);
+         cgen_append_size_list(list, vtype_elem(type), high - low + 1);
+      }
+      break;
    default:
       fatal_trace("cannot handle type %d in size list",
                   vtype_kind(type));
