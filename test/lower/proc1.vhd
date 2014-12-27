@@ -13,7 +13,6 @@ begin
     process is
         variable a, b : integer;
     begin
-        a := 2;
         add1(a, b);
         assert b = 3;
         add1(5, b);

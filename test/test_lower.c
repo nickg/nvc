@@ -1226,6 +1226,73 @@ START_TEST(test_staticwait)
    };
 
    CHECK_BB(0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_NETS, .name = ":staticwait:x" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SCHED_WAVEFORM },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
+START_TEST(test_proc1)
+{
+   input_from_file(TESTDIR "/lower/proc1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_LOAD, .name = "A" },
+         { VCODE_OP_INDEX, .name = "B" },
+         { VCODE_OP_FCALL, .func = ":proc1:add1", .args = 2 },
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_LOAD, .name = "B" },
+         { VCODE_OP_CONST, .value = 3 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_CONST, .value = 5 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1", .args = 2 },
+         { VCODE_OP_LOAD, .name = "B" },
+         { VCODE_OP_CONST, .value = 6 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_WAIT, .target = 2 }
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
 }
 END_TEST
 
@@ -1254,6 +1321,7 @@ int main(void)
    tcase_add_test(tc, test_assign3);
    tcase_add_test(tc, test_signal4);
    tcase_add_test(tc, test_staticwait);
+   tcase_add_test(tc, test_proc1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

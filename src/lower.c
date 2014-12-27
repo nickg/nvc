@@ -37,6 +37,7 @@ static ident_t vcode_obj_i;
 static ident_t drives_all_i;
 static ident_t driver_init_i;
 static ident_t static_i;
+static ident_t never_waits_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
@@ -44,6 +45,7 @@ static vcode_reg_t lower_reify_expr(tree_t expr);
 static vcode_type_t lower_bounds(type_t type);
 static void lower_stmt(tree_t stmt);
 static void lower_func_body(tree_t body, vcode_unit_t context);
+static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
                                           bool is_const, expr_ctx_t ctx);
@@ -329,7 +331,7 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
-static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
+static vcode_reg_t lower_subprogram_arg(tree_t fcall, int nth)
 {
    if (nth < tree_params(fcall)) {
       tree_t param = tree_param(fcall, nth);
@@ -339,13 +341,20 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
 
       tree_t value = tree_value(param);
       type_t value_type = tree_type(value);
-      vcode_reg_t reg = lower_expr(value, EXPR_RVALUE);
 
-      if (type_is_array(value_type)
-          && !tree_attr_str(tree_ref(fcall), builtin_i)) {
-         tree_t port = tree_port(tree_ref(fcall), nth);
-         type_t port_type = tree_type(port);
+      if (tree_attr_str(tree_ref(fcall), builtin_i))
+         return type_is_scalar(value_type)
+            ? lower_reify_expr(value)
+            : lower_expr(value, EXPR_RVALUE);
 
+      tree_t port = tree_port(tree_ref(fcall), nth);
+      type_t port_type = tree_type(port);
+      const port_mode_t mode = tree_subkind(port);
+
+      vcode_reg_t reg =
+         lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
+
+      if (type_is_array(value_type)) {
          const bool have_uarray =
             vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
          const bool need_uarray = !lower_const_bounds(port_type);
@@ -373,7 +382,8 @@ static vcode_reg_t lower_func_arg(tree_t fcall, int nth)
             return reg;
       }
       else
-         return type_is_scalar(value_type) ? lower_reify(reg) : reg;
+         return type_is_scalar(value_type) && mode == PORT_IN
+            ? lower_reify(reg) : reg;
    }
    else
       return VCODE_INVALID_REG;
@@ -557,8 +567,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_signal_flag(tree_value(tree_param(fcall, 0)),
                                emit_active_flag);
 
-   vcode_reg_t r0 = lower_func_arg(fcall, 0);
-   vcode_reg_t r1 = lower_func_arg(fcall, 1);
+   vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
+   vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
 
    if (icmp(builtin, "eq"))
       return emit_cmp(VCODE_CMP_EQ, r0, r1);
@@ -667,7 +677,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    const int nargs = tree_params(fcall);
    vcode_reg_t args[nargs];
    for (int i = 0; i < nargs; i++)
-      args[i] = lower_func_arg(fcall, i);
+      args[i] = lower_subprogram_arg(fcall, i);
 
    vcode_type_t rtype = lower_type(tree_type(fcall));
    if (tree_attr_int(decl, nested_i, 0))
@@ -735,6 +745,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
    if (type_is_array(type) && lower_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type))
+      return emit_index(var, VCODE_INVALID_REG);
+   else if (type_is_scalar(type) && ctx == EXPR_LVALUE)
       return emit_index(var, VCODE_INVALID_REG);
    else
       return emit_load(var);
@@ -1520,7 +1532,8 @@ static void lower_var_assign(tree_t stmt)
    if (can_use_store) {
       vcode_reg_t loaded_value = lower_reify(value);
       emit_bounds(loaded_value, lower_bounds(type));
-      if (tree_kind(target) == T_REF)
+      if (tree_kind(target) == T_REF
+          && tree_kind(tree_ref(target)) == T_VAR_DECL)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
@@ -1619,8 +1632,6 @@ static void lower_return(tree_t stmt)
          emit_return(result);
       }
       else if (vtype_kind(vcode_unit_result()) == VCODE_TYPE_UARRAY) {
-         emit_comment("return 1");
-
          vcode_reg_t array =
             lower_const_bounds(type)
             ? lower_expr(value, EXPR_RVALUE)
@@ -1630,8 +1641,6 @@ static void lower_return(tree_t stmt)
             emit_return(array);
          else {
             // TODO: reimplement the "returned" attribute
-
-            emit_comment("return 2");
 
             const int ndims = type_dims(type);
             vcode_dim_t dims[ndims];
@@ -1658,6 +1667,26 @@ static void lower_return(tree_t stmt)
       emit_return(VCODE_INVALID_REG);
 }
 
+static void lower_pcall(tree_t pcall)
+{
+   tree_t decl = tree_ref(pcall);
+   ident_t name = tree_ident(decl);
+
+   const int nargs = tree_params(pcall);
+   vcode_reg_t args[nargs];
+   for (int i = 0; i < nargs; i++)
+      args[i] = lower_subprogram_arg(pcall, i);
+
+   if (tree_attr_int(decl, nested_i, 0))
+      assert(false);
+   else {
+      if (tree_attr_int(decl, never_waits_i, 0))
+         emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
+      else
+         assert(false); //emit_pcall(name, args, nargs);
+   }
+}
+
 static void lower_stmt(tree_t stmt)
 {
    switch (tree_kind(stmt)) {
@@ -1678,6 +1707,9 @@ static void lower_stmt(tree_t stmt)
       break;
    case T_RETURN:
       lower_return(stmt);
+      break;
+   case T_PCALL:
+      lower_pcall(stmt);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
@@ -1806,6 +1838,11 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
             tree_add_attr_int(d, nested_i, 1);
          lower_func_body(d, context);
          break;
+      case T_PROC_BODY:
+         if (nested)
+            tree_add_attr_int(d, nested_i, 1);
+         lower_proc_body(d, context);
+         break;
       default:
          break;
       }
@@ -1824,15 +1861,8 @@ static bool lower_has_subprograms(tree_t scope)
    return false;
 }
 
-static void lower_func_body(tree_t body, vcode_unit_t context)
+static void lower_subprogram_ports(tree_t body, bool has_subprograms)
 {
-   vcode_select_unit(context);
-   vcode_unit_t vu = emit_function(tree_ident(body), context,
-                                   lower_type(type_result(tree_type(body))));
-   vcode_block_t bb = vcode_active_block();
-
-   const bool has_subprograms = lower_has_subprograms(body);
-
    const int nports = tree_ports(body);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(body, i);
@@ -1852,11 +1882,62 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
          vbounds = lower_bounds(type);
       }
 
+      const port_mode_t mode = tree_subkind(p);
+      if (mode == PORT_OUT || mode == PORT_INOUT)
+         vtype = vtype_pointer(vtype);
+
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
       tree_add_attr_int(p, vcode_obj_i, reg);
       if (has_subprograms)
          tree_add_attr_int(p, nested_i, vcode_unit_depth());
    }
+}
+
+static void lower_proc_body(tree_t body, vcode_unit_t context)
+{
+   const bool never_waits = tree_attr_int(body, never_waits_i, 0);
+   assert(never_waits);
+
+   vcode_select_unit(context);
+   vcode_unit_t vu = emit_function(tree_ident(body), context,
+                                   VCODE_INVALID_TYPE);
+   vcode_block_t bb = vcode_active_block();
+
+   const bool has_subprograms = lower_has_subprograms(body);
+   lower_subprogram_ports(body, has_subprograms);
+
+   lower_decls(body);
+
+   if (has_subprograms) {
+      lower_subprograms(body, vu);
+      vcode_select_unit(vu);
+      vcode_select_block(bb);
+   }
+
+   const int nstmts = tree_stmts(body);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(body, i));
+
+   if (!vcode_block_finished())
+      emit_return(VCODE_INVALID_REG);
+
+   lower_finished();
+
+   assert(!tree_has_code(body));
+   tree_set_code(body, vu);
+
+   lower_cleanup(body);
+}
+
+static void lower_func_body(tree_t body, vcode_unit_t context)
+{
+   vcode_select_unit(context);
+   vcode_unit_t vu = emit_function(tree_ident(body), context,
+                                   lower_type(type_result(tree_type(body))));
+   vcode_block_t bb = vcode_active_block();
+
+   const bool has_subprograms = lower_has_subprograms(body);
+   lower_subprogram_ports(body, has_subprograms);
 
    lower_decls(body);
 
@@ -2140,6 +2221,7 @@ void lower_unit(tree_t unit)
    drives_all_i  = ident_new("drives_all");
    driver_init_i = ident_new("driver_init");
    static_i      = ident_new("static");
+   never_waits_i = ident_new("never_waits");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 

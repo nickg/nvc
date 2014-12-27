@@ -232,6 +232,7 @@ static reg_t *vcode_reg_data(vcode_reg_t reg)
 
 static vtype_t *vcode_type_data(vcode_type_t type)
 {
+   assert(type != VCODE_INVALID_TYPE);
    assert(active_unit != NULL);
    vcode_unit_t unit = active_unit;
 
@@ -316,10 +317,12 @@ void vcode_opt(void)
             op_t *o = &(b->ops.items[j]);
 
             switch (o->kind) {
+            case VCODE_OP_FCALL:
+               if (o->result == VCODE_INVALID_REG)
+                  break;
             case VCODE_OP_CONST:
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
-            case VCODE_OP_FCALL:
             case VCODE_OP_ADD:
             case VCODE_OP_SUB:
             case VCODE_OP_MUL:
@@ -533,7 +536,6 @@ vcode_reg_t vcode_get_arg(int op, int arg)
 vcode_reg_t vcode_get_result(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->result != VCODE_INVALID_REG);
    return o->result;
 }
 
@@ -586,7 +588,7 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event"
+      "sched event", "pcall"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -771,9 +773,11 @@ void vcode_dump(void)
       }
    }
    else if (vu->kind == VCODE_UNIT_FUNCTION) {
-      color_printf("Result     $cyan$");
-      vcode_dump_one_type(vu->result);
-      color_printf("$$\n");
+      if (vu->result != VCODE_INVALID_TYPE) {
+         color_printf("Result     $cyan$");
+         vcode_dump_one_type(vu->result);
+         color_printf("$$\n");
+      }
 
       printf("Parameters %d\n", vu->params.count);
 
@@ -843,8 +847,11 @@ void vcode_dump(void)
          case VCODE_OP_FCALL:
          case VCODE_OP_NESTED_FCALL:
             {
-               col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$ ",
+               if (op->result != VCODE_INVALID_REG) {
+                  col += vcode_dump_reg(op->result);
+                  col += printf(" := ");
+               }
+               col += color_printf("%s $magenta$%s$$ ",
                                    vcode_op_string(op->kind),
                                    istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
@@ -852,8 +859,10 @@ void vcode_dump(void)
                      col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
             }
             break;
 
@@ -1275,6 +1284,18 @@ void vcode_dump(void)
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
                printf(" flags %x", op->flags);
+            }
+            break;
+
+         case VCODE_OP_PCALL:
+            {
+               color_printf("%s $magenta$%s$$ ", vcode_op_string(op->kind),
+                            istr(op->func));
+               for (int i = 0; i < op->args.count; i++) {
+                  if (i > 0)
+                     col += printf(", ");
+                  col += vcode_dump_reg(op->args.items[i]);
+               }
             }
             break;
          }
@@ -1795,7 +1816,11 @@ static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
    o->type = type;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
-   return (o->result = vcode_add_reg(type));
+
+   if (type == VCODE_INVALID_TYPE)
+      return (o->result = VCODE_INVALID_REG);
+   else
+      return (o->result = vcode_add_reg(type));
 }
 
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
@@ -1976,13 +2001,23 @@ vcode_reg_t emit_load(vcode_var_t var)
    // Try scanning backwards through the block for another load or store to
    // this variable
    block_t *b = vcode_block_data();
+   vcode_reg_t fold = VCODE_INVALID_REG;
+   bool aliased = false;
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
-      if ((op->kind == VCODE_OP_LOAD) && (op->address == var))
-         return op->result;
-      else if ((op->kind == VCODE_OP_STORE) && (op->address == var))
-         return op->args.items[0];
+      if (fold == VCODE_INVALID_REG) {
+         if (op->kind == VCODE_OP_LOAD && op->address == var)
+            fold = op->result;
+         else if (op->kind == VCODE_OP_STORE && op->address == var)
+            fold = op->args.items[0];
+      }
+
+      if (op->kind == VCODE_OP_INDEX && op->address == var)
+         aliased = true;
    }
+
+   if (fold != VCODE_INVALID_REG && !aliased)
+      return fold;
 
    var_t *v = vcode_var_data(var);
 
@@ -2268,10 +2303,14 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       op->result = vcode_add_reg(op->type);
       break;
 
+   case VCODE_TYPE_INT:
+      op->type = vtype_pointer(typeref);
+      op->result = vcode_add_reg(op->type);
+      break;
+
    default:
       vcode_dump();
-      fatal_trace("indexed variable %s is not an array",
-                  istr(vcode_var_name(var)));
+      fatal_trace("variable %s cannot be indexed", istr(vcode_var_name(var)));
    }
 
    if (offset != VCODE_INVALID_REG) {

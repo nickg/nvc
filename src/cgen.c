@@ -529,11 +529,15 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       for (int i = 0; i < nargs; i++)
          atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
 
+      LLVMTypeRef rtype =
+         result == VCODE_INVALID_REG
+         ? LLVMVoidType()
+         : cgen_type(vcode_reg_type(result));
+
       fn = LLVMAddFunction(
          module,
          istr(func),
-         LLVMFunctionType(cgen_type(vcode_reg_type(result)),
-                          atypes, nargs, false));
+         LLVMFunctionType(rtype, atypes, nargs, false));
 
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
@@ -546,8 +550,11 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    if (nested)
       args[nargs] = cgen_display_struct(ctx);
 
-   ctx->regs[result] = LLVMBuildCall(builder, fn, args, total_args,
-                                     cgen_reg_name(result));
+   if (result != VCODE_INVALID_REG)
+      ctx->regs[result] = LLVMBuildCall(builder, fn, args, total_args,
+                                        cgen_reg_name(result));
+   else
+      LLVMBuildCall(builder, fn, args, total_args, "");
 }
 
 static void cgen_op_const(int op, cgen_ctx_t *ctx)
@@ -1552,8 +1559,12 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type)
    if (display_type != NULL)
       params[nparams] = display_type;
 
-   return LLVMFunctionType(cgen_type(vcode_unit_result()),
-                           params, nparams + nextra, false);
+   vcode_type_t rtype = vcode_unit_result();
+   if (rtype == VCODE_INVALID_TYPE)
+      return LLVMFunctionType(LLVMVoidType(), params, nparams + nextra, false);
+   else
+      return LLVMFunctionType(cgen_type(rtype), params,
+                              nparams + nextra, false);
 }
 
 static void cgen_function(vcode_unit_t code, LLVMTypeRef display_type)
@@ -1567,7 +1578,7 @@ static void cgen_function(vcode_unit_t code, LLVMTypeRef display_type)
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
-   if (display_type == NULL)
+   if (display_type == NULL && vcode_unit_result() != VCODE_INVALID_TYPE)
       LLVMAddFunctionAttr(fn, LLVMReadOnlyAttribute);
 
    cgen_ctx_t ctx = {
@@ -1718,6 +1729,7 @@ static void cgen_subprograms(tree_t t)
       tree_t d = tree_decl(t, i);
       switch (tree_kind(d)) {
       case T_FUNC_BODY:
+      case T_PROC_BODY:
          cgen_subprograms(d);
          if (display == NULL && needs_display)
             display = cgen_display_type(tree_code(t));

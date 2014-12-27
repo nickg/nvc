@@ -90,6 +90,7 @@ typedef enum {
    VCODE_OP_RECORD_REF,
    VCODE_OP_COPY,
    VCODE_OP_SCHED_EVENT,
+   VCODE_OP_PCALL,
 } vcode_op_t;
 
 typedef enum {
@@ -230,6 +231,7 @@ void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
+vcode_reg_t emit_pcall(ident_t func, const vcode_reg_t *args, int nargs);
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
                               const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
