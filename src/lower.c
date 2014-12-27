@@ -1687,6 +1687,28 @@ static void lower_pcall(tree_t pcall)
    }
 }
 
+static void lower_while(tree_t stmt)
+{
+   vcode_block_t test_bb = emit_block();
+   vcode_block_t body_bb = emit_block();
+   vcode_block_t exit_bb = emit_block();
+
+   emit_jump(test_bb);
+
+   vcode_select_block(test_bb);
+   emit_cond(lower_reify_expr(tree_value(stmt)), body_bb, exit_bb);
+
+   vcode_select_block(body_bb);
+
+   const int nstmts = tree_stmts(stmt);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(stmt, i));
+
+   emit_jump(test_bb);
+
+   vcode_select_block(exit_bb);
+}
+
 static void lower_stmt(tree_t stmt)
 {
    switch (tree_kind(stmt)) {
@@ -1710,6 +1732,9 @@ static void lower_stmt(tree_t stmt)
       break;
    case T_PCALL:
       lower_pcall(stmt);
+      break;
+   case T_WHILE:
+      lower_while(stmt);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",

@@ -1296,6 +1296,43 @@ START_TEST(test_proc1)
 }
 END_TEST
 
+START_TEST(test_while1)
+{
+   input_from_file(TESTDIR "/lower/while1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_LOAD, .name = "N" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_COND, .target = 3, .target_else = 4 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_LOAD, .name = "N" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+      { VCODE_OP_STORE, .name = "N" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(3);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1322,6 +1359,7 @@ int main(void)
    tcase_add_test(tc, test_signal4);
    tcase_add_test(tc, test_staticwait);
    tcase_add_test(tc, test_proc1);
+   tcase_add_test(tc, test_while1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
