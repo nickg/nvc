@@ -41,6 +41,6 @@ begin
             report integer'image(answer);
         end loop;
         wait;
-    end process;            
-    
+    end process;
+
 end architecture;

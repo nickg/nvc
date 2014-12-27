@@ -593,7 +593,10 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   const bool is_signed = vtype_low(vcode_reg_type(result)) < 0;
+   vcode_type_t arg_type = vcode_reg_type(vcode_get_arg(op, 0));
+
+   const bool is_signed =
+      vtype_kind(arg_type) != VCODE_TYPE_INT || vtype_low(arg_type) < 0;
 
    LLVMIntPredicate pred = 0;
    switch (vcode_get_cmp(op)) {
