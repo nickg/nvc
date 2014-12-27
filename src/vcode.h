@@ -153,6 +153,7 @@ void vcode_select_block(vcode_block_t block);
 int vcode_count_blocks(void);
 const char *vcode_op_string(vcode_op_t op);
 bool vcode_block_finished(void);
+bool vcode_block_empty(void);
 ident_t vcode_unit_name(void);
 int vcode_unit_depth(void);
 vunit_kind_t vcode_unit_kind(void);

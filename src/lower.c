@@ -30,6 +30,15 @@ typedef enum {
    EXPR_RVALUE
 } expr_ctx_t;
 
+typedef struct loop_stack loop_stack_t;
+
+struct loop_stack {
+   loop_stack_t  *up;
+   ident_t        name;
+   vcode_block_t  test_bb;
+   vcode_block_t  exit_bb;
+};
+
 static ident_t builtin_i;
 static ident_t foreign_i;
 static ident_t nested_i;
@@ -43,7 +52,7 @@ static bool    verbose = false;
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
 static vcode_type_t lower_bounds(type_t type);
-static void lower_stmt(tree_t stmt);
+static void lower_stmt(tree_t stmt, loop_stack_t *loops);
 static void lower_func_body(tree_t body, vcode_unit_t context);
 static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
@@ -1588,7 +1597,7 @@ static void lower_signal_assign(tree_t stmt)
    }
 }
 
-static void lower_if(tree_t stmt)
+static void lower_if(tree_t stmt, loop_stack_t *loops)
 {
    vcode_reg_t value = lower_reify_expr(tree_value(stmt));
 
@@ -1604,7 +1613,7 @@ static void lower_if(tree_t stmt)
 
    const int nstmts = tree_stmts(stmt);
    for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(stmt, i));
+      lower_stmt(tree_stmt(stmt, i), loops);
 
    emit_jump(bmerge);
 
@@ -1612,7 +1621,7 @@ static void lower_if(tree_t stmt)
       vcode_select_block(bfalse);
 
       for (int i = 0; i < nelses; i++)
-         lower_stmt(tree_else_stmt(stmt, i));
+         lower_stmt(tree_else_stmt(stmt, i), loops);
 
       emit_jump(bmerge);
    }
@@ -1687,29 +1696,72 @@ static void lower_pcall(tree_t pcall)
    }
 }
 
-static void lower_while(tree_t stmt)
+static void lower_while(tree_t stmt, loop_stack_t *loops)
 {
    vcode_block_t test_bb = emit_block();
-   vcode_block_t body_bb = emit_block();
+   vcode_block_t body_bb = tree_has_value(stmt) ? emit_block() : test_bb;
    vcode_block_t exit_bb = emit_block();
 
-   emit_jump(test_bb);
+   if (tree_has_value(stmt)) {
+      emit_jump(test_bb);
 
-   vcode_select_block(test_bb);
-   emit_cond(lower_reify_expr(tree_value(stmt)), body_bb, exit_bb);
+      vcode_select_block(test_bb);
+      emit_cond(lower_reify_expr(tree_value(stmt)), body_bb, exit_bb);
+   }
+   else
+      emit_jump(body_bb);
 
    vcode_select_block(body_bb);
 
+   loop_stack_t this = {
+      .up      = loops,
+      .name    = tree_ident(stmt),
+      .test_bb = test_bb,
+      .exit_bb = exit_bb
+   };
+
    const int nstmts = tree_stmts(stmt);
    for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(stmt, i));
+      lower_stmt(tree_stmt(stmt, i), &this);
 
    emit_jump(test_bb);
 
    vcode_select_block(exit_bb);
 }
 
-static void lower_stmt(tree_t stmt)
+static void lower_block(tree_t block, loop_stack_t *loops)
+{
+   const int nstmts = tree_stmts(block);
+   for (int i = 0; i < nstmts; i++)
+      lower_stmt(tree_stmt(block, i), loops);
+}
+
+static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
+{
+   vcode_block_t false_bb = emit_block();
+
+   if (tree_has_value(stmt)) {
+      vcode_block_t true_bb = emit_block();
+
+      // TODO: cond coverage here
+      vcode_reg_t result = lower_reify_expr(tree_value(stmt));
+      emit_cond(result, true_bb, false_bb);
+
+      vcode_select_block(true_bb);
+   }
+
+   ident_t label = tree_ident2(stmt);
+   loop_stack_t *it;
+   for (it = loops; it != NULL && it->name != label; it = it->up)
+      ;
+   assert(it != NULL);
+
+   emit_jump(tree_kind(stmt) == T_EXIT ? it->exit_bb : it->test_bb);
+
+   vcode_select_block(false_bb);
+}
+
+static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
    switch (tree_kind(stmt)) {
    case T_ASSERT:
@@ -1725,7 +1777,7 @@ static void lower_stmt(tree_t stmt)
       lower_signal_assign(stmt);
       break;
    case T_IF:
-      lower_if(stmt);
+      lower_if(stmt, loops);
       break;
    case T_RETURN:
       lower_return(stmt);
@@ -1734,7 +1786,14 @@ static void lower_stmt(tree_t stmt)
       lower_pcall(stmt);
       break;
    case T_WHILE:
-      lower_while(stmt);
+      lower_while(stmt, loops);
+      break;
+   case T_BLOCK:
+      lower_block(stmt, loops);
+      break;
+   case T_EXIT:
+   case T_NEXT:
+      lower_loop_control(stmt, loops);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",
@@ -1941,7 +2000,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(body, i));
+      lower_stmt(tree_stmt(body, i), NULL);
 
    if (!vcode_block_finished())
       emit_return(VCODE_INVALID_REG);
@@ -1974,7 +2033,7 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(body, i));
+      lower_stmt(tree_stmt(body, i), NULL);
 
    lower_finished();
 
@@ -2184,7 +2243,7 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 
    const int nstmts = tree_stmts(proc);
    for (int i = 0; i < nstmts; i++)
-      lower_stmt(tree_stmt(proc, i));
+      lower_stmt(tree_stmt(proc, i), NULL);
 
    if (!vcode_block_finished())
       emit_jump(start_bb);

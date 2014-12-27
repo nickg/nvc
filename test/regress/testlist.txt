@@ -28,7 +28,7 @@ while1          gold,normal
 # logical1        normal
 # lfsr            normal,stop=510ns
 # link1           normal
-# for1            gold,normal
+for1            gold,normal
 # operator1       normal
 # fact            gold,normal
 # func2           normal
@@ -95,7 +95,7 @@ record1         normal
 # bounds4         gold,fail
 # signal9         normal
 # bounds5         gold,fail
-# loop1           normal
+loop1           normal
 # record2         normal
 # access2         normal
 # func9           normal

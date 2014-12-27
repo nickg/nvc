@@ -562,6 +562,14 @@ vcode_block_t vcode_get_target(int op, int nth)
    return vcode_block_array_nth(&(o->targets), nth);
 }
 
+bool vcode_block_empty(void)
+{
+   assert(active_unit != NULL);
+   assert(active_block != VCODE_INVALID_BLOCK);
+
+   return active_unit->blocks.items[active_block].ops.count == 0;
+}
+
 bool vcode_block_finished(void)
 {
    assert(active_unit != NULL);
