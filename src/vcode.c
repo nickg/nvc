@@ -1024,10 +1024,16 @@ void vcode_dump(void)
                vtype_t *vt = vcode_type_data(op->type);
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               printf(" in ");
-               vcode_pretty_print_int(vt->low);
-               printf(" .. ");
-               vcode_pretty_print_int(vt->high);
+               if (vt->kind == VCODE_TYPE_INT) {
+                  printf(" in ");
+                  vcode_pretty_print_int(vt->low);
+                  printf(" .. ");
+                  vcode_pretty_print_int(vt->high);
+               }
+               else {
+                  printf(" match ");
+                  vcode_dump_one_type(op->type);
+               }
             }
             break;
 
@@ -1381,7 +1387,9 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    const vtype_t *tt = vcode_type_data(type);
    const vtype_t *bt = vcode_type_data(bounds);
 
-   if (bt->kind != tt->kind) {
+   if (bt->kind == VCODE_TYPE_UARRAY || tt->kind == VCODE_TYPE_UARRAY)
+      return false;
+   else if (bt->kind != tt->kind) {
       vcode_dump();
       fatal_trace("type mismatch in vtype_includes: %d and %d",
                   bt->kind, tt->kind);
@@ -2357,6 +2365,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
    static const vcode_type_t allowed[][2] = {
       { VCODE_TYPE_INT,    VCODE_TYPE_OFFSET  },
       { VCODE_TYPE_CARRAY, VCODE_TYPE_POINTER },
+      { VCODE_TYPE_OFFSET, VCODE_TYPE_INT     },
    };
 
    vtype_kind_t from = vtype_kind(vcode_reg_type(reg));
@@ -2492,7 +2501,7 @@ vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
       vtype_int(1, INT32_MAX)
    };
    op->result = vcode_add_reg(
-      vtype_uarray(dim_types, 1, vtype_int(0, 255), vtype_int(0, 127)));
+      vtype_uarray(dim_types, 1, vtype_int(0, 183), vtype_int(0, 127)));
 
    return op->result;
 }

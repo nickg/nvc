@@ -15,7 +15,7 @@ wait4           normal
 wait5           normal
 elab1           normal
 # image           gold,normal
-# cond1           gold,normal
+cond1           gold,normal
 counter         normal,stop=50ns,gold
 cond2           gold,normal
 vecorder        normal
@@ -51,7 +51,7 @@ concat2         normal
 # agg3            normal
 proc1           normal
 # alias3          normal
-# proc2           normal
+proc2           normal
 operator3       normal
 # agg4            normal
 # ieee3           normal

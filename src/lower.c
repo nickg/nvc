@@ -575,6 +575,38 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "active"))
       return lower_signal_flag(tree_value(tree_param(fcall, 0)),
                                emit_active_flag);
+   else if (icmp(builtin, "left") || icmp(builtin, "right")) {
+      tree_t array = tree_value(tree_param(fcall, 1));
+      type_t type = tree_type(array);
+      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      const bool left = icmp(builtin, "left");
+      vcode_reg_t reg = VCODE_INVALID_REG;
+      if (lower_const_bounds(type)) {
+         range_t r = type_dim(type, dim);
+         reg = lower_expr(left ? r.left : r.right, EXPR_RVALUE);
+      }
+      else if (left)
+         reg = lower_array_left(type, dim, lower_reify_expr(array));
+      else
+         reg = lower_array_right(type, dim, lower_reify_expr(array));
+
+      return emit_cast(lower_type(tree_type(fcall)), reg);
+   }
+   else if (icmp(builtin, "ascending")) {
+      tree_t array = tree_value(tree_param(fcall, 1));
+      type_t type = tree_type(array);
+      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      if (lower_const_bounds(type))
+         return emit_const(vtype_bool(), type_dim(type, dim).kind == RANGE_TO);
+      else
+         return emit_not(lower_array_dir(type, dim, lower_reify_expr(array)));
+   }
+   else if (icmp(builtin, "length")) {
+      const int dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      return emit_cast(lower_type(tree_type(fcall)),
+                       lower_array_len(lower_arg_type(fcall, 1), dim,
+                                       lower_subprogram_arg(fcall, 1)));
+   }
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -835,11 +867,15 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    if (vtype_kind(vcode_reg_type(array)) == VCODE_TYPE_UARRAY) {
       vcode_reg_t left_reg = lower_array_left(type, dim, array);
 
-      vcode_reg_t upto   = emit_sub(left_reg, off);
-      vcode_reg_t downto = emit_sub(off, left_reg);
+      vcode_reg_t downto = emit_sub(left_reg, off);
+      vcode_reg_t upto   = emit_sub(off, left_reg);
       zeroed = emit_select(emit_uarray_dir(array, dim), downto, upto);
    }
    else {
+      if (type_is_unconstrained(type)) {
+         vcode_dump();
+         printf("r%d\n", array);
+      }
       assert(!type_is_unconstrained(type));
       range_t r = type_dim(type, dim);
       vcode_reg_t left = lower_expr(r.left, EXPR_RVALUE);
@@ -898,13 +934,13 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
 
-   vcode_reg_t base = lower_array_data(lower_expr(value, ctx));
+   vcode_reg_t array = lower_expr(value, ctx);
 
-   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(base));
+   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
           || vtkind == VCODE_TYPE_SIGNAL);
 
-   return emit_add(base, lower_array_ref_offset(ref, base));
+   return emit_add(lower_array_data(array), lower_array_ref_offset(ref, array));
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
@@ -1527,19 +1563,21 @@ static void lower_wait(tree_t wait)
 
 static void lower_var_assign(tree_t stmt)
 {
-   vcode_reg_t value = lower_expr(tree_value(stmt), EXPR_RVALUE);
+   tree_t value = tree_value(stmt);
+   vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
 
-   vtype_kind_t value_kind = vtype_kind(vcode_reg_type(value));
+   vtype_kind_t value_kind = vtype_kind(vcode_reg_type(value_reg));
 
    tree_t target = tree_target(stmt);
    type_t type = tree_type(target);
+   const bool target_uarray = type_is_array(type) && !lower_const_bounds(type);
    const bool can_use_store =
       type_is_scalar(type)
-      || (value_kind == VCODE_TYPE_UARRAY && !lower_const_bounds(type))
-      || value_kind == VCODE_TYPE_CARRAY;
+      || (value_kind == VCODE_TYPE_UARRAY && target_uarray)
+      || (value_kind == VCODE_TYPE_CARRAY && !target_uarray);
 
    if (can_use_store) {
-      vcode_reg_t loaded_value = lower_reify(value);
+      vcode_reg_t loaded_value = lower_reify(value_reg);
       emit_bounds(loaded_value, lower_bounds(type));
       if (tree_kind(target) == T_REF
           && tree_kind(tree_ref(target)) == T_VAR_DECL)
@@ -1548,13 +1586,14 @@ static void lower_var_assign(tree_t stmt)
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
    else if (type_is_array(type)) {
-      vcode_reg_t count = lower_array_total_len(type, value);
-      vcode_reg_t src_data = lower_array_data(value);
-      emit_copy(lower_expr(target, EXPR_LVALUE), src_data, count);
+      vcode_reg_t count = lower_array_total_len(tree_type(value), value_reg);
+      vcode_reg_t src_data = lower_array_data(value_reg);
+      vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
+      emit_copy(lower_array_data(target_reg), src_data, count);
    }
    else {
       vcode_reg_t count = emit_const(vtype_offset(), 1);
-      emit_copy(lower_expr(target, EXPR_LVALUE), value, count);
+      emit_copy(lower_expr(target, EXPR_LVALUE), value_reg, count);
    }
 }
 
@@ -1972,8 +2011,10 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
          vbounds = lower_bounds(type);
       }
 
+      const bool is_uarray = type_is_array(type) && !lower_const_bounds(type);
+
       const port_mode_t mode = tree_subkind(p);
-      if (mode == PORT_OUT || mode == PORT_INOUT)
+      if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
          vtype = vtype_pointer(vtype);
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));

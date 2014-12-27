@@ -1,6 +1,6 @@
 #!/bin/bash
 sed 's/^.*\[\(.*\)\]$/\1/' | \
-    addr2line -pife ./src/nvc | \
+    addr2line -pife ./bin/nvc | \
     grep -v '^??' | \
     sed 's/:/ /' | \
     sed 's|/.*/||' | \
