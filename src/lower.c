@@ -1698,18 +1698,24 @@ static void lower_pcall(tree_t pcall)
 
 static void lower_while(tree_t stmt, loop_stack_t *loops)
 {
-   vcode_block_t test_bb = emit_block();
-   vcode_block_t body_bb = tree_has_value(stmt) ? emit_block() : test_bb;
-   vcode_block_t exit_bb = emit_block();
-
+   vcode_block_t test_bb, body_bb, exit_bb;
    if (tree_has_value(stmt)) {
+      test_bb = emit_block();
+      body_bb = emit_block();
+      exit_bb = emit_block();
+
       emit_jump(test_bb);
 
       vcode_select_block(test_bb);
       emit_cond(lower_reify_expr(tree_value(stmt)), body_bb, exit_bb);
    }
-   else
+   else {
+      test_bb = body_bb =
+         vcode_block_empty() ? vcode_active_block() : emit_block();
+      exit_bb = emit_block();
+
       emit_jump(body_bb);
+   }
 
    vcode_select_block(body_bb);
 

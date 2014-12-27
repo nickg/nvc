@@ -1357,16 +1357,20 @@ START_TEST(test_loop1)
 
    CHECK_BB(3);
 
-   EXPECT_BB(10) = {
-      { VCODE_OP_LOAD, .name = "N" },
+   EXPECT_BB(8) = {
+      { VCODE_OP_LOAD, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_SUB },
+      { VCODE_OP_ADD },
       { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
-      { VCODE_OP_STORE, .name = "N" },
-      { VCODE_OP_JUMP, .target = 2 }
+      { VCODE_OP_STORE, .name = "A" },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_MOD },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COND, .target = 11, .target_else = 10 }
    };
 
-   CHECK_BB(10);
+   CHECK_BB(8);
 }
 END_TEST
 
