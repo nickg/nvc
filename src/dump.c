@@ -568,8 +568,10 @@ static void dump_stmt(tree_t t, int indent)
    case T_ASSERT:
       printf("assert ");
       dump_expr(tree_value(t));
-      printf(" report ");
-      dump_expr(tree_message(t));
+      if (tree_has_message(t)) {
+         printf(" report ");
+         dump_expr(tree_message(t));
+      }
       printf(" severity ");
       dump_expr(tree_severity(t));
       break;

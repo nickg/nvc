@@ -118,7 +118,7 @@ issue9          normal
 # wait10          normal
 # attr4           normal
 # bounds6         gold,fail
-# elab6           normal
+elab6           normal
 # elab7           normal
 # bounds7         gold,fail
 # arith2          gold,fail

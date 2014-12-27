@@ -686,8 +686,6 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 
    LLVMBuildBr(builder, elsebb);
    LLVMPositionBuilderAtEnd(builder, elsebb);
-
-   ctx->blocks[vcode_active_block()] = elsebb;
 }
 
 static void cgen_op_wait(int op, cgen_ctx_t *ctx)
