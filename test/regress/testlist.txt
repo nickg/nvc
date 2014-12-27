@@ -16,14 +16,14 @@ wait5           normal
 elab1           normal
 # image           gold,normal
 # cond1           gold,normal
-# counter         normal,stop=50ns,gold
-# cond2           gold,normal
-# vecorder        normal
-# elab2           normal
+counter         normal,stop=50ns,gold
+cond2           gold,normal
+vecorder        normal
+elab2           normal
 func1           normal
-# signal5         normal
+signal5         normal
 while1          gold,normal
-# signal6         gold,normal
+signal6         gold,normal
 # slice1          normal
 # logical1        normal
 # lfsr            normal,stop=510ns
@@ -44,7 +44,7 @@ fact            gold,normal
 # func5           normal
 # ieee1           normal
 # ieee2           normal,stop=15ns
-# cond3           normal
+cond3           normal
 concat1         normal
 concat2         normal
 # null1           normal
@@ -56,17 +56,17 @@ operator3       normal
 # agg4            normal
 # ieee3           normal
 # default1        normal
-# generic1        normal
+generic1        normal
 # signal7         normal
 # synopsys1       normal
-# block1          normal
+block1          normal
 # elab3           normal,gold
 # func6           normal
 # case2           normal
 # case3           normal
 # wait6           normal,gold
-# elab4           normal
-# elab5           normal
+elab4           normal
+elab5           normal
 # signal8         normal
 # ram1            normal
 # wait7           normal
@@ -212,7 +212,7 @@ elab6           normal
 # record10        normal
 # real2           normal
 # issue45         normal,gold
-# for2            normal,gold
+for2            normal,gold
 # issue57         normal
 # attr10          normal
 # assert4         normal
