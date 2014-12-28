@@ -592,6 +592,32 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 
       return emit_cast(lower_type(tree_type(fcall)), reg);
    }
+   else if (icmp(builtin, "low") || icmp(builtin, "high")) {
+      tree_t array = tree_value(tree_param(fcall, 1));
+      type_t type = tree_type(array);
+      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      const bool low = icmp(builtin, "low");
+      vcode_reg_t reg = VCODE_INVALID_REG;
+      if (lower_const_bounds(type)) {
+         range_t r = type_dim(type, dim);
+         if (low)
+            reg = lower_reify_expr(r.kind == RANGE_TO ? r.left : r.right);
+         else
+            reg = lower_reify_expr(r.kind == RANGE_TO ? r.right : r.left);
+      }
+      else {
+         vcode_reg_t array_reg  = lower_reify_expr(array);
+         vcode_reg_t left_reg   = lower_array_left(type, dim, array_reg);
+         vcode_reg_t right_reg  = lower_array_right(type, dim, array_reg);
+         vcode_reg_t downto_reg = lower_array_dir(type, dim, array_reg);
+         if (low)
+            reg = emit_select(downto_reg, right_reg, left_reg);
+         else
+            reg = emit_select(downto_reg, left_reg, right_reg);
+      }
+
+      return emit_cast(lower_type(tree_type(fcall)), reg);
+   }
    else if (icmp(builtin, "ascending")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
