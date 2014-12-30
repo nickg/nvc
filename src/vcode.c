@@ -458,7 +458,8 @@ vcode_op_t vcode_get_op(int op)
 ident_t vcode_get_func(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL);
+   assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL
+          || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_RESUME);
    return o->func;
 }
 
@@ -558,7 +559,8 @@ vcode_block_t vcode_get_target(int op, int nth)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
-          || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PHI);
+          || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PHI
+          || o->kind == VCODE_OP_PCALL);
    return vcode_block_array_nth(&(o->targets), nth);
 }
 
@@ -581,7 +583,7 @@ bool vcode_block_finished(void)
    else {
       vcode_op_t kind = b->ops.items[b->ops.count - 1].kind;
       return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
-         || kind == VCODE_OP_COND;
+         || kind == VCODE_OP_COND || kind == VCODE_OP_PCALL;
    }
 }
 
@@ -596,7 +598,7 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event", "pcall"
+      "sched event", "pcall", "resume"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -747,6 +749,7 @@ void vcode_dump(void)
    case VCODE_UNIT_PROCESS: printf("process"); break;
    case VCODE_UNIT_CONTEXT: printf("context"); break;
    case VCODE_UNIT_FUNCTION: printf("function"); break;
+   case VCODE_UNIT_PROCEDURE: printf("procedure"); break;
    }
    color_printf("$$\n");
    if (vu->kind != VCODE_UNIT_CONTEXT)
@@ -780,7 +783,8 @@ void vcode_dump(void)
          printf("]\n");
       }
    }
-   else if (vu->kind == VCODE_UNIT_FUNCTION) {
+   else if (vu->kind == VCODE_UNIT_FUNCTION
+            || vu->kind == VCODE_UNIT_PROCEDURE) {
       if (vu->result != VCODE_INVALID_TYPE) {
          color_printf("Result     $cyan$");
          vcode_dump_one_type(vu->result);
@@ -1307,9 +1311,18 @@ void vcode_dump(void)
                             istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
                   if (i > 0)
-                     col += printf(", ");
-                  col += vcode_dump_reg(op->args.items[i]);
+                     printf(", ");
+                  vcode_dump_reg(op->args.items[i]);
                }
+               if (op->targets.count > 0)
+                  color_printf(" resume $yellow$%d$$", op->targets.items[0]);
+            }
+            break;
+
+         case VCODE_OP_RESUME:
+            {
+               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
+                            istr(op->func));
             }
             break;
          }
@@ -1715,6 +1728,21 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
    return vu;
 }
 
+vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context)
+{
+   vcode_unit_t vu = xcalloc(sizeof(struct vcode_unit));
+   vu->kind    = VCODE_UNIT_PROCEDURE;
+   vu->name    = name;
+   vu->context = context;
+   vu->result  = VCODE_INVALID_TYPE;
+   vu->depth   = vcode_unit_calc_depth(vu);
+
+   active_unit = vu;
+   vcode_select_block(emit_block());
+
+   return vu;
+}
+
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context)
 {
    assert(context->kind == VCODE_UNIT_CONTEXT);
@@ -1825,13 +1853,17 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 }
 
 static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
-                                 const vcode_reg_t *args, int nargs)
+                                 const vcode_reg_t *args, int nargs,
+                                 vcode_block_t resume_bb)
 {
    op_t *o = vcode_add_op(op);
    o->func = func;
    o->type = type;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
+
+   if (resume_bb != VCODE_INVALID_BLOCK)
+      vcode_block_array_add(&(o->targets), resume_bb);
 
    if (type == VCODE_INVALID_TYPE)
       return (o->result = VCODE_INVALID_REG);
@@ -1842,13 +1874,22 @@ static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs)
 {
-   return emit_fcall_op(VCODE_OP_FCALL, func, type, args, nargs);
+   return emit_fcall_op(VCODE_OP_FCALL, func, type, args, nargs,
+                        VCODE_INVALID_BLOCK);
 }
 
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
                               const vcode_reg_t *args, int nargs)
 {
-   return emit_fcall_op(VCODE_OP_NESTED_FCALL, func, type, args, nargs);
+   return emit_fcall_op(VCODE_OP_NESTED_FCALL, func, type, args, nargs,
+                        VCODE_INVALID_BLOCK);
+}
+
+void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
+                vcode_block_t resume_bb)
+{
+   emit_fcall_op(VCODE_OP_PCALL, func, VCODE_INVALID_TYPE, args, nargs,
+                 resume_bb);
 }
 
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
@@ -2885,4 +2926,16 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
    op->flags = flags;
+}
+
+void emit_resume(ident_t func)
+{
+   op_t *op = vcode_add_op(VCODE_OP_RESUME);
+   op->func = func;
+
+   block_t *b = &(active_unit->blocks.items[active_block]);
+   if (b->ops.count != 1) {
+      vcode_dump();
+      fatal_trace("resume must be first op in a block");
+   }
 }

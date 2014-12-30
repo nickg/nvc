@@ -51,6 +51,13 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       }
 
       switch (e->op) {
+      case VCODE_OP_PCALL:
+         if (e->target != vcode_get_target(i, 0)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have resume target %d but "
+                 "has %d", i, bb, e->target, vcode_get_target(i, 0));
+         }
+         // Fall-through
       case VCODE_OP_FCALL:
       case VCODE_OP_NESTED_FCALL:
       case VCODE_OP_PHI:
@@ -223,6 +230,14 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump();
             fail("expected op %d in block %d to have flags %x but "
                  "has %x", i, bb, e->flags, vcode_get_flags(i));
+         }
+         break;
+
+      case VCODE_OP_RESUME:
+         if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
+            vcode_dump();
+            fail("expected op %d in block %d to call %s but calls %s",
+                 i, bb, e->func, istr(vcode_get_func(i)));
          }
          break;
 
@@ -1374,6 +1389,60 @@ START_TEST(test_loop1)
 }
 END_TEST
 
+START_TEST(test_proc3)
+{
+   input_from_file(TESTDIR "/lower/proc3.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 10000000 },
+         { VCODE_OP_WAIT, .delay = true, .target = 1 }
+      };
+
+      CHECK_BB(0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_STORE_INDIRECT },
+         { VCODE_OP_CONST, .value = 5000000 },
+         { VCODE_OP_WAIT, .delay = true, .target = 2 }
+      };
+
+      CHECK_BB(1);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_INDEX, .name = "X" },
+         { VCODE_OP_PCALL, .func = ":proc3:p1", .target = 2, .args = 1 }
+      };
+
+      CHECK_BB(1);
+
+      EXPECT_BB(2) = {
+         { VCODE_OP_RESUME, .func = ":proc3:p1" },
+         { VCODE_OP_WAIT, .target = 3 }
+      };
+
+      CHECK_BB(2);
+   }
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1402,6 +1471,7 @@ int main(void)
    tcase_add_test(tc, test_proc1);
    tcase_add_test(tc, test_while1);
    tcase_add_test(tc, test_loop1);
+   tcase_add_test(tc, test_proc3);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

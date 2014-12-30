@@ -91,6 +91,7 @@ typedef enum {
    VCODE_OP_COPY,
    VCODE_OP_SCHED_EVENT,
    VCODE_OP_PCALL,
+   VCODE_OP_RESUME,
 } vcode_op_t;
 
 typedef enum {
@@ -106,7 +107,8 @@ typedef enum {
 typedef enum {
    VCODE_UNIT_PROCESS,
    VCODE_UNIT_CONTEXT,
-   VCODE_UNIT_FUNCTION
+   VCODE_UNIT_FUNCTION,
+   VCODE_UNIT_PROCEDURE
 } vunit_kind_t;
 
 typedef struct {
@@ -205,6 +207,7 @@ vcode_type_t vcode_var_type(vcode_var_t var);
 
 vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
                            vcode_type_t result);
+vcode_unit_t emit_procedure(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
@@ -232,7 +235,8 @@ void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index);
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs);
-vcode_reg_t emit_pcall(ident_t func, const vcode_reg_t *args, int nargs);
+void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
+                vcode_block_t resume_bb);
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
                               const vcode_reg_t *args, int nargs);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
@@ -278,5 +282,6 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
+void emit_resume(ident_t func);
 
 #endif  // _VCODE_H

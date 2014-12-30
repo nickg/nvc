@@ -1756,8 +1756,12 @@ static void lower_pcall(tree_t pcall)
    else {
       if (tree_attr_int(decl, never_waits_i, 0))
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
-      else
-         assert(false); //emit_pcall(name, args, nargs);
+      else {
+         vcode_block_t resume_bb = emit_block();
+         emit_pcall(name, args, nargs, resume_bb);
+         vcode_select_block(resume_bb);
+         emit_resume(name);
+      }
    }
 }
 
@@ -2053,11 +2057,15 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
 static void lower_proc_body(tree_t body, vcode_unit_t context)
 {
    const bool never_waits = tree_attr_int(body, never_waits_i, 0);
-   assert(never_waits);
 
    vcode_select_unit(context);
-   vcode_unit_t vu = emit_function(tree_ident(body), context,
-                                   VCODE_INVALID_TYPE);
+
+   vcode_unit_t vu;
+   if (never_waits)
+      vu = emit_function(tree_ident(body), context, VCODE_INVALID_TYPE);
+   else
+      vu = emit_procedure(tree_ident(body), context);
+
    vcode_block_t bb = vcode_active_block();
 
    const bool has_subprograms = lower_has_subprograms(body);
