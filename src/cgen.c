@@ -505,10 +505,16 @@ static void cgen_sched_process(LLVMValueRef after)
 
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
-   if (vcode_count_args(op) > 0)
-      LLVMBuildRet(builder, cgen_get_arg(op, 0, ctx));
-   else
-      LLVMBuildRetVoid(builder);
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+      LLVMBuildFree(builder, ctx->state);
+      LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+   }
+   else {
+      if (vcode_count_args(op) > 0)
+         LLVMBuildRet(builder, cgen_get_arg(op, 0, ctx));
+      else
+         LLVMBuildRetVoid(builder);
+   }
 }
 
 static void cgen_op_jump(int i, cgen_ctx_t *ctx)
@@ -698,7 +704,10 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
    LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
 
-   LLVMBuildRetVoid(builder);
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+      LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+   else
+      LLVMBuildRetVoid(builder);
 }
 
 static void cgen_op_store(int op, cgen_ctx_t *ctx)
@@ -1549,33 +1558,42 @@ static void cgen_locals(cgen_ctx_t *ctx)
    }
 }
 
-static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type)
+static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
+                                        bool is_procecure)
 {
-   const int nextra  = (display_type ? 1 : 0);
+   const int nextra  = (display_type ? 1 : 0) + (is_procecure ? 1 : 0);
    const int nparams = vcode_count_params();
    LLVMTypeRef params[nparams + nextra];
+   LLVMTypeRef *p = params;
    for (int i = 0; i < nparams; i++)
-      params[i] = cgen_type(vcode_param_type(i));
+      *p++ = cgen_type(vcode_param_type(i));
 
    if (display_type != NULL)
-      params[nparams] = display_type;
+      *p++ = display_type;
 
-   vcode_type_t rtype = vcode_unit_result();
-   if (rtype == VCODE_INVALID_TYPE)
-      return LLVMFunctionType(LLVMVoidType(), params, nparams + nextra, false);
-   else
-      return LLVMFunctionType(cgen_type(rtype), params,
-                              nparams + nextra, false);
+   if (is_procecure)
+      *p++ = llvm_void_ptr();
+
+   if (is_procecure)
+      return LLVMFunctionType(llvm_void_ptr(), params, nparams + nextra, false);
+   else {
+      vcode_type_t rtype = vcode_unit_result();
+      if (rtype == VCODE_INVALID_TYPE)
+         return LLVMFunctionType(LLVMVoidType(), params,
+                                 nparams + nextra, false);
+      else
+         return LLVMFunctionType(cgen_type(rtype), params,
+                                 nparams + nextra, false);
+   }
 }
 
-static void cgen_function(vcode_unit_t code, LLVMTypeRef display_type)
+static void cgen_function(LLVMTypeRef display_type)
 {
-   vcode_select_unit(code);
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
    assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
 
    LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
-                                     cgen_subprogram_type(display_type));
+                                     cgen_subprogram_type(display_type, false));
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
@@ -1596,23 +1614,26 @@ static void cgen_function(vcode_unit_t code, LLVMTypeRef display_type)
    cgen_free_context(&ctx);
 }
 
-static void cgen_state_struct(cgen_ctx_t *ctx)
+static LLVMTypeRef cgen_state_type(void)
 {
-   ctx->var_base = 1;
-
    const int nvars   = vcode_count_vars();
-   const int nfields = nvars + ctx->var_base;
+   const int nfields = nvars + 1;
 
    LLVMTypeRef fields[nfields];
    fields[0] = LLVMInt32Type();
 
    for (int i = 0; i < nvars; i++) {
       vcode_var_t var = vcode_var_handle(i);
-      fields[ctx->var_base + i] = cgen_type(vcode_var_type(var));
+      fields[1 + i] = cgen_type(vcode_var_type(var));
    }
 
+   return LLVMStructType(fields, nfields, false);
+}
+
+static void cgen_state_struct(cgen_ctx_t *ctx)
+{
    char *name LOCAL = xasprintf("%s__state", istr(vcode_unit_name()));
-   LLVMTypeRef state_ty = LLVMStructType(fields, nfields, false);
+   LLVMTypeRef state_ty = cgen_state_type();
    ctx->state = LLVMAddGlobal(module, state_ty, name);
    LLVMSetLinkage(ctx->state, LLVMInternalLinkage);
    LLVMSetInitializer(ctx->state, LLVMGetUndef(state_ty));
@@ -1644,6 +1665,44 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_procedure(LLVMTypeRef display_type)
+{
+   assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
+   assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
+
+   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+                                     cgen_subprogram_type(display_type, true));
+
+   LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+
+   cgen_ctx_t ctx = {
+      .fn = fn,
+      .var_base = 1
+   };
+   cgen_alloc_context(&ctx);
+
+   const int nparams = vcode_count_params();
+
+   LLVMValueRef state_raw = NULL;
+   if (display_type != NULL) {
+      ctx.display = LLVMGetParam(fn, nparams);
+      state_raw   = LLVMGetParam(fn, nparams + 1);
+   }
+   else
+      state_raw = LLVMGetParam(fn, nparams);
+
+   LLVMPositionBuilderAtEnd(builder, ctx.blocks[0]);
+
+   LLVMTypeRef type = LLVMPointerType(cgen_state_type(), 0);
+   ctx.state = LLVMBuildPointerCast(builder, LLVMGetParam(fn, nparams),
+                                    type, "state");
+
+   cgen_params(&ctx);
+   cgen_locals(&ctx);
+   cgen_code(&ctx);
+   cgen_free_context(&ctx);
+}
+
 static void cgen_process(vcode_unit_t code)
 {
    vcode_select_unit(code);
@@ -1659,7 +1718,8 @@ static void cgen_process(vcode_unit_t code)
    LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
    cgen_ctx_t ctx = {
-      .fn = fn
+      .fn = fn,
+      .var_base = 1,
    };
    cgen_state_struct(&ctx);
    cgen_alloc_context(&ctx);
@@ -1723,7 +1783,8 @@ static void cgen_coverage_state(tree_t t)
 static void cgen_subprograms(tree_t t)
 {
    LLVMTypeRef display = NULL;
-   const bool needs_display = tree_kind(t) != T_ELAB;
+   const tree_kind_t scope_kind = tree_kind(t);
+   const bool needs_display = scope_kind != T_ELAB && scope_kind != T_PACK_BODY;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
@@ -1734,7 +1795,11 @@ static void cgen_subprograms(tree_t t)
          cgen_subprograms(d);
          if (display == NULL && needs_display)
             display = cgen_display_type(tree_code(t));
-         cgen_function(tree_code(d), display);
+         vcode_select_unit(tree_code(d));
+         if (vcode_unit_kind() == VCODE_UNIT_FUNCTION)
+            cgen_function(display);
+         else
+            cgen_procedure(display);
          break;
       default:
          break;

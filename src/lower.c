@@ -1985,7 +1985,8 @@ static void lower_decls(tree_t scope)
 
 static void lower_subprograms(tree_t scope, vcode_unit_t context)
 {
-   const bool nested = tree_kind(scope) != T_ELAB;
+   const tree_kind_t scope_kind = tree_kind(scope);
+   const bool nested = scope_kind != T_ELAB && scope_kind != T_PACK_BODY;
 
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {

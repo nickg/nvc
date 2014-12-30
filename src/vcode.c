@@ -1307,11 +1307,10 @@ void vcode_dump(void)
 
          case VCODE_OP_PCALL:
             {
-               color_printf("%s $magenta$%s$$ ", vcode_op_string(op->kind),
+               color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
                for (int i = 0; i < op->args.count; i++) {
-                  if (i > 0)
-                     printf(", ");
+                  printf("%s", i > 0 ? ", " : " ");
                   vcode_dump_reg(op->args.items[i]);
                }
                if (op->targets.count > 0)
@@ -1613,7 +1612,8 @@ int64_t vtype_high(vcode_type_t type)
 int vcode_count_params(void)
 {
    assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION
+          || active_unit->kind == VCODE_UNIT_PROCEDURE);
 
    return active_unit->params.count;
 }
@@ -1621,7 +1621,8 @@ int vcode_count_params(void)
 vcode_type_t vcode_param_type(int param)
 {
    assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION
+          || active_unit->kind == VCODE_UNIT_PROCEDURE);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].type;
@@ -1630,7 +1631,8 @@ vcode_type_t vcode_param_type(int param)
 vcode_reg_t vcode_param_reg(int param)
 {
    assert(active_unit != NULL);
-   assert(active_unit->kind == VCODE_UNIT_FUNCTION);
+   assert(active_unit->kind == VCODE_UNIT_FUNCTION
+          || active_unit->kind == VCODE_UNIT_PROCEDURE);
    assert(param < active_unit->params.count);
 
    return active_unit->params.items[param].reg;
