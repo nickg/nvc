@@ -14,7 +14,7 @@ wait3           normal
 wait4           normal
 wait5           normal
 elab1           normal
-# image           gold,normal
+image           gold,normal
 cond1           gold,normal
 counter         normal,stop=50ns,gold
 cond2           gold,normal
@@ -75,7 +75,7 @@ elab5           normal
 # driver2         normal
 delay1          normal
 record1         normal
-# proc3           normal
+proc3           normal
 # access1         normal,gold
 # proc4           normal
 # file1           normal

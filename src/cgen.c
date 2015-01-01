@@ -513,8 +513,13 @@ static void cgen_op_return(int op, cgen_ctx_t *ctx)
    else {
       if (vcode_count_args(op) > 0)
          LLVMBuildRet(builder, cgen_get_arg(op, 0, ctx));
-      else
-         LLVMBuildRetVoid(builder);
+      else {
+         LLVMTypeRef fn_type = LLVMGetElementType(LLVMTypeOf(ctx->fn));
+         if (LLVMGetTypeKind(LLVMGetReturnType(fn_type)) == LLVMVoidTypeKind)
+            LLVMBuildRetVoid(builder);
+         else
+            LLVMBuildRet(builder, LLVMConstNull(llvm_void_ptr()));
+      }
    }
 }
 
@@ -1365,7 +1370,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
       fn = LLVMAddFunction(
          module,
          istr(func),
-         LLVMFunctionType(llvm_void_ptr(), atypes, nargs, false));
+         LLVMFunctionType(llvm_void_ptr(), atypes, nargs + 1, false));
 
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
@@ -1687,7 +1692,7 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
    else {
       vcode_type_t rtype = vcode_unit_result();
       if (rtype == VCODE_INVALID_TYPE)
-         return LLVMFunctionType(LLVMVoidType(), params,
+         return LLVMFunctionType(llvm_void_ptr(), params,
                                  nparams + nextra, false);
       else
          return LLVMFunctionType(cgen_type(rtype), params,
