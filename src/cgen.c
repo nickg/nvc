@@ -44,6 +44,7 @@ typedef struct {
    LLVMValueRef       state;
    LLVMValueRef       display;
    size_t             var_base;
+   size_t             param_base;
    LLVMValueRef      *locals;
 } cgen_ctx_t;
 
@@ -1329,6 +1330,107 @@ static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
 }
 
+static void cgen_pcall_suspend(LLVMValueRef state, LLVMBasicBlockRef cont_bb,
+                               cgen_ctx_t *ctx)
+{
+   LLVMValueRef is_null = LLVMBuildICmp(builder, LLVMIntEQ, state,
+                                        LLVMConstNull(llvm_void_ptr()), "");
+
+   LLVMBasicBlockRef suspend_bb = LLVMAppendBasicBlock(ctx->fn, "suspend");
+
+   LLVMBuildCondBr(builder, is_null, cont_bb, suspend_bb);
+
+   LLVMPositionBuilderAtEnd(builder, suspend_bb);
+
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+      LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+   else
+      LLVMBuildRetVoid(builder);
+
+   LLVMPositionBuilderAtEnd(builder, cont_bb);
+}
+
+static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
+{
+   ident_t func = vcode_get_func(op);
+   const int nargs = vcode_count_args(op);
+
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
+   if (fn == NULL) {
+      LLVMTypeRef atypes[nargs + 1];
+      for (int i = 0; i < nargs; i++)
+         atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
+      atypes[nargs] = llvm_void_ptr();
+
+      fn = LLVMAddFunction(
+         module,
+         istr(func),
+         LLVMFunctionType(llvm_void_ptr(), atypes, nargs, false));
+
+      LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
+   }
+
+   const int total_args = nargs + (nested ? 1 : 0) + 1;
+   LLVMValueRef args[total_args];
+   LLVMValueRef *ap = args;
+   for (int i = 0; i < nargs; i++)
+      *ap++ = cgen_get_arg(op, i, ctx);
+
+   if (nested)
+      *ap++ = cgen_display_struct(ctx);
+
+   *ap++ = LLVMConstNull(llvm_void_ptr());
+
+   LLVMValueRef suspend = LLVMBuildCall(builder, fn, args, total_args, "");
+
+   assert(ctx->state);
+   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+   LLVMBuildStore(builder, suspend, pcall_ptr);
+
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
+   LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
+
+   cgen_pcall_suspend(suspend, ctx->blocks[vcode_get_target(op, 0)], ctx);
+}
+
+static void cgen_op_resume(int op, cgen_ctx_t *ctx)
+{
+   LLVMBasicBlockRef after_bb = LLVMAppendBasicBlock(ctx->fn, "resume_after");
+   LLVMBasicBlockRef call_bb  = LLVMAppendBasicBlock(ctx->fn, "resume_call");
+
+   assert(ctx->state);
+   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx->state, 1, "");
+   LLVMValueRef pcall_state = LLVMBuildLoad(builder, pcall_ptr, "");
+
+   LLVMValueRef is_null = LLVMBuildICmp(builder, LLVMIntEQ, pcall_state,
+                                        LLVMConstNull(llvm_void_ptr()), "");
+   LLVMBuildCondBr(builder, is_null, after_bb, call_bb);
+
+   LLVMPositionBuilderAtEnd(builder, call_bb);
+
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_get_func(op)));
+   assert(fn != NULL);
+
+   LLVMTypeRef fn_type = LLVMGetElementType(LLVMTypeOf(fn));
+
+   const int nparams = LLVMCountParamTypes(fn_type);
+   assert(nparams > 0);
+
+   LLVMTypeRef param_types[nparams];
+   LLVMGetParamTypes(fn_type, param_types);
+
+   LLVMValueRef args[nparams];
+   for (int i = 0; i < nparams - 1; i++)
+      args[i] = LLVMGetUndef(param_types[i]);
+   args[nparams - 1] = pcall_state;
+
+   LLVMValueRef new_state = LLVMBuildCall(builder, fn, args, nparams, "");
+
+   LLVMBuildStore(builder, new_state, pcall_ptr);
+
+   cgen_pcall_suspend(new_state, after_bb, ctx);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1488,6 +1590,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_SCHED_EVENT:
       cgen_op_sched_event(i, ctx);
       break;
+   case VCODE_OP_PCALL:
+      cgen_op_pcall(i, false, ctx);
+      break;
+   case VCODE_OP_RESUME:
+      cgen_op_resume(i, ctx);
+      break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
    }
@@ -1614,17 +1722,30 @@ static void cgen_function(LLVMTypeRef display_type)
    cgen_free_context(&ctx);
 }
 
-static LLVMTypeRef cgen_state_type(void)
+static LLVMTypeRef cgen_state_type(cgen_ctx_t *ctx)
 {
+   const bool is_procedure = vcode_unit_kind() == VCODE_UNIT_PROCEDURE;
+
+   const int nparams = is_procedure ? vcode_count_params() : 0;
    const int nvars   = vcode_count_vars();
-   const int nfields = nvars + 1;
+   const int nfields = nvars + nparams + 2;
 
    LLVMTypeRef fields[nfields];
    fields[0] = LLVMInt32Type();
+   fields[1] = llvm_void_ptr();
+
+   ctx->var_base = ctx->param_base = 2;
+
+   if (is_procedure) {
+      for (int i = 0; i < nparams; i++)
+         fields[ctx->param_base + i] = cgen_type(vcode_param_type(i));
+
+      ctx->var_base += nparams;
+   }
 
    for (int i = 0; i < nvars; i++) {
       vcode_var_t var = vcode_var_handle(i);
-      fields[1 + i] = cgen_type(vcode_var_type(var));
+      fields[ctx->var_base + i] = cgen_type(vcode_var_type(var));
    }
 
    return LLVMStructType(fields, nfields, false);
@@ -1633,7 +1754,7 @@ static LLVMTypeRef cgen_state_type(void)
 static void cgen_state_struct(cgen_ctx_t *ctx)
 {
    char *name LOCAL = xasprintf("%s__state", istr(vcode_unit_name()));
-   LLVMTypeRef state_ty = cgen_state_type();
+   LLVMTypeRef state_ty = cgen_state_type(ctx);
    ctx->state = LLVMAddGlobal(module, state_ty, name);
    LLVMSetLinkage(ctx->state, LLVMInternalLinkage);
    LLVMSetInitializer(ctx->state, LLVMGetUndef(state_ty));
@@ -1643,9 +1764,12 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 {
    assert(ctx->state != NULL);
 
+   const int first = vcode_unit_kind() == VCODE_UNIT_PROCESS ? 1 : 0;
+
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
    LLVMValueRef jtarget = LLVMBuildLoad(builder, state_ptr, "");
-   LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget, ctx->blocks[1], 10);
+   LLVMValueRef jswitch = LLVMBuildSwitch(builder, jtarget,
+                                          ctx->blocks[first], 10);
 
    const int nblocks = vcode_count_blocks();
    bool *have LOCAL = xcalloc(sizeof(bool) * nblocks);
@@ -1653,7 +1777,8 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
       vcode_select_block(i);
 
       const int last = vcode_count_ops() - 1;
-      if (vcode_get_op(last) != VCODE_OP_WAIT)
+      vcode_op_t last_op = vcode_get_op(last);
+      if (last_op != VCODE_OP_WAIT && last_op != VCODE_OP_PCALL)
          continue;
 
       const vcode_block_t target = vcode_get_target(last, 0);
@@ -1676,10 +1801,8 @@ static void cgen_procedure(LLVMTypeRef display_type)
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
    cgen_ctx_t ctx = {
-      .fn = fn,
-      .var_base = 1
+      .fn = fn
    };
-   cgen_alloc_context(&ctx);
 
    const int nparams = vcode_count_params();
 
@@ -1691,13 +1814,55 @@ static void cgen_procedure(LLVMTypeRef display_type)
    else
       state_raw = LLVMGetParam(fn, nparams);
 
-   LLVMPositionBuilderAtEnd(builder, ctx.blocks[0]);
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMBasicBlockRef alloc_bb = LLVMAppendBasicBlock(fn, "alloc");
+   LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
-   LLVMTypeRef type = LLVMPointerType(cgen_state_type(), 0);
-   ctx.state = LLVMBuildPointerCast(builder, LLVMGetParam(fn, nparams),
-                                    type, "state");
-
+   cgen_alloc_context(&ctx);
    cgen_params(&ctx);
+
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   LLVMTypeRef state_type = cgen_state_type(&ctx);
+   LLVMTypeRef pointer_type = LLVMPointerType(state_type, 0);
+   LLVMValueRef old_state =
+      LLVMBuildPointerCast(builder, LLVMGetParam(fn, nparams),
+                           pointer_type, "old_state");
+
+   LLVMValueRef is_null = LLVMBuildICmp(builder, LLVMIntEQ, old_state,
+                                        LLVMConstNull(pointer_type), "");
+   LLVMBuildCondBr(builder, is_null, alloc_bb, jump_bb);
+
+   LLVMPositionBuilderAtEnd(builder, alloc_bb);
+
+   LLVMValueRef new_state = LLVMBuildMalloc(builder, state_type, "new_state");
+
+   LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, new_state, 0, "");
+   LLVMBuildStore(builder, llvm_int32(0), state_ptr);
+
+   for (int i = 0; i < nparams; i++) {
+      LLVMValueRef param_ptr =
+         LLVMBuildStructGEP(builder, new_state, ctx.param_base + i, "");
+      LLVMBuildStore(builder, ctx.regs[vcode_param_reg(i)], param_ptr);
+   }
+
+   LLVMBuildBr(builder, jump_bb);
+
+   LLVMPositionBuilderAtEnd(builder, jump_bb);
+
+   ctx.state = LLVMBuildPhi(builder, pointer_type, "state");
+
+   LLVMValueRef phi_values[]   = { old_state, new_state };
+   LLVMBasicBlockRef phi_bbs[] = { entry_bb,  alloc_bb  };
+   LLVMAddIncoming(ctx.state, phi_values, phi_bbs, 2);
+
+   for (int i = 0; i < nparams; i++) {
+      LLVMValueRef param_ptr =
+         LLVMBuildStructGEP(builder, ctx.state, ctx.param_base + i, "");
+      ctx.regs[vcode_param_reg(i)] = LLVMBuildLoad(builder, param_ptr, "");
+   }
+
+   cgen_jump_table(&ctx);
    cgen_locals(&ctx);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
@@ -1718,8 +1883,7 @@ static void cgen_process(vcode_unit_t code)
    LLVMBasicBlockRef jump_bb  = LLVMAppendBasicBlock(fn, "jump_table");
 
    cgen_ctx_t ctx = {
-      .fn = fn,
-      .var_base = 1,
+      .fn = fn
    };
    cgen_state_struct(&ctx);
    cgen_alloc_context(&ctx);
@@ -1735,6 +1899,9 @@ static void cgen_process(vcode_unit_t code)
 
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx.state, 0, "");
    LLVMBuildStore(builder, llvm_int32(1), state_ptr);
+
+   LLVMValueRef pcall_ptr = LLVMBuildStructGEP(builder, ctx.state, 1, "");
+   LLVMBuildStore(builder, LLVMConstNull(llvm_void_ptr()), pcall_ptr);
 
    // Schedule the process to run immediately
    cgen_sched_process(llvm_int64(0));

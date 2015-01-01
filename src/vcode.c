@@ -583,7 +583,8 @@ bool vcode_block_finished(void)
    else {
       vcode_op_t kind = b->ops.items[b->ops.count - 1].kind;
       return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
-         || kind == VCODE_OP_COND || kind == VCODE_OP_PCALL;
+         || kind == VCODE_OP_COND || kind == VCODE_OP_PCALL
+         || kind == VCODE_OP_RETURN;
    }
 }
 

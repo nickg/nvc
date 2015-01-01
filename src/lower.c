@@ -1680,7 +1680,8 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(stmt, i), loops);
 
-   emit_jump(bmerge);
+   if (!vcode_block_finished())
+      emit_jump(bmerge);
 
    if (nelses > 0) {
       vcode_select_block(bfalse);
@@ -1688,7 +1689,8 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       for (int i = 0; i < nelses; i++)
          lower_stmt(tree_else_stmt(stmt, i), loops);
 
-      emit_jump(bmerge);
+      if (!vcode_block_finished())
+         emit_jump(bmerge);
    }
 
    vcode_select_block(bmerge);
@@ -1799,7 +1801,8 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(stmt, i), &this);
 
-   emit_jump(test_bb);
+   if (!vcode_block_finished())
+      emit_jump(test_bb);
 
    vcode_select_block(exit_bb);
 }

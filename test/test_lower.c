@@ -1443,6 +1443,37 @@ START_TEST(test_proc3)
 }
 END_TEST
 
+START_TEST(test_loop2)
+{
+   input_from_file(TESTDIR "/lower/loop2.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_CONST, .value = 1000 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
+      { VCODE_OP_COND, .target = 4, .target_else = 5 }
+   };
+
+   CHECK_BB(2);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_RETURN },
+   };
+
+   CHECK_BB(3);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1472,6 +1503,7 @@ int main(void)
    tcase_add_test(tc, test_while1);
    tcase_add_test(tc, test_loop1);
    tcase_add_test(tc, test_proc3);
+   tcase_add_test(tc, test_loop2);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
