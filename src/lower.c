@@ -969,6 +969,11 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    return emit_add(lower_array_data(array), lower_array_ref_offset(ref, array));
 }
 
+static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
+{
+
+}
+
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
                             unsigned n, bool backwards)
 {
@@ -1432,6 +1437,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_aggregate(expr, ctx);
    case T_ARRAY_REF:
       return lower_array_ref(expr, ctx);
+   case T_ARRAY_SLICE:
+      return lower_array_slice(expr, ctx);
    case T_RECORD_REF:
       return lower_record_ref(expr, ctx);
    case T_CONCAT:
@@ -2180,28 +2187,26 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
-#if 0
    case T_ARRAY_SLICE:
       {
          tree_t value = tree_value(t);
-         if (!cgen_driver_nets(value, decl, all_nets, all_length,
-                               driven_nets, driven_length, has_non_const, ctx))
+         if (!lower_driver_nets(value, decl, all_nets, all_length, driven_nets,
+                                driven_length, has_non_const, proc))
             return false;
-         else if (*driven_nets == NULL)
+         else if (*driven_nets == VCODE_INVALID_REG)
             return false;
          else if (*has_non_const)
             return true;
 
          range_t r = tree_range(t);
-         if (cgen_is_const(r.left) && cgen_is_const(r.right)) {
+         if (lower_is_const(r.left) && lower_is_const(r.right)) {
             const int stride = type_width(type_elem(tree_type(t)));
-            LLVMValueRef idx =
-               LLVMBuildMul(builder,
-                            cgen_array_off(cgen_expr(r.left, ctx), *driven_nets,
-                                           tree_type(value), ctx, 0),
-                            llvm_int32(stride), "stride");
+            vcode_reg_t idx =
+               emit_mul(lower_array_off(lower_reify_expr(r.left), *driven_nets,
+                                        tree_type(value), 0),
+                        emit_const(vtype_offset(), stride));
 
-            *driven_nets = LLVMBuildGEP(builder, *driven_nets, &idx, 1, "");
+            *driven_nets   = emit_add(*driven_nets, idx);
             *driven_length = type_width(tree_type(t));
          }
          else
@@ -2209,6 +2214,7 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
+#if 0
    case T_RECORD_REF:
       {
          tree_t value = tree_value(t);
