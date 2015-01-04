@@ -776,7 +776,7 @@ START_TEST(test_func1)
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_FCALL, .func = ":func1:add1", .args = 1 },
+      { VCODE_OP_FCALL, .func = ":func1:add1$I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_IMAGE },
@@ -947,7 +947,8 @@ START_TEST(test_nest1)
       EXPECT_BB(1) = {
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X", .args = 1 },
+         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X$I",
+           .args = 1 },
          { VCODE_OP_CONST, .value = 7 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
@@ -964,7 +965,7 @@ START_TEST(test_nest1)
       vcode_unit_t v0 = tree_code(f1);
       vcode_select_unit(v0);
 
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$I"));
 
       EXPECT_BB(0) = {
          { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X_DO_IT" },
@@ -1274,14 +1275,14 @@ START_TEST(test_proc1)
       EXPECT_BB(1) = {
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
-         { VCODE_OP_FCALL, .func = ":proc1:add1", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1$II", .args = 2 },
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 3 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
-         { VCODE_OP_FCALL, .func = ":proc1:add1", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1$II", .args = 2 },
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
@@ -1426,13 +1427,13 @@ START_TEST(test_proc3)
 
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
-         { VCODE_OP_PCALL, .func = ":proc3:p1", .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = ":proc3:p1$I", .target = 2, .args = 1 }
       };
 
       CHECK_BB(1);
 
       EXPECT_BB(2) = {
-         { VCODE_OP_RESUME, .func = ":proc3:p1" },
+         { VCODE_OP_RESUME, .func = ":proc3:p1$I" },
          { VCODE_OP_WAIT, .target = 3 }
       };
 

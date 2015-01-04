@@ -167,12 +167,15 @@ static char *filter_color(const char *str, bool force)
                }
 
                if (!found) {
-                  strncpy(p, escape_start, len + 2);
-                  p += len + 2;
+                  strncpy(p, escape_start, len + 1);
+                  p += len + 1;
+                  escape_start = str;
                }
+               else
+                  escape_start = NULL;
             }
-
-            escape_start = NULL;
+            else
+               escape_start = NULL;
          }
       }
       else if (escape_start == NULL)

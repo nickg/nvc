@@ -28,8 +28,8 @@ static void test_error_fn(const char *msg, const loc_t *loc)
 
    if (unexpected) {
       orig_error_fn(msg, loc);
-      printf("expected line %d '%s'\n",
-             error_lines->line, error_lines->snippet);
+      printf("expected line %d '%s' '%s'\n",
+             error_lines->line, error_lines->snippet, msg);
    }
 
    fail_if(unexpected);

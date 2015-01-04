@@ -47,6 +47,7 @@ static ident_t drives_all_i;
 static ident_t driver_init_i;
 static ident_t static_i;
 static ident_t never_waits_i;
+static ident_t mangled_i;
 static bool    verbose = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
@@ -612,6 +613,53 @@ static type_t lower_arg_type(tree_t fcall, int nth)
    return tree_type(tree_value(tree_param(fcall, nth)));
 }
 
+static void lower_mangle_one_type(text_buf_t *buf, type_t type)
+{
+   ident_t ident = type_ident(type);
+
+   if (icmp(ident, "STD.STANDARD.INTEGER"))
+      tb_printf(buf, "I");
+   else if (icmp(ident, "STD.STANDARD.STRING"))
+      tb_printf(buf, "S");
+   else if (icmp(ident, "STD.STANDARD.REAL"))
+      tb_printf(buf, "R");
+   else if (icmp(ident, "STD.STANDARD.BOOLEAN"))
+      tb_printf(buf, "B");
+   else if (icmp(ident, "STD.STANDARD.CHARACTER"))
+      tb_printf(buf, "C");
+   else if (icmp(ident, "STD.STANDARD.TIME"))
+      tb_printf(buf, "T");
+   else if (icmp(ident, "STD.STANDARD.NATURAL"))
+      tb_printf(buf, "N");
+   else if (icmp(ident, "STD.STANDARD.BIT"))
+      tb_printf(buf, "J");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
+      tb_printf(buf, "L");
+   else
+      tb_printf(buf, "u%s;", istr(ident));
+}
+
+static ident_t lower_mangle_func(tree_t decl)
+{
+   ident_t prev = tree_attr_str(decl, mangled_i);
+   if (prev != NULL)
+      return prev;
+
+   LOCAL_TEXT_BUF buf = tb_new();
+   tb_printf(buf, "%s", istr(tree_ident(decl)));
+
+   const int nports = tree_ports(decl);
+   if (nports > 0) {
+      tb_printf(buf, "$");
+      for (int i = 0; i < nports; i++)
+         lower_mangle_one_type(buf, tree_type(tree_port(decl, i)));
+   }
+
+   ident_t new = ident_new(tb_get(buf));
+   tree_add_attr_str(decl, mangled_i, new);
+   return new;
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    if (icmp(builtin, "event"))
@@ -779,7 +827,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
       return lower_builtin(fcall, builtin);
 
    tree_t foreign = tree_attr_tree(decl, foreign_i);
-   ident_t name = tree_ident(decl);
+   ident_t name = NULL;
    if (foreign != NULL) {
       if (tree_kind(foreign) != T_LITERAL)
          fatal_at(tree_loc(decl), "foreign attribute must have string "
@@ -793,6 +841,8 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 
       name = ident_new(buf);
    }
+   else
+      name = lower_mangle_func(decl);
 
    const int nargs = tree_params(fcall);
    vcode_reg_t args[nargs];
@@ -2031,7 +2081,7 @@ static void lower_return(tree_t stmt)
 static void lower_pcall(tree_t pcall)
 {
    tree_t decl = tree_ref(pcall);
-   ident_t name = tree_ident(decl);
+   ident_t name = lower_mangle_func(decl);
 
    const int nargs = tree_params(pcall);
    vcode_reg_t args[nargs];
@@ -2352,9 +2402,9 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 
    vcode_unit_t vu;
    if (never_waits)
-      vu = emit_function(tree_ident(body), context, VCODE_INVALID_TYPE);
+      vu = emit_function(lower_mangle_func(body), context, VCODE_INVALID_TYPE);
    else
-      vu = emit_procedure(tree_ident(body), context);
+      vu = emit_procedure(lower_mangle_func(body), context);
 
    vcode_block_t bb = vcode_active_block();
 
@@ -2387,7 +2437,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
-   vcode_unit_t vu = emit_function(tree_ident(body), context,
+   vcode_unit_t vu = emit_function(lower_mangle_func(body), context,
                                    lower_type(type_result(tree_type(body))));
    vcode_block_t bb = vcode_active_block();
 
@@ -2676,6 +2726,7 @@ void lower_unit(tree_t unit)
    driver_init_i = ident_new("driver_init");
    static_i      = ident_new("static");
    never_waits_i = ident_new("never_waits");
+   mangled_i     = ident_new("mangled");
 
    verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
 
