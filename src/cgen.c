@@ -167,13 +167,21 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 
    case VCODE_TYPE_CARRAY:
       {
-         assert(vtype_dims(type) == 1);
-         vcode_type_t dim0 = vtype_dim(type, 0);
+         const int ndims = vtype_dims(type);
+         unsigned nelems = 1;
+         for (int i = 0; i < ndims; i++) {
+            vcode_type_t dim = vtype_dim(type, i);
 
-         const int64_t low  = vtype_low(dim0);
-         const int64_t high = vtype_high(dim0);
+            const int64_t low  = vtype_low(dim);
+            const int64_t high = vtype_high(dim);
 
-         return LLVMArrayType(cgen_type(vtype_elem(type)), high - low + 1);
+            if (high < low)
+               nelems = 0;
+            else
+               nelems *= (high - low + 1);
+         }
+
+         return LLVMArrayType(cgen_type(vtype_elem(type)), nelems);
       }
       break;
 
@@ -250,37 +258,25 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
    const int var_depth = vcode_var_context(var);
    assert(my_depth >= var_depth);
 
+   LLVMValueRef value = NULL;
+
    if (var_depth == 0) {
       // Shared global variable
-      LLVMValueRef global =
-         LLVMGetNamedGlobal(module, istr(vcode_var_name(var)));
-      if (global == NULL)
+      value = LLVMGetNamedGlobal(module, istr(vcode_var_name(var)));
+      if (value == NULL)
          fatal_trace("missing LLVM global for %s", istr(vcode_var_name(var)));
-
-      return global;
    }
    else if (my_depth == var_depth) {
       // Variable is inside current context
-      LLVMValueRef local = NULL;
       if (ctx->state != NULL) {
-         local = LLVMBuildStructGEP(builder, ctx->state,
+         value = LLVMBuildStructGEP(builder, ctx->state,
                                     ctx->var_base + vcode_var_index(var),
                                     istr(vcode_var_name(var)));
       }
       else {
          assert(ctx->locals != NULL);
-         local = ctx->locals[vcode_var_index(var)];
+         value = ctx->locals[vcode_var_index(var)];
       }
-
-      if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
-         LLVMValueRef index[] = {
-            llvm_int32(0),
-            llvm_int32(0)
-         };
-         return LLVMBuildGEP(builder, local, index, ARRAY_LEN(index), "");
-      }
-      else
-         return local;
    }
    else {
       // Variable is in a parent context: find it using the display
@@ -290,6 +286,16 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
       return LLVMBuildExtractValue(builder, display, vcode_var_index(var),
                                    istr(vcode_var_name(var)));
    }
+
+   if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
+      LLVMValueRef index[] = {
+         llvm_int32(0),
+         llvm_int32(0)
+      };
+      return LLVMBuildGEP(builder, value, index, ARRAY_LEN(index), "");
+   }
+   else
+      return value;
 }
 
 static LLVMValueRef cgen_tmp_alloc(LLVMValueRef bytes, LLVMTypeRef type)
@@ -1011,7 +1017,7 @@ static void cgen_op_index(int op, cgen_ctx_t *ctx)
    const char *name = cgen_reg_name(result);
 
    LLVMValueRef index_ptr[] = {
-      (vcode_count_args(op) > 0) ?cgen_get_arg(op, 0, ctx) : llvm_int32(0)
+      (vcode_count_args(op) > 0) ? cgen_get_arg(op, 0, ctx) : llvm_int32(0)
    };
    ctx->regs[result] = LLVMBuildGEP(builder, var, index_ptr,
                                     ARRAY_LEN(index_ptr), name);

@@ -37,7 +37,7 @@ alias2          gold,normal
 func3           normal
 func4           normal
 operator2       normal
-# array1          normal
+array1          normal
 # agg1            normal
 # agg2            normal
 # case1           normal

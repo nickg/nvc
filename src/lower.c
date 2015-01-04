@@ -196,7 +196,6 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
       len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
    }
    else {
-      assert(type_dims(type) == 1);
       range_t r = type_dim(type, dim);
 
       int64_t low, high;
@@ -1014,9 +1013,10 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return VCODE_INVALID_REG;
 
    case T_CONST_DECL:
-      // TODO: handle array constants like variables
-      assert(!type_is_array(tree_type(decl)));
-      return lower_expr(tree_value(decl), ctx);
+      if (type_is_scalar(tree_type(decl)))
+         return lower_expr(tree_value(decl), ctx);
+      else
+         return lower_var_ref(decl, ctx);
 
    case T_ALIAS:
       return lower_alias_ref(decl, ctx);
@@ -1128,9 +1128,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       }
 
       if (i > 0) {
-         assert(false);
-         //LLVMValueRef stride = cgen_array_len(type, i, meta);
-         //idx = LLVMBuildMul(builder, idx, stride, "stride");
+         vcode_reg_t stride = lower_array_len(value_type, i, array);
+         idx = emit_mul(idx, stride);
       }
 
       idx = emit_add(idx, lower_array_off(offset, array, value_type, i));
@@ -2217,6 +2216,11 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
+   case T_CONST_DECL:
+      if (type_is_scalar(tree_type(decl)))
+          break;
+      // Fall-through
+
    case T_VAR_DECL:
       {
          type_t type = tree_type(decl);
@@ -2281,7 +2285,6 @@ static void lower_decl(tree_t decl)
       break;
    case T_TYPE_DECL:
    case T_HIER:
-   case T_CONST_DECL:
    case T_ALIAS:
       break;
    default:
