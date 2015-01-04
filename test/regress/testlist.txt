@@ -32,8 +32,8 @@ for1            gold,normal
 operator1       normal
 fact            gold,normal
 func2           normal
-# alias1          gold,normal
-# alias2          gold,normal
+alias1          gold,normal
+alias2          gold,normal
 # func3           normal
 # func4           normal
 # operator2       normal

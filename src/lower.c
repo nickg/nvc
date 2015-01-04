@@ -140,11 +140,11 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 {
-   if (!lower_const_bounds(type)) {
-      assert(reg != VCODE_INVALID_REG);
+   if (reg != VCODE_INVALID_REG
+       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
       return emit_uarray_dir(reg, dim);
-   }
    else {
+      assert(!type_is_unconstrained(type));
       range_t r = type_dim(type, dim);
       return emit_const(vtype_bool(), r.kind);
    }
@@ -875,6 +875,43 @@ static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
       return reg;
 }
 
+static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
+{
+   assert(tree_kind(alias) == T_ALIAS);
+
+   tree_t value = tree_value(alias);
+   vcode_reg_t aliased = lower_expr(value, ctx);
+
+   // The aliased object may have non-constant bounds whereas the
+   // alias itself has known bounds
+
+   type_t alias_type = tree_type(alias);
+   type_t value_type = tree_type(value);
+
+   if (!type_is_array(alias_type))
+      return aliased;
+
+   const bool alias_const = lower_const_bounds(alias_type);
+   const bool value_const = lower_const_bounds(value_type);
+
+   if (alias_const && !value_const)
+      return lower_array_data(aliased);
+   else if (!alias_const) {
+      const int ndims = type_dims(alias_type);
+      vcode_dim_t dims[ndims];
+      for (int i = 0; i < ndims; i++) {
+         range_t r = type_dim(alias_type, i);
+         dims[i].left  = lower_reify_expr(r.left);
+         dims[i].right = lower_reify_expr(r.right);
+         dims[i].dir   = lower_array_dir(alias_type, i, VCODE_INVALID_REG);
+      }
+
+      return emit_wrap(lower_array_data(aliased), dims, ndims);
+   }
+   else
+      return aliased;
+}
+
 static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(ref);
@@ -900,6 +937,9 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       // TODO: handle array constants like variables
       assert(!type_is_array(tree_type(decl)));
       return lower_expr(tree_value(decl), ctx);
+
+   case T_ALIAS:
+      return lower_alias_ref(decl, ctx);
 
    default:
       vcode_dump();
@@ -937,6 +977,47 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    return emit_cast(vtype_offset(), zeroed);
 }
 
+static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
+                                       vcode_reg_t meta)
+{
+   type_t alias_type = tree_type(alias);
+   type_t base_type  = tree_type(tree_value(alias));
+
+   assert(type_dims(alias_type) == 1);  // TODO: multi-dimensional arrays
+
+   range_t alias_r = type_dim(alias_type, 0);
+   vcode_reg_t off = emit_sub(index, lower_reify_expr(alias_r.left));
+
+   vcode_reg_t bleft = VCODE_INVALID_REG, bdir = VCODE_INVALID_REG;
+   switch (type_kind(base_type)) {
+   case T_CARRAY:
+   case T_SUBTYPE:
+      // The transformation is a constant offset of indices
+      {
+         range_t base_r = type_dim(base_type, 0);
+         bleft = lower_reify_expr(base_r.left);
+         bdir  = lower_array_dir(base_type, 0, VCODE_INVALID_REG);
+      }
+      break;
+
+   case T_UARRAY:
+      // The transformation must be computed at runtime
+      {
+         bleft = lower_array_left(base_type, 0, meta);
+         bdir  = lower_array_dir(base_type, 0, meta);
+      }
+      break;
+
+   default:
+      assert(false);
+   }
+
+   vcode_reg_t adir = lower_array_dir(alias_type, 0, VCODE_INVALID_REG);
+   vcode_reg_t same_dir = emit_cmp(VCODE_CMP_EQ, bdir, adir);
+
+   return emit_select(same_dir, emit_add(bleft, off), emit_sub(bleft, off));
+}
+
 static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 {
    tree_t value = tree_value(ref);
@@ -962,9 +1043,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       //                           offset, ctx);
 
       if (alias != NULL) {
-         assert(false);
-         //offset = cgen_unalias_index(alias, offset, meta, ctx);
-         //type = tree_type(tree_value(alias));
+         offset = lower_unalias_index(alias, offset, array);
+         value_type = tree_type(tree_value(alias));
       }
 
       if (i > 0) {
@@ -2044,6 +2124,7 @@ static void lower_decl(tree_t decl)
    case T_TYPE_DECL:
    case T_HIER:
    case T_CONST_DECL:
+   case T_ALIAS:
       break;
    default:
       fatal_at(tree_loc(decl), "cannot lower decl kind %s",
