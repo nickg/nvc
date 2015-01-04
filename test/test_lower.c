@@ -1468,6 +1468,51 @@ START_TEST(test_loop2)
 }
 END_TEST
 
+START_TEST(test_slice1)
+{
+   input_from_file(TESTDIR "/lower/slice1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST_ARRAY, .length = 4 },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_CONST, .value = 6 },
+      { VCODE_OP_CONST, .value = 7 },
+      { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_INDEX, .name = "V" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_COPY },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST_ARRAY, .length = 2 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_CONST, .value = 1000000 },
+      { VCODE_OP_WAIT, .target = 2 },
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1498,6 +1543,7 @@ int main(void)
    tcase_add_test(tc, test_loop1);
    tcase_add_test(tc, test_proc3);
    tcase_add_test(tc, test_loop2);
+   tcase_add_test(tc, test_slice1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

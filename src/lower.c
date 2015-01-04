@@ -986,7 +986,66 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 {
-   return VCODE_INVALID_REG;
+   tree_t value = tree_value(slice);
+   range_t r = tree_range(slice);
+
+   vcode_reg_t left  = lower_reify_expr(r.left);
+   //vcode_reg_t right = lower_reify_expr(r.right);
+
+   //vcode_reg_t low  = (r.kind == RANGE_TO) ? left : right;
+   //vcode_reg_t high = (r.kind == RANGE_TO) ? right : left;
+
+   //vcode_reg_t null = emit_cmp(VCODE_CMP_LT, high, low);
+
+   /*
+   if (!elide_bounds) {
+      LLVMBasicBlockRef check_bb = LLVMAppendBasicBlock(ctx->fn, "check");
+      LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(ctx->fn, "merge");
+
+      LLVMBuildCondBr(builder, null, merge_bb, check_bb);
+
+      LLVMPositionBuilderAtEnd(builder, check_bb);
+
+      cgen_check_array_bounds(r.left, type, 0, array, left, ctx);
+      cgen_check_array_bounds(r.right, type, 0, array, right, ctx);
+
+      LLVMBuildBr(builder, merge_bb);
+
+      LLVMPositionBuilderAtEnd(builder, merge_bb);
+   }
+   */
+
+   vcode_reg_t array_reg = lower_expr(value, ctx);
+   vcode_reg_t data_reg  = lower_array_data(array_reg);
+
+   tree_t alias = NULL;
+   if (tree_kind(value) == T_REF) {
+      tree_t decl = tree_ref(value);
+      if (tree_kind(decl) == T_ALIAS)
+         alias = decl;
+   }
+
+   //vcode_reg_t kind_reg = VCODE_INVALID_REG;
+   if (alias != NULL) {
+      assert(false);
+      /*
+      tree_t aliased = tree_value(alias);
+      array = cgen_expr(aliased, ctx);
+      left  = cgen_unalias_index(alias, left, array, ctx);
+      right = cgen_unalias_index(alias, right, array, ctx);
+      type  = tree_type(aliased);
+      kind  = cgen_array_dir(type, 0, array);*/
+   }
+
+   vcode_reg_t off_reg = lower_array_off(left, array_reg, tree_type(value), 0);
+   vcode_reg_t ptr_reg = emit_add(data_reg, off_reg);
+
+   const bool unwrap = lower_is_const(r.left) && lower_is_const(r.right);
+
+   if (unwrap)
+      return ptr_reg;
+   else assert(false);
+      /*return cgen_array_meta_1(type, left, right, kind, ptr);*/
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
@@ -1619,16 +1678,17 @@ static void lower_var_assign(tree_t stmt)
    tree_t target = tree_target(stmt);
    type_t type = tree_type(target);
    const bool target_uarray = type_is_array(type) && !lower_const_bounds(type);
+   const bool is_var_decl =
+      tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
    const bool can_use_store =
       type_is_scalar(type)
       || (value_kind == VCODE_TYPE_UARRAY && target_uarray)
-      || (value_kind == VCODE_TYPE_CARRAY && !target_uarray);
+      || (value_kind == VCODE_TYPE_CARRAY && !target_uarray && is_var_decl);
 
    if (can_use_store) {
       vcode_reg_t loaded_value = lower_reify(value_reg);
       emit_bounds(loaded_value, lower_bounds(type));
-      if (tree_kind(target) == T_REF
-          && tree_kind(tree_ref(target)) == T_VAR_DECL)
+      if (is_var_decl)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));

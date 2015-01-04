@@ -1956,6 +1956,23 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 {
+   // Reuse any previous operation in this block with the same arguments
+   block_t *b = &(active_unit->blocks.items[active_block]);
+   for (int i = b->ops.count - 1; i >= 0; i--) {
+      const op_t *op = &(b->ops.items[i]);
+      if (op->kind == VCODE_OP_CONST_ARRAY && op->args.count == num
+          && vtype_eq(type, op->type)) {
+         bool match = true;
+         for (int i = 0; match && i < num; i++) {
+            if (op->args.items[i] != values[i])
+               match = false;
+         }
+
+         if (match)
+            return op->result;
+      }
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
    op->type   = type;
    op->result = vcode_add_reg(type);
