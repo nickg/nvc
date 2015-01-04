@@ -1760,7 +1760,7 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
 
    vcode_block_t btrue = emit_block();
    vcode_block_t bfalse = nelses > 0 ? emit_block() : VCODE_INVALID_BLOCK;
-   vcode_block_t bmerge = emit_block();
+   vcode_block_t bmerge = nelses > 0 ? VCODE_INVALID_BLOCK : emit_block();
 
    emit_cond(value, btrue, nelses > 0 ? bfalse : bmerge);
 
@@ -1770,8 +1770,11 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(stmt, i), loops);
 
-   if (!vcode_block_finished())
+   if (!vcode_block_finished()) {
+      if (bmerge == VCODE_INVALID_BLOCK)
+         bmerge = emit_block();
       emit_jump(bmerge);
+   }
 
    if (nelses > 0) {
       vcode_select_block(bfalse);
@@ -1779,11 +1782,15 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       for (int i = 0; i < nelses; i++)
          lower_stmt(tree_else_stmt(stmt, i), loops);
 
-      if (!vcode_block_finished())
+      if (!vcode_block_finished()) {
+         if (bmerge == VCODE_INVALID_BLOCK)
+            bmerge = emit_block();
          emit_jump(bmerge);
+      }
    }
 
-   vcode_select_block(bmerge);
+   if (bmerge != VCODE_INVALID_BLOCK)
+      vcode_select_block(bmerge);
 }
 
 static void lower_return(tree_t stmt)

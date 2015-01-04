@@ -1513,6 +1513,25 @@ START_TEST(test_slice1)
 }
 END_TEST
 
+START_TEST(test_funcif)
+{
+   input_from_file(TESTDIR "/lower/funcif.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   fail_unless(vcode_count_blocks() == 3);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1544,6 +1563,7 @@ int main(void)
    tcase_add_test(tc, test_proc3);
    tcase_add_test(tc, test_loop2);
    tcase_add_test(tc, test_slice1);
+   tcase_add_test(tc, test_funcif);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

@@ -29,7 +29,7 @@ logical1        normal
 lfsr            normal,stop=510ns
 link1           normal
 for1            gold,normal
-# operator1       normal
+operator1       normal
 fact            gold,normal
 func2           normal
 # alias1          gold,normal
