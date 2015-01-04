@@ -45,6 +45,7 @@ const char *class_str(class_t c);
 tree_t add_param(tree_t call, tree_t value, param_kind_t kind, tree_t name);
 type_t array_aggregate_type(type_t array, int from_dim);
 tree_t make_default_value(type_t type, const loc_t *loc);
+unsigned bits_for_range(int64_t low, int64_t high);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

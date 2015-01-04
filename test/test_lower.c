@@ -184,6 +184,8 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_CONST_RECORD:
       case VCODE_OP_COPY:
       case VCODE_OP_MEMCMP:
+      case VCODE_OP_MEMSET:
+      case VCODE_OP_WRAP:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -197,15 +199,17 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_BOUNDS:
          {
             vcode_type_t bounds = vcode_get_type(i);
-            if (e->low != vtype_low(bounds)) {
-               vcode_dump();
-               fail("expect op %d in block %d to have low bound %"PRIi64
-                    " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
-            }
-            else if (e->high != vtype_high(bounds)) {
-               vcode_dump();
-               fail("expect op %d in block %d to have high bound %"PRIi64
-                    " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
+            if (vtype_kind(bounds) == VCODE_TYPE_INT) {
+               if (e->low != vtype_low(bounds)) {
+                  vcode_dump();
+                  fail("expect op %d in block %d to have low bound %"PRIi64
+                       " but has %"PRIi64, i, bb, e->low, vtype_low(bounds));
+               }
+               else if (e->high != vtype_high(bounds)) {
+                  vcode_dump();
+                  fail("expect op %d in block %d to have high bound %"PRIi64
+                       " but has %"PRIi64, i, bb, e->high, vtype_high(bounds));
+               }
             }
          }
          break;
@@ -1532,6 +1536,71 @@ START_TEST(test_funcif)
 }
 END_TEST
 
+START_TEST(test_memset)
+{
+   input_from_file(TESTDIR "/lower/memset.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_SUB },
+         { VCODE_OP_ADD },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_ALLOCA },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_BOUNDS },
+         { VCODE_OP_STORE, .name = "V" },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_SUB },
+         { VCODE_OP_ADD },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_ALLOCA },
+         { VCODE_OP_CONST, .value = 0xab },
+         { VCODE_OP_CONST, .value = 4 },
+         { VCODE_OP_MUL },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_BOUNDS },
+         { VCODE_OP_STORE, .name = "V" },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1564,6 +1633,7 @@ int main(void)
    tcase_add_test(tc, test_loop2);
    tcase_add_test(tc, test_slice1);
    tcase_add_test(tc, test_funcif);
+   tcase_add_test(tc, test_memset);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

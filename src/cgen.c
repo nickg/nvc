@@ -163,36 +163,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
-      {
-         const int64_t low  = vtype_low(type);
-         const int64_t high = vtype_high(type);
-
-         if (low < 0) {
-            // Signed integers
-            if (low >= INT8_MIN && high <= INT8_MAX)
-               return LLVMInt8Type();
-            else if (low >= INT16_MIN && high <= INT16_MAX)
-               return LLVMInt16Type();
-            else if (low >= INT32_MIN && high <= INT32_MAX)
-               return LLVMInt32Type();
-            else
-               return LLVMInt64Type();
-         }
-         else {
-            // Unsigned integers
-            if (high <= 1)
-               return LLVMInt1Type();
-            else if (high <= UINT8_MAX)
-               return LLVMInt8Type();
-            else if (high <= UINT16_MAX)
-               return LLVMInt16Type();
-            else if (high <= UINT32_MAX)
-               return LLVMInt32Type();
-            else
-               return LLVMInt64Type();
-         }
-      }
-      break;
+      return LLVMIntType(bits_for_range(vtype_low(type), vtype_high(type)));
 
    case VCODE_TYPE_CARRAY:
       {
@@ -1515,6 +1486,24 @@ static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = phi;
 }
 
+static void cgen_op_memset(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef ptr    = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef value  = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef length = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(ptr),
+      LLVMBuildZExt(builder, value, LLVMInt8Type(), ""),
+      length,
+      llvm_int32(4),
+      llvm_int1(false)
+   };
+
+   LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                 args, ARRAY_LEN(args), "");
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1688,6 +1677,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_XOR:
       cgen_op_xor(i, ctx);
+      break;
+   case VCODE_OP_MEMSET:
+      cgen_op_memset(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

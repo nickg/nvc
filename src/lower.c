@@ -1267,6 +1267,55 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
    return vals;
 }
 
+static int lower_bit_width(type_t type)
+{
+   switch (type_kind(type)) {
+   case T_INTEGER:
+   case T_PHYSICAL:
+      {
+         range_t r = type_dim(type, 0);
+         return bits_for_range(assume_int(r.left), assume_int(r.right));
+      }
+
+   case T_REAL:
+       // All real types are doubles at the moment
+       return 64;
+
+   case T_SUBTYPE:
+      return lower_bit_width(type_base(type));
+
+   case T_ENUM:
+      return bits_for_range(0, type_enum_literals(type) - 1);
+
+   default:
+      assert(false);
+   }
+}
+
+static bool lower_memset_bit_pattern(tree_t value, unsigned bits, uint8_t *byte)
+{
+   // If a tree has a constant value and that value's bit pattern consists
+   // of the same repeated byte then we can use memset to initialise an
+   // array with this
+
+   int64_t ival;
+   if (!folded_int(value, &ival))
+      return false;
+
+   const unsigned bytes = (bits + 7) / 8;
+
+   *byte = ival & 0xff;
+   for (int i = 0; i < bytes; i++) {
+      const uint8_t next = ival & 0xff;
+      if (next != *byte)
+         return false;
+
+      ival >>= 8;
+   }
+
+   return true;
+}
+
 static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 {
    type_t agg_type = tree_type(agg);
@@ -1300,6 +1349,36 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
                                      lower_bounds(elem_type), len_reg);
 
    vcode_type_t offset_type = vtype_offset();
+
+   vcode_dim_t dim0 = {
+      .left  = left_reg,
+      .right = right_reg,
+      .dir   = emit_const(vtype_bool(), r.kind)
+   };
+
+   tree_t agg0 = tree_assoc(agg, 0);
+
+   uint8_t byte = 0;
+   unsigned bits = 0;
+   const bool can_use_memset =
+      (type_is_integer(elem_type) || type_is_enum(elem_type))
+      && tree_assocs(agg) == 1
+      && tree_subkind(agg0) == A_OTHERS
+      && ((bits = lower_bit_width(elem_type)) <= 8
+          || lower_memset_bit_pattern(tree_value(agg0), bits, &byte));
+
+   if (can_use_memset) {
+      if (bits <= 8)
+         emit_memset(mem_reg, lower_reify_expr(tree_value(agg0)), len_reg);
+      else
+         emit_memset(mem_reg,
+                     emit_const(vtype_int(0, 255), byte),
+                     emit_mul(len_reg,
+                              emit_const(offset_type, (bits + 7) / 8)));
+
+      return emit_wrap(mem_reg, &dim0, 1);
+   }
+
    vcode_reg_t ivar = emit_alloca(offset_type, offset_type, VCODE_INVALID_REG);
    emit_store_indirect(emit_const(offset_type, 0), ivar);
 
@@ -1388,11 +1467,6 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    vcode_select_block(exit_bb);
    emit_comment("End dynamic aggregrate line %d", tree_loc(agg)->first_line);
 
-   vcode_dim_t dim0 = {
-      .left  = left_reg,
-      .right = right_reg,
-      .dir   = emit_const(vtype_bool(), r.kind)
-   };
    return emit_wrap(mem_reg, &dim0, 1);
 }
 

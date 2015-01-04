@@ -589,3 +589,33 @@ const char *fmt_time(uint64_t t)
    static const int BUF_SZ = 64;
    return fmt_time_r(get_fmt_buf(BUF_SZ), BUF_SZ, t);
 }
+
+unsigned bits_for_range(int64_t low, int64_t high)
+{
+   assert(low <= high);
+
+   if (low < 0) {
+      // Signed integers
+      if (low >= INT8_MIN && high <= INT8_MAX)
+         return 8;
+      else if (low >= INT16_MIN && high <= INT16_MAX)
+         return 16;
+      else if (low >= INT32_MIN && high <= INT32_MAX)
+         return 32;
+      else
+         return 64;
+   }
+   else {
+      // Unsigned integers
+      if (high <= 1)
+         return 1;
+      else if (high <= UINT8_MAX)
+         return 8;
+      else if (high <= UINT16_MAX)
+         return 16;
+      else if (high <= UINT32_MAX)
+         return 32;
+      else
+         return 64;
+   }
+}

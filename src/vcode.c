@@ -266,6 +266,18 @@ static var_t *vcode_var_data(vcode_var_t var)
    return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
 }
 
+__attribute__((format(printf, 1, 2), noreturn))
+static void vcode_fail(const char *fmt, ...)
+{
+   va_list ap;
+   va_start(ap, fmt);
+   char *buf LOCAL = xvasprintf(fmt, ap);
+   va_end(ap);
+
+   vcode_dump();
+   fatal_trace("%s", buf);
+}
+
 int vcode_count_regs(void)
 {
    assert(active_unit != NULL);
@@ -599,7 +611,8 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor"
+      "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
+      "memset"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1348,6 +1361,17 @@ void vcode_dump(void)
                   vcode_dump_type(col, r->type, r->bounds);
                }
             }
+            break;
+
+         case VCODE_OP_MEMSET:
+            {
+               vcode_dump_reg(op->args.items[0]);
+               printf(" := %s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[1]);
+               printf(" length ");
+               vcode_dump_reg(op->args.items[2]);
+            }
+            break;
          }
 
          printf("\n");
@@ -3001,10 +3025,8 @@ void emit_resume(ident_t func)
    op->func = func;
 
    block_t *b = &(active_unit->blocks.items[active_block]);
-   if (b->ops.count != 1) {
-      vcode_dump();
-      fatal_trace("resume must be first op in a block");
-   }
+   if (b->ops.count != 1)
+      vcode_fail("resume must be first op in a block");
 }
 
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
@@ -3014,5 +3036,29 @@ vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
    vcode_add_arg(op, rhs);
    vcode_add_arg(op, len);
 
+   if (vtype_kind(vcode_reg_type(lhs)) != VCODE_TYPE_POINTER)
+      vcode_fail("LHS of memcmp must have pointer type");
+   else if (vtype_kind(vcode_reg_type(rhs)) != VCODE_TYPE_POINTER)
+      vcode_fail("RHS of memcmp must have pointer type");
+   else if (vtype_kind(vcode_reg_type(len)) != VCODE_TYPE_OFFSET)
+      vcode_fail("length of memcmp must have offset type");
+
    return (op->result = vcode_add_reg(vtype_bool()));
+}
+
+void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
+{
+   op_t *op = vcode_add_op(VCODE_OP_MEMSET);
+   vcode_add_arg(op, ptr);
+   vcode_add_arg(op, value);
+   vcode_add_arg(op, len);
+
+   if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_POINTER)
+      vcode_fail("target of memset must have pointer type");
+   else if (vtype_kind(vcode_reg_type(value)) != VCODE_TYPE_INT)
+      vcode_fail("value of memset must have integer type");
+   else if (vtype_kind(vcode_reg_type(len)) != VCODE_TYPE_OFFSET)
+      vcode_fail("length of memset must have offset type");
+   else if (vtype_high(vcode_reg_type(value)) > UINT8_MAX)
+      vcode_fail("memset value must be max 8-bit");
 }
