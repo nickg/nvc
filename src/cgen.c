@@ -800,6 +800,26 @@ static void cgen_op_and(int op, cgen_ctx_t *ctx)
                                     cgen_reg_name(result));
 }
 
+static void cgen_op_xnor(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildNot(builder,
+                                    LLVMBuildXor(builder,
+                                                 cgen_get_arg(op, 0, ctx),
+                                                 cgen_get_arg(op, 1, ctx),
+                                                 ""),
+                                    cgen_reg_name(result));
+}
+
+static void cgen_op_xor(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildXor(builder,
+                                    cgen_get_arg(op, 0, ctx),
+                                    cgen_get_arg(op, 1, ctx),
+                                    cgen_reg_name(result));
+}
+
 static void cgen_op_not(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -1662,6 +1682,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_MEMCMP:
       cgen_op_memcmp(i, ctx);
+      break;
+   case VCODE_OP_XNOR:
+      cgen_op_xnor(i, ctx);
+      break;
+   case VCODE_OP_XOR:
+      cgen_op_xor(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

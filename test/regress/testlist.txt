@@ -26,7 +26,7 @@ while1          gold,normal
 signal6         gold,normal
 slice1          normal
 logical1        normal
-# lfsr            normal,stop=510ns
+lfsr            normal,stop=510ns
 link1           normal
 for1            gold,normal
 # operator1       normal
