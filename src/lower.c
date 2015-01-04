@@ -1107,8 +1107,8 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    tree_t value = tree_value(slice);
    range_t r = tree_range(slice);
 
-   vcode_reg_t left  = lower_reify_expr(r.left);
-   //vcode_reg_t right = lower_reify_expr(r.right);
+   vcode_reg_t left_reg  = lower_reify_expr(r.left);
+   vcode_reg_t right_reg = lower_reify_expr(r.right);
 
    //vcode_reg_t low  = (r.kind == RANGE_TO) ? left : right;
    //vcode_reg_t high = (r.kind == RANGE_TO) ? right : left;
@@ -1155,15 +1155,22 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       kind  = cgen_array_dir(type, 0, array);*/
    }
 
-   vcode_reg_t off_reg = lower_array_off(left, array_reg, tree_type(value), 0);
+   vcode_reg_t off_reg = lower_array_off(left_reg, array_reg,
+                                         tree_type(value), 0);
    vcode_reg_t ptr_reg = emit_add(data_reg, off_reg);
 
    const bool unwrap = lower_is_const(r.left) && lower_is_const(r.right);
 
    if (unwrap)
       return ptr_reg;
-   else assert(false);
-      /*return cgen_array_meta_1(type, left, right, kind, ptr);*/
+   else {
+      vcode_dim_t dim0 = {
+         .left  = left_reg,
+         .right = right_reg,
+         .dir   = emit_const(vtype_bool(), r.kind)
+      };
+      return emit_wrap(ptr_reg, &dim0, 1);
+   }
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
