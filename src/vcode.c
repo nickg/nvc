@@ -599,7 +599,7 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event", "pcall", "resume", "memcmp"
+      "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -990,20 +990,28 @@ void vcode_dump(void)
          case VCODE_OP_REM:
          case VCODE_OP_OR:
          case VCODE_OP_AND:
+         case VCODE_OP_XOR:
+         case VCODE_OP_XNOR:
+         case VCODE_OP_NAND:
+         case VCODE_OP_NOR:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                switch (op->kind) {
-               case VCODE_OP_MUL: col += printf(" * "); break;
-               case VCODE_OP_ADD: col += printf(" + "); break;
-               case VCODE_OP_SUB: col += printf(" - "); break;
-               case VCODE_OP_DIV: col += printf(" / "); break;
-               case VCODE_OP_EXP: col += printf(" ** "); break;
-               case VCODE_OP_MOD: col += printf(" %% "); break;
-               case VCODE_OP_REM: col += printf(" %% "); break;
-               case VCODE_OP_OR:  col += printf(" || "); break;
+               case VCODE_OP_MUL:  col += printf(" * "); break;
+               case VCODE_OP_ADD:  col += printf(" + "); break;
+               case VCODE_OP_SUB:  col += printf(" - "); break;
+               case VCODE_OP_DIV:  col += printf(" / "); break;
+               case VCODE_OP_EXP:  col += printf(" ** "); break;
+               case VCODE_OP_MOD:  col += printf(" %% "); break;
+               case VCODE_OP_REM:  col += printf(" %% "); break;
+               case VCODE_OP_OR:   col += printf(" || "); break;
                case VCODE_OP_AND:  col += printf(" && "); break;
+               case VCODE_OP_XOR:  col += printf(" ^ "); break;
+               case VCODE_OP_XNOR: col += printf(" !^ "); break;
+               case VCODE_OP_NAND: col += printf(" !& "); break;
+               case VCODE_OP_NOR:  col += printf(" !| "); break;
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
@@ -2618,8 +2626,12 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
 static vcode_reg_t emit_logical_identity(vcode_op_t op, vcode_reg_t reg, bool b)
 {
    switch (op) {
-   case VCODE_OP_AND: return b ? reg : emit_const(vtype_bool(), 0);
-   case VCODE_OP_OR:  return b ? emit_const(vtype_bool(), 1) : reg;
+   case VCODE_OP_AND:  return b ? reg : emit_const(vtype_bool(), 0);
+   case VCODE_OP_OR:   return b ? emit_const(vtype_bool(), 1) : reg;
+   case VCODE_OP_XOR:  return b ? emit_not(reg) : reg;
+   case VCODE_OP_XNOR: return b ? reg : emit_not(reg);
+   case VCODE_OP_NAND: return b ? emit_not(reg) : emit_const(vtype_bool(), 1);
+   case VCODE_OP_NOR:  return b ? emit_const(vtype_bool(), 0) : emit_not(reg);
    default:
       fatal_trace("missing logicial identity for %s", vcode_op_string(op));
    }
@@ -2673,6 +2685,26 @@ vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs)
 vcode_reg_t emit_and(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    return emit_logical(VCODE_OP_AND, lhs, rhs);
+}
+
+vcode_reg_t emit_nand(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_logical(VCODE_OP_NAND, lhs, rhs);
+}
+
+vcode_reg_t emit_nor(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_logical(VCODE_OP_NOR, lhs, rhs);
+}
+
+vcode_reg_t emit_xor(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_logical(VCODE_OP_XOR, lhs, rhs);
+}
+
+vcode_reg_t emit_xnor(vcode_reg_t lhs, vcode_reg_t rhs)
+{
+   return emit_logical(VCODE_OP_XNOR, lhs, rhs);
 }
 
 vcode_reg_t emit_not(vcode_reg_t arg)

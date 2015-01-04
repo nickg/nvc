@@ -93,6 +93,10 @@ typedef enum {
    VCODE_OP_PCALL,
    VCODE_OP_RESUME,
    VCODE_OP_MEMCMP,
+   VCODE_OP_XOR,
+   VCODE_OP_XNOR,
+   VCODE_OP_NAND,
+   VCODE_OP_NOR,
 } vcode_op_t;
 
 typedef enum {
@@ -263,6 +267,10 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
                         vcode_reg_t rfalse);
 vcode_reg_t emit_or(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_and(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_xor(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_xnor(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_nand(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_nor(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims);
 vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);

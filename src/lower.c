@@ -690,6 +690,14 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_and(r0, r1);
    else if (icmp(builtin, "or"))
       return emit_or(r0, r1);
+   else if (icmp(builtin, "xor"))
+      return emit_xor(r0, r1);
+   else if (icmp(builtin, "xnor"))
+      return emit_xnor(r0, r1);
+   else if (icmp(builtin, "nand"))
+      return emit_nand(r0, r1);
+   else if (icmp(builtin, "nor"))
+      return emit_nor(r0, r1);
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
    else if (icmp(builtin, "aeq"))
