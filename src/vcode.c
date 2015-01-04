@@ -278,6 +278,27 @@ static void vcode_fail(const char *fmt, ...)
    fatal_trace("%s", buf);
 }
 
+static bool vcode_dominating_ops(vcode_op_t kind, op_t **next)
+{
+   block_t *b = vcode_block_data();
+
+   int index = b->ops.count;
+   if (*next != NULL) {
+      index = *next - b->ops.items;
+      assert(index >= 0 && index < b->ops.count);
+   }
+
+   while (index > 0) {
+      index--;
+      if (b->ops.items[index].kind == kind) {
+         *next = &(b->ops.items[index]);
+         return true;
+      }
+   }
+
+   return false;
+}
+
 int vcode_count_regs(void)
 {
    assert(active_unit != NULL);
@@ -1449,11 +1470,8 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
 
    if (bt->kind == VCODE_TYPE_UARRAY || tt->kind == VCODE_TYPE_UARRAY)
       return false;
-   else if (bt->kind != tt->kind) {
-      vcode_dump();
-      fatal_trace("type mismatch in vtype_includes: %d and %d",
-                  bt->kind, tt->kind);
-   }
+   else if (bt->kind != tt->kind)
+      return false;
 
    switch (bt->kind) {
    case VCODE_TYPE_INT:
@@ -2236,12 +2254,11 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 {
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = vcode_block_data();
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == kind && op->args.count == 2 && op->args.items[0] == lhs
-          && op->args.items[1] == rhs)
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(kind, &other)) {
+      if (other->args.count == 2 && other->args.items[0] == lhs
+          && other->args.items[1] == rhs)
+         return other->result;
    }
 
    op_t *op = vcode_add_op(kind);
@@ -2258,11 +2275,9 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
 
    if (is_pointer && vtype_kind(rhs_type) == VCODE_TYPE_OFFSET)
       ;
-   else if (!vtype_eq(lhs_type, rhs_type)) {
-      vcode_dump();
-      fatal_trace("arguments to %s are not the same type",
-                  vcode_op_string(kind));
-   }
+   else if (!vtype_eq(lhs_type, rhs_type))
+      vcode_fail("arguments to %s are not the same type",
+                 vcode_op_string(kind));
 
    return op->result;
 }
@@ -2398,13 +2413,13 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 {
    // Try to find a previous index of this var by this offset
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_INDEX && op->address == var
-          && ((offset == VCODE_INVALID_REG && op->args.count == 0)
-              || (offset != VCODE_INVALID_REG && op->args.items[0] == offset)))
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_INDEX, &other)) {
+      if (other->address == var
+          && ((offset == VCODE_INVALID_REG && other->args.count == 0)
+              || (offset != VCODE_INVALID_REG
+                  && other->args.items[0] == offset)))
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_INDEX);
@@ -2433,15 +2448,12 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       break;
 
    default:
-      vcode_dump();
-      fatal_trace("variable %s cannot be indexed", istr(vcode_var_name(var)));
+      vcode_fail("variable %s cannot be indexed", istr(vcode_var_name(var)));
    }
 
    if (offset != VCODE_INVALID_REG) {
-      if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET) {
-         vcode_dump();
-         fatal_trace("index offset r%d does not have offset type", offset);
-      }
+      if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET)
+         vcode_fail("index offset r%d does not have offset type", offset);
    }
 
    return op->result;
@@ -2457,12 +2469,10 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
       return emit_const(type, value);
 
    // Try to find a previous cast of this register to this type
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CAST && vtype_eq(op->type, type)
-          && op->args.items[0] == reg)
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CAST, &other)) {
+      if (vtype_eq(other->type, type) && other->args.items[0] == reg)
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CAST);
@@ -2489,8 +2499,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
          return op->result;
    }
 
-   vcode_dump();
-   fatal_trace("invalid type conversion in cast");
+   vcode_fail("invalid type conversion in cast");
 }
 
 void emit_return(vcode_reg_t reg)
@@ -2544,14 +2553,10 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
    vcode_add_arg(op, reject);
    vcode_add_arg(op, after);
 
-   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL) {
-      vcode_dump();
-      fatal_trace("sched_waveform target is not signal");
-   }
-   else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET) {
-      vcode_dump();
-      fatal_trace("sched_waveform net count is not offset type");
-   }
+   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL)
+      vcode_fail("sched_waveform target is not signal");
+   else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET)
+      vcode_fail("sched_waveform net count is not offset type");
 }
 
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
@@ -2567,10 +2572,8 @@ void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
    vcode_add_target(op, btrue);
    vcode_add_target(op, bfalse);
 
-   if (!vtype_eq(vcode_reg_type(test), vtype_bool())) {
-      vcode_dump();
-      fatal_trace("cond test is not a bool");
-   }
+   if (!vtype_eq(vcode_reg_type(test), vtype_bool()))
+      vcode_fail("cond test is not a bool");
 }
 
 vcode_reg_t emit_neg(vcode_reg_t lhs)
@@ -2635,14 +2638,10 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    vcode_add_arg(op, rfalse);
    op->result = vcode_add_reg(vcode_reg_type(rtrue));
 
-   if (!vtype_eq(vcode_reg_type(test), vtype_bool())) {
-      vcode_dump();
-      fatal_trace("select test must have bool type");
-   }
-   else if (!vtype_eq(vcode_reg_type(rtrue), vcode_reg_type(rfalse))) {
-      vcode_dump();
-      fatal_trace("select arguments are not the same type");
-   }
+   if (!vtype_eq(vcode_reg_type(test), vtype_bool()))
+      vcode_fail("select test must have bool type");
+   else if (!vtype_eq(vcode_reg_type(rtrue), vcode_reg_type(rfalse)))
+      vcode_fail("select arguments are not the same type");
 
    return op->result;
 }
@@ -2693,10 +2692,8 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_reg_t result = emit_arith(op, lhs, rhs);
 
    if (!vtype_eq(vcode_reg_type(lhs), vtbool)
-       || !vtype_eq(vcode_reg_type(rhs), vtbool)) {
-      vcode_dump();
-      fatal_trace("arguments to %s are not boolean", vcode_op_string(op));
-   }
+       || !vtype_eq(vcode_reg_type(rhs), vtbool))
+      vcode_fail("arguments to %s are not boolean", vcode_op_string(op));
 
    return result;
 }
@@ -2737,10 +2734,8 @@ vcode_reg_t emit_not(vcode_reg_t arg)
    vcode_add_arg(op, arg);
 
    vcode_type_t vtbool = vtype_bool();
-   if (!vtype_eq(vcode_reg_type(arg), vtbool)) {
-      vcode_dump();
-      fatal_trace("argument to not is not boolean");
-   }
+   if (!vtype_eq(vcode_reg_type(arg), vtbool))
+      vcode_fail("argument to not is not boolean");
 
    return (op->result = vcode_add_reg(vtbool));
 }
@@ -2759,10 +2754,8 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 
    vcode_type_t ptr_type = vcode_reg_type(data);
    const vtype_kind_t ptrkind = vtype_kind(ptr_type);
-   if (ptrkind != VCODE_TYPE_POINTER && ptrkind != VCODE_TYPE_CARRAY) {
-      vcode_dump();
-      fatal_trace("wrapped data is not pointer");
-   }
+   if (ptrkind != VCODE_TYPE_POINTER && ptrkind != VCODE_TYPE_CARRAY)
+      vcode_fail("wrapped data is not pointer");
 
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
       ? vtype_pointed(ptr_type) : vtype_elem(ptr_type);
@@ -2776,21 +2769,26 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
                                   vcode_reg_t array, unsigned dim)
 {
+   // Reuse any previous operation in this block with the same arguments
+   op_t *other = NULL;
+   while (vcode_dominating_ops(o, &other)) {
+      if (other->args.items[0] == array && other->dim == dim
+          && (rtype == VCODE_INVALID_TYPE
+              || vtype_eq(rtype, vcode_reg_type(other->result))))
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(o);
    vcode_add_arg(op, array);
    op->dim = dim;
 
    vcode_type_t atype = vcode_reg_type(array);
-   if (vtype_kind(atype) != VCODE_TYPE_UARRAY) {
-      vcode_dump();
-      fatal_trace("cannot use %s with non-uarray type", vcode_op_string(o));
-   }
+   if (vtype_kind(atype) != VCODE_TYPE_UARRAY)
+      vcode_fail("cannot use %s with non-uarray type", vcode_op_string(o));
 
    vtype_t *vt = vcode_type_data(atype);
-   if (dim >= vt->dims.count) {
-      vcode_dump();
-      fatal_trace("invalid dimension %d", dim);
-   }
+   if (dim >= vt->dims.count)
+      vcode_fail("invalid dimension %d", dim);
 
    if (rtype == VCODE_INVALID_TYPE)
       rtype = vt->dims.items[dim];
@@ -2819,10 +2817,8 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    vcode_add_arg(op, array);
 
    vtype_t *vt = vcode_type_data(vcode_reg_type(array));
-   if (vt->kind != VCODE_TYPE_UARRAY) {
-      vcode_dump();
-      fatal_trace("unwrap can only only be used with uarray types");
-   }
+   if (vt->kind != VCODE_TYPE_UARRAY)
+      vcode_fail("unwrap can only only be used with uarray types");
 
    return (op->result = vcode_add_reg(vtype_pointer(vt->elem)));
 }

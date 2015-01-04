@@ -116,10 +116,9 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
 
 static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
-   if (!lower_const_bounds(type)) {
-      assert(reg != VCODE_INVALID_REG);
+   if (reg != VCODE_INVALID_REG
+       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
       return emit_uarray_left(reg, dim);
-   }
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.left);
@@ -128,10 +127,9 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
-   if (!lower_const_bounds(type)) {
-      assert(reg != VCODE_INVALID_REG);
+   if (reg != VCODE_INVALID_REG
+       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
       return emit_uarray_right(reg, dim);
-   }
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.right);
@@ -146,7 +144,33 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
    else {
       assert(!type_is_unconstrained(type));
       range_t r = type_dim(type, dim);
-      return emit_const(vtype_bool(), r.kind);
+      switch (r.kind) {
+      case RANGE_TO:
+      case RANGE_DOWNTO:
+         return emit_const(vtype_bool(), r.kind);
+
+      case RANGE_DYN:
+      case RANGE_RDYN:
+         {
+            assert(tree_kind(r.left) == T_FCALL);
+            assert(tree_kind(r.right) == T_FCALL);
+
+            tree_t base_ref = tree_value(tree_param(r.left, 1));
+            assert(tree_kind(base_ref) == T_REF);
+
+            type_t base_type = tree_type(base_ref);
+            assert(type_is_array(base_type));
+
+            vcode_reg_t base_reg = lower_expr(base_ref, EXPR_RVALUE);
+            assert(vtype_kind(vcode_reg_type(base_reg)) == VCODE_TYPE_UARRAY);
+
+            vcode_reg_t base_dir = lower_array_dir(base_type, dim, base_reg);
+            return r.kind == RANGE_RDYN ? emit_not(base_dir) : base_dir;
+         }
+
+      case RANGE_EXPR:
+         fatal_trace("unexpected range direction in %s", __func__);
+      }
    }
 }
 
@@ -191,8 +215,14 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
          break;
       case RANGE_DYN:
       case RANGE_RDYN:
+         diff = emit_select(lower_array_dir(type, dim, VCODE_INVALID_REG),
+                            emit_sub(left_reg, right_reg),
+                            emit_sub(right_reg, left_reg));
+         break;
+
       case RANGE_EXPR:
-         fatal_trace("unexpected range direction in lower_array_len");
+         fatal_trace("unexpected range direction %d in lower_array_len",
+                     r.kind);
       }
 
       len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
@@ -1336,13 +1366,10 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    }
 
    assert(!type_is_unconstrained(agg_type));
-   range_t r = type_dim(agg_type, 0);
 
-   assert(r.kind == RANGE_TO || r.kind == RANGE_DOWNTO);  // XXX
-   vcode_reg_t is_downto = emit_const(vtype_bool(), r.kind == RANGE_DOWNTO);
-
-   vcode_reg_t left_reg  = lower_reify_expr(r.left);
-   vcode_reg_t right_reg = lower_reify_expr(r.right);
+   vcode_reg_t dir_reg   = lower_array_dir(agg_type, 0, VCODE_INVALID_REG);
+   vcode_reg_t left_reg  = lower_array_left(agg_type, 0, VCODE_INVALID_REG);
+   vcode_reg_t right_reg = lower_array_right(agg_type, 0, VCODE_INVALID_REG);
    vcode_reg_t len_reg   = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
 
    vcode_reg_t mem_reg = emit_alloca(lower_type(elem_type),
@@ -1353,7 +1380,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    vcode_dim_t dim0 = {
       .left  = left_reg,
       .right = right_reg,
-      .dir   = emit_const(vtype_bool(), r.kind)
+      .dir   = dir_reg
    };
 
    tree_t agg0 = tree_assoc(agg, 0);
@@ -1424,7 +1451,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
             vcode_reg_t upto_reg   = emit_sub(left_reg, name_reg);
             vcode_reg_t downto_reg = emit_sub(name_reg, left_reg);
 
-            vcode_reg_t off_reg = emit_select(is_downto, downto_reg, upto_reg);
+            vcode_reg_t off_reg = emit_select(dir_reg, downto_reg, upto_reg);
 
             vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, off_reg);
             what = emit_select(eq, value_reg, what);

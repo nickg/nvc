@@ -261,26 +261,26 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
    }
    else if (my_depth == var_depth) {
       // Variable is inside current context
+      LLVMValueRef local = NULL;
       if (ctx->state != NULL) {
-         LLVMValueRef ptr =
-            LLVMBuildStructGEP(builder, ctx->state,
-                               ctx->var_base + vcode_var_index(var),
-                               istr(vcode_var_name(var)));
-
-         if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
-            LLVMValueRef index[] = {
-               llvm_int32(0),
-               llvm_int32(0)
-            };
-            return LLVMBuildGEP(builder, ptr, index, ARRAY_LEN(index), "");
-         }
-         else
-            return ptr;
+         local = LLVMBuildStructGEP(builder, ctx->state,
+                                    ctx->var_base + vcode_var_index(var),
+                                    istr(vcode_var_name(var)));
       }
       else {
          assert(ctx->locals != NULL);
-         return ctx->locals[vcode_var_index(var)];
+         local = ctx->locals[vcode_var_index(var)];
       }
+
+      if (vtype_kind(vcode_var_type(var)) == VCODE_TYPE_CARRAY) {
+         LLVMValueRef index[] = {
+            llvm_int32(0),
+            llvm_int32(0)
+         };
+         return LLVMBuildGEP(builder, local, index, ARRAY_LEN(index), "");
+      }
+      else
+         return local;
    }
    else {
       // Variable is in a parent context: find it using the display
