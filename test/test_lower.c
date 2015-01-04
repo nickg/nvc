@@ -183,6 +183,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_ACTIVE:
       case VCODE_OP_CONST_RECORD:
       case VCODE_OP_COPY:
+      case VCODE_OP_MEMCMP:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -851,6 +852,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_ADD },
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
@@ -909,10 +911,11 @@ START_TEST(test_array1)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_SELECT },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CMP },
-      { VCODE_OP_COND, .target = 2, .target_else = 4 }
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_AND },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
    };
 
    CHECK_BB(1);
@@ -1100,22 +1103,13 @@ START_TEST(test_assign3)
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_JUMP, .target = 2 }
+      { VCODE_OP_MEMCMP },
+      { VCODE_OP_NOT },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 },
    };
 
    CHECK_BB(1);
-
-   EXPECT_BB(4) = {
-      { VCODE_OP_PHI, .args = 2 },
-      { VCODE_OP_NOT },
-      { VCODE_OP_ASSERT },
-      { VCODE_OP_WAIT, .target = 5 }
-   };
-
-   CHECK_BB(4);
 }
 END_TEST
 

@@ -599,7 +599,7 @@ const char *vcode_op_string(vcode_op_t op)
       "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event", "pcall", "resume"
+      "sched event", "pcall", "resume", "memcmp"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1325,6 +1325,21 @@ void vcode_dump(void)
                             istr(op->func));
             }
             break;
+
+         case VCODE_OP_MEMCMP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" == " );
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[2]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
          }
 
          printf("\n");
@@ -2941,4 +2956,14 @@ void emit_resume(ident_t func)
       vcode_dump();
       fatal_trace("resume must be first op in a block");
    }
+}
+
+vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
+{
+   op_t *op = vcode_add_op(VCODE_OP_MEMCMP);
+   vcode_add_arg(op, lhs);
+   vcode_add_arg(op, rhs);
+   vcode_add_arg(op, len);
+
+   return (op->result = vcode_add_reg(vtype_bool()));
 }

@@ -518,10 +518,25 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
                                    type_t r0_type, type_t r1_type,
                                    vcode_cmp_t pred)
 {
+   const bool can_use_memcmp =
+      pred == VCODE_CMP_EQ && type_is_scalar(type_elem(r0_type));
+
    vcode_reg_t r0_data = lower_array_data(r0);
    vcode_reg_t r1_data = lower_array_data(r1);
-   return lower_array_cmp_inner(r0_data, r1_data, r0, r1,
-                                r0_type, r1_type, pred);
+
+   if (can_use_memcmp) {
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
+
+      if (r0_len == r1_len)
+         return emit_memcmp(r0_data, r1_data, r0_len);
+      else
+         return emit_and(emit_cmp(VCODE_CMP_EQ, r0_len, r1_len),
+                         emit_memcmp(r0_data, r1_data, r0_len));
+   }
+   else
+      return lower_array_cmp_inner(r0_data, r1_data, r0, r1,
+                                   r0_type, r1_type, pred);
 }
 
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
@@ -971,7 +986,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 {
-
+   return VCODE_INVALID_REG;
 }
 
 static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,

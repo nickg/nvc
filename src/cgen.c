@@ -1436,6 +1436,65 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    cgen_pcall_suspend(new_state, after_bb, ctx);
 }
 
+static void cgen_op_memcmp(int op, cgen_ctx_t *ctx)
+{
+   // Prologue
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef lhs_data = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs_data = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef i = LLVMBuildAlloca(builder, LLVMInt32Type(), "i");
+   LLVMBuildStore(builder, llvm_int32(0), i);
+
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_test");
+   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_body");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(ctx->fn, "memcmp_exit");
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
+   LLVMValueRef len_ge = LLVMBuildICmp(builder, LLVMIntUGE, i_loaded,
+                                       length, "len_ge");
+   LLVMBuildCondBr(builder, len_ge, exit_bb, body_bb);
+
+   // Loop body
+
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef l_ptr = LLVMBuildGEP(builder, lhs_data, &i_loaded, 1, "l_ptr");
+   LLVMValueRef r_ptr = LLVMBuildGEP(builder, rhs_data, &i_loaded, 1, "r_ptr");
+
+   LLVMValueRef l_val = LLVMBuildLoad(builder, l_ptr, "l_val");
+   LLVMValueRef r_val = LLVMBuildLoad(builder, r_ptr, "r_val");
+
+   LLVMValueRef eq = LLVMBuildICmp(builder, LLVMIntEQ, l_val, r_val, "eq");
+
+   LLVMValueRef inc = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "inc");
+   LLVMBuildStore(builder, inc, i);
+
+   LLVMBuildCondBr(builder, eq, test_bb, exit_bb);
+
+   // Epilogue
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+
+   LLVMValueRef phi = LLVMBuildPhi(builder, LLVMInt1Type(),
+                                   cgen_reg_name(result));
+
+   LLVMValueRef      values[] = { eq,      len_ge  };
+   LLVMBasicBlockRef bbs[]    = { body_bb, test_bb };
+   LLVMAddIncoming(phi, values, bbs, 2);
+
+   ctx->regs[result] = phi;
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1600,6 +1659,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_RESUME:
       cgen_op_resume(i, ctx);
+      break;
+   case VCODE_OP_MEMCMP:
+      cgen_op_memcmp(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
