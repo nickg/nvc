@@ -659,6 +659,24 @@ static ident_t lower_mangle_func(tree_t decl)
    return new;
 }
 
+static vcode_reg_t lower_min_max(vcode_cmp_t cmp, tree_t fcall)
+{
+   vcode_reg_t result = VCODE_INVALID_REG;
+
+   const int nparams = tree_params(fcall);
+   for (int i = 0; i < nparams; i++) {
+      vcode_reg_t value = lower_subprogram_arg(fcall, i);
+      if (result == VCODE_INVALID_REG)
+         result = value;
+      else {
+         vcode_reg_t test = emit_cmp(cmp, value, result);
+         result = emit_select(test, value, result);
+      }
+   }
+
+   return result;
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    if (icmp(builtin, "event"))
@@ -725,6 +743,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
                        lower_array_len(lower_arg_type(fcall, 1), dim,
                                        lower_subprogram_arg(fcall, 1)));
    }
+   else if (icmp(builtin, "max"))
+      return lower_min_max(VCODE_CMP_GT, fcall);
+   else if (icmp(builtin, "min"))
+      return lower_min_max(VCODE_CMP_LT, fcall);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
