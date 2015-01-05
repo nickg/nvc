@@ -1492,6 +1492,11 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       if (kind != A_OTHERS)
          value_reg = lower_expr(tree_value(a), EXPR_RVALUE);
 
+      if (what == VCODE_INVALID_REG) {
+         what = value_reg;
+         continue;
+      }
+
       switch (kind) {
       case A_POS:
          {
@@ -1541,7 +1546,11 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    }
 
    vcode_reg_t ptr_reg = emit_add(mem_reg, i_loaded);
-   emit_store_indirect(what, ptr_reg);
+   if (type_is_scalar(elem_type)
+       || (type_is_array(elem_type) && !lower_const_bounds(elem_type)))
+      emit_store_indirect(lower_reify(what), ptr_reg);
+   else
+      assert(false);
 
    emit_store_indirect(emit_add(i_loaded, emit_const(offset_type, 1)), ivar);
    emit_jump(test_bb);
