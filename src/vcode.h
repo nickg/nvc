@@ -98,6 +98,7 @@ typedef enum {
    VCODE_OP_NAND,
    VCODE_OP_NOR,
    VCODE_OP_MEMSET,
+   VCODE_OP_VEC_LOAD,
 } vcode_op_t;
 
 typedef enum {
@@ -152,6 +153,7 @@ int vtype_dims(vcode_type_t type);
 vcode_type_t vtype_dim(vcode_type_t type, int dim);
 int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
+vcode_type_t vtype_base(vcode_type_t type);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -295,5 +297,6 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
 void emit_resume(ident_t func);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
+vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length);
 
 #endif  // _VCODE_H

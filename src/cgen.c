@@ -159,6 +159,11 @@ static void debug_dump(LLVMValueRef ptr, LLVMValueRef len)
 }
 #endif
 
+static LLVMTypeRef cgen_net_id_type(void)
+{
+   return LLVMInt32Type();
+}
+
 static LLVMTypeRef cgen_type(vcode_type_t type)
 {
    switch (vtype_kind(type)) {
@@ -205,14 +210,12 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
          return LLVMStructType(fields, nfields, true);
       }
 
+   case VCODE_TYPE_SIGNAL:
+      return LLVMPointerType(cgen_net_id_type(), 0);
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }
-}
-
-static LLVMTypeRef cgen_net_id_type(void)
-{
-   return LLVMInt32Type();
 }
 
 static const char *cgen_reg_name(vcode_reg_t r)
@@ -1510,6 +1513,32 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef signal = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef length = cgen_get_arg(op, 1, ctx);
+
+   LLVMTypeRef base_type =
+      cgen_type(vtype_base(vcode_reg_type(vcode_get_arg(op, 0))));
+
+   LLVMValueRef tmp = LLVMBuildArrayAlloca(builder, base_type, length, "tmp");
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(signal),
+      llvm_void_cast(tmp),
+      llvm_int32(0),
+      LLVMBuildSub(builder, length, llvm_int32(1), "high"),
+      llvm_int1(0)  // Last value
+   };
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef raw = LLVMBuildCall(builder, llvm_fn("_vec_load"), args,
+                                    ARRAY_LEN(args), cgen_reg_name(result));
+
+   ctx->regs[result] = LLVMBuildPointerCast(builder, raw, LLVMTypeOf(tmp), "");
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1686,6 +1715,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_MEMSET:
       cgen_op_memset(i, ctx);
+      break;
+   case VCODE_OP_VEC_LOAD:
+      cgen_op_vec_load(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

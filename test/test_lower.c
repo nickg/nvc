@@ -186,6 +186,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_MEMCMP:
       case VCODE_OP_MEMSET:
       case VCODE_OP_WRAP:
+      case VCODE_OP_VEC_LOAD:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -1602,6 +1603,69 @@ START_TEST(test_memset)
 }
 END_TEST
 
+START_TEST(test_func5)
+{
+   input_from_file(TESTDIR "/lower/func5.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_LOAD_INDIRECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_BOUNDS, .low = INT32_MIN, .high = INT32_MAX },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_EVENT },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(1) = {
+         { VCODE_OP_CONST, .value = 2 },
+         { VCODE_OP_NETS, .name = ":func5:x" },
+         { VCODE_OP_FCALL, .func = ":func5:add_one_s$sI", .args = 1 },
+         { VCODE_OP_CONST, .value = 6 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_FCALL, .func = ":func5:event$sI", .args = 1 },
+         { VCODE_OP_ASSERT },
+         { VCODE_OP_WAIT, .target = 2 }
+      };
+
+      CHECK_BB(1);
+   }
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1635,6 +1699,7 @@ int main(void)
    tcase_add_test(tc, test_slice1);
    tcase_add_test(tc, test_funcif);
    tcase_add_test(tc, test_memset);
+   tcase_add_test(tc, test_func5);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

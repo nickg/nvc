@@ -59,6 +59,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context);
 static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
                                           bool is_const, expr_ctx_t ctx);
+static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 
@@ -359,10 +360,19 @@ static vcode_reg_t lower_reify(vcode_reg_t reg)
 {
    if (reg == VCODE_INVALID_REG)
       return reg;
-   else if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
+
+   switch (vtype_kind(vcode_reg_type(reg))) {
+   case VCODE_TYPE_POINTER:
       return emit_load_indirect(reg);
-   else
+   case VCODE_TYPE_SIGNAL:
+      {
+         vcode_reg_t ptr = emit_vec_load(reg, emit_const(vtype_offset(), 1));
+         return emit_load_indirect(ptr);
+      }
+
+   default:
       return reg;
+   }
 }
 
 static vcode_reg_t lower_reify_expr(tree_t expr)
@@ -370,62 +380,64 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
-static vcode_reg_t lower_subprogram_arg(tree_t fcall, int nth)
+static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 {
-   if (nth < tree_params(fcall)) {
-      tree_t param = tree_param(fcall, nth);
+   if (nth >= tree_params(fcall))
+      return VCODE_INVALID_REG;
 
-      assert(tree_subkind(param) == P_POS);
-      assert(tree_pos(param) == nth);
+   tree_t param = tree_param(fcall, nth);
 
-      tree_t value = tree_value(param);
-      type_t value_type = tree_type(value);
+   assert(tree_subkind(param) == P_POS);
+   assert(tree_pos(param) == nth);
 
-      if (tree_attr_str(tree_ref(fcall), builtin_i))
-         return type_is_scalar(value_type)
-            ? lower_reify_expr(value)
-            : lower_expr(value, EXPR_RVALUE);
+   tree_t value = tree_value(param);
+   type_t value_type = tree_type(value);
 
-      tree_t port = tree_port(tree_ref(fcall), nth);
-      type_t port_type = tree_type(port);
-      const port_mode_t mode = tree_subkind(port);
+   if (tree_attr_str(tree_ref(fcall), builtin_i))
+      return type_is_scalar(value_type)
+         ? lower_reify_expr(value)
+         : lower_expr(value, EXPR_RVALUE);
 
-      vcode_reg_t reg =
-         lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
+   tree_t port = tree_port(tree_ref(fcall), nth);
+   type_t port_type = tree_type(port);
+   const port_mode_t mode = tree_subkind(port);
 
-      if (type_is_array(value_type)) {
-         const bool have_uarray =
-            vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
-         const bool need_uarray = !lower_const_bounds(port_type);
+   if (tree_class(port) == C_SIGNAL)
+      return lower_expr(value, EXPR_LVALUE);
 
-         if (have_uarray && need_uarray)
-            return reg;
-         else if (!have_uarray && need_uarray) {
-            // Need to wrap array with metadata
+   vcode_reg_t reg =
+      lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
 
-            const int ndims = type_dims(value_type);
-            vcode_dim_t dims[ndims];
-            for (int i = 0; i < ndims; i++) {
-               dims[i].left  = lower_array_left(value_type, i, reg);
-               dims[i].right = lower_array_right(value_type, i, reg);
-               dims[i].dir   = lower_array_dir(value_type, i, reg);
-            }
+   if (type_is_array(value_type)) {
+      const bool have_uarray =
+         vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
+      const bool need_uarray = !lower_const_bounds(port_type);
 
-            return emit_wrap(reg, dims, ndims);
+      if (have_uarray && need_uarray)
+         return reg;
+      else if (!have_uarray && need_uarray) {
+         // Need to wrap array with metadata
+
+         const int ndims = type_dims(value_type);
+         vcode_dim_t dims[ndims];
+         for (int i = 0; i < ndims; i++) {
+            dims[i].left  = lower_array_left(value_type, i, reg);
+            dims[i].right = lower_array_right(value_type, i, reg);
+            dims[i].dir   = lower_array_dir(value_type, i, reg);
          }
-         else if (have_uarray && !need_uarray) {
-            // Need to unwrap array to get raw pointer
-            assert(false);
-         }
-         else
-            return reg;
+
+         return emit_wrap(reg, dims, ndims);
+      }
+      else if (have_uarray && !need_uarray) {
+         // Need to unwrap array to get raw pointer
+         assert(false);
       }
       else
-         return type_is_scalar(value_type) && mode == PORT_IN
-            ? lower_reify(reg) : reg;
+         return reg;
    }
    else
-      return VCODE_INVALID_REG;
+      return type_is_scalar(value_type) && mode == PORT_IN
+         ? lower_reify(reg) : reg;
 }
 
 #if 0
@@ -572,12 +584,32 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
 {
    tree_t decl = tree_ref(ref);
-   assert(tree_kind(decl) == T_SIGNAL_DECL);
+   switch (tree_kind(decl)) {
+   case T_SIGNAL_DECL:
+      {
+         vcode_reg_t nets   = lower_signal_ref(decl, EXPR_LVALUE);
+         vcode_reg_t length = emit_const(vtype_offset(), tree_nets(decl));
 
-   vcode_reg_t nets   = lower_signal_ref(decl, EXPR_LVALUE);
-   vcode_reg_t length = emit_const(vtype_offset(), tree_nets(decl));
+         return (*fn)(nets, length);
+      }
 
-   return (*fn)(nets, length);
+   case T_PORT_DECL:
+      {
+         vcode_reg_t nets = lower_param_ref(decl, EXPR_LVALUE);
+
+         vcode_reg_t length = VCODE_INVALID_REG;
+         type_t type = tree_type(decl);
+         if (type_is_array(type))
+            length = lower_array_len(type, 0, nets);
+         else
+            length = emit_const(vtype_offset(), 1);
+
+         return (*fn)(nets, length);
+      }
+
+   default:
+      fatal_at(tree_loc(ref), "invalid signal flag operation");
+   }
 }
 
 static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
@@ -650,8 +682,12 @@ static ident_t lower_mangle_func(tree_t decl)
    const int nports = tree_ports(decl);
    if (nports > 0) {
       tb_printf(buf, "$");
-      for (int i = 0; i < nports; i++)
-         lower_mangle_one_type(buf, tree_type(tree_port(decl, i)));
+      for (int i = 0; i < nports; i++) {
+         tree_t p = tree_port(decl, i);
+         if (tree_class(p) == C_SIGNAL)
+            tb_printf(buf, "s");
+         lower_mangle_one_type(buf, tree_type(p));
+      }
    }
 
    ident_t new = ident_new(tb_get(buf));
@@ -2401,25 +2437,35 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       tree_t p = tree_port(body, i);
       type_t type = tree_type(p);
 
-      vcode_type_t vtype, vbounds;
-      if (type_is_array(type) && lower_const_bounds(type)) {
-         vtype = vtype_pointer(lower_type(type_elem(type)));
-         vbounds = vtype;
-      }
-      else if (type_is_record(type)) {
-         vtype = vtype_pointer(lower_type(type));
-         vbounds = vtype;
-      }
-      else {
-         vtype = lower_type(type);
-         vbounds = lower_bounds(type);
-      }
-
       const bool is_uarray = type_is_array(type) && !lower_const_bounds(type);
 
-      const port_mode_t mode = tree_subkind(p);
-      if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
-         vtype = vtype_pointer(vtype);
+      vcode_type_t vtype, vbounds;
+      if (tree_class(p) == C_SIGNAL) {
+         if (is_uarray)
+            assert(false);
+         else {
+            vtype   = vtype_signal(lower_type(type));
+            vbounds = vtype;
+         }
+      }
+      else {
+         if (type_is_array(type) && lower_const_bounds(type)) {
+            vtype = vtype_pointer(lower_type(type_elem(type)));
+            vbounds = vtype;
+         }
+         else if (type_is_record(type)) {
+            vtype = vtype_pointer(lower_type(type));
+            vbounds = vtype;
+         }
+         else {
+            vtype = lower_type(type);
+            vbounds = lower_bounds(type);
+         }
+
+         const port_mode_t mode = tree_subkind(p);
+         if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
+            vtype = vtype_pointer(vtype);
+      }
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
       tree_add_attr_int(p, vcode_obj_i, reg);

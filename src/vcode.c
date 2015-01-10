@@ -633,7 +633,7 @@ const char *vcode_op_string(vcode_op_t op)
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
-      "memset"
+      "memset", "vec load"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1393,6 +1393,20 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[2]);
             }
             break;
+
+         case VCODE_OP_VEC_LOAD:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[1]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
          }
 
          printf("\n");
@@ -1617,6 +1631,13 @@ vcode_type_t vtype_elem(vcode_type_t type)
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
    return vt->elem;
+}
+
+vcode_type_t vtype_base(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   assert(vt->kind == VCODE_TYPE_SIGNAL);
+   return vt->base;
 }
 
 vcode_type_t vtype_bounds(vcode_type_t type)
@@ -3057,4 +3078,25 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
       vcode_fail("length of memset must have offset type");
    else if (vtype_high(vcode_reg_type(value)) > UINT8_MAX)
       vcode_fail("memset value must be max 8-bit");
+}
+
+vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length)
+{
+   op_t *op = vcode_add_op(VCODE_OP_VEC_LOAD);
+   vcode_add_arg(op, signal);
+   vcode_add_arg(op, length);
+
+   vcode_type_t signal_type = vcode_reg_type(signal);
+
+   if (vtype_kind(signal_type) != VCODE_TYPE_SIGNAL)
+      vcode_fail("signal of vec load must have signal type");
+   else if (vtype_kind(vcode_reg_type(length)) != VCODE_TYPE_OFFSET)
+      vcode_fail("length of vec load must have offset type");
+
+   vcode_type_t base_type = vtype_base(signal_type);
+   op->result = vcode_add_reg(vtype_pointer(base_type));
+
+   vcode_reg_data(op->result)->bounds = base_type;
+
+   return op->result;
 }
