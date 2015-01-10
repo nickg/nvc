@@ -1526,7 +1526,6 @@ static vcode_type_t vtype_new(vtype_t *new)
 vcode_type_t vtype_int(int64_t low, int64_t high)
 {
    assert(active_unit != NULL);
-   assert(low <= high);
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_INT;
