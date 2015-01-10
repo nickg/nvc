@@ -1860,7 +1860,7 @@ vcode_unit_t emit_context(ident_t name)
    return vu;
 }
 
-void emit_assert(vcode_reg_t value, vcode_reg_t message,
+void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity, uint32_t index)
 {
    if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
@@ -1872,6 +1872,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message,
    vcode_add_arg(op, value);
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
+   vcode_add_arg(op, length);
    op->index = index;
 
    if (!vtype_eq(vcode_reg_type(value), vtype_bool())) {
@@ -1880,11 +1881,13 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message,
    }
 }
 
-void emit_report(vcode_reg_t message, vcode_reg_t severity, uint32_t index)
+void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
+                 uint32_t index)
 {
    op_t *op = vcode_add_op(VCODE_OP_REPORT);
    vcode_add_arg(op, severity);
    vcode_add_arg(op, message);
+   vcode_add_arg(op, length);
    op->index = index;
 }
 
@@ -2024,28 +2027,31 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    return op->result;
 }
 
-vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
+vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
+                             bool allocate)
 {
+   vcode_type_t rtype = allocate && vtype_kind(type) == VCODE_TYPE_CARRAY
+      ? vtype_pointer(vtype_elem(type))
+      : type;
+
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CONST_ARRAY && op->args.count == num
-          && vtype_eq(type, op->type)) {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CONST_ARRAY, &other)) {
+      if (other->args.count == num && vtype_eq(type, other->type)) {
          bool match = true;
          for (int i = 0; match && i < num; i++) {
-            if (op->args.items[i] != values[i])
+            if (other->args.items[i] != values[i])
                match = false;
          }
 
-         if (match)
-            return op->result;
+         if (match && vtype_eq(vcode_reg_type(other->result), rtype))
+            return other->result;
       }
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_ARRAY);
    op->type   = type;
-   op->result = vcode_add_reg(type);
+   op->result = vcode_add_reg(rtype);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
@@ -2061,22 +2067,20 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num)
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
                               bool allocate)
 {
+   vcode_type_t rtype = allocate ? vtype_pointer(type) : type;
+
    // Reuse any previous constant in this block with the same type and value
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CONST_RECORD && vtype_eq(type, op->type)
-          && op->args.count == num) {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CONST_RECORD, &other)) {
+      if (vtype_eq(type, other->type) && other->args.count == num) {
          bool same_regs = true;
          for (int i = 0; i < num; i++)
-            same_regs = same_regs && op->args.items[i] == values[i];
+            same_regs = same_regs && other->args.items[i] == values[i];
 
-         if (same_regs)
-            return op->result;
+         if (same_regs && vtype_eq(vcode_reg_type(other->result), rtype))
+            return other->result;
       }
    }
-
-   vcode_type_t rtype = allocate ? vtype_pointer(type) : type;
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
    op->type   = type;
@@ -2217,7 +2221,7 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 
    vtype_kind_t type_kind = vtype_kind(deref);
    if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY&& type_kind != VCODE_TYPE_POINTER) {
+       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }

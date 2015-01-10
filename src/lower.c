@@ -913,7 +913,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
       return emit_fcall(name, rtype, args, nargs);
 }
 
-static vcode_reg_t lower_string_literal(tree_t lit)
+static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
 {
    type_t ltype = tree_type(lit);
    vcode_type_t vtype = lower_type(type_elem(ltype));
@@ -924,7 +924,7 @@ static vcode_reg_t lower_string_literal(tree_t lit)
    for (int i = 0; i < nchars; i++)
       tmp[i] = emit_const(vtype, tree_pos(tree_ref(tree_char(lit, i))));
 
-   return emit_const_array(lower_type(ltype), tmp, nchars);
+   return emit_const_array(lower_type(ltype), tmp, nchars, allocate);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
@@ -934,7 +934,7 @@ static vcode_reg_t lower_literal(tree_t lit)
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    case L_STRING:
-      return lower_string_literal(lit);
+      return lower_string_literal(lit, true);
 
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",
@@ -1352,21 +1352,10 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
          else
             assert(false);
       }
-      else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING) {
-         /*
-         sub  = xmalloc(sizeof(LLVMValueRef));
-         nsub = 1;
-
-         int nchars;
-         LLVMTypeRef et;
-         LLVMValueRef *tmp = cgen_string_literal(value, &nchars, &et);
-
-         *sub = LLVMConstArray(et, tmp, nchars);
-         free(tmp);*/
-         assert(false);
-      }
+      else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING)
+         *sub = lower_string_literal(value, false);
       else
-         tmp = lower_expr(value, EXPR_RVALUE);
+         *sub = lower_expr(value, EXPR_RVALUE);
 
       switch (tree_subkind(a)) {
       case A_POS:
@@ -1652,7 +1641,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       vcode_reg_t v = VCODE_INVALID_REG;
       if (type_is_array(value_type) && is_const) {
          if (tree_kind(value) == T_LITERAL)
-            v = lower_string_literal(value);
+            v = lower_string_literal(value, true);
          else {
             assert(false);
 #if 0
@@ -1731,7 +1720,7 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t *values LOCAL =
          lower_const_array_aggregate(expr, type, 0, &nvals);
 
-      return emit_const_array(lower_type(type), values, nvals);
+      return emit_const_array(lower_type(type), values, nvals, true);
    }
    else
       return lower_dyn_aggregate(expr, type);
@@ -1842,15 +1831,19 @@ static void lower_assert(tree_t stmt)
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
-   vcode_reg_t message = VCODE_INVALID_REG;
-   if (tree_has_message(stmt))
-      message = lower_expr(tree_message(stmt), EXPR_RVALUE);
+   vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
+   if (tree_has_message(stmt)) {
+      tree_t m = tree_message(stmt);
+      vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
+      message = lower_array_data(message_wrapped);
+      length  = lower_array_len(tree_type(m), 0, message_wrapped);
+   }
 
    if (is_report)
-      emit_report(message, severity, tree_index(stmt));
+      emit_report(message, length, severity, tree_index(stmt));
    else {
       vcode_reg_t value = lower_reify_expr(tree_value(stmt));
-      emit_assert(value, message, severity, tree_index(stmt));
+      emit_assert(value, message, length, severity, tree_index(stmt));
    }
 }
 
@@ -2299,7 +2292,12 @@ static void lower_decl(tree_t decl)
 
          if (tree_has_value(decl)) {
             vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
-            if (type_is_record(type)) {
+            if (type_is_array(type) && lower_const_bounds(type)) {
+               vcode_reg_t count = lower_array_total_len(type, value);
+               vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
+               emit_copy(dest, value, count);
+            }
+            else if (type_is_record(type)) {
                vcode_reg_t count = emit_const(vtype_offset(), 1);
                vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
                emit_copy(dest, value, count);

@@ -14,7 +14,6 @@ begin
     begin
         r := 2;
         r := add1(r);
-        assert r = 3 report integer'image(r);
         wait;
     end process;
 

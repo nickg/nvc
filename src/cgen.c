@@ -340,89 +340,6 @@ static LLVMValueRef cgen_uarray_dim(LLVMValueRef meta, int dim)
    return LLVMBuildExtractValue(builder, dim_array, dim, "dim");
 }
 
-static LLVMValueRef cgen_array_data_ptr(vcode_reg_t reg, cgen_ctx_t *ctx)
-{
-   char name[32];
-   checked_sprintf(name, sizeof(name), "r%d_aptr", reg);
-
-   vcode_type_t type = vcode_reg_type(reg);
-   switch (vtype_kind(type)) {
-   case VCODE_TYPE_CARRAY:
-      {
-         LLVMValueRef indexes[] = { llvm_int32(0) };
-         return LLVMBuildPointerCast(
-            builder,
-            LLVMBuildGEP(builder, ctx->regs[reg],
-                         indexes, ARRAY_LEN(indexes), ""),
-            LLVMPointerType(cgen_type(vtype_elem(type)), 0), name);
-      }
-      break;
-
-   case VCODE_TYPE_UARRAY:
-      {
-         assert(cgen_is_uarray_struct(ctx->regs[reg]));
-         return LLVMBuildExtractValue(builder, ctx->regs[reg], 0, name);
-      }
-
-   default:
-      fatal_trace("non-array type in %s", __func__);
-   }
-}
-
-static LLVMValueRef cgen_array_len(vcode_reg_t reg, cgen_ctx_t *ctx)
-{
-   vcode_type_t type = vcode_reg_type(reg);
-   switch (vtype_kind(type)) {
-   case VCODE_TYPE_CARRAY:
-      {
-         assert(vtype_dims(type) == 1);
-         vcode_type_t dim0 = vtype_dim(type, 0);
-
-         const int64_t low  = vtype_low(dim0);
-         const int64_t high = vtype_high(dim0);
-
-         return llvm_int32(high - low + 1);
-      }
-
-   case VCODE_TYPE_UARRAY:
-      {
-         assert(vtype_dims(type) == 1);
-
-         LLVMValueRef meta = ctx->regs[reg];
-         assert(meta != NULL);
-         assert(cgen_is_uarray_struct(meta));
-
-         LLVMValueRef dim_struct = cgen_uarray_dim(meta, 0 /* XXX */);
-
-         LLVMValueRef downto = LLVMBuildICmp(
-            builder, LLVMIntEQ,
-            LLVMBuildExtractValue(builder, dim_struct, 2, "dir"),
-            llvm_int1(RANGE_DOWNTO),
-            "downto");
-         LLVMValueRef left =
-            LLVMBuildExtractValue(builder, dim_struct, 0, "left");
-         LLVMValueRef right =
-            LLVMBuildExtractValue(builder, dim_struct, 1, "right");
-         LLVMValueRef diff =
-            LLVMBuildSelect(builder, downto,
-                            LLVMBuildSub(builder, left, right, ""),
-                            LLVMBuildSub(builder, right, left, ""),
-                            "diff");
-         LLVMValueRef len =
-            LLVMBuildAdd(builder, diff, llvm_int32(1), "len");
-         LLVMValueRef neg = LLVMBuildICmp(builder, LLVMIntSLT, len,
-                                          llvm_int32(0), "negative");
-         LLVMValueRef clamp =
-            LLVMBuildSelect(builder, neg, llvm_int32(0), len, "len_clamp");
-
-         return clamp;
-      }
-
-   default:
-      fatal_trace("non-array type in %s", __func__);
-   }
-}
-
 static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
 {
    vcode_select_unit(unit);
@@ -561,24 +478,32 @@ static void cgen_op_const_array(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    vcode_type_t type  = vcode_reg_type(result);
 
-   char *name LOCAL = xasprintf("%s_const_array_r%d",
-                                istr(vcode_unit_name()), result);
-
-   LLVMValueRef global = LLVMAddGlobal(module, cgen_type(type), name);
-   LLVMSetLinkage(global, LLVMInternalLinkage);
-   LLVMSetGlobalConstant(global, true);
-
    const int length = vcode_count_args(op);
    LLVMValueRef *tmp LOCAL = xmalloc(length * sizeof(LLVMValueRef));
    for (int i = 0; i < length; i++)
       tmp[i] = ctx->regs[vcode_get_arg(op, i)];
 
-   LLVMValueRef init = LLVMConstArray(cgen_type(vtype_elem(type)), tmp, length);
-   LLVMSetInitializer(global, init);
+   if (vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_POINTER) {
+      char *name LOCAL = xasprintf("%s_const_array_r%d",
+                                   istr(vcode_unit_name()), result);
 
-   LLVMValueRef index[] = { llvm_int32(0), llvm_int32(0) };
-   ctx->regs[result] = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index),
-                                    cgen_reg_name(result));
+      LLVMTypeRef elem_type  = cgen_type(vtype_pointed(type));
+      LLVMTypeRef array_type = LLVMArrayType(elem_type, length);
+
+      LLVMValueRef global = LLVMAddGlobal(module, array_type, name);
+      LLVMSetLinkage(global, LLVMInternalLinkage);
+      LLVMSetGlobalConstant(global, true);
+
+      LLVMValueRef init = LLVMConstArray(elem_type, tmp, length);
+      LLVMSetInitializer(global, init);
+
+      LLVMValueRef index[] = { llvm_int32(0), llvm_int32(0) };
+      ctx->regs[result] = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index),
+                                       cgen_reg_name(result));
+   }
+   else
+      ctx->regs[result] = LLVMConstArray(cgen_type(vtype_elem(type)),
+                                         tmp, length);
 }
 
 static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
@@ -607,15 +532,13 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_report(int op, cgen_ctx_t *ctx)
 {
-   vcode_reg_t mreg = vcode_get_arg(op, 1);
-
-   LLVMValueRef severity    = ctx->regs[vcode_get_arg(op, 0)];
-   LLVMValueRef message     = cgen_array_data_ptr(mreg, ctx);
-   LLVMValueRef message_len = cgen_array_len(mreg, ctx);
+   LLVMValueRef severity = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef message  = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef length   = cgen_get_arg(op, 2, ctx);
 
    LLVMValueRef args[] = {
       message,
-      message_len,
+      length,
       severity,
       llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
@@ -638,7 +561,7 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
 
    vcode_reg_t mreg = vcode_get_arg(op, 2);
 
-   LLVMValueRef message, message_len;
+   LLVMValueRef message, length;
    if (mreg == VCODE_INVALID_REG) {
       const char def_str[] = "Assertion violation.";
       const size_t def_len = sizeof(def_str) - 1;
@@ -653,21 +576,21 @@ static void cgen_op_assert(int op, cgen_ctx_t *ctx)
          LLVMSetGlobalConstant(global, true);
       }
 
-      message_len = llvm_int32(def_len);
+      length = llvm_int32(def_len);
 
       LLVMValueRef index[] = { llvm_int32(0), llvm_int32(0) };
       message = LLVMBuildGEP(builder, global, index, ARRAY_LEN(index), "");
    }
    else {
-      message     = cgen_array_data_ptr(mreg, ctx);
-      message_len = cgen_array_len(mreg, ctx);
+      message = cgen_get_arg(op, 2, ctx);
+      length  = cgen_get_arg(op, 3, ctx);
    }
 
    LLVMValueRef severity = ctx->regs[vcode_get_arg(op, 1)];
 
    LLVMValueRef args[] = {
       message,
-      message_len,
+      length,
       severity,
       llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
@@ -700,20 +623,7 @@ static void cgen_op_store(int op, cgen_ctx_t *ctx)
 {
    vcode_var_t var = vcode_get_address(op);
 
-   vcode_type_t type = vcode_reg_type(vcode_get_arg(op, 0));
-   if (vtype_kind(type) == VCODE_TYPE_CARRAY) {
-      LLVMValueRef memcpy_args[] = {
-         llvm_void_cast(cgen_get_var(var, ctx)),
-         llvm_void_cast(cgen_get_arg(op, 0, ctx)),
-         llvm_sizeof(cgen_type(type)),
-         llvm_int32(4),
-         llvm_int1(0)
-      };
-      LLVMBuildCall(builder, llvm_fn(cgen_memcpy_name(8)),
-                    memcpy_args, ARRAY_LEN(memcpy_args), "");
-   }
-   else
-      LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
+   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cgen_get_var(var, ctx));
 }
 
 static void cgen_op_store_indirect(int op, cgen_ctx_t *ctx)
@@ -1184,7 +1094,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
 static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
-   vcode_type_t type  = vcode_reg_type(vcode_get_arg(op, 0));
+   vcode_type_t type  = vtype_base(vcode_signal_type(sig));
 
    LLVMValueRef valptr = cgen_pointer_to_arg_data(op, 0, ctx);
 

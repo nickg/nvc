@@ -422,10 +422,14 @@ START_TEST(test_assign2)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
-      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_INDEX, .name = "Y" },
+      { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
 
@@ -604,6 +608,7 @@ START_TEST(test_cond1)
       { VCODE_OP_CONST, .value = 100 },
       { VCODE_OP_CONST, .value = 111 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
+      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_REPORT },
       { VCODE_OP_WAIT, .target = 7 }
    };
@@ -779,11 +784,6 @@ START_TEST(test_func1)
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_FCALL, .func = ":func1:add1$I", .args = 1 },
       { VCODE_OP_STORE, .name = "R" },
-      { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_IMAGE },
-      { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
-      { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 2 }
    };
 
@@ -823,7 +823,9 @@ START_TEST(test_arrayop1)
    EXPECT_BB(0) = {
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
 
@@ -834,7 +836,6 @@ START_TEST(test_arrayop1)
       { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
@@ -902,7 +903,6 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_UNWRAP },
-      { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_LEFT, .dim = 0 },
       { VCODE_OP_UARRAY_RIGHT, .dim = 0 },
       { VCODE_OP_SUB },
@@ -1495,20 +1495,19 @@ START_TEST(test_slice1)
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 4 },
       { VCODE_OP_CONST_ARRAY, .length = 4 },
-      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_INDEX, .name = "V" },
+      { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 6 },
       { VCODE_OP_CONST, .value = 7 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_CONST, .value = 2 },
-      { VCODE_OP_CAST },
-      { VCODE_OP_INDEX, .name = "V" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_COPY },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_ADD },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
-      { VCODE_OP_CAST },
       { VCODE_OP_MEMCMP },
       { VCODE_OP_ASSERT },
       { VCODE_OP_CONST, .value = 1000000 },

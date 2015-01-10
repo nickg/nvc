@@ -135,7 +135,7 @@ elab6           normal
 # elab9           normal,gold
 # elab10          normal,gold
 # conv1           normal
-# elab11          normal
+elab11          normal
 # link2           normal
 # driver3         normal
 # elab12          normal
@@ -150,14 +150,14 @@ elab6           normal
 # signal11        normal,gold
 # wait11          normal
 # bounds11        gold,fail
-# wait12          normal,gold
+wait12          normal,gold
 # array2          normal
 # driver4         normal
-# comp1           normal
+comp1           normal
 # bitvec          normal
 # elab14          normal
 # operator4       normal
-# issue16         normal
+issue16         normal
 # elab15          normal
 # const5          normal
 # issue18         normal
@@ -201,7 +201,7 @@ elab6           normal
 # assert3         normal,gold
 # alias8          normal
 # textio2         normal
-# elab20          normal
+elab20          normal
 # issue38         normal
 # stop1           normal,gold
 # stop2           normal,gold,2008
@@ -216,7 +216,7 @@ for2            normal,gold
 # issue57         normal
 # attr10          normal
 # assert4         normal
-# issue56         normal
+issue56         normal
 # issue53         normal
 # issue59         normal
 # issue60         normal
@@ -230,9 +230,9 @@ for2            normal,gold
 # implicit2       normal
 # file2           normal
 # case5           gold,fail
-# toplevel1       normal
-# vhpi1           gold,vhpi
-# vhpi2           normal,vhpi
+toplevel1       normal
+vhpi1           gold,vhpi
+vhpi2           normal,vhpi
 # issue69         normal
 # issue70         normal
 # elab22          normal
