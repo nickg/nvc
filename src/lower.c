@@ -1240,9 +1240,6 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    }
    */
 
-   vcode_reg_t array_reg = lower_expr(value, ctx);
-   vcode_reg_t data_reg  = lower_array_data(array_reg);
-
    tree_t alias = NULL;
    if (tree_kind(value) == T_REF) {
       tree_t decl = tree_ref(value);
@@ -1250,21 +1247,25 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
          alias = decl;
    }
 
-   //vcode_reg_t kind_reg = VCODE_INVALID_REG;
+   type_t type = tree_type(value);
+
+   vcode_reg_t kind_reg = VCODE_INVALID_REG, array_reg = VCODE_INVALID_REG;
    if (alias != NULL) {
-      assert(false);
-      /*
       tree_t aliased = tree_value(alias);
-      array = cgen_expr(aliased, ctx);
-      left  = cgen_unalias_index(alias, left, array, ctx);
-      right = cgen_unalias_index(alias, right, array, ctx);
-      type  = tree_type(aliased);
-      kind  = cgen_array_dir(type, 0, array);*/
+      type = tree_type(aliased);
+      array_reg = lower_expr(aliased, ctx);
+      left_reg  = lower_unalias_index(alias, left_reg, array_reg);
+      right_reg = lower_unalias_index(alias, right_reg, array_reg);
+      kind_reg  = lower_array_dir(type, 0, array_reg);
+   }
+   else {
+      kind_reg = emit_const(vtype_bool(), r.kind);
+      array_reg = lower_expr(value, ctx);
    }
 
-   vcode_reg_t off_reg = lower_array_off(left_reg, array_reg,
-                                         tree_type(value), 0);
-   vcode_reg_t ptr_reg = emit_add(data_reg, off_reg);
+   vcode_reg_t data_reg = lower_array_data(array_reg);
+   vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
+   vcode_reg_t ptr_reg  = emit_add(data_reg, off_reg);
 
    const bool unwrap = lower_is_const(r.left) && lower_is_const(r.right);
 
@@ -1274,7 +1275,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       vcode_dim_t dim0 = {
          .left  = left_reg,
          .right = right_reg,
-         .dir   = emit_const(vtype_bool(), r.kind)
+         .dir   = kind_reg
       };
       return emit_wrap(ptr_reg, &dim0, 1);
    }
