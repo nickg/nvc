@@ -40,7 +40,7 @@ operator2       normal
 array1          normal
 agg1            normal
 agg2            normal
-# case1           normal
+case1           normal
 func5           normal
 # ieee1           normal
 # ieee2           normal,stop=15ns

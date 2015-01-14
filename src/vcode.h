@@ -99,6 +99,7 @@ typedef enum {
    VCODE_OP_NOR,
    VCODE_OP_MEMSET,
    VCODE_OP_VEC_LOAD,
+   VCODE_OP_CASE,
 } vcode_op_t;
 
 typedef enum {
@@ -300,5 +301,7 @@ void emit_resume(ident_t func);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length);
+void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
+               const vcode_block_t *blocks, int ncases);
 
 #endif  // _VCODE_H

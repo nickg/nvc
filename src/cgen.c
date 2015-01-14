@@ -1449,6 +1449,20 @@ static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildPointerCast(builder, raw, LLVMTypeOf(tmp), "");
 }
 
+static void cgen_op_case(int op, cgen_ctx_t *ctx)
+{
+   const int num_cases = vcode_count_args(op) - 1;
+
+   LLVMBasicBlockRef else_bb = ctx->blocks[vcode_get_target(op, 0)];
+   LLVMValueRef val = cgen_get_arg(op, 0, ctx);
+
+   LLVMValueRef sw = LLVMBuildSwitch(builder, val, else_bb, num_cases);
+
+   for (int i = 0; i < num_cases; i++)
+      LLVMAddCase(sw, cgen_get_arg(op, i + 1, ctx),
+                  ctx->blocks[vcode_get_target(op, i + 1)]);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1628,6 +1642,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_VEC_LOAD:
       cgen_op_vec_load(i, ctx);
+      break;
+   case VCODE_OP_CASE:
+      cgen_op_case(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

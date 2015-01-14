@@ -2234,6 +2234,59 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(false_bb);
 }
 
+static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
+{
+   const int nassocs = tree_assocs(stmt);
+
+   vcode_block_t start_bb = vcode_active_block();
+   vcode_block_t def_bb = VCODE_INVALID_BLOCK;
+
+   vcode_block_t *blocks LOCAL = xcalloc(nassocs * sizeof(vcode_block_t));
+   vcode_reg_t *cases LOCAL = xcalloc(nassocs * sizeof(vcode_reg_t));
+
+   int ncases = 0;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(stmt, i);
+      blocks[i] = emit_block();
+
+      if (tree_subkind(a) == A_OTHERS)
+         def_bb = blocks[i];
+      else {
+         vcode_select_block(start_bb);
+         cases[i] = lower_reify_expr(tree_name(a));
+         ncases++;
+      }
+
+      vcode_select_block(blocks[i]);
+      lower_stmt(tree_value(a), loops);
+
+      blocks[i] = vcode_active_block();
+   }
+
+   vcode_block_t exit_bb = emit_block();
+   if (def_bb == VCODE_INVALID_BLOCK)
+      def_bb = exit_bb;
+
+   for (int i = 0; i < nassocs; i++) {
+      vcode_select_block(blocks[i]);
+      if (!vcode_block_finished())
+         emit_jump(exit_bb);
+   }
+
+   vcode_select_block(start_bb);
+   vcode_reg_t value_reg = lower_reify_expr(tree_value(stmt));
+   emit_case(value_reg, def_bb, cases, blocks, ncases);
+
+   vcode_select_block(exit_bb);
+}
+
+static void lower_case(tree_t stmt, loop_stack_t *loops)
+{
+   assert(type_is_scalar(tree_type(tree_value(stmt))));
+
+   lower_case_scalar(stmt, loops);
+}
+
 static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
    switch (tree_kind(stmt)) {
@@ -2267,6 +2320,9 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    case T_EXIT:
    case T_NEXT:
       lower_loop_control(stmt, loops);
+      break;
+   case T_CASE:
+      lower_case(stmt, loops);
       break;
    default:
       fatal_at(tree_loc(stmt), "cannot lower statement kind %s",

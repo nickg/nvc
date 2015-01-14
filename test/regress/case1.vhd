@@ -8,6 +8,7 @@ begin
         variable x : integer;
     begin
         x := 5;
+        wait for 1 ns;
         case x is
             when 1 =>
                 assert false;
@@ -18,5 +19,5 @@ begin
         end case;
         wait;
     end process;
-    
+
 end architecture;

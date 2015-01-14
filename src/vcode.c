@@ -593,7 +593,7 @@ vcode_block_t vcode_get_target(int op, int nth)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
           || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PHI
-          || o->kind == VCODE_OP_PCALL);
+          || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_CASE);
    return vcode_block_array_nth(&(o->targets), nth);
 }
 
@@ -617,7 +617,7 @@ bool vcode_block_finished(void)
       vcode_op_t kind = b->ops.items[b->ops.count - 1].kind;
       return kind == VCODE_OP_WAIT || kind == VCODE_OP_JUMP
          || kind == VCODE_OP_COND || kind == VCODE_OP_PCALL
-         || kind == VCODE_OP_RETURN;
+         || kind == VCODE_OP_RETURN || kind == VCODE_OP_CASE;
    }
 }
 
@@ -633,7 +633,7 @@ const char *vcode_op_string(vcode_op_t op)
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
-      "memset", "vec load"
+      "memset", "vec load", "case"
    };
    if (op >= ARRAY_LEN(strs))
       return "???";
@@ -1404,6 +1404,19 @@ void vcode_dump(void)
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_CASE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               color_printf(" default $yellow$%d$$", op->targets.items[0]);
+               for (int i = 1; i < op->args.count; i++) {
+                  printf(" [");
+                  vcode_dump_reg(op->args.items[i]);
+                  color_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
             }
             break;
@@ -3102,4 +3115,24 @@ vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length)
    vcode_reg_data(op->result)->bounds = base_type;
 
    return op->result;
+}
+
+void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
+               const vcode_block_t *blocks, int ncases)
+{
+   for (int i = 0; i < ncases; i++) {
+      if (cases[i] == value) {
+         emit_jump(blocks[i]);
+         return;
+      }
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_CASE);
+   vcode_add_arg(op, value);
+   vcode_add_target(op, def);
+
+   for (int i = 0; i < ncases; i++) {
+      vcode_add_arg(op, cases[i]);
+      vcode_add_target(op, blocks[i]);
+   }
 }
