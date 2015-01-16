@@ -235,7 +235,7 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs);
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, uint32_t index);
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs);

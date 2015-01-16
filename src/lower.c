@@ -806,7 +806,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "sub"))
       return emit_sub(r0, r1);
    else if (icmp(builtin, "div"))
-      return emit_div(r0, r1);
+      return emit_div(r0, r1, tree_index(fcall));
    else if (icmp(builtin, "exp"))
       return emit_exp(r0, r1);
    else if (icmp(builtin, "mod"))

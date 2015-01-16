@@ -83,7 +83,7 @@ proc3           normal
 # shared1         normal
 # proc5           normal
 # proc6           normal
-# assert2         normal,gold
+assert2         normal,gold
 # concat3         normal
 # const2          normal
 # func7           normal
@@ -121,7 +121,7 @@ issue9          normal
 elab6           normal
 # elab7           normal
 # bounds7         gold,fail
-# arith2          gold,fail
+arith2          gold,fail
 # attr5           normal
 # attr6           normal
 # elab8           normal

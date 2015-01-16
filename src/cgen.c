@@ -730,10 +730,41 @@ static void cgen_op_mul(int op, cgen_ctx_t *ctx)
 static void cgen_op_div(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildSDiv(builder,
-                                     cgen_get_arg(op, 0, ctx),
-                                     cgen_get_arg(op, 1, ctx),
-                                     cgen_reg_name(result));
+
+   //const bool is_real = vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_REAL;
+   const bool is_real = false;
+
+   if (is_real)
+      assert(false);
+   else {
+      LLVMBasicBlockRef zero_bb = LLVMAppendBasicBlock(ctx->fn, "div_zero");
+      LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "div_ok");
+
+      LLVMValueRef denom = cgen_get_arg(op, 1, ctx);
+
+      LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(denom), 0, false);
+      LLVMValueRef div_by_zero =
+         LLVMBuildICmp(builder, LLVMIntEQ, denom, zero, "div0");
+
+      LLVMBuildCondBr(builder, div_by_zero, zero_bb, ok_bb);
+
+      LLVMPositionBuilderAtEnd(builder, zero_bb);
+
+      LLVMValueRef args[] = {
+         llvm_int32(vcode_get_index(op)),
+         LLVMBuildPointerCast(builder, mod_name,
+                              LLVMPointerType(LLVMInt8Type(), 0), "")
+      };
+      LLVMBuildCall(builder, llvm_fn("_div_zero"), args, ARRAY_LEN(args), "");
+      LLVMBuildUnreachable(builder);
+
+      LLVMPositionBuilderAtEnd(builder, ok_bb);
+
+      ctx->regs[result] = LLVMBuildSDiv(builder,
+                                        cgen_get_arg(op, 0, ctx),
+                                        denom,
+                                        cgen_reg_name(result));
+   }
 }
 
 static void cgen_op_rem(int op, cgen_ctx_t *ctx)

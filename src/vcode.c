@@ -584,7 +584,8 @@ uint32_t vcode_get_index(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
-          || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL);
+          || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_DIV);
    return o->index;
 }
 
@@ -2288,7 +2289,8 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    }
 }
 
-static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
+static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
+                              uint32_t index)
 {
    // Reuse any previous operation in this block with the same arguments
    op_t *other = NULL;
@@ -2302,6 +2304,7 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs)
    vcode_add_arg(op, lhs);
    vcode_add_arg(op, rhs);
    op->result = vcode_add_reg(vcode_reg_type(lhs));
+   op->index = index;
 
    vcode_type_t lhs_type = vcode_reg_type(lhs);
    vcode_type_t rhs_type = vcode_reg_type(rhs);
@@ -2325,7 +2328,7 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), lconst * rconst);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_MUL, lhs, rhs, UINT32_MAX);
 
    vtype_t *bl = vcode_type_data(vcode_reg_data(lhs)->bounds);
    vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
@@ -2344,13 +2347,13 @@ vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs)
+vcode_reg_t emit_div(vcode_reg_t lhs, vcode_reg_t rhs, uint32_t index)
 {
    int64_t lconst, rconst;
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), lconst / rconst);
 
-   return emit_arith(VCODE_OP_DIV, lhs, rhs);
+   return emit_arith(VCODE_OP_DIV, lhs, rhs, index);
 }
 
 vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -2359,7 +2362,7 @@ vcode_reg_t emit_exp(vcode_reg_t lhs, vcode_reg_t rhs)
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), ipow(lconst, rconst));
 
-   return emit_arith(VCODE_OP_EXP, lhs, rhs);
+   return emit_arith(VCODE_OP_EXP, lhs, rhs, UINT32_MAX);
 }
 
 vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -2369,7 +2372,7 @@ vcode_reg_t emit_mod(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   return emit_arith(VCODE_OP_MOD, lhs, rhs);
+   return emit_arith(VCODE_OP_MOD, lhs, rhs, UINT32_MAX);
 }
 
 vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -2379,7 +2382,7 @@ vcode_reg_t emit_rem(vcode_reg_t lhs, vcode_reg_t rhs)
        && lconst > 0 && rconst > 0)
       return emit_const(vcode_reg_type(lhs), lconst % rconst);
 
-   return emit_arith(VCODE_OP_REM, lhs, rhs);
+   return emit_arith(VCODE_OP_REM, lhs, rhs, UINT32_MAX);
 }
 
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
@@ -2394,7 +2397,7 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
    else if (is_pointer && vcode_reg_const(rhs, &rconst) && rconst == 0)
       return lhs;
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs, UINT32_MAX);
 
    reg_t *rr = vcode_reg_data(reg);
    if (is_pointer)
@@ -2416,7 +2419,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
       return emit_const(vcode_reg_type(lhs), lconst - rconst);
 
-   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs);
+   vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, UINT32_MAX);
 
    reg_t *rr = vcode_reg_data(reg);
    if (vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_POINTER)
@@ -2726,7 +2729,7 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
       }
    }
 
-   vcode_reg_t result = emit_arith(op, lhs, rhs);
+   vcode_reg_t result = emit_arith(op, lhs, rhs, UINT32_MAX);
 
    if (!vtype_eq(vcode_reg_type(lhs), vtbool)
        || !vtype_eq(vcode_reg_type(rhs), vtbool))
