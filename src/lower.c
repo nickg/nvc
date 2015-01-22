@@ -24,11 +24,17 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <string.h>
 
 typedef enum {
    EXPR_LVALUE,
    EXPR_RVALUE
 } expr_ctx_t;
+
+typedef enum {
+   PATH_NAME,
+   INSTANCE_NAME
+} name_attr_t;
 
 typedef struct loop_stack loop_stack_t;
 
@@ -713,18 +719,57 @@ static vcode_reg_t lower_min_max(vcode_cmp_t cmp, tree_t fcall)
    return result;
 }
 
+static vcode_reg_t lower_name_attr(tree_t ref, type_t type, name_attr_t which)
+{
+   tree_t decl = tree_ref(ref);
+
+   ident_t i = NULL;
+   ident_t instance = tree_attr_str(decl, ident_new("INSTANCE_NAME"));
+   if (instance == NULL) {
+      // Assume this is a package not an elaborated design
+      i = ident_new(package_signal_path_name(tree_ident(decl)));
+   }
+   else {
+      switch (which) {
+      case PATH_NAME:
+         i = tree_ident(decl);
+         break;
+      case INSTANCE_NAME:
+         i = instance;
+         break;
+      }
+   }
+
+   const char *str = istr(i);
+   const size_t len = strlen(str);
+   vcode_reg_t chars[len + 1];
+   vcode_type_t ctype = vtype_int(0, 255);
+
+   for (int j = 0; j < len; j++)
+      chars[j] = emit_const(ctype, str[j]);
+
+   vcode_reg_t data = emit_const_array(vtype_pointer(ctype), chars, len, true);
+
+   vcode_dim_t dim0 = {
+      .left  = emit_const(vtype_offset(), 1),
+      .right = emit_const(vtype_offset(), len),
+      .dir   = emit_const(vtype_bool(), RANGE_TO)
+   };
+   return emit_wrap(data, &dim0, 1);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
+   tree_t p0 = tree_value(tree_param(fcall, 0));
+
    if (icmp(builtin, "event"))
-      return lower_signal_flag(tree_value(tree_param(fcall, 0)),
-                               emit_event_flag);
+      return lower_signal_flag(p0, emit_event_flag);
    else if (icmp(builtin, "active"))
-      return lower_signal_flag(tree_value(tree_param(fcall, 0)),
-                               emit_active_flag);
+      return lower_signal_flag(p0, emit_active_flag);
    else if (icmp(builtin, "left") || icmp(builtin, "right")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
-      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      int64_t dim = assume_int(p0) - 1;
       const bool left = icmp(builtin, "left");
       vcode_reg_t reg = VCODE_INVALID_REG;
       if (lower_const_bounds(type)) {
@@ -741,7 +786,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "low") || icmp(builtin, "high")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
-      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      int64_t dim = assume_int(p0) - 1;
       const bool low = icmp(builtin, "low");
       vcode_reg_t reg = VCODE_INVALID_REG;
       if (lower_const_bounds(type)) {
@@ -767,14 +812,14 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "ascending")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
-      int64_t dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      int64_t dim = assume_int(p0) - 1;
       if (lower_const_bounds(type))
          return emit_const(vtype_bool(), type_dim(type, dim).kind == RANGE_TO);
       else
          return emit_not(lower_array_dir(type, dim, lower_reify_expr(array)));
    }
    else if (icmp(builtin, "length")) {
-      const int dim = assume_int(tree_value(tree_param(fcall, 0))) - 1;
+      const int dim = assume_int(p0) - 1;
       return emit_cast(lower_type(tree_type(fcall)),
                        lower_array_len(lower_arg_type(fcall, 1), dim,
                                        lower_subprogram_arg(fcall, 1)));
@@ -783,6 +828,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_min_max(VCODE_CMP_GT, fcall);
    else if (icmp(builtin, "min"))
       return lower_min_max(VCODE_CMP_LT, fcall);
+   else if (icmp(builtin, "instance_name"))
+      return lower_name_attr(p0, tree_type(fcall), INSTANCE_NAME);
+   else if (icmp(builtin, "path_name"))
+      return lower_name_attr(p0, tree_type(fcall), PATH_NAME);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -834,7 +883,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "nor"))
       return emit_nor(r0, r1);
    else if (icmp(builtin, "image"))
-      return emit_image(r0, tree_index(tree_value(tree_param(fcall, 0))));
+      return emit_image(r0, tree_index(p0));
    else if (icmp(builtin, "aeq"))
       return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
                              lower_arg_type(fcall, 1), VCODE_CMP_EQ);

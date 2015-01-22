@@ -948,6 +948,8 @@ void vcode_dump(void)
                if (op->args.items[2] != VCODE_INVALID_REG) {
                   printf(" report ");
                   vcode_dump_reg(op->args.items[2]);
+                  printf(" length ");
+                  vcode_dump_reg(op->args.items[3]);
                }
                printf(" severity ");
                vcode_dump_reg(op->args.items[1]);
@@ -958,6 +960,8 @@ void vcode_dump(void)
             {
                printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[1]);
+               printf(" length ");
+               vcode_dump_reg(op->args.items[2]);
                printf(" severity ");
                vcode_dump_reg(op->args.items[0]);
             }
@@ -2070,7 +2074,8 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
 
-   if (vtype_kind(type) != VCODE_TYPE_CARRAY) {
+   vtype_kind_t kind = vtype_kind(type);
+   if (kind != VCODE_TYPE_CARRAY && (!allocate || kind != VCODE_TYPE_POINTER)) {
       vcode_dump();
       fatal_trace("constant array must have constrained array type");
    }
@@ -2807,7 +2812,8 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 }
 
 static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
-                                  vcode_reg_t array, unsigned dim)
+                                  vcode_reg_t array, unsigned dim,
+                                  unsigned arg_index)
 {
    // Reuse any previous operation in this block with the same arguments
    op_t *other = NULL;
@@ -2816,6 +2822,12 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
           && (rtype == VCODE_INVALID_TYPE
               || vtype_eq(rtype, vcode_reg_type(other->result))))
          return other->result;
+   }
+
+   other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_WRAP, &other)) {
+      if (other->result == array)
+         return other->args.items[1 + (dim * 3) + arg_index];
    }
 
    op_t *op = vcode_add_op(o);
@@ -2838,21 +2850,30 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
 
 vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim)
 {
-   return emit_uarray_op(VCODE_OP_UARRAY_LEFT, VCODE_INVALID_TYPE, array, dim);
+   return emit_uarray_op(VCODE_OP_UARRAY_LEFT, VCODE_INVALID_TYPE,
+                         array, dim, 0);
 }
 
 vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim)
 {
-   return emit_uarray_op(VCODE_OP_UARRAY_RIGHT, VCODE_INVALID_TYPE, array, dim);
+   return emit_uarray_op(VCODE_OP_UARRAY_RIGHT, VCODE_INVALID_TYPE,
+                         array, dim, 1);
 }
 
 vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
 {
-   return emit_uarray_op(VCODE_OP_UARRAY_DIR, vtype_bool(), array, dim);
+   return emit_uarray_op(VCODE_OP_UARRAY_DIR, vtype_bool(),
+                         array, dim, 2);
 }
 
 vcode_reg_t emit_unwrap(vcode_reg_t array)
 {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_WRAP, &other)) {
+      if (other->result == array)
+         return other->args.items[0];
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_UNWRAP);
    vcode_add_arg(op, array);
 

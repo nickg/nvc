@@ -55,12 +55,12 @@ proc2           normal
 operator3       normal
 # agg4            normal
 # ieee3           normal
-# default1        normal
+default1        normal
 generic1        normal
 # signal7         normal
 # synopsys1       normal
 block1          normal
-# elab3           normal,gold
+elab3           normal,gold
 # func6           normal
 # case2           normal
 # case3           normal
@@ -70,7 +70,7 @@ elab5           normal
 # signal8         normal
 # ram1            normal
 # wait7           normal
-# const1          normal
+const1          normal
 # driver1         normal
 # driver2         normal
 delay1          normal
@@ -112,10 +112,10 @@ issue9          normal
 # proc8           normal,gold
 # wait8           normal
 # func11          normal
-# const4          normal
+const4          normal
 # shift1          normal
-# wait9           normal
-# wait10          normal
+wait9           normal
+wait10          normal
 # attr4           normal
 # bounds6         gold,fail
 elab6           normal
@@ -241,7 +241,7 @@ vhpi2           normal,vhpi
 # protected1      normal,2000
 # protected2      normal,2000
 # slice3          normal
-# alias9          normal
+alias9          normal
 # issue79         normal
 # issue84         normal,2000
 # issue82         normal
