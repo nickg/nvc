@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -134,6 +134,7 @@ bool type_is_enum(type_t t);
 bool type_is_integer(type_t t);
 bool type_is_real(type_t t);
 bool type_is_scalar(type_t t);
+bool type_is_file(type_t t);
 bool type_is_protected(type_t t);
 bool type_is_access(type_t t);
 

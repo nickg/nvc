@@ -213,6 +213,9 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_SIGNAL:
       return LLVMPointerType(cgen_net_id_type(), 0);
 
+   case VCODE_TYPE_FILE:
+      return llvm_void_ptr();
+
    default:
       fatal("cannot convert vcode type %d to LLVM", vtype_kind(type));
    }
@@ -1494,6 +1497,85 @@ static void cgen_op_case(int op, cgen_ctx_t *ctx)
                   ctx->blocks[vcode_get_target(op, i + 1)]);
 }
 
+static void cgen_op_file_open(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef file   = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef name   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef length = cgen_get_arg(op, 2, ctx);
+   LLVMValueRef kind   = cgen_get_arg(op, 3, ctx);
+
+   LLVMValueRef status = NULL;
+   if (vcode_count_args(op) == 5)
+      status = cgen_get_arg(op, 4, ctx);
+   else
+      status = LLVMConstNull(LLVMPointerType(LLVMInt8Type(), 0));
+
+   LLVMValueRef args[] = { status, file, name, length, kind };
+   LLVMBuildCall(builder, llvm_fn("_file_open"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_file_write(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef file  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef value = cgen_pointer_to_arg_data(op, 1, ctx);
+
+   LLVMTypeRef value_type = LLVMTypeOf(cgen_get_arg(op, 1, ctx));
+   LLVMValueRef bytes = LLVMBuildIntCast(builder,
+                                         LLVMSizeOf(value_type),
+                                         LLVMInt32Type(), "");
+
+
+   LLVMValueRef length = bytes;
+   if (vcode_count_args(op) == 3)
+      length = LLVMBuildMul(builder, cgen_get_arg(op, 2, ctx), bytes, "");
+
+   LLVMValueRef args[] = { file, llvm_void_cast(value), length };
+   LLVMBuildCall(builder, llvm_fn("_file_write"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_file_close(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef file = cgen_get_arg(op, 0, ctx);
+
+   LLVMValueRef args[] = { file };
+   LLVMBuildCall(builder, llvm_fn("_file_close"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef file = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef ptr  = cgen_get_arg(op, 1, ctx);
+
+   LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(ptr));
+   LLVMValueRef bytes = LLVMBuildIntCast(builder,
+                                         LLVMSizeOf(value_type),
+                                         LLVMInt32Type(), "");
+
+   LLVMValueRef inlen = bytes;
+   if (vcode_count_args(op) >= 3)
+      inlen = LLVMBuildMul(builder, cgen_get_arg(op, 2, ctx), bytes, "");
+
+   LLVMValueRef outlen;
+   if (vcode_count_args(op) >= 4)
+      outlen = LLVMBuildMul(builder, cgen_get_arg(op, 3, ctx), bytes, "");
+   else
+      outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
+
+   LLVMValueRef args[] = { file, llvm_void_cast(ptr), inlen, outlen };
+   LLVMBuildCall(builder, llvm_fn("_file_read"), args, ARRAY_LEN(args), "");
+}
+
+static void cgen_op_endfile(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef file = cgen_get_arg(op, 0, ctx);
+
+   vcode_reg_t result = vcode_get_result(op);
+
+   LLVMValueRef args[] = { file };
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_endfile"), args,
+                                     ARRAY_LEN(args), cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1676,6 +1758,21 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CASE:
       cgen_op_case(i, ctx);
+      break;
+   case VCODE_OP_FILE_OPEN:
+      cgen_op_file_open(i, ctx);
+      break;
+   case VCODE_OP_FILE_WRITE:
+      cgen_op_file_write(i, ctx);
+      break;
+   case VCODE_OP_FILE_CLOSE:
+      cgen_op_file_close(i, ctx);
+      break;
+   case VCODE_OP_FILE_READ:
+      cgen_op_file_read(i, ctx);
+      break;
+   case VCODE_OP_ENDFILE:
+      cgen_op_endfile(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

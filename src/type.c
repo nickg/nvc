@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -641,6 +641,15 @@ bool type_is_protected(type_t t)
       return type_is_protected(type_base(t));
    else
       return (t->object.kind == T_PROTECTED);
+}
+
+bool type_is_file(type_t t)
+{
+   assert(t != NULL);
+   if (t->object.kind == T_SUBTYPE)
+      return type_is_file(type_base(t));
+   else
+      return (t->object.kind == T_FILE);
 }
 
 bool type_is_access(type_t t)

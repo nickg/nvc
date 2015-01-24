@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -370,7 +370,7 @@ void vcode_opt(void)
                else if (uses[o->result] == 0) {
                   o->comment = xasprintf("Dead %s definition of r%d",
                                          vcode_op_string(o->kind), o->result);
-                  o->kind  = VCODE_OP_COMMENT;
+                  o->kind = VCODE_OP_COMMENT;
                   vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
                   pruned++;
                }
@@ -634,9 +634,10 @@ const char *vcode_op_string(vcode_op_t op)
       "nested fcall", "param upref", "resolved address", "set initial",
       "alloc driver", "event", "active", "const record", "record ref", "copy",
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
-      "memset", "vec load", "case"
+      "memset", "vec load", "case", "endfile", "file open", "file write",
+      "file close", "file read"
    };
-   if (op >= ARRAY_LEN(strs))
+   if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
    else
       return strs[op];
@@ -737,6 +738,12 @@ static void vcode_dump_one_type(vcode_type_t type)
          }
          printf("}");
       }
+      break;
+
+   case VCODE_TYPE_FILE:
+      printf("F<");
+      vcode_dump_one_type(vt->base);
+      printf(">");
       break;
    }
 }
@@ -1425,6 +1432,68 @@ void vcode_dump(void)
                }
             }
             break;
+
+         case VCODE_OP_ENDFILE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_FILE_OPEN:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" name ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" length ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" kind ");
+               vcode_dump_reg(op->args.items[3]);
+               if (op->args.count == 5) {
+                  printf(" status ");
+                  vcode_dump_reg(op->args.items[4]);
+               }
+            }
+            break;
+
+         case VCODE_OP_FILE_CLOSE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_FILE_WRITE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" value ");
+               vcode_dump_reg(op->args.items[1]);
+               if (op->args.count == 3) {
+                  printf(" length ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
+            }
+            break;
+
+         case VCODE_OP_FILE_READ:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" ptr ");
+               vcode_dump_reg(op->args.items[1]);
+               if (op->args.count == 3) {
+                  printf(" length ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
+            }
+            break;
          }
 
          printf("\n");
@@ -1475,6 +1544,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
          case VCODE_TYPE_OFFSET:
             return true;
          case VCODE_TYPE_SIGNAL:
+         case VCODE_TYPE_FILE:
             return vtype_eq(at->base, bt->base);
          case VCODE_TYPE_RECORD:
             {
@@ -1516,6 +1586,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
 
    case VCODE_TYPE_POINTER:
    case VCODE_TYPE_OFFSET:
+   case VCODE_TYPE_FILE:
       return false;
 
    case VCODE_TYPE_SIGNAL:
@@ -1625,6 +1696,17 @@ vcode_type_t vtype_signal(vcode_type_t base)
    return vtype_new(n);
 }
 
+vcode_type_t vtype_file(vcode_type_t base)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_FILE;
+   n->base = base;
+
+   return vtype_new(n);
+}
+
 vcode_type_t vtype_offset(void)
 {
    assert(active_unit != NULL);
@@ -1653,7 +1735,7 @@ vcode_type_t vtype_elem(vcode_type_t type)
 vcode_type_t vtype_base(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_SIGNAL);
+   assert(vt->kind == VCODE_TYPE_SIGNAL || vt->kind == VCODE_TYPE_FILE);
    return vt->base;
 }
 
@@ -1711,6 +1793,12 @@ int64_t vtype_high(vcode_type_t type)
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_INT);
    return vt->high;
+}
+
+static bool vtype_is_pointer(vcode_type_t type, vtype_kind_t to)
+{
+   return vtype_kind(type) == VCODE_TYPE_POINTER
+      && vtype_kind(vtype_pointed(type)) == to;
 }
 
 int vcode_count_params(void)
@@ -2212,7 +2300,8 @@ vcode_reg_t emit_load(vcode_var_t var)
 
    vtype_kind_t type_kind = vtype_kind(v->type);
    if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER) {
+       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER
+       && type_kind != VCODE_TYPE_FILE) {
       vcode_dump();
       fatal_trace("cannot load non-scalar type");
    }
@@ -2257,8 +2346,8 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
    for (int i = 0; i < b->ops.count; i++) {
       op_t *op = &(b->ops.items[i]);
       if (op->kind == VCODE_OP_STORE && op->address == var) {
-         b->ops.count--;
-         memmove(op, op + 1, sizeof(op_t) * (b->ops.count - i));
+         op->kind = VCODE_OP_COMMENT;
+         op->comment = xasprintf("Dead store to %s", istr(vcode_var_name(var)));
       }
    }
 
@@ -2488,6 +2577,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       break;
 
    case VCODE_TYPE_INT:
+   case VCODE_TYPE_FILE:
       op->type = vtype_pointer(typeref);
       op->result = vcode_add_reg(op->type);
       break;
@@ -3159,4 +3249,72 @@ void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
       vcode_add_arg(op, cases[i]);
       vcode_add_target(op, blocks[i]);
    }
+}
+
+vcode_reg_t emit_endfile(vcode_reg_t file)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ENDFILE);
+   vcode_add_arg(op, file);
+
+   if (vtype_kind(vcode_reg_type(file)) != VCODE_TYPE_FILE)
+      vcode_fail("endfile argument must have file type");
+
+   return (op->result = vcode_add_reg(vtype_bool()));
+}
+
+void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
+                    vcode_reg_t kind, vcode_reg_t status)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FILE_OPEN);
+   vcode_add_arg(op, file);
+   vcode_add_arg(op, name);
+   vcode_add_arg(op, length);
+   vcode_add_arg(op, kind);
+   if (status != VCODE_INVALID_REG)
+      vcode_add_arg(op, status);
+
+   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
+      vcode_fail("file open first argument must have file pointer type");
+}
+
+void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FILE_WRITE);
+   vcode_add_arg(op, file);
+   vcode_add_arg(op, value);
+   if (length != VCODE_INVALID_REG)
+      vcode_add_arg(op, length);
+
+   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
+      vcode_fail("file write first argument must have file pointer type");
+}
+
+void emit_file_close(vcode_reg_t file)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FILE_CLOSE);
+   vcode_add_arg(op, file);
+
+   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
+      vcode_fail("file close argument must have file pointer type");
+}
+
+void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
+                    vcode_reg_t inlen, vcode_reg_t outlen)
+{
+   op_t *op = vcode_add_op(VCODE_OP_FILE_READ);
+   vcode_add_arg(op, file);
+   vcode_add_arg(op, ptr);
+   if (inlen != VCODE_INVALID_REG) {
+      vcode_add_arg(op, inlen);
+      if (outlen != VCODE_INVALID_REG)
+         vcode_add_arg(op, outlen);
+   }
+
+   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
+      vcode_fail("file read first argument must have file pointer type");
+   else if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_POINTER)
+      vcode_fail("file read pointer argument must have pointer type");
+   else if (outlen != VCODE_INVALID_REG
+            && vtype_kind(vcode_reg_type(outlen)) != VCODE_TYPE_POINTER)
+      vcode_fail("file read outlen argument must have pointer type");
 }

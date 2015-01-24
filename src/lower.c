@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -345,6 +345,9 @@ static vcode_type_t lower_type(type_t type)
          return vtype_record(fields, nfields);
       }
 
+   case T_FILE:
+      return vtype_file(lower_type(type_file(type)));
+
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
    }
@@ -399,12 +402,19 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    tree_t value = tree_value(param);
    type_t value_type = tree_type(value);
 
-   if (tree_attr_str(tree_ref(fcall), builtin_i))
-      return type_is_scalar(value_type)
-         ? lower_reify_expr(value)
-         : lower_expr(value, EXPR_RVALUE);
+   tree_t decl = tree_ref(fcall);
 
-   tree_t port = tree_port(tree_ref(fcall), nth);
+   if (tree_attr_str(decl, builtin_i)) {
+      port_mode_t mode = PORT_IN;
+      if (nth < tree_ports(decl))
+         mode = tree_subkind(tree_port(decl, nth));
+
+      return type_is_scalar(value_type) && mode == PORT_IN
+         ? lower_reify_expr(value)
+         : lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
+   }
+
+   tree_t port = tree_port(decl, nth);
    type_t port_type = tree_type(port);
    const port_mode_t mode = tree_subkind(port);
 
@@ -920,6 +930,47 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_record_eq(r0, r1, lower_arg_type(fcall, 0));
    else if (icmp(builtin, "rneq"))
       return emit_not(lower_record_eq(r0, r1, lower_arg_type(fcall, 0)));
+   else if (icmp(builtin, "endfile"))
+      return emit_endfile(r0);
+   else if (icmp(builtin, "file_open1")) {
+      vcode_reg_t name   = lower_array_data(r1);
+      vcode_reg_t length = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      emit_file_open(r0, name, length, lower_subprogram_arg(fcall, 2),
+                     VCODE_INVALID_REG);
+      return VCODE_INVALID_REG;
+   }
+   else if (icmp(builtin, "file_open2")) {
+      vcode_reg_t r2     = lower_subprogram_arg(fcall, 2);
+      vcode_reg_t name   = lower_array_data(r2);
+      vcode_reg_t length = lower_array_len(lower_arg_type(fcall, 2), 0, r2);
+      emit_file_open(r1, name, length, lower_subprogram_arg(fcall, 3), r0);
+      return VCODE_INVALID_REG;
+   }
+   else if (icmp(builtin, "file_write")) {
+      vcode_reg_t length = VCODE_INVALID_REG;
+      type_t arg1type = lower_arg_type(fcall, 1);
+      if (type_is_array(arg1type))
+         length = lower_array_len(arg1type, 0, r1);
+      emit_file_write(r0, r1, length);
+      return VCODE_INVALID_REG;
+   }
+   else if (icmp(builtin, "file_close")) {
+      emit_file_close(r0);
+      return VCODE_INVALID_REG;
+   }
+   else if (icmp(builtin, "file_read")) {
+      vcode_reg_t inlen = VCODE_INVALID_REG;
+      type_t arg1type = lower_arg_type(fcall, 1);
+      if (type_is_array(arg1type))
+         inlen = lower_array_len(arg1type, 0, r1);
+
+      vcode_reg_t outlen = VCODE_INVALID_REG;
+      if (tree_params(fcall) == 3)
+         outlen = lower_subprogram_arg(fcall, 2);
+
+      emit_file_read(r0, r1, inlen, outlen);
+      return VCODE_INVALID_REG;
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -1022,7 +1073,7 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type))
       return emit_index(var, VCODE_INVALID_REG);
-   else if (type_is_scalar(type) && ctx == EXPR_LVALUE)
+   else if ((type_is_scalar(type) || type_is_file(type)) && ctx == EXPR_LVALUE)
       return emit_index(var, VCODE_INVALID_REG);
    else
       return emit_load(var);
@@ -1108,6 +1159,7 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return emit_const(lower_type(tree_type(decl)), tree_pos(decl));
 
    case T_VAR_DECL:
+   case T_FILE_DECL:
       return lower_var_ref(decl, ctx);
 
    case T_PORT_DECL:
@@ -2190,6 +2242,13 @@ static void lower_return(tree_t stmt)
 static void lower_pcall(tree_t pcall)
 {
    tree_t decl = tree_ref(pcall);
+
+   ident_t builtin = tree_attr_str(decl, builtin_i);
+   if (builtin != NULL) {
+      lower_builtin(pcall, builtin);
+      return;
+   }
+
    ident_t name = lower_mangle_func(decl);
 
    const int nargs = tree_params(pcall);
@@ -2414,6 +2473,7 @@ static void lower_decl(tree_t decl)
          }
       }
       break;
+
    case T_SIGNAL_DECL:
       {
          type_t type = tree_type(decl);
@@ -2454,10 +2514,22 @@ static void lower_decl(tree_t decl)
             emit_resolved_address(shadow, sig);
       }
       break;
+
+   case T_FILE_DECL:
+      {
+         type_t type = tree_type(decl);
+         vcode_type_t vtype = lower_type(type);
+         vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl));
+         tree_add_attr_int(decl, vcode_obj_i, var);
+
+      }
+      break;
+
    case T_TYPE_DECL:
    case T_HIER:
    case T_ALIAS:
       break;
+
    default:
       fatal_at(tree_loc(decl), "cannot lower decl kind %s",
                tree_kind_str(tree_kind(decl)));

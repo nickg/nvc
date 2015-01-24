@@ -100,6 +100,11 @@ typedef enum {
    VCODE_OP_MEMSET,
    VCODE_OP_VEC_LOAD,
    VCODE_OP_CASE,
+   VCODE_OP_ENDFILE,
+   VCODE_OP_FILE_OPEN,
+   VCODE_OP_FILE_WRITE,
+   VCODE_OP_FILE_CLOSE,
+   VCODE_OP_FILE_READ,
 } vcode_op_t;
 
 typedef enum {
@@ -109,7 +114,8 @@ typedef enum {
    VCODE_TYPE_OFFSET,
    VCODE_TYPE_SIGNAL,
    VCODE_TYPE_UARRAY,
-   VCODE_TYPE_RECORD
+   VCODE_TYPE_RECORD,
+   VCODE_TYPE_FILE,
 } vtype_kind_t;
 
 typedef enum {
@@ -142,6 +148,7 @@ vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
 vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields);
+vcode_type_t vtype_file(vcode_type_t base);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
 vtype_kind_t vtype_kind(vcode_type_t type);
@@ -303,5 +310,12 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);
+vcode_reg_t emit_endfile(vcode_reg_t file);
+void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
+                    vcode_reg_t kind, vcode_reg_t status);
+void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length);
+void emit_file_close(vcode_reg_t file);
+void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
+                    vcode_reg_t inlen, vcode_reg_t outlen);
 
 #endif  // _VCODE_H
