@@ -78,7 +78,7 @@ record1         normal
 proc3           normal
 # access1         normal,gold
 # proc4           normal
-# file1           normal
+file1           normal
 # real1           normal,gold
 # shared1         normal
 # proc5           normal
@@ -228,7 +228,7 @@ issue56         normal
 # attr11          normal
 # implicit1       normal
 # implicit2       normal
-# file2           normal
+file2           normal
 # case5           gold,fail
 toplevel1       normal
 vhpi1           gold,vhpi

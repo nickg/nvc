@@ -2522,6 +2522,23 @@ static void lower_decl(tree_t decl)
          vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl));
          tree_add_attr_int(decl, vcode_obj_i, var);
 
+         // TODO: set file to NULL here
+
+         if (tree_has_value(decl)) {
+            // Generate initial call to file_open
+
+            tree_t value = tree_value(decl);
+
+            vcode_reg_t name_array = lower_expr(tree_value(decl), EXPR_RVALUE);
+            vcode_reg_t name_data  = lower_array_data(name_array);
+            vcode_reg_t name_len   = lower_array_len(tree_type(value), 0,
+                                                     name_array);
+            vcode_reg_t file_ptr   = emit_index(var, VCODE_INVALID_REG);
+            vcode_reg_t mode       = lower_reify_expr(tree_file_mode(decl));
+
+            emit_file_open(file_ptr, name_data, name_len, mode,
+                           VCODE_INVALID_REG);
+         }
       }
       break;
 
