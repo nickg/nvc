@@ -2545,6 +2545,9 @@ static void lower_decl(tree_t decl)
    case T_TYPE_DECL:
    case T_HIER:
    case T_ALIAS:
+   case T_FUNC_DECL:
+   case T_PROC_DECL:
+   case T_ATTR_SPEC:
       break;
 
    default:
@@ -2989,6 +2992,19 @@ static void lower_pack_body(tree_t unit)
    lower_cleanup(unit);
 }
 
+static void lower_package(tree_t unit)
+{
+   vcode_unit_t context = emit_context(tree_ident(unit));
+   tree_set_code(unit, context);
+
+   lower_decls(unit);
+
+   emit_return(VCODE_INVALID_REG);
+
+   lower_finished();
+   lower_cleanup(unit);
+}
+
 void lower_unit(tree_t unit)
 {
    builtin_i     = ident_new("builtin");
@@ -3009,6 +3025,9 @@ void lower_unit(tree_t unit)
       break;
    case T_PACK_BODY:
       lower_pack_body(unit);
+      break;
+   case T_PACKAGE:
+      lower_package(unit);
       break;
    default:
       fatal("cannot lower unit kind %s to vcode",

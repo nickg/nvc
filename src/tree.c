@@ -64,7 +64,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TARGET | I_ATTRS),
 
    // T_PACKAGE
-   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS),
+   (I_IDENT | I_DECLS | I_CONTEXT | I_ATTRS | I_CODE),
 
    // T_SIGNAL_ASSIGN
    (I_IDENT | I_TARGET | I_WAVES | I_REJECT | I_ATTRS),
