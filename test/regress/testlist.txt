@@ -128,8 +128,8 @@ arith2          gold,fail
 # arith3          normal
 # bounds8         gold,fail
 # bounds9         gold,fail
-# access3         normal
-# access4         normal
+access3         normal
+access4         normal
 # textio1         normal,gold
 # proc9           normal
 # elab9           normal,gold

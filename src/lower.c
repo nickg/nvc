@@ -407,14 +407,6 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
-static vcode_reg_t lower_reify_array(tree_t expr, expr_ctx_t ctx)
-{
-   if (!lower_const_bounds(tree_type(expr)))
-      return lower_reify_expr(expr);
-   else
-      return lower_expr(expr, ctx);
-}
-
 static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 {
    if (nth >= tree_params(fcall))
@@ -1335,7 +1327,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
 
-   vcode_reg_t array = lower_reify_array(value, ctx);
+   vcode_reg_t array = lower_expr(value, ctx);
 
    const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
@@ -1395,7 +1387,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    }
    else {
       kind_reg = emit_const(vtype_bool(), r.kind);
-      array_reg = lower_reify_array(value, ctx);
+      array_reg = lower_expr(value, ctx);
    }
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
@@ -1988,7 +1980,13 @@ static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
 {
    vcode_reg_t access_reg = lower_reify_expr(tree_value(all));
    emit_null_check(access_reg, tree_index(all));
-   return emit_all(access_reg);
+   vcode_reg_t all_reg = emit_all(access_reg);
+
+   type_t type = tree_type(all);
+   if (type_is_array(type) && !lower_const_bounds(type))
+      return lower_reify(all_reg);
+   else
+      return all_reg;
 }
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
