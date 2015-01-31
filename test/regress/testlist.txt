@@ -97,7 +97,7 @@ assert2         normal,gold
 # bounds5         gold,fail
 loop1           normal
 # record2         normal
-# access2         normal
+access2         normal
 # func9           normal
 # record3         normal
 # issue8          normal

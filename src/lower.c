@@ -358,7 +358,13 @@ static vcode_type_t lower_type(type_t type)
       return vtype_file(lower_type(type_file(type)));
 
    case T_ACCESS:
-      return vtype_access(lower_type(type_access(type)));
+      {
+         type_t access = type_access(type);
+         if (type_is_array(access) && lower_const_bounds(access))
+            return vtype_access(lower_type(type_elem(access)));
+         else
+            return vtype_access(lower_type(access));
+      }
 
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
@@ -399,6 +405,14 @@ static vcode_reg_t lower_reify(vcode_reg_t reg)
 static vcode_reg_t lower_reify_expr(tree_t expr)
 {
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
+}
+
+static vcode_reg_t lower_reify_array(tree_t expr, expr_ctx_t ctx)
+{
+   if (!lower_const_bounds(tree_type(expr)))
+      return lower_reify_expr(expr);
+   else
+      return lower_expr(expr, ctx);
 }
 
 static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
@@ -1212,20 +1226,19 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
 {
    // Convert VHDL offset 'off' to a zero-based array offset
 
+   const bool wrapped = vtype_kind(vcode_reg_type(array)) == VCODE_TYPE_UARRAY
+      || type_is_unconstrained(type);
+
    vcode_reg_t zeroed = VCODE_INVALID_REG;
-   if (vtype_kind(vcode_reg_type(array)) == VCODE_TYPE_UARRAY) {
-      vcode_reg_t left_reg = lower_array_left(type, dim, array);
+   if (wrapped) {
+      vcode_reg_t meta_reg = lower_reify(array);
+      vcode_reg_t left_reg = lower_array_left(type, dim, meta_reg);
 
       vcode_reg_t downto = emit_sub(left_reg, off);
       vcode_reg_t upto   = emit_sub(off, left_reg);
-      zeroed = emit_select(emit_uarray_dir(array, dim), downto, upto);
+      zeroed = emit_select(emit_uarray_dir(meta_reg, dim), downto, upto);
    }
    else {
-      if (type_is_unconstrained(type)) {
-         vcode_dump();
-         printf("r%d\n", array);
-      }
-      assert(!type_is_unconstrained(type));
       range_t r = type_dim(type, dim);
       vcode_reg_t left = lower_expr(r.left, EXPR_RVALUE);
       if (r.kind == RANGE_TO)
@@ -1322,7 +1335,7 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 {
    tree_t value = tree_value(ref);
 
-   vcode_reg_t array = lower_expr(value, ctx);
+   vcode_reg_t array = lower_reify_array(value, ctx);
 
    const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
@@ -1382,7 +1395,7 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    }
    else {
       kind_reg = emit_const(vtype_bool(), r.kind);
-      array_reg = lower_expr(value, ctx);
+      array_reg = lower_reify_array(value, ctx);
    }
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
@@ -1931,40 +1944,44 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
 
-   vcode_reg_t length_reg = VCODE_INVALID_REG;
-   type_t elem = type;
    if (type_is_array(type)) {
-      elem = type_elem(type);
-      length_reg = lower_array_total_len(value_type, init_reg);
+      vcode_reg_t length_reg = lower_array_total_len(value_type, init_reg);
+
+      vcode_reg_t mem_reg = emit_new(lower_type(type_elem(type)), length_reg);
+      vcode_reg_t raw_reg = emit_all(mem_reg);
+
+      emit_copy(raw_reg, init_reg, lower_array_len(value_type, 0, init_reg));
+
+      if (!lower_const_bounds(type)) {
+          // Need to allocate memory for both the array and its metadata
+
+         vcode_dim_t dims[1] = {
+            {
+               .left  = lower_array_left(value_type, 0, init_reg),
+               .right = lower_array_right(value_type, 0, init_reg),
+               .dir   = lower_array_dir(value_type, 0, init_reg)
+            }
+         };
+         vcode_reg_t meta_reg = emit_wrap(raw_reg, dims, 1);
+
+         vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
+         emit_store_indirect(meta_reg, emit_all(result_reg));
+         return result_reg;
+      }
+      else
+         return mem_reg;
    }
+   else {
+      vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
+      vcode_reg_t all_reg = emit_all(result_reg);
 
-   vcode_reg_t ptr_reg = emit_new(lower_type(elem), length_reg);
-   vcode_reg_t all_reg = emit_all(ptr_reg);
+      if (type_is_record(type))
+         emit_copy(all_reg, init_reg, emit_const(vtype_offset(), 1));
+      else
+         emit_store_indirect(lower_reify(init_reg), all_reg);
 
-   if (type_is_array(type) && !lower_const_bounds(type)) {
-      // Need to allocate memory for both the array and its metadata
-
-      vcode_dim_t dims[1] = {
-         {
-            .left  = lower_array_left(value_type, 0, init_reg),
-            .right = lower_array_right(value_type, 0, init_reg),
-            .dir   = lower_array_dir(value_type, 0, init_reg)
-         }
-      };
-      vcode_reg_t meta_reg = emit_wrap(ptr_reg, dims, 1);
-
-      (void)meta_reg;
-      //cgen_array_copy(value_type, type, init, meta, NULL, ctx);
-      assert(false);
+      return result_reg;
    }
-   else if (type_is_array(type))
-      emit_copy(all_reg, lower_array_data(init_reg), length_reg);
-   else if (type_is_record(type))
-      emit_copy(all_reg, init_reg, emit_const(vtype_offset(), 1));
-   else
-      emit_store_indirect(lower_reify(init_reg), all_reg);
-
-   return ptr_reg;
 }
 
 static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
@@ -2541,6 +2558,8 @@ static void lower_decl(tree_t decl)
                vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
                emit_copy(dest, value, count);
             }
+            else if (type_is_access(type))
+               emit_store(value, var);
             else {
                emit_bounds(value, vbounds);
                emit_store(value, var);

@@ -1534,8 +1534,8 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s", vcode_op_string(op->kind));
                if (op->args.count == 1) {
-                  printf(" length ");
-                  vcode_dump_reg(op->args.items[1]);
+                  col += printf(" length ");
+                  col +=vcode_dump_reg(op->args.items[0]);
                }
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
@@ -3413,12 +3413,18 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
 
 vcode_reg_t emit_null(vcode_type_t type)
 {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_NULL, &other)) {
+      if (vtype_eq(vcode_reg_type(other->result), type))
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_NULL);
 
    vtype_kind_t kind = vtype_kind(type);
-   if (kind != VCODE_TYPE_POINTER && kind != VCODE_TYPE_FILE
-       && kind != VCODE_TYPE_ACCESS)
-      vcode_fail("null type must be file, access, or pointer");
+   VCODE_ASSERT(kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_FILE
+                || kind == VCODE_TYPE_ACCESS,
+                "null type must be file, access, or pointer");
 
    return (op->result = vcode_add_reg(type));
 }
@@ -3430,23 +3436,30 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
       vcode_add_arg(op, length);
 
    vtype_kind_t kind = vtype_kind(type);
-   if (kind != VCODE_TYPE_INT && kind != VCODE_TYPE_RECORD)
-      vcode_fail("new type must be int or record");
-   else if (length != VCODE_INVALID_REG
-            && vtype_kind(vcode_reg_type(length)) != VCODE_TYPE_OFFSET)
-      vcode_fail("new length must have offset type");
+   VCODE_ASSERT(kind == VCODE_TYPE_INT || kind == VCODE_TYPE_RECORD
+                || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_CARRAY,
+                "new type must be int, record, carray, or uarray");
+   VCODE_ASSERT(length == VCODE_INVALID_REG
+                || vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,
+                "new length must have offset type");
 
    return (op->result = vcode_add_reg(vtype_access(type)));
 }
 
 void emit_null_check(vcode_reg_t ptr, uint32_t index)
 {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_NULL_CHECK, &other)) {
+      if (other->args.items[0] == ptr)
+         return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_NULL_CHECK);
    vcode_add_arg(op, ptr);
    op->index = index;
 
-   if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_ACCESS)
-      vcode_fail("null check argument must be an access");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_ACCESS,
+                "null check argument must be an access");
 }
 
 void emit_deallocate(vcode_reg_t ptr)
@@ -3462,13 +3475,19 @@ void emit_deallocate(vcode_reg_t ptr)
 
 vcode_reg_t emit_all(vcode_reg_t reg)
 {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_ALL, &other)) {
+      if (other->args.items[0] == reg)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_ALL);
    vcode_add_arg(op, reg);
 
    vcode_type_t vtype = vcode_reg_type(reg);
 
-   if (vtype_kind(vtype) != VCODE_TYPE_ACCESS)
-      vcode_fail("all argument must be an access");
+   VCODE_ASSERT(vtype_kind(vtype) == VCODE_TYPE_ACCESS,
+                "all argument must be an access");
 
    return (op->result = vcode_add_reg(vtype_pointer(vtype_pointed(vtype))));
 }
