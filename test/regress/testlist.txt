@@ -247,3 +247,4 @@ alias9          normal
 # issue82         normal
 # issue86         normal
 issue94         normal
+access6         gold,fail

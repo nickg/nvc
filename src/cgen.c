@@ -1616,7 +1616,26 @@ static void cgen_op_all(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
 {
-   // TODO
+   LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntEQ, ptr,
+                                     LLVMConstNull(LLVMTypeOf(ptr)), "null");
+
+   LLVMBasicBlockRef null_bb = LLVMAppendBasicBlock(ctx->fn, "all_null");
+   LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "all_ok");
+
+   LLVMBuildCondBr(builder, null, null_bb, ok_bb);
+
+   LLVMPositionBuilderAtEnd(builder, null_bb);
+
+   LLVMValueRef args[] = {
+      llvm_int32(vcode_get_index(op)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMBuildCall(builder, llvm_fn("_null_deref"), args, ARRAY_LEN(args), "");
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, ok_bb);
 }
 
 static void cgen_op_deallocate(int op, cgen_ctx_t *ctx)
