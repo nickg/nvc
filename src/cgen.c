@@ -197,17 +197,28 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       return LLVMInt32Type();
 
    case VCODE_TYPE_POINTER:
+   case VCODE_TYPE_ACCESS:
       return LLVMPointerType(cgen_type(vtype_pointed(type)), 0);
 
    case VCODE_TYPE_RECORD:
       {
+         char *name LOCAL = vtype_record_name(type);
+         LLVMTypeRef lltype = LLVMGetTypeByName(module, name);
+         if (lltype != NULL)
+            return lltype;
+
+         lltype = LLVMStructCreateNamed(LLVMGetGlobalContext(), name);
+         if (lltype == NULL)
+            fatal("failed to add record type %s", name);
+
          const int nfields = vtype_fields(type);
          LLVMTypeRef fields[nfields];
 
          for (int i = 0; i < nfields; i++)
             fields[i] = cgen_type(vtype_field(type, i));
 
-         return LLVMStructType(fields, nfields, true);
+         LLVMStructSetBody(lltype, fields, nfields, true);
+         return lltype;
       }
 
    case VCODE_TYPE_SIGNAL:
@@ -1576,6 +1587,46 @@ static void cgen_op_endfile(int op, cgen_ctx_t *ctx)
                                      ARRAY_LEN(args), cgen_reg_name(result));
 }
 
+static void cgen_op_null(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMConstNull(cgen_type(vcode_reg_type(result)));
+}
+
+static void cgen_op_new(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   const char *name = cgen_reg_name(result);
+
+   LLVMTypeRef lltype = cgen_type(vtype_pointed(vcode_reg_type(result)));
+
+   if (vcode_count_args(op) == 0)
+      ctx->regs[result] = LLVMBuildMalloc(builder, lltype, name);
+   else {
+      LLVMValueRef length = cgen_get_arg(op, 0, ctx);
+      ctx->regs[result] = LLVMBuildArrayMalloc(builder, lltype, length, name);
+   }
+}
+
+static void cgen_op_all(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = cgen_get_arg(op, 0, ctx);
+}
+
+static void cgen_op_null_check(int op, cgen_ctx_t *ctx)
+{
+   // TODO
+}
+
+static void cgen_op_deallocate(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef ptr = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef access = LLVMBuildLoad(builder, ptr, "");
+   LLVMBuildFree(builder, access);
+   LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(access)), ptr);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1773,6 +1824,21 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_ENDFILE:
       cgen_op_endfile(i, ctx);
+      break;
+   case VCODE_OP_NULL:
+      cgen_op_null(i, ctx);
+      break;
+   case VCODE_OP_NEW:
+      cgen_op_new(i, ctx);
+      break;
+   case VCODE_OP_ALL:
+      cgen_op_all(i, ctx);
+      break;
+   case VCODE_OP_NULL_CHECK:
+      cgen_op_null_check(i, ctx);
+      break;
+   case VCODE_OP_DEALLOCATE:
+      cgen_op_deallocate(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

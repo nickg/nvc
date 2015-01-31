@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -105,6 +105,11 @@ typedef enum {
    VCODE_OP_FILE_WRITE,
    VCODE_OP_FILE_CLOSE,
    VCODE_OP_FILE_READ,
+   VCODE_OP_NULL,
+   VCODE_OP_NEW,
+   VCODE_OP_NULL_CHECK,
+   VCODE_OP_DEALLOCATE,
+   VCODE_OP_ALL,
 } vcode_op_t;
 
 typedef enum {
@@ -116,6 +121,7 @@ typedef enum {
    VCODE_TYPE_UARRAY,
    VCODE_TYPE_RECORD,
    VCODE_TYPE_FILE,
+   VCODE_TYPE_ACCESS,
 } vtype_kind_t;
 
 typedef enum {
@@ -145,9 +151,12 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
 vcode_type_t vtype_uarray(const vcode_type_t *dim_types,
                           int ndim, vcode_type_t elem, vcode_type_t bounds);
 vcode_type_t vtype_pointer(vcode_type_t to);
+vcode_type_t vtype_access(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
-vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields);
+vcode_type_t vtype_named_record(ident_t name, uint32_t index, bool create);
+void vtype_set_record_fields(vcode_type_t type,
+                             const vcode_type_t *field_types, int nfields);
 vcode_type_t vtype_file(vcode_type_t base);
 bool vtype_eq(vcode_type_t a, vcode_type_t b);
 bool vtype_includes(vcode_type_t type, vcode_type_t bounds);
@@ -162,6 +171,7 @@ vcode_type_t vtype_dim(vcode_type_t type, int dim);
 int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
+char *vtype_record_name(vcode_type_t type);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -317,5 +327,10 @@ void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length);
 void emit_file_close(vcode_reg_t file);
 void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
                     vcode_reg_t inlen, vcode_reg_t outlen);
+vcode_reg_t emit_null(vcode_type_t type);
+vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length);
+void emit_null_check(vcode_reg_t ptr, uint32_t index);
+void emit_deallocate(vcode_reg_t ptr);
+vcode_reg_t emit_all(vcode_reg_t reg);
 
 #endif  // _VCODE_H

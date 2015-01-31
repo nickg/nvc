@@ -74,7 +74,11 @@ typedef struct {
       };
       vcode_type_t       pointed;
       vcode_type_t       base;
-      vcode_type_array_t fields;
+      struct {
+         ident_t            name;
+         uint32_t           index;
+         vcode_type_array_t fields;
+      };
    };
 } vtype_t;
 
@@ -124,6 +128,11 @@ struct vcode_unit {
 #define MASK_CONTEXT(x)   ((x) >> 24)
 #define MASK_INDEX(x)     ((x) & 0xffffff)
 #define MAKE_HANDLE(c, i) (((c) & 0xff) << 24 | ((i) & 0xffffff))
+
+#define VCODE_ASSERT(expr, ...)    \
+   if (unlikely(!(expr))) {        \
+      vcode_fail(__VA_ARGS__);     \
+   }
 
 static vcode_unit_t  active_unit = NULL;
 static vcode_block_t active_block = VCODE_INVALID_BLOCK;
@@ -585,7 +594,7 @@ uint32_t vcode_get_index(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
           || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
-          || o->kind == VCODE_OP_DIV);
+          || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK);
    return o->index;
 }
 
@@ -635,7 +644,8 @@ const char *vcode_op_string(vcode_op_t op)
       "alloc driver", "event", "active", "const record", "record ref", "copy",
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
       "memset", "vec load", "case", "endfile", "file open", "file write",
-      "file close", "file read"
+      "file close", "file read", "null", "new", "null check", "deallocate",
+      "all"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -718,6 +728,12 @@ static void vcode_dump_one_type(vcode_type_t type)
       printf(">");
       break;
 
+   case VCODE_TYPE_ACCESS:
+      printf("A<");
+      vcode_dump_one_type(vt->pointed);
+      printf(">");
+      break;
+
    case VCODE_TYPE_SIGNAL:
       printf("$<");
       vcode_dump_one_type(vt->base);
@@ -729,15 +745,7 @@ static void vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_RECORD:
-      {
-         printf("{");
-         for (unsigned i = 0; i < vt->fields.count; i++) {
-            if (i > 0)
-               printf(", ");
-            vcode_dump_one_type(vt->fields.items[i]);
-         }
-         printf("}");
-      }
+      printf("%s.%u{}", istr(vt->name), vt->index);
       break;
 
    case VCODE_TYPE_FILE:
@@ -748,14 +756,19 @@ static void vcode_dump_one_type(vcode_type_t type)
    }
 }
 
-static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
+static void vcode_dump_tab(int col, int to_col)
 {
-   if (col >= 40)
+   if (col >= to_col)
       printf(" ");
    else {
-      while (col < 40)
+      while (col < to_col)
          col += printf(" ");
    }
+}
+
+static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
+{
+   vcode_dump_tab(col, 40);
 
    color_printf("$cyan$// ");
    vcode_dump_one_type(type);
@@ -800,6 +813,22 @@ void vcode_dump(void)
    printf("Blocks     %d\n", vu->blocks.count);
    printf("Registers  %d\n", vu->regs.count);
    printf("Types      %d\n", vu->types.count);
+
+   for (int i = 0; i < vu->types.count; i++) {
+      const vtype_t *t = &(vu->types.items[i]);
+      if (t->kind == VCODE_TYPE_RECORD) {
+         int col = color_printf("  $magenta$%s.%u$$", istr(t->name), t->index);
+         vcode_dump_tab(col, 40);
+         color_printf("$cyan${");
+         for (unsigned i = 0; i < t->fields.count; i++) {
+            if (i > 0)
+               printf(", ");
+            vcode_dump_one_type(t->fields.items[i]);
+         }
+         color_printf("}$$\n");
+      }
+   }
+
    printf("Variables  %d\n", vu->vars.count);
 
    for (int i = 0; i < vu->vars.count; i++) {
@@ -979,8 +1008,10 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_var(op->address);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
             }
             break;
 
@@ -989,8 +1020,10 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
             }
             break;
 
@@ -1494,6 +1527,42 @@ void vcode_dump(void)
                }
             }
             break;
+
+         case VCODE_OP_NULL:
+         case VCODE_OP_NEW:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s", vcode_op_string(op->kind));
+               if (op->args.count == 1) {
+                  printf(" length ");
+                  vcode_dump_reg(op->args.items[1]);
+               }
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_NULL_CHECK:
+         case VCODE_OP_DEALLOCATE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_ALL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
          }
 
          printf("\n");
@@ -1519,46 +1588,36 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
 
       if (at->kind != bt->kind)
          return false;
-      else {
-         switch (at->kind) {
-         case VCODE_TYPE_INT:
-            return (at->low == bt->low) && (at->high == bt->high);
-         case VCODE_TYPE_CARRAY:
-            {
-               if (at->dims.count != bt->dims.count)
+
+      switch (at->kind) {
+      case VCODE_TYPE_INT:
+         return (at->low == bt->low) && (at->high == bt->high);
+      case VCODE_TYPE_CARRAY:
+         {
+            if (at->dims.count != bt->dims.count)
+               return false;
+
+            for (unsigned i = 0; i < at->dims.count; i++) {
+               if (!vtype_eq(at->dims.items[i], bt->dims.items[i]))
                   return false;
-
-               for (unsigned i = 0; i < at->dims.count; i++) {
-                  if (!vtype_eq(at->dims.items[i], bt->dims.items[i]))
-                     return false;
-               }
-
-               return vtype_eq(at->elem, bt->elem);
             }
-         case VCODE_TYPE_UARRAY:
-            return at->dims.count == bt->dims.count
-               && vtype_eq(at->elem, bt->elem);
 
-         case VCODE_TYPE_POINTER:
-            return vtype_eq(at->pointed, bt->pointed);
-         case VCODE_TYPE_OFFSET:
-            return true;
-         case VCODE_TYPE_SIGNAL:
-         case VCODE_TYPE_FILE:
-            return vtype_eq(at->base, bt->base);
-         case VCODE_TYPE_RECORD:
-            {
-               if (at->fields.count != bt->fields.count)
-                  return false;
-
-               for (unsigned i = 0; i < at->fields.count; i++) {
-                  if (!vtype_eq(at->fields.items[i], bt->fields.items[i]))
-                     return false;
-               }
-
-               return true;
-            }
+            return vtype_eq(at->elem, bt->elem);
          }
+      case VCODE_TYPE_UARRAY:
+         return at->dims.count == bt->dims.count
+            && vtype_eq(at->elem, bt->elem);
+
+      case VCODE_TYPE_POINTER:
+      case VCODE_TYPE_ACCESS:
+         return vtype_eq(at->pointed, bt->pointed);
+      case VCODE_TYPE_OFFSET:
+         return true;
+      case VCODE_TYPE_SIGNAL:
+      case VCODE_TYPE_FILE:
+         return vtype_eq(at->base, bt->base);
+      case VCODE_TYPE_RECORD:
+         return at->name == bt->name && at->index == bt->index;
       }
 
       return false;
@@ -1585,6 +1644,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
       return vtype_eq(type, bounds);
 
    case VCODE_TYPE_POINTER:
+   case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_FILE:
       return false;
@@ -1645,17 +1705,28 @@ vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
    return vtype_new(n);
 }
 
-vcode_type_t vtype_record(const vcode_type_t *field_types, int nfields)
+vcode_type_t vtype_named_record(ident_t name, uint32_t index, bool create)
 {
    assert(active_unit != NULL);
 
-   vtype_t *n = vtype_array_alloc(&(active_unit->types));
-   memset(n, '\0', sizeof(vtype_t));
-   n->kind = VCODE_TYPE_RECORD;
-   for (int i = 0; i < nfields; i++)
-      vcode_type_array_add(&(n->fields), field_types[i]);
+   for (int i = 0; i < active_unit->types.count; i++) {
+      vtype_t *other = &(active_unit->types.items[i]);
+      if (other->kind == VCODE_TYPE_RECORD && other->name == name
+          && other->index == index)
+         return MAKE_HANDLE(active_unit->depth, i);
+   }
 
-   return vtype_new(n);
+   if (create) {
+      vtype_t *n = vtype_array_alloc(&(active_unit->types));
+      memset(n, '\0', sizeof(vtype_t));
+      n->kind  = VCODE_TYPE_RECORD;
+      n->name  = name;
+      n->index = index;
+
+      return vtype_new(n);
+   }
+   else
+      return VCODE_INVALID_TYPE;
 }
 
 vcode_type_t vtype_uarray(const vcode_type_t *dim_types, int ndim,
@@ -1680,6 +1751,17 @@ vcode_type_t vtype_pointer(vcode_type_t to)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind    = VCODE_TYPE_POINTER;
+   n->pointed = to;
+
+   return vtype_new(n);
+}
+
+vcode_type_t vtype_access(vcode_type_t to)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind    = VCODE_TYPE_ACCESS;
    n->pointed = to;
 
    return vtype_new(n);
@@ -1774,10 +1856,28 @@ vcode_type_t vtype_field(vcode_type_t type, int field)
    return vcode_type_array_nth(&(vt->fields), field);
 }
 
+void vtype_set_record_fields(vcode_type_t type, const vcode_type_t *field_types,
+                             int nfields)
+{
+   vtype_t *n = vcode_type_data(type);
+
+   if (n->fields.count > 0)
+      vcode_type_array_resize(&(n->fields), 0, VCODE_INVALID_TYPE);
+
+   for (int i = 0; i < nfields; i++)
+      vcode_type_array_add(&(n->fields), field_types[i]);
+}
+
+char *vtype_record_name(vcode_type_t type)
+{
+   vtype_t *vt = vcode_type_data(type);
+   return xasprintf("%s.%u", istr(vt->name), vt->index);
+}
+
 vcode_type_t vtype_pointed(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_POINTER);
+   assert(vt->kind == VCODE_TYPE_POINTER || vt->kind == VCODE_TYPE_ACCESS);
    return vt->pointed;
 }
 
@@ -2299,12 +2399,11 @@ vcode_reg_t emit_load(vcode_var_t var)
    op->result  = vcode_add_reg(v->type);
 
    vtype_kind_t type_kind = vtype_kind(v->type);
-   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER
-       && type_kind != VCODE_TYPE_FILE) {
-      vcode_dump();
-      fatal_trace("cannot load non-scalar type");
-   }
+   VCODE_ASSERT(
+      type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
+      || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
+      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS,
+      "cannot load non-scalar type");
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = v->bounds;
@@ -2319,20 +2418,18 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 
    vcode_type_t rtype = vcode_reg_type(reg);
 
-   if (vtype_kind(rtype) != VCODE_TYPE_POINTER) {
-      vcode_dump();
-      fatal_trace("load indirect with non-pointer argument");
-   }
+   VCODE_ASSERT(vtype_kind(rtype) == VCODE_TYPE_POINTER,
+                "load indirect with non-pointer argument");
 
    vcode_type_t deref = vtype_pointed(rtype);
    op->result = vcode_add_reg(deref);
 
    vtype_kind_t type_kind = vtype_kind(deref);
-   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET
-       && type_kind != VCODE_TYPE_UARRAY && type_kind != VCODE_TYPE_POINTER) {
-      vcode_dump();
-      fatal_trace("cannot load non-scalar type");
-   }
+   VCODE_ASSERT(
+      type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
+      || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
+      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS,
+      "cannot load non-scalar type");
 
    vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
 
@@ -2373,14 +2470,10 @@ void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
    vcode_add_arg(op, reg);
    vcode_add_arg(op, ptr);
 
-   if (vtype_kind(p->type) != VCODE_TYPE_POINTER) {
-      vcode_dump();
-      fatal_trace("store indirect target is not a pointer");
-   }
-   else if (!vtype_eq(vtype_pointed(p->type), r->type)) {
-      vcode_dump();
-      fatal_trace("pointer and stored value do not have same type");
-   }
+   VCODE_ASSERT(vtype_kind(p->type) == VCODE_TYPE_POINTER,
+                "store indirect target is not a pointer");
+   VCODE_ASSERT(vtype_eq(vtype_pointed(p->type), r->type),
+                "pointer and stored value do not have same type");
 }
 
 static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
@@ -2578,6 +2671,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 
    case VCODE_TYPE_INT:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_ACCESS:
       op->type = vtype_pointer(typeref);
       op->result = vcode_add_reg(op->type);
       break;
@@ -2586,10 +2680,9 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       vcode_fail("variable %s cannot be indexed", istr(vcode_var_name(var)));
    }
 
-   if (offset != VCODE_INVALID_REG) {
-      if (vtype_kind(vcode_reg_type(offset)) != VCODE_TYPE_OFFSET)
-         vcode_fail("index offset r%d does not have offset type", offset);
-   }
+   if (offset != VCODE_INVALID_REG)
+      VCODE_ASSERT(vtype_kind(vcode_reg_type(offset)) == VCODE_TYPE_OFFSET,
+                   "index offset r%d does not have offset type", offset);
 
    return op->result;
 }
@@ -3108,21 +3201,17 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
    vtype_t *rptype = vcode_type_data(vcode_reg_type(record));
 
-   if (rptype->kind != VCODE_TYPE_POINTER) {
-      vcode_dump();
-      fatal_trace("argument to record ref must be a pointer");
-   }
+   VCODE_ASSERT(
+      rptype->kind == VCODE_TYPE_POINTER
+      || rptype->kind == VCODE_TYPE_ACCESS,
+      "argument to record ref must be a pointer or access");
 
    vtype_t *rtype = vcode_type_data(rptype->pointed);
 
-   if (rtype->kind != VCODE_TYPE_RECORD) {
-      vcode_dump();
-      fatal_trace("argument must be pointer to array");
-   }
-   else if (field >= rtype->fields.count) {
-      vcode_dump();
-      fatal_trace("invalid field %d", field);
-   }
+   VCODE_ASSERT(rtype->kind == VCODE_TYPE_RECORD,
+                "argument must be pointer to record");
+
+   VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
    vcode_type_t result_type = vtype_pointer(rtype->fields.items[field]);
    return (op->result = vcode_add_reg(result_type));
@@ -3138,13 +3227,16 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    vcode_type_t dtype = vcode_reg_type(dest);
    vcode_type_t stype = vcode_reg_type(src);
 
-   if (vtype_kind(dtype) != VCODE_TYPE_POINTER) {
+   vtype_kind_t dkind = vtype_kind(dtype);
+   vtype_kind_t skind = vtype_kind(stype);
+
+   if (dkind != VCODE_TYPE_POINTER && dkind != VCODE_TYPE_ACCESS) {
       vcode_dump();
-      fatal_trace("destination type is not a pointer");
+      fatal_trace("destination type is not a pointer or access");
    }
-   else if (vtype_kind(stype) != VCODE_TYPE_POINTER) {
+   else if (skind != VCODE_TYPE_POINTER && skind != VCODE_TYPE_ACCESS) {
       vcode_dump();
-      fatal_trace("source type is not a pointer");
+      fatal_trace("source type is not a pointer or access");
    }
    else if (!vtype_eq(dtype, stype)) {
       vcode_dump();
@@ -3317,4 +3409,66 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
    else if (outlen != VCODE_INVALID_REG
             && vtype_kind(vcode_reg_type(outlen)) != VCODE_TYPE_POINTER)
       vcode_fail("file read outlen argument must have pointer type");
+}
+
+vcode_reg_t emit_null(vcode_type_t type)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NULL);
+
+   vtype_kind_t kind = vtype_kind(type);
+   if (kind != VCODE_TYPE_POINTER && kind != VCODE_TYPE_FILE
+       && kind != VCODE_TYPE_ACCESS)
+      vcode_fail("null type must be file, access, or pointer");
+
+   return (op->result = vcode_add_reg(type));
+}
+
+vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NEW);
+   if (length != VCODE_INVALID_REG)
+      vcode_add_arg(op, length);
+
+   vtype_kind_t kind = vtype_kind(type);
+   if (kind != VCODE_TYPE_INT && kind != VCODE_TYPE_RECORD)
+      vcode_fail("new type must be int or record");
+   else if (length != VCODE_INVALID_REG
+            && vtype_kind(vcode_reg_type(length)) != VCODE_TYPE_OFFSET)
+      vcode_fail("new length must have offset type");
+
+   return (op->result = vcode_add_reg(vtype_access(type)));
+}
+
+void emit_null_check(vcode_reg_t ptr, uint32_t index)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NULL_CHECK);
+   vcode_add_arg(op, ptr);
+   op->index = index;
+
+   if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_ACCESS)
+      vcode_fail("null check argument must be an access");
+}
+
+void emit_deallocate(vcode_reg_t ptr)
+{
+   op_t *op = vcode_add_op(VCODE_OP_DEALLOCATE);
+   vcode_add_arg(op, ptr);
+
+   vcode_type_t ptype = vcode_reg_type(ptr);
+   VCODE_ASSERT(vtype_kind(ptype) == VCODE_TYPE_POINTER
+                && vtype_kind(vtype_pointed(ptype)) == VCODE_TYPE_ACCESS,
+                "deallocate argument must be pointer to access");
+}
+
+vcode_reg_t emit_all(vcode_reg_t reg)
+{
+   op_t *op = vcode_add_op(VCODE_OP_ALL);
+   vcode_add_arg(op, reg);
+
+   vcode_type_t vtype = vcode_reg_type(reg);
+
+   if (vtype_kind(vtype) != VCODE_TYPE_ACCESS)
+      vcode_fail("all argument must be an access");
+
+   return (op->result = vcode_add_reg(vtype_pointer(vtype_pointed(vtype))));
 }

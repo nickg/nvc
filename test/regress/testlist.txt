@@ -76,7 +76,7 @@ const1          normal
 delay1          normal
 record1         normal
 proc3           normal
-# access1         normal,gold
+access1         normal,gold
 # proc4           normal
 file1           normal
 # real1           normal,gold

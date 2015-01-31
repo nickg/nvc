@@ -337,16 +337,28 @@ static vcode_type_t lower_type(type_t type)
 
    case T_RECORD:
       {
-         const int nfields = type_fields(type);
-         vcode_type_t fields[nfields];
-         for (int i = 0; i < nfields; i++)
-            fields[i] = lower_type(tree_type(type_field(type, i)));
+         ident_t name = type_ident(type);
+         uint32_t index = type_index(type);
+         vcode_type_t record = vtype_named_record(name, index, false);
+         if (record == VCODE_INVALID_TYPE) {
+            record = vtype_named_record(name, index, true);
 
-         return vtype_record(fields, nfields);
+            const int nfields = type_fields(type);
+            vcode_type_t fields[nfields];
+            for (int i = 0; i < nfields; i++)
+               fields[i] = lower_type(tree_type(type_field(type, i)));
+
+            vtype_set_record_fields(record, fields, nfields);
+         }
+
+         return record;
       }
 
    case T_FILE:
       return vtype_file(lower_type(type_file(type)));
+
+   case T_ACCESS:
+      return vtype_access(lower_type(type_access(type)));
 
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
@@ -404,19 +416,21 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 
    tree_t decl = tree_ref(fcall);
 
-   if (tree_attr_str(decl, builtin_i)) {
-      port_mode_t mode = PORT_IN;
-      if (nth < tree_ports(decl))
-         mode = tree_subkind(tree_port(decl, nth));
+   port_mode_t mode = PORT_IN;
+   if (nth < tree_ports(decl))
+      mode = tree_subkind(tree_port(decl, nth));
 
-      return type_is_scalar(value_type) && mode == PORT_IN
+   const bool must_reify =
+      (type_is_scalar(value_type) || type_is_access(value_type))
+      && mode == PORT_IN;
+
+   if (tree_attr_str(decl, builtin_i))
+      return must_reify
          ? lower_reify_expr(value)
          : lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
-   }
 
    tree_t port = tree_port(decl, nth);
    type_t port_type = tree_type(port);
-   const port_mode_t mode = tree_subkind(port);
 
    if (tree_class(port) == C_SIGNAL)
       return lower_expr(value, EXPR_LVALUE);
@@ -452,8 +466,7 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
          return reg;
    }
    else
-      return type_is_scalar(value_type) && mode == PORT_IN
-         ? lower_reify(reg) : reg;
+      return must_reify ? lower_reify(reg) : reg;
 }
 
 #if 0
@@ -971,6 +984,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       emit_file_read(r0, r1, inlen, outlen);
       return VCODE_INVALID_REG;
    }
+   else if (icmp(builtin, "deallocate")) {
+      emit_deallocate(r0);
+      return VCODE_INVALID_REG;
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
@@ -1036,6 +1053,9 @@ static vcode_reg_t lower_literal(tree_t lit)
    case L_STRING:
       return lower_string_literal(lit, true);
 
+   case L_NULL:
+      return emit_null(lower_type(tree_type(lit)));
+
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",
                tree_subkind(lit));
@@ -1073,7 +1093,8 @@ static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
       return emit_index(var, VCODE_INVALID_REG);
    else if (type_is_record(type))
       return emit_index(var, VCODE_INVALID_REG);
-   else if ((type_is_scalar(type) || type_is_file(type)) && ctx == EXPR_LVALUE)
+   else if ((type_is_scalar(type) || type_is_file(type) || type_is_access(type))
+            && ctx == EXPR_LVALUE)
       return emit_index(var, VCODE_INVALID_REG);
    else
       return emit_load(var);
@@ -1901,6 +1922,58 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
    return var_reg;
 }
 
+static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
+{
+   type_t type = type_access(tree_type(expr));
+
+   tree_t value = tree_value(expr);
+   type_t value_type = tree_type(value);
+
+   vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+
+   vcode_reg_t length_reg = VCODE_INVALID_REG;
+   type_t elem = type;
+   if (type_is_array(type)) {
+      elem = type_elem(type);
+      length_reg = lower_array_total_len(value_type, init_reg);
+   }
+
+   vcode_reg_t ptr_reg = emit_new(lower_type(elem), length_reg);
+   vcode_reg_t all_reg = emit_all(ptr_reg);
+
+   if (type_is_array(type) && !lower_const_bounds(type)) {
+      // Need to allocate memory for both the array and its metadata
+
+      vcode_dim_t dims[1] = {
+         {
+            .left  = lower_array_left(value_type, 0, init_reg),
+            .right = lower_array_right(value_type, 0, init_reg),
+            .dir   = lower_array_dir(value_type, 0, init_reg)
+         }
+      };
+      vcode_reg_t meta_reg = emit_wrap(ptr_reg, dims, 1);
+
+      (void)meta_reg;
+      //cgen_array_copy(value_type, type, init, meta, NULL, ctx);
+      assert(false);
+   }
+   else if (type_is_array(type))
+      emit_copy(all_reg, lower_array_data(init_reg), length_reg);
+   else if (type_is_record(type))
+      emit_copy(all_reg, init_reg, emit_const(vtype_offset(), 1));
+   else
+      emit_store_indirect(lower_reify(init_reg), all_reg);
+
+   return ptr_reg;
+}
+
+static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
+{
+   vcode_reg_t access_reg = lower_reify_expr(tree_value(all));
+   emit_null_check(access_reg, tree_index(all));
+   return emit_all(access_reg);
+}
+
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
@@ -1920,6 +1993,10 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_record_ref(expr, ctx);
    case T_CONCAT:
       return lower_concat(expr, ctx);
+   case T_NEW:
+      return lower_new(expr, ctx);
+   case T_ALL:
+      return lower_all(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -2085,10 +2162,12 @@ static void lower_var_assign(tree_t stmt)
 
    const bool is_var_decl =
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
+   const bool is_scalar = type_is_scalar(type);
 
-   if (type_is_scalar(type)) {
+   if (is_scalar || type_is_access(type)) {
       vcode_reg_t loaded_value = lower_reify(value_reg);
-      emit_bounds(loaded_value, lower_bounds(type));
+      if (is_scalar)
+         emit_bounds(loaded_value, lower_bounds(type));
       if (is_var_decl)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
