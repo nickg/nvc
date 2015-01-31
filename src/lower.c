@@ -2080,19 +2080,13 @@ static void lower_var_assign(tree_t stmt)
    tree_t value = tree_value(stmt);
    vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
 
-   vtype_kind_t value_kind = vtype_kind(vcode_reg_type(value_reg));
-
    tree_t target = tree_target(stmt);
    type_t type = tree_type(target);
-   const bool target_uarray = type_is_array(type) && !lower_const_bounds(type);
+
    const bool is_var_decl =
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
-   const bool can_use_store =
-      type_is_scalar(type)
-      || (value_kind == VCODE_TYPE_UARRAY && target_uarray)
-      || (value_kind == VCODE_TYPE_CARRAY && !target_uarray && is_var_decl);
 
-   if (can_use_store) {
+   if (type_is_scalar(type)) {
       vcode_reg_t loaded_value = lower_reify(value_reg);
       emit_bounds(loaded_value, lower_bounds(type));
       if (is_var_decl)
@@ -2103,7 +2097,9 @@ static void lower_var_assign(tree_t stmt)
    else if (type_is_array(type)) {
       vcode_reg_t count = lower_array_total_len(tree_type(value), value_reg);
       vcode_reg_t src_data = lower_array_data(value_reg);
-      vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
+      vcode_reg_t target_reg = lower_const_bounds(type)
+         ? lower_expr(target, EXPR_LVALUE)
+         : lower_reify_expr(target);
       emit_copy(lower_array_data(target_reg), src_data, count);
    }
    else {

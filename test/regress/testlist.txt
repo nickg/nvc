@@ -53,7 +53,7 @@ proc1           normal
 alias3          normal
 proc2           normal
 operator3       normal
-# agg4            normal
+agg4            normal
 # ieee3           normal
 default1        normal
 generic1        normal
