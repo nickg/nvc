@@ -1942,7 +1942,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t mem_reg = emit_new(lower_type(type_elem(type)), length_reg);
       vcode_reg_t raw_reg = emit_all(mem_reg);
 
-      emit_copy(raw_reg, init_reg, lower_array_len(value_type, 0, init_reg));
+      emit_copy(raw_reg, lower_array_data(init_reg), length_reg);
 
       if (!lower_const_bounds(type)) {
           // Need to allocate memory for both the array and its metadata

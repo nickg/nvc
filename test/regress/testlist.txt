@@ -176,7 +176,7 @@ issue16         normal
 # attr9           normal
 # bounds12        gold,fail
 # bounds13        gold,fail
-# access5         normal
+access5         normal
 # record6         normal
 # agg6            normal
 # func14          normal
