@@ -1462,16 +1462,12 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
       else if (value_kind == T_AGGREGATE) {
          type_t sub_type = tree_type(value);
          if (type_is_array(sub_type)) {
-            assert(false);
-#if 0
-            int nvals;
-            LLVMValueRef *v = cgen_const_aggregate(value, sub_type,
-                                                   0, &nvals, ctx);
-            LLVMTypeRef ltype = llvm_type(type_elem(sub_type));
+            int nsubvals;
+            vcode_reg_t *subv LOCAL =
+               lower_const_array_aggregate(value, sub_type, 0, &nsubvals);
 
-            *sub = LLVMConstArray(ltype, v, nvals);
-            free(v);
-#endif
+            *sub = emit_const_array(lower_type(sub_type), subv,
+                                    nsubvals, false);
          }
          else if (type_is_record(sub_type))
             *sub = lower_record_aggregate(value, true,
@@ -1721,11 +1717,15 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    }
 
    vcode_reg_t ptr_reg = emit_add(mem_reg, i_loaded);
-   if (type_is_scalar(elem_type)
-       || (type_is_array(elem_type) && !lower_const_bounds(elem_type)))
-      emit_store_indirect(lower_reify(what), ptr_reg);
+   if (type_is_array(elem_type) && lower_const_bounds(elem_type)) {
+      vcode_reg_t src_reg = lower_array_data(what);
+      vcode_reg_t length_reg = lower_array_total_len(elem_type, what);
+      emit_copy(ptr_reg, src_reg, length_reg);
+   }
+   else if (type_is_record(elem_type))
+      assert(false);  // TODO
    else
-      assert(false);
+      emit_store_indirect(lower_reify(what), ptr_reg);
 
    emit_store_indirect(emit_add(i_loaded, emit_const(offset_type, 1)), ivar);
    emit_jump(test_bb);
