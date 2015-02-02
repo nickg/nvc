@@ -37,15 +37,16 @@ typedef struct {
    vcode_var_t         address;
    uint32_t            index;
    union {
-      vcode_cmp_t    cmp;
-      ident_t        func;
-      int64_t        value;
-      char          *comment;
-      vcode_signal_t signal;
-      unsigned       dim;
-      unsigned       hops;
-      unsigned       field;
-      unsigned       flags;
+      vcode_cmp_t       cmp;
+      bit_vec_op_kind_t bit_vec_op;
+      ident_t           func;
+      int64_t           value;
+      char             *comment;
+      vcode_signal_t    signal;
+      unsigned          dim;
+      unsigned          hops;
+      unsigned          field;
+      unsigned          flags;
    };
 } op_t;
 
@@ -645,7 +646,7 @@ const char *vcode_op_string(vcode_op_t op)
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
-      "all"
+      "all", "bit vec op"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1557,6 +1558,27 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
+            }
+            break;
+
+         case VCODE_OP_BIT_VEC_OP:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %d lhs ", vcode_op_string(op->kind),
+                             op->bit_vec_op);
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 2) {
+                  col += printf(" rhs ");
+                  col += vcode_dump_reg(op->args.items[2]);
+                  col += printf(" length ");
+                  col += vcode_dump_reg(op->args.items[3]);
+               }
                if (op->result != VCODE_INVALID_REG) {
                   reg_t *r = vcode_reg_data(op->result);
                   vcode_dump_type(col, r->type, r->bounds);
@@ -3490,4 +3512,33 @@ vcode_reg_t emit_all(vcode_reg_t reg)
                 "all argument must be an access");
 
    return (op->result = vcode_add_reg(vtype_pointer(vtype_pointed(vtype))));
+}
+
+vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
+                            vcode_reg_t lhs_len, vcode_reg_t rhs,
+                            vcode_reg_t rhs_len, vcode_type_t result)
+{
+   op_t *op = vcode_add_op(VCODE_OP_BIT_VEC_OP);
+   op->bit_vec_op = kind;
+   vcode_add_arg(op, lhs);
+   vcode_add_arg(op, lhs_len);
+   if (rhs != VCODE_INVALID_REG) {
+      vcode_add_arg(op, rhs);
+      vcode_add_arg(op, rhs_len);
+   }
+
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs)) == VCODE_TYPE_POINTER,
+                "LHS to bit vec op must be pointer");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs_len)) == VCODE_TYPE_OFFSET,
+                "LHS length to bit vec op must be offset");
+   if (rhs != VCODE_INVALID_REG) {
+      VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs)) == VCODE_TYPE_POINTER,
+                   "RHS to bit vec op must be pointer");
+      VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs_len)) == VCODE_TYPE_OFFSET,
+                   "RHS length to bit vec op must be offset");
+   }
+   VCODE_ASSERT(vtype_kind(result) == VCODE_TYPE_UARRAY,
+                "result of bit vec op must be uarray");
+
+   return (op->result = vcode_add_reg(result));
 }

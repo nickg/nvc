@@ -21,6 +21,7 @@
 #include "util.h"
 #include "ident.h"
 #include "prim.h"
+#include "rt/rt.h"
 
 typedef int32_t vcode_type_t;
 typedef int32_t vcode_block_t;
@@ -110,6 +111,7 @@ typedef enum {
    VCODE_OP_NULL_CHECK,
    VCODE_OP_DEALLOCATE,
    VCODE_OP_ALL,
+   VCODE_OP_BIT_VEC_OP,
 } vcode_op_t;
 
 typedef enum {
@@ -332,5 +334,8 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length);
 void emit_null_check(vcode_reg_t ptr, uint32_t index);
 void emit_deallocate(vcode_reg_t ptr);
 vcode_reg_t emit_all(vcode_reg_t reg);
+vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
+                            vcode_reg_t lhs_len, vcode_reg_t rhs,
+                            vcode_reg_t rhs_len, vcode_type_t result);
 
 #endif  // _VCODE_H

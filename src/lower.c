@@ -994,6 +994,47 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
    }
+   else if (icmp(builtin, "v_not")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      return emit_bit_vec_op(BIT_VEC_NOT, r0, r0_len, VCODE_INVALID_REG,
+                             VCODE_INVALID_REG, lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_and")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_AND, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_or")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_OR, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_xor")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_xnor")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_nand")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
+   else if (icmp(builtin, "v_nor")) {
+      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
+                             lower_type(tree_type(fcall)));
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
