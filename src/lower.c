@@ -2024,9 +2024,27 @@ static void lower_assert(tree_t stmt)
 
    vcode_reg_t severity = lower_reify_expr(tree_severity(stmt));
 
+   vcode_reg_t value = VCODE_INVALID_REG;
+   if (!is_report)
+      value = lower_reify_expr(tree_value(stmt));
+
+   vcode_block_t message_bb = VCODE_INVALID_BLOCK;
+   vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
+
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
    if (tree_has_message(stmt)) {
       tree_t m = tree_message(stmt);
+
+      // If the message can have side effects then branch to a new block
+      const tree_kind_t kind = tree_kind(m);
+      const bool side_effects = kind != T_LITERAL;
+      if (side_effects && !is_report) {
+         message_bb = emit_block();
+         exit_bb    = emit_block();
+         emit_cond(value, exit_bb, message_bb);
+         vcode_select_block(message_bb);
+      }
+
       vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
       message = lower_array_data(message_wrapped);
       length  = lower_array_len(tree_type(m), 0, message_wrapped);
@@ -2035,8 +2053,11 @@ static void lower_assert(tree_t stmt)
    if (is_report)
       emit_report(message, length, severity, tree_index(stmt));
    else {
-      vcode_reg_t value = lower_reify_expr(tree_value(stmt));
       emit_assert(value, message, length, severity, tree_index(stmt));
+      if (exit_bb != VCODE_INVALID_BLOCK) {
+         emit_jump(exit_bb);
+         vcode_select_block(exit_bb);
+      }
    }
 }
 

@@ -211,11 +211,11 @@ elab20          normal
 # record9         normal
 # record10        normal
 # real2           normal
-# issue45         normal,gold
+issue45         normal,gold
 for2            normal,gold
 # issue57         normal
 # attr10          normal
-# assert4         normal
+assert4         normal
 issue56         normal
 # issue53         normal
 # issue59         normal
