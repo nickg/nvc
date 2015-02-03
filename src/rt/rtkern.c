@@ -38,6 +38,7 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <float.h>
 
 #ifdef HAVE_ALLOCA_H
 #include <alloca.h>
@@ -799,7 +800,7 @@ void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
             double  d;
             int64_t i;
          } u = { .i = val };
-         len = snprintf(buf, max, "%g", u.d);
+         len = snprintf(buf, max, "%.*g", DBL_DIG + 3, u.d);
       }
       break;
 
