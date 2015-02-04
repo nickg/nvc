@@ -121,5 +121,6 @@ You may need to install additional Ruby libraries:
 NVC provides scripts to compile the simulation libraries of common FPGA vendors.
  * For Xilinx ISE use `./tools/build-xilinx.rb`
  * For Altera Quartus use `./tools/build-altera.rb`
+ * For Lattice iCEcube2 use `./tools/build-lattice.rb`
 
 The libraries will be installed under `~/.nvc/lib`.
