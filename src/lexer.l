@@ -1,7 +1,7 @@
 /* -*- mode: c -*- */
 
 /*
- *  Copyright (C) 2011-2014  Nick Gasson
+ *  Copyright (C) 2011-2015  Nick Gasson
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -72,7 +72,7 @@ int get_next_char(char *b, int max_buffer);
 %}
 
 ID         [a-zA-Z][a-zA-Z_0-9]*
-EXID       \\.*\\
+EXID       \\([^\\]|\\\\)*\\
 STRING     \"([^\"]|\"\")*\"
 BIT_STRING [BOXbox]\"[0-9a-fA-f_]+\"
 CHAR       '.'
