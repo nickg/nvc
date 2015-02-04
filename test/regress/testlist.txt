@@ -79,7 +79,7 @@ proc3           normal
 access1         normal,gold
 # proc4           normal
 file1           normal
-# real1           normal,gold
+real1           normal,gold
 # shared1         normal
 # proc5           normal
 # proc6           normal
@@ -210,7 +210,7 @@ elab20          normal
 # elab21          normal
 # record9         normal
 # record10        normal
-# real2           normal
+real2           normal
 issue45         normal,gold
 for2            normal,gold
 # issue57         normal
@@ -219,7 +219,7 @@ assert4         normal
 issue56         normal
 # issue53         normal
 # issue59         normal
-# issue60         normal
+issue60         normal
 # record11        normal
 # issue63         normal
 # driver5         normal
@@ -234,7 +234,7 @@ toplevel1       normal
 vhpi1           gold,vhpi
 vhpi2           normal,vhpi
 # issue69         normal
-# issue70         normal
+issue70         normal
 # elab22          normal
 # array4          normal
 # issue72         normal

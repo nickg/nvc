@@ -170,6 +170,9 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
    case VCODE_TYPE_INT:
       return LLVMIntType(bits_for_range(vtype_low(type), vtype_high(type)));
 
+   case VCODE_TYPE_REAL:
+      return LLVMDoubleType();
+
    case VCODE_TYPE_CARRAY:
       {
          const int ndims = vtype_dims(type);
@@ -525,23 +528,41 @@ static void cgen_op_cmp(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    vcode_type_t arg_type = vcode_reg_type(vcode_get_arg(op, 0));
+   vtype_kind_t arg_kind = vtype_kind(arg_type);
 
-   const bool is_signed =
-      vtype_kind(arg_type) != VCODE_TYPE_INT || vtype_low(arg_type) < 0;
+   if (arg_kind == VCODE_TYPE_REAL) {
+      LLVMRealPredicate pred = 0;
+      switch (vcode_get_cmp(op)) {
+      case VCODE_CMP_EQ:  pred = LLVMRealUEQ; break;
+      case VCODE_CMP_NEQ: pred = LLVMRealUNE; break;
+      case VCODE_CMP_LT:  pred = LLVMRealULT; break;
+      case VCODE_CMP_GT:  pred = LLVMRealUGT; break;
+      case VCODE_CMP_LEQ: pred = LLVMRealULE; break;
+      case VCODE_CMP_GEQ: pred = LLVMRealUGE; break;
+      }
 
-   LLVMIntPredicate pred = 0;
-   switch (vcode_get_cmp(op)) {
-   case VCODE_CMP_EQ:  pred = LLVMIntEQ; break;
-   case VCODE_CMP_NEQ: pred = LLVMIntNE; break;
-   case VCODE_CMP_LT:  pred = is_signed ? LLVMIntSLT : LLVMIntULT; break;
-   case VCODE_CMP_GT:  pred = is_signed ? LLVMIntSGT : LLVMIntUGT; break;
-   case VCODE_CMP_LEQ: pred = is_signed ? LLVMIntSLE : LLVMIntULE; break;
-   case VCODE_CMP_GEQ: pred = is_signed ? LLVMIntSGE : LLVMIntUGE; break;
+      ctx->regs[result] =
+         LLVMBuildFCmp(builder, pred, cgen_get_arg(op, 0, ctx),
+                       cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
    }
+   else {
+      const bool is_signed =
+         arg_kind != VCODE_TYPE_INT || vtype_low(arg_type) < 0;
 
-   ctx->regs[result] =
-      LLVMBuildICmp(builder, pred, cgen_get_arg(op, 0, ctx),
-                    cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
+      LLVMIntPredicate pred = 0;
+      switch (vcode_get_cmp(op)) {
+      case VCODE_CMP_EQ:  pred = LLVMIntEQ; break;
+      case VCODE_CMP_NEQ: pred = LLVMIntNE; break;
+      case VCODE_CMP_LT:  pred = is_signed ? LLVMIntSLT : LLVMIntULT; break;
+      case VCODE_CMP_GT:  pred = is_signed ? LLVMIntSGT : LLVMIntUGT; break;
+      case VCODE_CMP_LEQ: pred = is_signed ? LLVMIntSLE : LLVMIntULE; break;
+      case VCODE_CMP_GEQ: pred = is_signed ? LLVMIntSGE : LLVMIntUGE; break;
+      }
+
+      ctx->regs[result] =
+         LLVMBuildICmp(builder, pred, cgen_get_arg(op, 0, ctx),
+                       cgen_get_arg(op, 1, ctx), cgen_reg_name(result));
+   }
 }
 
 static void cgen_op_report(int op, cgen_ctx_t *ctx)
@@ -862,9 +883,10 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 static void cgen_op_image(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t arg = vcode_get_arg(op, 0);
+   vtype_kind_t arg_kind = vtype_kind(vcode_reg_type(arg));
 
-   const bool is_signed = vtype_kind(vcode_reg_type(arg)) == VCODE_TYPE_INT;
-   const bool real = false;
+   const bool is_signed = (arg_kind == VCODE_TYPE_INT);
+   const bool real = (arg_kind == VCODE_TYPE_REAL);
    LLVMOpcode cop = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
    LLVMValueRef res = LLVMBuildAlloca(builder,
                                       llvm_uarray_type(LLVMInt8Type(), 1),
@@ -887,17 +909,34 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
    vcode_reg_t arg    = vcode_get_arg(op, 0);
    vcode_reg_t result = vcode_get_result(op);
 
-   vcode_type_t arg_type = vcode_reg_type(arg);
-   if (vtype_kind(arg_type) == VCODE_TYPE_CARRAY) {
+   vcode_type_t arg_type    = vcode_reg_type(arg);
+   vcode_type_t result_type = vcode_reg_type(result);
+
+   vtype_kind_t arg_kind    = vtype_kind(arg_type);
+   vtype_kind_t result_kind = vtype_kind(result_type);
+
+   LLVMValueRef arg_ll = cgen_get_arg(op, 0, ctx);
+
+   if (arg_kind == VCODE_TYPE_CARRAY) {
       // This is a no-op as constrained arrays are implemented as pointers
       ctx->regs[result] = ctx->regs[arg];
    }
+   else if (result_kind == VCODE_TYPE_REAL) {
+      ctx->regs[result] = LLVMBuildSIToFP(builder, arg_ll,
+                                          cgen_type(result_type),
+                                          cgen_reg_name(result));
+   }
+   else if (result_kind == VCODE_TYPE_INT) {
+      ctx->regs[result] = LLVMBuildFPToSI(builder, arg_ll,
+                                          cgen_type(result_type),
+                                          cgen_reg_name(result));
+   }
    else {
       LLVMOpcode lop = LLVMBitCast;
-      if (vtype_kind(arg_type) == VCODE_TYPE_INT)
+      if (arg_kind == VCODE_TYPE_INT)
          lop = (vtype_low(arg_type) < 0) ? LLVMSExt : LLVMZExt;
 
-      ctx->regs[result] = LLVMBuildCast(builder, lop, ctx->regs[arg],
+      ctx->regs[result] = LLVMBuildCast(builder, lop, arg_ll,
                                         cgen_type(arg_type),
                                         cgen_reg_name(result));
    }
@@ -1646,6 +1685,13 @@ static void cgen_op_deallocate(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, LLVMConstNull(LLVMTypeOf(access)), ptr);
 }
 
+static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMConstReal(cgen_type(vcode_reg_type(result)),
+                                     vcode_get_real(op));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1858,6 +1904,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DEALLOCATE:
       cgen_op_deallocate(i, ctx);
+      break;
+   case VCODE_OP_CONST_REAL:
+      cgen_op_const_real(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

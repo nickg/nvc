@@ -366,6 +366,9 @@ static vcode_type_t lower_type(type_t type)
             return vtype_access(lower_type(access));
       }
 
+   case T_REAL:
+      return vtype_real();
+
    default:
       fatal("cannot lower type kind %s", type_kind_str(type_kind(type)));
    }
@@ -885,8 +888,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_sub(r0, r1);
    else if (icmp(builtin, "div"))
       return emit_div(r0, r1, tree_index(fcall));
-   else if (icmp(builtin, "exp"))
+   else if (icmp(builtin, "exp")) {
+      type_t r0_type = lower_arg_type(fcall, 0);
+      type_t r1_type = lower_arg_type(fcall, 0);
+      if (type_eq(r0_type, r1_type))
+         r1 = emit_cast(lower_type(r0_type), r1);
       return emit_exp(r0, r1);
+   }
    else if (icmp(builtin, "mod"))
       return emit_mod(r0, r1);
    else if (icmp(builtin, "rem"))
@@ -1102,6 +1110,9 @@ static vcode_reg_t lower_literal(tree_t lit)
 
    case L_NULL:
       return emit_null(lower_type(tree_type(lit)));
+
+   case L_REAL:
+      return emit_const_real(tree_dval(lit));
 
    default:
       fatal_at(tree_loc(lit), "cannot lower literal kind %d",
@@ -2030,6 +2041,35 @@ static vcode_reg_t lower_all(tree_t all, expr_ctx_t ctx)
       return all_reg;
 }
 
+static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
+{
+   tree_t value = tree_value(tree_param(expr, 0));
+
+   type_t from = tree_type(value);
+   type_t to   = tree_type(expr);
+
+   type_kind_t from_k = type_kind(type_base_recur(from));
+   type_kind_t to_k   = type_kind(type_base_recur(to));
+
+   vcode_reg_t value_reg = lower_expr(value, ctx);
+
+   if (from_k == T_REAL && to_k == T_INTEGER)
+      return emit_cast(lower_type(to), value_reg);
+   else if (from_k == T_INTEGER && to_k == T_REAL)
+      return emit_cast(lower_type(to), value_reg);
+   else if (type_is_array(to) && !lower_const_bounds(to)) {
+      // Need to wrap in metadata
+      assert(false);
+   }
+   else if (from_k == T_INTEGER && to_k == T_INTEGER)
+      // Possibly change width
+      return emit_cast(lower_type(to), value_reg);
+   else {
+      // No conversion to perform
+      return value_reg;
+   }
+}
+
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
@@ -2053,6 +2093,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_new(expr, ctx);
    case T_ALL:
       return lower_all(expr, ctx);
+   case T_TYPE_CONV:
+      return lower_type_conv(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));

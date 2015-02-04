@@ -112,6 +112,7 @@ typedef enum {
    VCODE_OP_DEALLOCATE,
    VCODE_OP_ALL,
    VCODE_OP_BIT_VEC_OP,
+   VCODE_OP_CONST_REAL,
 } vcode_op_t;
 
 typedef enum {
@@ -124,6 +125,7 @@ typedef enum {
    VCODE_TYPE_RECORD,
    VCODE_TYPE_FILE,
    VCODE_TYPE_ACCESS,
+   VCODE_TYPE_REAL,
 } vtype_kind_t;
 
 typedef enum {
@@ -174,6 +176,7 @@ int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);
 char *vtype_record_name(vcode_type_t type);
+vcode_type_t vtype_real(void);
 
 void vcode_opt(void);
 void vcode_close(void);
@@ -212,6 +215,7 @@ int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
 ident_t vcode_get_func(int op);
 int64_t vcode_get_value(int op);
+double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
 vcode_block_t vcode_get_target(int op, int nth);
@@ -251,6 +255,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
                              bool allocate);
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
                               bool allocate);
+vcode_reg_t emit_const_real(double value);
 vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_mul(vcode_reg_t lhs, vcode_reg_t rhs);

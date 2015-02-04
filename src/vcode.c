@@ -41,6 +41,7 @@ typedef struct {
       bit_vec_op_kind_t bit_vec_op;
       ident_t           func;
       int64_t           value;
+      double            real;
       char             *comment;
       vcode_signal_t    signal;
       unsigned          dim;
@@ -520,6 +521,13 @@ int64_t vcode_get_value(int op)
    return o->value;
 }
 
+double vcode_get_real(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_CONST_REAL);
+   return o->real;
+}
+
 vcode_var_t vcode_get_address(int op)
 {
    op_t *o = vcode_op_data(op);
@@ -646,7 +654,7 @@ const char *vcode_op_string(vcode_op_t op)
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
-      "all", "bit vec op"
+      "all", "bit vec op", "const real"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -690,6 +698,10 @@ static void vcode_dump_one_type(vcode_type_t type)
       }
       else
          vcode_pretty_print_int(vt->low);
+      break;
+
+   case VCODE_TYPE_REAL:
+      printf("%%");
       break;
 
    case VCODE_TYPE_CARRAY:
@@ -913,6 +925,17 @@ void vcode_dump(void)
                col += printf(" := %s %"PRIi64"",
                              vcode_op_string(op->kind),
                              op->value);
+               reg_t *r = vcode_reg_data(op->result);
+               vcode_dump_type(col, r->type, r->bounds);
+            }
+            break;
+
+         case VCODE_OP_CONST_REAL:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %g",
+                             vcode_op_string(op->kind),
+                             op->real);
                reg_t *r = vcode_reg_data(op->result);
                vcode_dump_type(col, r->type, r->bounds);
             }
@@ -1634,6 +1657,7 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_ACCESS:
          return vtype_eq(at->pointed, bt->pointed);
       case VCODE_TYPE_OFFSET:
+      case VCODE_TYPE_REAL:
          return true;
       case VCODE_TYPE_SIGNAL:
       case VCODE_TYPE_FILE:
@@ -1669,6 +1693,7 @@ bool vtype_includes(vcode_type_t type, vcode_type_t bounds)
    case VCODE_TYPE_ACCESS:
    case VCODE_TYPE_OFFSET:
    case VCODE_TYPE_FILE:
+   case VCODE_TYPE_REAL:
       return false;
 
    case VCODE_TYPE_SIGNAL:
@@ -1819,6 +1844,16 @@ vcode_type_t vtype_offset(void)
    n->kind = VCODE_TYPE_OFFSET;
    n->low  = INT64_MIN;
    n->high = INT64_MAX;
+
+   return vtype_new(n);
+}
+
+vcode_type_t vtype_real(void)
+{
+   assert(active_unit != NULL);
+
+   vtype_t *n = vtype_array_alloc(&(active_unit->types));
+   n->kind = VCODE_TYPE_REAL;
 
    return vtype_new(n);
 }
@@ -2255,6 +2290,16 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    return op->result;
 }
 
+vcode_reg_t emit_const_real(double value)
+{
+   op_t *op = vcode_add_op(VCODE_OP_CONST_REAL);
+   op->real   = value;
+   op->type   = vtype_real();
+   op->result = vcode_add_reg(op->type);
+
+   return op->result;
+}
+
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
                              bool allocate)
 {
@@ -2424,7 +2469,8 @@ vcode_reg_t emit_load(vcode_var_t var)
    VCODE_ASSERT(
       type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
       || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
-      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS,
+      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS
+      || type_kind == VCODE_TYPE_REAL,
       "cannot load non-scalar type");
 
    reg_t *r = vcode_reg_data(op->result);
@@ -2450,7 +2496,8 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
    VCODE_ASSERT(
       type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET
       || type_kind == VCODE_TYPE_UARRAY || type_kind == VCODE_TYPE_POINTER
-      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS,
+      || type_kind == VCODE_TYPE_FILE || type_kind == VCODE_TYPE_ACCESS
+      || type_kind == VCODE_TYPE_REAL,
       "cannot load non-scalar type");
 
    vcode_reg_data(op->result)->bounds = vcode_reg_data(reg)->bounds;
@@ -2714,8 +2761,15 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
    if (vtype_eq(vcode_reg_type(reg), type))
       return reg;
 
+   vtype_kind_t from = vtype_kind(vcode_reg_type(reg));
+   vtype_kind_t to   = vtype_kind(type);
+
+   const bool integral =
+      (from == VCODE_TYPE_OFFSET || from == VCODE_TYPE_INT)
+      && (to == VCODE_TYPE_OFFSET || to == VCODE_TYPE_INT);
+
    int64_t value;
-   if (vcode_reg_const(reg, &value))
+   if (integral && vcode_reg_const(reg, &value))
       return emit_const(type, value);
 
    // Try to find a previous cast of this register to this type
@@ -2734,10 +2788,10 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
       { VCODE_TYPE_INT,    VCODE_TYPE_OFFSET  },
       { VCODE_TYPE_CARRAY, VCODE_TYPE_POINTER },
       { VCODE_TYPE_OFFSET, VCODE_TYPE_INT     },
+      { VCODE_TYPE_INT,    VCODE_TYPE_INT     },
+      { VCODE_TYPE_INT,    VCODE_TYPE_REAL    },
+      { VCODE_TYPE_REAL,   VCODE_TYPE_INT     },
    };
-
-   vtype_kind_t from = vtype_kind(vcode_reg_type(reg));
-   vtype_kind_t to   = vtype_kind(type);
 
    if (from == VCODE_TYPE_INT) {
       reg_t *rr = vcode_reg_data(op->result);
