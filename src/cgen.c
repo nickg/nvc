@@ -2262,27 +2262,6 @@ static LLVMValueRef cgen_name_attr(tree_t ref, type_t type, name_attr_t which)
                             llvm_int8(RANGE_TO), ptr);
 }
 
-static LLVMValueRef cgen_last_event(tree_t t)
-{
-   tree_t decl = tree_ref(t);
-   type_t type = tree_type(decl);
-
-   LLVMValueRef nets = cgen_signal_nets(decl, NULL);
-
-   LLVMValueRef n_elems;
-   if (type_is_array(type))
-      n_elems = cgen_array_len(type, 0, nets);
-   else
-      n_elems = llvm_int32(1);
-
-   LLVMValueRef args[] = {
-      llvm_void_cast(nets),
-      n_elems
-   };
-   return LLVMBuildCall(builder, llvm_fn("_last_event"),
-                        args, ARRAY_LEN(args), "");
-}
-
 static void cgen_widen(type_t result, LLVMValueRef *args, int nargs)
 {
    // Ensure all arguments to arithmetic operators are the same width
@@ -2475,8 +2454,6 @@ static LLVMValueRef cgen_fcall(tree_t t, cgen_ctx_t *ctx)
          return cgen_name_attr(p0, tree_type(t), INSTANCE_NAME);
       else if (icmp(builtin, "path_name"))
          return cgen_name_attr(p0, tree_type(t), PATH_NAME);
-      else if (icmp(builtin, "last_event"))
-         return cgen_last_event(p0);
       else if (icmp(builtin, "ascending")) {
          tree_t p1 = tree_value(tree_param(t, 1));
          type_t type = tree_type(p1);
@@ -3819,6 +3796,36 @@ static LLVMValueRef cgen_all(tree_t t, cgen_ctx_t *ctx)
       return LLVMBuildLoad(builder, ptr, "all");
 }
 
+static LLVMValueRef cgen_last_event(tree_t t, cgen_ctx_t *ctx)
+{
+   type_t type = tree_type(t);
+
+   LLVMValueRef nets = cgen_signal_lvalue(t, ctx);
+
+   LLVMValueRef n_elems;
+   if (type_is_array(type))
+      n_elems = cgen_array_len(type, 0, nets);
+   else
+      n_elems = llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(nets),
+      n_elems
+   };
+   return LLVMBuildCall(builder, llvm_fn("_last_event"),
+                        args, ARRAY_LEN(args), "");
+}
+
+static LLVMValueRef cgen_attr_ref(tree_t t, cgen_ctx_t *ctx)
+{
+   ident_t attr = tree_ident(t);
+
+   if (icmp(attr, "LAST_EVENT"))
+      return cgen_last_event(tree_name(t), ctx);
+   else
+      assert(false);
+}
+
 static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
@@ -3844,6 +3851,8 @@ static LLVMValueRef cgen_expr(tree_t t, cgen_ctx_t *ctx)
       return cgen_new(t, ctx);
    case T_ALL:
       return cgen_all(t, ctx);
+   case T_ATTR_REF:
+      return cgen_attr_ref(t, ctx);
    default:
       fatal("missing cgen_expr for %s", tree_kind_str(tree_kind(t)));
    }

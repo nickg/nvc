@@ -1042,6 +1042,7 @@ START_TEST(test_attr)
       {  85, "parameter must be locally static" },
       { 127, "cannot index non-array type universal integer" },
       { 133, "class of object I is variable not signal" },
+      { 140, "prefix of attribute LAST_EVENT must denote a signal" },
       { -1, NULL }
    };
    expect_errors(expect);

@@ -1886,13 +1886,11 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    }
 
    if (is_signal) {
-      type_t std_time = sem_std_type("TIME");
       type_t std_bit  = sem_std_type("BIT");
 
       ident_t event_i       = ident_new("EVENT");
       ident_t last_value_i  = ident_new("LAST_VALUE");
       ident_t active_i      = ident_new("ACTIVE");
-      ident_t last_event_i  = ident_new("LAST_EVENT");
       ident_t delayed_i     = ident_new("DELAYED");
       ident_t stable_i      = ident_new("STABLE");
       ident_t quiet_i       = ident_new("QUIET");
@@ -1907,9 +1905,6 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
       tree_add_attr_tree(decl, last_value_i,
                          sem_builtin_fn(last_value_i, type, "last_value",
                                         type, NULL));
-      tree_add_attr_tree(decl, last_event_i,
-                         sem_builtin_fn(last_event_i, std_time,
-                                        "last_event", type, NULL));
       tree_add_attr_tree(decl, delayed_i,
                          sem_time_parameter_attribute(delayed_i, "delayed",
                                                       type, type));
@@ -4964,6 +4959,17 @@ static bool sem_check_attr_ref(tree_t t)
       name = tree_name(t);
    }
 
+   ident_t attr = tree_ident(t);
+
+   if (icmp(attr, "LAST_EVENT")) {
+      if (class_of(name) != C_SIGNAL)
+         sem_error(t, "prefix of attribute %s must denote a signal",
+                   istr(attr));
+
+      tree_set_type(t, sem_std_type("TIME"));
+      return true;
+   }
+
    bool allow_user = true;
    switch (tree_kind(name)) {
    case T_REF:
@@ -4991,8 +4997,6 @@ static bool sem_check_attr_ref(tree_t t)
       else
          sem_error(t, "invalid attribute reference");
    }
-
-   ident_t attr = tree_ident(t);
 
    if (icmp(attr, "range"))
       sem_error(t, "range expression not allowed here");

@@ -224,7 +224,7 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_has_value(t))
       return tree_value(t);
-   else {
+   else if (tree_has_ref(t)) {
       tree_t decl = tree_ref(t);
       assert(tree_kind(decl) == T_FUNC_DECL);
 
@@ -248,6 +248,8 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
          return simp_fcall(fcall);
       }
    }
+   else
+      return t;
 }
 
 static tree_t simp_extract_string_literal(tree_t literal, int64_t index,

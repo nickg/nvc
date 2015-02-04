@@ -134,4 +134,10 @@ begin
     begin
     end process;
 
+    process is
+        variable x : integer;
+    begin
+        assert x'last_event = 0 ns;     -- Error
+    end process;
+
 end architecture;

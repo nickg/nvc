@@ -931,7 +931,7 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 
 int64_t _last_event(const int32_t *nids, int32_t n)
 {
-   //TRACE("_last_event %s n=%d", fmt_net(&(nets[nids[0]])), n);
+   //TRACE("_last_event %s n=%d %d", fmt_net(nids[0]), n);
 
    int64_t last = INT64_MAX;
    int offset = 0;
