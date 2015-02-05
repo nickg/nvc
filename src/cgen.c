@@ -921,12 +921,12 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
       // This is a no-op as constrained arrays are implemented as pointers
       ctx->regs[result] = ctx->regs[arg];
    }
-   else if (result_kind == VCODE_TYPE_REAL && arg_type == VCODE_TYPE_INT) {
+   else if (result_kind == VCODE_TYPE_REAL && arg_kind == VCODE_TYPE_INT) {
       ctx->regs[result] = LLVMBuildSIToFP(builder, arg_ll,
                                           cgen_type(result_type),
                                           cgen_reg_name(result));
    }
-   else if (result_kind == VCODE_TYPE_INT && arg_type == VCODE_TYPE_REAL) {
+   else if (result_kind == VCODE_TYPE_INT && arg_kind == VCODE_TYPE_REAL) {
       ctx->regs[result] = LLVMBuildFPToSI(builder, arg_ll,
                                           cgen_type(result_type),
                                           cgen_reg_name(result));
