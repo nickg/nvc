@@ -134,7 +134,7 @@ access4         normal
 # proc9           normal
 # elab9           normal,gold
 # elab10          normal,gold
-# conv1           normal
+conv1           normal
 elab11          normal
 link2           normal
 # driver3         normal

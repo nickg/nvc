@@ -2038,7 +2038,7 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
       return emit_cast(lower_type(to), value_reg);
    else if (type_is_array(to) && !lower_const_bounds(to)) {
       // Need to wrap in metadata
-      assert(false);
+      return lower_wrap(from, value_reg);
    }
    else if (from_k == T_INTEGER && to_k == T_INTEGER)
       // Possibly change width
