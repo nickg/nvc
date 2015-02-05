@@ -86,8 +86,8 @@ real1           normal,gold
 assert2         normal,gold
 # concat3         normal
 # const2          normal
-# func7           normal
-# func8           normal
+func7           normal
+func8           normal
 # ieee4           normal
 # bounds1         gold,fail
 # bounds2         gold,fail

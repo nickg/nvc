@@ -373,6 +373,7 @@ void vcode_opt(void)
             case VCODE_OP_CMP:
             case VCODE_OP_INDEX:
             case VCODE_OP_NETS:
+            case VCODE_OP_WRAP:
                if (uses[o->result] == -1) {
                   vcode_dump();
                   fatal("defintion of r%d does not dominate all uses",

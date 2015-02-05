@@ -2373,13 +2373,15 @@ static void lower_return(tree_t stmt)
    if (tree_has_value(stmt)) {
       tree_t value = tree_value(stmt);
 
+      vtype_kind_t result_kind = vtype_kind(vcode_unit_result());
+
       type_t type = tree_type(value);
       if (type_is_scalar(type)) {
          vcode_reg_t result = lower_reify_expr(value);
          emit_bounds(result, lower_bounds(type));
          emit_return(result);
       }
-      else if (vtype_kind(vcode_unit_result()) == VCODE_TYPE_UARRAY) {
+      else if (result_kind == VCODE_TYPE_UARRAY) {
          vcode_reg_t array =
             lower_const_bounds(type)
             ? lower_expr(value, EXPR_RVALUE)
@@ -2400,6 +2402,8 @@ static void lower_return(tree_t stmt)
             emit_return(lower_wrap(type, data));
          }
       }
+      else if (result_kind == VCODE_TYPE_POINTER)
+         emit_return(lower_array_data(lower_expr(value, EXPR_RVALUE)));
       else
          emit_return(lower_expr(value, EXPR_RVALUE));
    }
@@ -2898,8 +2902,15 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
-   vcode_unit_t vu = emit_function(lower_mangle_func(body), context,
-                                   lower_type(type_result(tree_type(body))));
+
+   type_t result = type_result(tree_type(body));
+   vcode_type_t vtype = VCODE_INVALID_TYPE;
+   if (type_is_array(result) && lower_const_bounds(result))
+      vtype = vtype_pointer(lower_type(type_elem(result)));
+   else
+      vtype = lower_type(result);
+
+   vcode_unit_t vu = emit_function(lower_mangle_func(body), context, vtype);
    vcode_block_t bb = vcode_active_block();
 
    const bool has_subprograms = lower_has_subprograms(body);
