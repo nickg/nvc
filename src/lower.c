@@ -68,6 +68,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
+typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
 
 static bool lower_is_const(tree_t t)
 {
@@ -776,6 +777,23 @@ static vcode_reg_t lower_name_attr(tree_t ref, type_t type, name_attr_t which)
    return emit_wrap(data, &dim0, 1);
 }
 
+static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
+{
+   // Resize arithmetic result to width of target type
+
+   vcode_type_t vtype = lower_type(result);
+   if (!vtype_eq(vtype, vcode_reg_type(reg)))
+      return emit_cast(vtype, reg);
+   else
+      return reg;
+}
+
+static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
+                               vcode_reg_t r1)
+{
+   return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
@@ -870,22 +888,22 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "geq"))
       return emit_cmp(VCODE_CMP_GEQ, r0, r1);
    else if (icmp(builtin, "mul"))
-      return emit_mul(r0, r1);
+      return lower_arith(fcall, emit_mul, r0, r1);
    else if (icmp(builtin, "add"))
-      return emit_add(r0, r1);
+      return lower_arith(fcall, emit_add, r0, r1);
    else if (icmp(builtin, "sub"))
-      return emit_sub(r0, r1);
+      return lower_arith(fcall, emit_sub, r0, r1);
    else if (icmp(builtin, "div"))
       return emit_div(r0, r1, tree_index(fcall));
    else if (icmp(builtin, "exp")) {
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), r1);
-      return emit_exp(r0, r1);
+      return lower_arith(fcall, emit_exp, r0, r1);
    }
    else if (icmp(builtin, "mod"))
-      return emit_mod(r0, r1);
+      return lower_arith(fcall, emit_mod, r0, r1);
    else if (icmp(builtin, "rem"))
-      return emit_rem(r0, r1);
+      return lower_arith(fcall, emit_rem, r0, r1);
    else if (icmp(builtin, "neg"))
       return emit_neg(r0);
    else if (icmp(builtin, "abs"))
