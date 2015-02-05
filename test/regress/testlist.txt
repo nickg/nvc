@@ -61,7 +61,7 @@ generic1        normal
 # synopsys1       normal
 block1          normal
 elab3           normal,gold
-# func6           normal
+func6           normal
 # case2           normal
 # case3           normal
 # wait6           normal,gold

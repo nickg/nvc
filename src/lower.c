@@ -410,6 +410,22 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
+static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
+{
+   assert(type_is_array(type));
+
+   const int ndims =
+      type_is_unconstrained(type) ? type_index_constrs(type) : type_dims(type);
+   vcode_dim_t dims[ndims];
+   for (int i = 0; i < ndims; i++) {
+      dims[i].left  = lower_array_left(type, i, data);
+      dims[i].right = lower_array_right(type, i, data);
+      dims[i].dir   = lower_array_dir(type, i, data);
+   }
+
+   return emit_wrap(lower_array_data(data), dims, ndims);
+}
+
 static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 {
    if (nth >= tree_params(fcall))
@@ -456,20 +472,11 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
          return reg;
       else if (!have_uarray && need_uarray) {
          // Need to wrap array with metadata
-
-         const int ndims = type_dims(value_type);
-         vcode_dim_t dims[ndims];
-         for (int i = 0; i < ndims; i++) {
-            dims[i].left  = lower_array_left(value_type, i, reg);
-            dims[i].right = lower_array_right(value_type, i, reg);
-            dims[i].dir   = lower_array_dir(value_type, i, reg);
-         }
-
-         return emit_wrap(reg, dims, ndims);
+         return lower_wrap(value_type, reg);
       }
       else if (have_uarray && !need_uarray) {
          // Need to unwrap array to get raw pointer
-         assert(false);
+         return emit_unwrap(reg);
       }
       else
          return reg;
@@ -477,31 +484,6 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    else
       return must_reify ? lower_reify(reg) : reg;
 }
-
-#if 0
-static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
-{
-   assert(type_is_array(type));
-   const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(data));
-   if (vtkind == VCODE_TYPE_UARRAY)
-      return data;
-   else {
-      //assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_CARRAY);
-      assert(!type_is_unconstrained(type));
-
-      const int ndims = type_dims(type);
-      vcode_dim_t dims[ndims];
-      for (int i = 0; i < ndims; i++) {
-         range_t r = type_dim(type, i);
-         dims[i].left  = lower_reify_expr(r.left);
-         dims[i].right = lower_reify_expr(r.right);
-         dims[i].dir   = emit_const(vtype_bool(), r.kind == RANGE_DOWNTO);
-      }
-
-      return emit_wrap(data, dims, ndims);
-   }
-}
-#endif
 
 static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
                                          vcode_reg_t rhs_data,
@@ -1212,18 +1194,8 @@ static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
 
    if (alias_const && !value_const)
       return lower_array_data(aliased);
-   else if (!alias_const) {
-      const int ndims = type_dims(alias_type);
-      vcode_dim_t dims[ndims];
-      for (int i = 0; i < ndims; i++) {
-         range_t r = type_dim(alias_type, i);
-         dims[i].left  = lower_reify_expr(r.left);
-         dims[i].right = lower_reify_expr(r.right);
-         dims[i].dir   = lower_array_dir(alias_type, i, VCODE_INVALID_REG);
-      }
-
-      return emit_wrap(lower_array_data(aliased), dims, ndims);
-   }
+   else if (!alias_const)
+      return lower_wrap(alias_type, aliased);
    else
       return aliased;
 }
@@ -1999,15 +1971,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       if (!lower_const_bounds(type)) {
           // Need to allocate memory for both the array and its metadata
 
-         vcode_dim_t dims[1] = {
-            {
-               .left  = lower_array_left(value_type, 0, init_reg),
-               .right = lower_array_right(value_type, 0, init_reg),
-               .dir   = lower_array_dir(value_type, 0, init_reg)
-            }
-         };
-         vcode_reg_t meta_reg = emit_wrap(raw_reg, dims, 1);
-
+         vcode_reg_t meta_reg = lower_wrap(value_type, init_reg);
          vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
          emit_store_indirect(meta_reg, emit_all(result_reg));
          return result_reg;
@@ -2411,14 +2375,6 @@ static void lower_return(tree_t stmt)
          else {
             // TODO: reimplement the "returned" attribute
 
-            const int ndims = type_dims(type);
-            vcode_dim_t dims[ndims];
-            for (int i = 0; i < ndims; i++) {
-               dims[i].left  = lower_array_left(type, i, array);
-               dims[i].right = lower_array_right(type, i, array);
-               dims[i].dir   = lower_array_dir(type, i, array);
-            }
-
             vcode_reg_t count = lower_array_total_len(type, array);
 
             type_t elem = type_elem(type);
@@ -2426,7 +2382,7 @@ static void lower_return(tree_t stmt)
                emit_alloca(lower_type(elem), lower_bounds(elem), count);
             emit_copy(data, lower_array_data(array), count);
 
-            emit_return(emit_wrap(data, dims, ndims));
+            emit_return(lower_wrap(type, data));
          }
       }
       else
