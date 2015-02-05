@@ -662,7 +662,10 @@ static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
 
 static type_t lower_arg_type(tree_t fcall, int nth)
 {
-   return tree_type(tree_value(tree_param(fcall, nth)));
+   if (nth >= tree_params(fcall))
+      return NULL;
+   else
+      return tree_type(tree_value(tree_param(fcall, nth)));
 }
 
 static void lower_mangle_one_type(text_buf_t *buf, type_t type)
@@ -851,6 +854,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
 
+   type_t r0_type = lower_arg_type(fcall, 0);
+   type_t r1_type = lower_arg_type(fcall, 1);
+
    if (icmp(builtin, "eq"))
       return emit_cmp(VCODE_CMP_EQ, r0, r1);
    else if (icmp(builtin, "neq"))
@@ -872,9 +878,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "div"))
       return emit_div(r0, r1, tree_index(fcall));
    else if (icmp(builtin, "exp")) {
-      type_t r0_type = lower_arg_type(fcall, 0);
-      type_t r1_type = lower_arg_type(fcall, 0);
-      if (type_eq(r0_type, r1_type))
+      if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), r1);
       return emit_exp(r0, r1);
    }
@@ -905,23 +909,17 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(p0));
    else if (icmp(builtin, "aeq"))
-      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                             lower_arg_type(fcall, 1), VCODE_CMP_EQ);
+      return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ);
    else if (icmp(builtin, "aneq"))
-      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                                      lower_arg_type(fcall, 1), VCODE_CMP_EQ));
+      return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ));
    else if (icmp(builtin, "alt"))
-      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                             lower_arg_type(fcall, 1), VCODE_CMP_LT);
+      return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT);
    else if (icmp(builtin, "aleq"))
-      return lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                             lower_arg_type(fcall, 1), VCODE_CMP_LEQ);
+      return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ);
    else if (icmp(builtin, "agt"))
-      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                                      lower_arg_type(fcall, 1), VCODE_CMP_LEQ));
+      return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ));
    else if (icmp(builtin, "ageq"))
-      return emit_not(lower_array_cmp(r0, r1, lower_arg_type(fcall, 0),
-                                      lower_arg_type(fcall, 1), VCODE_CMP_LT));
+      return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT));
    else if (icmp(builtin, "succ"))
       return emit_add(r0, emit_const(vcode_reg_type(r0), 1));
    else if (icmp(builtin, "pred"))
@@ -937,14 +935,14 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
    }
    else if (icmp(builtin, "req"))
-      return lower_record_eq(r0, r1, lower_arg_type(fcall, 0));
+      return lower_record_eq(r0, r1, r0_type);
    else if (icmp(builtin, "rneq"))
-      return emit_not(lower_record_eq(r0, r1, lower_arg_type(fcall, 0)));
+      return emit_not(lower_record_eq(r0, r1, r0_type));
    else if (icmp(builtin, "endfile"))
       return emit_endfile(r0);
    else if (icmp(builtin, "file_open1")) {
       vcode_reg_t name   = lower_array_data(r1);
-      vcode_reg_t length = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t length = lower_array_len(r1_type, 0, r1);
       emit_file_open(r0, name, length, lower_subprogram_arg(fcall, 2),
                      VCODE_INVALID_REG);
       return VCODE_INVALID_REG;
@@ -958,9 +956,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    }
    else if (icmp(builtin, "file_write")) {
       vcode_reg_t length = VCODE_INVALID_REG;
-      type_t arg1type = lower_arg_type(fcall, 1);
-      if (type_is_array(arg1type))
-         length = lower_array_len(arg1type, 0, r1);
+      if (type_is_array(r1_type))
+         length = lower_array_len(r1_type, 0, r1);
       emit_file_write(r0, r1, length);
       return VCODE_INVALID_REG;
    }
@@ -970,9 +967,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    }
    else if (icmp(builtin, "file_read")) {
       vcode_reg_t inlen = VCODE_INVALID_REG;
-      type_t arg1type = lower_arg_type(fcall, 1);
-      if (type_is_array(arg1type))
-         inlen = lower_array_len(arg1type, 0, r1);
+      if (type_is_array(r1_type))
+         inlen = lower_array_len(r1_type, 0, r1);
 
       vcode_reg_t outlen = VCODE_INVALID_REG;
       if (tree_params(fcall) == 3)
@@ -986,43 +982,43 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return VCODE_INVALID_REG;
    }
    else if (icmp(builtin, "v_not")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
       return emit_bit_vec_op(BIT_VEC_NOT, r0, r0_len, VCODE_INVALID_REG,
                              VCODE_INVALID_REG, lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_and")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_AND, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_or")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_OR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_xor")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_xnor")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_nand")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
    else if (icmp(builtin, "v_nor")) {
-      vcode_reg_t r0_len = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
-      vcode_reg_t r1_len = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
+      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
       return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
