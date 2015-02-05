@@ -446,7 +446,8 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
       mode = tree_subkind(tree_port(decl, nth));
 
    const bool must_reify =
-      (type_is_scalar(value_type) || type_is_access(value_type))
+      (type_is_scalar(value_type) || type_is_access(value_type)
+       || type_is_file(value_type))
       && mode == PORT_IN;
 
    if (tree_attr_str(decl, builtin_i))
@@ -2791,31 +2792,46 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       const bool is_uarray = type_is_array(type) && !lower_const_bounds(type);
 
       vcode_type_t vtype, vbounds;
-      if (tree_class(p) == C_SIGNAL) {
+      switch (tree_class(p)) {
+      case C_SIGNAL:
          if (is_uarray)
             assert(false);
          else {
             vtype   = vtype_signal(lower_type(type));
             vbounds = vtype;
          }
-      }
-      else {
-         if (type_is_array(type) && lower_const_bounds(type)) {
-            vtype = vtype_pointer(lower_type(type_elem(type)));
-            vbounds = vtype;
-         }
-         else if (type_is_record(type)) {
-            vtype = vtype_pointer(lower_type(type));
-            vbounds = vtype;
-         }
-         else {
-            vtype = lower_type(type);
-            vbounds = lower_bounds(type);
-         }
+         break;
 
-         const port_mode_t mode = tree_subkind(p);
-         if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
-            vtype = vtype_pointer(vtype);
+      case C_VARIABLE:
+      case C_DEFAULT:
+      case C_CONSTANT:
+         {
+            if (type_is_array(type) && lower_const_bounds(type)) {
+               vtype = vtype_pointer(lower_type(type_elem(type)));
+               vbounds = vtype;
+            }
+            else if (type_is_record(type)) {
+               vtype = vtype_pointer(lower_type(type));
+               vbounds = vtype;
+            }
+            else {
+               vtype = lower_type(type);
+               vbounds = lower_bounds(type);
+            }
+
+            const port_mode_t mode = tree_subkind(p);
+            if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
+               vtype = vtype_pointer(vtype);
+         }
+         break;
+
+      case C_FILE:
+         vtype = vtype_pointer(lower_type(type));
+         vbounds = vtype;
+         break;
+
+      default:
+         assert(false);
       }
 
       vcode_reg_t reg = emit_param(vtype, vbounds, tree_ident(p));
