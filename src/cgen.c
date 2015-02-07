@@ -174,15 +174,7 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       return LLVMDoubleType();
 
    case VCODE_TYPE_CARRAY:
-      {
-         const int ndims = vtype_dims(type);
-         unsigned nelems = 1;
-         for (int i = 0; i < ndims; i++)
-            nelems *= vtype_dim(type, i);
-
-         return LLVMArrayType(cgen_type(vtype_elem(type)), nelems);
-      }
-      break;
+      return LLVMArrayType(cgen_type(vtype_elem(type)), vtype_size(type));
 
    case VCODE_TYPE_UARRAY:
       return llvm_uarray_type(cgen_type(vtype_elem(type)), vtype_dims(type));
@@ -1153,10 +1145,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       cgen_append_size_list(list, type, 1);
       break;
    case VCODE_TYPE_CARRAY:
-      {
-         assert(vtype_dims(type) == 1);
-         cgen_append_size_list(list, vtype_elem(type), vtype_dim(type, 0));
-      }
+      cgen_append_size_list(list, vtype_elem(type), vtype_size(type));
       break;
    default:
       fatal_trace("cannot handle type %d in size list",

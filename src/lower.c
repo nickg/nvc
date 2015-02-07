@@ -290,15 +290,15 @@ static vcode_type_t lower_array_type(type_t type)
    assert(ndims > 0);
 
    if (lower_const_bounds(type)) {
-      int dims[ndims];
+      int size = 1;
       for (int i = 0; i < ndims; i++) {
          range_t r = type_dim(type, i);
          int64_t low, high;
          range_bounds(r, &low, &high);
-         dims[i] = high - low + 1;
+         size *= MAX(high - low + 1, 0);
       }
 
-      return vtype_carray(dims, ndims, elem_type, elem_bounds);
+      return vtype_carray(size, elem_type, elem_bounds);
    }
    else
       return vtype_uarray(ndims, elem_type, elem_bounds);

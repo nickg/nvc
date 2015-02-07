@@ -27,7 +27,6 @@
 DECLARE_AND_DEFINE_ARRAY(vcode_reg);
 DECLARE_AND_DEFINE_ARRAY(vcode_block);
 DECLARE_AND_DEFINE_ARRAY(vcode_type);
-DECLARE_AND_DEFINE_ARRAY(uint32);
 
 typedef struct {
    vcode_op_t          kind;
@@ -72,9 +71,10 @@ typedef struct {
          int64_t high;
       };
       struct {
-         uint32_array_t dims;
-         vcode_type_t   elem;
-         vcode_type_t   bounds;
+         unsigned      dims;
+         unsigned      size;
+         vcode_type_t  elem;
+         vcode_type_t  bounds;
       };
       vcode_type_t       pointed;
       vcode_type_t       base;
@@ -709,10 +709,7 @@ static void vcode_dump_one_type(vcode_type_t type)
 
    case VCODE_TYPE_CARRAY:
       {
-         printf("[");
-         for (unsigned i = 0; i < vt->dims.count; i++)
-            printf("%s%d", i > 0 ? ", " : "", vt->dims.items[i]);
-         printf("] : ");
+         printf("[%u] : ", vt->size);
          vcode_dump_one_type(vt->elem);
          if (!vtype_eq(vt->elem, vt->bounds)) {
             printf(" => ");
@@ -724,7 +721,7 @@ static void vcode_dump_one_type(vcode_type_t type)
    case VCODE_TYPE_UARRAY:
       {
          printf("[");
-         for (unsigned i = 0; i < vt->dims.count; i++)
+         for (unsigned i = 0; i < vt->dims; i++)
             printf("%s*", i > 0 ? ", " : "");
          printf("] : ");
          vcode_dump_one_type(vt->elem);
@@ -1638,21 +1635,9 @@ bool vtype_eq(vcode_type_t a, vcode_type_t b)
       case VCODE_TYPE_INT:
          return (at->low == bt->low) && (at->high == bt->high);
       case VCODE_TYPE_CARRAY:
-         {
-            if (at->dims.count != bt->dims.count)
-               return false;
-
-            for (unsigned i = 0; i < at->dims.count; i++) {
-               if (at->dims.items[i] != bt->dims.items[i])
-                  return false;
-            }
-
-            return vtype_eq(at->elem, bt->elem);
-         }
+         return at->size == bt->size && vtype_eq(at->elem, bt->elem);
       case VCODE_TYPE_UARRAY:
-         return at->dims.count == bt->dims.count
-            && vtype_eq(at->elem, bt->elem);
-
+         return at->dims == bt->dims && vtype_eq(at->elem, bt->elem);
       case VCODE_TYPE_POINTER:
       case VCODE_TYPE_ACCESS:
          return vtype_eq(at->pointed, bt->pointed);
@@ -1736,8 +1721,7 @@ vcode_type_t vtype_bool(void)
    return vtype_int(0, 1);
 }
 
-vcode_type_t vtype_carray(const int *dim, int ndim,
-                          vcode_type_t elem, vcode_type_t bounds)
+vcode_type_t vtype_carray(int size, vcode_type_t elem, vcode_type_t bounds)
 {
    assert(active_unit != NULL);
 
@@ -1750,8 +1734,7 @@ vcode_type_t vtype_carray(const int *dim, int ndim,
    n->kind   = VCODE_TYPE_CARRAY;
    n->elem   = elem;
    n->bounds = bounds;
-   for (int i = 0; i < ndim; i++)
-      uint32_array_add(&(n->dims), MAX(dim[i], 0));
+   n->size   = MAX(size, 0);
 
    return vtype_new(n);
 }
@@ -1793,8 +1776,7 @@ vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
    n->kind   = VCODE_TYPE_UARRAY;
    n->elem   = elem;
    n->bounds = bounds;
-   for (int i = 0; i < ndim; i++)
-      uint32_array_add(&(n->dims), UINT32_MAX);
+   n->dims   = ndim;
 
    return vtype_new(n);
 }
@@ -1892,18 +1874,18 @@ vcode_type_t vtype_bounds(vcode_type_t type)
    return vt->bounds;
 }
 
-int vtype_dims(vcode_type_t type)
+unsigned vtype_dims(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_CARRAY || vt->kind == VCODE_TYPE_UARRAY);
-   return vt->dims.count;
+   assert(vt->kind == VCODE_TYPE_UARRAY);
+   return vt->dims;
 }
 
-unsigned vtype_dim(vcode_type_t type, int dim)
+unsigned vtype_size(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
    assert(vt->kind == VCODE_TYPE_CARRAY);
-   return uint32_array_nth(&(vt->dims), dim);
+   return vt->size;
 }
 
 int vtype_fields(vcode_type_t type)
@@ -3104,7 +3086,7 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
       vcode_fail("cannot use %s with non-uarray type", vcode_op_string(o));
 
    vtype_t *vt = vcode_type_data(atype);
-   if (dim >= vt->dims.count)
+   if (dim >= vt->dims)
       vcode_fail("invalid dimension %d", dim);
 
    if (rtype == VCODE_INVALID_TYPE)
