@@ -1741,6 +1741,10 @@ vcode_type_t vtype_carray(const int *dim, int ndim,
 {
    assert(active_unit != NULL);
 
+   const vtype_kind_t ekind = vtype_kind(elem);
+   VCODE_ASSERT(ekind != VCODE_TYPE_CARRAY && ekind != VCODE_TYPE_UARRAY,
+                "array types may not be nested");
+
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    memset(n, '\0', sizeof(vtype_t));
    n->kind   = VCODE_TYPE_CARRAY;
@@ -1779,6 +1783,10 @@ vcode_type_t vtype_named_record(ident_t name, uint32_t index, bool create)
 vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds)
 {
    assert(active_unit != NULL);
+
+   const vtype_kind_t ekind = vtype_kind(elem);
+   VCODE_ASSERT(ekind != VCODE_TYPE_CARRAY && ekind != VCODE_TYPE_UARRAY,
+                "array types may not be nested");
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    memset(n, '\0', sizeof(vtype_t));
@@ -2254,6 +2262,10 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
 
    if (count != VCODE_INVALID_REG)
       vcode_add_arg(op, count);
+
+   const vtype_kind_t tkind = vtype_kind(type);
+   VCODE_ASSERT(tkind != VCODE_TYPE_CARRAY && tkind != VCODE_TYPE_UARRAY,
+                "alloca element type cannot be array");
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = bounds;

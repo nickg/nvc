@@ -99,7 +99,6 @@ static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
-static unsigned sem_array_dimension(type_t a);
 static void sem_add_attributes(tree_t decl, bool is_signal);
 
 static scope_t      *top_scope = NULL;
@@ -630,7 +629,7 @@ static void sem_add_dimension_attr(tree_t decl, type_t rtype, const char *name,
          dtype = type_access(dtype);
 
       if (type_is_array(dtype))
-         rtype = (sem_array_dimension(dtype) > 0)
+         rtype = (array_dimension(dtype) > 0)
             ? type_new(T_NONE)
             : sem_index_type(dtype, 0);
       else
@@ -681,7 +680,7 @@ static void sem_declare_predefined_ops(tree_t decl)
       // Operators on arrays
       sem_declare_binary(decl, ident_new("\"=\""), t, t, std_bool, "aeq");
       sem_declare_binary(decl, ident_new("\"/=\""), t, t, std_bool, "aneq");
-      if (sem_array_dimension(t) == 1) {
+      if (array_dimension(t) == 1) {
          sem_declare_binary(decl, ident_new("\"<\""), t, t, std_bool, "alt");
          sem_declare_binary(decl, ident_new("\"<=\""), t, t, std_bool, "aleq");
          sem_declare_binary(decl, ident_new("\">\""), t, t, std_bool, "agt");
@@ -1125,7 +1124,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 
          const int ndims_base =
             type_is_array(base)
-            ? sem_array_dimension(base)
+            ? array_dimension(base)
             : ((base_kind == T_SUBTYPE) ? type_dims(base) : 1);
 
          if (ndims != ndims_base)
@@ -3146,13 +3145,6 @@ static bool sem_check_cassign(tree_t t)
    return true;
 }
 
-static unsigned sem_array_dimension(type_t a)
-{
-   return (type_is_unconstrained(a)
-           ? type_index_constrs(type_base_recur(a))
-           : type_dims(a));
-}
-
 static bool sem_check_conversion(tree_t t)
 {
    // Type conversions are described in LRM 93 section 7.3.5
@@ -3190,7 +3182,7 @@ static bool sem_check_conversion(tree_t t)
 
    if (from_array && to_array) {
       // Types must have same dimensionality
-      bool same_dim = (sem_array_dimension(from) == sem_array_dimension(to));
+      bool same_dim = (array_dimension(from) == array_dimension(to));
 
       // TODO: index types the same or closely related
 
@@ -4063,7 +4055,7 @@ static bool sem_check_concat(tree_t t)
          sem_error(t, "cannot concatenate arrays of types %s and %s",
                    sem_type_str(ltype), sem_type_str(rtype));
 
-      if (sem_array_dimension(ltype) > 1)
+      if (array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
       type_t index_type = sem_index_type(ltype, 0);
@@ -4107,7 +4099,7 @@ static bool sem_check_concat(tree_t t)
 
       type_kind_t akind = type_kind(atype);
 
-      if (sem_array_dimension(atype) > 1)
+      if (array_dimension(atype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
       if (!type_eq(stype, type_elem(atype)))
@@ -4187,7 +4179,7 @@ static bool sem_is_character_array(type_t t)
    if (!type_is_array(t))
       return false;
 
-   if (sem_array_dimension(t) != 1)
+   if (array_dimension(t) != 1)
       return false;
 
    type_t elem = type_base_recur(type_elem(t));
@@ -4410,7 +4402,7 @@ static bool sem_check_aggregate(tree_t t)
 
    if (array) {
       type_t elem_type = NULL;
-      const int ndims = sem_array_dimension(composite_type);
+      const int ndims = array_dimension(composite_type);
       if (ndims == 1)
          elem_type = type_elem(base_type);
       else
@@ -4567,7 +4559,7 @@ static bool sem_check_aggregate(tree_t t)
       type_set_ident(tmp, type_ident(base_type));
       type_set_base(tmp, base_type);
 
-      const int ndims = sem_array_dimension(composite_type);
+      const int ndims = array_dimension(composite_type);
 
       type_t index_type = sem_index_type(composite_type, 0);
 
@@ -4871,7 +4863,7 @@ static bool sem_check_array_ref(tree_t t)
    if (!type_is_array(type))
       sem_error(t, "cannot index non-array type %s", sem_type_str(type));
 
-   const int nindex  = sem_array_dimension(type);
+   const int nindex  = array_dimension(type);
    const int nparams = tree_params(t);
 
    if (nparams != nindex)

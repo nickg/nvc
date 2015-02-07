@@ -619,3 +619,10 @@ unsigned bits_for_range(int64_t low, int64_t high)
          return 64;
    }
 }
+
+unsigned array_dimension(type_t a)
+{
+   return (type_is_unconstrained(a)
+           ? type_index_constrs(type_base_recur(a))
+           : type_dims(a));
+}
