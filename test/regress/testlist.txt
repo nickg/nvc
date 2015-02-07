@@ -151,7 +151,7 @@ elab12          normal
 # wait11          normal
 # bounds11        gold,fail
 wait12          normal,gold
-# array2          normal
+array2          normal
 # driver4         normal
 comp1           normal
 # bitvec          normal
@@ -170,7 +170,7 @@ issue16         normal
 # null2           normal
 # func13          normal
 # proc10          normal
-# array3          normal
+array3          normal
 # slice2          normal
 # attr8           normal
 # attr9           normal
@@ -236,7 +236,7 @@ vhpi2           normal,vhpi
 # issue69         normal
 issue70         normal
 # elab22          normal
-# array4          normal
+array4          normal
 # issue72         normal
 # protected1      normal,2000
 # protected2      normal,2000

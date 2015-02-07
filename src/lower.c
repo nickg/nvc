@@ -277,6 +277,22 @@ static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
       return total;
 }
 
+static int lower_array_const_size(type_t type)
+{
+   const int ndims = array_dimension(type);
+
+   int size = 1;
+   for (int i = 0; i < ndims; i++) {
+      range_t r = type_dim(type, i);
+      int64_t low, high;
+      range_bounds(r, &low, &high);
+      size *= MAX(high - low + 1, 0);
+   }
+
+   type_t elem = type_elem(type);
+   return type_is_array(elem) ? size * lower_array_const_size(elem) : size;
+}
+
 static vcode_type_t lower_array_type(type_t type)
 {
    type_t elem = type_elem(type);
@@ -286,22 +302,10 @@ static vcode_type_t lower_array_type(type_t type)
    vcode_type_t elem_type   = lower_type(elem);
    vcode_type_t elem_bounds = lower_bounds(elem);
 
-   const int ndims = array_dimension(type);
-   assert(ndims > 0);
-
-   if (lower_const_bounds(type)) {
-      int size = 1;
-      for (int i = 0; i < ndims; i++) {
-         range_t r = type_dim(type, i);
-         int64_t low, high;
-         range_bounds(r, &low, &high);
-         size *= MAX(high - low + 1, 0);
-      }
-
-      return vtype_carray(size, elem_type, elem_bounds);
-   }
+   if (lower_const_bounds(type))
+      return vtype_carray(lower_array_const_size(type), elem_type, elem_bounds);
    else
-      return vtype_uarray(ndims, elem_type, elem_bounds);
+      return vtype_uarray(array_dimension(type), elem_type, elem_bounds);
 }
 
 static vcode_type_t lower_type(type_t type)
@@ -1353,6 +1357,7 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 
    type_t elem = type_elem(value_type);
    if (type_is_array(elem)) {
+      emit_comment("array of array stride calculation");
       vcode_reg_t stride = lower_array_total_len(elem, VCODE_INVALID_REG);
       idx = emit_mul(idx, stride);
    }
@@ -1458,21 +1463,7 @@ static void lower_copy_vals(vcode_reg_t *dst, const vcode_reg_t *src,
 static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
                                                 int dim, int *n_elems)
 {
-   *n_elems = 1;
-   const int ndims = type_dims(type);
-   for (int i = dim; i < ndims; i++) {
-      range_t r = type_dim(type, i);
-
-      int64_t low, high;
-      range_bounds(r, &low, &high);
-
-      if (high < low)
-         *n_elems = 0;
-      else
-         *n_elems *= (high - low + 1);
-   }
-
-   if (*n_elems == 0)
+   if ((*n_elems = lower_array_const_size(type)) == 0)
       return NULL;
 
    vcode_reg_t *vals = xmalloc(*n_elems * sizeof(vcode_reg_t));
@@ -1494,18 +1485,10 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
       vcode_reg_t tmp = VCODE_INVALID_REG;
       vcode_reg_t *sub = &tmp;
       int nsub = 1;
-      if (dim < ndims - 1)
-         sub = lower_const_array_aggregate(value, type, dim + 1, &nsub);
-      else if (value_kind == T_AGGREGATE) {
+      if (value_kind == T_AGGREGATE) {
          type_t sub_type = tree_type(value);
-         if (type_is_array(sub_type)) {
-            int nsubvals;
-            vcode_reg_t *subv LOCAL =
-               lower_const_array_aggregate(value, sub_type, 0, &nsubvals);
-
-            *sub = emit_const_array(lower_type(sub_type), subv,
-                                    nsubvals, false);
-         }
+         if (type_is_array(sub_type))
+            sub = lower_const_array_aggregate(value, sub_type, 0, &nsub);
          else if (type_is_record(sub_type))
             *sub = lower_record_aggregate(value, true,
                                           lower_is_const(value), EXPR_RVALUE);
