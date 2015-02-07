@@ -165,7 +165,7 @@ issue16         normal
 # signal12        normal
 # const6          normal
 # func12          normal
-# agg5            normal
+agg5            normal
 # elab17          normal
 # null2           normal
 # func13          normal

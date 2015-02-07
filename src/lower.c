@@ -1675,6 +1675,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    // Loop body
    vcode_select_block(body_bb);
 
+   // Regenerate non-scalar default values on each iteration
    if (def_reg == VCODE_INVALID_REG && def_value != NULL)
       def_reg = lower_expr(def_value, EXPR_RVALUE);
 
@@ -1704,12 +1705,13 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       case A_NAMED:
          {
             vcode_reg_t name_reg   = lower_reify_expr(tree_name(a));
-            vcode_reg_t upto_reg   = emit_sub(left_reg, name_reg);
-            vcode_reg_t downto_reg = emit_sub(name_reg, left_reg);
+            vcode_reg_t downto_reg = emit_sub(left_reg, name_reg);
+            vcode_reg_t upto_reg   = emit_sub(name_reg, left_reg);
 
-            vcode_reg_t off_reg = emit_select(dir_reg, downto_reg, upto_reg);
+            vcode_reg_t off_reg  = emit_select(dir_reg, downto_reg, upto_reg);
+            vcode_reg_t cast_reg = emit_cast(vtype_offset(), off_reg);
 
-            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, off_reg);
+            vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, cast_reg);
             what = emit_select(eq, value_reg, what);
          }
          break;
