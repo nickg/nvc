@@ -150,10 +150,9 @@ typedef struct {
 vcode_type_t vtype_int(int64_t low, int64_t high);
 vcode_type_t vtype_dynamic(vcode_reg_t low, vcode_reg_t high);
 vcode_type_t vtype_bool(void);
-vcode_type_t vtype_carray(const vcode_type_t *dim, int ndim,
+vcode_type_t vtype_carray(const int *dim, int ndim,
                           vcode_type_t elem, vcode_type_t bounds);
-vcode_type_t vtype_uarray(const vcode_type_t *dim_types,
-                          int ndim, vcode_type_t elem, vcode_type_t bounds);
+vcode_type_t vtype_uarray(int ndim, vcode_type_t elem, vcode_type_t bounds);
 vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_access(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
@@ -171,7 +170,7 @@ vcode_type_t vtype_elem(vcode_type_t type);
 vcode_type_t vtype_pointed(vcode_type_t type);
 vcode_type_t vtype_bounds(vcode_type_t type);
 int vtype_dims(vcode_type_t type);
-vcode_type_t vtype_dim(vcode_type_t type, int dim);
+unsigned vtype_dim(vcode_type_t type, int dim);
 int vtype_fields(vcode_type_t type);
 vcode_type_t vtype_field(vcode_type_t type, int field);
 vcode_type_t vtype_base(vcode_type_t type);

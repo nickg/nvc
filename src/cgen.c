@@ -177,17 +177,8 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       {
          const int ndims = vtype_dims(type);
          unsigned nelems = 1;
-         for (int i = 0; i < ndims; i++) {
-            vcode_type_t dim = vtype_dim(type, i);
-
-            const int64_t low  = vtype_low(dim);
-            const int64_t high = vtype_high(dim);
-
-            if (high < low)
-               nelems = 0;
-            else
-               nelems *= (high - low + 1);
-         }
+         for (int i = 0; i < ndims; i++)
+            nelems *= vtype_dim(type, i);
 
          return LLVMArrayType(cgen_type(vtype_elem(type)), nelems);
       }
@@ -1164,10 +1155,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
    case VCODE_TYPE_CARRAY:
       {
          assert(vtype_dims(type) == 1);
-         vcode_type_t dim = vtype_dim(type, 0);
-         const int64_t low  = vtype_low(dim);
-         const int64_t high = vtype_high(dim);
-         cgen_append_size_list(list, vtype_elem(type), high - low + 1);
+         cgen_append_size_list(list, vtype_elem(type), vtype_dim(type, 0));
       }
       break;
    default:

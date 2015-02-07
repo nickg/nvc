@@ -66,6 +66,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
                                           bool is_const, expr_ctx_t ctx);
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
+static vcode_type_t lower_type(type_t type);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -123,11 +124,20 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
    }
 }
 
+static vcode_type_t lower_index_type(type_t type, int dim)
+{
+   if (type_is_unconstrained(type))
+      return lower_type(type_index_constr(type, dim));
+   else
+      return lower_type(tree_type(type_dim(type, dim).left));
+}
+
 static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
    if (reg != VCODE_INVALID_REG
        && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
-      return emit_uarray_left(reg, dim);
+      return emit_cast(lower_index_type(type, dim),
+                       emit_uarray_left(reg, dim));
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.left);
@@ -138,7 +148,8 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
    if (reg != VCODE_INVALID_REG
        && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
-      return emit_uarray_right(reg, dim);
+      return emit_cast(lower_index_type(type, dim),
+                       emit_uarray_right(reg, dim));
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.right);
@@ -274,22 +285,18 @@ static vcode_type_t lower_type(type_t type)
          assert(ndims > 0);
 
          if (lower_const_bounds(type)) {
-            vcode_type_t bounds[ndims];
+            int dims[ndims];
             for (int i = 0; i < ndims; i++) {
                range_t r = type_dim(type, i);
                int64_t low, high;
                range_bounds(r, &low, &high);
-               bounds[i] = vtype_int(low, high);
+               dims[i] = high - low + 1;
             }
 
-            return vtype_carray(bounds, ndims, elem_type, elem_bounds);
+            return vtype_carray(dims, ndims, elem_type, elem_bounds);
          }
-         else {
-            vcode_type_t dim_types[ndims];
-            for (int i = 0; i < ndims; i++)
-               dim_types[i] = lower_type(tree_type(type_dim(type, i).left));
-            return vtype_uarray(dim_types, ndims, elem_type, elem_bounds);
-         }
+         else
+            return vtype_uarray(ndims, elem_type, elem_bounds);
       }
       else
          return lower_type(type_base(type));
@@ -301,15 +308,15 @@ static vcode_type_t lower_type(type_t type)
          vcode_type_t elem_bounds = lower_bounds(elem);
 
          const int ndims = type_dims(type);
-         vcode_type_t bounds[ndims];
+         int dims[ndims];
          for (int i = 0; i < ndims; i++) {
             range_t r = type_dim(type, i);
             int64_t low, high;
             range_bounds(r, &low, &high);
-            bounds[i] = vtype_int(low, high);
+            dims[i] = high - low + 1;
          }
 
-         return vtype_carray(bounds, ndims, elem_type, elem_bounds);
+         return vtype_carray(dims, ndims, elem_type, elem_bounds);
       }
 
    case T_PHYSICAL:
@@ -327,13 +334,8 @@ static vcode_type_t lower_type(type_t type)
    case T_UARRAY:
       {
          const int nindex = type_index_constrs(type);
-         vcode_type_t dim_types[nindex];
-         for (int i = 0; i < nindex; i++)
-            dim_types[i] = lower_type(type_index_constr(type, i));
-
          type_t elem = type_elem(type);
-         return vtype_uarray(dim_types, nindex, lower_type(elem),
-                             lower_bounds(elem));
+         return vtype_uarray(nindex, lower_type(elem), lower_bounds(elem));
       }
 
    case T_RECORD:

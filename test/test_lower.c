@@ -911,7 +911,6 @@ START_TEST(test_array1)
       { VCODE_OP_SELECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
-      { VCODE_OP_CAST },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_SELECT },
