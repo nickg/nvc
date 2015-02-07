@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -883,9 +883,10 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 static void cgen_op_image(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t arg = vcode_get_arg(op, 0);
-   vtype_kind_t arg_kind = vtype_kind(vcode_reg_type(arg));
+   vcode_type_t arg_type = vcode_reg_type(arg);
+   vtype_kind_t arg_kind = vtype_kind(arg_type);
 
-   const bool is_signed = (arg_kind == VCODE_TYPE_INT);
+   const bool is_signed = arg_kind == VCODE_TYPE_INT && vtype_low(arg_type) < 0;
    const bool real = (arg_kind == VCODE_TYPE_REAL);
    LLVMOpcode cop = real ? LLVMBitCast : (is_signed ? LLVMSExt : LLVMZExt);
    LLVMValueRef res = LLVMBuildAlloca(builder,
