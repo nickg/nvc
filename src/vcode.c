@@ -137,7 +137,8 @@ struct vcode_unit {
 
 #define VCODE_ASSERT(expr, ...)    \
    if (unlikely(!(expr))) {        \
-      vcode_fail(__VA_ARGS__);     \
+      vcode_dump();                \
+      fatal_trace(__VA_ARGS__);    \
    }
 
 static vcode_unit_t  active_unit = NULL;
@@ -279,18 +280,6 @@ static var_t *vcode_var_data(vcode_var_t var)
       unit = unit->context;
 
    return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
-}
-
-__attribute__((format(printf, 1, 2), noreturn))
-static void vcode_fail(const char *fmt, ...)
-{
-   va_list ap;
-   va_start(ap, fmt);
-   char *buf LOCAL = xvasprintf(fmt, ap);
-   va_end(ap);
-
-   vcode_dump();
-   fatal_trace("%s", buf);
 }
 
 static bool vcode_dominating_ops(vcode_op_t kind, op_t **next)
@@ -801,6 +790,14 @@ static void vcode_dump_type(int col, vcode_type_t type, vcode_type_t bounds)
    color_printf("$$ ");
 }
 
+static void vcode_dump_result_type(int col, const op_t *op)
+{
+   if (op->result != VCODE_INVALID_REG) {
+      reg_t *r = vcode_reg_data(op->result);
+      vcode_dump_type(col, r->type, r->bounds);
+   }
+}
+
 static int vcode_dump_var(vcode_var_t var)
 {
    if (MASK_CONTEXT(var) != active_unit->depth) {
@@ -940,8 +937,7 @@ void vcode_dump(void)
                col += printf(" := %s %"PRIi64"",
                              vcode_op_string(op->kind),
                              op->value);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -951,8 +947,7 @@ void vcode_dump(void)
                col += printf(" := %s %g",
                              vcode_op_string(op->kind),
                              op->real);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -962,8 +957,7 @@ void vcode_dump(void)
                col += printf(" := %s ", vcode_op_string(op->kind));
                if (op->args.count > 0)
                   col += vcode_dump_reg(op->args.items[0]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -982,10 +976,7 @@ void vcode_dump(void)
                      col += printf(", ");
                   col += vcode_dump_reg(op->args.items[i]);
                }
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1047,10 +1038,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_var(op->address);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1059,10 +1047,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += color_printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1091,10 +1076,7 @@ void vcode_dump(void)
                   col += printf(" + ");
                   col += vcode_dump_reg(op->args.items[0]);
                }
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1132,8 +1114,7 @@ void vcode_dump(void)
                default: break;
                }
                col += vcode_dump_reg(op->args.items[1]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1142,10 +1123,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1186,8 +1164,7 @@ void vcode_dump(void)
                }
 
                putchar(op->kind == VCODE_OP_CONST_ARRAY ? ']' : '}');
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col + 1, r->type, r->bounds);
+               vcode_dump_result_type(col + 1, op);
             }
             break;
 
@@ -1196,8 +1173,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1215,10 +1191,7 @@ void vcode_dump(void)
                col += color_printf(" := %s $white$%s$$",
                                    vcode_op_string(op->kind),
                                    istr(vcode_signal_name(op->signal)));
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1243,8 +1216,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1253,8 +1225,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1267,8 +1238,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->args.items[1]);
                col += printf(" else ");
                col += vcode_dump_reg(op->args.items[2]);
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1288,10 +1258,7 @@ void vcode_dump(void)
                   col += vcode_dump_reg(op->args.items[i + 2]);
                }
                col += printf("]");
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1303,10 +1270,7 @@ void vcode_dump(void)
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" dim %d", op->dim);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1315,10 +1279,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1331,10 +1292,7 @@ void vcode_dump(void)
                   col += vcode_dump_reg(op->args.items[i]);
                   col += color_printf(" $yellow$%d$$]", op->targets.items[i]);
                }
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1344,10 +1302,7 @@ void vcode_dump(void)
                col += printf(" := %s %d, ", vcode_op_string(op->kind),
                              op->hops);
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1393,10 +1348,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" length ");
                col += vcode_dump_reg(op->args.items[1]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1406,10 +1358,7 @@ void vcode_dump(void)
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" field %d", op->field);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1462,10 +1411,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->args.items[1]);
                col += printf(" length ");
                col += vcode_dump_reg(op->args.items[2]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1486,10 +1432,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" length ");
                col += vcode_dump_reg(op->args.items[1]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1511,10 +1454,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1577,10 +1517,7 @@ void vcode_dump(void)
                   col += printf(" length ");
                   col +=vcode_dump_reg(op->args.items[0]);
                }
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1597,10 +1534,7 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
 
@@ -1618,10 +1552,7 @@ void vcode_dump(void)
                   col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[3]);
                }
-               if (op->result != VCODE_INVALID_REG) {
-                  reg_t *r = vcode_reg_data(op->result);
-                  vcode_dump_type(col, r->type, r->bounds);
-               }
+               vcode_dump_result_type(col, op);
             }
             break;
          }
@@ -2146,10 +2077,8 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
    vcode_add_arg(op, length);
    op->index = index;
 
-   if (!vtype_eq(vcode_reg_type(value), vtype_bool())) {
-      vcode_dump();
-      fatal_trace("value parameter to assert is not bool");
-   }
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(value), vtype_bool()),
+                "value parameter to assert is not bool");
 }
 
 void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
@@ -2206,10 +2135,8 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    op->cmp    = cmp;
    op->result = vcode_add_reg(vtype_bool());
 
-   if (!vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs))) {
-      vcode_dump();
-      fatal_trace("arguments to cmp are not the same type");
-   }
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vcode_reg_type(rhs)),
+                "arguments to cmp are not the same type");
 
    return op->result;
 }
@@ -2342,10 +2269,9 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
       vcode_add_arg(op, values[i]);
 
    vtype_kind_t kind = vtype_kind(type);
-   if (kind != VCODE_TYPE_CARRAY && (!allocate || kind != VCODE_TYPE_POINTER)) {
-      vcode_dump();
-      fatal_trace("constant array must have constrained array type");
-   }
+   VCODE_ASSERT(
+      kind == VCODE_TYPE_CARRAY || (allocate && kind == VCODE_TYPE_POINTER),
+      "constant array must have constrained array type");
 
    return op->result;
 }
@@ -2375,10 +2301,8 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
 
-   if (vtype_kind(type) != VCODE_TYPE_RECORD) {
-      vcode_dump();
-      fatal_trace("constant record must have record type");
-   }
+   VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_RECORD,
+                "constant record must have record type");
 
    return op->result;
 }
@@ -2573,10 +2497,8 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
    vcode_add_arg(op, reg);
    op->address = var;
 
-   if (!vtype_eq(v->type, r->type)) {
-      vcode_dump();
-      fatal_trace("variable and stored value do not have same type");
-   }
+   VCODE_ASSERT(vtype_eq(v->type, r->type),
+                "variable and stored value do not have same type");
 }
 
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr)
@@ -2620,9 +2542,10 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
 
    if (is_pointer && vtype_kind(rhs_type) == VCODE_TYPE_OFFSET)
       ;
-   else if (!vtype_eq(lhs_type, rhs_type))
-      vcode_fail("arguments to %s are not the same type",
-                 vcode_op_string(kind));
+   else
+      VCODE_ASSERT(vtype_eq(lhs_type, rhs_type),
+                   "arguments to %s are not the same type",
+                   vcode_op_string(kind));
 
    return op->result;
 }
@@ -2795,7 +2718,8 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
       break;
 
    default:
-      vcode_fail("variable %s cannot be indexed", istr(vcode_var_name(var)));
+      VCODE_ASSERT(false, "variable %s cannot be indexed",
+                   istr(vcode_var_name(var)));
    }
 
    if (offset != VCODE_INVALID_REG)
@@ -2852,7 +2776,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
          return op->result;
    }
 
-   vcode_fail("invalid type conversion in cast");
+   VCODE_ASSERT(false, "invalid type conversion in cast");
 }
 
 void emit_return(vcode_reg_t reg)
@@ -2861,14 +2785,10 @@ void emit_return(vcode_reg_t reg)
    if (reg != VCODE_INVALID_REG) {
       vcode_add_arg(op, reg);
 
-      if (active_unit->kind != VCODE_UNIT_FUNCTION) {
-         vcode_dump();
-         fatal_trace("returning value fron non-function unit");
-      }
-      else if (!vtype_eq(active_unit->result, vcode_reg_type(reg))) {
-         vcode_dump();
-         fatal_trace("return value incorrect type");
-      }
+      VCODE_ASSERT(active_unit->kind == VCODE_UNIT_FUNCTION,
+                   "returning value fron non-function unit");
+      VCODE_ASSERT(vtype_eq(active_unit->result, vcode_reg_type(reg)),
+                   "return value incorrect type");
    }
 }
 
@@ -2909,10 +2829,10 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
    vcode_add_arg(op, reject);
    vcode_add_arg(op, after);
 
-   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL)
-      vcode_fail("sched_waveform target is not signal");
-   else if (vtype_kind(vcode_reg_type(nnets)) != VCODE_TYPE_OFFSET)
-      vcode_fail("sched_waveform net count is not offset type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(nets)) == VCODE_TYPE_SIGNAL,
+                "sched_waveform target is not signal");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(nnets)) == VCODE_TYPE_OFFSET,
+                "sched_waveform net count is not offset type");
 }
 
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
@@ -2928,8 +2848,8 @@ void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
    vcode_add_target(op, btrue);
    vcode_add_target(op, bfalse);
 
-   if (!vtype_eq(vcode_reg_type(test), vtype_bool()))
-      vcode_fail("cond test is not a bool");
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(test), vtype_bool()),
+                "cond test is not a bool");
 }
 
 vcode_reg_t emit_neg(vcode_reg_t lhs)
@@ -2991,10 +2911,10 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    vcode_add_arg(op, rfalse);
    op->result = vcode_add_reg(vcode_reg_type(rtrue));
 
-   if (!vtype_eq(vcode_reg_type(test), vtype_bool()))
-      vcode_fail("select test must have bool type");
-   else if (!vtype_eq(vcode_reg_type(rtrue), vcode_reg_type(rfalse)))
-      vcode_fail("select arguments are not the same type");
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(test), vtype_bool()),
+                "select test must have bool type");
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(rtrue), vcode_reg_type(rfalse)),
+                "select arguments are not the same type");
 
    return op->result;
 }
@@ -3044,9 +2964,9 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
 
    vcode_reg_t result = emit_arith(op, lhs, rhs, UINT32_MAX);
 
-   if (!vtype_eq(vcode_reg_type(lhs), vtbool)
-       || !vtype_eq(vcode_reg_type(rhs), vtbool))
-      vcode_fail("arguments to %s are not boolean", vcode_op_string(op));
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(lhs), vtbool)
+                && vtype_eq(vcode_reg_type(rhs), vtbool),
+                "arguments to %s are not boolean", vcode_op_string(op));
 
    return result;
 }
@@ -3087,8 +3007,8 @@ vcode_reg_t emit_not(vcode_reg_t arg)
    vcode_add_arg(op, arg);
 
    vcode_type_t vtbool = vtype_bool();
-   if (!vtype_eq(vcode_reg_type(arg), vtbool))
-      vcode_fail("argument to not is not boolean");
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(arg), vtbool),
+                "argument to not is not boolean");
 
    return (op->result = vcode_add_reg(vtbool));
 }
@@ -3105,8 +3025,8 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 
    vcode_type_t ptr_type = vcode_reg_type(data);
    const vtype_kind_t ptrkind = vtype_kind(ptr_type);
-   if (ptrkind != VCODE_TYPE_POINTER && ptrkind != VCODE_TYPE_CARRAY)
-      vcode_fail("wrapped data is not pointer");
+   VCODE_ASSERT(ptrkind == VCODE_TYPE_POINTER,
+                "wrapped data is not pointer");
 
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
       ? vtype_pointed(ptr_type) : vtype_elem(ptr_type);
@@ -3141,12 +3061,11 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
    op->dim = dim;
 
    vcode_type_t atype = vcode_reg_type(array);
-   if (vtype_kind(atype) != VCODE_TYPE_UARRAY)
-      vcode_fail("cannot use %s with non-uarray type", vcode_op_string(o));
+   VCODE_ASSERT(vtype_kind(atype) == VCODE_TYPE_UARRAY,
+                "cannot use %s with non-uarray type", vcode_op_string(o));
 
    vtype_t *vt = vcode_type_data(atype);
-   if (dim >= vt->dims)
-      vcode_fail("invalid dimension %d", dim);
+   VCODE_ASSERT(dim < vt->dims, "invalid dimension %d", dim);
 
    if (rtype == VCODE_INVALID_TYPE)
       rtype = vtype_offset();
@@ -3184,8 +3103,8 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    vcode_add_arg(op, array);
 
    vtype_t *vt = vcode_type_data(vcode_reg_type(array));
-   if (vt->kind != VCODE_TYPE_UARRAY)
-      vcode_fail("unwrap can only only be used with uarray types");
+   VCODE_ASSERT(vt->kind == VCODE_TYPE_UARRAY,
+                "unwrap can only only be used with uarray types");
 
    return (op->result = vcode_add_reg(vtype_pointer(vt->elem)));
 }
@@ -3228,23 +3147,15 @@ vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
    op->hops = hops;
    vcode_add_arg(op, reg);
 
-   if (hops <= 0) {
-      vcode_dump();
-      fatal_trace("invalid hop count");
-   }
+   VCODE_ASSERT(hops > 0, "invalid hop count");
 
    vcode_unit_t vu = active_unit;
    for (int i = 0; i < hops; i++)
       vu = vu->context;
 
-   if (vu->kind == VCODE_UNIT_CONTEXT) {
-      vcode_dump();
-      fatal_trace("upref context is not a subprogram");
-   }
-   else if (reg >= vu->params.count) {
-      vcode_dump();
-      fatal_trace("upref register is not a parameter");
-   }
+   VCODE_ASSERT(vu->kind != VCODE_UNIT_CONTEXT,
+                "upref context is not a subprogram or process");
+   VCODE_ASSERT(reg < vu->params.count, "upref register is not a parameter");
 
    param_t *p = &(vu->params.items[reg]);
    op->result = vcode_add_reg(p->type);
@@ -3387,8 +3298,7 @@ void emit_resume(ident_t func)
    op->func = func;
 
    block_t *b = &(active_unit->blocks.items[active_block]);
-   if (b->ops.count != 1)
-      vcode_fail("resume must be first op in a block");
+   VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");
 }
 
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
@@ -3398,12 +3308,12 @@ vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len)
    vcode_add_arg(op, rhs);
    vcode_add_arg(op, len);
 
-   if (vtype_kind(vcode_reg_type(lhs)) != VCODE_TYPE_POINTER)
-      vcode_fail("LHS of memcmp must have pointer type");
-   else if (vtype_kind(vcode_reg_type(rhs)) != VCODE_TYPE_POINTER)
-      vcode_fail("RHS of memcmp must have pointer type");
-   else if (vtype_kind(vcode_reg_type(len)) != VCODE_TYPE_OFFSET)
-      vcode_fail("length of memcmp must have offset type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs)) == VCODE_TYPE_POINTER,
+                "LHS of memcmp must have pointer type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs)) == VCODE_TYPE_POINTER,
+                "RHS of memcmp must have pointer type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
+                "length of memcmp must have offset type");
 
    return (op->result = vcode_add_reg(vtype_bool()));
 }
@@ -3415,14 +3325,14 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
    vcode_add_arg(op, value);
    vcode_add_arg(op, len);
 
-   if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_POINTER)
-      vcode_fail("target of memset must have pointer type");
-   else if (vtype_kind(vcode_reg_type(value)) != VCODE_TYPE_INT)
-      vcode_fail("value of memset must have integer type");
-   else if (vtype_kind(vcode_reg_type(len)) != VCODE_TYPE_OFFSET)
-      vcode_fail("length of memset must have offset type");
-   else if (vtype_high(vcode_reg_type(value)) > UINT8_MAX)
-      vcode_fail("memset value must be max 8-bit");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_POINTER,
+                "target of memset must have pointer type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(value)) == VCODE_TYPE_INT,
+                "value of memset must have integer type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
+                "length of memset must have offset type");
+   VCODE_ASSERT(vtype_high(vcode_reg_type(value)) <= UINT8_MAX,
+                "memset value must be max 8-bit");
 }
 
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length)
@@ -3433,10 +3343,10 @@ vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length)
 
    vcode_type_t signal_type = vcode_reg_type(signal);
 
-   if (vtype_kind(signal_type) != VCODE_TYPE_SIGNAL)
-      vcode_fail("signal of vec load must have signal type");
-   else if (vtype_kind(vcode_reg_type(length)) != VCODE_TYPE_OFFSET)
-      vcode_fail("length of vec load must have offset type");
+   VCODE_ASSERT(vtype_kind(signal_type) == VCODE_TYPE_SIGNAL,
+                "signal of vec load must have signal type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,
+                "length of vec load must have offset type");
 
    vcode_type_t base_type = vtype_base(signal_type);
    op->result = vcode_add_reg(vtype_pointer(base_type));
@@ -3471,8 +3381,8 @@ vcode_reg_t emit_endfile(vcode_reg_t file)
    op_t *op = vcode_add_op(VCODE_OP_ENDFILE);
    vcode_add_arg(op, file);
 
-   if (vtype_kind(vcode_reg_type(file)) != VCODE_TYPE_FILE)
-      vcode_fail("endfile argument must have file type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(file)) == VCODE_TYPE_FILE,
+                "endfile argument must have file type");
 
    return (op->result = vcode_add_reg(vtype_bool()));
 }
@@ -3488,8 +3398,8 @@ void emit_file_open(vcode_reg_t file, vcode_reg_t name, vcode_reg_t length,
    if (status != VCODE_INVALID_REG)
       vcode_add_arg(op, status);
 
-   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
-      vcode_fail("file open first argument must have file pointer type");
+   VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
+                "file open first argument must have file pointer type");
 }
 
 void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
@@ -3500,8 +3410,8 @@ void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
    if (length != VCODE_INVALID_REG)
       vcode_add_arg(op, length);
 
-   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
-      vcode_fail("file write first argument must have file pointer type");
+   VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
+                "file write first argument must have file pointer type");
 }
 
 void emit_file_close(vcode_reg_t file)
@@ -3509,8 +3419,8 @@ void emit_file_close(vcode_reg_t file)
    op_t *op = vcode_add_op(VCODE_OP_FILE_CLOSE);
    vcode_add_arg(op, file);
 
-   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
-      vcode_fail("file close argument must have file pointer type");
+   VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
+                "file close argument must have file pointer type");
 }
 
 void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
@@ -3525,13 +3435,13 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
          vcode_add_arg(op, outlen);
    }
 
-   if (!vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE))
-      vcode_fail("file read first argument must have file pointer type");
-   else if (vtype_kind(vcode_reg_type(ptr)) != VCODE_TYPE_POINTER)
-      vcode_fail("file read pointer argument must have pointer type");
-   else if (outlen != VCODE_INVALID_REG
-            && vtype_kind(vcode_reg_type(outlen)) != VCODE_TYPE_POINTER)
-      vcode_fail("file read outlen argument must have pointer type");
+   VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
+                "file read first argument must have file pointer type");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(ptr)) == VCODE_TYPE_POINTER,
+                "file read pointer argument must have pointer type");
+   VCODE_ASSERT(outlen == VCODE_INVALID_REG
+                || vtype_kind(vcode_reg_type(outlen)) == VCODE_TYPE_POINTER,
+                "file read outlen argument must have pointer type");
 }
 
 vcode_reg_t emit_null(vcode_type_t type)
@@ -3560,8 +3470,8 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
 
    vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(kind == VCODE_TYPE_INT || kind == VCODE_TYPE_RECORD
-                || kind == VCODE_TYPE_UARRAY || kind == VCODE_TYPE_CARRAY,
-                "new type must be int, record, carray, or uarray");
+                || kind == VCODE_TYPE_UARRAY,
+                "new type must be int, record, or uarray");
    VCODE_ASSERT(length == VCODE_INVALID_REG
                 || vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,
                 "new length must have offset type");
