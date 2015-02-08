@@ -1117,8 +1117,9 @@ static vcode_var_t lower_get_var(tree_t decl)
 {
    vcode_var_t var = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_VAR);
    if (var == VCODE_INVALID_VAR) {
-      vcode_dump();
-      fatal_trace("missing vcode var for %s", istr(tree_ident(decl)));
+      type_t type = tree_type(decl);
+      var = emit_extern_var(lower_type(type), lower_bounds(type),
+                            tree_ident(decl));
    }
 
    return var;

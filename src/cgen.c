@@ -263,7 +263,16 @@ static LLVMValueRef cgen_get_var(vcode_var_t var, cgen_ctx_t *ctx)
 
    LLVMValueRef value = NULL;
 
-   if (var_depth == 0) {
+   if (vcode_var_extern(var)) {
+      // Variable defined in another module
+      const char *name = istr(vcode_var_name(var));
+      value = LLVMGetNamedGlobal(module, name);
+      if (value == NULL) {
+         value = LLVMAddGlobal(module, cgen_type(vcode_var_type(var)), name);
+         LLVMSetLinkage(value, LLVMExternalLinkage);
+      }
+   }
+   else if (var_depth == 0) {
       // Shared global variable
       value = LLVMGetNamedGlobal(module, istr(vcode_var_name(var)));
       if (value == NULL)
@@ -2274,7 +2283,6 @@ static void cgen_shared_variables(void)
       LLVMValueRef global = LLVMAddGlobal(module, type,
                                           istr(vcode_var_name(var)));
       LLVMSetInitializer(global, LLVMConstNull(type));
-      LLVMSetLinkage(global, LLVMInternalLinkage);
    }
 }
 

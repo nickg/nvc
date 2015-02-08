@@ -90,6 +90,7 @@ typedef struct {
    vcode_type_t type;
    vcode_type_t bounds;
    ident_t      name;
+   bool         is_extern;
 } var_t;
 
 typedef struct {
@@ -457,6 +458,11 @@ ident_t vcode_var_name(vcode_var_t var)
 vcode_type_t vcode_var_type(vcode_var_t var)
 {
    return vcode_var_data(var)->type;
+}
+
+bool vcode_var_extern(vcode_var_t var)
+{
+   return vcode_var_data(var)->is_extern;
 }
 
 int vcode_count_signals(void)
@@ -843,7 +849,10 @@ void vcode_dump(void)
 
    for (int i = 0; i < vu->vars.count; i++) {
       const var_t *v = &(vu->vars.items[i]);
-      int col = color_printf("  $magenta$%s$$", istr(v->name));
+      int col = printf("  ");
+      if (v->is_extern)
+         col += printf("extern ");
+      col += color_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
    }
@@ -2389,6 +2398,23 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
    v->name   = name;
 
    return MAKE_HANDLE(active_unit->depth, var);
+}
+
+vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
+                            ident_t name)
+{
+   assert(active_unit != NULL);
+
+   // Try to find an existing extern with this name
+   for (unsigned i = 0; i < active_unit->vars.count; i++) {
+      var_t *v = &(active_unit->vars.items[i]);
+      if (v->is_extern && v->name == name)
+         return MAKE_HANDLE(active_unit->depth, i);
+   }
+
+   vcode_var_t var = emit_var(type, bounds, name);
+   vcode_var_data(var)->is_extern = true;
+   return var;
 }
 
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name)
