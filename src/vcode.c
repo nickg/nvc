@@ -2404,6 +2404,7 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
                             ident_t name)
 {
    assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_CONTEXT);
 
    // Try to find an existing extern with this name
    for (unsigned i = 0; i < active_unit->vars.count; i++) {

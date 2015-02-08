@@ -1117,9 +1117,16 @@ static vcode_var_t lower_get_var(tree_t decl)
 {
    vcode_var_t var = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_VAR);
    if (var == VCODE_INVALID_VAR) {
+      vcode_unit_t old_unit   = vcode_active_unit();
+      vcode_block_t old_block = vcode_active_block();
+      vcode_select_unit(vcode_unit_context());
+
       type_t type = tree_type(decl);
       var = emit_extern_var(lower_type(type), lower_bounds(type),
                             tree_ident(decl));
+
+      vcode_select_unit(old_unit);
+      vcode_select_block(old_block);
    }
 
    return var;
