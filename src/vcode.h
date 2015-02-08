@@ -208,6 +208,7 @@ size_t vcode_signal_count_nets(vcode_signal_t sig);
 const netid_t *vcode_signal_nets(vcode_signal_t sig);
 vcode_type_t vcode_signal_type(vcode_signal_t sig);
 vcode_type_t vcode_signal_bounds(vcode_signal_t sig);
+bool vcode_signal_extern(vcode_signal_t sig);
 
 int vcode_count_ops(void);
 vcode_op_t vcode_get_op(int op);
@@ -248,6 +249,8 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
                            ident_t name, vcode_var_t shadow,
                            netid_t *nets, size_t nnets);
+vcode_signal_t emit_extern_signal(vcode_type_t type, vcode_type_t bounds,
+                                  ident_t name);
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count);
 vcode_reg_t emit_param(vcode_type_t type, vcode_type_t bounds, ident_t name);

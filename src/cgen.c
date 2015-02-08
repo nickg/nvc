@@ -401,6 +401,16 @@ static void cgen_sched_process(LLVMValueRef after)
    LLVMBuildCall(builder, llvm_fn("_sched_process"), args, 1, "");
 }
 
+static char *cgen_signal_nets_name(vcode_signal_t sig)
+{
+   ident_t name = vcode_signal_name(sig);
+   const char *path = vcode_signal_extern(sig)
+      ? package_signal_path_name(name)
+      : istr(name);
+
+   return xasprintf("%s_nets", path);
+}
+
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
@@ -1087,7 +1097,7 @@ static void cgen_op_nets(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
 
-   char *buf LOCAL = xasprintf("%s_nets", istr(vcode_signal_name(sig)));
+   char *buf LOCAL = cgen_signal_nets_name(sig);
    LLVMValueRef nets = LLVMGetNamedGlobal(module, buf);
    assert(nets);
 
@@ -2284,7 +2294,7 @@ static void cgen_signals(void)
 {
    const int nsignals = vcode_count_signals();
    for (int i = 0 ; i < nsignals; i++) {
-      char *buf LOCAL = xasprintf("%s_nets", istr(vcode_signal_name(i)));
+      char *buf LOCAL = cgen_signal_nets_name(i);
 
       const int nnets     = vcode_signal_count_nets(i);
       const netid_t *nets = vcode_signal_nets(i);
@@ -2293,15 +2303,18 @@ static void cgen_signals(void)
       LLVMTypeRef map_type = LLVMArrayType(nid_type, nnets);
 
       LLVMValueRef map_var = LLVMAddGlobal(module, map_type, buf);
-      LLVMSetLinkage(map_var, LLVMInternalLinkage);
-      LLVMSetGlobalConstant(map_var, true);
+      if (vcode_signal_extern(i))
+         LLVMSetLinkage(map_var, LLVMExternalLinkage);
+      else {
+         LLVMSetGlobalConstant(map_var, true);
 
-      LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
-      for (int i = 0; i < nnets; i++)
-         init[i] = LLVMConstInt(nid_type, nets[i], false);
+         LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
+         for (int i = 0; i < nnets; i++)
+            init[i] = LLVMConstInt(nid_type, nets[i], false);
 
-      LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
-      free(init);
+         LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+         free(init);
+      }
    }
 }
 

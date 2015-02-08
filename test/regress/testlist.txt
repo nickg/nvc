@@ -67,7 +67,7 @@ func6           normal
 wait6           normal,gold
 elab4           normal
 elab5           normal
-# signal8         normal
+signal8         normal
 # ram1            normal
 # wait7           normal
 const1          normal
@@ -119,20 +119,20 @@ wait10          normal
 # attr4           normal
 # bounds6         gold,fail
 elab6           normal
-# elab7           normal
+elab7           normal
 # bounds7         gold,fail
 arith2          gold,fail
-# attr5           normal
+attr5           normal
 # attr6           normal
-# elab8           normal
+elab8           normal
 # arith3          normal
 # bounds8         gold,fail
 # bounds9         gold,fail
 access3         normal
 access4         normal
 # textio1         normal,gold
-# proc9           normal
-# elab9           normal,gold
+proc9           normal
+elab9           normal,gold
 # elab10          normal,gold
 conv1           normal
 elab11          normal
@@ -147,7 +147,7 @@ elab13          normal,gold
 # shift2          normal
 # case4           normal
 # signal10        normal
-# signal11        normal,gold
+signal11        normal,gold
 # wait11          normal
 # bounds11        gold,fail
 wait12          normal,gold
@@ -161,12 +161,12 @@ issue16         normal
 # elab15          normal
 # const5          normal
 # issue18         normal
-# elab16          normal
+elab16          normal
 # signal12        normal
-# const6          normal
-# func12          normal
+const6          normal
+func12          normal
 agg5            normal
-# elab17          normal
+elab17          normal
 # null2           normal
 # func13          normal
 # proc10          normal
@@ -179,27 +179,27 @@ array3          normal
 access5         normal
 # record6         normal
 # agg6            normal
-# func14          normal
-# operator5       normal
-# alias4          normal
+func14          normal
+operator5       normal
+alias4          normal
 # alias5          normal,gold
-# alias6          normal
-# alias7          normal
+alias6          normal
+alias7          normal
 # const7          normal
 # bounds14        gold,fail
 # bounds15        gold,fail
 # bounds16        gold,fail
 # bounds17        gold,fail
-# signal13        normal
+signal13        normal
 # elab18          normal
 # wait13          normal
 # shared2         normal
-# func15          normal
-# elab19          normal
+func15          normal
+elab19          normal
 # concat4         normal
 # issue29         normal
-# assert3         normal,gold
-# alias8          normal
+assert3         normal,gold
+alias8          normal
 # textio2         normal
 elab20          normal
 # issue38         normal
@@ -242,7 +242,7 @@ array4          normal
 # protected2      normal,2000
 # slice3          normal
 alias9          normal
-# issue79         normal
+issue79         normal
 # issue84         normal,2000
 # issue82         normal
 # issue86         normal

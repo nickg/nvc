@@ -100,6 +100,7 @@ typedef struct {
    vcode_var_t  shadow;
    netid_t     *nets;
    size_t       nnets;
+   bool         is_extern;
 } signal_t;
 
 typedef struct {
@@ -503,6 +504,11 @@ vcode_type_t vcode_signal_bounds(vcode_signal_t sig)
    return vcode_signal_data(sig)->bounds;
 }
 
+bool vcode_signal_extern(vcode_signal_t sig)
+{
+   return vcode_signal_data(sig)->is_extern;
+}
+
 vcode_op_t vcode_get_op(int op)
 {
    return vcode_op_data(op)->kind;
@@ -862,7 +868,10 @@ void vcode_dump(void)
 
       for (int i = 0; i < vu->signals.count; i++) {
          const signal_t *s = &(vu->signals.items[i]);
-         int col = color_printf("  $white$%s$$", istr(s->name));
+         int col = printf("  ");
+         if (s->is_extern)
+            col += printf("extern ");
+         col += color_printf("$white$%s$$", istr(s->name));
          vcode_dump_type(col, s->type, s->bounds);
          printf("\n");
          if (s->shadow != VCODE_INVALID_VAR)
@@ -1076,9 +1085,8 @@ void vcode_dump(void)
          case VCODE_OP_INDEX:
             {
                col += vcode_dump_reg(op->result);
-               col += color_printf(" := %s $magenta$%s$$",
-                                   vcode_op_string(op->kind),
-                                   istr(vcode_var_data(op->address)->name));
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_var(op->address);
                if (op->args.count > 0) {
                   col += printf(" + ");
                   col += vcode_dump_reg(op->args.items[0]);
@@ -1207,8 +1215,10 @@ void vcode_dump(void)
                col += color_printf(" := %s $white$%s$$",
                                    vcode_op_string(op->kind),
                                    istr(vcode_signal_name(op->signal)));
-               reg_t *r = vcode_reg_data(op->result);
-               vcode_dump_type(col, r->type, r->bounds);
+               if (op->result != VCODE_INVALID_REG) {
+                  reg_t *r = vcode_reg_data(op->result);
+                  vcode_dump_type(col, r->type, r->bounds);
+               }
             }
             break;
 
@@ -2456,6 +2466,25 @@ vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
    return snum;
 }
 
+vcode_signal_t emit_extern_signal(vcode_type_t type, vcode_type_t bounds,
+                                  ident_t name)
+{
+   assert(active_unit != NULL);
+   assert(active_unit->kind == VCODE_UNIT_CONTEXT);
+
+   // Try to find an existing extern with this name
+   for (unsigned i = 0; i < active_unit->vars.count; i++) {
+      signal_t *s = &(active_unit->signals.items[i]);
+      if (s->is_extern && s->name == name)
+         return i;
+   }
+
+   vcode_signal_t sig = emit_signal(type, bounds, name, VCODE_INVALID_VAR,
+                                    NULL, 0);
+   vcode_signal_data(sig)->is_extern = true;
+   return sig;
+}
+
 vcode_reg_t emit_load(vcode_var_t var)
 {
    // Try scanning backwards through the block for another load or store to
@@ -2857,6 +2886,9 @@ vcode_reg_t emit_nets(vcode_signal_t sig)
 
    vcode_type_t stype = vcode_signal_type(sig);
    op->type = stype;
+
+   VCODE_ASSERT(vtype_kind(stype) == VCODE_TYPE_SIGNAL,
+                "argument to nets is not a signal");
 
    op->result = vcode_add_reg(stype);
 

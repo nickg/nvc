@@ -1136,8 +1136,16 @@ static vcode_signal_t lower_get_signal(tree_t decl)
 {
    vcode_signal_t sig = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_SIGNAL);
    if (sig == VCODE_INVALID_SIGNAL) {
-      vcode_dump();
-      fatal_trace("missing vcode signal for %s", istr(tree_ident(decl)));
+      vcode_unit_t old_unit   = vcode_active_unit();
+      vcode_block_t old_block = vcode_active_block();
+      vcode_select_unit(vcode_unit_context());
+
+      type_t type = tree_type(decl);
+      sig = emit_extern_signal(vtype_signal(lower_type(type)),
+                               lower_bounds(type), tree_ident(decl));
+
+      vcode_select_unit(old_unit);
+      vcode_select_block(old_block);
    }
 
    return sig;
@@ -1173,7 +1181,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
          return type_is_array(type) ? r : emit_load_indirect(r);
       }
       else
-         assert(false);
+         return emit_nets(sig);
    }
 }
 
@@ -2643,6 +2651,10 @@ static void lower_decl(tree_t decl)
 
    case T_SIGNAL_DECL:
       {
+         const int nnets = tree_nets(decl);
+         if (nnets == 0)
+            break;
+
          type_t type = tree_type(decl);
          vcode_type_t ltype = lower_type(type);
          vcode_type_t bounds = lower_bounds(type);
@@ -2661,7 +2673,6 @@ static void lower_decl(tree_t decl)
                               ident_prefix(ident_new("resolved"), name, '_'));
          }
 
-         const int nnets = tree_nets(decl);
          netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
          for (int i = 0; i < nnets; i++)
             nets[i] = tree_net(decl, i);
