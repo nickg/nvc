@@ -1908,8 +1908,12 @@ static void cgen_block(int block, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, ctx->blocks[block]);
 
    const int nops = vcode_count_ops();
-   for (int i = 0; i < nops; i++)
-      cgen_op(i, ctx);
+   if (nops > 0) {
+      for (int i = 0; i < nops; i++)
+         cgen_op(i, ctx);
+   }
+   else
+      LLVMBuildUnreachable(builder);
 }
 
 static void cgen_alloc_context(cgen_ctx_t *ctx)
@@ -1927,9 +1931,9 @@ static void cgen_alloc_context(cgen_ctx_t *ctx)
       ctx->locals = xcalloc(vcode_count_vars() * sizeof(LLVMValueRef));
 
    for (int i = 0; i < nblocks; i++) {
-      char *name = xasprintf("vcode_block_%d", i);
+      char name[32];
+      checked_sprintf(name, sizeof(name), "vcode_block_%d", i);
       ctx->blocks[i] = LLVMAppendBasicBlock(ctx->fn, name);
-      free(name);
    }
 }
 
