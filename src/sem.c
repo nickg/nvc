@@ -1160,7 +1160,7 @@ static bool sem_declare(tree_t decl, bool add_predefined)
    // Certain kinds of declarations like components do not have
    // a type
    if (tree_kind(decl) == T_COMPONENT)
-      return true;
+      return scope_insert(decl);
 
    // Resolve the base type if necessary
    if (!sem_check_subtype(decl, tree_type(decl), NULL))
