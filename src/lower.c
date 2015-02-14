@@ -1104,18 +1104,25 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
       return emit_fcall(name, rtype, args, nargs);
 }
 
-static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
+static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
 {
    type_t ltype = tree_type(lit);
    vcode_type_t vtype = lower_type(type_elem(ltype));
 
-   const int nchars = tree_chars(lit);
-   vcode_reg_t *tmp LOCAL = xmalloc(nchars * sizeof(vcode_reg_t));
+   *nchars = tree_chars(lit);
+   vcode_reg_t *tmp = xmalloc(*nchars * sizeof(vcode_reg_t));
 
-   for (int i = 0; i < nchars; i++)
+   for (int i = 0; i < *nchars; i++)
       tmp[i] = emit_const(vtype, tree_pos(tree_ref(tree_char(lit, i))));
 
-   return emit_const_array(lower_type(ltype), tmp, nchars, allocate);
+   return tmp;
+}
+
+static vcode_reg_t lower_string_literal(tree_t lit)
+{
+   int nchars;
+   vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
+   return emit_const_array(lower_type(tree_type(lit)), tmp, nchars, true);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
@@ -1125,7 +1132,7 @@ static vcode_reg_t lower_literal(tree_t lit)
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    case L_STRING:
-      return lower_string_literal(lit, true);
+      return lower_string_literal(lit);
 
    case L_NULL:
       return emit_null(lower_type(tree_type(lit)));
@@ -1538,7 +1545,7 @@ static vcode_reg_t *lower_const_array_aggregate(tree_t t, type_t type,
             assert(false);
       }
       else if (value_kind == T_LITERAL && tree_subkind(value) == L_STRING)
-         *sub = lower_string_literal(value, false);
+         sub = lower_string_literal_chars(value, &nsub);
       else
          *sub = lower_expr(value, EXPR_RVALUE);
 
@@ -1836,7 +1843,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       vcode_reg_t v = VCODE_INVALID_REG;
       if (type_is_array(value_type) && is_const) {
          if (tree_kind(value) == T_LITERAL)
-            v = lower_string_literal(value, true);
+            v = lower_string_literal(value);
          else {
             assert(false);
 #if 0
