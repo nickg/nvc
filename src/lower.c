@@ -473,7 +473,8 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    tree_t port = tree_port(decl, nth);
    type_t port_type = tree_type(port);
 
-   if (tree_class(port) == C_SIGNAL)
+   const class_t class = tree_class(port);
+   if (class == C_SIGNAL || class == C_FILE)
       return lower_expr(value, EXPR_LVALUE);
 
    vcode_reg_t reg =

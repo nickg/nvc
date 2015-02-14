@@ -1575,7 +1575,7 @@ static void cgen_op_file_write(int op, cgen_ctx_t *ctx)
    LLVMValueRef file  = cgen_get_arg(op, 0, ctx);
    LLVMValueRef value = cgen_pointer_to_arg_data(op, 1, ctx);
 
-   LLVMTypeRef value_type = LLVMTypeOf(cgen_get_arg(op, 1, ctx));
+   LLVMTypeRef value_type = LLVMGetElementType(LLVMTypeOf(value));
    LLVMValueRef bytes = LLVMBuildIntCast(builder,
                                          LLVMSizeOf(value_type),
                                          LLVMInt32Type(), "");

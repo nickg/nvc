@@ -130,7 +130,7 @@ elab8           normal
 # bounds9         gold,fail
 access3         normal
 access4         normal
-# textio1         normal,gold
+textio1         normal,gold
 proc9           normal
 elab9           normal,gold
 # elab10          normal,gold
