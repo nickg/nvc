@@ -2020,10 +2020,11 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
 static void cgen_function(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_FUNCTION);
-   assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
 
-   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
-                                     cgen_subprogram_type(display_type, false));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
+   if (fn == NULL)
+      fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+                           cgen_subprogram_type(display_type, false));
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
