@@ -1975,7 +1975,7 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
 {
    const int nextra  = (display_type ? 1 : 0) + (is_procecure ? 1 : 0);
    const int nparams = vcode_count_params();
-   LLVMTypeRef params[nparams + nextra];
+   LLVMTypeRef params[nparams + nextra + 1];
    LLVMTypeRef *p = params;
    for (int i = 0; i < nparams; i++)
       *p++ = cgen_type(vcode_param_type(i));
@@ -1983,7 +1983,7 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
    if (display_type != NULL)
       *p++ = display_type;
 
-   if (is_procecure)
+   if (is_procecure || vcode_unit_result() == VCODE_INVALID_TYPE)
       *p++ = llvm_void_ptr();
 
    if (is_procecure)
@@ -1992,7 +1992,7 @@ static LLVMTypeRef cgen_subprogram_type(LLVMTypeRef display_type,
       vcode_type_t rtype = vcode_unit_result();
       if (rtype == VCODE_INVALID_TYPE)
          return LLVMFunctionType(llvm_void_ptr(), params,
-                                 nparams + nextra, false);
+                                 nparams + nextra + 1, false);
       else
          return LLVMFunctionType(cgen_type(rtype), params,
                                  nparams + nextra, false);
