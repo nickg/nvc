@@ -1063,6 +1063,11 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
                              lower_type(tree_type(fcall)));
    }
+   else if (icmp(builtin, "val")) {
+      type_t f_type = tree_type(fcall);
+      emit_bounds(r0, lower_bounds(f_type));
+      return emit_cast(lower_type(f_type), r0);
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
