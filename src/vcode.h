@@ -113,6 +113,7 @@ typedef enum {
    VCODE_OP_ALL,
    VCODE_OP_BIT_VEC_OP,
    VCODE_OP_CONST_REAL,
+   VCODE_OP_VALUE,
 } vcode_op_t;
 
 typedef enum {
@@ -346,5 +347,7 @@ vcode_reg_t emit_all(vcode_reg_t reg);
 vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
                             vcode_reg_t lhs_len, vcode_reg_t rhs,
                             vcode_reg_t rhs_len, vcode_type_t result);
+vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
+                       vcode_type_t type);
 
 #endif  // _VCODE_H

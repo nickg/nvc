@@ -574,7 +574,7 @@ vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA
-          || o->kind == VCODE_OP_COPY);
+          || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_VALUE);
    return o->type;
 }
 
@@ -607,7 +607,8 @@ uint32_t vcode_get_index(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
           || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
-          || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK);
+          || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
+          || o->kind == VCODE_OP_VALUE);
    return o->index;
 }
 
@@ -658,7 +659,7 @@ const char *vcode_op_string(vcode_op_t op)
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
-      "all", "bit vec op", "const real"
+      "all", "bit vec op", "const real", "value"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1556,6 +1557,17 @@ void vcode_dump(void)
                   col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[3]);
                }
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_VALUE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[1]);
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3556,4 +3568,21 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
                 "result of bit vec op must be uarray");
 
    return (op->result = vcode_add_reg(result));
+}
+
+vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
+                       vcode_type_t type)
+{
+   op_t *op = vcode_add_op(VCODE_OP_VALUE);
+   vcode_add_arg(op, string);
+   vcode_add_arg(op, len);
+   op->index = index;
+   op->type  = type;
+
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(string)) == VCODE_TYPE_POINTER,
+                "string argument to value must be a pointer");
+   VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
+                "length argument to value must be an offset");
+
+   return (op->result = vcode_add_reg(type));
 }

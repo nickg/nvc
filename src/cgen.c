@@ -1698,6 +1698,24 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
                                      vcode_get_real(op));
 }
 
+static void cgen_op_value(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef args[] = {
+      cgen_get_arg(op, 0, ctx),
+      cgen_get_arg(op, 1, ctx),
+      llvm_int32(vcode_get_index(op)),
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), "")
+   };
+   LLVMValueRef value = LLVMBuildCall(builder, llvm_fn("_value_attr"),
+                                      args, ARRAY_LEN(args), "value");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildIntCast(builder, value,
+                                        cgen_type(vcode_get_type(op)),
+                                        cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -1913,6 +1931,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_CONST_REAL:
       cgen_op_const_real(i, ctx);
+      break;
+   case VCODE_OP_VALUE:
+      cgen_op_value(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

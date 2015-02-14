@@ -1068,6 +1068,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       emit_bounds(r0, lower_bounds(f_type));
       return emit_cast(lower_type(f_type), r0);
    }
+   else if (icmp(builtin, "pos"))
+      return emit_cast(lower_type(tree_type(fcall)), r0);
+   else if (icmp(builtin, "value"))
+      return emit_value(lower_array_data(r0),
+                        lower_array_len(r0_type, 0, r0),
+                        tree_index(fcall),
+                        lower_type(tree_type(fcall)));
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
