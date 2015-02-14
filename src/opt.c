@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -69,7 +69,10 @@ static void opt_may_wait_fn(tree_t t, void *ctx)
    if (kind == T_WAIT)
       *may_wait = true;
    else if (kind == T_PCALL) {
-      if (!tree_attr_int(tree_ref(t), never_waits_i, 0))
+      tree_t decl = tree_ref(t);
+      if (tree_attr_str(decl, builtin_i))
+         ;
+      else if (!tree_attr_int(decl, never_waits_i, 0))
          *may_wait = true;
    }
 }
