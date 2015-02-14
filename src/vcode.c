@@ -1501,9 +1501,13 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[0]);
                printf(" ptr ");
                vcode_dump_reg(op->args.items[1]);
-               if (op->args.count == 3) {
-                  printf(" length ");
+               if (op->args.count >= 3) {
+                  printf(" inlen ");
                   vcode_dump_reg(op->args.items[2]);
+                  if (op->args.count >= 4) {
+                     printf(" outlen ");
+                     vcode_dump_reg(op->args.items[3]);
+                  }
                }
             }
             break;
@@ -1781,8 +1785,8 @@ vcode_type_t vtype_offset(void)
 
    vtype_t *n = vtype_array_alloc(&(active_unit->types));
    n->kind = VCODE_TYPE_OFFSET;
-   n->low  = INT64_MIN;
-   n->high = INT64_MAX;
+   n->low  = INT32_MIN;
+   n->high = INT32_MAX;
 
    return vtype_new(n);
 }
@@ -1880,14 +1884,14 @@ vcode_type_t vtype_pointed(vcode_type_t type)
 int64_t vtype_low(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_INT);
+   assert(vt->kind == VCODE_TYPE_INT || vt->kind == VCODE_TYPE_OFFSET);
    return vt->low;
 }
 
 int64_t vtype_high(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   assert(vt->kind == VCODE_TYPE_INT);
+   assert(vt->kind == VCODE_TYPE_INT || vt->kind == VCODE_TYPE_OFFSET);
    return vt->high;
 }
 

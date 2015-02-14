@@ -441,6 +441,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
    const int nargs = vcode_count_args(op);
 
    vcode_reg_t result = vcode_get_result(op);
+   const bool proc = (result == VCODE_INVALID_REG);
 
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
    if (fn == NULL) {
@@ -448,9 +449,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       for (int i = 0; i < nargs; i++)
          atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
 
-      LLVMTypeRef rtype =
-         result == VCODE_INVALID_REG
-         ? LLVMVoidType()
+      LLVMTypeRef rtype = proc ? LLVMVoidType()
          : cgen_type(vcode_reg_type(result));
 
       fn = LLVMAddFunction(
@@ -461,13 +460,17 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
 
-   const int total_args = nargs + (nested ? 1 : 0);
+   const int total_args = nargs + (nested ? 1 : 0) + (proc ? 1 : 0);
    LLVMValueRef args[total_args];
+   LLVMValueRef *pa = args;
    for (int i = 0; i < nargs; i++)
-      args[i] = cgen_get_arg(op, i, ctx);
+      *pa++ = cgen_get_arg(op, i, ctx);
 
    if (nested)
-      args[nargs] = cgen_display_struct(ctx);
+      *pa++ = cgen_display_struct(ctx);
+
+   if (proc)
+      *pa++ = LLVMConstNull(llvm_void_ptr());
 
    if (result != VCODE_INVALID_REG)
       ctx->regs[result] = LLVMBuildCall(builder, fn, args, total_args,
@@ -759,11 +762,13 @@ static void cgen_op_div(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
 
-   //const bool is_real = vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_REAL;
-   const bool is_real = false;
+   const bool is_real = vtype_kind(vcode_reg_type(result)) == VCODE_TYPE_REAL;
 
    if (is_real)
-      assert(false);
+      ctx->regs[result] = LLVMBuildFDiv(builder,
+                                        cgen_get_arg(op, 0, ctx),
+                                        cgen_get_arg(op, 1, ctx),
+                                        cgen_reg_name(result));
    else {
       LLVMBasicBlockRef zero_bb = LLVMAppendBasicBlock(ctx->fn, "div_zero");
       LLVMBasicBlockRef ok_bb   = LLVMAppendBasicBlock(ctx->fn, "div_ok");
@@ -925,15 +930,28 @@ static void cgen_op_cast(int op, cgen_ctx_t *ctx)
                                           cgen_type(result_type),
                                           cgen_reg_name(result));
    }
-   else {
-      LLVMOpcode lop = LLVMBitCast;
-      if (arg_kind == VCODE_TYPE_INT)
-         lop = (vtype_low(arg_type) < 0) ? LLVMSExt : LLVMZExt;
+   else if (result_kind == VCODE_TYPE_INT || result_kind == VCODE_TYPE_OFFSET) {
+      const int abits = bits_for_range(vtype_low(arg_type),
+                                       vtype_high(arg_type));
+      const int rbits = bits_for_range(vtype_low(result_type),
+                                       vtype_high(result_type));
 
-      ctx->regs[result] = LLVMBuildCast(builder, lop, arg_ll,
-                                        cgen_type(arg_type),
-                                        cgen_reg_name(result));
+      LLVMTypeRef result_type_ll = cgen_type(result_type);
+
+      if (rbits < abits)
+         ctx->regs[result] = LLVMBuildTrunc(builder, arg_ll, result_type_ll,
+                                            cgen_reg_name(result));
+      else if (vtype_low(arg_type) < 0)
+         ctx->regs[result] = LLVMBuildSExt(builder, arg_ll, result_type_ll,
+                                           cgen_reg_name(result));
+      else
+         ctx->regs[result] = LLVMBuildZExt(builder, arg_ll, result_type_ll,
+                                           cgen_reg_name(result));
    }
+   else
+      ctx->regs[result] = LLVMBuildCast(builder, LLVMBitCast, arg_ll,
+                                        cgen_type(result_type),
+                                        cgen_reg_name(result));
 }
 
 static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
@@ -1595,7 +1613,7 @@ static void cgen_op_file_read(int op, cgen_ctx_t *ctx)
 
    LLVMValueRef outlen;
    if (vcode_count_args(op) >= 4)
-      outlen = LLVMBuildMul(builder, cgen_get_arg(op, 3, ctx), bytes, "");
+      outlen = cgen_get_arg(op, 3, ctx);
    else
       outlen = LLVMConstNull(LLVMPointerType(LLVMInt32Type(), 0));
 

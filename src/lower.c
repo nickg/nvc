@@ -988,9 +988,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    }
    else if (icmp(builtin, "file_write")) {
       vcode_reg_t length = VCODE_INVALID_REG;
-      if (type_is_array(r1_type))
+      vcode_reg_t data   = r1;
+      if (type_is_array(r1_type)) {
          length = lower_array_len(r1_type, 0, r1);
-      emit_file_write(r0, r1, length);
+         data   = lower_array_data(r1);
+      }
+      emit_file_write(r0, data, length);
       return VCODE_INVALID_REG;
    }
    else if (icmp(builtin, "file_close")) {
