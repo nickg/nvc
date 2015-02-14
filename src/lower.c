@@ -146,8 +146,12 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
 
 static vcode_type_t lower_index_type(type_t type, int dim)
 {
-   if (type_is_unconstrained(type))
-      return lower_type(type_index_constr(type, dim));
+   if (type_is_unconstrained(type)) {
+      if (type_kind(type) == T_UARRAY)
+         return lower_type(type_index_constr(type, dim));
+      else
+         return lower_index_type(type_base(type), dim);
+   }
    else
       return lower_type(tree_type(type_dim(type, dim).left));
 }
