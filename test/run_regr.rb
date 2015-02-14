@@ -68,7 +68,8 @@ def analyse(t)
 end
 
 def elaborate(t)
-  run_cmd "#{nvc} #{std t} -e #{t[:name]} --disable-opt #{native}"
+  opt = '--disable-opt' unless t[:flags].member? 'opt'
+  run_cmd "#{nvc} #{std t} -e #{t[:name]} #{opt} #{native}"
 end
 
 def run(t)

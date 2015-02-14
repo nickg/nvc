@@ -2129,13 +2129,8 @@ static void cgen_procedure(LLVMTypeRef display_type)
 
    const int nparams = vcode_count_params();
 
-   LLVMValueRef state_raw = NULL;
-   if (display_type != NULL) {
+   if (display_type != NULL)
       ctx.display = LLVMGetParam(fn, nparams);
-      state_raw   = LLVMGetParam(fn, nparams + 1);
-   }
-   else
-      state_raw = LLVMGetParam(fn, nparams);
 
    LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
    LLVMBasicBlockRef alloc_bb = LLVMAppendBasicBlock(fn, "alloc");

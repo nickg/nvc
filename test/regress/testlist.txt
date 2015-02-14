@@ -244,7 +244,7 @@ array4          normal
 alias9          normal
 issue79         normal
 # issue84         normal,2000
-issue82         normal
+issue82         normal,opt
 issue86         normal
 issue94         normal
 access6         gold,fail

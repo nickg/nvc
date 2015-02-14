@@ -213,6 +213,7 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
          }
 
       case RANGE_EXPR:
+      default:
          fatal_trace("unexpected range direction in %s", __func__);
       }
    }
