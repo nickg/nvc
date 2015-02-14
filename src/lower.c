@@ -2455,17 +2455,20 @@ static void lower_pcall(tree_t pcall)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_subprogram_arg(pcall, i);
 
-   if (tree_attr_int(decl, nested_i, 0))
-      assert(false);
-   else {
-      if (tree_attr_int(decl, never_waits_i, 0))
+   const bool nested = tree_attr_int(decl, nested_i, 0);
+
+   if (tree_attr_int(decl, never_waits_i, 0)) {
+      if (nested)
+         emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs);
+      else
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
-      else {
-         vcode_block_t resume_bb = emit_block();
-         emit_pcall(name, args, nargs, resume_bb);
-         vcode_select_block(resume_bb);
-         emit_resume(name);
-      }
+   }
+   else {
+      assert(!nested);  // TODO
+      vcode_block_t resume_bb = emit_block();
+      emit_pcall(name, args, nargs, resume_bb);
+      vcode_select_block(resume_bb);
+      emit_resume(name);
    }
 }
 
