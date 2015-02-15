@@ -1564,7 +1564,6 @@ START_TEST(test_memset)
          { VCODE_OP_ALLOCA },
          { VCODE_OP_MEMSET },
          { VCODE_OP_WRAP },
-         { VCODE_OP_BOUNDS },
          { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_RETURN }
       };
@@ -1591,7 +1590,6 @@ START_TEST(test_memset)
          { VCODE_OP_MUL },
          { VCODE_OP_MEMSET },
          { VCODE_OP_WRAP },
-         { VCODE_OP_BOUNDS },
          { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_RETURN }
       };

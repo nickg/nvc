@@ -117,10 +117,10 @@ const4          normal
 wait9           normal
 wait10          normal
 # attr4           normal
-# bounds6         gold,fail
+bounds6         gold,fail
 elab6           normal
 elab7           normal
-# bounds7         gold,fail
+bounds7         gold,fail
 arith2          gold,fail
 attr5           normal
 # attr6           normal
@@ -149,7 +149,7 @@ case4           normal
 # signal10        normal
 signal11        normal,gold
 # wait11          normal
-# bounds11        gold,fail
+bounds11        gold,fail
 wait12          normal,gold
 array2          normal
 # driver4         normal
@@ -174,7 +174,7 @@ array3          normal
 # slice2          normal
 attr8           normal
 attr9           normal
-# bounds12        gold,fail
+bounds12        gold,fail
 # bounds13        gold,fail
 access5         normal
 # record6         normal

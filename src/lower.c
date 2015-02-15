@@ -814,6 +814,18 @@ static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
    return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
 }
 
+static bounds_kind_t lower_type_bounds_kind(type_t type)
+{
+   if (type_is_enum(type))
+      return BOUNDS_ENUM;
+   else if (type_dims(type) == 0)
+      return lower_type_bounds_kind(type_base(type));
+   else {
+      range_t r = type_dim(type, 0);
+      return r.kind == RANGE_TO ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO;
+   }
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
@@ -1065,7 +1077,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    }
    else if (icmp(builtin, "val")) {
       type_t f_type = tree_type(fcall);
-      emit_bounds(r0, lower_bounds(f_type));
+      emit_bounds(r0, lower_bounds(f_type), lower_type_bounds_kind(f_type),
+                  tree_index(fcall));
       return emit_cast(lower_type(f_type), r0);
    }
    else if (icmp(builtin, "pos"))
@@ -2314,7 +2327,8 @@ static void lower_var_assign(tree_t stmt)
    if (is_scalar || type_is_access(type)) {
       vcode_reg_t loaded_value = lower_reify(value_reg);
       if (is_scalar)
-         emit_bounds(loaded_value, lower_bounds(type));
+         emit_bounds(loaded_value, lower_bounds(type),
+                     lower_type_bounds_kind(type), tree_index(stmt));
       if (is_var_decl)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
@@ -2352,7 +2366,8 @@ static void lower_signal_assign(tree_t stmt)
       vcode_reg_t rhs = lower_expr(tree_value(w), EXPR_RVALUE);
 
       if (type_is_scalar(target_type))
-         emit_bounds(lower_reify(rhs), lower_bounds(target_type));
+         emit_bounds(lower_reify(rhs), lower_bounds(target_type),
+                     lower_type_bounds_kind(target_type), tree_index(stmt));
       else
          ;  // TODO: bounds check
 
@@ -2425,7 +2440,8 @@ static void lower_return(tree_t stmt)
       type_t type = tree_type(value);
       if (type_is_scalar(type)) {
          vcode_reg_t result = lower_reify_expr(value);
-         emit_bounds(result, lower_bounds(type));
+         emit_bounds(result, lower_bounds(type), lower_type_bounds_kind(type),
+                     tree_index(value));
          emit_return(result);
       }
       else if (result_kind == VCODE_TYPE_UARRAY) {
@@ -2892,7 +2908,9 @@ static void lower_decl(tree_t decl)
             else if (type_is_access(type))
                emit_store(value, var);
             else {
-               emit_bounds(value, vbounds);
+               if (type_is_scalar(type))
+                  emit_bounds(value, vbounds, lower_type_bounds_kind(type),
+                              tree_index(tree_value(decl)));
                emit_store(value, var);
             }
          }

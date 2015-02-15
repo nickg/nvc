@@ -514,7 +514,7 @@ ident_t vcode_get_func(int op)
 unsigned vcode_get_flags(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_SCHED_EVENT);
+   assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS);
    return o->flags;
 }
 
@@ -608,7 +608,7 @@ uint32_t vcode_get_index(int op)
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
           || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
           || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
-          || o->kind == VCODE_OP_VALUE);
+          || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS);
    return o->index;
 }
 
@@ -2680,7 +2680,8 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
    return reg;
 }
 
-void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
+void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
+                 uint32_t index)
 {
    if (reg == VCODE_INVALID_REG)
       return;
@@ -2691,7 +2692,13 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds)
 
    op_t *op = vcode_add_op(VCODE_OP_BOUNDS);
    vcode_add_arg(op, reg);
-   op->type = bounds;
+   op->type  = bounds;
+   op->flags = kind;
+   op->index = index;
+
+   const vtype_kind_t tkind = vtype_kind(bounds);
+   VCODE_ASSERT(tkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
+                "type argument to bounds must be integer or real");
 }
 
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
