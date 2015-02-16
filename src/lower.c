@@ -1378,6 +1378,7 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    case T_UARRAY:
       // The transformation must be computed at runtime
       {
+         assert(meta != VCODE_INVALID_REG);
          bleft = lower_array_left(base_type, 0, meta);
          bdir  = lower_array_dir(base_type, 0, meta);
       }

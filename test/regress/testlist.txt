@@ -104,9 +104,9 @@ func9           normal
 issue9          normal
 # record4         normal
 # record5         normal
-# const3          normal,gold
+const3          normal,gold
 # proc7           normal,gold
-# attr2           normal
+attr2           normal
 # func10          normal
 attr3           normal,gold
 # proc8           normal,gold
@@ -193,7 +193,7 @@ const7          normal
 signal13        normal
 # elab18          normal
 # wait13          normal
-# shared2         normal
+shared2         normal
 func15          normal
 elab19          normal
 # concat4         normal
