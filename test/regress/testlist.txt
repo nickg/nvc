@@ -217,7 +217,7 @@ for2            normal,gold
 attr10          normal
 assert4         normal
 issue56         normal
-# issue53         normal
+issue53         normal
 # issue59         normal
 issue60         normal
 # record11        normal
