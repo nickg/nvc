@@ -2952,9 +2952,13 @@ static void lower_decl(tree_t decl)
 
          // Internal signals that were generated from ports will not have
          // an initial value
-         if (tree_has_value(decl))
-            emit_set_initial(sig, lower_expr(tree_value(decl), EXPR_RVALUE),
-                             tree_index(decl));
+         if (tree_has_value(decl)) {
+            tree_t value = tree_value(decl);
+            vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+            if (type_is_array(tree_type(value)))
+               init_reg = lower_array_data(init_reg);
+            emit_set_initial(sig, init_reg, tree_index(decl));
+         }
 
          if (shadow != VCODE_INVALID_VAR)
             emit_resolved_address(shadow, sig);
