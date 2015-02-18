@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -58,6 +58,9 @@ static void jit_native_name(const char *name, char *buf, size_t len)
          p = jit_str_add(p, "_3A_");
          break;
 #endif
+      case ';':
+         p = jit_str_add(p, "_3B_");
+         break;
       case '(':
          p = jit_str_add(p, "_28_");
          break;
