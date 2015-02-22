@@ -72,7 +72,8 @@ static ident_t driver_init_i;
 static ident_t static_i;
 static ident_t never_waits_i;
 static ident_t mangled_i;
-static bool    verbose = false;
+
+static const char *verbose = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -2058,7 +2059,15 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       if (!lower_const_bounds(type)) {
           // Need to allocate memory for both the array and its metadata
 
-         vcode_reg_t meta_reg = lower_wrap(value_type, init_reg);
+         const int ndims = array_dimension(value_type);
+         vcode_dim_t dims[ndims];
+         for (int i = 0; i < ndims; i++) {
+            dims[i].left  = lower_array_left(value_type, i, init_reg);
+            dims[i].right = lower_array_right(value_type, i, init_reg);
+            dims[i].dir   = lower_array_dir(value_type, i, init_reg);
+         }
+
+         vcode_reg_t meta_reg = emit_wrap(raw_reg, dims, ndims);
          vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
          emit_store_indirect(meta_reg, emit_all(result_reg));
          return result_reg;
@@ -3020,8 +3029,10 @@ static void lower_finished(void)
 {
    vcode_opt();
 
-   if (verbose)
-      vcode_dump();
+   if (verbose != NULL) {
+      if (*verbose == '\0' || strstr(istr(vcode_unit_name()), verbose) != NULL)
+         vcode_dump();
+   }
 }
 
 static void lower_cleanup(tree_t scope)
@@ -3499,7 +3510,10 @@ void lower_unit(tree_t unit)
    never_waits_i = ident_new("never_waits");
    mangled_i     = ident_new("mangled");
 
-   verbose = (getenv("NVC_LOWER_VERBOSE") != NULL);
+   if (getenv("NVC_LOWER_VERBOSE") != NULL)
+      verbose = "";
+   else
+      verbose = opt_get_str("dump-vcode");
 
    switch (tree_kind(unit)) {
    case T_ELAB:

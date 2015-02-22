@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,7 @@
 #endif
 
 const char *copy_string =
-   "Copyright (C) 2011-2014  Nick Gasson\n"
+   "Copyright (C) 2011-2015  Nick Gasson\n"
    "This program comes with ABSOLUTELY NO WARRANTY. This is free software, "
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
@@ -67,9 +67,10 @@ static int analyse(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      { "bootstrap",       no_argument, 0, 'b' },
-      { "dump-llvm",       no_argument, 0, 'd' },
-      { "prefer-explicit", no_argument, 0, 'p' },
+      { "bootstrap",       no_argument,       0, 'b' },
+      { "dump-llvm",       no_argument,       0, 'd' },
+      { "dump-vcode",      optional_argument, 0, 'v' },
+      { "prefer-explicit", no_argument,       0, 'p' },
       { 0, 0, 0, 0 }
    };
 
@@ -88,6 +89,9 @@ static int analyse(int argc, char **argv)
          break;
       case 'd':
          opt_set_int("dump-llvm", 1);
+         break;
+      case 'v':
+         opt_set_str("dump-vcode", optarg ?: "");
          break;
       case 'p':
          opt_set_int("prefer-explicit", 1);
@@ -145,11 +149,12 @@ static int elaborate(int argc, char **argv)
    set_work_lib();
 
    static struct option long_options[] = {
-      {"disable-opt", no_argument, 0, 'o'},
-      {"dump-llvm", no_argument, 0, 'd'},
-      {"native", no_argument, 0, 'n'},
-      {"cover", no_argument, 0, 'c'},
-      {0, 0, 0, 0}
+      { "disable-opt", no_argument,       0, 'o'},
+      { "dump-llvm",   no_argument,       0, 'd'},
+      { "dump-vcode",  optional_argument, 0, 'v' },
+      { "native",      no_argument,       0, 'n'},
+      { "cover",       no_argument,       0, 'c'},
+      { 0, 0, 0, 0 }
    };
 
    int c, index = 0;
@@ -162,6 +167,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'd':
          opt_set_int("dump-llvm", 1);
+         break;
+      case 'v':
+         opt_set_str("dump-vcode", optarg ?: "");
          break;
       case 'n':
          opt_set_int("native", 1);
@@ -551,6 +559,7 @@ static void set_default_opts(void)
    opt_set_int("make-deps-only", 0);
    opt_set_int("make-posix", 0);
    opt_set_str("work-name", "work");
+   opt_set_str("dump-vcode", NULL);
 }
 
 static void usage(void)

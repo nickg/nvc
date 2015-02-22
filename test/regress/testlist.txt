@@ -200,7 +200,7 @@ elab19          normal
 # issue29         normal
 assert3         normal,gold
 alias8          normal
-# textio2         normal
+textio2         normal
 elab20          normal
 issue38         normal
 # stop1           normal,gold

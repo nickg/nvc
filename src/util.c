@@ -853,12 +853,12 @@ int opt_get_int(const char *name)
 
 void opt_set_str(const char *name, const char *val)
 {
-   opt_set_generic(name, OPTION_INT, (optval_t)strdup(val));
+   opt_set_generic(name, OPTION_STRING, (optval_t)(val ? strdup(val) : NULL));
 }
 
 const char *opt_get_str(const char *name)
 {
-   return opt_get_generic(name, OPTION_INT).s;
+   return opt_get_generic(name, OPTION_STRING).s;
 }
 
 char *get_fmt_buf(size_t len)
