@@ -1338,6 +1338,8 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
 {
    // Convert VHDL offset 'off' to a zero-based array offset
 
+   assert(vtype_kind(vcode_reg_type(off)) == VCODE_TYPE_INT);
+
    const bool wrapped = vtype_kind(vcode_reg_type(array)) == VCODE_TYPE_UARRAY
       || type_is_unconstrained(type);
 
@@ -1352,7 +1354,7 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
    }
    else {
       range_t r = type_dim(type, dim);
-      vcode_reg_t left = lower_expr(r.left, EXPR_RVALUE);
+      vcode_reg_t left = lower_reify_expr(r.left);
       if (r.kind == RANGE_TO)
          zeroed = emit_sub(off, left);
       else
@@ -1422,7 +1424,7 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       tree_t p = tree_param(ref, i);
       assert(tree_subkind(p) == P_POS);
 
-      vcode_reg_t offset = lower_expr(tree_value(p), EXPR_RVALUE);
+      vcode_reg_t offset = lower_reify_expr(tree_value(p));
 
       //if (!elide_bounds)
       //   cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta),
