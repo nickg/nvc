@@ -1652,7 +1652,6 @@ START_TEST(test_func5)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_VEC_LOAD },
          { VCODE_OP_LOAD_INDIRECT },
          { VCODE_OP_CONST, .value = 1 },

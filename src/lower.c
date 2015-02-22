@@ -72,6 +72,7 @@ static ident_t driver_init_i;
 static ident_t static_i;
 static ident_t never_waits_i;
 static ident_t mangled_i;
+static ident_t last_value_i;
 
 static const char *verbose = NULL;
 
@@ -418,7 +419,7 @@ static vcode_reg_t lower_reify(vcode_reg_t reg)
       return emit_load_indirect(reg);
    case VCODE_TYPE_SIGNAL:
       {
-         vcode_reg_t ptr = emit_vec_load(reg, emit_const(vtype_offset(), 1));
+         vcode_reg_t ptr = emit_vec_load(reg, VCODE_INVALID_REG, false);
          return emit_load_indirect(ptr);
       }
 
@@ -910,6 +911,15 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_name_attr(p0, tree_type(fcall), INSTANCE_NAME);
    else if (icmp(builtin, "path_name"))
       return lower_name_attr(p0, tree_type(fcall), PATH_NAME);
+   else if (icmp(builtin, "last_value")) {
+      vcode_reg_t len_reg = VCODE_INVALID_REG;
+      vcode_reg_t r0 = lower_expr(tree_value(tree_param(fcall, 0)),
+                                  EXPR_LVALUE);
+      type_t r0_type = lower_arg_type(fcall, 0);
+      if (type_is_array(r0_type))
+         len_reg = lower_array_total_len(r0_type, r0);
+      return emit_vec_load(r0, len_reg, true);
+   }
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -2132,6 +2142,25 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
    }
 }
 
+static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
+{
+   tree_t name = tree_name(expr);
+   type_t name_type = tree_type(name);
+
+   ident_t ident = tree_ident(expr);
+   if (icmp(ident, "LAST_EVENT")) {
+      vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
+      if (type_is_array(name_type))
+         return emit_last_event(name_reg,
+                                lower_array_total_len(name_type, name_reg));
+      else
+         return emit_last_event(name_reg, VCODE_INVALID_REG);
+
+   }
+   else
+      fatal("cannot lower attribute %s", istr(ident));
+}
+
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
 {
    switch (tree_kind(expr)) {
@@ -2157,6 +2186,8 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
       return lower_all(expr, ctx);
    case T_TYPE_CONV:
       return lower_type_conv(expr, ctx);
+   case T_ATTR_REF:
+      return lower_attr_ref(expr, ctx);
    default:
       fatal_at(tree_loc(expr), "cannot lower expression kind %s",
                tree_kind_str(tree_kind(expr)));
@@ -2981,6 +3012,10 @@ static void lower_decl(tree_t decl)
             emit_set_initial(sig, init_reg, tree_index(decl));
          }
 
+         // Identify signals which potentially need 'LAST_VALUE
+         if (tree_attr_int(decl, last_value_i, 0))
+            emit_needs_last_value(sig);
+
          if (shadow != VCODE_INVALID_VAR)
             emit_resolved_address(shadow, sig);
       }
@@ -3511,6 +3546,7 @@ void lower_unit(tree_t unit)
    static_i      = ident_new("static");
    never_waits_i = ident_new("never_waits");
    mangled_i     = ident_new("mangled");
+   last_value_i  = ident_new("last_value");
 
    if (getenv("NVC_LOWER_VERBOSE") != NULL)
       verbose = "";

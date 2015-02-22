@@ -43,7 +43,7 @@ agg2            normal
 case1           normal
 func5           normal
 # ieee1           normal
-# ieee2           normal,stop=15ns
+ieee2           normal,stop=15ns
 cond3           normal
 concat1         normal
 concat2         normal
@@ -123,7 +123,7 @@ elab7           normal
 bounds7         gold,fail
 arith2          gold,fail
 attr5           normal
-# attr6           normal
+attr6           normal
 elab8           normal
 # arith3          normal
 # bounds8         gold,fail

@@ -1563,7 +1563,8 @@ static void cgen_op_memset(int op, cgen_ctx_t *ctx)
 static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef signal = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef length = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef length =
+      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
 
    LLVMTypeRef base_type =
       cgen_type(vtype_base(vcode_reg_type(vcode_get_arg(op, 0))));
@@ -1575,7 +1576,7 @@ static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
       llvm_void_cast(tmp),
       llvm_int32(0),
       LLVMBuildSub(builder, length, llvm_int32(1), "high"),
-      llvm_int1(0)  // Last value
+      llvm_int1(vcode_get_flags(op))
    };
 
    vcode_reg_t result = vcode_get_result(op);
@@ -1583,7 +1584,24 @@ static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
    LLVMValueRef raw = LLVMBuildCall(builder, llvm_fn("_vec_load"), args,
                                     ARRAY_LEN(args), cgen_reg_name(result));
 
-   ctx->regs[result] = LLVMBuildPointerCast(builder, raw, LLVMTypeOf(tmp), "");
+   ctx->regs[result] =
+      LLVMBuildPointerCast(builder, raw, cgen_type(vcode_reg_type(result)), "");
+}
+
+static void cgen_op_last_event(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef signal = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef length =
+      vcode_count_args(op) > 1 ? cgen_get_arg(op, 1, ctx) : llvm_int32(1);
+
+   LLVMValueRef args[] = {
+      llvm_void_cast(signal),
+      length
+   };
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_last_event"), args,
+                                     ARRAY_LEN(args), cgen_reg_name(result));
 }
 
 static void cgen_op_case(int op, cgen_ctx_t *ctx)
@@ -1761,6 +1779,29 @@ static void cgen_op_value(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildIntCast(builder, value,
                                         cgen_type(vcode_get_type(op)),
                                         cgen_reg_name(result));
+}
+
+static void cgen_op_needs_last_value(int op, cgen_ctx_t *ctx)
+{
+   vcode_signal_t sig = vcode_get_signal(op);
+
+   char *buf LOCAL = cgen_signal_nets_name(sig);
+   LLVMValueRef nets_array = LLVMGetNamedGlobal(module, buf);
+   assert(nets_array);
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      llvm_int32(0)
+   };
+   LLVMValueRef nets = LLVMBuildGEP(builder, nets_array, indexes,
+                                    ARRAY_LEN(indexes), "");
+
+   LLVMValueRef args[] = {
+      nets,
+      llvm_int32(vcode_signal_count_nets(sig))
+   };
+   LLVMBuildCall(builder, llvm_fn("_needs_last_value"),
+                 args, ARRAY_LEN(args), "");
 }
 
 static void cgen_op(int i, cgen_ctx_t *ctx)
@@ -1981,6 +2022,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_VALUE:
       cgen_op_value(i, ctx);
+      break;
+   case VCODE_OP_LAST_EVENT:
+      cgen_op_last_event(i, ctx);
+      break;
+   case VCODE_OP_NEEDS_LAST_VALUE:
+      cgen_op_needs_last_value(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

@@ -314,6 +314,11 @@ vcode_type_t vcode_reg_type(vcode_reg_t reg)
    return vcode_reg_data(reg)->type;
 }
 
+vtype_kind_t vcode_reg_kind(vcode_reg_t reg)
+{
+   return vtype_kind(vcode_reg_type(reg));
+}
+
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg)
 {
    return vcode_reg_data(reg)->bounds;
@@ -514,7 +519,8 @@ ident_t vcode_get_func(int op)
 unsigned vcode_get_flags(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS);
+   assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
+          || o->kind == VCODE_OP_VEC_LOAD);
    return o->flags;
 }
 
@@ -544,7 +550,8 @@ vcode_signal_t vcode_get_signal(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_NETS || o->kind == VCODE_OP_RESOLVED_ADDRESS
-          || o->kind == VCODE_OP_SET_INITIAL);
+          || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_NEEDS_LAST_VALUE);
    return o->signal;
 }
 
@@ -659,7 +666,8 @@ const char *vcode_op_string(vcode_op_t op)
       "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
-      "all", "bit vec op", "const real", "value"
+      "all", "bit vec op", "const real", "value", "last event",
+      "needs last value"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1431,8 +1439,12 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 1) {
+                  col += printf(" length ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
+               if (op->flags)
+                  col += printf(" last");
                vcode_dump_result_type(col, op);
             }
             break;
@@ -1562,13 +1574,24 @@ void vcode_dump(void)
             break;
 
          case VCODE_OP_VALUE:
+         case VCODE_OP_LAST_EVENT:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               col += printf(" length ");
-               col += vcode_dump_reg(op->args.items[1]);
+               if (op->args.count > 1) {
+                  col += printf(" length ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
                vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_NEEDS_LAST_VALUE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               color_printf("$white$%s$$ ",
+                            istr(vcode_signal_name(op->signal)));
             }
             break;
          }
@@ -2140,8 +2163,9 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    block_t *b = &(active_unit->blocks.items[active_block]);
    for (int i = b->ops.count - 1; i >= 0; i--) {
       const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CMP && op->args.count == 2 && op->args.items[0] == lhs
-          && op->args.items[1] == rhs && op->cmp == cmp)
+      if (op->kind == VCODE_OP_CMP && op->args.count == 2
+          && op->args.items[0] == lhs && op->args.items[1] == rhs
+          && op->cmp == cmp)
          return op->result;
    }
 
@@ -3358,23 +3382,31 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
                 "memset value must be max 8-bit");
 }
 
-vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length)
+vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
+                          bool last_value)
 {
    op_t *op = vcode_add_op(VCODE_OP_VEC_LOAD);
    vcode_add_arg(op, signal);
-   vcode_add_arg(op, length);
+   if (length != VCODE_INVALID_REG)
+      vcode_add_arg(op, length);
+   op->flags = last_value;
 
    vcode_type_t signal_type = vcode_reg_type(signal);
 
    VCODE_ASSERT(vtype_kind(signal_type) == VCODE_TYPE_SIGNAL,
                 "signal of vec load must have signal type");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(length)) == VCODE_TYPE_OFFSET,
+   VCODE_ASSERT(length == VCODE_INVALID_REG
+                || vcode_reg_kind(length) == VCODE_TYPE_OFFSET,
                 "length of vec load must have offset type");
 
    vcode_type_t base_type = vtype_base(signal_type);
+   if (vtype_kind(base_type) == VCODE_TYPE_CARRAY)
+      base_type = vtype_elem(base_type);
+
    op->result = vcode_add_reg(vtype_pointer(base_type));
 
-   vcode_reg_data(op->result)->bounds = base_type;
+   if (vtype_kind(vtype_base(signal_type)) == VCODE_TYPE_INT)
+      vcode_reg_data(op->result)->bounds = base_type;
 
    return op->result;
 }
@@ -3586,10 +3618,33 @@ vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
    op->index = index;
    op->type  = type;
 
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(string)) == VCODE_TYPE_POINTER,
+   VCODE_ASSERT(vcode_reg_kind(string) == VCODE_TYPE_POINTER,
                 "string argument to value must be a pointer");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(len)) == VCODE_TYPE_OFFSET,
+   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to value must be an offset");
 
    return (op->result = vcode_add_reg(type));
+}
+
+vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len)
+{
+   op_t *op = vcode_add_op(VCODE_OP_LAST_EVENT);
+   vcode_add_arg(op, signal);
+   if (len != VCODE_INVALID_REG)
+      vcode_add_arg(op, len);
+
+   VCODE_ASSERT(vcode_reg_kind(signal) == VCODE_TYPE_SIGNAL,
+                "signal argument to last event must have signal type");
+   VCODE_ASSERT(len == VCODE_INVALID_REG
+                || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
+                "length argument to last event must have offset type");
+
+   // XXX: should be INT64_MIN
+   return (op->result = vcode_add_reg(vtype_int(INT64_MIN + 1, INT64_MAX)));
+}
+
+void emit_needs_last_value(vcode_signal_t sig)
+{
+   op_t *op = vcode_add_op(VCODE_OP_NEEDS_LAST_VALUE);
+   op->signal = sig;
 }

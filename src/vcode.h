@@ -114,6 +114,8 @@ typedef enum {
    VCODE_OP_BIT_VEC_OP,
    VCODE_OP_CONST_REAL,
    VCODE_OP_VALUE,
+   VCODE_OP_LAST_EVENT,
+   VCODE_OP_NEEDS_LAST_VALUE,
 } vcode_op_t;
 
 typedef enum {
@@ -200,6 +202,7 @@ vcode_reg_t vcode_param_reg(int param);
 
 int vcode_count_regs(void);
 vcode_type_t vcode_reg_type(vcode_reg_t reg);
+vtype_kind_t vcode_reg_kind(vcode_reg_t reg);
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 
 int vcode_count_signals(void);
@@ -330,7 +333,8 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
 void emit_resume(ident_t func);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
-vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length);
+vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
+                          bool last_value);
 void emit_case(vcode_reg_t value, vcode_block_t def, const vcode_reg_t *cases,
                const vcode_block_t *blocks, int ncases);
 vcode_reg_t emit_endfile(vcode_reg_t file);
@@ -350,5 +354,7 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
                             vcode_reg_t rhs_len, vcode_type_t result);
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
                        vcode_type_t type);
+vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
+void emit_needs_last_value(vcode_signal_t sig);
 
 #endif  // _VCODE_H
