@@ -42,7 +42,7 @@ agg1            normal
 agg2            normal
 case1           normal
 func5           normal
-# ieee1           normal
+ieee1           normal
 ieee2           normal,stop=15ns
 cond3           normal
 concat1         normal
@@ -54,10 +54,10 @@ alias3          normal
 proc2           normal
 operator3       normal
 agg4            normal
-# ieee3           normal
+ieee3           normal
 default1        normal
 generic1        normal
-# signal7         normal
+signal7         normal
 # synopsys1       normal
 block1          normal
 elab3           normal,gold
@@ -68,7 +68,7 @@ wait6           normal,gold
 elab4           normal
 elab5           normal
 signal8         normal
-# ram1            normal
+ram1            normal
 # wait7           normal
 const1          normal
 # driver1         normal
@@ -100,7 +100,7 @@ loop1           normal
 access2         normal
 func9           normal
 # record3         normal
-# issue8          normal
+issue8          normal
 issue9          normal
 # record4         normal
 # record5         normal
@@ -116,7 +116,7 @@ const4          normal
 # shift1          normal
 wait9           normal
 wait10          normal
-# attr4           normal
+attr4           normal
 bounds6         gold,fail
 elab6           normal
 elab7           normal
@@ -159,7 +159,7 @@ comp1           normal
 # operator4       normal
 issue16         normal
 # elab15          normal
-# const5          normal
+const5          normal
 # issue18         normal
 elab16          normal
 # signal12        normal

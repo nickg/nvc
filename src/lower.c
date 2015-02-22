@@ -729,7 +729,29 @@ static ident_t lower_mangle_func(tree_t decl)
       return prev;
 
    LOCAL_TEXT_BUF buf = tb_new();
+
+#if LLVM_MANGLES_NAMES
+   const char *name = istr(tree_ident(decl));
+   char tmp[strlen(name) + 1], *p;
+   for (p = tmp; *name != '\0'; ++name) {
+      switch (*name) {
+      case '"': break;
+      case '+': *p++ = 'p'; break;
+      case '-': *p++ = 's'; break;
+      case '*': *p++ = 'm'; break;
+      case '/': *p++ = 'd'; break;
+      case '=': *p++ = 'e'; break;
+      case '>': *p++ = 'g'; break;
+      case '<': *p++ = 'l'; break;
+      default: *p++ = *name;
+      }
+   }
+   *p = '\0';
+
+   tb_printf(buf, "%s", tmp);
+#else
    tb_printf(buf, "%s", istr(tree_ident(decl)));
+#endif
 
    const int nports = tree_ports(decl);
    if (nports > 0) {
