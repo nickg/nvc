@@ -711,8 +711,13 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "J");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
       tb_printf(buf, "L");
-   else
+   else {
+#if LLVM_MANGLES_NAMES
+      tb_printf(buf, "u%s__", istr(ident));
+#else
       tb_printf(buf, "u%s;", istr(ident));
+#endif
+   }
 }
 
 static ident_t lower_mangle_func(tree_t decl)
@@ -726,7 +731,11 @@ static ident_t lower_mangle_func(tree_t decl)
 
    const int nports = tree_ports(decl);
    if (nports > 0) {
+#if LLVM_MANGLES_NAMES
+      tb_printf(buf, "__");
+#else
       tb_printf(buf, "$");
+#endif
       for (int i = 0; i < nports; i++) {
          tree_t p = tree_port(decl, i);
          if (tree_class(p) == C_SIGNAL)
