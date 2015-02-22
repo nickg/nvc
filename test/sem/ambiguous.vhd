@@ -196,4 +196,11 @@ begin
     end process;
 end architecture;
 
+architecture cassign of e is
+    function "="(x, y : bit) return bit;
+    signal x, y, z : bit;
+begin
+    x <= '1' when y = z else '0';       -- OK
+end architecture;
+
 -- -*- coding: latin-1; -*-

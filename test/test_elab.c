@@ -239,6 +239,23 @@ START_TEST(test_open2)
 }
 END_TEST
 
+START_TEST(test_issue93)
+{
+   input_from_file(TESTDIR "/elab/issue93.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t top = run_elab();
+   tree_t c_order = tree_value(tree_decl(top, 2));
+   fail_unless(tree_kind(c_order) == T_LITERAL);
+   fail_unless(tree_subkind(c_order) == L_INT);
+   fail_unless(tree_ival(c_order) == 4);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -258,6 +275,7 @@ int main(void)
    tcase_add_test(tc, test_record);
    tcase_add_test(tc, test_ifgen);
    tcase_add_test(tc, test_open2);
+   tcase_add_test(tc, test_issue93);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

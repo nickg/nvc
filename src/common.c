@@ -412,6 +412,11 @@ class_t class_of(tree_t t)
       return C_LABEL;
    case T_COMPONENT:
       return C_COMPONENT;
+   case T_REF:
+      return class_of(tree_ref(t));
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+      return class_of(tree_value(t));
    default:
       fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }

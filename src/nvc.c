@@ -290,23 +290,38 @@ static int parse_int(const char *str)
    return n;
 }
 
+static rt_severity_t parse_severity(const char *str)
+{
+   if (strcasecmp(str, "note") == 0)
+      return SEVERITY_NOTE;
+   else if (strcasecmp(str, "warning") == 0)
+      return SEVERITY_WARNING;
+   else if (strcasecmp(str, "error") == 0)
+      return SEVERITY_ERROR;
+   else if (strcasecmp(str, "failure") == 0)
+      return SEVERITY_FAILURE;
+   else
+      fatal("invalid severity level: %s", str);
+}
+
 static int run(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "trace",      no_argument,       0, 't' },
-      { "batch",      no_argument,       0, 'b' },
-      { "command",    no_argument,       0, 'c' },
-      { "stop-time",  required_argument, 0, 's' },
-      { "stats",      no_argument,       0, 'S' },
-      { "wave",       optional_argument, 0, 'w' },
-      { "stop-delta", required_argument, 0, 'd' },
-      { "format",     required_argument, 0, 'f' },
-      { "include",    required_argument, 0, 'i' },
-      { "exclude",    required_argument, 0, 'e' },
+      { "trace",         no_argument,       0, 't' },
+      { "batch",         no_argument,       0, 'b' },
+      { "command",       no_argument,       0, 'c' },
+      { "stop-time",     required_argument, 0, 's' },
+      { "stats",         no_argument,       0, 'S' },
+      { "wave",          optional_argument, 0, 'w' },
+      { "stop-delta",    required_argument, 0, 'd' },
+      { "format",        required_argument, 0, 'f' },
+      { "include",       required_argument, 0, 'i' },
+      { "exclude",       required_argument, 0, 'e' },
+      { "exit-severity", required_argument, 0, 'x' },
 #if ENABLE_VHPI
-      { "load",       required_argument, 0, 'l' },
+      { "load",          required_argument, 0, 'l' },
 #endif
       { 0, 0, 0, 0 }
    };
@@ -370,6 +385,9 @@ static int run(int argc, char **argv)
          break;
       case 'l':
          vhpi_plugins = optarg;
+         break;
+      case 'x':
+         rt_set_exit_severity(parse_severity(optarg));
          break;
       default:
          abort();
@@ -596,6 +614,7 @@ static void usage(void)
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
+          "     --exit-severity=S\tExit after asserion failure of severity S\n"
           "     --format=FMT\tWaveform format is one of lxt, fst, or vcd\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
 #ifdef ENABLE_VHPI

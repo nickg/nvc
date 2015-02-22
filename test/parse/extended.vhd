@@ -7,4 +7,6 @@ architecture foo of bar is
     signal name : integer;
 begin
 
+    \foo.bar.baz\ <= \hello\;
+
 end architecture;

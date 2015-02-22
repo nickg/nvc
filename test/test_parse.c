@@ -918,7 +918,7 @@ END_TEST
 
 START_TEST(test_extended)
 {
-   tree_t a, d, n;
+   tree_t a, d, n, s;
 
    input_from_file(TESTDIR "/parse/extended.vhd");
 
@@ -938,6 +938,11 @@ START_TEST(test_extended)
    n = tree_decl(a, 4);
    // LRM states extended identifiers distinct from regular
    fail_if(d == n);
+
+   fail_unless(tree_stmts(a) == 1);
+   s = tree_stmt(a, 0);
+   fail_unless(tree_ident(tree_target(s)) == ident_new("\\foo.bar.baz\\"));
+   fail_unless(tree_kind(s) == T_CASSIGN);
 
    a = parse();
    fail_unless(a == NULL);

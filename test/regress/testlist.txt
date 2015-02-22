@@ -248,3 +248,4 @@ issue82         normal,opt
 issue86         normal
 issue94         normal
 access6         gold,fail
+#issue90         normal

@@ -39,7 +39,7 @@ struct clist {
 
 struct trie {
    char      value;
-   uint8_t   write_gen;
+   uint16_t  write_gen;
    uint16_t  depth;
    uint32_t  write_index;
    trie_t   *up;
@@ -57,7 +57,7 @@ struct ident_rd_ctx {
 struct ident_wr_ctx {
    fbuf_t   *file;
    uint32_t  next_index;
-   uint8_t   generation;
+   uint16_t  generation;
 };
 
 typedef struct {
@@ -202,7 +202,7 @@ const char *istr(ident_t ident)
 
 ident_wr_ctx_t ident_write_begin(fbuf_t *f)
 {
-   static uint8_t ident_wr_gen = 1;
+   static uint16_t ident_wr_gen = 1;
    assert(ident_wr_gen > 0);
 
    struct ident_wr_ctx *ctx = xmalloc(sizeof(struct ident_wr_ctx));

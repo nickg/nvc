@@ -463,7 +463,7 @@ START_TEST(test_ambiguous)
    fail_unless(tree_kind(p) == T_PACKAGE);
    sem_check(p);
 
-   for (int i = 0; i < 4; i++) {
+   for (int i = 0; i < 5; i++) {
       a = parse();
       fail_if(a == NULL);
       fail_unless(tree_kind(a) == T_ARCH);
@@ -1042,6 +1042,7 @@ START_TEST(test_attr)
       {  85, "parameter must be locally static" },
       { 127, "cannot index non-array type universal integer" },
       { 133, "class of object I is variable not signal" },
+      { 140, "prefix of attribute LAST_EVENT must denote a signal" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1757,6 +1758,22 @@ START_TEST(test_alias)
 }
 END_TEST
 
+START_TEST(test_issue102)
+{
+   input_from_file(TESTDIR "/sem/issue102.vhd");
+
+   for (int i = 0; i < 3; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      sem_check(t);
+   }
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1803,6 +1820,7 @@ int main(void)
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
    tcase_add_test(tc_core, test_alias);
+   tcase_add_test(tc_core, test_issue102);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

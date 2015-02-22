@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "February 2015" "" "NVC Manual"
+.TH "NVC" "1" "December 2014" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -112,6 +112,10 @@ Run in batch mode\. This is the default\.
 .TP
 \fB\-c\fR, \fB\-\-command\fR
 Run in interactive TCL command line mode\. See \fITCL SHELL\fR section below\.
+.
+.TP
+\fB\-\-exit\-severity=\fR\fIlevel\fR
+Terminate the simulation after an assertion failures of severity greater than or equal to \fIlevel\fR\. Valid levels are \fBnote\fR, \fBwarning\fR, \fBerror\fR, and \fBfailure\fR\. The default is \fBerror\fR\.
 .
 .TP
 \fB\-\-format=\fR\fIfmt\fR

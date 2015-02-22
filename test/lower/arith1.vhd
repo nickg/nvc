@@ -26,10 +26,10 @@ begin
         x := -34;
         assert abs x = 34;
         assert abs y = 12;
-        assert 5 mod 3 = 2;
-        assert 5 rem 3 = 2;
-        assert (-5) rem 3 = -2;
-        assert (-5) mod 3 = 2;
+        assert 5 mod x = 2;
+        assert 5 rem x = 2;
+        assert (-5) rem x = -2;
+        assert (-5) mod x = 2;
         assert x = +x;
         wait;
     end process;
