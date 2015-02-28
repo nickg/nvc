@@ -878,8 +878,12 @@ void vcode_dump(void)
       int col = printf("  ");
       if (v->is_extern)
          col += printf("extern ");
-      if (v->is_const)
+
+      if (vu->kind == VCODE_UNIT_CONTEXT && !v->is_const)
+         col += printf("mutable ");
+      else if (vu->kind != VCODE_UNIT_CONTEXT && v->is_const)
          col += printf("const ");
+
       col += color_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
