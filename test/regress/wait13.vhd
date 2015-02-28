@@ -11,8 +11,7 @@ architecture test of wait13 is
         if s /= value then
             my_wait: wait on s until s = value for timeout;
             assert s = value
-                report "timeout waiting for " & s'path_name
-                & " to be " & bit'image(value);
+                report "timeout waiting for " & s'path_name;
         end if;
     end procedure;
 

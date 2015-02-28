@@ -428,6 +428,17 @@ int vcode_count_vars(void)
    return active_unit->vars.count;
 }
 
+vcode_var_t vcode_find_var(ident_t name)
+{
+   assert(active_unit != NULL);
+   for (int i = 0; i < active_unit->vars.count; i++) {
+      if (active_unit->vars.items[i].name == name)
+         return MAKE_HANDLE(active_unit->depth, i);
+   }
+
+   return VCODE_INVALID_VAR;
+}
+
 vcode_var_t vcode_var_handle(int index)
 {
    assert(active_unit != NULL);
@@ -1826,6 +1837,17 @@ vcode_type_t vtype_offset(void)
    return vtype_new(n);
 }
 
+vcode_type_t vtype_time(void)
+{
+   // XXX: should be INT64_MIN
+   return vtype_int(INT64_MIN + 1, INT64_MAX);
+}
+
+vcode_type_t vtype_char(void)
+{
+   return vtype_int(0, 183);
+}
+
 vcode_type_t vtype_real(void)
 {
    assert(active_unit != NULL);
@@ -2932,7 +2954,7 @@ vcode_reg_t emit_image(vcode_reg_t value, uint32_t index)
    op->index = index;
 
    op->result = vcode_add_reg(
-      vtype_uarray(1, vtype_int(0, 183), vtype_int(0, 127)));
+      vtype_uarray(1, vtype_char(), vtype_int(0, 127)));
 
    return op->result;
 }
@@ -3639,8 +3661,7 @@ vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len)
                 || vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to last event must have offset type");
 
-   // XXX: should be INT64_MIN
-   return (op->result = vcode_add_reg(vtype_int(INT64_MIN + 1, INT64_MAX)));
+   return (op->result = vcode_add_reg(vtype_time()));
 }
 
 void emit_needs_last_value(vcode_signal_t sig)

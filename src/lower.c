@@ -815,7 +815,7 @@ static vcode_reg_t lower_name_attr(tree_t ref, type_t type, name_attr_t which)
    const char *str = istr(i);
    const size_t len = strlen(str);
    vcode_reg_t chars[len + 1];
-   vcode_type_t ctype = vtype_int(0, 255);
+   vcode_type_t ctype = vtype_char();
 
    for (int j = 0; j < len; j++)
       chars[j] = emit_const(ctype, str[j]);
@@ -2376,14 +2376,68 @@ static void lower_wait(tree_t wait)
    if (is_static)
       vcode_select_block(active_bb);
 
+   const bool has_delay = tree_has_delay(wait);
+   const bool has_value = tree_has_value(wait);
+
    vcode_reg_t delay = VCODE_INVALID_REG;
-   if (tree_has_delay(wait))
+   if (has_delay)
       delay = lower_expr(tree_delay(wait), EXPR_RVALUE);
+
+   vcode_var_t remain = VCODE_INVALID_VAR;
+   if (has_value && has_delay) {
+      ident_t remain_i = ident_new("wait_remain");
+      remain = vcode_find_var(remain_i);
+      if (remain == VCODE_INVALID_VAR) {
+         vcode_type_t time = vtype_time();
+         remain = emit_var(time, time, remain_i);
+      }
+
+      vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
+                                       vtype_time(), NULL, 0);
+      vcode_reg_t abs_reg = emit_add(now_reg, delay);
+      emit_store(abs_reg, remain);
+   }
 
    vcode_block_t resume = emit_block();
    emit_wait(resume, delay);
 
    vcode_select_block(resume);
+
+   if (has_value) {
+      // Generate code to loop until condition is met
+
+      vcode_reg_t until_reg = lower_reify_expr(tree_value(wait));
+
+      vcode_reg_t timeout_reg = VCODE_INVALID_REG;
+      vcode_reg_t done_reg = until_reg;
+      if (has_delay) {
+         vcode_reg_t remain_reg = emit_load(remain);
+         vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
+                                          vtype_time(), NULL, 0);
+         timeout_reg = emit_sub(remain_reg, now_reg);
+
+         vcode_reg_t expired_reg = emit_cmp(VCODE_CMP_EQ, timeout_reg,
+                                            emit_const(vtype_time(), 0));
+         done_reg = emit_or(expired_reg, until_reg);
+      }
+
+      vcode_block_t done_bb  = emit_block();
+      vcode_block_t again_bb = emit_block();
+
+      emit_cond(done_reg, done_bb, again_bb);
+
+      vcode_select_block(again_bb);
+
+      if (!is_static) {
+         const int ntriggers = tree_triggers(wait);
+         for (int i = 0; i < ntriggers; i++)
+            lower_sched_event(tree_trigger(wait, i), is_static);
+      }
+
+      emit_wait(resume, timeout_reg);
+
+      vcode_select_block(done_bb);
+   }
 }
 
 static void lower_var_assign(tree_t stmt)

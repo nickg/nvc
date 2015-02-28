@@ -159,6 +159,8 @@ vcode_type_t vtype_pointer(vcode_type_t to);
 vcode_type_t vtype_access(vcode_type_t to);
 vcode_type_t vtype_signal(vcode_type_t base);
 vcode_type_t vtype_offset(void);
+vcode_type_t vtype_time(void);
+vcode_type_t vtype_char(void);
 vcode_type_t vtype_named_record(ident_t name, uint32_t index, bool create);
 void vtype_set_record_fields(vcode_type_t type,
                              const vcode_type_t *field_types, int nfields);
@@ -234,6 +236,7 @@ int vcode_get_field(int op);
 unsigned vcode_get_flags(int op);
 
 int vcode_count_vars(void);
+vcode_var_t vcode_find_var(ident_t name);
 vcode_var_t vcode_var_handle(int index);
 int vcode_var_index(vcode_var_t var);
 int vcode_var_context(vcode_var_t var);

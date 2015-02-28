@@ -58,7 +58,7 @@ ieee3           normal
 default1        normal
 generic1        normal
 signal7         normal
-# synopsys1       normal
+synopsys1       normal
 block1          normal
 elab3           normal,gold
 func6           normal
@@ -69,7 +69,7 @@ elab4           normal
 elab5           normal
 signal8         normal
 ram1            normal
-# wait7           normal
+wait7           normal
 const1          normal
 # driver1         normal
 # driver2         normal
@@ -192,7 +192,7 @@ const7          normal
 # bounds17        gold,fail
 signal13        normal
 # elab18          normal
-# wait13          normal
+wait13          normal
 shared2         normal
 func15          normal
 elab19          normal
