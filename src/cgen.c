@@ -1228,6 +1228,76 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
    }
 }
 
+static LLVMValueRef cgen_resolution_wrapper(ident_t name, vcode_type_t type)
+{
+   // Resolution functions are in LRM 93 section 2.4
+
+   char *buf LOCAL = xasprintf("%s_resolution", istr(name));
+
+   LLVMValueRef fn = LLVMGetNamedFunction(module, buf);
+   if (fn != NULL)
+      return llvm_void_cast(fn);    // Already generated wrapper
+
+   LLVMTypeRef elem_type = cgen_type(type);
+   LLVMTypeRef uarray_type = llvm_uarray_type(elem_type, 1);
+
+   LLVMTypeRef args[] = {
+      LLVMPointerType(elem_type, 0),
+      LLVMInt32Type()
+   };
+   fn = LLVMAddFunction(module, buf,
+                        LLVMFunctionType(LLVMInt64Type(), args,
+                                         ARRAY_LEN(args), false));
+
+   LLVMBasicBlockRef saved_bb = LLVMGetInsertBlock(builder);
+
+   LLVMBasicBlockRef entry_bb = LLVMAppendBasicBlock(fn, "entry");
+   LLVMPositionBuilderAtEnd(builder, entry_bb);
+
+   LLVMValueRef rfn = LLVMGetNamedFunction(module, istr(name));
+   if (rfn == NULL) {
+      // The resolution function is not visible yet e.g. because it
+      // is declared in another package
+      LLVMTypeRef args[] = { uarray_type };
+      rfn = LLVMAddFunction(module, istr(name),
+                            LLVMFunctionType(elem_type, args,
+                                             ARRAY_LEN(args), false));
+   }
+
+   LLVMTypeRef field_types[LLVMCountStructElementTypes(uarray_type)];
+   LLVMGetStructElementTypes(uarray_type, field_types);
+
+   LLVMTypeRef dim_struct = LLVMGetElementType(field_types[1]);
+   LLVMValueRef dim_array = LLVMGetUndef(field_types[1]);
+
+   // TODO: check what standard says about left/right and direction
+   LLVMValueRef left  = llvm_int32(0);
+   LLVMValueRef right = LLVMBuildSub(builder, LLVMGetParam(fn, 1),
+                                     llvm_int32(1), "right");
+   LLVMValueRef dir   = llvm_int1(RANGE_TO);
+   LLVMValueRef vals  = LLVMGetParam(fn, 0);
+
+   LLVMValueRef d = LLVMGetUndef(dim_struct);
+   d = LLVMBuildInsertValue(builder, d, left, 0, "");
+   d = LLVMBuildInsertValue(builder, d, right, 1, "");
+   d = LLVMBuildInsertValue(builder, d, dir, 2, "");
+
+   dim_array = LLVMBuildInsertValue(builder, dim_array, d, 0, "");
+
+   LLVMValueRef wrapped = LLVMGetUndef(uarray_type);
+   wrapped = LLVMBuildInsertValue(builder, wrapped, vals, 0, "");
+   wrapped = LLVMBuildInsertValue(builder, wrapped, dim_array, 1, "");
+
+   LLVMValueRef r = LLVMBuildCall(builder, rfn, &wrapped, 1, "");
+
+   LLVMBuildRet(builder,
+                LLVMBuildZExt(builder, r, LLVMInt64Type(), ""));
+
+   LLVMPositionBuilderAtEnd(builder, saved_bb);
+
+   return llvm_void_cast(fn);
+}
+
 static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
@@ -1255,13 +1325,19 @@ static void cgen_op_set_initial(int op, cgen_ctx_t *ctx)
    // Assuming array nets are sequential
    netid_t nid = vcode_signal_nets(sig)[0];
 
+   LLVMValueRef resolution = NULL;
+   ident_t rfunc = vcode_get_func(op);
+   if (rfunc != NULL)
+      resolution = cgen_resolution_wrapper(rfunc, vcode_get_type(op));
+   else
+      resolution = LLVMConstNull(llvm_void_ptr());
+
    LLVMValueRef args[] = {
       llvm_int32(nid),
       llvm_void_cast(valptr),
       list_mem,
       llvm_int32(size_list.count),
-      LLVMConstNull(llvm_void_ptr()),
-      /*llvm_void_cast(cgen_resolution_func(decl_type))*/
+      resolution,
       llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), "")

@@ -3095,7 +3095,22 @@ static void lower_decl(tree_t decl)
             vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
             if (type_is_array(tree_type(value)))
                init_reg = lower_array_data(init_reg);
-            emit_set_initial(sig, init_reg, tree_index(decl));
+
+            ident_t rfunc = NULL;
+            vcode_type_t rtype = VCODE_INVALID_TYPE;
+
+            type_t rbase = type;
+            while (type_is_array(rbase)
+                   && (type_kind(rbase) != T_SUBTYPE
+                       || !type_has_resolution(rbase)))
+               rbase = type_elem(rbase);
+
+            if (type_kind(rbase) == T_SUBTYPE && type_has_resolution(rbase)) {
+               rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)));
+               rtype = lower_type(rbase);
+            }
+
+            emit_set_initial(sig, init_reg, tree_index(decl), rfunc, rtype);
          }
 
          // Identify signals which potentially need 'LAST_VALUE

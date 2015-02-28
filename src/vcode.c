@@ -36,10 +36,10 @@ typedef struct {
    vcode_block_array_t targets;
    vcode_var_t         address;
    uint32_t            index;
+   ident_t             func;
    union {
       vcode_cmp_t       cmp;
       bit_vec_op_kind_t bit_vec_op;
-      ident_t           func;
       int64_t           value;
       double            real;
       char             *comment;
@@ -523,7 +523,8 @@ ident_t vcode_get_func(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL
-          || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_RESUME);
+          || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_RESUME
+          || o->kind == VCODE_OP_SET_INITIAL);
    return o->func;
 }
 
@@ -592,7 +593,8 @@ vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA
-          || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_VALUE);
+          || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_VALUE
+          || o->kind == VCODE_OP_SET_INITIAL);
    return o->type;
 }
 
@@ -3242,11 +3244,14 @@ void emit_resolved_address(vcode_var_t var, vcode_signal_t signal)
    op->address = var;
 }
 
-void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index)
+void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index,
+                      ident_t resolution, vcode_type_t type)
 {
    op_t *op = vcode_add_op(VCODE_OP_SET_INITIAL);
    op->signal = signal;
    op->index  = index;
+   op->func   = resolution;
+   op->type   = type;
    vcode_add_arg(op, value);
 }
 
