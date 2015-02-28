@@ -3247,8 +3247,9 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       vcode_type_t vtype, vbounds;
       switch (tree_class(p)) {
       case C_SIGNAL:
-         if (is_uarray)
+         if (is_uarray) {
             assert(false);
+         }
          else {
             vtype   = vtype_signal(lower_type(type));
             vbounds = vtype;
@@ -3273,7 +3274,8 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
             }
 
             const port_mode_t mode = tree_subkind(p);
-            if ((mode == PORT_OUT || mode == PORT_INOUT) && !is_uarray)
+            if ((mode == PORT_OUT || mode == PORT_INOUT)
+                && !type_is_array(type))
                vtype = vtype_pointer(vtype);
          }
          break;
