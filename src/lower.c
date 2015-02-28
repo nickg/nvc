@@ -2389,7 +2389,7 @@ static void lower_wait(tree_t wait)
       remain = vcode_find_var(remain_i);
       if (remain == VCODE_INVALID_VAR) {
          vcode_type_t time = vtype_time();
-         remain = emit_var(time, time, remain_i);
+         remain = emit_var(time, time, remain_i, false);
       }
 
       vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
@@ -3010,7 +3010,8 @@ static void lower_var_decl(tree_t decl)
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
-   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
+   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl),
+                              tree_kind(decl) == T_CONST_DECL);
    tree_add_attr_int(decl, vcode_obj_i, var);
 
    if (!tree_has_value(decl))
@@ -3076,7 +3077,8 @@ static void lower_decl(tree_t decl)
             }
 
             shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
-                              ident_prefix(ident_new("resolved"), name, '_'));
+                              ident_prefix(ident_new("resolved"), name, '_'),
+                              true);
          }
 
          netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
@@ -3126,7 +3128,7 @@ static void lower_decl(tree_t decl)
       {
          type_t type = tree_type(decl);
          vcode_type_t vtype = lower_type(type);
-         vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl));
+         vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
          tree_add_attr_int(decl, vcode_obj_i, var);
 
          // TODO: set file to NULL here

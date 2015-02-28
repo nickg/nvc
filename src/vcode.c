@@ -91,6 +91,7 @@ typedef struct {
    vcode_type_t bounds;
    ident_t      name;
    bool         is_extern;
+   bool         is_const;
 } var_t;
 
 typedef struct {
@@ -877,6 +878,8 @@ void vcode_dump(void)
       int col = printf("  ");
       if (v->is_extern)
          col += printf("extern ");
+      if (v->is_const)
+         col += printf("const ");
       col += color_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
@@ -2384,16 +2387,18 @@ void emit_jump(vcode_block_t target)
    vcode_add_target(op, target);
 }
 
-vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name)
+vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
+                     bool is_const)
 {
    assert(active_unit != NULL);
 
    vcode_var_t var = active_unit->vars.count;
    var_t *v = var_array_alloc(&(active_unit->vars));
    memset(v, '\0', sizeof(var_t));
-   v->type   = type;
-   v->bounds = bounds;
-   v->name   = name;
+   v->type     = type;
+   v->bounds   = bounds;
+   v->name     = name;
+   v->is_const = is_const;
 
    return MAKE_HANDLE(active_unit->depth, var);
 }
@@ -2411,7 +2416,7 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
          return MAKE_HANDLE(active_unit->depth, i);
    }
 
-   vcode_var_t var = emit_var(type, bounds, name);
+   vcode_var_t var = emit_var(type, bounds, name, false);
    vcode_var_data(var)->is_extern = true;
    return var;
 }
@@ -2493,10 +2498,11 @@ vcode_reg_t emit_load(vcode_var_t var)
          aliased = true;
    }
 
-   if (fold != VCODE_INVALID_REG && !aliased)
-      return fold;
-
    var_t *v = vcode_var_data(var);
+
+   if (fold != VCODE_INVALID_REG && !aliased
+       && (v->is_const || MASK_CONTEXT(var) == active_unit->depth))
+      return fold;
 
    op_t *op = vcode_add_op(VCODE_OP_LOAD);
    op->address = var;

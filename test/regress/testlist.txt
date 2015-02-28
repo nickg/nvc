@@ -80,7 +80,7 @@ access1         normal,gold
 # proc4           normal
 file1           normal
 real1           normal,gold
-# shared1         normal
+shared1         normal
 # proc5           normal
 # proc6           normal
 assert2         normal,gold
