@@ -166,7 +166,7 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
                        emit_uarray_left(reg, dim));
    else {
       range_t r = type_dim(type, dim);
-      return lower_reify_expr(r.left);
+      return lower_reify_expr(r.kind == RANGE_RDYN ? r.right : r.left);
    }
 }
 
@@ -178,7 +178,7 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
                        emit_uarray_right(reg, dim));
    else {
       range_t r = type_dim(type, dim);
-      return lower_reify_expr(r.right);
+      return lower_reify_expr(r.kind == RANGE_RDYN ? r.left : r.right);
    }
 }
 
@@ -611,8 +611,8 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
    vcode_reg_t r1_data = lower_array_data(r1);
 
    if (can_use_memcmp) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
+      vcode_reg_t r0_len = lower_array_total_len(r0_type, r0);
+      vcode_reg_t r1_len = lower_array_total_len(r1_type, r1);
 
       if (r0_len == r1_len)
          return emit_memcmp(r0_data, r1_data, r0_len);
@@ -3005,6 +3005,44 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    }
 }
 
+static void lower_var_decl(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   vcode_type_t vtype = lower_type(type);
+   vcode_type_t vbounds = lower_bounds(type);
+   vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
+   tree_add_attr_int(decl, vcode_obj_i, var);
+
+   if (!tree_has_value(decl))
+      return;
+
+   vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
+   if (type_is_array(type)) {
+      if (lower_const_bounds(type)) {
+         vcode_reg_t count = lower_array_total_len(type, value);
+         vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
+         emit_copy(dest, value, count);
+      }
+      else {
+         // Wrap the data again using the correct bounds
+         //vcode_reg_t rewrapped = lower_wrap(type, lower_array_data(value));
+         emit_store(value, var);
+      }
+   }
+   else if (type_is_record(type)) {
+      vcode_reg_t count = emit_const(vtype_offset(), 1);
+      vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
+      emit_copy(dest, value, count);
+   }
+   else if (type_is_scalar(type)) {
+      emit_bounds(value, vbounds, lower_type_bounds_kind(type),
+                  tree_index(tree_value(decl)));
+      emit_store(value, var);
+   }
+   else
+      emit_store(value, var);
+}
+
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -3014,35 +3052,7 @@ static void lower_decl(tree_t decl)
       // Fall-through
 
    case T_VAR_DECL:
-      {
-         type_t type = tree_type(decl);
-         vcode_type_t vtype = lower_type(type);
-         vcode_type_t vbounds = lower_bounds(type);
-         vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl));
-         tree_add_attr_int(decl, vcode_obj_i, var);
-
-         if (tree_has_value(decl)) {
-            vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
-            if (type_is_array(type) && lower_const_bounds(type)) {
-               vcode_reg_t count = lower_array_total_len(type, value);
-               vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
-               emit_copy(dest, value, count);
-            }
-            else if (type_is_record(type)) {
-               vcode_reg_t count = emit_const(vtype_offset(), 1);
-               vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
-               emit_copy(dest, value, count);
-            }
-            else if (type_is_access(type))
-               emit_store(value, var);
-            else {
-               if (type_is_scalar(type))
-                  emit_bounds(value, vbounds, lower_type_bounds_kind(type),
-                              tree_index(tree_value(decl)));
-               emit_store(value, var);
-            }
-         }
-      }
+      lower_var_decl(decl);
       break;
 
    case T_SIGNAL_DECL:
