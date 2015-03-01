@@ -2518,15 +2518,20 @@ static void lower_signal_assign(tree_t stmt)
       else
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
+      vcode_reg_t count_reg = VCODE_INVALID_REG;
+      if (type_is_array(target_type))
+         count_reg = lower_array_total_len(target_type, rhs);
+
+      if (vcode_reg_kind(rhs) == VCODE_TYPE_SIGNAL)
+         rhs = emit_vec_load(rhs, count_reg, false);
+
       if (type_is_array(target_type)) {
-         vcode_reg_t count_reg = lower_array_total_len(target_type, rhs);
-         vcode_reg_t data_reg  = lower_array_data(rhs);
+         vcode_reg_t data_reg = lower_array_data(rhs);
          emit_sched_waveform(nets, count_reg, data_reg, reject, after);
       }
-      else {
-         vcode_reg_t count_reg = emit_const(vtype_offset(), 1);
-         emit_sched_waveform(nets, count_reg, rhs, reject, after);
-      }
+      else
+         emit_sched_waveform(nets, emit_const(vtype_offset(), 1),
+                             rhs, reject, after);
    }
 }
 

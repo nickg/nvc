@@ -373,6 +373,7 @@ void vcode_opt(void)
             case VCODE_OP_INDEX:
             case VCODE_OP_NETS:
             case VCODE_OP_WRAP:
+            case VCODE_OP_VEC_LOAD:
                if (uses[o->result] == -1) {
                   vcode_dump();
                   fatal("defintion of r%d does not dominate all uses",
@@ -2910,10 +2911,12 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
    vcode_add_arg(op, reject);
    vcode_add_arg(op, after);
 
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(nets)) == VCODE_TYPE_SIGNAL,
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
                 "sched_waveform target is not signal");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(nnets)) == VCODE_TYPE_OFFSET,
+   VCODE_ASSERT(vcode_reg_kind(nnets) == VCODE_TYPE_OFFSET,
                 "sched_waveform net count is not offset type");
+   VCODE_ASSERT(vcode_reg_kind(values) != VCODE_TYPE_SIGNAL,
+                "signal cannot be values argument for sched_waveform");
 }
 
 void emit_cond(vcode_reg_t test, vcode_block_t btrue, vcode_block_t bfalse)
@@ -3425,6 +3428,14 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
                           bool last_value)
 {
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_VEC_LOAD, &other)) {
+      if (other->args.items[0] == signal
+          && (other->args.count == 1 || other->args.items[1] == length)
+          && other->flags == last_value)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_VEC_LOAD);
    vcode_add_arg(op, signal);
    if (length != VCODE_INVALID_REG)
