@@ -3065,6 +3065,99 @@ static void lower_var_decl(tree_t decl)
       emit_store(value, var);
 }
 
+static void lower_signal_decl(tree_t decl)
+{
+   const int nnets = tree_nets(decl);
+   if (nnets == 0)
+      return;
+
+   type_t type = tree_type(decl);
+   vcode_type_t ltype = lower_type(type);
+   vcode_type_t bounds = lower_bounds(type);
+   ident_t name = tree_ident(decl);
+
+   vcode_var_t shadow = VCODE_INVALID_VAR;
+   if (lower_signal_sequential_nets(decl)) {
+      vcode_type_t shadow_type   = ltype;
+      vcode_type_t shadow_bounds = bounds;
+      if (type_is_array(type)) {
+         shadow_type = vtype_elem(ltype);
+         shadow_bounds = vtype_elem(bounds);
+      }
+
+      shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
+                        ident_prefix(ident_new("resolved"), name, '_'),
+                        true);
+   }
+
+   netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
+   for (int i = 0; i < nnets; i++)
+      nets[i] = tree_net(decl, i);
+
+   vcode_type_t stype = vtype_signal(ltype);
+   vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
+                                    nets, nnets);
+   tree_add_attr_int(decl, vcode_obj_i, sig);
+
+   // Internal signals that were generated from ports will not have
+   // an initial value
+   if (tree_has_value(decl)) {
+      tree_t value = tree_value(decl);
+      vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
+      if (type_is_array(tree_type(value)))
+         init_reg = lower_array_data(init_reg);
+
+      ident_t rfunc = NULL;
+      vcode_type_t rtype = VCODE_INVALID_TYPE;
+
+      type_t rbase = type;
+      while (type_is_array(rbase)
+             && (type_kind(rbase) != T_SUBTYPE
+                 || !type_has_resolution(rbase)))
+         rbase = type_elem(rbase);
+
+      if (type_kind(rbase) == T_SUBTYPE && type_has_resolution(rbase)) {
+         rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)));
+         rtype = lower_type(rbase);
+      }
+
+      emit_set_initial(sig, init_reg, tree_index(decl), rfunc, rtype);
+   }
+
+   // Identify signals which potentially need 'LAST_VALUE
+   if (tree_attr_int(decl, last_value_i, 0))
+      emit_needs_last_value(sig);
+
+   if (shadow != VCODE_INVALID_VAR)
+      emit_resolved_address(shadow, sig);
+}
+
+static void lower_file_decl(tree_t decl)
+{
+   type_t type = tree_type(decl);
+   vcode_type_t vtype = lower_type(type);
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
+   tree_add_attr_int(decl, vcode_obj_i, var);
+
+   // TODO: set file to NULL here
+
+   if (tree_has_value(decl)) {
+      // Generate initial call to file_open
+
+      tree_t value = tree_value(decl);
+
+      vcode_reg_t name_array = lower_expr(tree_value(decl), EXPR_RVALUE);
+      vcode_reg_t name_data  = lower_array_data(name_array);
+      vcode_reg_t name_len   = lower_array_len(tree_type(value), 0,
+                                               name_array);
+      vcode_reg_t file_ptr   = emit_index(var, VCODE_INVALID_REG);
+      vcode_reg_t mode       = lower_reify_expr(tree_file_mode(decl));
+
+      emit_file_open(file_ptr, name_data, name_len, mode,
+                     VCODE_INVALID_REG);
+   }
+}
+
 static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
@@ -3078,98 +3171,11 @@ static void lower_decl(tree_t decl)
       break;
 
    case T_SIGNAL_DECL:
-      {
-         const int nnets = tree_nets(decl);
-         if (nnets == 0)
-            break;
-
-         type_t type = tree_type(decl);
-         vcode_type_t ltype = lower_type(type);
-         vcode_type_t bounds = lower_bounds(type);
-         ident_t name = tree_ident(decl);
-
-         vcode_var_t shadow = VCODE_INVALID_VAR;
-         if (lower_signal_sequential_nets(decl)) {
-            vcode_type_t shadow_type   = ltype;
-            vcode_type_t shadow_bounds = bounds;
-            if (type_is_array(type)) {
-               shadow_type = vtype_elem(ltype);
-               shadow_bounds = vtype_elem(bounds);
-            }
-
-            shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
-                              ident_prefix(ident_new("resolved"), name, '_'),
-                              true);
-         }
-
-         netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
-         for (int i = 0; i < nnets; i++)
-            nets[i] = tree_net(decl, i);
-
-         vcode_type_t stype = vtype_signal(ltype);
-         vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
-                                          nets, nnets);
-         tree_add_attr_int(decl, vcode_obj_i, sig);
-
-         // Internal signals that were generated from ports will not have
-         // an initial value
-         if (tree_has_value(decl)) {
-            tree_t value = tree_value(decl);
-            vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
-            if (type_is_array(tree_type(value)))
-               init_reg = lower_array_data(init_reg);
-
-            ident_t rfunc = NULL;
-            vcode_type_t rtype = VCODE_INVALID_TYPE;
-
-            type_t rbase = type;
-            while (type_is_array(rbase)
-                   && (type_kind(rbase) != T_SUBTYPE
-                       || !type_has_resolution(rbase)))
-               rbase = type_elem(rbase);
-
-            if (type_kind(rbase) == T_SUBTYPE && type_has_resolution(rbase)) {
-               rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)));
-               rtype = lower_type(rbase);
-            }
-
-            emit_set_initial(sig, init_reg, tree_index(decl), rfunc, rtype);
-         }
-
-         // Identify signals which potentially need 'LAST_VALUE
-         if (tree_attr_int(decl, last_value_i, 0))
-            emit_needs_last_value(sig);
-
-         if (shadow != VCODE_INVALID_VAR)
-            emit_resolved_address(shadow, sig);
-      }
+      lower_signal_decl(decl);
       break;
 
    case T_FILE_DECL:
-      {
-         type_t type = tree_type(decl);
-         vcode_type_t vtype = lower_type(type);
-         vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
-         tree_add_attr_int(decl, vcode_obj_i, var);
-
-         // TODO: set file to NULL here
-
-         if (tree_has_value(decl)) {
-            // Generate initial call to file_open
-
-            tree_t value = tree_value(decl);
-
-            vcode_reg_t name_array = lower_expr(tree_value(decl), EXPR_RVALUE);
-            vcode_reg_t name_data  = lower_array_data(name_array);
-            vcode_reg_t name_len   = lower_array_len(tree_type(value), 0,
-                                                     name_array);
-            vcode_reg_t file_ptr   = emit_index(var, VCODE_INVALID_REG);
-            vcode_reg_t mode       = lower_reify_expr(tree_file_mode(decl));
-
-            emit_file_open(file_ptr, name_data, name_len, mode,
-                           VCODE_INVALID_REG);
-         }
-      }
+      lower_file_decl(decl);
       break;
 
    case T_TYPE_DECL:
@@ -3178,6 +3184,7 @@ static void lower_decl(tree_t decl)
    case T_FUNC_DECL:
    case T_PROC_DECL:
    case T_ATTR_SPEC:
+   case T_ATTR_DECL:
       break;
 
    default:

@@ -110,7 +110,7 @@ attr2           normal
 # func10          normal
 attr3           normal,gold
 # proc8           normal,gold
-# wait8           normal
+wait8           normal
 # func11          normal
 const4          normal
 # shift1          normal
@@ -133,11 +133,11 @@ access4         normal
 textio1         normal,gold
 proc9           normal
 elab9           normal,gold
-# elab10          normal,gold
+elab10          normal,gold
 conv1           normal
 elab11          normal
 link2           normal
-# driver3         normal
+driver3         normal
 elab12          normal
 issue10         normal
 elab13          normal,gold
@@ -160,7 +160,7 @@ bitvec          normal
 issue16         normal
 # elab15          normal
 const5          normal
-# issue18         normal
+issue18         normal
 elab16          normal
 # signal12        normal
 const6          normal

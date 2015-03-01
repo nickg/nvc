@@ -885,6 +885,8 @@ void vcode_dump(void)
    for (int i = 0; i < vu->vars.count; i++) {
       const var_t *v = &(vu->vars.items[i]);
       int col = printf("  ");
+      col += color_printf("$magenta$%s$$", istr(v->name));
+
       if (v->is_extern)
          col += printf("extern ");
 
@@ -893,7 +895,6 @@ void vcode_dump(void)
       else if (vu->kind != VCODE_UNIT_CONTEXT && v->is_const)
          col += printf("const ");
 
-      col += color_printf("$magenta$%s$$", istr(v->name));
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
    }
