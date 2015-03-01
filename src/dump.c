@@ -365,6 +365,12 @@ static void dump_decl(tree_t t, int indent)
       printf("TODO: T_ATTR_DECL\n");
       return;
 
+   case T_GENVAR:
+      printf("genvar %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      printf(";\n");
+      return;
+
    case T_FUNC_DECL:
       printf("function %s ", istr(tree_ident(t)));
       {
@@ -878,6 +884,9 @@ void dump(tree_t t)
    case T_CONCAT:
       dump_expr(t);
       printf("\n");
+      break;
+   case T_FOR_GENERATE:
+      dump_stmt(t, 0);
       break;
    default:
       cannot_dump(t, "tree");

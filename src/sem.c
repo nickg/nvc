@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -100,6 +100,7 @@ static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static type_t sem_index_type(type_t type, int dim);
 static void sem_add_attributes(tree_t decl, bool is_signal);
+static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -1249,7 +1250,6 @@ static bool sem_check_range(range_t *r, type_t context)
 
       assert(reverse || !is_attr_ref
              || (tree_ident(expr) == ident_new("RANGE")));
-
       assert(is_attr_ref || tree_kind(expr) == T_REF);
 
       ident_t name =
@@ -1258,6 +1258,9 @@ static bool sem_check_range(range_t *r, type_t context)
       tree_t decl = scope_find(name);
       if (decl == NULL)
          sem_error(expr, "no visible declaration for %s", istr(name));
+
+      if (!class_has_type(class_of(decl)))
+         sem_error(expr, "object %s does not have a range", istr(name));
 
       tree_t a = tree_new(T_ATTR_REF);
       tree_set_name(a, make_ref(decl));
@@ -1269,17 +1272,29 @@ static bool sem_check_range(range_t *r, type_t context)
       tree_set_ident(b, ident_new("RIGHT"));
       tree_set_loc(b, tree_loc(expr));
 
-      type_t type = tree_type(decl);
-      type_kind_t kind = type_kind(type);
+      if (type_kind(tree_type(decl)) == T_ACCESS) {
+         sem_implicit_dereference(a, tree_name, tree_set_name);
+         sem_implicit_dereference(b, tree_name, tree_set_name);
+      }
+
+      type_t type = tree_type(tree_name(a));
+      const type_kind_t kind = type_kind(type);
+      const bool is_unconstrained = type_is_unconstrained(type);
+
       bool is_static = false;
-      if (kind == T_SUBTYPE || type_is_array(type))
-         is_static = !type_is_unconstrained(type);
-      else if (tree_kind(decl) == T_TYPE_DECL
-               && (kind == T_ENUM || kind == T_INTEGER))
-         is_static = false;
+
+      if (tree_kind(decl) == T_TYPE_DECL) {
+         if (kind == T_ENUM || kind == T_INTEGER || kind == T_SUBTYPE)
+            is_static = false;
+         else if (type_is_array(type) && !is_unconstrained)
+            is_static = true;
+         else
+            sem_error(expr, "type %s does not have a range", istr(name));
+      }
+      else if (kind == T_SUBTYPE || type_is_array(type))
+         is_static = !is_unconstrained;
       else
-         sem_error(r->left, "object %s does not have a range",
-                   istr(tree_ident(r->left)));
+         sem_error(expr, "object %s does not have a range", istr(name));
 
       if (is_static) {
          range_t d0 = type_dim(type, 0);

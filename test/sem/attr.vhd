@@ -140,4 +140,18 @@ begin
         assert x'last_event = 0 ns;     -- Error
     end process;
 
+    process is
+        type bv_ptr is access bit_vector;
+        variable a : bv_ptr;
+        type r is record
+            x : integer;
+        end record;
+        variable b : r;
+    begin
+        a(a'range) := "110101";           -- OK
+        a(bit_vector'range) := "110101";  -- Error
+        a(b'range) := "101010";           -- Error
+        a(e'range) := "110101";           -- Error
+    end process;
+
 end architecture;
