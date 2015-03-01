@@ -864,7 +864,7 @@ START_TEST(test_seq)
       { 190, "cannot use next outside loop" },
       { 192, "no nested loop with label FOO" },
       { 205, "DUP already declared in this region" },
-      { 214, "object REAL does not have a range" },
+      { 214, "type REAL does not have a range" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1043,6 +1043,9 @@ START_TEST(test_attr)
       { 127, "cannot index non-array type universal integer" },
       { 133, "class of object I is variable not signal" },
       { 140, "prefix of attribute LAST_EVENT must denote a signal" },
+      { 152, "type BIT_VECTOR does not have a range" },
+      { 153, "object B does not have a range" },
+      { 154, "object E does not have a range" },
       { -1, NULL }
    };
    expect_errors(expect);
