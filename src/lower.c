@@ -967,8 +967,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_arith(fcall, emit_add, r0, r1);
    else if (icmp(builtin, "sub"))
       return lower_arith(fcall, emit_sub, r0, r1);
-   else if (icmp(builtin, "div"))
-      return emit_div(r0, r1, tree_index(fcall));
+   else if (icmp(builtin, "div")) {
+      if (!type_eq(r0_type, r1_type))
+         r1 = emit_cast(lower_type(r0_type), r1);
+      return lower_narrow(tree_type(fcall),
+                          emit_div(r0, r1, tree_index(fcall)));
+   }
    else if (icmp(builtin, "exp")) {
       if (!type_eq(r0_type, r1_type))
          r1 = emit_cast(lower_type(r0_type), r1);
@@ -2321,7 +2325,16 @@ static void lower_sched_event(tree_t on, bool is_static)
    vcode_reg_t n_elems = VCODE_INVALID_REG, nets = VCODE_INVALID_REG;
    bool sequential = false;
    if (expr_kind == T_REF) {
-      nets = lower_signal_ref(decl, EXPR_LVALUE);
+      switch (tree_kind(decl)) {
+      case T_SIGNAL_DECL:
+         nets = lower_signal_ref(decl, EXPR_LVALUE);
+         break;
+      case T_PORT_DECL:
+         nets = lower_param_ref(decl, EXPR_LVALUE);
+         break;
+      default:
+         assert(false);
+      }
 
       if (array)
          n_elems = lower_array_total_len(type, nets);
