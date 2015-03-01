@@ -77,7 +77,7 @@ delay1          normal
 record1         normal
 proc3           normal
 access1         normal,gold
-# proc4           normal
+proc4           normal
 file1           normal
 real1           normal,gold
 shared1         normal

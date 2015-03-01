@@ -481,11 +481,9 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    type_t port_type = tree_type(port);
 
    const class_t class = tree_class(port);
-   if (class == C_SIGNAL || class == C_FILE)
-      return lower_expr(value, EXPR_LVALUE);
+   const bool lvalue = class == C_SIGNAL || class == C_FILE || mode != PORT_IN;
 
-   vcode_reg_t reg =
-      lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
+   vcode_reg_t reg = lower_expr(value, lvalue ? EXPR_LVALUE : EXPR_RVALUE);
 
    if (type_is_array(value_type)) {
       const bool have_uarray =
@@ -505,6 +503,8 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
       else
          return reg;
    }
+   else if (class == C_SIGNAL || class == C_FILE)
+      return reg;
    else
       return must_reify ? lower_reify(reg) : reg;
 }
@@ -3244,18 +3244,19 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       tree_t p = tree_port(body, i);
       type_t type = tree_type(p);
 
-      const bool is_uarray = type_is_array(type) && !lower_const_bounds(type);
-
       vcode_type_t vtype, vbounds;
       switch (tree_class(p)) {
       case C_SIGNAL:
-         if (is_uarray) {
-            assert(false);
+         if (type_is_array(type)) {
+            vcode_type_t base = vtype_signal(lower_type(type_elem(type)));
+            if (lower_const_bounds(type))
+               vtype = base;
+            else
+               vtype = vtype_uarray(array_dimension(type), base, base);
          }
-         else {
-            vtype   = vtype_signal(lower_type(type));
-            vbounds = vtype;
-         }
+         else
+            vtype = vtype_signal(lower_type(type));
+         vbounds = vtype;
          break;
 
       case C_VARIABLE:

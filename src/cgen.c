@@ -177,7 +177,13 @@ static LLVMTypeRef cgen_type(vcode_type_t type)
       return LLVMArrayType(cgen_type(vtype_elem(type)), vtype_size(type));
 
    case VCODE_TYPE_UARRAY:
-      return llvm_uarray_type(cgen_type(vtype_elem(type)), vtype_dims(type));
+      {
+         vcode_type_t elem = vtype_elem(type);
+         if (vtype_kind(elem) == VCODE_TYPE_SIGNAL)
+            return llvm_uarray_type(cgen_net_id_type(), vtype_dims(type));
+         else
+            return llvm_uarray_type(cgen_type(elem), vtype_dims(type));
+      }
 
    case VCODE_TYPE_OFFSET:
       return LLVMInt32Type();

@@ -3106,11 +3106,11 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 
    vcode_type_t ptr_type = vcode_reg_type(data);
    const vtype_kind_t ptrkind = vtype_kind(ptr_type);
-   VCODE_ASSERT(ptrkind == VCODE_TYPE_POINTER,
-                "wrapped data is not pointer");
+   VCODE_ASSERT(ptrkind == VCODE_TYPE_POINTER || ptrkind == VCODE_TYPE_SIGNAL,
+                "wrapped data is not pointer or signal");
 
    vcode_type_t elem = (ptrkind == VCODE_TYPE_POINTER)
-      ? vtype_pointed(ptr_type) : vtype_elem(ptr_type);
+      ? vtype_pointed(ptr_type) : ptr_type;
 
    op->result = vcode_add_reg(
       vtype_uarray(ndims, elem, vcode_reg_bounds(data)));
@@ -3187,7 +3187,10 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    VCODE_ASSERT(vt->kind == VCODE_TYPE_UARRAY,
                 "unwrap can only only be used with uarray types");
 
-   return (op->result = vcode_add_reg(vtype_pointer(vt->elem)));
+   vcode_type_t rtype = (vtype_kind(vt->elem) == VCODE_TYPE_SIGNAL)
+      ? vt->elem : vtype_pointer(vt->elem);
+
+   return (op->result = vcode_add_reg(rtype));
 }
 
 vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
