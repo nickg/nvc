@@ -709,6 +709,8 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "T");
    else if (icmp(ident, "STD.STANDARD.NATURAL"))
       tb_printf(buf, "N");
+   else if (icmp(ident, "STD.STANDARD.POSITIVE"))
+      tb_printf(buf, "P");
    else if (icmp(ident, "STD.STANDARD.BIT"))
       tb_printf(buf, "J");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
@@ -3045,11 +3047,8 @@ static void lower_var_decl(tree_t decl)
          vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
          emit_copy(dest, value, count);
       }
-      else {
-         // Wrap the data again using the correct bounds
-         //vcode_reg_t rewrapped = lower_wrap(type, lower_array_data(value));
+      else
          emit_store(value, var);
-      }
    }
    else if (type_is_record(type)) {
       vcode_reg_t count = emit_const(vtype_offset(), 1);
@@ -3057,6 +3056,7 @@ static void lower_var_decl(tree_t decl)
       emit_copy(dest, value, count);
    }
    else if (type_is_scalar(type)) {
+      value = lower_reify(value);
       emit_bounds(value, vbounds, lower_type_bounds_kind(type),
                   tree_index(tree_value(decl)));
       emit_store(value, var);
