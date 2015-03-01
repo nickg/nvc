@@ -1886,6 +1886,44 @@ static void cgen_op_needs_last_value(int op, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef tmp = LLVMBuildAlloca(builder,
+                                      llvm_uarray_type(LLVMInt1Type(), 1),
+                                      "bit_vec_op");
+
+   LLVMValueRef left_data = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef left_len  = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef left_dir  = cgen_get_arg(op, 2, ctx);
+
+   LLVMValueRef right_data = NULL, right_len = NULL, right_dir = NULL;
+   if (vcode_count_args(op) == 6) {
+      right_data = cgen_get_arg(op, 3, ctx);
+      right_len  = cgen_get_arg(op, 4, ctx);
+      right_dir  = cgen_get_arg(op, 5, ctx);
+   }
+   else {
+      right_data = LLVMConstNull(LLVMPointerType(LLVMInt1Type(), 0));
+      right_len  = llvm_int32(0);
+      right_dir  = llvm_int1(0);
+   }
+
+   LLVMValueRef args[] = {
+      llvm_int32(vcode_get_subkind(op)),
+      left_data,
+      left_len,
+      left_dir,
+      right_data,
+      right_len,
+      right_dir,
+      tmp
+   };
+   LLVMBuildCall(builder, llvm_fn("_bit_vec_op"), args, ARRAY_LEN(args), "");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2110,6 +2148,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_NEEDS_LAST_VALUE:
       cgen_op_needs_last_value(i, ctx);
+      break;
+   case VCODE_OP_BIT_VEC_OP:
+      cgen_op_bit_vec_op(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -2842,10 +2883,10 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt1Type(), 0),
          LLVMInt32Type(),
-         LLVMInt8Type(),
+         LLVMInt1Type(),
          LLVMPointerType(LLVMInt1Type(), 0),
          LLVMInt32Type(),
-         LLVMInt8Type(),
+         LLVMInt1Type(),
          LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
       };
       fn = LLVMAddFunction(module, "_bit_vec_op",

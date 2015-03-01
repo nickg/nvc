@@ -154,7 +154,7 @@ wait12          normal,gold
 array2          normal
 # driver4         normal
 comp1           normal
-# bitvec          normal
+bitvec          normal
 # elab14          normal
 # operator4       normal
 issue16         normal

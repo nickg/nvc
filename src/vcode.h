@@ -234,6 +234,7 @@ unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
 int vcode_get_field(int op);
 unsigned vcode_get_flags(int op);
+unsigned vcode_get_subkind(int op);
 
 int vcode_count_vars(void);
 vcode_var_t vcode_find_var(ident_t name);
@@ -354,9 +355,10 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length);
 void emit_null_check(vcode_reg_t ptr, uint32_t index);
 void emit_deallocate(vcode_reg_t ptr);
 vcode_reg_t emit_all(vcode_reg_t reg);
-vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
-                            vcode_reg_t lhs_len, vcode_reg_t rhs,
-                            vcode_reg_t rhs_len, vcode_type_t result);
+vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
+                            vcode_reg_t lhs_len, vcode_reg_t lhs_dir,
+                            vcode_reg_t rhs_data, vcode_reg_t rhs_len,
+                            vcode_reg_t rhs_dir, vcode_type_t result);
 vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
                        vcode_type_t type);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);

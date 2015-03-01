@@ -38,17 +38,17 @@ typedef struct {
    uint32_t            index;
    ident_t             func;
    union {
-      vcode_cmp_t       cmp;
-      bit_vec_op_kind_t bit_vec_op;
-      int64_t           value;
-      double            real;
-      char             *comment;
-      vcode_signal_t    signal;
-      unsigned          dim;
-      unsigned          hops;
-      unsigned          field;
-      unsigned          flags;
-      unsigned          elems;
+      vcode_cmp_t     cmp;
+      int64_t         value;
+      double          real;
+      char           *comment;
+      vcode_signal_t  signal;
+      unsigned        dim;
+      unsigned        hops;
+      unsigned        field;
+      unsigned        flags;
+      unsigned        elems;
+      unsigned        subkind;
    };
 } op_t;
 
@@ -535,6 +535,14 @@ unsigned vcode_get_flags(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD);
+   return o->flags;
+}
+
+unsigned vcode_get_subkind(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
+          || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP);
    return o->flags;
 }
 
@@ -1580,15 +1588,19 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s %d lhs ", vcode_op_string(op->kind),
-                             op->bit_vec_op);
+                             op->subkind);
                col += vcode_dump_reg(op->args.items[0]);
                col += printf(" length ");
                col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" dir ");
+               col += vcode_dump_reg(op->args.items[2]);
                if (op->args.count > 2) {
                   col += printf(" rhs ");
-                  col += vcode_dump_reg(op->args.items[2]);
-                  col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[3]);
+                  col += printf(" length ");
+                  col += vcode_dump_reg(op->args.items[4]);
+                  col += printf(" dir ");
+                  col += vcode_dump_reg(op->args.items[5]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -3640,27 +3652,30 @@ vcode_reg_t emit_all(vcode_reg_t reg)
    return (op->result = vcode_add_reg(vtype_pointer(vtype_pointed(vtype))));
 }
 
-vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs,
-                            vcode_reg_t lhs_len, vcode_reg_t rhs,
-                            vcode_reg_t rhs_len, vcode_type_t result)
+vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
+                            vcode_reg_t lhs_len, vcode_reg_t lhs_dir,
+                            vcode_reg_t rhs_data, vcode_reg_t rhs_len,
+                            vcode_reg_t rhs_dir, vcode_type_t result)
 {
    op_t *op = vcode_add_op(VCODE_OP_BIT_VEC_OP);
-   op->bit_vec_op = kind;
-   vcode_add_arg(op, lhs);
+   op->subkind = kind;
+   vcode_add_arg(op, lhs_data);
    vcode_add_arg(op, lhs_len);
-   if (rhs != VCODE_INVALID_REG) {
-      vcode_add_arg(op, rhs);
+   vcode_add_arg(op, lhs_dir);
+   if (rhs_data != VCODE_INVALID_REG) {
+      vcode_add_arg(op, rhs_data);
       vcode_add_arg(op, rhs_len);
+      vcode_add_arg(op, rhs_dir);
    }
 
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs)) == VCODE_TYPE_POINTER,
+   VCODE_ASSERT(vcode_reg_kind(lhs_data) == VCODE_TYPE_POINTER,
                 "LHS to bit vec op must be pointer");
-   VCODE_ASSERT(vtype_kind(vcode_reg_type(lhs_len)) == VCODE_TYPE_OFFSET,
+   VCODE_ASSERT(vcode_reg_kind(lhs_len) == VCODE_TYPE_OFFSET,
                 "LHS length to bit vec op must be offset");
-   if (rhs != VCODE_INVALID_REG) {
-      VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs)) == VCODE_TYPE_POINTER,
+   if (rhs_data != VCODE_INVALID_REG) {
+      VCODE_ASSERT(vcode_reg_kind(rhs_data) == VCODE_TYPE_POINTER,
                    "RHS to bit vec op must be pointer");
-      VCODE_ASSERT(vtype_kind(vcode_reg_type(rhs_len)) == VCODE_TYPE_OFFSET,
+      VCODE_ASSERT(vcode_reg_kind(rhs_len) == VCODE_TYPE_OFFSET,
                    "RHS length to bit vec op must be offset");
    }
    VCODE_ASSERT(vtype_kind(result) == VCODE_TYPE_UARRAY,

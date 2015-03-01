@@ -862,18 +862,23 @@ static bounds_kind_t lower_type_bounds_kind(type_t type)
 static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
                                     vcode_reg_t r1, tree_t fcall)
 {
-   vcode_reg_t r0_len  = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+   type_t r0_type = lower_arg_type(fcall, 0);
+   vcode_reg_t r0_len  = lower_array_len(r0_type, 0, r0);
    vcode_reg_t r0_data = lower_array_data(r0);
+   vcode_reg_t r0_dir  = lower_array_dir(r0_type, 0, r0);
 
+   type_t r1_type = lower_arg_type(fcall, 1);
    vcode_reg_t r1_len  = VCODE_INVALID_REG;
    vcode_reg_t r1_data = VCODE_INVALID_REG;
+   vcode_reg_t r1_dir  = VCODE_INVALID_REG;
    if (r1 != VCODE_INVALID_REG) {
       r1_len  = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
       r1_data = lower_array_data(r1);
+      r1_dir  = lower_array_dir(r1_type, 0, r1);
    }
 
-   return emit_bit_vec_op(kind, r0_data, r0_len, r1_data, r1_len,
-                          lower_type(tree_type(fcall)));
+   return emit_bit_vec_op(kind, r0_data, r0_len, r0_dir, r1_data, r1_len,
+                          r1_dir, lower_type(tree_type(fcall)));
 }
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
@@ -1184,7 +1189,15 @@ static vcode_reg_t lower_string_literal(tree_t lit)
 {
    int nchars;
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
-   return emit_const_array(lower_type(tree_type(lit)), tmp, nchars, true);
+
+   type_t type = tree_type(lit);
+   if (type_is_array(type) && !lower_const_bounds(type)) {
+      vcode_type_t base = vtype_pointer(lower_type(type_elem(type)));
+      vcode_reg_t data = emit_const_array(base, tmp, nchars, true);
+      return lower_wrap(type, data);
+   }
+   else
+      return emit_const_array(lower_type(type), tmp, nchars, true);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
