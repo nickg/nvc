@@ -2303,9 +2303,17 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 
 vcode_reg_t emit_const_real(double value)
 {
+   vcode_type_t real = vtype_real();
+
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CONST_REAL, &other)) {
+      if (other->real == value && other->type == real)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_CONST_REAL);
    op->real   = value;
-   op->type   = vtype_real();
+   op->type   = real;
    op->result = vcode_add_reg(op->type);
 
    return op->result;
@@ -2795,6 +2803,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    case VCODE_TYPE_INT:
    case VCODE_TYPE_FILE:
    case VCODE_TYPE_ACCESS:
+   case VCODE_TYPE_REAL:
       op->type = vtype_pointer(typeref);
       op->result = vcode_add_reg(op->type);
       break;

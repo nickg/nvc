@@ -859,6 +859,23 @@ static bounds_kind_t lower_type_bounds_kind(type_t type)
    }
 }
 
+static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
+                                    vcode_reg_t r1, tree_t fcall)
+{
+   vcode_reg_t r0_len  = lower_array_len(lower_arg_type(fcall, 0), 0, r0);
+   vcode_reg_t r0_data = lower_array_data(r0);
+
+   vcode_reg_t r1_len  = VCODE_INVALID_REG;
+   vcode_reg_t r1_data = VCODE_INVALID_REG;
+   if (r1 != VCODE_INVALID_REG) {
+      r1_len  = lower_array_len(lower_arg_type(fcall, 1), 0, r1);
+      r1_data = lower_array_data(r1);
+   }
+
+   return emit_bit_vec_op(kind, r0_data, r0_len, r1_data, r1_len,
+                          lower_type(tree_type(fcall)));
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
@@ -1080,47 +1097,20 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       emit_deallocate(r0);
       return VCODE_INVALID_REG;
    }
-   else if (icmp(builtin, "v_not")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      return emit_bit_vec_op(BIT_VEC_NOT, r0, r0_len, VCODE_INVALID_REG,
-                             VCODE_INVALID_REG, lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_and")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_AND, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_or")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_OR, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_xor")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_xnor")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_nand")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
-   else if (icmp(builtin, "v_nor")) {
-      vcode_reg_t r0_len = lower_array_len(r0_type, 0, r0);
-      vcode_reg_t r1_len = lower_array_len(r1_type, 0, r1);
-      return emit_bit_vec_op(BIT_VEC_XOR, r0, r0_len, r1, r1_len,
-                             lower_type(tree_type(fcall)));
-   }
+   else if (icmp(builtin, "v_not"))
+      return lower_bit_vec_op(BIT_VEC_NOT, r0, r1, fcall);
+   else if (icmp(builtin, "v_and"))
+      return lower_bit_vec_op(BIT_VEC_AND, r0, r1, fcall);
+   else if (icmp(builtin, "v_or"))
+      return lower_bit_vec_op(BIT_VEC_OR, r0, r1, fcall);
+   else if (icmp(builtin, "v_xor"))
+      return lower_bit_vec_op(BIT_VEC_XOR, r0, r1, fcall);
+   else if (icmp(builtin, "v_xnor"))
+      return lower_bit_vec_op(BIT_VEC_XNOR, r0, r1, fcall);
+   else if (icmp(builtin, "v_nand"))
+      return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
+   else if (icmp(builtin, "v_nor"))
+      return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
    else if (icmp(builtin, "val")) {
       type_t f_type = tree_type(fcall);
       emit_bounds(r0, lower_bounds(f_type), lower_type_bounds_kind(f_type),
