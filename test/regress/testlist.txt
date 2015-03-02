@@ -88,7 +88,7 @@ concat3         normal
 const2          normal
 func7           normal
 func8           normal
-# ieee4           normal
+ieee4           normal
 # bounds1         gold,fail
 # bounds2         gold,fail
 # bounds3         gold,fail
@@ -96,13 +96,13 @@ func8           normal
 # signal9         normal
 # bounds5         gold,fail
 loop1           normal
-# record2         normal
+record2         normal
 access2         normal
 func9           normal
-# record3         normal
+record3         normal
 issue8          normal
 issue9          normal
-# record4         normal
+record4         normal
 # record5         normal
 const3          normal,gold
 # proc7           normal,gold

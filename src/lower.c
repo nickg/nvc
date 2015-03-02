@@ -3315,7 +3315,7 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
 
             const port_mode_t mode = tree_subkind(p);
             if ((mode == PORT_OUT || mode == PORT_INOUT)
-                && !type_is_array(type))
+                && !type_is_array(type) && !type_is_record(type))
                vtype = vtype_pointer(vtype);
          }
          break;
