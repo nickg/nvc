@@ -1135,6 +1135,15 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
 
+static vcode_type_t lower_func_result_type(tree_t func)
+{
+   type_t result = type_result(tree_type(func));
+   if (type_is_array(result) && lower_const_bounds(result))
+      return vtype_pointer(lower_type(type_elem(result)));
+   else
+      return lower_type(result);
+}
+
 static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
 {
    tree_t decl = tree_ref(fcall);
@@ -1166,7 +1175,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_subprogram_arg(fcall, i);
 
-   vcode_type_t rtype = lower_type(tree_type(fcall));
+   vcode_type_t rtype = lower_func_result_type(tree_ref(fcall));
    if (tree_attr_int(decl, nested_i, 0))
       return emit_nested_fcall(name, rtype, args, nargs);
    else
@@ -3371,12 +3380,7 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
 {
    vcode_select_unit(context);
 
-   type_t result = type_result(tree_type(body));
-   vcode_type_t vtype = VCODE_INVALID_TYPE;
-   if (type_is_array(result) && lower_const_bounds(result))
-      vtype = vtype_pointer(lower_type(type_elem(result)));
-   else
-      vtype = lower_type(result);
+   vcode_type_t vtype = lower_func_result_type(body);
 
    vcode_unit_t vu = emit_function(lower_mangle_func(body), context, vtype);
    vcode_block_t bb = vcode_active_block();
