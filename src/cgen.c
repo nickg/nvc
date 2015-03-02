@@ -687,26 +687,37 @@ static void cgen_op_add(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
    vtype_kind_t kind = vtype_kind(vcode_reg_type(result));
+
+   LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs = cgen_get_arg(op, 1, ctx);
+
    if (kind == VCODE_TYPE_POINTER || kind == VCODE_TYPE_SIGNAL) {
-      LLVMValueRef index[] = { cgen_get_arg(op, 1, ctx) };
-      ctx->regs[result] = LLVMBuildGEP(builder, cgen_get_arg(op, 0, ctx),
+      LLVMValueRef index[] = { rhs };
+      ctx->regs[result] = LLVMBuildGEP(builder, lhs,
                                        index, ARRAY_LEN(index),
                                        cgen_reg_name(result));
    }
+   else if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
+      ctx->regs[result] = LLVMBuildFAdd(builder, lhs, rhs,
+                                        cgen_reg_name(result));
    else
-      ctx->regs[result] = LLVMBuildAdd(builder,
-                                       cgen_get_arg(op, 0, ctx),
-                                       cgen_get_arg(op, 1, ctx),
+      ctx->regs[result] = LLVMBuildAdd(builder, lhs, rhs,
                                        cgen_reg_name(result));
 }
 
 static void cgen_op_sub(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildSub(builder,
-                                    cgen_get_arg(op, 0, ctx),
-                                    cgen_get_arg(op, 1, ctx),
-                                    cgen_reg_name(result));
+
+   LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs = cgen_get_arg(op, 1, ctx);
+
+   if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
+      ctx->regs[result] = LLVMBuildFSub(builder, lhs, rhs,
+                                        cgen_reg_name(result));
+   else
+      ctx->regs[result] = LLVMBuildSub(builder, lhs, rhs,
+                                       cgen_reg_name(result));
 }
 
 static void cgen_op_or(int op, cgen_ctx_t *ctx)
@@ -758,10 +769,16 @@ static void cgen_op_not(int op, cgen_ctx_t *ctx)
 static void cgen_op_mul(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildMul(builder,
-                                    cgen_get_arg(op, 0, ctx),
-                                    cgen_get_arg(op, 1, ctx),
-                                    cgen_reg_name(result));
+
+   LLVMValueRef lhs = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rhs = cgen_get_arg(op, 1, ctx);
+
+   if (vcode_reg_kind(result) == VCODE_TYPE_REAL)
+      ctx->regs[result] = LLVMBuildFMul(builder, lhs, rhs,
+                                        cgen_reg_name(result));
+   else
+      ctx->regs[result] = LLVMBuildMul(builder, lhs, rhs,
+                                       cgen_reg_name(result));
 }
 
 static void cgen_op_div(int op, cgen_ctx_t *ctx)
@@ -843,9 +860,11 @@ static void cgen_op_exp(int op, cgen_ctx_t *ctx)
 static void cgen_op_neg(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildNeg(builder,
-                                    cgen_get_arg(op, 0, ctx),
-                                    cgen_reg_name(result));
+   const bool real = (vcode_reg_kind(result) == VCODE_TYPE_REAL);
+   ctx->regs[result] =
+      (real ? LLVMBuildFNeg : LLVMBuildNeg)(builder,
+                                            cgen_get_arg(op, 0, ctx),
+                                            cgen_reg_name(result));
 }
 
 static void cgen_op_abs(int op, cgen_ctx_t *ctx)
@@ -853,11 +872,21 @@ static void cgen_op_abs(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
 
    LLVMValueRef arg  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef zero = LLVMConstInt(LLVMTypeOf(arg), 0, false);
+
+   const bool real = (vcode_reg_kind(result) == VCODE_TYPE_REAL);
+
+   LLVMValueRef zero = real
+      ? LLVMConstReal(LLVMDoubleType(), 0.0)
+      : LLVMConstInt(LLVMTypeOf(arg), 0, false);
+
+   LLVMValueRef negative = real
+      ? LLVMBuildFCmp(builder, LLVMRealULT, arg, zero, "")
+      : LLVMBuildICmp(builder, LLVMIntSLT, arg, zero, "");
+
    ctx->regs[result] = LLVMBuildSelect(
       builder,
-      LLVMBuildICmp(builder, LLVMIntSLT, arg, zero, ""),
-      LLVMBuildNeg(builder, arg, ""),
+      negative,
+      (real ? LLVMBuildFNeg : LLVMBuildNeg)(builder, arg, ""),
       arg,
       cgen_reg_name(result));
 }
