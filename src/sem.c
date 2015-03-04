@@ -259,7 +259,10 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
          if (!overload)
             sem_error(t, "%s already declared in this region", istr(name));
 
-         const bool builtin   = (tree_attr_str(existing, builtin_i) != NULL);
+         if (tree_kind(existing) == T_UNIT_DECL)
+            continue;
+
+         const bool builtin = (tree_attr_str(existing, builtin_i) != NULL);
          if (builtin && type_eq(tree_type(t), tree_type(existing))) {
             type_t arg0_type = type_param(tree_type(existing), 0);
 

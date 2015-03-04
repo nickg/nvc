@@ -374,6 +374,16 @@ START_TEST(test_scope)
       sem_check(a);
    }
 
+   p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
