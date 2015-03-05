@@ -233,7 +233,6 @@ vcode_signal_t vcode_get_signal(int op);
 unsigned vcode_get_dim(int op);
 int vcode_get_hops(int op);
 int vcode_get_field(int op);
-unsigned vcode_get_flags(int op);
 unsigned vcode_get_subkind(int op);
 
 int vcode_count_vars(void);

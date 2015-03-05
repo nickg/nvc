@@ -949,7 +949,7 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
       value,
       min,
       max,
-      llvm_int32(vcode_get_flags(op)),
+      llvm_int32(vcode_get_subkind(op)),
       index,
    };
 
@@ -1488,7 +1488,7 @@ static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
    LLVMValueRef args[] = {
       llvm_void_cast(cgen_get_arg(op, 0, ctx)),
       cgen_get_arg(op, 1, ctx),
-      llvm_int32(vcode_get_flags(op)),
+      llvm_int32(vcode_get_subkind(op)),
    };
    LLVMBuildCall(builder, llvm_fn("_sched_event"), args, ARRAY_LEN(args), "");
 }
@@ -1687,7 +1687,7 @@ static void cgen_op_vec_load(int op, cgen_ctx_t *ctx)
       llvm_void_cast(tmp),
       llvm_int32(0),
       LLVMBuildSub(builder, length, llvm_int32(1), "high"),
-      llvm_int1(vcode_get_flags(op))
+      llvm_int1(vcode_get_subkind(op))
    };
 
    vcode_reg_t result = vcode_get_result(op);

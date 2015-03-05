@@ -46,7 +46,6 @@ typedef struct {
       unsigned        dim;
       unsigned        hops;
       unsigned        field;
-      unsigned        flags;
       unsigned        elems;
       unsigned        subkind;
    };
@@ -530,20 +529,12 @@ ident_t vcode_get_func(int op)
    return o->func;
 }
 
-unsigned vcode_get_flags(int op)
-{
-   op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
-          || o->kind == VCODE_OP_VEC_LOAD);
-   return o->flags;
-}
-
 unsigned vcode_get_subkind(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP);
-   return o->flags;
+   return o->subkind;
 }
 
 int64_t vcode_get_value(int op)
@@ -1417,7 +1408,7 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[0]);
                printf(" count ");
                vcode_dump_reg(op->args.items[1]);
-               printf(" flags %x", op->flags);
+               printf(" flags %x", op->subkind);
             }
             break;
 
@@ -1473,7 +1464,7 @@ void vcode_dump(void)
                   col += printf(" length ");
                   col += vcode_dump_reg(op->args.items[1]);
                }
-               if (op->flags)
+               if (op->subkind)
                   col += printf(" last");
                vcode_dump_result_type(col, op);
             }
@@ -2772,9 +2763,9 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
 
    op_t *op = vcode_add_op(VCODE_OP_BOUNDS);
    vcode_add_arg(op, reg);
-   op->type  = bounds;
-   op->flags = kind;
-   op->index = index;
+   op->type    = bounds;
+   op->subkind = kind;
+   op->index   = index;
 
    const vtype_kind_t tkind = vtype_kind(bounds);
    VCODE_ASSERT(tkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
@@ -3401,7 +3392,7 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
    op_t *op = vcode_add_op(VCODE_OP_SCHED_EVENT);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
-   op->flags = flags;
+   op->subkind = flags;
 }
 
 void emit_resume(ident_t func)
@@ -3454,7 +3445,7 @@ vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
    while (vcode_dominating_ops(VCODE_OP_VEC_LOAD, &other)) {
       if (other->args.items[0] == signal
           && (other->args.count == 1 || other->args.items[1] == length)
-          && other->flags == last_value)
+          && other->subkind == last_value)
          return other->result;
    }
 
@@ -3462,7 +3453,7 @@ vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
    vcode_add_arg(op, signal);
    if (length != VCODE_INVALID_REG)
       vcode_add_arg(op, length);
-   op->flags = last_value;
+   op->subkind = last_value;
 
    vcode_type_t signal_type = vcode_reg_type(signal);
 

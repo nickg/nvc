@@ -20,7 +20,7 @@ typedef struct {
    int           dim;
    int           hops;
    int           field;
-   int           flags;
+   int           subkind;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -232,10 +232,10 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_SCHED_EVENT:
-         if (vcode_get_flags(i) != e->flags) {
+         if (vcode_get_subkind(i) != e->subkind) {
             vcode_dump();
-            fail("expected op %d in block %d to have flags %x but "
-                 "has %x", i, bb, e->flags, vcode_get_flags(i));
+            fail("expected op %d in block %d to have subkind %x but "
+                 "has %x", i, bb, e->subkind, vcode_get_subkind(i));
          }
          break;
 
@@ -1255,7 +1255,7 @@ START_TEST(test_staticwait)
       { VCODE_OP_NETS, .name = ":staticwait:x" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ALLOC_DRIVER },
-      { VCODE_OP_SCHED_EVENT, .flags = 2 },
+      { VCODE_OP_SCHED_EVENT, .subkind = 2 },
       { VCODE_OP_RETURN }
    };
 
