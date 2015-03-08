@@ -629,7 +629,8 @@ uint32_t vcode_get_index(int op)
    assert(o->kind == VCODE_OP_ASSERT || o->kind == VCODE_OP_REPORT
           || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
           || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
-          || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS);
+          || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS
+          || o->kind == VCODE_OP_DYNAMIC_BOUNDS);
    return o->index;
 }
 
@@ -681,7 +682,7 @@ const char *vcode_op_string(vcode_op_t op)
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
       "all", "bit vec op", "const real", "value", "last event",
-      "needs last value"
+      "needs last value", "dynamic bounds"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1172,6 +1173,19 @@ void vcode_dump(void)
                   printf(" match ");
                   vcode_dump_one_type(op->type);
                }
+            }
+            break;
+
+         case VCODE_OP_DYNAMIC_BOUNDS:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" in ");
+               vcode_dump_reg(op->args.items[1]);
+               printf(" .. ");
+               vcode_dump_reg(op->args.items[2]);
+               printf(" kind ");
+               vcode_dump_reg(op->args.items[3]);
             }
             break;
 
@@ -2707,10 +2721,14 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
       ltypek == VCODE_TYPE_POINTER || ltypek == VCODE_TYPE_SIGNAL;
 
    int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+   const bool l_is_const = vcode_reg_const(lhs, &lconst);
+   const bool r_is_const = vcode_reg_const(rhs, &rconst);
+   if (l_is_const && r_is_const)
       return emit_const(vcode_reg_type(lhs), lconst + rconst);
-   else if (is_pointer && vcode_reg_const(rhs, &rconst) && rconst == 0)
+   else if (r_is_const && rconst == 0)
       return lhs;
+   else if (l_is_const && lconst == 0)
+      return rhs;
 
    vcode_reg_t reg = emit_arith(VCODE_OP_ADD, lhs, rhs, UINT32_MAX);
 
@@ -2731,8 +2749,14 @@ vcode_reg_t emit_add(vcode_reg_t lhs, vcode_reg_t rhs)
 vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 {
    int64_t lconst, rconst;
-   if (vcode_reg_const(lhs, &lconst) && vcode_reg_const(rhs, &rconst))
+   const bool l_is_const = vcode_reg_const(lhs, &lconst);
+   const bool r_is_const = vcode_reg_const(rhs, &rconst);
+   if (l_is_const && r_is_const)
       return emit_const(vcode_reg_type(lhs), lconst - rconst);
+   else if (r_is_const && rconst == 0)
+      return lhs;
+   else if (l_is_const && lconst == 0)
+      return rhs;
 
    vcode_reg_t reg = emit_arith(VCODE_OP_SUB, lhs, rhs, UINT32_MAX);
 
@@ -3713,4 +3737,24 @@ void emit_needs_last_value(vcode_signal_t sig)
 {
    op_t *op = vcode_add_op(VCODE_OP_NEEDS_LAST_VALUE);
    op->signal = sig;
+}
+
+void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
+                         vcode_reg_t kind, uint32_t index)
+{
+   int64_t lconst, hconst;
+   if (vcode_reg_const(low, &lconst) && vcode_reg_const(high, &hconst)) {
+      vcode_type_t bounds = vcode_reg_bounds(reg);
+      if (lconst <= vtype_low(bounds) && hconst >= vtype_high(bounds)) {
+         vcode_add_comment("Elided dynamic bounds check for r%d", reg);
+         return;
+      }
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_DYNAMIC_BOUNDS);
+   vcode_add_arg(op, reg);
+   vcode_add_arg(op, low);
+   vcode_add_arg(op, high);
+   vcode_add_arg(op, kind);
+   op->index = index;
 }

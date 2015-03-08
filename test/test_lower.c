@@ -187,6 +187,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_MEMSET:
       case VCODE_OP_WRAP:
       case VCODE_OP_VEC_LOAD:
+      case VCODE_OP_DYNAMIC_BOUNDS:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -1705,6 +1706,48 @@ START_TEST(test_func5)
 }
 END_TEST
 
+START_TEST(test_bounds1)
+{
+   input_from_file(TESTDIR "/lower/bounds1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_INDEX, .name = "V" },
+      { VCODE_OP_LOAD,  .name = "K" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 9 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_CAST },
+      { VCODE_OP_ADD },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_ASSERT },
+      { VCODE_OP_WAIT, .target = 2 }
+   };
+
+   CHECK_BB(1);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1739,6 +1782,7 @@ int main(void)
    tcase_add_test(tc, test_funcif);
    tcase_add_test(tc, test_memset);
    tcase_add_test(tc, test_func5);
+   tcase_add_test(tc, test_bounds1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

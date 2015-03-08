@@ -73,6 +73,7 @@ static ident_t static_i;
 static ident_t never_waits_i;
 static ident_t mangled_i;
 static ident_t last_value_i;
+static ident_t elide_bounds_i;
 
 static const char *verbose = NULL;
 
@@ -1120,8 +1121,8 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
    else if (icmp(builtin, "val")) {
       type_t f_type = tree_type(fcall);
-      emit_bounds(r0, lower_bounds(f_type), lower_type_bounds_kind(f_type),
-                  tree_index(fcall));
+      emit_bounds(r0, lower_bounds(f_type),
+                  lower_type_bounds_kind(f_type), tree_index(fcall));
       return emit_cast(lower_type(f_type), r0);
    }
    else if (icmp(builtin, "pos"))
@@ -1456,6 +1457,24 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    return emit_select(same_dir, emit_add(bleft, off), emit_sub(bleft, off));
 }
 
+static void lower_check_array_bounds(tree_t t, type_t type, int dim,
+                                     vcode_reg_t array, vcode_reg_t value)
+{
+   vcode_reg_t left_reg  = lower_array_left(type, dim, array);
+   vcode_reg_t right_reg = lower_array_right(type, dim, array);
+   vcode_reg_t dir_reg   = lower_array_dir(type, dim, array);
+
+   vcode_reg_t min_reg = emit_select(dir_reg, right_reg, left_reg);
+   vcode_reg_t max_reg = emit_select(dir_reg, left_reg, right_reg);
+
+   vcode_type_t dir_type = vtype_bool();
+   vcode_reg_t kind_reg = emit_select(dir_reg,
+                                      emit_const(dir_type, BOUNDS_ARRAY_DOWNTO),
+                                      emit_const(dir_type, BOUNDS_ARRAY_TO));
+
+   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, tree_index(t));
+}
+
 static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 {
    tree_t value = tree_value(ref);
@@ -1468,6 +1487,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
          alias = decl;
    }
 
+   const bool elide_bounds = tree_attr_int(ref, elide_bounds_i, 0);
+
    vcode_reg_t idx = emit_const(vtype_offset(), 0);
    const int nparams = tree_params(ref);
    for (int i = 0; i < nparams; i++) {
@@ -1476,9 +1497,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 
       vcode_reg_t offset = lower_reify_expr(tree_value(p));
 
-      //if (!elide_bounds)
-      //   cgen_check_array_bounds(tree_value(p), type, i, (alias ? NULL : meta),
-      //                           offset, ctx);
+      if (!elide_bounds)
+         lower_check_array_bounds(tree_value(p), value_type, i, array, offset);
 
       if (alias != NULL) {
          offset = lower_unalias_index(alias, offset, array);
@@ -3056,6 +3076,10 @@ static void lower_var_decl(tree_t decl)
          vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
          emit_copy(dest, value, count);
       }
+      else if (!type_is_unconstrained(type)) {
+         vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
+         emit_store(rewrap, var);
+      }
       else
          emit_store(value, var);
    }
@@ -3675,16 +3699,17 @@ static void lower_package(tree_t unit)
 
 void lower_unit(tree_t unit)
 {
-   builtin_i     = ident_new("builtin");
-   foreign_i     = ident_new("FOREIGN");
-   vcode_obj_i   = ident_new("vcode_obj");
-   nested_i      = ident_new("nested");
-   drives_all_i  = ident_new("drives_all");
-   driver_init_i = ident_new("driver_init");
-   static_i      = ident_new("static");
-   never_waits_i = ident_new("never_waits");
-   mangled_i     = ident_new("mangled");
-   last_value_i  = ident_new("last_value");
+   builtin_i      = ident_new("builtin");
+   foreign_i      = ident_new("FOREIGN");
+   vcode_obj_i    = ident_new("vcode_obj");
+   nested_i       = ident_new("nested");
+   drives_all_i   = ident_new("drives_all");
+   driver_init_i  = ident_new("driver_init");
+   static_i       = ident_new("static");
+   never_waits_i  = ident_new("never_waits");
+   mangled_i      = ident_new("mangled");
+   last_value_i   = ident_new("last_value");
+   elide_bounds_i = ident_new("elide_bounds");
 
    if (getenv("NVC_LOWER_VERBOSE") != NULL)
       verbose = "";
