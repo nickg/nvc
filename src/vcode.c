@@ -3257,7 +3257,12 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    vcode_type_t rtype = (vtype_kind(vt->elem) == VCODE_TYPE_SIGNAL)
       ? vt->elem : vtype_pointer(vt->elem);
 
-   return (op->result = vcode_add_reg(rtype));
+   op->result = vcode_add_reg(rtype);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = vt->elem;
+
+   return op->result;
 }
 
 vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
