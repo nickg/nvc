@@ -128,6 +128,7 @@ elab8           normal
 # arith3          normal
 bounds8         gold,fail
 # bounds9         gold,fail
+bounds10        gold,fail
 access3         normal
 access4         normal
 textio1         normal,gold

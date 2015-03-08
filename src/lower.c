@@ -2471,6 +2471,17 @@ static void lower_wait(tree_t wait)
    }
 }
 
+static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+                                    vcode_reg_t lval, vcode_reg_t rval)
+{
+   // TODO: for each dimension
+
+   vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
+   vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
+
+   emit_array_size(llen_reg, rlen_reg, tree_index(t));
+}
+
 static void lower_var_assign(tree_t stmt)
 {
    tree_t value = tree_value(stmt);
@@ -2497,23 +2508,14 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t count = lower_array_total_len(tree_type(value), value_reg);
       vcode_reg_t src_data = lower_array_data(value_reg);
       vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
+      lower_check_array_sizes(stmt, type, tree_type(value),
+                              target_reg, value_reg);
       emit_copy(lower_array_data(target_reg), src_data, count);
    }
    else {
       vcode_reg_t count = emit_const(vtype_offset(), 1);
       emit_copy(lower_expr(target, EXPR_LVALUE), value_reg, count);
    }
-}
-
-static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
-                                    vcode_reg_t lval, vcode_reg_t rval)
-{
-   // TODO: for each dimension
-
-   vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
-   vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
-
-   emit_array_size(llen_reg, rlen_reg, tree_index(t));
 }
 
 static void lower_signal_assign(tree_t stmt)

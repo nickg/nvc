@@ -12,6 +12,7 @@ begin
         variable n : integer;
     begin
         n := 7;
+        wait for 1 ns;
         a <= b(n downto 0);
         wait;
     end process;
