@@ -709,7 +709,8 @@ bool type_is_scalar(type_t t)
    else
       return (t->object.kind == T_INTEGER)
          || (t->object.kind == T_REAL)
-         || (t->object.kind == T_ENUM);
+         || (t->object.kind == T_ENUM)
+         || (t->object.kind == T_PHYSICAL);
 }
 
 type_t type_base_recur(type_t t)

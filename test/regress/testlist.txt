@@ -183,7 +183,7 @@ access5         normal
 func14          normal
 operator5       normal
 alias4          normal
-# alias5          normal,gold
+alias5          normal,gold
 alias6          normal
 alias7          normal
 const7          normal

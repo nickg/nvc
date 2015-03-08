@@ -149,10 +149,11 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
 
 static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
-   if (reg != VCODE_INVALID_REG
-       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
+   if (type_is_unconstrained(type)) {
+      assert(reg != VCODE_INVALID_REG);
       return emit_cast(lower_type(index_type_of(type, dim)),
                        emit_uarray_left(reg, dim));
+   }
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.kind == RANGE_RDYN ? r.right : r.left);
@@ -161,10 +162,11 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
-   if (reg != VCODE_INVALID_REG
-       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
+   if (type_is_unconstrained(type)) {
+      assert(reg != VCODE_INVALID_REG);
       return emit_cast(lower_type(index_type_of(type, dim)),
                        emit_uarray_right(reg, dim));
+   }
    else {
       range_t r = type_dim(type, dim);
       return lower_reify_expr(r.kind == RANGE_RDYN ? r.left : r.right);
@@ -173,9 +175,11 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 {
-   if (reg != VCODE_INVALID_REG
-       && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
+   if (type_is_unconstrained(type)) {
+      assert(reg != VCODE_INVALID_REG);
+      assert(vcode_reg_kind(reg) == VCODE_TYPE_UARRAY);
       return emit_uarray_dir(reg, dim);
+   }
    else {
       assert(!type_is_unconstrained(type));
       range_t r = type_dim(type, dim);
@@ -212,12 +216,8 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 {
-   const bool have_uarray =
-      reg != VCODE_INVALID_REG
-      && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
-
    vcode_reg_t len_reg = VCODE_INVALID_REG;
-   if (type_is_unconstrained(type) || have_uarray) {
+   if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
 
       vcode_reg_t left_reg  = emit_uarray_left(reg, dim);
@@ -1327,9 +1327,7 @@ static vcode_reg_t lower_alias_ref(tree_t alias, expr_ctx_t ctx)
    const bool alias_const = lower_const_bounds(alias_type);
    const bool value_const = lower_const_bounds(value_type);
 
-   if (alias_const && !value_const)
-      return lower_array_data(aliased);
-   else if (!alias_const)
+   if (!alias_const || !value_const)
       return lower_wrap(alias_type, aliased);
    else
       return aliased;
