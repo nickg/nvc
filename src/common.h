@@ -47,6 +47,7 @@ type_t array_aggregate_type(type_t array, int from_dim);
 tree_t make_default_value(type_t type, const loc_t *loc);
 unsigned bits_for_range(int64_t low, int64_t high);
 unsigned array_dimension(type_t a);
+type_t index_type_of(type_t type, int dim);
 
 const char *fmt_time_r(char *buf, size_t len, uint64_t t);
 const char *fmt_time(uint64_t t);

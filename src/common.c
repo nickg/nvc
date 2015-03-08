@@ -640,3 +640,18 @@ unsigned array_dimension(type_t a)
            ? type_index_constrs(type_base_recur(a))
            : type_dims(a));
 }
+
+type_t index_type_of(type_t type, int dim)
+{
+   if (type_is_unconstrained(type))
+      return type_index_constr(type_base_recur(type), dim);
+   else if (type_kind(type) == T_ENUM)
+      return type;
+   else {
+      tree_t left = type_dim(type, dim).left;
+
+      // If the left bound has not been assigned a type then there is some
+      // error with it so just return a dummy type here
+      return tree_has_type(left) ? tree_type(left) : type;
+   }
+}

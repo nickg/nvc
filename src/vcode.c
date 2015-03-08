@@ -533,7 +533,8 @@ unsigned vcode_get_subkind(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
-          || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP);
+          || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
+          || o->kind == VCODE_OP_INDEX_CHECK);
    return o->subkind;
 }
 
@@ -595,7 +596,8 @@ vcode_var_t vcode_get_type(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA
           || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_VALUE
-          || o->kind == VCODE_OP_SET_INITIAL);
+          || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_INDEX_CHECK);
    return o->type;
 }
 
@@ -631,7 +633,7 @@ uint32_t vcode_get_index(int op)
           || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
           || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_DYNAMIC_BOUNDS
-          || o->kind == VCODE_OP_ARRAY_SIZE);
+          || o->kind == VCODE_OP_ARRAY_SIZE || o->kind == VCODE_OP_INDEX_CHECK);
    return o->index;
 }
 
@@ -683,7 +685,7 @@ const char *vcode_op_string(vcode_op_t op)
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
       "all", "bit vec op", "const real", "value", "last event",
-      "needs last value", "dynamic bounds", "array size"
+      "needs last value", "dynamic bounds", "array size", "index check"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1641,6 +1643,21 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[0]);
                printf(" == right ");
                vcode_dump_reg(op->args.items[1]);
+            }
+            break;
+
+         case VCODE_OP_INDEX_CHECK:
+            {
+               printf("%s ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" in ");
+               if (op->args.count == 1)
+                  vcode_dump_one_type(op->type);
+               else {
+                  vcode_dump_reg(op->args.items[1]);
+                  printf(" .. ");
+                  vcode_dump_reg(op->args.items[2]);
+               }
             }
             break;
          }
@@ -3778,4 +3795,32 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index)
    vcode_add_arg(op, llen);
    vcode_add_arg(op, rlen);
    op->index = index;
+}
+
+void emit_index_check(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
+                      uint32_t index)
+{
+   if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
+      vcode_add_comment("Elided index check for r%d", reg);
+      return;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
+   vcode_add_arg(op, reg);
+   op->type    = bounds;
+   op->subkind = kind;
+   op->index   = index;
+}
+
+void emit_dynamic_index_check(vcode_reg_t reg, vcode_reg_t low,
+                              vcode_reg_t high, bounds_kind_t kind,
+                              uint32_t index)
+{
+   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
+   vcode_add_arg(op, reg);
+   vcode_add_arg(op, low);
+   vcode_add_arg(op, high);
+   op->type    = VCODE_INVALID_TYPE;
+   op->subkind = kind;
+   op->index   = index;
 }

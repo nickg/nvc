@@ -2043,6 +2043,63 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
+static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
+{
+   LLVMTypeRef int32 = LLVMInt32Type();
+   LLVMValueRef value =
+      LLVMBuildZExt(builder, cgen_get_arg(op, 0, ctx), int32, "");
+
+   LLVMValueRef min, max;
+   if (vcode_count_args(op) == 1) {
+      vcode_type_t bounds = vcode_get_type(op);
+      min = llvm_int32(vtype_low(bounds));
+      max = llvm_int32(vtype_high(bounds));
+   }
+   else {
+      min = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), int32, "");
+      max = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), int32, "");
+   }
+
+   LLVMValueRef above =
+      LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
+   LLVMValueRef below =
+      LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
+
+   LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
+
+   if (!LLVMIsConstant(in)) {
+      LLVMValueRef expect_args[] = { in, llvm_int1(true) };
+      in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
+                         expect_args, ARRAY_LEN(expect_args), "");
+   }
+
+   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+
+   LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef index = llvm_int32(vcode_get_index(op));
+
+   LLVMValueRef args[] = {
+      index,
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      value,
+      min,
+      max,
+      llvm_int32(vcode_get_subkind(op)),
+      index
+   };
+
+   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2276,6 +2333,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_ARRAY_SIZE:
       cgen_op_array_size(i, ctx);
+      break;
+   case VCODE_OP_INDEX_CHECK:
+      cgen_op_index_check(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

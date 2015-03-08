@@ -98,7 +98,6 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
-static type_t sem_index_type(type_t type, int dim);
 static void sem_add_attributes(tree_t decl, bool is_signal);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
@@ -632,7 +631,7 @@ static void sem_add_dimension_attr(tree_t decl, type_t rtype, const char *name,
       if (type_is_array(dtype))
          rtype = (array_dimension(dtype) > 0)
             ? type_new(T_NONE)
-            : sem_index_type(dtype, 0);
+            : index_type_of(dtype, 0);
       else
          rtype = dtype;
    }
@@ -1134,7 +1133,7 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
 
          for (int i = 0; i < ndims; i++) {
             range_t r = type_dim(type, i);
-            if (!sem_check_range(&r, sem_index_type(base, i)))
+            if (!sem_check_range(&r, index_type_of(base, i)))
                return false;
             type_change_dim(type, i, r);
          }
@@ -3954,21 +3953,6 @@ static tree_t sem_array_len(type_t type)
    return call_builtin("add", index_type, tmp, one, NULL);
 }
 
-static type_t sem_index_type(type_t type, int dim)
-{
-   if (type_is_unconstrained(type))
-      return type_index_constr(type_base_recur(type), dim);
-   else if (type_kind(type) == T_ENUM)
-      return type;
-   else {
-      tree_t left = type_dim(type, dim).left;
-
-      // If the left bound has not been assigned a type then there is some
-      // error with it so just return a dummy type here
-      return tree_has_type(left) ? tree_type(left) : type;
-   }
-}
-
 static bool sem_check_concat_param(tree_t t, type_t hint)
 {
    type_set_t *old = top_type_set;
@@ -4068,7 +4052,7 @@ static bool sem_check_concat(tree_t t)
       if (array_dimension(ltype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
-      type_t index_type = sem_index_type(ltype, 0);
+      type_t index_type = index_type_of(ltype, 0);
       range_t index_r = type_dim(index_type, 0);
 
       if ((lkind == T_UARRAY) || (rkind == T_UARRAY))
@@ -4115,7 +4099,7 @@ static bool sem_check_concat(tree_t t)
       if (!type_eq(stype, type_elem(atype)))
          sem_error(t, "type of scalar does not match element type of array");
 
-      type_t index_type = sem_index_type(atype, 0);
+      type_t index_type = index_type_of(atype, 0);
       range_t index_r = type_dim(index_type, 0);
 
       type_t std_int = sem_std_type("INTEGER");
@@ -4157,7 +4141,7 @@ static bool sem_check_concat(tree_t t)
       }
       assert(composite != NULL);
 
-      type_t index_type = sem_index_type(composite, 0);
+      type_t index_type = index_type_of(composite, 0);
       range_t index_r = type_dim(index_type, 0);
 
       tree_t result_right = call_builtin(
@@ -4255,7 +4239,7 @@ static bool sem_check_string_literal(tree_t t)
       type_set_ident(tmp, type_ident(type));
       type_set_base(tmp, type);
 
-      type_t index_type = sem_index_type(type, 0);
+      type_t index_type = index_type_of(type, 0);
 
       // The direction is determined by the index type
       range_kind_t dir;
@@ -4418,7 +4402,7 @@ static bool sem_check_aggregate(tree_t t)
       else
          elem_type = array_aggregate_type(composite_type, 1);
 
-      type_t index_type = sem_index_type(composite_type, 0);
+      type_t index_type = index_type_of(composite_type, 0);
 
       for (int i = 0; i < nassocs; i++) {
          tree_t a = tree_assoc(t, i);
@@ -4571,7 +4555,7 @@ static bool sem_check_aggregate(tree_t t)
 
       const int ndims = array_dimension(composite_type);
 
-      type_t index_type = sem_index_type(composite_type, 0);
+      type_t index_type = index_type_of(composite_type, 0);
 
       range_kind_t dir;
       if (unconstrained) {
@@ -4886,7 +4870,7 @@ static bool sem_check_array_ref(tree_t t)
       if (tree_subkind(p) != P_POS)
          sem_error(t, "only scalar references supported");
 
-      type_t expect = sem_index_type(type, i);
+      type_t expect = index_type_of(type, i);
 
       tree_t value = tree_value(p);
 
@@ -4928,7 +4912,7 @@ static bool sem_check_array_slice(tree_t t)
       sem_error(t, "type of slice prefix is not an array");
 
    range_t r = tree_range(t);
-   if (!sem_check_range(&r, sem_index_type(array_type, 0)))
+   if (!sem_check_range(&r, index_type_of(array_type, 0)))
       return false;
 
    tree_set_range(t, r);
@@ -5139,7 +5123,7 @@ static bool sem_check_attr_ref(tree_t t)
             if (tree_kind(pv) != T_LITERAL)
                sem_error(pv, "dimension argument must be a literal");
             else
-               result_type = sem_index_type(array_type, tree_ival(pv) - 1);
+               result_type = index_type_of(array_type, tree_ival(pv) - 1);
          }
       }
 

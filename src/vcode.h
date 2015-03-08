@@ -118,6 +118,7 @@ typedef enum {
    VCODE_OP_NEEDS_LAST_VALUE,
    VCODE_OP_DYNAMIC_BOUNDS,
    VCODE_OP_ARRAY_SIZE,
+   VCODE_OP_INDEX_CHECK,
 } vcode_op_t;
 
 typedef enum {
@@ -298,6 +299,11 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds,
                  bounds_kind_t kind, uint32_t index);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
                          vcode_reg_t kind, uint32_t index);
+void emit_index_check(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
+                      uint32_t index);
+void emit_dynamic_index_check(vcode_reg_t reg, vcode_reg_t low,
+                              vcode_reg_t high, bounds_kind_t kind,
+                              uint32_t index);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
 vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);

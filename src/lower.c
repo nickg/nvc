@@ -147,23 +147,11 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
    }
 }
 
-static vcode_type_t lower_index_type(type_t type, int dim)
-{
-   if (type_is_unconstrained(type)) {
-      if (type_kind(type) == T_UARRAY)
-         return lower_type(type_index_constr(type, dim));
-      else
-         return lower_index_type(type_base(type), dim);
-   }
-   else
-      return lower_type(tree_type(type_dim(type, dim).left));
-}
-
 static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
    if (reg != VCODE_INVALID_REG
        && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
-      return emit_cast(lower_index_type(type, dim),
+      return emit_cast(lower_type(index_type_of(type, dim)),
                        emit_uarray_left(reg, dim));
    else {
       range_t r = type_dim(type, dim);
@@ -175,7 +163,7 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
    if (reg != VCODE_INVALID_REG
        && vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY)
-      return emit_cast(lower_index_type(type, dim),
+      return emit_cast(lower_type(index_type_of(type, dim)),
                        emit_uarray_right(reg, dim));
    else {
       range_t r = type_dim(type, dim);
@@ -3057,6 +3045,52 @@ static void lower_stmt(tree_t stmt, loop_stack_t *loops)
    }
 }
 
+static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
+{
+   const int ndims = array_dimension(type);
+   for (int i = 0; i < ndims; i++) {
+      type_t index = index_type_of(type, i);
+
+      vcode_type_t vbounds = lower_bounds(index);
+
+      vcode_reg_t left_reg  = lower_array_left(type, i, array);
+      vcode_reg_t right_reg = lower_array_right(type, i, array);
+
+      uint32_t index_left  = tree_index(hint);
+      uint32_t index_right = index_left;
+      if (!type_is_unconstrained(type)) {
+         range_t rdim = type_dim(type, i);
+         index_left = tree_index(rdim.left);
+         index_right = tree_index(rdim.right);
+      }
+
+      if (type_is_enum(index)) {
+         emit_index_check(left_reg, vbounds, BOUNDS_INDEX_TO, index_left);
+         emit_index_check(right_reg, vbounds, BOUNDS_INDEX_TO, index_right);
+      }
+      else {
+         range_t rindex = type_dim(index, 0);
+
+         if (lower_is_const(rindex.left) && lower_is_const(rindex.right)) {
+            emit_index_check(left_reg, vbounds, BOUNDS_INDEX_TO, index_left);
+            emit_index_check(right_reg, vbounds, BOUNDS_INDEX_TO, index_right);
+         }
+         else {
+            vcode_reg_t bleft  = lower_reify_expr(rindex.left);
+            vcode_reg_t bright = lower_reify_expr(rindex.right);
+            bounds_kind_t bkind  = rindex.kind == RANGE_TO
+               ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO;
+
+            vcode_reg_t bmin = bkind == BOUNDS_INDEX_TO ? bleft : bright;
+            vcode_reg_t bmax = bkind == BOUNDS_INDEX_TO ? bright : bleft;
+
+            emit_dynamic_index_check(left_reg, bmin, bmax, bkind, index_left);
+            emit_dynamic_index_check(right_reg, bmin, bmax, bkind, index_right);
+         }
+      }
+   }
+}
+
 static void lower_var_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
@@ -3071,6 +3105,8 @@ static void lower_var_decl(tree_t decl)
 
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
    if (type_is_array(type)) {
+      lower_check_indexes(type, value, decl);
+
       if (lower_const_bounds(type)) {
          vcode_reg_t count = lower_array_total_len(type, value);
          vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
