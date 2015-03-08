@@ -94,7 +94,7 @@ bounds2         gold,fail
 bounds3         gold,fail
 bounds4         gold,fail
 # signal9         normal
-# bounds5         gold,fail
+bounds5         gold,fail
 loop1           normal
 record2         normal
 access2         normal
@@ -125,7 +125,7 @@ arith2          gold,fail
 attr5           normal
 attr6           normal
 elab8           normal
-# arith3          normal
+arith3          normal
 bounds8         gold,fail
 bounds9         gold,fail
 bounds10        gold,fail
@@ -172,7 +172,7 @@ elab17          normal
 # func13          normal
 # proc10          normal
 array3          normal
-# slice2          normal
+slice2          normal
 attr8           normal
 attr9           normal
 bounds12        gold,fail
@@ -189,7 +189,7 @@ alias7          normal
 const7          normal
 # bounds14        gold,fail
 # bounds15        gold,fail
-# bounds16        gold,fail
+bounds16        gold,fail
 # bounds17        gold,fail
 signal13        normal
 # elab18          normal
@@ -198,7 +198,7 @@ shared2         normal
 func15          normal
 elab19          normal
 # concat4         normal
-# issue29         normal
+issue29         normal
 assert3         normal,gold
 alias8          normal
 textio2         normal

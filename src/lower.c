@@ -3145,7 +3145,7 @@ static void lower_var_decl(tree_t decl)
    else if (type_is_scalar(type)) {
       value = lower_reify(value);
       emit_bounds(value, vbounds, lower_type_bounds_kind(type),
-                  tree_index(tree_value(decl)));
+                  tree_index(decl));
       emit_store(value, var);
    }
    else
