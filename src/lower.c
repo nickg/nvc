@@ -2517,6 +2517,7 @@ static void lower_signal_assign(tree_t stmt)
    type_t target_type = tree_type(target);
 
    vcode_reg_t nets = lower_expr(tree_target(stmt), EXPR_LVALUE);
+   vcode_reg_t nets_raw = lower_array_data(nets);
 
    const int nwaveforms = tree_waveforms(stmt);
    for (int i = 0; i < nwaveforms; i++) {
@@ -2545,10 +2546,10 @@ static void lower_signal_assign(tree_t stmt)
 
       if (type_is_array(target_type)) {
          vcode_reg_t data_reg = lower_array_data(rhs);
-         emit_sched_waveform(nets, count_reg, data_reg, reject, after);
+         emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
       }
       else
-         emit_sched_waveform(nets, emit_const(vtype_offset(), 1),
+         emit_sched_waveform(nets_raw, emit_const(vtype_offset(), 1),
                              rhs, reject, after);
    }
 }
