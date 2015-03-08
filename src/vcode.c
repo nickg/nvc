@@ -324,7 +324,7 @@ vcode_type_t vcode_reg_bounds(vcode_reg_t reg)
    return vcode_reg_data(reg)->bounds;
 }
 
-static bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
+bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
 {
    reg_t *r = vcode_reg_data(reg);
 

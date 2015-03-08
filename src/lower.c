@@ -1486,7 +1486,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       vcode_reg_t offset = lower_reify_expr(tree_value(p));
 
       if (!elide_bounds)
-         lower_check_array_bounds(tree_value(p), value_type, i, array, offset);
+         lower_check_array_bounds(tree_value(p), value_type, i,
+                                  (alias ? VCODE_INVALID_REG : array), offset);
 
       if (alias != NULL) {
          offset = lower_unalias_index(alias, offset, array);
@@ -1533,10 +1534,10 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t left_reg  = lower_reify_expr(r.left);
    vcode_reg_t right_reg = lower_reify_expr(r.right);
 
-   //vcode_reg_t low  = (r.kind == RANGE_TO) ? left : right;
-   //vcode_reg_t high = (r.kind == RANGE_TO) ? right : left;
+   vcode_reg_t low_reg  = (r.kind == RANGE_TO) ? left_reg : right_reg;
+   vcode_reg_t high_reg = (r.kind == RANGE_TO) ? right_reg : left_reg;
 
-   //vcode_reg_t null = emit_cmp(VCODE_CMP_LT, high, low);
+   vcode_reg_t null_reg = emit_cmp(VCODE_CMP_LT, high_reg, low_reg);
 
    tree_t alias = NULL;
    if (tree_kind(value) == T_REF) {
@@ -1546,6 +1547,32 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    }
 
    vcode_reg_t kind_reg = VCODE_INVALID_REG, array_reg = VCODE_INVALID_REG;
+   if (alias == NULL) {
+      kind_reg = emit_const(vtype_bool(), r.kind);
+      array_reg = lower_expr(value, ctx);
+   }
+
+   int64_t null_const;
+   const bool known_not_null =
+      vcode_reg_const(null_reg, &null_const) && null_const == 0;
+
+   vcode_block_t after_bounds_bb = VCODE_INVALID_BLOCK;
+   if (!known_not_null) {
+      vcode_block_t not_null_bb = emit_block();
+      after_bounds_bb = emit_block();
+      emit_cond(null_reg, after_bounds_bb, not_null_bb);
+
+      vcode_select_block(not_null_bb);
+   }
+
+   lower_check_array_bounds(r.left, type, 0, array_reg, left_reg);
+   lower_check_array_bounds(r.right, type, 0, array_reg, right_reg);
+
+   if (!known_not_null) {
+      emit_jump(after_bounds_bb);
+      vcode_select_block(after_bounds_bb);
+   }
+
    if (alias != NULL) {
       tree_t aliased = tree_value(alias);
       type = tree_type(aliased);
@@ -1554,13 +1581,6 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       right_reg = lower_unalias_index(alias, right_reg, array_reg);
       kind_reg  = lower_array_dir(type, 0, array_reg);
    }
-   else {
-      kind_reg = emit_const(vtype_bool(), r.kind);
-      array_reg = lower_expr(value, ctx);
-   }
-
-   lower_check_array_bounds(r.left, type, 0, array_reg, left_reg);
-   lower_check_array_bounds(r.right, type, 0, array_reg, right_reg);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
