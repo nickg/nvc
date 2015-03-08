@@ -3379,8 +3379,9 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       case C_CONSTANT:
          {
             if (type_is_array(type) && lower_const_bounds(type)) {
-               vtype = vtype_pointer(lower_type(type_elem(type)));
-               vbounds = vtype;
+               type_t elem = type_elem(type);
+               vtype = vtype_pointer(lower_type(elem));
+               vbounds = lower_bounds(elem);
             }
             else if (type_is_record(type)) {
                vtype = vtype_pointer(lower_type(type));

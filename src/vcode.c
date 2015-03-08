@@ -333,6 +333,11 @@ bool vcode_reg_const(vcode_reg_t reg, int64_t *value)
       return false;
 
    vtype_t *bounds = vcode_type_data(r->bounds);
+
+   VCODE_ASSERT(
+      bounds->kind == VCODE_TYPE_INT || bounds->kind == VCODE_TYPE_OFFSET,
+      "integer register r%d has non-integer bounds", reg);
+
    if (bounds->low == bounds->high) {
       *value = bounds->low;
       return true;
@@ -2367,7 +2372,8 @@ vcode_reg_t emit_const_real(double value)
 vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
                              bool allocate)
 {
-   vcode_type_t rtype = allocate && vtype_kind(type) == VCODE_TYPE_CARRAY
+   vtype_kind_t kind = vtype_kind(type);
+   vcode_type_t rtype = allocate && kind == VCODE_TYPE_CARRAY
       ? vtype_pointer(vtype_elem(type))
       : type;
 
@@ -2393,10 +2399,13 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);
 
-   vtype_kind_t kind = vtype_kind(type);
    VCODE_ASSERT(
       kind == VCODE_TYPE_CARRAY || (allocate && kind == VCODE_TYPE_POINTER),
       "constant array must have constrained array type");
+
+   reg_t *r = vcode_reg_data(op->result);
+   r->bounds = (kind == VCODE_TYPE_POINTER)
+      ? vtype_pointed(type) : vtype_elem(type);
 
    return op->result;
 }
@@ -3407,7 +3416,12 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
    VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
    vcode_type_t result_type = vtype_pointer(rtype->fields.items[field]);
-   return (op->result = vcode_add_reg(result_type));
+   op->result = vcode_add_reg(result_type);
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = rtype->fields.items[field];
+
+   return op->result;
 }
 
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
@@ -3697,7 +3711,13 @@ vcode_reg_t emit_all(vcode_reg_t reg)
    VCODE_ASSERT(vtype_kind(vtype) == VCODE_TYPE_ACCESS,
                 "all argument must be an access");
 
-   return (op->result = vcode_add_reg(vtype_pointer(vtype_pointed(vtype))));
+   vcode_type_t pointed = vtype_pointed(vtype);
+   op->result = vcode_add_reg(vtype_pointer(pointed));
+
+   reg_t *rr = vcode_reg_data(op->result);
+   rr->bounds = pointed;
+
+   return op->result;
 }
 
 vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
