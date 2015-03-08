@@ -1539,7 +1539,8 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
 static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 {
    tree_t value = tree_value(slice);
-   range_t r = tree_range(slice);
+   range_t r    = tree_range(slice);
+   type_t type  = tree_type(value);
 
    vcode_reg_t left_reg  = lower_reify_expr(r.left);
    vcode_reg_t right_reg = lower_reify_expr(r.right);
@@ -1549,32 +1550,12 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
 
    //vcode_reg_t null = emit_cmp(VCODE_CMP_LT, high, low);
 
-   /*
-   if (!elide_bounds) {
-      LLVMBasicBlockRef check_bb = LLVMAppendBasicBlock(ctx->fn, "check");
-      LLVMBasicBlockRef merge_bb = LLVMAppendBasicBlock(ctx->fn, "merge");
-
-      LLVMBuildCondBr(builder, null, merge_bb, check_bb);
-
-      LLVMPositionBuilderAtEnd(builder, check_bb);
-
-      cgen_check_array_bounds(r.left, type, 0, array, left, ctx);
-      cgen_check_array_bounds(r.right, type, 0, array, right, ctx);
-
-      LLVMBuildBr(builder, merge_bb);
-
-      LLVMPositionBuilderAtEnd(builder, merge_bb);
-   }
-   */
-
    tree_t alias = NULL;
    if (tree_kind(value) == T_REF) {
       tree_t decl = tree_ref(value);
       if (tree_kind(decl) == T_ALIAS)
          alias = decl;
    }
-
-   type_t type = tree_type(value);
 
    vcode_reg_t kind_reg = VCODE_INVALID_REG, array_reg = VCODE_INVALID_REG;
    if (alias != NULL) {
@@ -1589,6 +1570,9 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       kind_reg = emit_const(vtype_bool(), r.kind);
       array_reg = lower_expr(value, ctx);
    }
+
+   lower_check_array_bounds(r.left, type, 0, array_reg, left_reg);
+   lower_check_array_bounds(r.right, type, 0, array_reg, right_reg);
 
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
