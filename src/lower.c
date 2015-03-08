@@ -2505,6 +2505,17 @@ static void lower_var_assign(tree_t stmt)
    }
 }
 
+static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
+                                    vcode_reg_t lval, vcode_reg_t rval)
+{
+   // TODO: for each dimension
+
+   vcode_reg_t llen_reg = lower_array_len(ltype, 0, lval);
+   vcode_reg_t rlen_reg = lower_array_len(rtype, 0, rval);
+
+   emit_array_size(llen_reg, rlen_reg, tree_index(t));
+}
+
 static void lower_signal_assign(tree_t stmt)
 {
    vcode_reg_t reject;
@@ -2522,14 +2533,16 @@ static void lower_signal_assign(tree_t stmt)
    const int nwaveforms = tree_waveforms(stmt);
    for (int i = 0; i < nwaveforms; i++) {
       tree_t w = tree_waveform(stmt, i);
+      tree_t wvalue = tree_value(w);
 
-      vcode_reg_t rhs = lower_expr(tree_value(w), EXPR_RVALUE);
+      vcode_reg_t rhs = lower_expr(wvalue, EXPR_RVALUE);
 
       if (type_is_scalar(target_type))
          emit_bounds(lower_reify(rhs), lower_bounds(target_type),
-                     lower_type_bounds_kind(target_type), tree_index(stmt));
+                     lower_type_bounds_kind(target_type), tree_index(wvalue));
       else
-         ;  // TODO: bounds check
+         lower_check_array_sizes(wvalue, target_type, tree_type(wvalue),
+                                 nets, rhs);
 
       vcode_reg_t after;
       if (tree_has_delay(w))

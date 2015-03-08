@@ -1226,8 +1226,8 @@ START_TEST(test_signal4)
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_NETS, .name = ":signal4:s" },
-      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_SCHED_WAVEFORM },
       { VCODE_OP_COPY },
       { VCODE_OP_WAIT, .target = 2 }

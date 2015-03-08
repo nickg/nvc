@@ -117,6 +117,7 @@ typedef enum {
    VCODE_OP_LAST_EVENT,
    VCODE_OP_NEEDS_LAST_VALUE,
    VCODE_OP_DYNAMIC_BOUNDS,
+   VCODE_OP_ARRAY_SIZE,
 } vcode_op_t;
 
 typedef enum {
@@ -365,5 +366,6 @@ vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
                        vcode_type_t type);
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len);
 void emit_needs_last_value(vcode_signal_t sig);
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index);
 
 #endif  // _VCODE_H

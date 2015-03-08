@@ -2003,6 +2003,46 @@ static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
 }
 
+static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef llen = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef rlen = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef ok = LLVMBuildICmp(builder, LLVMIntEQ, llen, rlen, "ok");
+
+   if (!LLVMIsConstant(ok)) {
+      LLVMValueRef expect_args[] = { ok, llvm_int1(true) };
+      ok = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
+                         expect_args, ARRAY_LEN(expect_args), "");
+   }
+
+   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
+   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+
+   LLVMBuildCondBr(builder, ok, pass_bb, fail_bb);
+
+   LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+   LLVMValueRef index = llvm_int32(vcode_get_index(op));
+
+   LLVMValueRef args[] = {
+      index,
+      LLVMBuildPointerCast(builder, mod_name,
+                           LLVMPointerType(LLVMInt8Type(), 0), ""),
+      llvm_int32(0),
+      llen,
+      rlen,
+      llvm_int32(BOUNDS_ARRAY_SIZE),
+      index
+   };
+
+   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
+
+   LLVMBuildUnreachable(builder);
+
+   LLVMPositionBuilderAtEnd(builder, pass_bb);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2233,6 +2273,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DYNAMIC_BOUNDS:
       cgen_op_dynamic_bounds(i, ctx);
+      break;
+   case VCODE_OP_ARRAY_SIZE:
+      cgen_op_array_size(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

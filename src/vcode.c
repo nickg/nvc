@@ -630,7 +630,8 @@ uint32_t vcode_get_index(int op)
           || o->kind == VCODE_OP_IMAGE || o->kind == VCODE_OP_SET_INITIAL
           || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
           || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS
-          || o->kind == VCODE_OP_DYNAMIC_BOUNDS);
+          || o->kind == VCODE_OP_DYNAMIC_BOUNDS
+          || o->kind == VCODE_OP_ARRAY_SIZE);
    return o->index;
 }
 
@@ -682,7 +683,7 @@ const char *vcode_op_string(vcode_op_t op)
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
       "all", "bit vec op", "const real", "value", "last event",
-      "needs last value", "dynamic bounds"
+      "needs last value", "dynamic bounds", "array size"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1631,6 +1632,15 @@ void vcode_dump(void)
                printf("%s ", vcode_op_string(op->kind));
                color_printf("$white$%s$$ ",
                             istr(vcode_signal_name(op->signal)));
+            }
+            break;
+
+         case VCODE_OP_ARRAY_SIZE:
+            {
+               printf("%s left ", vcode_op_string(op->kind));
+               vcode_dump_reg(op->args.items[0]);
+               printf(" == right ");
+               vcode_dump_reg(op->args.items[1]);
             }
             break;
          }
@@ -3756,5 +3766,16 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    vcode_add_arg(op, low);
    vcode_add_arg(op, high);
    vcode_add_arg(op, kind);
+   op->index = index;
+}
+
+void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index)
+{
+   if (rlen == llen)
+      return;
+
+   op_t *op = vcode_add_op(VCODE_OP_ARRAY_SIZE);
+   vcode_add_arg(op, llen);
+   vcode_add_arg(op, rlen);
    op->index = index;
 }
