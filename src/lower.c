@@ -872,6 +872,21 @@ static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
                           r1_dir, lower_type(tree_type(fcall)));
 }
 
+static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
+                                   type_t type, vcode_reg_t shift)
+{
+   type_t elem = type_elem(type);
+   vcode_type_t vtype = vtype_uarray(1, lower_type(elem), lower_bounds(elem));
+
+   vcode_reg_t data_reg = lower_array_data(array);
+   vcode_reg_t len_reg  = lower_array_len(type, 0, array);
+   vcode_reg_t dir_reg  = lower_array_dir(type, 0, array);
+
+   vcode_reg_t shift_reg = emit_cast(vtype_offset(), shift);
+
+   return emit_bit_shift(kind, data_reg, len_reg, dir_reg, shift_reg, vtype);
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
@@ -1120,6 +1135,18 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
                         lower_array_len(r0_type, 0, r0),
                         tree_index(fcall),
                         lower_type(tree_type(fcall)));
+   else if (icmp(builtin, "sll"))
+      return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
+   else if (icmp(builtin, "srl"))
+      return lower_bit_shift(BIT_SHIFT_SRL, r0, r0_type, r1);
+   else if (icmp(builtin, "sla"))
+      return lower_bit_shift(BIT_SHIFT_SLA, r0, r0_type, r1);
+   else if (icmp(builtin, "sra"))
+      return lower_bit_shift(BIT_SHIFT_SRA, r0, r0_type, r1);
+   else if (icmp(builtin, "rol"))
+      return lower_bit_shift(BIT_SHIFT_ROL, r0, r0_type, r1);
+   else if (icmp(builtin, "ror"))
+      return lower_bit_shift(BIT_SHIFT_ROR, r0, r0_type, r1);
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }

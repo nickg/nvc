@@ -113,7 +113,7 @@ attr3           normal,gold
 wait8           normal
 # func11          normal
 const4          normal
-# shift1          normal
+shift1          normal
 wait9           normal
 wait10          normal
 attr4           normal
@@ -145,7 +145,7 @@ elab13          normal,gold
 # delay2          normal
 # issue13         normal
 # attr7           normal
-# shift2          normal
+shift2          normal
 case4           normal
 # signal10        normal
 signal11        normal,gold

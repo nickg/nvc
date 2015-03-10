@@ -1965,6 +1965,31 @@ static void cgen_op_needs_last_value(int op, cgen_ctx_t *ctx)
                  args, ARRAY_LEN(args), "");
 }
 
+static void cgen_op_bit_shift(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef tmp = LLVMBuildAlloca(builder,
+                                      llvm_uarray_type(LLVMInt1Type(), 1),
+                                      "bit_shift");
+
+   LLVMValueRef data  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef len   = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef dir   = cgen_get_arg(op, 2, ctx);
+   LLVMValueRef shift = cgen_get_arg(op, 3, ctx);
+
+   LLVMValueRef args[] = {
+      llvm_int32(vcode_get_subkind(op)),
+      data,
+      len,
+      dir,
+      shift,
+      tmp
+   };
+   LLVMBuildCall(builder, llvm_fn("_bit_shift"), args, ARRAY_LEN(args), "");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildLoad(builder, tmp, cgen_reg_name(result));
+}
+
 static void cgen_op_bit_vec_op(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef tmp = LLVMBuildAlloca(builder,
@@ -2336,6 +2361,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INDEX_CHECK:
       cgen_op_index_check(i, ctx);
+      break;
+   case VCODE_OP_BIT_SHIFT:
+      cgen_op_bit_shift(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -3055,7 +3083,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
          LLVMInt32Type(),
          LLVMPointerType(LLVMInt1Type(), 0),
          LLVMInt32Type(),
-         LLVMInt8Type(),
+         LLVMInt1Type(),
          LLVMInt32Type(),
          LLVMPointerType(llvm_uarray_type(LLVMInt1Type(), 1), 0)
       };

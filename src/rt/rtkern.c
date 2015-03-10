@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -777,11 +777,10 @@ void *_vec_load(const int32_t *nids, void *where,
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
 {
+   TRACE("_image val=%"PRIi64, val);
    tree_t t = rt_recall_tree(module, where);
 
-   type_t type = tree_type(t);
-   while (type_kind(type) == T_SUBTYPE)
-      type = type_base(type);
+   type_t type = type_base_recur(tree_type(t));
 
    const size_t max = 32;
    char *buf = rt_tmp_alloc(max);

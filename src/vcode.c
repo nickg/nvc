@@ -539,7 +539,7 @@ unsigned vcode_get_subkind(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
-          || o->kind == VCODE_OP_INDEX_CHECK);
+          || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT);
    return o->subkind;
 }
 
@@ -690,7 +690,8 @@ const char *vcode_op_string(vcode_op_t op)
       "memset", "vec load", "case", "endfile", "file open", "file write",
       "file close", "file read", "null", "new", "null check", "deallocate",
       "all", "bit vec op", "const real", "value", "last event",
-      "needs last value", "dynamic bounds", "array size", "index check"
+      "needs last value", "dynamic bounds", "array size", "index check",
+      "bit shift"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1663,6 +1664,22 @@ void vcode_dump(void)
                   printf(" .. ");
                   vcode_dump_reg(op->args.items[2]);
                }
+            }
+            break;
+
+         case VCODE_OP_BIT_SHIFT:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s %d ", vcode_op_string(op->kind),
+                             op->subkind);
+               col += vcode_dump_reg(op->args.items[0]);
+               col += printf(" length ");
+               col += vcode_dump_reg(op->args.items[1]);
+               col += printf(" dir ");
+               col += vcode_dump_reg(op->args.items[2]);
+               col += printf(" shift ");
+               col += vcode_dump_reg(op->args.items[3]);
+               vcode_dump_result_type(col, op);
             }
             break;
          }
@@ -3848,4 +3865,29 @@ void emit_dynamic_index_check(vcode_reg_t reg, vcode_reg_t low,
    op->type    = VCODE_INVALID_TYPE;
    op->subkind = kind;
    op->index   = index;
+}
+
+vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
+                           vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
+                           vcode_type_t result)
+{
+   op_t *op = vcode_add_op(VCODE_OP_BIT_SHIFT);
+   vcode_add_arg(op, data);
+   vcode_add_arg(op, len);
+   vcode_add_arg(op, dir);
+   vcode_add_arg(op, shift);
+   op->subkind = kind;
+
+   VCODE_ASSERT(vcode_reg_kind(shift) == VCODE_TYPE_OFFSET,
+                "shift argument must be offset");
+   VCODE_ASSERT(vcode_reg_kind(dir) == VCODE_TYPE_INT,
+                "dir argument must be offset");
+   VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
+                "len argument must be offset");
+   VCODE_ASSERT(vcode_reg_kind(data) == VCODE_TYPE_POINTER,
+                "data argument must be offset");
+   VCODE_ASSERT(vtype_kind(result) == VCODE_TYPE_UARRAY,
+                "result type must be uarray");
+
+   return (op->result = vcode_add_reg(result));
 }
