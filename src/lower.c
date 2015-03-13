@@ -88,6 +88,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
                                           bool is_const, expr_ctx_t ctx);
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_type_t lower_type(type_t type);
+static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -558,9 +559,8 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
    }
    else {
       if (type_is_record(elem_type)) {
-         assert(false);
-         //cmp = eq = cgen_record_eq(l_ptr, r_ptr, elem_type, pred, ctx);
-         //body_bb = LLVMGetInsertBlock(builder);
+         cmp = eq = lower_record_eq(l_ptr, r_ptr, elem_type);
+         body_bb = vcode_active_block();
       }
       else {
          vcode_reg_t l_val = emit_load_indirect(l_ptr);
@@ -1156,6 +1156,8 @@ static vcode_type_t lower_func_result_type(tree_t func)
    type_t result = type_result(tree_type(func));
    if (type_is_array(result) && lower_const_bounds(result))
       return vtype_pointer(lower_type(type_elem(result)));
+   if (type_is_record(result))
+      return vtype_pointer(lower_type(result));
    else
       return lower_type(result);
 }
@@ -1924,7 +1926,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       emit_copy(ptr_reg, src_reg, length_reg);
    }
    else if (type_is_record(elem_type))
-      assert(false);  // TODO
+      emit_copy(ptr_reg, what, emit_const(vtype_offset(), 1));
    else
       emit_store_indirect(lower_reify(what), ptr_reg);
 
@@ -1971,14 +1973,10 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
          if (tree_kind(value) == T_LITERAL)
             v = lower_string_literal(value);
          else {
-            assert(false);
-#if 0
-            LLVMValueRef *vals =
-               ? cgen_string_literal(value, &nvals, NULL)
-               : cgen_const_aggregate(value, value_type, 0, &nvals, ctx);
-            LLVMTypeRef ltype = llvm_type(type_elem(value_type));
-            v = LLVMConstArray(ltype, vals, nvals);
-#endif
+            int nvals;
+            vcode_reg_t *values LOCAL =
+               lower_const_array_aggregate(value, value_type, 0, &nvals);
+            v = emit_const_array(lower_type(value_type), values, nvals, false);
          }
       }
       else if (type_is_record(value_type) && is_const)
