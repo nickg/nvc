@@ -3432,11 +3432,22 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
    VCODE_ASSERT(field < rtype->fields.count, "invalid field %d", field);
 
-   vcode_type_t result_type = vtype_pointer(rtype->fields.items[field]);
+   vcode_type_t field_type  = rtype->fields.items[field];
+   vcode_type_t bounds_type = field_type;
+
+   vcode_type_t result_type = VCODE_INVALID_TYPE;
+
+   if (vtype_kind(field_type) == VCODE_TYPE_CARRAY) {
+      bounds_type = vtype_elem(field_type);
+      result_type = vtype_pointer(bounds_type);
+   }
+   else
+      result_type = vtype_pointer(field_type);
+
    op->result = vcode_add_reg(result_type);
 
    reg_t *rr = vcode_reg_data(op->result);
-   rr->bounds = rtype->fields.items[field];
+   rr->bounds = bounds_type;
 
    return op->result;
 }

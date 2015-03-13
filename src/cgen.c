@@ -1531,6 +1531,16 @@ static void cgen_op_record_ref(int op, cgen_ctx_t *ctx)
    ctx->regs[result] = LLVMBuildStructGEP(builder, cgen_get_arg(op, 0, ctx),
                                           vcode_get_field(op),
                                           cgen_reg_name(result));
+
+   LLVMTypeRef field_type = LLVMGetElementType(LLVMTypeOf(ctx->regs[result]));
+   if (LLVMGetTypeKind(field_type) == LLVMArrayTypeKind) {
+      LLVMValueRef indexes[] = {
+         llvm_int32(0),
+         llvm_int32(0)
+      };
+      ctx->regs[result] = LLVMBuildGEP(builder, ctx->regs[result], indexes,
+                                       ARRAY_LEN(indexes), "");
+   }
 }
 
 static void cgen_op_sched_event(int op, cgen_ctx_t *ctx)
