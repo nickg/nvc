@@ -891,23 +891,6 @@ static void cgen_op_abs(int op, cgen_ctx_t *ctx)
       cgen_reg_name(result));
 }
 
-static void cgen_op_phi(int op, cgen_ctx_t *ctx)
-{
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildPhi(builder, cgen_type(vcode_reg_type(result)),
-                                    cgen_reg_name(result));
-
-   const int nargs = vcode_count_args(op);
-   LLVMValueRef values[nargs];
-   LLVMBasicBlockRef bbs[nargs];
-   for (int i = 0; i < nargs; i++) {
-      values[i] = cgen_get_arg(op, i, ctx);
-      bbs[i] = ctx->blocks[vcode_get_target(op, i)];
-   }
-
-   LLVMAddIncoming(ctx->regs[result], values, bbs, nargs);
-}
-
 static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 {
    vcode_type_t vtype = vcode_get_type(op);
@@ -2224,9 +2207,6 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_INDEX:
       cgen_op_index(i, ctx);
-      break;
-   case VCODE_OP_PHI:
-      cgen_op_phi(i, ctx);
       break;
    case VCODE_OP_SELECT:
       cgen_op_select(i, ctx);

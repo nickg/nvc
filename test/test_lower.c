@@ -60,7 +60,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          // Fall-through
       case VCODE_OP_FCALL:
       case VCODE_OP_NESTED_FCALL:
-      case VCODE_OP_PHI:
          if ((e->func != NULL) && !icmp(vcode_get_func(i), e->func)) {
             vcode_dump();
             fail("expected op %d in block %d to call %s but calls %s",
@@ -852,6 +851,8 @@ START_TEST(test_arrayop1)
       { VCODE_OP_ALLOCA },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_JUMP, .target = 2 }
    };
 
@@ -860,6 +861,7 @@ START_TEST(test_arrayop1)
    EXPECT_BB(2) = {
       { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_GEQ },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_COND, .target = 4, .target_else = 3 }
    };
 
@@ -875,6 +877,7 @@ START_TEST(test_arrayop1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_ADD },
       { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_NOT },
       { VCODE_OP_OR },
@@ -884,7 +887,7 @@ START_TEST(test_arrayop1)
    CHECK_BB(3);
 
    EXPECT_BB(4) = {
-      { VCODE_OP_PHI, .args = 2 },
+      { VCODE_OP_LOAD_INDIRECT },
       { VCODE_OP_ASSERT },
       { VCODE_OP_WAIT, .target = 5 }
    };

@@ -519,10 +519,13 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
                                    VCODE_INVALID_REG);
    emit_store_indirect(emit_const(vtype_offset(), 0), i_reg);
 
-   vcode_block_t init_bb = vcode_active_block();
    vcode_block_t test_bb = emit_block();
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
+
+   vcode_type_t vbool = vtype_bool();
+   vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
+   emit_store_indirect(emit_const(vbool, 0), result_reg);
 
    vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, left_len, right_len);
 
@@ -538,6 +541,7 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
    vcode_reg_t i_loaded = emit_load_indirect(i_reg);
    vcode_reg_t len_ge_l = emit_cmp(VCODE_CMP_GEQ, i_loaded, left_len);
    vcode_reg_t len_ge_r = emit_cmp(VCODE_CMP_GEQ, i_loaded, right_len);
+   emit_store_indirect(len_ge_l, result_reg);
    emit_cond(emit_or(len_ge_l, len_ge_r), exit_bb, body_bb);
 
    // Loop body
@@ -575,6 +579,8 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
    vcode_reg_t inc = emit_add(i_loaded, emit_const(vtype_offset(), 1));
    emit_store_indirect(inc, i_reg);
 
+   emit_store_indirect(cmp, result_reg);
+
    vcode_reg_t i_eq_len = emit_cmp(VCODE_CMP_EQ, inc, left_len);
    vcode_reg_t done = emit_or(emit_not(eq), emit_and(len_eq, i_eq_len));
 
@@ -584,9 +590,7 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
 
    vcode_select_block(exit_bb);
 
-   vcode_reg_t   values[] = { cmp,     len_ge_l, len_eq  };
-   vcode_block_t bbs[]    = { body_bb, test_bb,  init_bb };
-   return emit_phi(values, bbs, (pred == VCODE_CMP_EQ) ? 3 : 2);
+   return emit_load_indirect(result_reg);
 }
 
 static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,

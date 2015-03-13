@@ -78,7 +78,6 @@ typedef enum {
    VCODE_OP_UARRAY_DIR,
    VCODE_OP_UNWRAP,
    VCODE_OP_NOT,
-   VCODE_OP_PHI,
    VCODE_OP_AND,
    VCODE_OP_NESTED_FCALL,
    VCODE_OP_PARAM_UPREF,
@@ -333,8 +332,6 @@ vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);
-vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
-                     unsigned count);
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg);
 void emit_resolved_address(vcode_var_t var, vcode_signal_t signal);
 void emit_set_initial(vcode_signal_t signal, vcode_reg_t value, uint32_t index,

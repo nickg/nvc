@@ -646,8 +646,8 @@ vcode_block_t vcode_get_target(int op, int nth)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
-          || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PHI
-          || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_CASE);
+          || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PCALL
+          || o->kind == VCODE_OP_CASE);
    return vcode_block_array_nth(&(o->targets), nth);
 }
 
@@ -683,15 +683,14 @@ const char *vcode_op_string(vcode_op_t op)
       "cast", "load indirect", "store indirect", "return", "nets",
       "sched waveform", "cond", "report", "div", "neg", "exp", "abs", "mod",
       "rem", "image", "alloca", "select", "or", "wrap", "uarray left",
-      "uarray right", "uarray dir", "unwrap", "not", "phi", "and",
-      "nested fcall", "param upref", "resolved address", "set initial",
-      "alloc driver", "event", "active", "const record", "record ref", "copy",
-      "sched event", "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor",
-      "memset", "vec load", "case", "endfile", "file open", "file write",
-      "file close", "file read", "null", "new", "null check", "deallocate",
-      "all", "bit vec op", "const real", "value", "last event",
-      "needs last value", "dynamic bounds", "array size", "index check",
-      "bit shift"
+      "uarray right", "uarray dir", "unwrap", "not", "and", "nested fcall",
+      "param upref", "resolved address", "set initial", "alloc driver",
+      "event", "active", "const record", "record ref", "copy", "sched event",
+      "pcall", "resume", "memcmp", "xor", "xnor", "nand", "nor", "memset",
+      "vec load", "case", "endfile", "file open", "file write", "file close",
+      "file read", "null", "new", "null check", "deallocate", "all",
+      "bit vec op", "const real", "value", "last event", "needs last value",
+      "dynamic bounds", "array size", "index check", "bit shift"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1332,19 +1331,6 @@ void vcode_dump(void)
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
-               vcode_dump_result_type(col, op);
-            }
-            break;
-
-         case VCODE_OP_PHI:
-            {
-               col += vcode_dump_reg(op->result);
-               col += printf(" := %s", vcode_op_string(op->kind));
-               for (int i = 0; i < op->args.count; i++) {
-                  col += printf(" [");
-                  col += vcode_dump_reg(op->args.items[i]);
-                  col += color_printf(" $yellow$%d$$]", op->targets.items[i]);
-               }
                vcode_dump_result_type(col, op);
             }
             break;
@@ -3289,38 +3275,6 @@ vcode_reg_t emit_unwrap(vcode_reg_t array)
    rr->bounds = vt->elem;
 
    return op->result;
-}
-
-vcode_reg_t emit_phi(const vcode_reg_t *values, const vcode_block_t *blocks,
-                     unsigned count)
-{
-   op_t *op = vcode_add_op(VCODE_OP_PHI);
-   for (unsigned i = 0; i < count; i++) {
-      // Check input block is predecessor of active block
-      block_t *b = &(active_unit->blocks.items[blocks[i]]);
-      assert(b->ops.count > 0);
-      op_t *last = &(b->ops.items[b->ops.count - 1]);
-      bool valid = false;
-      for (unsigned j = 0; !valid && j < last->targets.count; j++) {
-         if (last->targets.items[j] == active_block)
-            valid = true;
-      }
-
-      if (valid) {
-         vcode_add_arg(op, values[i]);
-         vcode_add_target(op, blocks[i]);
-      }
-
-      vcode_type_t vt = vcode_reg_type(values[i]);
-      for (unsigned j = 0; j < i; j++) {
-         if (!vtype_eq(vt, vcode_reg_type(values[j]))) {
-            vcode_dump();
-            fatal_trace("phi values have different types");
-         }
-      }
-   }
-
-   return (op->result = vcode_add_reg(vcode_reg_type(values[0])));
 }
 
 vcode_reg_t emit_param_upref(int hops, vcode_reg_t reg)
