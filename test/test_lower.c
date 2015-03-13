@@ -1161,9 +1161,13 @@ START_TEST(test_record1)
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST_RECORD },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_INDEX, .name = "A" },
       { VCODE_OP_COPY },
+      { VCODE_OP_ALLOCA },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_INDEX, .name = "B" },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }

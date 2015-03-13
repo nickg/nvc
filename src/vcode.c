@@ -2413,11 +2413,8 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
    return op->result;
 }
 
-vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
-                              bool allocate)
+vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
 {
-   vcode_type_t rtype = allocate ? vtype_pointer(type) : type;
-
    // Reuse any previous constant in this block with the same type and value
    op_t *other = NULL;
    while (vcode_dominating_ops(VCODE_OP_CONST_RECORD, &other)) {
@@ -2426,14 +2423,14 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num,
          for (int i = 0; i < num; i++)
             same_regs = same_regs && other->args.items[i] == values[i];
 
-         if (same_regs && vtype_eq(vcode_reg_type(other->result), rtype))
+         if (same_regs && vtype_eq(vcode_reg_type(other->result), type))
             return other->result;
       }
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST_RECORD);
    op->type   = type;
-   op->result = vcode_add_reg(rtype);
+   op->result = vcode_add_reg(type);
 
    for (int i = 0; i < num; i++)
       vcode_add_arg(op, values[i]);

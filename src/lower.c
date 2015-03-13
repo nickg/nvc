@@ -98,10 +98,8 @@ static bool lower_is_const(tree_t t)
    if (tree_kind(t) == T_AGGREGATE) {
       bool is_const = true;
       const int nassocs = tree_assocs(t);
-      for (int i = 0; i < nassocs; i++) {
-         tree_t a = tree_assoc(t, i);
-         is_const = is_const && lower_is_const(tree_value(a));
-      }
+      for (int i = 0; i < nassocs; i++)
+         is_const = is_const && lower_is_const(tree_value(tree_assoc(t, i)));
       return is_const;
    }
    else
@@ -2015,24 +2013,36 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
    for (int i = 0; i < nfields; i++)
       assert(vals[i] != VCODE_INVALID_REG);
 
-   if (is_const)
-      return emit_const_record(lower_type(type), vals, nfields, !nest);
+   if (is_const) {
+      vcode_reg_t reg = emit_const_record(lower_type(type), vals, nfields);
+      if (!nest) {
+         vcode_type_t vtype = lower_type(type);
+         vcode_reg_t mem_reg = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
+         emit_store_indirect(reg, mem_reg);
+         return mem_reg;
+      }
+      else
+         return reg;
+   }
    else {
-      assert(false);
-#if 0
+      vcode_type_t vtype = lower_type(type);
+      vcode_reg_t mem_reg = emit_alloca(vtype, vtype, VCODE_INVALID_REG);
+
       for (int i = 0; i < nfields; i++) {
          type_t ftype = tree_type(type_field(type, i));
-         LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
-         if (type_is_array(ftype))
-            cgen_array_copy(ftype, ftype, vals[i], ptr, NULL, ctx);
+         vcode_reg_t ptr_reg = emit_record_ref(mem_reg, i);
+         if (type_is_array(ftype)) {
+            vcode_reg_t src_reg = lower_array_data(vals[i]);
+            vcode_reg_t length_reg = lower_array_total_len(ftype, vals[i]);
+            emit_copy(ptr_reg, src_reg, length_reg);
+         }
          else if (type_is_record(ftype))
-            cgen_record_copy(ftype, vals[i], ptr);
+            emit_copy(ptr_reg, vals[i], emit_const(vtype_offset(), 1));
          else
-            LLVMBuildStore(builder, vals[i], ptr);
+            emit_store_indirect(vals[i], ptr_reg);
       }
 
-      return mem;
-#endif
+      return mem_reg;
    }
 }
 

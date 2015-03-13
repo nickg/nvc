@@ -1467,25 +1467,12 @@ static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
 
    const int nargs = vcode_count_args(op);
 
-   if (vtype_kind(rtype) == VCODE_TYPE_POINTER) {
-      LLVMTypeRef lltype = cgen_type(vtype_pointed(rtype));
-      LLVMValueRef mem = LLVMBuildAlloca(builder, lltype,
-                                         cgen_reg_name(result));
+   LLVMValueRef fields[nargs];
+   for (int i = 0; i < nargs; i++)
+      fields[i] = cgen_get_arg(op, i, ctx);
 
-      for (int i = 0; i < nargs; i++) {
-         LLVMValueRef ptr = LLVMBuildStructGEP(builder, mem, i, "");
-         LLVMBuildStore(builder, cgen_get_arg(op, i, ctx), ptr);
-      }
-
-      ctx->regs[result] = mem;
-   }
-   else {
-      LLVMValueRef fields[nargs];
-      for (int i = 0; i < nargs; i++)
-         fields[i] = cgen_get_arg(op, i, ctx);
-
-      ctx->regs[result] = LLVMConstStruct(fields, nargs, true);
-   }
+   LLVMTypeRef lltype = cgen_type(rtype);
+   ctx->regs[result] = LLVMConstNamedStruct(lltype, fields, nargs);
 }
 
 static void cgen_op_copy(int op, cgen_ctx_t *ctx)
