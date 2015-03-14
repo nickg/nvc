@@ -74,6 +74,7 @@ static ident_t never_waits_i;
 static ident_t mangled_i;
 static ident_t last_value_i;
 static ident_t elide_bounds_i;
+static ident_t returned_i;
 
 static const char *verbose = NULL;
 
@@ -2465,7 +2466,7 @@ static void lower_wait(tree_t wait)
       remain = vcode_find_var(remain_i);
       if (remain == VCODE_INVALID_VAR) {
          vcode_type_t time = vtype_time();
-         remain = emit_var(time, time, remain_i, false);
+         remain = emit_var(time, time, remain_i, false, false);
       }
 
       vcode_reg_t now_reg = emit_fcall(ident_new("_std_standard_now"),
@@ -3154,7 +3155,8 @@ static void lower_var_decl(tree_t decl)
    vcode_type_t vtype = lower_type(type);
    vcode_type_t vbounds = lower_bounds(type);
    vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl),
-                              tree_kind(decl) == T_CONST_DECL);
+                              tree_kind(decl) == T_CONST_DECL,
+                              tree_attr_int(decl, returned_i, 0));
    tree_add_attr_int(decl, vcode_obj_i, var);
 
    if (!tree_has_value(decl))
@@ -3213,7 +3215,7 @@ static void lower_signal_decl(tree_t decl)
 
       shadow = emit_var(vtype_pointer(shadow_type), shadow_bounds,
                         ident_prefix(ident_new("resolved"), name, '_'),
-                        true);
+                        true, false);
    }
 
    netid_t *nets = xmalloc(sizeof(netid_t) * nnets);
@@ -3262,7 +3264,7 @@ static void lower_file_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
    vcode_type_t vtype = lower_type(type);
-   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
+   vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false, false);
    tree_add_attr_int(decl, vcode_obj_i, var);
 
    // TODO: set file to NULL here
@@ -3804,6 +3806,7 @@ void lower_unit(tree_t unit)
    mangled_i      = ident_new("mangled");
    last_value_i   = ident_new("last_value");
    elide_bounds_i = ident_new("elide_bounds");
+   returned_i     = ident_new("returned");
 
    if (getenv("NVC_LOWER_VERBOSE") != NULL)
       verbose = "";

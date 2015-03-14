@@ -86,7 +86,7 @@ static void opt_tag_simple_procedure(tree_t t)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Tag array variables that are returned from functions
+// Tag array and record variables that are returned from functions
 //
 // This is used to avoid allocating extra memory for the result
 //
@@ -103,7 +103,7 @@ static void opt_tag_return_array(tree_t t)
 
    type_t type = tree_type(value);
 
-   if (!type_is_array(type))
+   if (!type_is_array(type) && !type_is_record(type))
       return;
 
    tree_t decl = tree_ref(value);

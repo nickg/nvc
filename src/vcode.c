@@ -91,6 +91,7 @@ typedef struct {
    ident_t      name;
    bool         is_extern;
    bool         is_const;
+   bool         use_heap;
 } var_t;
 
 typedef struct {
@@ -475,6 +476,11 @@ vcode_type_t vcode_var_type(vcode_var_t var)
 bool vcode_var_extern(vcode_var_t var)
 {
    return vcode_var_data(var)->is_extern;
+}
+
+bool vcode_var_use_heap(vcode_var_t var)
+{
+   return vcode_var_data(var)->use_heap;
 }
 
 int vcode_count_signals(void)
@@ -888,12 +894,14 @@ void vcode_dump(void)
       col += color_printf("$magenta$%s$$", istr(v->name));
 
       if (v->is_extern)
-         col += printf("extern ");
+         col += printf(" extern");
+      if (v->use_heap)
+         col += printf(" heap");
 
       if (vu->kind == VCODE_UNIT_CONTEXT && !v->is_const)
-         col += printf("mutable ");
+         col += printf(" mutable");
       else if (vu->kind != VCODE_UNIT_CONTEXT && v->is_const)
-         col += printf("const ");
+         col += printf(" const");
 
       vcode_dump_type(col, v->type, v->bounds);
       printf("\n");
@@ -2462,7 +2470,7 @@ void emit_jump(vcode_block_t target)
 }
 
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
-                     bool is_const)
+                     bool is_const, bool use_heap)
 {
    assert(active_unit != NULL);
 
@@ -2473,6 +2481,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
    v->bounds   = bounds;
    v->name     = name;
    v->is_const = is_const;
+   v->use_heap = use_heap;
 
    return MAKE_HANDLE(active_unit->depth, var);
 }
@@ -2490,7 +2499,7 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
          return MAKE_HANDLE(active_unit->depth, i);
    }
 
-   vcode_var_t var = emit_var(type, bounds, name, false);
+   vcode_var_t var = emit_var(type, bounds, name, false, false);
    vcode_var_data(var)->is_extern = true;
    return var;
 }

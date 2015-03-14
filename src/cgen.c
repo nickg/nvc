@@ -2411,8 +2411,13 @@ static void cgen_locals(cgen_ctx_t *ctx)
    const int nvars = vcode_count_vars();
    for (int i = 0; i < nvars; i++) {
       vcode_var_t var = vcode_var_handle(i);
-      ctx->locals[i] = LLVMBuildAlloca(builder, cgen_type(vcode_var_type(var)),
-                                       istr(vcode_var_name(var)));
+      LLVMTypeRef lltype = cgen_type(vcode_var_type(var));
+      const char *name = istr(vcode_var_name(var));
+
+      if (vcode_var_use_heap(var))
+         ctx->locals[i] = cgen_tmp_alloc(llvm_sizeof(lltype), lltype);
+      else
+         ctx->locals[i] = LLVMBuildAlloca(builder, lltype, name);
    }
 }
 
