@@ -2438,6 +2438,13 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
    VCODE_ASSERT(vtype_kind(type) == VCODE_TYPE_RECORD,
                 "constant record must have record type");
 
+   VCODE_ASSERT(vtype_fields(type) == num, "expected %d fields but have %d",
+                vtype_fields(type), num);
+
+   for (int i = 0; i < num; i++)
+      VCODE_ASSERT(vtype_eq(vtype_field(type, i), vcode_reg_type(values[i])),
+                   "wrong type for field %d", i);
+
    return op->result;
 }
 

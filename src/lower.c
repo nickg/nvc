@@ -1216,7 +1216,7 @@ static vcode_reg_t *lower_string_literal_chars(tree_t lit, int *nchars)
    return tmp;
 }
 
-static vcode_reg_t lower_string_literal(tree_t lit)
+static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
 {
    int nchars;
    vcode_reg_t *tmp LOCAL = lower_string_literal_chars(lit, &nchars);
@@ -1224,11 +1224,11 @@ static vcode_reg_t lower_string_literal(tree_t lit)
    type_t type = tree_type(lit);
    if (type_is_array(type) && !lower_const_bounds(type)) {
       vcode_type_t base = vtype_pointer(lower_type(type_elem(type)));
-      vcode_reg_t data = emit_const_array(base, tmp, nchars, true);
+      vcode_reg_t data = emit_const_array(base, tmp, nchars, allocate);
       return lower_wrap(type, data);
    }
    else
-      return emit_const_array(lower_type(type), tmp, nchars, true);
+      return emit_const_array(lower_type(type), tmp, nchars, allocate);
 }
 
 static vcode_reg_t lower_literal(tree_t lit)
@@ -1238,7 +1238,7 @@ static vcode_reg_t lower_literal(tree_t lit)
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
 
    case L_STRING:
-      return lower_string_literal(lit);
+      return lower_string_literal(lit, true);
 
    case L_NULL:
       return emit_null(lower_type(tree_type(lit)));
@@ -1973,7 +1973,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       vcode_reg_t v = VCODE_INVALID_REG;
       if (type_is_array(value_type) && is_const) {
          if (tree_kind(value) == T_LITERAL)
-            v = lower_string_literal(value);
+            v = lower_string_literal(value, false);
          else {
             int nvals;
             vcode_reg_t *values LOCAL =
