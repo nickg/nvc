@@ -389,7 +389,8 @@ static vcode_type_t lower_type(type_t type)
 
 static vcode_type_t lower_bounds(type_t type)
 {
-   if (type_is_scalar(type) && type_kind(type) == T_SUBTYPE) {
+   if ((type_is_integer(type) || type_is_enum(type))
+       && type_kind(type) == T_SUBTYPE) {
       range_t r = type_dim(type, 0);
       int64_t low, high;
       range_bounds(r, &low, &high);
