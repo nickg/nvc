@@ -1158,18 +1158,13 @@ START_TEST(test_record1)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "A" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_ALLOCA },
-      { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_INDEX, .name = "A" },
-      { VCODE_OP_COPY },
-      { VCODE_OP_ALLOCA },
       { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_INDEX, .name = "B" },
-      { VCODE_OP_COPY },
+      { VCODE_OP_STORE_INDIRECT },
       { VCODE_OP_RETURN }
    };
 
@@ -1774,15 +1769,12 @@ START_TEST(test_record6)
    fail_unless(vcode_var_use_heap(vcode_var_handle(0)));
 
    EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "R" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_CONST, .value = INT32_MIN },
       { VCODE_OP_CONST_RECORD },
-      { VCODE_OP_ALLOCA },    // TODO: eliminate this
       { VCODE_OP_STORE_INDIRECT },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_INDEX, .name = "R" },
-      { VCODE_OP_COPY },    // TODO: and this
       { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_RECORD_REF, .field = 0 },
       { VCODE_OP_COPY },

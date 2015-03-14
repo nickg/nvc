@@ -1477,9 +1477,14 @@ static void cgen_op_const_record(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_copy(int op, cgen_ctx_t *ctx)
 {
-   LLVMValueRef dest  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef src   = cgen_get_arg(op, 1, ctx);
-   LLVMValueRef count = cgen_get_arg(op, 2, ctx);
+   LLVMValueRef dest = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef src  = cgen_get_arg(op, 1, ctx);
+
+   LLVMValueRef count = NULL;
+   if (vcode_count_args(op) > 2)
+      count = cgen_get_arg(op, 2, ctx);
+   else
+      count = llvm_int32(1);
 
    LLVMValueRef size  = llvm_sizeof(cgen_type(vcode_get_type(op)));
    LLVMValueRef bytes = LLVMBuildMul(builder, size, count, "bytes");

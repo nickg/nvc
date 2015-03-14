@@ -1929,7 +1929,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       emit_copy(ptr_reg, src_reg, length_reg);
    }
    else if (type_is_record(elem_type))
-      emit_copy(ptr_reg, what, emit_const(vtype_offset(), 1));
+      emit_copy(ptr_reg, what, VCODE_INVALID_REG);
    else
       emit_store_indirect(lower_reify(what), ptr_reg);
 
@@ -2038,7 +2038,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
             emit_copy(ptr_reg, src_reg, length_reg);
          }
          else if (type_is_record(ftype))
-            emit_copy(ptr_reg, vals[i], emit_const(vtype_offset(), 1));
+            emit_copy(ptr_reg, vals[i], VCODE_INVALID_REG);
          else
             emit_store_indirect(vals[i], ptr_reg);
       }
@@ -2182,7 +2182,7 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
       vcode_reg_t all_reg = emit_all(result_reg);
 
       if (type_is_record(type))
-         emit_copy(all_reg, init_reg, emit_const(vtype_offset(), 1));
+         emit_copy(all_reg, init_reg, VCODE_INVALID_REG);
       else
          emit_store_indirect(lower_reify(init_reg), all_reg);
 
@@ -3162,7 +3162,11 @@ static void lower_var_decl(tree_t decl)
    if (!tree_has_value(decl))
       return;
 
+   if (type_is_record(type))
+      emit_storage_hint(emit_index(var, VCODE_INVALID_REG), VCODE_INVALID_REG);
+
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
+
    if (type_is_array(type)) {
       lower_check_indexes(type, value, decl);
 
@@ -3179,9 +3183,8 @@ static void lower_var_decl(tree_t decl)
          emit_store(value, var);
    }
    else if (type_is_record(type)) {
-      vcode_reg_t count = emit_const(vtype_offset(), 1);
-      vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
-      emit_copy(dest, value, count);
+      vcode_reg_t dest = emit_index(var, VCODE_INVALID_REG);
+      emit_copy(dest, value, VCODE_INVALID_REG);
    }
    else if (type_is_scalar(type)) {
       value = lower_reify(value);

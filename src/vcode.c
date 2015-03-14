@@ -211,16 +211,6 @@ static op_t *vcode_add_op(vcode_op_t kind)
    return op;
 }
 
-static void vcode_add_comment(const char *fmt, ...)
-{
-   op_t *op = vcode_add_op(VCODE_OP_COMMENT);
-
-   va_list ap;
-   va_start(ap, fmt);
-   op->comment = xvasprintf(fmt, ap);
-   va_end(ap);
-}
-
 static void vcode_add_arg(op_t *op, vcode_reg_t arg)
 {
    vcode_reg_array_add(&(op->args), arg);
@@ -392,6 +382,14 @@ void vcode_opt(void)
                   pruned++;
                }
                uses[o->result] = -1;
+               break;
+
+            case VCODE_OP_STORAGE_HINT:
+               o->comment = xasprintf("Unused storage hint for r%d",
+                                      o->args.items[0]);
+               o->kind = VCODE_OP_COMMENT;
+               vcode_reg_array_resize(&(o->args), 0, VCODE_INVALID_REG);
+               pruned++;
                break;
 
             default:
@@ -696,7 +694,8 @@ const char *vcode_op_string(vcode_op_t op)
       "vec load", "case", "endfile", "file open", "file write", "file close",
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "value", "last event", "needs last value",
-      "dynamic bounds", "array size", "index check", "bit shift"
+      "dynamic bounds", "array size", "index check", "bit shift",
+      "storage hint"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1414,8 +1413,10 @@ void vcode_dump(void)
                vcode_dump_reg(op->args.items[0]);
                printf(" := %s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[1]);
-               printf(" count " );
-               vcode_dump_reg(op->args.items[2]);
+               if (op->args.count > 2) {
+                  printf(" count " );
+                  vcode_dump_reg(op->args.items[2]);
+               }
             }
             break;
 
@@ -1676,6 +1677,17 @@ void vcode_dump(void)
                vcode_dump_result_type(col, op);
             }
             break;
+
+         case VCODE_OP_STORAGE_HINT:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+               if (op->args.count > 1) {
+                  col += printf(" length ");
+                  col += vcode_dump_reg(op->args.items[1]);
+               }
+               vcode_dump_type(col, op->type, op->type);
+            }
          }
 
          printf("\n");
@@ -2198,7 +2210,7 @@ void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity, uint32_t index)
 {
    if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
-      vcode_add_comment("Always true assertion on r%d", value);
+      emit_comment("Always true assertion on r%d", value);
       return;
    }
 
@@ -2317,6 +2329,19 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count)
 {
+   // Search backwards for a storage hint with this type and count
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_STORAGE_HINT, &other)) {
+      if (vtype_eq(other->type, type)
+          && ((other->args.count == 1 && count == VCODE_INVALID_REG)
+              || other->args.items[1] == count)) {
+         other->comment = xasprintf("Used storage hint for r%d",
+                                    other->args.items[0]);
+         other->kind = VCODE_OP_COMMENT;
+         return other->args.items[0];
+      }
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
    op->type   = type;
    op->result = vcode_add_reg(vtype_pointer(type));
@@ -2833,7 +2858,7 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    if (reg == VCODE_INVALID_REG)
       return;
    else if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
-      vcode_add_comment("Elided bounds check for r%d", reg);
+      emit_comment("Elided bounds check for r%d", reg);
       return;
    }
 
@@ -3421,10 +3446,18 @@ vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
 {
+   int64_t cconst;
+   if (count != VCODE_INVALID_REG && vcode_reg_const(count, &cconst)
+       && cconst == 0)
+      return;
+   else if (dest == src)
+      return;
+
    op_t *op = vcode_add_op(VCODE_OP_COPY);
    vcode_add_arg(op, dest);
    vcode_add_arg(op, src);
-   vcode_add_arg(op, count);
+   if (count != VCODE_INVALID_REG)
+      vcode_add_arg(op, count);
 
    vcode_type_t dtype = vcode_reg_type(dest);
    vcode_type_t stype = vcode_reg_type(src);
@@ -3432,22 +3465,15 @@ void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count)
    vtype_kind_t dkind = vtype_kind(dtype);
    vtype_kind_t skind = vtype_kind(stype);
 
-   if (dkind != VCODE_TYPE_POINTER && dkind != VCODE_TYPE_ACCESS) {
-      vcode_dump();
-      fatal_trace("destination type is not a pointer or access");
-   }
-   else if (skind != VCODE_TYPE_POINTER && skind != VCODE_TYPE_ACCESS) {
-      vcode_dump();
-      fatal_trace("source type is not a pointer or access");
-   }
-   else if (!vtype_eq(dtype, stype)) {
-      vcode_dump();
-      fatal_trace("source and destination types do not match");
-   }
-   else if (vtype_kind(vcode_reg_type(count)) != VCODE_TYPE_OFFSET) {
-      vcode_dump();
-      fatal_trace("count is not offset type");
-   }
+   VCODE_ASSERT(dkind == VCODE_TYPE_POINTER || dkind == VCODE_TYPE_ACCESS,
+                "destination type is not a pointer or access");
+   VCODE_ASSERT(skind == VCODE_TYPE_POINTER || skind == VCODE_TYPE_ACCESS,
+                "source type is not a pointer or access");
+   VCODE_ASSERT(vtype_eq(dtype, stype),
+                "source and destination types do not match");
+   VCODE_ASSERT(count == VCODE_INVALID_REG
+                || vcode_reg_kind(count) == VCODE_TYPE_OFFSET,
+                "count is not offset type");
 
    op->type = vtype_pointed(dtype);
 }
@@ -3793,7 +3819,7 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    if (vcode_reg_const(low, &lconst) && vcode_reg_const(high, &hconst)) {
       vcode_type_t bounds = vcode_reg_bounds(reg);
       if (lconst <= vtype_low(bounds) && hconst >= vtype_high(bounds)) {
-         vcode_add_comment("Elided dynamic bounds check for r%d", reg);
+         emit_comment("Elided dynamic bounds check for r%d", reg);
          return;
       }
    }
@@ -3821,7 +3847,7 @@ void emit_index_check(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
                       uint32_t index)
 {
    if (vtype_includes(bounds, vcode_reg_data(reg)->bounds)) {
-      vcode_add_comment("Elided index check for r%d", reg);
+      emit_comment("Elided index check for r%d", reg);
       return;
    }
 
@@ -3868,4 +3894,20 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                 "result type must be uarray");
 
    return (op->result = vcode_add_reg(result));
+}
+
+void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
+{
+   op_t *op = vcode_add_op(VCODE_OP_STORAGE_HINT);
+   vcode_add_arg(op, mem);
+   if (length != VCODE_INVALID_REG)
+      vcode_add_arg(op, length);
+
+   VCODE_ASSERT(vcode_reg_kind(mem) == VCODE_TYPE_POINTER,
+                "storage hint mem must be pointer");
+   VCODE_ASSERT(length == VCODE_INVALID_REG
+                || vcode_reg_kind(length) == VCODE_TYPE_OFFSET,
+                "storage hint length must be offset");
+
+   op->type = vtype_pointed(vcode_reg_type(mem));
 }
