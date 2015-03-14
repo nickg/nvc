@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <string.h>
+#include <ctype.h>
 
 typedef enum {
    EXPR_LVALUE,
@@ -3147,19 +3148,26 @@ static void lower_var_decl(tree_t decl)
    if (!tree_has_value(decl))
       return;
 
-   if (type_is_record(type))
-      emit_storage_hint(emit_index(var, VCODE_INVALID_REG), VCODE_INVALID_REG);
+   vcode_reg_t dest_reg  = VCODE_INVALID_REG;
+   vcode_reg_t count_reg = VCODE_INVALID_REG;
+
+   if (type_is_record(type)) {
+      dest_reg = emit_index(var, VCODE_INVALID_REG);
+      emit_storage_hint(dest_reg, VCODE_INVALID_REG);
+   }
+   else if (type_is_array(type) && lower_const_bounds(type)) {
+      dest_reg  = emit_index(var, VCODE_INVALID_REG);
+      count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+      emit_storage_hint(dest_reg, count_reg);
+   }
 
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
 
    if (type_is_array(type)) {
       lower_check_indexes(type, value, decl);
 
-      if (lower_const_bounds(type)) {
-         vcode_reg_t count = lower_array_total_len(type, value);
-         vcode_reg_t dest  = emit_index(var, VCODE_INVALID_REG);
-         emit_copy(dest, value, count);
-      }
+      if (lower_const_bounds(type))
+         emit_copy(dest_reg, value, count_reg);
       else if (!type_is_unconstrained(type)) {
          vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
          emit_store(rewrap, var);
@@ -3168,8 +3176,7 @@ static void lower_var_decl(tree_t decl)
          emit_store(value, var);
    }
    else if (type_is_record(type)) {
-      vcode_reg_t dest = emit_index(var, VCODE_INVALID_REG);
-      emit_copy(dest, value, VCODE_INVALID_REG);
+      emit_copy(dest_reg, value, VCODE_INVALID_REG);
    }
    else if (type_is_scalar(type)) {
       value = lower_reify(value);
@@ -3795,8 +3802,9 @@ void lower_unit(tree_t unit)
    last_value_i   = ident_new("last_value");
    elide_bounds_i = ident_new("elide_bounds");
 
-   if (getenv("NVC_LOWER_VERBOSE") != NULL)
-      verbose = "";
+   const char *venv = getenv("NVC_LOWER_VERBOSE");
+   if (venv != NULL)
+      verbose = isalpha((int)venv[0]) ? venv : "";
    else
       verbose = opt_get_str("dump-vcode");
 

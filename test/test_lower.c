@@ -419,16 +419,16 @@ START_TEST(test_assign2)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 8 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
-      { VCODE_OP_CONST, .value = 8 },
-      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_COPY },
+      { VCODE_OP_INDEX, .name = "Y" },
+      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };
@@ -436,7 +436,7 @@ START_TEST(test_assign2)
    CHECK_BB(0);
 
    for (int i = 0; i < 8; i++)
-      fail_unless(vcode_get_arg(2, i) == vcode_get_result((i == 6) ? 0 : 1));
+      fail_unless(vcode_get_arg(5, i) == vcode_get_result((i == 6) ? 3 : 4));
 
    EXPECT_BB(1) = {
       { VCODE_OP_CONST, .value = 2 },
@@ -832,10 +832,10 @@ START_TEST(test_arrayop1)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_INDEX, .name = "X" },
+      { VCODE_OP_CONST, .value = 3 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
-      { VCODE_OP_CONST, .value = 3 },
-      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_COPY },
       { VCODE_OP_RETURN }
    };

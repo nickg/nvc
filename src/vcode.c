@@ -2924,6 +2924,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
       vtype_t *br = vcode_type_data(vcode_reg_data(rhs)->bounds);
 
       reg_t *rr = vcode_reg_data(reg);
+      // XXX: this is wrong - see TO_UNSIGNED
       rr->bounds = vtype_int(sadd64(bl->low, -br->high),
                              sadd64(bl->high, -br->low));
    }
