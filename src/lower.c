@@ -76,6 +76,7 @@ static ident_t mangled_i;
 static ident_t last_value_i;
 static ident_t elide_bounds_i;
 static ident_t null_range_i;
+static ident_t deferred_i;
 
 static const char *verbose = NULL;
 
@@ -3344,7 +3345,7 @@ static void lower_decl(tree_t decl)
 {
    switch (tree_kind(decl)) {
    case T_CONST_DECL:
-      if (type_is_scalar(tree_type(decl)))
+      if (type_is_scalar(tree_type(decl)) || tree_attr_int(decl, deferred_i, 0))
           break;
       // Fall-through
 
@@ -3861,6 +3862,7 @@ void lower_unit(tree_t unit)
    last_value_i   = ident_new("last_value");
    elide_bounds_i = ident_new("elide_bounds");
    null_range_i   = ident_new("null_range");
+   deferred_i     = ident_new("deferred");
 
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)
