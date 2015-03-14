@@ -75,6 +75,7 @@ static ident_t never_waits_i;
 static ident_t mangled_i;
 static ident_t last_value_i;
 static ident_t elide_bounds_i;
+static ident_t null_range_i;
 
 static const char *verbose = NULL;
 
@@ -3243,7 +3244,7 @@ static void lower_var_decl(tree_t decl)
 static void lower_signal_decl(tree_t decl)
 {
    const int nnets = tree_nets(decl);
-   if (nnets == 0)
+   if (nnets == 0 && !tree_attr_int(decl, null_range_i, 0))
       return;
 
    type_t type = tree_type(decl);
@@ -3273,6 +3274,9 @@ static void lower_signal_decl(tree_t decl)
    vcode_signal_t sig = emit_signal(stype, bounds, name, shadow,
                                     nets, nnets);
    tree_add_attr_int(decl, vcode_obj_i, sig);
+
+   if (nnets == 0)
+      return;
 
    // Internal signals that were generated from ports will not have
    // an initial value
@@ -3853,6 +3857,7 @@ void lower_unit(tree_t unit)
    mangled_i      = ident_new("mangled");
    last_value_i   = ident_new("last_value");
    elide_bounds_i = ident_new("elide_bounds");
+   null_range_i   = ident_new("null_range");
 
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)

@@ -434,6 +434,9 @@ void vcode_opt(void)
                if (o->result == VCODE_INVALID_REG)
                   break;
             case VCODE_OP_CONST:
+            case VCODE_OP_CONST_REAL:
+            case VCODE_OP_CONST_ARRAY:
+            case VCODE_OP_CONST_RECORD:
             case VCODE_OP_LOAD:
             case VCODE_OP_LOAD_INDIRECT:
             case VCODE_OP_ADD:
@@ -3102,6 +3105,12 @@ void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,
                          vcode_reg_t values, vcode_reg_t reject,
                          vcode_reg_t after)
 {
+   int64_t nconst;
+   if (vcode_reg_const(nnets, &nconst) && nconst == 0) {
+      emit_comment("Skip empty waveform");
+      return;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_SCHED_WAVEFORM);
    vcode_add_arg(op, nets);
    vcode_add_arg(op, nnets);
