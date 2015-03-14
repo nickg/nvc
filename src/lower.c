@@ -1534,8 +1534,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
 
    type_t elem = type_elem(value_type);
    if (type_is_array(elem)) {
-      emit_comment("array of array stride calculation");
       vcode_reg_t stride = lower_array_total_len(elem, VCODE_INVALID_REG);
+      emit_comment("Array of array stride is r%d", stride);
       idx = emit_mul(idx, stride);
    }
 
@@ -1840,6 +1840,12 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    vcode_reg_t ivar = emit_alloca(offset_type, offset_type, VCODE_INVALID_REG);
    emit_store_indirect(emit_const(offset_type, 0), ivar);
 
+   vcode_reg_t stride = VCODE_INVALID_REG;
+   if (type_is_array(elem_type)) {
+      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
+      emit_comment("Array of array stride is r%d", stride);
+   }
+
    vcode_block_t test_bb = emit_block();
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
@@ -1922,7 +1928,11 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       }
    }
 
-   vcode_reg_t ptr_reg = emit_add(mem_reg, i_loaded);
+   vcode_reg_t i_stride = i_loaded;
+   if (stride != VCODE_INVALID_REG)
+      i_stride = emit_mul(i_loaded, stride);
+
+   vcode_reg_t ptr_reg = emit_add(mem_reg, i_stride);
    if (type_is_array(elem_type)) {
       vcode_reg_t src_reg = lower_array_data(what);
       vcode_reg_t length_reg = lower_array_total_len(elem_type, what);

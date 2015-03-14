@@ -179,7 +179,7 @@ bounds12        gold,fail
 # bounds13        gold,fail
 access5         normal
 record6         normal
-# agg6            normal
+agg6            normal
 func14          normal
 operator5       normal
 alias4          normal
