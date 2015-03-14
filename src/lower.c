@@ -2528,19 +2528,50 @@ static void lower_check_array_sizes(tree_t t, type_t ltype, type_t rtype,
    emit_array_size(llen_reg, rlen_reg, tree_index(t));
 }
 
-static void lower_var_assign(tree_t stmt)
+static void lower_find_matching_refs(tree_t ref, void *context)
 {
-   tree_t value = tree_value(stmt);
-   vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
+   tree_t *decl = (tree_t *)context;
+   if (tree_ref(ref) == *decl)
+      *decl = NULL;
+}
+
+static bool lower_assign_can_use_storage_hint(tree_t stmt)
+{
+   // We cannot write directly into an array variable's storage if the RHS
+   // references that array
 
    tree_t target = tree_target(stmt);
-   type_t type = tree_type(target);
+
+   tree_kind_t kind;
+   while ((kind = tree_kind(target)) != T_REF) {
+      switch (kind) {
+      case T_ARRAY_REF:
+      case T_ARRAY_SLICE:
+         target = tree_value(target);
+         break;
+
+      default:
+         return false;
+      }
+   }
+
+   tree_t decl = tree_ref(target);
+   tree_visit_only(tree_value(stmt), lower_find_matching_refs, &decl, T_REF);
+   return decl != NULL;
+}
+
+static void lower_var_assign(tree_t stmt)
+{
+   tree_t value  = tree_value(stmt);
+   tree_t target = tree_target(stmt);
+   type_t type   = tree_type(target);
 
    const bool is_var_decl =
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
    const bool is_scalar = type_is_scalar(type);
 
    if (is_scalar || type_is_access(type)) {
+      vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
       if (is_scalar)
          emit_bounds(loaded_value, lower_bounds(type),
@@ -2551,16 +2582,27 @@ static void lower_var_assign(tree_t stmt)
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
    }
    else if (type_is_array(type)) {
-      vcode_reg_t count = lower_array_total_len(tree_type(value), value_reg);
+      vcode_reg_t target_reg  = lower_expr(target, EXPR_LVALUE);
+      vcode_reg_t count_reg   = lower_array_total_len(type, target_reg);
+      vcode_reg_t target_data = lower_array_data(target_reg);
+
+      if (lower_assign_can_use_storage_hint(stmt))
+         emit_storage_hint(target_data, count_reg);
+
+      vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t src_data = lower_array_data(value_reg);
-      vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
       lower_check_array_sizes(stmt, type, tree_type(value),
                               target_reg, value_reg);
-      emit_copy(lower_array_data(target_reg), src_data, count);
+      emit_copy(target_data, src_data, count_reg);
    }
    else {
-      vcode_reg_t count = emit_const(vtype_offset(), 1);
-      emit_copy(lower_expr(target, EXPR_LVALUE), value_reg, count);
+      vcode_reg_t value_reg  = lower_expr(value, EXPR_RVALUE);
+      vcode_reg_t target_reg = lower_expr(target, EXPR_LVALUE);
+
+      if (lower_assign_can_use_storage_hint(stmt))
+         emit_storage_hint(target_reg, VCODE_INVALID_REG);
+
+      emit_copy(target_reg, value_reg, VCODE_INVALID_REG);
    }
 }
 
