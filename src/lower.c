@@ -1995,6 +1995,8 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
       }
       else if (type_is_record(value_type) && is_const)
          v = lower_record_aggregate(value, true, true, ctx);
+      else if (type_is_scalar(value_type))
+         v = lower_reify_expr(value);
       else
          v = lower_expr(value, ctx);
 
