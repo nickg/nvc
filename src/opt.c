@@ -86,35 +86,6 @@ static void opt_tag_simple_procedure(tree_t t)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Tag array and record variables that are returned from functions
-//
-// This is used to avoid allocating extra memory for the result
-//
-
-static void opt_tag_return_array(tree_t t)
-{
-   if (!tree_has_value(t))
-      return;
-
-   tree_t value = tree_value(t);
-
-   if (tree_kind(value) != T_REF)
-      return;
-
-   type_t type = tree_type(value);
-
-   if (!type_is_array(type) && !type_is_record(type))
-      return;
-
-   tree_t decl = tree_ref(value);
-
-   if (tree_kind(decl) != T_VAR_DECL)
-      return;
-
-   tree_add_attr_int(decl, ident_new("returned"), 1);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // If an array reference index is a reference to an induction variable with
 // the same range as the array then elide bounds checking at runtime
 //
@@ -200,10 +171,6 @@ static void opt_tag(tree_t t, void *ctx)
    switch (tree_kind(t)) {
    case T_PROC_BODY:
       opt_tag_simple_procedure(t);
-      break;
-
-   case T_RETURN:
-      opt_tag_return_array(t);
       break;
 
    case T_ARRAY_REF:

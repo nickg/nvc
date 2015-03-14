@@ -1074,13 +1074,18 @@ static void cgen_op_alloca(int op, cgen_ctx_t *ctx)
    vcode_reg_t result = vcode_get_result(op);
    LLVMTypeRef type   = cgen_type(vcode_get_type(op));
 
-   if (vcode_count_args(op) == 0)
+   if (vcode_get_subkind(op) == VCODE_ALLOCA_HEAP) {
+      LLVMValueRef bytes = llvm_sizeof(type);
+      if (vcode_count_args(op) > 0)
+         bytes = LLVMBuildMul(builder, bytes, cgen_get_arg(op, 0, ctx), "");
+      ctx->regs[result] = cgen_tmp_alloc(bytes, type);
+   }
+   else if (vcode_count_args(op) == 0)
       ctx->regs[result] = LLVMBuildAlloca(builder, type, cgen_reg_name(result));
    else {
-      vcode_reg_t count = vcode_get_arg(op, 0);
-      LLVMValueRef bytes = LLVMBuildMul(builder, ctx->regs[count],
-                                        llvm_sizeof(type), "bytes");
-      ctx->regs[result] = cgen_tmp_alloc(bytes, type);
+      LLVMValueRef count = cgen_get_arg(op, 0, ctx);
+      ctx->regs[result] = LLVMBuildArrayAlloca(builder, type, count,
+                                               cgen_reg_name(result));
    }
 }
 
@@ -3152,7 +3157,7 @@ static void cgen_module_name(tree_t top)
 static void cgen_tmp_stack(void)
 {
    LLVMValueRef _tmp_stack =
-      LLVMAddGlobal(module, LLVMPointerType(llvm_void_ptr(), 0), "_tmp_stack");
+      LLVMAddGlobal(module, llvm_void_ptr(), "_tmp_stack");
    LLVMSetLinkage(_tmp_stack, LLVMExternalLinkage);
 
    LLVMValueRef _tmp_alloc =

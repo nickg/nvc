@@ -777,7 +777,6 @@ void *_vec_load(const int32_t *nids, void *where,
 
 void _image(int64_t val, int32_t where, const char *module, struct uarray *u)
 {
-   TRACE("_image val=%"PRIi64, val);
    tree_t t = rt_recall_tree(module, where);
 
    type_t type = type_base_recur(tree_type(t));

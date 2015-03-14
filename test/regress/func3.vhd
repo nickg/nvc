@@ -4,7 +4,7 @@ end entity;
 architecture test of func3 is
 
     type int_array is array (integer range <>) of integer;
-    
+
     function copy_and_sum_1(x : int_array) return integer is
         variable tmp : int_array(1 to x'length);
         variable sum : integer := 0;
@@ -17,7 +17,7 @@ architecture test of func3 is
         end loop;
         return sum;
     end function;
-        
+
     function copy_and_sum_2(x : int_array) return integer is
         variable tmp : int_array(x'range);
         variable sum : integer := 0;
@@ -44,12 +44,12 @@ architecture test of func3 is
         variable tmp : int_array(x'range);
     begin
         for i in tmp'range loop
-            report integer'image(i);
             tmp(i) := x(i) + y;
+            report integer'image(tmp(i));
         end loop;
         return tmp;
     end function;
-    
+
 begin
 
     process is
@@ -66,5 +66,5 @@ begin
         assert c = (6, 7, 8, 9, 10);
         wait;
     end process;
-    
+
 end architecture;

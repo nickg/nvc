@@ -230,6 +230,19 @@ static op_t *vcode_op_data(int op)
    return op_array_nth_ptr(&(b->ops), op);
 }
 
+static op_t *vcode_find_definition(vcode_reg_t reg)
+{
+   for (int i = active_block; i >= 0; i--) {
+      block_t *b = &(active_unit->blocks.items[i]);
+      for (int j = b->ops.count - 1; j >= 0; j--) {
+         if (b->ops.items[j].result == reg)
+            return &(b->ops.items[j]);
+      }
+   }
+
+   return NULL;
+}
+
 static reg_t *vcode_reg_data(vcode_reg_t reg)
 {
    assert(active_unit != NULL);
@@ -292,6 +305,68 @@ static bool vcode_dominating_ops(vcode_op_t kind, op_t **next)
    }
 
    return false;
+}
+
+static void vcode_return_safety_check(vcode_reg_t reg)
+{
+   op_t *defn = vcode_find_definition(reg);
+   if (defn == NULL) {
+      // It is always safe to return a pointer to an argument
+      return;
+   }
+
+   switch (defn->kind) {
+   case VCODE_OP_CONST:
+   case VCODE_OP_CONST_REAL:
+   case VCODE_OP_CONST_ARRAY:
+      break;
+
+   case VCODE_OP_ALLOCA:
+      defn->subkind = VCODE_ALLOCA_HEAP;
+      break;
+
+   case VCODE_OP_INDEX:
+      vcode_var_data(defn->address)->use_heap = true;
+      break;
+
+   case VCODE_OP_WRAP:
+      vcode_return_safety_check(defn->args.items[0]);
+      break;
+
+   case VCODE_OP_ADD:
+      // When adding pointers only the first argument is a pointer
+      vcode_return_safety_check(defn->args.items[0]);
+      break;
+
+   case VCODE_OP_UNWRAP:
+      vcode_return_safety_check(defn->args.items[0]);
+      break;
+
+   case VCODE_OP_LOAD:
+      {
+         // Any store to this variable must be return-safe
+         for (int i = 0; i < active_unit->blocks.count; i++) {
+            block_t *b = &(active_unit->blocks.items[i]);
+            for (int j = 0; j < b->ops.count; j++) {
+               op_t *op = &(b->ops.items[j]);
+               if (op->kind == VCODE_OP_STORE && op->address == defn->address)
+                  vcode_return_safety_check(op->args.items[0]);
+
+               VCODE_ASSERT(
+                  op->kind != VCODE_OP_INDEX || op->address != defn->address,
+                  "cannot return safety check aliased pointer r%d", reg);
+            }
+         }
+      }
+      break;
+
+   case VCODE_OP_FCALL:
+      // Must have been safety checked by definition
+      break;
+
+   default:
+      VCODE_ASSERT(false, "cannot return safety check r%d", reg);
+   }
 }
 
 int vcode_count_regs(void)
@@ -543,7 +618,8 @@ unsigned vcode_get_subkind(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
-          || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT);
+          || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT
+          || o->kind == VCODE_OP_ALLOCA);
    return o->subkind;
 }
 
@@ -1001,6 +1077,8 @@ void vcode_dump(void)
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
+               if (op->subkind == VCODE_ALLOCA_HEAP)
+                  col += printf("heap ");
                if (op->args.count > 0)
                   col += vcode_dump_reg(op->args.items[0]);
                vcode_dump_result_type(col, op);
@@ -2343,8 +2421,9 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
    }
 
    op_t *op = vcode_add_op(VCODE_OP_ALLOCA);
-   op->type   = type;
-   op->result = vcode_add_reg(vtype_pointer(type));
+   op->type    = type;
+   op->result  = vcode_add_reg(vtype_pointer(type));
+   op->subkind = VCODE_ALLOCA_STACK;
 
    if (count != VCODE_INVALID_REG)
       vcode_add_arg(op, count);
@@ -2495,7 +2574,7 @@ void emit_jump(vcode_block_t target)
 }
 
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
-                     bool is_const, bool use_heap)
+                     bool is_const)
 {
    assert(active_unit != NULL);
 
@@ -2506,7 +2585,7 @@ vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
    v->bounds   = bounds;
    v->name     = name;
    v->is_const = is_const;
-   v->use_heap = use_heap;
+   v->use_heap = false;
 
    return MAKE_HANDLE(active_unit->depth, var);
 }
@@ -2524,7 +2603,7 @@ vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
          return MAKE_HANDLE(active_unit->depth, i);
    }
 
-   vcode_var_t var = emit_var(type, bounds, name, false, false);
+   vcode_var_t var = emit_var(type, bounds, name, false);
    vcode_var_data(var)->is_extern = true;
    return var;
 }
@@ -2985,6 +3064,10 @@ void emit_return(vcode_reg_t reg)
                    "returning value fron non-function unit");
       VCODE_ASSERT(vtype_eq(active_unit->result, vcode_reg_type(reg)),
                    "return value incorrect type");
+
+      vtype_kind_t rkind = vcode_reg_kind(reg);
+      if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY)
+         vcode_return_safety_check(reg);
    }
 }
 

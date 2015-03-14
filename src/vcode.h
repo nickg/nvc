@@ -142,6 +142,11 @@ typedef enum {
    VCODE_UNIT_PROCEDURE
 } vunit_kind_t;
 
+typedef enum {
+   VCODE_ALLOCA_STACK,
+   VCODE_ALLOCA_HEAP
+} vcode_alloca_t;
+
 typedef struct {
    vcode_reg_t left;
    vcode_reg_t right;
@@ -257,7 +262,7 @@ vcode_unit_t emit_process(ident_t name, vcode_unit_t context);
 vcode_unit_t emit_context(ident_t name);
 vcode_block_t emit_block(void);
 vcode_var_t emit_var(vcode_type_t type, vcode_type_t bounds, ident_t name,
-                     bool is_const, bool use_heap);
+                     bool is_const);
 vcode_var_t emit_extern_var(vcode_type_t type, vcode_type_t bounds,
                             ident_t name);
 vcode_signal_t emit_signal(vcode_type_t type, vcode_type_t bounds,
