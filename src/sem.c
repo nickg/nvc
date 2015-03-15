@@ -5511,13 +5511,22 @@ static bool sem_locally_static(tree_t t)
    else if (kind == T_OPEN)
       return true;
 
-   // A constant reference with a locally static value
-   if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_CONST_DECL)) {
+   if (kind == T_REF) {
       tree_t decl = tree_ref(t);
-      tree_t value = tree_value(decl);
-      return sem_subtype_locally_static(tree_type(decl))
-         && sem_locally_static(value)
-         && !tree_attr_int(value, unconstrained_i, 0);
+      const tree_kind_t dkind = tree_kind(decl);
+
+      // A constant reference with a locally static value
+      if (dkind == T_CONST_DECL) {
+         tree_t value = tree_value(decl);
+         return sem_subtype_locally_static(tree_type(decl))
+            && sem_locally_static(value)
+            && !tree_attr_int(value, unconstrained_i, 0);
+      }
+      else if (standard() >= STD_08 && dkind == T_PORT_DECL) {
+         // [2008] A generic reference with a locally static subtype
+         return tree_class(decl) == C_CONSTANT
+            && sem_subtype_locally_static(tree_type(decl));
+      }
    }
 
    // An alias of a locally static name

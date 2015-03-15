@@ -1787,6 +1787,24 @@ START_TEST(test_issue102)
 }
 END_TEST
 
+START_TEST(test_issue105)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/issue105.vhd");
+
+   for (int i = 0; i < 4; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      sem_check(t);
+   }
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -1834,6 +1852,7 @@ int main(void)
    tcase_add_test(tc_core, test_protected);
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_issue102);
+   tcase_add_test(tc_core, test_issue105);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);
