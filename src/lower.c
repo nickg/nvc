@@ -1615,9 +1615,12 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       kind_reg  = lower_array_dir(type, 0, array_reg);
    }
 
+   vcode_reg_t stride_reg = emit_const(vtype_offset(),
+                                       type_width(type_elem(type)));
+
    vcode_reg_t data_reg = lower_array_data(array_reg);
    vcode_reg_t off_reg  = lower_array_off(left_reg, array_reg, type, 0);
-   vcode_reg_t ptr_reg  = emit_add(data_reg, off_reg);
+   vcode_reg_t ptr_reg  = emit_add(data_reg, emit_mul(off_reg, stride_reg));
 
    const bool unwrap = lower_is_const(r.left) && lower_is_const(r.right);
 
@@ -2110,9 +2113,14 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       lower_expr(args[1], ctx)
    };
 
-   vcode_reg_t var_reg = VCODE_INVALID_REG;
    type_t type = tree_type(expr);
    type_t elem = type_elem(type);
+
+   type_t scalar_elem = elem;
+   while (type_is_array(scalar_elem))
+      scalar_elem = type_elem(scalar_elem);
+
+   vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
       vcode_reg_t args_len[] = {
          lower_array_len(arg_types[0], 0, arg_regs[0]),
@@ -2131,7 +2139,8 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       var_reg = emit_wrap(data, dims, 1);
    }
    else
-      var_reg = emit_alloca(lower_type(elem), lower_bounds(elem),
+      var_reg = emit_alloca(lower_type(scalar_elem),
+                            lower_bounds(scalar_elem),
                             lower_array_total_len(type, VCODE_INVALID_REG));
 
    vcode_reg_t ptr = lower_array_data(var_reg);
