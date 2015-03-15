@@ -3225,15 +3225,31 @@ static void lower_var_decl(tree_t decl)
 
    vcode_reg_t dest_reg  = VCODE_INVALID_REG;
    vcode_reg_t count_reg = VCODE_INVALID_REG;
+   vcode_reg_t mem_reg   = VCODE_INVALID_REG;
+   vcode_reg_t raw_reg   = VCODE_INVALID_REG;
 
    if (type_is_record(type)) {
       dest_reg = emit_index(var, VCODE_INVALID_REG);
       emit_storage_hint(dest_reg, VCODE_INVALID_REG);
    }
-   else if (type_is_array(type) && lower_const_bounds(type)) {
-      dest_reg  = emit_index(var, VCODE_INVALID_REG);
-      count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
-      emit_storage_hint(dest_reg, count_reg);
+   else if (type_is_array(type)) {
+      if (lower_const_bounds(type)) {
+         dest_reg  = emit_index(var, VCODE_INVALID_REG);
+         count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+         emit_storage_hint(dest_reg, count_reg);
+      }
+      else if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+         // Need to allocate this array from the heap as it will need remain
+         // valid after the procedure suspends
+
+         type_t elem = type_elem(type);
+
+         count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+         mem_reg   = emit_new(lower_type(elem), count_reg);
+         raw_reg   = emit_all(mem_reg);
+
+         emit_storage_hint(raw_reg, count_reg);
+      }
    }
 
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
@@ -3245,15 +3261,6 @@ static void lower_var_decl(tree_t decl)
          emit_copy(dest_reg, lower_array_data(value), count_reg);
       else {
          if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
-            // Need to allocate this array from the heap as it will need remain
-            // valid after the procedure suspends
-
-            type_t elem = type_elem(type);
-
-            vcode_reg_t length_reg = lower_array_total_len(type, value);
-            vcode_reg_t mem_reg    = emit_new(lower_type(elem), length_reg);
-            vcode_reg_t raw_reg    = emit_all(mem_reg);
-
             emit_copy(raw_reg, lower_array_data(value), count_reg);
 
             vcode_reg_t rewrap = lower_wrap(type, raw_reg);

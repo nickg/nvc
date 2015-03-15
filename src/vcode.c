@@ -3200,6 +3200,14 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
    if (vcode_reg_const(test, &tconst))
       return !!tconst ? rtrue : rfalse;
 
+   // Find a previous identical select
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_SELECT, &other)) {
+      if (other->args.items[0] == test && other->args.items[1] == rtrue
+          && other->args.items[2] == rfalse)
+         return other->result;
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_SELECT);
    vcode_add_arg(op, test);
    vcode_add_arg(op, rtrue);

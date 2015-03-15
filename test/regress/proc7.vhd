@@ -7,7 +7,7 @@ architecture test of proc7 is
         variable c : bit_vector(b'range);
     begin
         assert c(c'left) = '0';
-        -- wait for 1 ns;
+        --wait for 1 ns;
         for i in b'range loop
             c(i) := b(i);
         end loop;
