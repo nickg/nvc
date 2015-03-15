@@ -105,6 +105,7 @@ static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
+static unsigned      relax = 0;
 static type_set_t   *top_type_set = NULL;
 static loop_stack_t *loop_stack = NULL;
 static ident_t       builtin_i;
@@ -116,7 +117,6 @@ static ident_t       all_i;
 static ident_t       shared_i;
 static ident_t       unconstrained_i;
 static ident_t       protected_i;
-static bool          prefer_explicit = false;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -1345,7 +1345,7 @@ static bool sem_check_range(range_t *r, type_t context)
 
          // See LRM 93 section 3.2.1.1
          // Later LRMs relax the wording here
-         if (standard() < STD_00) {
+         if (standard() < STD_00 && !(relax & RELAX_UNIVERSAL_BOUND)) {
             if ((lkind != T_LITERAL) && (lkind != T_ATTR_REF)
                 && (rkind != T_LITERAL) && (rkind != T_ATTR_REF))
                sem_error(r->left, "universal integer bound must be "
@@ -3534,6 +3534,8 @@ static bool sem_check_fcall(tree_t t)
    int max_overloads = 128;
    tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
 
+   const bool prefer_explicit = relax & RELAX_PREFER_EXPLICT;
+
    tree_t decl;
    ident_t name = tree_ident(t);
    int n = 0, found_func = 0;
@@ -3643,7 +3645,7 @@ static bool sem_check_fcall(tree_t t)
       }
 
       if ((nimplicit == 1) && (nexplicit == 1))
-         tb_printf(tb, "\nYou can use the --prefer-explicit option to "
+         tb_printf(tb, "\nYou can use the --relax=prefer-explicit option to "
                    "hide the implicit %s",
                    operator ? "operator" : "function");
 
@@ -5522,7 +5524,8 @@ static bool sem_locally_static(tree_t t)
             && sem_locally_static(value)
             && !tree_attr_int(value, unconstrained_i, 0);
       }
-      else if (standard() >= STD_08 && dkind == T_PORT_DECL) {
+      else if ((standard() >= STD_08 || relax & RELAX_GENERIC_STATIC)
+               && dkind == T_PORT_DECL) {
          // [2008] A generic reference with a locally static subtype
          return tree_class(decl) == C_CONSTANT
             && sem_subtype_locally_static(tree_type(decl));
@@ -6528,8 +6531,6 @@ static void sem_intern_strings(void)
    shared_i         = ident_new("shared");
    unconstrained_i  = ident_new("unconstrained");
    protected_i      = ident_new("protected");
-
-   prefer_explicit  = opt_get_int("prefer-explicit");
 }
 
 bool sem_check(tree_t t)
@@ -6537,6 +6538,7 @@ bool sem_check(tree_t t)
    static bool have_interned = false;
    if (!have_interned) {
       sem_intern_strings();
+      relax = opt_get_int("relax");
       have_interned = true;
    }
 

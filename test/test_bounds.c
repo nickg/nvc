@@ -24,7 +24,7 @@ static void setup(void)
    lib_set_work(lib_tmp());
    opt_set_int("bootstrap", 0);
    opt_set_int("unit-test", 1);
-   opt_set_int("prefer-explicit", 0);
+   opt_set_int("relax", 0);
 }
 
 static void teardown(void)

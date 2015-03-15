@@ -62,14 +62,40 @@ static ident_t to_unit_name(const char *str)
    return i;
 }
 
+static unsigned parse_relax(const char *str)
+{
+   char *copy = strdup(str);
+   assert(copy);
+
+   unsigned mask = 0;
+
+   char *token = strtok(copy, ",");
+   while (token != NULL) {
+      if (strcmp(token, "prefer-explicit") == 0)
+         mask |= RELAX_PREFER_EXPLICT;
+      else if (strcmp(token, "generic-static") == 0)
+         mask |= RELAX_GENERIC_STATIC;
+      else if (strcmp(token, "universal-bound") == 0)
+         mask |= RELAX_UNIVERSAL_BOUND;
+      else
+         fatal("invalid relax option '%s'", token);
+
+      token = strtok(NULL, ",");
+   }
+
+   free(copy);
+   return mask;
+}
+
 static int analyse(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "bootstrap",       no_argument, 0, 'b' },
-      { "dump-llvm",       no_argument, 0, 'd' },
-      { "prefer-explicit", no_argument, 0, 'p' },
+      { "bootstrap",       no_argument,       0, 'b' },
+      { "dump-llvm",       no_argument,       0, 'd' },
+      { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
+      { "relax",           required_argument, 0, 'r' },
       { 0, 0, 0, 0 }
    };
 
@@ -90,7 +116,12 @@ static int analyse(int argc, char **argv)
          opt_set_int("dump-llvm", 1);
          break;
       case 'p':
-         opt_set_int("prefer-explicit", 1);
+         warnf("the --prefer-explict option is deprecated: use "
+               "--relax=prefer-explict instead");
+         opt_set_int("relax", RELAX_PREFER_EXPLICT);
+         break;
+      case 'r':
+         opt_set_int("relax", parse_relax(optarg));
          break;
       default:
          abort();
@@ -566,6 +597,7 @@ static void set_default_opts(void)
    opt_set_int("make-deps-only", 0);
    opt_set_int("make-posix", 0);
    opt_set_str("work-name", "work");
+   opt_set_int("relax", 0);
 }
 
 static void usage(void)
@@ -590,7 +622,7 @@ static void usage(void)
           "\n"
           "Analyse options:\n"
           "     --bootstrap\tAllow compilation of STANDARD package\n"
-          "     --prefer-explicit\tExplict operators always hide implicit\n"
+          "     --relax=RULES\tDisable certain pedantic rule checks\n"
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"

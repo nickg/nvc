@@ -52,7 +52,7 @@ specific options must be placed after the command.
    Add _path_ to the list of directories to search for libraries (see
    [LIBRARIES][] section below).
 
- * `--messages` _style_:
+ * `--messages=`_style_:
    Select either the _full_ or _compact_ message format. The default full message
    format is designed for readability whereas the compact messages can be easily
    parsed by tools.
@@ -66,19 +66,17 @@ specific options must be placed after the command.
  * `-v`, `--version`:
    Display version and copyright information.
 
- * `--work=` _name_:
+ * `--work=`_name_:
    Use _name_ as the work library (see [LIBRARIES][] section below).
 
 ### Analysis options
 
- * `--bootstrap`:
+* `--bootstrap`:
   Allow compilation of the STANDARD package. Not intended for end users.
 
- * `--prefer-explicit`:
-  Any visible explicitly declared operator always hides an implicit operator
-  regardless of the region in which it is declared. This deviates from the
-  VHDL standard but is required to analyse code that uses the Synopsys
-  `std_logic_arith` package.
+* `--relax=`_rules_:
+  Disable certain pedantic rule checks specified in the comma-separate list
+  _rules_. See [RELAXING RULES][] section below for full list.
 
 ### Elaboration options
 
@@ -166,6 +164,26 @@ specific options must be placed after the command.
  * `--posix`:
    The generated makefile will work with any POSIX compliant make. Otherwise the
    output may use extensions specific to GNU make.
+
+## RELAXING RULES
+
+The following can be specified as a comma-separated list to the `--relax` option to
+disable certain semantic rule checks.
+
+* `prefer-explict`:
+  Any visible explicitly declared operator always hides an implicit
+  operator regardless of the region in which it is declared. This is required to
+  analyse code that uses the Synopsys `std_logic_arith` package.
+
+* `generic-static`:
+  References to generics are allowed in locally static expressions using the
+  VHDL-2008 rules.
+
+* `universal-bound`:
+  Prior to VHDL-2000 when range bounds have universal integer type the expressions
+  must be either numeric literals or attributes. This option
+  allows ranges such as `-1 to 1` in VHDL-1993 which otherwise must be written
+  `integer'(-1) to 1`.
 
 ## SELECTING SIGNALS
 

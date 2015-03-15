@@ -30,7 +30,7 @@ $libdir = "#{File.expand_path '~'}/.nvc/lib"
 FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
-  cmd = "nvc --work=#{$libdir}/#{lib} -a --prefer-explicit #{$src}/#{file}"
+  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit #{$src}/#{file}"
   puts cmd
   exit 1 unless system cmd
 end

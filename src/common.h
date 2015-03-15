@@ -74,4 +74,12 @@ vhdl_standard_t standard(void);
 void set_standard(vhdl_standard_t s);
 const char *standard_text(vhdl_standard_t s);
 
+//
+// Disable some pedantic rule checks
+//
+
+#define RELAX_PREFER_EXPLICT  (1 << 0)
+#define RELAX_GENERIC_STATIC  (1 << 1)
+#define RELAX_UNIVERSAL_BOUND (1 << 2)
+
 #endif  // _COMMON_H
