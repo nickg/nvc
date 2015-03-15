@@ -105,7 +105,7 @@ issue9          normal
 record4         normal
 record5         normal
 const3          normal,gold
-# proc7           normal,gold
+proc7           normal,gold
 attr2           normal
 # func10          normal
 attr3           normal,gold

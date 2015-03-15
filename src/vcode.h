@@ -312,7 +312,7 @@ void emit_dynamic_index_check(vcode_reg_t reg, vcode_reg_t low,
                               vcode_reg_t high, bounds_kind_t kind,
                               uint32_t index);
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset);
-vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg);
+vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t bounds, vcode_reg_t reg);
 void emit_return(vcode_reg_t reg);
 vcode_reg_t emit_nets(vcode_signal_t sig);
 void emit_sched_waveform(vcode_reg_t nets, vcode_reg_t nnets,

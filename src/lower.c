@@ -141,7 +141,8 @@ static vcode_reg_t lower_array_data(vcode_reg_t reg)
       return reg;
 
    case VCODE_TYPE_CARRAY:
-      return emit_cast(vtype_pointer(vtype_elem(type)), reg);
+      return emit_cast(vtype_pointer(vtype_elem(type)),
+                       VCODE_INVALID_TYPE, reg);
 
    default:
       vcode_dump();
@@ -153,7 +154,8 @@ static vcode_reg_t lower_array_left(type_t type, int dim, vcode_reg_t reg)
 {
    if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
-      return emit_cast(lower_type(index_type_of(type, dim)),
+      type_t index_type = index_type_of(type, dim);
+      return emit_cast(lower_type(index_type), lower_bounds(index_type),
                        emit_uarray_left(reg, dim));
    }
    else {
@@ -166,7 +168,8 @@ static vcode_reg_t lower_array_right(type_t type, int dim, vcode_reg_t reg)
 {
    if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
-      return emit_cast(lower_type(index_type_of(type, dim)),
+      type_t index_type = index_type_of(type, dim);
+      return emit_cast(lower_type(index_type), lower_bounds(index_type),
                        emit_uarray_right(reg, dim));
    }
    else {
@@ -266,7 +269,7 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
    }
 
    vcode_type_t offset_type = vtype_offset();
-   vcode_reg_t cast_reg = emit_cast(offset_type, len_reg);
+   vcode_reg_t cast_reg = emit_cast(offset_type, VCODE_INVALID_TYPE, len_reg);
    vcode_reg_t zero_reg = emit_const(offset_type, 0);
    vcode_reg_t neg_reg = emit_cmp(VCODE_CMP_LT, cast_reg, zero_reg);
 
@@ -833,7 +836,7 @@ static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
 
    vcode_type_t vtype = lower_type(result);
    if (!vtype_eq(vtype, vcode_reg_type(reg)))
-      return emit_cast(vtype, reg);
+      return emit_cast(vtype, lower_bounds(result), reg);
    else
       return reg;
 }
@@ -888,7 +891,7 @@ static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
    vcode_reg_t len_reg  = lower_array_len(type, 0, array);
    vcode_reg_t dir_reg  = lower_array_dir(type, 0, array);
 
-   vcode_reg_t shift_reg = emit_cast(vtype_offset(), shift);
+   vcode_reg_t shift_reg = emit_cast(vtype_offset(), VCODE_INVALID_TYPE, shift);
 
    return emit_bit_shift(kind, data_reg, len_reg, dir_reg, shift_reg, vtype);
 }
@@ -916,7 +919,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       else
          reg = lower_array_right(type, dim, lower_reify_expr(array));
 
-      return emit_cast(lower_type(tree_type(fcall)), reg);
+      return emit_cast(lower_type(tree_type(fcall)), VCODE_INVALID_TYPE, reg);
    }
    else if (icmp(builtin, "low") || icmp(builtin, "high")) {
       tree_t array = tree_value(tree_param(fcall, 1));
@@ -942,7 +945,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
             reg = emit_select(downto_reg, left_reg, right_reg);
       }
 
-      return emit_cast(lower_type(tree_type(fcall)), reg);
+      return emit_cast(lower_type(tree_type(fcall)), VCODE_INVALID_TYPE, reg);
    }
    else if (icmp(builtin, "ascending")) {
       tree_t array = tree_value(tree_param(fcall, 1));
@@ -956,6 +959,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "length")) {
       const int dim = assume_int(p0) - 1;
       return emit_cast(lower_type(tree_type(fcall)),
+                       VCODE_INVALID_TYPE,
                        lower_array_len(lower_arg_type(fcall, 1), dim,
                                        lower_subprogram_arg(fcall, 1)));
    }
@@ -1003,13 +1007,13 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_arith(fcall, emit_sub, r0, r1);
    else if (icmp(builtin, "div")) {
       if (!type_eq(r0_type, r1_type))
-         r1 = emit_cast(lower_type(r0_type), r1);
+         r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
       return lower_narrow(tree_type(fcall),
                           emit_div(r0, r1, tree_index(fcall)));
    }
    else if (icmp(builtin, "exp")) {
       if (!type_eq(r0_type, r1_type))
-         r1 = emit_cast(lower_type(r0_type), r1);
+         r1 = emit_cast(lower_type(r0_type), lower_bounds(r0_type), r1);
       return lower_arith(fcall, emit_exp, r0, r1);
    }
    else if (icmp(builtin, "mod"))
@@ -1132,10 +1136,12 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       type_t f_type = tree_type(fcall);
       emit_bounds(r0, lower_bounds(f_type),
                   lower_type_bounds_kind(f_type), tree_index(fcall));
-      return emit_cast(lower_type(f_type), r0);
+      return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
    }
-   else if (icmp(builtin, "pos"))
-      return emit_cast(lower_type(tree_type(fcall)), r0);
+   else if (icmp(builtin, "pos")) {
+      type_t f_type = tree_type(fcall);
+      return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
+   }
    else if (icmp(builtin, "value"))
       return emit_value(lower_array_data(r0),
                         lower_array_len(r0_type, 0, r0),
@@ -1433,7 +1439,7 @@ static vcode_reg_t lower_array_off(vcode_reg_t off, vcode_reg_t array,
          zeroed = emit_sub(left, off);
    }
 
-   return emit_cast(vtype_offset(), zeroed);
+   return emit_cast(vtype_offset(), VCODE_INVALID_TYPE, zeroed);
 }
 
 static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
@@ -1901,7 +1907,8 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
             vcode_reg_t upto_reg   = emit_sub(name_reg, left_reg);
 
             vcode_reg_t off_reg  = emit_select(dir_reg, downto_reg, upto_reg);
-            vcode_reg_t cast_reg = emit_cast(vtype_offset(), off_reg);
+            vcode_reg_t cast_reg = emit_cast(vtype_offset(),
+                                             VCODE_INVALID_TYPE, off_reg);
 
             vcode_reg_t eq = emit_cmp(VCODE_CMP_EQ, i_loaded, cast_reg);
             what = emit_select(eq, value_reg, what);
@@ -1919,10 +1926,12 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
 
             vcode_reg_t lcmp_reg =
                emit_cmp(lpred, i_loaded,
-                        emit_cast(offset_type, lower_reify_expr(r.left)));
+                        emit_cast(offset_type, VCODE_INVALID_TYPE,
+                                  lower_reify_expr(r.left)));
             vcode_reg_t rcmp_reg =
                emit_cmp(rpred, i_loaded,
-                        emit_cast(offset_type, lower_reify_expr(r.right)));
+                        emit_cast(offset_type, VCODE_INVALID_TYPE,
+                                  lower_reify_expr(r.right)));
 
             vcode_reg_t in_reg = emit_or(lcmp_reg, rcmp_reg);
             what = emit_select(in_reg, value_reg, what);
@@ -2240,16 +2249,16 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
    vcode_reg_t value_reg = lower_expr(value, ctx);
 
    if (from_k == T_REAL && to_k == T_INTEGER)
-      return emit_cast(lower_type(to), value_reg);
+      return emit_cast(lower_type(to), lower_bounds(to), value_reg);
    else if (from_k == T_INTEGER && to_k == T_REAL)
-      return emit_cast(lower_type(to), value_reg);
+      return emit_cast(lower_type(to), lower_bounds(to), value_reg);
    else if (type_is_array(to) && !lower_const_bounds(to)) {
       // Need to wrap in metadata
       return lower_wrap(from, value_reg);
    }
    else if (from_k == T_INTEGER && to_k == T_INTEGER)
       // Possibly change width
-      return emit_cast(lower_type(to), value_reg);
+      return emit_cast(lower_type(to), lower_bounds(to), value_reg);
    else {
       // No conversion to perform
       return value_reg;
@@ -3234,12 +3243,29 @@ static void lower_var_decl(tree_t decl)
 
       if (lower_const_bounds(type))
          emit_copy(dest_reg, lower_array_data(value), count_reg);
-      else if (!type_is_unconstrained(type)) {
-         vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
-         emit_store(rewrap, var);
+      else {
+         if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+            // Need to allocate this array from the heap as it will need remain
+            // valid after the procedure suspends
+
+            type_t elem = type_elem(type);
+
+            vcode_reg_t length_reg = lower_array_total_len(type, value);
+            vcode_reg_t mem_reg    = emit_new(lower_type(elem), length_reg);
+            vcode_reg_t raw_reg    = emit_all(mem_reg);
+
+            emit_copy(raw_reg, lower_array_data(value), count_reg);
+
+            vcode_reg_t rewrap = lower_wrap(type, raw_reg);
+            emit_store(rewrap, var);
+         }
+         else if (!type_is_unconstrained(type)) {
+            vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
+            emit_store(rewrap, var);
+         }
+         else
+            emit_store(value, var);
       }
-      else
-         emit_store(value, var);
    }
    else if (type_is_record(type)) {
       emit_copy(dest_reg, value, VCODE_INVALID_REG);

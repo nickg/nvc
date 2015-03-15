@@ -3008,7 +3008,7 @@ vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
    return op->result;
 }
 
-vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
+vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
 {
    if (vtype_eq(vcode_reg_type(reg), type))
       return reg;
@@ -3048,6 +3048,10 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_reg_t reg)
    if (from == VCODE_TYPE_INT) {
       reg_t *rr = vcode_reg_data(op->result);
       rr->bounds = vcode_reg_bounds(reg);
+   }
+   else if (to == VCODE_TYPE_INT && bounds != VCODE_INVALID_TYPE) {
+      reg_t *rr = vcode_reg_data(op->result);
+      rr->bounds = bounds;
    }
 
    for (size_t i = 0; i < ARRAY_LEN(allowed); i++) {

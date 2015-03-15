@@ -2624,7 +2624,6 @@ static void cgen_procedure(LLVMTypeRef display_type)
    }
 
    cgen_jump_table(&ctx);
-   cgen_locals(&ctx);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
 }
