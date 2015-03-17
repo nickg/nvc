@@ -45,6 +45,7 @@ static void setup(void)
    opt_set_int("unit-test", 1);
    opt_set_int("prefer-explicit", 0);
    opt_set_str("dump-vcode", NULL);
+   opt_set_int("relax", 0);
 }
 
 static void teardown(void)
