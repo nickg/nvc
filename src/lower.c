@@ -728,6 +728,23 @@ static ident_t lower_mangle_func(tree_t decl)
    if (prev != NULL)
       return prev;
 
+   tree_t foreign = tree_attr_tree(decl, foreign_i);
+   if (foreign != NULL) {
+      if (tree_kind(foreign) != T_LITERAL)
+         fatal_at(tree_loc(decl), "foreign attribute must have string "
+                  "literal value");
+
+      const int nchars = tree_chars(foreign);
+      char buf[nchars + 1];
+      for (int i = 0; i < nchars; i++)
+         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
+      buf[nchars] = '\0';
+
+      ident_t name = ident_new(buf);
+      tree_add_attr_str(decl, mangled_i, name);
+      return name;
+   }
+
    LOCAL_TEXT_BUF buf = tb_new();
 
 #if LLVM_MANGLES_NAMES
@@ -1182,23 +1199,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    if (builtin != NULL)
       return lower_builtin(fcall, builtin);
 
-   tree_t foreign = tree_attr_tree(decl, foreign_i);
-   ident_t name = NULL;
-   if (foreign != NULL) {
-      if (tree_kind(foreign) != T_LITERAL)
-         fatal_at(tree_loc(decl), "foreign attribute must have string "
-                  "literal value");
-
-      const int nchars = tree_chars(foreign);
-      char buf[nchars + 1];
-      for (int i = 0; i < nchars; i++)
-         buf[i] = tree_pos(tree_ref(tree_char(foreign, i)));
-      buf[nchars] = '\0';
-
-      name = ident_new(buf);
-   }
-   else
-      name = lower_mangle_func(decl);
+   ident_t name = lower_mangle_func(decl);
 
    const int nargs = tree_params(fcall);
    vcode_reg_t args[nargs];
