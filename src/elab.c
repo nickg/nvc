@@ -215,6 +215,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_ARRAY_SLICE:
       case T_ARRAY_REF:
       case T_FCALL:
+      case T_CONCAT:
          return params->actuals[i];
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases
