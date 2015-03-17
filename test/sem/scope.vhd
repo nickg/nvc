@@ -270,3 +270,21 @@ architecture issue63 of bar is
     signal x : my_int1;                 -- OK
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+package pack8 is
+    function min(x, y : in integer) return integer;
+end package;
+
+-------------------------------------------------------------------------------
+
+use work.pack8.all;                     -- OK
+
+architecture unit_decl_crash of bar is
+begin
+    process is
+        variable x : integer := min(1, 2);  -- OK
+    begin
+    end process;
+end architecture;
