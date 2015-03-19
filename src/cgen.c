@@ -1787,6 +1787,8 @@ static LLVMValueRef cgen_net_flag(tree_t ref, net_flags_t flag, cgen_ctx_t *ctx)
    type_t type = tree_type(ref);
 
    LLVMValueRef nets = cgen_signal_lvalue(ref, ctx);
+   if (nets == NULL)
+       return llvm_int1(false);
 
    LLVMValueRef n_elems;
    if (type_is_array(type))
