@@ -223,11 +223,11 @@ issue59         normal
 issue60         normal
 # record11        normal
 # issue63         normal
-# driver5         normal
+driver5         normal
 # textio3         normal
 # record12        normal
-# attr11          normal
-# implicit1       normal
+attr11          normal
+implicit1       normal
 implicit2       normal
 file2           normal
 # case5           gold,fail
@@ -249,5 +249,5 @@ issue82         normal,opt
 issue86         normal
 issue94         normal
 access6         gold,fail
-#issue90         normal
+# issue90         normal
 issue104        normal
