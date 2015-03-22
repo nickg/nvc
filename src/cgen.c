@@ -897,11 +897,22 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    if (vtype_kind(vtype) == VCODE_TYPE_REAL)
       return;  // TODO
 
-   LLVMValueRef value = LLVMBuildZExt(builder, cgen_get_arg(op, 0, ctx),
-                                      LLVMInt32Type(), "");
 
-   LLVMValueRef min = llvm_int32(vtype_low(vtype));
-   LLVMValueRef max = llvm_int32(vtype_high(vtype));
+   LLVMValueRef value_raw = cgen_get_arg(op, 0, ctx);
+   LLVMTypeRef value_type = LLVMTypeOf(value_raw);
+
+   const int value_bits = LLVMGetIntTypeWidth(value_type);
+   LLVMValueRef value = NULL, min = NULL, max = NULL;
+   if (value_bits < 32) {
+      value = LLVMBuildZExt(builder, value_raw, LLVMInt32Type(), "");
+      min   = llvm_int32(vtype_low(vtype));
+      max   = llvm_int32(vtype_high(vtype));
+   }
+   else {
+      value = value_raw;
+      min   = LLVMConstInt(value_type, vtype_low(vtype), false);
+      max   = LLVMConstInt(value_type, vtype_high(vtype), false);
+   }
 
    LLVMValueRef above =
       LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
@@ -924,6 +935,14 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
    LLVMValueRef index = llvm_int32(vcode_get_index(op));
+
+   if (value_bits > 32) {
+      // TODO: we should probably pass all the arguments as 64-bit here
+      LLVMTypeRef ll_int32 = LLVMInt32Type();
+      value = LLVMBuildTrunc(builder, value, ll_int32, "");
+      min   = LLVMBuildTrunc(builder, min, ll_int32, "");
+      max   = LLVMBuildTrunc(builder, max, ll_int32, "");
+   }
 
    LLVMValueRef args[] = {
       index,
