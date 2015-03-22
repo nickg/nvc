@@ -2697,7 +2697,7 @@ static void lower_signal_assign(tree_t stmt)
 
       vcode_reg_t count_reg = VCODE_INVALID_REG;
       if (type_is_array(target_type))
-         count_reg = lower_array_total_len(target_type, rhs);
+         count_reg = lower_array_total_len(tree_type(wvalue), rhs);
 
       if (vcode_reg_kind(rhs) == VCODE_TYPE_SIGNAL)
          rhs = emit_vec_load(rhs, count_reg, false);
