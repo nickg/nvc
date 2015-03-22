@@ -770,19 +770,25 @@ static ident_t lower_mangle_func(tree_t decl)
    tb_printf(buf, "%s", istr(tree_ident(decl)));
 #endif
 
+   const tree_kind_t kind = tree_kind(decl);
+   const bool is_func = kind == T_FUNC_BODY || kind == T_FUNC_DECL;
    const int nports = tree_ports(decl);
-   if (nports > 0) {
+   if (nports > 0 || is_func) {
 #if LLVM_MANGLES_NAMES
       tb_printf(buf, "__");
 #else
       tb_printf(buf, "$");
 #endif
-      for (int i = 0; i < nports; i++) {
-         tree_t p = tree_port(decl, i);
-         if (tree_class(p) == C_SIGNAL)
-            tb_printf(buf, "s");
-         lower_mangle_one_type(buf, tree_type(p));
-      }
+   }
+
+   if (is_func)
+      lower_mangle_one_type(buf, type_result(tree_type(decl)));
+
+   for (int i = 0; i < nports; i++) {
+      tree_t p = tree_port(decl, i);
+      if (tree_class(p) == C_SIGNAL)
+         tb_printf(buf, "s");
+      lower_mangle_one_type(buf, tree_type(p));
    }
 
    ident_t new = ident_new(tb_get(buf));
