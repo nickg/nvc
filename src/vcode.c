@@ -2564,9 +2564,20 @@ vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
    VCODE_ASSERT(vtype_fields(type) == num, "expected %d fields but have %d",
                 vtype_fields(type), num);
 
-   for (int i = 0; i < num; i++)
+   for (int i = 0; i < num; i++) {
       VCODE_ASSERT(vtype_eq(vtype_field(type, i), vcode_reg_type(values[i])),
                    "wrong type for field %d", i);
+
+      op_t *defn = vcode_find_definition(values[i]);
+      VCODE_ASSERT(defn != NULL, "constant record uses parameter r%d",
+                   values[i]);
+      VCODE_ASSERT(defn->kind == VCODE_OP_CONST
+                   || defn->kind == VCODE_OP_CONST_REAL
+                   || defn->kind == VCODE_OP_CONST_RECORD
+                   || defn->kind == VCODE_OP_CONST_ARRAY
+                   || defn->kind == VCODE_OP_NULL,
+                   "constant record field r%d is not constant", values[i]);
+   }
 
    return op->result;
 }

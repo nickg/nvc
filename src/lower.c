@@ -2090,7 +2090,7 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
    type_t type = tree_type(expr);
 
    if (type_is_record(type))
-      return lower_record_aggregate(expr, false, true, ctx);
+      return lower_record_aggregate(expr, false, lower_is_const(expr), ctx);
 
    assert(type_is_array(type));
 
