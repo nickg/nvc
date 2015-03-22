@@ -2715,6 +2715,10 @@ static void lower_signal_assign(tree_t stmt)
       else
          emit_sched_waveform(nets_raw, emit_const(vtype_offset(), 1),
                              rhs, reject, after);
+
+      // All but the first waveform have zero reject time
+      if (nwaveforms > 1 && tree_has_reject(stmt))
+         reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
    }
 }
 
