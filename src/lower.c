@@ -625,33 +625,16 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
 
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
 {
-   tree_t decl = tree_ref(ref);
-   switch (tree_kind(decl)) {
-   case T_SIGNAL_DECL:
-      {
-         vcode_reg_t nets   = lower_signal_ref(decl, EXPR_LVALUE);
-         vcode_reg_t length = emit_const(vtype_offset(), tree_nets(decl));
+   vcode_reg_t nets = lower_expr(ref, EXPR_LVALUE);
 
-         return (*fn)(nets, length);
-      }
+   vcode_reg_t length = VCODE_INVALID_REG;
+   type_t type = tree_type(ref);
+   if (type_is_array(type))
+      length = lower_array_total_len(type, nets);
+   else
+      length = emit_const(vtype_offset(), 1);
 
-   case T_PORT_DECL:
-      {
-         vcode_reg_t nets = lower_param_ref(decl, EXPR_LVALUE);
-
-         vcode_reg_t length = VCODE_INVALID_REG;
-         type_t type = tree_type(decl);
-         if (type_is_array(type))
-            length = lower_array_len(type, 0, nets);
-         else
-            length = emit_const(vtype_offset(), 1);
-
-         return (*fn)(nets, length);
-      }
-
-   default:
-      fatal_at(tree_loc(ref), "invalid signal flag operation");
-   }
+   return (*fn)(nets, length);
 }
 
 static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type)
