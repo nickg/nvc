@@ -120,6 +120,7 @@ typedef enum {
    VCODE_OP_INDEX_CHECK,
    VCODE_OP_BIT_SHIFT,
    VCODE_OP_STORAGE_HINT,
+   VCODE_OP_DEBUG_OUT,
 } vcode_op_t;
 
 typedef enum {
@@ -382,5 +383,6 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_reg_t len, vcode_reg_t dir, vcode_reg_t shift,
                            vcode_type_t result);
 void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
+void emit_debug_out(vcode_reg_t reg);
 
 #endif  // _VCODE_H

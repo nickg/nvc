@@ -1816,6 +1816,9 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    while (type_is_array(scalar_elem_type))
       scalar_elem_type = type_elem(scalar_elem_type);
 
+   const bool multidim =
+      type_is_array(agg_type) && array_dimension(agg_type) > 1;
+
    vcode_reg_t mem_reg = emit_alloca(lower_type(scalar_elem_type),
                                      lower_bounds(scalar_elem_type), len_reg);
 
@@ -1859,6 +1862,20 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       emit_comment("Array of array stride is r%d", stride);
    }
 
+   vcode_reg_t len0_reg = len_reg;
+   if (multidim) {
+      if (stride == VCODE_INVALID_REG)
+         stride = emit_const(vtype_offset(), 1);
+
+      const int dims = array_dimension(agg_type);
+      for (int i = 1; i < dims; i++)
+         stride = emit_mul(stride,
+                           lower_array_len(agg_type, i, VCODE_INVALID_REG));
+      emit_comment("Multidimensional array stride is r%d", stride);
+
+      len0_reg = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
+   }
+
    vcode_block_t test_bb = emit_block();
    vcode_block_t body_bb = emit_block();
    vcode_block_t exit_bb = emit_block();
@@ -1868,7 +1885,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    // Loop test
    vcode_select_block(test_bb);
    vcode_reg_t i_loaded = emit_load_indirect(ivar);
-   vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, i_loaded, len_reg);
+   vcode_reg_t ge = emit_cmp(VCODE_CMP_GEQ, i_loaded, len0_reg);
    emit_cond(ge, exit_bb, body_bb);
 
    // Loop body
@@ -1953,6 +1970,10 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       vcode_reg_t src_reg = lower_array_data(what);
       vcode_reg_t length_reg = lower_array_total_len(elem_type, what);
       emit_copy(ptr_reg, src_reg, length_reg);
+   }
+   else if (multidim) {
+      vcode_reg_t src_reg = lower_array_data(what);
+      emit_copy(ptr_reg, src_reg, stride);
    }
    else if (type_is_record(elem_type))
       emit_copy(ptr_reg, what, VCODE_INVALID_REG);

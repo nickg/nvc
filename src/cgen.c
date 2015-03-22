@@ -144,7 +144,7 @@ static LLVMTypeRef llvm_uarray_type(LLVMTypeRef base, int dims)
 #if 0
 static void debug_out(LLVMValueRef val)
 {
-   LLVMValueRef args[] = { val };
+   LLVMValueRef args[] = { val, llvm_int32(-1) };
    LLVMBuildCall(builder, llvm_fn("_debug_out"),
                  args, ARRAY_LEN(args), "");
 }
@@ -2115,6 +2115,28 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
    LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
+static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef arg0 = cgen_get_arg(op, 0, ctx);
+
+   if (LLVMGetTypeKind(LLVMTypeOf(arg0)) == LLVMPointerTypeKind) {
+      LLVMValueRef args[] = {
+         llvm_void_cast(arg0),
+         llvm_int32(32)
+      };
+      LLVMBuildCall(builder, llvm_fn("_debug_dump"),
+                    args, ARRAY_LEN(args), "");
+   }
+   else {
+      LLVMValueRef args[] = {
+         LLVMBuildZExt(builder, arg0, LLVMInt32Type(), ""),
+         llvm_int32(vcode_get_arg(op, 0))
+      };
+      LLVMBuildCall(builder, llvm_fn("_debug_out"),
+                    args, ARRAY_LEN(args), "");
+   }
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2351,6 +2373,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_BIT_SHIFT:
       cgen_op_bit_shift(i, ctx);
+      break;
+   case VCODE_OP_DEBUG_OUT:
+      cgen_op_debug_out(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -2924,6 +2949,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
    }
    else if (strcmp(name, "_debug_out") == 0) {
       LLVMTypeRef args[] = {
+         LLVMInt32Type(),
          LLVMInt32Type()
       };
       fn = LLVMAddFunction(module, "_debug_out",

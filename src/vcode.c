@@ -774,7 +774,7 @@ const char *vcode_op_string(vcode_op_t op)
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
-      "storage hint"
+      "storage hint", "debug out"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1769,6 +1769,14 @@ void vcode_dump(void)
                }
                vcode_dump_type(col, op->type, op->type);
             }
+            break;
+
+         case VCODE_OP_DEBUG_OUT:
+            {
+               col += printf("%s ", vcode_op_string(op->kind));
+               col += vcode_dump_reg(op->args.items[0]);
+            }
+            break;
          }
 
          printf("\n");
@@ -3928,6 +3936,10 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
          return;
       }
    }
+   else if (reg == low || reg == high) {
+      emit_comment("Elided dynamic bounds check for r%d", reg);
+      return;
+   }
 
    op_t *op = vcode_add_op(VCODE_OP_DYNAMIC_BOUNDS);
    vcode_add_arg(op, reg);
@@ -4015,4 +4027,10 @@ void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length)
                 "storage hint length must be offset");
 
    op->type = vtype_pointed(vcode_reg_type(mem));
+}
+
+void emit_debug_out(vcode_reg_t reg)
+{
+   op_t *op = vcode_add_op(VCODE_OP_DEBUG_OUT);
+   vcode_add_arg(op, reg);
 }

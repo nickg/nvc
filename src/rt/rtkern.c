@@ -915,9 +915,9 @@ void _bit_vec_op(int32_t kind, const uint8_t *left, int32_t left_len,
    u->dims[0].dir   = left_dir;
 }
 
-void _debug_out(int32_t val)
+void _debug_out(int32_t val, int32_t reg)
 {
-   printf("DEBUG: val=%"PRIx32"\n", val);
+   printf("DEBUG: r%d val=%"PRIx32"\n", reg, val);
 }
 
 void _debug_dump(const uint8_t *ptr, int32_t len)

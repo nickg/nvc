@@ -107,7 +107,7 @@ record5         normal
 const3          normal,gold
 proc7           normal,gold
 attr2           normal
-# func10          normal
+func10          normal
 attr3           normal,gold
 # proc8           normal,gold
 wait8           normal
