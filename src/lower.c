@@ -467,18 +467,26 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
        || type_is_file(value_type))
       && mode == PORT_IN;
 
-   if (tree_attr_str(decl, builtin_i))
-      return must_reify
-         ? lower_reify_expr(value)
-         : lower_expr(value, mode == PORT_IN ? EXPR_RVALUE : EXPR_LVALUE);
+   class_t class = C_DEFAULT;
+   type_t port_type = value_type;
+   if (tree_attr_str(decl, builtin_i) == NULL) {
+      tree_t port = tree_port(decl, nth);
+      port_type = tree_type(port);
+      class = tree_class(port);
+   }
 
-   tree_t port = tree_port(decl, nth);
-   type_t port_type = tree_type(port);
-
-   const class_t class = tree_class(port);
    const bool lvalue = class == C_SIGNAL || class == C_FILE || mode != PORT_IN;
 
    vcode_reg_t reg = lower_expr(value, lvalue ? EXPR_LVALUE : EXPR_RVALUE);
+   if (reg == VCODE_INVALID_REG)
+      return reg;
+
+   if (vcode_reg_kind(reg) == VCODE_TYPE_SIGNAL && class != C_SIGNAL) {
+      vcode_reg_t len_reg = VCODE_INVALID_REG;
+      if (type_is_array(value_type))
+         len_reg = lower_array_total_len(value_type, reg);
+      reg = emit_vec_load(reg, len_reg, false);
+   }
 
    if (type_is_array(value_type)) {
       const bool have_uarray =
