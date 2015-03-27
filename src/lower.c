@@ -2203,7 +2203,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       ptr = emit_add(ptr, src_len);
    }
    else {
-      emit_store_indirect(arg_regs[0], ptr);
+      emit_store_indirect(lower_reify(arg_regs[0]), ptr);
       ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
    }
 
@@ -2212,7 +2212,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       emit_copy(ptr, lower_array_data(arg_regs[1]), src_len);
    }
    else
-      emit_store_indirect(arg_regs[1], ptr);
+      emit_store_indirect(lower_reify(arg_regs[1]), ptr);
 
    return var_reg;
 }
