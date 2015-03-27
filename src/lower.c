@@ -428,19 +428,25 @@ static vcode_reg_t lower_reify_expr(tree_t expr)
    return lower_reify(lower_expr(expr, EXPR_RVALUE));
 }
 
-static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
+static vcode_reg_t lower_wrap_with_new_bounds(type_t type, vcode_reg_t array,
+                                              vcode_reg_t data)
 {
    assert(type_is_array(type));
 
    const int ndims = array_dimension(type);
    vcode_dim_t dims[ndims];
    for (int i = 0; i < ndims; i++) {
-      dims[i].left  = lower_array_left(type, i, data);
-      dims[i].right = lower_array_right(type, i, data);
-      dims[i].dir   = lower_array_dir(type, i, data);
+      dims[i].left  = lower_array_left(type, i, array);
+      dims[i].right = lower_array_right(type, i, array);
+      dims[i].dir   = lower_array_dir(type, i, array);
    }
 
    return emit_wrap(lower_array_data(data), dims, ndims);
+}
+
+static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
+{
+   return lower_wrap_with_new_bounds(type, data, data);
 }
 
 static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
@@ -481,16 +487,30 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    if (reg == VCODE_INVALID_REG)
       return reg;
 
-   if (vcode_reg_kind(reg) == VCODE_TYPE_SIGNAL && class != C_SIGNAL) {
+   const vtype_kind_t reg_kind = vcode_reg_kind(reg);
+   const bool have_signal =
+      reg_kind == VCODE_TYPE_SIGNAL
+      || (reg_kind == VCODE_TYPE_UARRAY
+          && vtype_kind(vtype_elem(vcode_reg_type(reg))) == VCODE_TYPE_SIGNAL);
+
+   if (have_signal && class != C_SIGNAL) {
+      vcode_reg_t data_reg = lower_array_data(reg);
       vcode_reg_t len_reg = VCODE_INVALID_REG;
       if (type_is_array(value_type))
          len_reg = lower_array_total_len(value_type, reg);
-      reg = emit_vec_load(reg, len_reg, false);
+      vcode_reg_t new_reg = emit_vec_load(data_reg, len_reg, false);
+
+      emit_comment("uarray %d", reg_kind == VCODE_TYPE_UARRAY);
+      if (reg_kind == VCODE_TYPE_UARRAY)
+         reg = lower_wrap_with_new_bounds(value_type, reg, new_reg);
+      else
+         reg = new_reg;
+      emit_comment("reg=r%d", reg);
+
    }
 
    if (type_is_array(value_type)) {
-      const bool have_uarray =
-         vtype_kind(vcode_reg_type(reg)) == VCODE_TYPE_UARRAY;
+      const bool have_uarray = vcode_reg_kind(reg) == VCODE_TYPE_UARRAY;
       const bool need_uarray = !lower_const_bounds(port_type);
 
       if (have_uarray && need_uarray)
@@ -704,6 +724,10 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "J");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
       tb_printf(buf, "L");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
+      tb_printf(buf, "U");
+   else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC_VECTOR"))
+      tb_printf(buf, "V");
    else {
 #if LLVM_MANGLES_NAMES
       tb_printf(buf, "u%s__", istr(ident));
@@ -2212,16 +2236,8 @@ static vcode_reg_t lower_new(tree_t expr, expr_ctx_t ctx)
 
       if (!lower_const_bounds(type)) {
           // Need to allocate memory for both the array and its metadata
-
-         const int ndims = array_dimension(value_type);
-         vcode_dim_t dims[ndims];
-         for (int i = 0; i < ndims; i++) {
-            dims[i].left  = lower_array_left(value_type, i, init_reg);
-            dims[i].right = lower_array_right(value_type, i, init_reg);
-            dims[i].dir   = lower_array_dir(value_type, i, init_reg);
-         }
-
-         vcode_reg_t meta_reg = emit_wrap(raw_reg, dims, ndims);
+         vcode_reg_t meta_reg =
+            lower_wrap_with_new_bounds(value_type, init_reg, raw_reg);
          vcode_reg_t result_reg = emit_new(lower_type(type), VCODE_INVALID_REG);
          emit_store_indirect(meta_reg, emit_all(result_reg));
          return result_reg;
