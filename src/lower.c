@@ -2933,6 +2933,8 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_block_t *blocks LOCAL = xcalloc(nassocs * sizeof(vcode_block_t));
    vcode_reg_t *cases LOCAL = xcalloc(nassocs * sizeof(vcode_reg_t));
 
+   vcode_block_t exit_bb = emit_block();
+
    int ncases = 0;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
@@ -2949,18 +2951,12 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(blocks[i]);
       lower_stmt(tree_value(a), loops);
 
-      blocks[i] = vcode_active_block();
-   }
-
-   vcode_block_t exit_bb = emit_block();
-   if (def_bb == VCODE_INVALID_BLOCK)
-      def_bb = exit_bb;
-
-   for (int i = 0; i < nassocs; i++) {
-      vcode_select_block(blocks[i]);
       if (!vcode_block_finished())
          emit_jump(exit_bb);
    }
+
+   if (def_bb == VCODE_INVALID_BLOCK)
+      def_bb = exit_bb;
 
    vcode_select_block(start_bb);
    vcode_reg_t value_reg = lower_reify_expr(tree_value(stmt));
