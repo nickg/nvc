@@ -1288,7 +1288,7 @@ static void cgen_op_nets(int op, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
 {
-   if (vtype_kind(vcode_reg_type(vcode_get_arg(op, arg))) == VCODE_TYPE_INT) {
+   if (vcode_reg_kind(vcode_get_arg(op, arg)) == VCODE_TYPE_INT) {
       // Need to get a pointer to the data
       LLVMValueRef value = cgen_get_arg(op, arg, ctx);
       LLVMTypeRef lltype = LLVMTypeOf(value);
@@ -1462,7 +1462,7 @@ static void cgen_op_alloc_driver(int op, cgen_ctx_t *ctx)
 {
    LLVMValueRef init = NULL;
    if (vcode_get_arg(op, 4) != VCODE_INVALID_REG)
-      init = llvm_void_cast(cgen_get_arg(op, 4, ctx));
+      init = llvm_void_cast(cgen_pointer_to_arg_data(op, 4, ctx));
    else
       init = LLVMConstNull(llvm_void_ptr());
 

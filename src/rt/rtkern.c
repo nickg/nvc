@@ -603,7 +603,7 @@ void _assert_fail(const uint8_t *msg, int32_t msg_len, int8_t severity,
       copy[msg_len] = '\0';
    }
 
-   void (*fn)(const loc_t *loc, const char *fmt, ...);
+   void (*fn)(const loc_t *loc, const char *fmt, ...) = fatal_at;
 
    switch (severity) {
    case SEVERITY_NOTE:    fn = note_at; break;

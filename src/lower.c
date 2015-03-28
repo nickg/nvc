@@ -255,9 +255,12 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
          break;
       case RANGE_DYN:
       case RANGE_RDYN:
-         diff = emit_select(lower_array_dir(type, dim, VCODE_INVALID_REG),
-                            emit_sub(left_reg, right_reg),
-                            emit_sub(right_reg, left_reg));
+         {
+            vcode_reg_t dir_reg = lower_array_dir(type, dim, VCODE_INVALID_REG);
+            vcode_reg_t downto_reg = emit_sub(left_reg, right_reg);
+            vcode_reg_t upto_reg = emit_sub(right_reg, left_reg);
+            diff = emit_select(dir_reg, downto_reg, upto_reg);
+         }
          break;
 
       case RANGE_EXPR:
@@ -642,9 +645,10 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
 
       if (r0_len == r1_len)
          return emit_memcmp(r0_data, r1_data, r0_len);
-      else
-         return emit_and(emit_cmp(VCODE_CMP_EQ, r0_len, r1_len),
-                         emit_memcmp(r0_data, r1_data, r0_len));
+      else {
+         vcode_reg_t eq_reg = emit_cmp(VCODE_CMP_EQ, r0_len, r1_len);
+         return emit_and(eq_reg, emit_memcmp(r0_data, r1_data, r0_len));
+      }
    }
    else
       return lower_array_cmp_inner(r0_data, r1_data, r0, r1,
@@ -1882,11 +1886,12 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    if (can_use_memset) {
       if (bits <= 8)
          emit_memset(mem_reg, lower_reify_expr(tree_value(agg0)), len_reg);
-      else
-         emit_memset(mem_reg,
-                     emit_const(vtype_int(0, 255), byte),
+      else {
+         vcode_reg_t byte_reg  = emit_const(vtype_int(0, 255), byte);
+         emit_memset(mem_reg, byte_reg,
                      emit_mul(len_reg,
                               emit_const(offset_type, (bits + 7) / 8)));
+      }
 
       return emit_wrap(mem_reg, &dim0, 1);
    }
