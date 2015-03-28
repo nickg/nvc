@@ -1197,6 +1197,23 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_bit_shift(BIT_SHIFT_ROL, r0, r0_type, r1);
    else if (icmp(builtin, "ror"))
       return lower_bit_shift(BIT_SHIFT_ROR, r0, r0_type, r1);
+   else if (icmp(builtin, "mulrp")) {
+      vcode_type_t vreal  = vtype_real();
+      vcode_type_t rtype  = lower_type(tree_type(fcall));
+      return emit_cast(rtype, rtype, emit_mul(r0, emit_cast(vreal, vreal, r1)));
+   }
+   else if (icmp(builtin, "mulpr")) {
+      vcode_type_t vreal  = vtype_real();
+      vcode_type_t rtype  = lower_type(tree_type(fcall));
+      return emit_cast(rtype, rtype, emit_mul(emit_cast(vreal, vreal, r0), r1));
+   }
+   else if (icmp(builtin, "divpr")) {
+      vcode_type_t vreal  = vtype_real();
+      vcode_type_t rtype  = lower_type(tree_type(fcall));
+      return emit_cast(rtype, rtype,
+                       emit_div(emit_cast(vreal, vreal, r0),
+                                r1, tree_index(fcall)));
+   }
    else
       fatal_at(tree_loc(fcall), "cannot lower builtin %s", istr(builtin));
 }
