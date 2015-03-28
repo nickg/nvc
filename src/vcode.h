@@ -305,9 +305,9 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg);
 void emit_store(vcode_reg_t reg, vcode_var_t var);
 void emit_store_indirect(vcode_reg_t reg, vcode_reg_t ptr);
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds,
-                 bounds_kind_t kind, uint32_t index);
+                 bounds_kind_t kind, uint32_t index, uint32_t hint);
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, uint32_t index);
+                         vcode_reg_t kind, uint32_t index, uint32_t hint);
 void emit_index_check(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
                       uint32_t index);
 void emit_dynamic_index_check(vcode_reg_t reg, vcode_reg_t low,

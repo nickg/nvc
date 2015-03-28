@@ -2966,7 +2966,7 @@ vcode_reg_t emit_sub(vcode_reg_t lhs, vcode_reg_t rhs)
 }
 
 void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
-                 uint32_t index)
+                 uint32_t index, uint32_t hint)
 {
    if (reg == VCODE_INVALID_REG)
       return;
@@ -3947,7 +3947,7 @@ void emit_needs_last_value(vcode_signal_t sig)
 }
 
 void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
-                         vcode_reg_t kind, uint32_t index)
+                         vcode_reg_t kind, uint32_t index, uint32_t hint)
 {
    int64_t lconst, hconst;
    if (vcode_reg_const(low, &lconst) && vcode_reg_const(high, &hconst)) {

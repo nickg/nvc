@@ -932,6 +932,14 @@ static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
                           r1_dir, lower_type(tree_type(fcall)));
 }
 
+static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
+                                      tree_t where, tree_t hint)
+{
+   const int index = tree_index(where);
+   emit_bounds(value, lower_bounds(type), lower_type_bounds_kind(type),
+               index, (hint == NULL ? index : tree_index(hint)));
+}
+
 static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
                                    type_t type, vcode_reg_t shift)
 {
@@ -1185,8 +1193,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
    else if (icmp(builtin, "val")) {
       type_t f_type = tree_type(fcall);
-      emit_bounds(r0, lower_bounds(f_type),
-                  lower_type_bounds_kind(f_type), tree_index(fcall));
+      lower_check_scalar_bounds(r0, f_type, fcall, NULL);
       return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
    }
    else if (icmp(builtin, "pos")) {
@@ -1195,12 +1202,10 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    }
    else if (icmp(builtin, "value")) {
       type_t f_type = tree_type(fcall);
-      const int index = tree_index(fcall);
       vcode_reg_t reg = emit_value(lower_array_data(r0),
                                    lower_array_len(r0_type, 0, r0),
-                                   index);
-      emit_bounds(reg, lower_bounds(f_type),
-                  lower_type_bounds_kind(f_type), index);
+                                   tree_index(fcall));
+      lower_check_scalar_bounds(reg, f_type, fcall, NULL);
       return emit_cast(lower_type(f_type), lower_bounds(f_type), reg);
    }
    else if (icmp(builtin, "sll"))
@@ -1541,8 +1546,9 @@ static vcode_reg_t lower_unalias_index(tree_t alias, vcode_reg_t index,
    return emit_select(same_dir, emit_add(bleft, off), emit_sub(bleft, off));
 }
 
-static void lower_check_array_bounds(tree_t t, type_t type, int dim,
-                                     vcode_reg_t array, vcode_reg_t value)
+static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
+                                     vcode_reg_t value, tree_t where,
+                                     tree_t hint)
 {
    vcode_reg_t left_reg  = lower_array_left(type, dim, array);
    vcode_reg_t right_reg = lower_array_right(type, dim, array);
@@ -1556,7 +1562,9 @@ static void lower_check_array_bounds(tree_t t, type_t type, int dim,
                                       emit_const(dir_type, BOUNDS_ARRAY_DOWNTO),
                                       emit_const(dir_type, BOUNDS_ARRAY_TO));
 
-   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg, tree_index(t));
+   const int index = tree_index(where);
+   emit_dynamic_bounds(value, min_reg, max_reg, kind_reg,
+                       index, (hint == NULL ? index : tree_index(hint)));
 }
 
 static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
@@ -1582,8 +1590,9 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       vcode_reg_t offset = lower_reify_expr(tree_value(p));
 
       if (!elide_bounds)
-         lower_check_array_bounds(tree_value(p), value_type, i,
-                                  (alias ? VCODE_INVALID_REG : array), offset);
+         lower_check_array_bounds(value_type, i,
+                                  (alias ? VCODE_INVALID_REG : array), offset,
+                                  tree_value(p), NULL);
 
       if (alias != NULL) {
          offset = lower_unalias_index(alias, offset, array);
@@ -1663,8 +1672,8 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
       vcode_select_block(not_null_bb);
    }
 
-   lower_check_array_bounds(r.left, type, 0, array_reg, left_reg);
-   lower_check_array_bounds(r.right, type, 0, array_reg, right_reg);
+   lower_check_array_bounds(type, 0, array_reg, left_reg, r.left, NULL);
+   lower_check_array_bounds(type, 0, array_reg, right_reg, r.left, NULL);
 
    if (!known_not_null) {
       emit_jump(after_bounds_bb);
@@ -2682,8 +2691,7 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
       if (is_scalar)
-         emit_bounds(loaded_value, lower_bounds(type),
-                     lower_type_bounds_kind(type), tree_index(stmt));
+         lower_check_scalar_bounds(loaded_value, type, stmt, NULL);
       if (is_var_decl)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
@@ -2754,8 +2762,7 @@ static void lower_signal_assign(tree_t stmt)
       vcode_reg_t rhs = lower_expr(wvalue, EXPR_RVALUE);
 
       if (type_is_scalar(target_type))
-         emit_bounds(lower_reify(rhs), lower_bounds(target_type),
-                     lower_type_bounds_kind(target_type), tree_index(wvalue));
+         lower_check_scalar_bounds(lower_reify(rhs), target_type, wvalue, NULL);
       else
          lower_check_array_sizes(wvalue, target_type, tree_type(wvalue),
                                  nparts > 1 ? VCODE_INVALID_REG : nets[0], rhs);
@@ -2865,8 +2872,7 @@ static void lower_return(tree_t stmt)
       type_t type = tree_type(value);
       if (type_is_scalar(type)) {
          vcode_reg_t result = lower_reify_expr(value);
-         emit_bounds(result, lower_bounds(type), lower_type_bounds_kind(type),
-                     tree_index(value));
+         lower_check_scalar_bounds(result, type, value, NULL);
          emit_return(result);
       }
       else if (result_kind == VCODE_TYPE_UARRAY) {
@@ -3408,8 +3414,7 @@ static void lower_var_decl(tree_t decl)
    }
    else if (type_is_scalar(type)) {
       value = lower_reify(value);
-      emit_bounds(value, vbounds, lower_type_bounds_kind(type),
-                  tree_index(decl));
+      lower_check_scalar_bounds(value, type, decl, NULL);
       emit_store(value, var);
    }
    else
