@@ -147,7 +147,7 @@ issue13         normal
 attr7           normal
 shift2          normal
 case4           normal
-# signal10        normal
+signal10        normal
 signal11        normal,gold
 # wait11          normal
 bounds11        gold,fail

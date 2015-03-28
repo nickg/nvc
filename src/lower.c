@@ -2684,9 +2684,23 @@ static void lower_signal_assign(tree_t stmt)
 
    tree_t target = tree_target(stmt);
    type_t target_type = tree_type(target);
+   type_t part_type = target_type;
 
-   vcode_reg_t nets = lower_expr(tree_target(stmt), EXPR_LVALUE);
-   vcode_reg_t nets_raw = lower_array_data(nets);
+   const bool aggregate = tree_kind(target) == T_AGGREGATE;
+   const int nparts = aggregate ? tree_assocs(target) : 1;
+
+   vcode_reg_t nets[nparts];
+   if (aggregate) {
+      part_type = type_elem(target_type);
+      for (int i = 0; i < nparts; i++)
+         nets[i] = lower_expr(tree_value(tree_assoc(target, i)), EXPR_LVALUE);
+   }
+   else
+      nets[0] = lower_expr(target, EXPR_LVALUE);
+
+   vcode_reg_t nets_raw[nparts];
+   for (int i = 0; i < nparts; i++)
+      nets_raw[i] = lower_array_data(nets[i]);
 
    const int nwaveforms = tree_waveforms(stmt);
    for (int i = 0; i < nwaveforms; i++) {
@@ -2700,7 +2714,7 @@ static void lower_signal_assign(tree_t stmt)
                      lower_type_bounds_kind(target_type), tree_index(wvalue));
       else
          lower_check_array_sizes(wvalue, target_type, tree_type(wvalue),
-                                 nets, rhs);
+                                 nparts > 1 ? VCODE_INVALID_REG : nets[0], rhs);
 
       vcode_reg_t after;
       if (tree_has_delay(w))
@@ -2709,19 +2723,28 @@ static void lower_signal_assign(tree_t stmt)
          after = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
       vcode_reg_t count_reg = VCODE_INVALID_REG;
-      if (type_is_array(target_type))
+      if (type_is_array(part_type))
          count_reg = lower_array_total_len(tree_type(wvalue), rhs);
 
       if (vcode_reg_kind(rhs) == VCODE_TYPE_SIGNAL)
          rhs = emit_vec_load(rhs, count_reg, false);
 
-      if (type_is_array(target_type)) {
-         vcode_reg_t data_reg = lower_array_data(rhs);
-         emit_sched_waveform(nets_raw, count_reg, data_reg, reject, after);
+      for (int i = 0; i < nparts; i++) {
+         if (type_is_array(part_type)) {
+            assert(i == 0);
+            vcode_reg_t data_reg = lower_array_data(rhs);
+            emit_sched_waveform(nets_raw[i], count_reg, data_reg,
+                                reject, after);
+         }
+         else {
+            assert(i == 0 || vcode_reg_kind(rhs) == VCODE_TYPE_POINTER);
+            emit_sched_waveform(nets_raw[i], emit_const(vtype_offset(), 1),
+                                rhs, reject, after);
+
+            if (i + 1 < nparts)
+               rhs = emit_add(rhs, emit_const(vtype_offset(), 1));
+         }
       }
-      else
-         emit_sched_waveform(nets_raw, emit_const(vtype_offset(), 1),
-                             rhs, reject, after);
 
       // All but the first waveform have zero reject time
       if (nwaveforms > 1 && tree_has_reject(stmt))
