@@ -14,6 +14,7 @@ begin
 
             impure function do_it return integer is
             begin
+                report integer'image(x) & " + " & integer'image(y);
                 return x + y;
             end function;
 

@@ -364,8 +364,11 @@ static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
    LLVMTypeRef *outptr = fields;
 
    for (int i = 0; i < nvars; i++) {
-      LLVMTypeRef base = cgen_type(vcode_var_type(vcode_var_handle(i)));
-      *outptr++ = LLVMPointerType(base, 0);
+      vcode_type_t vtype = vcode_var_type(vcode_var_handle(i));
+      if (vtype_kind(vtype) == VCODE_TYPE_CARRAY)
+         *outptr++ = LLVMPointerType(cgen_type(vtype_elem(vtype)), 0);
+      else
+         *outptr++ = LLVMPointerType(cgen_type(vtype), 0);
    }
 
    for (int i = 0; i < nparams; i++)
@@ -398,7 +401,16 @@ static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx)
       *outptr++ = ctx->display;
 
    assert(outptr == fields + nfields);
-   return LLVMConstStruct(fields, nfields, false);
+
+   LLVMTypeRef types[nfields];
+   for (int i = 0; i < nfields; i++)
+      types[i] = LLVMTypeOf(fields[i]);
+
+   LLVMValueRef result = LLVMGetUndef(LLVMStructType(types, nfields, false));
+   for (int i = 0; i < nfields; i++)
+      result = LLVMBuildInsertValue(builder, result, fields[i], i, "");
+
+   return result;
 }
 
 static void cgen_sched_process(LLVMValueRef after)
