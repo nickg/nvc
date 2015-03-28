@@ -1340,6 +1340,13 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
    case VCODE_TYPE_CARRAY:
       cgen_append_size_list(list, vtype_elem(type), vtype_size(type));
       break;
+   case VCODE_TYPE_RECORD:
+      {
+         const int nfields = vtype_fields(type);
+         for (int i = 0; i < nfields; i++)
+            cgen_size_list(list, vtype_field(type, i));
+      }
+      break;
    default:
       fatal_trace("cannot handle type %d in size list",
                   vtype_kind(type));

@@ -190,7 +190,7 @@ const7          normal
 bounds14        gold,fail
 bounds15        gold,fail
 bounds16        gold,fail
- bounds17        gold,fail
+bounds17        gold,fail
 signal13        normal
 elab18          normal
 wait13          normal
@@ -206,7 +206,7 @@ elab20          normal
 issue38         normal
 stop1           normal,gold
 stop2           normal,gold,2008
-# record7         normal
+record7         normal
 # record8         normal
 # elab21          normal
 # record9         normal

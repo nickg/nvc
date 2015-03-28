@@ -1394,7 +1394,10 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
       vcode_var_t shadow = vcode_signal_shadow(sig);
       if (shadow != VCODE_INVALID_VAR) {
          vcode_reg_t r = emit_load(shadow);
-         return type_is_array(type) ? r : emit_load_indirect(r);
+         if (type_is_array(type) || type_is_record(type))
+            return r;
+         else
+            return emit_load_indirect(r);
       }
       else
          return emit_nets(sig);
@@ -2199,11 +2202,18 @@ static vcode_reg_t lower_aggregate(tree_t expr, expr_ctx_t ctx)
 static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t value = tree_value(expr);
+   type_t type = tree_type(value);
    vcode_reg_t record = lower_expr(value, ctx);
 
-   const int index = lower_field_index(tree_type(value), tree_ident(expr));
-
-   return emit_record_ref(record, index);
+   if (vcode_reg_kind(record) == VCODE_TYPE_SIGNAL) {
+      assert(ctx == EXPR_LVALUE);
+      const netid_t offset = record_field_to_net(type, tree_ident(expr));
+      return emit_add(record, emit_const(vtype_offset(), offset));
+   }
+   else {
+      const int index = lower_field_index(type, tree_ident(expr));
+      return emit_record_ref(record, index);
+   }
 }
 
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
@@ -2773,7 +2783,7 @@ static void lower_signal_assign(tree_t stmt)
 
       if (type_is_scalar(target_type))
          lower_check_scalar_bounds(lower_reify(rhs), target_type, wvalue, NULL);
-      else
+      else if (type_is_array(target_type))
          lower_check_array_sizes(wvalue, target_type, tree_type(wvalue),
                                  nparts > 1 ? VCODE_INVALID_REG : nets[0], rhs);
 
@@ -2798,6 +2808,11 @@ static void lower_signal_assign(tree_t stmt)
             vcode_reg_t data_reg = lower_array_data(rhs);
             emit_sched_waveform(nets_raw[i], count_reg, data_reg,
                                 reject, after);
+         }
+         else if (type_is_record(part_type)) {
+            const int width = type_width(part_type);
+            emit_sched_waveform(nets_raw[i], emit_const(vtype_offset(), width),
+                                rhs, reject, after);
          }
          else {
             assert(i == 0 || vcode_reg_kind(rhs) == VCODE_TYPE_POINTER);
@@ -3857,14 +3872,13 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
       }
       break;
 
-#if 0
    case T_RECORD_REF:
       {
          tree_t value = tree_value(t);
-         if (!cgen_driver_nets(value, decl, all_nets, all_length,
-                               driven_nets, driven_length, has_non_const, ctx))
+         if (!lower_driver_nets(value, decl, all_nets, all_length, driven_nets,
+                                driven_length, has_non_const, proc))
             return false;
-         else if (*driven_nets == NULL)
+         else if (*driven_nets == VCODE_INVALID_REG)
             return false;
          else if (*has_non_const)
             return true;
@@ -3872,15 +3886,13 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          type_t rtype = tree_type(value);
          const netid_t offset = record_field_to_net(rtype, tree_ident(t));
 
-         LLVMValueRef indexes[] = { llvm_int32(offset) };
-         LLVMValueRef field_nets = LLVMBuildGEP(builder, *driven_nets, indexes,
-                                                ARRAY_LEN(indexes), "");
+         vcode_reg_t field_nets = emit_add(*driven_nets,
+                                           emit_const(vtype_offset(), offset));
 
          *driven_nets   = field_nets;
          *driven_length = type_width(tree_type(t));
       }
       break;
-#endif
 
    case T_LITERAL:
       return false;
