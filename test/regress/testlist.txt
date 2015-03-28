@@ -208,9 +208,9 @@ stop1           normal,gold
 stop2           normal,gold,2008
 record7         normal
 record8         normal
-# elab21          normal
-# record9         normal
-# record10        normal
+elab21          normal
+record9         normal
+record10        normal
 real2           normal
 issue45         normal,gold
 for2            normal,gold
@@ -221,7 +221,7 @@ issue56         normal
 issue53         normal
 issue59         normal
 issue60         normal
-# record11        normal
+record11        normal
 # issue63         normal
 driver5         normal
 # textio3         normal
