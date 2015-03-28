@@ -1389,7 +1389,7 @@ static vcode_reg_t lower_signal_ref(tree_t decl, expr_ctx_t ctx)
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx)
 {
    vcode_reg_t reg = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_REG);
-   if (reg == VCODE_INVALID_REG) {
+   if (reg == VCODE_INVALID_REG && tree_class(decl) != C_SIGNAL) {
       vcode_dump();
       fatal_trace("missing register for parameter %s", istr(tree_ident(decl)));
    }
@@ -1608,6 +1608,8 @@ static vcode_reg_t lower_array_ref(tree_t ref, expr_ctx_t ctx)
    tree_t value = tree_value(ref);
 
    vcode_reg_t array = lower_expr(value, ctx);
+   if (array == VCODE_INVALID_REG)
+      return array;
 
    const vtype_kind_t vtkind = vtype_kind(vcode_reg_type(array));
    assert(vtkind == VCODE_TYPE_POINTER || vtkind == VCODE_TYPE_UARRAY
@@ -2730,8 +2732,12 @@ static void lower_signal_assign(tree_t stmt)
       nets[0] = lower_expr(target, EXPR_LVALUE);
 
    vcode_reg_t nets_raw[nparts];
-   for (int i = 0; i < nparts; i++)
-      nets_raw[i] = lower_array_data(nets[i]);
+   for (int i = 0; i < nparts; i++) {
+      if (nets[i] != VCODE_INVALID_REG)
+         nets_raw[i] = lower_array_data(nets[i]);
+      else
+         nets_raw[i] = VCODE_INVALID_REG;
+   }
 
    const int nwaveforms = tree_waveforms(stmt);
    for (int i = 0; i < nwaveforms; i++) {
@@ -2761,7 +2767,9 @@ static void lower_signal_assign(tree_t stmt)
          rhs = emit_vec_load(rhs, count_reg, false);
 
       for (int i = 0; i < nparts; i++) {
-         if (type_is_array(part_type)) {
+         if (nets[i] == VCODE_INVALID_REG)
+            ;
+         else if (type_is_array(part_type)) {
             assert(i == 0);
             vcode_reg_t data_reg = lower_array_data(rhs);
             emit_sched_waveform(nets_raw[i], count_reg, data_reg,
