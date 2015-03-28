@@ -4518,12 +4518,16 @@ static bool sem_check_aggregate(tree_t t)
             if (!sem_check_constrained(value, field_type))
                return false;
 
-            if (!type_eq(field_type, tree_type(value)))
+            type_t value_type = tree_type(value);
+            if (!type_eq(field_type, value_type))
                sem_error(a, "type of value %s does not match type "
                          "of field %s %s",
-                         sem_type_str(tree_type(value)),
+                         sem_type_str(value_type),
                          istr(tree_ident(field)),
                          sem_type_str(field_type));
+
+            if (type_is_universal(value_type))
+               tree_set_type(value, field_type);
 
             have[j] = true;
          }
