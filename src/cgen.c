@@ -1969,6 +1969,8 @@ static void cgen_op_const_real(int op, cgen_ctx_t *ctx)
 
 static void cgen_op_value(int op, cgen_ctx_t *ctx)
 {
+   vcode_reg_t result = vcode_get_result(op);
+
    LLVMValueRef args[] = {
       cgen_get_arg(op, 0, ctx),
       cgen_get_arg(op, 1, ctx),
@@ -1976,13 +1978,8 @@ static void cgen_op_value(int op, cgen_ctx_t *ctx)
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), "")
    };
-   LLVMValueRef value = LLVMBuildCall(builder, llvm_fn("_value_attr"),
+   ctx->regs[result] = LLVMBuildCall(builder, llvm_fn("_value_attr"),
                                       args, ARRAY_LEN(args), "value");
-
-   vcode_reg_t result = vcode_get_result(op);
-   ctx->regs[result] = LLVMBuildIntCast(builder, value,
-                                        cgen_type(vcode_get_type(op)),
-                                        cgen_reg_name(result));
 }
 
 static void cgen_op_needs_last_value(int op, cgen_ctx_t *ctx)

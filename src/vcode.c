@@ -684,8 +684,7 @@ vcode_var_t vcode_get_type(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_BOUNDS || o->kind == VCODE_OP_ALLOCA
-          || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_VALUE
-          || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_COPY || o->kind == VCODE_OP_SET_INITIAL
           || o->kind == VCODE_OP_INDEX_CHECK);
    return o->type;
 }
@@ -3076,7 +3075,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       { VCODE_TYPE_REAL,   VCODE_TYPE_INT     },
    };
 
-   if (from == VCODE_TYPE_INT) {
+   if (from == VCODE_TYPE_INT && bounds == VCODE_INVALID_TYPE) {
       reg_t *rr = vcode_reg_data(op->result);
       rr->bounds = vcode_reg_bounds(reg);
    }
@@ -3910,21 +3909,19 @@ vcode_reg_t emit_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t lhs_data,
    return (op->result = vcode_add_reg(result));
 }
 
-vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index,
-                       vcode_type_t type)
+vcode_reg_t emit_value(vcode_reg_t string, vcode_reg_t len, uint32_t index)
 {
    op_t *op = vcode_add_op(VCODE_OP_VALUE);
    vcode_add_arg(op, string);
    vcode_add_arg(op, len);
    op->index = index;
-   op->type  = type;
 
    VCODE_ASSERT(vcode_reg_kind(string) == VCODE_TYPE_POINTER,
                 "string argument to value must be a pointer");
    VCODE_ASSERT(vcode_reg_kind(len) == VCODE_TYPE_OFFSET,
                 "length argument to value must be an offset");
 
-   return (op->result = vcode_add_reg(type));
+   return (op->result = vcode_add_reg(vtype_int(INT64_MIN, INT64_MAX)));
 }
 
 vcode_reg_t emit_last_event(vcode_reg_t signal, vcode_reg_t len)

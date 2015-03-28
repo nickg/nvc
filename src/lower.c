@@ -1193,11 +1193,16 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       type_t f_type = tree_type(fcall);
       return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
    }
-   else if (icmp(builtin, "value"))
-      return emit_value(lower_array_data(r0),
-                        lower_array_len(r0_type, 0, r0),
-                        tree_index(fcall),
-                        lower_type(tree_type(fcall)));
+   else if (icmp(builtin, "value")) {
+      type_t f_type = tree_type(fcall);
+      const int index = tree_index(fcall);
+      vcode_reg_t reg = emit_value(lower_array_data(r0),
+                                   lower_array_len(r0_type, 0, r0),
+                                   index);
+      emit_bounds(reg, lower_bounds(f_type),
+                  lower_type_bounds_kind(f_type), index);
+      return emit_cast(lower_type(f_type), lower_bounds(f_type), reg);
+   }
    else if (icmp(builtin, "sll"))
       return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
    else if (icmp(builtin, "srl"))
