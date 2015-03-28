@@ -563,6 +563,12 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
    vcode_reg_t result_reg = emit_alloca(vbool, vbool, VCODE_INVALID_REG);
    emit_store_indirect(emit_const(vbool, 0), result_reg);
 
+   type_t elem_type = type_elem(left_type);
+
+   vcode_reg_t stride = VCODE_INVALID_REG;
+   if (type_is_array(elem_type))
+      stride = lower_array_total_len(elem_type, VCODE_INVALID_REG);
+
    vcode_reg_t len_eq = emit_cmp(VCODE_CMP_EQ, left_len, right_len);
 
    if (pred == VCODE_CMP_EQ)
@@ -584,10 +590,13 @@ static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
 
    vcode_select_block(body_bb);
 
-   vcode_reg_t l_ptr = emit_add(lhs_data, i_loaded);
-   vcode_reg_t r_ptr = emit_add(rhs_data, i_loaded);
+   vcode_reg_t ptr_inc = i_loaded;
+   if (stride != VCODE_INVALID_REG)
+      ptr_inc = emit_mul(ptr_inc, stride);
 
-   type_t elem_type = type_elem(left_type);
+   vcode_reg_t l_ptr = emit_add(lhs_data, ptr_inc);
+   vcode_reg_t r_ptr = emit_add(rhs_data, ptr_inc);
+
    vcode_reg_t cmp, eq;
    if (type_is_array(elem_type)) {
       cmp = eq = lower_array_cmp_inner(l_ptr, r_ptr,
