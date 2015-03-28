@@ -924,10 +924,12 @@ void _debug_dump(const uint8_t *ptr, int32_t len)
 {
    printf("---- %p ----\n", ptr);
 
-   for (int i = 0; i < len; i++)
-      printf("%02x%c", ptr[i], (i % 8 == 7) ? '\n' : ' ');
-   if (len % 8 != 0)
-      printf("\n");
+   if (ptr != NULL) {
+      for (int i = 0; i < len; i++)
+         printf("%02x%c", ptr[i], (i % 8 == 7) ? '\n' : ' ');
+      if (len % 8 != 0)
+         printf("\n");
+   }
 }
 
 int64_t _last_event(const int32_t *nids, int32_t n)

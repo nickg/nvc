@@ -121,6 +121,7 @@ typedef enum {
    VCODE_OP_BIT_SHIFT,
    VCODE_OP_STORAGE_HINT,
    VCODE_OP_DEBUG_OUT,
+   VCODE_OP_NESTED_PCALL,
 } vcode_op_t;
 
 typedef enum {
@@ -351,7 +352,7 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len);
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field);
 void emit_copy(vcode_reg_t dest, vcode_reg_t src, vcode_reg_t count);
 void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags);
-void emit_resume(ident_t func);
+void emit_resume(ident_t func, bool nested);
 vcode_reg_t emit_memcmp(vcode_reg_t lhs, vcode_reg_t rhs, vcode_reg_t len);
 void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len);
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
@@ -384,5 +385,7 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
                            vcode_type_t result);
 void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
+void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
+                       vcode_block_t resume_bb);
 
 #endif  // _VCODE_H

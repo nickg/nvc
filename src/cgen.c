@@ -1671,9 +1671,13 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    LLVMTypeRef param_types[nparams];
    LLVMGetParamTypes(fn_type, param_types);
 
+   const bool nested = vcode_get_subkind(op) == 1;
+
    LLVMValueRef args[nparams];
-   for (int i = 0; i < nparams - 1; i++)
+   for (int i = 0; i < nparams - 1 - (nested ? 1 : 0); i++)
       args[i] = LLVMGetUndef(param_types[i]);
+   if (nested)
+      args[nparams - 2] = cgen_display_struct(ctx);
    args[nparams - 1] = pcall_state;
 
    LLVMValueRef new_state = LLVMBuildCall(builder, fn, args, nparams, "");
@@ -2345,6 +2349,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
    case VCODE_OP_PCALL:
       cgen_op_pcall(i, false, ctx);
       break;
+   case VCODE_OP_NESTED_PCALL:
+      cgen_op_pcall(i, true, ctx);
+      break;
    case VCODE_OP_RESUME:
       cgen_op_resume(i, ctx);
       break;
@@ -2618,7 +2625,8 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 
       const int last = vcode_count_ops() - 1;
       vcode_op_t last_op = vcode_get_op(last);
-      if (last_op != VCODE_OP_WAIT && last_op != VCODE_OP_PCALL)
+      if (last_op != VCODE_OP_WAIT && last_op != VCODE_OP_PCALL
+          && last_op != VCODE_OP_NESTED_PCALL)
          continue;
 
       const vcode_block_t target = vcode_get_target(last, 0);
@@ -2658,10 +2666,12 @@ static void cgen_procedure(LLVMTypeRef display_type)
 
    LLVMPositionBuilderAtEnd(builder, entry_bb);
 
+   const int state_param = nparams + (display_type == NULL ? 0 : 1);
+
    LLVMTypeRef state_type = cgen_state_type(&ctx);
    LLVMTypeRef pointer_type = LLVMPointerType(state_type, 0);
    LLVMValueRef old_state =
-      LLVMBuildPointerCast(builder, LLVMGetParam(fn, nparams),
+      LLVMBuildPointerCast(builder, LLVMGetParam(fn, state_param),
                            pointer_type, "old_state");
 
    LLVMValueRef is_null = LLVMBuildICmp(builder, LLVMIntEQ, old_state,

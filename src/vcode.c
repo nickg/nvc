@@ -612,7 +612,8 @@ ident_t vcode_get_func(int op)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_FCALL || o->kind == VCODE_OP_NESTED_FCALL
           || o->kind == VCODE_OP_PCALL || o->kind == VCODE_OP_RESUME
-          || o->kind == VCODE_OP_SET_INITIAL);
+          || o->kind == VCODE_OP_SET_INITIAL
+          || o->kind == VCODE_OP_NESTED_PCALL);
    return o->func;
 }
 
@@ -622,7 +623,7 @@ unsigned vcode_get_subkind(int op)
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
           || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT
-          || o->kind == VCODE_OP_ALLOCA);
+          || o->kind == VCODE_OP_ALLOCA || o->kind == VCODE_OP_RESUME);
    return o->subkind;
 }
 
@@ -730,7 +731,7 @@ vcode_block_t vcode_get_target(int op, int nth)
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_WAIT || o->kind == VCODE_OP_JUMP
           || o->kind == VCODE_OP_COND || o->kind == VCODE_OP_PCALL
-          || o->kind == VCODE_OP_CASE);
+          || o->kind == VCODE_OP_CASE || o->kind == VCODE_OP_NESTED_PCALL);
    return vcode_block_array_nth(&(o->targets), nth);
 }
 
@@ -774,7 +775,7 @@ const char *vcode_op_string(vcode_op_t op)
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
-      "storage hint", "debug out"
+      "storage hint", "debug out", "nested pcall"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1512,6 +1513,7 @@ void vcode_dump(void)
             break;
 
          case VCODE_OP_PCALL:
+         case VCODE_OP_NESTED_PCALL:
             {
                color_printf("%s $magenta$%s$$", vcode_op_string(op->kind),
                             istr(op->func));
@@ -2415,6 +2417,13 @@ void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                  resume_bb);
 }
 
+void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
+                       vcode_block_t resume_bb)
+{
+   emit_fcall_op(VCODE_OP_NESTED_PCALL, func, VCODE_INVALID_TYPE, args,
+                 nargs, resume_bb);
+}
+
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count)
 {
@@ -2767,7 +2776,8 @@ void emit_store(vcode_reg_t reg, vcode_var_t var)
          op->kind = VCODE_OP_COMMENT;
          op->comment = xasprintf("Dead store to %s", istr(vcode_var_name(var)));
       }
-      else if (op->kind == VCODE_OP_NESTED_FCALL)
+      else if (op->kind == VCODE_OP_NESTED_FCALL
+               || op->kind == VCODE_OP_NESTED_PCALL)
          break;   // Needs to get variable for display
    }
 
@@ -3612,10 +3622,11 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
    op->subkind = flags;
 }
 
-void emit_resume(ident_t func)
+void emit_resume(ident_t func, bool nested)
 {
    op_t *op = vcode_add_op(VCODE_OP_RESUME);
-   op->func = func;
+   op->func    = func;
+   op->subkind = nested;
 
    block_t *b = &(active_unit->blocks.items[active_block]);
    VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");

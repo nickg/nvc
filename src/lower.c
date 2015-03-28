@@ -2907,11 +2907,13 @@ static void lower_pcall(tree_t pcall)
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
    }
    else {
-      assert(!nested);  // TODO
       vcode_block_t resume_bb = emit_block();
-      emit_pcall(name, args, nargs, resume_bb);
+      if (nested)
+         emit_nested_pcall(name, args, nargs, resume_bb);
+      else
+         emit_pcall(name, args, nargs, resume_bb);
       vcode_select_block(resume_bb);
-      emit_resume(name);
+      emit_resume(name, nested);
    }
 }
 
