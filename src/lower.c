@@ -1305,8 +1305,11 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
       return emit_const_array(lower_type(type), tmp, nchars, allocate);
 }
 
-static vcode_reg_t lower_literal(tree_t lit)
+static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
 {
+   if (ctx == EXPR_LVALUE)
+      return VCODE_INVALID_REG;
+
    switch (tree_subkind(lit)) {
    case L_INT:
       return emit_const(lower_type(tree_type(lit)), tree_ival(lit));
@@ -1445,7 +1448,10 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
    tree_kind_t kind = tree_kind(decl);
    switch (kind) {
    case T_ENUM_LIT:
-      return emit_const(lower_type(tree_type(decl)), tree_pos(decl));
+      if (ctx == EXPR_LVALUE)
+         return VCODE_INVALID_REG;
+      else
+         return emit_const(lower_type(tree_type(decl)), tree_pos(decl));
 
    case T_VAR_DECL:
    case T_FILE_DECL:
@@ -1461,7 +1467,9 @@ static vcode_reg_t lower_ref(tree_t ref, expr_ctx_t ctx)
       return VCODE_INVALID_REG;
 
    case T_CONST_DECL:
-      if (type_is_scalar(tree_type(decl)))
+      if (ctx == EXPR_LVALUE)
+         return VCODE_INVALID_REG;
+      else if (type_is_scalar(tree_type(decl)))
          return lower_expr(tree_value(decl), ctx);
       else
          return lower_var_ref(decl, ctx);
@@ -2376,7 +2384,7 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
    case T_FCALL:
       return lower_fcall(expr, ctx);
    case T_LITERAL:
-      return lower_literal(expr);
+      return lower_literal(expr, ctx);
    case T_REF:
       return lower_ref(expr, ctx);
    case T_AGGREGATE:
@@ -3393,6 +3401,10 @@ static void lower_var_decl(tree_t decl)
 
    if (type_is_array(type)) {
       lower_check_indexes(type, value, decl);
+
+      if (!type_is_unconstrained(type))
+         lower_check_array_sizes(decl, type, tree_type(tree_value(decl)),
+                                 VCODE_INVALID_REG, value);
 
       if (lower_const_bounds(type))
          emit_copy(dest_reg, lower_array_data(value), count_reg);
