@@ -263,6 +263,44 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    return s;
 }
 
+static lib_t elab_link_lib(ident_t name)
+{
+   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
+   if (lib == NULL)
+      fatal("cannot link library %s", istr(name));
+   return lib;
+}
+
+static bool elab_have_context(tree_t unit, ident_t name)
+{
+   const int ndest = tree_contexts(unit);
+   for (int i = 0; i < ndest; i++) {
+      tree_t c2 = tree_context(unit, i);
+      if (tree_kind(c2) != T_USE)
+         continue;
+
+      if (tree_ident(c2) == name)
+         return true;
+   }
+
+   return false;
+}
+
+static void elab_context_walk_fn(ident_t name, int kind, void *context)
+{
+   if (kind == T_PACKAGE) {
+      tree_t dest = (tree_t)context;
+
+      if (!elab_have_context(dest, name)) {
+         tree_t c = tree_new(T_USE);
+         tree_set_ident(c, name);
+         tree_set_ident2(c, all_i);
+
+         tree_add_context(dest, c);
+      }
+   }
+}
+
 static void elab_copy_context(tree_t dest, tree_t src)
 {
    const int nsrc = tree_contexts(src);
@@ -274,18 +312,11 @@ static void elab_copy_context(tree_t dest, tree_t src)
       tree_set_ident2(c, all_i);
 
       ident_t name = tree_ident(c);
-      bool have = false;
-      const int ndest = tree_contexts(dest);
-      for (int j = 0; (j < ndest) && !have; j++) {
-         tree_t c2 = tree_context(dest, j);
-         if (tree_kind(c2) != T_USE)
-            continue;
+      ident_t lname = ident_until(name, '.');
 
-         if (tree_ident(c2) == name)
-            have = true;
-      }
-
-      if (!have)
+      if (name == lname)
+         lib_walk_index(elab_link_lib(name), elab_context_walk_fn, dest);
+      else if (!elab_have_context(dest, name))
          tree_add_context(dest, c);
    }
 }
@@ -1271,14 +1302,6 @@ static tree_t rewrite_funcs(tree_t t, void *context)
    }
 
    return t;
-}
-
-static lib_t elab_link_lib(ident_t name)
-{
-   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot link library %s", istr(name));
-   return lib;
 }
 
 static void elab_funcs(tree_t arch, tree_t ent)
