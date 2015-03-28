@@ -945,8 +945,6 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-   LLVMValueRef index = llvm_int32(vcode_get_index(op));
-
    if (value_bits > 32) {
       // TODO: we should probably pass all the arguments as 64-bit here
       LLVMTypeRef ll_int32 = LLVMInt32Type();
@@ -956,14 +954,14 @@ static void cgen_op_bounds(int op, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef args[] = {
-      index,
+      llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), ""),
       value,
       min,
       max,
       llvm_int32(vcode_get_subkind(op)),
-      index,
+      llvm_int32(vcode_get_hint(op)),
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
@@ -1014,8 +1012,6 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
 
    LLVMPositionBuilderAtEnd(builder, fail_bb);
 
-   LLVMValueRef index = llvm_int32(vcode_get_index(op));
-
    if (value_bits > 32) {
       // TODO: we should probably pass all the arguments as 64-bit here
       LLVMTypeRef ll_int32 = LLVMInt32Type();
@@ -1025,14 +1021,14 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
    }
 
    LLVMValueRef args[] = {
-      index,
+      llvm_int32(vcode_get_index(op)),
       LLVMBuildPointerCast(builder, mod_name,
                            LLVMPointerType(LLVMInt8Type(), 0), ""),
       value,
       min,
       max,
       LLVMBuildZExt(builder, kind, LLVMInt32Type(), ""),
-      index,
+      llvm_int32(vcode_get_hint(op)),
    };
 
    LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");

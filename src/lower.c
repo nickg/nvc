@@ -452,6 +452,26 @@ static vcode_reg_t lower_wrap(type_t type, vcode_reg_t data)
    return lower_wrap_with_new_bounds(type, data, data);
 }
 
+static bounds_kind_t lower_type_bounds_kind(type_t type)
+{
+   if (type_is_enum(type))
+      return BOUNDS_ENUM;
+   else if (type_dims(type) == 0)
+      return lower_type_bounds_kind(type_base(type));
+   else {
+      range_t r = type_dim(type, 0);
+      return r.kind == RANGE_TO ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO;
+   }
+}
+
+static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
+                                      tree_t where, tree_t hint)
+{
+   const int index = tree_index(where);
+   emit_bounds(value, lower_bounds(type), lower_type_bounds_kind(type),
+               index, (hint == NULL ? index : tree_index(hint)));
+}
+
 static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
 {
    if (nth >= tree_params(fcall))
@@ -477,9 +497,10 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
       && mode == PORT_IN;
 
    class_t class = C_DEFAULT;
+   tree_t port = NULL;
    type_t port_type = value_type;
    if (tree_attr_str(decl, builtin_i) == NULL) {
-      tree_t port = tree_port(decl, nth);
+      port = tree_port(decl, nth);
       port_type = tree_type(port);
       class = tree_class(port);
    }
@@ -503,13 +524,10 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
          len_reg = lower_array_total_len(value_type, reg);
       vcode_reg_t new_reg = emit_vec_load(data_reg, len_reg, false);
 
-      emit_comment("uarray %d", reg_kind == VCODE_TYPE_UARRAY);
       if (reg_kind == VCODE_TYPE_UARRAY)
          reg = lower_wrap_with_new_bounds(value_type, reg, new_reg);
       else
          reg = new_reg;
-      emit_comment("reg=r%d", reg);
-
    }
 
    if (type_is_array(value_type)) {
@@ -531,8 +549,12 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
    }
    else if (class == C_SIGNAL || class == C_FILE)
       return reg;
-   else
-      return must_reify ? lower_reify(reg) : reg;
+   else {
+      vcode_reg_t final = must_reify ? lower_reify(reg) : reg;
+      if (mode != PORT_OUT && port != NULL && type_is_scalar(port_type))
+         lower_check_scalar_bounds(lower_reify(final), port_type, port, value);
+      return final;
+   }
 }
 
 static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
@@ -898,18 +920,6 @@ static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
    return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
 }
 
-static bounds_kind_t lower_type_bounds_kind(type_t type)
-{
-   if (type_is_enum(type))
-      return BOUNDS_ENUM;
-   else if (type_dims(type) == 0)
-      return lower_type_bounds_kind(type_base(type));
-   else {
-      range_t r = type_dim(type, 0);
-      return r.kind == RANGE_TO ? BOUNDS_TYPE_TO : BOUNDS_TYPE_DOWNTO;
-   }
-}
-
 static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
                                     vcode_reg_t r1, tree_t fcall)
 {
@@ -930,14 +940,6 @@ static vcode_reg_t lower_bit_vec_op(bit_vec_op_kind_t kind, vcode_reg_t r0,
 
    return emit_bit_vec_op(kind, r0_data, r0_len, r0_dir, r1_data, r1_len,
                           r1_dir, lower_type(tree_type(fcall)));
-}
-
-static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
-                                      tree_t where, tree_t hint)
-{
-   const int index = tree_index(where);
-   emit_bounds(value, lower_bounds(type), lower_type_bounds_kind(type),
-               index, (hint == NULL ? index : tree_index(hint)));
 }
 
 static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,

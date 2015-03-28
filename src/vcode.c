@@ -37,6 +37,7 @@ typedef struct {
    vcode_var_t         address;
    uint32_t            index;
    ident_t             func;
+   unsigned            subkind;
    union {
       vcode_cmp_t     cmp;
       int64_t         value;
@@ -47,7 +48,7 @@ typedef struct {
       unsigned        hops;
       unsigned        field;
       unsigned        elems;
-      unsigned        subkind;
+      uint32_t        hint;
    };
 } op_t;
 
@@ -723,6 +724,15 @@ uint32_t vcode_get_index(int op)
           || o->kind == VCODE_OP_DYNAMIC_BOUNDS
           || o->kind == VCODE_OP_ARRAY_SIZE || o->kind == VCODE_OP_INDEX_CHECK);
    return o->index;
+}
+
+uint32_t vcode_get_hint(int op)
+{
+   op_t *o = vcode_op_data(op);
+   assert(o->kind == VCODE_OP_BOUNDS
+          || o->kind == VCODE_OP_DYNAMIC_BOUNDS
+          || o->kind == VCODE_OP_INDEX_CHECK);
+   return o->hint;
 }
 
 vcode_block_t vcode_get_target(int op, int nth)
@@ -2980,10 +2990,15 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
    op->type    = bounds;
    op->subkind = kind;
    op->index   = index;
+   op->hint    = hint;
 
    const vtype_kind_t tkind = vtype_kind(bounds);
    VCODE_ASSERT(tkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
                 "type argument to bounds must be integer or real");
+
+   const vtype_kind_t rkind = vcode_reg_kind(reg);
+   VCODE_ASSERT(rkind == VCODE_TYPE_INT || tkind == VCODE_TYPE_REAL,
+                "reg argument to bounds must be integer or real");
 }
 
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
@@ -3968,6 +3983,7 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    vcode_add_arg(op, high);
    vcode_add_arg(op, kind);
    op->index = index;
+   op->hint  = hint;
 }
 
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index)

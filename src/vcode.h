@@ -235,6 +235,7 @@ int64_t vcode_get_value(int op);
 double vcode_get_real(int op);
 vcode_cmp_t vcode_get_cmp(int op);
 uint32_t vcode_get_index(int op);
+uint32_t vcode_get_hint(int op);
 vcode_block_t vcode_get_target(int op, int nth);
 vcode_var_t vcode_get_address(int op);
 int vcode_count_args(int op);
