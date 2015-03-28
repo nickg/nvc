@@ -1916,7 +1916,6 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
       emit_comment("Array of array stride is r%d", stride);
    }
 
-   vcode_reg_t len0_reg = len_reg;
    if (multidim) {
       if (stride == VCODE_INVALID_REG)
          stride = emit_const(vtype_offset(), 1);
@@ -1926,9 +1925,12 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
          stride = emit_mul(stride,
                            lower_array_len(agg_type, i, VCODE_INVALID_REG));
       emit_comment("Multidimensional array stride is r%d", stride);
-
-      len0_reg = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
    }
+
+
+   vcode_reg_t len0_reg = len_reg;
+   if (type_is_array(elem_type) || multidim)
+      len0_reg = lower_array_len(agg_type, 0, VCODE_INVALID_REG);
 
    vcode_block_t test_bb = emit_block();
    vcode_block_t body_bb = emit_block();

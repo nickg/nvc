@@ -163,7 +163,7 @@ elab15          normal
 const5          normal
 issue18         normal
 elab16          normal
-# signal12        normal
+signal12        normal
 const6          normal
 func12          normal
 agg5            normal
