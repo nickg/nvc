@@ -3458,8 +3458,11 @@ static void lower_signal_decl(tree_t decl)
    if (tree_has_value(decl)) {
       tree_t value = tree_value(decl);
       vcode_reg_t init_reg = lower_expr(value, EXPR_RVALUE);
-      if (type_is_array(tree_type(value)))
+      if (type_is_array(tree_type(value))) {
+         lower_check_array_sizes(decl, type, tree_type(value),
+                                 VCODE_INVALID_REG, init_reg);
          init_reg = lower_array_data(init_reg);
+      }
 
       ident_t rfunc = NULL;
       vcode_type_t rtype = VCODE_INVALID_TYPE;
