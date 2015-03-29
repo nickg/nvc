@@ -3429,6 +3429,44 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
    }
 }
 
+static void lower_protected_init(tree_t decl, vcode_var_t var)
+{
+   tree_t body = type_body(tree_type(decl));
+
+   vcode_reg_t pstruct = emit_index(var, VCODE_INVALID_REG);
+
+   int nvar = 0;
+   const int ndecls = tree_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(body, i);
+      if (tree_kind(d) != T_VAR_DECL)
+         continue;
+
+      type_t type = tree_type(d);
+
+      vcode_reg_t field = emit_record_ref(pstruct, nvar++);
+      vcode_reg_t value = lower_expr(tree_value(d), EXPR_RVALUE);
+
+      if (type_is_array(type)) {
+         vcode_reg_t count_reg =
+            lower_array_total_len(type, VCODE_INVALID_REG);
+         lower_check_indexes(type, value, d);
+         lower_check_array_sizes(d, type, tree_type(tree_value(d)),
+                                 VCODE_INVALID_REG, value);
+         emit_copy(field, lower_array_data(value), count_reg);
+      }
+      else if (type_is_record(type))
+         emit_copy(field, value, VCODE_INVALID_REG);
+      else if (type_is_scalar(type)) {
+         value = lower_reify(value);
+         lower_check_scalar_bounds(value, type, decl, NULL);
+         emit_store_indirect(value, field);
+      }
+      else
+         emit_store_indirect(value, field);
+   }
+}
+
 static void lower_var_decl(tree_t decl)
 {
    type_t type = tree_type(decl);
@@ -3437,6 +3475,9 @@ static void lower_var_decl(tree_t decl)
    vcode_var_t var = emit_var(vtype, vbounds, tree_ident(decl),
                               tree_kind(decl) == T_CONST_DECL);
    tree_add_attr_int(decl, vcode_obj_i, var);
+
+   if (type_is_protected(type))
+      lower_protected_init(decl, var);
 
    if (!tree_has_value(decl))
       return;
@@ -3687,15 +3728,16 @@ static void lower_decls(tree_t scope)
    }
 }
 
-static void lower_prot_body(tree_t body)
+static void lower_protected_body(tree_t body)
 {
+   int nvars = 0;
    const int ndecls = tree_decls(body);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(body, i);
       if (tree_kind(d) != T_VAR_DECL)
          continue;
 
-      tree_add_attr_int(d, prot_field_i, i);
+      tree_add_attr_int(d, prot_field_i, nvars++);
    }
 
    lower_subprograms(body, vcode_active_unit());
@@ -3725,7 +3767,7 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
          lower_proc_body(d, context);
          break;
       case T_PROT_BODY:
-         lower_prot_body(d);
+         lower_protected_body(d);
          break;
       default:
          break;
