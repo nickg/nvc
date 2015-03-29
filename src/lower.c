@@ -3922,7 +3922,9 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          }
 
          if (all_const) {
-            const int stride = type_width(type_elem(tree_type(t)));
+            type_t type = tree_type(t);
+            const int stride =
+               type_is_scalar(type) ? 1 : type_width(type_elem(type));
             vcode_reg_t idx =
                emit_mul(lower_array_ref_offset(t, *driven_nets),
                         emit_const(vtype_offset(), stride));
