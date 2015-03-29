@@ -2206,15 +2206,20 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
    type_t type = tree_type(value);
    vcode_reg_t record = lower_expr(value, ctx);
 
+   const int index = lower_field_index(type, tree_ident(expr));
+
    if (vcode_reg_kind(record) == VCODE_TYPE_SIGNAL) {
-      assert(ctx == EXPR_LVALUE);
-      const netid_t offset = record_field_to_net(type, tree_ident(expr));
-      return emit_add(record, emit_const(vtype_offset(), offset));
+      if (ctx == EXPR_RVALUE) {
+         vcode_reg_t count_reg = emit_const(vtype_offset(), type_width(type));
+         return emit_record_ref(emit_vec_load(record, count_reg, false), index);
+      }
+      else {
+         const netid_t offset = record_field_to_net(type, tree_ident(expr));
+         return emit_add(record, emit_const(vtype_offset(), offset));
+      }
    }
-   else {
-      const int index = lower_field_index(type, tree_ident(expr));
+   else
       return emit_record_ref(record, index);
-   }
 }
 
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
@@ -2230,7 +2235,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
       tree_type(args[1])
    };
 
-   const vcode_reg_t arg_regs[] = {
+   vcode_reg_t arg_regs[] = {
       lower_expr(args[0], ctx),
       lower_expr(args[1], ctx)
    };
@@ -2269,6 +2274,10 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    if (type_is_array(arg_types[0])) {
       vcode_reg_t src_len = lower_array_total_len(arg_types[0], arg_regs[0]);
+
+      if (vcode_reg_kind(arg_regs[0]) == VCODE_TYPE_SIGNAL)
+         arg_regs[0] = emit_vec_load(arg_regs[0], src_len, false);
+
       emit_copy(ptr, lower_array_data(arg_regs[0]), src_len);
       ptr = emit_add(ptr, src_len);
    }
@@ -2279,6 +2288,10 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    if (type_is_array(arg_types[1])) {
       vcode_reg_t src_len = lower_array_total_len(arg_types[1], arg_regs[1]);
+
+      if (vcode_reg_kind(arg_regs[1]) == VCODE_TYPE_SIGNAL)
+         arg_regs[1] = emit_vec_load(arg_regs[1], src_len, false);
+
       emit_copy(ptr, lower_array_data(arg_regs[1]), src_len);
    }
    else
@@ -3466,7 +3479,6 @@ static void lower_signal_decl(tree_t decl)
 
    const bool can_use_shadow =
       lower_signal_sequential_nets(decl)
-      && !type_is_record(type)
       && !tree_attr_int(decl, partial_map_i, 0);
 
    vcode_var_t shadow = VCODE_INVALID_VAR;
