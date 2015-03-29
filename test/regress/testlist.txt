@@ -230,7 +230,7 @@ attr11          normal
 implicit1       normal
 implicit2       normal
 file2           normal
-# case5           gold,fail
+case5           gold,fail
 toplevel1       normal
 vhpi1           gold,vhpi
 vhpi2           normal,vhpi

@@ -2360,9 +2360,11 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
       // Need to wrap in metadata
       return lower_wrap(from, value_reg);
    }
-   else if (from_k == T_INTEGER && to_k == T_INTEGER)
+   else if (from_k == T_INTEGER && to_k == T_INTEGER) {
       // Possibly change width
+      lower_check_scalar_bounds(value_reg, to, expr, NULL);
       return emit_cast(lower_type(to), lower_bounds(to), value_reg);
+   }
    else {
       // No conversion to perform
       return value_reg;
