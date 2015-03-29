@@ -77,6 +77,7 @@ static ident_t last_value_i;
 static ident_t elide_bounds_i;
 static ident_t null_range_i;
 static ident_t deferred_i;
+static ident_t partial_map_i;
 
 static const char *verbose = NULL;
 
@@ -3463,8 +3464,13 @@ static void lower_signal_decl(tree_t decl)
    vcode_type_t bounds = lower_bounds(type);
    ident_t name = tree_ident(decl);
 
+   const bool can_use_shadow =
+      lower_signal_sequential_nets(decl)
+      && !type_is_record(type)
+      && !tree_attr_int(decl, partial_map_i, 0);
+
    vcode_var_t shadow = VCODE_INVALID_VAR;
-   if (lower_signal_sequential_nets(decl)) {
+   if (can_use_shadow) {
       vcode_type_t shadow_type   = ltype;
       vcode_type_t shadow_bounds = bounds;
       if (type_is_array(type)) {
@@ -4072,6 +4078,7 @@ void lower_unit(tree_t unit)
    elide_bounds_i = ident_new("elide_bounds");
    null_range_i   = ident_new("null_range");
    deferred_i     = ident_new("deferred");
+   partial_map_i  = ident_new("partial_map");
 
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)
