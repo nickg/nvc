@@ -224,8 +224,8 @@ issue60         normal
 record11        normal
 issue63         normal
 driver5         normal
-# textio3         normal
-# record12        normal
+textio3         normal
+record12        normal
 attr11          normal
 implicit1       normal
 implicit2       normal

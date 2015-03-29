@@ -3530,7 +3530,7 @@ static void lower_file_decl(tree_t decl)
    vcode_var_t var = emit_var(vtype, vtype, tree_ident(decl), false);
    tree_add_attr_int(decl, vcode_obj_i, var);
 
-   // TODO: set file to NULL here
+   emit_store(emit_null(vtype), var);
 
    if (tree_has_value(decl)) {
       // Generate initial call to file_open
