@@ -3853,9 +3853,10 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          }
 
          if (all_const) {
+            const int stride = type_width(type_elem(tree_type(t)));
             vcode_reg_t idx =
                emit_mul(lower_array_ref_offset(t, *driven_nets),
-                        emit_const(vtype_offset(), type_width(tree_type(t))));
+                        emit_const(vtype_offset(), stride));
 
             *driven_nets   = emit_add(*driven_nets, idx);
             *driven_length = type_width(tree_type(t));
