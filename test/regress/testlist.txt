@@ -239,7 +239,7 @@ issue70         normal
 elab22          normal
 array4          normal
 issue72         normal
-# protected1      normal,2000
+protected1      normal,2000
 # protected2      normal,2000
 slice3          normal
 alias9          normal

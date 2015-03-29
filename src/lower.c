@@ -78,6 +78,7 @@ static ident_t elide_bounds_i;
 static ident_t null_range_i;
 static ident_t deferred_i;
 static ident_t partial_map_i;
+static ident_t prot_field_i;
 
 static const char *verbose = NULL;
 
@@ -93,6 +94,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_type_t lower_type(type_t type);
 static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type);
+static void lower_subprograms(tree_t scope, vcode_unit_t context);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -368,6 +370,33 @@ static vcode_type_t lower_type(type_t type)
             vcode_type_t fields[nfields];
             for (int i = 0; i < nfields; i++)
                fields[i] = lower_type(tree_type(type_field(type, i)));
+
+            vtype_set_record_fields(record, fields, nfields);
+         }
+
+         return record;
+      }
+
+   case T_PROTECTED:
+      {
+         ident_t name = type_ident(type);
+         uint32_t index = type_index(type);
+         vcode_type_t record = vtype_named_record(name, index, false);
+         if (record == VCODE_INVALID_TYPE) {
+            record = vtype_named_record(name, index, true);
+
+            tree_t body = type_body(type);
+
+            const int ndecls = tree_decls(body);
+            int nfields = 0;
+            vcode_type_t fields[ndecls];
+            for (int i = 0; i < ndecls; i++) {
+               tree_t decl = tree_decl(body, i);
+               if (tree_kind(decl) != T_VAR_DECL)
+                  continue;
+
+               fields[nfields++] = lower_type(tree_type(decl));
+            }
 
             vtype_set_record_fields(record, fields, nfields);
          }
@@ -1333,7 +1362,12 @@ static vcode_reg_t lower_literal(tree_t lit, expr_ctx_t ctx)
 static vcode_var_t lower_get_var(tree_t decl)
 {
    vcode_var_t var = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_VAR);
-   if (var == VCODE_INVALID_VAR) {
+
+   const bool is_extern =
+      var == VCODE_INVALID_VAR
+      && tree_attr_int(decl, prot_field_i, -1) == -1;
+
+   if (is_extern) {
       vcode_unit_t old_unit   = vcode_active_unit();
       vcode_block_t old_block = vcode_active_block();
       vcode_select_unit(vcode_unit_context());
@@ -1368,14 +1402,27 @@ static vcode_signal_t lower_get_signal(tree_t decl)
    return sig;
 }
 
+static vcode_reg_t lower_protected_var(tree_t decl)
+{
+   const int pfield = tree_attr_int(decl, prot_field_i, -1);
+   assert(pfield != -1);
+
+   vcode_reg_t pstruct = vcode_count_params() - 1;
+   assert(pstruct >= 0);
+
+   return emit_record_ref(pstruct, pfield);
+}
+
 static vcode_reg_t lower_var_ref(tree_t decl, expr_ctx_t ctx)
 {
    type_t type = tree_type(decl);
 
    vcode_var_t var = lower_get_var(decl);
-   if (type_is_array(type) && lower_const_bounds(type))
+   if (var == VCODE_INVALID_VAR)
+      return lower_protected_var(decl);
+   else if (type_is_array(type) && lower_const_bounds(type))
       return emit_index(var, VCODE_INVALID_REG);
-   else if (type_is_record(type))
+   else if (type_is_record(type) || type_is_protected(type))
       return emit_index(var, VCODE_INVALID_REG);
    else if ((type_is_scalar(type) || type_is_file(type) || type_is_access(type))
             && ctx == EXPR_LVALUE)
@@ -2726,9 +2773,11 @@ static void lower_var_assign(tree_t stmt)
    if (is_scalar || type_is_access(type)) {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
+      vcode_var_t var = VCODE_INVALID_VAR;
       if (is_scalar)
          lower_check_scalar_bounds(loaded_value, type, stmt, NULL);
-      if (is_var_decl)
+      if (is_var_decl
+          && (var = lower_get_var(tree_ref(target))) != VCODE_INVALID_VAR)
          emit_store(loaded_value, lower_get_var(tree_ref(target)));
       else
          emit_store_indirect(loaded_value, lower_expr(target, EXPR_LVALUE));
@@ -3633,9 +3682,26 @@ static void lower_decls(tree_t scope)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      if (kind != T_PROC_BODY && kind != T_FUNC_BODY)
+      if (kind != T_PROC_BODY && kind != T_FUNC_BODY && kind != T_PROT_BODY)
          lower_decl(d);
    }
+}
+
+static void lower_prot_body(tree_t body)
+{
+   const int ndecls = tree_decls(body);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(body, i);
+      if (tree_kind(d) != T_VAR_DECL)
+         continue;
+
+      tree_add_attr_int(d, prot_field_i, i);
+   }
+
+   lower_subprograms(body, vcode_active_unit());
+
+   for (int i = 0; i < ndecls; i++)
+      tree_remove_attr(tree_decl(body, i), prot_field_i);
 }
 
 static void lower_subprograms(tree_t scope, vcode_unit_t context)
@@ -3657,6 +3723,9 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
          if (nested)
             tree_add_attr_int(d, nested_i, 1);
          lower_proc_body(d, context);
+         break;
+      case T_PROT_BODY:
+         lower_prot_body(d);
          break;
       default:
          break;
@@ -4092,6 +4161,7 @@ void lower_unit(tree_t unit)
    null_range_i   = ident_new("null_range");
    deferred_i     = ident_new("deferred");
    partial_map_i  = ident_new("partial_map");
+   prot_field_i   = ident_new("prot_field");
 
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)

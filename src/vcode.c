@@ -928,7 +928,7 @@ static int vcode_dump_var(vcode_var_t var)
 {
    if (MASK_CONTEXT(var) != active_unit->depth) {
       vcode_unit_t owner = active_unit;
-      for (int i = 0; i < MASK_CONTEXT(var); i++)
+      for (int i = MASK_CONTEXT(var); i < active_unit->depth; i++)
          owner = owner->context;
       return color_printf("$magenta$%s@%s$$", istr(vcode_var_name(var)),
                           istr(owner->name));

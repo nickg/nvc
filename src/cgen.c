@@ -2795,7 +2795,9 @@ static void cgen_subprograms(tree_t t)
 {
    LLVMTypeRef display = NULL;
    const tree_kind_t scope_kind = tree_kind(t);
-   const bool needs_display = scope_kind != T_ELAB && scope_kind != T_PACK_BODY;
+   const bool needs_display =
+      scope_kind != T_ELAB && scope_kind != T_PACK_BODY
+      && scope_kind != T_PROT_BODY;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
@@ -2811,6 +2813,9 @@ static void cgen_subprograms(tree_t t)
             cgen_function(display);
          else
             cgen_procedure(display);
+         break;
+      case T_PROT_BODY:
+         cgen_subprograms(d);
          break;
       default:
          break;
