@@ -215,6 +215,7 @@ static tree_t rewrite_refs(tree_t t, void *context)
       case T_ARRAY_SLICE:
       case T_ARRAY_REF:
       case T_FCALL:
+      case T_CONCAT:
          return params->actuals[i];
       case T_TYPE_CONV:
          // XXX: this only works in trivial cases
@@ -722,6 +723,7 @@ static bool elab_should_copy(tree_t t)
    case T_ALL:
    case T_OPEN:
    case T_ATTR_REF:
+   case T_NEW:
        return false;
    case T_VAR_DECL:
       if (tree_attr_int(t, shared_i, 0))

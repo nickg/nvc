@@ -252,3 +252,4 @@ access6         gold,fail
 issue90         normal
 issue104        normal
 proc11          normal
+elab23          normal
