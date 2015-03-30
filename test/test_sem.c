@@ -171,6 +171,7 @@ START_TEST(test_ports)
       { 297, "output conversion for formal B must not have OPEN actual" },
       { 311, "cannot assign to input port X" },
       { 312, "cannot read output port Y" },
+      { 332, "cannot read parameter X with mode IN" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -228,6 +229,13 @@ START_TEST(test_ports)
    sem_check(e);
 
    // Architecture test
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   // Architecture other2
 
    a = parse();
    fail_if(a == NULL);

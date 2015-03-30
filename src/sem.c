@@ -3846,11 +3846,11 @@ static bool sem_check_pcall(tree_t t)
             sem_error(value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
          else if (decl_kind == T_PORT_DECL) {
-            if ((mode == PORT_OUT) && (tree_subkind(decl) != PORT_OUT))
-               sem_error(value, "cannot read parameter %s with mode OUT",
+            if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
+               sem_error(value, "cannot read parameter %s with mode IN",
                          istr(tree_ident(decl)));
-            else if (((mode == PORT_OUT) || (mode == PORT_INOUT))
-                     && (tree_class(decl) == C_CONSTANT))
+            else if ((mode == PORT_OUT || mode == PORT_INOUT)
+                     && tree_class(decl) == C_CONSTANT)
                sem_error(value, "object %s has class CONSTANT and "
                          "cannot be associated with OUT or INOUT parameters",
                          istr(tree_ident(decl)));

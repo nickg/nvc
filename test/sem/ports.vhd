@@ -311,3 +311,26 @@ begin
     x(1) <= '0';                        -- Error
     y(1) <= y(0);                       -- Error
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture other2 of top is
+
+    procedure assign(x : out integer) is
+    begin
+        x := 5;
+    end procedure;
+
+    procedure assign_and_check(x : inout integer) is
+    begin
+        assign(x);                      -- OK
+        assert x = 5;
+    end procedure;
+
+    procedure bad(x : in integer) is
+    begin
+        assign(x);
+    end procedure;
+
+begin
+end architecture;
