@@ -719,6 +719,8 @@ static vcode_reg_t lower_array_cmp(vcode_reg_t r0, vcode_reg_t r1,
 static vcode_reg_t lower_signal_flag(tree_t ref, lower_signal_flag_fn_t fn)
 {
    vcode_reg_t nets = lower_expr(ref, EXPR_LVALUE);
+   if (nets == VCODE_INVALID_REG)
+      return emit_const(vtype_bool(), 0);
 
    vcode_reg_t length = VCODE_INVALID_REG;
    type_t type = tree_type(ref);
