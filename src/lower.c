@@ -3250,7 +3250,7 @@ static void lower_case_emit_state_code(case_state_t *state,
    }
    else {
       vcode_reg_t ptr_reg = emit_add(value, emit_const(vtype_offset(), depth));
-      vcode_reg_t loaded  = emit_load_indirect(ptr_reg);
+      vcode_reg_t loaded  = lower_reify(ptr_reg);
 
       vcode_block_t blocks[state->narcs];
       vcode_reg_t cases[state->narcs];
