@@ -3762,6 +3762,8 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
       scope_kind != T_ELAB && scope_kind != T_PACK_BODY
       && scope_kind != T_PROT_BODY;
 
+   const int nest_depth = tree_attr_int(scope, nested_i, 0);
+
    const int ndecls = tree_decls(scope);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
@@ -3769,12 +3771,12 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
       switch (kind) {
       case T_FUNC_BODY:
          if (nested)
-            tree_add_attr_int(d, nested_i, 1);
+            tree_add_attr_int(d, nested_i, nest_depth + 1);
          lower_func_body(d, context);
          break;
       case T_PROC_BODY:
          if (nested)
-            tree_add_attr_int(d, nested_i, 1);
+            tree_add_attr_int(d, nested_i, nest_depth + 1);
          lower_proc_body(d, context);
          break;
       case T_PROT_BODY:

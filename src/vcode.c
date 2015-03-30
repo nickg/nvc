@@ -671,7 +671,7 @@ int vcode_get_hops(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_PARAM_UPREF || o->kind == VCODE_OP_NESTED_FCALL
-          || o->kind == VCODE_OP_NESTED_FCALL);
+          || o->kind == VCODE_OP_NESTED_PCALL);
    return o->hops;
 }
 
