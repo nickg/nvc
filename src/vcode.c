@@ -197,10 +197,9 @@ static op_t *vcode_add_op(vcode_op_t kind)
    assert(active_unit != NULL);
    assert(active_block != VCODE_INVALID_BLOCK);
 
-   if (vcode_block_finished()) {
-      vcode_dump();
-      fatal_trace("attempt to add to already finished block %d", active_block);
-   }
+   VCODE_ASSERT(
+      !vcode_block_finished(),
+      "attempt to add to already finished block %d", active_block);
 
    block_t *block = vcode_block_data();
 
@@ -2366,13 +2365,11 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    }
 
    // Reuse any previous operation in this block with the same arguments
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CMP && op->args.count == 2
-          && op->args.items[0] == lhs && op->args.items[1] == rhs
-          && op->cmp == cmp)
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CMP, &other)) {
+      if (other->args.count == 2 && other->args.items[0] == lhs
+          && other->args.items[1] == rhs && other->cmp == cmp)
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CMP);
@@ -2472,12 +2469,10 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
-   block_t *b = &(active_unit->blocks.items[active_block]);
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_CONST && op->value == value
-          && vtype_eq(type, op->type))
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_CONST, &other)) {
+      if (other->value == value && vtype_eq(type, other->type))
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_CONST);
@@ -2486,10 +2481,8 @@ vcode_reg_t emit_const(vcode_type_t type, int64_t value)
    op->result = vcode_add_reg(type);
 
    vtype_kind_t type_kind = vtype_kind(type);
-   if (type_kind != VCODE_TYPE_INT && type_kind != VCODE_TYPE_OFFSET) {
-      vcode_dump();
-      fatal_trace("constant must have integer or offset type");
-   }
+   VCODE_ASSERT(type_kind == VCODE_TYPE_INT || type_kind == VCODE_TYPE_OFFSET,
+                "constant must have integer or offset type");
 
    reg_t *r = vcode_reg_data(op->result);
    r->bounds = vtype_int(value, value);
@@ -3529,10 +3522,8 @@ static vcode_reg_t emit_signal_flag(vcode_op_t opkind, vcode_reg_t nets,
    vcode_add_arg(op, nets);
    vcode_add_arg(op, len);
 
-   if (vtype_kind(vcode_reg_type(nets)) != VCODE_TYPE_SIGNAL) {
-      vcode_dump();
-      fatal_trace("argument to %s is not a signal", vcode_op_string(opkind));
-   }
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "argument to %s is not a signal", vcode_op_string(opkind));
 
    return (op->result = vcode_add_reg(vtype_bool()));
 }
@@ -3550,12 +3541,10 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len)
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 {
    // Try scanning backwards through the block for another record ref
-   block_t *b = vcode_block_data();
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_RECORD_REF && op->args.items[0] == record
-          && op->field == field)
-         return op->result;
+   op_t *other = NULL;
+   while (vcode_dominating_ops(VCODE_OP_RECORD_REF, &other)) {
+      if (other->args.items[0] == record && other->field == field)
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_RECORD_REF);
