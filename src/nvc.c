@@ -175,21 +175,41 @@ static int analyse(int argc, char **argv)
    return EXIT_SUCCESS;
 }
 
+static void elab_verbose(bool verbose, const char *fmt, ...)
+{
+   if (verbose) {
+      va_list ap;
+      va_start(ap, fmt);
+      char *msg LOCAL = xvasprintf(fmt, ap);
+      va_end(ap);
+
+      static nvc_rusage_t last_ru;
+
+      nvc_rusage_t ru;
+      nvc_rusage(&ru);
+      notef("%s [%ums %+dkB]", msg, ru.ms, ru.rss - last_ru.rss);
+
+      last_ru = ru;
+   }
+}
+
 static int elaborate(int argc, char **argv)
 {
    set_work_lib();
 
    static struct option long_options[] = {
-      { "disable-opt", no_argument,       0, 'o'},
-      { "dump-llvm",   no_argument,       0, 'd'},
-      { "dump-vcode",  optional_argument, 0, 'v' },
-      { "native",      no_argument,       0, 'n'},
-      { "cover",       no_argument,       0, 'c'},
+      { "disable-opt", no_argument,       0, 'o' },
+      { "dump-llvm",   no_argument,       0, 'd' },
+      { "dump-vcode",  optional_argument, 0, 'V' },
+      { "native",      no_argument,       0, 'n' },
+      { "cover",       no_argument,       0, 'c' },
+      { "verbose",     no_argument,       0, 'v' },
       { 0, 0, 0, 0 }
    };
 
+   bool verbose = false;
    int c, index = 0;
-   const char *spec = "";
+   const char *spec = "v";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -199,7 +219,7 @@ static int elaborate(int argc, char **argv)
       case 'd':
          opt_set_int("dump-llvm", 1);
          break;
-      case 'v':
+      case 'V':
          opt_set_str("dump-vcode", optarg ?: "");
          break;
       case 'n':
@@ -207,6 +227,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'c':
          opt_set_int("cover", 1);
+         break;
+      case 'v':
+         verbose = true;
          break;
       case 0:
          // Set a flag
@@ -221,26 +244,41 @@ static int elaborate(int argc, char **argv)
    if (optind == argc)
       fatal("missing top-level unit name");
 
+   elab_verbose(verbose, "initialising");
+
    ident_t unit_i = to_unit_name(argv[optind]);
    tree_t unit = lib_get(lib_work(), unit_i);
    if (unit == NULL)
       fatal("cannot find unit %s in library %s",
             istr(unit_i), istr(lib_name(lib_work())));
 
+   elab_verbose(verbose, "loading top-level unit");
+
    tree_t e = elab(unit);
    if (e == NULL)
       return EXIT_FAILURE;
 
+   elab_verbose(verbose, "elaborating design");
+
    opt(e);
+   elab_verbose(verbose, "optimising design");
+
    group_nets(e);
+   elab_verbose(verbose, "grouping nets");
 
    // Save the library now so the code generator can attach temporary
    // meta data to trees
    lib_save(lib_work());
+   elab_verbose(verbose, "saving library");
 
    lower_unit(e);
+   elab_verbose(verbose, "generating intermediate code");
+
    cgen(e);
+   elab_verbose(verbose, "generating LLVM");
+
    link_bc(e);
+   elab_verbose(verbose, "linking");
 
    return EXIT_SUCCESS;
 }
@@ -641,6 +679,7 @@ static void usage(void)
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --native\t\tGenerate native code shared library\n"
+          " -v, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"

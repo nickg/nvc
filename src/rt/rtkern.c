@@ -203,7 +203,7 @@ static uint64_t      now = 0;
 static int           iteration = -1;
 static bool          trace_on = false;
 static tree_rd_ctx_t tree_rd_ctx = NULL;
-static struct rusage ready_rusage;
+static nvc_rusage_t  ready_rusage;
 static jmp_buf       fatal_jmp;
 static bool          aborted = false;
 static netdb_t      *netdb = NULL;
@@ -2121,39 +2121,12 @@ static bool rt_stop_now(uint64_t stop_time)
    }
 }
 
-static void rt_stats_ready(void)
-{
-   if (getrusage(RUSAGE_SELF, &ready_rusage) < 0)
-      fatal_errno("getrusage");
-}
-
-static unsigned rt_tv2ms(struct timeval *tv)
-{
-   return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
-}
-
 static void rt_stats_print(void)
 {
-   struct rusage final_rusage;
-   if (getrusage(RUSAGE_SELF, &final_rusage) < 0)
-      fatal_errno("getrusage");
+   nvc_rusage_t ru;
+   nvc_rusage(&ru);
 
-   unsigned ready_u = rt_tv2ms(&ready_rusage.ru_utime);
-   unsigned ready_s = rt_tv2ms(&ready_rusage.ru_stime);
-
-   unsigned final_u = rt_tv2ms(&final_rusage.ru_utime);
-   unsigned final_s = rt_tv2ms(&final_rusage.ru_stime);
-
-#ifdef __APPLE__
-   const int rss_units = 1024;
-#else
-   const int rss_units = 1;
-#endif
-
-   notef("setup:%ums run:%ums maxrss:%ldkB",
-         ready_u + ready_s,
-         final_u + final_s - ready_u - ready_s,
-         final_rusage.ru_maxrss / rss_units);
+   notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
 }
 
 static void rt_emit_coverage(tree_t e)
@@ -2220,7 +2193,7 @@ void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
 
    global_tmp_alloc = 0;
 
-   rt_stats_ready();
+   nvc_rusage(&ready_rusage);
 }
 
 void rt_end_of_tool(tree_t top)

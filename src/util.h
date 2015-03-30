@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -136,5 +136,12 @@ typedef enum {
 } message_style_t;
 
 void set_message_style(message_style_t style);
+
+typedef struct {
+   unsigned rss;
+   unsigned ms;
+} nvc_rusage_t;
+
+void nvc_rusage(nvc_rusage_t *ru);
 
 #endif // _UTIL_H

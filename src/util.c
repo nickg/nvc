@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -37,6 +37,8 @@
 #include <limits.h>
 
 #include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #ifdef HAVE_SYS_PTRACE_H
@@ -1060,4 +1062,33 @@ void set_message_style(message_style_t style)
 
    if (style == MESSAGE_COMPACT)
       want_color = false;
+}
+
+static unsigned tv2ms(struct timeval *tv)
+{
+   return (tv->tv_sec * 1000) + (tv->tv_usec / 1000);
+}
+
+void nvc_rusage(nvc_rusage_t *ru)
+{
+   static struct rusage last;
+
+   struct rusage sys;
+   if (getrusage(RUSAGE_SELF, &sys) < 0)
+      fatal_errno("getrusage");
+
+   const unsigned utime = tv2ms(&(sys.ru_utime)) - tv2ms(&(last.ru_utime));
+   const unsigned stime = tv2ms(&(sys.ru_stime)) - tv2ms(&(last.ru_stime));
+
+   ru->ms = utime + stime;
+
+#ifdef __APPLE__
+   const int rss_units = 1024;
+#else
+   const int rss_units = 1;
+#endif
+
+   ru->rss = sys.ru_maxrss / rss_units;
+
+   last = sys;
 }
