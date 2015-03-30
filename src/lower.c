@@ -949,6 +949,20 @@ static vcode_reg_t lower_narrow(type_t result, vcode_reg_t reg)
 static vcode_reg_t lower_arith(tree_t fcall, arith_fn_t fn, vcode_reg_t r0,
                                vcode_reg_t r1)
 {
+   vcode_type_t r0_type = vcode_reg_type(r0);
+   vcode_type_t r1_type = vcode_reg_type(r1);
+   if (!vtype_eq(r0_type, r1_type)) {
+      const unsigned r0_bits = bits_for_range(vtype_low(r0_type),
+                                              vtype_high(r0_type));
+      const unsigned r1_bits = bits_for_range(vtype_low(r1_type),
+                                              vtype_high(r1_type));
+
+      if (r1_bits > r0_bits)
+         r0 = emit_cast(r1_type, vcode_reg_bounds(r0), r0);
+      else
+         r1 = emit_cast(r0_type, vcode_reg_bounds(r1), r1);
+   }
+
    return lower_narrow(tree_type(fcall), (*fn)(r0, r1));
 }
 
@@ -3695,6 +3709,7 @@ static void lower_decl(tree_t decl)
    case T_PROC_DECL:
    case T_ATTR_SPEC:
    case T_ATTR_DECL:
+   case T_COMPONENT:
       break;
 
    default:
