@@ -244,11 +244,11 @@ protected2      normal,2000
 slice3          normal
 alias9          normal
 issue79         normal
-# issue84         normal,2000
+issue84         normal,2000
 issue82         normal,opt
 issue86         normal
 issue94         normal
 access6         gold,fail
-# issue90         normal
+issue90         normal
 issue104        normal
 proc11          normal

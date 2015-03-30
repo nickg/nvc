@@ -381,8 +381,13 @@ static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
    return LLVMStructType(fields, nfields, false);
 }
 
-static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx)
+static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx, int hops)
 {
+   if (hops == 1)
+      return ctx->display;
+   else
+      assert(hops == 0);
+
    const vunit_kind_t kind = vcode_unit_kind();
 
    const int nvars = vcode_count_vars();
@@ -485,7 +490,7 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       *pa++ = cgen_get_arg(op, i, ctx);
 
    if (nested)
-      *pa++ = cgen_display_struct(ctx);
+      *pa++ = cgen_display_struct(ctx, vcode_get_hops(op));
 
    if (proc)
       *pa++ = LLVMConstNull(llvm_void_ptr());
@@ -1632,7 +1637,7 @@ static void cgen_op_pcall(int op, bool nested, cgen_ctx_t *ctx)
       *ap++ = cgen_get_arg(op, i, ctx);
 
    if (nested)
-      *ap++ = cgen_display_struct(ctx);
+      *ap++ = cgen_display_struct(ctx, vcode_get_hops(op));
 
    *ap++ = LLVMConstNull(llvm_void_ptr());
 
@@ -1680,7 +1685,7 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    for (int i = 0; i < nparams - 1 - (nested ? 1 : 0); i++)
       args[i] = LLVMGetUndef(param_types[i]);
    if (nested)
-      args[nparams - 2] = cgen_display_struct(ctx);
+      args[nparams - 2] = cgen_display_struct(ctx, 0);
    args[nparams - 1] = pcall_state;
 
    LLVMValueRef new_state = LLVMBuildCall(builder, fn, args, nparams, "");

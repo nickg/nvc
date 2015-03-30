@@ -670,7 +670,8 @@ unsigned vcode_get_dim(int op)
 int vcode_get_hops(int op)
 {
    op_t *o = vcode_op_data(op);
-   assert(o->kind == VCODE_OP_PARAM_UPREF);
+   assert(o->kind == VCODE_OP_PARAM_UPREF || o->kind == VCODE_OP_NESTED_FCALL
+          || o->kind == VCODE_OP_NESTED_FCALL);
    return o->hops;
 }
 
@@ -2388,11 +2389,12 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
 
 static vcode_reg_t emit_fcall_op(vcode_op_t op, ident_t func, vcode_type_t type,
                                  const vcode_reg_t *args, int nargs,
-                                 vcode_block_t resume_bb)
+                                 vcode_block_t resume_bb, int hops)
 {
    op_t *o = vcode_add_op(op);
    o->func = func;
    o->type = type;
+   o->hops = hops;
    for (int i = 0; i < nargs; i++)
       vcode_add_arg(o, args[i]);
 
@@ -2409,28 +2411,28 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
                        const vcode_reg_t *args, int nargs)
 {
    return emit_fcall_op(VCODE_OP_FCALL, func, type, args, nargs,
-                        VCODE_INVALID_BLOCK);
+                        VCODE_INVALID_BLOCK, 0);
 }
 
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
-                              const vcode_reg_t *args, int nargs)
+                              const vcode_reg_t *args, int nargs, int hops)
 {
    return emit_fcall_op(VCODE_OP_NESTED_FCALL, func, type, args, nargs,
-                        VCODE_INVALID_BLOCK);
+                        VCODE_INVALID_BLOCK, hops);
 }
 
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb)
 {
    emit_fcall_op(VCODE_OP_PCALL, func, VCODE_INVALID_TYPE, args, nargs,
-                 resume_bb);
+                 resume_bb, 0);
 }
 
 void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
-                       vcode_block_t resume_bb)
+                       vcode_block_t resume_bb, int hops)
 {
    emit_fcall_op(VCODE_OP_NESTED_PCALL, func, VCODE_INVALID_TYPE, args,
-                 nargs, resume_bb);
+                 nargs, resume_bb, hops);
 }
 
 vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,

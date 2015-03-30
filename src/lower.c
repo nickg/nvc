@@ -1300,8 +1300,11 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
       args[i] = lower_subprogram_arg(fcall, i);
 
    vcode_type_t rtype = lower_func_result_type(tree_ref(fcall));
-   if (tree_attr_int(decl, nested_i, 0))
-      return emit_nested_fcall(name, rtype, args, nargs);
+   const int nest_depth = tree_attr_int(decl, nested_i, 0);
+   if (nest_depth > 0) {
+      const int hops = vcode_unit_depth() - nest_depth;
+      return emit_nested_fcall(name, rtype, args, nargs, hops);
+   }
    else
       return emit_fcall(name, rtype, args, nargs);
 }
@@ -2999,22 +3002,26 @@ static void lower_pcall(tree_t pcall)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_subprogram_arg(pcall, i);
 
-   const bool nested = tree_attr_int(decl, nested_i, 0);
+   const int nest_depth = tree_attr_int(decl, nested_i, 0);
 
    if (tree_attr_int(decl, never_waits_i, 0)) {
-      if (nested)
-         emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs);
+      if (nest_depth > 0) {
+         const int hops = vcode_unit_depth() - nest_depth;
+         emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs, hops);
+      }
       else
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
    }
    else {
       vcode_block_t resume_bb = emit_block();
-      if (nested)
-         emit_nested_pcall(name, args, nargs, resume_bb);
+      if (nest_depth > 0) {
+         const int hops = vcode_unit_depth() - nest_depth;
+         emit_nested_pcall(name, args, nargs, resume_bb, hops);
+      }
       else
          emit_pcall(name, args, nargs, resume_bb);
       vcode_select_block(resume_bb);
-      emit_resume(name, nested);
+      emit_resume(name, nest_depth);
    }
 }
 

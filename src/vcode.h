@@ -298,7 +298,7 @@ vcode_reg_t emit_fcall(ident_t func, vcode_type_t type,
 void emit_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                 vcode_block_t resume_bb);
 vcode_reg_t emit_nested_fcall(ident_t func, vcode_type_t type,
-                              const vcode_reg_t *args, int nargs);
+                              const vcode_reg_t *args, int nargs, int hops);
 void emit_wait(vcode_block_t target, vcode_reg_t time);
 void emit_jump(vcode_block_t target);
 vcode_reg_t emit_load(vcode_var_t var);
@@ -386,6 +386,6 @@ vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,
 void emit_storage_hint(vcode_reg_t mem, vcode_reg_t length);
 void emit_debug_out(vcode_reg_t reg);
 void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
-                       vcode_block_t resume_bb);
+                       vcode_block_t resume_bb, int hops);
 
 #endif  // _VCODE_H
