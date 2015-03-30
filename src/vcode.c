@@ -3712,9 +3712,7 @@ vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
       base_type = vtype_elem(base_type);
 
    op->result = vcode_add_reg(vtype_pointer(base_type));
-
-   if (vtype_kind(vtype_base(signal_type)) == VCODE_TYPE_INT)
-      vcode_reg_data(op->result)->bounds = base_type;
+   vcode_reg_data(op->result)->bounds = base_type;
 
    return op->result;
 }
