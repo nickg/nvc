@@ -3019,8 +3019,9 @@ static void lower_pcall(tree_t pcall)
       args[i] = lower_subprogram_arg(pcall, i);
 
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
+   const bool never_waits = tree_attr_int(decl, never_waits_i, 0);
 
-   if (tree_attr_int(decl, never_waits_i, 0)) {
+   if (never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION) {
       if (nest_depth > 0) {
          const int hops = vcode_unit_depth() - nest_depth;
          emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs, hops);

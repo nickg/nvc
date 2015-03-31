@@ -460,17 +460,25 @@ static void cgen_op_jump(int i, cgen_ctx_t *ctx)
 
 static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
 {
-   ident_t func = vcode_get_func(op);
-   const int nargs = vcode_count_args(op);
-
    vcode_reg_t result = vcode_get_result(op);
    const bool proc = (result == VCODE_INVALID_REG);
 
+   ident_t func = vcode_get_func(op);
+   const int nargs = vcode_count_args(op);
+   const int total_args = nargs + (nested ? 1 : 0) + (proc ? 1 : 0);
+
    LLVMValueRef fn = LLVMGetNamedFunction(module, istr(func));
    if (fn == NULL) {
-      LLVMTypeRef atypes[nargs];
+      LLVMTypeRef atypes[total_args];
+      LLVMTypeRef *pa = atypes;
       for (int i = 0; i < nargs; i++)
-         atypes[i] = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
+         *pa++ = cgen_type(vcode_reg_type(vcode_get_arg(op, i)));
+
+      if (nested)
+         *pa++ = cgen_display_type(vcode_active_unit());
+
+      if (proc)
+         *pa++ = llvm_void_ptr();
 
       LLVMTypeRef rtype = proc ? LLVMVoidType()
          : cgen_type(vcode_reg_type(result));
@@ -478,12 +486,11 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       fn = LLVMAddFunction(
          module,
          istr(func),
-         LLVMFunctionType(rtype, atypes, nargs, false));
+         LLVMFunctionType(rtype, atypes, total_args, false));
 
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
    }
 
-   const int total_args = nargs + (nested ? 1 : 0) + (proc ? 1 : 0);
    LLVMValueRef args[total_args];
    LLVMValueRef *pa = args;
    for (int i = 0; i < nargs; i++)

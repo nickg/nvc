@@ -254,3 +254,4 @@ issue104        normal
 proc11          normal
 elab23          normal
 issue91         normal,2000
+issue109        normal
