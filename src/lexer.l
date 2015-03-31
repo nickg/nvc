@@ -449,7 +449,7 @@ static int parse_based_int(const char *str)
    char etok = str[strlen(str) - 1];
 
    char *eptr = NULL;
-   yylval.n = strtol(value, &eptr, atoi(base));
+   yylval.n = strtoll(value, &eptr, atoi(base));
    int t = ((*eptr == '\0') && (btok == etok)) ? tINT : tERROR;
 
    free(tmp);
