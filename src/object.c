@@ -483,7 +483,7 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       // Rewrite this tree before we rewrite the type as there may
       // be a circular reference
       object_t *new = (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
-      if (object != new) {
+      if (new != NULL && object != new) {
          new->generation = ctx->generation;
          new->index      = object->index;
       }
