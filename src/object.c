@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -394,13 +394,15 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (object == NULL)
       return NULL;
 
+   if (unlikely(ctx->cache == NULL)) {
+      ctx->cache_size = n_objects_alloc * 2;
+      ctx->cache = xcalloc(sizeof(object_t *) * ctx->cache_size);
+   }
+
    if (object->generation == ctx->generation) {
       // Already rewritten this tree so return the cached version
       return ctx->cache[object->index];
    }
-
-   if (unlikely(ctx->cache == NULL))
-      ctx->cache = xcalloc(sizeof(object_t *) * n_objects_alloc);
 
    const imask_t skip_mask = (I_REF | I_ATTRS | I_NETS);
 
@@ -473,14 +475,19 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          n++;
    }
 
+   assert(ctx->index < ctx->cache_size);
    object->generation = ctx->generation;
    object->index      = ctx->index++;
 
    if (object->tag == OBJECT_TAG_TREE) {
       // Rewrite this tree before we rewrite the type as there may
       // be a circular reference
-      ctx->cache[object->index] =
-         (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+      object_t *new = (object_t *)(*ctx->fn)((tree_t)object, ctx->context);
+      if (object != new) {
+         new->generation = ctx->generation;
+         new->index      = object->index;
+      }
+      ctx->cache[object->index] = new;
    }
    else
       ctx->cache[object->index] = object;

@@ -192,7 +192,8 @@ typedef struct {
    uint32_t          index;
    uint32_t          generation;
    tree_rewrite_fn_t fn;
-   void              *context;
+   void             *context;
+   size_t            cache_size;
 } object_rewrite_ctx_t;
 
 typedef struct {
