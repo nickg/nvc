@@ -129,7 +129,12 @@ static void opt_elide_array_ref_bounds(tree_t t)
 
 static void opt_tag_last_value_attr_ref(tree_t t)
 {
-   if (icmp(tree_ident(t), "LAST_VALUE")) {
+   static ident_t last_value_attr_i = NULL;
+
+   if (last_value_attr_i == NULL)
+      last_value_attr_i = ident_new("LAST_VALUE");
+
+   if (tree_ident(t) == last_value_attr_i) {
       tree_t signal = tree_ref(tree_name(t));
       if (tree_kind(signal) != T_SIGNAL_DECL)
          return;
@@ -144,6 +149,9 @@ static void opt_tag_last_value_attr_ref(tree_t t)
 static void opt_tag_last_value_fcall(tree_t t)
 {
    tree_t decl = tree_ref(t);
+
+   if (tree_attr_str(decl, builtin_i) != NULL)
+      return;
 
    // A regular subprogram call may pass parameters as class signal which
    // could access 'LAST_VALUE in the body
