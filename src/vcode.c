@@ -143,6 +143,15 @@ struct vcode_unit {
       fatal_trace(__VA_ARGS__);    \
    }
 
+#define VCODE_FOR_EACH_OP(name)                                 \
+   block_t *_b = vcode_block_data();                            \
+   op_t *name; int _i;                                          \
+   for (_i = _b->ops.count - 1, name = &(_b->ops.items[_i]);    \
+        _i >= 0; name = &(_b->ops.items[--_i]))
+
+#define VCODE_FOR_EACH_MATCHING_OP(name, k) \
+   VCODE_FOR_EACH_OP(name) if (name->kind == k)
+
 static vcode_unit_t  active_unit = NULL;
 static vcode_block_t active_block = VCODE_INVALID_BLOCK;
 
@@ -284,27 +293,6 @@ static var_t *vcode_var_data(vcode_var_t var)
       unit = unit->context;
 
    return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
-}
-
-static bool vcode_dominating_ops(vcode_op_t kind, op_t **next)
-{
-   block_t *b = vcode_block_data();
-
-   int index = b->ops.count;
-   if (*next != NULL) {
-      index = *next - b->ops.items;
-      assert(index >= 0 && index < b->ops.count);
-   }
-
-   while (index > 0) {
-      index--;
-      if (b->ops.items[index].kind == kind) {
-         *next = &(b->ops.items[index]);
-         return true;
-      }
-   }
-
-   return false;
 }
 
 static void vcode_return_safety_check(vcode_reg_t reg)
@@ -2365,8 +2353,7 @@ vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
    }
 
    // Reuse any previous operation in this block with the same arguments
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CMP, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CMP) {
       if (other->args.count == 2 && other->args.items[0] == lhs
           && other->args.items[1] == rhs && other->cmp == cmp)
          return other->result;
@@ -2436,8 +2423,7 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
                         vcode_reg_t count)
 {
    // Search backwards for a storage hint with this type and count
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_STORAGE_HINT, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_STORAGE_HINT) {
       if (vtype_eq(other->type, type)
           && ((other->args.count == 1 && count == VCODE_INVALID_REG)
               || other->args.items[1] == count)) {
@@ -2469,9 +2455,9 @@ vcode_reg_t emit_alloca(vcode_type_t type, vcode_type_t bounds,
 vcode_reg_t emit_const(vcode_type_t type, int64_t value)
 {
    // Reuse any previous constant in this block with the same type and value
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CONST, &other)) {
-      if (other->value == value && vtype_eq(type, other->type))
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST) {
+      if (other->kind == VCODE_OP_CONST && other->value == value
+          && vtype_eq(type, other->type))
          return other->result;
    }
 
@@ -2494,8 +2480,7 @@ vcode_reg_t emit_const_real(double value)
 {
    vcode_type_t real = vtype_real();
 
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CONST_REAL, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_REAL) {
       if (other->real == value && other->type == real)
          return other->result;
    }
@@ -2517,8 +2502,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
       : type;
 
    // Reuse any previous operation in this block with the same arguments
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CONST_ARRAY, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_ARRAY) {
       if (other->args.count == num && vtype_eq(type, other->type)) {
          bool match = true;
          for (int i = 0; match && i < num; i++) {
@@ -2552,8 +2536,7 @@ vcode_reg_t emit_const_array(vcode_type_t type, vcode_reg_t *values, int num,
 vcode_reg_t emit_const_record(vcode_type_t type, vcode_reg_t *values, int num)
 {
    // Reuse any previous constant in this block with the same type and value
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CONST_RECORD, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CONST_RECORD) {
       if (vtype_eq(type, other->type) && other->args.count == num) {
          bool same_regs = true;
          for (int i = 0; i < num; i++)
@@ -2704,19 +2687,17 @@ vcode_reg_t emit_load(vcode_var_t var)
 {
    // Try scanning backwards through the block for another load or store to
    // this variable
-   block_t *b = vcode_block_data();
    vcode_reg_t fold = VCODE_INVALID_REG;
    bool aliased = false;
-   for (int i = b->ops.count - 1; i >= 0; i--) {
-      const op_t *op = &(b->ops.items[i]);
+   VCODE_FOR_EACH_OP(other) {
       if (fold == VCODE_INVALID_REG) {
-         if (op->kind == VCODE_OP_LOAD && op->address == var)
-            fold = op->result;
-         else if (op->kind == VCODE_OP_STORE && op->address == var)
-            fold = op->args.items[0];
+         if (other->kind == VCODE_OP_LOAD && other->address == var)
+            fold = other->result;
+         else if (other->kind == VCODE_OP_STORE && other->address == var)
+            fold = other->args.items[0];
       }
 
-      if (op->kind == VCODE_OP_INDEX && op->address == var)
+      if (other->kind == VCODE_OP_INDEX && other->address == var)
          aliased = true;
    }
 
@@ -2815,8 +2796,7 @@ static vcode_reg_t emit_arith(vcode_op_t kind, vcode_reg_t lhs, vcode_reg_t rhs,
                               uint32_t index)
 {
    // Reuse any previous operation in this block with the same arguments
-   op_t *other = NULL;
-   while (vcode_dominating_ops(kind, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, kind) {
       if (other->args.count == 2 && other->args.items[0] == lhs
           && other->args.items[1] == rhs)
          return other->result;
@@ -2999,8 +2979,7 @@ void emit_bounds(vcode_reg_t reg, vcode_type_t bounds, bounds_kind_t kind,
 vcode_reg_t emit_index(vcode_var_t var, vcode_reg_t offset)
 {
    // Try to find a previous index of this var by this offset
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_INDEX, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_INDEX) {
       if (other->address == var
           && ((offset == VCODE_INVALID_REG && other->args.count == 0)
               || (offset != VCODE_INVALID_REG
@@ -3065,8 +3044,7 @@ vcode_reg_t emit_cast(vcode_type_t type, vcode_type_t bounds, vcode_reg_t reg)
       return emit_const(type, value);
 
    // Try to find a previous cast of this register to this type
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_CAST, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_CAST) {
       if (vtype_eq(other->type, type) && other->args.items[0] == reg)
          return other->result;
    }
@@ -3241,8 +3219,7 @@ vcode_reg_t emit_select(vcode_reg_t test, vcode_reg_t rtrue,
       return !!tconst ? rtrue : rfalse;
 
    // Find a previous identical select
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_SELECT, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_SELECT) {
       if (other->args.items[0] == test && other->args.items[1] == rtrue
           && other->args.items[2] == rfalse)
          return other->result;
@@ -3385,17 +3362,12 @@ static vcode_reg_t emit_uarray_op(vcode_op_t o, vcode_type_t rtype,
                                   unsigned arg_index)
 {
    // Reuse any previous operation in this block with the same arguments
-   op_t *other = NULL;
-   while (vcode_dominating_ops(o, &other)) {
-      if (other->args.items[0] == array && other->dim == dim
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == o && other->args.items[0] == array && other->dim == dim
           && (rtype == VCODE_INVALID_TYPE
               || vtype_eq(rtype, vcode_reg_type(other->result))))
          return other->result;
-   }
-
-   other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_WRAP, &other)) {
-      if (other->result == array)
+      else if (other->kind == VCODE_OP_WRAP && other->result == array)
          return other->args.items[1 + (dim * 3) + arg_index];
    }
 
@@ -3436,8 +3408,7 @@ vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
 
 vcode_reg_t emit_unwrap(vcode_reg_t array)
 {
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_WRAP, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_WRAP) {
       if (other->result == array)
          return other->args.items[0];
    }
@@ -3541,8 +3512,7 @@ vcode_reg_t emit_active_flag(vcode_reg_t nets, vcode_reg_t len)
 vcode_reg_t emit_record_ref(vcode_reg_t record, unsigned field)
 {
    // Try scanning backwards through the block for another record ref
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_RECORD_REF, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_RECORD_REF) {
       if (other->args.items[0] == record && other->field == field)
          return other->result;
    }
@@ -3674,8 +3644,7 @@ void emit_memset(vcode_reg_t ptr, vcode_reg_t value, vcode_reg_t len)
 vcode_reg_t emit_vec_load(vcode_reg_t signal, vcode_reg_t length,
                           bool last_value)
 {
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_VEC_LOAD, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_VEC_LOAD) {
       if (other->args.items[0] == signal
           && (other->args.count == 1 || other->args.items[1] == length)
           && other->subkind == last_value)
@@ -3796,8 +3765,7 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
 
 vcode_reg_t emit_null(vcode_type_t type)
 {
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_NULL, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_NULL) {
       if (vtype_eq(vcode_reg_type(other->result), type))
          return other->result;
    }
@@ -3831,8 +3799,7 @@ vcode_reg_t emit_new(vcode_type_t type, vcode_reg_t length)
 
 void emit_null_check(vcode_reg_t ptr, uint32_t index)
 {
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_NULL_CHECK, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_NULL_CHECK) {
       if (other->args.items[0] == ptr)
          return;
    }
@@ -3858,8 +3825,7 @@ void emit_deallocate(vcode_reg_t ptr)
 
 vcode_reg_t emit_all(vcode_reg_t reg)
 {
-   op_t *other = NULL;
-   while (vcode_dominating_ops(VCODE_OP_ALL, &other)) {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_ALL) {
       if (other->args.items[0] == reg)
          return other->result;
    }
