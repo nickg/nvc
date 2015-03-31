@@ -1922,22 +1922,6 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
                          sem_builtin_fn(transaction_i, std_bit,
                                         "transaction", type, NULL));
    }
-
-   if (is_signal || (class == C_ARCHITECTURE) || (class == C_ENTITY)
-       || (class == C_FUNCTION) || (class == C_PROCEDURE)
-       || (class == C_LABEL)) {
-      type_t std_string = sem_std_type("STRING");
-
-      ident_t path_name_i  = ident_new("PATH_NAME");
-      ident_t inst_name_i  = ident_new("INSTANCE_NAME");
-
-      tree_add_attr_tree(decl, inst_name_i,
-                         sem_builtin_fn(inst_name_i, std_string,
-                                        "instance_name", type, NULL));
-      tree_add_attr_tree(decl, path_name_i,
-                         sem_builtin_fn(path_name_i, std_string,
-                                        "path_name", type, NULL));
-   }
 }
 
 static void sem_declare_fields(type_t type, ident_t prefix)
@@ -4989,6 +4973,15 @@ static bool sem_check_attr_ref(tree_t t)
          sem_error(t, "prefix of attribute LAST_VALUE must denote a signal");
 
       tree_set_type(t, tree_type(name));
+      return true;
+   }
+   else if (icmp(attr, "PATH_NAME") || icmp(attr, "INSTANCE_NAME")) {
+      const class_t class = class_of(name);
+      if (class != C_SIGNAL && class != C_ARCHITECTURE && class != C_ENTITY
+          && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL)
+         sem_error(t, "prefix does not have attribute %s", istr(attr));
+
+      tree_set_type(t, sem_std_type("STRING"));
       return true;
    }
 

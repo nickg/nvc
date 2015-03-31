@@ -896,7 +896,7 @@ static vcode_reg_t lower_min_max(vcode_cmp_t cmp, tree_t fcall)
    return result;
 }
 
-static vcode_reg_t lower_name_attr(tree_t ref, type_t type, name_attr_t which)
+static vcode_reg_t lower_name_attr(tree_t ref, name_attr_t which)
 {
    tree_t decl = tree_ref(ref);
 
@@ -1070,10 +1070,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_min_max(VCODE_CMP_GT, fcall);
    else if (icmp(builtin, "min"))
       return lower_min_max(VCODE_CMP_LT, fcall);
-   else if (icmp(builtin, "instance_name"))
-      return lower_name_attr(p0, tree_type(fcall), INSTANCE_NAME);
-   else if (icmp(builtin, "path_name"))
-      return lower_name_attr(p0, tree_type(fcall), PATH_NAME);
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -2441,11 +2437,11 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
 static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t name = tree_name(expr);
-   type_t name_type = tree_type(name);
 
    ident_t ident = tree_ident(expr);
    if (icmp(ident, "LAST_EVENT")) {
       vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
+      type_t name_type = tree_type(name);
       if (type_is_array(name_type))
          return emit_last_event(name_reg,
                                 lower_array_total_len(name_type, name_reg));
@@ -2465,6 +2461,10 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          len_reg = lower_array_total_len(type, nets_reg);
       return emit_vec_load(nets_reg, len_reg, true);
    }
+   else if (icmp(ident, "INSTANCE_NAME"))
+      return lower_name_attr(name, INSTANCE_NAME);
+   else if (icmp(ident, "PATH_NAME"))
+      return lower_name_attr(name, PATH_NAME);
    else
       fatal("cannot lower attribute %s", istr(ident));
 }
