@@ -1904,15 +1904,11 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    if (is_signal) {
       type_t std_bit  = sem_std_type("BIT");
 
-      ident_t last_value_i  = ident_new("LAST_VALUE");
       ident_t delayed_i     = ident_new("DELAYED");
       ident_t stable_i      = ident_new("STABLE");
       ident_t quiet_i       = ident_new("QUIET");
       ident_t transaction_i = ident_new("TRANSACTION");
 
-      tree_add_attr_tree(decl, last_value_i,
-                         sem_builtin_fn(last_value_i, type, "last_value",
-                                        type, NULL));
       tree_add_attr_tree(decl, delayed_i,
                          sem_time_parameter_attribute(delayed_i, "delayed",
                                                       type, type));
@@ -4986,6 +4982,13 @@ static bool sem_check_attr_ref(tree_t t)
                    istr(attr));
 
       tree_set_type(t, sem_std_type("BOOLEAN"));
+      return true;
+   }
+   else if (icmp(attr, "LAST_VALUE")) {
+      if (class_of(name) != C_SIGNAL)
+         sem_error(t, "prefix of attribute LAST_VALUE must denote a signal");
+
+      tree_set_type(t, tree_type(name));
       return true;
    }
 

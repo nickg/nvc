@@ -127,13 +127,10 @@ static void opt_elide_array_ref_bounds(tree_t t)
 // Identify any potential use of the 'LAST_VALUE attribute
 //
 
-static void opt_tag_last_value(tree_t t)
+static void opt_tag_last_value_attr_ref(tree_t t)
 {
-   tree_t decl = tree_ref(t);
-
-   ident_t builtin = tree_attr_str(decl, builtin_i);
-   if ((builtin != NULL) && (builtin == last_value_i)) {
-      tree_t signal = tree_ref(tree_value(tree_param(t, 0)));
+   if (icmp(tree_ident(t), "LAST_VALUE")) {
+      tree_t signal = tree_ref(tree_name(t));
       if (tree_kind(signal) != T_SIGNAL_DECL)
          return;
 
@@ -142,25 +139,29 @@ static void opt_tag_last_value(tree_t t)
       if (tree_nets(signal) > 0)
          tree_add_attr_int(signal, last_value_i, 1);
    }
-   else {
-      // A regular subprogram call may pass parameters as class signal which
-      // could access 'LAST_VALUE in the body
+}
 
-      const int nports = tree_ports(decl);
-      for (int i = 0; i < nports; i++) {
-         tree_t port = tree_port(decl, i);
-         if (tree_class(port) != C_SIGNAL)
-            continue;
+static void opt_tag_last_value_fcall(tree_t t)
+{
+   tree_t decl = tree_ref(t);
 
-         tree_t value = tree_value(tree_param(t, i));
-         tree_kind_t kind;
-         while ((kind = tree_kind(value)) != T_REF) {
-            assert((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE));
-            value = tree_value(value);
-         }
+   // A regular subprogram call may pass parameters as class signal which
+   // could access 'LAST_VALUE in the body
 
-         tree_add_attr_int(tree_ref(value), last_value_i, 1);
+   const int nports = tree_ports(decl);
+   for (int i = 0; i < nports; i++) {
+      tree_t port = tree_port(decl, i);
+      if (tree_class(port) != C_SIGNAL)
+         continue;
+
+      tree_t value = tree_value(tree_param(t, i));
+      tree_kind_t kind;
+      while ((kind = tree_kind(value)) != T_REF) {
+         assert((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE));
+         value = tree_value(value);
       }
+
+      tree_add_attr_int(tree_ref(value), last_value_i, 1);
    }
 }
 
@@ -179,7 +180,11 @@ static void opt_tag(tree_t t, void *ctx)
 
    case T_FCALL:
    case T_PCALL:
-      opt_tag_last_value(t);
+      opt_tag_last_value_fcall(t);
+      break;
+
+   case T_ATTR_REF:
+      opt_tag_last_value_attr_ref(t);
       break;
 
    default:

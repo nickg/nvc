@@ -1074,15 +1074,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_name_attr(p0, tree_type(fcall), INSTANCE_NAME);
    else if (icmp(builtin, "path_name"))
       return lower_name_attr(p0, tree_type(fcall), PATH_NAME);
-   else if (icmp(builtin, "last_value")) {
-      vcode_reg_t len_reg = VCODE_INVALID_REG;
-      vcode_reg_t r0 = lower_expr(tree_value(tree_param(fcall, 0)),
-                                  EXPR_LVALUE);
-      type_t r0_type = lower_arg_type(fcall, 0);
-      if (type_is_array(r0_type))
-         len_reg = lower_array_total_len(r0_type, r0);
-      return emit_vec_load(r0, len_reg, true);
-   }
 
    vcode_reg_t r0 = lower_subprogram_arg(fcall, 0);
    vcode_reg_t r1 = lower_subprogram_arg(fcall, 1);
@@ -2466,6 +2457,14 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
       return lower_signal_flag(name, emit_event_flag);
    else if (icmp(ident, "ACTIVE"))
       return lower_signal_flag(name, emit_active_flag);
+   else if (icmp(ident, "LAST_VALUE")) {
+      vcode_reg_t len_reg  = VCODE_INVALID_REG;
+      vcode_reg_t nets_reg = lower_expr(name, EXPR_LVALUE);
+      type_t type = tree_type(name);
+      if (type_is_array(type))
+         len_reg = lower_array_total_len(type, nets_reg);
+      return emit_vec_load(nets_reg, len_reg, true);
+   }
    else
       fatal("cannot lower attribute %s", istr(ident));
 }
