@@ -49,7 +49,7 @@ begin
     begin
         assert i'event;                 -- OK
         assert i(1)'event;              -- OK
-        assert i(x)'event;              -- Error
+        assert i(x)'event;              -- OK
         assert i'foo = 1;               -- OK
         assert i(1)'foo = 2;            -- Error
     end process;

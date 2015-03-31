@@ -1007,11 +1007,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
 
-   if (icmp(builtin, "event"))
-      return lower_signal_flag(p0, emit_event_flag);
-   else if (icmp(builtin, "active"))
-      return lower_signal_flag(p0, emit_active_flag);
-   else if (icmp(builtin, "left") || icmp(builtin, "right")) {
+   if (icmp(builtin, "left") || icmp(builtin, "right")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
       int64_t dim = assume_int(p0) - 1;
@@ -2466,6 +2462,10 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          return emit_last_event(name_reg, VCODE_INVALID_REG);
 
    }
+   else if (icmp(ident, "EVENT"))
+      return lower_signal_flag(name, emit_event_flag);
+   else if (icmp(ident, "ACTIVE"))
+      return lower_signal_flag(name, emit_active_flag);
    else
       fatal("cannot lower attribute %s", istr(ident));
 }

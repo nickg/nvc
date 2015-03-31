@@ -1052,7 +1052,6 @@ START_TEST(test_attr)
 
    const error_t expect[] = {
       {  30, "Z has no attribute FOO" },
-      {  52, "invalid attribute reference" },
       {  54, "prefix of user defined attribute reference cannot denote" },
       {  65, "expected attribute type INTEGER" },
       {  66, "expected attribute type STRING" },

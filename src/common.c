@@ -425,6 +425,7 @@ class_t class_of(tree_t t)
       return class_of(tree_ref(t));
    case T_ARRAY_REF:
    case T_ARRAY_SLICE:
+   case T_RECORD_REF:
       return class_of(tree_value(t));
    default:
       fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
