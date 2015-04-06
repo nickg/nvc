@@ -3926,6 +3926,12 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
          emit_comment("Elided dynamic bounds check for r%d", reg);
          return;
       }
+
+      int64_t kconst;
+      if (vcode_reg_const(kind, &kconst)) {
+         emit_bounds(reg, vtype_int(lconst, hconst), kconst, index, hint);
+         return;
+      }
    }
    else if (reg == low || reg == high) {
       emit_comment("Elided dynamic bounds check for r%d", reg);
