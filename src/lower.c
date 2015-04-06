@@ -789,6 +789,8 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
       tb_printf(buf, "P");
    else if (icmp(ident, "STD.STANDARD.BIT"))
       tb_printf(buf, "J");
+   else if (icmp(ident, "STD.STANDARD.BIT_VECTOR"))
+      tb_printf(buf, "Q");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_LOGIC"))
       tb_printf(buf, "L");
    else if (icmp(ident, "IEEE.STD_LOGIC_1164.STD_ULOGIC"))
