@@ -224,6 +224,40 @@ START_TEST(test_issue54)
 }
 END_TEST
 
+START_TEST(test_issue99)
+{
+   tree_t e, a;
+
+   const error_t expect[] = {
+      {  7, "type conversion argument -1.5 out of bounds 0 to 2147483647" },
+      {  8, "type conversion argument -1 out of bounds 1 to 5" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/bounds/issue99.vhd");
+
+   e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+   sem_check(e);
+
+   a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    register_trace_signal_handlers();
@@ -238,6 +272,7 @@ int main(void)
    tcase_add_test(tc_core, test_case);
    tcase_add_test(tc_core, test_issue36);
    tcase_add_test(tc_core, test_issue54);
+   tcase_add_test(tc_core, test_issue99);
    suite_add_tcase(s, tc_core);
 
    SRunner *sr = srunner_create(s);

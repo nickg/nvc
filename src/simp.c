@@ -805,32 +805,6 @@ static tree_t simp_qualified(tree_t t)
    return tree_value(t);
 }
 
-static tree_t simp_type_conv(tree_t t)
-{
-   // Simple conversions performed at compile time
-
-   tree_t value = tree_value(tree_param(t, 0));
-
-   type_t from = tree_type(value);
-   type_t to   = tree_type(t);
-
-   type_kind_t from_k = type_kind(from);
-   type_kind_t to_k   = type_kind(to);
-
-   if ((from_k == T_INTEGER) && (to_k == T_REAL)) {
-      int64_t l;
-      if (folded_int(value, &l))
-         return get_real_lit(t, (double)l);
-   }
-   else if ((from_k == T_REAL) && (to_k == T_INTEGER)) {
-      double l;
-      if (folded_real(value, &l))
-         return get_int_lit(t, (int)l);
-   }
-
-   return t;
-}
-
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -870,8 +844,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_cassert(t);
    case T_QUALIFIED:
       return simp_qualified(t);
-   case T_TYPE_CONV:
-      return simp_type_conv(t);
    default:
       return t;
    }

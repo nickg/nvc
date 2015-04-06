@@ -474,6 +474,30 @@ static tree_t eval_ref(tree_t t, vtable_t *v)
    return (binding != NULL) ? binding : t;
 }
 
+static tree_t eval_type_conv(tree_t t, vtable_t *v)
+{
+   tree_t value = eval_expr(tree_value(tree_param(t, 0)), v);
+
+   type_t from = tree_type(value);
+   type_t to   = tree_type(t);
+
+   type_kind_t from_k = type_kind(from);
+   type_kind_t to_k   = type_kind(to);
+
+   if (from_k == T_INTEGER && to_k == T_REAL) {
+      int64_t l;
+      if (folded_int(value, &l))
+         return get_real_lit(t, (double)l);
+   }
+   else if (from_k == T_REAL && to_k == T_INTEGER) {
+      double l;
+      if (folded_real(value, &l))
+         return get_int_lit(t, (int)l);
+   }
+
+   return t;
+}
+
 static tree_t eval_expr(tree_t t, vtable_t *v)
 {
    switch (tree_kind(t)) {
@@ -481,6 +505,8 @@ static tree_t eval_expr(tree_t t, vtable_t *v)
       return eval_fcall(t, v);
    case T_REF:
       return eval_ref(t, v);
+   case T_TYPE_CONV:
+      return eval_type_conv(t, v);
    default:
       return t;
    }

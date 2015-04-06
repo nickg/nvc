@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -798,6 +798,36 @@ static void bounds_check_case(tree_t t)
    }
 }
 
+static void bounds_check_type_conv(tree_t t)
+{
+   tree_t value = tree_value(tree_param(t, 0));
+
+   type_t from = tree_type(value);
+   type_t to   = tree_type(t);
+
+   if (type_is_integer(to)) {
+      int64_t ival = 0;
+      double rval = 0.0;
+      bool folded = false;
+      if (type_is_real(from) && (folded = folded_real(value, &rval)))
+         ival = (int64_t)rval;
+      else if (type_is_integer(from) && (folded = folded_int(value, &ival)))
+         ;
+
+      if (folded) {
+         int64_t b_low, b_high;
+         folded_bounds(type_dim(to, 0), &b_low, &b_high);
+         if (folded_bounds(type_dim(to, 0), &b_low, &b_high)
+             && (ival < b_low || ival > b_high)) {
+            char *argstr LOCAL = type_is_real(from)
+               ? xasprintf("%lg", rval) : xasprintf("%"PRIi64, ival);
+            bounds_error(value, "type conversion argument %s out of "
+                         "bounds %"PRIi64" to %"PRIi64, argstr, b_low, b_high);
+         }
+      }
+   }
+}
+
 static void bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -830,6 +860,9 @@ static void bounds_visit_fn(tree_t t, void *context)
       break;
    case T_LITERAL:
       bounds_check_literal(t);
+      break;
+   case T_TYPE_CONV:
+      bounds_check_type_conv(t);
       break;
    default:
       break;
