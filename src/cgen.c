@@ -480,7 +480,8 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       if (proc)
          *pa++ = llvm_void_ptr();
 
-      LLVMTypeRef rtype = proc ? LLVMVoidType()
+      LLVMTypeRef rtype = proc
+         ? llvm_void_ptr()
          : cgen_type(vcode_reg_type(result));
 
       fn = LLVMAddFunction(
