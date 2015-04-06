@@ -173,7 +173,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_PORTS | I_GENERICS | I_ATTRS),
 
    // T_IF_GENERATE
-   (I_IDENT | I_VALUE | I_DECLS | I_STMTS),
+   (I_IDENT | I_VALUE | I_DECLS | I_STMTS | I_ATTRS),
 
    // T_FOR_GENERATE
    (I_IDENT | I_IDENT2 | I_DECLS | I_STMTS | I_REF | I_RANGE | I_ATTRS),

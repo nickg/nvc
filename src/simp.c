@@ -831,31 +831,6 @@ static tree_t simp_type_conv(tree_t t)
    return t;
 }
 
-static tree_t simp_if_generate(tree_t t)
-{
-   bool value_b;
-   if (folded_bool(tree_value(t), &value_b)) {
-      if (value_b) {
-         tree_t b = tree_new(T_BLOCK);
-         tree_set_ident(b, tree_ident(t));
-
-         const int ndecls = tree_decls(t);
-         for (int i = 0; i < ndecls; i++)
-            tree_add_decl(b, tree_decl(t, i));
-
-         const int nstmts = tree_stmts(t);
-         for (int i = 0; i < nstmts; i++)
-            tree_add_stmt(b, tree_stmt(t, i));
-
-         return b;
-      }
-      else
-         return NULL;
-   }
-
-   return t;
-}
-
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -897,8 +872,6 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_qualified(t);
    case T_TYPE_CONV:
       return simp_type_conv(t);
-   case T_IF_GENERATE:
-      return simp_if_generate(t);
    default:
       return t;
    }

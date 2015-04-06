@@ -1094,7 +1094,16 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-static void elab_rename_subprograms(tree_t t, ident_t prefix)
+static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
+{
+   const int64_t value = assume_int(tree_value(t));
+   if (value != 0) {
+      elab_decls(t, ctx);
+      elab_stmts(t, ctx);
+   }
+}
+
+void elab_rename_subprograms(tree_t t, ident_t prefix)
 {
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
@@ -1155,7 +1164,8 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          elab_for_generate(s, &new_ctx);
          break;
       case T_IF_GENERATE:
-         fatal_at(tree_loc(s), "IF-GENERATE statement was not constant folded");
+         elab_if_generate(s, &new_ctx);
+         break;
       case T_PROCESS:
          elab_process(s, &new_ctx);
          // Fall-through
