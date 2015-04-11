@@ -277,7 +277,8 @@ static signal_t *vcode_signal_data(vcode_signal_t sig)
 {
    assert(active_unit != NULL);
    vcode_unit_t unit = active_unit->context;
-   assert(unit->kind == VCODE_UNIT_CONTEXT);
+   while (unit->kind != VCODE_UNIT_CONTEXT)
+      unit = unit->context;
    return signal_array_nth_ptr(&(unit->signals), sig);
 }
 
