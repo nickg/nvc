@@ -98,7 +98,7 @@ specific options must be placed after the command.
   compilation to generate machine code at runtime. For large designs
   compiling to native code at elaboration time may improve performance.
 
-* `-v`, `--verbose`:
+* `-V`, `--verbose`:
   Prints resource usage information after each elaboration step.
 
 ### Runtime options
