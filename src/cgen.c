@@ -2842,9 +2842,6 @@ static void cgen_reset_function(void)
 
          // Need to generate runtime code to fill in net mapping table
 
-         printf("signal %s has %d nets\n", istr(vcode_signal_name(i)),
-                nnets);
-
          if (net_bb == NULL) {
             net_bb = LLVMAppendBasicBlock(fn, "signal_net_init");
             LLVMPositionBuilderAtEnd(builder, net_bb);
