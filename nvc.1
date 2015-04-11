@@ -127,7 +127,7 @@ Terminate the simulation after an assertion failures of severity greater than or
 .
 .TP
 \fB\-\-format=\fR\fIfmt\fR
-Generate waveform data in format \fIfmt\fR\. Currently supported formats are: \fBfst\fR, \fBlxt\fR, and \fBvcd\fR\. The FST and LXT formats are native to GtkWave\. The FST format is preferred over LXT due its smaller size and better performance; however VHDL support in FST requires a recent version of GtkWave so LXT is provided for compatibility\. VCD is a very widely used format but has limited ability to represent VHDL types and the performance is poor: select this only if you must use the output with a tool that does not support FST or LXT\. The default format is FST if this option is not provided\.
+Generate waveform data in format \fIfmt\fR\. Currently supported formats are: \fBfst\fR, \fBlxt\fR, and \fBvcd\fR\. The FST and LXT formats are native to GtkWave\. The FST format is preferred over LXT due its smaller size and better performance; however VHDL support in FST requires a recent version of GtkWave so LXT is provided for compatibility\. VCD is a very widely used format but has limited ability to represent VHDL types and the performance is poor: select this only if you must use the output with a tool that does not support FST or LXT\. The default format is FST if this option is not provided\. Note that GtkWave 3\.3\.53 or later is required to view the FST output\.
 .
 .TP
 \fB\-\-include=\fR\fIglob\fR, \fB\-\-exclude=\fR\fIglob\fR

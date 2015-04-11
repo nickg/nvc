@@ -123,7 +123,8 @@ specific options must be placed after the command.
    format but has limited ability to represent VHDL types and the performance
    is poor: select this only if you must use the output with a tool that does
    not support FST or LXT. The default format is FST if this option is not
-   provided.
+   provided. Note that GtkWave 3.3.53 or later is required to view the FST
+   output.
 
  * `--include=`_glob_, `--exclude=`_glob_:
    Signals that match _glob_ are included in or excluded from the waveform
