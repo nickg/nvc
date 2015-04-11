@@ -32,7 +32,7 @@ To build from a Git clone:
     make install
 
 Generating the configure script requires autoconf and automake
-version 1.12 or later.
+version 1.11 or later.
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command. LLVM 3.0 or later is required.

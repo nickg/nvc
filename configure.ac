@@ -1,8 +1,19 @@
 AC_INIT([nvc], [0.1],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
-AM_INIT_AUTOMAKE([1.12 -Wall -Wno-extra-portability color-tests
-                  serial-tests foreign subdir-objects])
+
+dnl Automake 1.11 does not support the serial-tests option
+dnl Remove this when 1.11 no longer in common use
+m4_define([serial_tests], [
+  m4_esyscmd([
+    automake --version |
+      head -1 |
+      awk '{split ($NF,a,"."); if (a[1] == 1 && a[2] >= 12) { print "serial-tests" }}'
+  ])
+])
+
+AM_INIT_AUTOMAKE([1.11 -Wall -Wno-extra-portability color-tests
+                  foreign subdir-objects] serial_tests)
 AM_SILENT_RULES([yes])
 
 AC_CONFIG_MACRO_DIR([m4])
