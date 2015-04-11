@@ -1851,6 +1851,35 @@ START_TEST(test_proc7)
 }
 END_TEST
 
+START_TEST(test_issue116)
+{
+   input_from_file(TESTDIR "/lower/issue116.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NETS, .name = ":issue116:intstat" },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_ALLOC_DRIVER },
+      { VCODE_OP_SCHED_EVENT, .subkind = 3 },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 START_TEST(test_mulphys)
 {
    input_from_file(TESTDIR "/lower/mulphys.vhd");
@@ -1916,6 +1945,7 @@ int main(void)
    tcase_add_test(tc, test_record6);
    tcase_add_test(tc, test_proc7);
    tcase_add_test(tc, test_mulphys);
+   tcase_add_test(tc, test_issue116);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

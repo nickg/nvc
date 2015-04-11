@@ -3965,8 +3965,13 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
 
          if (tree_attr_ptr(*decl, drives_all_i) == proc)
             return false;
-         else if ((tree_kind(*decl) != T_SIGNAL_DECL)
-                  || (tree_nets(*decl) == 0))
+
+         const tree_kind_t kind = tree_kind(*decl);
+         if (kind == T_ALIAS)
+            return lower_driver_nets(tree_value(*decl), decl, all_nets,
+                                     all_length, driven_nets, driven_length,
+                                     has_non_const, proc);
+         else if (kind != T_SIGNAL_DECL || tree_nets(*decl) == 0)
             return false;
 
          *all_nets = *driven_nets = lower_signal_ref(*decl, EXPR_LVALUE);
