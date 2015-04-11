@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -566,24 +566,35 @@ static netid_t elab_get_net(tree_t expr, int n)
 
    case T_ARRAY_REF:
       {
-         assert(tree_params(expr) == 1);
-
          tree_t value = tree_value(expr);
          type_t array_type = tree_type(value);
-         tree_t index = tree_value(tree_param(expr, 0));
 
-         range_t type_r  = type_dim(array_type, 0);
+         const int nparams = tree_params(expr);
 
-         const int64_t type_left = assume_int(type_r.left);
-         const int64_t index_val = assume_int(index);
-         const int64_t type_off =
-            (type_r.kind == RANGE_TO)
-            ? index_val - type_left
-            : type_left - index_val;
+         int64_t offset = 0;
+         for (int i = 0; i < nparams; i++) {
+            tree_t index   = tree_value(tree_param(expr, i));
+            range_t type_r = type_dim(array_type, i);
 
-         const int stride = type_width(type_elem(array_type));
+            const int64_t type_left = assume_int(type_r.left);
+            const int64_t index_val = assume_int(index);
+            const int64_t dim_off =
+               (type_r.kind == RANGE_TO)
+               ? index_val - type_left
+               : type_left - index_val;
 
-         return elab_get_net(value, n + (type_off * stride));
+            if (i > 0) {
+               int64_t low, high;
+               range_bounds(type_r, &low, &high);
+
+               offset *= high - low + 1;
+            }
+
+            offset += dim_off;
+         }
+
+         const int64_t stride = type_width(type_elem(array_type));
+         return elab_get_net(value, n + offset * stride);
       }
 
    case T_ARRAY_SLICE:
