@@ -90,6 +90,9 @@ specific options must be placed after the command.
 * `--dump-llvm`:
   Print generated LLVM IR prior to optimisation.
 
+* `--dump-vcode`:
+  Print generated intermediate code.
+
 * `--native`:
   Generate native code shared library. By default NVC will use LLVM JIT
   compilation to generate machine code at runtime. For large designs

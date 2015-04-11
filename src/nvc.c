@@ -678,6 +678,7 @@ static void usage(void)
           "     --cover\t\tEnable code coverage reporting\n"
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
+          "     --dump-vcode\tPrint generated intermediate code\n"
           "     --native\t\tGenerate native code shared library\n"
           " -v, --verbose\t\tPrint resource usage at each step\n"
           "\n"
