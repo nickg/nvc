@@ -16,7 +16,8 @@ check_PROGRAMS += $(UNIT_TESTS)
 
 noinst_LIBRARIES += test/libtest_util.a
 
-test_libs = test/libtest_util.a lib/libnvc.a lib/libfastlz.a $(CHECK_LIBS)
+test_libs = test/libtest_util.a lib/libnvc.a lib/libfastlz.a $(CHECK_LIBS) \
+	$(POW_LIB)
 
 test_libtest_util_a_SOURCES = test/test_util.c
 

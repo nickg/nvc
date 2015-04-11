@@ -40,6 +40,7 @@ AC_FUNC_MALLOC
 AC_FUNC_REALLOC
 AC_FUNC_FORK
 AC_FUNC_FSEEKO
+AC_FUNC_STRTOD
 AC_CHECK_FUNCS([strdup mkdir realpath rmdir strerror strcasecmp \
                 memset strchr strrchr strstr setenv])
 
