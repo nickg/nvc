@@ -79,6 +79,9 @@ static ident_t null_range_i;
 static ident_t deferred_i;
 static ident_t partial_map_i;
 static ident_t prot_field_i;
+static ident_t stmt_tag_i;
+static ident_t cond_tag_i;
+static ident_t sub_cond_i;
 
 static const char *verbose = NULL;
 
@@ -1005,6 +1008,28 @@ static vcode_reg_t lower_bit_shift(bit_shift_kind_t kind, vcode_reg_t array,
    return emit_bit_shift(kind, data_reg, len_reg, dir_reg, shift_reg, vtype);
 }
 
+static void lower_cond_coverage(tree_t test, vcode_reg_t value)
+{
+   const int cover_tag = tree_attr_int(test, cond_tag_i, -1);
+   if (cover_tag == -1)
+      return;
+
+   const int sub_cond = tree_attr_int(test, sub_cond_i, 0);
+
+   emit_cover_cond(value, cover_tag, sub_cond);
+}
+
+static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
+{
+   if (tree_attr_int(fcall, sub_cond_i, 0) > 0) {
+      // This is a sub-condition of a Boolean expression being annotated
+      // for coverage
+      lower_cond_coverage(fcall, result);
+   }
+
+   return result;
+}
+
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
@@ -1080,17 +1105,17 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    type_t r1_type = lower_arg_type(fcall, 1);
 
    if (icmp(builtin, "eq"))
-      return emit_cmp(VCODE_CMP_EQ, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_EQ, r0, r1));
    else if (icmp(builtin, "neq"))
-      return emit_cmp(VCODE_CMP_NEQ, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_NEQ, r0, r1));
    else if (icmp(builtin, "lt"))
-      return emit_cmp(VCODE_CMP_LT, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_LT, r0, r1));
    else if (icmp(builtin, "gt"))
-      return emit_cmp(VCODE_CMP_GT, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_GT, r0, r1));
    else if (icmp(builtin, "leq"))
-      return emit_cmp(VCODE_CMP_LEQ, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_LEQ, r0, r1));
    else if (icmp(builtin, "geq"))
-      return emit_cmp(VCODE_CMP_GEQ, r0, r1);
+      return lower_logical(fcall, emit_cmp(VCODE_CMP_GEQ, r0, r1));
    else if (icmp(builtin, "mul"))
       return lower_arith(fcall, emit_mul, r0, r1);
    else if (icmp(builtin, "add"))
@@ -1119,19 +1144,19 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
    else if (icmp(builtin, "identity"))
       return r0;
    else if (icmp(builtin, "not"))
-      return emit_not(r0);
+      return lower_logical(fcall, emit_not(r0));
    else if (icmp(builtin, "and"))
-      return emit_and(r0, r1);
+      return lower_logical(fcall, emit_and(r0, r1));
    else if (icmp(builtin, "or"))
-      return emit_or(r0, r1);
+      return lower_logical(fcall, emit_or(r0, r1));
    else if (icmp(builtin, "xor"))
-      return emit_xor(r0, r1);
+      return lower_logical(fcall, emit_xor(r0, r1));
    else if (icmp(builtin, "xnor"))
-      return emit_xnor(r0, r1);
+      return lower_logical(fcall, emit_xnor(r0, r1));
    else if (icmp(builtin, "nand"))
-      return emit_nand(r0, r1);
+      return lower_logical(fcall, emit_nand(r0, r1));
    else if (icmp(builtin, "nor"))
-      return emit_nor(r0, r1);
+      return lower_logical(fcall, emit_nor(r0, r1));
    else if (icmp(builtin, "image"))
       return emit_image(r0, tree_index(p0));
    else if (icmp(builtin, "aeq"))
@@ -1161,9 +1186,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
    }
    else if (icmp(builtin, "req"))
-      return lower_record_eq(r0, r1, r0_type);
+      return lower_logical(fcall, lower_record_eq(r0, r1, r0_type));
    else if (icmp(builtin, "rneq"))
-      return emit_not(lower_record_eq(r0, r1, r0_type));
+      return lower_logical(fcall, emit_not(lower_record_eq(r0, r1, r0_type)));
    else if (icmp(builtin, "endfile"))
       return emit_endfile(r0);
    else if (icmp(builtin, "file_open1")) {
@@ -2917,7 +2942,8 @@ static void lower_signal_assign(tree_t stmt)
 
 static void lower_if(tree_t stmt, loop_stack_t *loops)
 {
-   vcode_reg_t value = lower_reify_expr(tree_value(stmt));
+   tree_t value = tree_value(stmt);
+   vcode_reg_t test = lower_reify_expr(value);
 
    const int nelses = tree_else_stmts(stmt);
 
@@ -2925,7 +2951,9 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
    vcode_block_t bfalse = nelses > 0 ? emit_block() : VCODE_INVALID_BLOCK;
    vcode_block_t bmerge = nelses > 0 ? VCODE_INVALID_BLOCK : emit_block();
 
-   emit_cond(value, btrue, nelses > 0 ? bfalse : bmerge);
+   lower_cond_coverage(value, test);
+
+   emit_cond(test, btrue, nelses > 0 ? bfalse : bmerge);
 
    vcode_select_block(btrue);
 
@@ -3054,7 +3082,11 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
       emit_jump(test_bb);
 
       vcode_select_block(test_bb);
-      emit_cond(lower_reify_expr(tree_value(stmt)), body_bb, exit_bb);
+
+      tree_t value = tree_value(stmt);
+      vcode_reg_t test = lower_reify_expr(value);
+      lower_cond_coverage(value, test);
+      emit_cond(test, body_bb, exit_bb);
    }
    else {
       test_bb = body_bb =
@@ -3097,8 +3129,9 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
    if (tree_has_value(stmt)) {
       vcode_block_t true_bb = emit_block();
 
-      // TODO: cond coverage here
-      vcode_reg_t result = lower_reify_expr(tree_value(stmt));
+      tree_t value = tree_value(stmt);
+      vcode_reg_t result = lower_reify_expr(value);
+      lower_cond_coverage(value, result);
       emit_cond(result, true_bb, false_bb);
 
       vcode_select_block(true_bb);
@@ -3367,6 +3400,10 @@ static void lower_case(tree_t stmt, loop_stack_t *loops)
 
 static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
+   const int cover_tag = tree_attr_int(stmt, stmt_tag_i, -1);
+   if (cover_tag != -1)
+      emit_cover_stmt(cover_tag);
+
    switch (tree_kind(stmt)) {
    case T_ASSERT:
       lower_assert(stmt);
@@ -3966,8 +4003,13 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
 
          if (tree_attr_ptr(*decl, drives_all_i) == proc)
             return false;
-         else if ((tree_kind(*decl) != T_SIGNAL_DECL)
-                  || (tree_nets(*decl) == 0))
+
+         const tree_kind_t kind = tree_kind(*decl);
+         if (kind == T_ALIAS)
+            return lower_driver_nets(tree_value(*decl), decl, all_nets,
+                                     all_length, driven_nets, driven_length,
+                                     has_non_const, proc);
+         else if (kind != T_SIGNAL_DECL || tree_nets(*decl) == 0)
             return false;
 
          *all_nets = *driven_nets = lower_signal_ref(*decl, EXPR_LVALUE);
@@ -4236,6 +4278,9 @@ void lower_unit(tree_t unit)
    deferred_i     = ident_new("deferred");
    partial_map_i  = ident_new("partial_map");
    prot_field_i   = ident_new("prot_field");
+   stmt_tag_i     = ident_new("stmt_tag");
+   cond_tag_i     = ident_new("cond_tag");
+   sub_cond_i     = ident_new("sub_cond");
 
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)

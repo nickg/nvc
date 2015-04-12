@@ -170,13 +170,22 @@ static void jit_init_llvm(const char *path)
 
    LLVMInitializeNativeTarget();
 #ifdef LLVM_HAS_MCJIT
+   LLVMInitializeNativeAsmPrinter();
    LLVMLinkInMCJIT();
+
+   struct LLVMMCJITCompilerOptions options;
+   LLVMInitializeMCJITCompilerOptions(&options, sizeof(options));
+
+   if (LLVMCreateMCJITCompilerForModule(&exec_engine, module, &options,
+                                        sizeof(options), &error))
+      fatal("error creating MCJIT compiler: %s", error);
 #else
+   LLVMInitializeNativeTarget();
    LLVMLinkInJIT();
-#endif
 
    if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
       fatal("error creating execution engine: %s", error);
+#endif
 }
 
 static void jit_load_deps(ident_t top)

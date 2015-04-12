@@ -20,6 +20,7 @@ bin_PROGRAMS =
 noinst_LIBRARIES =
 include_HEADERS =
 check_PROGRAMS =
+check_LIBRARIES =
 CLEANFILES =
 LIBDIRS =
 

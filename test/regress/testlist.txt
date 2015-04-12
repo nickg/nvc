@@ -255,3 +255,10 @@ proc11          normal
 elab23          normal
 issue91         normal,2000
 issue109        normal
+issue110        normal,gold
+concat5         normal
+issue111        normal
+issue115        normal
+issue116        normal
+issue112        normal
+cover1          cover,gold

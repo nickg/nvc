@@ -37,6 +37,8 @@
 #undef NDEBUG
 #include <assert.h>
 
+#define MAX_STATIC_NETS 256
+
 typedef struct {
    LLVMValueRef      *regs;
    LLVMBasicBlockRef *blocks;
@@ -434,6 +436,19 @@ static char *cgen_signal_nets_name(vcode_signal_t sig)
    return xasprintf("%s_nets", path);
 }
 
+static LLVMValueRef cgen_signal_nets(vcode_signal_t sig)
+{
+   char *buf LOCAL = cgen_signal_nets_name(sig);
+   LLVMValueRef nets = LLVMGetNamedGlobal(module, buf);
+   assert(nets);
+
+   LLVMValueRef indexes[] = {
+      llvm_int32(0),
+      llvm_int32(0)
+   };
+   return LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes), "");
+}
+
 static void cgen_op_return(int op, cgen_ctx_t *ctx)
 {
    if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
@@ -480,7 +495,8 @@ static void cgen_op_fcall(int op, bool nested, cgen_ctx_t *ctx)
       if (proc)
          *pa++ = llvm_void_ptr();
 
-      LLVMTypeRef rtype = proc ? LLVMVoidType()
+      LLVMTypeRef rtype = proc
+         ? llvm_void_ptr()
          : cgen_type(vcode_reg_type(result));
 
       fn = LLVMAddFunction(
@@ -1292,18 +1308,9 @@ static void cgen_op_nets(int op, cgen_ctx_t *ctx)
 {
    vcode_signal_t sig = vcode_get_signal(op);
 
-   char *buf LOCAL = cgen_signal_nets_name(sig);
-   LLVMValueRef nets = LLVMGetNamedGlobal(module, buf);
-   assert(nets);
-
    vcode_reg_t result = vcode_get_result(op);
-
-   LLVMValueRef indexes[] = {
-      llvm_int32(0),
-      llvm_int32(0)
-   };
-   ctx->regs[result] = LLVMBuildGEP(builder, nets, indexes, ARRAY_LEN(indexes),
-                                    cgen_reg_name(result));
+   ctx->regs[result] = cgen_signal_nets(sig);
+   LLVMSetValueName(ctx->regs[result], cgen_reg_name(result));
 }
 
 static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
@@ -2202,6 +2209,48 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
+{
+   const int cover_tag = vcode_get_index(op);
+
+   LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
+
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
+                                         indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
+   LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
+
+   LLVMBuildStore(builder, count1, count_ptr);
+}
+
+static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
+{
+   const int cover_tag = vcode_get_index(op);
+   const int sub_cond  = vcode_get_subkind(op);
+
+   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
+
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef mask_ptr = LLVMBuildGEP(builder, cover_conds,
+                                        indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_conds");
+
+   // Bit zero means evaluated false, bit one means evaluated true
+   // Other bits may be used in the future for sub-conditions
+
+   LLVMValueRef or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
+                                     llvm_int32(1 << ((sub_cond * 2) + 1)),
+                                     llvm_int32(1 << (sub_cond * 2)),
+                                     "cond_mask_or");
+
+   LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
+
+   LLVMBuildStore(builder, mask1, mask_ptr);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2444,6 +2493,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DEBUG_OUT:
       cgen_op_debug_out(i, ctx);
+      break;
+   case VCODE_OP_COVER_STMT:
+      cgen_op_cover_stmt(i, ctx);
+      break;
+   case VCODE_OP_COVER_COND:
+      cgen_op_cover_cond(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -2771,17 +2826,97 @@ static void cgen_process(vcode_unit_t code)
    cgen_free_context(&ctx);
 }
 
-static void cgen_reset_function(void)
+static void cgen_net_mapping_table(vcode_signal_t sig, int offset,
+                                   netid_t first, netid_t last, LLVMValueRef fn)
+{
+   LLVMValueRef nets = cgen_signal_nets(sig);
+
+   LLVMValueRef i = LLVMBuildAlloca(builder, cgen_net_id_type(), "i");
+   LLVMBuildStore(builder, llvm_int32(first), i);
+
+   LLVMBasicBlockRef test_bb = LLVMAppendBasicBlock(fn, "nm_test");
+   LLVMBasicBlockRef body_bb = LLVMAppendBasicBlock(fn, "nm_body");
+   LLVMBasicBlockRef exit_bb = LLVMAppendBasicBlock(fn, "nm_exit");
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Loop test
+
+   LLVMPositionBuilderAtEnd(builder, test_bb);
+
+   LLVMValueRef i_loaded = LLVMBuildLoad(builder, i, "i");
+   LLVMValueRef done = LLVMBuildICmp(builder, LLVMIntUGT, i_loaded,
+                                     llvm_int32(last), "done");
+   LLVMBuildCondBr(builder, done, exit_bb, body_bb);
+
+   // Loop body
+
+   LLVMPositionBuilderAtEnd(builder, body_bb);
+
+   LLVMValueRef indexes[] = {
+      LLVMBuildAdd(builder,
+                   LLVMBuildSub(builder, i_loaded, llvm_int32(first), ""),
+                   llvm_int32(offset), "")
+   };
+   LLVMValueRef ptr = LLVMBuildGEP(builder, nets,
+                                   indexes, ARRAY_LEN(indexes), "ptr");
+   LLVMBuildStore(builder, i_loaded, ptr);
+
+   LLVMValueRef i_plus_1 = LLVMBuildAdd(builder, i_loaded, llvm_int32(1), "");
+   LLVMBuildStore(builder, i_plus_1, i);
+
+   LLVMBuildBr(builder, test_bb);
+
+   // Epilogue
+
+   LLVMPositionBuilderAtEnd(builder, exit_bb);
+}
+
+static void cgen_reset_function(tree_t top)
 {
    char *name LOCAL = xasprintf("%s_reset", istr(vcode_unit_name()));
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
+   LLVMBasicBlockRef init_bb = NULL;
+
+   const int nsignals = vcode_count_signals();
+   for (int i = 0 ; i < nsignals; i++) {
+      const int nnets = vcode_signal_count_nets(i);
+      if (nnets < MAX_STATIC_NETS)
+         continue;
+
+      // Need to generate runtime code to fill in net mapping table
+
+      if (init_bb == NULL) {
+         init_bb = LLVMAppendBasicBlock(fn, "signal_net_init");
+         LLVMPositionBuilderAtEnd(builder, init_bb);
+      }
+
+      const netid_t *nets = vcode_signal_nets(i);
+      netid_t first = nets[0];
+      int     off   = 0;
+      netid_t last  = first;
+      for (int i = 1; i < nnets; i++) {
+         const netid_t this = nets[i];
+         if (this != last + 1) {
+            cgen_net_mapping_table(i, off, first, last, fn);
+            first = last = this;
+            off = i;
+         }
+         else
+            last = this;
+      }
+      cgen_net_mapping_table(i, off, first, last, fn);
+   }
+
    cgen_ctx_t ctx = {
       .fn = fn
    };
    cgen_alloc_context(&ctx);
+   if (init_bb != NULL)
+      LLVMBuildBr(builder, ctx.blocks[0]);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
 }
@@ -2867,14 +3002,21 @@ static void cgen_signals(void)
       if (vcode_signal_extern(i))
          LLVMSetLinkage(map_var, LLVMExternalLinkage);
       else {
-         LLVMSetGlobalConstant(map_var, true);
+         if (nnets <= MAX_STATIC_NETS) {
+            // Generate a constant mapping table from sub-element to net ID
+            LLVMSetGlobalConstant(map_var, true);
 
-         LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
-         for (int i = 0; i < nnets; i++)
-            init[i] = LLVMConstInt(nid_type, nets[i], false);
+            LLVMValueRef *init = xmalloc(sizeof(LLVMValueRef) * nnets);
+            for (int i = 0; i < nnets; i++)
+               init[i] = LLVMConstInt(nid_type, nets[i], false);
 
-         LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
-         free(init);
+            LLVMSetInitializer(map_var, LLVMConstArray(nid_type, init, nnets));
+            free(init);
+         }
+         else {
+            // Values will be filled in by reset function
+            LLVMSetInitializer(map_var, LLVMGetUndef(map_type));
+         }
       }
    }
 }
@@ -2887,7 +3029,7 @@ static void cgen_top(tree_t t)
    cgen_coverage_state(t);
    cgen_shared_variables();
    cgen_signals();
-   cgen_reset_function();
+   cgen_reset_function(t);
    cgen_subprograms(t);
 
    if (tree_kind(t) == T_ELAB) {

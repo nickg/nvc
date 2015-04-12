@@ -8,11 +8,6 @@
 static const error_t *error_lines = NULL;
 static error_fn_t     orig_error_fn = NULL;
 
-void cover_tag(void)
-{
-   assert(false);
-}
-
 static void test_error_fn(const char *msg, const loc_t *loc)
 {
    fail_if(error_lines == NULL);

@@ -200,16 +200,16 @@ static int elaborate(int argc, char **argv)
    static struct option long_options[] = {
       { "disable-opt", no_argument,       0, 'o' },
       { "dump-llvm",   no_argument,       0, 'd' },
-      { "dump-vcode",  optional_argument, 0, 'V' },
+      { "dump-vcode",  optional_argument, 0, 'v' },
       { "native",      no_argument,       0, 'n' },
       { "cover",       no_argument,       0, 'c' },
-      { "verbose",     no_argument,       0, 'v' },
+      { "verbose",     no_argument,       0, 'V' },
       { 0, 0, 0, 0 }
    };
 
    bool verbose = false;
    int c, index = 0;
-   const char *spec = "v";
+   const char *spec = "V";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -219,7 +219,7 @@ static int elaborate(int argc, char **argv)
       case 'd':
          opt_set_int("dump-llvm", 1);
          break;
-      case 'V':
+      case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
          break;
       case 'n':
@@ -228,7 +228,7 @@ static int elaborate(int argc, char **argv)
       case 'c':
          opt_set_int("cover", 1);
          break;
-      case 'v':
+      case 'V':
          verbose = true;
          break;
       case 0:
@@ -678,8 +678,9 @@ static void usage(void)
           "     --cover\t\tEnable code coverage reporting\n"
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
+          "     --dump-vcode\tPrint generated intermediate code\n"
           "     --native\t\tGenerate native code shared library\n"
-          " -v, --verbose\t\tPrint resource usage at each step\n"
+          " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
           "Run options:\n"
           " -b, --batch\t\tRun in batch mode (default)\n"

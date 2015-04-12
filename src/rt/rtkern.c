@@ -2129,12 +2129,27 @@ static void rt_stats_print(void)
    notef("setup:%ums run:%ums maxrss:%ukB", ready_rusage.ms, ru.ms, ru.rss);
 }
 
-static void rt_emit_coverage(tree_t e)
+static void rt_reset_coverage(tree_t top)
+{
+   int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
+   if (cover_stmts != NULL) {
+      const int ntags = tree_attr_int(top, ident_new("stmt_tags"), 0);
+      memset(cover_stmts, '\0', sizeof(int32_t) * ntags);
+   }
+
+   int32_t *cover_conds = jit_var_ptr("cover_conds", false);
+   if (cover_conds != NULL) {
+      const int ntags = tree_attr_int(top, ident_new("cond_tags"), 0);
+      memset(cover_conds, '\0', sizeof(int32_t) * ntags);
+   }
+}
+
+static void rt_emit_coverage(tree_t top)
 {
    const int32_t *cover_stmts = jit_var_ptr("cover_stmts", false);
    const int32_t *cover_conds = jit_var_ptr("cover_conds", false);
    if (cover_stmts != NULL)
-      cover_report(e, cover_stmts, cover_conds);
+      cover_report(top, cover_stmts, cover_conds);
 }
 
 static void rt_interrupt(void)
@@ -2192,6 +2207,8 @@ void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
    proc_tmp_stack   = mmap_guarded(PROC_TMP_STACK_SZ, "process temp stack");
 
    global_tmp_alloc = 0;
+
+   rt_reset_coverage(top);
 
    nvc_rusage(&ready_rusage);
 }

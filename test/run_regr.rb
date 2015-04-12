@@ -69,6 +69,7 @@ end
 
 def elaborate(t)
   opt = '--disable-opt' unless t[:flags].member? 'opt'
+  opt += ' --cover' if t[:flags].member? 'cover'
   run_cmd "#{nvc} #{std t} -e #{t[:name]} #{opt} #{native}"
 end
 

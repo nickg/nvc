@@ -32,7 +32,7 @@ To build from a Git clone:
     make install
 
 Generating the configure script requires autoconf and automake
-version 1.12 or later.
+version 1.11 or later.
 
 To use a specific version of LLVM add `--with-llvm=/path/to/llvm-config`
 to the configure command. LLVM 3.0 or later is required.
@@ -41,6 +41,9 @@ NVC also depends GNU Flex to generate the lexical analyser.
 
 If a readline-compatible library is installed it will be used to provide
 line editing in the interactive mode.
+
+[GtkWave](http://gtkwave.sourceforge.net/) can be used to view simulation
+waveforms. Version 3.3.53 or later is reqiured for the default FST format.
 
 #### Debian and Ubuntu
 

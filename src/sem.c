@@ -1726,9 +1726,7 @@ static bool sem_check_type_decl(tree_t t)
          for (int i = 0; i < ndims; i++) {
             range_t r = type_dim(type, i);
 
-            type_set_push();
-
-            type_t index = NULL;
+            type_t index = NULL, alt = NULL;
             switch (type_kind(base)) {
             case T_CARRAY:
                index = tree_type(type_dim(base, i).left);
@@ -1737,7 +1735,7 @@ static bool sem_check_type_decl(tree_t t)
                index = type_index_constr(base, i);
                break;
             case T_PHYSICAL:
-               type_set_add(sem_std_type("INTEGER"));
+               alt = sem_std_type("INTEGER");
                // Fall-through
             default:
                index = base;
@@ -1747,14 +1745,18 @@ static bool sem_check_type_decl(tree_t t)
             if (type_kind(index) == T_UNRESOLVED)
                return false;
 
+            type_set_push();
             type_set_add(index);
+            if (alt != NULL)
+               type_set_add(alt);
 
-            ok = sem_check(r.left) && sem_check(r.right) && ok;
+            ok = sem_check(r.left) && sem_check(r.right);
             type_set_pop();
 
             if (ok) {
-               tree_set_type(r.left, index);
-               tree_set_type(r.right, index);
+               type_t rtype = type_is_scalar(base) ? type : index;
+               tree_set_type(r.left, rtype);
+               tree_set_type(r.right, rtype);
             }
          }
 

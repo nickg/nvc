@@ -90,12 +90,15 @@ specific options must be placed after the command.
 * `--dump-llvm`:
   Print generated LLVM IR prior to optimisation.
 
+* `--dump-vcode`:
+  Print generated intermediate code.
+
 * `--native`:
   Generate native code shared library. By default NVC will use LLVM JIT
   compilation to generate machine code at runtime. For large designs
   compiling to native code at elaboration time may improve performance.
 
-* `-v`, `--verbose`:
+* `-V`, `--verbose`:
   Prints resource usage information after each elaboration step.
 
 ### Runtime options
@@ -120,7 +123,8 @@ specific options must be placed after the command.
    format but has limited ability to represent VHDL types and the performance
    is poor: select this only if you must use the output with a tool that does
    not support FST or LXT. The default format is FST if this option is not
-   provided.
+   provided. Note that GtkWave 3.3.53 or later is required to view the FST
+   output.
 
  * `--include=`_glob_, `--exclude=`_glob_:
    Signals that match _glob_ are included in or excluded from the waveform
