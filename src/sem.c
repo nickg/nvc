@@ -98,7 +98,7 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
-static void sem_add_attributes(tree_t decl, bool is_signal);
+static void sem_add_attributes(tree_t decl);   // DELME
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
@@ -1772,7 +1772,7 @@ static bool sem_check_type_decl(tree_t t)
             if (!sem_check(f))
                return false;
 
-            sem_add_attributes(f, true);
+            sem_add_attributes(f);
 
             // Each field name must be distinct
             ident_t f_name = tree_ident(f);
@@ -1856,7 +1856,7 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
-static void sem_add_attributes(tree_t decl, bool is_signal)
+static void sem_add_attributes(tree_t decl)
 {
    type_t type;
    class_t class = class_of(decl);
@@ -1877,16 +1877,6 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
       sem_add_dimension_attr(decl, NULL, "HIGH", "high");
       sem_add_dimension_attr(decl, sem_std_type("BOOLEAN"),
                              "ASCENDING", "ascending");
-   }
-
-   if (is_signal) {
-      type_t std_bit  = sem_std_type("BIT");
-
-      ident_t transaction_i = ident_new("TRANSACTION");
-
-      tree_add_attr_tree(decl, transaction_i,
-                         sem_builtin_fn(transaction_i, std_bit,
-                                        "transaction", type, NULL));
    }
 }
 
@@ -1975,10 +1965,6 @@ static bool sem_check_decl(tree_t t)
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
 
-   const bool is_signal =
-      ((kind == T_PORT_DECL) && (tree_class(t) == C_SIGNAL))
-      || (kind == T_SIGNAL_DECL);
-
    if (type_is_record(type))
       sem_declare_fields(type, tree_ident(t));
    else if (type_is_protected(type))
@@ -1994,7 +1980,7 @@ static bool sem_check_decl(tree_t t)
          sem_error(t, "signals may not have access type");
    }
 
-   sem_add_attributes(t, is_signal);
+   sem_add_attributes(t);
    scope_apply_prefix(t);
 
    // From VHDL-2000 onwards shared variables must be protected types
@@ -2054,7 +2040,7 @@ static bool sem_check_port_decl(tree_t t)
       }
    }
 
-   sem_add_attributes(t, true);
+   sem_add_attributes(t);
    return true;
 }
 
@@ -2163,7 +2149,7 @@ static bool sem_check_alias(tree_t t)
          tree_set_type(t, tree_type(value));
    }
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2286,7 +2272,7 @@ static bool sem_check_func_decl(tree_t t)
       sem_error(t, "duplicate declaration of function %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2300,7 +2286,7 @@ static bool sem_check_func_body(tree_t t)
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    // If there is no declaration for this function add to the scope
    if (!sem_check_duplicate(t, T_FUNC_DECL)) {
@@ -2319,7 +2305,7 @@ static bool sem_check_func_body(tree_t t)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      sem_add_attributes(p, (tree_class(p) == C_SIGNAL));
+      sem_add_attributes(p);
       ok = scope_insert(p) && ok;
    }
 
@@ -2384,7 +2370,7 @@ static bool sem_check_proc_decl(tree_t t)
       sem_error(t, "duplicate declaration of procedure %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2397,7 +2383,7 @@ static bool sem_check_proc_body(tree_t t)
 
    scope_apply_prefix(t);
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    // If there is no declaration for this procedure add to the scope
    if (!sem_check_duplicate(t, T_PROC_DECL)) {
@@ -2413,7 +2399,7 @@ static bool sem_check_proc_body(tree_t t)
    const int nports = tree_ports(t);
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(t, i);
-      sem_add_attributes(p, (tree_class(p) == C_SIGNAL));
+      sem_add_attributes(p);
       ok = scope_insert(p) && ok;
    }
 
@@ -2460,7 +2446,7 @@ static bool sem_check_sensitivity(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    scope_push(NULL);
 
@@ -2716,7 +2702,7 @@ static bool sem_check_component(tree_t t)
 
    scope_pop();
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    if (ok) {
       scope_apply_prefix(t);
@@ -2739,7 +2725,7 @@ static bool sem_check_entity(tree_t t)
 
    scope_insert(t);
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -2794,7 +2780,7 @@ static bool sem_check_arch(tree_t t)
 
    scope_push(NULL);
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    // Make the architecture and entity name visible
    scope_insert(t);
@@ -4893,6 +4879,15 @@ static bool sem_check_valid_implicit_signal(tree_t t)
    return true;
 }
 
+static bool sem_check_signal_attr(tree_t t)
+{
+   if (class_of(tree_name(t)) != C_SIGNAL)
+      sem_error(t, "prefix of attribute %s must denote a signal",
+                istr(tree_ident(t)));
+
+   return true;
+}
+
 static bool sem_check_attr_ref(tree_t t)
 {
    // Attribute names are in LRM 93 section 6.6
@@ -4932,23 +4927,22 @@ static bool sem_check_attr_ref(tree_t t)
    ident_t attr = tree_ident(t);
 
    if (icmp(attr, "LAST_EVENT")) {
-      if (class_of(name) != C_SIGNAL)
-         sem_error(t, "prefix of attribute LAST_EVENT must denote a signal");
+      if (!sem_check_signal_attr(t))
+         return false;
 
       tree_set_type(t, sem_std_type("TIME"));
       return true;
    }
    else if (icmp(attr, "EVENT") || icmp(attr, "ACTIVE")) {
-      if (class_of(name) != C_SIGNAL)
-         sem_error(t, "prefix of attribute %s must denote a signal",
-                   istr(attr));
+      if (!sem_check_signal_attr(t))
+         return false;
 
       tree_set_type(t, sem_std_type("BOOLEAN"));
       return true;
    }
    else if (icmp(attr, "LAST_VALUE")) {
-      if (class_of(name) != C_SIGNAL)
-         sem_error(t, "prefix of attribute LAST_VALUE must denote a signal");
+      if (!sem_check_signal_attr(t))
+         return false;
 
       tree_set_type(t, tree_type(name));
       return true;
@@ -4964,9 +4958,8 @@ static bool sem_check_attr_ref(tree_t t)
    }
    else if (icmp(attr, "DELAYED") || icmp(attr, "STABLE")
             || icmp(attr, "QUIET")) {
-      if (class_of(name) != C_SIGNAL)
-         sem_error(t, "prefix of attribute %s must denote a signal",
-                   istr(attr));
+      if (!sem_check_signal_attr(t))
+         return false;
 
       if (!sem_check_valid_implicit_signal(t))
          return false;
@@ -4993,14 +4986,14 @@ static bool sem_check_attr_ref(tree_t t)
       return true;
    }
    else if (icmp(attr, "TRANSACTION")) {
-      if (class_of(name) != C_SIGNAL)
-         sem_error(t, "prefix of attribute %s must denote a signal",
-                   istr(attr));
+      if (!sem_check_signal_attr(t))
+         return false;
 
       if (!sem_check_valid_implicit_signal(t))
          return false;
 
-      // TODO
+      tree_set_type(t, sem_std_type("BIT"));
+      return true;
    }
 
    bool allow_user = true;
@@ -5966,7 +5959,7 @@ static bool sem_check_block(tree_t t)
 {
    scope_push(NULL);
 
-   sem_add_attributes(t, false);
+   sem_add_attributes(t);
 
    bool ok = true;
 

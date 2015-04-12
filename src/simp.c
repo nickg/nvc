@@ -151,13 +151,11 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
    enum {
       DELAYED,
       TRANSACTION
-   } attr = icmp(tree_ident(t), "transaction") ? TRANSACTION : DELAYED;
+   } attr = icmp(tree_ident(t), "TRANSACTION") ? TRANSACTION : DELAYED;
 
    char *sig_name LOCAL =
       xasprintf("%s_%s", (attr == DELAYED) ? "delayed" : "transaction",
                 istr(tree_ident(name)));
-
-   tree_t delay = tree_value(tree_param(t, 0));
 
    tree_t s = tree_new(T_SIGNAL_DECL);
    tree_set_loc(s, tree_loc(t));
@@ -178,6 +176,8 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
    switch (attr) {
    case DELAYED:
       {
+         tree_t delay = tree_value(tree_param(t, 0));
+
          tree_t wave = tree_new(T_WAVEFORM);
          tree_set_value(wave, name);
          tree_set_delay(wave, delay);
