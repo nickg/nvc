@@ -2911,41 +2911,6 @@ static void cgen_reset_function(tree_t top)
       cgen_net_mapping_table(i, off, first, last, fn);
    }
 
-   const int n_cond_tags = tree_attr_int(top, ident_new("cond_tags"), 0);
-   const int n_stmt_tags = tree_attr_int(top, ident_new("stmt_tags"), 0);
-   if (n_cond_tags + n_stmt_tags > 0 && init_bb == NULL) {
-      init_bb = LLVMAppendBasicBlock(fn, "cover_init");
-      LLVMPositionBuilderAtEnd(builder, init_bb);
-   }
-
-   LLVMValueRef cover_stmts = LLVMGetNamedGlobal(module, "cover_stmts");
-   if (cover_stmts != NULL) {
-      LLVMValueRef memset_args[] = {
-         llvm_void_cast(cover_stmts),
-         llvm_int8(0),
-         llvm_int32(n_stmt_tags * 4),
-         llvm_int32(4),
-         llvm_int1(false)
-      };
-
-      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
-                    memset_args, ARRAY_LEN(memset_args), "");
-   }
-
-   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
-   if (cover_conds != NULL) {
-      LLVMValueRef memset_args[] = {
-         llvm_void_cast(cover_conds),
-         llvm_int8(0),
-         llvm_int32(n_cond_tags * 4),
-         llvm_int32(4),
-         llvm_int1(false)
-      };
-
-      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
-                    memset_args, ARRAY_LEN(memset_args), "");
-   }
-
    cgen_ctx_t ctx = {
       .fn = fn
    };
