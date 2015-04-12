@@ -142,19 +142,16 @@ static tree_t simp_ref(tree_t t)
 
 static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
 {
-   if (tree_kind(tree_ref(tree_name(t))) != T_SIGNAL_DECL)
-      return t;
-
-   t = simp_call_args(t);
-
-   tree_t name = tree_value(tree_param(t, tree_params(t) - 1));
+   tree_t name = tree_name(t);
    assert(tree_kind(name) == T_REF);
 
-   ident_t builtin = tree_attr_str(tree_ref(t), ident_new("builtin"));
+   if (tree_kind(tree_ref(name)) != T_SIGNAL_DECL)
+      return t;
+
    enum {
       DELAYED,
       TRANSACTION
-   } attr = icmp(builtin, "transaction") ? TRANSACTION : DELAYED;
+   } attr = icmp(tree_ident(t), "transaction") ? TRANSACTION : DELAYED;
 
    char *sig_name LOCAL =
       xasprintf("%s_%s", (attr == DELAYED) ? "delayed" : "transaction",
@@ -224,32 +221,33 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
 {
    if (tree_has_value(t))
       return tree_value(t);
-   else if (tree_has_ref(t)) {
+
+   ident_t attr = tree_ident(t);
+   if (icmp(attr, "DELAYED") || icmp(attr, "TRANSACTION"))
+      return simp_attr_delayed_transaction(t, ctx);
+
+   if (tree_has_ref(t)) {
       tree_t decl = tree_ref(t);
       assert(tree_kind(decl) == T_FUNC_DECL);
 
       ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
       assert(builtin != NULL);
 
-      if (icmp(builtin, "delayed") || icmp(builtin, "transaction"))
-         return simp_attr_delayed_transaction(t, ctx);
-      else {
-         // Convert attributes like 'EVENT to function calls
-         tree_t fcall = tree_new(T_FCALL);
-         tree_set_loc(fcall, tree_loc(t));
-         tree_set_type(fcall, tree_type(t));
-         tree_set_ident(fcall, tree_ident(t));
-         tree_set_ref(fcall, decl);
+      // Convert attributes like 'EVENT to function calls
+      tree_t fcall = tree_new(T_FCALL);
+      tree_set_loc(fcall, tree_loc(t));
+      tree_set_type(fcall, tree_type(t));
+      tree_set_ident(fcall, tree_ident(t));
+      tree_set_ref(fcall, decl);
 
-         const int nparams = tree_params(t);
-         for (int i = 0; i < nparams; i++)
-            tree_add_param(fcall, tree_param(t, i));
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++)
+         tree_add_param(fcall, tree_param(t, i));
 
-         return simp_fcall(fcall);
-      }
+      return simp_fcall(fcall);
    }
-   else
-      return t;
+
+   return t;
 }
 
 static tree_t simp_extract_string_literal(tree_t literal, int64_t index,

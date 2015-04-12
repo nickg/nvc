@@ -1581,7 +1581,7 @@ START_TEST(test_implicit)
    input_from_file(TESTDIR "/sem/implicit.vhd");
 
    const error_t expect[] = {
-      { 12, "expected type TIME for attribute DELAYED" },
+      { 12, "attribute DELAYED parameter must have type TIME" },
       { -1, NULL }
    };
    expect_errors(expect);

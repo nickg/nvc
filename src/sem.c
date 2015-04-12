@@ -1856,23 +1856,8 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
-static tree_t sem_time_parameter_attribute(ident_t name, const char *builtin,
-                                           type_t type, type_t result)
-{
-   // Helper for attributtes like 'STABLE and 'DELAYED that take an
-   // optional TIME argument
-
-   type_t std_time = sem_std_type("TIME");
-
-   tree_t fn = sem_builtin_fn(name, result, builtin, std_time, type, NULL);
-   tree_set_value(tree_port(fn, 0), sem_int_lit(std_time, 0));
-   return fn;
-}
-
 static void sem_add_attributes(tree_t decl, bool is_signal)
 {
-   type_t std_bool = sem_std_type("BOOLEAN");
-
    type_t type;
    class_t class = class_of(decl);
    if (class_has_type(class))
@@ -1897,20 +1882,8 @@ static void sem_add_attributes(tree_t decl, bool is_signal)
    if (is_signal) {
       type_t std_bit  = sem_std_type("BIT");
 
-      ident_t delayed_i     = ident_new("DELAYED");
-      ident_t stable_i      = ident_new("STABLE");
-      ident_t quiet_i       = ident_new("QUIET");
       ident_t transaction_i = ident_new("TRANSACTION");
 
-      tree_add_attr_tree(decl, delayed_i,
-                         sem_time_parameter_attribute(delayed_i, "delayed",
-                                                      type, type));
-      tree_add_attr_tree(decl, stable_i,
-                         sem_time_parameter_attribute(delayed_i, "stable",
-                                                      type, std_bool));
-      tree_add_attr_tree(decl, quiet_i,
-                         sem_time_parameter_attribute(delayed_i, "quiet",
-                                                      type, std_bool));
       tree_add_attr_tree(decl, transaction_i,
                          sem_builtin_fn(transaction_i, std_bit,
                                         "transaction", type, NULL));
@@ -4908,6 +4881,18 @@ static bool sem_check_array_slice(tree_t t)
    return true;
 }
 
+static bool sem_check_valid_implicit_signal(tree_t t)
+{
+   // Certain attributes are illegal inside a subprogram according to LRM
+   // 93 section 2.1.1.2
+
+   if (top_scope->subprog != NULL)
+      sem_error(t, "implicit signal %s cannot be used in a "
+                "subprogram body", istr(tree_ident(t)));
+
+   return true;
+}
+
 static bool sem_check_attr_ref(tree_t t)
 {
    // Attribute names are in LRM 93 section 6.6
@@ -4977,6 +4962,46 @@ static bool sem_check_attr_ref(tree_t t)
       tree_set_type(t, sem_std_type("STRING"));
       return true;
    }
+   else if (icmp(attr, "DELAYED") || icmp(attr, "STABLE")
+            || icmp(attr, "QUIET")) {
+      if (class_of(name) != C_SIGNAL)
+         sem_error(t, "prefix of attribute %s must denote a signal",
+                   istr(attr));
+
+      if (!sem_check_valid_implicit_signal(t))
+         return false;
+
+      type_t std_time = sem_std_type("TIME");
+      if (tree_params(t) > 0) {
+         tree_t value = tree_value(tree_param(t, 0));
+
+         if (!sem_check_constrained(value, std_time))
+            return false;
+
+         if (!type_eq(tree_type(value), std_time))
+            sem_error(value, "attribute %s parameter must have type %s",
+                      istr(attr), sem_type_str(std_time));
+      }
+      else
+         add_param(t, sem_int_lit(std_time, 0), P_POS, NULL);
+
+      if (icmp(attr, "DELAYED"))
+         tree_set_type(t, tree_type(name));
+      else
+         tree_set_type(t, sem_std_type("BOOLEAN"));
+
+      return true;
+   }
+   else if (icmp(attr, "TRANSACTION")) {
+      if (class_of(name) != C_SIGNAL)
+         sem_error(t, "prefix of attribute %s must denote a signal",
+                   istr(attr));
+
+      if (!sem_check_valid_implicit_signal(t))
+         return false;
+
+      // TODO
+   }
 
    bool allow_user = true;
    switch (tree_kind(name)) {
@@ -5008,23 +5033,6 @@ static bool sem_check_attr_ref(tree_t t)
 
    if (icmp(attr, "range"))
       sem_error(t, "range expression not allowed here");
-
-   if (top_scope->subprog != NULL) {
-      // The following attributes are illegal inside a subprogram
-      // according to LRM 93 section 2.1.1.2
-      ident_t illegal[] = {
-         ident_new("DELAYED"),
-         ident_new("STABLE"),
-         ident_new("QUIET"),
-         ident_new("TRANSACTION")
-      };
-
-      for (int i = 0; i < ARRAY_LEN(illegal); i++) {
-         if (illegal[i] == attr)
-            sem_error(t, "implicit signal %s cannot be used in a "
-                      "subprogram body", istr(attr));
-      }
-   }
 
    tree_t a = tree_attr_tree(decl, attr);
    if (a == NULL)
