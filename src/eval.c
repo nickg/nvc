@@ -27,9 +27,6 @@
 #define VTABLE_SZ 16
 #define MAX_ITERS 1000
 
-static ident_t std_bool_i;
-static ident_t builtin_i;
-
 typedef struct vtable vtable_t;
 typedef struct vtframe vtframe_t;
 
@@ -663,24 +660,14 @@ static void eval_stmt(tree_t t, vtable_t *v)
    }
 }
 
-static void eval_intern_strings(void)
-{
-   // Intern some commonly used strings
-
-   std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
-   builtin_i  = ident_new("builtin");
-}
-
 tree_t eval(tree_t fcall)
 {
    assert(tree_kind(fcall) == T_FCALL);
 
-   static bool have_interned = false;
-   if (!have_interned) {
-      eval_intern_strings();
-      have_interned = true;
-
+   static bool have_debug = false;
+   if (!have_debug) {
       debug = (getenv("NVC_EVAL_DEBUG") != NULL);
+      have_debug = true;
    }
 
    vtable_t vt = {

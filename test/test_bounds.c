@@ -1,63 +1,12 @@
 #include "type.h"
 #include "util.h"
 #include "phase.h"
+#include "test_util.h"
 
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-typedef struct error {
-   int        line;
-   const char *snippet;
-} error_t;
-
-static const error_t  *error_lines = NULL;
-static error_fn_t orig_error_fn = NULL;
-
-static void setup(void)
-{
-   const char *lib_dir = getenv("LIB_DIR");
-   if (lib_dir)
-      lib_add_search_path(lib_dir);
-
-   lib_set_work(lib_tmp());
-   opt_set_int("bootstrap", 0);
-   opt_set_int("unit-test", 1);
-   opt_set_int("relax", 0);
-}
-
-static void teardown(void)
-{
-   lib_free(lib_work());
-}
-
-static void test_error_fn(const char *msg, const loc_t *loc)
-{
-   fail_if(error_lines == NULL);
-
-   bool unexpected = error_lines->line == -1
-      || error_lines->snippet == NULL
-      || error_lines->line != loc->first_line
-      || strstr(msg, error_lines->snippet) == NULL;
-
-   if (unexpected) {
-      orig_error_fn(msg, loc);
-      printf("expected line %d '%s'\n",
-             error_lines->line, error_lines->snippet);
-   }
-
-   fail_if(unexpected);
-
-   error_lines++;
-}
-
-static void expect_errors(const error_t *lines)
-{
-   fail_unless(orig_error_fn == NULL);
-   orig_error_fn = set_error_fn(test_error_fn);
-   error_lines = lines;
-}
 
 START_TEST(test_bounds)
 {
@@ -260,14 +209,9 @@ END_TEST
 
 int main(void)
 {
-   register_trace_signal_handlers();
-
-   setenv("NVC_LIBPATH", "../lib/std", 1);
-
    Suite *s = suite_create("bounds");
 
-   TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, teardown);
+   TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_bounds);
    tcase_add_test(tc_core, test_case);
    tcase_add_test(tc_core, test_issue36);
@@ -275,12 +219,5 @@ int main(void)
    tcase_add_test(tc_core, test_issue99);
    suite_add_tcase(s, tc_core);
 
-   SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
-
-   int nfail = srunner_ntests_failed(sr);
-
-   srunner_free(sr);
-
-   return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   return nvc_run_test(s);
 }

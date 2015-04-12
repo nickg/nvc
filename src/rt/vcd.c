@@ -42,8 +42,6 @@ struct vcd_data {
 static FILE    *vcd_file;
 static tree_t   vcd_top;
 static ident_t  vcd_data_i;
-static ident_t  std_bit_i;
-static ident_t  std_ulogic_i;
 static uint64_t last_time;
 
 static void vcd_fmt_int(tree_t decl, watch_t *w, vcd_data_t *data)
@@ -254,8 +252,6 @@ void vcd_restart(void)
 void vcd_init(const char *filename, tree_t top)
 {
    vcd_data_i   = ident_new("vcd_data");
-   std_ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   std_bit_i    = ident_new("STD.STANDARD.BIT");
 
    vcd_top = top;
 

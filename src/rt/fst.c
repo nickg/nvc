@@ -25,17 +25,6 @@
 
 static tree_t   fst_top;
 static void    *fst_ctx;
-static ident_t  fst_data_i;
-static ident_t  std_logic_i;
-static ident_t  std_ulogic_i;
-static ident_t  std_bool_i;
-static ident_t  std_char_i;
-static ident_t  std_bit_i;
-static ident_t  natural_i;
-static ident_t  positive_i;
-static ident_t  fst_dir_i;
-static ident_t  unsigned_i;
-static ident_t  signed_i;
 static uint64_t last_time;
 
 typedef struct fst_data fst_data_t;
@@ -384,18 +373,6 @@ void fst_restart(void)
 
 void fst_init(const char *file, tree_t top)
 {
-   fst_data_i   = ident_new("fst_data");
-   std_logic_i  = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
-   std_ulogic_i = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   std_bit_i    = ident_new("STD.STANDARD.BIT");
-   fst_dir_i    = ident_new("fst_dir");
-   std_bool_i   = ident_new("STD.STANDARD.BOOLEAN");
-   std_char_i   = ident_new("STD.STANDARD.CHARACTER");
-   natural_i    = ident_new("STD.STANDARD.NATURAL");
-   positive_i   = ident_new("STD.STANDARD.POSITIVE");
-   signed_i     = ident_new("IEEE.NUMERIC_STD.SIGNED");
-   unsigned_i   = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
-
    if ((fst_ctx = fstWriterCreate(file, 1)) == NULL)
       fatal("fstWriterCreate failed");
 

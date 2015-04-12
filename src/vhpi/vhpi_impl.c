@@ -80,9 +80,6 @@ static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
 
 static ident_t simple_name_i;
-static ident_t std_logic_i;
-static ident_t std_ulogic_i;
-static ident_t bit_i;
 
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
@@ -295,7 +292,7 @@ static const char *vhpi_map_str_for_type(type_t type)
 
    if ((type_name == std_logic_i) || (type_name == std_ulogic_i))
       return "UX01ZWLH-";
-   else if (type_name == bit_i)
+   else if (type_name == std_bit_i)
       return "01";
    else
       assert(false);
@@ -659,7 +656,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    switch (type_kind(base)) {
    case T_ENUM:
       if ((type_name == std_logic_i) || (type_name == std_ulogic_i)
-          || (type_name == bit_i)) {
+          || (type_name == std_bit_i)) {
          if (value_p->format == vhpiBinStrVal)
             format = value_p->format;
          else
@@ -684,7 +681,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             {
                ident_t elem_name = type_ident(elem);
                if ((elem_name == std_logic_i) || (elem_name == std_ulogic_i)
-                   || (elem_name == bit_i)) {
+                   || (elem_name == std_bit_i)) {
                   if (value_p->format == vhpiBinStrVal)
                      format = value_p->format;
                   else
@@ -1066,9 +1063,6 @@ int vhpi_is_printable(char ch)
 void vhpi_load_plugins(tree_t top, const char *plugins)
 {
    simple_name_i = ident_new("simple_name");
-   std_logic_i   = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
-   std_ulogic_i  = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
-   bit_i         = ident_new("STD.STANDARD.BIT");
 
    top_level = top;
 

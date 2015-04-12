@@ -33,10 +33,7 @@ struct interval {
    interval_t *next;
 };
 
-static int     errors = 0;
-static ident_t unconstrained_i;
-static ident_t elide_bounds_i;
-static ident_t builtin_i;
+static int errors = 0;
 
 #define bounds_error(t, ...) \
    do { errors++; error_at(tree_loc(t), __VA_ARGS__); } while (0)
@@ -871,10 +868,6 @@ static void bounds_visit_fn(tree_t t, void *context)
 
 void bounds_check(tree_t top)
 {
-   unconstrained_i = ident_new("unconstrained");
-   elide_bounds_i  = ident_new("elide_bounds");
-   builtin_i       = ident_new("builtin");
-
    tree_visit(top, bounds_visit_fn, NULL);
 }
 

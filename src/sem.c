@@ -103,18 +103,9 @@ static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
-static unsigned      relax = 0;
+static unsigned      relax = -1;
 static type_set_t   *top_type_set = NULL;
 static loop_stack_t *loop_stack = NULL;
-static ident_t       builtin_i;
-static ident_t       std_standard_i;
-static ident_t       formal_i;
-static ident_t       locally_static_i;
-static ident_t       elab_copy_i;
-static ident_t       all_i;
-static ident_t       shared_i;
-static ident_t       unconstrained_i;
-static ident_t       protected_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -6515,29 +6506,10 @@ static bool sem_check_prot_body(tree_t t)
    return ok;
 }
 
-static void sem_intern_strings(void)
-{
-   // Intern some commonly used strings
-
-   builtin_i        = ident_new("builtin");
-   std_standard_i   = ident_new("STD.STANDARD");
-   formal_i         = ident_new("formal");
-   locally_static_i = ident_new("locally_static");
-   elab_copy_i      = ident_new("elab_copy");
-   all_i            = ident_new("all");
-   shared_i         = ident_new("shared");
-   unconstrained_i  = ident_new("unconstrained");
-   protected_i      = ident_new("protected");
-}
-
 bool sem_check(tree_t t)
 {
-   static bool have_interned = false;
-   if (!have_interned) {
-      sem_intern_strings();
+   if (relax == -1)
       relax = opt_get_int("relax");
-      have_interned = true;
-   }
 
    switch (tree_kind(t)) {
    case T_ARCH:

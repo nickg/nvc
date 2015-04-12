@@ -1,10 +1,10 @@
 #include "util.h"
+#include "test_util.h"
 
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #include "../src/group.c"
 
@@ -12,45 +12,6 @@ typedef struct {
    int  first;
    int  last;
 } group_expect_t;
-
-void cover_tag(void)
-{
-   assert(false);
-}
-
-static void setup(void)
-{
-   const char *lib_dir = getenv("LIB_DIR");
-   if (lib_dir)
-      lib_add_search_path(lib_dir);
-
-   lib_set_work(lib_tmp());
-   opt_set_int("bootstrap", 0);
-   opt_set_int("cover", 0);
-   opt_set_int("unit-test", 1);
-   opt_set_int("relax", 0);
-}
-
-static void teardown(void)
-{
-   lib_free(lib_work());
-}
-
-static tree_t run_elab(void)
-{
-   tree_t t, last_ent = NULL;
-   while ((t = parse())) {
-      sem_check(t);
-      fail_if(sem_errors() > 0);
-
-      simplify(t);
-
-      if (tree_kind(t) == T_ENTITY)
-         last_ent = t;
-   }
-
-   return elab(last_ent);
-}
 
 static void group_dump(group_nets_ctx_t *ctx)
 {
@@ -307,12 +268,9 @@ END_TEST
 
 int main(void)
 {
-   srandom((unsigned)time(NULL));
-
    Suite *s = suite_create("group");
 
-   TCase *tc_core = tcase_create("Core");
-   tcase_add_unchecked_fixture(tc_core, setup, teardown);
+   TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_group_one);
    tcase_add_test(tc_core, test_group_two);
    tcase_add_test(tc_core, test_group_three);
@@ -325,12 +283,5 @@ int main(void)
    tcase_add_test(tc_core, test_arrayref1);
    suite_add_tcase(s, tc_core);
 
-   SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
-
-   int nfail = srunner_ntests_failed(sr);
-
-   srunner_free(sr);
-
-   return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   return nvc_run_test(s);
 }

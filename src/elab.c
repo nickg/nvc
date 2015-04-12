@@ -61,15 +61,7 @@ static void elab_block(tree_t t, const elab_ctx_t *ctx);
 static void elab_stmts(tree_t t, const elab_ctx_t *ctx);
 static void elab_funcs(tree_t arch, tree_t ent);
 
-static int     errors = 0;
-static ident_t inst_name_i;
-static ident_t fst_dir_i;
-static ident_t scope_pop_i;
-static ident_t all_i;
-static ident_t formal_i;
-static ident_t elab_copy_i;
-static ident_t shared_i;
-static ident_t partial_map_i;
+static int errors = 0;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -1453,15 +1445,6 @@ static void elab_context_signals(const elab_ctx_t *ctx)
 
 tree_t elab(tree_t top)
 {
-   inst_name_i   = ident_new("INSTANCE_NAME");
-   fst_dir_i     = ident_new("fst_dir");
-   scope_pop_i   = ident_new("scope_pop");
-   all_i         = ident_new("all");
-   formal_i      = ident_new("formal");
-   elab_copy_i   = ident_new("elab_copy");
-   shared_i      = ident_new("shared");
-   partial_map_i = ident_new("partial_map");
-
    tree_t e = tree_new(T_ELAB);
    tree_set_ident(e, ident_prefix(tree_ident(top),
                                   ident_new("elab"), '.'));

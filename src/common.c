@@ -15,6 +15,8 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#define COMMON_IMPL
+
 #include "util.h"
 #include "common.h"
 #include "phase.h"
@@ -655,4 +657,47 @@ type_t index_type_of(type_t type, int dim)
       // error with it so just return a dummy type here
       return tree_has_type(left) ? tree_type(left) : type;
    }
+}
+
+void intern_strings(void)
+{
+   builtin_i        = ident_new("builtin");
+   std_standard_i   = ident_new("STD.STANDARD");
+   formal_i         = ident_new("formal");
+   locally_static_i = ident_new("locally_static");
+   elab_copy_i      = ident_new("elab_copy");
+   all_i            = ident_new("all");
+   shared_i         = ident_new("shared");
+   unconstrained_i  = ident_new("unconstrained");
+   protected_i      = ident_new("protected");
+   inst_name_i      = ident_new("INSTANCE_NAME");
+   fst_dir_i        = ident_new("fst_dir");
+   scope_pop_i      = ident_new("scope_pop");
+   partial_map_i    = ident_new("partial_map");
+   fst_data_i       = ident_new("fst_data");
+   std_logic_i      = ident_new("IEEE.STD_LOGIC_1164.STD_LOGIC");
+   std_ulogic_i     = ident_new("IEEE.STD_LOGIC_1164.STD_ULOGIC");
+   std_bit_i        = ident_new("STD.STANDARD.BIT");
+   std_bool_i       = ident_new("STD.STANDARD.BOOLEAN");
+   std_char_i       = ident_new("STD.STANDARD.CHARACTER");
+   natural_i        = ident_new("STD.STANDARD.NATURAL");
+   positive_i       = ident_new("STD.STANDARD.POSITIVE");
+   signed_i         = ident_new("IEEE.NUMERIC_STD.SIGNED");
+   unsigned_i       = ident_new("IEEE.NUMERIC_STD.UNSIGNED");
+   foreign_i        = ident_new("FOREIGN");
+   vcode_obj_i      = ident_new("vcode_obj");
+   nested_i         = ident_new("nested");
+   drives_all_i     = ident_new("drives_all");
+   driver_init_i    = ident_new("driver_init");
+   static_i         = ident_new("static");
+   never_waits_i    = ident_new("never_waits");
+   mangled_i        = ident_new("mangled");
+   last_value_i     = ident_new("last_value");
+   elide_bounds_i   = ident_new("elide_bounds");
+   null_range_i     = ident_new("null_range");
+   deferred_i       = ident_new("deferred");
+   prot_field_i     = ident_new("prot_field");
+   stmt_tag_i       = ident_new("stmt_tag");
+   cond_tag_i       = ident_new("cond_tag");
+   sub_cond_i       = ident_new("sub_cond");
 }

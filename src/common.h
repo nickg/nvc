@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2014  Nick Gasson
+//  Copyright (C) 2013-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -84,5 +84,58 @@ const char *standard_text(vhdl_standard_t s);
 #define RELAX_PREFER_EXPLICT  (1 << 0)
 #define RELAX_GENERIC_STATIC  (1 << 1)
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
+
+//
+// Shared interned strings
+//
+
+#ifndef COMMON_IMPL
+#define GLOBAL extern const
+#else
+#define GLOBAL
+#endif
+
+GLOBAL ident_t builtin_i;
+GLOBAL ident_t std_standard_i;
+GLOBAL ident_t formal_i;
+GLOBAL ident_t locally_static_i;
+GLOBAL ident_t elab_copy_i;
+GLOBAL ident_t all_i;
+GLOBAL ident_t shared_i;
+GLOBAL ident_t unconstrained_i;
+GLOBAL ident_t protected_i;
+GLOBAL ident_t inst_name_i;
+GLOBAL ident_t fst_dir_i;
+GLOBAL ident_t scope_pop_i;
+GLOBAL ident_t partial_map_i;
+GLOBAL ident_t fst_data_i;
+GLOBAL ident_t std_logic_i;
+GLOBAL ident_t std_ulogic_i;
+GLOBAL ident_t std_bool_i;
+GLOBAL ident_t std_char_i;
+GLOBAL ident_t std_bit_i;
+GLOBAL ident_t natural_i;
+GLOBAL ident_t positive_i;
+GLOBAL ident_t unsigned_i;
+GLOBAL ident_t signed_i;
+GLOBAL ident_t foreign_i;
+GLOBAL ident_t nested_i;
+GLOBAL ident_t vcode_obj_i;
+GLOBAL ident_t drives_all_i;
+GLOBAL ident_t driver_init_i;
+GLOBAL ident_t GLOBAL_i;
+GLOBAL ident_t never_waits_i;
+GLOBAL ident_t mangled_i;
+GLOBAL ident_t last_value_i;
+GLOBAL ident_t elide_bounds_i;
+GLOBAL ident_t null_range_i;
+GLOBAL ident_t deferred_i;
+GLOBAL ident_t prot_field_i;
+GLOBAL ident_t stmt_tag_i;
+GLOBAL ident_t cond_tag_i;
+GLOBAL ident_t sub_cond_i;
+GLOBAL ident_t static_i;
+
+void intern_strings();
 
 #endif  // _COMMON_H

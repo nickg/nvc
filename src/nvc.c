@@ -761,6 +761,7 @@ int main(int argc, char **argv)
 {
    term_init();
    set_default_opts();
+   intern_strings();
 
    if (getenv("NVC_GDB") != NULL)
       register_gdb_signal_handlers();

@@ -64,25 +64,6 @@ struct case_state {
    case_arc_t    arcs[MAX_CASE_ARCS];
 };
 
-static ident_t builtin_i;
-static ident_t foreign_i;
-static ident_t nested_i;
-static ident_t vcode_obj_i;
-static ident_t drives_all_i;
-static ident_t driver_init_i;
-static ident_t static_i;
-static ident_t never_waits_i;
-static ident_t mangled_i;
-static ident_t last_value_i;
-static ident_t elide_bounds_i;
-static ident_t null_range_i;
-static ident_t deferred_i;
-static ident_t partial_map_i;
-static ident_t prot_field_i;
-static ident_t stmt_tag_i;
-static ident_t cond_tag_i;
-static ident_t sub_cond_i;
-
 static const char *verbose = NULL;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
@@ -4263,25 +4244,6 @@ static void lower_package(tree_t unit)
 
 void lower_unit(tree_t unit)
 {
-   builtin_i      = ident_new("builtin");
-   foreign_i      = ident_new("FOREIGN");
-   vcode_obj_i    = ident_new("vcode_obj");
-   nested_i       = ident_new("nested");
-   drives_all_i   = ident_new("drives_all");
-   driver_init_i  = ident_new("driver_init");
-   static_i       = ident_new("static");
-   never_waits_i  = ident_new("never_waits");
-   mangled_i      = ident_new("mangled");
-   last_value_i   = ident_new("last_value");
-   elide_bounds_i = ident_new("elide_bounds");
-   null_range_i   = ident_new("null_range");
-   deferred_i     = ident_new("deferred");
-   partial_map_i  = ident_new("partial_map");
-   prot_field_i   = ident_new("prot_field");
-   stmt_tag_i     = ident_new("stmt_tag");
-   cond_tag_i     = ident_new("cond_tag");
-   sub_cond_i     = ident_new("sub_cond");
-
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)
       verbose = isalpha((int)venv[0]) ? venv : "";

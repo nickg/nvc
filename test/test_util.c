@@ -1,9 +1,11 @@
 #include "test_util.h"
 #include "lib.h"
 #include "phase.h"
+#include "common.h"
 
 #include <assert.h>
 #include <stdlib.h>
+#include <time.h>
 
 static const error_t *error_lines = NULL;
 static error_fn_t     orig_error_fn = NULL;
@@ -41,6 +43,7 @@ static void setup(void)
    opt_set_int("prefer-explicit", 0);
    opt_set_str("dump-vcode", NULL);
    opt_set_int("relax", 0);
+   intern_strings();
 }
 
 static void teardown(void)
