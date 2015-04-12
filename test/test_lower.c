@@ -21,6 +21,7 @@ typedef struct {
    int           hops;
    int           field;
    int           subkind;
+   uint32_t      index;
 } check_bb_t;
 
 #define CAT(x, y) x##y
@@ -247,6 +248,22 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
             vcode_dump();
             fail("expected op %d in block %d to call %s but calls %s",
                  i, bb, e->func, istr(vcode_get_func(i)));
+         }
+         break;
+
+      case VCODE_OP_COVER_COND:
+         if (vcode_get_subkind(i) != e->subkind) {
+            vcode_dump();
+            fail("expected op %d in block %d to have sub cond %x but "
+                 "has %x", i, bb, e->subkind, vcode_get_subkind(i));
+         }
+         // Fall-through
+
+      case VCODE_OP_COVER_STMT:
+         if (e->index != vcode_get_index(i)) {
+            vcode_dump();
+            fail("expected op %d in block %d to have cover tag %d but has %d",
+                 i, bb, e->index, vcode_get_index(i));
          }
          break;
 
@@ -1907,6 +1924,55 @@ START_TEST(test_mulphys)
 }
 END_TEST
 
+START_TEST(test_cover)
+{
+   input_from_file(TESTDIR "/lower/cover.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   opt_set_int("cover", 1);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_COVER_STMT, .index = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_COVER_STMT, .index = 2 },
+      { VCODE_OP_LOAD, .name = "resolved_:cover:s" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
+      { VCODE_OP_COVER_COND, .index = 0, .subkind = 1 },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CONST, .value = 10 },
+      { VCODE_OP_CMP, .cmp = VCODE_CMP_GT },
+      { VCODE_OP_COVER_COND, .index = 0, .subkind = 2 },
+      { VCODE_OP_OR },
+      { VCODE_OP_COVER_COND, .index = 0, .subkind = 0 },
+      { VCODE_OP_COND, .target = 2, .target_else = 3 }
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(2) = {
+      { VCODE_OP_COVER_STMT, .index = 1 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_JUMP, .target = 3 }
+   };
+
+   CHECK_BB(2);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -1946,6 +2012,7 @@ int main(void)
    tcase_add_test(tc, test_proc7);
    tcase_add_test(tc, test_mulphys);
    tcase_add_test(tc, test_issue116);
+   tcase_add_test(tc, test_cover);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

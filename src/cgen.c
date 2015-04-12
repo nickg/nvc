@@ -2209,6 +2209,48 @@ static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)
    }
 }
 
+static void cgen_op_cover_stmt(int op, cgen_ctx_t *ctx)
+{
+   const int cover_tag = vcode_get_index(op);
+
+   LLVMValueRef cover_counts = LLVMGetNamedGlobal(module, "cover_stmts");
+
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef count_ptr = LLVMBuildGEP(builder, cover_counts,
+                                         indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef count = LLVMBuildLoad(builder, count_ptr, "cover_count");
+   LLVMValueRef count1 = LLVMBuildAdd(builder, count, llvm_int32(1), "");
+
+   LLVMBuildStore(builder, count1, count_ptr);
+}
+
+static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
+{
+   const int cover_tag = vcode_get_index(op);
+   const int sub_cond  = vcode_get_subkind(op);
+
+   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
+
+   LLVMValueRef indexes[] = { llvm_int32(0), llvm_int32(cover_tag) };
+   LLVMValueRef mask_ptr = LLVMBuildGEP(builder, cover_conds,
+                                        indexes, ARRAY_LEN(indexes), "");
+
+   LLVMValueRef mask = LLVMBuildLoad(builder, mask_ptr, "cover_conds");
+
+   // Bit zero means evaluated false, bit one means evaluated true
+   // Other bits may be used in the future for sub-conditions
+
+   LLVMValueRef or = LLVMBuildSelect(builder, cgen_get_arg(op, 0, ctx),
+                                     llvm_int32(1 << ((sub_cond * 2) + 1)),
+                                     llvm_int32(1 << (sub_cond * 2)),
+                                     "cond_mask_or");
+
+   LLVMValueRef mask1 = LLVMBuildOr(builder, mask, or, "");
+
+   LLVMBuildStore(builder, mask1, mask_ptr);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2451,6 +2493,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_DEBUG_OUT:
       cgen_op_debug_out(i, ctx);
+      break;
+   case VCODE_OP_COVER_STMT:
+      cgen_op_cover_stmt(i, ctx);
+      break;
+   case VCODE_OP_COVER_COND:
+      cgen_op_cover_cond(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));
@@ -2824,52 +2872,85 @@ static void cgen_net_mapping_table(vcode_signal_t sig, int offset,
    LLVMPositionBuilderAtEnd(builder, exit_bb);
 }
 
-static void cgen_reset_function(void)
+static void cgen_reset_function(tree_t top)
 {
    char *name LOCAL = xasprintf("%s_reset", istr(vcode_unit_name()));
    LLVMValueRef fn =
       LLVMAddFunction(module, name,
                       LLVMFunctionType(LLVMVoidType(), NULL, 0, false));
 
-   LLVMBasicBlockRef net_bb = NULL;
+   LLVMBasicBlockRef init_bb = NULL;
 
    const int nsignals = vcode_count_signals();
-   if (nsignals > 0) {
-      for (int i = 0 ; i < nsignals; i++) {
-         const int nnets = vcode_signal_count_nets(i);
-         if (nnets < MAX_STATIC_NETS)
-            continue;
+   for (int i = 0 ; i < nsignals; i++) {
+      const int nnets = vcode_signal_count_nets(i);
+      if (nnets < MAX_STATIC_NETS)
+         continue;
 
-         // Need to generate runtime code to fill in net mapping table
+      // Need to generate runtime code to fill in net mapping table
 
-         if (net_bb == NULL) {
-            net_bb = LLVMAppendBasicBlock(fn, "signal_net_init");
-            LLVMPositionBuilderAtEnd(builder, net_bb);
-         }
-
-         const netid_t *nets = vcode_signal_nets(i);
-         netid_t first = nets[0];
-         int     off   = 0;
-         netid_t last  = first;
-         for (int i = 1; i < nnets; i++) {
-            const netid_t this = nets[i];
-            if (this != last + 1) {
-               cgen_net_mapping_table(i, off, first, last, fn);
-               first = last = this;
-               off = i;
-            }
-            else
-               last = this;
-         }
-         cgen_net_mapping_table(i, off, first, last, fn);
+      if (init_bb == NULL) {
+         init_bb = LLVMAppendBasicBlock(fn, "signal_net_init");
+         LLVMPositionBuilderAtEnd(builder, init_bb);
       }
+
+      const netid_t *nets = vcode_signal_nets(i);
+      netid_t first = nets[0];
+      int     off   = 0;
+      netid_t last  = first;
+      for (int i = 1; i < nnets; i++) {
+         const netid_t this = nets[i];
+         if (this != last + 1) {
+            cgen_net_mapping_table(i, off, first, last, fn);
+            first = last = this;
+            off = i;
+         }
+         else
+            last = this;
+      }
+      cgen_net_mapping_table(i, off, first, last, fn);
+   }
+
+   const int n_cond_tags = tree_attr_int(top, ident_new("cond_tags"), 0);
+   const int n_stmt_tags = tree_attr_int(top, ident_new("stmt_tags"), 0);
+   if (n_cond_tags + n_stmt_tags > 0 && init_bb == NULL) {
+      init_bb = LLVMAppendBasicBlock(fn, "cover_init");
+      LLVMPositionBuilderAtEnd(builder, init_bb);
+   }
+
+   LLVMValueRef cover_stmts = LLVMGetNamedGlobal(module, "cover_stmts");
+   if (cover_stmts != NULL) {
+      LLVMValueRef memset_args[] = {
+         llvm_void_cast(cover_stmts),
+         llvm_int8(0),
+         llvm_int32(n_stmt_tags * 4),
+         llvm_int32(4),
+         llvm_int1(false)
+      };
+
+      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                    memset_args, ARRAY_LEN(memset_args), "");
+   }
+
+   LLVMValueRef cover_conds = LLVMGetNamedGlobal(module, "cover_conds");
+   if (cover_conds != NULL) {
+      LLVMValueRef memset_args[] = {
+         llvm_void_cast(cover_conds),
+         llvm_int8(0),
+         llvm_int32(n_cond_tags * 4),
+         llvm_int32(4),
+         llvm_int1(false)
+      };
+
+      LLVMBuildCall(builder, llvm_fn("llvm.memset.p0i8.i32"),
+                    memset_args, ARRAY_LEN(memset_args), "");
    }
 
    cgen_ctx_t ctx = {
       .fn = fn
    };
    cgen_alloc_context(&ctx);
-   if (net_bb != NULL)
+   if (init_bb != NULL)
       LLVMBuildBr(builder, ctx.blocks[0]);
    cgen_code(&ctx);
    cgen_free_context(&ctx);
@@ -2983,7 +3064,7 @@ static void cgen_top(tree_t t)
    cgen_coverage_state(t);
    cgen_shared_variables();
    cgen_signals();
-   cgen_reset_function();
+   cgen_reset_function(t);
    cgen_subprograms(t);
 
    if (tree_kind(t) == T_ELAB) {

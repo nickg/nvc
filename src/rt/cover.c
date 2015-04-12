@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013  Nick Gasson
+//  Copyright (C) 2013-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -79,6 +79,11 @@ typedef struct {
    unsigned hit_stmts;
 } cover_stats_t;
 
+typedef struct {
+   const int32_t *stmts;
+   const int32_t *conds;
+} report_ctx_t;
+
 static ident_t       stmt_tag_i;
 static ident_t       cond_tag_i;
 static ident_t       sub_cond_i;
@@ -113,31 +118,50 @@ static void cover_tag_conditions(tree_t t, cover_tag_ctx_t *ctx, int branch)
    }
 }
 
-static void cover_tag_visit_fn(tree_t t, void *context)
+static bool cover_has_conditions(tree_t t)
 {
-   cover_tag_ctx_t *ctx = context;
-
    switch (tree_kind(t)) {
    case T_IF:
    case T_WHILE:
    case T_NEXT:
    case T_EXIT:
-      if (tree_has_value(t)) {
-         ctx->next_sub_cond = 0;
-         cover_tag_conditions(tree_value(t), ctx, -1);
-      }
-      // Fall-through
+      return tree_has_value(t);
+   default:
+      return false;
+   }
+}
+
+static bool cover_is_stmt(tree_t t)
+{
+   switch (tree_kind(t)) {
+   case T_IF:
+   case T_WHILE:
+   case T_NEXT:
+   case T_EXIT:
    case T_SIGNAL_ASSIGN:
    case T_ASSERT:
    case T_VAR_ASSIGN:
    case T_WAIT:
    case T_RETURN:
    case T_CASE:
-      tree_add_attr_int(t, stmt_tag_i, (ctx->next_stmt_tag)++);
-      break;
+      return true;
 
    default:
-      break;
+      return false;
+   }
+}
+
+static void cover_tag_visit_fn(tree_t t, void *context)
+{
+   cover_tag_ctx_t *ctx = context;
+
+   if (cover_is_stmt(t)) {
+      tree_add_attr_int(t, stmt_tag_i, (ctx->next_stmt_tag)++);
+
+      if (cover_has_conditions(t)) {
+         ctx->next_sub_cond = 0;
+         cover_tag_conditions(tree_value(t), ctx, -1);
+      }
    }
 }
 
@@ -224,33 +248,9 @@ static cover_file_t *cover_file(const loc_t *loc)
    return (files = f);
 }
 
-static void cover_report_stmts_fn(tree_t t, void *context)
+static void cover_report_conds(tree_t t, report_ctx_t *ctx)
 {
-   const int32_t *counts = context;
-
-   const int tag = tree_attr_int(t, stmt_tag_i, -1);
-   if (tag == -1)
-      return;
-
-   const loc_t *loc = tree_loc(t);
-   cover_file_t *file = cover_file(loc);
-   if ((file == NULL) || !file->valid)
-      return;
-
-   assert(loc->first_line < file->n_lines);
-
-   cover_line_t *l = &(file->lines[loc->first_line - 1]);
-   l->hits = MAX(counts[tag], l->hits);
-
-   if (counts[tag] > 0)
-      stats.hit_stmts++;
-
-   stats.total_stmts++;
-}
-
-static void cover_report_conds_fn(tree_t t, void *context)
-{
-   const int32_t *masks = context;
+   const int32_t *masks = ctx->conds;
 
    const int tag = tree_attr_int(t, cond_tag_i, -1);
    if ((tag == -1) || (masks[tag] == 0))
@@ -306,6 +306,37 @@ static void cover_report_conds_fn(tree_t t, void *context)
       hl->help = "Condition never evaluated to TRUE";
    else if (mask == 2)
       hl->help = "Condition never evaluated to FALSE";
+}
+
+static void cover_report_fn(tree_t t, void *context)
+{
+   report_ctx_t *ctx = context;
+   const int32_t *counts = ctx->stmts;
+
+   if (!cover_is_stmt(t))
+      return;
+
+   if (cover_has_conditions(t))
+      cover_report_conds(tree_value(t), ctx);
+
+   const int tag = tree_attr_int(t, stmt_tag_i, -1);
+   if (tag == -1)
+      return;
+
+   const loc_t *loc = tree_loc(t);
+   cover_file_t *file = cover_file(loc);
+   if ((file == NULL) || !file->valid)
+      return;
+
+   assert(loc->first_line < file->n_lines);
+
+   cover_line_t *l = &(file->lines[loc->first_line - 1]);
+   l->hits = MAX(counts[tag], l->hits);
+
+   if (counts[tag] > 0)
+      stats.hit_stmts++;
+
+   stats.total_stmts++;
 }
 
 static void cover_report_line(FILE *fp, cover_line_t *l)
@@ -512,10 +543,12 @@ void cover_report(tree_t top, const int32_t *stmts, const int32_t *conds)
    cond_tag_i = ident_new("cond_tag");
    sub_cond_i = ident_new("sub_cond");
 
-   tree_visit(top, cover_report_stmts_fn, (void *)stmts);
+   report_ctx_t report_ctx = {
+      .stmts = stmts,
+      .conds = conds
+   };
 
-   if (conds != NULL)
-      tree_visit(top, cover_report_conds_fn, (void *)conds);
+   tree_visit(top, cover_report_fn, &report_ctx);
 
    ident_t name = ident_strip(tree_ident(top), ident_new(".elab"));
 

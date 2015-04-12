@@ -612,7 +612,8 @@ unsigned vcode_get_subkind(int op)
    assert(o->kind == VCODE_OP_SCHED_EVENT || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_VEC_LOAD || o->kind == VCODE_OP_BIT_VEC_OP
           || o->kind == VCODE_OP_INDEX_CHECK || o->kind == VCODE_OP_BIT_SHIFT
-          || o->kind == VCODE_OP_ALLOCA || o->kind == VCODE_OP_RESUME);
+          || o->kind == VCODE_OP_ALLOCA || o->kind == VCODE_OP_RESUME
+          || o->kind == VCODE_OP_COVER_COND);
    return o->subkind;
 }
 
@@ -711,7 +712,8 @@ uint32_t vcode_get_index(int op)
           || o->kind == VCODE_OP_DIV || o->kind == VCODE_OP_NULL_CHECK
           || o->kind == VCODE_OP_VALUE || o->kind == VCODE_OP_BOUNDS
           || o->kind == VCODE_OP_DYNAMIC_BOUNDS
-          || o->kind == VCODE_OP_ARRAY_SIZE || o->kind == VCODE_OP_INDEX_CHECK);
+          || o->kind == VCODE_OP_ARRAY_SIZE || o->kind == VCODE_OP_INDEX_CHECK
+          || o->kind == VCODE_OP_COVER_STMT || o->kind == VCODE_OP_COVER_COND);
    return o->index;
 }
 
@@ -773,7 +775,7 @@ const char *vcode_op_string(vcode_op_t op)
       "file read", "null", "new", "null check", "deallocate", "all",
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
-      "storage hint", "debug out", "nested pcall"
+      "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1652,7 +1654,7 @@ void vcode_dump(void)
                col += printf(" := %s", vcode_op_string(op->kind));
                if (op->args.count == 1) {
                   col += printf(" length ");
-                  col +=vcode_dump_reg(op->args.items[0]);
+                  col += vcode_dump_reg(op->args.items[0]);
                }
                vcode_dump_result_type(col, op);
             }
@@ -1775,6 +1777,20 @@ void vcode_dump(void)
             {
                col += printf("%s ", vcode_op_string(op->kind));
                col += vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_COVER_STMT:
+            {
+               printf("%s %u", vcode_op_string(op->kind), op->index);
+            }
+            break;
+
+         case VCODE_OP_COVER_COND:
+            {
+               printf("%s %u sub %u ", vcode_op_string(op->kind),
+                      op->index, op->subkind);
+               vcode_dump_reg(op->args.items[0]);
             }
             break;
          }
@@ -4026,4 +4042,18 @@ void emit_debug_out(vcode_reg_t reg)
 {
    op_t *op = vcode_add_op(VCODE_OP_DEBUG_OUT);
    vcode_add_arg(op, reg);
+}
+
+void emit_cover_stmt(uint32_t tag)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_STMT);
+   op->index = tag;
+}
+
+void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub)
+{
+   op_t *op = vcode_add_op(VCODE_OP_COVER_COND);
+   vcode_add_arg(op, test);
+   op->index   = tag;
+   op->subkind = sub;
 }
