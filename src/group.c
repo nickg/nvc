@@ -144,12 +144,22 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
    return group_alloc(ctx, first, length);
 }
 
+static bool group_contains_record(type_t type)
+{
+   if (type_is_record(type))
+      return true;
+   else if (type_is_array(type))
+      return group_contains_record(type_elem(type));
+   else
+      return false;
+}
+
 static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 {
    netid_t first = NETID_INVALID;
    unsigned len = 0;
    const int nnets = tree_nets(decl);
-   const bool record = type_is_record(tree_type(decl));
+   const bool record = group_contains_record(tree_type(decl));
    assert((n == -1) | (start + n <= nnets));
    for (int i = start; i < (n == -1 ? nnets : start + n); i++) {
       netid_t nid = tree_net(decl, i);

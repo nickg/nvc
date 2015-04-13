@@ -1357,7 +1357,16 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       cgen_append_size_list(list, type, 1);
       break;
    case VCODE_TYPE_CARRAY:
-      cgen_append_size_list(list, vtype_elem(type), vtype_size(type));
+      {
+         vcode_type_t elem = vtype_elem(type);
+         if (vtype_kind(elem) == VCODE_TYPE_RECORD) {
+            const int nelems = vtype_size(type);
+            for (int i = 0; i < nelems; i++)
+               cgen_size_list(list, elem);
+         }
+         else
+            cgen_append_size_list(list, elem, vtype_size(type));
+      }
       break;
    case VCODE_TYPE_RECORD:
       {
@@ -1367,8 +1376,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       }
       break;
    default:
-      fatal_trace("cannot handle type %d in size list",
-                  vtype_kind(type));
+      fatal_trace("cannot handle type %d in size list", vtype_kind(type));
    }
 }
 

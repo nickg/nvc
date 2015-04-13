@@ -1718,6 +1718,17 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       emit_comment("Array of array stride is r%d", stride);
       idx = emit_mul(idx, stride);
    }
+   else if (type_is_record(elem)) {
+      vcode_type_t atype = vcode_reg_type(array);
+      const vtype_kind_t akind = vtype_kind(atype);
+      const bool is_signal =
+         akind == VCODE_TYPE_SIGNAL
+         || (akind == VCODE_TYPE_UARRAY
+             && vtype_kind(vtype_elem(atype)) == VCODE_TYPE_SIGNAL);
+
+      if (is_signal)
+         idx = emit_mul(idx, emit_const(vtype_offset(), type_width(elem)));
+   }
 
    return idx;
 }
@@ -4037,7 +4048,8 @@ static bool lower_driver_nets(tree_t t, tree_t *decl,
          if (all_const) {
             type_t type = tree_type(t);
             const int stride =
-               type_is_scalar(type) ? 1 : type_width(type_elem(type));
+               type_is_array(type) ? type_width(type_elem(type)) : 1;
+
             vcode_reg_t idx =
                emit_mul(lower_array_ref_offset(t, *driven_nets),
                         emit_const(vtype_offset(), stride));
