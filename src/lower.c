@@ -3933,13 +3933,13 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
 
-   lower_decls(body);
-
    if (has_subprograms) {
       lower_subprograms(body, vu);
       vcode_select_unit(vu);
       vcode_select_block(bb);
    }
+
+   lower_decls(body);
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
@@ -3970,13 +3970,13 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
 
-   lower_decls(body);
-
    if (has_subprograms) {
       lower_subprograms(body, vu);
       vcode_select_unit(vu);
       vcode_select_block(bb);
    }
+
+   lower_decls(body);
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)

@@ -263,3 +263,4 @@ issue116        normal
 issue112        normal
 cover1          cover,gold
 issue121        normal
+issue122        normal
