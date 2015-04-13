@@ -353,6 +353,10 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       // Must have been safety checked by definition
       break;
 
+   case VCODE_OP_IMAGE:
+      // Runtime allocates from temporary stack
+      break;
+
    default:
       VCODE_ASSERT(false, "cannot return safety check r%d", reg);
    }
