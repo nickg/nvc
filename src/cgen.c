@@ -2708,10 +2708,11 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 static void cgen_procedure(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
-   assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
 
-   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
-                                     cgen_subprogram_type(display_type, true));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
+   if (fn == NULL)
+      fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+                           cgen_subprogram_type(display_type, true));
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
