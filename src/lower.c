@@ -97,7 +97,7 @@ static vcode_reg_t lower_record_aggregate(tree_t expr, bool nest,
 static vcode_reg_t lower_param_ref(tree_t decl, expr_ctx_t ctx);
 static vcode_type_t lower_type(type_t type);
 static vcode_reg_t lower_record_eq(vcode_reg_t r0, vcode_reg_t r1, type_t type);
-static void lower_subprograms(tree_t scope, vcode_unit_t context);
+static void lower_decls(tree_t scope, vcode_unit_t context);
 
 typedef vcode_reg_t (*lower_signal_flag_fn_t)(vcode_reg_t, vcode_reg_t);
 typedef vcode_reg_t (*arith_fn_t)(vcode_reg_t, vcode_reg_t);
@@ -3796,17 +3796,6 @@ static void lower_cleanup(tree_t scope)
       tree_remove_attr(tree_decl(scope, i), vcode_obj_i);
 }
 
-static void lower_decls(tree_t scope)
-{
-   const int ndecls = tree_decls(scope);
-   for (int i = 0; i < ndecls; i++) {
-      tree_t d = tree_decl(scope, i);
-      const tree_kind_t kind = tree_kind(d);
-      if (kind != T_PROC_BODY && kind != T_FUNC_BODY && kind != T_PROT_BODY)
-         lower_decl(d);
-   }
-}
-
 static void lower_protected_body(tree_t body)
 {
    int nvars = 0;
@@ -3819,13 +3808,13 @@ static void lower_protected_body(tree_t body)
       tree_add_attr_int(d, prot_field_i, nvars++);
    }
 
-   lower_subprograms(body, vcode_active_unit());
+   lower_decls(body, vcode_active_unit());
 
    for (int i = 0; i < ndecls; i++)
       tree_remove_attr(tree_decl(body, i), prot_field_i);
 }
 
-static void lower_subprograms(tree_t scope, vcode_unit_t context)
+static void lower_decls(tree_t scope, vcode_unit_t context)
 {
    const tree_kind_t scope_kind = tree_kind(scope);
    const bool nested =
@@ -3838,23 +3827,25 @@ static void lower_subprograms(tree_t scope, vcode_unit_t context)
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(scope, i);
       const tree_kind_t kind = tree_kind(d);
-      switch (kind) {
-      case T_FUNC_BODY:
+
+      if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROT_BODY) {
+         vcode_block_t bb = vcode_active_block();
+
          if (nested)
             tree_add_attr_int(d, nested_i, nest_depth + 1);
-         lower_func_body(d, context);
-         break;
-      case T_PROC_BODY:
-         if (nested)
-            tree_add_attr_int(d, nested_i, nest_depth + 1);
-         lower_proc_body(d, context);
-         break;
-      case T_PROT_BODY:
-         lower_protected_body(d);
-         break;
-      default:
-         break;
+
+         switch (kind) {
+         case T_FUNC_BODY: lower_func_body(d, context); break;
+         case T_PROC_BODY: lower_proc_body(d, context); break;
+         case T_PROT_BODY: lower_protected_body(d); break;
+         default: break;
+         }
+
+         vcode_select_unit(context);
+         vcode_select_block(bb);
       }
+      else if (scope_kind != T_PROT_BODY)
+         lower_decl(d);
    }
 }
 
@@ -3945,18 +3936,10 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    else
       vu = emit_procedure(lower_mangle_func(body), context);
 
-   vcode_block_t bb = vcode_active_block();
-
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
 
-   if (has_subprograms) {
-      lower_subprograms(body, vu);
-      vcode_select_unit(vu);
-      vcode_select_block(bb);
-   }
-
-   lower_decls(body);
+   lower_decls(body, vu);
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
@@ -3982,18 +3965,11 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
    vcode_type_t vtype = lower_func_result_type(body);
 
    vcode_unit_t vu = emit_function(lower_mangle_func(body), context, vtype);
-   vcode_block_t bb = vcode_active_block();
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
 
-   if (has_subprograms) {
-      lower_subprograms(body, vu);
-      vcode_select_unit(vu);
-      vcode_select_block(bb);
-   }
-
-   lower_decls(body);
+   lower_decls(body, vu);
 
    const int nstmts = tree_stmts(body);
    for (int i = 0; i < nstmts; i++)
@@ -4201,11 +4177,8 @@ static void lower_process(tree_t proc, vcode_unit_t context)
 {
    vcode_unit_t vu = emit_process(tree_ident(proc), context);
 
-   lower_decls(proc);
+   lower_decls(proc, vu);
    tree_visit(proc, lower_driver_fn, proc);
-
-   lower_subprograms(proc, vu);
-   vcode_select_unit(vu);
 
    vcode_block_t start_bb = emit_block();
    vcode_select_block(start_bb);
@@ -4233,7 +4206,7 @@ static void lower_elab(tree_t unit)
    vcode_unit_t context = emit_context(tree_ident(unit));
    tree_set_code(unit, context);
 
-   lower_decls(unit);
+   lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
 
@@ -4246,7 +4219,6 @@ static void lower_elab(tree_t unit)
       lower_process(s, context);
    }
 
-   lower_subprograms(unit, context);
    lower_cleanup(unit);
 }
 
@@ -4255,13 +4227,12 @@ static void lower_pack_body(tree_t unit)
    vcode_unit_t context = emit_context(tree_ident(unit));
    tree_set_code(unit, context);
 
-   lower_decls(unit);
+   lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();
 
-   lower_subprograms(unit, context);
    lower_cleanup(unit);
 }
 
@@ -4270,7 +4241,7 @@ static void lower_package(tree_t unit)
    vcode_unit_t context = emit_context(tree_ident(unit));
    tree_set_code(unit, context);
 
-   lower_decls(unit);
+   lower_decls(unit, context);
 
    emit_return(VCODE_INVALID_REG);
 
