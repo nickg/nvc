@@ -115,6 +115,7 @@ static ident_t       all_i;
 static ident_t       shared_i;
 static ident_t       unconstrained_i;
 static ident_t       protected_i;
+static ident_t       impure_i;
 
 #define sem_error(t, ...) do {                        \
       error_at(t ? tree_loc(t) : NULL , __VA_ARGS__); \
@@ -196,6 +197,18 @@ static void scope_apply_prefix(tree_t t)
    if (top_scope->prefix)
       tree_set_ident(t, ident_prefix(top_scope->prefix,
                                      tree_ident(t), '.'));
+}
+
+static scope_t *scope_containing(scope_t *s, tree_t decl)
+{
+   int k = 0, tmp;
+   tree_t next;
+   ident_t name = tree_ident(decl);
+   while (tmp = k++, (next = hash_get_nth(s->decls, name, &tmp))) {
+      if (next == decl)
+         return s;
+   }
+   return s->down == NULL ? NULL : scope_containing(s->down, decl);
 }
 
 static tree_t scope_find_in(ident_t i, scope_t *s, bool recur, int k)
@@ -2268,10 +2281,7 @@ static bool sem_check_func_ports(tree_t t)
          sem_error(p, "function arguments must have mode IN");
 
       // See LRM 93 section 2.1.1 for default class
-      class_t class = tree_class(p);
-      if (class == C_DEFAULT)
-         tree_set_class(p, (class = C_CONSTANT));
-      else if (class == C_VARIABLE)
+      if (tree_class(p) == C_VARIABLE)
          sem_error(p, "function arguments may not have VARIABLE class");
 
       if (!sem_check(p))
@@ -2597,7 +2607,7 @@ static bool sem_check_package(tree_t t)
    return ok;
 }
 
-static bool sem_check_paramter_class_match(tree_t decl, tree_t body)
+static bool sem_check_parameter_class_match(tree_t decl, tree_t body)
 {
    const int nports = tree_ports(body);
    for (int k = 0; k < nports; k++) {
@@ -2633,7 +2643,7 @@ static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
             if (bkind == T_FUNC_BODY || bkind == T_PROC_BODY) {
                if (type_eq(dtype, tree_type(b))) {
                   found = true;
-                  ok = sem_check_paramter_class_match(d, b) && ok;
+                  ok = sem_check_parameter_class_match(d, b) && ok;
                }
             }
          }
@@ -3695,7 +3705,6 @@ static bool sem_check_fcall(tree_t t)
    // Pure function may not call an impure function
    tree_t sub = top_scope->subprog;
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
-      ident_t impure_i = ident_new("impure");
       if ((tree_attr_int(sub, impure_i, 0) == 0)
           && (tree_attr_int(decl, impure_i, 0) == 1))
          sem_error(t, "pure function %s cannot call impure function %s",
@@ -3848,11 +3857,12 @@ static bool sem_check_pcall(tree_t t)
             sem_error(value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
          else if (decl_kind == T_PORT_DECL) {
+            const class_t class = tree_class(decl);
             if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
                sem_error(value, "cannot read parameter %s with mode IN",
                          istr(tree_ident(decl)));
             else if ((mode == PORT_OUT || mode == PORT_INOUT)
-                     && tree_class(decl) == C_CONSTANT)
+                     && (class == C_CONSTANT || class == C_DEFAULT))
                sem_error(value, "object %s has class CONSTANT and "
                          "cannot be associated with OUT or INOUT parameters",
                          istr(tree_ident(decl)));
@@ -4709,6 +4719,24 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    tree_set_type(t, tree_type(decl));
 }
 
+static bool sem_check_pure_ref(tree_t ref, tree_t decl)
+{
+   const bool is_pure_func =
+      top_scope->subprog != NULL
+      && tree_kind(top_scope->subprog) == T_FUNC_BODY
+      && tree_attr_int(top_scope->subprog, impure_i, 0) == 0;
+
+   if (is_pure_func) {
+      scope_t *owner = scope_containing(top_scope, decl);
+      if (owner != NULL && owner->subprog != top_scope->subprog)
+         sem_error(ref, "invalid reference to %s inside pure function %s",
+                   istr(tree_ident(decl)),
+                   istr(tree_ident(top_scope->subprog)));
+   }
+
+   return true;
+}
+
 static bool sem_check_ref(tree_t t)
 {
    tree_t decl = NULL, next;
@@ -4765,9 +4793,14 @@ static bool sem_check_ref(tree_t t)
    }
 
    switch (tree_kind(decl)) {
-   case T_VAR_DECL:
-   case T_SIGNAL_DECL:
    case T_PORT_DECL:
+      if (tree_class(decl) != C_CONSTANT) {
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+         if (!sem_check_pure_ref(t, decl))
+            return false;
+      }
+      // Fall-through
    case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_ALIAS:
@@ -4793,7 +4826,6 @@ static bool sem_check_ref(tree_t t)
    }
 
    tree_set_ref(t, decl);
-
    return true;
 }
 
@@ -6533,6 +6565,7 @@ static void sem_intern_strings(void)
    shared_i         = ident_new("shared");
    unconstrained_i  = ident_new("unconstrained");
    protected_i      = ident_new("protected");
+   impure_i         = ident_new("impure");
 }
 
 bool sem_check(tree_t t)

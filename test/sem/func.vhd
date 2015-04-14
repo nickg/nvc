@@ -208,10 +208,10 @@ package body func is
         return 1;
     end function;
 
-    function test23 return integer is
+    impure function test23 return integer is
         variable x : integer;
 
-        function sub(y : in integer) return integer is
+        impure function sub(y : in integer) return integer is
         begin
             return x + y;
         end function;
@@ -245,6 +245,22 @@ package body func2 is
     function test26(x : integer) return integer is  -- Error
     begin
         return 1;
+    end function;
+
+end package body;
+
+package func3 is
+end package;
+
+package body func3 is
+
+    function issue123(x : integer) return integer is
+        function nested return integer is
+        begin
+            return x + 1;               -- Error
+        end function;
+    begin
+        return nested;
     end function;
 
 end package body;

@@ -4,7 +4,7 @@ end package;
 
 package body nested_function_bug is
   procedure proc(param : integer; result : out integer) is
-    function nested_function return integer is
+    impure function nested_function return integer is
     begin
       return param * 2;
     end;
