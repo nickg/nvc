@@ -321,11 +321,16 @@ static int lower_array_const_size(type_t type)
    return type_is_array(elem) ? size * lower_array_const_size(elem) : size;
 }
 
+static type_t lower_elem_recur(type_t type)
+{
+   while (type_is_array(type))
+      type = type_elem(type);
+   return type;
+}
+
 static vcode_type_t lower_array_type(type_t type)
 {
-   type_t elem = type_elem(type);
-   while (type_is_array(elem))
-      elem = type_elem(elem);
+   type_t elem = lower_elem_recur(type);
 
    vcode_type_t elem_type   = lower_type(elem);
    vcode_type_t elem_bounds = lower_bounds(elem);
@@ -1317,8 +1322,9 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 static vcode_type_t lower_func_result_type(tree_t func)
 {
    type_t result = type_result(tree_type(func));
-   if (type_is_array(result) && lower_const_bounds(result))
-      return vtype_pointer(lower_type(type_elem(result)));
+   if (type_is_array(result) && lower_const_bounds(result)) {
+      return vtype_pointer(lower_type(lower_elem_recur(result)));
+   }
    if (type_is_record(result))
       return vtype_pointer(lower_type(result));
    else
@@ -3891,7 +3897,7 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
       case C_CONSTANT:
          {
             if (type_is_array(type) && lower_const_bounds(type)) {
-               type_t elem = type_elem(type);
+               type_t elem = lower_elem_recur(type);
                vtype = vtype_pointer(lower_type(elem));
                vbounds = lower_bounds(elem);
             }
