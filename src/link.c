@@ -155,8 +155,6 @@ static void link_context_package(tree_t unit, lib_t lib,
       linked[n_linked++] = unit;
    }
 
-   link_all_context(unit, deps, fn);
-
    ident_t name = tree_ident(unit);
 
    ident_t body_i = ident_prefix(name, ident_new("body"), '-');
@@ -168,21 +166,10 @@ static void link_context_package(tree_t unit, lib_t lib,
          return;
    }
 
-   link_all_context(body, deps, fn);
-
    if (!link_already_have(body)) {
       (*fn)(lib, body, deps);
       linked[n_linked++] = body;
    }
-}
-
-static void link_walk_lib(ident_t name, int kind, void *context)
-{
-   lib_walk_params_t *params = context;
-
-   if (kind == T_PACKAGE)
-      link_context_package(lib_get(params->lib, name), params->lib,
-                           params->deps, params->fn);
 }
 
 static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
@@ -194,40 +181,15 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
    if (lib == NULL)
       fatal("cannot link library %s", istr(lname));
 
-   if (lname == cname) {
-         lib_walk_params_t params = {
-            .lib  = lib,
-            .deps = deps,
-            .fn   = fn
-         };
-         lib_walk_index(lib, link_walk_lib, &params);
-   }
-   else {
-      tree_t unit = lib_get(lib, cname);
-      if (unit == NULL)
-         fatal("cannot find unit %s", istr(cname));
-      else if (tree_kind(unit) == T_PACKAGE)
-         link_context_package(unit, lib, deps, fn);
-   }
+   tree_t unit = lib_get(lib, cname);
+   if (unit == NULL)
+      fatal("cannot find unit %s", istr(cname));
+   else if (tree_kind(unit) == T_PACKAGE)
+      link_context_package(unit, lib, deps, fn);
 }
 
 static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
 {
-   if (tree_kind(unit) == T_PACK_BODY) {
-      tree_t pack = lib_get(lib_work(), ident_strip(tree_ident(unit),
-                                                    ident_new("-body")));
-      if (pack != NULL) {
-         assert(tree_kind(pack) == T_PACKAGE);
-
-         if (pack_needs_cgen(pack) && !link_already_have(pack)) {
-            (*fn)(lib_work(), pack, deps);
-            linked[n_linked++] = pack;
-         }
-
-         link_all_context(pack, NULL, fn);
-      }
-   }
-
    const int ncontext = tree_contexts(unit);
    for (int i = 0; i < ncontext; i++) {
       tree_t c = tree_context(unit, i);

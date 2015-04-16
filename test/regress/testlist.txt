@@ -267,3 +267,4 @@ issue122        normal
 issue95         normal
 func16          normal
 issue123        normal
+issue126        normal
