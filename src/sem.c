@@ -4693,11 +4693,13 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    assert(rec != NULL);
 
    tree_t value = NULL;
+   const loc_t *loc = tree_loc(t);
 
    type_t rec_type = tree_type(rec);
    if (type_kind(rec_type) == T_ACCESS) {
       // Record fields can be dereferenced implicitly
       value = tree_new(T_ALL);
+      tree_set_loc(value, loc);
       tree_set_value(value, make_ref(rec));
       tree_set_type(value, type_access(tree_type(rec)));
    }
@@ -4706,12 +4708,14 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
 
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);
-      tree_set_loc(value, tree_loc(t));
+      tree_set_loc(value, loc);
       tree_set_ident(value, base);
       sem_convert_to_record_ref(value, rec);
    }
-   else if (value == NULL)
+   else if (value == NULL) {
       value = make_ref(rec);
+      tree_set_loc(value, loc);
+   }
 
    tree_change_kind(t, T_RECORD_REF);
    tree_set_value(t, value);
@@ -4819,7 +4823,7 @@ static bool sem_check_ref(tree_t t)
 
    case T_FIELD_DECL:
       sem_convert_to_record_ref(t, decl);
-      return true;
+      return sem_check(t);
 
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
@@ -4851,7 +4855,7 @@ static bool sem_check_record_ref(tree_t t)
       return false;
 
    type_t value_type = tree_type(value);
-   if (type_kind(value_type) != T_RECORD)
+   if (!type_is_record(value_type))
       sem_error(value, "expected record type but found %s",
                 sem_type_str(value_type));
 

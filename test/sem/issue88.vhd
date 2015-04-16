@@ -19,5 +19,17 @@ architecture test of issue88 is
         l := r.p.all'length;           -- OK
     end;
 
+    type str_ptr_ptr is access str_ptr;
+
+    type rec2 is record
+        pp : str_ptr_ptr;
+    end record;
+
+    procedure get_length3(variable r : rec2; l : out integer) is
+    begin
+        --l := r.pp.all'length;          -- OK (TODO)
+        l := r.p.all.all'length;        -- Error
+    end;
+
 begin
 end architecture;

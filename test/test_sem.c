@@ -1820,6 +1820,12 @@ START_TEST(test_issue88)
 {
    input_from_file(TESTDIR "/sem/issue88.vhd");
 
+   const error_t expect[] = {
+      { 31, "record type REC2 has no field P" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    for (int i = 0; i < 2; i++) {
       tree_t t = parse();
       fail_if(t == NULL);
@@ -1828,7 +1834,8 @@ START_TEST(test_issue88)
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
-   fail_unless(sem_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
 }
 END_TEST
 
