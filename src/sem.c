@@ -5024,32 +5024,27 @@ static bool sem_check_attr_ref(tree_t t)
       return true;
    }
 
+   if (!sem_static_name(name))
+      sem_error(name, "invalid attribute reference");
+
    bool allow_user = true;
-   switch (tree_kind(name)) {
-   case T_REF:
-      decl = tree_ref(name);
-      break;
+   tree_t search = name;
+   while (decl == NULL) {
+      switch (tree_kind(search)) {
+      case T_REF:
+         decl = tree_ref(search);
+         break;
 
-   case T_ALL:
-      decl = tree_ref(tree_value(name));
-      break;
+      case T_RECORD_REF:
+         decl = sem_find_record_field(search);
+         assert(decl != NULL);
+         break;
 
-   case T_RECORD_REF:
-      decl = sem_find_record_field(name);
-      assert(decl != NULL);
-      break;
-
-   default:
-      if (sem_static_name(name)) {
-         tree_t n = name;
-         while (tree_kind((n = tree_value(name))) != T_REF)
-            ;
-         decl = tree_ref(n);
+      default:
+         search = tree_value(search);
          allow_user = false;   // LRM disallows user-defined attributes
-                               // where prefix is slice of sub-element
+                               // where prefix is slice or sub-element
       }
-      else
-         sem_error(t, "invalid attribute reference");
    }
 
    if (icmp(attr, "range"))
@@ -5661,6 +5656,17 @@ static bool sem_static_name(tree_t t)
          case T_VAR_DECL:
          case T_CONST_DECL:
          case T_PORT_DECL:
+         case T_TYPE_DECL:
+         case T_ENTITY:
+         case T_ARCH:
+         case T_PACK_BODY:
+         case T_PACKAGE:
+         case T_FUNC_BODY:
+         case T_PROC_BODY:
+         case T_FUNC_DECL:
+         case T_PROC_DECL:
+         case T_PROCESS:
+         case T_BLOCK:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl));
@@ -5670,6 +5676,7 @@ static bool sem_static_name(tree_t t)
       }
 
    case T_RECORD_REF:
+   case T_ALL:
       return sem_static_name(tree_value(t));
 
    case T_ARRAY_REF:
