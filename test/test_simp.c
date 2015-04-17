@@ -52,19 +52,24 @@ static bool folded_r(tree_t t, double r)
    return (dval > r * 0.9999) && (dval < r * 1.0001);
 }
 
-static bool folded_b(tree_t t, bool b)
+static bool folded_enum(tree_t t, unsigned pos)
 {
    if (tree_kind(t) != T_REF)
-      return false;
-
-   if (type_ident(tree_type(t)) != ident_new("STD.STANDARD.BOOLEAN"))
       return false;
 
    tree_t lit = tree_ref(t);
    if (tree_kind(lit) != T_ENUM_LIT)
       return false;
 
-   return tree_pos(lit) == (b ? 1 : 0);
+   return tree_pos(lit) == pos;
+}
+
+static bool folded_b(tree_t t, bool b)
+{
+   if (type_ident(tree_type(t)) != ident_new("STD.STANDARD.BOOLEAN"))
+      return false;
+
+   return folded_enum(t, (b ? 1 : 0));
 }
 
 START_TEST(test_cfold)
@@ -162,6 +167,10 @@ START_TEST(test_cfold)
    fail_unless(folded_r(tree_value(tree_stmt(p, 0)), 3.0));
    fail_unless(folded_r(tree_value(tree_stmt(p, 1)), 0.6));
    fail_unless(folded_r(tree_value(tree_stmt(p, 2)), 2.5));
+
+   p = tree_stmt(a, 7);
+   fail_unless(folded_b(tree_value(tree_stmt(p, 0)), true));
+   fail_unless(folded_b(tree_value(tree_stmt(p, 1)), true));
 }
 END_TEST
 

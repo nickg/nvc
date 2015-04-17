@@ -109,4 +109,12 @@ begin
         r := 5.0 / 2;
     end process;
 
+    process is
+        constant one : bit := '1';
+        variable b   : boolean;
+    begin
+        b := one = '1';
+        b := '0' /= one;
+    end process;
+
 end architecture;

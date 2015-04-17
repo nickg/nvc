@@ -300,6 +300,10 @@ static tree_t eval_fcall_enum(tree_t t, ident_t builtin, unsigned *args, int n)
          r = MAX(r, args[i]);
       return get_int_lit(t, r);
    }
+   else if (icmp(builtin, "eq"))
+      return get_bool_lit(t, args[0] == args[1]);
+   else if (icmp(builtin, "neq"))
+      return get_bool_lit(t, args[0] != args[1]);
    else
       return t;
 }
