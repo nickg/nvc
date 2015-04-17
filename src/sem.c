@@ -86,6 +86,12 @@ typedef struct {
    bool         error;
 } lib_walk_params_t;
 
+typedef struct {
+   tree_t decl;
+   bool   have;
+   bool   partial;
+} formal_map_t;
+
 typedef tree_t (*get_fn_t)(tree_t);
 typedef void (*set_fn_t)(tree_t, tree_t);
 
@@ -5208,6 +5214,158 @@ static bool sem_check_qualified(tree_t t)
    return sem_check_constrained(tree_value(t), type);
 }
 
+static bool sem_check_actual(formal_map_t *formals, int nformals,
+                             tree_t param, tree_t unit)
+{
+   tree_t value = tree_value(param);
+   tree_t decl = NULL;
+   type_t type = NULL;
+
+   switch (tree_subkind(param)) {
+   case P_POS:
+      {
+         const int pos = tree_pos(param);
+         if (pos >= nformals)
+            sem_error(value, "too many positional actuals");
+         if (formals[pos].have)
+            sem_error(value, "formal %s already has an actual",
+                      istr(tree_ident(formals[pos].decl)));
+         formals[pos].have = true;
+         decl = formals[pos].decl;
+         type = tree_type(decl);
+      }
+      break;
+
+   case P_NAMED:
+      {
+         tree_t name = tree_name(param);
+         tree_kind_t kind = tree_kind(name);
+         tree_t ref = name;
+         tree_t conv = NULL;
+
+         if ((kind == T_FCALL) || (kind == T_TYPE_CONV)) {
+            if (tree_params(name) != 1)
+               sem_error(name, "output conversion function must have "
+                         "exactly one parameter");
+
+            conv = name;
+            name = ref = tree_value(tree_param(name, 0));
+            kind = tree_kind(ref);
+         }
+
+         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
+            ref  = tree_value(ref);
+            kind = tree_kind(ref);
+         }
+
+         assert(tree_kind(ref) == T_REF);
+
+         for (int i = 0; i < nformals; i++) {
+            if (tree_ident(formals[i].decl) == tree_ident(ref)) {
+               if (formals[i].have && !formals[i].partial)
+                  sem_error(value, "formal %s already has an actual",
+                            istr(tree_ident(formals[i].decl)));
+               formals[i].have    = true;
+               formals[i].partial = (tree_kind(name) != T_REF);
+               decl = formals[i].decl;
+               tree_set_ref(ref, decl);
+               tree_add_attr_int(ref, formal_i, 1);
+               break;
+            }
+         }
+
+         if (decl == NULL)
+            sem_error(value, "%s has no formal %s",
+                      istr(tree_ident(unit)), istr(tree_ident(ref)));
+
+         if (!sem_static_name(name))
+            sem_error(name, "formal name must be static");
+
+         if (conv != NULL) {
+            port_mode_t mode = tree_subkind(decl);
+
+            type = tree_type((mode == PORT_INOUT) ? name : conv);
+
+            if (mode == PORT_IN)
+               sem_error(name, "output conversion not allowed for formal "
+                         "%s with mode IN", istr(tree_ident(decl)));
+
+            if (tree_kind(value) == T_OPEN)
+               sem_error(name, "output conversion for formal %s must not "
+                         "have OPEN actual", istr(tree_ident(decl)));
+         }
+         else
+            type = tree_type(name);
+
+         break;
+      }
+   }
+
+   assert(type != NULL);
+
+   if (!sem_check_constrained(value, type))
+      return false;
+
+   type_t value_type = tree_type(value);
+
+   if (!type_eq(value_type, type))
+      sem_error(value, "type of actual %s does not match type %s of formal "
+                "port %s", sem_type_str(value_type),
+                sem_type_str(type), istr(tree_ident(decl)));
+
+   if (tree_kind(value) == T_OPEN) {
+      port_mode_t mode = tree_subkind(decl);
+
+      if ((mode == PORT_IN) && !tree_has_value(decl))
+         sem_error(value, "unconnected port %s with mode IN must have a "
+                   "default value", istr(tree_ident(decl)));
+
+      if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
+         sem_error(value, "port %s of unconstrained type %s cannot "
+                   "be unconnected", istr(tree_ident(decl)),
+                   sem_type_str(type));
+   }
+
+   // Check for type conversions and conversion functions
+   // These only apply if the class of the formal is not constant
+
+   tree_t actual = NULL;
+
+   if (tree_class(decl) != C_CONSTANT) {
+      if (tree_kind(value) == T_TYPE_CONV)
+         actual = tree_value(tree_param(value, 0));
+      else if (tree_kind(value) == T_FCALL) {
+         // Conversion functions are in LRM 93 section 4.3.2.2
+
+         tree_t func = tree_ref(value);
+         if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+            actual = tree_value(tree_param(value, 0));
+      }
+   }
+
+   if (actual == NULL)
+      actual = value;    // No conversion
+   else {
+      // LRM 93 section 3.2.1.1 result of a type conversion in an
+      // association list cannot be an unconstrained array type
+      if (type_is_unconstrained(value_type)
+          && type_is_unconstrained(type))
+         sem_error(value, "result of conversion for unconstrained formal "
+                   "%s must be a constrained array type",
+                   istr(tree_ident(decl)));
+
+      if (tree_subkind(decl) == PORT_OUT)
+         sem_error(value, "conversion not allowed for formal %s with "
+                   "mode OUT", istr(tree_ident(decl)));
+   }
+
+   if (!sem_globally_static(actual) && !sem_static_name(actual))
+      sem_error(value, "actual must be globally static expression "
+                "or locally static name");
+
+   return true;
+}
+
 static bool sem_check_map(tree_t t, tree_t unit,
                           tree_formals_t tree_Fs, tree_formal_t tree_F,
                           tree_actuals_t tree_As, tree_actual_t tree_A)
@@ -5220,11 +5378,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
    bool ok = true;
 
-   struct {
-      tree_t decl;
-      bool   have;
-      bool   partial;
-   } formals[nformals];
+   formal_map_t formals[nformals];
 
    for (int i = 0; i < nformals; i++) {
       formals[i].decl    = tree_F(unit, i);
@@ -5258,156 +5412,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
    if (!ok)
       return false;
 
-   for (int i = 0; i < nactuals; i++) {
-      tree_t p = tree_A(t, i);
-      tree_t value = tree_value(p);
-      tree_t decl = NULL;
-      type_t type = NULL;
-
-      switch (tree_subkind(p)) {
-      case P_POS:
-         {
-            const int pos = tree_pos(p);
-            if (pos >= nformals)
-               sem_error(value, "too many positional actuals");
-            if (formals[pos].have)
-               sem_error(value, "formal %s already has an actual",
-                         istr(tree_ident(formals[pos].decl)));
-            formals[pos].have = true;
-            decl = formals[pos].decl;
-            type = tree_type(decl);
-         }
-         break;
-
-      case P_NAMED:
-         {
-            tree_t name = tree_name(p);
-            tree_kind_t kind = tree_kind(name);
-            tree_t ref = name;
-            tree_t conv = NULL;
-
-            if ((kind == T_FCALL) || (kind == T_TYPE_CONV)) {
-               if (tree_params(name) != 1)
-                  sem_error(name, "output conversion function must have "
-                            "exactly one parameter");
-
-               conv = name;
-               name = ref = tree_value(tree_param(name, 0));
-               kind = tree_kind(ref);
-            }
-
-            while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
-               ref  = tree_value(ref);
-               kind = tree_kind(ref);
-            }
-
-            assert(tree_kind(ref) == T_REF);
-
-            for (int i = 0; i < nformals; i++) {
-               if (tree_ident(formals[i].decl) == tree_ident(ref)) {
-                  if (formals[i].have && !formals[i].partial)
-                     sem_error(value, "formal %s already has an actual",
-                               istr(tree_ident(formals[i].decl)));
-                  formals[i].have    = true;
-                  formals[i].partial = (tree_kind(name) != T_REF);
-                  decl = formals[i].decl;
-                  tree_set_ref(ref, decl);
-                  tree_add_attr_int(ref, formal_i, 1);
-                  break;
-               }
-            }
-
-            if (decl == NULL)
-               sem_error(value, "%s has no formal %s",
-                         istr(tree_ident(unit)), istr(tree_ident(ref)));
-
-            if (!sem_static_name(name))
-               sem_error(name, "formal name must be static");
-
-            if (conv != NULL) {
-               port_mode_t mode = tree_subkind(decl);
-
-               type = tree_type((mode == PORT_INOUT) ? name : conv);
-
-               if (mode == PORT_IN)
-                  sem_error(name, "output conversion not allowed for formal "
-                            "%s with mode IN", istr(tree_ident(decl)));
-
-               if (tree_kind(value) == T_OPEN)
-                  sem_error(name, "output conversion for formal %s must not "
-                            "have OPEN actual", istr(tree_ident(decl)));
-            }
-            else
-               type = tree_type(name);
-
-            break;
-         }
-      }
-
-      assert(type != NULL);
-
-      ok = sem_check_constrained(value, type) && ok;
-
-      if (!ok)
-         continue;
-
-      type_t value_type = tree_type(value);
-
-      if (!type_eq(value_type, type))
-         sem_error(value, "type of actual %s does not match type %s of formal "
-                   "port %s", sem_type_str(value_type),
-                   sem_type_str(type), istr(tree_ident(decl)));
-
-      if (tree_kind(value) == T_OPEN) {
-         port_mode_t mode = tree_subkind(decl);
-
-         if ((mode == PORT_IN) && !tree_has_value(decl))
-            sem_error(value, "unconnected port %s with mode IN must have a "
-                      "default value", istr(tree_ident(decl)));
-
-         if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
-            sem_error(value, "port %s of unconstrained type %s cannot "
-                      "be unconnected", istr(tree_ident(decl)),
-                      sem_type_str(type));
-      }
-
-      // Check for type conversions and conversion functions
-      // These only apply if the class of the formal is not constant
-
-      tree_t actual = NULL;
-
-      if (tree_class(decl) != C_CONSTANT) {
-         if (tree_kind(value) == T_TYPE_CONV)
-            actual = tree_value(tree_param(value, 0));
-         else if (tree_kind(value) == T_FCALL) {
-            // Conversion functions are in LRM 93 section 4.3.2.2
-
-            tree_t func = tree_ref(value);
-            if ((tree_ports(func) == 1) && (tree_params(value) == 1))
-               actual = tree_value(tree_param(value, 0));
-         }
-      }
-
-      if (actual == NULL)
-         actual = value;    // No conversion
-      else {
-         // LRM 93 section 3.2.1.1 result of a type conversion in an
-         // association list cannot be an unconstrained array type
-         if (type_is_unconstrained(value_type)
-             && type_is_unconstrained(type))
-            sem_error(value, "result of conversion for unconstrained formal "
-                      "%s must be a constrained array type",
-                      istr(tree_ident(decl)));
-
-         if (tree_subkind(decl) == PORT_OUT)
-            sem_error(value, "conversion not allowed for formal %s with "
-                      "mode OUT", istr(tree_ident(decl)));
-      }
-
-      if (!sem_globally_static(actual) && !sem_static_name(actual))
-         sem_error(value, "actual must be globally static expression "
-                   "or locally static name");
-   }
+   for (int i = 0; i < nactuals; i++)
+      ok = sem_check_actual(formals, nformals, tree_A(t, i), unit) && ok;
 
    if (tree_kind(unit) == T_ENTITY) {
       // Component and configuration instantiations must be checked at

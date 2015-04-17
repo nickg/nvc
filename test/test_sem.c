@@ -152,6 +152,7 @@ START_TEST(test_ports)
       { 81,  "missing actual for formal I" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
+      { 89,  "too many positional actuals" },
       { 92,  "no visible declaration for CAKE" },
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "unconnected port I with mode IN must have a default value" },
@@ -1603,6 +1604,7 @@ START_TEST(test_supersede)
 
    const error_t expect[] = {
       { 18, "WORK.PORTLISTTEST has no formal A" },
+      { 19, "WORK.PORTLISTTEST has no formal B" },
       { -1, NULL }
    };
    expect_errors(expect);
