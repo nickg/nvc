@@ -98,7 +98,6 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
-static void sem_add_attributes(tree_t decl);   // DELME
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
@@ -612,35 +611,6 @@ static tree_t sem_int_lit(type_t type, int64_t i)
    tree_set_type(f, type);
 
    return f;
-}
-
-static void sem_add_dimension_attr(tree_t decl, type_t rtype, const char *name,
-                                   const char *builtin)
-{
-   if (rtype == NULL) {
-      type_t dtype = tree_type(decl);
-      if (type_kind(dtype) == T_ACCESS)
-         dtype = type_access(dtype);
-
-      if (type_is_array(dtype))
-         rtype = (array_dimension(dtype) > 0)
-            ? type_new(T_NONE)
-            : index_type_of(dtype, 0);
-      else
-         rtype = dtype;
-   }
-
-   ident_t length_i = ident_new(name);
-   type_t std_int = sem_std_type("INTEGER");
-   tree_t fn = sem_builtin_fn(length_i, rtype, builtin,
-                              std_int, tree_type(decl), NULL);
-
-   // Dimension argument defaults to 1
-   tree_t dim = tree_port(fn, 0);
-   tree_set_value(dim, sem_int_lit(std_int, 1));
-   tree_add_attr_int(dim, locally_static_i, 1);
-
-   tree_add_attr_tree(decl, length_i, fn);
 }
 
 static void sem_declare_predefined_ops(tree_t decl)
@@ -1764,8 +1734,6 @@ static bool sem_check_type_decl(tree_t t)
             if (!sem_check(f))
                return false;
 
-            sem_add_attributes(f);
-
             // Each field name must be distinct
             ident_t f_name = tree_ident(f);
             for (int j = 0; j < i; j++) {
@@ -1845,30 +1813,6 @@ static bool sem_check_type_decl(tree_t t)
    default:
       sem_declare_predefined_ops(t);
       return true;
-   }
-}
-
-static void sem_add_attributes(tree_t decl)
-{
-   type_t type;
-   class_t class = class_of(decl);
-   if (class_has_type(class))
-      type = tree_type(decl);
-   else
-      type = type_new(T_NONE);
-
-   // Implicit dereference for access types
-   if (type_kind(type) == T_ACCESS)
-      type = type_access(type);
-
-   if (type_is_array(type)) {
-      sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
-      sem_add_dimension_attr(decl, NULL, "LEFT", "left");
-      sem_add_dimension_attr(decl, NULL, "RIGHT", "right");
-      sem_add_dimension_attr(decl, NULL, "LOW", "low");
-      sem_add_dimension_attr(decl, NULL, "HIGH", "high");
-      sem_add_dimension_attr(decl, sem_std_type("BOOLEAN"),
-                             "ASCENDING", "ascending");
    }
 }
 
@@ -1972,7 +1916,6 @@ static bool sem_check_decl(tree_t t)
          sem_error(t, "signals may not have access type");
    }
 
-   sem_add_attributes(t);
    scope_apply_prefix(t);
 
    // From VHDL-2000 onwards shared variables must be protected types
@@ -2032,7 +1975,6 @@ static bool sem_check_port_decl(tree_t t)
       }
    }
 
-   sem_add_attributes(t);
    return true;
 }
 
@@ -2140,8 +2082,6 @@ static bool sem_check_alias(tree_t t)
       else
          tree_set_type(t, tree_type(value));
    }
-
-   sem_add_attributes(t);
 
    scope_apply_prefix(t);
    return scope_insert(t);
@@ -2264,8 +2204,6 @@ static bool sem_check_func_decl(tree_t t)
       sem_error(t, "duplicate declaration of function %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t);
-
    scope_apply_prefix(t);
    return scope_insert(t);
 }
@@ -2277,8 +2215,6 @@ static bool sem_check_func_body(tree_t t)
 
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
-
-   sem_add_attributes(t);
 
    // If there is no declaration for this function add to the scope
    if (!sem_check_duplicate(t, T_FUNC_DECL)) {
@@ -2295,11 +2231,8 @@ static bool sem_check_func_body(tree_t t)
    bool ok = true;
 
    const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(t, i);
-      sem_add_attributes(p);
-      ok = scope_insert(p) && ok;
-   }
+   for (int i = 0; i < nports; i++)
+      ok = scope_insert(tree_port(t, i)) && ok;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
@@ -2362,8 +2295,6 @@ static bool sem_check_proc_decl(tree_t t)
       sem_error(t, "duplicate declaration of procedure %s",
                 istr(tree_ident(t)));
 
-   sem_add_attributes(t);
-
    scope_apply_prefix(t);
    return scope_insert(t);
 }
@@ -2374,8 +2305,6 @@ static bool sem_check_proc_body(tree_t t)
       return false;
 
    scope_apply_prefix(t);
-
-   sem_add_attributes(t);
 
    // If there is no declaration for this procedure add to the scope
    if (!sem_check_duplicate(t, T_PROC_DECL)) {
@@ -2389,11 +2318,8 @@ static bool sem_check_proc_body(tree_t t)
    bool ok = true;
 
    const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++) {
-      tree_t p = tree_port(t, i);
-      sem_add_attributes(p);
-      ok = scope_insert(p) && ok;
-   }
+   for (int i = 0; i < nports; i++)
+      ok = scope_insert(tree_port(t, i)) && ok;
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
@@ -2438,8 +2364,6 @@ static bool sem_check_sensitivity(tree_t t)
 
 static bool sem_check_process(tree_t t)
 {
-   sem_add_attributes(t);
-
    scope_push(NULL);
 
    bool ok = sem_check_sensitivity(t);
@@ -2694,8 +2618,6 @@ static bool sem_check_component(tree_t t)
 
    scope_pop();
 
-   sem_add_attributes(t);
-
    if (ok) {
       scope_apply_prefix(t);
       return scope_insert(t);
@@ -2716,8 +2638,6 @@ static bool sem_check_entity(tree_t t)
    ok = ok && sem_check_generics(t) && sem_check_ports(t);
 
    scope_insert(t);
-
-   sem_add_attributes(t);
 
    if (ok) {
       const int ndecls = tree_decls(t);
@@ -2771,8 +2691,6 @@ static bool sem_check_arch(tree_t t)
    bool ok = sem_check_context(e) && sem_check_context(t);
 
    scope_push(NULL);
-
-   sem_add_attributes(t);
 
    // Make the architecture and entity name visible
    scope_insert(t);
@@ -4896,6 +4814,8 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_EVENT;
    else if (icmp(ident, "ACTIVE"))
       return ATTR_ACTIVE;
+   else if (icmp(ident, "ASCENDING"))
+      return ATTR_ASCENDING;
    else if (icmp(ident, "LAST_VALUE"))
       return ATTR_LAST_VALUE;
    else if (icmp(ident, "LAST_EVENT"))
@@ -5030,7 +4950,18 @@ static bool sem_check_attr_ref(tree_t t)
       }
 
    case ATTR_ASCENDING:
-      assert(false);
+      {
+         type_t type = tree_type(name);
+
+         if (!sem_check_dimension_attr(t))
+            return false;
+
+         if (!type_is_array(type) && !type_is_scalar(type))
+            sem_error(t, "prefix does not have attribute %s", istr(attr));
+
+         tree_set_type(t, sem_std_type("BOOLEAN"));
+         return true;
+      }
 
    case ATTR_LAST_EVENT:
       if (!sem_check_signal_attr(t))
@@ -6066,8 +5997,6 @@ static bool sem_check_for(tree_t t)
 static bool sem_check_block(tree_t t)
 {
    scope_push(NULL);
-
-   sem_add_attributes(t);
 
    bool ok = true;
 

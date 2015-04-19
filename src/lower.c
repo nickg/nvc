@@ -1022,16 +1022,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
 
-   if (icmp(builtin, "ascending")) {
-      tree_t array = tree_value(tree_param(fcall, 1));
-      type_t type = tree_type(array);
-      int64_t dim = assume_int(p0) - 1;
-      if (lower_const_bounds(type))
-         return emit_const(vtype_bool(), type_dim(type, dim).kind == RANGE_TO);
-      else
-         return emit_not(lower_array_dir(type, dim, lower_reify_expr(array)));
-   }
-   else if (icmp(builtin, "max"))
+   if (icmp(builtin, "max"))
       return lower_min_max(VCODE_CMP_GT, fcall);
    else if (icmp(builtin, "min"))
       return lower_min_max(VCODE_CMP_LT, fcall);
@@ -2467,12 +2458,23 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
    case ATTR_LENGTH:
       {
-         tree_t array = tree_name(expr);
          const int dim = lower_get_attr_dimension(expr);
          return emit_cast(lower_type(tree_type(expr)),
                           VCODE_INVALID_TYPE,
-                          lower_array_len(tree_type(array), dim,
-                                          lower_param(array, NULL, PORT_IN)));
+                          lower_array_len(tree_type(name), dim,
+                                          lower_param(name, NULL, PORT_IN)));
+      }
+
+   case ATTR_ASCENDING:
+      {
+         type_t type = tree_type(name);
+         const int dim = lower_get_attr_dimension(expr);
+         if (lower_const_bounds(type))
+            return emit_const(vtype_bool(),
+                              type_dim(type, dim).kind == RANGE_TO);
+         else
+            return emit_not(lower_array_dir(type, dim,
+                                            lower_param(name, NULL, PORT_IN)));
       }
 
    case ATTR_LAST_EVENT:

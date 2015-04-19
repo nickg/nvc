@@ -632,12 +632,11 @@ static tree_t simp_for(tree_t t)
       assert(tree_kind(r.left) == T_ATTR_REF);
       tree_t base = tree_name(r.left);
 
-      tree_t dim = tree_new(T_LITERAL);
-      tree_set_subkind(dim, L_INT);
-      tree_set_ival(dim, 1);
-      tree_set_type(dim, type_universal_int());
+      tree_t asc = tree_new(T_ATTR_REF);
+      tree_set_ident(asc, ident_new("ASCENDING"));
+      tree_add_attr_int(asc, builtin_i, ATTR_ASCENDING);
+      tree_set_name(asc, base);
 
-      tree_t asc = call_builtin("ascending", NULL, dim, base, NULL);
       next = tree_new(T_IF);
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));
