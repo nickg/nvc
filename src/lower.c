@@ -2446,35 +2446,44 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t name = tree_name(expr);
 
-   ident_t ident = tree_ident(expr);
-   if (icmp(ident, "LAST_EVENT")) {
-      vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
-      type_t name_type = tree_type(name);
-      if (type_is_array(name_type))
-         return emit_last_event(name_reg,
-                                lower_array_total_len(name_type, name_reg));
-      else
-         return emit_last_event(name_reg, VCODE_INVALID_REG);
+   const predef_attr_t predef = tree_attr_int(expr, builtin_i, -1);
+   switch (predef) {
+   case ATTR_LAST_EVENT:
+      {
+         vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
+         type_t name_type = tree_type(name);
+         if (type_is_array(name_type))
+            return emit_last_event(name_reg,
+                                   lower_array_total_len(name_type, name_reg));
+         else
+            return emit_last_event(name_reg, VCODE_INVALID_REG);
+      }
 
-   }
-   else if (icmp(ident, "EVENT"))
+   case ATTR_EVENT:
       return lower_signal_flag(name, emit_event_flag);
-   else if (icmp(ident, "ACTIVE"))
+
+   case ATTR_ACTIVE:
       return lower_signal_flag(name, emit_active_flag);
-   else if (icmp(ident, "LAST_VALUE")) {
-      vcode_reg_t len_reg  = VCODE_INVALID_REG;
-      vcode_reg_t nets_reg = lower_expr(name, EXPR_LVALUE);
-      type_t type = tree_type(name);
-      if (type_is_array(type))
-         len_reg = lower_array_total_len(type, nets_reg);
-      return emit_vec_load(nets_reg, len_reg, true);
-   }
-   else if (icmp(ident, "INSTANCE_NAME"))
+
+   case ATTR_LAST_VALUE:
+      {
+         vcode_reg_t len_reg  = VCODE_INVALID_REG;
+         vcode_reg_t nets_reg = lower_expr(name, EXPR_LVALUE);
+         type_t type = tree_type(name);
+         if (type_is_array(type))
+            len_reg = lower_array_total_len(type, nets_reg);
+         return emit_vec_load(nets_reg, len_reg, true);
+      }
+
+   case ATTR_INSTANCE_NAME:
       return lower_name_attr(name, INSTANCE_NAME);
-   else if (icmp(ident, "PATH_NAME"))
+
+   case ATTR_PATH_NAME:
       return lower_name_attr(name, PATH_NAME);
-   else
-      fatal("cannot lower attribute %s", istr(ident));
+
+   default:
+      fatal("cannot lower attribute %s", istr(tree_ident(expr)));
+   }
 }
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)

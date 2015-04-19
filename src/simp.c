@@ -140,7 +140,8 @@ static tree_t simp_ref(tree_t t)
    }
 }
 
-static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
+static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
+                                            simp_ctx_t *ctx)
 {
    tree_t name = tree_name(t);
    assert(tree_kind(name) == T_REF);
@@ -148,13 +149,8 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
    if (tree_kind(tree_ref(name)) != T_SIGNAL_DECL)
       return t;
 
-   enum {
-      DELAYED,
-      TRANSACTION
-   } attr = icmp(tree_ident(t), "TRANSACTION") ? TRANSACTION : DELAYED;
-
    char *sig_name LOCAL =
-      xasprintf("%s_%s", (attr == DELAYED) ? "delayed" : "transaction",
+      xasprintf("%s_%s", (predef == ATTR_DELAYED) ? "delayed" : "transaction",
                 istr(tree_ident(name)));
 
    tree_t s = tree_new(T_SIGNAL_DECL);
@@ -173,8 +169,8 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
    tree_set_ident(a, ident_new("assign"));
    tree_set_target(a, r);
 
-   switch (attr) {
-   case DELAYED:
+   switch (predef) {
+   case ATTR_DELAYED:
       {
          tree_t delay = tree_value(tree_param(t, 0));
 
@@ -186,7 +182,7 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
       }
       break;
 
-   case TRANSACTION:
+   case ATTR_TRANSACTION:
       {
          tree_t not = call_builtin("not", tree_type(r), r, NULL);
 
@@ -195,6 +191,9 @@ static tree_t simp_attr_delayed_transaction(tree_t t, simp_ctx_t *ctx)
 
          tree_add_waveform(a, wave);
       }
+      break;
+
+   default:
       break;
    }
 
@@ -222,9 +221,9 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
    if (tree_has_value(t))
       return tree_value(t);
 
-   ident_t attr = tree_ident(t);
-   if (icmp(attr, "DELAYED") || icmp(attr, "TRANSACTION"))
-      return simp_attr_delayed_transaction(t, ctx);
+   const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+   if (predef == ATTR_DELAYED || predef == ATTR_TRANSACTION)
+      return simp_attr_delayed_transaction(t, predef, ctx);
 
    if (tree_has_ref(t)) {
       tree_t decl = tree_ref(t);

@@ -4888,6 +4888,32 @@ static bool sem_check_signal_attr(tree_t t)
    return true;
 }
 
+static predef_attr_t sem_predefined_attr(ident_t ident)
+{
+   if (icmp(ident, "LAST_EVENT"))
+      return ATTR_LAST_EVENT;
+   else if (icmp(ident, "EVENT"))
+      return ATTR_EVENT;
+   else if (icmp(ident, "ACTIVE"))
+      return ATTR_ACTIVE;
+   else if (icmp(ident, "LAST_VALUE"))
+      return ATTR_LAST_VALUE;
+   else if (icmp(ident, "PATH_NAME"))
+      return ATTR_PATH_NAME;
+   else if (icmp(ident, "INSTANCE_NAME"))
+      return ATTR_INSTANCE_NAME;
+   else if (icmp(ident, "DELAYED"))
+      return ATTR_DELAYED;
+   else if (icmp(ident, "STABLE"))
+      return ATTR_STABLE;
+   else if (icmp(ident, "QUIET"))
+      return ATTR_QUIET;
+   else if (icmp(ident, "TRANSACTION"))
+      return ATTR_TRANSACTION;
+   else
+      return (predef_attr_t)-1;
+}
+
 static bool sem_check_attr_ref(tree_t t)
 {
    // Attribute names are in LRM 93 section 6.6
@@ -4925,67 +4951,77 @@ static bool sem_check_attr_ref(tree_t t)
    }
 
    ident_t attr = tree_ident(t);
+   const predef_attr_t predef = sem_predefined_attr(attr);
 
-   if (icmp(attr, "LAST_EVENT")) {
+   if (predef != (predef_attr_t)-1)
+      tree_add_attr_int(t, builtin_i, predef);
+
+   switch (predef) {
+   case ATTR_LAST_EVENT:
       if (!sem_check_signal_attr(t))
          return false;
 
       tree_set_type(t, sem_std_type("TIME"));
       return true;
-   }
-   else if (icmp(attr, "EVENT") || icmp(attr, "ACTIVE")) {
+
+   case ATTR_EVENT:
+   case ATTR_ACTIVE:
       if (!sem_check_signal_attr(t))
          return false;
 
       tree_set_type(t, sem_std_type("BOOLEAN"));
       return true;
-   }
-   else if (icmp(attr, "LAST_VALUE")) {
+
+   case ATTR_LAST_VALUE:
       if (!sem_check_signal_attr(t))
          return false;
 
       tree_set_type(t, tree_type(name));
       return true;
-   }
-   else if (icmp(attr, "PATH_NAME") || icmp(attr, "INSTANCE_NAME")) {
-      const class_t class = class_of(name);
-      if (class != C_SIGNAL && class != C_ARCHITECTURE && class != C_ENTITY
-          && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL)
-         sem_error(t, "prefix does not have attribute %s", istr(attr));
 
-      tree_set_type(t, sem_std_type("STRING"));
-      return true;
-   }
-   else if (icmp(attr, "DELAYED") || icmp(attr, "STABLE")
-            || icmp(attr, "QUIET")) {
-      if (!sem_check_signal_attr(t))
-         return false;
+   case ATTR_PATH_NAME:
+   case ATTR_INSTANCE_NAME:
+      {
+         const class_t class = class_of(name);
+         if (class != C_SIGNAL && class != C_ARCHITECTURE && class != C_ENTITY
+             && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL)
+            sem_error(t, "prefix does not have attribute %s", istr(attr));
 
-      if (!sem_check_valid_implicit_signal(t))
-         return false;
-
-      type_t std_time = sem_std_type("TIME");
-      if (tree_params(t) > 0) {
-         tree_t value = tree_value(tree_param(t, 0));
-
-         if (!sem_check_constrained(value, std_time))
+         tree_set_type(t, sem_std_type("STRING"));
+         return true;
+      }
+   case ATTR_DELAYED:
+   case ATTR_STABLE:
+   case ATTR_QUIET:
+      {
+         if (!sem_check_signal_attr(t))
             return false;
 
-         if (!type_eq(tree_type(value), std_time))
-            sem_error(value, "attribute %s parameter must have type %s",
-                      istr(attr), sem_type_str(std_time));
+         if (!sem_check_valid_implicit_signal(t))
+            return false;
+
+         type_t std_time = sem_std_type("TIME");
+         if (tree_params(t) > 0) {
+            tree_t value = tree_value(tree_param(t, 0));
+
+            if (!sem_check_constrained(value, std_time))
+               return false;
+
+            if (!type_eq(tree_type(value), std_time))
+               sem_error(value, "attribute %s parameter must have type %s",
+                         istr(attr), sem_type_str(std_time));
+         }
+         else
+            add_param(t, sem_int_lit(std_time, 0), P_POS, NULL);
+
+         if (predef == ATTR_DELAYED)
+            tree_set_type(t, tree_type(name));
+         else
+            tree_set_type(t, sem_std_type("BOOLEAN"));
+
+         return true;
       }
-      else
-         add_param(t, sem_int_lit(std_time, 0), P_POS, NULL);
-
-      if (icmp(attr, "DELAYED"))
-         tree_set_type(t, tree_type(name));
-      else
-         tree_set_type(t, sem_std_type("BOOLEAN"));
-
-      return true;
-   }
-   else if (icmp(attr, "TRANSACTION")) {
+   case ATTR_TRANSACTION:
       if (!sem_check_signal_attr(t))
          return false;
 

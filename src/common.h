@@ -86,6 +86,23 @@ const char *standard_text(vhdl_standard_t s);
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
 
 //
+// Pre-defined attributes
+//
+
+typedef enum {
+   ATTR_LAST_EVENT,
+   ATTR_EVENT,
+   ATTR_ACTIVE,
+   ATTR_LAST_VALUE,
+   ATTR_PATH_NAME,
+   ATTR_INSTANCE_NAME,
+   ATTR_DELAYED,
+   ATTR_STABLE,
+   ATTR_QUIET,
+   ATTR_TRANSACTION
+} predef_attr_t;
+
+//
 // Shared interned strings
 //
 
