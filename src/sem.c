@@ -933,15 +933,6 @@ static void sem_declare_predefined_ops(tree_t decl)
                             sem_builtin_fn(val_i, t, "val",
                                            type_universal_int(), t, NULL));
       }
-
-      // Fall-through
-   case T_REAL:
-      {
-         ident_t value_i = ident_new("VALUE");
-         tree_add_attr_tree(decl, value_i,
-                            sem_builtin_fn(value_i, t, "value",
-                                           sem_std_type("STRING"), t, NULL));
-      }
       break;
 
    default:
@@ -4827,6 +4818,8 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_LAST_ACTIVE;
    else if (icmp(ident, "DRIVING"))
       return ATTR_DRIVING;
+   else if (icmp(ident, "VALUE"))
+      return ATTR_VALUE;
    else
       return (predef_attr_t)-1;
 }
@@ -5033,31 +5026,35 @@ static bool sem_check_attr_ref(tree_t t)
       return true;
 
    case ATTR_IMAGE:
+   case ATTR_VALUE:
       {
          if (tree_kind(decl) != T_TYPE_DECL)
-            sem_error(t, "prefix of attribute IMAGE must be a type");
+            sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 
          type_t name_type = tree_type(name);
          if (!type_is_scalar(name_type))
-            sem_error(t, "cannot use attribute IMAGE with non-scalar type %s",
-                      sem_type_str(name_type));
+            sem_error(t, "cannot use attribute %s with non-scalar type %s",
+                      sem_type_str(name_type), istr(attr));
 
          const int nparams = tree_params(t);
          if (nparams == 0)
-            sem_error(t, "attribute IMAGE requires a parameter");
+            sem_error(t, "attribute %s requires a parameter", istr(attr));
          else if (nparams > 1)
-            sem_error(t, "too many parameters for attribute IMAGE");
+            sem_error(t, "too many parameters for attribute %s", istr(attr));
+
+         type_t std_string = sem_std_type("STRING");
+         type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
 
          tree_t value = tree_value(tree_param(t, 0));
-         if (!sem_check_constrained(value, name_type))
+         if (!sem_check_constrained(value, arg_type))
             return false;
 
-         if (!type_eq(tree_type(value), name_type))
-            sem_error(t, "expected type %s for attribute IMAGE parameter but "
-                      "have %s", sem_type_str(name_type),
+         if (!type_eq(tree_type(value), arg_type))
+            sem_error(t, "expected type %s for attribute %s parameter but "
+                      "have %s", sem_type_str(arg_type), istr(attr),
                       sem_type_str(tree_type(value)));
 
-         tree_set_type(t, sem_std_type("STRING"));
+         tree_set_type(t, predef == ATTR_IMAGE ? std_string : name_type);
          return true;
       }
 

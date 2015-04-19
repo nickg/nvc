@@ -110,7 +110,8 @@ typedef enum {
    ATTR_IMAGE,
    ATTR_LAST_ACTIVE,
    ATTR_DRIVING,
-   ATTR_DRIVING_VALUE
+   ATTR_DRIVING_VALUE,
+   ATTR_VALUE
 } predef_attr_t;
 
 //
