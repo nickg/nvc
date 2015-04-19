@@ -1020,8 +1020,6 @@ static vcode_reg_t lower_logical(tree_t fcall, vcode_reg_t result)
 
 static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
-   tree_t p0 = tree_value(tree_param(fcall, 0));
-
    if (icmp(builtin, "max"))
       return lower_min_max(VCODE_CMP_GT, fcall);
    else if (icmp(builtin, "min"))
@@ -1086,8 +1084,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_logical(fcall, emit_nand(r0, r1));
    else if (icmp(builtin, "nor"))
       return lower_logical(fcall, emit_nor(r0, r1));
-   else if (icmp(builtin, "image"))
-      return emit_image(r0, tree_index(p0));
    else if (icmp(builtin, "aeq"))
       return lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_EQ);
    else if (icmp(builtin, "aneq"))
@@ -2509,6 +2505,12 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
    case ATTR_PATH_NAME:
       return lower_name_attr(name, PATH_NAME);
+
+   case ATTR_IMAGE:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         return emit_image(lower_param(value, NULL, PORT_IN), tree_index(name));
+      }
 
    default:
       fatal("cannot lower attribute %s", istr(tree_ident(expr)));

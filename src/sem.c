@@ -597,12 +597,6 @@ static void sem_declare_unary(tree_t decl, ident_t name, type_t operand,
       tree_add_op(decl, d);
 }
 
-static tree_t sem_bool_lit(type_t std_bool, bool v)
-{
-   tree_t lit = type_enum_literal(std_bool, v ? 1 : 0);
-   return make_ref(lit);
-}
-
 static tree_t sem_int_lit(type_t type, int64_t i)
 {
    tree_t f = tree_new(T_LITERAL);
@@ -862,37 +856,6 @@ static void sem_declare_predefined_ops(tree_t decl)
    // Predefined attributes
 
    switch (kind) {
-   case T_SUBTYPE:
-      if (type_is_unconstrained(t) || type_is_record(t))
-         break;
-      // Fall-through
-   case T_INTEGER:
-   case T_REAL:
-   case T_PHYSICAL:
-      {
-         range_t r = type_dim(t, 0);
-
-         tree_add_attr_tree(decl, ident_new("LEFT"), r.left);
-         tree_add_attr_tree(decl, ident_new("RIGHT"), r.right);
-         tree_add_attr_tree(decl, ident_new("ASCENDING"),
-                            sem_bool_lit(std_bool, r.kind == RANGE_TO));
-
-         if (r.kind == RANGE_TO) {
-            tree_add_attr_tree(decl, ident_new("LOW"), r.left);
-            tree_add_attr_tree(decl, ident_new("HIGH"), r.right);
-         }
-         else {
-            tree_add_attr_tree(decl, ident_new("HIGH"), r.left);
-            tree_add_attr_tree(decl, ident_new("LOW"), r.right);
-         }
-
-         ident_t image_i = ident_new("IMAGE");
-         tree_add_attr_tree(decl, image_i,
-                            sem_builtin_fn(image_i, std_string,
-                                           "image", t, t, NULL));
-      }
-      break;
-
    case T_ENUM:
       {
          tree_t left  = type_enum_literal(t, 0);
@@ -3941,11 +3904,13 @@ static bool sem_check_concat(tree_t t)
       type_t index_type = index_type_of(atype, 0);
       range_t index_r = type_dim(index_type, 0);
 
-      type_t std_int = sem_std_type("INTEGER");
       tree_t array_len;
-      if (akind == T_UARRAY)
-         array_len = call_builtin("length", std_int,
-                                  sem_int_lit(std_int, 1), array, NULL);
+      if (akind == T_UARRAY) {
+         array_len = tree_new(T_ATTR_REF);
+         tree_set_name(array_len, array);
+         tree_set_ident(array_len, ident_new("LENGTH"));
+         tree_add_attr_int(array_len, builtin_i, ATTR_LENGTH);
+      }
       else
          array_len = sem_array_len(atype);
 
@@ -4814,6 +4779,8 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_EVENT;
    else if (icmp(ident, "ACTIVE"))
       return ATTR_ACTIVE;
+   else if (icmp(ident, "IMAGE"))
+      return ATTR_IMAGE;
    else if (icmp(ident, "ASCENDING"))
       return ATTR_ASCENDING;
    else if (icmp(ident, "LAST_VALUE"))
@@ -5036,6 +5003,35 @@ static bool sem_check_attr_ref(tree_t t)
 
       tree_set_type(t, sem_std_type("BIT"));
       return true;
+
+   case ATTR_IMAGE:
+      {
+         if (tree_kind(decl) != T_TYPE_DECL)
+            sem_error(t, "prefix of attribute IMAGE must be a type");
+
+         type_t name_type = tree_type(name);
+         if (!type_is_scalar(name_type))
+            sem_error(t, "cannot use attribute IMAGE with non-scalar type %s",
+                      sem_type_str(name_type));
+
+         const int nparams = tree_params(t);
+         if (nparams == 0)
+            sem_error(t, "attribute IMAGE requires a parameter");
+         else if (nparams > 1)
+            sem_error(t, "too many parameters for attribute IMAGE");
+
+         tree_t value = tree_value(tree_param(t, 0));
+         if (!sem_check_constrained(value, name_type))
+            return false;
+
+         if (!type_eq(tree_type(value), name_type))
+            sem_error(t, "expected type %s for attribute IMAGE parameter but "
+                      "have %s", sem_type_str(name_type),
+                      sem_type_str(tree_type(value)));
+
+         tree_set_type(t, sem_std_type("STRING"));
+         return true;
+      }
    }
 
    bool allow_user = true;

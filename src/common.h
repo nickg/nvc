@@ -106,7 +106,8 @@ typedef enum {
    ATTR_LOW,
    ATTR_HIGH,
    ATTR_RIGHT,
-   ATTR_ASCENDING
+   ATTR_ASCENDING,
+   ATTR_IMAGE
 } predef_attr_t;
 
 //
