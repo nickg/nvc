@@ -183,10 +183,10 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
       case RANGE_DYN:
       case RANGE_RDYN:
          {
-            assert(tree_kind(r.left) == T_FCALL);
-            assert(tree_kind(r.right) == T_FCALL);
+            assert(tree_kind(r.left) == T_ATTR_REF);
+            assert(tree_kind(r.right) == T_ATTR_REF);
 
-            tree_t base_ref = tree_value(tree_param(r.left, 1));
+            tree_t base_ref = tree_name(r.left);
             assert(tree_kind(base_ref) == T_REF);
 
             type_t base_type = tree_type(base_ref);
@@ -486,38 +486,21 @@ static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
                index, (hint == NULL ? index : tree_index(hint)));
 }
 
-static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
+static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
 {
-   if (nth >= tree_params(fcall))
-      return VCODE_INVALID_REG;
-
-   tree_t param = tree_param(fcall, nth);
-
-   assert(tree_subkind(param) == P_POS);
-   assert(tree_pos(param) == nth);
-
-   tree_t value = tree_value(param);
    type_t value_type = tree_type(value);
 
-   tree_t decl = tree_ref(fcall);
-
-   port_mode_t mode = PORT_IN;
-   if (nth < tree_ports(decl))
-      mode = tree_subkind(tree_port(decl, nth));
+   class_t class = C_DEFAULT;
+   type_t port_type = value_type;
+   if (port != NULL) {
+      port_type = tree_type(port);
+      class = tree_class(port);
+   }
 
    const bool must_reify =
       (type_is_scalar(value_type) || type_is_access(value_type)
        || type_is_file(value_type))
       && mode == PORT_IN;
-
-   class_t class = C_DEFAULT;
-   tree_t port = NULL;
-   type_t port_type = value_type;
-   if (tree_attr_str(decl, builtin_i) == NULL) {
-      port = tree_port(decl, nth);
-      port_type = tree_type(port);
-      class = tree_class(port);
-   }
 
    const bool lvalue = class == C_SIGNAL || class == C_FILE || mode != PORT_IN;
 
@@ -569,6 +552,30 @@ static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
          lower_check_scalar_bounds(lower_reify(final), port_type, port, value);
       return final;
    }
+}
+
+static vcode_reg_t lower_subprogram_arg(tree_t fcall, unsigned nth)
+{
+   if (nth >= tree_params(fcall))
+      return VCODE_INVALID_REG;
+
+   tree_t param = tree_param(fcall, nth);
+
+   assert(tree_subkind(param) == P_POS);
+   assert(tree_pos(param) == nth);
+
+   tree_t value = tree_value(param);
+   tree_t decl = tree_ref(fcall);
+
+   port_mode_t mode = PORT_IN;
+   if (nth < tree_ports(decl))
+      mode = tree_subkind(tree_port(decl, nth));
+
+   tree_t port = NULL;
+   if (tree_attr_str(decl, builtin_i) == NULL)
+      port = tree_port(decl, nth);
+
+   return lower_param(value, port, mode);
 }
 
 static vcode_reg_t lower_array_cmp_inner(vcode_reg_t lhs_data,
@@ -1015,50 +1022,7 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
 {
    tree_t p0 = tree_value(tree_param(fcall, 0));
 
-   if (icmp(builtin, "left") || icmp(builtin, "right")) {
-      tree_t array = tree_value(tree_param(fcall, 1));
-      type_t type = tree_type(array);
-      int64_t dim = assume_int(p0) - 1;
-      const bool left = icmp(builtin, "left");
-      vcode_reg_t reg = VCODE_INVALID_REG;
-      if (lower_const_bounds(type)) {
-         range_t r = type_dim(type, dim);
-         reg = lower_expr(left ? r.left : r.right, EXPR_RVALUE);
-      }
-      else if (left)
-         reg = lower_array_left(type, dim, lower_reify_expr(array));
-      else
-         reg = lower_array_right(type, dim, lower_reify_expr(array));
-
-      return emit_cast(lower_type(tree_type(fcall)), VCODE_INVALID_TYPE, reg);
-   }
-   else if (icmp(builtin, "low") || icmp(builtin, "high")) {
-      tree_t array = tree_value(tree_param(fcall, 1));
-      type_t type = tree_type(array);
-      int64_t dim = assume_int(p0) - 1;
-      const bool low = icmp(builtin, "low");
-      vcode_reg_t reg = VCODE_INVALID_REG;
-      if (lower_const_bounds(type)) {
-         range_t r = type_dim(type, dim);
-         if (low)
-            reg = lower_reify_expr(r.kind == RANGE_TO ? r.left : r.right);
-         else
-            reg = lower_reify_expr(r.kind == RANGE_TO ? r.right : r.left);
-      }
-      else {
-         vcode_reg_t array_reg  = lower_reify_expr(array);
-         vcode_reg_t left_reg   = lower_array_left(type, dim, array_reg);
-         vcode_reg_t right_reg  = lower_array_right(type, dim, array_reg);
-         vcode_reg_t downto_reg = lower_array_dir(type, dim, array_reg);
-         if (low)
-            reg = emit_select(downto_reg, right_reg, left_reg);
-         else
-            reg = emit_select(downto_reg, left_reg, right_reg);
-      }
-
-      return emit_cast(lower_type(tree_type(fcall)), VCODE_INVALID_TYPE, reg);
-   }
-   else if (icmp(builtin, "ascending")) {
+   if (icmp(builtin, "ascending")) {
       tree_t array = tree_value(tree_param(fcall, 1));
       type_t type = tree_type(array);
       int64_t dim = assume_int(p0) - 1;
@@ -1066,13 +1030,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
          return emit_const(vtype_bool(), type_dim(type, dim).kind == RANGE_TO);
       else
          return emit_not(lower_array_dir(type, dim, lower_reify_expr(array)));
-   }
-   else if (icmp(builtin, "length")) {
-      const int dim = assume_int(p0) - 1;
-      return emit_cast(lower_type(tree_type(fcall)),
-                       VCODE_INVALID_TYPE,
-                       lower_array_len(lower_arg_type(fcall, 1), dim,
-                                       lower_subprogram_arg(fcall, 1)));
    }
    else if (icmp(builtin, "max"))
       return lower_min_max(VCODE_CMP_GT, fcall);
@@ -2442,16 +2399,86 @@ static vcode_reg_t lower_type_conv(tree_t expr, expr_ctx_t ctx)
    }
 }
 
+static const int lower_get_attr_dimension(tree_t expr)
+{
+   if (tree_params(expr) > 0)
+      return assume_int(tree_value(tree_param(expr, 0))) - 1;
+   else
+      return 0;
+}
+
 static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 {
    tree_t name = tree_name(expr);
 
    const predef_attr_t predef = tree_attr_int(expr, builtin_i, -1);
    switch (predef) {
+   case ATTR_LEFT:
+   case ATTR_RIGHT:
+      {
+         const bool left = predef == ATTR_LEFT;
+         const int dim = lower_get_attr_dimension(expr);
+
+         type_t type = tree_type(name);
+         vcode_reg_t reg = VCODE_INVALID_REG;
+         if (lower_const_bounds(type)) {
+            range_t r = type_dim(type, dim);
+            reg = lower_expr(left ? r.left : r.right, EXPR_RVALUE);
+         }
+         else {
+            vcode_reg_t array_reg = lower_param(name, NULL, PORT_IN);
+            if (left)
+               reg = lower_array_left(type, dim, array_reg);
+            else
+               reg = lower_array_right(type, dim, array_reg);
+         }
+
+         return emit_cast(lower_type(tree_type(expr)), VCODE_INVALID_TYPE, reg);
+      }
+
+   case ATTR_LOW:
+   case ATTR_HIGH:
+      {
+         const bool low = predef == ATTR_LOW;
+         const int dim = lower_get_attr_dimension(expr);
+
+         type_t type = tree_type(name);
+         vcode_reg_t reg = VCODE_INVALID_REG;
+         if (lower_const_bounds(type)) {
+            range_t r = type_dim(type, dim);
+            if (low)
+               reg = lower_reify_expr(r.kind == RANGE_TO ? r.left : r.right);
+            else
+               reg = lower_reify_expr(r.kind == RANGE_TO ? r.right : r.left);
+         }
+         else {
+            vcode_reg_t array_reg  = lower_reify_expr(name);
+            vcode_reg_t left_reg   = lower_array_left(type, dim, array_reg);
+            vcode_reg_t right_reg  = lower_array_right(type, dim, array_reg);
+            vcode_reg_t downto_reg = lower_array_dir(type, dim, array_reg);
+            if (low)
+               reg = emit_select(downto_reg, right_reg, left_reg);
+            else
+               reg = emit_select(downto_reg, left_reg, right_reg);
+         }
+
+         return emit_cast(lower_type(tree_type(expr)), VCODE_INVALID_TYPE, reg);
+      }
+
+   case ATTR_LENGTH:
+      {
+         tree_t array = tree_name(expr);
+         const int dim = lower_get_attr_dimension(expr);
+         return emit_cast(lower_type(tree_type(expr)),
+                          VCODE_INVALID_TYPE,
+                          lower_array_len(tree_type(array), dim,
+                                          lower_param(array, NULL, PORT_IN)));
+      }
+
    case ATTR_LAST_EVENT:
       {
-         vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
          type_t name_type = tree_type(name);
+         vcode_reg_t name_reg = lower_expr(name, EXPR_LVALUE);
          if (type_is_array(name_type))
             return emit_last_event(name_reg,
                                    lower_array_total_len(name_type, name_reg));
@@ -2467,11 +2494,11 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
 
    case ATTR_LAST_VALUE:
       {
+         type_t name_type = tree_type(name);
          vcode_reg_t len_reg  = VCODE_INVALID_REG;
          vcode_reg_t nets_reg = lower_expr(name, EXPR_LVALUE);
-         type_t type = tree_type(name);
-         if (type_is_array(type))
-            len_reg = lower_array_total_len(type, nets_reg);
+         if (type_is_array(name_type))
+            len_reg = lower_array_total_len(name_type, nets_reg);
          return emit_vec_load(nets_reg, len_reg, true);
       }
 

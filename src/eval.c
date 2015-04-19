@@ -125,39 +125,6 @@ static bool folded(tree_t t)
       return false;
 }
 
-static tree_t get_bool_lit(tree_t t, bool v)
-{
-   tree_t fdecl = tree_ref(t);
-   assert(tree_kind(fdecl) == T_FUNC_DECL);
-
-   static type_t bool_type = NULL;
-   if (bool_type == NULL) {
-      lib_t std = lib_find("std", true, true);
-      assert(std != NULL);
-
-      tree_t standard = lib_get(std, ident_new("STD.STANDARD"));
-      assert(standard != NULL);
-
-      const int ndecls = tree_decls(standard);
-      for (int i = 0; (i < ndecls) && (bool_type == NULL); i++) {
-         tree_t d = tree_decl(standard, i);
-         if (tree_ident(d) == std_bool_i)
-            bool_type = tree_type(d);
-      }
-      assert(bool_type != NULL);
-   }
-
-   tree_t lit = type_enum_literal(bool_type, v ? 1 : 0);
-
-   tree_t b = tree_new(T_REF);
-   tree_set_loc(b, tree_loc(t));
-   tree_set_ref(b, lit);
-   tree_set_type(b, bool_type);
-   tree_set_ident(b, tree_ident(lit));
-
-   return b;
-}
-
 static tree_t eval_fcall_log(tree_t t, ident_t builtin, bool *args)
 {
    if (icmp(builtin, "not"))
@@ -376,54 +343,6 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       vtable_pop(v);
 
       return ((result != NULL) && folded(result)) ? result : t;
-   }
-
-   if (icmp(builtin, "length") || icmp(builtin, "low") || icmp(builtin, "high")
-       || icmp(builtin, "left") || icmp(builtin, "right")
-       || icmp(builtin, "ascending")) {
-      tree_t dim   = tree_value(tree_param(t, 0));
-      tree_t array = tree_value(tree_param(t, 1));
-
-      if (tree_kind(array) != T_REF)
-         return t;   // Cannot fold this
-
-      int64_t dim_i;
-      const bool f = folded_int(dim, &dim_i);
-      assert(f);
-
-      type_t type = tree_type(array);
-      if (type_is_unconstrained(type))
-         return t;
-
-      if ((dim_i < 1) || (dim_i > type_dims(type)))
-         return t;
-
-      range_t r = type_dim(type, dim_i - 1);
-
-      const bool known_dir = (r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO);
-
-      if (icmp(builtin, "length") && known_dir) {
-         if ((tree_kind(r.left) == T_LITERAL)
-             && (tree_kind(r.right) == T_LITERAL)) {
-            int64_t low, high;
-            range_bounds(r, &low, &high);
-            return get_int_lit(t, (high < low) ? 0 : high - low + 1);
-         }
-         else
-            return t;
-      }
-      else if (icmp(builtin, "low") && known_dir)
-         return eval_expr((r.kind == RANGE_TO) ? r.left : r.right, v);
-      else if (icmp(builtin, "high") && known_dir)
-         return eval_expr((r.kind == RANGE_TO) ? r.right : r.left, v);
-      else if (icmp(builtin, "left"))
-         return eval_expr(r.left, v);
-      else if (icmp(builtin, "right"))
-         return eval_expr(r.right, v);
-      else if (icmp(builtin, "ascending") && known_dir)
-         return get_bool_lit(t, (r.kind == RANGE_TO));
-      else
-         return t;
    }
 
    const int nparams = tree_params(t);

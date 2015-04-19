@@ -951,14 +951,6 @@ static void sem_declare_predefined_ops(tree_t decl)
       break;
    }
 
-   if (type_is_array(t)) {
-      sem_add_dimension_attr(decl, sem_std_type("INTEGER"), "LENGTH", "length");
-      sem_add_dimension_attr(decl, NULL, "LEFT", "left");
-      sem_add_dimension_attr(decl, NULL, "RIGHT", "right");
-      sem_add_dimension_attr(decl, NULL, "LOW", "low");
-      sem_add_dimension_attr(decl, NULL, "HIGH", "high");
-   }
-
    switch (type_kind(type_base_recur(t))) {
    case T_INTEGER:
    case T_PHYSICAL:
@@ -4890,14 +4882,24 @@ static bool sem_check_signal_attr(tree_t t)
 
 static predef_attr_t sem_predefined_attr(ident_t ident)
 {
-   if (icmp(ident, "LAST_EVENT"))
-      return ATTR_LAST_EVENT;
+   if (icmp(ident, "LENGTH"))
+      return ATTR_LENGTH;
+   else if (icmp(ident, "LEFT"))
+      return ATTR_LEFT;
+   else if (icmp(ident, "RIGHT"))
+      return ATTR_RIGHT;
+   else if (icmp(ident, "LOW"))
+      return ATTR_LOW;
+   else if (icmp(ident, "HIGH"))
+      return ATTR_HIGH;
    else if (icmp(ident, "EVENT"))
       return ATTR_EVENT;
    else if (icmp(ident, "ACTIVE"))
       return ATTR_ACTIVE;
    else if (icmp(ident, "LAST_VALUE"))
       return ATTR_LAST_VALUE;
+   else if (icmp(ident, "LAST_EVENT"))
+      return ATTR_LAST_EVENT;
    else if (icmp(ident, "PATH_NAME"))
       return ATTR_PATH_NAME;
    else if (icmp(ident, "INSTANCE_NAME"))
@@ -4912,6 +4914,34 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_TRANSACTION;
    else
       return (predef_attr_t)-1;
+}
+
+static bool sem_check_dimension_attr(tree_t t)
+{
+   const int nparams = tree_params(t);
+   if (nparams == 1) {
+      type_t std_int = sem_std_type("INTEGER");
+
+      tree_t dim = tree_value(tree_param(t, 0));
+      if (!sem_check_constrained(dim, std_int))
+         return false;
+
+      if (!type_is_array(tree_type(tree_name(t))))
+         sem_error(t, "prefix of attribute %s with dimension is not an array",
+                   istr(tree_ident(t)));
+
+      if (!type_eq(tree_type(dim), std_int))
+         sem_error(dim, "dimension argument must have type %s",
+                   sem_type_str(std_int));
+
+      if (!sem_locally_static(dim))
+         sem_error(dim, "dimension of attribute %s must be locally "
+                   "static", istr(tree_ident(t)));
+   }
+   else if (nparams > 1)
+      sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
+
+   return true;
 }
 
 static bool sem_check_attr_ref(tree_t t)
@@ -4957,6 +4987,51 @@ static bool sem_check_attr_ref(tree_t t)
       tree_add_attr_int(t, builtin_i, predef);
 
    switch (predef) {
+   case ATTR_LENGTH:
+      {
+         if (!type_is_array(tree_type(name)))
+            sem_error(t, "prefix of attribute LENGTH must be an array");
+
+         if (!sem_check_dimension_attr(t))
+            return false;
+
+         tree_set_type(t, sem_std_type("INTEGER"));
+         return true;
+      }
+
+   case ATTR_LEFT:
+   case ATTR_RIGHT:
+   case ATTR_LOW:
+   case ATTR_HIGH:
+      {
+         type_t type = tree_type(name);
+
+         if (!sem_check_dimension_attr(t))
+            return false;
+
+         if (!type_is_array(type) && !type_is_scalar(type))
+            sem_error(t, "prefix does not have attribute %s", istr(attr));
+
+         if (type_is_array(type)) {
+            int dim = 0;
+            if (tree_params(t) > 0) {
+               tree_t pdim = tree_value(tree_param(t, 0));
+               if (tree_kind(pdim) != T_LITERAL)
+                  sem_error(pdim, "dimension argument must be a literal");
+
+               dim = tree_ival(pdim) - 1;
+            }
+
+            tree_set_type(t, index_type_of(type, dim));
+         }
+         else
+            tree_set_type(t, type);
+         return true;
+      }
+
+   case ATTR_ASCENDING:
+      assert(false);
+
    case ATTR_LAST_EVENT:
       if (!sem_check_signal_attr(t))
          return false;
@@ -5581,12 +5656,9 @@ static bool sem_locally_static(tree_t t)
    if (kind == T_ATTR_REF) {
       // A predefined attribute other than 'PATH_NAME whose prefix has a
       // locally static subtype
-      tree_t decl = tree_ref(t);
       if (icmp(tree_ident(t), "PATH_NAME"))
          return false;
-      else if (tree_kind(decl) == T_FUNC_DECL) {
-         assert(tree_attr_str(decl, builtin_i));
-
+      else if (!tree_has_value(t)) {
          type_t type = tree_type(tree_ref(tree_name(t)));
          return sem_subtype_locally_static(type);
       }

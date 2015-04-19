@@ -68,31 +68,6 @@ static tree_t bounds_check_call_args(tree_t t)
    const int nparams = tree_params(t);
    const int nports  = tree_ports(decl);
 
-   // Check dimension argument of array attributes
-
-   ident_t builtin = tree_attr_str(decl, builtin_i);
-   if (builtin != NULL) {
-      if (icmp(builtin, "length") || icmp(builtin, "low")
-          || icmp(builtin, "high") || icmp(builtin, "left")
-          || icmp(builtin, "right")) {
-
-         type_t type = tree_type(tree_value(tree_param(t, 1)));
-         if (type_is_array(type) && !type_is_unconstrained(type)) {
-            tree_t dim_tree = tree_value(tree_param(t, 0));
-
-            int64_t dim;
-            const bool f = folded_int(dim_tree, &dim);
-            assert(f);
-
-            if ((dim < 1) || (dim > type_dims(type)))
-               bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
-                            dim, type_pp(type));
-         }
-      }
-      else if (icmp(builtin, "event") || icmp(builtin, "active"))
-         return t;
-   }
-
    for (int i = 0; (i < nparams) && (i < nports); i++) {
       tree_t param = tree_param(t, i);
       assert(tree_subkind(param) == P_POS);
@@ -825,6 +800,37 @@ static void bounds_check_type_conv(tree_t t)
    }
 }
 
+static void bounds_check_attr_ref(tree_t t)
+{
+   const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+   switch (predef) {
+   case ATTR_LENGTH:
+   case ATTR_LOW:
+   case ATTR_HIGH:
+   case ATTR_LEFT:
+   case ATTR_RIGHT:
+      if (tree_params(t) > 0)
+      {
+         type_t type = tree_type(tree_name(t));
+         if (type_is_array(type) && !type_is_unconstrained(type)) {
+            tree_t dim_tree = tree_value(tree_param(t, 0));
+
+            int64_t dim;
+            const bool f = folded_int(dim_tree, &dim);
+            assert(f);
+
+            if (dim < 1 || dim > type_dims(type))
+               bounds_error(dim_tree, "invalid dimension %"PRIi64" for type %s",
+                            dim, type_pp(type));
+         }
+      }
+      break;
+
+   default:
+      break;
+   }
+}
+
 static void bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -860,6 +866,9 @@ static void bounds_visit_fn(tree_t t, void *context)
       break;
    case T_TYPE_CONV:
       bounds_check_type_conv(t);
+      break;
+   case T_ATTR_REF:
+      bounds_check_attr_ref(t);
       break;
    default:
       break;

@@ -34,6 +34,7 @@ bool folded_length(range_t r, int64_t *l);
 bool folded_enum(tree_t t, unsigned *pos);
 bool folded_bounds(range_t r, int64_t *low, int64_t *high);
 tree_t get_int_lit(tree_t t, int64_t i);
+tree_t get_bool_lit(tree_t t, bool v);
 tree_t get_real_lit(tree_t t, double r);
 const char *package_signal_path_name(ident_t i);
 bool parse_value(type_t type, const char *str, int64_t *value);
@@ -99,7 +100,13 @@ typedef enum {
    ATTR_DELAYED,
    ATTR_STABLE,
    ATTR_QUIET,
-   ATTR_TRANSACTION
+   ATTR_TRANSACTION,
+   ATTR_LENGTH,
+   ATTR_LEFT,
+   ATTR_LOW,
+   ATTR_HIGH,
+   ATTR_RIGHT,
+   ATTR_ASCENDING
 } predef_attr_t;
 
 //

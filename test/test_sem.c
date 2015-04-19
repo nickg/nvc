@@ -13,7 +13,6 @@ START_TEST(test_integer)
 {
    tree_t a, d, p, s, e;
    type_t t;
-   range_t r;
 
    input_from_file(TESTDIR "/sem/integer.vhd");
 
@@ -72,20 +71,6 @@ START_TEST(test_integer)
    p = tree_stmt(a, 5);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_decls(p) == 1);
-
-   d = tree_decl(p, 0);
-   r = type_dim(tree_type(d), 0);
-
-   s = tree_stmt(p, 0);
-   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
-   fail_unless(tree_value(tree_value(s)) == r.left);
-   s = tree_stmt(p, 1);
-   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
-   fail_unless(tree_value(tree_value(s)) == r.right);
-   s = tree_stmt(p, 2);
-   fail_unless(tree_kind(tree_value(s)) == T_ATTR_REF);
-   fail_unless(tree_value(tree_value(s)) == r.right);
-
 }
 END_TEST
 
@@ -1005,7 +990,7 @@ START_TEST(test_attr)
       {  65, "expected attribute type INTEGER" },
       {  66, "expected attribute type STRING" },
       {  67, "no visible declaration for Q" },
-      {  85, "parameter must be locally static" },
+      {  85, "dimension of attribute LEFT must be locally static" },
       { 127, "cannot index non-array type universal integer" },
       { 133, "class of object I is variable not signal" },
       { 140, "prefix of attribute LAST_EVENT must denote a signal" },

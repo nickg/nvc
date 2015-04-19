@@ -222,8 +222,89 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
       return tree_value(t);
 
    const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
-   if (predef == ATTR_DELAYED || predef == ATTR_TRANSACTION)
+   switch (predef) {
+   case ATTR_DELAYED:
+   case ATTR_TRANSACTION:
       return simp_attr_delayed_transaction(t, predef, ctx);
+
+   case ATTR_LENGTH:
+   case ATTR_LEFT:
+   case ATTR_LOW:
+   case ATTR_HIGH:
+   case ATTR_RIGHT:
+   case ATTR_ASCENDING:
+      {
+         tree_t name = tree_name(t);
+
+         if (tree_kind(name) != T_REF)
+            return t;   // Cannot fold this
+
+         type_t type = tree_type(name);
+         int64_t dim_i = 1;
+
+         if (type_kind(type) == T_ENUM) {
+            // Enumeration subtypes are handled below
+            const int nlits = type_enum_literals(type);
+
+            switch (predef) {
+            case ATTR_LEFT:
+            case ATTR_LOW:
+               return make_ref(type_enum_literal(type, 0));
+            case ATTR_RIGHT:
+            case ATTR_HIGH:
+               return make_ref(type_enum_literal(type, nlits - 1));
+            case ATTR_ASCENDING:
+               return get_bool_lit(t, true);
+            default:
+               fatal_trace("invalid enumeration attribute %d", predef);
+            }
+         }
+
+         if (type_is_array(type)) {
+            if (tree_params(t) > 0) {
+               const bool f = folded_int(tree_value(tree_param(t, 0)), &dim_i);
+               assert(f);
+            }
+
+            if (type_is_unconstrained(type))
+               return t;
+
+            if (dim_i < 1 || dim_i > type_dims(type))
+               return t;
+         }
+
+         range_t r = type_dim(type, dim_i - 1);
+
+         const bool known_dir =
+            (r.kind == RANGE_TO) || (r.kind == RANGE_DOWNTO);
+
+         if (predef == ATTR_LENGTH && known_dir) {
+            if (tree_kind(r.left) == T_LITERAL
+                && tree_kind(r.right) == T_LITERAL) {
+               int64_t low, high;
+               range_bounds(r, &low, &high);
+               return get_int_lit(t, (high < low) ? 0 : high - low + 1);
+            }
+            else
+               return t;
+         }
+         else if (predef == ATTR_LOW && known_dir)
+            return (r.kind == RANGE_TO) ? r.left : r.right;
+         else if (predef == ATTR_HIGH && known_dir)
+            return (r.kind == RANGE_TO) ? r.right : r.left;
+         else if (predef == ATTR_LEFT)
+            return r.left;
+         else if (predef == ATTR_RIGHT)
+            return r.right;
+         else if (predef == ATTR_ASCENDING && known_dir)
+            return get_bool_lit(t, (r.kind == RANGE_TO));
+         else
+            return t;
+      }
+
+   default:
+      break;
+   }
 
    if (tree_has_ref(t)) {
       tree_t decl = tree_ref(t);
@@ -548,15 +629,15 @@ static tree_t simp_for(tree_t t)
 
    tree_t next;
    if ((r.kind == RANGE_DYN) || (r.kind == RANGE_RDYN)) {
-      assert(tree_kind(r.left) == T_FCALL);
-      tree_t p = tree_param(r.left, 1);
+      assert(tree_kind(r.left) == T_ATTR_REF);
+      tree_t base = tree_name(r.left);
 
       tree_t dim = tree_new(T_LITERAL);
       tree_set_subkind(dim, L_INT);
       tree_set_ival(dim, 1);
       tree_set_type(dim, type_universal_int());
 
-      tree_t asc = call_builtin("ascending", NULL, dim, tree_value(p), NULL);
+      tree_t asc = call_builtin("ascending", NULL, dim, base, NULL);
       next = tree_new(T_IF);
       tree_set_value(next, asc);
       tree_set_ident(next, ident_uniq("for_next"));
