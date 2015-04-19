@@ -870,28 +870,6 @@ static void sem_declare_predefined_ops(tree_t decl)
    default:
       break;
    }
-
-   // Predefined attributes
-
-   switch (type_kind(type_base_recur(t))) {
-   case T_INTEGER:
-   case T_PHYSICAL:
-   case T_ENUM:
-      {
-         ident_t pos_i = ident_new("POS");
-         tree_add_attr_tree(decl, pos_i,
-                            sem_builtin_fn(pos_i, std_int, "pos", t, t, NULL));
-
-         ident_t val_i = ident_new("VAL");
-         tree_add_attr_tree(decl, val_i,
-                            sem_builtin_fn(val_i, t, "val",
-                                           type_universal_int(), t, NULL));
-      }
-      break;
-
-   default:
-      break;
-   }
 }
 
 static bool sem_check_resolution(type_t type)
@@ -4782,45 +4760,51 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_LEFTOF;
    else if (icmp(ident, "RIGHTOF"))
       return ATTR_RIGHTOF;
+   else if (icmp(ident, "POS"))
+      return ATTR_POS;
+   else if (icmp(ident, "VAL"))
+      return ATTR_VAL;
    else
       return (predef_attr_t)-1;
 }
 
-static bool sem_check_dimension_attr(tree_t t)
-{
-   const int nparams = tree_params(t);
-   if (nparams == 1) {
-      type_t std_int = sem_std_type("INTEGER");
-
-      tree_t dim = tree_value(tree_param(t, 0));
-      if (!sem_check_constrained(dim, std_int))
-         return false;
-
-      if (!type_is_array(tree_type(tree_name(t))))
-         sem_error(t, "prefix of attribute %s with dimension is not an array",
-                   istr(tree_ident(t)));
-
-      if (!type_eq(tree_type(dim), std_int))
-         sem_error(dim, "dimension argument must have type %s",
-                   sem_type_str(std_int));
-
-      if (!sem_locally_static(dim))
-         sem_error(dim, "dimension of attribute %s must be locally "
-                   "static", istr(tree_ident(t)));
-   }
-   else if (nparams > 1)
-      sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
-
-   return true;
-}
-
-static bool sem_check_attr_param_count(tree_t t, int min, int max)
+static bool sem_check_attr_param(tree_t t, type_t expect, int min, int max)
 {
    const int nparams = tree_params(t);
    if (nparams == 0 && min > 0)
       sem_error(t, "attribute %s requires a parameter", istr(tree_ident(t)));
    else if (nparams > max)
       sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
+   else if (nparams == 1) {
+      tree_t dim = tree_value(tree_param(t, 0));
+      if (!sem_check_constrained(dim, expect))
+         return false;
+
+      tree_t value = tree_value(tree_param(t, 0));
+      if (!type_eq(tree_type(value), expect))
+         sem_error(t, "expected type %s for attribute %s parameter but "
+                   "have %s", sem_type_str(expect), istr(tree_ident(t)),
+                   sem_type_str(tree_type(value)));
+   }
+
+   return true;
+}
+
+static bool sem_check_dimension_attr(tree_t t)
+{
+   if (!sem_check_attr_param(t, sem_std_type("INTEGER"), 0, 1))
+      return false;
+
+   if (tree_params(t) > 0) {
+      if (!type_is_array(tree_type(tree_name(t))))
+         sem_error(t, "prefix of attribute %s with dimension is not an array",
+                   istr(tree_ident(t)));
+
+      tree_t dim = tree_value(tree_param(t, 0));
+      if (!sem_locally_static(dim))
+         sem_error(dim, "dimension of attribute %s must be locally "
+                   "static", istr(tree_ident(t)));
+   }
 
    return true;
 }
@@ -4925,7 +4909,7 @@ static bool sem_check_attr_ref(tree_t t)
       }
 
    case ATTR_LAST_EVENT:
-      if (!sem_check_attr_param_count(t, 0, 0))
+      if (!sem_check_attr_param(t, NULL, 0, 0))
          return false;
 
       if (!sem_check_signal_attr(t))
@@ -5013,20 +4997,10 @@ static bool sem_check_attr_ref(tree_t t)
             sem_error(t, "cannot use attribute %s with non-scalar type %s",
                       sem_type_str(name_type), istr(attr));
 
-         if (!sem_check_attr_param_count(t, 1, 1))
-            return false;
-
          type_t std_string = sem_std_type("STRING");
          type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
-
-         tree_t value = tree_value(tree_param(t, 0));
-         if (!sem_check_constrained(value, arg_type))
+         if (!sem_check_attr_param(t, arg_type, 1, 1))
             return false;
-
-         if (!type_eq(tree_type(value), arg_type))
-            sem_error(t, "expected type %s for attribute %s parameter but "
-                      "have %s", sem_type_str(arg_type), istr(attr),
-                      sem_type_str(tree_type(value)));
 
          tree_set_type(t, predef == ATTR_IMAGE ? std_string : name_type);
          return true;
@@ -5036,29 +5010,26 @@ static bool sem_check_attr_ref(tree_t t)
    case ATTR_RIGHTOF:
    case ATTR_PRED:
    case ATTR_SUCC:
+   case ATTR_POS:
+   case ATTR_VAL:
       {
          if (decl == NULL || tree_kind(decl) != T_TYPE_DECL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 
          type_t name_type = tree_type(name);
-         if (!type_is_integer(name_type) && !type_is_enum(name_type)
-             && !type_is_physical(name_type))
+
+         if (!type_is_discrete(name_type) && !type_is_physical(name_type))
             sem_error(t, "prefix of attribute %s must be a discrete or "
                       "physical type", istr(attr));
 
-         if (!sem_check_attr_param_count(t, 1, 1))
+         type_t uint = type_universal_int();
+         type_t arg_type = predef == ATTR_VAL ? uint : name_type;
+         type_t result_type = predef == ATTR_POS ? uint : name_type;
+
+         if (!sem_check_attr_param(t, arg_type, 1, 1))
             return false;
 
-         tree_t value = tree_value(tree_param(t, 0));
-         if (!sem_check_constrained(value, name_type))
-            return false;
-
-         if (!type_eq(tree_type(value), name_type))
-            sem_error(t, "expected type %s for attribute %s parameter but "
-                      "have %s", sem_type_str(name_type), istr(attr),
-                      sem_type_str(tree_type(value)));
-
-         tree_set_type(t, name_type);
+         tree_set_type(t, result_type);
          return true;
       }
 

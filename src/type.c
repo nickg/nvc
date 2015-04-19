@@ -669,6 +669,12 @@ bool type_is_enum(type_t t)
    return type_base_kind(t) == T_ENUM;
 }
 
+bool type_is_discrete(type_t t)
+{
+   const type_kind_t base = type_base_kind(t);
+   return base == T_INTEGER || base == T_ENUM;
+}
+
 bool type_is_physical(type_t t)
 {
    return type_base_kind(t) == T_PHYSICAL;

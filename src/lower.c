@@ -1170,23 +1170,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return lower_bit_vec_op(BIT_VEC_NAND, r0, r1, fcall);
    else if (icmp(builtin, "v_nor"))
       return lower_bit_vec_op(BIT_VEC_NOR, r0, r1, fcall);
-   else if (icmp(builtin, "val")) {
-      type_t f_type = tree_type(fcall);
-      lower_check_scalar_bounds(r0, f_type, fcall, NULL);
-      return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
-   }
-   else if (icmp(builtin, "pos")) {
-      type_t f_type = tree_type(fcall);
-      return emit_cast(lower_type(f_type), lower_bounds(f_type), r0);
-   }
-   else if (icmp(builtin, "value")) {
-      type_t f_type = tree_type(fcall);
-      vcode_reg_t reg = emit_value(lower_array_data(r0),
-                                   lower_array_len(r0_type, 0, r0),
-                                   tree_index(fcall));
-      lower_check_scalar_bounds(reg, f_type, fcall, NULL);
-      return emit_cast(lower_type(f_type), lower_bounds(f_type), reg);
-   }
    else if (icmp(builtin, "sll"))
       return lower_bit_shift(BIT_SHIFT_SLL, r0, r0_type, r1);
    else if (icmp(builtin, "srl"))
@@ -2564,6 +2547,25 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          range_t r = type_dim(tree_type(expr), 0);
          const int dir = (r.kind == RANGE_TO ? 1 : -1);
          return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+      }
+
+   case ATTR_POS:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+
+         type_t type = tree_type(expr);
+         return emit_cast(lower_type(type), lower_bounds(type), arg);
+      }
+
+   case ATTR_VAL:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+
+         type_t type = tree_type(expr);
+         lower_check_scalar_bounds(arg, type, expr, NULL);
+         return emit_cast(lower_type(type), lower_bounds(type), arg);
       }
 
    default:

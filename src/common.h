@@ -115,7 +115,9 @@ typedef enum {
    ATTR_SUCC,
    ATTR_PRED,
    ATTR_LEFTOF,
-   ATTR_RIGHTOF
+   ATTR_RIGHTOF,
+   ATTR_POS,
+   ATTR_VAL
 } predef_attr_t;
 
 //
