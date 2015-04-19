@@ -5712,11 +5712,13 @@ static bool sem_globally_static(tree_t t)
          switch (tree_kind(name)) {
          case T_REF:
             {
-               const tree_kind_t dkind = tree_kind(tree_ref(name));
+               tree_t decl = tree_ref(name);
+               const tree_kind_t dkind = tree_kind(decl);
                if (dkind == T_VAR_DECL && type_is_access(tree_type(name)))
                   return false;
                else if (dkind == T_PORT_DECL)
-                  return tree_class(tree_ref(name)) == C_CONSTANT;
+                  return tree_class(decl) == C_CONSTANT
+                     || !type_is_unconstrained(tree_type(decl));
                else
                   return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
                      || dkind == T_TYPE_DECL || dkind == T_VAR_DECL;
