@@ -231,30 +231,7 @@ bool folded_bool(tree_t t, bool *b)
 
 tree_t get_bool_lit(tree_t t, bool v)
 {
-   type_t bool_type = NULL;
-   if (!tree_has_type(t)) {
-      printf("XXX: doing get_bool_lit hack\n");
-      fmt_loc(stdout, tree_loc(t));
-
-      if (bool_type == NULL) {
-         lib_t std = lib_find("std", true, true);
-         assert(std != NULL);
-
-         tree_t standard = lib_get(std, ident_new("STD.STANDARD"));
-         assert(standard != NULL);
-
-         const int ndecls = tree_decls(standard);
-         for (int i = 0; (i < ndecls) && (bool_type == NULL); i++) {
-            tree_t d = tree_decl(standard, i);
-            if (tree_ident(d) == std_bool_i)
-               bool_type = tree_type(d);
-         }
-         assert(bool_type != NULL);
-      }
-   }
-   else
-      bool_type = tree_type(t);
-
+   type_t bool_type = tree_type(t);
    tree_t lit = type_enum_literal(bool_type, v ? 1 : 0);
 
    tree_t b = tree_new(T_REF);
