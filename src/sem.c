@@ -873,57 +873,11 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    // Predefined attributes
 
-   switch (kind) {
-   case T_ENUM:
-      {
-         tree_t left  = type_enum_literal(t, 0);
-         tree_t right = type_enum_literal(t, type_enum_literals(t) - 1);
-         tree_add_attr_tree(decl, ident_new("LEFT"), make_ref(left));
-         tree_add_attr_tree(decl, ident_new("RIGHT"), make_ref(right));
-         tree_add_attr_tree(decl, ident_new("LOW"), make_ref(left));
-         tree_add_attr_tree(decl, ident_new("HIGH"), make_ref(right));
-
-         tree_t image = sem_builtin_fn(ident_new("IMAGE"),
-                                       std_string, "image", t, t, NULL);
-         tree_add_attr_tree(decl, ident_new("IMAGE"), image);
-
-         ident_t pos_i = ident_new("POS");
-         tree_add_attr_tree(decl, pos_i,
-                            sem_builtin_fn(pos_i, std_int, "pos", t, t, NULL));
-
-         ident_t val_i = ident_new("VAL");
-         tree_add_attr_tree(decl, val_i,
-                            sem_builtin_fn(val_i, t, "val",
-                                           type_universal_int(), t, NULL));
-      }
-      break;
-
-   default:
-      break;
-   }
-
    switch (type_kind(type_base_recur(t))) {
    case T_INTEGER:
    case T_PHYSICAL:
    case T_ENUM:
       {
-         ident_t succ_i = ident_new("SUCC");
-         tree_add_attr_tree(decl, succ_i,
-                            sem_builtin_fn(succ_i, t, "succ", t, t, NULL));
-
-         ident_t pred_i = ident_new("PRED");
-         tree_add_attr_tree(decl, pred_i,
-                            sem_builtin_fn(pred_i, t, "pred", t, t, NULL));
-
-         ident_t leftof_i = ident_new("LEFTOF");
-         tree_add_attr_tree(decl, leftof_i,
-                            sem_builtin_fn(leftof_i, t, "leftof", t, t, NULL));
-
-         ident_t rightof_i = ident_new("RIGHTOF");
-         tree_add_attr_tree(decl, rightof_i,
-                            sem_builtin_fn(rightof_i, t, "rightof",
-                                           t, t, NULL));
-
          ident_t pos_i = ident_new("POS");
          tree_add_attr_tree(decl, pos_i,
                             sem_builtin_fn(pos_i, std_int, "pos", t, t, NULL));
@@ -4820,6 +4774,14 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_DRIVING;
    else if (icmp(ident, "VALUE"))
       return ATTR_VALUE;
+   else if (icmp(ident, "SUCC"))
+      return ATTR_SUCC;
+   else if (icmp(ident, "PRED"))
+      return ATTR_PRED;
+   else if (icmp(ident, "LEFTOF"))
+      return ATTR_LEFTOF;
+   else if (icmp(ident, "RIGHTOF"))
+      return ATTR_RIGHTOF;
    else
       return (predef_attr_t)-1;
 }
@@ -4847,6 +4809,17 @@ static bool sem_check_dimension_attr(tree_t t)
                    "static", istr(tree_ident(t)));
    }
    else if (nparams > 1)
+      sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
+
+   return true;
+}
+
+static bool sem_check_attr_param_count(tree_t t, int min, int max)
+{
+   const int nparams = tree_params(t);
+   if (nparams == 0 && min > 0)
+      sem_error(t, "attribute %s requires a parameter", istr(tree_ident(t)));
+   else if (nparams > max)
       sem_error(t, "too many parameters for attribute %s", istr(tree_ident(t)));
 
    return true;
@@ -4952,6 +4925,9 @@ static bool sem_check_attr_ref(tree_t t)
       }
 
    case ATTR_LAST_EVENT:
+      if (!sem_check_attr_param_count(t, 0, 0))
+         return false;
+
       if (!sem_check_signal_attr(t))
          return false;
 
@@ -4984,6 +4960,7 @@ static bool sem_check_attr_ref(tree_t t)
          tree_set_type(t, sem_std_type("STRING"));
          return true;
       }
+
    case ATTR_DELAYED:
    case ATTR_STABLE:
    case ATTR_QUIET:
@@ -5028,7 +5005,7 @@ static bool sem_check_attr_ref(tree_t t)
    case ATTR_IMAGE:
    case ATTR_VALUE:
       {
-         if (tree_kind(decl) != T_TYPE_DECL)
+         if (decl == NULL || tree_kind(decl) != T_TYPE_DECL)
             sem_error(t, "prefix of attribute %s must be a type", istr(attr));
 
          type_t name_type = tree_type(name);
@@ -5036,11 +5013,8 @@ static bool sem_check_attr_ref(tree_t t)
             sem_error(t, "cannot use attribute %s with non-scalar type %s",
                       sem_type_str(name_type), istr(attr));
 
-         const int nparams = tree_params(t);
-         if (nparams == 0)
-            sem_error(t, "attribute %s requires a parameter", istr(attr));
-         else if (nparams > 1)
-            sem_error(t, "too many parameters for attribute %s", istr(attr));
+         if (!sem_check_attr_param_count(t, 1, 1))
+            return false;
 
          type_t std_string = sem_std_type("STRING");
          type_t arg_type = predef == ATTR_IMAGE ? name_type : std_string;
@@ -5055,6 +5029,36 @@ static bool sem_check_attr_ref(tree_t t)
                       sem_type_str(tree_type(value)));
 
          tree_set_type(t, predef == ATTR_IMAGE ? std_string : name_type);
+         return true;
+      }
+
+   case ATTR_LEFTOF:
+   case ATTR_RIGHTOF:
+   case ATTR_PRED:
+   case ATTR_SUCC:
+      {
+         if (decl == NULL || tree_kind(decl) != T_TYPE_DECL)
+            sem_error(t, "prefix of attribute %s must be a type", istr(attr));
+
+         type_t name_type = tree_type(name);
+         if (!type_is_integer(name_type) && !type_is_enum(name_type)
+             && !type_is_physical(name_type))
+            sem_error(t, "prefix of attribute %s must be a discrete or "
+                      "physical type", istr(attr));
+
+         if (!sem_check_attr_param_count(t, 1, 1))
+            return false;
+
+         tree_t value = tree_value(tree_param(t, 0));
+         if (!sem_check_constrained(value, name_type))
+            return false;
+
+         if (!type_eq(tree_type(value), name_type))
+            sem_error(t, "expected type %s for attribute %s parameter but "
+                      "have %s", sem_type_str(name_type), istr(attr),
+                      sem_type_str(tree_type(value)));
+
+         tree_set_type(t, name_type);
          return true;
       }
 

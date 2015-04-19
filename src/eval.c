@@ -222,10 +222,6 @@ static tree_t eval_fcall_int(tree_t t, ident_t builtin, int64_t *args, int n)
 
       return get_int_lit(t, result);
    }
-   else if (icmp(builtin, "succ"))
-      return get_int_lit(t, args[0] + 1);
-   else if (icmp(builtin, "pred"))
-      return get_int_lit(t, args[0] - 1);
    else if (icmp(builtin, "min")) {
       assert(n > 0);
       int64_t r = args[0];

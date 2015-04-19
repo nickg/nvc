@@ -616,49 +616,39 @@ const char *type_pp(type_t t)
    return type_pp_minify(t, type_minify_identity);
 }
 
-bool type_is_array(type_t t)
+static type_kind_t type_base_kind(type_t t)
 {
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE)
-      return type_is_array(type_base(t));
+      return type_base_kind(type_base(t));
    else
-      return (t->object.kind == T_CARRAY || t->object.kind == T_UARRAY);
+      return t->object.kind;
+}
+
+bool type_is_array(type_t t)
+{
+   const type_kind_t base = type_base_kind(t);
+   return base == T_CARRAY || base == T_UARRAY;
 }
 
 bool type_is_record(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_record(type_base(t));
-   else
-      return (t->object.kind == T_RECORD);
+   return type_base_kind(t) == T_RECORD;
 }
 
 bool type_is_protected(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_protected(type_base(t));
-   else
-      return (t->object.kind == T_PROTECTED);
+   return type_base_kind(t) == T_PROTECTED;
 }
 
 bool type_is_file(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_file(type_base(t));
-   else
-      return (t->object.kind == T_FILE);
+   return type_base_kind(t) == T_FILE;
 }
 
 bool type_is_access(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_access(type_base(t));
-   else
-      return (t->object.kind == T_ACCESS);
+   return type_base_kind(t) == T_ACCESS;
 }
 
 bool type_is_unconstrained(type_t t)
@@ -676,41 +666,29 @@ bool type_is_unconstrained(type_t t)
 
 bool type_is_enum(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_enum(type_base(t));
-   else
-      return (t->object.kind == T_ENUM);
+   return type_base_kind(t) == T_ENUM;
+}
+
+bool type_is_physical(type_t t)
+{
+   return type_base_kind(t) == T_PHYSICAL;
 }
 
 bool type_is_integer(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_integer(type_base(t));
-   else
-      return (t->object.kind == T_INTEGER);
+   return type_base_kind(t) == T_INTEGER;
 }
 
 bool type_is_real(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_real(type_base(t));
-   else
-      return (t->object.kind == T_REAL);
+   return type_base_kind(t) == T_REAL;
 }
 
 bool type_is_scalar(type_t t)
 {
-   assert(t != NULL);
-   if (t->object.kind == T_SUBTYPE)
-      return type_is_scalar(type_base(t));
-   else
-      return (t->object.kind == T_INTEGER)
-         || (t->object.kind == T_REAL)
-         || (t->object.kind == T_ENUM)
-         || (t->object.kind == T_PHYSICAL);
+   const type_kind_t base = type_base_kind(t);
+   return base == T_INTEGER || base == T_REAL
+      || base == T_ENUM || base == T_PHYSICAL;
 }
 
 type_t type_base_recur(type_t t)

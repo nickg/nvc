@@ -137,6 +137,7 @@ bool type_is_scalar(type_t t);
 bool type_is_file(type_t t);
 bool type_is_protected(type_t t);
 bool type_is_access(type_t t);
+bool type_is_physical(type_t t);
 
 // Helper to find ultimate base type
 type_t type_base_recur(type_t t);

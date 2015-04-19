@@ -1106,20 +1106,6 @@ static vcode_reg_t lower_builtin(tree_t fcall, ident_t builtin)
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LEQ));
    else if (icmp(builtin, "ageq"))
       return emit_not(lower_array_cmp(r0, r1, r0_type, r1_type, VCODE_CMP_LT));
-   else if (icmp(builtin, "succ"))
-      return emit_add(r0, emit_const(vcode_reg_type(r0), 1));
-   else if (icmp(builtin, "pred"))
-      return emit_sub(r0, emit_const(vcode_reg_type(r0), 1));
-   else if (icmp(builtin, "leftof")) {
-      range_t r = type_dim(tree_type(fcall), 0);
-      const int dir = (r.kind == RANGE_TO ? -1 : 1);
-      return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
-   }
-   else if (icmp(builtin, "rightof")) {
-      range_t r = type_dim(tree_type(fcall), 0);
-      const int dir = (r.kind == RANGE_TO ? 1 : -1);;
-      return emit_add(r0, emit_const(vcode_reg_type(r0), dir));
-   }
    else if (icmp(builtin, "req"))
       return lower_logical(fcall, lower_record_eq(r0, r1, r0_type));
    else if (icmp(builtin, "rneq"))
@@ -2544,6 +2530,40 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
                                       tree_index(expr));
          lower_check_scalar_bounds(reg, name_type, expr, NULL);
          return emit_cast(lower_type(name_type), lower_bounds(name_type), reg);
+      }
+
+   case ATTR_SUCC:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+         return emit_add(arg, emit_const(vcode_reg_type(arg), 1));
+      }
+
+   case ATTR_PRED:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+         return emit_sub(arg, emit_const(vcode_reg_type(arg), 1));
+      }
+
+   case ATTR_LEFTOF:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+
+         range_t r = type_dim(tree_type(expr), 0);
+         const int dir = (r.kind == RANGE_TO ? -1 : 1);
+         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
+      }
+
+   case ATTR_RIGHTOF:
+      {
+         tree_t value = tree_value(tree_param(expr, 0));
+         vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
+
+         range_t r = type_dim(tree_type(expr), 0);
+         const int dir = (r.kind == RANGE_TO ? 1 : -1);
+         return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
       }
 
    default:

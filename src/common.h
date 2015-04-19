@@ -111,7 +111,11 @@ typedef enum {
    ATTR_LAST_ACTIVE,
    ATTR_DRIVING,
    ATTR_DRIVING_VALUE,
-   ATTR_VALUE
+   ATTR_VALUE,
+   ATTR_SUCC,
+   ATTR_PRED,
+   ATTR_LEFTOF,
+   ATTR_RIGHTOF
 } predef_attr_t;
 
 //
