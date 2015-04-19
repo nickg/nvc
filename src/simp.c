@@ -306,27 +306,6 @@ static tree_t simp_attr_ref(tree_t t, simp_ctx_t *ctx)
       break;
    }
 
-   if (tree_has_ref(t)) {
-      tree_t decl = tree_ref(t);
-      assert(tree_kind(decl) == T_FUNC_DECL);
-
-      ident_t builtin = tree_attr_str(decl, ident_new("builtin"));
-      assert(builtin != NULL);
-
-      // Convert attributes like 'EVENT to function calls
-      tree_t fcall = tree_new(T_FCALL);
-      tree_set_loc(fcall, tree_loc(t));
-      tree_set_type(fcall, tree_type(t));
-      tree_set_ident(fcall, tree_ident(t));
-      tree_set_ref(fcall, decl);
-
-      const int nparams = tree_params(t);
-      for (int i = 0; i < nparams; i++)
-         tree_add_param(fcall, tree_param(t, i));
-
-      return simp_fcall(fcall);
-   }
-
    return t;
 }
 

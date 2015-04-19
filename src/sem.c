@@ -5070,104 +5070,7 @@ static bool sem_check_attr_ref(tree_t t)
       sem_error(t, "object %s has no attribute %s",
                 istr(tree_ident(decl)), istr(attr));
 
-   if (tree_kind(a) == T_FUNC_DECL) {
-      type_t ftype = tree_type(a);
-
-      char *buf LOCAL = xasprintf("_arg%d", tree_ports(a) - 1);
-      ident_t pname = ident_new(buf);
-
-      // For an expression X'A(..) add X as a final parameter
-      bool already_added = false;
-      for (int i = 0; (i < tree_params(t)) && !already_added; i++) {
-         tree_t p = tree_param(t, i);
-         if ((tree_subkind(p) == P_NAMED)
-             && (tree_ident(tree_name(p)) == pname))
-            already_added = true;
-      }
-
-      if (!already_added)
-         add_param(t, name, P_NAMED, make_ref(tree_port(a, tree_ports(a) - 1)));
-
-      sem_copy_default_args(t, a);
-
-      const int nports  = tree_ports(a);
-      const int nparams = tree_params(t);
-
-      if (nparams != type_params(ftype))
-         sem_error(t, "expected %d parameters for attribute %s "
-                   "but have %d", type_params(ftype), istr(attr), nparams);
-
-      for (int i = 0; i < nparams; i++) {
-         tree_t p = tree_param(t, i);
-
-         int pindex = -1;
-         if (tree_subkind(p) == P_POS)
-            pindex = i;
-         else {
-            assert(tree_subkind(p) == P_NAMED);
-
-            tree_t name = tree_name(p);
-            assert(tree_kind(name) == T_REF);
-
-            if (tree_ident(name) == pname)
-               continue;
-
-            for (int j = 0; (j < nports) && (pindex == -1); j++) {
-               if (tree_ident(tree_port(a, j)) == tree_ident(name))
-                  pindex = j;
-            }
-            assert(pindex != -1);
-         }
-
-         tree_t value = tree_value(p);
-
-         type_t expect_type = type_param(ftype, pindex);
-         if (!sem_check_constrained(value, expect_type))
-            return false;
-
-         if (!type_eq(tree_type(value), expect_type))
-            sem_error(t, "expected type %s for attribute %s but found %s",
-                      sem_type_str(expect_type), istr(attr),
-                      sem_type_str(tree_type(value)));
-
-         // Check cases where a dimension must be locally static
-         tree_t port = tree_port(a, pindex);
-         if (tree_attr_int(port, locally_static_i, 0)) {
-            if (!sem_locally_static(value))
-               sem_error(p, "parameter must be locally static");
-         }
-      }
-
-      type_t result_type = type_result(ftype);
-      if (type_kind(result_type) == T_NONE) {
-         // This is a kludge to handle the result type of 'LEFT, etc. for
-         // arrays being dependent on the dimension argument
-
-         type_t array_type = tree_type(decl);
-         if (type_kind(array_type) == T_ACCESS)
-            array_type = type_access(array_type);
-         assert(type_is_array(array_type));
-
-         ident_t arg0_i = ident_new("_arg0");
-         for (int i = 0; i < nparams; i++) {
-            tree_t p = tree_param(t, i);
-            if ((tree_subkind(p) != P_POS)
-                && (tree_ident(tree_name(p)) != arg0_i))
-               continue;
-
-            tree_t pv = tree_value(p);
-            if (tree_kind(pv) != T_LITERAL)
-               sem_error(pv, "dimension argument must be a literal");
-            else
-               result_type = index_type_of(array_type, tree_ival(pv) - 1);
-         }
-      }
-
-      tree_set_type(t, result_type);
-
-      tree_set_ref(t, a);
-   }
-   else if (!allow_user)
+   if (!allow_user)
       sem_error(t, "prefix of user defined attribute reference cannot "
                 "denote a sub-element or slice of an object");
    else if (tree_params(t) > 0) {
@@ -5183,9 +5086,9 @@ static bool sem_check_attr_ref(tree_t t)
       return sem_check(t);
    }
    else {
+      // User defined attribute
       tree_set_value(t, a);
       tree_set_type(t, tree_type(a));
-      tree_set_ref(t, decl);
    }
 
    return true;
