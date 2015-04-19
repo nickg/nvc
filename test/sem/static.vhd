@@ -51,14 +51,20 @@ end architecture;
 -------------------------------------------------------------------------------
 
 entity sub is
+    generic ( N : integer );
     port ( x : bit_vector );
 end entity;
 
 architecture test of sub is
+    signal y : bit_vector(N - 1 downto 0) := (others => '0') ;
 begin
 
     sub_i: entity work.sub
+        generic map ( N => N )
         port map (
-            x => x(x'left downto x'right) );  -- OK
+            x => x(x'left downto x'right) );  -- Error
+
+    gen1: for i in y'range generate     -- OK
+    end generate;
 
 end architecture;

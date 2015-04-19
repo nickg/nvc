@@ -1317,6 +1317,7 @@ START_TEST(test_static)
    const error_t expect[] = {
       { 36, "case choice must be locally static" },
       { 42, "case choice must be locally static" },
+      { 65, "actual must be globally static expression or locally static" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1339,6 +1340,7 @@ START_TEST(test_static)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
+   sem_check(a);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

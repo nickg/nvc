@@ -5699,15 +5699,34 @@ static bool sem_globally_static(tree_t t)
    }
 
    if (kind == T_ATTR_REF) {
-      // A predefined attribute prefix has a globally static subtype
+      // A predefined attribute other than those listed below whose prefix
+      // is appropriate for a globally static attribute
       const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
           || predef == ATTR_DRIVING_VALUE)
          return false;   // Clause k
-      else if (predef != (predef_attr_t)-1)
-         return sem_globally_static(tree_name(t));
+      else if (predef != (predef_attr_t)-1) {
+         tree_t name = tree_name(t);
+         switch (tree_kind(name)) {
+         case T_REF:
+            {
+               const tree_kind_t dkind = tree_kind(tree_ref(name));
+               if (dkind == T_VAR_DECL && type_is_access(tree_type(name)))
+                  return false;
+               else if (dkind == T_PORT_DECL)
+                  return tree_class(tree_ref(name)) == C_CONSTANT;
+               else
+                  return dkind == T_CONST_DECL || dkind == T_SIGNAL_DECL
+                     || dkind == T_TYPE_DECL || dkind == T_VAR_DECL;
+            }
+         case T_FCALL:
+            return sem_globally_static(name);
+         default:
+            return false;
+         }
+      }
 
       // A user-defined attribute whose value is a globally static expression
       assert(tree_has_value(t));
