@@ -701,7 +701,6 @@ void intern_strings(void)
    builtin_i        = ident_new("builtin");
    std_standard_i   = ident_new("STD.STANDARD");
    formal_i         = ident_new("formal");
-   locally_static_i = ident_new("locally_static");
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
    shared_i         = ident_new("shared");

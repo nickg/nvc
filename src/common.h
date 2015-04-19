@@ -133,7 +133,6 @@ typedef enum {
 GLOBAL ident_t builtin_i;
 GLOBAL ident_t std_standard_i;
 GLOBAL ident_t formal_i;
-GLOBAL ident_t locally_static_i;
 GLOBAL ident_t elab_copy_i;
 GLOBAL ident_t all_i;
 GLOBAL ident_t shared_i;
