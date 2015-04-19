@@ -3383,9 +3383,6 @@ static LLVMValueRef cgen_support_fn(const char *name)
                            LLVMFunctionType(LLVMInt64Type(),
                                             args, ARRAY_LEN(args), false));
    }
-   else if (strcmp(name, "_std_standard_now") == 0)
-      fn = LLVMAddFunction(module, "_std_standard_now",
-                           LLVMFunctionType(LLVMInt64Type(), NULL, 0, false));
 
    if (fn != NULL)
       LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);

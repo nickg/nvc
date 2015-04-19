@@ -204,18 +204,19 @@ fi
 AC_SUBST(MAKEFLAGS)
 
 # Optional code coverage statistics
-AC_ARG_ENABLE([coverage],
-  [AS_HELP_STRING([--enable-coverage],
-    [Instrument compiler with gcov])],
-  [enable_coverage=$enableval],
+AC_ARG_ENABLE([gcov],
+  [AS_HELP_STRING([--enable-gcov],
+    [Instrument compiler with gcov (for development only)])],
+  [enable_gcov=$enableval],
   [])
-if test x$enable_coverage = xyes ; then
-  COV_CFLAGS="--coverage --no-inline"
+if test x$enable_gcov = xyes ; then
+  COV_CFLAGS="--coverage --no-inline -Og"
   COV_LDFLAGS="--coverage"
+  AC_MSG_WARN([code coverage with gcov is for use in development only])
 fi
 AC_SUBST(COV_CFLAGS)
 AC_SUBST(COV_LDFLAGS)
-AM_CONDITIONAL([ENABLE_COVERAGE], [test x$enable_coverage = xyes])
+AM_CONDITIONAL([ENABLE_GCOV], [test x$enable_gcov = xyes])
 
 AC_CHECK_PROG([RONN], [ronn], [1])
 AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])

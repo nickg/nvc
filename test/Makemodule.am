@@ -76,7 +76,7 @@ covdir = $(top_builddir)/coverage
 clean-test:
 	-test ! -d logs || rm -r logs
 
-if ENABLE_COVERAGE
+if ENABLE_GCOV
 
 cov-reset:
 	rm -rf $(covdir)

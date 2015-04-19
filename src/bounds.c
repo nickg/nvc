@@ -75,9 +75,6 @@ static tree_t bounds_check_call_args(tree_t t)
       tree_t value = tree_value(param);
       tree_t port  = tree_port(decl, tree_pos(param));
 
-      if (!tree_has_type(port) || !tree_has_type(value))
-         continue;
-
       type_t ftype = tree_type(port);
       type_t atype = tree_type(tree_value(param));
 
