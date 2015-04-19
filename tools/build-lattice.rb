@@ -27,6 +27,7 @@ puts "Using iCEcube2 installation in #{icecube}"
 $src = "#{icecube}/vhdl"
 
 $libdir = "#{File.expand_path '~'}/.nvc/lib"
+FileUtils.rm_r $libdir
 FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
