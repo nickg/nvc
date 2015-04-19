@@ -154,4 +154,11 @@ begin
         a(e'range) := "110101";           -- Error
     end process;
 
+    process is
+        function func(x : integer) return bit_vector;
+        variable a : bit_vector(1 to 10);
+    begin
+        a(func(4)'range) := (others => '1');  -- OK
+    end process;
+
 end architecture;

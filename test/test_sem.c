@@ -636,9 +636,9 @@ START_TEST(test_array)
       { 102, "named and positional associations cannot be mixed in" },
       { 111, "non-locally static choice must be only choice" },
       { 119, "type of slice prefix is not an array" },
-      { 120, "range direction of slice does not match prefix" },
+      { 120, "range direction of slice TO does not match prefix DOWNTO" },
       { 121, "others choice not allowed in this context" },
-      { 130, "range direction of slice does not match prefix" },
+      { 130, "range direction of slice DOWNTO does not match prefix TO" },
       { 207, "array BAD cannot have unconstrained element type" },
       { 215, "others choice not allowed in this context" },
       { 232, "aliased name is not static" },
@@ -998,9 +998,9 @@ START_TEST(test_attr)
       { 127, "cannot index non-array type universal integer" },
       { 133, "class of object I is variable not signal" },
       { 140, "prefix of attribute LAST_EVENT must denote a signal" },
-      { 152, "type BIT_VECTOR does not have a range" },
+      { 152, "attribute RANGE with unconstrained array type BIT_VECTOR" },
       { 153, "object B does not have a range" },
-      { 154, "object E does not have a range" },
+      { 154, "prefix does not have a range" },
       { -1, NULL }
    };
    expect_errors(expect);

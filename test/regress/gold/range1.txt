@@ -1,0 +1,17 @@
+0ms+0: Report Note: little_range = 00000000
+1ns+0: Report Note: stride = 7
+1ns+1: Report Note: little_range = 11111110
+2ns+0: Report Note: stride = 6
+2ns+1: Report Note: little_range = 11101101
+3ns+0: Report Note: stride = 5
+3ns+1: Report Note: little_range = 11111010
+4ns+0: Report Note: stride = 4
+4ns+1: Report Note: little_range = 11001110
+5ns+0: Report Note: stride = 3
+5ns+1: Report Note: little_range = 11011110
+6ns+0: Report Note: stride = 2
+6ns+1: Report Note: little_range = 10101101
+7ns+0: Report Note: stride = 1
+7ns+1: Report Note: little_range = 10111110
+8ns+0: Report Note: stride = 0
+8ns+1: Report Note: little_range = 11101111

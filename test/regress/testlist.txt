@@ -268,3 +268,4 @@ issue95         normal
 func16          normal
 issue123        normal
 issue126        normal
+range1          normal,gold

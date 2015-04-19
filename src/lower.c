@@ -179,13 +179,11 @@ static vcode_reg_t lower_range_dir(range_t r, int dim)
          assert(tree_kind(r.left) == T_ATTR_REF);
          assert(tree_kind(r.right) == T_ATTR_REF);
 
-         tree_t base_ref = tree_name(r.left);
-         assert(tree_kind(base_ref) == T_REF);
-
-         type_t base_type = tree_type(base_ref);
+         tree_t base_expr = tree_name(r.left);
+         type_t base_type = tree_type(base_expr);
          assert(type_is_array(base_type));
 
-         vcode_reg_t base_reg = lower_expr(base_ref, EXPR_RVALUE);
+         vcode_reg_t base_reg = lower_expr(base_expr, EXPR_RVALUE);
          assert(vtype_kind(vcode_reg_type(base_reg)) == VCODE_TYPE_UARRAY);
 
          vcode_reg_t base_dir = lower_array_dir(base_type, dim, base_reg);

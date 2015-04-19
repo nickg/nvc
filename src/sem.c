@@ -104,6 +104,7 @@ static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
+static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 
 static scope_t      *top_scope = NULL;
@@ -1103,80 +1104,49 @@ static bool sem_check_range(range_t *r, type_t context)
       tree_t expr = r->left;
       assert(r->right == NULL);
 
-      const bool is_attr_ref = (tree_kind(expr) == T_ATTR_REF);
-      const bool reverse =
-         is_attr_ref && (tree_ident(expr) == ident_new("REVERSE_RANGE"));
+      if (tree_kind(expr) != T_ATTR_REF) {
+         tree_t tmp = tree_new(T_ATTR_REF);
+         tree_set_name(tmp, expr);
+         tree_set_ident(tmp, ident_new("RANGE"));
+         tree_set_loc(tmp, tree_loc(expr));
 
-      assert(reverse || !is_attr_ref
-             || (tree_ident(expr) == ident_new("RANGE")));
-      assert(is_attr_ref || tree_kind(expr) == T_REF);
+         r->left = expr = tmp;
+      }
 
-      ident_t name =
-         is_attr_ref ? tree_ident(tree_name(expr)) : tree_ident(expr);
+      if (!sem_check_attr_ref(expr, true))
+         return false;
 
-      tree_t decl = scope_find(name);
-      if (decl == NULL)
-         sem_error(expr, "no visible declaration for %s", istr(name));
-
-      if (!class_has_type(class_of(decl)))
-         sem_error(expr, "object %s does not have a range", istr(name));
+      tree_t name = tree_name(expr);
 
       tree_t a = tree_new(T_ATTR_REF);
-      tree_set_name(a, make_ref(decl));
+      tree_set_name(a, name);
       tree_set_ident(a, ident_new("LEFT"));
       tree_set_loc(a, tree_loc(expr));
 
       tree_t b = tree_new(T_ATTR_REF);
-      tree_set_name(b, make_ref(decl));
+      tree_set_name(b, name);
       tree_set_ident(b, ident_new("RIGHT"));
       tree_set_loc(b, tree_loc(expr));
 
-      if (type_kind(tree_type(decl)) == T_ACCESS) {
-         sem_implicit_dereference(a, tree_name, tree_set_name);
-         sem_implicit_dereference(b, tree_name, tree_set_name);
-      }
+      const bool reverse = tree_ident(expr) == ident_new("REVERSE_RANGE");
 
-      type_t type = tree_type(tree_name(a));
-      const type_kind_t kind = type_kind(type);
-      const bool is_unconstrained = type_is_unconstrained(type);
-
-      bool is_static = false;
-
-      if (tree_kind(decl) == T_TYPE_DECL) {
-         if (kind == T_ENUM || kind == T_INTEGER || kind == T_SUBTYPE)
-            is_static = false;
-         else if (type_is_array(type) && !is_unconstrained)
-            is_static = true;
-         else
-            sem_error(expr, "type %s does not have a range", istr(name));
-      }
-      else if (kind == T_SUBTYPE || type_is_array(type))
-         is_static = !is_unconstrained;
-      else
-         sem_error(expr, "object %s does not have a range", istr(name));
-
-      if (is_static) {
-         range_t d0 = type_dim(type, 0);
-         *r = type_dim(type, 0);
-         if (reverse) {
-            r->left  = b;
-            r->right = a;
-            r->kind  = (d0.kind == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
-         }
-         else {
-            r->left  = a;
-            r->right = b;
-            r->kind  = d0.kind;
-         }
-      }
-      else {
+      type_t type = tree_type(name);
+      if (type_is_unconstrained(type)) {
          // If this is an unconstrained array then we can
          // only find out the direction at runtime
-         r->kind  = (type_is_array(type)
-                     ? (reverse ? RANGE_RDYN : RANGE_DYN)
-                     : (reverse ? RANGE_DOWNTO : RANGE_TO));
+         r->kind  = reverse ? RANGE_RDYN : RANGE_DYN;
          r->left  = a;
          r->right = b;
+      }
+      else {
+         range_kind_t dir =
+            type_is_enum(type) ? RANGE_TO : type_dim(type, 0).kind;
+         if (reverse)
+            dir = (dir == RANGE_TO) ? RANGE_DOWNTO : RANGE_TO;
+
+         r->left  = reverse ? b : a ;
+         r->right = reverse ? a : b;
+         r->kind  = dir;
       }
    }
 
@@ -4670,13 +4640,21 @@ static bool sem_check_array_slice(tree_t t)
 
    tree_set_range(t, r);
 
-   bool wrong_dir =
-      (type_kind(array_type) != T_UARRAY)
-      && (r.kind != type_dim(array_type, 0).kind)
-      && (type_dim(array_type, 0).kind != RANGE_DYN);
+   const bool unconstrained = type_is_unconstrained(array_type);
+   const range_kind_t prefix_dir =
+      unconstrained ? RANGE_EXPR : type_dim(array_type, 0).kind;
 
-   if (wrong_dir)
-      sem_error(t, "range direction of slice does not match prefix");
+   const bool wrong_dir =
+      !unconstrained
+      && r.kind != prefix_dir
+      && (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO)
+      && (prefix_dir == RANGE_TO || prefix_dir == RANGE_DOWNTO);
+
+   if (wrong_dir) {
+      const char *text[] = { "TO", "DOWNTO", "?", "??", "???" };
+      sem_error(t, "range direction of slice %s does not match prefix %s",
+                text[r.kind], text[prefix_dir]);
+   }
 
    type_t slice_type = type_new(T_SUBTYPE);
    type_set_ident(slice_type, type_ident(array_type));
@@ -4809,7 +4787,7 @@ static bool sem_check_dimension_attr(tree_t t)
    return true;
 }
 
-static bool sem_check_attr_ref(tree_t t)
+static bool sem_check_attr_ref(tree_t t, bool allow_range)
 {
    // Attribute names are in LRM 93 section 6.6
 
@@ -4846,6 +4824,40 @@ static bool sem_check_attr_ref(tree_t t)
    }
 
    ident_t attr = tree_ident(t);
+
+   if (icmp(attr, "RANGE") || icmp(attr, "REVERSE_RANGE")) {
+      if (!allow_range)
+         sem_error(t, "range expression not allowed here");
+
+      type_t name_type = tree_has_type(name) ? tree_type(name) : NULL;
+      const bool is_type_decl = decl != NULL && tree_kind(decl) == T_TYPE_DECL;
+      const bool is_discrete =
+         name_type != NULL && type_is_discrete(name_type);
+      const bool invalid =
+         name_type == NULL
+         || (!(is_discrete && is_type_decl) && !type_is_array(name_type));
+
+      if (invalid) {
+         if (decl != NULL && class_has_type(class_of(decl))) {
+            if (is_type_decl)
+               sem_error(t, "type %s does not have a range",
+                         sem_type_str(tree_type(decl)));
+            else
+               sem_error(t, "object %s does not have a range",
+                         istr(tree_ident(decl)));
+         }
+         else
+            sem_error(t, "prefix does not have a range");
+      }
+
+      if (decl != NULL && tree_kind(decl) == T_TYPE_DECL
+          && type_is_unconstrained(name_type))
+         sem_error(t, "cannot use attribute %s with unconstrained array "
+                   "type %s", istr(attr), sem_type_str(name_type));
+
+      return true;
+   }
+
    const predef_attr_t predef = sem_predefined_attr(attr);
 
    if (predef != (predef_attr_t)-1)
@@ -5061,9 +5073,6 @@ static bool sem_check_attr_ref(tree_t t)
                                // where prefix is slice or sub-element
       }
    }
-
-   if (icmp(attr, "range"))
-      sem_error(t, "range expression not allowed here");
 
    tree_t a = tree_attr_tree(decl, attr);
    if (a == NULL)
@@ -6499,7 +6508,7 @@ bool sem_check(tree_t t)
    case T_AGGREGATE:
       return sem_check_aggregate(t);
    case T_ATTR_REF:
-      return sem_check_attr_ref(t);
+      return sem_check_attr_ref(t, false);
    case T_ARRAY_REF:
       return sem_check_array_ref(t);
    case T_ARRAY_SLICE:
