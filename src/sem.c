@@ -4821,6 +4821,12 @@ static predef_attr_t sem_predefined_attr(ident_t ident)
       return ATTR_QUIET;
    else if (icmp(ident, "TRANSACTION"))
       return ATTR_TRANSACTION;
+   else if (icmp(ident, "DRIVING_VALUE"))
+      return ATTR_DRIVING_VALUE;
+   else if (icmp(ident, "LAST_ACTIVE"))
+      return ATTR_LAST_ACTIVE;
+   else if (icmp(ident, "DRIVING"))
+      return ATTR_DRIVING;
    else
       return (predef_attr_t)-1;
 }
@@ -5054,6 +5060,11 @@ static bool sem_check_attr_ref(tree_t t)
          tree_set_type(t, sem_std_type("STRING"));
          return true;
       }
+
+   case ATTR_DRIVING_VALUE:
+   case ATTR_LAST_ACTIVE:
+   case ATTR_DRIVING:
+      fatal_at(tree_loc(t), "sorry, attribute %s not implemented", istr(attr));
    }
 
    if (!sem_static_name(name))
@@ -5600,7 +5611,7 @@ static bool sem_locally_static(tree_t t)
    if (kind == T_ATTR_REF) {
       // A predefined attribute other than 'PATH_NAME whose prefix has a
       // locally static subtype
-      if (icmp(tree_ident(t), "PATH_NAME"))
+      if (tree_attr_int(t, builtin_i, -1) == ATTR_PATH_NAME)
          return false;
       else if (!tree_has_value(t)) {
          type_t type = tree_type(tree_ref(tree_name(t)));
@@ -5806,11 +5817,11 @@ static bool sem_globally_static(tree_t t)
    if (kind == T_ATTR_REF) {
       // A predefined attribute prefix has a globally static subtype
       tree_t decl = tree_ref(t);
-      ident_t attr = tree_ident(t);
-      if (icmp(attr, "EVENT") || icmp(attr, "ACTIVE")
-          || icmp(attr, "LAST_EVENT") || icmp(attr, "LAST_ACTIVE")
-          || icmp(attr, "LAST_VALUE") || icmp(attr, "DRIVING")
-          || icmp(attr, "DRIVING_VALUE"))
+      const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+      if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
+          || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
+          || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
+          || predef == ATTR_DRIVING_VALUE)
          return false;   // Clause k
       else if (tree_kind(decl) == T_FUNC_DECL) {
          assert(tree_attr_str(decl, builtin_i));

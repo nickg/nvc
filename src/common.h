@@ -107,7 +107,10 @@ typedef enum {
    ATTR_HIGH,
    ATTR_RIGHT,
    ATTR_ASCENDING,
-   ATTR_IMAGE
+   ATTR_IMAGE,
+   ATTR_LAST_ACTIVE,
+   ATTR_DRIVING,
+   ATTR_DRIVING_VALUE
 } predef_attr_t;
 
 //
