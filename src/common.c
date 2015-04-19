@@ -737,4 +737,5 @@ void intern_strings(void)
    stmt_tag_i       = ident_new("stmt_tag");
    cond_tag_i       = ident_new("cond_tag");
    sub_cond_i       = ident_new("sub_cond");
+   impure_i         = ident_new("impure");
 }

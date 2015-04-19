@@ -160,6 +160,7 @@ GLOBAL ident_t stmt_tag_i;
 GLOBAL ident_t cond_tag_i;
 GLOBAL ident_t sub_cond_i;
 GLOBAL ident_t static_i;
+GLOBAL ident_t impure_i;
 
 void intern_strings();
 

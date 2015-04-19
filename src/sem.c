@@ -3904,6 +3904,7 @@ static bool sem_check_concat(tree_t t)
          array_len = tree_new(T_ATTR_REF);
          tree_set_name(array_len, array);
          tree_set_ident(array_len, ident_new("LENGTH"));
+         tree_set_type(array_len, sem_std_type("INTEGER"));
          tree_add_attr_int(array_len, builtin_i, ATTR_LENGTH);
       }
       else
