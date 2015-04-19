@@ -42,5 +42,13 @@ architecture test of e is
         bar_bit(character'(1));         -- Error
     end procedure;
 
+    type bv_ptr is access bit_vector;
+
+    procedure test2(variable x : bv_ptr) is
+        variable v : bit_vector(1 to 10);
+        alias va is v(x'left);  -- Error
+    begin
+    end procedure;
+
 begin
 end architecture;

@@ -1696,6 +1696,7 @@ START_TEST(test_alias)
       { 40, "ambiguous use of enumeration literal '1'" },
       { 41, "no visible declaration for FOO_INT" },
       { 42, "no suitable overload for procedure BAR_BIT [CHARACTER]" },
+      { 49, "aliased name is not static" },
       { -1, NULL }
    };
    expect_errors(expect);

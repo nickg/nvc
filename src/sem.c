@@ -5498,7 +5498,7 @@ static bool sem_locally_static(tree_t t)
       if (tree_attr_int(t, builtin_i, -1) == ATTR_PATH_NAME)
          return false;
       else if (!tree_has_value(t)) {
-         type_t type = tree_type(tree_ref(tree_name(t)));
+         type_t type = tree_type(tree_name(t));
          return sem_subtype_locally_static(type);
       }
 
@@ -5700,37 +5700,14 @@ static bool sem_globally_static(tree_t t)
 
    if (kind == T_ATTR_REF) {
       // A predefined attribute prefix has a globally static subtype
-      tree_t decl = tree_ref(t);
       const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
       if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
           || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
           || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
           || predef == ATTR_DRIVING_VALUE)
          return false;   // Clause k
-      else if (tree_kind(decl) == T_FUNC_DECL) {
-         assert(tree_attr_str(decl, builtin_i));
-
-         // Check for globally static subtype
-         type_t type = tree_type(tree_ref(tree_name(t)));
-
-         switch (type_kind(type)) {
-         case T_CARRAY:
-         case T_SUBTYPE:
-            {
-               const int ndims = type_dims(type);
-               for (int i = 0; i < ndims; i++) {
-                  range_t r = type_dim(type, i);
-                  if (!sem_globally_static(r.left)
-                      || !sem_globally_static(r.right))
-                     return false;
-               }
-
-               return true;
-            }
-         default:
-            return true;
-         }
-      }
+      else if (predef != (predef_attr_t)-1)
+         return sem_globally_static(tree_name(t));
 
       // A user-defined attribute whose value is a globally static expression
       assert(tree_has_value(t));
