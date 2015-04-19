@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -184,6 +184,17 @@ static lib_t lib_init(const char *name, const char *rpath, int lock_fd)
    return l;
 }
 
+static lib_index_t *lib_find_in_index(lib_t lib, ident_t name)
+{
+   lib_index_t *it;
+   for (it = lib->index;
+        (it != NULL) && (it->name != name);
+        it = it->next)
+      ;
+
+   return it;
+}
+
 static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
                                tree_rd_ctx_t ctx, bool dirty,
                                lib_mtime_t mtime)
@@ -219,12 +230,7 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
    where->mtime    = mtime;
    where->kind     = tree_kind(unit);
 
-   lib_index_t *it;
-   for (it = lib->index;
-        (it != NULL) && (it->name != name);
-        it = it->next)
-      ;
-
+   lib_index_t *it = lib_find_in_index(lib, name);
    if (it == NULL) {
       lib_index_t *new = xmalloc(sizeof(lib_index_t));
       new->name = name;
@@ -597,6 +603,11 @@ static lib_unit_t *lib_get_aux(lib_t lib, ident_t ident)
 
    closedir(d);
    lib_unlock(lib);
+
+   if (unit == NULL && lib_find_in_index(lib, ident) != NULL)
+      fatal("library %s corrupt: unit %s present in index but missing "
+            "on disk", istr(lib->name), istr(ident));
+
    return unit;
 }
 

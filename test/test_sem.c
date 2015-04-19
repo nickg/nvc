@@ -86,6 +86,7 @@ START_TEST(test_ports)
       { 81,  "missing actual for formal I" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
+      { 89,  "too many positional actuals" },
       { 92,  "no visible declaration for CAKE" },
       { 94,  "cannot find unit WORK.BAD" },
       { 103, "unconnected port I with mode IN must have a default value" },
@@ -575,7 +576,8 @@ START_TEST(test_func)
       { 181, "missing actual for formal Y without default value" },
       { 182, "no suitable overload for function TEST20" },
       { 239, "class variable of subprogram body WORK.FUNC2.TEST25 paramteter" },
-      { 245, "class constant of subprogram body WORK.FUNC2.TEST26 paramteter" },
+      { 245, "class default of subprogram body WORK.FUNC2.TEST26 paramteter" },
+      { 260, "invalid reference to X inside pure function NESTED" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -595,15 +597,17 @@ START_TEST(test_func)
    fail_unless(tree_kind(p) == T_PACK_BODY);
    sem_check(p);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   for (int i = 0; i < 2; i++) {
+      p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACKAGE);
+      sem_check(p);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
+      p = parse();
+      fail_if(p == NULL);
+      fail_unless(tree_kind(p) == T_PACK_BODY);
+      sem_check(p);
+   }
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
@@ -1533,6 +1537,7 @@ START_TEST(test_supersede)
 
    const error_t expect[] = {
       { 18, "WORK.PORTLISTTEST has no formal A" },
+      { 19, "WORK.PORTLISTTEST has no formal B" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1746,6 +1751,51 @@ START_TEST(test_issue105)
 }
 END_TEST
 
+START_TEST(test_issue88)
+{
+   input_from_file(TESTDIR "/sem/issue88.vhd");
+
+   const error_t expect[] = {
+      { 31, "record type REC2 has no field P" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      sem_check(t);
+   }
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
+START_TEST(test_issue128)
+{
+   input_from_file(TESTDIR "/sem/issue128.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      sem_check(t);
+   }
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1789,6 +1839,8 @@ int main(void)
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_issue102);
    tcase_add_test(tc_core, test_issue105);
+   tcase_add_test(tc_core, test_issue88);
+   tcase_add_test(tc_core, test_issue128);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

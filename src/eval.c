@@ -264,6 +264,10 @@ static tree_t eval_fcall_enum(tree_t t, ident_t builtin, unsigned *args, int n)
          r = MAX(r, args[i]);
       return get_int_lit(t, r);
    }
+   else if (icmp(builtin, "eq"))
+      return get_bool_lit(t, args[0] == args[1]);
+   else if (icmp(builtin, "neq"))
+      return get_bool_lit(t, args[0] != args[1]);
    else
       return t;
 }
@@ -515,6 +519,38 @@ static void eval_while(tree_t t, vtable_t *v)
    }
 }
 
+static void eval_for(tree_t t, vtable_t *v)
+{
+   range_t r = tree_range(t);
+   if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO) {
+      v->failed = true;
+      return;
+   }
+
+   tree_t left  = eval_expr(r.left, v);
+   tree_t right = eval_expr(r.right, v);
+
+   int64_t lefti, righti;
+   if (!folded_int(left, &lefti) || !folded_int(right, &righti)) {
+      v->failed = true;
+      return;
+   }
+
+   if ((r.kind == RANGE_TO && lefti > righti)
+       || (r.kind == RANGE_DOWNTO && righti < lefti))
+      return;
+
+   tree_t idecl = tree_decl(t, 0);
+   int64_t ival = lefti;
+   do {
+      vtable_bind(v, tree_ident(idecl), get_int_lit(left, ival));
+      eval_stmts(t, tree_stmts, tree_stmt, v);
+      if (ival == righti)
+         break;
+      ival += (r.kind == RANGE_TO ? 1 : -1);
+   } while (v->result == NULL);
+}
+
 static void eval_var_assign(tree_t t, vtable_t *v)
 {
    tree_t target = tree_target(t);
@@ -557,6 +593,9 @@ static void eval_stmt(tree_t t, vtable_t *v)
       break;
    case T_WHILE:
       eval_while(t, v);
+      break;
+   case T_FOR:
+      eval_for(t, v);
       break;
    case T_IF:
       eval_if(t, v);

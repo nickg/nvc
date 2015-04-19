@@ -523,11 +523,8 @@ void _set_initial(int32_t nid, const uint8_t *values, const int32_t *size_list,
       memo = rt_memo_resolution_fn(tree_type(decl), resolution);
 
    int total_size = 0;
-   for (int i = 0; i < nparts; i++) {
+   for (int i = 0; i < nparts; i++)
       total_size += size_list[i * 2] * size_list[(i * 2) + 1];
-      // XXX: remove
-      TRACE("  size=%d count=%d", size_list[i * 2], size_list[(i * 2) + 1]);
-   }
 
    uint8_t *res_mem  = xmalloc(total_size * 2);
    uint8_t *last_mem = res_mem + total_size;

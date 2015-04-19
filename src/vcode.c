@@ -353,6 +353,10 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       // Must have been safety checked by definition
       break;
 
+   case VCODE_OP_IMAGE:
+      // Runtime allocates from temporary stack
+      break;
+
    default:
       VCODE_ASSERT(false, "cannot return safety check r%d", reg);
    }
@@ -2771,15 +2775,14 @@ vcode_reg_t emit_load_indirect(vcode_reg_t reg)
 void emit_store(vcode_reg_t reg, vcode_var_t var)
 {
    // Any previous store to this variable in this block is dead
-   block_t *b = vcode_block_data();
-   for (int i = b->ops.count; i >= 0; i--) {
-      op_t *op = &(b->ops.items[i]);
-      if (op->kind == VCODE_OP_STORE && op->address == var) {
-         op->kind = VCODE_OP_COMMENT;
-         op->comment = xasprintf("Dead store to %s", istr(vcode_var_name(var)));
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_STORE && other->address == var) {
+         other->kind = VCODE_OP_COMMENT;
+         other->comment =
+            xasprintf("Dead store to %s", istr(vcode_var_name(var)));
       }
-      else if (op->kind == VCODE_OP_NESTED_FCALL
-               || op->kind == VCODE_OP_NESTED_PCALL)
+      else if (other->kind == VCODE_OP_NESTED_FCALL
+               || other->kind == VCODE_OP_NESTED_PCALL)
          break;   // Needs to get variable for display
    }
 

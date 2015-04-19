@@ -1970,6 +1970,59 @@ START_TEST(test_cover)
 }
 END_TEST
 
+START_TEST(test_issue122)
+{
+   input_from_file(TESTDIR "/lower/issue122.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_NESTED_FCALL, .func = "NESTED$I" },
+      { VCODE_OP_STORE, .name = "V" },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
+START_TEST(test_issue124)
+{
+   input_from_file(TESTDIR "/lower/issue124.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER$IuWORK.PACK.UNSIGNED;",
+        .args = 1},
+      { VCODE_OP_IMAGE },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2010,6 +2063,8 @@ int main(void)
    tcase_add_test(tc, test_mulphys);
    tcase_add_test(tc, test_issue116);
    tcase_add_test(tc, test_cover);
+   tcase_add_test(tc, test_issue122);
+   tcase_add_test(tc, test_issue124);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

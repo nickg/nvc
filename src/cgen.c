@@ -1357,7 +1357,16 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       cgen_append_size_list(list, type, 1);
       break;
    case VCODE_TYPE_CARRAY:
-      cgen_append_size_list(list, vtype_elem(type), vtype_size(type));
+      {
+         vcode_type_t elem = vtype_elem(type);
+         if (vtype_kind(elem) == VCODE_TYPE_RECORD) {
+            const int nelems = vtype_size(type);
+            for (int i = 0; i < nelems; i++)
+               cgen_size_list(list, elem);
+         }
+         else
+            cgen_append_size_list(list, elem, vtype_size(type));
+      }
       break;
    case VCODE_TYPE_RECORD:
       {
@@ -1367,8 +1376,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
       }
       break;
    default:
-      fatal_trace("cannot handle type %d in size list",
-                  vtype_kind(type));
+      fatal_trace("cannot handle type %d in size list", vtype_kind(type));
    }
 }
 
@@ -2691,6 +2699,9 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
       vcode_select_block(i);
 
       const int last = vcode_count_ops() - 1;
+      if (last < 0)
+         continue;
+
       vcode_op_t last_op = vcode_get_op(last);
       if (last_op != VCODE_OP_WAIT && last_op != VCODE_OP_PCALL
           && last_op != VCODE_OP_NESTED_PCALL)
@@ -2708,10 +2719,11 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
 static void cgen_procedure(LLVMTypeRef display_type)
 {
    assert(vcode_unit_kind() == VCODE_UNIT_PROCEDURE);
-   assert(LLVMGetNamedFunction(module, istr(vcode_unit_name())) == NULL);
 
-   LLVMValueRef fn = LLVMAddFunction(module, istr(vcode_unit_name()),
-                                     cgen_subprogram_type(display_type, true));
+   LLVMValueRef fn = LLVMGetNamedFunction(module, istr(vcode_unit_name()));
+   if (fn == NULL)
+      fn = LLVMAddFunction(module, istr(vcode_unit_name()),
+                           cgen_subprogram_type(display_type, true));
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 

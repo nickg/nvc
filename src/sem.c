@@ -86,6 +86,12 @@ typedef struct {
    bool         error;
 } lib_walk_params_t;
 
+typedef struct {
+   tree_t decl;
+   bool   have;
+   bool   partial;
+} formal_map_t;
+
 typedef tree_t (*get_fn_t)(tree_t);
 typedef void (*set_fn_t)(tree_t, tree_t);
 
@@ -186,6 +192,18 @@ static void scope_apply_prefix(tree_t t)
    if (top_scope->prefix)
       tree_set_ident(t, ident_prefix(top_scope->prefix,
                                      tree_ident(t), '.'));
+}
+
+static scope_t *scope_containing(scope_t *s, tree_t decl)
+{
+   int k = 0, tmp;
+   tree_t next;
+   ident_t name = tree_ident(decl);
+   while (tmp = k++, (next = hash_get_nth(s->decls, name, &tmp))) {
+      if (next == decl)
+         return s;
+   }
+   return s->down == NULL ? NULL : scope_containing(s->down, decl);
 }
 
 static tree_t scope_find_in(ident_t i, scope_t *s, bool recur, int k)
@@ -2085,10 +2103,7 @@ static bool sem_check_func_ports(tree_t t)
          sem_error(p, "function arguments must have mode IN");
 
       // See LRM 93 section 2.1.1 for default class
-      class_t class = tree_class(p);
-      if (class == C_DEFAULT)
-         tree_set_class(p, (class = C_CONSTANT));
-      else if (class == C_VARIABLE)
+      if (tree_class(p) == C_VARIABLE)
          sem_error(p, "function arguments may not have VARIABLE class");
 
       if (!sem_check(p))
@@ -2144,20 +2159,6 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    return ok;
 }
 
-static void sem_hoist_for_loop_var(tree_t t, void *context)
-{
-   // Move the declaration for the for loop induction variable to the
-   // containing process or subprogram body
-
-   const int ndecls = tree_decls(t);
-   if (ndecls == 0)
-      return;
-   assert(ndecls == 1);
-
-   tree_t container = context;
-   tree_add_decl(container, tree_decl(t, 0));
-}
-
 static bool sem_check_func_decl(tree_t t)
 {
    if (!sem_check_func_ports(t))
@@ -2208,8 +2209,6 @@ static bool sem_check_func_body(tree_t t)
    unsigned nret = tree_visit_only(t, NULL, NULL, T_RETURN);
    if (nret == 0)
       sem_error(t, "function must contain a return statement");
-
-   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
 
    return ok;
 }
@@ -2290,8 +2289,6 @@ static bool sem_check_proc_body(tree_t t)
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
-   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
-
    scope_pop();
    return ok;
 }
@@ -2346,8 +2343,6 @@ static bool sem_check_process(tree_t t)
                    "with sensitvity list");
    }
 
-   tree_visit_only(t, sem_hoist_for_loop_var, t, T_FOR);
-
    return ok;
 }
 
@@ -2398,7 +2393,7 @@ static bool sem_check_package(tree_t t)
    return ok;
 }
 
-static bool sem_check_paramter_class_match(tree_t decl, tree_t body)
+static bool sem_check_parameter_class_match(tree_t decl, tree_t body)
 {
    const int nports = tree_ports(body);
    for (int k = 0; k < nports; k++) {
@@ -2434,7 +2429,7 @@ static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
             if (bkind == T_FUNC_BODY || bkind == T_PROC_BODY) {
                if (type_eq(dtype, tree_type(b))) {
                   found = true;
-                  ok = sem_check_paramter_class_match(d, b) && ok;
+                  ok = sem_check_parameter_class_match(d, b) && ok;
                }
             }
          }
@@ -3490,7 +3485,6 @@ static bool sem_check_fcall(tree_t t)
    // Pure function may not call an impure function
    tree_t sub = top_scope->subprog;
    if ((sub != NULL) && (tree_kind(sub) == T_FUNC_BODY)) {
-      ident_t impure_i = ident_new("impure");
       if ((tree_attr_int(sub, impure_i, 0) == 0)
           && (tree_attr_int(decl, impure_i, 0) == 1))
          sem_error(t, "pure function %s cannot call impure function %s",
@@ -3643,11 +3637,12 @@ static bool sem_check_pcall(tree_t t)
             sem_error(value, "cannot associate file %s with parameter "
                       "class VARIABLE", istr(tree_ident(decl)));
          else if (decl_kind == T_PORT_DECL) {
+            const class_t class = tree_class(decl);
             if (mode == PORT_OUT && tree_subkind(decl) == PORT_IN)
                sem_error(value, "cannot read parameter %s with mode IN",
                          istr(tree_ident(decl)));
             else if ((mode == PORT_OUT || mode == PORT_INOUT)
-                     && tree_class(decl) == C_CONSTANT)
+                     && (class == C_CONSTANT || class == C_DEFAULT))
                sem_error(value, "object %s has class CONSTANT and "
                          "cannot be associated with OUT or INOUT parameters",
                          istr(tree_ident(decl)));
@@ -4480,11 +4475,13 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    assert(rec != NULL);
 
    tree_t value = NULL;
+   const loc_t *loc = tree_loc(t);
 
    type_t rec_type = tree_type(rec);
    if (type_kind(rec_type) == T_ACCESS) {
       // Record fields can be dereferenced implicitly
       value = tree_new(T_ALL);
+      tree_set_loc(value, loc);
       tree_set_value(value, make_ref(rec));
       tree_set_type(value, type_access(tree_type(rec)));
    }
@@ -4493,17 +4490,37 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
 
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);
-      tree_set_loc(value, tree_loc(t));
+      tree_set_loc(value, loc);
       tree_set_ident(value, base);
       sem_convert_to_record_ref(value, rec);
    }
-   else if (value == NULL)
+   else if (value == NULL) {
       value = make_ref(rec);
+      tree_set_loc(value, loc);
+   }
 
    tree_change_kind(t, T_RECORD_REF);
    tree_set_value(t, value);
    tree_set_ident(t, tree_ident(decl));
    tree_set_type(t, tree_type(decl));
+}
+
+static bool sem_check_pure_ref(tree_t ref, tree_t decl)
+{
+   const bool is_pure_func =
+      top_scope->subprog != NULL
+      && tree_kind(top_scope->subprog) == T_FUNC_BODY
+      && tree_attr_int(top_scope->subprog, impure_i, 0) == 0;
+
+   if (is_pure_func) {
+      scope_t *owner = scope_containing(top_scope, decl);
+      if (owner != NULL && owner->subprog != top_scope->subprog)
+         sem_error(ref, "invalid reference to %s inside pure function %s",
+                   istr(tree_ident(decl)),
+                   istr(tree_ident(top_scope->subprog)));
+   }
+
+   return true;
 }
 
 static bool sem_check_ref(tree_t t)
@@ -4562,9 +4579,14 @@ static bool sem_check_ref(tree_t t)
    }
 
    switch (tree_kind(decl)) {
-   case T_VAR_DECL:
-   case T_SIGNAL_DECL:
    case T_PORT_DECL:
+      if (tree_class(decl) != C_CONSTANT) {
+      case T_VAR_DECL:
+      case T_SIGNAL_DECL:
+         if (!sem_check_pure_ref(t, decl))
+            return false;
+      }
+      // Fall-through
    case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_ALIAS:
@@ -4583,14 +4605,13 @@ static bool sem_check_ref(tree_t t)
 
    case T_FIELD_DECL:
       sem_convert_to_record_ref(t, decl);
-      return true;
+      return sem_check(t);
 
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
    }
 
    tree_set_ref(t, decl);
-
    return true;
 }
 
@@ -4616,7 +4637,7 @@ static bool sem_check_record_ref(tree_t t)
       return false;
 
    type_t value_type = tree_type(value);
-   if (type_kind(value_type) != T_RECORD)
+   if (!type_is_record(value_type))
       sem_error(value, "expected record type but found %s",
                 sem_type_str(value_type));
 
@@ -5034,32 +5055,27 @@ static bool sem_check_attr_ref(tree_t t)
       }
    }
 
+   if (!sem_static_name(name))
+      sem_error(name, "invalid attribute reference");
+
    bool allow_user = true;
-   switch (tree_kind(name)) {
-   case T_REF:
-      decl = tree_ref(name);
-      break;
+   tree_t search = name;
+   while (decl == NULL) {
+      switch (tree_kind(search)) {
+      case T_REF:
+         decl = tree_ref(search);
+         break;
 
-   case T_ALL:
-      decl = tree_ref(tree_value(name));
-      break;
+      case T_RECORD_REF:
+         decl = sem_find_record_field(search);
+         assert(decl != NULL);
+         break;
 
-   case T_RECORD_REF:
-      decl = sem_find_record_field(name);
-      assert(decl != NULL);
-      break;
-
-   default:
-      if (sem_static_name(name)) {
-         tree_t n = name;
-         while (tree_kind((n = tree_value(name))) != T_REF)
-            ;
-         decl = tree_ref(n);
+      default:
+         search = tree_value(search);
          allow_user = false;   // LRM disallows user-defined attributes
-                               // where prefix is slice of sub-element
+                               // where prefix is slice or sub-element
       }
-      else
-         sem_error(t, "invalid attribute reference");
    }
 
    if (icmp(attr, "range"))
@@ -5202,6 +5218,158 @@ static bool sem_check_qualified(tree_t t)
    return sem_check_constrained(tree_value(t), type);
 }
 
+static bool sem_check_actual(formal_map_t *formals, int nformals,
+                             tree_t param, tree_t unit)
+{
+   tree_t value = tree_value(param);
+   tree_t decl = NULL;
+   type_t type = NULL;
+
+   switch (tree_subkind(param)) {
+   case P_POS:
+      {
+         const int pos = tree_pos(param);
+         if (pos >= nformals)
+            sem_error(value, "too many positional actuals");
+         if (formals[pos].have)
+            sem_error(value, "formal %s already has an actual",
+                      istr(tree_ident(formals[pos].decl)));
+         formals[pos].have = true;
+         decl = formals[pos].decl;
+         type = tree_type(decl);
+      }
+      break;
+
+   case P_NAMED:
+      {
+         tree_t name = tree_name(param);
+         tree_kind_t kind = tree_kind(name);
+         tree_t ref = name;
+         tree_t conv = NULL;
+
+         if ((kind == T_FCALL) || (kind == T_TYPE_CONV)) {
+            if (tree_params(name) != 1)
+               sem_error(name, "output conversion function must have "
+                         "exactly one parameter");
+
+            conv = name;
+            name = ref = tree_value(tree_param(name, 0));
+            kind = tree_kind(ref);
+         }
+
+         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
+            ref  = tree_value(ref);
+            kind = tree_kind(ref);
+         }
+
+         assert(tree_kind(ref) == T_REF);
+
+         for (int i = 0; i < nformals; i++) {
+            if (tree_ident(formals[i].decl) == tree_ident(ref)) {
+               if (formals[i].have && !formals[i].partial)
+                  sem_error(value, "formal %s already has an actual",
+                            istr(tree_ident(formals[i].decl)));
+               formals[i].have    = true;
+               formals[i].partial = (tree_kind(name) != T_REF);
+               decl = formals[i].decl;
+               tree_set_ref(ref, decl);
+               tree_add_attr_int(ref, formal_i, 1);
+               break;
+            }
+         }
+
+         if (decl == NULL)
+            sem_error(value, "%s has no formal %s",
+                      istr(tree_ident(unit)), istr(tree_ident(ref)));
+
+         if (!sem_static_name(name))
+            sem_error(name, "formal name must be static");
+
+         if (conv != NULL) {
+            port_mode_t mode = tree_subkind(decl);
+
+            type = tree_type((mode == PORT_INOUT) ? name : conv);
+
+            if (mode == PORT_IN)
+               sem_error(name, "output conversion not allowed for formal "
+                         "%s with mode IN", istr(tree_ident(decl)));
+
+            if (tree_kind(value) == T_OPEN)
+               sem_error(name, "output conversion for formal %s must not "
+                         "have OPEN actual", istr(tree_ident(decl)));
+         }
+         else
+            type = tree_type(name);
+
+         break;
+      }
+   }
+
+   assert(type != NULL);
+
+   if (!sem_check_constrained(value, type))
+      return false;
+
+   type_t value_type = tree_type(value);
+
+   if (!type_eq(value_type, type))
+      sem_error(value, "type of actual %s does not match type %s of formal "
+                "port %s", sem_type_str(value_type),
+                sem_type_str(type), istr(tree_ident(decl)));
+
+   if (tree_kind(value) == T_OPEN) {
+      port_mode_t mode = tree_subkind(decl);
+
+      if ((mode == PORT_IN) && !tree_has_value(decl))
+         sem_error(value, "unconnected port %s with mode IN must have a "
+                   "default value", istr(tree_ident(decl)));
+
+      if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
+         sem_error(value, "port %s of unconstrained type %s cannot "
+                   "be unconnected", istr(tree_ident(decl)),
+                   sem_type_str(type));
+   }
+
+   // Check for type conversions and conversion functions
+   // These only apply if the class of the formal is not constant
+
+   tree_t actual = NULL;
+
+   if (tree_class(decl) != C_CONSTANT) {
+      if (tree_kind(value) == T_TYPE_CONV)
+         actual = tree_value(tree_param(value, 0));
+      else if (tree_kind(value) == T_FCALL) {
+         // Conversion functions are in LRM 93 section 4.3.2.2
+
+         tree_t func = tree_ref(value);
+         if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+            actual = tree_value(tree_param(value, 0));
+      }
+   }
+
+   if (actual == NULL)
+      actual = value;    // No conversion
+   else {
+      // LRM 93 section 3.2.1.1 result of a type conversion in an
+      // association list cannot be an unconstrained array type
+      if (type_is_unconstrained(value_type)
+          && type_is_unconstrained(type))
+         sem_error(value, "result of conversion for unconstrained formal "
+                   "%s must be a constrained array type",
+                   istr(tree_ident(decl)));
+
+      if (tree_subkind(decl) == PORT_OUT)
+         sem_error(value, "conversion not allowed for formal %s with "
+                   "mode OUT", istr(tree_ident(decl)));
+   }
+
+   if (!sem_globally_static(actual) && !sem_static_name(actual))
+      sem_error(value, "actual must be globally static expression "
+                "or locally static name");
+
+   return true;
+}
+
 static bool sem_check_map(tree_t t, tree_t unit,
                           tree_formals_t tree_Fs, tree_formal_t tree_F,
                           tree_actuals_t tree_As, tree_actual_t tree_A)
@@ -5214,11 +5382,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
 
    bool ok = true;
 
-   struct {
-      tree_t decl;
-      bool   have;
-      bool   partial;
-   } formals[nformals];
+   formal_map_t formals[nformals];
 
    for (int i = 0; i < nformals; i++) {
       formals[i].decl    = tree_F(unit, i);
@@ -5252,156 +5416,8 @@ static bool sem_check_map(tree_t t, tree_t unit,
    if (!ok)
       return false;
 
-   for (int i = 0; i < nactuals; i++) {
-      tree_t p = tree_A(t, i);
-      tree_t value = tree_value(p);
-      tree_t decl = NULL;
-      type_t type = NULL;
-
-      switch (tree_subkind(p)) {
-      case P_POS:
-         {
-            const int pos = tree_pos(p);
-            if (pos >= nformals)
-               sem_error(value, "too many positional actuals");
-            if (formals[pos].have)
-               sem_error(value, "formal %s already has an actual",
-                         istr(tree_ident(formals[pos].decl)));
-            formals[pos].have = true;
-            decl = formals[pos].decl;
-            type = tree_type(decl);
-         }
-         break;
-
-      case P_NAMED:
-         {
-            tree_t name = tree_name(p);
-            tree_kind_t kind = tree_kind(name);
-            tree_t ref = name;
-            tree_t conv = NULL;
-
-            if ((kind == T_FCALL) || (kind == T_TYPE_CONV)) {
-               if (tree_params(name) != 1)
-                  sem_error(name, "output conversion function must have "
-                            "exactly one parameter");
-
-               conv = name;
-               name = ref = tree_value(tree_param(name, 0));
-               kind = tree_kind(ref);
-            }
-
-            while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
-               ref  = tree_value(ref);
-               kind = tree_kind(ref);
-            }
-
-            assert(tree_kind(ref) == T_REF);
-
-            for (int i = 0; i < nformals; i++) {
-               if (tree_ident(formals[i].decl) == tree_ident(ref)) {
-                  if (formals[i].have && !formals[i].partial)
-                     sem_error(value, "formal %s already has an actual",
-                               istr(tree_ident(formals[i].decl)));
-                  formals[i].have    = true;
-                  formals[i].partial = (tree_kind(name) != T_REF);
-                  decl = formals[i].decl;
-                  tree_set_ref(ref, decl);
-                  tree_add_attr_int(ref, formal_i, 1);
-                  break;
-               }
-            }
-
-            if (decl == NULL)
-               sem_error(value, "%s has no formal %s",
-                         istr(tree_ident(unit)), istr(tree_ident(ref)));
-
-            if (!sem_static_name(name))
-               sem_error(name, "formal name must be static");
-
-            if (conv != NULL) {
-               port_mode_t mode = tree_subkind(decl);
-
-               type = tree_type((mode == PORT_INOUT) ? name : conv);
-
-               if (mode == PORT_IN)
-                  sem_error(name, "output conversion not allowed for formal "
-                            "%s with mode IN", istr(tree_ident(decl)));
-
-               if (tree_kind(value) == T_OPEN)
-                  sem_error(name, "output conversion for formal %s must not "
-                            "have OPEN actual", istr(tree_ident(decl)));
-            }
-            else
-               type = tree_type(name);
-
-            break;
-         }
-      }
-
-      assert(type != NULL);
-
-      ok = sem_check_constrained(value, type) && ok;
-
-      if (!ok)
-         continue;
-
-      type_t value_type = tree_type(value);
-
-      if (!type_eq(value_type, type))
-         sem_error(value, "type of actual %s does not match type %s of formal "
-                   "port %s", sem_type_str(value_type),
-                   sem_type_str(type), istr(tree_ident(decl)));
-
-      if (tree_kind(value) == T_OPEN) {
-         port_mode_t mode = tree_subkind(decl);
-
-         if ((mode == PORT_IN) && !tree_has_value(decl))
-            sem_error(value, "unconnected port %s with mode IN must have a "
-                      "default value", istr(tree_ident(decl)));
-
-         if ((mode != PORT_IN) && type_is_unconstrained(tree_type(decl)))
-            sem_error(value, "port %s of unconstrained type %s cannot "
-                      "be unconnected", istr(tree_ident(decl)),
-                      sem_type_str(type));
-      }
-
-      // Check for type conversions and conversion functions
-      // These only apply if the class of the formal is not constant
-
-      tree_t actual = NULL;
-
-      if (tree_class(decl) != C_CONSTANT) {
-         if (tree_kind(value) == T_TYPE_CONV)
-            actual = tree_value(tree_param(value, 0));
-         else if (tree_kind(value) == T_FCALL) {
-            // Conversion functions are in LRM 93 section 4.3.2.2
-
-            tree_t func = tree_ref(value);
-            if ((tree_ports(func) == 1) && (tree_params(value) == 1))
-               actual = tree_value(tree_param(value, 0));
-         }
-      }
-
-      if (actual == NULL)
-         actual = value;    // No conversion
-      else {
-         // LRM 93 section 3.2.1.1 result of a type conversion in an
-         // association list cannot be an unconstrained array type
-         if (type_is_unconstrained(value_type)
-             && type_is_unconstrained(type))
-            sem_error(value, "result of conversion for unconstrained formal "
-                      "%s must be a constrained array type",
-                      istr(tree_ident(decl)));
-
-         if (tree_subkind(decl) == PORT_OUT)
-            sem_error(value, "conversion not allowed for formal %s with "
-                      "mode OUT", istr(tree_ident(decl)));
-      }
-
-      if (!sem_globally_static(actual) && !sem_static_name(actual))
-         sem_error(value, "actual must be globally static expression "
-                   "or locally static name");
-   }
+   for (int i = 0; i < nactuals; i++)
+      ok = sem_check_actual(formals, nformals, tree_A(t, i), unit) && ok;
 
    if (tree_kind(unit) == T_ENTITY) {
       // Component and configuration instantiations must be checked at
@@ -5651,6 +5667,17 @@ static bool sem_static_name(tree_t t)
          case T_VAR_DECL:
          case T_CONST_DECL:
          case T_PORT_DECL:
+         case T_TYPE_DECL:
+         case T_ENTITY:
+         case T_ARCH:
+         case T_PACK_BODY:
+         case T_PACKAGE:
+         case T_FUNC_BODY:
+         case T_PROC_BODY:
+         case T_FUNC_DECL:
+         case T_PROC_DECL:
+         case T_PROCESS:
+         case T_BLOCK:
             return true;
          case T_ALIAS:
             return sem_static_name(tree_value(decl));
@@ -5660,6 +5687,7 @@ static bool sem_static_name(tree_t t)
       }
 
    case T_RECORD_REF:
+   case T_ALL:
       return sem_static_name(tree_value(t));
 
    case T_ARRAY_REF:
