@@ -2699,6 +2699,9 @@ static void cgen_jump_table(cgen_ctx_t *ctx)
       vcode_select_block(i);
 
       const int last = vcode_count_ops() - 1;
+      if (last < 0)
+         continue;
+
       vcode_op_t last_op = vcode_get_op(last);
       if (last_op != VCODE_OP_WAIT && last_op != VCODE_OP_PCALL
           && last_op != VCODE_OP_NESTED_PCALL)
