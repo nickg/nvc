@@ -386,8 +386,13 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
 
 static tree_t eval_ref(tree_t t, vtable_t *v)
 {
-   tree_t binding = vtable_get(v, tree_ident(tree_ref(t)));
-   return (binding != NULL) ? binding : t;
+   tree_t decl = tree_ref(t);
+   if (tree_kind(decl) == T_CONST_DECL)
+      return eval_expr(tree_value(decl), v);
+   else {
+      tree_t binding = vtable_get(v, tree_ident(tree_ref(t)));
+      return (binding != NULL) ? binding : t;
+   }
 }
 
 static tree_t eval_type_conv(tree_t t, vtable_t *v)

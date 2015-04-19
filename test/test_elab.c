@@ -256,6 +256,26 @@ START_TEST(test_issue93)
 }
 END_TEST
 
+START_TEST(test_const1)
+{
+   input_from_file(TESTDIR "/elab/const1.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t top = run_elab();
+
+   tree_t ctr_r = tree_decl(top, tree_decls(top) - 1);
+   fail_unless(tree_ident(ctr_r) == ident_new(":top:pwm_1:ctr_r"));
+
+   range_t r = type_dim(tree_type(ctr_r), 0);
+   fail_unless(tree_kind(r.left) == T_LITERAL);
+   fail_unless(tree_ival(r.left) == 14);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -276,6 +296,7 @@ int main(void)
    tcase_add_test(tc, test_ifgen);
    tcase_add_test(tc, test_open2);
    tcase_add_test(tc, test_issue93);
+   tcase_add_test(tc, test_const1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
