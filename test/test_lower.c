@@ -1987,7 +1987,11 @@ START_TEST(test_issue122)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+#if LLVM_MANGLES_NAMES
+      { VCODE_OP_NESTED_FCALL, .func = "NESTED__I" },
+#else
       { VCODE_OP_NESTED_FCALL, .func = "NESTED$I" },
+#endif
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }
    };
@@ -2013,8 +2017,13 @@ START_TEST(test_issue124)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+#if LLVM_MANGLES_NAMES
+      { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER__IuWORK.PACK.UNSIGNED__",
+        .args = 1},
+#else
       { VCODE_OP_FCALL, .func = "WORK.PACK.TO_INTEGER$IuWORK.PACK.UNSIGNED;",
         .args = 1},
+#endif
       { VCODE_OP_IMAGE },
       { VCODE_OP_RETURN }
    };
