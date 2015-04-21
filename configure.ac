@@ -77,6 +77,17 @@ case $host_os in
     AC_SEARCH_LIBS([backtrace_symbols], [execinfo], [],
       [AC_MSG_ERROR(libexecinfo not found)], [])
     ;;
+
+  *cygwin*)
+    # LLVM on Cygwin needs libffi and curses
+    AX_WITH_CURSES
+    if test "x$ax_cv_curses" != xyes; then
+      AC_MSG_ERROR([LLVM on Cygwin requires curses])
+    fi
+
+    AC_SEARCH_LIBS([ffi_call], [ffi], [],
+      [AC_MSG_ERROR(LLVM on Cygwin requires libffi)], [])
+    ;;
 esac
 
 AC_SEARCH_LIBS([dlopen], [dl dld], [], [
@@ -224,4 +235,3 @@ AM_CONDITIONAL([HAVE_RONN], [test -n "$RONN"])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
-

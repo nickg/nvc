@@ -34,7 +34,6 @@ extern "C" {
 #include <errno.h>
 #include <unistd.h>
 #include <zlib.h>
-#include <bzlib.h>
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif
