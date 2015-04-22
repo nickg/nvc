@@ -1799,6 +1799,28 @@ START_TEST(test_issue128)
 }
 END_TEST
 
+START_TEST(test_issue130)
+{
+   input_from_file(TESTDIR "/sem/issue130.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 2; i++) {
+      tree_t t = parse();
+      fail_if(t == NULL);
+      sem_check(t);
+   }
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+
+   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1844,6 +1866,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue105);
    tcase_add_test(tc_core, test_issue88);
    tcase_add_test(tc_core, test_issue128);
+   tcase_add_test(tc_core, test_issue130);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

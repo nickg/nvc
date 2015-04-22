@@ -2159,6 +2159,7 @@ static bool sem_check_proc_body(tree_t t)
    if (!sem_check_proc_ports(t))
       return false;
 
+   ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
 
    // If there is no declaration for this procedure add to the scope
@@ -2169,6 +2170,9 @@ static bool sem_check_proc_body(tree_t t)
 
    scope_push(NULL);
    top_scope->subprog = t;
+
+   if (unqual != NULL)
+      scope_insert_alias(t, unqual);
 
    bool ok = true;
 
