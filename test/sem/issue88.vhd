@@ -27,7 +27,7 @@ architecture test of issue88 is
 
     procedure get_length3(variable r : rec2; l : out integer) is
     begin
-        --l := r.pp.all'length;          -- OK (TODO)
+        l := r.pp.all'length;           -- OK
         l := r.p.all.all'length;        -- Error
     end;
 

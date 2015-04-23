@@ -94,6 +94,7 @@ typedef struct {
 
 typedef tree_t (*get_fn_t)(tree_t);
 typedef void (*set_fn_t)(tree_t, tree_t);
+typedef tree_t (*get_nth_fn_t)(tree_t, unsigned);
 
 static bool sem_check_constrained(tree_t t, type_t type);
 static bool sem_check_array_ref(tree_t t);
@@ -1723,6 +1724,28 @@ static void sem_declare_methods(type_t type, ident_t prefix)
    }
 }
 
+static bool sem_make_visible(tree_t container, get_nth_fn_t get, int count)
+{
+   bool ok = true;
+   for (int i = 0; i < count; i++) {
+      tree_t t = (*get)(container, i);
+      ok = scope_insert(t) && ok;
+
+      type_t type = tree_type(t);
+      if (type_is_record(type))
+         sem_declare_fields(type, tree_ident(t));
+      else if (type_kind(type) == T_ACCESS) {
+         type_t deref_type = type_access(type);
+         if (type_is_record(deref_type)) {
+            // Pointers to records can be dereferenced implicitly
+            sem_declare_fields(deref_type, tree_ident(t));
+         }
+      }
+   }
+
+   return ok;
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1837,16 +1860,6 @@ static bool sem_check_port_decl(tree_t t)
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", sem_type_str(tree_type(value)),
                    sem_type_str(type));
-   }
-
-   if (type_is_record(type))
-      sem_declare_fields(type, tree_ident(t));
-   else if (type_kind(type) == T_ACCESS) {
-      type_t deref_type = type_access(type);
-      if (type_is_record(deref_type)) {
-         // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, tree_ident(t));
-      }
    }
 
    return true;
@@ -2085,11 +2098,7 @@ static bool sem_check_func_body(tree_t t)
    if (unqual != NULL)
       scope_insert_alias(t, unqual);
 
-   bool ok = true;
-
-   const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++)
-      ok = scope_insert(tree_port(t, i)) && ok;
+   bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
@@ -2174,11 +2183,7 @@ static bool sem_check_proc_body(tree_t t)
    if (unqual != NULL)
       scope_insert_alias(t, unqual);
 
-   bool ok = true;
-
-   const int nports = tree_ports(t);
-   for (int i = 0; i < nports; i++)
-      ok = scope_insert(tree_port(t, i)) && ok;
+   bool ok = sem_make_visible(t, tree_port, tree_ports(t));
 
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++)
@@ -2437,11 +2442,8 @@ static bool sem_check_generics(tree_t t)
       ok = sem_check(g) && ok;
    }
 
-   if (ok) {
-      // Make generics visible in this region
-      for (int n = 0; n < ngenerics; n++)
-         ok = scope_insert(tree_generic(t, n)) && ok;
-   }
+   // Make generics visible in this region
+   ok = ok && sem_make_visible(t, tree_generic, tree_generics(t));
 
    return ok;
 }
@@ -2498,12 +2500,9 @@ static bool sem_check_entity(tree_t t)
       const int ndecls = tree_decls(t);
       const int nstmts = tree_stmts(t);
 
-      if ((ndecls > 0) || (nstmts > 0)) {
-         // Make ports visible in this region
-         const int nports = tree_ports(t);
-         for (int i = 0; i < nports; i++)
-            scope_insert(tree_port(t, i));
-      }
+      // Make ports visible in this region
+      if (ndecls > 0 || nstmts > 0)
+         ok = sem_make_visible(t, tree_port, tree_ports(t)) && ok;
 
       for (int n = 0; n < ndecls; n++)
          ok = sem_check(tree_decl(t, n)) && ok;
@@ -2554,19 +2553,8 @@ static bool sem_check_arch(tree_t t)
 
    scope_push(NULL);
 
-   const int nports = tree_ports(e);
-   for (int n = 0; n < nports; n++) {
-      tree_t p = tree_port(e, n);
-      scope_insert(p);
-
-      type_t type = tree_type(p);
-      if (type_is_record(type))
-         sem_declare_fields(type, tree_ident(p));
-   }
-
-   const int ngenerics = tree_generics(e);
-   for (int n = 0; n < ngenerics; n++)
-      scope_insert(tree_generic(e, n));
+   sem_make_visible(e, tree_port, tree_ports(e));
+   sem_make_visible(e, tree_generic, tree_generics(e));
 
    const int ndecls_ent = tree_decls(e);
    for (int n = 0; n < ndecls_ent; n++) {
@@ -4462,8 +4450,17 @@ static bool sem_check_ref(tree_t t)
       decl = next;
 
    if (decl == NULL) {
-      if (n == 0)
-         sem_error(t, "no visible declaration for %s", istr(name));
+      if (n == 0) {
+         // Try to provide better error messages for invalid record fields
+         ident_t rname = ident_runtil(name, '.');
+         if (rname != NULL && (decl = scope_find(rname))
+             && type_is_record(tree_type(decl)))
+            sem_error(t, "record type %s has no field %s",
+                      sem_type_str(tree_type(decl)),
+                      istr(ident_rfrom(name, '.')));
+         else
+            sem_error(t, "no visible declaration for %s", istr(name));
+      }
       else if (n == 1) {
          LOCAL_TEXT_BUF ts = type_set_fmt();
          sem_error(t, "name %s cannot be used in this context%s",
