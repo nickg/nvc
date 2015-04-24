@@ -39,7 +39,7 @@ START_TEST(test_integer)
    expect_errors(expect);
 
    sem_check(a);
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 
    d = tree_decl(a, 2);
    fail_unless(tree_ident(d) == ident_new("X"));
@@ -76,8 +76,6 @@ END_TEST
 
 START_TEST(test_ports)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/ports.vhd");
 
    const error_t expect[] = {
@@ -111,84 +109,19 @@ START_TEST(test_ports)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   // Entity foo
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Entity top
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   // Architecture test
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Architecture other
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Architecture conv
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Entity ent_with_vec
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   // Architecture test
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Architecture other2
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH,
+                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 
 START_TEST(test_scope)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/scope.vhd");
 
    const error_t expect[] = {
@@ -207,130 +140,13 @@ START_TEST(test_scope)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY,
+                   T_ARCH, T_ARCH, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY,
+                   T_PACKAGE, T_PACKAGE, T_ARCH, T_PACKAGE, T_ARCH,
+                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH,
+                   T_ARCH, T_PACKAGE, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   for (int i = 0; i < 3; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   for (int i = 0; i < 2; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   for (int i = 0; i < 2; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   for (int i = 0; i < 2; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   for (int i = 0; i < 2; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
@@ -406,34 +222,15 @@ START_TEST(test_ambiguous)
    fail_unless(type_ident(lhs) == ident_new("FOO"));
    fail_unless(type_ident(rhs) == ident_new("FOO"));
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_ARCH, T_ARCH, T_ARCH,
+                   T_ARCH, T_ARCH);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   for (int i = 0; i < 5; i++) {
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_const)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/const.vhd");
 
    const error_t expect[] = {
@@ -446,59 +243,24 @@ START_TEST(test_const)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH, T_PACKAGE, T_PACK_BODY);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_std)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/std.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_wait)
 {
-   tree_t a, e, p, w;
-
    input_from_file(TESTDIR "/sem/wait.vhd");
 
    const error_t expect[] = {
@@ -513,23 +275,23 @@ START_TEST(test_wait)
    };
    expect_errors(expect);
 
-   e = parse();
+   tree_t e = parse();
    fail_if(e == NULL);
    fail_unless(tree_kind(e) == T_ENTITY);
    sem_check(e);
 
-   a = parse();
+   tree_t a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
    sem_check(a);
 
-   p = tree_stmt(a, 0);
+   tree_t p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
    fail_unless(tree_stmts(p) == 4);
 
    ident_t time = ident_new("STD.STANDARD.TIME");
 
-   w = tree_stmt(p, 0);
+   tree_t w = tree_stmt(p, 0);
    fail_unless(tree_kind(w) == T_WAIT);
    fail_unless(type_ident(tree_type(tree_delay(w))) == time);
 
@@ -544,14 +306,12 @@ START_TEST(test_wait)
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);
 
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_func)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/func.vhd");
 
    const error_t expect[] = {
@@ -582,44 +342,15 @@ START_TEST(test_func)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACK_BODY, T_PACKAGE,
+                   T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   for (int i = 0; i < 2; i++) {
-      p = parse();
-      fail_if(p == NULL);
-      fail_unless(tree_kind(p) == T_PACKAGE);
-      sem_check(p);
-
-      p = parse();
-      fail_if(p == NULL);
-      fail_unless(tree_kind(p) == T_PACK_BODY);
-      sem_check(p);
-   }
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_array)
 {
-   tree_t p, a, e;
-
    input_from_file(TESTDIR "/sem/array.vhd");
 
    const error_t expect[] = {
@@ -657,32 +388,14 @@ START_TEST(test_array)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_assert)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/assert.vhd");
 
    const error_t expect[] = {
@@ -693,27 +406,14 @@ START_TEST(test_assert)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_generics)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/generics.vhd");
 
    const error_t expect[] = {
@@ -727,74 +427,15 @@ START_TEST(test_generics)
    };
    expect_errors(expect);
 
-   // Entity bot
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY, T_ENTITY,
+                   T_PACKAGE, T_ENTITY, T_ARCH);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Entity top
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   // Entity bad
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   // Entity class
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   // Package p
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   // Entity static
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_seq)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/seq.vhd");
 
    const error_t expect[] = {
@@ -825,27 +466,14 @@ START_TEST(test_seq)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_conc)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/conc.vhd");
 
    const error_t expect[] = {
@@ -859,27 +487,14 @@ START_TEST(test_conc)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_procedure)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/procedure.vhd");
 
    const error_t expect[] = {
@@ -904,27 +519,14 @@ START_TEST(test_procedure)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_if(sem_check(p));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_concat)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/concat.vhd");
 
    const error_t expect[] = {
@@ -934,27 +536,14 @@ START_TEST(test_concat)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_conv)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/conv.vhd");
 
    const error_t expect[] = {
@@ -965,27 +554,14 @@ START_TEST(test_conv)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_attr)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/attr.vhd");
 
    const error_t expect[] = {
@@ -1005,57 +581,15 @@ START_TEST(test_attr)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_PACKAGE, T_PACK_BODY,
+                   T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   fail_unless(sem_check(p));
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   fail_unless(sem_check(p));
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(sem_check(e));
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_generate)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/generate.vhd");
 
    const error_t expect[] = {
@@ -1067,27 +601,14 @@ START_TEST(test_generate)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   fail_if(sem_check(a));
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_record)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/record.vhd");
 
    const error_t expect[] = {
@@ -1109,27 +630,14 @@ START_TEST(test_record)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_file)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/file.vhd");
 
    const error_t expect[] = {
@@ -1143,27 +651,14 @@ START_TEST(test_file)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_access)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
@@ -1179,40 +674,15 @@ START_TEST(test_access)
    };
    expect_errors(expect);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACK_BODY);
-   sem_check(p);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_real)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/real.vhd");
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
       { 16, "type of value MY_REAL does not match type of target" },
@@ -1221,40 +691,15 @@ START_TEST(test_real)
    };
    expect_errors(expect);
 
-   sem_check(a);
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_entity)
 {
-   tree_t a1, a2, ca, e, p;
-
    input_from_file(TESTDIR "/sem/entity.vhd");
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   fail_unless(tree_stmts(e) == 1);
-   ca = tree_stmt(e, 0);
-   fail_unless(tree_kind(ca) == T_CASSERT);
-   sem_check(e);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   a1 = parse();
-   fail_if(a1 == NULL);
-   fail_unless(tree_kind(a1) == T_ARCH);
-
-   a2 = parse();
-   fail_if(a2 == NULL);
-   fail_unless(tree_kind(a2) == T_ARCH);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
       { 26, "unit WORK.PACK is not an entity" },
@@ -1263,30 +708,15 @@ START_TEST(test_entity)
    };
    expect_errors(expect);
 
-   sem_check(a1);
-   sem_check(a2);
+   parse_and_check(T_ENTITY, T_PACKAGE, T_ARCH, T_ARCH);
 
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_signal)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/signal.vhd");
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
       { 14, "no composite type in context" },
@@ -1303,15 +733,14 @@ START_TEST(test_signal)
    };
    expect_errors(expect);
 
-   sem_check(a);
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_static)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/static.vhd");
 
    const error_t expect[] = {
@@ -1322,45 +751,15 @@ START_TEST(test_static)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_subtype)
 {
-   tree_t p;
-
    input_from_file(TESTDIR "/sem/subtype.vhd");
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
 
    const error_t expect[] = {
       { 16, "undefined resolution function NOT_HERE" },
@@ -1368,29 +767,15 @@ START_TEST(test_subtype)
    };
    expect_errors(expect);
 
-   sem_check(p);
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_universal)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/universal.vhd");
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   sem_check(e);
 
    const error_t expect[] = {
       { 12, "no suitable overload for operator \"*\" [REAL" },
@@ -1400,71 +785,34 @@ START_TEST(test_universal)
    };
    expect_errors(expect);
 
-   sem_check(a);
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_issue52)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/issue52.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_issue58)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/issue58.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_spec)
 {
-   tree_t a, e, p;
-
    input_from_file(TESTDIR "/sem/spec.vhd");
 
    const error_t expect[] = {
@@ -1481,60 +829,24 @@ START_TEST(test_spec)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_PACKAGE, T_ENTITY, T_ARCH);
 
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_issue53)
 {
-   tree_t e;
-
    input_from_file(TESTDIR "/sem/issue53.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_ENTITY);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_supersede)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/supersede.vhd");
 
    const error_t expect[] = {
@@ -1544,32 +856,14 @@ START_TEST(test_supersede)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ENTITY, T_ARCH);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_implicit)
 {
-   tree_t a, e;
-
    input_from_file(TESTDIR "/sem/implicit.vhd");
 
    const error_t expect[] = {
@@ -1578,62 +872,25 @@ START_TEST(test_implicit)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_config)
 {
-   tree_t a, e, c;
-
    input_from_file(TESTDIR "/sem/config.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY,
+                   T_ARCH, T_CONFIG);
 
-   for (int i = 0; i < 3; i++) {
-      e = parse();
-      fail_if(e == NULL);
-      fail_unless(tree_kind(e) == T_ENTITY);
-      sem_check(e);
-
-      a = parse();
-      fail_if(a == NULL);
-      fail_unless(tree_kind(a) == T_ARCH);
-      sem_check(a);
-   }
-
-   c = parse();
-   fail_if(c == NULL);
-   fail_unless(tree_kind(c) == T_CONFIG);
-   sem_check(c);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_protected)
 {
-   tree_t e, a, p;
-
    set_standard(STD_00);
 
    input_from_file(TESTDIR "/sem/protected.vhd");
@@ -1653,37 +910,14 @@ START_TEST(test_protected)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   p = parse();
-   fail_if(p == NULL);
-   fail_unless(tree_kind(p) == T_PACKAGE);
-   sem_check(p);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
 START_TEST(test_alias)
 {
-   tree_t e, a;
-
    input_from_file(TESTDIR "/sem/alias.vhd");
 
    const error_t expect[] = {
@@ -1703,20 +937,9 @@ START_TEST(test_alias)
    };
    expect_errors(expect);
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
@@ -1724,14 +947,8 @@ START_TEST(test_issue102)
 {
    input_from_file(TESTDIR "/sem/issue102.vhd");
 
-   for (int i = 0; i < 3; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 }
 END_TEST
@@ -1742,14 +959,8 @@ START_TEST(test_issue105)
 
    input_from_file(TESTDIR "/sem/issue105.vhd");
 
-   for (int i = 0; i < 4; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
    fail_unless(sem_errors() == 0);
 }
 END_TEST
@@ -1764,16 +975,9 @@ START_TEST(test_issue88)
    };
    expect_errors(expect);
 
-   for (int i = 0; i < 2; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
+   parse_and_check(T_ENTITY, T_ARCH);
 
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
@@ -1781,21 +985,9 @@ START_TEST(test_issue128)
 {
    input_from_file(TESTDIR "/sem/issue128.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   for (int i = 0; i < 2; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
@@ -1803,21 +995,9 @@ START_TEST(test_issue130)
 {
    input_from_file(TESTDIR "/sem/issue130.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   for (int i = 0; i < 2; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
@@ -1825,21 +1005,9 @@ START_TEST(test_issue132)
 {
    input_from_file(TESTDIR "/sem/issue132.vhd");
 
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
+   parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH);
 
-   for (int i = 0; i < 3; i++) {
-      tree_t t = parse();
-      fail_if(t == NULL);
-      sem_check(t);
-   }
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
-
-   fail_unless(sem_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 

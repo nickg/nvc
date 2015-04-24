@@ -10,8 +10,6 @@
 
 START_TEST(test_bounds)
 {
-   tree_t e, a;
-
    const error_t expect[] = {
       {  26, "left index 0 violates constraint STD.STANDARD.POSITIVE" },
       {  27, "right index 60 violates constraint FOO" },
@@ -43,18 +41,7 @@ START_TEST(test_bounds)
 
    input_from_file(TESTDIR "/bounds/bounds.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
    simplify(a);
@@ -66,8 +53,6 @@ END_TEST
 
 START_TEST(test_case)
 {
-   tree_t e, a;
-
    const error_t expect[] = {
       {  13, "missing choice C in case statement" },
       {  19, "missing choice B in case statement" },
@@ -91,18 +76,7 @@ START_TEST(test_case)
 
    input_from_file(TESTDIR "/bounds/case.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
    simplify(a);
@@ -114,35 +88,20 @@ END_TEST
 
 START_TEST(test_issue36)
 {
-   tree_t e;
-
-   const error_t expect[] = {
-      { -1, NULL }
-   };
-   expect_errors(expect);
-
    input_from_file(TESTDIR "/bounds/issue36.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   tree_t e = parse_and_check(T_ENTITY);
    fail_unless(sem_errors() == 0);
 
    simplify(e);
    bounds_check(e);
 
-   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(bounds_errors() == 0);
 }
 END_TEST
 
 START_TEST(test_issue54)
 {
-   tree_t e, a;
-
    const error_t expect[] = {
       { 12, "aggregate index 3 out of bounds 7 downto 4" },
       { 12, "aggregate index 0 out of bounds 7 downto 4" },
@@ -152,18 +111,7 @@ START_TEST(test_issue54)
 
    input_from_file(TESTDIR "/bounds/issue54.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
    simplify(a);
@@ -175,8 +123,6 @@ END_TEST
 
 START_TEST(test_issue99)
 {
-   tree_t e, a;
-
    const error_t expect[] = {
       {  7, "type conversion argument -1.5 out of bounds 0 to 2147483647" },
       {  8, "type conversion argument -1 out of bounds 1 to 5" },
@@ -186,18 +132,7 @@ START_TEST(test_issue99)
 
    input_from_file(TESTDIR "/bounds/issue99.vhd");
 
-   e = parse();
-   fail_if(e == NULL);
-   fail_unless(tree_kind(e) == T_ENTITY);
-   sem_check(e);
-
-   a = parse();
-   fail_if(a == NULL);
-   fail_unless(tree_kind(a) == T_ARCH);
-   sem_check(a);
-
-   fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
    fail_unless(sem_errors() == 0);
 
    simplify(a);
