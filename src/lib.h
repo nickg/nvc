@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@ typedef uint64_t lib_mtime_t;
 
 lib_t lib_find(const char *name, bool verbose, bool search);
 lib_t lib_new(const char *name);
-lib_t lib_tmp(void);
+lib_t lib_tmp(const char *name);
 void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
 fbuf_t *lib_fbuf_open(lib_t lib, const char *name, fbuf_mode_t mode);

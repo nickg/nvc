@@ -35,6 +35,7 @@ typedef struct {
    ident_t  inst;    // Current 'INSTANCE_NAME
    netid_t *next_net;
    lib_t    library;
+   tree_t   arch;
 } elab_ctx_t;
 
 typedef struct {
@@ -55,6 +56,12 @@ typedef struct copy_list {
    struct copy_list *next;
    tree_t tree;
 } copy_list_t;
+
+typedef struct {
+   lib_t    lib;
+   ident_t  name;
+   tree_t  *tree;
+} lib_search_params_t;
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -95,15 +102,9 @@ static const char *simple_name(const char *full)
    return start;
 }
 
-struct arch_search_params {
-   lib_t    lib;
-   ident_t  name;
-   tree_t  *arch;
-};
-
 static void find_arch(ident_t name, int kind, void *context)
 {
-   struct arch_search_params *params = context;
+   lib_search_params_t *params = context;
 
    ident_t prefix = ident_until(name, '-');
 
@@ -111,11 +112,11 @@ static void find_arch(ident_t name, int kind, void *context)
       tree_t t = lib_get_check_stale(params->lib, name);
       assert(t != NULL);
 
-      if (*(params->arch) == NULL)
-         *(params->arch) = t;
+      if (*(params->tree) == NULL)
+         *(params->tree) = t;
       else {
          lib_mtime_t old_mtime = lib_mtime(params->lib,
-                                           tree_ident2(*(params->arch)));
+                                           tree_ident2(*(params->tree)));
          lib_mtime_t new_mtime = lib_mtime(params->lib, tree_ident2(t));
 
          if (new_mtime == old_mtime) {
@@ -124,13 +125,13 @@ static void find_arch(ident_t name, int kind, void *context)
             // file but this shouldn't be a problem with high-resolution
             // timestamps
             uint16_t new_line = tree_loc(t)->first_line;
-            uint16_t old_line = tree_loc(*(params->arch))->first_line;
+            uint16_t old_line = tree_loc(*(params->tree))->first_line;
 
             if (new_line > old_line)
-               *(params->arch) = t;
+               *(params->tree) = t;
          }
          else if (new_mtime > old_mtime)
-            *(params->arch) = t;
+            *(params->tree) = t;
       }
    }
 }
@@ -146,7 +147,7 @@ static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib)
    tree_t arch = lib_get_check_stale(lib, name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
       arch = NULL;
-      struct arch_search_params params = { lib, name, &arch };
+      lib_search_params_t params = { lib, name, &arch };
       lib_walk_index(lib, find_arch, &params);
 
       if (arch == NULL)
@@ -857,28 +858,71 @@ static bool elab_compatible_map(tree_t comp, tree_t entity, char *what,
    return true;
 }
 
-static tree_t elab_default_binding(tree_t t, lib_t *new_lib,
+static void find_entity(ident_t name, int kind, void *context)
+{
+   lib_search_params_t *params = context;
+
+   if (kind == T_ENTITY) {
+      if (params->name == name)
+         *(params->tree) = lib_get_check_stale(params->lib, name);
+   }
+}
+
+static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
                                    const elab_ctx_t *ctx)
 {
    // Default binding indication is described in LRM 93 section 5.2.2
 
-   tree_t comp = tree_ref(t);
+   tree_t comp = tree_ref(inst);
 
    ident_t full_i = tree_ident(comp);
-   ident_t comp_i = ident_rfrom(full_i, '.');
    ident_t lib_i = ident_until(full_i, '.');
 
-   ident_t entity_i;
-   if (lib_i == full_i)
-      entity_i = ident_prefix(lib_name(ctx->library), full_i, '.');
-   else
-      entity_i = ident_prefix(lib_i, comp_i, '.');
+   lib_t lib = NULL;
+   bool search_others = true;
+   if (lib_i == full_i) {
+      lib    = lib_work();
+      full_i = ident_prefix(lib_name(lib), full_i, '.');
+   }
+   else {
+      search_others = false;
+      if ((lib = lib_find(istr(lib_i), true, true)) == NULL)
+         return NULL;
+   }
 
-   tree_t arch = elab_copy(pick_arch(tree_loc(comp), entity_i, new_lib));
+   tree_t entity = NULL;
+   lib_search_params_t params = { lib_work(), full_i, &entity };
+   lib_walk_index(params.lib, find_entity, &params);
+
+   if (entity == NULL) {
+      if (search_others && ctx->arch != NULL) {
+         const int nctx = tree_contexts(ctx->arch);
+         for (int i = 0; entity == NULL && i < nctx; i++) {
+            tree_t c = tree_context(ctx->arch, i);
+            if (tree_kind(c) != T_LIBRARY)
+               continue;
+
+            lib_t lib = lib_find(istr(tree_ident(c)), true, true);
+            full_i = ident_prefix(lib_name(lib), tree_ident(comp), '.');
+            if (lib != NULL) {
+               lib_search_params_t params = { lib, full_i, &entity };
+               lib_walk_index(params.lib, find_entity, &params);
+            }
+         }
+      }
+
+      if (entity == NULL) {
+         error_at(tree_loc(inst), "cannot find entity for component %s "
+                  "without binding indication", istr(tree_ident(comp)));
+         ++errors;
+         return NULL;
+      }
+   }
+
+   tree_t arch = elab_copy(pick_arch(tree_loc(comp),
+                                     tree_ident(entity), new_lib));
 
    // Check entity is compatible with component declaration
-
-   tree_t entity = tree_ref(arch);
 
    if (!elab_compatible_map(comp, entity, "generic",
                             tree_generics, tree_generic))
@@ -944,7 +988,8 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       .path     = ctx->path,
       .inst     = ninst,
       .next_net = ctx->next_net,
-      .library  = new_lib
+      .library  = new_lib,
+      .arch     = arch
    };
    elab_arch(arch, &new_ctx);
 }
@@ -1115,7 +1160,8 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .path     = npath,
          .inst     = ninst,
          .next_net = ctx->next_net,
-         .library  = ctx->library
+         .library  = ctx->library,
+         .arch     = ctx->arch
       };
 
       elab_push_scope(copy, &new_ctx);
@@ -1181,7 +1227,8 @@ static void elab_stmts(tree_t t, const elab_ctx_t *ctx)
          .path     = npath,
          .inst     = ninst,
          .next_net = ctx->next_net,
-         .library  = ctx->library
+         .library  = ctx->library,
+         .arch     = ctx->arch
       };
 
       switch (tree_kind(s)) {
@@ -1320,7 +1367,8 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
       .path     = npath,
       .inst     = ninst,
       .next_net = ctx->next_net,
-      .library  = ctx->library
+      .library  = ctx->library,
+      .arch     = arch
    };
    elab_arch(arch, &new_ctx);
 }

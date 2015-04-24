@@ -327,10 +327,10 @@ lib_t lib_new(const char *name)
    return lib_init(name, name, fd);
 }
 
-lib_t lib_tmp(void)
+lib_t lib_tmp(const char *name)
 {
    // For unit tests, avoids creating files
-   return lib_init("work", "", 0);
+   return lib_init(name, "", 0);
 }
 
 static void push_path(const char *path)

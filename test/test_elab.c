@@ -276,6 +276,30 @@ START_TEST(test_const1)
 }
 END_TEST
 
+START_TEST(test_libbind)
+{
+   input_from_file(TESTDIR "/elab/libbind.vhd");
+
+   const error_t expect[] = {
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   lib_t work = lib_work();
+
+   lib_t other = lib_tmp("other");
+   lib_set_work(other);
+   sem_check(parse());
+   tree_t a = parse();
+   sem_check(a);
+   simplify(a);
+   fail_if(sem_errors() > 0);
+
+   lib_set_work(work);
+   run_elab();
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -297,6 +321,7 @@ int main(void)
    tcase_add_test(tc, test_open2);
    tcase_add_test(tc, test_issue93);
    tcase_add_test(tc, test_const1);
+   tcase_add_test(tc, test_libbind);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
