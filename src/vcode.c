@@ -3428,9 +3428,11 @@ vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
 
 vcode_reg_t emit_unwrap(vcode_reg_t array)
 {
-   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_WRAP) {
-      if (other->result == array)
+   VCODE_FOR_EACH_OP(other) {
+      if (other->kind == VCODE_OP_WRAP && other->result == array)
          return other->args.items[0];
+      else if (other->kind == VCODE_OP_UNWRAP && other->args.items[0] == array)
+         return other->result;
    }
 
    op_t *op = vcode_add_op(VCODE_OP_UNWRAP);
