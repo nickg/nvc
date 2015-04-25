@@ -2206,21 +2206,19 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
 
 static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 {
-   assert(tree_params(expr) == 2);
-   const tree_t args[] = {
-      tree_value(tree_param(expr, 0)),
-      tree_value(tree_param(expr, 1))
-   };
+   const int nparams = tree_params(expr);
 
-   const type_t arg_types[] = {
-      tree_type(args[0]),
-      tree_type(args[1])
-   };
+   struct {
+      tree_t      value;
+      type_t      type;
+      vcode_reg_t reg;
+   } args[nparams];
 
-   vcode_reg_t arg_regs[] = {
-      lower_expr(args[0], ctx),
-      lower_expr(args[1], ctx)
-   };
+   for (int i = 0; i < nparams; i++) {
+      args[i].value = tree_value(tree_param(expr, i));
+      args[i].type  = tree_type(args[i].value);
+      args[i].reg   = lower_expr(args[i].value, ctx);
+   }
 
    type_t type = tree_type(expr);
    type_t elem = type_elem(type);
@@ -2231,19 +2229,17 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
-      vcode_reg_t args_len[2];
+      vcode_reg_t len = emit_const(vtype_offset(), 0);
+      for (int i = 0; i < nparams; i++) {
+         vcode_reg_t len_i;
+         if (type_is_array(args[i].type))
+            len_i = lower_array_len(args[i].type, 0, args[i].reg);
+         else
+            len_i = emit_const(vtype_offset(), 1);
 
-      if (type_is_array(arg_types[0]))
-         args_len[0] = lower_array_len(arg_types[0], 0, arg_regs[0]);
-      else
-         args_len[0] = emit_const(vtype_offset(), 1);
+         len = emit_add(len, len_i);
+      }
 
-      if (type_is_array(arg_types[1]))
-         args_len[1] = lower_array_len(arg_types[1], 0, arg_regs[1]);
-      else
-         args_len[1] = emit_const(vtype_offset(), 1);
-
-      vcode_reg_t len  = emit_add(args_len[0], args_len[1]);
       vcode_reg_t data = emit_alloca(lower_type(elem), lower_bounds(elem), len);
 
       vcode_dim_t dims[1] = {
@@ -2262,30 +2258,24 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t ptr = lower_array_data(var_reg);
 
-   if (type_is_array(arg_types[0])) {
-      vcode_reg_t src_len = lower_array_total_len(arg_types[0], arg_regs[0]);
+   for (int i = 0; i < nparams; i++) {
+      if (type_is_array(args[i].type)) {
+         vcode_reg_t src_len =
+            lower_array_total_len(args[i].type, args[i].reg);
 
-      if (vcode_reg_kind(arg_regs[0]) == VCODE_TYPE_SIGNAL)
-         arg_regs[0] = emit_vec_load(arg_regs[0], src_len, false);
+         if (vcode_reg_kind(args[i].reg) == VCODE_TYPE_SIGNAL)
+            args[i].reg = emit_vec_load(args[i].reg, src_len, false);
 
-      emit_copy(ptr, lower_array_data(arg_regs[0]), src_len);
-      ptr = emit_add(ptr, src_len);
+         emit_copy(ptr, lower_array_data(args[i].reg), src_len);
+         if (i + 1 < nparams)
+            ptr = emit_add(ptr, src_len);
+      }
+      else {
+         emit_store_indirect(lower_reify(args[i].reg), ptr);
+         if (i + 1 < nparams)
+            ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
+      }
    }
-   else {
-      emit_store_indirect(lower_reify(arg_regs[0]), ptr);
-      ptr = emit_add(ptr, emit_const(vtype_offset(), 1));
-   }
-
-   if (type_is_array(arg_types[1])) {
-      vcode_reg_t src_len = lower_array_total_len(arg_types[1], arg_regs[1]);
-
-      if (vcode_reg_kind(arg_regs[1]) == VCODE_TYPE_SIGNAL)
-         arg_regs[1] = emit_vec_load(arg_regs[1], src_len, false);
-
-      emit_copy(ptr, lower_array_data(arg_regs[1]), src_len);
-   }
-   else
-      emit_store_indirect(lower_reify(arg_regs[1]), ptr);
 
    return var_reg;
 }

@@ -734,6 +734,29 @@ static tree_t simp_qualified(tree_t t)
    return tree_value(t);
 }
 
+static tree_t simp_concat(tree_t t)
+{
+   // Flatten nested concatenations to make efficient code generation easier
+
+   tree_t p0 = tree_value(tree_param(t, 0));
+   if (tree_kind(p0) != T_CONCAT)
+      return t;
+
+   tree_t flat = tree_new(T_CONCAT);
+   tree_set_loc(flat, tree_loc(t));
+   tree_set_type(flat, tree_type(t));
+
+   assert(tree_params(t) == 2);
+
+   const int np0 = tree_params(p0);
+   for (int i = 0; i < np0; i++)
+      tree_add_param(flat, tree_param(p0, i));
+
+   tree_add_param(flat, tree_param(t, 1));
+
+   return flat;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -771,6 +794,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_cassert(t);
    case T_QUALIFIED:
       return simp_qualified(t);
+   case T_CONCAT:
+      return simp_concat(t);
    default:
       return t;
    }

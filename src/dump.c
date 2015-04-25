@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -193,11 +193,16 @@ static void dump_expr(tree_t t)
       break;
 
    case T_CONCAT:
-      printf("(");
-      dump_expr(tree_value(tree_param(t, 0)));
-      printf(" & ");
-      dump_expr(tree_value(tree_param(t, 1)));
-      printf(")");
+      {
+         printf("(");
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            if (i > 0)
+               printf(" & ");
+            dump_expr(tree_value(tree_param(t, i)));
+         }
+         printf(")");
+      }
       break;
 
    case T_QUALIFIED:

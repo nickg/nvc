@@ -176,7 +176,6 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_LOAD_INDIRECT:
       case VCODE_OP_STORE_INDIRECT:
       case VCODE_OP_SCHED_WAVEFORM:
-      case VCODE_OP_ALLOCA:
       case VCODE_OP_SELECT:
       case VCODE_OP_SET_INITIAL:
       case VCODE_OP_ALLOC_DRIVER:
@@ -237,6 +236,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
          break;
 
       case VCODE_OP_SCHED_EVENT:
+      case VCODE_OP_ALLOCA:
          if (vcode_get_subkind(i) != e->subkind) {
             vcode_dump();
             fail("expected op %d in block %d to have subkind %x but "
@@ -1618,7 +1618,7 @@ START_TEST(test_memset)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
          { VCODE_OP_SELECT },
-         { VCODE_OP_ALLOCA },
+         { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
          { VCODE_OP_MEMSET },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
@@ -1641,7 +1641,7 @@ START_TEST(test_memset)
          { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
          { VCODE_OP_SELECT },
-         { VCODE_OP_ALLOCA },
+         { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
          { VCODE_OP_CONST, .value = 0xab },
          { VCODE_OP_CONST, .value = 4 },
          { VCODE_OP_MUL },
@@ -2023,6 +2023,50 @@ START_TEST(test_issue124)
 }
 END_TEST
 
+START_TEST(test_issue135)
+{
+   input_from_file(TESTDIR "/lower/issue135.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_IMAGE },
+      { VCODE_OP_IMAGE },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_ADD },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_ADD },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_ADD },
+      { VCODE_OP_ADD },
+      { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_COPY },
+      { VCODE_OP_ADD },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_COPY },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_ADD },
+      { VCODE_OP_UNWRAP },
+      { VCODE_OP_COPY },
+      { VCODE_OP_ADD },
+      { VCODE_OP_STORE_INDIRECT },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2065,6 +2109,7 @@ int main(void)
    tcase_add_test(tc, test_cover);
    tcase_add_test(tc, test_issue122);
    tcase_add_test(tc, test_issue124);
+   tcase_add_test(tc, test_issue135);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
