@@ -2120,6 +2120,16 @@ START_TEST(test_issue136)
 }
 END_TEST
 
+START_TEST(test_issue125)
+{
+   input_from_file(TESTDIR "/lower/issue125.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2165,6 +2175,7 @@ int main(void)
    tcase_add_test(tc, test_issue135);
    tcase_add_test(tc, test_issue134);
    tcase_add_test(tc, test_issue136);
+   tcase_add_test(tc, test_issue125);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

@@ -670,6 +670,7 @@ START_TEST(test_access)
       { 47, "type of value REC does not match type of" },
       { 55, "type of allocator expresion INTEGER does not match" },
       { 56, "name S does not refer to a type" },
+      { 76, "unconstrained array type INT_PTR_ARRAY not allowed" },
       { -1, NULL }
    };
    expect_errors(expect);

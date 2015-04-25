@@ -68,4 +68,15 @@ package body p is
     begin
     end procedure;
 
+    type int_ptr_array is array (integer range <>) of int_ptr;
+    type int_ptr_array_ptr is access int_ptr_array;
+
+    procedure alloc_ptr_array(x : out int_ptr_array_ptr) is
+    begin
+        x := new int_ptr_array;          -- Error
+        x := new int_ptr_array(1 to 3);  -- OK
+        x.all := (null, null, null);     -- OK
+    end procedure;
+
+
 end package body;

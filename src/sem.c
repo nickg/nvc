@@ -6216,6 +6216,10 @@ static bool sem_check_new(tree_t t)
          if (!sem_check_type(value, &type))
             return false;
 
+         if (type_is_unconstrained(type))
+            sem_error(t, "unconstrained array type %s not allowed in allocator "
+                      "expression", sem_type_str(type));
+
          tree_set_value(t, make_default_value(type, tree_loc(t)));
       }
       break;
