@@ -356,6 +356,16 @@ static const char *sem_type_str(type_t type)
    return type_pp_minify(type, sem_type_minify);
 }
 
+static void scope_append_import_list(ident_t name, bool all)
+{
+   import_list_t *new = xmalloc(sizeof(import_list_t));
+   new->name = name;
+   new->all  = all;
+   new->next = top_scope->imported;
+
+   top_scope->imported = new;
+}
+
 static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
 {
    const int ndecls = tree_decls(unit);
@@ -385,12 +395,7 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
       }
    }
 
-   import_list_t *new = xmalloc(sizeof(import_list_t));
-   new->name = tree_ident(unit);
-   new->all  = all;
-   new->next = top_scope->imported;
-
-   top_scope->imported = new;
+   scope_append_import_list(tree_ident(unit), all);
    return true;
 }
 
@@ -421,7 +426,13 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
       return false;
    }
 
-   return scope_import_decls(unit, unqual_only, all);
+   if (!scope_import_decls(unit, unqual_only, all))
+      return false;
+
+   if (unit_name != tree_ident(unit))
+      scope_append_import_list(unit_name, all);
+
+   return true;
 }
 
 static void type_set_push(void)
@@ -2363,7 +2374,7 @@ static bool sem_check_pack_body(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
-   bool ok = sem_check_context(t);
+   bool ok = sem_check_context(pack) && sem_check_context(t);
 
    scope_push(qual);
 
@@ -2371,9 +2382,6 @@ static bool sem_check_pack_body(tree_t t)
    ok = ok && scope_import_decls(pack, false, true);
 
    if (ok) {
-      // XXX: this call should be in the outer scope above
-      ok = ok && sem_check_context(pack);
-
       const int ndecls = tree_decls(t);
       for (int n = 0; n < ndecls; n++) {
          tree_t decl = tree_decl(t, n);
