@@ -107,7 +107,7 @@ static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
-static void sem_declare_fields(type_t type, ident_t prefix);
+static void scope_insert_alias(tree_t t, ident_t name);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -249,12 +249,39 @@ static bool scope_walk(hash_iter_t *now, tree_t *decl)
 
 static bool scope_can_overload(tree_t t)
 {
-   tree_kind_t kind = tree_kind(t);
-   return (kind == T_ENUM_LIT)
-      || (kind == T_FUNC_DECL)
-      || (kind == T_FUNC_BODY)
-      || (kind == T_PROC_DECL)
-      || (kind == T_PROC_BODY);
+   const tree_kind_t kind = tree_kind(t);
+   return kind == T_ENUM_LIT
+      || kind == T_FUNC_DECL
+      || kind == T_FUNC_BODY
+      || kind == T_PROC_DECL
+      || kind == T_PROC_BODY;
+}
+
+static void scope_insert_fields(type_t type, ident_t prefix)
+{
+   // When adding an object R with record type to the scope make all its
+   // fields visible as R.X, R.Y, etc.
+
+   if (type_is_record(type)) {
+      // Insert a name into the scope for each field
+      const int nfields = type_fields(type);
+      for (int i = 0; i < nfields; i++) {
+         tree_t field = type_field(type, i);
+         ident_t qual = ident_prefix(prefix, tree_ident(field), '.');
+         scope_insert_alias(field, qual);
+
+         type_t field_type = tree_type(field);
+         if (type_is_record(field_type))
+            scope_insert_fields(field_type, qual);
+      }
+   }
+   else if (type_kind(type) == T_ACCESS) {
+      type_t deref_type = type_access(type);
+      if (type_is_record(deref_type)) {
+         // Pointers to records can be dereferenced implicitly
+         scope_insert_fields(deref_type, prefix);
+      }
+   }
 }
 
 static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
@@ -291,6 +318,17 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
    } while (existing != NULL);
 
    hash_put(top_scope->decls, name, t);
+
+   const tree_kind_t kind = tree_kind(t);
+   const bool may_have_fields =
+      kind == T_VAR_DECL
+      || kind == T_CONST_DECL
+      || kind == T_SIGNAL_DECL
+      || kind == T_PORT_DECL;
+
+   if (may_have_fields)
+      scope_insert_fields(tree_type(t), name);
+
    return true;
 }
 
@@ -377,11 +415,7 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
       if ((kind == T_ATTR_SPEC) || (kind == T_USE))
          continue;
 
-      const bool may_have_fields =
-         kind == T_VAR_DECL || kind == T_CONST_DECL || kind == T_SIGNAL_DECL;
-
       ident_t dname = tree_ident(decl);
-      type_t type = may_have_fields ? tree_type(decl) : NULL;
 
       // Make unqualified and package qualified names visible
       if (!unqual_only) {
@@ -389,20 +423,14 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
             return false;
 
          ident_t pqual = ident_from(dname, '.');
-         if (pqual != NULL) {
+         if (pqual != NULL)
             scope_insert_alias(decl, pqual);
-            if (may_have_fields)
-               sem_declare_fields(type, pqual);
-         }
       }
 
       if (all) {
          ident_t unqual = ident_rfrom(dname, '.');
-         if (unqual != NULL) {
+         if (unqual != NULL)
             scope_insert_alias(decl, unqual);
-            if (may_have_fields)
-               sem_declare_fields(type, unqual);
-         }
       }
    }
 
@@ -1712,30 +1740,6 @@ static bool sem_check_type_decl(tree_t t)
    }
 }
 
-static void sem_declare_fields(type_t type, ident_t prefix)
-{
-   if (type_is_record(type)) {
-      // Insert a name into the scope for each field
-      const int nfields = type_fields(type);
-      for (int i = 0; i < nfields; i++) {
-         tree_t field = type_field(type, i);
-         ident_t qual = ident_prefix(prefix, tree_ident(field), '.');
-         scope_insert_alias(field, qual);
-
-         type_t field_type = tree_type(field);
-         if (type_is_record(field_type))
-            sem_declare_fields(field_type, qual);
-      }
-   }
-   else if (type_kind(type) == T_ACCESS) {
-      type_t deref_type = type_access(type);
-      if (type_is_record(deref_type)) {
-         // Pointers to records can be dereferenced implicitly
-         sem_declare_fields(deref_type, prefix);
-      }
-   }
-}
-
 static void sem_declare_methods(type_t type, ident_t prefix)
 {
    const int ndecls = type_decls(type);
@@ -1747,8 +1751,6 @@ static void sem_declare_methods(type_t type, ident_t prefix)
       ident_t suffix = ident_rfrom(tree_ident(decl), '.');
       ident_t qual = ident_prefix(prefix, suffix, '.');
       scope_insert_alias(decl, qual);
-
-      sem_declare_fields(tree_type(decl), qual);
    }
 }
 
@@ -1758,8 +1760,6 @@ static bool sem_make_visible(tree_t container, get_nth_fn_t get, int count)
    for (int i = 0; i < count; i++) {
       tree_t t = (*get)(container, i);
       ok = scope_insert(t) && ok;
-
-      sem_declare_fields(tree_type(t), tree_ident(t));
    }
 
    return ok;
@@ -1819,8 +1819,6 @@ static bool sem_check_decl(tree_t t)
 
    if (type_is_protected(type))
       sem_declare_methods(type, tree_ident(t));
-   else
-      sem_declare_fields(type, tree_ident(t));
 
    if (kind == T_SIGNAL_DECL && type_is_access(type))
       sem_error(t, "signals may not have access type");
