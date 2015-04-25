@@ -3691,7 +3691,7 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_value(tree_param(t, 0));
    tree_t right = tree_value(tree_param(t, 1));
 
-   if ((top_type_set->n_members > 0) && !type_set_restrict(sem_is_composite)) {
+   if (top_type_set->n_members > 0 && !type_set_restrict(sem_is_composite)) {
       LOCAL_TEXT_BUF ts = type_set_fmt();
       sem_error(t, "no composite type in context%s", tb_get(ts));
    }
@@ -3709,9 +3709,6 @@ static bool sem_check_concat(tree_t t)
 
    type_t ltype = tree_type(left);
    type_t rtype = tree_type(right);
-
-   type_kind_t lkind = type_kind(ltype);
-   type_kind_t rkind = type_kind(rtype);
 
    bool l_array = type_is_array(ltype);
    bool r_array = type_is_array(rtype);
@@ -3737,15 +3734,17 @@ static bool sem_check_concat(tree_t t)
       type_t index_type = index_type_of(ltype, 0);
       range_t index_r = type_dim(index_type, 0);
 
-      if ((lkind == T_UARRAY) || (rkind == T_UARRAY))
-         tree_set_type(t, (lkind == T_UARRAY) ? ltype : rtype);
+      if (type_is_unconstrained(ltype))
+         tree_set_type(t, ltype);
+      else if (type_is_unconstrained(rtype))
+         tree_set_type(t, rtype);
       else {
-         tree_t left_len = sem_array_len(ltype);
-         tree_t right_len = sem_array_len(rtype);
-
          type_t result = type_new(T_SUBTYPE);
          type_set_ident(result, type_ident(ltype));
          type_set_base(result, ltype);
+
+         tree_t left_len = sem_array_len(ltype);
+         tree_t right_len = sem_array_len(rtype);
 
          tree_t one = sem_int_lit(index_type, 1);
 
@@ -3773,8 +3772,6 @@ static bool sem_check_concat(tree_t t)
       type_t atype = tree_type(array);
       type_t stype = tree_type(scalar);
 
-      type_kind_t akind = type_kind(atype);
-
       if (array_dimension(atype) > 1)
          sem_error(t, "cannot concatenate arrays with more than one dimension");
 
@@ -3784,32 +3781,26 @@ static bool sem_check_concat(tree_t t)
       type_t index_type = index_type_of(atype, 0);
       range_t index_r = type_dim(index_type, 0);
 
-      tree_t array_len;
-      if (akind == T_UARRAY) {
-         array_len = tree_new(T_ATTR_REF);
-         tree_set_name(array_len, array);
-         tree_set_ident(array_len, ident_new("LENGTH"));
-         tree_set_type(array_len, sem_std_type("INTEGER"));
-         tree_add_attr_int(array_len, builtin_i, ATTR_LENGTH);
+      if (type_is_unconstrained(atype))
+         tree_set_type(t, atype);
+      else {
+         tree_t array_len = sem_array_len(atype);
+         tree_t result_right = call_builtin(
+            "add", index_type, index_r.left, array_len, NULL);
+
+         type_t result = type_new(T_SUBTYPE);
+         type_set_ident(result, type_ident(atype));
+         type_set_base(result, atype);
+
+         range_t result_r = {
+            .kind  = index_r.kind,
+            .left  = index_r.left,
+            .right = result_right
+         };
+         type_add_dim(result, result_r);
+
+         tree_set_type(t, result);
       }
-      else
-         array_len = sem_array_len(atype);
-
-      tree_t result_right = call_builtin(
-         "add", index_type, index_r.left, array_len, NULL);
-
-      type_t result = type_new(T_SUBTYPE);
-      type_set_ident(result, type_ident(atype));
-      type_set_base(result, atype);
-
-      range_t result_r = {
-         .kind  = index_r.kind,
-         .left  = index_r.left,
-         .right = result_right
-      };
-      type_add_dim(result, result_r);
-
-      tree_set_type(t, result);
    }
    else {
       // Concatenating two scalars

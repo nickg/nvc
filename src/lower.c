@@ -2239,10 +2239,18 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
 
    vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
-      vcode_reg_t args_len[] = {
-         lower_array_len(arg_types[0], 0, arg_regs[0]),
-         lower_array_len(arg_types[1], 0, arg_regs[1])
-      };
+      vcode_reg_t args_len[2];
+
+      if (type_is_array(arg_types[0]))
+         args_len[0] = lower_array_len(arg_types[0], 0, arg_regs[0]);
+      else
+         args_len[0] = emit_const(vtype_offset(), 1);
+
+      if (type_is_array(arg_types[1]))
+         args_len[1] = lower_array_len(arg_types[1], 0, arg_regs[1]);
+      else
+         args_len[1] = emit_const(vtype_offset(), 1);
+
       vcode_reg_t len  = emit_add(args_len[0], args_len[1]);
       vcode_reg_t data = emit_alloca(lower_type(elem), lower_bounds(elem), len);
 
