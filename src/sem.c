@@ -107,6 +107,7 @@ static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
+static void sem_declare_fields(type_t type, ident_t prefix);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -376,7 +377,11 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
       if ((kind == T_ATTR_SPEC) || (kind == T_USE))
          continue;
 
+      const bool may_have_fields =
+         kind == T_VAR_DECL || kind == T_CONST_DECL || kind == T_SIGNAL_DECL;
+
       ident_t dname = tree_ident(decl);
+      type_t type = may_have_fields ? tree_type(decl) : NULL;
 
       // Make unqualified and package qualified names visible
       if (!unqual_only) {
@@ -384,14 +389,20 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
             return false;
 
          ident_t pqual = ident_from(dname, '.');
-         if (pqual != NULL)
+         if (pqual != NULL) {
             scope_insert_alias(decl, pqual);
+            if (may_have_fields && type_is_record(type))
+               sem_declare_fields(type, pqual);
+         }
       }
 
       if (all) {
          ident_t unqual = ident_rfrom(dname, '.');
-         if (unqual != NULL)
+         if (unqual != NULL) {
             scope_insert_alias(decl, unqual);
+            if (may_have_fields && type_is_record(type))
+               sem_declare_fields(type, unqual);
+         }
       }
    }
 
