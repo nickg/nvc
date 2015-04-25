@@ -357,6 +357,10 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       // Runtime allocates from temporary stack
       break;
 
+   case VCODE_OP_RECORD_REF:
+      vcode_return_safety_check(defn->args.items[0]);
+      break;
+
    default:
       VCODE_ASSERT(false, "cannot return safety check r%d", reg);
    }

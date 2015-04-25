@@ -1,6 +1,7 @@
 #include "test_util.h"
 #include "phase.h"
 #include "vcode.h"
+#include "common.h"
 
 #include <inttypes.h>
 
@@ -2097,6 +2098,28 @@ START_TEST(test_issue134)
 }
 END_TEST
 
+START_TEST(test_issue136)
+{
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/lower/issue136.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(tree_decl(e, 1), 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_RECORD_REF, .field = 0 },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2141,6 +2164,7 @@ int main(void)
    tcase_add_test(tc, test_issue124);
    tcase_add_test(tc, test_issue135);
    tcase_add_test(tc, test_issue134);
+   tcase_add_test(tc, test_issue136);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
