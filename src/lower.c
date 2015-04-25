@@ -3550,6 +3550,11 @@ static void lower_case(tree_t stmt, loop_stack_t *loops)
 
 static void lower_stmt(tree_t stmt, loop_stack_t *loops)
 {
+   if (vcode_block_finished()) {
+      warn_at(tree_loc(stmt), "statement is unreachable");
+      return;
+   }
+
    const int cover_tag = tree_attr_int(stmt, stmt_tag_i, -1);
    if (cover_tag != -1)
       emit_cover_stmt(cover_tag);

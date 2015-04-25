@@ -374,9 +374,8 @@ void error_at(const loc_t *loc, const char *fmt, ...)
    va_list ap;
    va_start(ap, fmt);
 
-   char *strp = prepare_msg(fmt, ap, false);
+   char *strp LOCAL = prepare_msg(fmt, ap, false);
    error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
-   free(strp);
 
    va_end(ap);
 }
@@ -385,7 +384,15 @@ void warn_at(const loc_t *loc, const char *fmt, ...)
 {
    va_list ap;
    va_start(ap, fmt);
-   msg_at(warnf, loc, fmt, ap);
+
+   // Convert warnings to errors for unit tests
+   if (opt_get_int("unit-test")) {
+      char *strp LOCAL = prepare_msg(fmt, ap, false);
+      error_fn(strp, loc != NULL ? loc : &LOC_INVALID);
+   }
+   else
+      msg_at(warnf, loc, fmt, ap);
+
    va_end(ap);
 }
 

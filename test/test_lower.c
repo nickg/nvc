@@ -2067,6 +2067,36 @@ START_TEST(test_issue135)
 }
 END_TEST
 
+START_TEST(test_issue134)
+{
+   input_from_file(TESTDIR "/lower/issue134.vhd");
+
+   const error_t expect[] = {
+      {  8, "statement is unreachable" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST_ARRAY, .length = 0 },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_WRAP },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2110,6 +2140,7 @@ int main(void)
    tcase_add_test(tc, test_issue122);
    tcase_add_test(tc, test_issue124);
    tcase_add_test(tc, test_issue135);
+   tcase_add_test(tc, test_issue134);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
