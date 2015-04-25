@@ -321,7 +321,7 @@ START_TEST(test_func)
       {  25, "declaration UENUM is not a function" },
       {  27, "type of default value universal integer does not" },
       {  29, "subprogram body is not allowed in package specification" },
-      {  36, "unit WORK.BAD not found in library WORK" },
+      {  36, "missing declaration for package BAD" },
       {  48, "name A cannot be used in this context" },
       {  51, "function arguments must have mode IN" },
       {  56, "function must contain a return statement" },

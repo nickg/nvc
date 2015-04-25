@@ -356,33 +356,8 @@ static const char *sem_type_str(type_t type)
    return type_pp_minify(type, sem_type_minify);
 }
 
-static bool scope_import_unit(ident_t unit_name, lib_t lib,
-                              bool all, const loc_t *loc)
+static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
 {
-   // Check we haven't already imported this
-   bool unqual_only = false;
-   for (scope_t *s = top_scope; s != NULL; s = s->down) {
-      import_list_t *it;
-      for (it = s->imported; it != NULL; it = it->next) {
-         if (it->name == unit_name) {
-            if (it->all || !all)
-               return true;
-            else {
-               unqual_only = true;
-               break;
-            }
-         }
-      }
-   }
-
-   tree_t unit = lib_get_check_stale(lib, unit_name);
-   if (unit == NULL) {
-      error_at(loc, "unit %s not found in library %s",
-               istr(unit_name), istr(lib_name(lib)));
-      ++errors;
-      return false;
-   }
-
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
       tree_t decl = tree_decl(unit, n);
@@ -411,12 +386,42 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
    }
 
    import_list_t *new = xmalloc(sizeof(import_list_t));
-   new->name = unit_name;
+   new->name = tree_ident(unit);
    new->all  = all;
    new->next = top_scope->imported;
 
    top_scope->imported = new;
    return true;
+}
+
+static bool scope_import_unit(ident_t unit_name, lib_t lib,
+                              bool all, const loc_t *loc)
+{
+   // Check we haven't already imported this
+   bool unqual_only = false;
+   for (scope_t *s = top_scope; s != NULL; s = s->down) {
+      import_list_t *it;
+      for (it = s->imported; it != NULL; it = it->next) {
+         if (it->name == unit_name) {
+            if (it->all || !all)
+               return true;
+            else {
+               unqual_only = true;
+               break;
+            }
+         }
+      }
+   }
+
+   tree_t unit = lib_get_check_stale(lib, unit_name);
+   if (unit == NULL) {
+      error_at(loc, "unit %s not found in library %s",
+               istr(unit_name), istr(lib_name(lib)));
+      ++errors;
+      return false;
+   }
+
+   return scope_import_decls(unit, unqual_only, all);
 }
 
 static void type_set_push(void)
@@ -2340,9 +2345,17 @@ static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
    return ok;
 }
 
-static bool sem_check_package_body(tree_t t)
+static bool sem_check_pack_body(tree_t t)
 {
    ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
+
+   // Look up package declaration
+   tree_t pack = lib_get_check_stale(lib_work(), qual);
+   if (pack == NULL)
+      sem_error(t, "missing declaration for package %s", istr(tree_ident(t)));
+
+   if (tree_kind(pack) != T_PACKAGE)
+      sem_error(t, "unit %s is not a package", istr(tree_ident(pack)));
 
    assert(top_scope == NULL);
    scope_push(NULL);
@@ -2352,12 +2365,9 @@ static bool sem_check_package_body(tree_t t)
    scope_push(qual);
 
    // Look up package declaration
-   ok = ok && scope_import_unit(qual, lib_work(), true, tree_loc(t));
+   ok = ok && scope_import_decls(pack, false, true);
 
-   tree_t pack = NULL;
    if (ok) {
-      pack = lib_get_check_stale(lib_work(), qual);
-      assert(pack != NULL);
       // XXX: this call should be in the outer scope above
       ok = ok && sem_check_context(pack);
 
@@ -2371,42 +2381,39 @@ static bool sem_check_package_body(tree_t t)
          // Make the unqualified name visible inside the package except
          // in the case of function and procedure bodies where the declaration
          // is already visible
-         bool func_body_dup =
+         const bool func_body_dup =
             (tree_kind(decl) == T_FUNC_BODY)
             && sem_check_duplicate(decl, T_FUNC_DECL);
-         bool proc_body_dup =
+         const bool proc_body_dup =
             (tree_kind(decl) == T_PROC_BODY)
             && sem_check_duplicate(decl, T_PROC_DECL);
-         bool make_visible = !func_body_dup && !proc_body_dup;
+         const bool make_visible = !func_body_dup && !proc_body_dup;
 
          if (make_visible)
             scope_insert_alias(decl, unqual);
       }
    }
 
-   if (pack != NULL)
-      ok = ok && sem_check_missing_subprogram_body(t, pack)
-         && sem_check_missing_subprogram_body(t, t);
+   ok = ok && sem_check_missing_subprogram_body(t, pack)
+      && sem_check_missing_subprogram_body(t, t);
 
    scope_pop();
    scope_pop();
 
-   if (pack != NULL) {
-      // Check for any deferred constants which were not given values
-      const int ndecls = tree_decls(pack);
-      for (int i = 0; i < ndecls; i++) {
-         tree_t d = tree_decl(pack, i);
-         if ((tree_kind(d) == T_CONST_DECL) && !tree_has_value(d))
-            sem_error(d, "deferred constant %s was not given a value in the "
-                      "package body", istr(tree_ident(d)));
-      }
+   // Check for any deferred constants which were not given values
+   const int ndecls = tree_decls(pack);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(pack, i);
+      if ((tree_kind(d) == T_CONST_DECL) && !tree_has_value(d))
+         sem_error(d, "deferred constant %s was not given a value in the "
+                   "package body", istr(tree_ident(d)));
    }
 
-   if (ok) {
-      tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
-      lib_put(lib_work(), t);
-   }
+   if (!ok)
+      return false;
 
+   tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
+   lib_put(lib_work(), t);
    return ok;
 }
 
@@ -2547,20 +2554,17 @@ static bool sem_check_arch(tree_t t)
    sem_make_visible(e, tree_port, tree_ports(e));
    sem_make_visible(e, tree_generic, tree_generics(e));
 
-   const int ndecls_ent = tree_decls(e);
-   for (int n = 0; n < ndecls_ent; n++) {
-      tree_t d = tree_decl(e, n);
-      if (tree_kind(d) != T_ATTR_SPEC)
-         sem_declare(d, true);
-   }
+   ok = ok && scope_import_decls(e, false, true);
 
    ok = ok && sem_check_missing_subprogram_body(t, t);
 
    // Now check the architecture itself
 
-   const int ndecls = tree_decls(t);
-   for (int n = 0; n < ndecls; n++)
-      ok = sem_check(tree_decl(t, n)) && ok;
+   if (ok) {
+      const int ndecls = tree_decls(t);
+      for (int n = 0; n < ndecls; n++)
+         ok = sem_check(tree_decl(t, n)) && ok;
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
@@ -6509,7 +6513,7 @@ bool sem_check(tree_t t)
    case T_NULL:
       return true;
    case T_PACK_BODY:
-      return sem_check_package_body(t);
+      return sem_check_pack_body(t);
    case T_FUNC_BODY:
       return sem_check_func_body(t);
    case T_RETURN:
