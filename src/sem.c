@@ -1025,6 +1025,7 @@ static bool sem_declare(tree_t decl, bool add_predefined)
 
    // If this is a full type declarataion then replace any previous
    // incomplete type declaration
+   bool was_incomplete = false;
    tree_t forward = scope_find(tree_ident(decl));
    if (forward != NULL && tree_kind(forward) == T_TYPE_DECL) {
       type_t incomplete = tree_type(forward);
@@ -1041,9 +1042,11 @@ static bool sem_declare(tree_t decl, bool add_predefined)
          tree_set_type(forward, ni);
 
          scope_replace(forward, decl);
+         was_incomplete = true;
       }
    }
-   else if (!scope_insert(decl))
+
+   if (!was_incomplete && !scope_insert(decl))
       return false;
 
    type_kind_t type_k = type_kind(tree_type(decl));
