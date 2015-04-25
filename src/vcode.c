@@ -656,7 +656,7 @@ unsigned vcode_get_dim(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_UARRAY_LEFT || o->kind == VCODE_OP_UARRAY_RIGHT
-          || o->kind == VCODE_OP_UARRAY_DIR);
+          || o->kind == VCODE_OP_UARRAY_DIR || o->kind == VCODE_OP_UARRAY_LEN);
    return o->dim;
 }
 
@@ -780,6 +780,7 @@ const char *vcode_op_string(vcode_op_t op)
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
+      "uarray len"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1410,6 +1411,7 @@ void vcode_dump(void)
          case VCODE_OP_UARRAY_LEFT:
          case VCODE_OP_UARRAY_RIGHT:
          case VCODE_OP_UARRAY_DIR:
+         case VCODE_OP_UARRAY_LEN:
             {
                col += vcode_dump_reg(op->result);
                col += printf(" := %s ", vcode_op_string(op->kind));
@@ -3424,6 +3426,27 @@ vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim)
 {
    return emit_uarray_op(VCODE_OP_UARRAY_DIR, vtype_bool(),
                          array, dim, 2);
+}
+
+vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim)
+{
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_UARRAY_LEN) {
+      if (other->args.items[0] == array && other->dim == dim)
+         return other->result;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_UARRAY_LEN);
+   vcode_add_arg(op, array);
+   op->dim = dim;
+
+   vcode_type_t atype = vcode_reg_type(array);
+   VCODE_ASSERT(vtype_kind(atype) == VCODE_TYPE_UARRAY,
+                "cannot use uarray len with non-uarray type");
+
+   vtype_t *vt = vcode_type_data(atype);
+   VCODE_ASSERT(dim < vt->dims, "invalid dimension %d", dim);
+
+   return (op->result = vcode_add_reg(vtype_offset()));
 }
 
 vcode_reg_t emit_unwrap(vcode_reg_t array)

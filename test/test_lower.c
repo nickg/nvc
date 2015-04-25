@@ -99,6 +99,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_UARRAY_LEFT:
       case VCODE_OP_UARRAY_RIGHT:
       case VCODE_OP_UARRAY_DIR:
+      case VCODE_OP_UARRAY_LEN:
          if (e->dim != vcode_get_dim(i)) {
             vcode_dump();
             fail("expected op %d in block %d to have dimension %d but has %d",
@@ -938,17 +939,7 @@ START_TEST(test_array1)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 2 },
       { VCODE_OP_UNWRAP },
-      { VCODE_OP_UARRAY_LEFT, .dim = 0 },
-      { VCODE_OP_UARRAY_RIGHT, .dim = 0 },
-      { VCODE_OP_SUB },
-      { VCODE_OP_SUB },
-      { VCODE_OP_UARRAY_DIR },
-      { VCODE_OP_SELECT },
-      { VCODE_OP_CONST, .value = 1 },
-      { VCODE_OP_ADD },
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
-      { VCODE_OP_SELECT },
+      { VCODE_OP_UARRAY_LEN },
       { VCODE_OP_CONST, .value = 2 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_EQ },
       { VCODE_OP_MEMCMP },

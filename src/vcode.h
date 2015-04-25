@@ -124,6 +124,7 @@ typedef enum {
    VCODE_OP_NESTED_PCALL,
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
+   VCODE_OP_UARRAY_LEN,
 } vcode_op_t;
 
 typedef enum {
@@ -340,6 +341,7 @@ vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims);
 vcode_reg_t emit_uarray_left(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_right(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_uarray_dir(vcode_reg_t array, unsigned dim);
+vcode_reg_t emit_uarray_len(vcode_reg_t array, unsigned dim);
 vcode_reg_t emit_unwrap(vcode_reg_t array);
 vcode_reg_t emit_array_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs);
 vcode_reg_t emit_not(vcode_reg_t arg);

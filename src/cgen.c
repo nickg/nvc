@@ -1265,6 +1265,27 @@ static void cgen_op_uarray_dir(int op, cgen_ctx_t *ctx)
                                              cgen_reg_name(result));
 }
 
+static void cgen_op_uarray_len(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef dim = cgen_uarray_dim(cgen_get_arg(op, 0, ctx),
+                                      vcode_get_dim(op));
+
+   LLVMValueRef left  = LLVMBuildExtractValue(builder, dim, 0, "left");
+   LLVMValueRef right = LLVMBuildExtractValue(builder, dim, 1, "right");
+   LLVMValueRef dir   = LLVMBuildExtractValue(builder, dim, 2, "dir");
+
+   LLVMValueRef downto = LLVMBuildSub(builder, left, right, "");
+   LLVMValueRef upto   = LLVMBuildSub(builder, right, left, "");
+   LLVMValueRef diff   = LLVMBuildSelect(builder, dir, downto, upto, "");
+   LLVMValueRef len    = LLVMBuildAdd(builder, diff, llvm_int32(1), "");
+   LLVMValueRef zero   = llvm_int32(0);
+   LLVMValueRef neg    = LLVMBuildICmp(builder, LLVMIntSLT, len, zero, "");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildSelect(builder, neg, zero, len,
+                                       cgen_reg_name(result));
+}
+
 static void cgen_op_param_upref(int op, cgen_ctx_t *ctx)
 {
    const int hops = vcode_get_hops(op);
@@ -2507,6 +2528,9 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_COVER_COND:
       cgen_op_cover_cond(i, ctx);
+      break;
+   case VCODE_OP_UARRAY_LEN:
+      cgen_op_uarray_len(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

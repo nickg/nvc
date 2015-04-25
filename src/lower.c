@@ -211,19 +211,9 @@ static vcode_reg_t lower_array_dir(type_t type, int dim, vcode_reg_t reg)
 
 static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
 {
-   vcode_reg_t len_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
       assert(reg != VCODE_INVALID_REG);
-
-      vcode_reg_t left_reg  = emit_uarray_left(reg, dim);
-      vcode_reg_t right_reg = emit_uarray_right(reg, dim);
-
-      vcode_reg_t downto_reg = emit_sub(left_reg, right_reg);
-      vcode_reg_t upto_reg   = emit_sub(right_reg, left_reg);
-      vcode_reg_t diff = emit_select(emit_uarray_dir(reg, dim),
-                                     downto_reg, upto_reg);
-
-      len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
+      return emit_uarray_len(reg, dim);
    }
    else {
       range_t r = type_dim(type, dim);
@@ -258,15 +248,17 @@ static vcode_reg_t lower_array_len(type_t type, int dim, vcode_reg_t reg)
                      r.kind);
       }
 
-      len_reg = emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
+      vcode_reg_t len_reg =
+         emit_add(diff, emit_const(vcode_reg_type(left_reg), 1));
+
+      vcode_type_t offset_type = vtype_offset();
+      vcode_reg_t cast_reg =
+         emit_cast(offset_type, VCODE_INVALID_TYPE, len_reg);
+      vcode_reg_t zero_reg = emit_const(offset_type, 0);
+      vcode_reg_t neg_reg = emit_cmp(VCODE_CMP_LT, cast_reg, zero_reg);
+
+      return emit_select(neg_reg, zero_reg, cast_reg);
    }
-
-   vcode_type_t offset_type = vtype_offset();
-   vcode_reg_t cast_reg = emit_cast(offset_type, VCODE_INVALID_TYPE, len_reg);
-   vcode_reg_t zero_reg = emit_const(offset_type, 0);
-   vcode_reg_t neg_reg = emit_cmp(VCODE_CMP_LT, cast_reg, zero_reg);
-
-   return emit_select(neg_reg, zero_reg, cast_reg);
 }
 
 static vcode_reg_t lower_array_total_len(type_t type, vcode_reg_t reg)
