@@ -3225,7 +3225,8 @@ static bool sem_check_fcall(tree_t t)
    int n = 0, found_func = 0;
    do {
       if ((decl = scope_find_nth(name, n++))) {
-         type_t func_type = tree_type(decl);
+         if (!class_has_type(class_of(decl)))
+            continue;
 
          switch (tree_kind(decl)) {
          case T_FUNC_DECL:
@@ -3237,31 +3238,38 @@ static bool sem_check_fcall(tree_t t)
             tree_set_ref(t, decl);
             return sem_check_conversion(t);
          case T_ALIAS:
-            if (tree_has_type(decl) && type_kind(func_type) == T_FUNC) {
+            if (tree_has_type(decl) && type_kind(tree_type(decl)) == T_FUNC) {
                decl = tree_ref(tree_value(decl));
-               func_type = tree_type(decl);
                found_func++;
                break;
             }
             // Fall-through
          default:
-            if (type_is_array(func_type)
-                || ((type_kind(func_type) == T_ACCESS)
-                    && type_is_array(type_access(func_type)))) {
-               // The grammar is ambiguous between function calls and
-               // array references so must be an array reference
-               tree_t ref = tree_new(T_REF);
-               tree_set_ident(ref, name);
-               tree_set_loc(ref, tree_loc(t));
+            if (!class_has_type(class_of(decl)))
+               continue;
+            else {
+               type_t type = tree_type(decl);
+               const bool is_array_ref =
+                  type_is_array(type)
+                  || (type_is_access(type) && type_is_array(type_access(type)));
+               if (is_array_ref) {
+                  // The grammar is ambiguous between function calls and
+                  // array references so must be an array reference
+                  tree_t ref = tree_new(T_REF);
+                  tree_set_ident(ref, name);
+                  tree_set_loc(ref, tree_loc(t));
 
-               tree_change_kind(t, T_ARRAY_REF);
-               tree_set_value(t, ref);
+                  tree_change_kind(t, T_ARRAY_REF);
+                  tree_set_value(t, ref);
 
-               return sem_check_array_ref(t);
+                  return sem_check_array_ref(t);
+               }
+               else
+                  continue;   // Look for the next matching name
             }
-            else
-               continue;   // Look for the next matching name
          }
+
+         type_t func_type = tree_type(decl);
 
          if (type_set_member(type_result(func_type))) {
             // Number of arguments must match

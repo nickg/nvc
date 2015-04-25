@@ -269,3 +269,5 @@ func16          normal
 issue123        normal
 issue126        normal
 range1          normal,gold
+slice4          normal
+issue103        normal,gold

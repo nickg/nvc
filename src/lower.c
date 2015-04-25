@@ -1637,8 +1637,19 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
    vcode_reg_t left_reg  = lower_reify_expr(r.left);
    vcode_reg_t right_reg = lower_reify_expr(r.right);
 
-   vcode_reg_t low_reg  = (r.kind == RANGE_TO) ? left_reg : right_reg;
-   vcode_reg_t high_reg = (r.kind == RANGE_TO) ? right_reg : left_reg;
+   vcode_reg_t low_reg   = VCODE_INVALID_REG;
+   vcode_reg_t high_reg  = VCODE_INVALID_REG;
+
+   vcode_reg_t kind_reg = lower_range_dir(r, 0);
+
+   if (r.kind == RANGE_TO || r.kind == RANGE_DOWNTO) {
+      low_reg  = (r.kind == RANGE_TO) ? left_reg : right_reg;
+      high_reg = (r.kind == RANGE_TO) ? right_reg : left_reg;
+   }
+   else {
+      low_reg  = emit_select(kind_reg, right_reg, left_reg);
+      high_reg = emit_select(kind_reg, left_reg, right_reg);
+   }
 
    vcode_reg_t null_reg = emit_cmp(VCODE_CMP_LT, high_reg, low_reg);
 
@@ -1649,11 +1660,9 @@ static vcode_reg_t lower_array_slice(tree_t slice, expr_ctx_t ctx)
          alias = decl;
    }
 
-   vcode_reg_t kind_reg = VCODE_INVALID_REG, array_reg = VCODE_INVALID_REG;
-   if (alias == NULL) {
-      kind_reg = emit_const(vtype_bool(), r.kind);
+   vcode_reg_t array_reg = VCODE_INVALID_REG;
+   if (alias == NULL)
       array_reg = lower_expr(value, ctx);
-   }
 
    int64_t null_const;
    const bool known_not_null =
