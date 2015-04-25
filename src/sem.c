@@ -495,26 +495,17 @@ static bool type_set_any(type_t *pt)
    }
 }
 
-#if 0
-static void type_set_dump(void)
-{
-   printf("type_set: { ");
-   if (top_type_set) {
-      for (unsigned n = 0; n < top_type_set->n_members; n++)
-         printf("%s ", sem_type_str(top_type_set->members[n]));
-   }
-   printf("}\n");
-}
-#endif
-
 static text_buf_t *type_set_fmt(void)
 {
    text_buf_t *tb = tb_new();
 
-   if (top_type_set != NULL) {
-      for (unsigned n = 0; n < top_type_set->n_members; n++)
-         tb_printf(tb, "\n    %s",
+   if (top_type_set != NULL && top_type_set->n_members > 0) {
+      tb_printf(tb, " (");
+      for (unsigned n = 0; n < top_type_set->n_members; n++) {
+         tb_printf(tb, "%s%s", n > 0 ? ", " : "",
                    sem_type_str(top_type_set->members[n]));
+      }
+      tb_printf(tb, ")");
    }
 
    return tb;
