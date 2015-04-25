@@ -222,7 +222,7 @@ static void dump_expr(tree_t t)
 
 static void dump_type(type_t type)
 {
-   if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
+   if (type_is_array(type) && !type_is_unconstrained(type)) {
       printf("%s(", istr(type_ident(type)));
       for (unsigned i = 0; i < type_dims(type); i++) {
          if (i > 0)
@@ -342,6 +342,13 @@ static void dump_decl(tree_t t, int indent)
             }
             printf(") of ");
             dump_type(type_elem(type));
+         }
+         else if (type_is_protected(type)) {
+            printf("protected\n");
+            for (unsigned i = 0; i < type_decls(type); i++)
+               dump_decl(type_decl(type, i), indent + 2);
+            tab(indent);
+            printf("end protected");
          }
          else
             dump_type(type);
@@ -469,6 +476,14 @@ static void dump_decl(tree_t t, int indent)
          printf(" );\n");
       }
       printf("  end component;\n");
+      return;
+
+   case T_PROT_BODY:
+      printf("type %s is protected body\n", istr(tree_ident(t)));
+      for (unsigned i = 0; i < tree_decls(t); i++)
+         dump_decl(tree_decl(t, i), indent + 2);
+      tab(indent);
+      printf("end protected body;\n");
       return;
 
    default:
