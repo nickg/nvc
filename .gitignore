@@ -22,7 +22,6 @@ TAGS
 logs
 Makefile
 src/lexer.c
-src/parse.output
 .deps
 /config.h.in
 /config.h
@@ -43,6 +42,9 @@ GPATH
 GRTAGS
 GSYMS
 GTAGS
+.bootstrapped
+.dirstamp
+bin/
 
 # IEEE sources cannot be freely redistributed
 lib/ieee/*.vhdl
@@ -52,3 +54,15 @@ test/vi_suite*
 
 # VESTs can be redistributed but keep it out of the main repository
 test/vests/*
+
+# Libraries built in-tree
+lib/ieee/IEEE.*
+lib/ieee/_IEEE.*
+lib/std/STD.*
+lib/std/_STD.*
+lib/nvc/_NVC.*
+lib/nvc/NVC.*
+lib/std.08/
+lib/synopsys/SYNOPSYS.*
+_index
+_NVC_LIB

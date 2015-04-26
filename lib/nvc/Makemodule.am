@@ -33,7 +33,7 @@ lib/nvc/NVC.ENV lib/nvc/NVC.ENV-body: $(bootstrap) $(top_srcdir)/lib/std/env.vhd
 	$(codegen) -L lib/ --work=lib/nvc --codegen env
 
 clean-nvc:
-	-test ! -d lib/nvc || rm -r lib/nvc
+	-$(RM) $(nvc_DATA)
 
 gen-deps-nvc:
 	$(nvc) -L lib/ --work=lib/nvc --make --posix --deps-only --native | \

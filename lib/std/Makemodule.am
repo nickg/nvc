@@ -93,6 +93,6 @@ gen-deps-std:
 		$(deps_pp) >> $(srcdir)/lib/std/deps.mk
 
 clean-std:
-	-rm -rf lib/std lib/std.08
+	$(RM) $(std_DATA)
 
 include lib/std/deps.mk
