@@ -57,17 +57,26 @@ AC_DEFUN([AX_LLVM_C],
 
         if test "x$want_llvm" = "xyes"; then
             if test -e "$ac_llvm_config_path"; then
+                LLVM_VERSION="$($ac_llvm_config_path --version)"
+                llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\{1,\}\)\.\(@<:@0-9@:>@\{1,\}\).*/\1\2/'`
+
                 LLVM_CFLAGS=`$ac_llvm_config_path --cflags`
                 LLVM_CXXFLAGS=`$ac_llvm_config_path --cxxflags`
+
+                # The `sed' command here filters out system libraries for
+                # LLVM < 3.4
                 LLVM_LDFLAGS="$($ac_llvm_config_path --ldflags | sed -e 's/\-l[a-z]\+//g')"
-                # FIXME: LLVM > 3.4 has --system-libs we can use instead of --ldflags here
-                LLVM_SYSLIBS="$($ac_llvm_config_path --ldflags)"
+
+                if test "$llvm_ver_num" -ge "34"; then
+                    LLVM_SYSLIBS="$($ac_llvm_config_path --system-libs)"
+                else
+                    LLVM_SYSLIBS="$($ac_llvm_config_path --ldflags)"
+                fi
+
                 LLVM_LIBS="$($ac_llvm_config_path --libs $1) $LLVM_SYSLIBS"
-                LLVM_VERSION="$($ac_llvm_config_path --version)"
                 LLVM_CONFIG_BINDIR="$($ac_llvm_config_path --bindir)"
                 LLVM_LIBDIR="$($ac_llvm_config_path --libdir)"
 
-                llvm_ver_num=`echo $LLVM_VERSION | sed 's/\(@<:@0-9@:>@\{1,\}\)\.\(@<:@0-9@:>@\{1,\}\).*/\1\2/'`
                 if test "$llvm_ver_num" -lt "30"; then
                     AC_MSG_ERROR([LLVM version 3.0 or later required])
                 fi
@@ -137,7 +146,7 @@ AC_DEFUN([AX_LLVM_C],
                         AC_LANG_POP([C++])])
 
                 if test "x$ax_cv_llvm_shared" = "xyes"; then
-                    LLVM_LIBS="$shlib $LLVM_SYSLIBS"
+                    LLVM_LIBS="$shlib"
                     succeeded=yes
                 fi
 
