@@ -19,43 +19,58 @@ check_LIBRARIES += test/libtest_util.a
 test_libs = test/libtest_util.a lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(CHECK_LIBS) $(POW_LIB)
 
+test_cflags = $(AM_CFLAGS) $(CHECK_CFLAGS)
+
 test_libtest_util_a_SOURCES = test/test_util.c
+test_libtest_util_a_CFLAGS = $(test_cflags)
 
 bin_test_lib_SOURCES = test/test_lib.c
 bin_test_lib_LDADD = $(test_libs)
+bin_test_lib_CFLAGS = $(test_cflags)
 
 bin_test_ident_SOURCES = test/test_ident.c
 bin_test_ident_LDADD = $(test_libs)
+bin_test_ident_CFLAGS = $(test_cflags)
 
 bin_test_parse_SOURCES = test/test_parse.c
 bin_test_parse_LDADD = $(test_libs)
+bin_test_parse_CFLAGS = $(test_cflags)
 
 bin_test_sem_SOURCES = test/test_sem.c
 bin_test_sem_LDADD = $(test_libs)
+bin_test_sem_CFLAGS = $(test_cflags)
 
 bin_test_simp_SOURCES = test/test_simp.c
 bin_test_simp_LDADD = $(test_libs)
+bin_test_simp_CFLAGS = $(test_cflags)
 
 bin_test_elab_SOURCES = test/test_elab.c
 bin_test_elab_LDADD = $(test_libs)
+bin_test_elab_CFLAGS = $(test_cflags)
 
 bin_test_heap_SOURCES = test/test_heap.c
 bin_test_heap_LDADD =  lib/librt.a $(test_libs)
+bin_test_heap_CFLAGS = $(test_cflags)
 
 bin_test_hash_SOURCES = test/test_hash.c
 bin_test_hash_LDADD = $(test_libs)
+bin_test_hash_CFLAGS = $(test_cflags)
 
 bin_test_group_SOURCES = test/test_group.c
 bin_test_group_LDADD = $(test_libs)
+bin_test_group_CFLAGS = $(test_cflags)
 
 bin_test_bounds_SOURCES = test/test_bounds.c
 bin_test_bounds_LDADD = $(test_libs)
+bin_test_bounds_CFLAGS = $(test_cflags)
 
 bin_test_value_SOURCES = test/test_value.c
 bin_test_value_LDADD = $(test_libs)
+bin_test_value_CFLAGS = $(test_cflags)
 
 bin_test_lower_SOURCES = test/test_lower.c
 bin_test_lower_LDADD = $(test_libs)
+bin_test_lower_CFLAGS = $(test_cflags)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
