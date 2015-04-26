@@ -146,7 +146,10 @@ static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
    tree_t name = tree_name(t);
    assert(tree_kind(name) == T_REF);
 
-   if (tree_kind(tree_ref(name)) != T_SIGNAL_DECL)
+   tree_t decl = tree_ref(name);
+
+   const tree_kind_t kind = tree_kind(decl);
+   if (kind != T_SIGNAL_DECL && kind != T_PORT_DECL)
       return t;
 
    char *sig_name LOCAL =
@@ -157,7 +160,10 @@ static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
    tree_set_loc(s, tree_loc(t));
    tree_set_ident(s, ident_uniq(sig_name));
    tree_set_type(s, tree_type(t));
-   tree_set_value(s, tree_value(tree_ref(name)));
+   if (tree_has_value(decl))
+      tree_set_value(s, tree_value(decl));
+   else
+      tree_set_value(s, make_default_value(tree_type(t), tree_loc(t)));
 
    tree_t p = tree_new(T_PROCESS);
    tree_set_loc(p, tree_loc(t));

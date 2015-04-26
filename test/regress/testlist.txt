@@ -272,3 +272,4 @@ range1          normal,gold
 slice4          normal
 issue103        normal,gold
 access7         normal
+implicit3       normal
