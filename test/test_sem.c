@@ -907,6 +907,7 @@ START_TEST(test_protected)
       {  53, "variable Y with protected type may not have an initial value" },
       { 105, "no visible declaration for X.COUNTER" },
       { 106, "no suitable overload for procedure X.DECREMENT" },
+      { 111, "object X with protected type must have class VARIABLE" },
       { -1, NULL }
    };
    expect_errors(expect);

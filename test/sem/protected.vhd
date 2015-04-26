@@ -107,6 +107,14 @@ begin
         assert x.value = 5;             -- OK
     end process;
 
+    process is
+        function get_value (x : in sharedcounter ) return integer is  -- Error
+        begin
+            return x.value;
+        end function;
+    begin
+    end process;
+
 end architecture;
 
 package issue85 is

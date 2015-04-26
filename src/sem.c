@@ -1992,15 +1992,21 @@ static bool sem_check_alias(tree_t t)
    return scope_insert(t);
 }
 
-static bool sem_check_access_class(tree_t port)
+static bool sem_check_interface_class(tree_t port)
 {
-   // Access types must have variable class in LRM section 3.3
+   // See LRM 93 section 3.3 for restrictions
 
-   type_kind_t kind = type_kind(tree_type(port));
+   const type_kind_t kind = type_base_kind(tree_type(port));
+   const class_t class = tree_class(port);
 
-   if ((tree_class(port) != C_VARIABLE) && (kind == T_ACCESS))
-      sem_error(port, "object %s with access type must have class VARIABLE",
+   if (kind == T_FILE && class != C_FILE)
+      sem_error(port, "object %s with file type must have class FILE",
                 istr(tree_ident(port)));
+
+   if ((kind == T_ACCESS || kind == T_PROTECTED) && class != C_VARIABLE)
+      sem_error(port, "object %s with %s type must have class VARIABLE",
+                istr(tree_ident(port)),
+                kind == T_ACCESS ? "access" : "protected");
 
    return true;
 }
@@ -2033,7 +2039,7 @@ static bool sem_check_func_ports(tree_t t)
       if (!sem_check(p))
          return false;
 
-      if (!sem_check_access_class(p))
+      if (!sem_check_interface_class(p))
          return false;
 
       type_add_param(ftype, tree_type(p));
@@ -2156,7 +2162,7 @@ static bool sem_check_proc_ports(tree_t t)
       if (!sem_check(p))
          return false;
 
-      if (!sem_check_access_class(p))
+      if (!sem_check_interface_class(p))
          return false;
 
       type_add_param(ptype, tree_type(p));
