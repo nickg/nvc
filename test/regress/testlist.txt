@@ -273,3 +273,4 @@ slice4          normal
 issue103        normal,gold
 access7         normal
 implicit3       normal
+protected3      normal,2000

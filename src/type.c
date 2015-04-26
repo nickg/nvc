@@ -616,7 +616,7 @@ const char *type_pp(type_t t)
    return type_pp_minify(t, type_minify_identity);
 }
 
-static type_kind_t type_base_kind(type_t t)
+type_kind_t type_base_kind(type_t t)
 {
    assert(t != NULL);
    if (t->object.kind == T_SUBTYPE)
