@@ -131,15 +131,23 @@ void *jit_fun_ptr(const char *name, bool required)
 void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
+#ifdef LLVM_HAS_MCJIT
+      void *ptr = (void *)LLVMGetGlobalValueAddress(exec_engine, name);
+#else
+      void *ptr = NULL;
       LLVMValueRef var = LLVMGetNamedGlobal(module, name);
-      if (var == NULL) {
+      if (var != NULL)
+         ptr = LLVMGetPointerToGlobal(exec_engine, var);
+#endif
+
+      if (ptr == NULL) {
          if (required)
             fatal("cannot find global %s", name);
          else
             return jit_search_loaded_syms(name, required);
       }
-
-      return LLVMGetPointerToGlobal(exec_engine, var);
+      else
+         return ptr;
    }
    else
       return jit_search_loaded_syms(name, required);
