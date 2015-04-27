@@ -359,8 +359,10 @@ static LLVMTypeRef cgen_display_type(vcode_unit_t unit)
    LLVMTypeRef parent = cgen_display_type(vcode_unit_context());
    vcode_select_unit(unit);
 
+   const bool has_params =
+      kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE;
    const int nvars = vcode_count_vars();
-   const int nparams = (kind == VCODE_UNIT_FUNCTION) ? vcode_count_params() : 0;
+   const int nparams = has_params ? vcode_count_params() : 0;
    const int nfields = nvars + nparams + (parent ? 1 : 0);
    LLVMTypeRef fields[nfields];
    LLVMTypeRef *outptr = fields;
