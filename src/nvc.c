@@ -686,7 +686,7 @@ static void usage(void)
           " -b, --batch\t\tRun in batch mode (default)\n"
           " -c, --command\t\tRun in TCL command line mode\n"
           "     --exclude=GLOB\tExclude signals matching GLOB from wave dump\n"
-          "     --exit-severity=S\tExit after asserion failure of severity S\n"
+          "     --exit-severity=S\tExit after assertion failure of severity S\n"
           "     --format=FMT\tWaveform format is one of lxt, fst, or vcd\n"
           "     --include=GLOB\tInclude signals matching GLOB in wave dump\n"
 #ifdef ENABLE_VHPI
