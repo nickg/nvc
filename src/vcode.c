@@ -882,7 +882,10 @@ static void vcode_dump_one_type(vcode_type_t type)
       break;
 
    case VCODE_TYPE_RECORD:
-      printf("%s.%u{}", istr(vt->name), vt->index);
+      {
+         char *name LOCAL = vtype_record_name(type);
+         printf("%s{}", name);
+      }
       break;
 
    case VCODE_TYPE_FILE:
@@ -962,7 +965,11 @@ void vcode_dump(void)
    for (int i = 0; i < vu->types.count; i++) {
       const vtype_t *t = &(vu->types.items[i]);
       if (t->kind == VCODE_TYPE_RECORD) {
-         int col = color_printf("  $magenta$%s.%u$$", istr(t->name), t->index);
+         int col = 0;
+         if (t->index != UINT32_MAX)
+            col += color_printf("  $magenta$%s.%u$$", istr(t->name), t->index);
+         else
+            col += color_printf("  $magenta$%s$$", istr(t->name));
          vcode_dump_tab(col, 40);
          color_printf("$cyan${");
          for (unsigned i = 0; i < t->fields.count; i++) {
@@ -2126,7 +2133,11 @@ void vtype_set_record_fields(vcode_type_t type, const vcode_type_t *field_types,
 char *vtype_record_name(vcode_type_t type)
 {
    vtype_t *vt = vcode_type_data(type);
-   return xasprintf("%s.%u", istr(vt->name), vt->index);
+   assert(vt->kind == VCODE_TYPE_RECORD);
+   if (vt->index != UINT32_MAX)
+      return xasprintf("%s.%u", istr(vt->name), vt->index);
+   else
+      return xasprintf("%s", istr(vt->name));
 }
 
 vcode_type_t vtype_pointed(vcode_type_t type)

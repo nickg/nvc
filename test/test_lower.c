@@ -2130,6 +2130,28 @@ START_TEST(test_issue125)
 }
 END_TEST
 
+START_TEST(test_rectype)
+{
+   input_from_file(TESTDIR "/lower/rectype.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(e);
+   vcode_select_unit(v0);
+
+   fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
+   fail_unless(vtype_kind(1) == VCODE_TYPE_RECORD);
+
+   char *r2_name LOCAL = vtype_record_name(0);
+   fail_unless(strncmp(r2_name, "R2.", 3) == 0);
+
+   char *r1_name LOCAL = vtype_record_name(1);
+   fail_unless(strcmp(r1_name, "WORK.RECTYPE.R1") == 0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2176,6 +2198,7 @@ int main(void)
    tcase_add_test(tc, test_issue134);
    tcase_add_test(tc, test_issue136);
    tcase_add_test(tc, test_issue125);
+   tcase_add_test(tc, test_rectype);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

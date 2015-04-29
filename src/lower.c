@@ -317,6 +317,17 @@ static vcode_type_t lower_array_type(type_t type)
       return vtype_uarray(array_dimension(type), elem_type, elem_bounds);
 }
 
+static uint32_t lower_record_index(type_t type)
+{
+   // If a record type is not qualified with a package name then add a unique
+   // index to its type name to avoid collisions
+   ident_t name = type_ident(type);
+   if (ident_until(name, '.') == name)
+      return type_index(type);
+   else
+      return UINT32_MAX;
+}
+
 static vcode_type_t lower_type(type_t type)
 {
    switch (type_kind(type)) {
@@ -345,7 +356,7 @@ static vcode_type_t lower_type(type_t type)
    case T_RECORD:
       {
          ident_t name = type_ident(type);
-         uint32_t index = type_index(type);
+         uint32_t index = lower_record_index(type);
          vcode_type_t record = vtype_named_record(name, index, false);
          if (record == VCODE_INVALID_TYPE) {
             record = vtype_named_record(name, index, true);
