@@ -394,8 +394,10 @@ static LLVMValueRef cgen_display_struct(cgen_ctx_t *ctx, int hops)
 
    const vunit_kind_t kind = vcode_unit_kind();
 
+   const bool has_params =
+      kind == VCODE_UNIT_FUNCTION || kind == VCODE_UNIT_PROCEDURE;
    const int nvars = vcode_count_vars();
-   const int nparams = (kind == VCODE_UNIT_FUNCTION) ? vcode_count_params() : 0;
+   const int nparams = has_params ? vcode_count_params() : 0;
    const int nfields = nvars + nparams + (ctx->display ? 1 : 0);
    LLVMValueRef fields[nfields];
    LLVMValueRef *outptr = fields;
