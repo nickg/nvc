@@ -1373,8 +1373,6 @@ static void rt_setup(tree_t top)
 
    netdb_walk(netdb, rt_reset_group);
 
-   ident_t postponed_i = ident_new("postponed");
-
    const int nstmts = tree_stmts(top);
    for (int i = 0; i < nstmts; i++) {
       tree_t p = tree_stmt(top, i);

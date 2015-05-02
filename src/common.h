@@ -170,6 +170,12 @@ GLOBAL ident_t cond_tag_i;
 GLOBAL ident_t sub_cond_i;
 GLOBAL ident_t static_i;
 GLOBAL ident_t impure_i;
+GLOBAL ident_t never_waits_i;
+GLOBAL ident_t elide_bounds_i;
+GLOBAL ident_t range_var_i;
+GLOBAL ident_t last_value_i;
+GLOBAL ident_t builtin_i;
+GLOBAL ident_t postponed_i;
 
 void intern_strings();
 

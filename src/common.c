@@ -714,4 +714,10 @@ void intern_strings(void)
    cond_tag_i       = ident_new("cond_tag");
    sub_cond_i       = ident_new("sub_cond");
    impure_i         = ident_new("impure");
+   never_waits_i    = ident_new("never_waits");
+   elide_bounds_i   = ident_new("elide_bounds");
+   range_var_i      = ident_new("range_var");
+   builtin_i        = ident_new("builtin");
+   last_value_i     = ident_new("last_value");
+   postponed_i      = ident_new("postponed");
 }

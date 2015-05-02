@@ -3,46 +3,12 @@
 #include "tree.h"
 #include "phase.h"
 #include "common.h"
+#include "test_util.h"
 
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
-typedef struct error {
-   int        line;
-   const char *snippet;
-} error_t;
-
-static const error_t *error_lines = NULL;
-static error_fn_t     orig_error_fn = NULL;
-
-static void test_error_fn(const char *msg, const loc_t *loc)
-{
-   fail_if(error_lines == NULL);
-
-   bool unexpected = error_lines->line == -1
-      || error_lines->snippet == NULL
-      || error_lines->line != loc->first_line
-      || strstr(msg, error_lines->snippet) == NULL;
-
-   if (unexpected) {
-      orig_error_fn(msg, loc);
-      printf("expected line %d '%s' '%s'\n",
-             error_lines->line, error_lines->snippet, msg);
-   }
-
-   fail_if(unexpected);
-
-   error_lines++;
-}
-
-static void expect_errors(const error_t *lines)
-{
-   fail_unless(orig_error_fn == NULL);
-   orig_error_fn = set_error_fn(test_error_fn);
-   error_lines = lines;
-}
 
 START_TEST(test_entity)
 {
@@ -2258,11 +2224,9 @@ END_TEST
 
 int main(void)
 {
-   register_trace_signal_handlers();
-
    Suite *s = suite_create("parse");
 
-   TCase *tc_core = tcase_create("Core");
+   TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_entity);
    tcase_add_test(tc_core, test_arch);
    tcase_add_test(tc_core, test_process);
@@ -2296,12 +2260,5 @@ int main(void)
    tcase_add_test(tc_core, test_protected);
    suite_add_tcase(s, tc_core);
 
-   SRunner *sr = srunner_create(s);
-   srunner_run_all(sr, CK_NORMAL);
-
-   int nfail = srunner_ntests_failed(sr);
-
-   srunner_free(sr);
-
-   return nfail == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+   return nvc_run_test(s);
 }

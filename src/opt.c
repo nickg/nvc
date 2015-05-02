@@ -17,15 +17,10 @@
 
 #include "util.h"
 #include "phase.h"
+#include "common.h"
 
 #include <stdlib.h>
 #include <assert.h>
-
-static ident_t never_waits_i;
-static ident_t elide_bounds_i;
-static ident_t range_var_i;
-static ident_t last_value_i;
-static ident_t builtin_i;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Delete processes that contain just a single wait statement
@@ -202,12 +197,6 @@ static void opt_tag(tree_t t, void *ctx)
 
 void opt(tree_t top)
 {
-   never_waits_i  = ident_new("never_waits");
-   elide_bounds_i = ident_new("elide_bounds");
-   range_var_i    = ident_new("range_var");
-   builtin_i      = ident_new("builtin");
-   last_value_i   = ident_new("last_value");
-
    if (tree_kind(top) == T_ELAB)
       opt_delete_wait_only(top);
 

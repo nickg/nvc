@@ -1791,7 +1791,7 @@ static bool sem_check_decl(tree_t t)
          sem_error(t, "deferred constant declarations are only permitted "
                    "in packages");
       else
-         tree_add_attr_int(t, ident_new("deferred"), 1);
+         tree_add_attr_int(t, deferred_i, 1);
    }
 
    if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
@@ -5705,7 +5705,7 @@ static bool sem_globally_static(tree_t t)
    if ((kind == T_FCALL) || (kind == T_CONCAT)) {
       if (kind == T_FCALL) {
          tree_t decl = tree_ref(t);
-         if (tree_attr_int(decl, ident_new("impure"), 0))
+         if (tree_attr_int(decl, impure_i, 0))
             return false;
       }
 
@@ -5917,7 +5917,7 @@ static bool sem_check_for(tree_t t)
    if (is_range_expr && tree_kind((name = tree_name(r.left))) == T_REF) {
       // Find the variable X in X'RANGE
       tree_t range_var = tree_ref(name);
-      tree_add_attr_tree(idecl, ident_new("range_var"), range_var);
+      tree_add_attr_tree(idecl, range_var_i, range_var);
    }
 
    tree_add_decl(t, idecl);

@@ -704,7 +704,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
 
             case tALL:
                consume(tALL);
-               tree_set_ident2(u, ident_new("all"));
+               tree_set_ident2(u, all_i);
                break;
 
             default:
@@ -716,7 +716,7 @@ static void p_use_clause(tree_t unit, add_func_t addf)
       case tALL:
          consume(tALL);
          tree_set_ident(u, i1);
-         tree_set_ident2(u, ident_new("all"));
+         tree_set_ident2(u, all_i);
          break;
 
       default:
@@ -2848,7 +2848,7 @@ static tree_t p_concurrent_assertion_statement(ident_t label)
    tree_set_ident(s, label);
 
    if (postponed)
-      tree_add_attr_int(s, ident_new("postponed"), 1);
+      tree_add_attr_int(s, postponed_i, 1);
 
    return s;
 }
@@ -2908,7 +2908,7 @@ static tree_t p_subprogram_specification(void)
    type_set_ident(type, tree_ident(t));
 
    if (impure)
-      tree_add_attr_int(t, ident_new("impure"), 1);
+      tree_add_attr_int(t, impure_i, 1);
 
    if (optional(tLPAREN)) {
       //const class_t class =
@@ -2961,7 +2961,7 @@ static void p_variable_declaration(tree_t parent)
          tree_set_value(t, init);
 
       if (shared)
-         tree_add_attr_int(t, ident_new("shared"), 1);
+         tree_add_attr_int(t, shared_i, 1);
 
       tree_add_decl(parent, t);
    }
@@ -3583,7 +3583,7 @@ static tree_t p_process_statement(ident_t label)
    tree_set_ident(t, label);
 
    if (postponed)
-      tree_add_attr_int(t, ident_new("postponed"), 1);
+      tree_add_attr_int(t, postponed_i, 1);
 
    return t;
 }
@@ -3804,7 +3804,7 @@ static ident_list_t *p_instantiation_list(void)
          consume(tALL);
 
          ident_list_t *result = NULL;
-         ident_list_add(&result, ident_new("all"));
+         ident_list_add(&result, all_i);
          return result;
       }
 
@@ -4964,7 +4964,7 @@ static tree_t p_concurrent_signal_assignment_statement(ident_t label)
    tree_set_ident(t, label);
 
    if (postponed)
-      tree_add_attr_int(t, ident_new("postponed"), 1);
+      tree_add_attr_int(t, postponed_i, 1);
 
    tree_set_loc(t, CURRENT_LOC);
    return t;
@@ -4990,7 +4990,7 @@ static tree_t p_concurrent_procedure_call_statement(ident_t label)
    consume(tSEMI);
 
    if (postponed)
-      tree_add_attr_int(t, ident_new("postponed"), 1);
+      tree_add_attr_int(t, postponed_i, 1);
 
    const loc_t *loc = CURRENT_LOC;
    tree_set_loc(t, loc);
