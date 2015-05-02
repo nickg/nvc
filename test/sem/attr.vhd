@@ -161,4 +161,14 @@ begin
         a(func(4)'range) := (others => '1');  -- OK
     end process;
 
+    process is
+        type bvptr is access bit_vector;
+        variable b : bvptr;
+    begin
+        for i in b.all'range loop       -- OK
+        end loop;
+        for i in b'range loop           -- OK
+        end loop;
+    end process;
+
 end architecture;

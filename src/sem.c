@@ -5913,9 +5913,10 @@ static bool sem_check_for(tree_t t)
    tree_set_loc(idecl, tree_loc(t));
    tree_set_type(idecl, tree_type(r.left));
 
-   if (is_range_expr) {
+   tree_t name = NULL;
+   if (is_range_expr && tree_kind((name = tree_name(r.left))) == T_REF) {
       // Find the variable X in X'RANGE
-      tree_t range_var = tree_ref(tree_name(r.left));
+      tree_t range_var = tree_ref(name);
       tree_add_attr_tree(idecl, ident_new("range_var"), range_var);
    }
 
