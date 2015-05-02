@@ -277,3 +277,4 @@ protected3      normal,2000
 issue146        normal
 issue148        normal
 issue152        normal
+issue83         normal,2008

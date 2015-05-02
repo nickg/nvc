@@ -1382,6 +1382,10 @@ static bool sem_check_constrained(tree_t t, type_t type)
 
 static bool sem_readable(tree_t t)
 {
+   // Outputs may be read in LRM 08
+   if (standard() >= STD_08)
+      return true;
+
    switch (tree_kind(t)) {
    case T_REF:
       {
