@@ -333,9 +333,9 @@ static void bounds_check_aggregate(tree_t t)
 
    const int ndims = type_dims(type);
 
-   if ((ndims == 1) && known_elem_count) {
+   if (known_elem_count) {
       int64_t expect;
-      if (folded_length(type_dim(type, 0), &expect) && (expect != nelems))
+      if (folded_length(type_dim(type, 0), &expect) && expect != nelems)
          bounds_error(t, "expected %"PRIi64" elements in aggregate but have %d",
                       expect, nelems);
    }

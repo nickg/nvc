@@ -142,6 +142,26 @@ START_TEST(test_issue99)
 }
 END_TEST
 
+START_TEST(test_issue150)
+{
+   const error_t expect[] = {
+      { 10, "expected 8 elements in aggregate but have 6" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/bounds/issue150.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("bounds");
@@ -152,6 +172,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue36);
    tcase_add_test(tc_core, test_issue54);
    tcase_add_test(tc_core, test_issue99);
+   tcase_add_test(tc_core, test_issue150);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
