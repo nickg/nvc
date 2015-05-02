@@ -2110,11 +2110,12 @@ static bool sem_check_func_body(tree_t t)
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
 
-   // If there is no declaration for this function add to the scope
-   if (!sem_check_duplicate(t, T_FUNC_DECL)) {
-      if (!scope_insert(t))
-         return false;
-   }
+   if (sem_check_duplicate(t, T_FUNC_BODY))
+      sem_error(t, "duplicate subprogram body for function %s",
+                sem_type_str(tree_type(t)));
+
+   if (!scope_insert(t))
+      return false;
 
    scope_push(NULL);
    top_scope->subprog = t;
@@ -2195,11 +2196,12 @@ static bool sem_check_proc_body(tree_t t)
    ident_t unqual = top_scope->prefix ? tree_ident(t) : NULL;
    scope_apply_prefix(t);
 
-   // If there is no declaration for this procedure add to the scope
-   if (!sem_check_duplicate(t, T_PROC_DECL)) {
-      if (!scope_insert(t))
-         return false;
-   }
+   if (sem_check_duplicate(t, T_PROC_BODY))
+      sem_error(t, "duplicate subprogram body for procedure %s",
+                sem_type_str(tree_type(t)));
+
+   if (!scope_insert(t))
+      return false;
 
    scope_push(NULL);
    top_scope->subprog = t;

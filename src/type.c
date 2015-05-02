@@ -594,7 +594,8 @@ const char *type_pp_minify(type_t t, minify_fn_t fn)
                       (i == 0 ? "" : ", "),
                       (*fn)(istr(type_ident(type_param(t, i)))));
          if (type_kind(t) == T_FUNC)
-            tb_printf(tbi->text_buf, " return %s",
+            tb_printf(tbi->text_buf, "%sreturn %s",
+                      nparams > 0 ? " " : "",
                       (*fn)(istr(type_ident(type_result(t)))));
          tb_printf(tbi->text_buf, "]");
 
