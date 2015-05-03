@@ -421,15 +421,15 @@ static vcode_type_t lower_type(type_t type)
 
 static vcode_type_t lower_bounds(type_t type)
 {
-   if ((type_is_integer(type) || type_is_enum(type))
-       && type_kind(type) == T_SUBTYPE) {
+   if (type_kind(type) == T_SUBTYPE
+       && (type_is_integer(type) || type_is_enum(type))) {
       range_t r = type_dim(type, 0);
       int64_t low, high;
-      range_bounds(r, &low, &high);
-      return vtype_int(low, high);
+      if (folded_bounds(r, &low, &high))
+         return vtype_int(low, high);
    }
-   else
-      return lower_type(type);
+
+   return lower_type(type);
 }
 
 static vcode_reg_t lower_reify(vcode_reg_t reg)
@@ -489,12 +489,58 @@ static bounds_kind_t lower_type_bounds_kind(type_t type)
    }
 }
 
+static bool lower_scalar_has_static_bounds(type_t type, vcode_reg_t *low_reg,
+                                           vcode_reg_t *high_reg)
+{
+   if (type_is_real(type))
+      return true;  // TODO
+
+   switch (type_kind(type)) {
+   case T_INTEGER:
+   case T_SUBTYPE:
+      {
+         range_t r = type_dim(type, 0);
+         int64_t low, high;
+         if (!folded_bounds(r, &low, &high)) {
+            vcode_reg_t dir_reg   = lower_range_dir(r, 0);
+            vcode_reg_t left_reg  = lower_reify_expr(r.left);
+            vcode_reg_t right_reg = lower_reify_expr(r.right);
+
+            *low_reg  = emit_select(dir_reg, right_reg, left_reg);
+            *high_reg = emit_select(dir_reg, left_reg, right_reg);
+            return false;
+         }
+      }
+      break;
+
+   case T_ENUM:
+   case T_PHYSICAL:
+      break;
+
+   default:
+      fatal_trace("invalid type kind %s in lower_scalar_has_static_bounds",
+                  type_kind_str(type_kind(type)));
+   }
+
+   *low_reg = *high_reg = VCODE_INVALID_TYPE;
+   return true;
+}
+
 static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
                                       tree_t where, tree_t hint)
 {
-   const int index = tree_index(where);
-   emit_bounds(value, lower_bounds(type), lower_type_bounds_kind(type),
-               index, (hint == NULL ? index : tree_index(hint)));
+   const int index1 = tree_index(where);
+   const int index2 = hint == NULL ? index1 : tree_index(hint);
+
+   const bounds_kind_t kind = lower_type_bounds_kind(type);
+
+   vcode_reg_t low_reg, high_reg;
+   if (lower_scalar_has_static_bounds(type, &low_reg, &high_reg))
+      emit_bounds(value, lower_bounds(type), kind, index1, index2);
+   else {
+      vcode_reg_t kind_reg = emit_const(vtype_offset(), kind);
+      emit_dynamic_bounds(value, low_reg, high_reg, kind_reg, index1, index2);
+   }
 }
 
 static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
@@ -1553,10 +1599,11 @@ static void lower_check_array_bounds(type_t type, int dim, vcode_reg_t array,
    vcode_reg_t min_reg = emit_select(dir_reg, right_reg, left_reg);
    vcode_reg_t max_reg = emit_select(dir_reg, left_reg, right_reg);
 
-   vcode_type_t dir_type = vtype_bool();
-   vcode_reg_t kind_reg = emit_select(dir_reg,
-                                      emit_const(dir_type, BOUNDS_ARRAY_DOWNTO),
-                                      emit_const(dir_type, BOUNDS_ARRAY_TO));
+   vcode_type_t kind_type = vtype_offset();
+   vcode_reg_t kind_reg =
+      emit_select(dir_reg,
+                  emit_const(kind_type, BOUNDS_ARRAY_DOWNTO),
+                  emit_const(kind_type, BOUNDS_ARRAY_TO));
 
    const int index = tree_index(where);
    emit_dynamic_bounds(value, min_reg, max_reg, kind_reg,

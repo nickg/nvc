@@ -1059,7 +1059,7 @@ static void cgen_op_dynamic_bounds(int op, cgen_ctx_t *ctx)
       value,
       min,
       max,
-      LLVMBuildZExt(builder, kind, LLVMInt32Type(), ""),
+      kind,
       llvm_int32(vcode_get_hint(op)),
    };
 

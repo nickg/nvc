@@ -4005,6 +4005,11 @@ void emit_dynamic_bounds(vcode_reg_t reg, vcode_reg_t low, vcode_reg_t high,
    vcode_add_arg(op, kind);
    op->index = index;
    op->hint  = hint;
+
+   VCODE_ASSERT(vtype_eq(vcode_reg_type(low), vcode_reg_type(high)),
+                "type mismatch in dynamic bounds range");
+   VCODE_ASSERT(vcode_reg_kind(kind) == VCODE_TYPE_OFFSET,
+                "dynamic bounds kind argument must be offset");
 }
 
 void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index)

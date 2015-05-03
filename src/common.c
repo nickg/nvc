@@ -50,23 +50,8 @@ int64_t assume_int(tree_t t)
 
 void range_bounds(range_t r, int64_t *low, int64_t *high)
 {
-   int64_t left  = assume_int(r.left);
-   int64_t right = assume_int(r.right);
-
-   switch (r.kind) {
-   case RANGE_TO:
-      *low  = left;
-      *high = right;
-      break;
-
-   case RANGE_DOWNTO:
-      *low  = right;
-      *high = left;
-      break;
-
-   default:
-      assert(false);
-   }
+   const bool folded = folded_bounds(r, low, high);
+   assert(folded);
 }
 
 tree_t call_builtin(const char *builtin, type_t type, ...)

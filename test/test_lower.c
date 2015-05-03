@@ -2152,6 +2152,34 @@ START_TEST(test_rectype)
 }
 END_TEST
 
+START_TEST(test_issue149)
+{
+   input_from_file(TESTDIR "/lower/issue149.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_UARRAY_LEN },
+      { VCODE_OP_CAST },
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_SUB },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = -1 },
+      { VCODE_OP_DYNAMIC_BOUNDS },
+      { VCODE_OP_STORE, .name = "I" },
+      { VCODE_OP_RETURN }
+   };
+
+   CHECK_BB(0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2199,6 +2227,7 @@ int main(void)
    tcase_add_test(tc, test_issue136);
    tcase_add_test(tc, test_issue125);
    tcase_add_test(tc, test_rectype);
+   tcase_add_test(tc, test_issue149);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
