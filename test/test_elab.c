@@ -300,6 +300,22 @@ START_TEST(test_libbind)
 }
 END_TEST
 
+
+START_TEST(test_issue153)
+{
+   input_from_file(TESTDIR "/elab/issue153.vhd");
+
+   const error_t expect[] = {
+      {  9, "array S index -1 out of bounds 7 downto 0" },
+      { 13, "array T index -1 out of bounds 7 downto 0" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   (void)run_elab();
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -322,6 +338,7 @@ int main(void)
    tcase_add_test(tc, test_issue93);
    tcase_add_test(tc, test_const1);
    tcase_add_test(tc, test_libbind);
+   tcase_add_test(tc, test_issue153);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

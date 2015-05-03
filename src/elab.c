@@ -1151,6 +1151,7 @@ static void elab_for_generate(tree_t t, elab_ctx_t *ctx)
          .count   = 1
       };
       tree_rewrite(copy, rewrite_refs, &params);
+      simplify(copy);
 
       ident_t npath = hpathf(ctx->path, '\0', "[%"PRIi64"]", i);
       ident_t ninst = hpathf(ctx->inst, '\0', "[%"PRIi64"]", i);
