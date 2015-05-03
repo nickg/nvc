@@ -2098,11 +2098,12 @@ static bool sem_check_func_decl(tree_t t)
    if (!sem_check_func_ports(t))
       return false;
 
+   scope_apply_prefix(t);
+
    if (sem_check_duplicate(t, T_FUNC_DECL))
       sem_error(t, "duplicate declaration of function %s",
-                istr(tree_ident(t)));
+                sem_type_str(tree_type(t)));
 
-   scope_apply_prefix(t);
    return scope_insert(t);
 }
 
@@ -2184,11 +2185,12 @@ static bool sem_check_proc_decl(tree_t t)
    if (!sem_check_proc_ports(t))
       return false;
 
+   scope_apply_prefix(t);
+
    if (sem_check_duplicate(t, T_PROC_DECL))
       sem_error(t, "duplicate declaration of procedure %s",
-                istr(tree_ident(t)));
+                sem_type_str(tree_type(t)));
 
-   scope_apply_prefix(t);
    return scope_insert(t);
 }
 
