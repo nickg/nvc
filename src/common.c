@@ -19,7 +19,6 @@
 
 #include "util.h"
 #include "common.h"
-#include "phase.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -42,14 +41,6 @@ int64_t assume_int(tree_t t)
          assert(tree_kind(ref) == T_ENUM_LIT);
          return tree_pos(ref);
       }
-
-   case T_FCALL:
-      {
-         tree_t r = eval(t);
-         if (r != t)
-            return assume_int(r);
-      }
-      // Fall-through
 
    default:
       fatal_at(tree_loc(t), "expression cannot be folded to "
