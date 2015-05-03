@@ -1101,6 +1101,7 @@ static tree_t p_name(void)
 
       case tDOT:
          name = p_selected_name(name);
+         tree_set_loc(name, CURRENT_LOC);
          continue;
 
       case tTICK:

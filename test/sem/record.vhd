@@ -96,4 +96,14 @@ package body p is
         assert a.vec'length = 3;        -- OK
     end procedure;
 
+    procedure p8 is
+        function make_r1 return r1 is
+        begin
+            return (x => 1, y => 2);
+        end function;
+    begin
+        assert make_r1.x = 1;           -- OK
+        assert make_r1.z = 2;           -- Error
+    end procedure;
+
 end package body;

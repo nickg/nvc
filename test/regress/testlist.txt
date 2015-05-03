@@ -279,3 +279,4 @@ issue148        normal
 issue152        normal
 issue83         normal,2008
 issue153        normal
+issue143        normal,2000

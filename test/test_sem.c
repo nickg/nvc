@@ -612,20 +612,21 @@ START_TEST(test_record)
    input_from_file(TESTDIR "/sem/record.vhd");
 
    const error_t expect[] = {
-      {  9, "duplicate field name X" },
-      { 15, "recursive record types are not allowed" },
-      { 30, "field X with unconstrained array type is not allowed" },
-      { 39, "field Z does not have a value" },
-      { 40, "does not match type of field Y" },
-      { 42, "field Y does not have a value" },
-      { 43, "type R1 does not have field named Q" },
-      { 44, "type of value R1 does not match type of" },
-      { 47, "field X already has a value" },
-      { 48, "field X already has a value" },
-      { 64, "type R1_VEC is unconstrained" },
-      { 72, "record type R1 has no field F" },
-      { 82, "record type R1_SUB has no field Z" },
-      { 86, "record subtype may not have constraints" },
+      {   9, "duplicate field name X" },
+      {  15, "recursive record types are not allowed" },
+      {  30, "field X with unconstrained array type is not allowed" },
+      {  39, "field Z does not have a value" },
+      {  40, "does not match type of field Y" },
+      {  42, "field Y does not have a value" },
+      {  43, "type R1 does not have field named Q" },
+      {  44, "type of value R1 does not match type of" },
+      {  47, "field X already has a value" },
+      {  48, "field X already has a value" },
+      {  64, "type R1_VEC is unconstrained" },
+      {  72, "record type R1 has no field F" },
+      {  82, "record type R1_SUB has no field Z" },
+      {  86, "record subtype may not have constraints" },
+      { 106, "record type R1 has no field Z" },
       { -1, NULL }
    };
    expect_errors(expect);

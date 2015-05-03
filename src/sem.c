@@ -262,6 +262,9 @@ static void scope_insert_fields(type_t type, ident_t prefix)
    // When adding an object R with record type to the scope make all its
    // fields visible as R.X, R.Y, etc.
 
+   if (type_kind(type) == T_FUNC)
+      type = type_result(type);
+
    switch (type_base_kind(type)) {
    case T_RECORD:
       {
@@ -349,7 +352,9 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
       kind == T_VAR_DECL
       || kind == T_CONST_DECL
       || kind == T_SIGNAL_DECL
-      || kind == T_PORT_DECL;
+      || kind == T_PORT_DECL
+      || kind == T_FUNC_BODY
+      || kind == T_FUNC_DECL;
 
    if (may_have_fields)
       scope_insert_fields(tree_type(t), name);
@@ -4390,22 +4395,37 @@ static void sem_convert_to_record_ref(tree_t t, tree_t decl)
    tree_t value = NULL;
    const loc_t *loc = tree_loc(t);
 
+   bool is_func = false;
    type_t rec_type = tree_type(rec);
-   if (type_kind(rec_type) == T_ACCESS) {
+   switch (type_kind(rec_type)) {
+   case T_ACCESS:
       // Record fields can be dereferenced implicitly
       value = tree_new(T_ALL);
       tree_set_loc(value, loc);
       tree_set_value(value, make_ref(rec));
       tree_set_type(value, type_access(tree_type(rec)));
-   }
-   else
+      break;
+
+   case T_FUNC:
+      is_func = true;
+      rec_type = type_result(rec_type);
+      // Fall-through
+
+   default:
       assert(type_is_record(rec_type));
+   }
 
    if (tree_kind(rec) == T_FIELD_DECL) {
       value = tree_new(T_REF);
       tree_set_loc(value, loc);
       tree_set_ident(value, base);
       sem_convert_to_record_ref(value, rec);
+   }
+   else if (is_func) {
+      value = tree_new(T_FCALL);
+      tree_set_loc(value, loc);
+      tree_set_ident(value, base);
+      tree_set_type(value, rec_type);
    }
    else if (value == NULL) {
       value = make_ref(rec);
@@ -4480,13 +4500,18 @@ static bool sem_check_ref(tree_t t)
       if (n == 0) {
          // Try to provide better error messages for invalid record fields
          ident_t rname = ident_runtil(name, '.');
-         if (rname != NULL && (decl = scope_find(rname))
-             && type_is_record(tree_type(decl)))
-            sem_error(t, "record type %s has no field %s",
-                      sem_type_str(tree_type(decl)),
-                      istr(ident_rfrom(name, '.')));
-         else
-            sem_error(t, "no visible declaration for %s", istr(name));
+         if (rname != NULL && (decl = scope_find(rname))) {
+            type_t dtype = tree_type(decl);
+            const bool is_rec_ref =
+               type_is_record(dtype)
+               || (type_kind(dtype) == T_FUNC
+                   && type_is_record((dtype = type_result(dtype))));
+            if (is_rec_ref)
+               sem_error(t, "record type %s has no field %s",
+                         sem_type_str(dtype), istr(ident_rfrom(name, '.')));
+         }
+
+         sem_error(t, "no visible declaration for %s", istr(name));
       }
       else if (n == 1) {
          LOCAL_TEXT_BUF ts = type_set_fmt();
