@@ -312,6 +312,33 @@ START_TEST(test_issue49)
 }
 END_TEST
 
+START_TEST(test_issue155)
+{
+   input_from_file(TESTDIR "/simp/issue155.vhd");
+
+   tree_t p = parse_and_check(T_PACKAGE);
+   fail_unless(sem_errors() == 0);
+
+   simplify(p);
+
+   range_t ar = type_dim(tree_type(tree_decl(p, 2)), 0);
+   fail_unless(folded_i(ar.left, 7));
+   fail_unless(folded_i(ar.right, 0));
+
+   range_t br = type_dim(tree_type(tree_decl(p, 3)), 0);
+   fail_unless(folded_i(br.left, 3));
+   fail_unless(folded_i(br.right, 0));
+
+   range_t cr = type_dim(tree_type(tree_decl(p, 4)), 0);
+   fail_unless(folded_i(cr.left, 1));
+   fail_unless(folded_i(cr.right, 0));
+
+   range_t dr = type_dim(tree_type(tree_decl(p, 6)), 0);
+   fail_unless(folded_i(dr.left, 2));
+   fail_unless(folded_i(dr.right, 1));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -322,6 +349,7 @@ int main(void)
    tcase_add_test(tc_core, test_args);
    tcase_add_test(tc_core, test_ffold);
    tcase_add_test(tc_core, test_issue49);
+   tcase_add_test(tc_core, test_issue155);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

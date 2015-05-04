@@ -108,6 +108,42 @@ static tree_t simp_pcall(tree_t t)
    return simp_call_args(t);
 }
 
+static tree_t simp_record_ref(tree_t t)
+{
+   tree_t value = tree_value(t);
+   if (tree_kind(value) != T_REF)
+      return t;
+
+   tree_t decl = tree_ref(value);
+   if (tree_kind(decl) != T_CONST_DECL)
+      return t;
+
+   tree_t agg = tree_value(decl);
+   if (tree_kind(agg) != T_AGGREGATE)
+      return t;
+
+   ident_t field = tree_ident(t);
+   type_t type = tree_type(decl);
+
+   const int nassocs = tree_assocs(agg);
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(agg, i);
+      switch (tree_subkind(a)) {
+      case A_POS:
+         if (tree_ident(type_field(type, tree_pos(a))) == field)
+            return tree_value(a);
+         break;
+
+      case A_NAMED:
+         if (tree_ident(tree_name(a)) == field)
+            return tree_value(a);
+         break;
+      }
+   }
+
+   return t;
+}
+
 static tree_t simp_ref(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -802,6 +838,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_qualified(t);
    case T_CONCAT:
       return simp_concat(t);
+   case T_RECORD_REF:
+      return simp_record_ref(t);
    default:
       return t;
    }
