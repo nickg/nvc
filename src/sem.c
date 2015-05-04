@@ -3050,6 +3050,23 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
          return false;
    }
 
+   // Prune out overloads which are hidden by user subprograms with
+   // identical signatures
+   for (int i = 0; i < n_overloads - 1; i++) {
+      if (overloads[i] != NULL) {
+         type_t type = tree_type(overloads[i]);
+         for (int j = i + 1; j < n_overloads; j++) {
+            const bool prune =
+               overloads[j] != NULL
+               && type_eq(type, tree_type(overloads[j]))
+               && tree_attr_str(overloads[j], builtin_i) == NULL;
+
+            if (prune)
+               overloads[j] = NULL;
+         }
+      }
+   }
+
    for (int n = 0; n < n_overloads; n++) {
       if (overloads[n] == NULL)
          continue;
