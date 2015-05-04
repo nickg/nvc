@@ -3716,11 +3716,9 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
    }
 }
 
-static void lower_protected_init(tree_t decl, vcode_var_t var)
+static void lower_protected_init(tree_t decl, vcode_reg_t pstruct)
 {
    tree_t body = type_body(tree_type(decl));
-
-   vcode_reg_t pstruct = emit_index(var, VCODE_INVALID_REG);
 
    int nvar = 0;
    const int ndecls = tree_decls(body);
@@ -3732,25 +3730,30 @@ static void lower_protected_init(tree_t decl, vcode_var_t var)
       type_t type = tree_type(d);
 
       vcode_reg_t field = emit_record_ref(pstruct, nvar++);
-      vcode_reg_t value = lower_expr(tree_value(d), EXPR_RVALUE);
+      if (type_is_protected(type)) {
+         lower_protected_init(d, field);
+      }
+      else {
+         vcode_reg_t value = lower_expr(tree_value(d), EXPR_RVALUE);
 
-      if (type_is_array(type)) {
-         vcode_reg_t count_reg =
-            lower_array_total_len(type, VCODE_INVALID_REG);
-         lower_check_indexes(type, value, d);
-         lower_check_array_sizes(d, type, tree_type(tree_value(d)),
-                                 VCODE_INVALID_REG, value);
-         emit_copy(field, lower_array_data(value), count_reg);
+         if (type_is_array(type)) {
+            vcode_reg_t count_reg =
+               lower_array_total_len(type, VCODE_INVALID_REG);
+            lower_check_indexes(type, value, d);
+            lower_check_array_sizes(d, type, tree_type(tree_value(d)),
+                                    VCODE_INVALID_REG, value);
+            emit_copy(field, lower_array_data(value), count_reg);
+         }
+         else if (type_is_record(type))
+            emit_copy(field, value, VCODE_INVALID_REG);
+         else if (type_is_scalar(type)) {
+            value = lower_reify(value);
+            lower_check_scalar_bounds(value, type, decl, NULL);
+            emit_store_indirect(value, field);
+         }
+         else
+            emit_store_indirect(value, field);
       }
-      else if (type_is_record(type))
-         emit_copy(field, value, VCODE_INVALID_REG);
-      else if (type_is_scalar(type)) {
-         value = lower_reify(value);
-         lower_check_scalar_bounds(value, type, decl, NULL);
-         emit_store_indirect(value, field);
-      }
-      else
-         emit_store_indirect(value, field);
    }
 }
 
@@ -3764,7 +3767,7 @@ static void lower_var_decl(tree_t decl)
    tree_add_attr_int(decl, vcode_obj_i, var);
 
    if (type_is_protected(type))
-      lower_protected_init(decl, var);
+      lower_protected_init(decl, emit_index(var, VCODE_INVALID_REG));
 
    if (!tree_has_value(decl))
       return;
