@@ -2180,6 +2180,16 @@ START_TEST(test_issue149)
 }
 END_TEST
 
+START_TEST(test_issue158)
+{
+   input_from_file(TESTDIR "/lower/issue158.vhd");
+
+   tree_t p = parse_and_check(T_PACKAGE, T_PACK_BODY);
+   simplify(p);
+   lower_unit(p);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2228,6 +2238,7 @@ int main(void)
    tcase_add_test(tc, test_issue125);
    tcase_add_test(tc, test_rectype);
    tcase_add_test(tc, test_issue149);
+   tcase_add_test(tc, test_issue158);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

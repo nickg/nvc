@@ -361,6 +361,19 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       vcode_return_safety_check(defn->args.items[0]);
       break;
 
+   case VCODE_OP_LOAD_INDIRECT:
+      {
+         // Always OK if scalar otherwise check the pointer source
+         const vtype_kind_t vtkind = vcode_reg_kind(reg);
+         if (vtkind != VCODE_TYPE_INT && vtkind != VCODE_TYPE_REAL)
+            vcode_return_safety_check(defn->args.items[0]);
+      }
+      break;
+
+   case VCODE_OP_ALL:
+      // Must have been allocated on the heap
+      break;
+
    default:
       VCODE_ASSERT(false, "cannot return safety check r%d", reg);
    }
