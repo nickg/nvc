@@ -888,6 +888,9 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
       search_others = false;
       if ((lib = lib_find(istr(lib_i), true, true)) == NULL)
          return NULL;
+
+      // Strip out the component package name, if any
+      full_i = ident_prefix(lib_i, ident_rfrom(full_i, '.'), '.');
    }
 
    tree_t entity = NULL;
