@@ -1084,6 +1084,23 @@ START_TEST(test_duplicate)
 }
 END_TEST
 
+START_TEST(test_issue165)
+{
+   input_from_file(TESTDIR "/sem/issue165.vhd");
+
+   const error_t expect[] = {
+      {  5, "type TYPE_T is not declared" },
+      { 11, "no suitable overload for procedure PROC [universal integer]" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1137,6 +1154,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue144);
    tcase_add_test(tc_core, test_issue151);
    tcase_add_test(tc_core, test_duplicate);
+   tcase_add_test(tc_core, test_issue165);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

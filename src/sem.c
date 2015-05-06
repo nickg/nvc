@@ -2974,7 +2974,13 @@ static type_t sem_find_param_type(tree_t param, tree_t decl)
    case P_POS:
       // Simple case of positional parameters is just the same index
       // into the port list
-      return type_param(decl_type, tree_pos(param));
+      {
+         const unsigned pos = tree_pos(param);
+         if (pos < type_params(decl_type))
+            return type_param(decl_type, pos);
+         else
+            return NULL;
+      }
 
    case P_NAMED:
       // Need to search through the port list for a matching name
