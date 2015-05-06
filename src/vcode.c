@@ -3668,6 +3668,9 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
    vcode_add_arg(op, nets);
    vcode_add_arg(op, n_elems);
    op->subkind = flags;
+
+   VCODE_ASSERT(vcode_reg_kind(nets) == VCODE_TYPE_SIGNAL,
+                "nets argument to sched event must be signal");
 }
 
 void emit_resume(ident_t func, bool nested)

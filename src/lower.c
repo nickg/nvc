@@ -2771,6 +2771,8 @@ static void lower_sched_event(tree_t on, bool is_static)
          nets = lower_signal_ref(decl, EXPR_LVALUE);
          break;
       case T_PORT_DECL:
+         if (tree_class(decl) != C_SIGNAL)
+            return;
          nets = lower_param_ref(decl, EXPR_LVALUE);
          break;
       default:
