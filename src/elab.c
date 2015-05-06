@@ -894,7 +894,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    }
 
    tree_t entity = NULL;
-   lib_search_params_t params = { lib_work(), full_i, &entity };
+   lib_search_params_t params = { lib, full_i, &entity };
    lib_walk_index(params.lib, find_entity, &params);
 
    if (entity == NULL) {

@@ -97,16 +97,21 @@ tree_t run_elab(void)
    return elab(last_ent);
 }
 
-tree_t _parse_and_check(const tree_kind_t *array, int num)
+tree_t _parse_and_check(const tree_kind_t *array, int num, bool simp)
 {
    tree_t last = NULL;
    for (int i = 0; i < num; i++) {
+      if (array[i] == (tree_kind_t)-1)
+         return last;
+
       last = parse();
       fail_if(last == NULL);
       fail_unless(tree_kind(last) == array[i],
                   "expected %s have %s", tree_kind_str(array[i]),
                   tree_kind_str(tree_kind(last)));
-      sem_check(last);
+
+      if (sem_check(last) && simp)
+         simplify(last);
    }
 
    fail_unless(parse() == NULL);

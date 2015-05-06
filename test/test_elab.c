@@ -284,17 +284,13 @@ START_TEST(test_libbind)
 
    lib_t other = lib_tmp("other");
    lib_set_work(other);
-   sem_check(parse());
-   tree_t a = parse();
-   sem_check(a);
-   simplify(a);
+   parse_check_and_simplify(T_ENTITY, T_ARCH, -1);
    fail_if(sem_errors() > 0);
 
    lib_set_work(work);
    fail_if(run_elab() == NULL);
 }
 END_TEST
-
 
 START_TEST(test_issue153)
 {
@@ -315,6 +311,22 @@ START_TEST(test_issue157)
 {
    input_from_file(TESTDIR "/elab/issue157.vhd");
 
+   fail_if(run_elab() == NULL);
+}
+END_TEST
+
+START_TEST(test_issue159)
+{
+   input_from_file(TESTDIR "/elab/issue159.vhd");
+
+   lib_t work = lib_work();
+
+   lib_t other = lib_tmp("dummy");
+   lib_set_work(other);
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, -1);
+   fail_if(sem_errors() > 0);
+
+   lib_set_work(work);
    fail_if(run_elab() == NULL);
 }
 END_TEST
@@ -343,6 +355,7 @@ int main(void)
    tcase_add_test(tc, test_libbind);
    tcase_add_test(tc, test_issue153);
    tcase_add_test(tc, test_issue157);
+   tcase_add_test(tc, test_issue159);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
