@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -5452,9 +5452,13 @@ void input_from_file(const char *file)
 
    file_sz = buf.st_size;
 
-   file_start = mmap(NULL, file_sz, PROT_READ, MAP_PRIVATE, fd, 0);
-   if (file_start == MAP_FAILED)
-      fatal_errno("mmap");
+   if (file_sz > 0) {
+      file_start = mmap(NULL, file_sz, PROT_READ, MAP_PRIVATE, fd, 0);
+      if (file_start == MAP_FAILED)
+         fatal_errno("mmap");
+   }
+   else
+      file_start = NULL;
 
    read_ptr           = file_start;
    last_was_newline   = true;

@@ -2222,6 +2222,14 @@ START_TEST(test_protected)
 }
 END_TEST
 
+START_TEST(test_empty)
+{
+   input_from_file(TESTDIR "/parse/empty.vhd");
+
+   fail_unless(parse() == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2258,6 +2266,7 @@ int main(void)
    tcase_add_test(tc_core, test_error);
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
+   tcase_add_test(tc_core, test_empty);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
