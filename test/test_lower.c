@@ -2222,10 +2222,18 @@ START_TEST(test_issue164)
    lower_unit(p);
 
    vcode_select_unit(tree_code(tree_decl(p, 0)));
+#if LLVM_MANGLES_NAMES
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__vI"));
+#else
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$vI"));
+#endif
 
    vcode_select_unit(tree_code(tree_decl(p, 1)));
+#if LLVM_MANGLES_NAMES
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME__I"));
+#else
    fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$I"));
+#endif
 }
 END_TEST
 
