@@ -681,7 +681,7 @@ int vcode_get_hops(int op)
 {
    op_t *o = vcode_op_data(op);
    assert(o->kind == VCODE_OP_PARAM_UPREF || o->kind == VCODE_OP_NESTED_FCALL
-          || o->kind == VCODE_OP_NESTED_PCALL);
+          || o->kind == VCODE_OP_NESTED_PCALL || o->kind == VCODE_OP_RESUME);
    return o->hops;
 }
 
@@ -3673,11 +3673,12 @@ void emit_sched_event(vcode_reg_t nets, vcode_reg_t n_elems, unsigned flags)
                 "nets argument to sched event must be signal");
 }
 
-void emit_resume(ident_t func, bool nested)
+void emit_resume(ident_t func, bool nested, int hops)
 {
    op_t *op = vcode_add_op(VCODE_OP_RESUME);
    op->func    = func;
    op->subkind = nested;
+   op->hops    = hops;
 
    block_t *b = &(active_unit->blocks.items[active_block]);
    VCODE_ASSERT(b->ops.count == 1, "resume must be first op in a block");

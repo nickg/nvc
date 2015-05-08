@@ -1732,7 +1732,7 @@ static void cgen_op_resume(int op, cgen_ctx_t *ctx)
    for (int i = 0; i < nparams - 1 - (nested ? 1 : 0); i++)
       args[i] = LLVMGetUndef(param_types[i]);
    if (nested)
-      args[nparams - 2] = cgen_display_struct(ctx, 0);
+      args[nparams - 2] = cgen_display_struct(ctx, vcode_get_hops(op));
    args[nparams - 1] = pcall_state;
 
    LLVMValueRef new_state = LLVMBuildCall(builder, fn, args, nparams, "");
