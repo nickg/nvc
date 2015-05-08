@@ -899,21 +899,22 @@ START_TEST(test_protected)
 
    const error_t expect[] = {
       {  13, "type NOT_HERE is not declared" },
-      {  16, "no protected type declaration for BAD2 found" },
-      {  19, "object INTEGER is not a protected type declaration" },
-      {  22, "object NOW is not a protected type declaration" },
-      {  44, "protected type SHAREDCOUNTER already has body" },
-      {  47, "subtypes may not have protected base types" },
-      {  49, "shared variable X must have protected type" },
-      {  53, "variable Y with protected type may not have an initial value" },
-      { 105, "no visible declaration for X.COUNTER" },
-      { 106, "no suitable overload for procedure X.DECREMENT" },
-      { 111, "object X with protected type must have class VARIABLE" },
+      {  19, "no protected type declaration for BAD2 found" },
+      {  22, "object INTEGER is not a protected type declaration" },
+      {  25, "object NOW is not a protected type declaration" },
+      {  47, "protected type SHAREDCOUNTER already has body" },
+      {  50, "subtypes may not have protected base types" },
+      {  52, "shared variable X must have protected type" },
+      {  56, "variable Y with protected type may not have an initial value" },
+      { 108, "no visible declaration for X.COUNTER" },
+      { 109, "no suitable overload for procedure X.DECREMENT" },
+      { 114, "object X with protected type must have class VARIABLE" },
+      { 132, "missing body for protected type WORK.PKG.PROTECTED_T" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE);
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_PACKAGE, T_PACK_BODY);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }

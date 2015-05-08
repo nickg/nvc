@@ -13,6 +13,9 @@ architecture a of e is
         procedure foo (x : not_here);   -- Error
     end protected;
 
+    type bad1 is protected body
+    end protected body;
+
     type bad2 is protected body         -- Error
     end protected body;
 
@@ -124,3 +127,12 @@ package issue85 is
     end protected protected_t;
 
 end package;
+
+package pkg is
+    type protected_t is protected
+    end protected protected_t;
+end package;
+
+package body pkg is
+    -- Missing body for protected_t
+end package body;

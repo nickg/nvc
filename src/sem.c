@@ -2350,12 +2350,13 @@ static bool sem_check_parameter_class_match(tree_t decl, tree_t body)
 
 static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
 {
-   // Check for any subprogram declarations without bodies
+   // Check for any subprogram declarations or protected types without bodies
    bool ok = true;
    const int ndecls = tree_decls(spec);
    for (int i = 0; i < ndecls; i++) {
       tree_t d = tree_decl(spec, i);
       tree_kind_t dkind = tree_kind(d);
+
       if (dkind == T_FUNC_DECL || dkind == T_PROC_DECL) {
          type_t dtype = tree_type(d);
 
@@ -2373,10 +2374,15 @@ static bool sem_check_missing_subprogram_body(tree_t body, tree_t spec)
             }
          }
 
-         if (!found && !opt_get_int("unit-test"))
+         if (!found &&!opt_get_int("unit-test"))
             warn_at(tree_loc(d), "missing body for %s %s",
                     (dkind == T_FUNC_DECL) ? "function" : "procedure",
                     sem_type_str(dtype));
+      }
+      else if (dkind == T_TYPE_DECL && type_is_protected(tree_type(d))) {
+         if (!type_has_body(tree_type(d)))
+            sem_error(d, "missing body for protected type %s",
+                      istr(tree_ident(d)));
       }
    }
 
@@ -2594,8 +2600,6 @@ static bool sem_check_arch(tree_t t)
 
    ok = ok && scope_import_decls(e, false, true);
 
-   ok = ok && sem_check_missing_subprogram_body(t, t);
-
    // Now check the architecture itself
 
    if (ok) {
@@ -2603,6 +2607,8 @@ static bool sem_check_arch(tree_t t)
       for (int n = 0; n < ndecls; n++)
          ok = sem_check(tree_decl(t, n)) && ok;
    }
+
+   ok = ok && sem_check_missing_subprogram_body(t, t);
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
