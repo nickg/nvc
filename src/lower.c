@@ -915,6 +915,8 @@ static ident_t lower_mangle_func(tree_t decl)
 
    if (is_func)
       lower_mangle_one_type(buf, type_result(tree_type(decl)));
+   else
+      tb_printf(buf, "v");
 
    for (int i = 0; i < nports; i++) {
       tree_t p = tree_port(decl, i);

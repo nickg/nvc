@@ -1318,9 +1318,9 @@ START_TEST(test_proc1)
          { VCODE_OP_LOAD, .name = "A" },
          { VCODE_OP_INDEX, .name = "B" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__II", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
 #else
-         { VCODE_OP_FCALL, .func = ":proc1:add1$II", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
 #endif
          { VCODE_OP_CONST, .value = 2 },
          { VCODE_OP_LOAD, .name = "B" },
@@ -1329,9 +1329,9 @@ START_TEST(test_proc1)
          { VCODE_OP_ASSERT },
          { VCODE_OP_CONST, .value = 5 },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_FCALL, .func = ":proc1:add1__II", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1__vII", .args = 2 },
 #else
-         { VCODE_OP_FCALL, .func = ":proc1:add1$II", .args = 2 },
+         { VCODE_OP_FCALL, .func = ":proc1:add1$vII", .args = 2 },
 #endif
          { VCODE_OP_LOAD, .name = "B" },
          { VCODE_OP_CONST, .value = 6 },
@@ -1478,9 +1478,9 @@ START_TEST(test_proc3)
       EXPECT_BB(1) = {
          { VCODE_OP_INDEX, .name = "X" },
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_PCALL, .func = ":proc3:p1__I", .target = 2, .args = 1 },
+         { VCODE_OP_PCALL, .func = ":proc3:p1__vI", .target = 2, .args = 1 },
 #else
-         { VCODE_OP_PCALL, .func = ":proc3:p1$I", .target = 2, .args = 1 }
+         { VCODE_OP_PCALL, .func = ":proc3:p1$vI", .target = 2, .args = 1 }
 #endif
       };
 
@@ -1488,9 +1488,9 @@ START_TEST(test_proc3)
 
       EXPECT_BB(2) = {
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_RESUME, .func = ":proc3:p1__I" },
+         { VCODE_OP_RESUME, .func = ":proc3:p1__vI" },
 #else
-         { VCODE_OP_RESUME, .func = ":proc3:p1$I" },
+         { VCODE_OP_RESUME, .func = ":proc3:p1$vI" },
 #endif
          { VCODE_OP_WAIT, .target = 3 }
       };
@@ -2214,6 +2214,21 @@ START_TEST(test_issue167)
 }
 END_TEST
 
+START_TEST(test_issue164)
+{
+   input_from_file(TESTDIR "/lower/issue164.vhd");
+
+   tree_t p = parse_check_and_simplify(T_PACKAGE, T_PACK_BODY);
+   lower_unit(p);
+
+   vcode_select_unit(tree_code(tree_decl(p, 0)));
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$vI"));
+
+   vcode_select_unit(tree_code(tree_decl(p, 1)));
+   fail_unless(icmp(vcode_unit_name(), "WORK.ISSUE164.SAME_NAME$I"));
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2264,6 +2279,7 @@ int main(void)
    tcase_add_test(tc, test_issue149);
    tcase_add_test(tc, test_issue158);
    tcase_add_test(tc, test_issue167);
+   tcase_add_test(tc, test_issue164);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
