@@ -375,7 +375,7 @@ static vcode_type_t lower_type(type_t type)
    case T_PROTECTED:
       {
          ident_t name = type_ident(type);
-         uint32_t index = type_index(type);
+         uint32_t index = lower_record_index(type);
          vcode_type_t record = vtype_named_record(name, index, false);
          if (record == VCODE_INVALID_TYPE) {
             record = vtype_named_record(name, index, true);

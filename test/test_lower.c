@@ -2190,6 +2190,30 @@ START_TEST(test_issue158)
 }
 END_TEST
 
+START_TEST(test_issue167)
+{
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/lower/issue167.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(e);
+   vcode_select_unit(v0);
+
+   fail_unless(vtype_kind(0) == VCODE_TYPE_RECORD);
+   fail_unless(vtype_kind(2) == VCODE_TYPE_RECORD);
+
+   char *p1_name LOCAL = vtype_record_name(0);
+   fail_unless(strcmp(p1_name, "WORK.PKG.P1") == 0);
+
+   char *p2_name LOCAL = vtype_record_name(2);
+   fail_unless(strncmp(p2_name, "P2.", 3) == 0);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2239,6 +2263,7 @@ int main(void)
    tcase_add_test(tc, test_rectype);
    tcase_add_test(tc, test_issue149);
    tcase_add_test(tc, test_issue158);
+   tcase_add_test(tc, test_issue167);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
