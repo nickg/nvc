@@ -1102,6 +1102,16 @@ START_TEST(test_issue165)
 }
 END_TEST
 
+START_TEST(test_issue162)
+{
+   input_from_file(TESTDIR "/sem/issue162.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1156,6 +1166,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue151);
    tcase_add_test(tc_core, test_duplicate);
    tcase_add_test(tc_core, test_issue165);
+   tcase_add_test(tc_core, test_issue162);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

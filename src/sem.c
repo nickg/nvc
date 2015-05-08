@@ -3132,9 +3132,9 @@ static bool sem_resolve_overload(tree_t t, tree_t *pick, int *matches,
 static int sem_required_args(tree_t decl)
 {
    // Count the number of non-default arguments
-   const int ndecls = tree_ports(decl);
+   const int nports = tree_ports(decl);
    int n = 0;
-   for (int i = 0; i < ndecls; i++) {
+   for (int i = 0; i < nports; i++) {
       tree_t port = tree_port(decl, i);
       if (!tree_has_value(port) && !tree_attr_int(port, protected_i, 0))
          n++;
@@ -3151,8 +3151,33 @@ static bool sem_check_arity(tree_t call, tree_t decl)
 
    if (nports < nparams)
       return false;
+   else if (nparams == nports)
+      return true;
+   else if (nparams >= nreq) {
+      // Count the number of named arguments that match ports with
+      // default values and ignore those
+      int ignore = 0;
+      for (int i = 0; i < nparams; i++) {
+         tree_t param = tree_param(call, i);
+         if (tree_subkind(param) != P_NAMED)
+            continue;
+
+         tree_t name = tree_name(param);
+         if (tree_kind(name) != T_REF)
+            continue;
+
+         ident_t id = tree_ident(name);
+         for (int j = 0; j < nports; j++) {
+            tree_t port = tree_port(decl, j);
+            if (tree_has_value(port) && tree_ident(port) == id)
+               ignore++;
+         }
+      }
+
+      return nparams - ignore >= nreq;
+   }
    else
-      return (nparams == nports) || (nparams >= nreq);
+      return false;
 }
 
 static bool sem_copy_default_args(tree_t call, tree_t decl)
