@@ -3980,6 +3980,7 @@ static void lower_decl(tree_t decl)
    case T_ATTR_SPEC:
    case T_ATTR_DECL:
    case T_COMPONENT:
+   case T_USE:
       break;
 
    default:
@@ -4007,8 +4008,11 @@ static void lower_cleanup(tree_t scope)
    }
 
    const int ndecls = tree_decls(scope);
-   for (int i = 0; i < ndecls; i++)
-      tree_remove_attr(tree_decl(scope, i), vcode_obj_i);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(scope, i);
+      if (tree_kind(decl) != T_USE)
+         tree_remove_attr(decl, vcode_obj_i);
+   }
 }
 
 static void lower_protected_body(tree_t body)
@@ -4025,8 +4029,11 @@ static void lower_protected_body(tree_t body)
 
    lower_decls(body, vcode_active_unit());
 
-   for (int i = 0; i < ndecls; i++)
-      tree_remove_attr(tree_decl(body, i), prot_field_i);
+   for (int i = 0; i < ndecls; i++) {
+      tree_t decl = tree_decl(body, i);
+      if (tree_kind(decl) != T_USE)
+         tree_remove_attr(decl, prot_field_i);
+   }
 }
 
 static void lower_decls(tree_t scope, vcode_unit_t context)
