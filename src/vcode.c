@@ -3389,6 +3389,19 @@ vcode_reg_t emit_not(vcode_reg_t arg)
 
 vcode_reg_t emit_wrap(vcode_reg_t data, const vcode_dim_t *dims, int ndims)
 {
+   VCODE_FOR_EACH_MATCHING_OP(other, VCODE_OP_WRAP) {
+      if (other->args.count == ndims*3 + 1 && other->args.items[0] == data) {
+         bool match = true;
+         for (int i = 0; match && i < ndims; i++) {
+            match = other->args.items[i*3 + 1] == dims[i].left
+               && other->args.items[i*3 + 2] == dims[i].right
+               && other->args.items[i*3 + 3] == dims[i].dir;
+         }
+         if (match)
+            return other->result;
+      }
+   }
+
    op_t *op = vcode_add_op(VCODE_OP_WRAP);
    vcode_add_arg(op, data);
    for (int i = 0; i < ndims; i++) {

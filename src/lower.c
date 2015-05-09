@@ -543,6 +543,14 @@ static void lower_check_scalar_bounds(vcode_reg_t value, type_t type,
    }
 }
 
+static bool lower_have_signal(vcode_reg_t reg)
+{
+   const vtype_kind_t reg_kind = vcode_reg_kind(reg);
+   return reg_kind == VCODE_TYPE_SIGNAL
+      || (reg_kind == VCODE_TYPE_UARRAY
+          && vtype_kind(vtype_elem(vcode_reg_type(reg))) == VCODE_TYPE_SIGNAL);
+}
+
 static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
 {
    type_t value_type = tree_type(value);
@@ -565,20 +573,14 @@ static vcode_reg_t lower_param(tree_t value, tree_t port, port_mode_t mode)
    if (reg == VCODE_INVALID_REG)
       return reg;
 
-   const vtype_kind_t reg_kind = vcode_reg_kind(reg);
-   const bool have_signal =
-      reg_kind == VCODE_TYPE_SIGNAL
-      || (reg_kind == VCODE_TYPE_UARRAY
-          && vtype_kind(vtype_elem(vcode_reg_type(reg))) == VCODE_TYPE_SIGNAL);
-
-   if (have_signal && class != C_SIGNAL) {
+   if (lower_have_signal(reg) && class != C_SIGNAL) {
       vcode_reg_t data_reg = lower_array_data(reg);
       vcode_reg_t len_reg = VCODE_INVALID_REG;
       if (type_is_array(value_type))
          len_reg = lower_array_total_len(value_type, reg);
       vcode_reg_t new_reg = emit_vec_load(data_reg, len_reg, false);
 
-      if (reg_kind == VCODE_TYPE_UARRAY)
+      if (vcode_reg_kind(reg) == VCODE_TYPE_UARRAY)
          reg = lower_wrap_with_new_bounds(value_type, reg, new_reg);
       else
          reg = new_reg;
@@ -1658,17 +1660,8 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
       emit_comment("Array of array stride is r%d", stride);
       idx = emit_mul(idx, stride);
    }
-   else if (type_is_record(elem)) {
-      vcode_type_t atype = vcode_reg_type(array);
-      const vtype_kind_t akind = vtype_kind(atype);
-      const bool is_signal =
-         akind == VCODE_TYPE_SIGNAL
-         || (akind == VCODE_TYPE_UARRAY
-             && vtype_kind(vtype_elem(atype)) == VCODE_TYPE_SIGNAL);
-
-      if (is_signal)
-         idx = emit_mul(idx, emit_const(vtype_offset(), type_width(elem)));
-   }
+   else if (type_is_record(elem) && lower_have_signal(array))
+      idx = emit_mul(idx, emit_const(vtype_offset(), type_width(elem)));
 
    return idx;
 }
@@ -2259,7 +2252,7 @@ static vcode_reg_t lower_record_ref(tree_t expr, expr_ctx_t ctx)
 
    const int index = lower_field_index(type, tree_ident(expr));
 
-   if (vcode_reg_kind(record) == VCODE_TYPE_SIGNAL) {
+   if (lower_have_signal(record)) {
       if (ctx == EXPR_RVALUE) {
          vcode_reg_t count_reg = emit_const(vtype_offset(), type_width(type));
          return emit_record_ref(emit_vec_load(record, count_reg, false), index);
@@ -2332,7 +2325,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
          vcode_reg_t src_len =
             lower_array_total_len(args[i].type, args[i].reg);
 
-         if (vcode_reg_kind(args[i].reg) == VCODE_TYPE_SIGNAL)
+         if (lower_have_signal(args[i].reg))
             args[i].reg = emit_vec_load(args[i].reg, src_len, false);
 
          emit_copy(ptr, lower_array_data(args[i].reg), src_len);
@@ -2975,6 +2968,10 @@ static void lower_var_assign(tree_t stmt)
       vcode_reg_t src_data = lower_array_data(value_reg);
       lower_check_array_sizes(stmt, type, tree_type(value),
                               target_reg, value_reg);
+
+      if (lower_have_signal(src_data))
+         src_data = emit_vec_load(src_data, count_reg, false);
+
       emit_copy(target_data, src_data, count_reg);
    }
    else {
@@ -3043,8 +3040,8 @@ static void lower_signal_assign(tree_t stmt)
       if (type_is_array(part_type))
          count_reg = lower_array_total_len(tree_type(wvalue), rhs);
 
-      if (vcode_reg_kind(rhs) == VCODE_TYPE_SIGNAL)
-         rhs = emit_vec_load(rhs, count_reg, false);
+      if (lower_have_signal(rhs))
+         rhs = emit_vec_load(lower_array_data(rhs), count_reg, false);
 
       for (int i = 0; i < nparts; i++) {
          if (nets[i] == VCODE_INVALID_REG)

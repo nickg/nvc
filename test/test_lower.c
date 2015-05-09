@@ -95,6 +95,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_RETURN:
       case VCODE_OP_IMAGE:
       case VCODE_OP_UNWRAP:
+      case VCODE_OP_ARRAY_SIZE:
          break;
 
       case VCODE_OP_UARRAY_LEFT:
@@ -2237,6 +2238,71 @@ START_TEST(test_issue164)
 }
 END_TEST
 
+START_TEST(test_sigvar)
+{
+   input_from_file(TESTDIR "/lower/sigvar.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 1));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_UARRAY_DIR },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_UARRAY_LEFT },
+         { VCODE_OP_CAST },
+         { VCODE_OP_UARRAY_RIGHT },
+         { VCODE_OP_CAST },
+         { VCODE_OP_SUB },
+         { VCODE_OP_SUB },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_CONST, .value = 1 },
+         { VCODE_OP_ADD },
+         { VCODE_OP_CAST },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_ALLOCA },
+         { VCODE_OP_MEMSET },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "Y" },
+         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_COPY },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+
+   {
+      vcode_unit_t v0 = tree_code(tree_decl(e, 2));
+      vcode_select_unit(v0);
+
+      EXPECT_BB(0) = {
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_UARRAY_LEN },
+         { VCODE_OP_ARRAY_SIZE },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_UNWRAP },
+         { VCODE_OP_VEC_LOAD },
+         { VCODE_OP_SCHED_WAVEFORM },
+         { VCODE_OP_RETURN }
+      };
+
+      CHECK_BB(0);
+   }
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2288,6 +2354,7 @@ int main(void)
    tcase_add_test(tc, test_issue158);
    tcase_add_test(tc, test_issue167);
    tcase_add_test(tc, test_issue164);
+   tcase_add_test(tc, test_sigvar);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
