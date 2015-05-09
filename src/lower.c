@@ -2325,8 +2325,10 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
          vcode_reg_t src_len =
             lower_array_total_len(args[i].type, args[i].reg);
 
-         if (lower_have_signal(args[i].reg))
-            args[i].reg = emit_vec_load(args[i].reg, src_len, false);
+         if (lower_have_signal(args[i].reg)) {
+            vcode_reg_t data = lower_array_data(args[i].reg);
+            args[i].reg = emit_vec_load(data, src_len, false);
+         }
 
          emit_copy(ptr, lower_array_data(args[i].reg), src_len);
          if (i + 1 < nparams)

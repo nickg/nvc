@@ -14,6 +14,11 @@ architecture test of sigvar is
         x <= y;
     end procedure;
 
+    procedure proc3(signal x : out bit_vector; signal y : in bit_vector) is
+    begin
+        x <= y & "1";
+    end procedure;
+
 begin
 
 end architecture;
