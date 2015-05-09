@@ -625,6 +625,7 @@ static void set_default_opts(void)
    opt_set_int("make-posix", 0);
    opt_set_str("dump-vcode", NULL);
    opt_set_int("relax", 0);
+   opt_set_int("ignore-time", 0);
 }
 
 static void usage(void)
@@ -642,6 +643,7 @@ static void usage(void)
           "Global options may be placed before COMMAND:\n"
           " -L PATH\t\tAdd PATH to library search paths\n"
           " -h, --help\t\tDisplay this message and exit\n"
+          "     --ignore-time\tSkip source file timestamp check\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
@@ -778,15 +780,16 @@ int main(int argc, char **argv)
    atexit(fbuf_cleanup);
 
    static struct option long_options[] = {
-      { "help",     no_argument,       0, 'h' },
-      { "version",  no_argument,       0, 'v' },
-      { "work",     required_argument, 0, 'w' },
-      { "dump",     no_argument,       0, 'd' },
-      { "codegen",  no_argument,       0, 'c' },
-      { "make",     no_argument,       0, 'm' },
-      { "std",      required_argument, 0, 's' },
-      { "messages", required_argument, 0, 'M' },
-      { "map",      required_argument, 0, 'p' },
+      { "help",        no_argument,       0, 'h' },
+      { "version",     no_argument,       0, 'v' },
+      { "work",        required_argument, 0, 'w' },
+      { "dump",        no_argument,       0, 'd' },
+      { "codegen",     no_argument,       0, 'c' },
+      { "make",        no_argument,       0, 'm' },
+      { "std",         required_argument, 0, 's' },
+      { "messages",    required_argument, 0, 'M' },
+      { "map",         required_argument, 0, 'p' },
+      { "ignore-time", no_argument,       0, 'i' },
       { 0, 0, 0, 0 }
    };
 
@@ -823,6 +826,9 @@ int main(int argc, char **argv)
          break;
       case 'p':
          parse_library_map(optarg);
+         break;
+      case 'i':
+         opt_set_int("ignore-time", 1);
          break;
       case 'a':
       case 'e':

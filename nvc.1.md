@@ -48,6 +48,10 @@ specific options must be placed after the command.
  * `-h`, `--help`:
    Display usage summary.
 
+ * `--ignore-time`:
+   Do not check the timestamps of source files when the corresponding design unit is
+   loaded from a library.
+
  * `-L` _path_:
    Add _path_ to the list of directories to search for libraries. See the
    [LIBRARIES][] section below for details.
