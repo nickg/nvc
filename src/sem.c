@@ -3668,6 +3668,9 @@ static bool sem_check_wait(tree_t t)
          sem_error(value, "type of condition must be BOOLEAN");
    }
 
+   if (top_scope->flags & SCOPE_PROTECTED)
+      sem_error(t, "wait statement not allowed in protected subprogram body");
+
    return sem_check_sensitivity(t);
 }
 
