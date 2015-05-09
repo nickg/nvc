@@ -1108,7 +1108,7 @@ START_TEST(test_issue162)
 
    parse_and_check(T_PACKAGE, T_PACK_BODY);
 
-   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+   fail_unless(sem_errors() == 0);
 }
 END_TEST
 
