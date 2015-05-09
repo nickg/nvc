@@ -842,7 +842,7 @@ int main(int argc, char **argv)
    }
  getopt_out:
 
-   work = lib_find(work_name, false, false);
+   work = lib_find(work_path, false, false);
    if (work == NULL)
       work = lib_new(work_name, work_path);
 
