@@ -33,7 +33,11 @@ package body ambiguous is
 
   function calling_fun_works(arg2 : boolean := false) return integer is
   begin
-    return fun(true) + fun(1, true) + fun(arg1 => 1, arg2 => true); -- Works
+      -- Works
+      assert fun(true) = 0;
+      assert fun(1, true) = 0;
+      assert fun(arg1 => 1, arg2 => true) = 0;
+      return 0;
   end function;
 
   function calling_fun(arg2 : boolean := false) return integer is

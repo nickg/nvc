@@ -1106,9 +1106,40 @@ START_TEST(test_issue162)
 {
    input_from_file(TESTDIR "/sem/issue162.vhd");
 
-   parse_and_check(T_PACKAGE, T_PACK_BODY);
+   tree_t body = parse_and_check(T_PACKAGE, T_PACK_BODY);
 
    fail_unless(sem_errors() == 0);
+
+   fail_unless(tree_kind(body) == T_PACK_BODY);
+
+   tree_t p = tree_decl(body, 2);
+   fail_unless(tree_kind(p) == T_PROC_BODY);
+   fail_unless(icmp(tree_ident(p), "WORK.AMBIGUOUS.CALLING_PROC"));
+   fail_unless(tree_loc(tree_ref(tree_stmt(p, 0)))->first_line == 10);
+   fail_unless(tree_loc(tree_ref(tree_stmt(p, 1)))->first_line == 10);
+   fail_unless(tree_loc(tree_ref(tree_stmt(p, 2)))->first_line == 5);
+   fail_unless(tree_loc(tree_ref(tree_stmt(p, 3)))->first_line == 5);
+   fail_unless(tree_loc(tree_ref(tree_stmt(p, 4)))->first_line == 10);
+
+   tree_t f1 = tree_decl(body, 5);
+   fail_unless(tree_kind(f1) == T_FUNC_BODY);
+   fail_unless(icmp(tree_ident(f1), "WORK.AMBIGUOUS.CALLING_FUN_WORKS"));
+
+   tree_t c0 = tree_value(tree_param(tree_value(tree_stmt(f1, 0)), 0));
+   fail_unless(tree_loc(tree_ref(c0))->first_line == 29);
+
+   tree_t c1 = tree_value(tree_param(tree_value(tree_stmt(f1, 1)), 0));
+   fail_unless(tree_loc(tree_ref(c1))->first_line == 23);
+
+   tree_t c2 = tree_value(tree_param(tree_value(tree_stmt(f1, 2)), 0));
+   fail_unless(tree_loc(tree_ref(c2))->first_line == 23);
+
+   tree_t f2 = tree_decl(body, 6);
+   fail_unless(tree_kind(f2) == T_FUNC_BODY);
+   fail_unless(icmp(tree_ident(f2), "WORK.AMBIGUOUS.CALLING_FUN"));
+
+   tree_t c3 = tree_value(tree_stmt(f2, 0));
+   fail_unless(tree_loc(tree_ref(c3))->first_line == 29);
 }
 END_TEST
 
