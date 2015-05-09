@@ -40,16 +40,6 @@ const char *copy_string =
 const char *version_string =
    PACKAGE_STRING " (llvm " LLVM_VERSION "; tcl " TCL_VERSION ")";
 
-static void set_work_lib(void)
-{
-   const char *work_name = opt_get_str("work-name");
-   lib_t work = lib_find(work_name, false, false);
-   if (work == NULL)
-      work = lib_new(work_name);
-
-   lib_set_work(work);
-}
-
 static ident_t to_unit_name(const char *str)
 {
    char *name = strdup(str);
@@ -89,8 +79,6 @@ static unsigned parse_relax(const char *str)
 
 static int analyse(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
       { "dump-llvm",       no_argument,       0, 'd' },
@@ -195,8 +183,6 @@ static void elab_verbose(bool verbose, const char *fmt, ...)
 
 static int elaborate(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       { "disable-opt", no_argument,       0, 'o' },
       { "dump-llvm",   no_argument,       0, 'd' },
@@ -285,8 +271,6 @@ static int elaborate(int argc, char **argv)
 
 static int codegen(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       {0, 0, 0, 0}
    };
@@ -375,8 +359,6 @@ static rt_severity_t parse_severity(const char *str)
 
 static int run(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       { "trace",         no_argument,       0, 't' },
       { "batch",         no_argument,       0, 'b' },
@@ -523,8 +505,6 @@ static int run(int argc, char **argv)
 
 static int make_cmd(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       { "deps-only", no_argument, 0, 'd' },
       { "native",    no_argument, 0, 'n' },
@@ -578,8 +558,6 @@ static int make_cmd(int argc, char **argv)
 
 static int dump_cmd(int argc, char **argv)
 {
-   set_work_lib();
-
    static struct option long_options[] = {
       { "elab", no_argument, 0, 'e' },
       { "body", no_argument, 0, 'b' },
@@ -645,7 +623,6 @@ static void set_default_opts(void)
    opt_set_int("prefer-explicit", 0);
    opt_set_int("make-deps-only", 0);
    opt_set_int("make-posix", 0);
-   opt_set_str("work-name", "work");
    opt_set_str("dump-vcode", NULL);
    opt_set_int("relax", 0);
 }
@@ -757,6 +734,32 @@ static message_style_t parse_message_style(const char *str)
    fatal("invalid message style '%s' (allowed are 'full' and 'compact')", str);
 }
 
+static void parse_library_map(char *str)
+{
+   char *split = strchr(str, ':');
+   if (split == NULL)
+      fatal("invalid library map syntax '%s': use NAME:PATH", str);
+
+   *split = '\0';
+
+   if (strcasecmp(str, "work") == 0)
+      fatal("use --work option to specify work library name and path");
+
+   lib_add_map(str, split + 1);
+}
+
+static void parse_work_name(char *str, const char **name, const char **path)
+{
+   char *split = strchr(str, ':');
+   if (split == NULL)
+      *name = *path = str;
+   else {
+      *split = '\0';
+      *name = str;
+      *path = split + 1;
+   }
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -782,10 +785,15 @@ int main(int argc, char **argv)
       { "make",     no_argument,       0, 'm' },
       { "std",      required_argument, 0, 's' },
       { "messages", required_argument, 0, 'M' },
+      { "map",      required_argument, 0, 'p' },
       { 0, 0, 0, 0 }
    };
 
    opterr = 0;
+
+   const char *work_name = "work";
+   const char *work_path = work_name;
+   lib_t work = NULL;
 
    int c, index = 0;
    const char *spec = "aehrvL:";
@@ -801,7 +809,7 @@ int main(int argc, char **argv)
          printf("%s\n%s\n", version_string, copy_string);
          exit(EXIT_SUCCESS);
       case 'w':
-         opt_set_str("work-name", optarg);
+         parse_work_name(optarg, &work_name, &work_path);
          break;
       case 'L':
          lib_add_search_path(optarg);
@@ -811,6 +819,9 @@ int main(int argc, char **argv)
          break;
       case 'M':
          set_message_style(parse_message_style(optarg));
+         break;
+      case 'p':
+         parse_library_map(optarg);
          break;
       case 'a':
       case 'e':
@@ -829,6 +840,12 @@ int main(int argc, char **argv)
       }
    }
  getopt_out:
+
+   work = lib_find(work_name, false, false);
+   if (work == NULL)
+      work = lib_new(work_name, work_path);
+
+   lib_set_work(work);
 
    switch (c) {
    case 'a':

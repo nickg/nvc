@@ -49,8 +49,12 @@ specific options must be placed after the command.
    Display usage summary.
 
  * `-L` _path_:
-   Add _path_ to the list of directories to search for libraries (see
-   [LIBRARIES][] section below).
+   Add _path_ to the list of directories to search for libraries. See the
+   [LIBRARIES][] section below for details.
+
+* `--map=`_name_`:`_path_:
+   Specify exactly the location of logical library _name_. Libraries mapped in this
+   way will not used the normal search path.
 
  * `--messages=`_style_:
    Select either the _full_ or _compact_ message format. The default full message
@@ -66,8 +70,9 @@ specific options must be placed after the command.
  * `-v`, `--version`:
    Display version and copyright information.
 
- * `--work=`_name_:
-   Use _name_ as the work library (see [LIBRARIES][] section below).
+ * `--work=`_name_, `--work=`_name_`:`_path_:
+   Use _name_ as the work library. The second variant explicitly specifies the
+   location of the library. See the [LIBRARIES][] section below for details.
 
 ### Analysis options
 

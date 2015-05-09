@@ -66,21 +66,12 @@ static lib_t make_get_lib(ident_t name)
 
 static const char *make_product(tree_t t, make_product_t product)
 {
-   static const char *work_name = NULL;
-
-   if (work_name == NULL)
-      work_name = opt_get_str("work-name");
-
    char *buf = get_fmt_buf(PATH_MAX);
 
    ident_t name = tree_ident(t);
    lib_t lib = make_get_lib(name);
 
-   const char *path;
-   if (lib == lib_work())
-      path = work_name;
-   else
-      path = lib_path(lib);
+   const char *path = lib_path(lib);
 
    switch (product) {
    case MAKE_TREE:

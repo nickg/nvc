@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "April 2015" "" "NVC Manual"
+.TH "NVC" "1" "May 2015" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -57,7 +57,11 @@ Display usage summary\.
 .
 .TP
 \fB\-L\fR \fIpath\fR
-Add \fIpath\fR to the list of directories to search for libraries (see \fILIBRARIES\fR section below)\.
+Add \fIpath\fR to the list of directories to search for libraries\. See the \fILIBRARIES\fR section below for details\.
+.
+.TP
+\fB\-\-map=\fR\fIname\fR\fB:\fR\fIpath\fR
+Specify exactly the location of logical library \fIname\fR\. Libraries mapped in this way will not used the normal search path\.
 .
 .TP
 \fB\-\-messages=\fR\fIstyle\fR
@@ -72,8 +76,8 @@ Select the VHDL standard revision to use\. Specify either the full year such as 
 Display version and copyright information\.
 .
 .TP
-\fB\-\-work=\fR\fIname\fR
-Use \fIname\fR as the work library (see \fILIBRARIES\fR section below)\.
+\fB\-\-work=\fR\fIname\fR, \fB\-\-work=\fR\fIname\fR\fB:\fR\fIpath\fR
+Use \fIname\fR as the work library\. The second variant explicitly specifies the location of the library\. See the \fILIBRARIES\fR section below for details\.
 .
 .SS "Analysis options"
 .

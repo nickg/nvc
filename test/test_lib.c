@@ -12,7 +12,7 @@ static lib_t work;
 
 static void setup(void)
 {
-   work = lib_new("/tmp/test_lib");
+   work = lib_new("test_lib", "/tmp/test_lib");
    fail_if(work == NULL);
 }
 

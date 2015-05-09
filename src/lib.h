@@ -30,7 +30,7 @@ typedef struct lib *lib_t;
 typedef uint64_t lib_mtime_t;
 
 lib_t lib_find(const char *name, bool verbose, bool search);
-lib_t lib_new(const char *name);
+lib_t lib_new(const char *name, const char *path);
 lib_t lib_tmp(const char *name);
 void lib_free(lib_t lib);
 FILE *lib_fopen(lib_t lib, const char *name, const char *mode);
@@ -44,6 +44,7 @@ void lib_mkdir(lib_t lib, const char *name);
 const char *lib_enum_search_paths(void **token);
 void lib_add_search_path(const char *path);
 bool lib_stat(lib_t lib, const char *name, lib_mtime_t *mt);
+void lib_add_map(const char *name, const char *path);
 
 lib_t lib_work(void);
 void lib_set_work(lib_t lib);

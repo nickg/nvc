@@ -41,6 +41,7 @@ typedef struct search_path search_path_t;
 typedef struct lib_unit    lib_unit_t;
 typedef struct lib_index   lib_index_t;
 typedef struct lib_list    lib_list_t;
+typedef struct lib_map     lib_map_t;
 
 struct lib_unit {
    tree_t        top;
@@ -245,20 +246,22 @@ static lib_unit_t *lib_put_aux(lib_t lib, tree_t unit,
    return where;
 }
 
-static lib_t lib_find_at(const char *name, const char *path)
+static lib_t lib_find_at(const char *name, const char *path, bool exact)
 {
    char dir[PATH_MAX];
    char *p = dir + snprintf(dir, sizeof(dir) - 4 - strlen(name), "%s/", path);
-
-   // Append library name converting to lower case
-   for (const char *n = name; *n != '\0'; n++)
-      *p++ = tolower((int)*n);
-
-   // Try suffixing standard revision extensions first
    bool found = false;
-   for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
-      snprintf(p, 4, ".%s", standard_suffix(s));
-      found = (access(dir, F_OK) == 0);
+
+   if (!exact) {
+      // Append library name converting to lower case
+      for (const char *n = name; *n != '\0'; n++)
+         *p++ = tolower((int)*n);
+
+      // Try suffixing standard revision extensions first
+      for (vhdl_standard_t s = standard(); (s > STD_87) && !found; s--) {
+         snprintf(p, 4, ".%s", standard_suffix(s));
+         found = (access(dir, F_OK) == 0);
+      }
    }
 
    if (!found) {
@@ -282,7 +285,7 @@ static const char *lib_file_path(lib_t lib, const char *name)
    return buf;
 }
 
-lib_t lib_new(const char *name)
+lib_t lib_new(const char *name, const char *path)
 {
    const char *last_slash = strrchr(name, '/');
    const char *last_dot = strrchr(name, '.');
@@ -301,15 +304,15 @@ lib_t lib_new(const char *name)
    }
 
    struct stat buf;
-   if (stat(name, &buf) == 0) {
+   if (stat(path, &buf) == 0) {
       if (!S_ISDIR(buf.st_mode))
-         fatal("path %s already exists and is not a directory", name);
+         fatal("path %s already exists and is not a directory", path);
    }
 
-   if ((mkdir(name, 0777) != 0) && (errno != EEXIST))
-      fatal_errno("mkdir: %s", name);
+   if ((mkdir(path, 0777) != 0) && (errno != EEXIST))
+      fatal_errno("mkdir: %s", path);
 
-   char *lockf LOCAL = xasprintf("%s/%s", name, "_NVC_LIB");
+   char *lockf LOCAL = xasprintf("%s/%s", path, "_NVC_LIB");
    int fd = open(lockf, O_CREAT | O_EXCL | O_RDWR, 0777);
    if (fd < 0) {
       if (errno != EEXIST)
@@ -321,10 +324,10 @@ lib_t lib_new(const char *name)
 
       const char *marker = PACKAGE_STRING "\n";
       if (write(fd, marker, strlen(marker)) < 0)
-         fatal_errno("write: %s", name);
+         fatal_errno("write: %s", path);
    }
 
-   return lib_init(name, name, fd);
+   return lib_init(name, path, fd);
 }
 
 lib_t lib_tmp(const char *name)
@@ -391,6 +394,13 @@ void lib_add_search_path(const char *path)
    push_path(strdup(path));
 }
 
+void lib_add_map(const char *name, const char *path)
+{
+   lib_t lib = lib_find_at(name, path, true);
+   if (lib == NULL)
+      warnf("library %s not found at %s", name, path);
+}
+
 lib_t lib_find(const char *name, bool verbose, bool search)
 {
    ident_t name_i = upcase_name(name);
@@ -419,13 +429,13 @@ lib_t lib_find(const char *name, bool verbose, bool search)
       // Work library contains explicit path
       *sep = '\0';
       name = sep + 1;
-      lib = lib_find_at(name, name_copy);
+      lib = lib_find_at(name, name_copy, false);
    }
    else if (search) {
       lib_default_search_paths();
 
       for (search_path_t *it = search_paths; it != NULL; it = it->next) {
-         if ((lib = lib_find_at(name, it->path)))
+         if ((lib = lib_find_at(name, it->path, false)))
             break;
       }
 
@@ -439,7 +449,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
    }
    else {
       // Look only in working directory
-      lib = lib_find_at(name, ".");
+      lib = lib_find_at(name, ".", false);
    }
 
    free(name_copy);
