@@ -102,6 +102,17 @@ static const char *simple_name(const char *full)
    return start;
 }
 
+static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
+{
+   lib_t tmp = lib_work();
+   lib_set_work(ctx->library);
+   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
+   if (lib == NULL)
+      fatal("cannot continue");
+   lib_set_work(tmp);
+   return lib;
+}
+
 static void find_arch(ident_t name, int kind, void *context)
 {
    lib_search_params_t *params = context;
@@ -136,13 +147,13 @@ static void find_arch(ident_t name, int kind, void *context)
    }
 }
 
-static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib)
+static tree_t pick_arch(const loc_t *loc, ident_t name, lib_t *new_lib,
+                        const elab_ctx_t *ctx)
 {
    // When an explicit architecture name is not given select the most
    // recently analysed architecture of this entity
 
-   ident_t lib_name = ident_until(name, '.');
-   lib_t lib = lib_find(istr(lib_name), true, true);
+   lib_t lib = elab_find_lib(name, ctx);
 
    tree_t arch = lib_get_check_stale(lib, name);
    if ((arch == NULL) || (tree_kind(arch) != T_ARCH)) {
@@ -258,23 +269,12 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    return s;
 }
 
-static lib_t elab_link_lib(ident_t name, const elab_ctx_t *ctx)
-{
-   lib_t tmp = lib_work();
-   lib_set_work(ctx->library);
-   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot link library %s", istr(name));
-   lib_set_work(tmp);
-   return lib;
-}
-
 static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
 {
    ident_t cname = tree_ident(t);
    ident_t lname = ident_until(cname, '.');
 
-   lib_t lib = elab_link_lib(lname, ctx);
+   lib_t lib = elab_find_lib(lname, ctx);
 
    tree_t unit = lib_get(lib, cname);
    if (unit == NULL)
@@ -340,7 +340,7 @@ static void elab_copy_context(tree_t src, const elab_ctx_t *ctx)
       ident_t lname = ident_until(name, '.');
 
       elab_ctx_t new_ctx = *ctx;
-      new_ctx.library = elab_link_lib(lname, ctx);
+      new_ctx.library = elab_find_lib(lname, ctx);
 
       if (name == lname)
          lib_walk_index(new_ctx.library, elab_context_walk_fn, &new_ctx);
@@ -894,8 +894,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    }
    else {
       search_others = false;
-      if ((lib = lib_find(istr(lib_i), true, true)) == NULL)
-         return NULL;
+      lib = elab_find_lib(lib_i, ctx);
 
       // Strip out the component package name, if any
       full_i = ident_prefix(lib_i, ident_rfrom(full_i, '.'), '.');
@@ -913,7 +912,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
             if (tree_kind(c) != T_LIBRARY)
                continue;
 
-            lib_t lib = lib_find(istr(tree_ident(c)), true, true);
+            lib_t lib = elab_find_lib(tree_ident(c), ctx);
             full_i = ident_prefix(lib_name(lib), tree_ident(comp), '.');
             if (lib != NULL) {
                lib_search_params_t params = { lib, full_i, &entity };
@@ -931,7 +930,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    }
 
    tree_t arch = elab_copy(pick_arch(tree_loc(comp),
-                                     tree_ident(entity), new_lib));
+                                     tree_ident(entity), new_lib, ctx));
 
    // Check entity is compatible with component declaration
 
@@ -951,7 +950,7 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    tree_t arch = NULL;
    switch (tree_class(t)) {
    case C_ENTITY:
-      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t), &new_lib));
+      arch = elab_copy(pick_arch(tree_loc(t), tree_ident2(t), &new_lib, ctx));
       break;
 
    case C_COMPONENT:
@@ -1357,7 +1356,7 @@ static void elab_top_level_generics(tree_t arch, const elab_ctx_t *ctx)
 
 static void elab_entity(tree_t t, const elab_ctx_t *ctx)
 {
-   tree_t arch = pick_arch(NULL, tree_ident(t), NULL);
+   tree_t arch = pick_arch(NULL, tree_ident(t), NULL, ctx);
    const char *name = simple_name(istr(tree_ident(t)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
@@ -1428,7 +1427,7 @@ static void elab_funcs(tree_t arch, tree_t ent, const elab_ctx_t *ctx)
          continue;
 
       ident_t name = tree_ident(c);
-      lib_t lib = elab_link_lib(name, ctx);
+      lib_t lib = elab_find_lib(name, ctx);
 
       ident_t body_i = ident_prefix(name, ident_new("body"), '-');
       tree_t body = lib_get_check_stale(lib, body_i);
@@ -1514,7 +1513,7 @@ static void elab_context_signals(const elab_ctx_t *ctx)
          continue;
 
       ident_t name = tree_ident(c);
-      lib_t lib = elab_link_lib(name, ctx);
+      lib_t lib = elab_find_lib(name, ctx);
 
       tree_t pack = lib_get_check_stale(lib, name);
       if ((pack == NULL) || (tree_kind(pack) != T_PACKAGE))
