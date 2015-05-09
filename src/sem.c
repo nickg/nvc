@@ -103,6 +103,7 @@ static bool sem_locally_static(tree_t t);
 static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
+static bool sem_check_use_clause(tree_t c);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
@@ -442,8 +443,13 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
       tree_t decl = tree_decl(unit, n);
 
       tree_kind_t kind = tree_kind(decl);
-      if ((kind == T_ATTR_SPEC) || (kind == T_USE))
+      if (kind == T_ATTR_SPEC)
          continue;
+      else if (kind == T_USE) {
+         if (!sem_check_use_clause(decl))
+            return false;
+         continue;
+      }
 
       ident_t dname = tree_ident(decl);
 

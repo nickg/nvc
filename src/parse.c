@@ -3189,9 +3189,13 @@ static void p_protected_type_body_declarative_item(tree_t body)
       p_variable_declaration(body);
       break;
 
+   case tUSE:
+      p_use_clause(body, tree_add_decl);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS, tVARIABLE);
+             tIMPURE, tPURE, tALIAS, tVARIABLE, tUSE);
    }
 }
 
@@ -3277,9 +3281,13 @@ static void p_entity_declarative_item(tree_t entity)
       }
       break;
 
+   case tUSE:
+      p_use_clause(entity, tree_add_decl);
+      break;
+
    default:
       expect(tATTRIBUTE, tTYPE, tSUBTYPE, tCONSTANT, tFUNCTION, tPROCEDURE,
-             tIMPURE, tPURE, tALIAS);
+             tIMPURE, tPURE, tALIAS, tUSE);
    }
 }
 
@@ -3748,9 +3756,13 @@ static void p_package_declarative_item(tree_t pack)
       tree_add_decl(pack, p_alias_declaration());
       break;
 
+   case tUSE:
+      p_use_clause(pack, tree_add_decl);
+      break;
+
    default:
       expect(tTYPE, tFUNCTION, tPROCEDURE, tIMPURE, tPURE, tSUBTYPE, tSIGNAL,
-             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS);
+             tATTRIBUTE, tCONSTANT, tCOMPONENT, tFILE, tSHARED, tALIAS, tUSE);
    }
 }
 
@@ -5285,9 +5297,13 @@ static void p_package_body_declarative_item(tree_t parent)
       tree_add_decl(parent, p_alias_declaration());
       break;
 
+   case tUSE:
+      p_use_clause(parent, tree_add_decl);
+      break;
+
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE, tALIAS);
+             tCONSTANT, tSUBTYPE, tALIAS, tUSE);
    }
 }
 

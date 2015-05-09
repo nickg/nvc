@@ -1177,6 +1177,22 @@ START_TEST(test_issue177)
 }
 END_TEST
 
+START_TEST(test_use)
+{
+   input_from_file(TESTDIR "/sem/use.vhd");
+
+   const error_t expect[] = {
+      { 25, "type MY_INT3 is not declared" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACKAGE, T_PACK_BODY, T_ENTITY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1234,6 +1250,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue162);
    tcase_add_test(tc_core, test_issue178);
    tcase_add_test(tc_core, test_issue177);
+   tcase_add_test(tc_core, test_use);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
