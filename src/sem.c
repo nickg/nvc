@@ -3397,11 +3397,25 @@ static bool sem_check_fcall(tree_t t)
       }
    } while (decl != NULL);
 
-   if (n_overloads == 0)
-      sem_error(t, (found_func > 0
-                    ? "no matching function %s"
-                    : "no visible declaration for %s"),
-                istr(name));
+   if (n_overloads == 0) {
+      if (type_set_restrict(type_is_array)) {
+         // Possible to interpret this as an array reference on the result of
+         // a zero argument function call
+         tree_t fcall = tree_new(T_FCALL);
+         tree_set_ident(fcall, tree_ident(t));
+         tree_set_loc(fcall, tree_loc(t));
+
+         tree_change_kind(t, T_ARRAY_REF);
+         tree_set_value(t, fcall);
+
+         return sem_check_array_ref(t);
+      }
+      else
+         sem_error(t, (found_func > 0
+                       ? "no matching function %s"
+                       : "no visible declaration for %s"),
+                   istr(name));
+   }
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))

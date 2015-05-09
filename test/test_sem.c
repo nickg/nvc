@@ -1193,6 +1193,26 @@ START_TEST(test_use)
 }
 END_TEST
 
+START_TEST(test_afunc)
+{
+   input_from_file(TESTDIR "/sem/afunc.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   tree_t f = tree_value(tree_stmt(tree_stmt(a, 0), 0));
+   fail_unless(tree_kind(f) == T_FCALL);
+
+   tree_t r = tree_value(tree_param(f, 0));
+   fail_unless(tree_kind(r) == T_ARRAY_REF);
+
+   tree_t c = tree_value(r);
+   fail_unless(tree_kind(c) == T_FCALL);
+   fail_unless(icmp(tree_ident(c), "GET"));
+   fail_unless(tree_params(c) == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1251,6 +1271,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue178);
    tcase_add_test(tc_core, test_issue177);
    tcase_add_test(tc_core, test_use);
+   tcase_add_test(tc_core, test_afunc);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
