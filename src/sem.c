@@ -103,12 +103,13 @@ static bool sem_locally_static(tree_t t);
 static bool sem_globally_static(tree_t t);
 static tree_t sem_check_lvalue(tree_t t);
 static bool sem_check_type(tree_t t, type_t *ptype);
-static bool sem_check_use_clause(tree_t c);
 static bool sem_static_name(tree_t t);
 static bool sem_check_range(range_t *r, type_t context);
 static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 static void scope_insert_alias(tree_t t, ident_t name);
+static bool scope_import_unit(ident_t unit_name, lib_t lib,
+                              bool all, const loc_t *loc);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -436,6 +437,61 @@ static void scope_append_import_list(ident_t name, bool all)
    top_scope->imported = new;
 }
 
+static void scope_walk_lib(ident_t name, int kind, void *context)
+{
+   lib_walk_params_t *params = context;
+
+   if (kind == T_PACKAGE) {
+      if (scope_import_unit(name, params->lib, false, params->loc))
+         params->error = true;
+   }
+}
+
+static bool scope_import_use_clause(tree_t c, bool search)
+{
+   ident_t cname = tree_ident(c);
+
+   const bool all = tree_has_ident2(c) && (tree_ident2(c) == all_i);
+
+   ident_t lname = ident_until(cname, '.');
+
+   lib_t lib = lib_find(istr(lname), search, search);
+   if (lib != NULL) {
+      if (lname == cname) {
+         assert(all);
+
+         lib_walk_params_t params = {
+            .loc   = tree_loc(c),
+            .lib   = lib,
+            .error = false
+         };
+         lib_walk_index(lib, scope_walk_lib, &params);
+
+         return params.error;
+      }
+      else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
+         if (tree_has_ident2(c) && !all) {
+            ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
+
+            int n = 0;
+            tree_t object;
+            while ((object = scope_find_nth(full, n++)))
+               scope_insert_alias(object, tree_ident2(c));
+
+            if (n == 1)
+               sem_error(c, "declaration %s not found in unit %s",
+                         istr(tree_ident2(c)), istr(cname));
+         }
+
+         return true;
+      }
+      else
+         return false;
+   }
+   else
+      sem_error(c, "missing library clause for %s", istr(lname));
+}
+
 static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
 {
    const int ndecls = tree_decls(unit);
@@ -446,7 +502,7 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
       if (kind == T_ATTR_SPEC)
          continue;
       else if (kind == T_USE) {
-         if (!sem_check_use_clause(decl))
+         if (!scope_import_use_clause(decl, true))
             return false;
          continue;
       }
@@ -1273,59 +1329,9 @@ static bool sem_check_range(range_t *r, type_t context)
    return true;
 }
 
-static void sem_walk_lib(ident_t name, int kind, void *context)
-{
-   lib_walk_params_t *params = context;
-
-   if (kind == T_PACKAGE) {
-      if (scope_import_unit(name, params->lib, false, params->loc))
-         params->error = true;
-   }
-}
-
 static bool sem_check_use_clause(tree_t c)
 {
-   ident_t cname = tree_ident(c);
-
-   const bool all = tree_has_ident2(c) && (tree_ident2(c) == all_i);
-
-   ident_t lname = ident_until(cname, '.');
-
-   lib_t lib = lib_find(istr(lname), false, false);
-   if (lib != NULL) {
-      if (lname == cname) {
-         assert(all);
-
-         lib_walk_params_t params = {
-            .loc   = tree_loc(c),
-            .lib   = lib,
-            .error = false
-         };
-         lib_walk_index(lib, sem_walk_lib, &params);
-
-         return params.error;
-      }
-      else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
-         if (tree_has_ident2(c) && !all) {
-            ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
-
-            int n = 0;
-            tree_t object;
-            while ((object = scope_find_nth(full, n++)))
-               scope_insert_alias(object, tree_ident2(c));
-
-            if (n == 1)
-               sem_error(c, "declaration %s not found in unit %s",
-                         istr(tree_ident2(c)), istr(cname));
-         }
-
-         return true;
-      }
-      else
-         return false;
-   }
-   else
-      sem_error(c, "missing library clause for %s", istr(lname));
+   return scope_import_use_clause(c, false);
 }
 
 static bool sem_check_library_clause(tree_t t)
