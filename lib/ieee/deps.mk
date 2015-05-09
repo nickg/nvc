@@ -126,6 +126,12 @@ lib/ieee/_IEEE.VITAL_TIMING.bc: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_116
 
 lib/ieee/IEEE.VITAL_MEMORY: lib/std/STD.STANDARD lib/std/STD.TEXTIO lib/ieee/IEEE.VITAL_PRIMITIVES lib/ieee/IEEE.VITAL_TIMING lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/memory_p.vhdl
 
+lib/ieee/_IEEE.VITAL_MEMORY.a: lib/std/STD.STANDARD lib/std/STD.TEXTIO lib/ieee/IEEE.VITAL_PRIMITIVES lib/ieee/IEEE.VITAL_TIMING lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/memory_p.vhdl
+
+lib/ieee/_IEEE.VITAL_MEMORY.so: lib/std/STD.STANDARD lib/std/STD.TEXTIO lib/ieee/IEEE.VITAL_PRIMITIVES lib/ieee/IEEE.VITAL_TIMING lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/memory_p.vhdl
+
+lib/ieee/_IEEE.VITAL_MEMORY.bc: lib/std/STD.STANDARD lib/std/STD.TEXTIO lib/ieee/IEEE.VITAL_PRIMITIVES lib/ieee/IEEE.VITAL_TIMING lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/ieee/memory_p.vhdl
+
 lib/ieee/IEEE.STD_LOGIC_ARITH-body: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
 
 lib/ieee/_IEEE.STD_LOGIC_ARITH-body.a: lib/std/STD.STANDARD lib/ieee/IEEE.STD_LOGIC_1164 $(top_srcdir)/lib/synopsys/std_logic_arith.vhd
