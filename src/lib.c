@@ -395,7 +395,7 @@ lib_t lib_find(const char *name, bool verbose, bool search)
 {
    ident_t name_i = upcase_name(name);
 
-   if (icmp(name_i, "WORK") && (work != NULL))
+   if (name_i == work_i && work != NULL)
       return work;
 
    // Search in already loaded libraries

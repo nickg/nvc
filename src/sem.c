@@ -494,6 +494,15 @@ static bool scope_import_use_clause(tree_t c, bool search)
 
 static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
 {
+   lib_t work = lib_work();
+   ident_t work_name = lib_name(work);
+
+   ident_t unit_lib = ident_until(tree_ident(unit), '.');
+   const bool work_alias =
+      unit_lib != NULL
+      && unit_lib == work_name
+      && work_name != work_i;
+
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
       tree_t decl = tree_decl(unit, n);
@@ -523,6 +532,11 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
          ident_t unqual = ident_rfrom(dname, '.');
          if (unqual != NULL)
             scope_insert_alias(decl, unqual);
+      }
+
+      if (work_alias) {
+         ident_t alias = ident_prefix(work_i, ident_from(dname, '.'), '.');
+         scope_insert_alias(decl, alias);
       }
    }
 
