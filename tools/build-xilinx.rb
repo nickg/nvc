@@ -68,23 +68,74 @@ end
 
 put_title "XilinxCoreLib"
 
-if false
-
-# Some files in XilinxCoreLib do not yet build
+# Some files in XilinxCoreLib cannot be built
 xcl_skip = [
-  'prims_sim_arch_v4_0.vhd',      # No configurations
+  # No configurations
+  'prims_sim_arch_v4_0.vhd',
+
+  # Missing use clause for ieee.std_logic_unsigned
+  'mult_gen_v11_2.vhd',
+  'mult_gen_v11_0.vhd',
+  'mult_gen_v9_0.vhd',
+  'pkg_mult_gen_v10_0.vhd',
+
+  # Invalid boolean conversion
+  'cmpy_v4_0.vhd',
+  'cmpy_v5_0.vhd',
+
+  # [NVC BUG] slice out of bounds
+  'fir_compiler_v5_1_sim_pkg.vhd',
+  'fir_compiler_v5_0_sim_pkg.vhd',
+  'cic_compiler_v3_0_fir_pkg.vhd',
+
+  # Dependency on one of the above
+  'mult_gen_v10_0.vhd',
+  'fir_compiler_v5_1.vhd',
+  'fir_compiler_v5_1_mac_fir.vhd',
+  'fir_compiler_v5_0.vhd',
+  'fir_compiler_v5_0_mac_fir.vhd',
+  'fir_compiler_v5_0_da_fir.vhd',
+  'cic_compiler_v3_0_old_pkg.vhd',
+  'cic_compiler_v3_0_old_sim_comps.vhd',
+  'cic_compiler_v3_0_old.vhd',
+  'cic_compiler_v3_0_old_comp.vhd',
+  'cic_compiler_v3_0_old_xst.vhd',
+  'cic_compiler_v3_0_old_xst_comp.vhd',
+  'cic_compiler_v3_0_pkg.vhd',
+  'cic_compiler_v3_0_decimate_bhv.vhd',
+  'cic_compiler_v3_0_old_interpolate_bhv.vhd',
+  'cic_compiler_v3_0_old_decimate_bhv.vhd',
+  'cic_compiler_v3_0_sim_comps.vhd',
+  'cic_compiler_v3_0.vhd',
+  'cic_compiler_v3_0_comp.vhd',
+  'cic_compiler_v3_0_xst.vhd',
+  'cic_compiler_v3_0_xst_comp.vhd',
+  'cic_compiler_v3_0_interpolate_bhv.vhd',
+  'cic_compiler_v2_0_pkg.vhd',
+  'cic_compiler_v2_0_interpolate_bhv.vhd',
+  'cic_compiler_v2_0_decimate_bhv.vhd',
+  'cic_compiler_v2_0_sim_comps.vhd',
+  'cic_compiler_v2_0.vhd',
+  'cic_compiler_v2_0_comp.vhd',
+  'cic_compiler_v2_0_xst.vhd',
+  'cic_compiler_v2_0_xst_comp.vhd',
+  'cic_compiler_v1_3_pkg.vhd',
+  'cic_compiler_v1_3_interpolate_bhv.vhd',
+  'cic_compiler_v1_3_decimate_bhv.vhd',
+  'cic_compiler_v1_3_sim_comps.vhd',
+  'cic_compiler_v1_3.vhd',
+  'cic_compiler_v1_3_comp.vhd',
+  'cic_compiler_v1_3_xst.vhd',
+  'cic_compiler_v1_3_xst_comp.vhd',
 ]
 
 corelib_order = "#{$src}/XilinxCoreLib/vhdl_analyze_order"
 File.open(corelib_order).each_line do |line|
   line.gsub!(/#.*$/, '')
   line.chomp!
-  puts "line='#{line}' include=#{xcl_skip.include? line}"
   unless line =~ /^ *$/ or xcl_skip.include? line then
     run_nvc "xilinxcorelib", "XilinxCoreLib/#{line}"
   end
-end
-
 end
 
 put_title "Finished"
