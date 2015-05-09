@@ -3375,25 +3375,64 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_block_t start_bb = vcode_active_block();
    vcode_block_t def_bb = VCODE_INVALID_BLOCK;
 
-   vcode_block_t *blocks LOCAL = xcalloc(nassocs * sizeof(vcode_block_t));
-   vcode_reg_t *cases LOCAL = xcalloc(nassocs * sizeof(vcode_reg_t));
-
-   vcode_block_t exit_bb = emit_block();
-
    int ncases = 0;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
-      blocks[i] = emit_block();
-
-      if (tree_subkind(a) == A_OTHERS)
-         def_bb = blocks[i];
-      else {
-         vcode_select_block(start_bb);
-         cases[i] = lower_reify_expr(tree_name(a));
+      switch (tree_subkind(a)) {
+      case A_RANGE:
+         {
+            int64_t low, high;
+            range_bounds(tree_range(a), &low, &high);
+            ncases += high - low + 1;
+         }
+         break;
+      case A_NAMED:
          ncases++;
+         break;
+      }
+   }
+
+   vcode_block_t *blocks LOCAL = xcalloc(ncases * sizeof(vcode_block_t));
+   vcode_reg_t *cases LOCAL = xcalloc(ncases * sizeof(vcode_reg_t));
+
+   vcode_block_t exit_bb = emit_block();
+
+   int cptr = 0;
+   for (int i = 0; i < nassocs; i++) {
+      tree_t a = tree_assoc(stmt, i);
+      vcode_block_t bb = emit_block();
+
+      switch (tree_subkind(a)) {
+      case A_OTHERS:
+         def_bb = bb;
+         break;
+
+      case A_NAMED:
+         vcode_select_block(start_bb);
+         cases[cptr]  = lower_reify_expr(tree_name(a));
+         blocks[cptr] = bb;
+         cptr++;
+         break;
+
+      case A_RANGE:
+         {
+            vcode_select_block(start_bb);
+
+            range_t r = tree_range(a);
+            int64_t low, high;
+            range_bounds(r, &low, &high);
+
+            vcode_type_t vt = lower_type(tree_type(r.left));
+            for (int64_t j = low; j <= high; j++) {
+               cases[cptr]  = emit_const(vt, j);
+               blocks[cptr] = bb;
+               cptr++;
+            }
+         }
+         break;
       }
 
-      vcode_select_block(blocks[i]);
+      vcode_select_block(bb);
       lower_stmt(tree_value(a), loops);
 
       if (!vcode_block_finished())
