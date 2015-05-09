@@ -3670,6 +3670,9 @@ static bool sem_check_wait(tree_t t)
 
    if (top_scope->flags & SCOPE_PROTECTED)
       sem_error(t, "wait statement not allowed in protected subprogram body");
+   else if (top_scope->subprog != NULL
+            && tree_kind(top_scope->subprog) == T_FUNC_BODY)
+      sem_error(t, "wait statement not allowed in function body");
 
    return sem_check_sensitivity(t);
 }

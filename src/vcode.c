@@ -2634,6 +2634,10 @@ void emit_wait(vcode_block_t target, vcode_reg_t time)
    op_t *op = vcode_add_op(VCODE_OP_WAIT);
    vcode_add_target(op, target);
    vcode_add_arg(op, time);
+
+   VCODE_ASSERT(active_unit->kind == VCODE_UNIT_PROCEDURE
+                || active_unit->kind == VCODE_UNIT_PROCESS,
+                "wait only allowed in process or procedure");
 }
 
 void emit_jump(vcode_block_t target)
