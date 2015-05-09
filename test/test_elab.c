@@ -331,6 +331,21 @@ START_TEST(test_issue159)
 }
 END_TEST
 
+START_TEST(test_issue175)
+{
+   input_from_file(TESTDIR "/elab/issue175.vhd");
+
+   lib_t lib2 = lib_tmp("lib2");
+   lib_set_work(lib2);
+   parse_check_and_simplify(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY, -1);
+   fail_if(sem_errors() > 0);
+
+   lib_t lib = lib_tmp("lib");
+   lib_set_work(lib);
+   fail_if(run_elab() == NULL);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -356,6 +371,7 @@ int main(void)
    tcase_add_test(tc, test_issue153);
    tcase_add_test(tc, test_issue157);
    tcase_add_test(tc, test_issue159);
+   tcase_add_test(tc, test_issue175);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
