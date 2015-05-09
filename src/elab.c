@@ -278,7 +278,7 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
 
    tree_t unit = lib_get(lib, cname);
    if (unit == NULL)
-      fatal("cannot find unit %s", istr(cname));
+      fatal_at(tree_loc(t), "cannot find unit %s", istr(cname));
    else if (tree_kind(unit) == T_PACKAGE) {
       elab_copy_context(unit, ctx);
 
@@ -289,6 +289,9 @@ static void elab_add_context(tree_t t, const elab_ctx_t *ctx)
       if (body != NULL)
          elab_copy_context(unit, ctx);
    }
+
+   // Always use real library name rather than WORK alias
+   tree_set_ident(t, tree_ident(unit));
 
    tree_add_context(ctx->out, t);
 }
