@@ -289,7 +289,7 @@ static void fmt_color(int color, const char *prefix,
 {
    set_attr(color);
    if (message_style == MESSAGE_COMPACT)
-      fprintf(stderr, "%c%s: ", tolower(prefix[0]), prefix + 1);
+      fprintf(stderr, "%c%s: ", tolower((int)prefix[0]), prefix + 1);
    else
       fprintf(stderr, "** %s: ", prefix);
    set_attr(ANSI_RESET);
