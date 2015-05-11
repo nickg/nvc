@@ -38,14 +38,16 @@
 
 #include <sys/types.h>
 #include <sys/time.h>
-#include <sys/resource.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
 #ifdef HAVE_SYS_PTRACE_H
 #include <sys/ptrace.h>
 #endif
 #ifdef HAVE_SYS_SYSCTL_H
 #include <sys/sysctl.h>
+#endif
+#ifndef __MINGW32__
+#include <sys/mman.h>
+#include <sys/wait.h>
+#include <sys/resource.h>
 #endif
 
 #ifdef HAVE_SYS_PRCTL_H
@@ -1306,7 +1308,7 @@ void run_program(const char *const *args, size_t n_args)
          printf("%s%c", args[i], (i + 1 == n_args ? '\n' : ' '));
    }
 
-#ifdef __CYGWIN__
+#if defined __CYGWIN__ || defined __MINGW32__
    int status = spawnv(_P_WAIT, args[0], args);
    if (status != 0)
       fatal("%s failed with status %d", args[0], status);
@@ -1327,4 +1329,68 @@ void run_program(const char *const *args, size_t n_args)
    else
       fatal_errno("fork");
 #endif  // __CYGWIN__
+}
+s
+void file_read_lock(int fd)
+{
+#ifdef __MINGW32__
+   // TODO
+#else
+   if (flock(lib->lock_fd, LOCK_SH) < 0)
+      fatal_errno("flock");
+#endif
+}
+
+void file_write_lock(int fd)
+{
+#ifdef __MINGW32__
+   // TODO
+#else
+   if (flock(lib->lock_fd, LOCK_EX) < 0)
+      fatal_errno("flock");
+#endif
+}
+
+void file_unlock(int fd)
+{
+#ifdef __MINGW32__
+   // TODO
+#else
+   if (flock(lib->lock_fd, LOCK_UN) < 0)
+      fatal_errno("flock");
+#endif
+}
+
+void *map_file(int fd, size_t size)
+{
+#ifdef __MINGW32__
+   // TODO
+   fatal("TODO: Windows map_file");
+#else
+   void *ptr = mmap(NULL, size, PROT_READ, MAP_PRIVATE, fd, 0);
+   if (ptr == MAP_FAILED)
+      fatal_errno("mmap");
+   return ptr;
+#endif
+}
+
+void unmap_file(void *ptr, size_t size)
+{
+#ifdef __MINGW32__
+   // TODO
+   fatal("TODO: Windows unmap_file");
+#else
+   munmap(ptr, size);
+#endif
+}
+
+void make_dir(const char *path)
+{
+#ifdef __MINGW32__
+   // TODO
+   fatal("TODO: Windows make_dir");
+#else
+   if (mkdir(path, 0777) != 0 && errno != EEXIST)
+      fatal_errno("mkdir: %s", name);
+#endif
 }

@@ -63,25 +63,25 @@ case $host_os in
       [AC_MSG_ERROR(libexecinfo not found)], [])
     ;;
 
-  *cygwin*)
-    # LLVM on Cygwin needs libffi and curses
+  *cygwin*|msys*)
+    # LLVM on Windows needs libffi and curses
     AX_WITH_CURSES
     if test "x$ax_cv_curses" != xyes; then
-      AC_MSG_ERROR([LLVM on Cygwin requires curses])
+      AC_MSG_ERROR([LLVM on Windows requires curses])
     fi
 
     AC_SEARCH_LIBS([ffi_call], [ffi], [],
-      [AC_MSG_ERROR(LLVM on Cygwin requires libffi)], [])
-
-    EXEEXT=.exe
+      [AC_MSG_ERROR(LLVM on Windows requires libffi)], [])
     ;;
 esac
 
 AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
-AC_SEARCH_LIBS([dlopen], [dl dld], [], [
-  AC_MSG_ERROR([unable to find the dlopen() function])
-])
+if test ! x$host_os = xmsys ; then
+  AC_SEARCH_LIBS([dlopen], [dl dld], [], [
+    AC_MSG_ERROR([unable to find the dlopen() function])
+  ])
+fi
 
 AC_SEARCH_LIBS([pow], [m], [], [
   AC_MSG_ERROR([unable to find the pow() function])

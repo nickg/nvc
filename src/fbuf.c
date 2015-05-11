@@ -23,7 +23,6 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -90,9 +89,7 @@ fbuf_t *fbuf_open(const char *file, fbuf_mode_t mode)
          if (fstat(fd, &buf) != 0)
             fatal_errno("fstat");
 
-         void *rmap = mmap(NULL, buf.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-         if (rmap == MAP_FAILED)
-            fatal_errno("mmap");
+         void *rmap = map_file(fd, buf.st_size);
 
          close(fd);
 
@@ -198,7 +195,7 @@ static void fbuf_maybe_read(fbuf_t *f, size_t more)
 void fbuf_close(fbuf_t *f)
 {
    if (f->rmap != NULL) {
-      munmap((void *)f->rmap, f->maplen);
+      unmap_file((void *)f->rmap, f->maplen);
       free(f->rbuf);
    }
 

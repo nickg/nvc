@@ -21,7 +21,6 @@
 #include "common.h"
 
 #include <sys/types.h>
-#include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -5554,11 +5553,8 @@ void input_from_file(const char *file)
 
    file_sz = buf.st_size;
 
-   if (file_sz > 0) {
-      file_start = mmap(NULL, file_sz, PROT_READ, MAP_PRIVATE, fd, 0);
-      if (file_start == MAP_FAILED)
-         fatal_errno("mmap");
-   }
+   if (file_sz > 0)
+      file_start = map_file(fd, file_sz);
    else
       file_start = NULL;
 

@@ -37,7 +37,6 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/time.h>
-#include <sys/resource.h>
 #include <float.h>
 #include <ctype.h>
 

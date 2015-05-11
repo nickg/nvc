@@ -174,4 +174,12 @@ typedef struct {
 
 void nvc_rusage(nvc_rusage_t *ru);
 
+void file_read_lock(int fd);
+void file_write_lock(int fd);
+void file_unlock(int fd);
+
+void *map_file(int fd, size_t size);
+void unmap_file(void *ptr, size_t size);
+void make_dir(const char *path);
+
 #endif // _UTIL_H
