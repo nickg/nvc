@@ -2149,7 +2149,11 @@ static void rt_emit_coverage(tree_t top)
 
 static void rt_interrupt(void)
 {
-   fatal("interrupted");
+   if (active_proc != NULL)
+      fatal("interrupted in process %s at %s+%d",
+            istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
+   else
+      fatal("interrupted");
 }
 
 void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
