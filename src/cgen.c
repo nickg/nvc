@@ -2166,58 +2166,75 @@ static void cgen_op_array_size(int op, cgen_ctx_t *ctx)
 static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
 {
    LLVMTypeRef int32 = LLVMInt32Type();
-   LLVMValueRef value =
-      LLVMBuildZExt(builder, cgen_get_arg(op, 0, ctx), int32, "");
 
    LLVMValueRef min, max;
-   if (vcode_count_args(op) == 1) {
+   if (vcode_count_args(op) == 2) {
       vcode_type_t bounds = vcode_get_type(op);
       min = llvm_int32(vtype_low(bounds));
       max = llvm_int32(vtype_high(bounds));
    }
    else {
-      min = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), int32, "");
-      max = LLVMBuildZExt(builder, cgen_get_arg(op, 1, ctx), int32, "");
+      min = LLVMBuildZExt(builder, cgen_get_arg(op, 2, ctx), int32, "");
+      max = LLVMBuildZExt(builder, cgen_get_arg(op, 3, ctx), int32, "");
    }
 
-   LLVMValueRef above =
-      LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
-   LLVMValueRef below =
-      LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
+   LLVMValueRef left  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef right = cgen_get_arg(op, 1, ctx);
 
-   LLVMValueRef in = LLVMBuildAnd(builder, above, below, "in");
+   LLVMValueRef null = NULL;
+   if (vcode_get_subkind(op) == BOUNDS_INDEX_TO)
+      null = LLVMBuildICmp(builder, LLVMIntSLT, right, left, "null");
+   else
+      null = LLVMBuildICmp(builder, LLVMIntSLT, left, right, "null");
 
-   if (!LLVMIsConstant(in)) {
-      LLVMValueRef expect_args[] = { in, llvm_int1(true) };
-      in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
-                         expect_args, ARRAY_LEN(expect_args), "");
+   LLVMValueRef ll_mod_name =
+      LLVMBuildPointerCast(builder, mod_name, llvm_void_ptr(), "");
+
+   for (int i = 0; i < 2; i++) {
+      LLVMValueRef value =
+         LLVMBuildZExt(builder, cgen_get_arg(op, i, ctx), int32, "");
+
+      LLVMValueRef above =
+         LLVMBuildICmp(builder, LLVMIntSGE, value, min, "above");
+      LLVMValueRef below =
+         LLVMBuildICmp(builder, LLVMIntSLE, value, max, "below");
+
+      LLVMValueRef in =
+         LLVMBuildOr(builder, LLVMBuildAnd(builder, above, below, ""),
+                     null, "in");
+
+      if (!LLVMIsConstant(in)) {
+         LLVMValueRef expect_args[] = { in, llvm_int1(true) };
+         in = LLVMBuildCall(builder, llvm_fn("llvm.expect.i1"),
+                            expect_args, ARRAY_LEN(expect_args), "");
+      }
+
+      LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
+      LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
+
+      LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
+
+      LLVMPositionBuilderAtEnd(builder, fail_bb);
+
+      LLVMValueRef index = llvm_int32(vcode_get_index(op));
+
+      LLVMValueRef args[] = {
+         index,
+         ll_mod_name,
+         value,
+         min,
+         max,
+         llvm_int32(vcode_get_subkind(op)),
+         index
+      };
+
+      LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args,
+                    ARRAY_LEN(args), "");
+
+      LLVMBuildUnreachable(builder);
+
+      LLVMPositionBuilderAtEnd(builder, pass_bb);
    }
-
-   LLVMBasicBlockRef pass_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_pass");
-   LLVMBasicBlockRef fail_bb  = LLVMAppendBasicBlock(ctx->fn, "bounds_fail");
-
-   LLVMBuildCondBr(builder, in, pass_bb, fail_bb);
-
-   LLVMPositionBuilderAtEnd(builder, fail_bb);
-
-   LLVMValueRef index = llvm_int32(vcode_get_index(op));
-
-   LLVMValueRef args[] = {
-      index,
-      LLVMBuildPointerCast(builder, mod_name,
-                           LLVMPointerType(LLVMInt8Type(), 0), ""),
-      value,
-      min,
-      max,
-      llvm_int32(vcode_get_subkind(op)),
-      index
-   };
-
-   LLVMBuildCall(builder, llvm_fn("_bounds_fail"), args, ARRAY_LEN(args), "");
-
-   LLVMBuildUnreachable(builder);
-
-   LLVMPositionBuilderAtEnd(builder, pass_bb);
 }
 
 static void cgen_op_debug_out(int op, cgen_ctx_t *ctx)

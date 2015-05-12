@@ -3730,16 +3730,15 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
          index_right = tree_index(rdim.right);
       }
 
-      if (type_is_enum(index)) {
-         emit_index_check(left_reg, vbounds, BOUNDS_INDEX_TO, index_left);
-         emit_index_check(right_reg, vbounds, BOUNDS_INDEX_TO, index_right);
-      }
+      if (type_is_enum(index))
+         emit_index_check(left_reg, right_reg, vbounds,
+                          BOUNDS_INDEX_TO, index_right);
       else {
          range_t rindex = type_dim(index, 0);
 
          if (lower_is_const(rindex.left) && lower_is_const(rindex.right)) {
-            emit_index_check(left_reg, vbounds, BOUNDS_INDEX_TO, index_left);
-            emit_index_check(right_reg, vbounds, BOUNDS_INDEX_TO, index_right);
+            emit_index_check(left_reg, right_reg, vbounds,
+                             BOUNDS_INDEX_TO, index_left);
          }
          else {
             vcode_reg_t bleft  = lower_reify_expr(rindex.left);
@@ -3750,8 +3749,8 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
             vcode_reg_t bmin = bkind == BOUNDS_INDEX_TO ? bleft : bright;
             vcode_reg_t bmax = bkind == BOUNDS_INDEX_TO ? bright : bleft;
 
-            emit_dynamic_index_check(left_reg, bmin, bmax, bkind, index_left);
-            emit_dynamic_index_check(right_reg, bmin, bmax, bkind, index_right);
+            emit_dynamic_index_check(left_reg, right_reg, bmin, bmax,
+                                     bkind, index_left);
          }
       }
    }
