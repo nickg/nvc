@@ -2150,8 +2150,9 @@ static void rt_emit_coverage(tree_t top)
 static void rt_interrupt(void)
 {
    if (active_proc != NULL)
-      fatal("interrupted in process %s at %s+%d",
-            istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
+      fatal_at(tree_loc(active_proc->source),
+               "interrupted in process %s at %s+%d",
+               istr(tree_ident(active_proc->source)), fmt_time(now), iteration);
    else
       fatal("interrupted");
 }
