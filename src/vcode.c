@@ -379,6 +379,18 @@ static void vcode_return_safety_check(vcode_reg_t reg)
    }
 }
 
+void vcode_state_save(vcode_state_t *state)
+{
+   state->unit  = active_unit;
+   state->block = active_block;
+}
+
+void vcode_state_restore(const vcode_state_t *state)
+{
+   active_unit  = state->unit;
+   active_block = state->block;
+}
+
 int vcode_count_regs(void)
 {
    assert(active_unit != NULL);

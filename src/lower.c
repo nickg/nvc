@@ -856,7 +856,7 @@ static void lower_mangle_one_type(text_buf_t *buf, type_t type)
    }
 }
 
-static ident_t lower_mangle_func(tree_t decl)
+static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
 {
    ident_t prev = tree_attr_str(decl, mangled_i);
    if (prev != NULL)
@@ -880,6 +880,16 @@ static ident_t lower_mangle_func(tree_t decl)
    }
 
    LOCAL_TEXT_BUF buf = tb_new();
+
+   vcode_state_t state;
+   vcode_state_save(&state);
+   vcode_select_unit(context);
+
+   const vunit_kind_t ckind = vcode_unit_kind();
+   if (ckind != VCODE_UNIT_CONTEXT && ckind != VCODE_UNIT_PROCESS)
+      tb_printf(buf, "%s__", istr(vcode_unit_name()));
+
+   vcode_state_restore(&state);
 
 #if LLVM_MANGLES_NAMES
    const char *name = istr(tree_ident(decl));
@@ -1274,7 +1284,7 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    if (builtin != NULL)
       return lower_builtin(fcall, builtin);
 
-   ident_t name = lower_mangle_func(decl);
+   ident_t name = lower_mangle_func(decl, vcode_unit_context());
 
    const int nargs = tree_params(fcall);
    vcode_reg_t args[nargs];
@@ -1353,16 +1363,15 @@ static vcode_var_t lower_get_var(tree_t decl)
       && tree_attr_int(decl, prot_field_i, -1) == -1;
 
    if (is_extern) {
-      vcode_unit_t old_unit   = vcode_active_unit();
-      vcode_block_t old_block = vcode_active_block();
+      vcode_state_t state;
+      vcode_state_save(&state);
       vcode_select_unit(vcode_unit_context());
 
       type_t type = tree_type(decl);
       var = emit_extern_var(lower_type(type), lower_bounds(type),
                             tree_ident(decl));
 
-      vcode_select_unit(old_unit);
-      vcode_select_block(old_block);
+      vcode_state_restore(&state);
    }
 
    return var;
@@ -1372,16 +1381,15 @@ static vcode_signal_t lower_get_signal(tree_t decl)
 {
    vcode_signal_t sig = tree_attr_int(decl, vcode_obj_i, VCODE_INVALID_SIGNAL);
    if (sig == VCODE_INVALID_SIGNAL) {
-      vcode_unit_t old_unit   = vcode_active_unit();
-      vcode_block_t old_block = vcode_active_block();
+      vcode_state_t state;
+      vcode_state_save(&state);
       vcode_select_unit(vcode_unit_context());
 
       type_t type = tree_type(decl);
       sig = emit_extern_signal(vtype_signal(lower_type(type)),
                                lower_bounds(type), tree_ident(decl));
 
-      vcode_select_unit(old_unit);
-      vcode_select_block(old_block);
+      vcode_state_restore(&state);
    }
 
    return sig;
@@ -3175,7 +3183,7 @@ static void lower_pcall(tree_t pcall)
       return;
    }
 
-   ident_t name = lower_mangle_func(decl);
+   ident_t name = lower_mangle_func(decl, vcode_unit_context());
 
    const int nargs = tree_params(pcall);
    vcode_reg_t args[nargs];
@@ -3948,7 +3956,8 @@ static void lower_signal_decl(tree_t decl)
          rbase = type_elem(rbase);
 
       if (type_kind(rbase) == T_SUBTYPE && type_has_resolution(rbase)) {
-         rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)));
+         rfunc = lower_mangle_func(tree_ref(type_resolution(rbase)),
+                                   vcode_unit_context());
          rtype = lower_type(rbase);
       }
 
@@ -4189,11 +4198,13 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 
    vcode_select_unit(context);
 
+   ident_t name = lower_mangle_func(body, context);
+
    vcode_unit_t vu;
    if (never_waits)
-      vu = emit_function(lower_mangle_func(body), context, VCODE_INVALID_TYPE);
+      vu = emit_function(name, context, VCODE_INVALID_TYPE);
    else
-      vu = emit_procedure(lower_mangle_func(body), context);
+      vu = emit_procedure(name, context);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);
@@ -4223,7 +4234,8 @@ static void lower_func_body(tree_t body, vcode_unit_t context)
 
    vcode_type_t vtype = lower_func_result_type(body);
 
-   vcode_unit_t vu = emit_function(lower_mangle_func(body), context, vtype);
+   ident_t name = lower_mangle_func(body, context);
+   vcode_unit_t vu = emit_function(name, context, vtype);
 
    const bool has_subprograms = lower_has_subprograms(body);
    lower_subprogram_ports(body, has_subprograms);

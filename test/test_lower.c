@@ -1006,9 +1006,13 @@ START_TEST(test_nest1)
 
       EXPECT_BB(0) = {
 #if LLVM_MANGLES_NAMES
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X_DO_IT__I" },
+         { VCODE_OP_NESTED_FCALL,
+           .func = ":nest1:line_7_ADD_TO_X__II__"
+           ":nest1:line_7_ADD_TO_X_DO_IT__I" },
 #else
-         { VCODE_OP_NESTED_FCALL, .func = ":nest1:line_7_ADD_TO_X_DO_IT$I" },
+         { VCODE_OP_NESTED_FCALL,
+           .func = ":nest1:line_7_ADD_TO_X$II__"
+           ":nest1:line_7_ADD_TO_X_DO_IT$I" },
 #endif
          { VCODE_OP_RETURN }
       };
@@ -1024,9 +1028,11 @@ START_TEST(test_nest1)
       vcode_select_unit(v0);
 
 #if LLVM_MANGLES_NAMES
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X_DO_IT__I"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X__II__"
+                       ":nest1:line_7_ADD_TO_X_DO_IT__I"));
 #else
-      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X_DO_IT$I"));
+      fail_unless(icmp(vcode_unit_name(), ":nest1:line_7_ADD_TO_X$II__"
+                       ":nest1:line_7_ADD_TO_X_DO_IT$I"));
 #endif
 
       EXPECT_BB(0) = {
@@ -1981,9 +1987,9 @@ START_TEST(test_issue122)
 
    EXPECT_BB(0) = {
 #if LLVM_MANGLES_NAMES
-      { VCODE_OP_NESTED_FCALL, .func = "NESTED__I" },
+      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func__II__NESTED__I" },
 #else
-      { VCODE_OP_NESTED_FCALL, .func = "NESTED$I" },
+      { VCODE_OP_NESTED_FCALL, .func = ":issue122:func$II__NESTED$I" },
 #endif
       { VCODE_OP_STORE, .name = "V" },
       { VCODE_OP_RETURN }

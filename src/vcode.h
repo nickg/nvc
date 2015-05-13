@@ -158,6 +158,11 @@ typedef struct {
    vcode_reg_t dir;
 } vcode_dim_t;
 
+typedef struct {
+   vcode_unit_t  unit;
+   vcode_block_t block;
+} vcode_state_t;
+
 #define VCODE_INVALID_REG    -1
 #define VCODE_INVALID_BLOCK  -1
 #define VCODE_INVALID_VAR    -1
@@ -211,6 +216,9 @@ vcode_type_t vcode_unit_result(void);
 vcode_block_t vcode_active_block(void);
 vcode_unit_t vcode_active_unit(void);
 vcode_unit_t vcode_unit_context(void);
+
+void vcode_state_save(vcode_state_t *state);
+void vcode_state_restore(const vcode_state_t *state);
 
 int vcode_count_params(void);
 vcode_type_t vcode_param_type(int param);
