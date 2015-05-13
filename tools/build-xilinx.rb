@@ -36,7 +36,8 @@ $libdir = "#{File.expand_path '~'}/.nvc/lib"
 FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
-  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit #{$src}/#{file}"
+  file = "#{$src}/#{file}" unless file =~ /^\//
+  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit #{file}"
   puts cmd
   exit 1 unless system cmd
 end
@@ -57,6 +58,12 @@ run_nvc "unisim", "unisims/unisim_VPKG.vhd"
 run_nvc "unisim", "unisims/unisim_VCOMP.vhd"
 run_codegen "unisim", "vpkg"
 run_codegen "unisim", "vcomponents"
+
+put_title "UNIMACRO library"
+run_nvc "unimacro", "unimacro/unimacro_VCOMP.vhd"
+Dir.glob "#{$src}/unimacro/*_MACRO.vhd" do |f|
+  run_nvc "unimacro", f
+end
 
 put_title "Primitives"
 
