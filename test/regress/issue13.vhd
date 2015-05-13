@@ -10,9 +10,10 @@ architecture test of issue13 is
 begin
 
     process is
+        variable cmp : bit_vector(7 downto 0) := "10101010";
     begin
         assert c1(1) = c0;
-        assert c1(0) = "10101010";
+        assert c1(0) = cmp;
         wait;
     end process;
 

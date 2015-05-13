@@ -286,6 +286,30 @@ static tree_t eval_fcall_universal(tree_t t, ident_t builtin, tree_t *args)
       fatal_at(tree_loc(t), "universal expression cannot be evaluated");
 }
 
+static tree_t eval_fcall_str(tree_t t, ident_t builtin, tree_t *args)
+{
+   if (icmp(builtin, "aeq") || icmp(builtin, "aneq")) {
+      const int lchars = tree_chars(args[0]);
+      const int rchars = tree_chars(args[1]);
+
+      const bool invert = icmp(builtin, "aneq");
+
+      if (lchars != rchars)
+         return get_bool_lit(t, invert);
+
+      for (int i = 0; i < lchars; i++) {
+         tree_t c0 = tree_char(args[0], i);
+         tree_t c1 = tree_char(args[1], i);
+         if (tree_ident(c0) != tree_ident(c1))
+            return get_bool_lit(t, invert);
+      }
+
+      return get_bool_lit(t, !invert);
+   }
+   else
+      return t;
+}
+
 static void eval_stmts(tree_t t, unsigned (*count)(tree_t),
                        tree_t (*get)(tree_t, unsigned), vtable_t *v)
 {
@@ -361,6 +385,7 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
    bool can_fold_log  = true;
    bool can_fold_real = true;
    bool can_fold_enum = true;
+   bool can_fold_str  = true;
    int64_t iargs[nparams];
    double rargs[nparams];
    bool bargs[nparams];
@@ -370,6 +395,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       can_fold_log  = can_fold_log && folded_bool(targs[i], &bargs[i]);
       can_fold_real = can_fold_real && folded_real(targs[i], &rargs[i]);
       can_fold_enum = can_fold_enum && folded_enum(targs[i], &eargs[i]);
+      can_fold_str  = can_fold_str && tree_kind(targs[i]) == T_LITERAL
+         && tree_subkind(targs[i]) == L_STRING;
    }
 
    if (can_fold_int)
@@ -380,6 +407,8 @@ static tree_t eval_fcall(tree_t t, vtable_t *v)
       return eval_fcall_real(t, builtin, rargs);
    else if (can_fold_enum)
       return eval_fcall_enum(t, builtin, eargs, nparams);
+   else if (can_fold_str)
+      return eval_fcall_str(t, builtin, targs);
    else
       return t;
 }

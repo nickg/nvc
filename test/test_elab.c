@@ -346,6 +346,17 @@ START_TEST(test_issue175)
 }
 END_TEST
 
+START_TEST(test_issue184)
+{
+   input_from_file(TESTDIR "/elab/issue184.vhd");
+
+   tree_t top = run_elab();
+
+   fail_unless(tree_stmts(top) == 1);
+   fail_unless(icmp(tree_ident(tree_stmt(top, 0)), ":ent:gen_cfg2:good"));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -372,6 +383,7 @@ int main(void)
    tcase_add_test(tc, test_issue157);
    tcase_add_test(tc, test_issue159);
    tcase_add_test(tc, test_issue175);
+   tcase_add_test(tc, test_issue184);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
