@@ -324,7 +324,7 @@ static void link_shared(tree_t top)
    link_output(top, "so");
 
 #ifdef LLVM_LLC_HAS_OBJ
-   link_output(top, "o");
+   link_output(top, LLVM_OBJ_EXT);
 #else
    link_output(top, "s");
 #endif

@@ -96,6 +96,17 @@ AC_DEFUN([AX_LLVM_C],
                         [LLVM uses MCJIT instead of old JIT])
                 fi
 
+                LLVM_OBJ_EXT="o"
+                case $host_os in
+                    *cygwin*)
+                        if test "$llvm_ver_num" -ge "35"; then
+                            LLVM_OBJ_EXT="obj"
+                        fi
+                        ;;
+                esac
+                AC_DEFINE_UNQUOTED(LLVM_OBJ_EXT, ["$LLVM_OBJ_EXT"],
+                    [LLVM object file extension])
+
                 AC_REQUIRE([AC_PROG_CXX])
 
                 CFLAGS_SAVED="$CFLAGS"
