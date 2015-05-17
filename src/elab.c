@@ -906,9 +906,14 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
 
    if (entity == NULL) {
       if (search_others && ctx->arch != NULL) {
-         const int nctx = tree_contexts(ctx->arch);
-         for (int i = 0; entity == NULL && i < nctx; i++) {
-            tree_t c = tree_context(ctx->arch, i);
+         tree_t elab_ent = tree_ref(ctx->arch);
+         const int nctxe = tree_contexts(elab_ent);
+         const int nctxa = tree_contexts(ctx->arch);
+         for (int i = 0; entity == NULL && i < nctxe + nctxa; i++) {
+            tree_t c = i < nctxe
+               ? tree_context(elab_ent, i)
+               : tree_context(ctx->arch, i - nctxe);
+
             if (tree_kind(c) != T_LIBRARY)
                continue;
 
