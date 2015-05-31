@@ -390,7 +390,22 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_MUL:
    case VCODE_OP_DIV:
    case VCODE_OP_CAST:
-      // Cannot reference pointer
+   case VCODE_OP_CMP:
+   case VCODE_OP_OR:
+   case VCODE_OP_NOT:
+   case VCODE_OP_AND:
+   case VCODE_OP_NOR:
+   case VCODE_OP_NAND:
+   case VCODE_OP_XOR:
+   case VCODE_OP_XNOR:
+   case VCODE_OP_EVENT:
+   case VCODE_OP_ACTIVE:
+   case VCODE_OP_BIT_VEC_OP:
+   case VCODE_OP_VALUE:
+   case VCODE_OP_STORAGE_HINT:
+   case VCODE_OP_UARRAY_LEN:
+   case VCODE_OP_LAST_EVENT:
+      // Result cannot reference pointer
       break;
 
    default:
