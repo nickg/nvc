@@ -4421,6 +4421,8 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    lower_decls(proc, vu);
    tree_visit(proc, lower_driver_fn, proc);
 
+   vcode_block_t reset_bb = vcode_active_block();
+
    vcode_block_t start_bb = emit_block();
    vcode_select_block(start_bb);
 
@@ -4431,7 +4433,7 @@ static void lower_process(tree_t proc, vcode_unit_t context)
    if (!vcode_block_finished())
       emit_jump(start_bb);
 
-   vcode_select_block(0);
+   vcode_select_block(reset_bb);
    emit_return(VCODE_INVALID_REG);
 
    lower_finished();

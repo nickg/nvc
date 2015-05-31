@@ -234,11 +234,11 @@ START_TEST(test_const)
    input_from_file(TESTDIR "/sem/const.vhd");
 
    const error_t expect[] = {
-      { 19, "invalid target of variable assignment" },
-      { 23, "deferred constant declarations are only permitted" },
-      { 53, "constant WORK.P.C already has a value" },
-      { 54, "expected type INTEGER for deferred constant WORK.P.F" },
-      { 44, "deferred constant WORK.P.D was not given a value" },
+      { 24, "invalid target of variable assignment" },
+      { 28, "deferred constant declarations are only permitted" },
+      { 58, "constant WORK.P.C already has a value" },
+      { 59, "expected type INTEGER for deferred constant WORK.P.F" },
+      { 49, "deferred constant WORK.P.D was not given a value" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1239,6 +1239,23 @@ START_TEST(test_issue174)
 }
 END_TEST
 
+START_TEST(test_varinit)
+{
+   input_from_file(TESTDIR "/sem/varinit.vhd");
+
+   const error_t expect[] = {
+      { 26, "cannot reference signal SIZE during static elaboration" },
+      { 37, "cannot reference signal SIZE during static elaboration" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1300,6 +1317,7 @@ int main(void)
    tcase_add_test(tc_core, test_afunc);
    tcase_add_test(tc_core, test_issue173);
    tcase_add_test(tc_core, test_issue174);
+   tcase_add_test(tc_core, test_varinit);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

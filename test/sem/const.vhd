@@ -9,6 +9,11 @@ architecture a of e is
         return n + 1;
     end function;
 
+    impure function f_impure return integer is
+    begin
+        return x;
+    end function;
+
     signal s : integer;
 begin
 
@@ -30,7 +35,7 @@ begin
     end process;
 
     process is
-        constant c : integer := s;      -- OK (LRM 93 7.4.2 note 2)
+        constant c : integer := f_impure;      -- OK (LRM 93 7.4.2 note 2)
     begin
     end process;
 

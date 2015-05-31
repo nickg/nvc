@@ -2287,6 +2287,32 @@ static bool sem_check_sensitivity(tree_t t)
    return true;
 }
 
+static void sem_check_static_elab_fn(tree_t t, void *context)
+{
+   tree_t decl = tree_ref(t);
+   if (tree_kind(decl) == T_SIGNAL_DECL) {
+      error_at(tree_loc(t), "cannot reference signal %s during static "
+               "elaboration", istr(tree_ident(decl)));
+      ++errors;
+   }
+}
+
+static void sem_check_static_elab(tree_t t)
+{
+   // LRM 93 12.3 forbirds references to signals before the design has been
+   // elaborated
+
+   switch (tree_kind(t)) {
+   case T_VAR_DECL:
+   case T_CONST_DECL:
+      if (tree_has_value(t))
+         tree_visit_only(tree_value(t), sem_check_static_elab_fn, NULL, T_REF);
+      break;
+   default:
+      break;
+   }
+}
+
 static bool sem_check_process(tree_t t)
 {
    scope_push(NULL);
@@ -2294,8 +2320,11 @@ static bool sem_check_process(tree_t t)
    bool ok = sem_check_sensitivity(t);
 
    const int ndecls = tree_decls(t);
-   for (int n = 0; n < ndecls; n++)
-      ok = sem_check(tree_decl(t, n)) && ok;
+   for (int n = 0; n < ndecls; n++) {
+      tree_t d = tree_decl(t, n);
+      if ((ok = sem_check(d) && ok))
+         sem_check_static_elab(d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
@@ -2630,8 +2659,11 @@ static bool sem_check_arch(tree_t t)
 
    if (ok) {
       const int ndecls = tree_decls(t);
-      for (int n = 0; n < ndecls; n++)
-         ok = sem_check(tree_decl(t, n)) && ok;
+      for (int n = 0; n < ndecls; n++) {
+         tree_t d = tree_decl(t, n);
+         if ((ok = sem_check(d) && ok))
+            sem_check_static_elab(d);
+      }
    }
 
    ok = ok && sem_check_missing_subprogram_body(t, t);
@@ -6073,8 +6105,11 @@ static bool sem_check_block(tree_t t)
    bool ok = true;
 
    const int ndecls = tree_decls(t);
-   for (int i = 0; i < ndecls; i++)
-      ok = sem_check(tree_decl(t, i)) && ok;
+   for (int i = 0; i < ndecls; i++) {
+      tree_t d = tree_decl(t, i);
+      if ((ok = sem_check(d) && ok))
+         sem_check_static_elab(d);
+   }
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
