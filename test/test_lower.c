@@ -1827,11 +1827,12 @@ START_TEST(test_proc7)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
-      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_SUB },
       { VCODE_OP_SUB },
       { VCODE_OP_SELECT },
@@ -1841,10 +1842,7 @@ START_TEST(test_proc7)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_SELECT },
-      { VCODE_OP_NEW },
-      { VCODE_OP_ALL },
-      { VCODE_OP_STORE, .name = "Y.mem" },
-      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_ALLOCA },
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "Y" },
@@ -1855,8 +1853,6 @@ START_TEST(test_proc7)
    CHECK_BB(0);
 
     EXPECT_BB(1) = {
-       { VCODE_OP_INDEX, .name = "Y.mem" },
-       { VCODE_OP_DEALLOCATE },
        { VCODE_OP_RETURN }
    };
 

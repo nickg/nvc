@@ -3127,24 +3127,8 @@ static void lower_if(tree_t stmt, loop_stack_t *loops)
       vcode_select_block(bmerge);
 }
 
-static void lower_cleanup_proc_mem(void)
-{
-   // Free any memory allocated to procedure array variables
-   ident_t dotmem = ident_new(".mem");
-   const int nvars = vcode_count_vars();
-   for (int i = 0; i < nvars; i++) {
-      vcode_var_t var = vcode_var_handle(i);
-      ident_t name = vcode_var_name(var);
-      if (ident_strip(name, dotmem) != NULL)
-         emit_deallocate(emit_index(var, VCODE_INVALID_REG));
-   }
-}
-
 static void lower_return(tree_t stmt)
 {
-   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
-      lower_cleanup_proc_mem();
-
    if (tree_has_value(stmt)) {
       tree_t value = tree_value(stmt);
 
@@ -3827,38 +3811,15 @@ static void lower_var_decl(tree_t decl)
 
    vcode_reg_t dest_reg  = VCODE_INVALID_REG;
    vcode_reg_t count_reg = VCODE_INVALID_REG;
-   vcode_reg_t mem_reg   = VCODE_INVALID_REG;
-   vcode_reg_t raw_reg   = VCODE_INVALID_REG;
 
    if (type_is_record(type)) {
       dest_reg = emit_index(var, VCODE_INVALID_REG);
       emit_storage_hint(dest_reg, VCODE_INVALID_REG);
    }
-   else if (type_is_array(type)) {
-      if (lower_const_bounds(type)) {
-         dest_reg  = emit_index(var, VCODE_INVALID_REG);
-         count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
-         emit_storage_hint(dest_reg, count_reg);
-      }
-      else if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
-         // Need to allocate this array from the heap as it will need remain
-         // valid after the procedure suspends
-
-         type_t elem = type_elem(type);
-
-         count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
-         mem_reg   = emit_new(lower_type(elem), count_reg);
-         raw_reg   = emit_all(mem_reg);
-
-         vcode_type_t access_type = vcode_reg_type(mem_reg);
-         vcode_var_t mem_var =
-            emit_var(access_type, access_type,
-                     ident_prefix(tree_ident(decl), ident_new("mem"), '.'),
-                     false);
-         emit_store(mem_reg, mem_var);
-
-         emit_storage_hint(raw_reg, count_reg);
-      }
+   else if (type_is_array(type) &&lower_const_bounds(type)) {
+      dest_reg  = emit_index(var, VCODE_INVALID_REG);
+      count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+      emit_storage_hint(dest_reg, count_reg);
    }
 
    vcode_reg_t value = lower_expr(tree_value(decl), EXPR_RVALUE);
@@ -3872,20 +3833,12 @@ static void lower_var_decl(tree_t decl)
 
       if (lower_const_bounds(type))
          emit_copy(dest_reg, lower_array_data(value), count_reg);
-      else {
-         if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
-            emit_copy(raw_reg, lower_array_data(value), count_reg);
-
-            vcode_reg_t rewrap = lower_wrap(type, raw_reg);
-            emit_store(rewrap, var);
-         }
-         else if (!type_is_unconstrained(type)) {
-            vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
-            emit_store(rewrap, var);
-         }
-         else
-            emit_store(value, var);
+      else if (!type_is_unconstrained(type)) {
+         vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
+         emit_store(rewrap, var);
       }
+      else
+         emit_store(value, var);
    }
    else if (type_is_record(type)) {
       emit_copy(dest_reg, value, VCODE_INVALID_REG);
@@ -4220,10 +4173,8 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
    for (int i = 0; i < nstmts; i++)
       lower_stmt(tree_stmt(body, i), NULL);
 
-   if (!vcode_block_finished()) {
-      lower_cleanup_proc_mem();
+   if (!vcode_block_finished())
       emit_return(VCODE_INVALID_REG);
-   }
 
    lower_finished();
 

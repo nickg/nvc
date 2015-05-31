@@ -1,0 +1,20 @@
+0ms+0: Report Note: record parameter does not work
+0ms+0: Report Note: 0
+0ms+1: Report Note: 0
+0ms+1: Report Note: 1
+0ms+2: Report Note: 1
+0ms+2: Report Note: integer parameter works
+0ms+2: Report Note: 0
+0ms+3: Report Note: 0
+0ms+3: Report Note: 1
+0ms+4: Report Note: 1
+0ms+4: Report Note: string parameter works
+0ms+4: Report Note: hello
+0ms+5: Report Note: hello
+0ms+5: Report Note: foobar
+0ms+6: Report Note: foobar
+0ms+6: Report Note: bit_vector parameter works
+0ms+6: Report Note: '0'
+0ms+7: Report Note: '0'
+0ms+7: Report Note: '1'
+0ms+8: Report Note: '1'
