@@ -881,15 +881,19 @@ static ident_t lower_mangle_func(tree_t decl, vcode_unit_t context)
 
    LOCAL_TEXT_BUF buf = tb_new();
 
-   vcode_state_t state;
-   vcode_state_save(&state);
-   vcode_select_unit(context);
+   const int nest_depth = tree_attr_int(decl, nested_i, 0);
 
-   const vunit_kind_t ckind = vcode_unit_kind();
-   if (ckind != VCODE_UNIT_CONTEXT && ckind != VCODE_UNIT_PROCESS)
-      tb_printf(buf, "%s__", istr(vcode_unit_name()));
+   if (nest_depth > 0) {
+      vcode_state_t state;
+      vcode_state_save(&state);
+      vcode_select_unit(context);
 
-   vcode_state_restore(&state);
+      const vunit_kind_t ckind = vcode_unit_kind();
+      if (ckind != VCODE_UNIT_CONTEXT && ckind != VCODE_UNIT_PROCESS)
+         tb_printf(buf, "%s__", istr(vcode_unit_name()));
+
+      vcode_state_restore(&state);
+   }
 
 #if LLVM_MANGLES_NAMES
    const char *name = istr(tree_ident(decl));
