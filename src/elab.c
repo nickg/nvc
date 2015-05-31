@@ -52,16 +52,27 @@ typedef struct map_list {
    tree_t name;
 } map_list_t;
 
-typedef struct copy_list {
-   struct copy_list *next;
-   tree_t tree;
-} copy_list_t;
+typedef struct copy_list copy_list_t;
+
+struct copy_list {
+   copy_list_t *next;
+   tree_t       tree;
+};
 
 typedef struct {
    lib_t    lib;
    ident_t  name;
    tree_t  *tree;
 } lib_search_params_t;
+
+typedef struct generic_list generic_list_t;
+
+struct generic_list {
+   generic_list_t *next;
+   ident_t         name;
+   char           *value;
+   bool            used;
+};
 
 static void elab_arch(tree_t t, const elab_ctx_t *ctx);
 static void elab_block(tree_t t, const elab_ctx_t *ctx);
@@ -70,6 +81,8 @@ static void elab_funcs(tree_t arch, tree_t ent, const elab_ctx_t *ctx);
 static void elab_copy_context(tree_t src, const elab_ctx_t *ctx);
 
 static int errors = 0;
+
+static generic_list_t *generic_override = NULL;
 
 static ident_t hpathf(ident_t path, char sep, const char *fmt, ...)
 {
@@ -1344,6 +1357,39 @@ static void elab_top_level_ports(tree_t arch, const elab_ctx_t *ctx)
       tree_rewrite(ent, rewrite_refs, &params);
 }
 
+static tree_t elab_generic_parse(tree_t generic, const char *str)
+{
+   type_t type = tree_type(generic);
+
+   if (type_is_array(type) && type_is_enum(type_elem(type)))
+      return str_to_literal(str, NULL, type);
+
+   int64_t value;
+   if (!parse_value(type, str, &value))
+      fatal("failed to parse \"%s\" as type %s for generic %s",
+            str, type_pp(type), istr(tree_ident(generic)));
+
+   if (type_is_enum(type)) {
+      tree_t result = tree_new(T_REF);
+      tree_set_type(result, type);
+      tree_set_ident(result, ident_new(str));
+      tree_set_ref(result, type_enum_literal(type, value));
+
+      return result;
+   }
+   else if (type_is_integer(type)) {
+      tree_t result = tree_new(T_LITERAL);
+      tree_set_subkind(result, L_INT);
+      tree_set_type(result, type);
+      tree_set_ival(result, value);
+
+      return result;
+   }
+   else
+      fatal("cannot override generic %s of type %s", istr(tree_ident(generic)),
+            type_pp(type));
+}
+
 static void elab_top_level_generics(tree_t arch, const elab_ctx_t *ctx)
 {
    tree_t ent = tree_ref(arch);
@@ -1351,9 +1397,22 @@ static void elab_top_level_generics(tree_t arch, const elab_ctx_t *ctx)
    const int ngenerics = tree_generics(ent);
    for (int i = 0; i < ngenerics; i++) {
       tree_t g = tree_generic(ent, i);
-      if (!tree_has_value(g))
+      ident_t name = tree_ident(g);
+
+      generic_list_t *it;
+      for (it = generic_override;
+           it != NULL && it->name != name;
+           it = it->next)
+         ;
+
+      if (it != NULL) {
+         tree_set_value(g, elab_generic_parse(g, it->value));
+         it->used = true;
+      }
+      else if (!tree_has_value(g))
          fatal_at(tree_loc(g), "generic %s of top-level entity must have "
-                  "default value", istr(tree_ident(g)));
+                  "default value or be specified using -gNAME=VALUE",
+                  istr(name));
    }
 
    (void)elab_map(ent, arch, tree_generics, tree_generic, NULL, NULL);
@@ -1535,6 +1594,24 @@ static void elab_context_signals(const elab_ctx_t *ctx)
    }
 }
 
+void elab_set_generic(const char *name, const char *value)
+{
+   ident_t id = ident_new(name);
+
+   for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
+      if (it->name == id)
+         fatal("generic %s already has value '%s'", name, it->value);
+   }
+
+   generic_list_t *new = xmalloc(sizeof(generic_list_t));
+   new->name  = id;
+   new->value = strdup(value);
+   new->used  = false;
+   new->next  = generic_override;
+
+   generic_override = new;
+}
+
 tree_t elab(tree_t top)
 {
    tree_t e = tree_new(T_ELAB);
@@ -1569,6 +1646,11 @@ tree_t elab(tree_t top)
       cover_tag(e);
 
    bounds_check(e);
+
+   for (generic_list_t *it = generic_override; it != NULL; it = it->next) {
+      if (!it->used)
+         warnf("generic value for %s not used", istr(it->name));
+   }
 
    if (bounds_errors() == 0) {
       lib_put(lib_work(), e);

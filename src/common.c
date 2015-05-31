@@ -649,6 +649,46 @@ type_t index_type_of(type_t type, int dim)
    }
 }
 
+tree_t str_to_literal(const char *start, const char *end, type_t type)
+{
+
+   tree_t t = tree_new(T_LITERAL);
+   tree_set_subkind(t, L_STRING);
+
+   type_t elem = NULL;
+   if (type != NULL) {
+      tree_set_type(t, type);
+      elem = type_elem(type);
+   }
+
+   char last = '\0';
+   for (const char *p = start; *p != '\0' && p != end; last = *p++) {
+      if (*p == -127)
+         continue;
+      else if (*p == '"' && last == '"')
+         continue;
+
+      const char ch[] = { '\'', *p, '\'', '\0' };
+      ident_t id = ident_new(ch);
+      tree_t ref = tree_new(T_REF);
+      tree_set_ident(ref, id);
+      tree_add_char(t, ref);
+
+      if (elem != NULL) {
+         const int nlit = type_enum_literals(elem);
+         for (int i = 0; i < nlit; i++) {
+            tree_t lit = type_enum_literal(elem, i);
+            if (tree_ident(lit) == id) {
+               tree_set_ref(ref, lit);
+               break;
+            }
+         }
+      }
+   }
+
+   return t;
+}
+
 void intern_strings(void)
 {
    builtin_i        = ident_new("builtin");

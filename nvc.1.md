@@ -102,6 +102,11 @@ specific options must be placed after the command.
 * `--dump-vcode`:
   Print generated intermediate code.
 
+* `-g` _name_`=`_value_:
+  Override top-level generic _name_ name with _value_. Integers, enumeration
+  literals, and string literals are supported. For example `-gI=5`, `-gINIT='1'`,
+  and `-gSTR=hello`.
+
 * `--native`:
   Generate native code shared library. By default NVC will use LLVM JIT
   compilation to generate machine code at runtime. For large designs

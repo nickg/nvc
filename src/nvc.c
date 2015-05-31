@@ -181,6 +181,22 @@ static void elab_verbose(bool verbose, const char *fmt, ...)
    }
 }
 
+static void parse_generic(const char *str)
+{
+   char *copy LOCAL = strdup(str);
+
+   char *split = strchr(copy, '=');
+   if (split == NULL || *(split + 1) == '\0' || *copy == '\0')
+      fatal("invalid generic specification '%s' (use -gNAME=VALUE)", str);
+
+   *split = '\0';
+
+   for (char *p = copy; *p != '\0'; p++)
+      *p = toupper((int)*p);
+
+   elab_set_generic(copy, split + 1);
+}
+
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -195,7 +211,7 @@ static int elaborate(int argc, char **argv)
 
    bool verbose = false;
    int c, index = 0;
-   const char *spec = "V";
+   const char *spec = "Vg:";
    optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
@@ -216,6 +232,9 @@ static int elaborate(int argc, char **argv)
          break;
       case 'V':
          verbose = true;
+         break;
+      case 'g':
+         parse_generic(optarg);
          break;
       case 0:
          // Set a flag
@@ -659,6 +678,7 @@ static void usage(void)
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
+          " -g NAME=VALUE\tSet top level generic NAME to VALUE\n"
           "     --native\t\tGenerate native code shared library\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"

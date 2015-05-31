@@ -1324,7 +1324,17 @@ static vcode_reg_t lower_string_literal(tree_t lit, bool allocate)
    if (type_is_array(type) && !lower_const_bounds(type)) {
       vcode_type_t base = vtype_pointer(lower_type(type_elem(type)));
       vcode_reg_t data = emit_const_array(base, tmp, nchars, allocate);
-      return lower_wrap(type, data);
+      if (type_is_unconstrained(type)) {
+         // Will occur with overridden generic strings
+         vcode_dim_t dim0 = {
+            .left  = emit_const(vtype_offset(), 1),
+            .right = emit_const(vtype_offset(), nchars),
+            .dir   = emit_const(vtype_bool(), RANGE_TO)
+         };
+         return emit_wrap(data, &dim0, 1);
+      }
+      else
+         return lower_wrap(type, data);
    }
    else
       return emit_const_array(lower_type(type), tmp, nchars, allocate);

@@ -373,6 +373,20 @@ START_TEST(test_libbind2)
 }
 END_TEST
 
+START_TEST(test_toplevel2)
+{
+   input_from_file(TESTDIR "/elab/toplevel2.vhd");
+
+   elab_set_generic("I", "4");
+   elab_set_generic("S", "hello");
+   elab_set_generic("B", "'1'");
+   elab_set_generic("V", "101");
+
+   tree_t top = run_elab();
+   fail_unless(tree_stmts(top) == 3);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -401,6 +415,7 @@ int main(void)
    tcase_add_test(tc, test_issue175);
    tcase_add_test(tc, test_issue184);
    tcase_add_test(tc, test_libbind2);
+   tcase_add_test(tc, test_toplevel2);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

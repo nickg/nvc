@@ -432,30 +432,6 @@ static const loc_t *_diff_loc(const loc_t *start, const loc_t *end)
    return &result;
 }
 
-static tree_t str_to_literal(const char *start, const char *end,
-                             const loc_t *loc)
-{
-
-   tree_t t = tree_new(T_LITERAL);
-   tree_set_loc(t, loc);
-   tree_set_subkind(t, L_STRING);
-
-   char last = '\0';
-   for (const char *p = start; *p != '\0' && p != end; last = *p++) {
-      if (*p == -127)
-         continue;
-      else if (*p == '"' && last == '"')
-         continue;
-
-      const char ch[] = { '\'', *p, '\'', '\0' };
-      tree_t ref = tree_new(T_REF);
-      tree_set_ident(ref, ident_new(ch));
-      tree_add_char(t, ref);
-   }
-
-   return t;
-}
-
 static ident_t loc_to_ident(const loc_t *loc)
 {
    int bufsz = 128;
@@ -1308,7 +1284,8 @@ static tree_t p_literal(void)
 
          char *p = last_lval.s;
          size_t len = strlen(p);
-         tree_t t = str_to_literal(p + 1, p + len - 1, CURRENT_LOC);
+         tree_t t = str_to_literal(p + 1, p + len - 1, NULL);
+         tree_set_loc(t, CURRENT_LOC);
          free(p);
 
          return t;

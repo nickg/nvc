@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2013  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -41,6 +41,9 @@ tree_t eval(tree_t fcall);
 
 // Elaborate a top level entity
 tree_t elab(tree_t top);
+
+// Set the value of a top-level generic
+void elab_set_generic(const char *name, const char *value);
 
 // Generate LLVM bitcode for an elaborated design
 void cgen(tree_t top);

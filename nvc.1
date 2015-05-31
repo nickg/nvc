@@ -112,6 +112,10 @@ Print generated LLVM IR prior to optimisation\.
 Print generated intermediate code\.
 .
 .TP
+\fB\-g\fR \fIname\fR\fB=\fR\fIvalue\fR
+Override top\-level generic \fIname\fR name with \fIvalue\fR\. Integers, enumeration literals, and string literals are supported\. For example \fB\-gI=5\fR, \fB\-gINIT=\'1\'\fR, and \fB\-gSTR=hello\fR\.
+.
+.TP
 \fB\-\-native\fR
 Generate native code shared library\. By default NVC will use LLVM JIT compilation to generate machine code at runtime\. For large designs compiling to native code at elaboration time may improve performance\.
 .
