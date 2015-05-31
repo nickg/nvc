@@ -366,6 +366,11 @@ void vcode_heap_allocate(vcode_reg_t reg)
       vcode_heap_allocate(defn->args.items[0]);
       break;
 
+   case VCODE_OP_SELECT:
+      vcode_heap_allocate(defn->args.items[1]);
+      vcode_heap_allocate(defn->args.items[2]);
+      break;
+
    case VCODE_OP_LOAD_INDIRECT:
       {
          // Always OK if scalar otherwise check the pointer source
@@ -416,6 +421,8 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_MOD:
    case VCODE_OP_REM:
    case VCODE_OP_ENDFILE:
+   case VCODE_OP_VEC_LOAD:
+   case VCODE_OP_MEMCMP:
       // Result cannot reference pointer
       break;
 
