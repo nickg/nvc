@@ -287,3 +287,4 @@ case6           normal
 issue183        normal
 issue185        normal,gold
 toplevel2       normal,gI=2,gS=2
+issue186        normal

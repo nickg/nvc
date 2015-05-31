@@ -169,6 +169,8 @@ static void link_context_package(tree_t unit, lib_t lib,
    if (!link_already_have(body)) {
       (*fn)(lib, body, deps);
       linked[n_linked++] = body;
+
+      link_all_context(body, deps, fn);
    }
 }
 
