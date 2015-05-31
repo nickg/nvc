@@ -354,6 +354,7 @@ void vcode_heap_allocate(vcode_reg_t reg)
       break;
 
    case VCODE_OP_FCALL:
+   case VCODE_OP_NESTED_FCALL:
       // Must have been safety checked by definition
       break;
 
@@ -404,7 +405,17 @@ void vcode_heap_allocate(vcode_reg_t reg)
    case VCODE_OP_VALUE:
    case VCODE_OP_STORAGE_HINT:
    case VCODE_OP_UARRAY_LEN:
+   case VCODE_OP_UARRAY_LEFT:
+   case VCODE_OP_UARRAY_RIGHT:
+   case VCODE_OP_UARRAY_DIR:
    case VCODE_OP_LAST_EVENT:
+   case VCODE_OP_PARAM_UPREF:
+   case VCODE_OP_NEG:
+   case VCODE_OP_EXP:
+   case VCODE_OP_ABS:
+   case VCODE_OP_MOD:
+   case VCODE_OP_REM:
+   case VCODE_OP_ENDFILE:
       // Result cannot reference pointer
       break;
 
