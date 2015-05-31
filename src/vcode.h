@@ -229,6 +229,7 @@ vcode_type_t vcode_reg_type(vcode_reg_t reg);
 vtype_kind_t vcode_reg_kind(vcode_reg_t reg);
 vcode_type_t vcode_reg_bounds(vcode_reg_t reg);
 bool vcode_reg_const(vcode_reg_t reg, int64_t *value);
+void vcode_heap_allocate(vcode_reg_t reg);
 
 int vcode_count_signals(void);
 vcode_var_t vcode_signal_shadow(vcode_signal_t sig);

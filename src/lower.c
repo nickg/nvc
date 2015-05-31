@@ -3185,15 +3185,20 @@ static void lower_pcall(tree_t pcall)
 
    ident_t name = lower_mangle_func(decl, vcode_unit_context());
 
-   const int nargs = tree_params(pcall);
-   vcode_reg_t args[nargs];
-   for (int i = 0; i < nargs; i++)
-      args[i] = lower_subprogram_arg(pcall, i);
-
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
    const bool never_waits = tree_attr_int(decl, never_waits_i, 0);
+   const bool use_fcall =
+      never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION;
 
-   if (never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION) {
+   const int nargs = tree_params(pcall);
+   vcode_reg_t args[nargs];
+   for (int i = 0; i < nargs; i++) {
+      args[i] = lower_subprogram_arg(pcall, i);
+      if (!use_fcall)
+         vcode_heap_allocate(args[i]);
+   }
+
+   if (use_fcall) {
       if (nest_depth > 0) {
          const int hops = vcode_unit_depth() - nest_depth;
          emit_nested_fcall(name, VCODE_INVALID_TYPE, args, nargs, hops);

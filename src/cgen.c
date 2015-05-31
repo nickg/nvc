@@ -694,8 +694,10 @@ static void cgen_op_wait(int op, cgen_ctx_t *ctx)
    LLVMValueRef state_ptr = LLVMBuildStructGEP(builder, ctx->state, 0, "");
    LLVMBuildStore(builder, llvm_int32(vcode_get_target(op, 0)), state_ptr);
 
-   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+   if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE) {
+      LLVMBuildCall(builder, llvm_fn("_private_stack"), NULL, 0, "");
       LLVMBuildRet(builder, llvm_void_cast(ctx->state));
+   }
    else
       LLVMBuildRetVoid(builder);
 }
@@ -3426,6 +3428,12 @@ static LLVMValueRef cgen_support_fn(const char *name)
       };
       fn = LLVMAddFunction(module, "_value_attr",
                            LLVMFunctionType(LLVMInt64Type(),
+                                            args, ARRAY_LEN(args), false));
+   }
+   else if (strcmp(name, "_private_stack") == 0) {
+      LLVMTypeRef args[] = {};
+      fn = LLVMAddFunction(module, "_private_stack",
+                           LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
    }
 

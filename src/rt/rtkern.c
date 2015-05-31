@@ -65,6 +65,8 @@ struct rt_proc {
    tree_t    source;
    proc_fn_t proc_fn;
    uint32_t  wakeup_gen;
+   void     *tmp_stack;
+   uint32_t  tmp_alloc;
    bool      postponed;
 };
 
@@ -485,6 +487,21 @@ void _alloc_driver(const int32_t *all_nets, int32_t all_length,
 
       initp += g->length * g->size;
    }
+}
+
+void _private_stack(void)
+{
+   TRACE("_private_stack %p %d %d", active_proc->tmp_stack,
+         active_proc->tmp_alloc, _tmp_alloc);
+
+   if (active_proc->tmp_stack != NULL || _tmp_alloc == 0)
+      return;
+
+   active_proc->tmp_stack = _tmp_stack;
+   active_proc->tmp_alloc = _tmp_alloc;
+
+   proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ,
+                                 istr(tree_ident(active_proc->source)));
 }
 
 void *_resolved_address(int32_t nid)
@@ -1382,6 +1399,8 @@ static void rt_setup(tree_t top)
       procs[i].proc_fn    = jit_fun_ptr(istr(tree_ident(p)), true);
       procs[i].wakeup_gen = 0;
       procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
+      procs[i].tmp_stack  = NULL;
+      procs[i].tmp_alloc  = 0;
    }
 }
 
@@ -1393,6 +1412,11 @@ static void rt_run(struct rt_proc *proc, bool reset)
    if (reset) {
       _tmp_stack = global_tmp_stack;
       _tmp_alloc = global_tmp_alloc;
+   }
+   else if (proc->tmp_stack != NULL) {
+      TRACE("using private stack at %p %d", proc->tmp_stack, proc->tmp_alloc);
+      _tmp_stack = proc->tmp_stack;
+      _tmp_alloc = proc->tmp_alloc;
    }
    else {
       _tmp_stack = proc_tmp_stack;

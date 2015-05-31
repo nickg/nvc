@@ -296,7 +296,7 @@ static var_t *vcode_var_data(vcode_var_t var)
    return var_array_nth_ptr(&(unit->vars), MASK_INDEX(var));
 }
 
-static void vcode_return_safety_check(vcode_reg_t reg)
+void vcode_heap_allocate(vcode_reg_t reg)
 {
    op_t *defn = vcode_find_definition(reg);
    if (defn == NULL) {
@@ -308,6 +308,7 @@ static void vcode_return_safety_check(vcode_reg_t reg)
    case VCODE_OP_CONST:
    case VCODE_OP_CONST_REAL:
    case VCODE_OP_CONST_ARRAY:
+   case VCODE_OP_NULL:
       break;
 
    case VCODE_OP_ALLOCA:
@@ -319,31 +320,34 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       break;
 
    case VCODE_OP_WRAP:
-      vcode_return_safety_check(defn->args.items[0]);
+      vcode_heap_allocate(defn->args.items[0]);
       break;
 
    case VCODE_OP_ADD:
       // When adding pointers only the first argument is a pointer
-      vcode_return_safety_check(defn->args.items[0]);
+      vcode_heap_allocate(defn->args.items[0]);
       break;
 
    case VCODE_OP_UNWRAP:
-      vcode_return_safety_check(defn->args.items[0]);
+      vcode_heap_allocate(defn->args.items[0]);
       break;
 
    case VCODE_OP_LOAD:
       {
-         // Any store to this variable must be return-safe
+         if (vcode_reg_kind(reg) != VCODE_TYPE_UARRAY)
+            return;
+
+         // Any store to this variable must be heap allocated
          for (int i = 0; i < active_unit->blocks.count; i++) {
             block_t *b = &(active_unit->blocks.items[i]);
             for (int j = 0; j < b->ops.count; j++) {
                op_t *op = &(b->ops.items[j]);
                if (op->kind == VCODE_OP_STORE && op->address == defn->address)
-                  vcode_return_safety_check(op->args.items[0]);
+                  vcode_heap_allocate(op->args.items[0]);
 
                VCODE_ASSERT(
                   op->kind != VCODE_OP_INDEX || op->address != defn->address,
-                  "cannot return safety check aliased pointer r%d", reg);
+                  "cannot heap allocate aliased pointer r%d", reg);
             }
          }
       }
@@ -358,7 +362,7 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       break;
 
    case VCODE_OP_RECORD_REF:
-      vcode_return_safety_check(defn->args.items[0]);
+      vcode_heap_allocate(defn->args.items[0]);
       break;
 
    case VCODE_OP_LOAD_INDIRECT:
@@ -366,7 +370,7 @@ static void vcode_return_safety_check(vcode_reg_t reg)
          // Always OK if scalar otherwise check the pointer source
          const vtype_kind_t vtkind = vcode_reg_kind(reg);
          if (vtkind != VCODE_TYPE_INT && vtkind != VCODE_TYPE_REAL)
-            vcode_return_safety_check(defn->args.items[0]);
+            vcode_heap_allocate(defn->args.items[0]);
       }
       break;
 
@@ -374,8 +378,23 @@ static void vcode_return_safety_check(vcode_reg_t reg)
       // Must have been allocated on the heap
       break;
 
+   case VCODE_OP_NETS:
+      // Pointer to a global
+      break;
+
+   case VCODE_OP_NEW:
+      // On the heap by definition
+      break;
+
+   case VCODE_OP_SUB:
+   case VCODE_OP_MUL:
+   case VCODE_OP_DIV:
+   case VCODE_OP_CAST:
+      // Cannot reference pointer
+      break;
+
    default:
-      VCODE_ASSERT(false, "cannot return safety check r%d", reg);
+      VCODE_ASSERT(false, "cannot heap allocate r%d", reg);
    }
 }
 
@@ -3161,7 +3180,7 @@ void emit_return(vcode_reg_t reg)
 
       vtype_kind_t rkind = vcode_reg_kind(reg);
       if (rkind == VCODE_TYPE_POINTER || rkind == VCODE_TYPE_UARRAY)
-         vcode_return_safety_check(reg);
+         vcode_heap_allocate(reg);
    }
 }
 
