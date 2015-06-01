@@ -494,14 +494,14 @@ void _private_stack(void)
    TRACE("_private_stack %p %d %d", active_proc->tmp_stack,
          active_proc->tmp_alloc, _tmp_alloc);
 
-   if (active_proc->tmp_stack != NULL || _tmp_alloc == 0)
-      return;
+   if (active_proc->tmp_stack == NULL && _tmp_alloc > 0) {
+      active_proc->tmp_stack = _tmp_stack;
 
-   active_proc->tmp_stack = _tmp_stack;
+      proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ,
+                                    istr(tree_ident(active_proc->source)));
+   }
+
    active_proc->tmp_alloc = _tmp_alloc;
-
-   proc_tmp_stack = mmap_guarded(PROC_TMP_STACK_SZ,
-                                 istr(tree_ident(active_proc->source)));
 }
 
 void *_resolved_address(int32_t nid)
@@ -1417,6 +1417,10 @@ static void rt_run(struct rt_proc *proc, bool reset)
       TRACE("using private stack at %p %d", proc->tmp_stack, proc->tmp_alloc);
       _tmp_stack = proc->tmp_stack;
       _tmp_alloc = proc->tmp_alloc;
+
+      // Will be updated by _private_stack if suspending in procedure otherwise
+      // clear stack when process suspends
+      proc->tmp_alloc = 0;
    }
    else {
       _tmp_stack = proc_tmp_stack;
