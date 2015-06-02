@@ -145,20 +145,19 @@ static void link_context_cyg_fn(lib_t lib, tree_t unit, FILE *deps)
 }
 #endif  // IMPLIB_REQUIRED
 
-static void link_context_package(tree_t unit, lib_t lib,
-                                 FILE *deps, context_fn_t fn)
+static void link_context_package(tree_t unit, FILE *deps, context_fn_t fn)
 {
    assert(n_linked < MAX_ARGS - 1);
 
    if (pack_needs_cgen(unit) && !link_already_have(unit)) {
-      (*fn)(lib, unit, deps);
+      (*fn)(lib_work(), unit, deps);
       linked[n_linked++] = unit;
    }
 
    ident_t name = tree_ident(unit);
 
    ident_t body_i = ident_prefix(name, ident_new("body"), '-');
-   tree_t body = lib_get(lib, body_i);
+   tree_t body = lib_get(lib_work(), body_i);
    if (body == NULL) {
       if (link_needs_body(unit))
          fatal("missing body for package %s", istr(name));
@@ -167,7 +166,7 @@ static void link_context_package(tree_t unit, lib_t lib,
    }
 
    if (!link_already_have(body)) {
-      (*fn)(lib, body, deps);
+      (*fn)(lib_work(), body, deps);
       linked[n_linked++] = body;
 
       link_all_context(body, deps, fn);
@@ -183,11 +182,16 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
    if (lib == NULL)
       fatal("cannot link library %s", istr(lname));
 
+   lib_t tmp = lib_work();
+   lib_set_work(lib);
+
    tree_t unit = lib_get(lib, cname);
    if (unit == NULL)
       fatal("cannot find unit %s", istr(cname));
    else if (tree_kind(unit) == T_PACKAGE)
-      link_context_package(unit, lib, deps, fn);
+      link_context_package(unit, deps, fn);
+
+   lib_set_work(tmp);
 }
 
 static void link_all_context(tree_t unit, FILE *deps, context_fn_t fn)
