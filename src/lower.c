@@ -2608,8 +2608,9 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
 
-         range_t r = type_dim(tree_type(expr), 0);
-         const int dir = (r.kind == RANGE_TO ? -1 : 1);
+         type_t type = tree_type(expr);
+         const int dir =
+            (type_is_enum(type) || type_dim(type, 0).kind == RANGE_TO) ? -1 : 1;
          return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
       }
 
@@ -2618,8 +2619,9 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
          tree_t value = tree_value(tree_param(expr, 0));
          vcode_reg_t arg = lower_param(value, NULL, PORT_IN);
 
-         range_t r = type_dim(tree_type(expr), 0);
-         const int dir = (r.kind == RANGE_TO ? 1 : -1);
+         type_t type = tree_type(expr);
+         const int dir =
+            (type_is_enum(type) || type_dim(type, 0).kind == RANGE_TO) ? 1 : -1;
          return emit_add(arg, emit_const(vcode_reg_type(arg), dir));
       }
 
