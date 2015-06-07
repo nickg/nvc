@@ -3847,12 +3847,17 @@ static void lower_var_decl(tree_t decl)
 
       if (lower_const_bounds(type))
          emit_copy(dest_reg, lower_array_data(value), count_reg);
-      else if (!type_is_unconstrained(type)) {
-         vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
-         emit_store(rewrap, var);
+      else {
+         if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+            vcode_heap_allocate(value);
+
+         if (!type_is_unconstrained(type)) {
+            vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
+            emit_store(rewrap, var);
+         }
+         else
+            emit_store(value, var);
       }
-      else
-         emit_store(value, var);
    }
    else if (type_is_record(type)) {
       emit_copy(dest_reg, value, VCODE_INVALID_REG);

@@ -1842,7 +1842,7 @@ START_TEST(test_proc7)
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_SELECT },
-      { VCODE_OP_ALLOCA },
+      { VCODE_OP_ALLOCA, .subkind = 1 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
       { VCODE_OP_STORE, .name = "Y" },
