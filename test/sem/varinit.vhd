@@ -35,6 +35,8 @@ OTHER:
 
     block1: block is
         constant  N: integer:= to_integer (unsigned(size)) ; -- Error
+        constant  M: integer := size'length;  -- OK
+        constant  P: boolean := size'event;  -- Error
     begin
     end block;
 

@@ -67,4 +67,16 @@ begin
     gen1: for i in y'range generate     -- OK
     end generate;
 
+    b1: block is
+        type r is record
+            x, y : integer;
+        end record;
+        signal x : r := (1, 2);
+    begin
+
+        gen2: if (N, 2) = r'(1, 2) generate    -- OK
+        end generate;
+
+    end block;
+
 end architecture;

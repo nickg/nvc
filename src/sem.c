@@ -2305,8 +2305,11 @@ static void sem_check_static_elab(tree_t t)
    switch (tree_kind(t)) {
    case T_VAR_DECL:
    case T_CONST_DECL:
-      if (tree_has_value(t))
-         tree_visit_only(tree_value(t), sem_check_static_elab_fn, NULL, T_REF);
+      if (tree_has_value(t)) {
+         tree_t value = tree_value(t);
+         if (!sem_globally_static(value))
+            tree_visit_only(value, sem_check_static_elab_fn, NULL, T_REF);
+      }
       break;
    default:
       break;
@@ -5678,13 +5681,25 @@ static bool sem_locally_static(tree_t t)
    }
 
    if (kind == T_ATTR_REF) {
-      // A predefined attribute other than 'PATH_NAME whose prefix has a
-      // locally static subtype
-      if (tree_attr_int(t, builtin_i, -1) == ATTR_PATH_NAME)
+      // A predefined attribute other than those listed below whose prefix
+      // prefix is either a locally static subtype or is an object that is
+      // of a locally static subtype
+      const predef_attr_t predef = tree_attr_int(t, builtin_i, -1);
+      if (predef == ATTR_EVENT || predef == ATTR_ACTIVE
+          || predef == ATTR_LAST_EVENT || predef == ATTR_LAST_ACTIVE
+          || predef == ATTR_LAST_VALUE || predef == ATTR_DRIVING
+          || predef == ATTR_DRIVING_VALUE || predef == ATTR_PATH_NAME)
          return false;
-      else if (!tree_has_value(t)) {
+      else  if (!tree_has_value(t)) {
          type_t type = tree_type(tree_name(t));
          return sem_subtype_locally_static(type);
+      }
+
+      // Whose actual parameter (if any) is a locally static expression
+      const int nparams = tree_params(t);
+      for (int i = 0; i < nparams; i++) {
+         if (!sem_locally_static(tree_value(tree_param(t, i))))
+            return false;
       }
 
       // A user-defined attribute whose value is a locally static expression
@@ -5844,12 +5859,14 @@ static bool sem_globally_static(tree_t t)
    // Aggregates must have globally static range and all elements
    // must have globally static values
    if (kind == T_AGGREGATE) {
-      range_t r = type_dim(type, 0);
-      if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
-         return false;
+      if (type_is_array(type)) {
+         range_t r = type_dim(type, 0);
+         if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+            return false;
 
-      if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
-         return false;
+         if (!sem_globally_static(r.left) || !sem_globally_static(r.right))
+            return false;
+      }
 
       const int nassocs = tree_assocs(t);
       for (int i = 0; i < nassocs; i++) {

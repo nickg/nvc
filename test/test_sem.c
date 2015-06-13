@@ -1246,6 +1246,7 @@ START_TEST(test_varinit)
    const error_t expect[] = {
       { 26, "cannot reference signal SIZE during static elaboration" },
       { 37, "cannot reference signal SIZE during static elaboration" },
+      { 39, "cannot reference signal SIZE during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);
