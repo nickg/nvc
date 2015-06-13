@@ -74,15 +74,6 @@ static void link_arg_f(const char *fmt, ...)
    args[++n_args] = NULL;
 }
 
-static char *link_product2(lib_t lib, ident_t name,
-                           const char *prefix, const char *ext)
-{
-   char path[PATH_MAX];
-   lib_realpath(lib, NULL, path, sizeof(path));
-
-   return xasprintf("%s%s/_%s.%s", prefix, path, istr(name), ext);
-}
-
 static void link_product(lib_t lib, ident_t name,
                          const char *prefix, const char *ext)
 {
@@ -147,7 +138,11 @@ static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
    if (!link_find_native_library(lib, unit, deps)) {
       LLVMModuleRef src = tree_attr_ptr(unit, llvm_i);
       if (src == NULL) {
-         char *path LOCAL = link_product2(lib, tree_ident(unit), "", "bc");
+         char lib_path[PATH_MAX];
+         lib_realpath(lib, NULL, lib_path, sizeof(lib_path));
+
+         char *path LOCAL =
+            xasprintf("%s/_%s.bc", lib_path, istr(tree_ident(unit)));
 
          char *error;
          LLVMMemoryBufferRef buf;
@@ -401,7 +396,10 @@ static void link_write_module(tree_t top)
    else
       product = tree_ident(top);
 
-   char *fname LOCAL = link_product2(lib_work(), product, "", "bc");
+   char lib_path[PATH_MAX];
+   lib_realpath(lib_work(), NULL, lib_path, sizeof(lib_path));
+
+   char *fname LOCAL = xasprintf("%s/_%s.bc", lib_path, istr(product));
 
    FILE *f = fopen(fname, "w");
    if (f == NULL)
