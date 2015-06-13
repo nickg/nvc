@@ -51,7 +51,6 @@ static char        **args = NULL;
 static int           n_args = 0;
 static tree_t        linked[MAX_ARGS];
 static int           n_linked = 0;
-static int           n_linked_bc = 0;
 static LLVMModuleRef module = NULL;
 
 typedef void (*context_fn_t)(lib_t lib, tree_t unit, FILE *deps);
@@ -91,11 +90,6 @@ static void link_product(lib_t lib, ident_t name,
    lib_realpath(lib, NULL, path, sizeof(path));
 
    link_arg_f("%s%s/_%s.%s", prefix, path, istr(name), ext);
-}
-
-static void link_arg_bc(lib_t lib, ident_t name)
-{
-   link_product(lib, name, "", "bc");
 }
 
 static bool link_needs_body(tree_t pack)
@@ -171,8 +165,6 @@ static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
       char *outmsg;
       if (LLVMLinkModules(module, src, LLVMLinkerDestroySource, &outmsg))
          fatal("LLVM link failed: %s", outmsg);
-
-      n_linked_bc++;
    }
 }
 
@@ -318,7 +310,6 @@ static void link_exec(void)
       fatal_errno("fork");
 #endif  // __CYGWIN__
 
-   n_linked_bc = 0;
    n_linked = 0;
 }
 
@@ -402,7 +393,25 @@ static void link_native(tree_t top)
 #endif
 }
 
-static void link_opt(tree_t top, const char *input)
+static void link_write_module(tree_t top)
+{
+   ident_t product;
+   if (tree_kind(top) == T_ELAB)
+      product = link_elab_final(top);
+   else
+      product = tree_ident(top);
+
+   char *fname LOCAL = link_product2(lib_work(), product, "", "bc");
+
+   FILE *f = fopen(fname, "w");
+   if (f == NULL)
+      fatal_errno("%s", fname);
+   else if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+      fatal("error writing LLVM bitcode");
+   fclose(f);
+}
+
+static void link_opt(tree_t top)
 {
    LLVMPassManagerRef pm = LLVMCreatePassManager();
 
@@ -461,33 +470,6 @@ static void link_opt(tree_t top, const char *input)
 
    LLVMRunPassManager(pm, module);
    LLVMDisposePassManager(pm);
-
-   ident_t product;
-   if (tree_kind(top) == T_ELAB)
-      product = link_elab_final(top);
-   else
-      product = tree_ident(top);
-
-   char *fname LOCAL = link_product2(lib_work(), product, "", "bc");
-
-   FILE *f = fopen(fname, "w");
-   if (f == NULL)
-      fatal_errno("%s", fname);
-   else if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
-      fatal("error writing LLVM bitcode");
-   fclose(f);
-}
-
-static void link_tmp_name(tree_t top, char *buf, size_t len)
-{
-   snprintf(buf, len, "%s/%sXXXXXX", P_tmpdir,
-            istr(ident_runtil(tree_ident(top), '.')));
-
-   int fd;
-   if ((fd = mkstemp(buf)) < 0)
-      fatal_errno("mkstemp");
-   else
-      close(fd);
 }
 
 static FILE *link_deps_file(tree_t top)
@@ -509,33 +491,10 @@ void link_bc(tree_t top)
    link_all_context(top, deps, link_context_bc_fn);
    fclose(deps);
 
-   const bool linked_bc = (n_linked_bc > 0);
+   if (opt_en)
+      link_opt(top);
 
-   char tmp[128] = "";
-   link_tmp_name(top, tmp, sizeof(tmp));
-
-   FILE *f = fopen(tmp, "w");
-   if (f == NULL)
-      fatal_errno("%s", tmp);
-   else if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
-      fatal("error writing LLVM bitcode");
-   fclose(f);
-
-   if (opt_en) {
-      link_opt(top, tmp);
-      if ((*tmp != '\0') && (unlink(tmp) < 0))
-         fatal_errno("unlink");
-   }
-   else if (!linked_bc) {
-      link_args_begin();
-
-      link_arg_f("/bin/mv");
-      link_arg_bc(lib_work(), tree_ident(top));
-      link_output(top, "bc");
-
-      link_exec();
-      link_args_end();
-   }
+   link_write_module(top);
 
    bool native = false;
 
@@ -588,7 +547,7 @@ void link_package(tree_t pack)
 
    LLVMDisposeMemoryBuffer(buf);
 
-   link_opt(pack, input);
+   link_opt(pack);
    link_native(pack);
 }
 
