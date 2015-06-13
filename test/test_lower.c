@@ -2326,6 +2326,23 @@ START_TEST(test_issue181)
 }
 END_TEST
 
+START_TEST(test_issue203)
+{
+   input_from_file(TESTDIR "/lower/issue203.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(e);
+   vcode_select_unit(v0);
+
+   fail_unless(vcode_count_vars() == 1);
+   fail_unless(icmp(vcode_var_name(0), "STD.TEXTIO.OUTPUT"));
+   fail_unless(vcode_var_extern(0));
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2379,6 +2396,7 @@ int main(void)
    tcase_add_test(tc, test_issue164);
    tcase_add_test(tc, test_sigvar);
    tcase_add_test(tc, test_issue181);
+   tcase_add_test(tc, test_issue203);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

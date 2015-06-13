@@ -1379,7 +1379,9 @@ static vcode_var_t lower_get_var(tree_t decl)
    if (is_extern) {
       vcode_state_t state;
       vcode_state_save(&state);
-      vcode_select_unit(vcode_unit_context());
+
+      while (vcode_unit_kind() != VCODE_UNIT_CONTEXT)
+         vcode_select_unit(vcode_unit_context());
 
       type_t type = tree_type(decl);
       var = emit_extern_var(lower_type(type), lower_bounds(type),
