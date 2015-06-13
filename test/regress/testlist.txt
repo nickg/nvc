@@ -292,3 +292,4 @@ issue194        normal
 issue196        normal
 issue201        normal,2000
 issue200        normal
+issue204        normal
