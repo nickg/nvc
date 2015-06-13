@@ -2048,7 +2048,11 @@ static bool sem_check_interface_class(tree_t port)
 
 static void sem_add_protected_arg(tree_t decl)
 {
-   tree_t prot = scope_find(top_scope->prefix);
+   scope_t *pscope = top_scope;
+   while (pscope->prefix == NULL)
+      pscope = pscope->down;
+
+   tree_t prot = scope_find(pscope->prefix);
    assert(prot);
 
    tree_t port = sem_add_port(decl, tree_type(prot), PORT_INOUT, NULL);

@@ -1257,6 +1257,16 @@ START_TEST(test_varinit)
 }
 END_TEST
 
+START_TEST(test_issue201)
+{
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/sem/issue201.vhd");
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1319,6 +1329,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue173);
    tcase_add_test(tc_core, test_issue174);
    tcase_add_test(tc_core, test_varinit);
+   tcase_add_test(tc_core, test_issue201);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
