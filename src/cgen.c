@@ -3497,5 +3497,6 @@ void cgen(tree_t top)
    free(fname);
 
    LLVMDisposeBuilder(builder);
-   LLVMDisposeModule(module);
+
+   tree_add_attr_ptr(top, llvm_i, module);
 }

@@ -178,6 +178,7 @@ GLOBAL ident_t last_value_i;
 GLOBAL ident_t builtin_i;
 GLOBAL ident_t postponed_i;
 GLOBAL ident_t work_i;
+GLOBAL ident_t llvm_i;
 
 void intern_strings();
 

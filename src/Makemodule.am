@@ -14,7 +14,6 @@ lib_libnvc_a_SOURCES = \
 	src/simp.c \
 	src/dump.c \
 	src/opt.c \
-	src/link.c \
 	src/eval.c \
 	src/common.c \
 	src/fbuf.c \
@@ -26,7 +25,7 @@ lib_libnvc_a_SOURCES = \
 	src/lower.c \
 	src/vcode.c
 
-lib_libcgen_a_SOURCES = src/cgen.c
+lib_libcgen_a_SOURCES = src/cgen.c src/link.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
 
 bin_nvc_SOURCES = src/nvc.c

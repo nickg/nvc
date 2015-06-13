@@ -737,4 +737,5 @@ void intern_strings(void)
    last_value_i     = ident_new("last_value");
    postponed_i      = ident_new("postponed");
    work_i           = ident_new("WORK");
+   llvm_i           = ident_new("llvm");
 }

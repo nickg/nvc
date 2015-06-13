@@ -15,13 +15,11 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
-#define _GNU_SOURCE
-
 #include "util.h"
 #include "phase.h"
 #include "tree.h"
+#include "common.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -35,14 +33,23 @@
 #include <process.h>
 #endif
 
+#include <llvm-c/Core.h>
+#include <llvm-c/Linker.h>
+#include <llvm-c/BitReader.h>
+#include <llvm-c/BitWriter.h>
+
+#undef NDEBUG
+#include <assert.h>
+
 #define MAX_ARGS          64
 #define LINK_NATIVE_BYTES (100 * 1024)
 
-static char **args = NULL;
-static int    n_args = 0;
-static tree_t linked[MAX_ARGS];
-static int    n_linked = 0;
-static int    n_linked_bc = 0;
+static char        **args = NULL;
+static int           n_args = 0;
+static tree_t        linked[MAX_ARGS];
+static int           n_linked = 0;
+static int           n_linked_bc = 0;
+static LLVMModuleRef module = NULL;
 
 typedef void (*context_fn_t)(lib_t lib, tree_t unit, FILE *deps);
 
@@ -63,6 +70,15 @@ static void link_arg_f(const char *fmt, ...)
    args[n_args] = xvasprintf(fmt, ap);
    va_end(ap);
    args[++n_args] = NULL;
+}
+
+static char *link_product2(lib_t lib, ident_t name,
+                           const char *prefix, const char *ext)
+{
+   char path[PATH_MAX];
+   lib_realpath(lib, NULL, path, sizeof(path));
+
+   return xasprintf("%s%s/_%s.%s", prefix, path, istr(name), ext);
 }
 
 static void link_product(lib_t lib, ident_t name,
@@ -132,7 +148,27 @@ static bool link_already_have(tree_t unit)
 static void link_context_bc_fn(lib_t lib, tree_t unit, FILE *deps)
 {
    if (!link_find_native_library(lib, unit, deps)) {
-      link_arg_bc(lib, tree_ident(unit));
+      LLVMModuleRef src = tree_attr_ptr(unit, llvm_i);
+      if (src == NULL) {
+         char *path LOCAL = link_product2(lib, tree_ident(unit), "", "bc");
+
+         char *error;
+         LLVMMemoryBufferRef buf;
+         if (LLVMCreateMemoryBufferWithContentsOfFile(path, &buf, &error))
+            fatal("error reading bitcode from %s: %s", path, error);
+
+         if (LLVMParseBitcode(buf, &src, &error))
+            fatal("error parsing bitcode: %s", error);
+
+         LLVMDisposeMemoryBuffer(buf);
+      }
+      else
+         tree_remove_attr(unit, llvm_i);
+
+      char *outmsg;
+      if (LLVMLinkModules(module, src, LLVMLinkerDestroySource, &outmsg))
+         fatal("LLVM link failed: %s", outmsg);
+
       n_linked_bc++;
    }
 }
@@ -402,13 +438,10 @@ static FILE *link_deps_file(tree_t top)
 
 void link_bc(tree_t top)
 {
-   link_args_begin();
-
-   link_arg_f("%s/llvm-link", LLVM_CONFIG_BINDIR);
+   module = tree_attr_ptr(top, llvm_i);
+   assert(module != NULL);
 
    const bool opt_en = opt_get_int("optimise");
-
-   link_arg_bc(lib_work(), tree_ident(top));
 
    FILE *deps = link_deps_file(top);
    link_all_context(top, deps, link_context_bc_fn);
@@ -417,19 +450,14 @@ void link_bc(tree_t top)
    const bool linked_bc = (n_linked_bc > 0);
 
    char tmp[128] = "";
-   if (linked_bc) {
-      link_arg_f("-o");
-      if (opt_en) {
-         link_tmp_name(top, tmp, sizeof(tmp));
-         link_arg_f("%s", tmp);
-      }
-      else
-         link_output(top, "bc");
+   link_tmp_name(top, tmp, sizeof(tmp));
 
-      link_exec();
-   }
-
-   link_args_end();
+   FILE *f = fopen(tmp, "w");
+   if (f == NULL)
+      fatal_errno("%s", tmp);
+   else if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+      fatal("error writing LLVM bitcode");
+   fclose(f);
 
    if (opt_en) {
       link_opt(top, tmp);
