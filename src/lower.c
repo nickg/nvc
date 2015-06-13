@@ -110,6 +110,8 @@ static bool lower_const_bounds(type_t type)
          range_t r = type_dim(type, i);
          if (!lower_is_const(r.left) || !lower_is_const(r.right))
             return false;
+         else if (r.kind != RANGE_TO && r.kind != RANGE_DOWNTO)
+            return false;
       }
 
       type_t elem = type_elem(type);
