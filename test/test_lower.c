@@ -239,6 +239,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
 
       case VCODE_OP_SCHED_EVENT:
       case VCODE_OP_ALLOCA:
+      case VCODE_OP_INDEX_CHECK:
          if (vcode_get_subkind(i) != e->subkind) {
             vcode_dump();
             fail("expected op %d in block %d to have subkind %x but "
@@ -1845,6 +1846,9 @@ START_TEST(test_proc7)
       { VCODE_OP_ALLOCA, .subkind = 1 },
       { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_SELECT },
+      { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
       { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT, .target = 1 }
@@ -2273,6 +2277,9 @@ START_TEST(test_sigvar)
          { VCODE_OP_ALLOCA },
          { VCODE_OP_MEMSET },
          { VCODE_OP_WRAP },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_SELECT },
+         { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
          { VCODE_OP_STORE, .name = "Y" },
          { VCODE_OP_ARRAY_SIZE },
          { VCODE_OP_VEC_LOAD },

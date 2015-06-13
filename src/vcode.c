@@ -1826,9 +1826,9 @@ void vcode_dump(void)
 
          case VCODE_OP_INDEX_CHECK:
             {
-               printf("%s left ", vcode_op_string(op->kind));
+               printf("%s low ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
-               printf(" right ");
+               printf(" high ");
                vcode_dump_reg(op->args.items[1]);
                printf(" in ");
                if (op->args.count == 2)
@@ -1838,6 +1838,7 @@ void vcode_dump(void)
                   printf(" .. ");
                   vcode_dump_reg(op->args.items[3]);
                }
+               printf(" subkind %d", op->subkind);
             }
             break;
 
@@ -4123,46 +4124,53 @@ void emit_array_size(vcode_reg_t llen, vcode_reg_t rlen, uint32_t index)
    op->index = index;
 }
 
-void emit_index_check(vcode_reg_t left, vcode_reg_t right, vcode_type_t bounds,
+static op_t *emit_index_check_null(vcode_reg_t rlow, vcode_reg_t rhigh,
+                                   bounds_kind_t kind, uint32_t index)
+{
+   int64_t rlow_const, rhigh_const;
+   const bool null =
+      vcode_reg_const(rlow, &rlow_const)
+       && vcode_reg_const(rhigh, &rhigh_const)
+      && rhigh_const < rlow_const;
+
+   if (null) {
+      emit_comment("Index check on null range for r%d and r%d", rlow, rhigh);
+      return NULL;
+   }
+
+   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
+   vcode_add_arg(op, rlow);
+   vcode_add_arg(op, rhigh);
+   op->subkind = kind;
+   op->index   = index;
+   op->type    = VCODE_INVALID_TYPE;
+
+   return op;
+}
+
+void emit_index_check(vcode_reg_t rlow, vcode_reg_t rhigh, vcode_type_t bounds,
                       bounds_kind_t kind, uint32_t index)
 {
-   if (vtype_includes(bounds, vcode_reg_data(left)->bounds)
-       && vtype_includes(bounds, vcode_reg_data(right)->bounds)) {
-      emit_comment("Elided index check for r%d and r%d", left, right);
+   if (vtype_includes(bounds, vcode_reg_data(rlow)->bounds)
+       && vtype_includes(bounds, vcode_reg_data(rhigh)->bounds)) {
+      emit_comment("Elided index check for r%d and r%d", rlow, rhigh);
       return;
    }
 
-   int64_t lconst, rconst;
-   if (vcode_reg_const(left, &lconst) && vcode_reg_const(right, &rconst)) {
-      const bool null =
-         (kind == BOUNDS_INDEX_TO && rconst < lconst)
-         || (kind == BOUNDS_INDEX_DOWNTO && lconst < rconst);
-      if (null) {
-         emit_comment("Index check on null range for r%d and r%d", left, right);
-         return;
-      }
-   }
-
-   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
-   vcode_add_arg(op, left);
-   vcode_add_arg(op, right);
-   op->type    = bounds;
-   op->subkind = kind;
-   op->index   = index;
+   op_t *op = emit_index_check_null(rlow, rhigh, kind, index);
+   if (op != NULL)
+      op->type = bounds;
 }
 
-void emit_dynamic_index_check(vcode_reg_t left, vcode_reg_t right,
-                              vcode_reg_t low, vcode_reg_t high,
+void emit_dynamic_index_check(vcode_reg_t rlow, vcode_reg_t rhigh,
+                              vcode_reg_t blow, vcode_reg_t bhigh,
                               bounds_kind_t kind, uint32_t index)
 {
-   op_t *op = vcode_add_op(VCODE_OP_INDEX_CHECK);
-   vcode_add_arg(op, left);
-   vcode_add_arg(op, right);
-   vcode_add_arg(op, low);
-   vcode_add_arg(op, high);
-   op->type    = VCODE_INVALID_TYPE;
-   op->subkind = kind;
-   op->index   = index;
+   op_t *op = emit_index_check_null(rlow, rhigh, kind, index);
+   if (op != NULL) {
+      vcode_add_arg(op, blow);
+      vcode_add_arg(op, bhigh);
+   }
 }
 
 vcode_reg_t emit_bit_shift(bit_shift_kind_t kind, vcode_reg_t data,

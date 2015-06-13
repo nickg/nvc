@@ -381,23 +381,31 @@ static void bounds_check_decl(tree_t t)
 
          range_t bounds = type_dim(cons, 0);
 
+         // Only check here if range can be determined to be non-null
+
          int64_t dim_left, bounds_left;
-         if (folded_int(dim.left, &dim_left)
-             && folded_int(bounds.left, &bounds_left)) {
+         int64_t dim_right, bounds_right;
+
+         const bool is_static =
+            folded_int(dim.left, &dim_left)
+            && folded_int(bounds.left, &bounds_left)
+            && folded_int(dim.right, &dim_right)
+            && folded_int(bounds.right, &bounds_right);
+
+         const bool is_null =
+            (dim.kind == RANGE_TO && dim_left > dim_right)
+            || (dim.kind == RANGE_DOWNTO && dim_left < dim_right);
+
+         if (is_static && !is_null) {
             if (dim_left < bounds_left)
                bounds_error(dim.left, "left index %"PRIi64" violates "
                             "constraint %s", dim_left, type_pp(cons));
-         }
 
-         int64_t dim_right, bounds_right;
-         if (folded_int(dim.right, &dim_right)
-             && folded_int(bounds.right, &bounds_right)) {
             if (dim_right > bounds_right)
                bounds_error(dim.right, "right index %"PRIi64" violates "
                             "constraint %s", dim_right, type_pp(cons));
          }
       }
-
    }
 }
 

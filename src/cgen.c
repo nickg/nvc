@@ -2180,14 +2180,10 @@ static void cgen_op_index_check(int op, cgen_ctx_t *ctx)
       max = LLVMBuildZExt(builder, cgen_get_arg(op, 3, ctx), int32, "");
    }
 
-   LLVMValueRef left  = cgen_get_arg(op, 0, ctx);
-   LLVMValueRef right = cgen_get_arg(op, 1, ctx);
+   LLVMValueRef low  = cgen_get_arg(op, 0, ctx);
+   LLVMValueRef high = cgen_get_arg(op, 1, ctx);
 
-   LLVMValueRef null = NULL;
-   if (vcode_get_subkind(op) == BOUNDS_INDEX_TO)
-      null = LLVMBuildICmp(builder, LLVMIntSLT, right, left, "null");
-   else
-      null = LLVMBuildICmp(builder, LLVMIntSLT, left, right, "null");
+   LLVMValueRef null = LLVMBuildICmp(builder, LLVMIntSLT, high, low, "null");
 
    LLVMValueRef ll_mod_name =
       LLVMBuildPointerCast(builder, mod_name, llvm_void_ptr(), "");

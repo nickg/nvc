@@ -3737,35 +3737,39 @@ static void lower_check_indexes(type_t type, vcode_reg_t array, tree_t hint)
       vcode_reg_t left_reg  = lower_array_left(type, i, array);
       vcode_reg_t right_reg = lower_array_right(type, i, array);
 
-      uint32_t index_left  = tree_index(hint);
-      uint32_t index_right = index_left;
-      if (!type_is_unconstrained(type)) {
-         range_t rdim = type_dim(type, i);
-         index_left = tree_index(rdim.left);
-         index_right = tree_index(rdim.right);
-      }
-
       if (type_is_enum(index))
          emit_index_check(left_reg, right_reg, vbounds,
-                          BOUNDS_INDEX_TO, index_right);
+                          BOUNDS_INDEX_TO, tree_index(hint));
       else {
          range_t rindex = type_dim(index, 0);
+         bounds_kind_t bkind  = rindex.kind == RANGE_TO
+            ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO;
+
+         vcode_reg_t rlow_reg, rhigh_reg;
+         if (lower_const_bounds(type)) {
+            range_t r = type_dim(type, i);
+            rlow_reg  = r.kind == RANGE_TO ? left_reg : right_reg;
+            rhigh_reg = r.kind == RANGE_TO ? right_reg : left_reg;
+         }
+         else {
+            vcode_reg_t dir_reg = lower_array_dir(type, i, array);
+            rlow_reg  = emit_select(dir_reg, right_reg, left_reg);
+            rhigh_reg = emit_select(dir_reg, left_reg, right_reg);
+         }
 
          if (lower_is_const(rindex.left) && lower_is_const(rindex.right)) {
-            emit_index_check(left_reg, right_reg, vbounds,
-                             BOUNDS_INDEX_TO, index_left);
+            emit_index_check(rlow_reg, rhigh_reg, vbounds,
+                             bkind, tree_index(hint));
          }
          else {
             vcode_reg_t bleft  = lower_reify_expr(rindex.left);
             vcode_reg_t bright = lower_reify_expr(rindex.right);
-            bounds_kind_t bkind  = rindex.kind == RANGE_TO
-               ? BOUNDS_INDEX_TO : BOUNDS_INDEX_DOWNTO;
 
             vcode_reg_t bmin = bkind == BOUNDS_INDEX_TO ? bleft : bright;
             vcode_reg_t bmax = bkind == BOUNDS_INDEX_TO ? bright : bleft;
 
-            emit_dynamic_index_check(left_reg, right_reg, bmin, bmax,
-                                     bkind, index_left);
+            emit_dynamic_index_check(rlow_reg, rhigh_reg, bmin, bmax,
+                                     bkind, tree_index(hint));
          }
       }
    }

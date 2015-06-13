@@ -162,6 +162,20 @@ START_TEST(test_issue150)
 }
 END_TEST
 
+START_TEST(test_issue200)
+{
+   input_from_file(TESTDIR "/bounds/issue200.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("bounds");
@@ -173,6 +187,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue54);
    tcase_add_test(tc_core, test_issue99);
    tcase_add_test(tc_core, test_issue150);
+   tcase_add_test(tc_core, test_issue200);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
