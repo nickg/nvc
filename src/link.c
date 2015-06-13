@@ -37,6 +37,9 @@
 #include <llvm-c/Linker.h>
 #include <llvm-c/BitReader.h>
 #include <llvm-c/BitWriter.h>
+#include <llvm-c/Transforms/Scalar.h>
+#include <llvm-c/Transforms/IPO.h>
+#include <llvm-c/Transforms/Vectorize.h>
 
 #undef NDEBUG
 #include <assert.h>
@@ -401,19 +404,78 @@ static void link_native(tree_t top)
 
 static void link_opt(tree_t top, const char *input)
 {
-   link_args_begin();
+   LLVMPassManagerRef pm = LLVMCreatePassManager();
 
-   link_arg_f("%s/opt", LLVM_CONFIG_BINDIR);
-   link_arg_f("-O2");
-   link_arg_f("-o");
-   link_output(top, "bc");
-   if (*input == '\0')
-      link_arg_bc(lib_work(), tree_ident(top));
+   // Basic cleanup optimisations
+   LLVMAddPromoteMemoryToRegisterPass(pm);
+   LLVMAddGVNPass(pm);
+   LLVMAddConstantPropagationPass(pm);
+
+   // Optimisations from LLVM opt -O2
+   LLVMAddBasicAliasAnalysisPass(pm);
+   LLVMAddTypeBasedAliasAnalysisPass(pm);
+   LLVMAddSCCPPass(pm);
+   LLVMAddGlobalOptimizerPass(pm);
+   LLVMAddDeadArgEliminationPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddCFGSimplificationPass(pm);
+   LLVMAddPruneEHPass(pm);
+   LLVMAddFunctionInliningPass(pm);
+   LLVMAddFunctionAttrsPass(pm);
+   LLVMAddArgumentPromotionPass(pm);
+   LLVMAddEarlyCSEPass(pm);
+   LLVMAddJumpThreadingPass(pm);
+   LLVMAddCorrelatedValuePropagationPass(pm);
+   LLVMAddCFGSimplificationPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddTailCallEliminationPass(pm);
+   LLVMAddCFGSimplificationPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddReassociatePass(pm);
+   LLVMAddLoopRotatePass(pm);
+   LLVMAddLoopUnswitchPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddIndVarSimplifyPass(pm);
+   LLVMAddLoopIdiomPass(pm);
+   LLVMAddLoopDeletionPass(pm);
+   LLVMAddLoopUnrollPass(pm);
+   LLVMAddGVNPass(pm);
+   LLVMAddMemCpyOptPass(pm);
+   LLVMAddSCCPPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddJumpThreadingPass(pm);
+   LLVMAddCorrelatedValuePropagationPass(pm);
+   LLVMAddSLPVectorizePass(pm);
+   LLVMAddAggressiveDCEPass(pm);
+   LLVMAddCFGSimplificationPass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddLoopVectorizePass(pm);
+   LLVMAddInstructionCombiningPass(pm);
+   LLVMAddCFGSimplificationPass(pm);
+   LLVMAddLoopUnrollPass(pm);
+   LLVMAddStripDeadPrototypesPass(pm);
+   LLVMAddGlobalDCEPass(pm);
+   LLVMAddConstantMergePass(pm);
+
+   LLVMAddVerifierPass(pm);
+
+   LLVMRunPassManager(pm, module);
+   LLVMDisposePassManager(pm);
+
+   ident_t product;
+   if (tree_kind(top) == T_ELAB)
+      product = link_elab_final(top);
    else
-      link_arg_f("%s", input);
+      product = tree_ident(top);
 
-   link_exec();
-   link_args_end();
+   char *fname LOCAL = link_product2(lib_work(), product, "", "bc");
+
+   FILE *f = fopen(fname, "w");
+   if (f == NULL)
+      fatal_errno("%s", fname);
+   else if (LLVMWriteBitcodeToFD(module, fileno(f), 0, 0) != 0)
+      fatal("error writing LLVM bitcode");
+   fclose(f);
 }
 
 static void link_tmp_name(tree_t top, char *buf, size_t len)
@@ -511,11 +573,20 @@ void link_bc(tree_t top)
 
 void link_package(tree_t pack)
 {
-   char *name = xasprintf("_%s.bc", istr(tree_ident(pack)));
+   char *name LOCAL = xasprintf("_%s.bc", istr(tree_ident(pack)));
 
    char input[PATH_MAX];
    lib_realpath(lib_work(), name, input, sizeof(input));
-   free(name);
+
+   char *error;
+   LLVMMemoryBufferRef buf;
+   if (LLVMCreateMemoryBufferWithContentsOfFile(input, &buf, &error))
+      fatal("error reading bitcode from %s: %s", input, error);
+
+   if (LLVMParseBitcode(buf, &module, &error))
+      fatal("error parsing bitcode: %s", error);
+
+   LLVMDisposeMemoryBuffer(buf);
 
    link_opt(pack, input);
    link_native(pack);
