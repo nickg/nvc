@@ -183,7 +183,7 @@ static int analyse(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static void elab_verbose(bool verbose, const char *fmt, ...)
@@ -319,19 +319,19 @@ static int elaborate(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static int codegen(int argc, char **argv)
 {
    static struct option long_options[] = {
-      {0, 0, 0, 0}
+      { 0, 0, 0, 0 }
    };
 
+   const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
-   optind = 1;
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -343,14 +343,12 @@ static int codegen(int argc, char **argv)
       }
    }
 
-   if (optind == argc)
-      fatal("missing top-level unit name");
+   set_top_level(argv, next_cmd);
 
-   ident_t unit_i = to_unit_name(argv[optind]);
-   tree_t pack = lib_get(lib_work(), unit_i);
+   tree_t pack = lib_get(lib_work(), top_level);
    if (pack == NULL)
       fatal("cannot find unit %s in library %s",
-            istr(unit_i), istr(lib_name(lib_work())));
+            istr(top_level), istr(lib_name(lib_work())));
 
    if (tree_kind(pack) != T_PACKAGE)
       fatal("this command can only be used with packages");
@@ -358,12 +356,15 @@ static int codegen(int argc, char **argv)
    if (pack_needs_cgen(pack))
       link_package(pack);
 
-   ident_t body_i = ident_prefix(unit_i, ident_new("body"), '-');
+   ident_t body_i = ident_prefix(top_level, ident_new("body"), '-');
    tree_t body = lib_get(lib_work(), body_i);
    if (body != NULL)
       link_package(body);
 
-   return EXIT_SUCCESS;
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static uint64_t parse_time(const char *str)
@@ -556,7 +557,7 @@ static int run(int argc, char **argv)
    argc -= next_cmd - 1;
    argv += next_cmd - 1;
 
-   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static int make_cmd(int argc, char **argv)
@@ -568,10 +569,10 @@ static int make_cmd(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
+   const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
-   optind = 1;
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -592,12 +593,12 @@ static int make_cmd(int argc, char **argv)
       }
    }
 
-   const int count = argc - optind;
+   const int count = next_cmd - optind;
    tree_t *targets = xmalloc(count * sizeof(tree_t));
 
    lib_t work = lib_work();
 
-   for (int i = optind; i < argc; i++) {
+   for (int i = optind; i < next_cmd; i++) {
       ident_t name = to_unit_name(argv[i]);
       ident_t elab = ident_prefix(name, ident_new("elab"), '.');
       if ((targets[i - optind] = lib_get(work, elab)) == NULL) {
@@ -609,7 +610,10 @@ static int make_cmd(int argc, char **argv)
 
    make(targets, count, stdout);
 
-   return EXIT_SUCCESS;
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static int dump_cmd(int argc, char **argv)
@@ -621,10 +625,10 @@ static int dump_cmd(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
+   const int next_cmd = scan_cmd(2, argc, argv);
    bool add_elab = false, add_body = false, nets = false;
    int c, index = 0;
    const char *spec = "eb";
-   optind = 1;
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -647,10 +651,10 @@ static int dump_cmd(int argc, char **argv)
       }
    }
 
-   if (optind == argc)
+   if (optind == next_cmd)
       fatal("missing unit name");
 
-   for (int i = optind; i < argc; i++) {
+   for (int i = optind; i < next_cmd; i++) {
       ident_t name = to_unit_name(argv[i]);
       if (add_elab)
          name = ident_prefix(name, ident_new("elab"), '.');
@@ -662,7 +666,10 @@ static int dump_cmd(int argc, char **argv)
       (nets ? dump_nets : dump)(top);
    }
 
-   return EXIT_SUCCESS;
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
 static void set_default_opts(void)
