@@ -984,7 +984,8 @@ unsigned tree_visit(tree_t t, tree_visit_fn_t fn, void *context)
 
    object_visit_ctx_t ctx = {
       .count      = 0,
-      .fn         = fn,
+      .postorder  = fn,
+      .preorder   = NULL,
       .context    = context,
       .kind       = T_LAST_TREE_KIND,
       .generation = object_next_generation(),
@@ -1003,7 +1004,8 @@ unsigned tree_visit_only(tree_t t, tree_visit_fn_t fn,
 
    object_visit_ctx_t ctx = {
       .count      = 0,
-      .fn         = fn,
+      .postorder  = fn,
+      .preorder   = NULL,
       .context    = context,
       .kind       = kind,
       .generation = object_next_generation(),
@@ -1043,6 +1045,11 @@ tree_t tree_read(tree_rd_ctx_t ctx)
 tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *fname)
 {
    return (tree_rd_ctx_t)object_read_begin(f, fname);
+}
+
+tree_rd_ctx_t tree_read_recover(tree_t t, const char *name)
+{
+   return (tree_rd_ctx_t)object_read_recover(&(t->object), name);
 }
 
 void tree_read_end(tree_rd_ctx_t ctx)

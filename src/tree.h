@@ -322,6 +322,7 @@ void tree_write_end(tree_wr_ctx_t ctx);
 fbuf_t *tree_write_file(tree_wr_ctx_t ctx);
 
 tree_rd_ctx_t tree_read_begin(fbuf_t *f, const char *name);
+tree_rd_ctx_t tree_read_recover(tree_t t, const char *name);
 tree_t tree_read(tree_rd_ctx_t ctx);
 void tree_read_end(tree_rd_ctx_t ctx);
 fbuf_t *tree_read_file(tree_rd_ctx_t ctx);

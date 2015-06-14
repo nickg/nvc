@@ -198,7 +198,8 @@ typedef struct {
 
 typedef struct {
    unsigned         count;
-   tree_visit_fn_t  fn;
+   tree_visit_fn_t  preorder;
+   tree_visit_fn_t  postorder;
    void            *context;
    tree_kind_t      kind;
    unsigned         generation;
@@ -264,6 +265,7 @@ void object_write_end(object_wr_ctx_t *ctx);
 fbuf_t *object_write_file(object_wr_ctx_t *ctx);
 
 object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname);
+object_rd_ctx_t *object_read_recover(object_t *object, const char *fname);
 void object_read_end(object_rd_ctx_t *ctx);
 fbuf_t *object_read_file(object_rd_ctx_t *ctx);
 object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index);

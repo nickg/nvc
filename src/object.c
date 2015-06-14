@@ -265,7 +265,8 @@ void object_gc(void)
       if (top_level) {
          object_visit_ctx_t ctx = {
             .count      = 0,
-            .fn         = NULL,
+            .postorder  = NULL,
+            .preorder   = NULL,
             .context    = NULL,
             .kind       = T_LAST_TREE_KIND,
             .generation = next_generation++,
@@ -308,6 +309,13 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
       return;
 
    object->generation = ctx->generation;
+
+   const bool visit =
+      (object->tag == OBJECT_TAG_TREE && object->kind == ctx->kind)
+      || ctx->kind == T_LAST_TREE_KIND;
+
+   if (visit && ctx->preorder != NULL)
+      (*ctx->preorder)((tree_t)object, ctx->context);
 
    const imask_t deep_mask = I_TYPE | I_REF | I_ATTRS;
 
@@ -378,13 +386,9 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
          i++;
    }
 
-   const bool visit =
-      ((object->tag == OBJECT_TAG_TREE) && (object->kind == ctx->kind))
-      || (ctx->kind == T_LAST_TREE_KIND);
-
    if (visit) {
-      if ((object->tag == OBJECT_TAG_TREE) && (ctx->fn != NULL))
-         (*ctx->fn)((tree_t)object, ctx->context);
+      if (ctx->postorder != NULL)
+         (*ctx->postorder)((tree_t)object, ctx->context);
       ctx->count++;
    }
 }
@@ -845,6 +849,44 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
    return object;
 }
 
+static void object_read_recover_fn(object_t *object, object_rd_ctx_t *ctx)
+{
+   object->index = (ctx->n_objects)++;
+
+   if (object->index == ctx->store_sz) {
+      ctx->store_sz *= 2;
+      ctx->store = xrealloc(ctx->store, ctx->store_sz * sizeof(object_t *));
+   }
+
+   ctx->store[object->index] = object;
+}
+
+object_rd_ctx_t *object_read_recover(object_t *object, const char *fname)
+{
+   // Create a fake object_rd_ctx_t as if `object' had just be read from disk
+
+   object_one_time_init();
+
+   object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
+   ctx->store_sz  = 256;
+   ctx->store     = xcalloc(ctx->store_sz * sizeof(object_t *));
+   ctx->n_objects = 0;
+   ctx->db_fname  = strdup(fname);
+
+   object_visit_ctx_t visit_ctx = {
+      .count      = 0,
+      .preorder   = (tree_visit_fn_t)object_read_recover_fn,
+      .postorder  = NULL,
+      .context    = ctx,
+      .kind       = T_LAST_TREE_KIND,
+      .generation = next_generation++,
+      .deep       = true
+   };
+   object_visit(object, &visit_ctx);
+
+   return ctx;
+}
+
 object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
 {
    object_one_time_init();
@@ -862,21 +904,21 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname)
             "is more recent that the currently selected standard %s",
             fname, standard_text(std), standard_text(standard()));
 
-   object_rd_ctx_t *ctx = xmalloc(sizeof(object_rd_ctx_t));
+   object_rd_ctx_t *ctx = xcalloc(sizeof(object_rd_ctx_t));
    ctx->file      = f;
    ctx->ident_ctx = ident_read_begin(f);
-   ctx->store_sz  = 128;
-   ctx->store     = xmalloc(ctx->store_sz * sizeof(tree_t));
+   ctx->store_sz  = 256;
+   ctx->store     = xmalloc(ctx->store_sz * sizeof(object_t *));
    ctx->n_objects = 0;
    ctx->db_fname  = strdup(fname);
-   memset(ctx->file_names, '\0', sizeof(ctx->file_names));
 
    return ctx;
 }
 
 void object_read_end(object_rd_ctx_t *ctx)
 {
-   ident_read_end(ctx->ident_ctx);
+   if (ctx->ident_ctx != NULL)
+      ident_read_end(ctx->ident_ctx);
    free(ctx->store);
    free(ctx->db_fname);
    free(ctx);

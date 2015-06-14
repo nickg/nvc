@@ -644,6 +644,8 @@ tree_t lib_get_ctx(lib_t lib, ident_t ident, tree_rd_ctx_t *ctx)
 {
    lib_unit_t *lu = lib_get_aux(lib, ident);
    if (lu != NULL) {
+      if (lu->read_ctx == NULL)
+         lu->read_ctx = tree_read_recover(lu->top, istr(ident));
       *ctx = lu->read_ctx;
       return lu->top;
    }
