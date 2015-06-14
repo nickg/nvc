@@ -63,20 +63,16 @@ def std(t)
   end
 end
 
-def analyse(t)
-  run_cmd "#{nvc} #{std t} -a #{TestDir}/regress/#{t[:name]}.vhd"
-end
-
-def elaborate(t)
-  opt = '--disable-opt' unless t[:flags].member? 'opt'
-  opt += ' --cover' if t[:flags].member? 'cover'
+def analyse_elab_run(t)
+  cmd = "#{nvc} #{std t} -a #{TestDir}/regress/#{t[:name]}.vhd"
+  cmd += " -e #{t[:name]} #{native}"
+  cmd += '--disable-opt' unless t[:flags].member? 'opt'
+  cmd += ' --cover' if t[:flags].member? 'cover'
   t[:flags].each do |f|
-    opt += " -#{f}" if f =~ /^g.*=.*$/
+    cmd += " -#{f}" if f =~ /^g.*=.*$/
   end
-  run_cmd "#{nvc} #{std t} -e #{t[:name]} #{opt} #{native}"
-end
+  run_cmd cmd
 
-def run(t)
   cmd = "#{nvc} #{std t} -r"
   t[:flags].each do |f|
     cmd += " --stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
@@ -155,9 +151,7 @@ read_tests.each do |t|
   Dir.chdir t[:name] do
     File.unlink 'out' if File.exists? 'out'
     begin
-      analyse t
-      elaborate t
-      run t
+      analyse_elab_run t
       if check t then
         passed += 1
       else

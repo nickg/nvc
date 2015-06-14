@@ -40,6 +40,10 @@ const char *copy_string =
 const char *version_string =
    PACKAGE_STRING " (llvm " LLVM_VERSION "; tcl " TCL_VERSION ")";
 
+static ident_t top_level = NULL;
+
+static int process_command(int argc, char **argv);
+
 static ident_t to_unit_name(const char *str)
 {
    char *name = strdup(str);
@@ -77,21 +81,37 @@ static unsigned parse_relax(const char *str)
    return mask;
 }
 
+static int scan_cmd(int start, int argc, char **argv)
+{
+   const char *commands[] = {
+      "-a", "-e", "-r", "--codegen", "--dump", "--make"
+   };
+
+   for (int i = start; i < argc; i++) {
+      for (size_t j = 0; j < ARRAY_LEN(commands); j++) {
+         if (strcmp(argv[i], commands[j]) == 0)
+            return i;
+      }
+   }
+
+   return argc;
+}
+
 static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
-      { "dump-llvm",       no_argument,       0, 'd' },
+      { "dump-llvm",       no_argument,       0, 'D' },
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
-      { "relax",           required_argument, 0, 'r' },
+      { "relax",           required_argument, 0, 'R' },
       { 0, 0, 0, 0 }
    };
 
+   const int next_cmd = scan_cmd(2, argc, argv);
    int c, index = 0;
    const char *spec = "";
-   optind = 1;
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -101,7 +121,7 @@ static int analyse(int argc, char **argv)
       case 'b':
          opt_set_int("bootstrap", 1);
          break;
-      case 'd':
+      case 'D':
          opt_set_int("dump-llvm", 1);
          break;
       case 'v':
@@ -112,7 +132,7 @@ static int analyse(int argc, char **argv)
                "--relax=prefer-explict instead");
          opt_set_int("relax", RELAX_PREFER_EXPLICT);
          break;
-      case 'r':
+      case 'R':
          opt_set_int("relax", parse_relax(optarg));
          break;
       default:
@@ -124,7 +144,7 @@ static int analyse(int argc, char **argv)
    tree_t *units LOCAL = xmalloc(sizeof(tree_t) * unit_list_sz);
    int n_units = 0;
 
-   for (int i = optind; i < argc; i++) {
+   for (int i = optind; i < next_cmd; i++) {
       input_from_file(argv[i]);
 
       tree_t unit;
@@ -160,7 +180,10 @@ static int analyse(int argc, char **argv)
       }
    }
 
-   return EXIT_SUCCESS;
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
 }
 
 static void elab_verbose(bool verbose, const char *fmt, ...)
@@ -197,6 +220,16 @@ static void parse_generic(const char *str)
    elab_set_generic(copy, split + 1);
 }
 
+static void set_top_level(char **argv, int next_cmd)
+{
+   if (optind == next_cmd) {
+      if (top_level == NULL)
+         fatal("missing top-level unit name");
+   }
+   else
+      top_level = to_unit_name(argv[optind]);
+}
+
 static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -209,11 +242,11 @@ static int elaborate(int argc, char **argv)
       { 0, 0, 0, 0 }
    };
 
+   const int next_cmd = scan_cmd(2, argc, argv);
    bool verbose = false;
    int c, index = 0;
    const char *spec = "Vg:";
-   optind = 1;
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 'o':
          opt_set_int("optimise", 0);
@@ -246,16 +279,14 @@ static int elaborate(int argc, char **argv)
       }
    }
 
-   if (optind == argc)
-      fatal("missing top-level unit name");
+   set_top_level(argv, next_cmd);
 
    elab_verbose(verbose, "initialising");
 
-   ident_t unit_i = to_unit_name(argv[optind]);
-   tree_t unit = lib_get(lib_work(), unit_i);
+   tree_t unit = lib_get(lib_work(), top_level);
    if (unit == NULL)
       fatal("cannot find unit %s in library %s",
-            istr(unit_i), istr(lib_name(lib_work())));
+            istr(top_level), istr(lib_name(lib_work())));
 
    elab_verbose(verbose, "loading top-level unit");
 
@@ -285,7 +316,10 @@ static int elaborate(int argc, char **argv)
    link_bc(e);
    elab_verbose(verbose, "linking");
 
-   return EXIT_SUCCESS;
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
 }
 
 static int codegen(int argc, char **argv)
@@ -403,10 +437,11 @@ static int run(int argc, char **argv)
    const char *wave_fname = NULL;
    const char *vhpi_plugins = NULL;
 
+   const int next_cmd = scan_cmd(2, argc, argv);
+
    int c, index = 0;
    const char *spec = "bcw::l:";
-   optind = 1;
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -464,17 +499,15 @@ static int run(int argc, char **argv)
       }
    }
 
-   if (optind == argc)
-      fatal("missing top-level unit name");
+   set_top_level(argv, next_cmd);
 
-   ident_t top = to_unit_name(argv[optind]);
-   ident_t ename = ident_prefix(top, ident_new("elab"), '.');
+   ident_t ename = ident_prefix(top_level, ident_new("elab"), '.');
    tree_rd_ctx_t ctx;
    tree_t e = lib_get_ctx(lib_work(), ename, &ctx);
    if (e == NULL)
-      fatal("%s not elaborated", istr(top));
+      fatal("%s not elaborated", istr(top_level));
    else if (tree_kind(e) != T_ELAB)
-      fatal("%s not suitable top level", istr(top));
+      fatal("%s not suitable top level", istr(top_level));
 
    if (wave_fname != NULL) {
       const char *name_map[] = { "LXT", "FST", "VCD" };
@@ -519,7 +552,11 @@ static int run(int argc, char **argv)
 
    rt_end_of_tool(e);
    tree_read_end(ctx);
-   return EXIT_SUCCESS;
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS ;
 }
 
 static int make_cmd(int argc, char **argv)
@@ -783,6 +820,39 @@ static void parse_work_name(char *str, const char **name, const char **path)
    }
 }
 
+static int process_command(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { "dump",    no_argument, 0, 'd' },
+      { "codegen", no_argument, 0, 'c' },
+      { "make",    no_argument, 0, 'm' },
+      { 0, 0, 0, 0 }
+   };
+
+   opterr = 0;
+   optind = 1;
+
+   int index = 0;
+   const char *spec = "aer";
+   switch (getopt_long(MIN(argc, 2), argv, spec, long_options, &index)) {
+   case 'a':
+      return analyse(argc, argv);
+   case 'e':
+      return elaborate(argc, argv);
+   case 'r':
+      return run(argc, argv);
+   case 'd':
+      return dump_cmd(argc, argv);
+   case 'c':
+      return codegen(argc, argv);
+   case 'm':
+      return make_cmd(argc, argv);
+   default:
+      fatal("missing command, try %s --help for usage", PACKAGE);
+      return EXIT_FAILURE;
+   }
+}
+
 int main(int argc, char **argv)
 {
    term_init();
@@ -803,9 +873,6 @@ int main(int argc, char **argv)
       { "help",        no_argument,       0, 'h' },
       { "version",     no_argument,       0, 'v' },
       { "work",        required_argument, 0, 'w' },
-      { "dump",        no_argument,       0, 'd' },
-      { "codegen",     no_argument,       0, 'c' },
-      { "make",        no_argument,       0, 'm' },
       { "std",         required_argument, 0, 's' },
       { "messages",    required_argument, 0, 'M' },
       { "map",         required_argument, 0, 'p' },
@@ -819,9 +886,10 @@ int main(int argc, char **argv)
    const char *work_path = work_name;
    lib_t work = NULL;
 
+   const int next_cmd = scan_cmd(1, argc, argv);
    int c, index = 0;
    const char *spec = "aehrvL:";
-   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+   while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
          // Set a flag
@@ -850,23 +918,12 @@ int main(int argc, char **argv)
       case 'i':
          opt_set_int("ignore-time", 1);
          break;
-      case 'a':
-      case 'e':
-      case 'd':
-      case 'r':
-      case 'c':
-      case 'm':
-         // Subcommand options are parsed later
-         argc -= (optind - 1);
-         argv += (optind - 1);
-         goto getopt_out;
       case '?':
          fatal("unrecognised global option %s", argv[optind - 1]);
       default:
          abort();
       }
    }
- getopt_out:
 
    work = lib_find(work_path, false, false);
    if (work == NULL)
@@ -874,21 +931,8 @@ int main(int argc, char **argv)
 
    lib_set_work(work);
 
-   switch (c) {
-   case 'a':
-      return analyse(argc, argv);
-   case 'e':
-      return elaborate(argc, argv);
-   case 'r':
-      return run(argc, argv);
-   case 'd':
-      return dump_cmd(argc, argv);
-   case 'c':
-      return codegen(argc, argv);
-   case 'm':
-      return make_cmd(argc, argv);
-   default:
-      fatal("missing command, try %s --help for usage", PACKAGE);
-      return EXIT_FAILURE;
-   }
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return process_command(argc, argv);
 }
