@@ -12,6 +12,10 @@ Brief usage example:
     $ nvc -e my_tb
     $ nvc -r my_tb
 
+Or more succinctly, as a single command:
+
+    $ nvc -a my_design.vhd my_tb.vhd -e my_tb -r
+
 The full manual can be read after installing NVC using `man nvc` or
 [online](nvc.1.md).
 

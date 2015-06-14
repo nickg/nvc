@@ -16,9 +16,17 @@ unit; and running the elaborated design.
 
 ## OPTIONS
 
-NVC accepts three kinds of options: global options; a single command option; and
-options specific to the command. Global options must be placed before the command and
-specific options must be placed after the command.
+NVC accepts three kinds of options: global options; commands; and options specific to
+the command. Global options must be placed before the command and specific options
+must be placed after the command.
+
+Commands can be chained together. For example to analyse a file `foo.vhd` and then
+elaborate and run a top-level entity `bar`:
+
+    nvc -a foo.vhd -e bar -r
+
+Note that the _unit_ argument for the `-r` run command is taken from the earlier `-e`
+elaborate command.
 
 ### Commands
 

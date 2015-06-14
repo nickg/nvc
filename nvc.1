@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "May 2015" "" "NVC Manual"
+.TH "NVC" "1" "June 2015" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -21,7 +21,23 @@
 NVC is an implementation of the VHDL language as defined by IEEE standard 1076\-1993 and later revisions\. Simulating a design typically involves three steps: analysing one more more source files into the work library; elaborating a top\-level design unit; and running the elaborated design\.
 .
 .SH "OPTIONS"
-NVC accepts three kinds of options: global options; a single command option; and options specific to the command\. Global options must be placed before the command and specific options must be placed after the command\.
+NVC accepts three kinds of options: global options; commands; and options specific to the command\. Global options must be placed before the command and specific options must be placed after the command\.
+.
+.P
+Commands can be chained together\. For example to analyse a file \fBfoo\.vhd\fR and then elaborate and run a top\-level entity \fBbar\fR:
+.
+.IP "" 4
+.
+.nf
+
+nvc \-a foo\.vhd \-e bar \-r
+.
+.fi
+.
+.IP "" 0
+.
+.P
+Note that the \fIunit\fR argument for the \fB\-r\fR run command is taken from the earlier \fB\-e\fR elaborate command\.
 .
 .SS "Commands"
 .
