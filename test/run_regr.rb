@@ -66,14 +66,18 @@ end
 def analyse_elab_run(t)
   cmd = "#{nvc} #{std t} -a #{TestDir}/regress/#{t[:name]}.vhd"
   cmd += " -e #{t[:name]} #{native}"
-  cmd += '--disable-opt' unless t[:flags].member? 'opt'
+  cmd += ' --disable-opt' unless t[:flags].member? 'opt'
   cmd += ' --cover' if t[:flags].member? 'cover'
   t[:flags].each do |f|
     cmd += " -#{f}" if f =~ /^g.*=.*$/
   end
-  run_cmd cmd
 
-  cmd = "#{nvc} #{std t} -r"
+  if t[:flags].member?('fail') then
+    run_cmd cmd
+    cmd = "#{nvc} #{std t}"
+  end
+
+  cmd += ' -r'
   t[:flags].each do |f|
     cmd += " --stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
     cmd += " --load=#{BuildDir}/lib/#{t[:name]}.so" if f == 'vhpi'
