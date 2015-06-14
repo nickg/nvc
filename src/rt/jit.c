@@ -18,6 +18,8 @@
 #include "rt.h"
 #include "util.h"
 #include "lib.h"
+#include "tree.h"
+#include "common.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -166,15 +168,17 @@ void jit_bind_fn(const char *name, void *ptr)
 
 static void jit_init_llvm(const char *path)
 {
-   char *error;
-   LLVMMemoryBufferRef buf;
-   if (LLVMCreateMemoryBufferWithContentsOfFile(path, &buf, &error))
-      fatal("error reading bitcode from %s: %s", path, error);
+   if (module == NULL) {
+      char *error;
+      LLVMMemoryBufferRef buf;
+      if (LLVMCreateMemoryBufferWithContentsOfFile(path, &buf, &error))
+         fatal("error reading bitcode from %s: %s", path, error);
 
-   if (LLVMParseBitcode(buf, &module, &error))
-      fatal("error parsing bitcode: %s", error);
+      if (LLVMParseBitcode(buf, &module, &error))
+         fatal("error parsing bitcode: %s", error);
 
-   LLVMDisposeMemoryBuffer(buf);
+      LLVMDisposeMemoryBuffer(buf);
+   }
 
    LLVMInitializeNativeTarget();
 #ifdef LLVM_HAS_MCJIT
@@ -191,16 +195,16 @@ static void jit_init_llvm(const char *path)
    LLVMInitializeNativeTarget();
    LLVMLinkInJIT();
 
+   char *error;
    if (LLVMCreateExecutionEngineForModule(&exec_engine, module, &error))
       fatal("error creating execution engine: %s", error);
 #endif
 }
 
-static void jit_load_deps(ident_t top)
+static void jit_load_deps(tree_t top)
 {
-   char *deps_name = xasprintf("_%s.deps.txt", istr(top));
+   char *deps_name LOCAL = xasprintf("_%s.deps.txt", istr(tree_ident(top)));
    FILE *deps = lib_fopen(lib_work(), deps_name, "r");
-   free(deps_name);
    if (deps != NULL) {
       char line[PATH_MAX];
       while (!feof(deps) && (fgets(line, sizeof(line), deps) != NULL)) {
@@ -231,9 +235,9 @@ static time_t jit_mod_time(const char *path)
    return st.st_mtime;
 }
 
-void jit_init(ident_t top)
+void jit_init(tree_t top)
 {
-   ident_t orig = ident_strip(top, ident_new(".elab"));
+   ident_t orig = ident_strip(tree_ident(top), ident_new(".elab"));
    ident_t final = ident_prefix(orig, ident_new("final"), '.');
 
    char *bc_fname = xasprintf("_%s.bc", istr(final));
@@ -250,10 +254,20 @@ void jit_init(ident_t top)
 
    using_jit = (jit_mod_time(bc_path) > jit_mod_time(so_path));
 
+   module = tree_attr_ptr(top, llvm_i);
+
    if (using_jit)
       jit_init_llvm(bc_path);
-   else
+   else {
       jit_init_native(so_path);
+
+      if (module != NULL) {
+         // Free LLVM module as we no longer need it
+         LLVMDisposeModule(module);
+         tree_remove_attr(top, llvm_i);
+         module = NULL;
+      }
+   }
 }
 
 void jit_shutdown(void)

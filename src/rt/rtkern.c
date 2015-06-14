@@ -2189,7 +2189,7 @@ void rt_start_of_tool(tree_t top, tree_rd_ctx_t ctx)
 {
    tree_rd_ctx = ctx;
 
-   jit_init(tree_ident(top));
+   jit_init(top);
 
    struct sigaction sa;
    sa.sa_sigaction = (void*)rt_interrupt;

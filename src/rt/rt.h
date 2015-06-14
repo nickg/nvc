@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2015  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -110,7 +110,7 @@ uint64_t rt_now(unsigned *deltas);
 void rt_stop(void);
 void rt_set_exit_severity(rt_severity_t severity);
 
-void jit_init(ident_t top);
+void jit_init(tree_t top);
 void jit_shutdown(void);
 void *jit_fun_ptr(const char *name, bool required);
 void *jit_var_ptr(const char *name, bool required);
