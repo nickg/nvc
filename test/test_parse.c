@@ -2230,6 +2230,29 @@ START_TEST(test_empty)
 }
 END_TEST
 
+START_TEST(test_issue205)
+{
+   input_from_file(TESTDIR "/parse/issue205.vhd");
+
+   tree_t e = parse();
+   fail_if(e == NULL);
+   fail_unless(tree_kind(e) == T_ENTITY);
+
+   tree_t a = parse();
+   fail_if(a == NULL);
+   fail_unless(tree_kind(a) == T_ARCH);
+
+   tree_t s = tree_message(tree_stmt(tree_stmt(a, 0), 0));
+   fail_unless(tree_kind(s) == T_LITERAL);
+   fail_unless(tree_chars(s) == 2);
+   fail_unless(tree_ident(tree_char(s, 0)) == ident_new("'\"'"));
+   fail_unless(tree_ident(tree_char(s, 1)) == ident_new("'\"'"));
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2267,6 +2290,7 @@ int main(void)
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
    tcase_add_test(tc_core, test_empty);
+   tcase_add_test(tc_core, test_issue205);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

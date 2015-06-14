@@ -651,7 +651,6 @@ type_t index_type_of(type_t type, int dim)
 
 tree_t str_to_literal(const char *start, const char *end, type_t type)
 {
-
    tree_t t = tree_new(T_LITERAL);
    tree_set_subkind(t, L_STRING);
 
@@ -662,11 +661,15 @@ tree_t str_to_literal(const char *start, const char *end, type_t type)
    }
 
    char last = '\0';
-   for (const char *p = start; *p != '\0' && p != end; last = *p++) {
+   for (const char *p = start; *p != '\0' && p != end; p++) {
       if (*p == -127)
          continue;
-      else if (*p == '"' && last == '"')
+      else if (*p == '"' && last == '"') {
+         last = '\0';
          continue;
+      }
+      else
+         last = *p;
 
       const char ch[] = { '\'', *p, '\'', '\0' };
       ident_t id = ident_new(ch);
