@@ -176,6 +176,26 @@ START_TEST(test_issue200)
 }
 END_TEST
 
+START_TEST(test_issue208)
+{
+   const error_t expect[] = {
+      { 20, "case choices do not cover the following values of " },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/bounds/issue208.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("bounds");
@@ -188,6 +208,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue99);
    tcase_add_test(tc_core, test_issue150);
    tcase_add_test(tc_core, test_issue200);
+   tcase_add_test(tc_core, test_issue208);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

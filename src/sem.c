@@ -6094,10 +6094,17 @@ static bool sem_check_for(tree_t t)
       return false;
    tree_set_range(t, r);
 
+   type_t base = tree_type(r.left);
+
+   type_t sub = type_new(T_SUBTYPE);
+   type_set_ident(sub, type_ident(base));
+   type_set_base(sub, base);
+   type_add_dim(sub, r);
+
    tree_t idecl = tree_new(T_VAR_DECL);
    tree_set_ident(idecl, tree_ident2(t));
    tree_set_loc(idecl, tree_loc(t));
-   tree_set_type(idecl, tree_type(r.left));
+   tree_set_type(idecl, sub);
 
    tree_t name = NULL;
    if (is_range_expr && tree_kind((name = tree_name(r.left))) == T_REF) {
