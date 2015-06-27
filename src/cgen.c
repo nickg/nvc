@@ -2299,6 +2299,20 @@ static void cgen_op_cover_cond(int op, cgen_ctx_t *ctx)
    LLVMBuildStore(builder, mask1, mask_ptr);
 }
 
+static void cgen_op_heap_save(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] = LLVMBuildLoad(builder, cur_ptr, cgen_reg_name(result));
+}
+
+static void cgen_op_heap_restore(int op, cgen_ctx_t *ctx)
+{
+   LLVMValueRef cur_ptr = LLVMGetNamedGlobal(module, "_tmp_alloc");
+   LLVMBuildStore(builder, cgen_get_arg(op, 0, ctx), cur_ptr);
+}
+
 static void cgen_op(int i, cgen_ctx_t *ctx)
 {
    const vcode_op_t op = vcode_get_op(i);
@@ -2550,6 +2564,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_UARRAY_LEN:
       cgen_op_uarray_len(i, ctx);
+      break;
+   case VCODE_OP_HEAP_SAVE:
+      cgen_op_heap_save(i, ctx);
+      break;
+   case VCODE_OP_HEAP_RESTORE:
+      cgen_op_heap_restore(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

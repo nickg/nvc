@@ -65,6 +65,7 @@ struct case_state {
 };
 
 static const char *verbose = NULL;
+static bool tmp_alloc_used = false;
 
 static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx);
 static vcode_reg_t lower_reify_expr(tree_t expr);
@@ -1297,7 +1298,10 @@ static vcode_reg_t lower_fcall(tree_t fcall, expr_ctx_t ctx)
    for (int i = 0; i < nargs; i++)
       args[i] = lower_subprogram_arg(fcall, i);
 
-   vcode_type_t rtype = lower_func_result_type(tree_ref(fcall));
+   if (!type_is_scalar(type_result(tree_type(decl))))
+      tmp_alloc_used = true;
+
+   vcode_type_t rtype = lower_func_result_type(decl);
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
    if (nest_depth > 0) {
       const int hops = vcode_unit_depth() - nest_depth;
@@ -2578,6 +2582,7 @@ static vcode_reg_t lower_attr_ref(tree_t expr, expr_ctx_t ctx)
    case ATTR_IMAGE:
       {
          tree_t value = tree_value(tree_param(expr, 0));
+         tmp_alloc_used = true;
          return emit_image(lower_param(value, NULL, PORT_IN), tree_index(name));
       }
 
@@ -2686,6 +2691,14 @@ static vcode_reg_t lower_expr(tree_t expr, expr_ctx_t ctx)
    }
 }
 
+static void lower_cleanup_temp_objects(vcode_reg_t saved_heap)
+{
+   if (tmp_alloc_used) {
+      emit_heap_restore(saved_heap);
+      tmp_alloc_used = false;
+   }
+}
+
 static void lower_assert(tree_t stmt)
 {
    const int is_report = tree_attr_int(stmt, ident_new("is_report"), 0);
@@ -2700,6 +2713,7 @@ static void lower_assert(tree_t stmt)
    vcode_block_t exit_bb = VCODE_INVALID_BLOCK;
 
    vcode_reg_t message = VCODE_INVALID_REG, length = VCODE_INVALID_REG;
+   vcode_reg_t saved_heap = VCODE_INVALID_REG;
    if (tree_has_message(stmt)) {
       tree_t m = tree_message(stmt);
 
@@ -2713,6 +2727,8 @@ static void lower_assert(tree_t stmt)
          vcode_select_block(message_bb);
       }
 
+      saved_heap = emit_heap_save();
+
       vcode_reg_t message_wrapped = lower_expr(m, EXPR_RVALUE);
       message = lower_array_data(message_wrapped);
       length  = lower_array_len(tree_type(m), 0, message_wrapped);
@@ -2720,12 +2736,15 @@ static void lower_assert(tree_t stmt)
 
    if (is_report)
       emit_report(message, length, severity, tree_index(stmt));
-   else {
+   else
       emit_assert(value, message, length, severity, tree_index(stmt));
-      if (exit_bb != VCODE_INVALID_BLOCK) {
-         emit_jump(exit_bb);
-         vcode_select_block(exit_bb);
-      }
+
+   if (saved_heap != VCODE_INVALID_REG)
+      lower_cleanup_temp_objects(saved_heap);
+
+   if (exit_bb != VCODE_INVALID_BLOCK) {
+      emit_jump(exit_bb);
+      vcode_select_block(exit_bb);
    }
 }
 
@@ -2974,6 +2993,8 @@ static void lower_var_assign(tree_t stmt)
       tree_kind(target) == T_REF && tree_kind(tree_ref(target)) == T_VAR_DECL;
    const bool is_scalar = type_is_scalar(type);
 
+   const int saved_heap = emit_heap_save();
+
    if (is_scalar || type_is_access(type)) {
       vcode_reg_t value_reg = lower_expr(value, EXPR_RVALUE);
       vcode_reg_t loaded_value = lower_reify(value_reg);
@@ -3013,13 +3034,17 @@ static void lower_var_assign(tree_t stmt)
 
       emit_copy(target_reg, value_reg, VCODE_INVALID_REG);
    }
+
+   lower_cleanup_temp_objects(saved_heap);
 }
 
 static void lower_signal_assign(tree_t stmt)
 {
+   const int saved_heap = emit_heap_save();
+
    vcode_reg_t reject;
    if (tree_has_reject(stmt))
-      reject = lower_expr(tree_reject(stmt), EXPR_RVALUE);
+      reject = lower_reify_expr(tree_reject(stmt));
    else
       reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
 
@@ -3101,20 +3126,28 @@ static void lower_signal_assign(tree_t stmt)
       if (nwaveforms > 1 && tree_has_reject(stmt))
          reject = emit_const(vtype_int(INT64_MIN, INT64_MAX), 0);
    }
+
+   lower_cleanup_temp_objects(saved_heap);
+}
+
+static vcode_reg_t lower_test_expr(tree_t value)
+{
+   const int saved_heap = emit_heap_save();
+   vcode_reg_t test = lower_reify_expr(value);
+   lower_cleanup_temp_objects(saved_heap);
+   lower_cond_coverage(value, test);
+   return test;
 }
 
 static void lower_if(tree_t stmt, loop_stack_t *loops)
 {
-   tree_t value = tree_value(stmt);
-   vcode_reg_t test = lower_reify_expr(value);
+   vcode_reg_t test = lower_test_expr(tree_value(stmt));
 
    const int nelses = tree_else_stmts(stmt);
 
    vcode_block_t btrue = emit_block();
    vcode_block_t bfalse = nelses > 0 ? emit_block() : VCODE_INVALID_BLOCK;
    vcode_block_t bmerge = nelses > 0 ? VCODE_INVALID_BLOCK : emit_block();
-
-   lower_cond_coverage(value, test);
 
    emit_cond(test, btrue, nelses > 0 ? bfalse : bmerge);
 
@@ -3319,9 +3352,7 @@ static void lower_while(tree_t stmt, loop_stack_t *loops)
 
       vcode_select_block(test_bb);
 
-      tree_t value = tree_value(stmt);
-      vcode_reg_t test = lower_reify_expr(value);
-      lower_cond_coverage(value, test);
+      vcode_reg_t test = lower_test_expr(tree_value(stmt));
       emit_cond(test, body_bb, exit_bb);
    }
    else {
@@ -3365,9 +3396,7 @@ static void lower_loop_control(tree_t stmt, loop_stack_t *loops)
    if (tree_has_value(stmt)) {
       vcode_block_t true_bb = emit_block();
 
-      tree_t value = tree_value(stmt);
-      vcode_reg_t result = lower_reify_expr(value);
-      lower_cond_coverage(value, result);
+      vcode_reg_t result = lower_test_expr(tree_value(stmt));
       emit_cond(result, true_bb, false_bb);
 
       vcode_select_block(true_bb);

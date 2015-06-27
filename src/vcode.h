@@ -125,6 +125,8 @@ typedef enum {
    VCODE_OP_COVER_STMT,
    VCODE_OP_COVER_COND,
    VCODE_OP_UARRAY_LEN,
+   VCODE_OP_HEAP_SAVE,
+   VCODE_OP_HEAP_RESTORE,
 } vcode_op_t;
 
 typedef enum {
@@ -402,5 +404,7 @@ void emit_nested_pcall(ident_t func, const vcode_reg_t *args, int nargs,
                        vcode_block_t resume_bb, int hops);
 void emit_cover_stmt(uint32_t tag);
 void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub);
+vcode_reg_t emit_heap_save(void);
+void emit_heap_restore(vcode_reg_t reg);
 
 #endif  // _VCODE_H

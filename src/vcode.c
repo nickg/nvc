@@ -521,6 +521,7 @@ void vcode_opt(void)
             case VCODE_OP_NETS:
             case VCODE_OP_WRAP:
             case VCODE_OP_VEC_LOAD:
+            case VCODE_OP_HEAP_SAVE:
                if (uses[o->result] == -1) {
                   vcode_dump();
                   fatal("defintion of r%d does not dominate all uses",
@@ -861,7 +862,7 @@ const char *vcode_op_string(vcode_op_t op)
       "bit vec op", "const real", "value", "last event", "needs last value",
       "dynamic bounds", "array size", "index check", "bit shift",
       "storage hint", "debug out", "nested pcall", "cover stmt", "cover cond",
-      "uarray len"
+      "uarray len", "heap save", "heap restore"
    };
    if ((unsigned)op >= ARRAY_LEN(strs))
       return "???";
@@ -1887,6 +1888,21 @@ void vcode_dump(void)
             {
                printf("%s %u sub %u ", vcode_op_string(op->kind),
                       op->index, op->subkind);
+               vcode_dump_reg(op->args.items[0]);
+            }
+            break;
+
+         case VCODE_OP_HEAP_SAVE:
+            {
+               col += vcode_dump_reg(op->result);
+               col += printf(" := %s", vcode_op_string(op->kind));
+               vcode_dump_result_type(col, op);
+            }
+            break;
+
+         case VCODE_OP_HEAP_RESTORE:
+            {
+               printf("%s ", vcode_op_string(op->kind));
                vcode_dump_reg(op->args.items[0]);
             }
             break;
@@ -4232,4 +4248,21 @@ void emit_cover_cond(vcode_reg_t test, uint32_t tag, unsigned sub)
    vcode_add_arg(op, test);
    op->index   = tag;
    op->subkind = sub;
+}
+
+vcode_reg_t emit_heap_save(void)
+{
+   op_t *op = vcode_add_op(VCODE_OP_HEAP_SAVE);
+   return (op->result = vcode_add_reg(vtype_offset()));
+}
+
+void emit_heap_restore(vcode_reg_t reg)
+{
+   op_t *op = vcode_add_op(VCODE_OP_HEAP_RESTORE);
+   vcode_add_arg(op, reg);
+
+   VCODE_ASSERT(vcode_reg_kind(reg) == VCODE_TYPE_OFFSET,
+                "saved heap must have offset type");
+   VCODE_ASSERT(vcode_find_definition(reg)->kind == VCODE_OP_HEAP_SAVE,
+                "register for heap restore must come from heap save");
 }
