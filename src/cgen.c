@@ -2690,7 +2690,12 @@ static void cgen_function(LLVMTypeRef display_type)
 
    LLVMAddFunctionAttr(fn, LLVMNoUnwindAttribute);
 
-   if (display_type == NULL && vcode_unit_result() != VCODE_INVALID_TYPE)
+   const bool pure =
+      display_type == NULL
+      && vcode_unit_result() != VCODE_INVALID_TYPE
+      && vcode_unit_pure();
+
+   if (pure)
       LLVMAddFunctionAttr(fn, LLVMReadOnlyAttribute);
 
    cgen_ctx_t ctx = {

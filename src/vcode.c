@@ -131,6 +131,7 @@ struct vcode_unit {
    signal_array_t signals;
    param_array_t  params;
    unsigned       depth;
+   bool           pure;
 };
 
 #define MASK_CONTEXT(x)   ((x) >> 24)
@@ -2335,6 +2336,12 @@ ident_t vcode_unit_name(void)
    return active_unit->name;
 }
 
+bool vcode_unit_pure(void)
+{
+   assert(active_unit != NULL);
+   return active_unit->pure;
+}
+
 int vcode_unit_depth(void)
 {
    assert(active_unit != NULL);
@@ -2377,6 +2384,7 @@ vcode_unit_t emit_function(ident_t name, vcode_unit_t context,
    vu->context = context;
    vu->result  = result;
    vu->depth   = vcode_unit_calc_depth(vu);
+   vu->pure    = true;
 
    active_unit = vu;
    vcode_select_block(emit_block());
@@ -2455,6 +2463,8 @@ void emit_report(vcode_reg_t message, vcode_reg_t length, vcode_reg_t severity,
    vcode_add_arg(op, message);
    vcode_add_arg(op, length);
    op->index = index;
+
+   active_unit->pure = false;
 }
 
 vcode_reg_t emit_cmp(vcode_cmp_t cmp, vcode_reg_t lhs, vcode_reg_t rhs)
@@ -3908,6 +3918,8 @@ void emit_file_write(vcode_reg_t file, vcode_reg_t value, vcode_reg_t length)
 
    VCODE_ASSERT(vtype_is_pointer(vcode_reg_type(file), VCODE_TYPE_FILE),
                 "file write first argument must have file pointer type");
+
+   active_unit->pure = false;
 }
 
 void emit_file_close(vcode_reg_t file)
@@ -3938,6 +3950,8 @@ void emit_file_read(vcode_reg_t file, vcode_reg_t ptr,
    VCODE_ASSERT(outlen == VCODE_INVALID_REG
                 || vtype_kind(vcode_reg_type(outlen)) == VCODE_TYPE_POINTER,
                 "file read outlen argument must have pointer type");
+
+   active_unit->pure = false;
 }
 
 vcode_reg_t emit_null(vcode_type_t type)
