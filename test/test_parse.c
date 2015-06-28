@@ -382,8 +382,7 @@ START_TEST(test_seq)
 
    s = tree_stmt(p, 3);
    fail_unless(tree_kind(s) == T_ASSERT);
-   fail_unless(tree_kind(tree_value(s)) == T_REF);
-   fail_unless(tree_ident(tree_value(s)) == ident_new("FALSE"));
+   fail_if(tree_has_value(s));
    fail_unless(tree_kind(tree_severity(s)) == T_REF);
    fail_unless(tree_ident(tree_severity(s)) == ident_new("NOTE"));
    fail_unless(tree_has_message(s));

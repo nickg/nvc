@@ -4409,10 +4409,6 @@ static tree_t p_report_statement(ident_t label)
 
    consume(tSEMI);
 
-   tree_t false_ref = tree_new(T_REF);
-   tree_set_ident(false_ref, ident_new("FALSE"));
-
-   tree_set_value(t, false_ref);
    tree_add_attr_int(t, ident_new("is_report"), 1);
 
    set_label_and_loc(t, label, CURRENT_LOC);

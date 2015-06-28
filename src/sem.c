@@ -3764,12 +3764,14 @@ static bool sem_check_assert(tree_t t)
    type_t std_string   = sem_std_type("STRING");
    type_t std_severity = sem_std_type("SEVERITY_LEVEL");
 
-   tree_t value    = tree_value(t);
+   tree_t value    = tree_has_value(t) ? tree_value(t) : NULL;
    tree_t severity = tree_severity(t);
    tree_t message  = tree_has_message(t) ? tree_message(t) : NULL;
 
-   if (!sem_check_constrained(value, std_bool))
-      return false;
+   if (value != NULL) {
+      if (!sem_check_constrained(value, std_bool))
+         return false;
+   }
 
    if (!sem_check_constrained(severity, std_severity))
       return false;
@@ -3779,10 +3781,12 @@ static bool sem_check_assert(tree_t t)
          return false;
    }
 
-   if (!type_eq(tree_type(value), std_bool))
-      sem_error(value, "type of assertion expression must "
-                "be %s but is %s", sem_type_str(std_bool),
-                sem_type_str(tree_type(value)));
+   if (value != NULL) {
+      if (!type_eq(tree_type(value), std_bool))
+         sem_error(value, "type of assertion expression must "
+                   "be %s but is %s", sem_type_str(std_bool),
+                   sem_type_str(tree_type(value)));
+   }
 
    if (!type_eq(tree_type(severity), std_severity))
       sem_error(severity, "type of severity must be %s but is %s",

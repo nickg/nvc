@@ -2439,9 +2439,14 @@ vcode_unit_t emit_context(ident_t name)
 void emit_assert(vcode_reg_t value, vcode_reg_t message, vcode_reg_t length,
                  vcode_reg_t severity, uint32_t index)
 {
-   if (vtype_eq(vcode_reg_data(value)->bounds, vtype_int(1, 1))) {
-      emit_comment("Always true assertion on r%d", value);
-      return;
+   int64_t value_const;
+   if (vcode_reg_const(value, &value_const)) {
+      if (value_const == 0)
+         active_unit->pure = false;
+      else {
+         emit_comment("Always true assertion on r%d", value);
+         return;
+      }
    }
 
    op_t *op = vcode_add_op(VCODE_OP_ASSERT);
