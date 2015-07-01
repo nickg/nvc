@@ -188,6 +188,7 @@ static void jit_init_llvm(const char *path)
    struct LLVMMCJITCompilerOptions options;
    LLVMInitializeMCJITCompilerOptions(&options, sizeof(options));
 
+   char *error;
    if (LLVMCreateMCJITCompilerForModule(&exec_engine, module, &options,
                                         sizeof(options), &error))
       fatal("error creating MCJIT compiler: %s", error);
