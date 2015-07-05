@@ -2252,6 +2252,34 @@ START_TEST(test_issue205)
 }
 END_TEST
 
+START_TEST(test_context)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/parse/context.vhd");
+
+   tree_t c1 = parse();
+   fail_if(c1 == NULL);
+   fail_unless(tree_kind(c1) == T_CONTEXT);
+   fail_unless(tree_ident(c1) == ident_new("WIDGET_CONTEXT"));
+   fail_unless(tree_contexts(c1) == 5);
+   fail_unless(tree_kind(tree_context(c1, 0)) == T_LIBRARY);
+
+   tree_t c2 = parse();
+   fail_if(c2 == NULL);
+   fail_unless(tree_kind(c2) == T_CONTEXT);
+   fail_unless(tree_ident(c2) == ident_new("DONGLE_CONTEXT"));
+   fail_unless(tree_contexts(c2) == 2);
+
+   tree_t r = tree_context(c2, 1);
+   fail_unless(tree_kind(r) == T_CTXREF);
+   fail_unless(tree_ident(r) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2290,6 +2318,7 @@ int main(void)
    tcase_add_test(tc_core, test_protected);
    tcase_add_test(tc_core, test_empty);
    tcase_add_test(tc_core, test_issue205);
+   tcase_add_test(tc_core, test_context);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

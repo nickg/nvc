@@ -167,7 +167,7 @@ static const char *token_str(token_t tok)
       "record", "new", "shared", "and", "or", "nand", "nor", "xor", "xnor",
       "=", "/=", "<", "<=", ">", ">=", "+", "-", "&", "**", "/", "sll", "srl",
       "sla", "sra", "rol", "ror", "mod", "rem", "abs", "not", "*", "guarded",
-      "reverse_range", "protected"
+      "reverse_range", "protected", "context"
    };
 
    if ((size_t)tok >= ARRAY_LEN(token_strs))
@@ -706,9 +706,28 @@ static void p_use_clause(tree_t unit, add_func_t addf)
    consume(tSEMI);
 }
 
+static void p_context_reference(tree_t unit)
+{
+   // context selected_name { , selected_name } ;
+
+   BEGIN("context reference");
+
+   consume(tCONTEXT);
+
+   do {
+      tree_t c = tree_new(T_CTXREF);
+      tree_set_ident(c, p_selected_identifier());
+      tree_set_loc(c, CURRENT_LOC);
+
+      tree_add_context(unit, c);
+   } while (optional(tCOMMA));
+
+   consume(tSEMI);
+}
+
 static void p_context_item(tree_t unit)
 {
-   // library_clause | use_clause
+   // library_clause | use_clause | 2008: context_reference
 
    BEGIN("context item");
 
@@ -721,8 +740,12 @@ static void p_context_item(tree_t unit)
       p_use_clause(unit, tree_add_context);
       break;
 
+   case tCONTEXT:
+      p_context_reference(unit);
+      break;
+
    default:
-      expect(tLIBRARY, tUSE);
+      expect(tLIBRARY, tUSE, tCONTEXT);
    }
 }
 
@@ -732,8 +755,12 @@ static void p_context_clause(tree_t unit)
 
    BEGIN("context clause");
 
-   while (scan(tLIBRARY, tUSE))
-      p_context_item(unit);
+   while (scan(tLIBRARY, tUSE, tCONTEXT)) {
+      if (peek() == tCONTEXT && peek_nth(3) == tIS)
+         break;
+      else
+         p_context_item(unit);
+   }
 }
 
 static port_mode_t p_mode(void)
@@ -2530,7 +2557,7 @@ static type_t p_composite_type_definition(void)
 
 static void p_protected_type_declarative_item(type_t type)
 {
-   // subprogram_declaration | [08] subprogram_instantiation_declaration
+   // subprogram_declaration | 2008: subprogram_instantiation_declaration
    //   | attribute_specification | use_clause
 
    BEGIN("protected type declarative item");
@@ -2606,7 +2633,7 @@ static type_t p_type_definition(void)
 {
    // scalar_type_definition | composite_type_definition
    //   | access_type_definition | file_type_definition
-   //   | [00] protected_type_definition
+   //   | 2000: protected_type_definition
 
    BEGIN("type definition");
 
@@ -4088,6 +4115,30 @@ static void p_configuration_declaration(tree_t unit)
    tree_set_loc(unit, CURRENT_LOC);
 }
 
+static void p_context_declaration(tree_t unit)
+{
+   // 2008: context identifier is context_clause end [ context ]
+   //       [ context_simple_name ] ;
+
+   BEGIN("context declaration");
+
+   consume(tCONTEXT);
+
+   tree_change_kind(unit, T_CONTEXT);
+   tree_set_ident(unit, p_identifier());
+
+   consume(tIS);
+
+   p_context_clause(unit);
+
+   consume(tEND);
+   optional(tCONTEXT);
+   p_trailing_label(tree_ident(unit));
+   consume(tSEMI);
+
+   tree_set_loc(unit, CURRENT_LOC);
+}
+
 static void p_primary_unit(tree_t unit)
 {
    // entity_declaration | configuration_declaration | package_declaration
@@ -4105,6 +4156,10 @@ static void p_primary_unit(tree_t unit)
 
    case tCONFIGURATION:
       p_configuration_declaration(unit);
+      break;
+
+   case tCONTEXT:
+      p_context_declaration(unit);
       break;
 
    default:
@@ -5347,6 +5402,7 @@ static void p_library_unit(tree_t unit)
    switch (peek()) {
    case tENTITY:
    case tCONFIGURATION:
+   case tCONTEXT:
       p_primary_unit(unit);
       break;
 
@@ -5362,7 +5418,7 @@ static void p_library_unit(tree_t unit)
       break;
 
    default:
-      expect(tENTITY, tCONFIGURATION, tARCHITECTURE, tPACKAGE);
+      expect(tENTITY, tCONFIGURATION, tARCHITECTURE, tPACKAGE, tCONTEXT);
    }
 }
 

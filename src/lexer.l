@@ -207,6 +207,7 @@ LITERAL       {L}{I}{T}{E}{R}{A}{L}
 GUARDED       {G}{U}{A}{R}{D}{E}{D}
 REVRANGE      {R}{E}{V}{E}{R}{S}{E}_{R}{A}{N}{G}{E}
 PROTECTED     {P}{R}{O}{T}{E}{C}{T}{E}{D}
+CONTEXT       {C}{O}{N}{T}{E}{X}{T}
 
 %%
 
@@ -309,6 +310,7 @@ PROTECTED     {P}{R}{O}{T}{E}{C}{T}{E}{D}
 {GUARDED}       { TOKEN(tGUARDED); }
 {REVRANGE}      { TOKEN(tREVRANGE); }
 {PROTECTED}     { TOKEN_00(tPROTECTED); }
+{CONTEXT}       { TOKEN_08(tCONTEXT); }
 
 "("          { TOKEN(tLPAREN); }
 ")"          { TOKEN(tRPAREN); }

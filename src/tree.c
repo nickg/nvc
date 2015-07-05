@@ -239,7 +239,13 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_IDENT2 | I_DECLS),
 
    // T_PROT_BODY
-   (I_IDENT | I_TYPE | I_DECLS | I_ATTRS)
+   (I_IDENT | I_TYPE | I_DECLS | I_ATTRS),
+
+   // T_CONTEXT
+   (I_CONTEXT | I_IDENT),
+
+   // T_CTXREF
+   (I_IDENT)
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {
@@ -260,7 +266,8 @@ static const char *kind_text_map[T_LAST_TREE_KIND] = {
    "T_CASSERT",      "T_CPCALL",        "T_UNIT_DECL",  "T_NEXT",
    "T_GENVAR",       "T_PARAM",         "T_ASSOC",      "T_USE",
    "T_HIER",         "T_SPEC",          "T_BINDING",    "T_LIBRARY",
-   "T_DESIGN_UNIT",  "T_CONFIG",        "T_PROT_BODY"
+   "T_DESIGN_UNIT",  "T_CONFIG",        "T_PROT_BODY",  "T_CONTEXT",
+   "T_CTXREF"
 };
 
 static const change_allowed_t change_allowed[] = {
@@ -278,6 +285,7 @@ static const change_allowed_t change_allowed[] = {
    { T_DESIGN_UNIT, T_PACK_BODY   },
    { T_DESIGN_UNIT, T_ARCH        },
    { T_DESIGN_UNIT, T_CONFIG      },
+   { T_DESIGN_UNIT, T_CONTEXT     },
    { T_FUNC_DECL,   T_FUNC_BODY   },
    { T_PROC_DECL,   T_PROC_BODY   },
    { T_REF,         T_ARRAY_SLICE },
@@ -323,7 +331,8 @@ object_class_t tree_object = {
    .kind_text_map  = kind_text_map,
    .tag            = OBJECT_TAG_TREE,
    .last_kind      = T_LAST_TREE_KIND,
-   .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY },
+   .gc_roots       = { T_ARCH, T_ENTITY, T_PACKAGE, T_ELAB, T_PACK_BODY,
+                       T_CONTEXT },
    .gc_num_roots   = 5
 };
 
@@ -813,7 +822,8 @@ tree_t tree_context(tree_t t, unsigned n)
 
 void tree_add_context(tree_t t, tree_t ctx)
 {
-   assert((ctx->object.kind == T_USE) || (ctx->object.kind == T_LIBRARY));
+   assert(ctx->object.kind == T_USE || ctx->object.kind == T_LIBRARY
+          || ctx->object.kind == T_CTXREF);
    tree_array_add(&(lookup_item(&tree_object, t, I_CONTEXT)->tree_array), ctx);
 }
 

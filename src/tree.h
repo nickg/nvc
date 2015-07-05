@@ -145,6 +145,8 @@ typedef enum tree_kind {
    T_DESIGN_UNIT,
    T_CONFIG,
    T_PROT_BODY,
+   T_CONTEXT,
+   T_CTXREF,
 
    T_LAST_TREE_KIND
 } tree_kind_t;
