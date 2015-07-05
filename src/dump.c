@@ -486,6 +486,18 @@ static void dump_decl(tree_t t, int indent)
       printf("end protected body;\n");
       return;
 
+   case T_FILE_DECL:
+      printf("file %s : ", istr(tree_ident(t)));
+      dump_type(tree_type(t));
+      if (tree_has_value(t)) {
+         printf(" open ");
+         dump_expr(tree_file_mode(t));
+         printf(" is ");
+         dump_expr(tree_value(t));
+      }
+      printf(";\n");
+      return;
+
    default:
       cannot_dump(t, "decl");
    }
