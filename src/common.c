@@ -722,7 +722,6 @@ void intern_strings(void)
    drives_all_i     = ident_new("drives_all");
    driver_init_i    = ident_new("driver_init");
    static_i         = ident_new("static");
-   never_waits_i    = ident_new("never_waits");
    mangled_i        = ident_new("mangled");
    last_value_i     = ident_new("last_value");
    elide_bounds_i   = ident_new("elide_bounds");
@@ -733,7 +732,6 @@ void intern_strings(void)
    cond_tag_i       = ident_new("cond_tag");
    sub_cond_i       = ident_new("sub_cond");
    impure_i         = ident_new("impure");
-   never_waits_i    = ident_new("never_waits");
    elide_bounds_i   = ident_new("elide_bounds");
    range_var_i      = ident_new("range_var");
    builtin_i        = ident_new("builtin");
@@ -741,4 +739,5 @@ void intern_strings(void)
    postponed_i      = ident_new("postponed");
    work_i           = ident_new("WORK");
    llvm_i           = ident_new("llvm");
+   wait_level_i     = ident_new("wait_level");
 }

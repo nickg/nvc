@@ -61,6 +61,7 @@ struct scope {
    defer_check_t *deferred;
    hash_t        *decls;
    tree_t         subprog;
+   wait_level_t   wait_level;
 
    // For design unit scopes
    ident_t        prefix;
@@ -126,13 +127,14 @@ static loop_stack_t *loop_stack = NULL;
 static void scope_push(ident_t prefix)
 {
    scope_t *s = xmalloc(sizeof(scope_t));
-   s->decls    = hash_new(1024, false);
-   s->prefix   = prefix;
-   s->imported = NULL;
-   s->down     = top_scope;
-   s->subprog  = (top_scope ? top_scope->subprog : NULL) ;
-   s->flags    = (top_scope ? top_scope->flags : 0);
-   s->deferred = NULL;
+   s->decls      = hash_new(1024, false);
+   s->prefix     = prefix;
+   s->imported   = NULL;
+   s->down       = top_scope;
+   s->subprog    = (top_scope ? top_scope->subprog : NULL) ;
+   s->flags      = (top_scope ? top_scope->flags : 0);
+   s->deferred   = NULL;
+   s->wait_level = WAITS_NO;
 
    top_scope = s;
 }
@@ -151,6 +153,9 @@ static void scope_pop(void)
    hash_free(top_scope->decls);
 
    scope_t *s = top_scope;
+   if (s->down != NULL && s->down->subprog == s->subprog)
+      s->down->wait_level |= s->wait_level;
+
    top_scope = s->down;
    free(s);
 }
@@ -2096,7 +2101,7 @@ static bool sem_check_func_ports(tree_t t)
    return true;
 }
 
-static bool sem_check_duplicate(tree_t t, tree_kind_t kind)
+static tree_t sem_check_duplicate(tree_t t, tree_kind_t kind)
 {
    tree_t decl;
    int n = 0;
@@ -2113,7 +2118,7 @@ static bool sem_check_duplicate(tree_t t, tree_kind_t kind)
       }
    } while (decl != NULL);
 
-   return decl != NULL;
+   return decl;
 }
 
 static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
@@ -2257,6 +2262,12 @@ static bool sem_check_proc_body(tree_t t)
       ok = sem_check(tree_decl(t, i)) && ok;
 
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
+
+   tree_add_attr_int(t, wait_level_i, top_scope->wait_level);
+
+   tree_t proto = sem_check_duplicate(t, T_PROC_DECL);
+   if (proto != NULL)
+      tree_add_attr_int(proto, wait_level_i, top_scope->wait_level);
 
    scope_pop();
    return ok;
@@ -2517,6 +2528,10 @@ static bool sem_check_pack_body(tree_t t)
 
    if (!ok)
       return false;
+
+   // Mark the package declaration as dirty in the library so any changes
+   // to declaration attributes are saved
+   lib_put(lib_work(), pack);
 
    tree_set_ident(t, ident_prefix(qual, ident_new("body"), '-'));
    lib_put(lib_work(), t);
@@ -3714,6 +3729,20 @@ static bool sem_check_pcall(tree_t t)
    if (!sem_copy_default_args(t, decl))
       return false;
 
+   const wait_level_t waits = tree_attr_int(decl, wait_level_i, WAITS_MAYBE);
+   if (waits == WAITS_YES)
+      top_scope->wait_level = WAITS_YES;
+   else if (waits == WAITS_MAYBE && top_scope->wait_level == WAITS_NO)
+      top_scope->wait_level = WAITS_MAYBE;
+
+   const bool in_func = top_scope->subprog != NULL
+      && tree_kind(top_scope->subprog) == T_FUNC_BODY;
+
+   if (waits == WAITS_YES && in_func)
+      sem_error(t, "function %s cannot call procedure %s which contains "
+                "a wait statement", istr(tree_ident(top_scope->subprog)),
+                istr(tree_ident(decl)));
+
 #if 0
    printf("pick: %s\n", sem_type_str(tree_type(decl)));
    fmt_loc(stdout, tree_loc(t));
@@ -3752,6 +3781,8 @@ static bool sem_check_wait(tree_t t)
    else if (top_scope->subprog != NULL
             && tree_kind(top_scope->subprog) == T_FUNC_BODY)
       sem_error(t, "wait statement not allowed in function body");
+
+   top_scope->wait_level = WAITS_YES;
 
    return sem_check_sensitivity(t);
 }

@@ -1267,6 +1267,24 @@ START_TEST(test_issue201)
 }
 END_TEST
 
+START_TEST(test_issue176)
+{
+   input_from_file(TESTDIR "/sem/issue176.vhd");
+
+   const error_t expect[] = {
+      { 36, "function FUN cannot call procedure PROC_WAIT_INDIRECT which" },
+      { 37, "function FUN cannot call procedure PROC_WAIT which contains" },
+      { 51, "function FUN2 cannot call procedure WORK.PACK.PROC" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1330,6 +1348,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue174);
    tcase_add_test(tc_core, test_varinit);
    tcase_add_test(tc_core, test_issue201);
+   tcase_add_test(tc_core, test_issue176);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

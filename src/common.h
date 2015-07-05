@@ -63,6 +63,12 @@ typedef tree_t (*tree_formal_t)(tree_t t, unsigned n);
 typedef unsigned (*tree_actuals_t)(tree_t t);
 typedef tree_t (*tree_actual_t)(tree_t t, unsigned n);
 
+typedef enum {
+   WAITS_NO    = 0x0,
+   WAITS_MAYBE = 0x1,
+   WAITS_YES   = 0x3,
+} wait_level_t;
+
 //
 // VHDL standard revisions
 //
@@ -159,7 +165,6 @@ GLOBAL ident_t vcode_obj_i;
 GLOBAL ident_t drives_all_i;
 GLOBAL ident_t driver_init_i;
 GLOBAL ident_t GLOBAL_i;
-GLOBAL ident_t never_waits_i;
 GLOBAL ident_t mangled_i;
 GLOBAL ident_t last_value_i;
 GLOBAL ident_t elide_bounds_i;
@@ -171,7 +176,6 @@ GLOBAL ident_t cond_tag_i;
 GLOBAL ident_t sub_cond_i;
 GLOBAL ident_t static_i;
 GLOBAL ident_t impure_i;
-GLOBAL ident_t never_waits_i;
 GLOBAL ident_t elide_bounds_i;
 GLOBAL ident_t range_var_i;
 GLOBAL ident_t last_value_i;
@@ -179,6 +183,7 @@ GLOBAL ident_t builtin_i;
 GLOBAL ident_t postponed_i;
 GLOBAL ident_t work_i;
 GLOBAL ident_t llvm_i;
+GLOBAL ident_t wait_level_i;
 
 void intern_strings();
 

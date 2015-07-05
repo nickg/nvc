@@ -50,37 +50,6 @@ static void opt_delete_wait_only(tree_t top)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Tag procedures that never wait.
-//
-// This avoids generating lots of unnecessary resumption code in the simple
-// case where a procedure never waits
-//
-
-static void opt_may_wait_fn(tree_t t, void *ctx)
-{
-   bool *may_wait = ctx;
-
-   tree_kind_t kind = tree_kind(t);
-   if (kind == T_WAIT)
-      *may_wait = true;
-   else if (kind == T_PCALL) {
-      tree_t decl = tree_ref(t);
-      if (tree_attr_str(decl, builtin_i))
-         ;
-      else if (!tree_attr_int(decl, never_waits_i, 0))
-         *may_wait = true;
-   }
-}
-
-static void opt_tag_simple_procedure(tree_t t)
-{
-   bool may_wait = false;
-   tree_visit(t, opt_may_wait_fn, &may_wait);
-   if (!may_wait)
-      tree_add_attr_int(t, never_waits_i, 1);
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // If an array reference index is a reference to an induction variable with
 // the same range as the array then elide bounds checking at runtime
 //
@@ -173,10 +142,6 @@ static void opt_tag_last_value_fcall(tree_t t)
 static void opt_tag(tree_t t, void *ctx)
 {
    switch (tree_kind(t)) {
-   case T_PROC_BODY:
-      opt_tag_simple_procedure(t);
-      break;
-
    case T_ARRAY_REF:
       opt_elide_array_ref_bounds(t);
       break;

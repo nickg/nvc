@@ -18,6 +18,7 @@
 #include "phase.h"
 #include "util.h"
 #include "hash.h"
+#include "common.h"
 
 #include <assert.h>
 #include <string.h>
@@ -27,6 +28,7 @@
 static void dump_expr(tree_t t);
 static void dump_stmt(tree_t t, int indent);
 static void dump_port(tree_t t, int indent);
+static void dump_decl(tree_t t, int indent);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
 
@@ -279,6 +281,47 @@ static void dump_op(tree_t t, int indent)
    printf("\n");
 }
 
+static void dump_ports(tree_t t, int indent)
+{
+   const int nports = tree_ports(t);
+   if (nports > 0) {
+      printf(" (\n");
+      for (int i = 0; i < nports; i++) {
+         if (i > 0)
+            printf(";\n");
+         dump_port(tree_port(t, i), indent + 4);
+      }
+      printf(" )");
+   }
+}
+
+static void dump_block(tree_t t, int indent)
+{
+   const int ndecls = tree_decls(t);
+   for (unsigned i = 0; i < ndecls; i++)
+      dump_decl(tree_decl(t, i), indent + 2);
+   tab(indent);
+   printf("begin\n");
+   const int nstmts = tree_stmts(t);
+   for (int i = 0; i < nstmts; i++)
+      dump_stmt(tree_stmt(t, i), indent + 2);
+}
+
+static void dump_wait_level(tree_t t)
+{
+   switch (tree_attr_int(t, wait_level_i, WAITS_MAYBE)) {
+   case WAITS_NO:
+      printf("   -- Never waits");
+      break;
+   case WAITS_MAYBE:
+      printf("   -- Maybe waits");
+      break;
+   case WAITS_YES:
+      printf("   -- Waits");
+      break;
+   }
+}
+
 static void dump_decl(tree_t t, int indent)
 {
    tab(indent);
@@ -411,40 +454,26 @@ static void dump_decl(tree_t t, int indent)
       printf(" )\n");
       tab(indent + 2);
       printf("return %s is\n", type_pp(type_result(tree_type(t))));
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
-      tab(indent);
-      printf("begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      dump_block(t, indent);
       tab(indent);
       printf("end function;\n\n");
       return;
 
    case T_PROC_DECL:
-      printf("procedure %s (\n", istr(tree_ident(t)));
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i), indent + 4);
-      }
-      printf(" );\n");
+      printf("procedure %s", istr(tree_ident(t)));
+      dump_ports(t, indent);
+      printf(";");
+      dump_wait_level(t);
+      printf("\n");
       return;
 
    case T_PROC_BODY:
-      printf("procedure %s (\n", istr(tree_ident(t)));
-      for (unsigned i = 0; i < tree_ports(t); i++) {
-         if (i > 0)
-            printf(";\n");
-         dump_port(tree_port(t, i), indent + 4);
-      }
-      printf(" ) is\n");
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
-      tab(indent);
-      printf("begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
+      printf("procedure %s", istr(tree_ident(t)));
+      dump_ports(t, indent);
+      printf(" is");
+      dump_wait_level(t);
+      printf("\n");
+      dump_block(t, indent);
       tab(indent);
       printf("end procedure;\n\n");
       return;

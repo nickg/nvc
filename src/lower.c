@@ -3223,7 +3223,8 @@ static void lower_pcall(tree_t pcall)
    ident_t name = lower_mangle_func(decl, vcode_unit_context());
 
    const int nest_depth = tree_attr_int(decl, nested_i, 0);
-   const bool never_waits = tree_attr_int(decl, never_waits_i, 0);
+   const bool never_waits =
+      tree_attr_int(decl, wait_level_i, WAITS_MAYBE) == WAITS_NO;
    const bool use_fcall =
       never_waits || vcode_unit_kind() == VCODE_UNIT_FUNCTION;
 
@@ -4210,7 +4211,8 @@ static void lower_subprogram_ports(tree_t body, bool has_subprograms)
 
 static void lower_proc_body(tree_t body, vcode_unit_t context)
 {
-   const bool never_waits = tree_attr_int(body, never_waits_i, 0);
+   const bool never_waits =
+      tree_attr_int(body, wait_level_i, WAITS_MAYBE) == WAITS_NO;
 
    vcode_select_unit(context);
 
