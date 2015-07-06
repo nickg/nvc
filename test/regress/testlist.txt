@@ -295,3 +295,4 @@ issue200        normal
 issue204        normal
 issue206        normal
 issue187        normal
+func17          normal

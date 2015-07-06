@@ -443,14 +443,14 @@ START_TEST(test_assign2)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 8 },
+      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 8 },
       { VCODE_OP_COPY },
-      { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_INDEX, .name = "Y" },
       { VCODE_OP_CONST, .value = 1 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_COPY },
@@ -856,8 +856,8 @@ START_TEST(test_arrayop1)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_INDEX, .name = "X" },
       { VCODE_OP_CONST, .value = 0 },
       { VCODE_OP_CONST_ARRAY, .length = 3 },
       { VCODE_OP_COPY },
@@ -1619,7 +1619,6 @@ START_TEST(test_memset)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_SUB },
          { VCODE_OP_ADD },
@@ -1628,9 +1627,10 @@ START_TEST(test_memset)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
          { VCODE_OP_SELECT },
          { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
-         { VCODE_OP_MEMSET },
+         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_WRAP },
          { VCODE_OP_STORE, .name = "V" },
+         { VCODE_OP_MEMSET },
          { VCODE_OP_RETURN }
       };
 
@@ -1642,7 +1642,6 @@ START_TEST(test_memset)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 0 },
          { VCODE_OP_CONST, .value = 1 },
          { VCODE_OP_SUB },
          { VCODE_OP_ADD },
@@ -1651,12 +1650,13 @@ START_TEST(test_memset)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
          { VCODE_OP_SELECT },
          { VCODE_OP_ALLOCA, .subkind = VCODE_ALLOCA_HEAP },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_CONST, .value = 0xab },
          { VCODE_OP_CONST, .value = 4 },
          { VCODE_OP_MUL },
          { VCODE_OP_MEMSET },
-         { VCODE_OP_WRAP },
-         { VCODE_OP_STORE, .name = "V" },
          { VCODE_OP_RETURN }
       };
 
@@ -1828,12 +1828,11 @@ START_TEST(test_proc7)
    vcode_select_unit(v0);
 
    EXPECT_BB(0) = {
-      { VCODE_OP_CONST, .value = 0 },
-      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_UARRAY_LEFT },
       { VCODE_OP_CAST },
       { VCODE_OP_UARRAY_RIGHT },
       { VCODE_OP_CAST },
+      { VCODE_OP_UARRAY_DIR },
       { VCODE_OP_SUB },
       { VCODE_OP_SUB },
       { VCODE_OP_SELECT },
@@ -1844,12 +1843,13 @@ START_TEST(test_proc7)
       { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
       { VCODE_OP_SELECT },
       { VCODE_OP_ALLOCA, .subkind = 1 },
-      { VCODE_OP_MEMSET },
       { VCODE_OP_WRAP },
+      { VCODE_OP_STORE, .name = "Y" },
+      { VCODE_OP_CONST, .value = 0 },
+      { VCODE_OP_MEMSET },
       { VCODE_OP_SELECT },
       { VCODE_OP_SELECT },
       { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
-      { VCODE_OP_STORE, .name = "Y" },
       { VCODE_OP_CONST, .value = 1000000 },
       { VCODE_OP_WAIT, .target = 1 }
    };
@@ -2257,14 +2257,13 @@ START_TEST(test_sigvar)
       vcode_select_unit(v0);
 
       EXPECT_BB(0) = {
-         { VCODE_OP_CONST, .value = 0 },
-         { VCODE_OP_UARRAY_DIR },
          { VCODE_OP_UNWRAP },
          { VCODE_OP_UARRAY_LEN },
          { VCODE_OP_UARRAY_LEFT },
          { VCODE_OP_CAST },
          { VCODE_OP_UARRAY_RIGHT },
          { VCODE_OP_CAST },
+         { VCODE_OP_UARRAY_DIR },
          { VCODE_OP_SUB },
          { VCODE_OP_SUB },
          { VCODE_OP_SELECT },
@@ -2275,12 +2274,13 @@ START_TEST(test_sigvar)
          { VCODE_OP_CMP, .cmp = VCODE_CMP_LT },
          { VCODE_OP_SELECT },
          { VCODE_OP_ALLOCA },
-         { VCODE_OP_MEMSET },
          { VCODE_OP_WRAP },
+         { VCODE_OP_STORE, .name = "Y" },
+         { VCODE_OP_CONST, .value = 0 },
+         { VCODE_OP_MEMSET },
          { VCODE_OP_SELECT },
          { VCODE_OP_SELECT },
          { VCODE_OP_INDEX_CHECK, .subkind = BOUNDS_INDEX_TO },
-         { VCODE_OP_STORE, .name = "Y" },
          { VCODE_OP_ARRAY_SIZE },
          { VCODE_OP_VEC_LOAD },
          { VCODE_OP_COPY },

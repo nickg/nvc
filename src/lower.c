@@ -1967,9 +1967,7 @@ static vcode_reg_t lower_dyn_aggregate(tree_t agg, type_t type)
    vcode_reg_t right_reg = lower_array_right(agg_type, 0, VCODE_INVALID_REG);
    vcode_reg_t len_reg   = lower_array_total_len(agg_type, VCODE_INVALID_REG);
 
-   type_t scalar_elem_type = elem_type;
-   while (type_is_array(scalar_elem_type))
-      scalar_elem_type = type_elem(scalar_elem_type);
+   type_t scalar_elem_type = lower_elem_recur(elem_type);
 
    const bool multidim =
       type_is_array(agg_type) && array_dimension(agg_type) > 1;
@@ -2315,9 +2313,7 @@ static vcode_reg_t lower_concat(tree_t expr, expr_ctx_t ctx)
    type_t type = tree_type(expr);
    type_t elem = type_elem(type);
 
-   type_t scalar_elem = elem;
-   while (type_is_array(scalar_elem))
-      scalar_elem = type_elem(scalar_elem);
+   type_t scalar_elem = lower_elem_recur(elem);
 
    vcode_reg_t var_reg = VCODE_INVALID_REG;
    if (type_is_unconstrained(type)) {
@@ -3870,9 +3866,22 @@ static void lower_var_decl(tree_t decl)
       dest_reg = emit_index(var, VCODE_INVALID_REG);
       emit_storage_hint(dest_reg, VCODE_INVALID_REG);
    }
-   else if (type_is_array(type) &&lower_const_bounds(type)) {
-      dest_reg  = emit_index(var, VCODE_INVALID_REG);
+   else if (type_is_array(type) && !type_is_unconstrained(type)) {
       count_reg = lower_array_total_len(type, VCODE_INVALID_REG);
+
+      if (!lower_const_bounds(type)) {
+         type_t scalar_elem = lower_elem_recur(type);
+         dest_reg = emit_alloca(lower_type(scalar_elem),
+                                lower_bounds(scalar_elem),
+                                count_reg);
+         emit_store(lower_wrap(type, dest_reg), var);
+
+         if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
+            vcode_heap_allocate(dest_reg);
+      }
+      else
+         dest_reg = emit_index(var, VCODE_INVALID_REG);
+
       emit_storage_hint(dest_reg, count_reg);
    }
 
@@ -3881,22 +3890,14 @@ static void lower_var_decl(tree_t decl)
    if (type_is_array(type)) {
       lower_check_indexes(type, value, decl);
 
-      if (!type_is_unconstrained(type))
+      if (type_is_unconstrained(type)) {
+         vcode_heap_allocate(value);
+         emit_store(value, var);
+      }
+      else {
          lower_check_array_sizes(decl, type, tree_type(tree_value(decl)),
                                  VCODE_INVALID_REG, value);
-
-      if (lower_const_bounds(type))
          emit_copy(dest_reg, lower_array_data(value), count_reg);
-      else {
-         if (vcode_unit_kind() == VCODE_UNIT_PROCEDURE)
-            vcode_heap_allocate(value);
-
-         if (!type_is_unconstrained(type)) {
-            vcode_reg_t rewrap = lower_wrap(type, lower_array_data(value));
-            emit_store(rewrap, var);
-         }
-         else
-            emit_store(value, var);
       }
    }
    else if (type_is_record(type)) {

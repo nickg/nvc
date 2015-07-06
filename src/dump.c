@@ -549,7 +549,8 @@ static void dump_decl(tree_t t, int indent)
 static void dump_stmt(tree_t t, int indent)
 {
    tab(indent);
-   printf("%s: ", istr(tree_ident(t)));
+   if (tree_has_ident(t))
+      printf("%s: ", istr(tree_ident(t)));
 
    switch (tree_kind(t)) {
    case T_PROCESS:

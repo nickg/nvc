@@ -619,7 +619,7 @@ static int make_cmd(int argc, char **argv)
 static int dump_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
-      { "elab", no_argument, 0, 'e' },
+      { "elab", no_argument, 0, 'E' },
       { "body", no_argument, 0, 'b' },
       { "nets", no_argument, 0, 'n' },
       { 0, 0, 0, 0 }
@@ -628,7 +628,7 @@ static int dump_cmd(int argc, char **argv)
    const int next_cmd = scan_cmd(2, argc, argv);
    bool add_elab = false, add_body = false, nets = false;
    int c, index = 0;
-   const char *spec = "eb";
+   const char *spec = "Eb";
    while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
       switch (c) {
       case 0:
@@ -636,7 +636,7 @@ static int dump_cmd(int argc, char **argv)
          break;
       case '?':
          fatal("unrecognised dump option %s", argv[optind - 1]);
-      case 'e':
+      case 'E':
          add_elab = true;
          break;
       case 'b':
