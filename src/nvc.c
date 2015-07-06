@@ -519,7 +519,7 @@ static int run(int argc, char **argv)
    if (wave_fname != NULL) {
       const char *name_map[] = { "LXT", "FST", "VCD" };
       const char *ext_map[]  = { "lxt", "fst", "vcd" };
-      char *tmp = NULL;
+      char *tmp LOCAL = NULL;
 
       if (*wave_fname == '\0') {
          tmp = xasprintf("%s.%s", argv[optind], ext_map[wave_fmt]);
@@ -540,9 +540,6 @@ static int run(int argc, char **argv)
          fst_init(wave_fname, e);
          break;
       }
-
-      if (tmp != NULL)
-         free(tmp);
    }
 
    rt_start_of_tool(e, ctx);
