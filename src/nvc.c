@@ -438,6 +438,12 @@ static int run(int argc, char **argv)
    const char *wave_fname = NULL;
    const char *vhpi_plugins = NULL;
 
+   static bool have_run = false;
+   if (have_run)
+      fatal("multiple run commands are not supported");
+
+   have_run = true;
+
    const int next_cmd = scan_cmd(2, argc, argv);
 
    int c, index = 0;
