@@ -623,19 +623,15 @@ static void dump_stmt(tree_t t, int indent)
 
    case T_BLOCK:
       printf("block is\n");
-      for (unsigned i = 0; i < tree_decls(t); i++)
-         dump_decl(tree_decl(t, i), indent + 2);
-      tab(indent);
-      printf("begin\n");
-      for (unsigned i = 0; i < tree_stmts(t); i++)
-         dump_stmt(tree_stmt(t, i), indent + 2);
-      tab(indent);
+      dump_block(t, indent);
       printf("end block");
       break;
 
    case T_ASSERT:
-      printf("assert ");
-      dump_expr(tree_value(t));
+      if (tree_has_value(t)) {
+         printf("assert ");
+         dump_expr(tree_value(t));
+      }
       if (tree_has_message(t)) {
          printf(" report ");
          dump_expr(tree_message(t));
@@ -948,6 +944,7 @@ void dump(tree_t t)
       printf("\n");
       break;
    case T_FOR_GENERATE:
+   case T_BLOCK:
       dump_stmt(t, 0);
       break;
    default:
