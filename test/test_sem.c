@@ -1247,11 +1247,13 @@ START_TEST(test_varinit)
       { 26, "cannot reference signal SIZE during static elaboration" },
       { 37, "cannot reference signal SIZE during static elaboration" },
       { 39, "cannot reference signal SIZE during static elaboration" },
+      { 47, "cannot reference signal N during static elaboration" },
+      { 48, "cannot reference signal N during static elaboration" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }

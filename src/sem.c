@@ -2320,12 +2320,33 @@ static void sem_check_static_elab(tree_t t)
    switch (tree_kind(t)) {
    case T_VAR_DECL:
    case T_CONST_DECL:
-      if (tree_has_value(t)) {
-         tree_t value = tree_value(t);
-         if (!sem_globally_static(value))
-            tree_visit_only(value, sem_check_static_elab_fn, NULL, T_REF);
+   case T_SIGNAL_DECL:
+      {
+         type_t type = tree_type(t);
+         if (type_kind(type) == T_SUBTYPE || type_kind(type) == T_CARRAY) {
+            const int ndims = type_dims(type);
+            for (int i = 0; i < ndims; i++) {
+               range_t r = type_dim(type, 0);
+               sem_check_static_elab(r.left);
+               sem_check_static_elab(r.right);
+            }
+         }
+
+         if (tree_has_value(t))
+            sem_check_static_elab(tree_value(t));
       }
       break;
+
+   case T_REF:
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_RECORD_REF:
+   case T_ATTR_REF:
+   case T_FCALL:
+      if (!sem_globally_static(t))
+         tree_visit_only(t, sem_check_static_elab_fn, NULL, T_REF);
+      break;
+
    default:
       break;
    }
