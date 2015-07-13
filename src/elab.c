@@ -140,8 +140,8 @@ static void find_arch(ident_t name, int kind, void *context)
          *(params->tree) = t;
       else {
          lib_mtime_t old_mtime = lib_mtime(params->lib,
-                                           tree_ident2(*(params->tree)));
-         lib_mtime_t new_mtime = lib_mtime(params->lib, tree_ident2(t));
+                                           tree_ident(*(params->tree)));
+         lib_mtime_t new_mtime = lib_mtime(params->lib, tree_ident(t));
 
          if (new_mtime == old_mtime) {
             // Analysed at the same time: compare line number
