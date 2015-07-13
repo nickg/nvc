@@ -613,17 +613,12 @@ static netid_t elab_get_net(tree_t expr, int n)
 
          int64_t offset = 0;
          for (int i = 0; i < nparams; i++) {
-            tree_t index   = tree_value(tree_param(expr, i));
-            range_t type_r = type_dim(array_type, i);
-
-            const int64_t type_left = assume_int(type_r.left);
-            const int64_t index_val = assume_int(index);
+            tree_t index = tree_value(tree_param(expr, i));
             const int64_t dim_off =
-               (type_r.kind == RANGE_TO)
-               ? index_val - type_left
-               : type_left - index_val;
+               rebase_index(array_type, i, assume_int(index));
 
             if (i > 0) {
+               range_t type_r = type_dim(array_type, i);
                int64_t low, high;
                range_bounds(type_r, &low, &high);
 
@@ -647,12 +642,8 @@ static netid_t elab_get_net(tree_t expr, int n)
 
          assert(type_r.kind == slice_r.kind);
 
-         const int64_t slice_left = assume_int(slice_r.left);
-         const int64_t type_left = assume_int(type_r.left);
          const int64_t type_off =
-            (type_r.kind == RANGE_TO)
-            ? slice_left - type_left
-            : type_left - slice_left;
+            rebase_index(array_type, 0, assume_int(slice_r.left));
 
          const int stride = type_width(type_elem(array_type));
 
@@ -707,14 +698,12 @@ static void elab_map_nets(map_list_t *maps)
 
                assert(tree_params(maps->name) == 1);
 
-               int64_t low, high;
-               range_bounds(type_dim(array_type, 0), &low, &high);
-
                tree_t index = tree_value(tree_param(maps->name, 0));
-               int64_t index_val = assume_int(index) - low;
+               const int64_t index_off =
+                  rebase_index(array_type, 0, assume_int(index));
 
                for (int i = 0; i < width; i++)
-                  tree_change_net(maps->signal, index_val + i,
+                  tree_change_net(maps->signal, index_off * width + i,
                                   elab_get_net(maps->actual, i));
             }
             break;

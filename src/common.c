@@ -649,6 +649,13 @@ type_t index_type_of(type_t type, int dim)
    }
 }
 
+int64_t rebase_index(type_t array_type, int dim, int64_t value)
+{
+   range_t r = type_dim(array_type, dim);
+   const int64_t left = assume_int(r.left);
+   return (r.kind == RANGE_TO) ? value - left : left - value;
+}
+
 tree_t str_to_literal(const char *start, const char *end, type_t type)
 {
    tree_t t = tree_new(T_LITERAL);

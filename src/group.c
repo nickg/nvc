@@ -211,13 +211,6 @@ static void ungroup_ref(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
-static int64_t rebase_index(type_t array_type, int dim, int64_t value)
-{
-   range_t r = type_dim(array_type, dim);
-   const int64_t left = assume_int(r.left);
-   return (r.kind == RANGE_TO) ? value - left : left - value;
-}
-
 static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
 {
    switch (tree_kind(t)) {
