@@ -712,25 +712,18 @@ static void elab_map_nets(map_list_t *maps)
             {
                type_t array_type = tree_type(maps->formal);
 
-               type_t elem_type = type_elem(array_type);
-               const int elem_width = type_width(elem_type);
-
                range_t slice = tree_range(maps->name);
 
                int64_t low, high;
                range_bounds(slice, &low, &high);
 
-               const int64_t left = assume_int(slice.left);
+               const int64_t base_off =
+                  rebase_index(array_type, 0, assume_int(slice.left));
 
-               for (int64_t i = low; i <= high; i++) {
-                  for (int j = 0; j < elem_width; j++) {
-                     const int64_t off =
-                        (slice.kind == RANGE_TO) ? i - left : left - i;
-                     tree_change_net(
-                        maps->signal, (i * elem_width) + j,
-                        elab_get_net(maps->actual, off * elem_width + j));
-                  }
-               }
+               const int width = MAX(high - low + 1, 0);
+               for (int i = 0; i < width; i++)
+                  tree_change_net(maps->signal, base_off + i,
+                                  elab_get_net(maps->actual, i));
             }
             break;
 
