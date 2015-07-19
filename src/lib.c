@@ -309,10 +309,19 @@ lib_t lib_new(const char *name, const char *path)
          fatal("path %s already exists and is not a directory", path);
    }
 
-   if ((mkdir(path, 0777) != 0) && (errno != EEXIST))
-      fatal_errno("mkdir: %s", path);
-
    char *lockf LOCAL = xasprintf("%s/%s", path, "_NVC_LIB");
+
+   if (mkdir(path, 0777) != 0) {
+      if (errno == EEXIST) {
+         struct stat sb;
+         if (stat(lockf, &sb) != 0)
+            fatal("directory %s already exists and is not an NVC library",
+                  path);
+      }
+      else
+         fatal_errno("mkdir: %s", path);
+   }
+
    int fd = open(lockf, O_CREAT | O_EXCL | O_RDWR, 0777);
    if (fd < 0) {
       if (errno != EEXIST)
