@@ -775,6 +775,30 @@ static void cgen_op_or(int op, cgen_ctx_t *ctx)
                                    cgen_reg_name(result));
 }
 
+static void cgen_op_nand(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] =
+      LLVMBuildNot(builder,
+                   LLVMBuildAnd(builder,
+                                cgen_get_arg(op, 0, ctx),
+                                cgen_get_arg(op, 1, ctx),
+                                "nand_tmp"),
+                   cgen_reg_name(result));
+}
+
+static void cgen_op_nor(int op, cgen_ctx_t *ctx)
+{
+   vcode_reg_t result = vcode_get_result(op);
+   ctx->regs[result] =
+      LLVMBuildNot(builder,
+                   LLVMBuildOr(builder,
+                               cgen_get_arg(op, 0, ctx),
+                               cgen_get_arg(op, 1, ctx),
+                               "nor_tmp"),
+                   cgen_reg_name(result));
+}
+
 static void cgen_op_and(int op, cgen_ctx_t *ctx)
 {
    vcode_reg_t result = vcode_get_result(op);
@@ -2570,6 +2594,12 @@ static void cgen_op(int i, cgen_ctx_t *ctx)
       break;
    case VCODE_OP_HEAP_RESTORE:
       cgen_op_heap_restore(i, ctx);
+      break;
+   case VCODE_OP_NAND:
+      cgen_op_nand(i, ctx);
+      break;
+   case VCODE_OP_NOR:
+      cgen_op_nor(i, ctx);
       break;
    default:
       fatal("cannot generate code for vcode op %s", vcode_op_string(op));

@@ -298,3 +298,4 @@ issue187        normal
 func17          normal
 elab24          normal
 elab25          normal
+logical2        normal
