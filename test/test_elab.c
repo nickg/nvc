@@ -387,6 +387,19 @@ START_TEST(test_toplevel2)
 }
 END_TEST
 
+START_TEST(test_libbind3)
+{
+   input_from_file(TESTDIR "/elab/libbind3.vhd");
+
+   lib_set_work(lib_tmp("foo"));
+   parse_check_and_simplify(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, -1);
+   fail_if(sem_errors() > 0);
+
+   lib_set_work(lib_tmp("bar"));
+   run_elab();
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -416,6 +429,7 @@ int main(void)
    tcase_add_test(tc, test_issue184);
    tcase_add_test(tc, test_libbind2);
    tcase_add_test(tc, test_toplevel2);
+   tcase_add_test(tc, test_libbind3);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

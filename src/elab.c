@@ -884,7 +884,7 @@ static tree_t elab_default_binding(tree_t inst, lib_t *new_lib,
    lib_t lib = NULL;
    bool search_others = true;
    if (lib_i == full_i) {
-      lib    = lib_work();
+      lib    = ctx->library;
       full_i = ident_prefix(lib_name(lib), full_i, '.');
    }
    else {
@@ -974,13 +974,21 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
    (void)elab_map(t, arch, tree_generics, tree_generic,
                   tree_genmaps, tree_genmap);
 
-   tree_t entity = tree_ref(arch);
-
-   elab_copy_context(entity, ctx);
-
    ident_t ninst = hpathf(ctx->inst, '@', "%s(%s)",
                           simple_name(istr(tree_ident2(arch))),
                           simple_name(istr(tree_ident(arch))));
+
+   elab_ctx_t new_ctx = {
+      .out      = ctx->out,
+      .path     = ctx->path,
+      .inst     = ninst,
+      .next_net = ctx->next_net,
+      .library  = new_lib,
+      .arch     = arch
+   };
+
+   tree_t entity = tree_ref(arch);
+   elab_copy_context(entity, &new_ctx);
 
    elab_funcs(arch, entity, ctx);
    simplify(arch);
@@ -993,14 +1001,6 @@ static void elab_instance(tree_t t, const elab_ctx_t *ctx)
       maps = tmp;
    }
 
-   elab_ctx_t new_ctx = {
-      .out      = ctx->out,
-      .path     = ctx->path,
-      .inst     = ninst,
-      .next_net = ctx->next_net,
-      .library  = new_lib,
-      .arch     = arch
-   };
    elab_arch(arch, &new_ctx);
 }
 
