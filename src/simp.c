@@ -37,6 +37,7 @@ struct imp_signal {
 
 typedef struct {
    imp_signal_t *imp_signals;
+   tree_t        top;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -799,6 +800,17 @@ static tree_t simp_concat(tree_t t)
    return flat;
 }
 
+static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
+{
+   tree_t decl = tree_ref(t);
+
+   const int nctx = tree_contexts(decl);
+   for (int i = 0; i < nctx; i++)
+      tree_add_context(ctx->top, tree_context(decl, i));
+
+   return NULL;
+}
+
 static tree_t simp_tree(tree_t t, void *_ctx)
 {
    simp_ctx_t *ctx = _ctx;
@@ -840,6 +852,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
       return simp_concat(t);
    case T_RECORD_REF:
       return simp_record_ref(t);
+   case T_CTXREF:
+      return simp_context_ref(t, ctx);
    default:
       return t;
    }
@@ -848,7 +862,8 @@ static tree_t simp_tree(tree_t t, void *_ctx)
 void simplify(tree_t top)
 {
    simp_ctx_t ctx = {
-      .imp_signals = NULL
+      .imp_signals = NULL,
+      .top         = top
    };
 
    tree_rewrite(top, simp_tree, &ctx);

@@ -2,6 +2,7 @@
 #include "util.h"
 #include "phase.h"
 #include "test_util.h"
+#include "common.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -31,24 +32,16 @@ static bool folded_r(tree_t t, double r)
    return (dval > r * 0.9999) && (dval < r * 1.0001);
 }
 
-static bool folded_enum(tree_t t, unsigned pos)
-{
-   if (tree_kind(t) != T_REF)
-      return false;
-
-   tree_t lit = tree_ref(t);
-   if (tree_kind(lit) != T_ENUM_LIT)
-      return false;
-
-   return tree_pos(lit) == pos;
-}
-
 static bool folded_b(tree_t t, bool b)
 {
    if (type_ident(tree_type(t)) != ident_new("STD.STANDARD.BOOLEAN"))
       return false;
 
-   return folded_enum(t, (b ? 1 : 0));
+   bool actual;
+   if (folded_bool(t, &actual))
+      return actual == b;
+   else
+      return false;
 }
 
 START_TEST(test_cfold)
@@ -339,6 +332,32 @@ START_TEST(test_issue155)
 }
 END_TEST
 
+START_TEST(test_context)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/simp/context.vhd");
+
+   lib_t foo = lib_tmp("foo");
+   lib_t bar = lib_tmp("bar");
+
+   lib_set_work(foo);
+   parse_and_check(T_PACKAGE, T_CONTEXT, -1);
+
+   lib_set_work(bar);
+   tree_t e = parse_and_check(T_ENTITY);
+   fail_unless(sem_errors() == 0);
+
+   fail_unless(tree_contexts(e) == 1);
+
+   simplify(e);
+
+   fail_unless(tree_contexts(e) == 2);
+   fail_unless(tree_kind(tree_context(e, 0)) == T_LIBRARY);
+   fail_unless(tree_kind(tree_context(e, 1)) == T_USE);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("simplify");
@@ -350,6 +369,7 @@ int main(void)
    tcase_add_test(tc_core, test_ffold);
    tcase_add_test(tc_core, test_issue49);
    tcase_add_test(tc_core, test_issue155);
+   tcase_add_test(tc_core, test_context);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

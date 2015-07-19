@@ -245,7 +245,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_CONTEXT | I_IDENT),
 
    // T_CTXREF
-   (I_IDENT)
+   (I_IDENT | I_REF)
 };
 
 static const char *kind_text_map[T_LAST_TREE_KIND] = {

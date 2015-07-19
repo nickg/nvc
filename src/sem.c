@@ -6791,6 +6791,7 @@ static bool sem_check_context_ref(tree_t t)
    if (tree_kind(ctx) != T_CONTEXT)
       sem_error(t, "unit %s is not a context declaration", istr(tree_ident(t)));
 
+   tree_set_ref(t, ctx);
    return sem_check_context_clause(ctx);
 }
 
