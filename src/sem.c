@@ -3013,6 +3013,9 @@ static bool sem_check_conversion(tree_t t)
 
    tree_set_type(t, to);
 
+   if (type_eq(to, from))
+      return true;
+
    // Resolve both types to their base types
    from = type_base_recur(from);
    to   = type_base_recur(to);

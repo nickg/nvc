@@ -34,6 +34,7 @@ begin
         assert eq(u, z);                -- OK
         assert eq(a(u), z);             -- OK
         r := real(sec / t);             -- OK
+        x := integer(y(1));             -- OK
         wait;
     end process;
 
