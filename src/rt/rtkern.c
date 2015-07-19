@@ -1436,15 +1436,16 @@ static void rt_run(struct rt_proc *proc, bool reset)
 
 static void rt_call_module_reset(ident_t name)
 {
-   char *buf = xasprintf("%s_reset", istr(name));
+   char *buf LOCAL = xasprintf("%s_reset", istr(name));
 
    _tmp_stack = global_tmp_stack;
    _tmp_alloc = global_tmp_alloc;
 
    void (*reset_fn)(void) = jit_fun_ptr(buf, false);
-   if (reset_fn != NULL)
+   if (reset_fn != NULL) {
+      TRACE("reset module %s", istr(name));
       (*reset_fn)();
-   free(buf);
+   }
 
    global_tmp_alloc = _tmp_alloc;
 }

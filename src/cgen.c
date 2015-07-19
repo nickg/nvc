@@ -2964,7 +2964,7 @@ static void cgen_reset_function(tree_t top)
    const int nsignals = vcode_count_signals();
    for (int i = 0 ; i < nsignals; i++) {
       const int nnets = vcode_signal_count_nets(i);
-      if (nnets < MAX_STATIC_NETS)
+      if (nnets <= MAX_STATIC_NETS)
          continue;
 
       // Need to generate runtime code to fill in net mapping table
