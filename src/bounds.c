@@ -414,13 +414,10 @@ static void bounds_check_assignment(tree_t target, tree_t value)
    type_t target_type = tree_type(target);
    type_t value_type  = tree_type(value);
 
-   type_kind_t target_kind = type_kind(target_type);
-   type_kind_t value_kind  = type_kind(value_type);
-
    const bool check_array_length =
       type_is_array(target_type)
-      && (target_kind != T_UARRAY)
-      && (value_kind != T_UARRAY);
+      && !type_is_unconstrained(target_type)
+      && !type_is_unconstrained(value_type);
 
    if (check_array_length) {
       const int ndims = type_dims(target_type);
@@ -445,7 +442,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
    const bool check_scalar_subtype_range =
       !type_is_array(target_type)
       && !type_is_record(target_type)
-      && (target_kind == T_SUBTYPE);
+      && (type_kind(target_type) == T_SUBTYPE);
 
    if (check_scalar_subtype_range) {
       range_t r = type_dim(target_type, 0);
