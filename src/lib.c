@@ -314,9 +314,9 @@ lib_t lib_new(const char *name, const char *path)
    if (mkdir(path, 0777) != 0) {
       if (errno == EEXIST) {
          struct stat sb;
-         if (stat(lockf, &sb) != 0)
-            fatal("directory %s already exists and is not an NVC library",
-                  path);
+         if (stat(lockf, &sb) != 0 && !opt_get_int("force-init"))
+            fatal("directory %s already exists and is not an NVC library "
+                  "(use --force-init to override this check)", path);
       }
       else
          fatal_errno("mkdir: %s", path);

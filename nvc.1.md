@@ -53,6 +53,9 @@ elaborate command.
 
 ### Global options
 
+* `--force-init`:
+  Initialise a library work directory even if it already exists and is non-empty.
+
  * `-h`, `--help`:
    Display usage summary.
 

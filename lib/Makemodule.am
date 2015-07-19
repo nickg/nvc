@@ -1,4 +1,4 @@
-nvc = $(nvc_verbose)$(top_builddir)/bin/nvc
+nvc = $(nvc_verbose)$(top_builddir)/bin/nvc --force-init
 
 if ENABLE_NATIVE
 codegen = $(codegen_verbose) NVC_CYG_LIB=$(top_builddir)/lib $(top_builddir)/bin/nvc

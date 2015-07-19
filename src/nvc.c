@@ -692,6 +692,7 @@ static void set_default_opts(void)
    opt_set_str("dump-vcode", NULL);
    opt_set_int("relax", 0);
    opt_set_int("ignore-time", 0);
+   opt_set_int("force-init", 0);
 }
 
 static void usage(void)
@@ -707,9 +708,10 @@ static void usage(void)
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
-          " -L PATH\t\tAdd PATH to library search paths\n"
+          "     --force-init\tCreate a library in an existing directory\n"
           " -h, --help\t\tDisplay this message and exit\n"
           "     --ignore-time\tSkip source file timestamp check\n"
+          " -L PATH\t\tAdd PATH to library search paths\n"
           "     --map=LIB:PATH\tMap library LIB to PATH\n"
           "     --messages=STYLE\tSelect full or compact message format\n"
           "     --std=REV\t\tVHDL standard revision to use\n"
@@ -725,7 +727,7 @@ static void usage(void)
           "     --disable-opt\tDisable LLVM optimisations\n"
           "     --dump-llvm\tPrint generated LLVM IR\n"
           "     --dump-vcode\tPrint generated intermediate code\n"
-          " -g NAME=VALUE\tSet top level generic NAME to VALUE\n"
+          " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           "     --native\t\tGenerate native code shared library\n"
           " -V, --verbose\t\tPrint resource usage at each step\n"
           "\n"
@@ -887,6 +889,7 @@ int main(int argc, char **argv)
       { "messages",    required_argument, 0, 'M' },
       { "map",         required_argument, 0, 'p' },
       { "ignore-time", no_argument,       0, 'i' },
+      { "force-init",  no_argument,       0, 'f' },
       { 0, 0, 0, 0 }
    };
 
@@ -927,6 +930,9 @@ int main(int argc, char **argv)
          break;
       case 'i':
          opt_set_int("ignore-time", 1);
+         break;
+      case 'f':
+         opt_set_int("force-init", 1);
          break;
       case '?':
          fatal("unrecognised global option %s", argv[optind - 1]);
