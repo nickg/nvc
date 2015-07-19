@@ -2153,7 +2153,7 @@ START_TEST(test_error)
    a = parse();
    fail_unless(a == NULL);
 
-   fail_unless(parse_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 
@@ -2258,6 +2258,12 @@ START_TEST(test_context)
 
    input_from_file(TESTDIR "/parse/context.vhd");
 
+   const error_t expect[] = {
+      { 13, "context clause preceeding context declaration must be empty" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
    tree_t c1 = parse();
    fail_if(c1 == NULL);
    fail_unless(tree_kind(c1) == T_CONTEXT);
@@ -2276,7 +2282,7 @@ START_TEST(test_context)
    fail_unless(tree_ident(r) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
 
    fail_unless(parse() == NULL);
-   fail_unless(parse_errors() == 0);
+   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
 }
 END_TEST
 

@@ -9,3 +9,9 @@ context dongle_context is
     library widget_lib;
     context widget_lib.widget_context;
 end context;
+
+library foo;
+use foo.moo;
+
+context bad is                          -- Error
+end context;

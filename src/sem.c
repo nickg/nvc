@@ -52,7 +52,8 @@ struct import_list {
 typedef enum {
    SCOPE_PACKAGE   = (1 << 0),
    SCOPE_FORMAL    = (1 << 1),
-   SCOPE_PROTECTED = (1 << 2)
+   SCOPE_PROTECTED = (1 << 2),
+   SCOPE_CONTEXT   = (1 << 3)
 } scope_flags_t;
 
 struct scope {
@@ -1350,12 +1351,26 @@ static bool sem_check_range(range_t *r, type_t context)
 
 static bool sem_check_use_clause(tree_t c)
 {
+   if (top_scope->flags & SCOPE_CONTEXT) {
+      // LRM 08 section 13.3
+      ident_t prefix = ident_until(tree_ident(c), '.');
+      if (prefix == work_i)
+         sem_error(c, "selected name in context declaration use clause may not "
+                   "have WORK as a prefix");
+   }
+
    return scope_import_use_clause(c, false);
 }
 
 static bool sem_check_library_clause(tree_t t)
 {
-   if (lib_find(istr(tree_ident(t)), true, true) == NULL) {
+   ident_t name = tree_ident(t);
+   if (name == work_i && (top_scope->flags & SCOPE_CONTEXT)) {
+      // LRM 08 section 13.3
+      sem_error(t, "library clause in a context declaration may not have "
+                "logical library name WORK");
+   }
+   else if (lib_find(istr(name), true, true) == NULL) {
       errors++;
       return false;
    }
@@ -1380,7 +1395,7 @@ static void sem_declare_universal(void)
    sem_declare_binary(NULL, div, ureal, uint, ureal, "divri");
 }
 
-static bool sem_check_context(tree_t t)
+static bool sem_check_context_clause(tree_t t)
 {
    // The std.standard package is also implicit unless we are
    // bootstrapping
@@ -2388,7 +2403,7 @@ static bool sem_check_package(tree_t t)
 
    const int ndecls = tree_decls(t);
 
-   bool ok = sem_check_context(t);
+   bool ok = sem_check_context_clause(t);
    if (ok) {
       scope_push(qual);
 
@@ -2501,7 +2516,7 @@ static bool sem_check_pack_body(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
-   bool ok = sem_check_context(pack) && sem_check_context(t);
+   bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
 
    scope_push(qual);
 
@@ -2628,7 +2643,7 @@ static bool sem_check_entity(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
-   bool ok = sem_check_context(t);
+   bool ok = sem_check_context_clause(t);
 
    scope_push(NULL);
 
@@ -2682,7 +2697,7 @@ static bool sem_check_arch(tree_t t)
 
    // Make all port and generic declarations available in this scope
 
-   bool ok = sem_check_context(e) && sem_check_context(t);
+   bool ok = sem_check_context_clause(e) && sem_check_context_clause(t);
 
    scope_push(NULL);
 
@@ -6739,6 +6754,46 @@ static bool sem_check_prot_body(tree_t t)
    return ok;
 }
 
+static bool sem_check_context_decl(tree_t t)
+{
+   // Context declarations are in LRM 08 section 13.3
+
+   assert(top_scope == NULL);
+   scope_push(NULL);
+
+   top_scope->flags |= SCOPE_CONTEXT;
+
+   const bool ok = sem_check_context_clause(t);
+
+   scope_pop();
+
+   ident_t qual = ident_prefix(lib_name(lib_work()), tree_ident(t), '.');
+   tree_set_ident(t, qual);
+   lib_put(lib_work(), t);
+
+   return ok;
+}
+
+static bool sem_check_context_ref(tree_t t)
+{
+   if (top_scope->flags & SCOPE_CONTEXT) {
+      // LRM 08 section 13.3
+      ident_t prefix = ident_until(tree_ident(t), '.');
+      if (prefix == work_i)
+         sem_error(t, "selected name in context declaration context reference "
+                   "may not have WORK as a prefix");
+   }
+
+   tree_t ctx;
+   if (!sem_find_unit(t, tree_ident(t), &ctx))
+      return false;
+
+   if (tree_kind(ctx) != T_CONTEXT)
+      sem_error(t, "unit %s is not a context declaration", istr(tree_ident(t)));
+
+   return sem_check_context_clause(ctx);
+}
+
 bool sem_check(tree_t t)
 {
    if (relax == -1)
@@ -6865,6 +6920,10 @@ bool sem_check(tree_t t)
       return sem_check_configuration(t);
    case T_PROT_BODY:
       return sem_check_prot_body(t);
+   case T_CONTEXT:
+      return sem_check_context_decl(t);
+   case T_CTXREF:
+      return sem_check_context_ref(t);
    default:
       sem_error(t, "cannot check %s", tree_kind_str(tree_kind(t)));
    }

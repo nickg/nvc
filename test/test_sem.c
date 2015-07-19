@@ -1287,6 +1287,34 @@ START_TEST(test_issue176)
 }
 END_TEST
 
+START_TEST(test_context)
+{
+   set_standard(STD_08);
+
+   input_from_file(TESTDIR "/sem/context.vhd");
+
+   const error_t expect[] = {
+      { 26, "unit FOO.PACK is not a context declaration" },
+      { 39, "library clause in a context declaration may not have logical" },
+      { 40, "context declaration use clause may not have WORK" },
+      { 41, "context declaration context reference may not have WORK" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   lib_t foo = lib_tmp("foo");
+   lib_t bar = lib_tmp("bar");
+
+   lib_set_work(foo);
+   parse_and_check(T_PACKAGE, T_CONTEXT, -1);
+
+   lib_set_work(bar);
+   parse_and_check(T_ENTITY, T_ENTITY, T_PACKAGE, T_CONTEXT);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1351,6 +1379,7 @@ int main(void)
    tcase_add_test(tc_core, test_varinit);
    tcase_add_test(tc_core, test_issue201);
    tcase_add_test(tc_core, test_issue176);
+   tcase_add_test(tc_core, test_context);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

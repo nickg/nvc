@@ -4129,6 +4129,11 @@ static void p_context_declaration(tree_t unit)
 
    consume(tIS);
 
+   // LRM 08 section 13.1 forbids preceeding context clause
+   if (tree_contexts(unit) != 0)
+      parse_error(tree_loc(tree_context(unit, 0)), "context clause preceeding "
+                  "context declaration must be empty");
+
    p_context_clause(unit);
 
    consume(tEND);
