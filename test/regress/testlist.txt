@@ -299,3 +299,4 @@ func17          normal
 elab24          normal
 elab25          normal
 logical2        normal
+attr12          normal,gold

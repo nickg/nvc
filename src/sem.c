@@ -2402,6 +2402,8 @@ static bool sem_check_package(tree_t t)
    assert(top_scope == NULL);
    scope_push(NULL);
 
+   scope_insert(t);
+
    const int ndecls = tree_decls(t);
 
    bool ok = sem_check_context_clause(t);
@@ -2518,6 +2520,9 @@ static bool sem_check_pack_body(tree_t t)
    scope_push(NULL);
 
    bool ok = sem_check_context_clause(pack) && sem_check_context_clause(t);
+
+   scope_insert(pack);
+   scope_insert_alias(pack, tree_ident(t));
 
    scope_push(qual);
 
@@ -5214,7 +5219,8 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
       {
          const class_t class = class_of(name);
          if (class != C_SIGNAL && class != C_ARCHITECTURE && class != C_ENTITY
-             && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL)
+             && class != C_FUNCTION && class != C_PROCEDURE && class != C_LABEL
+             && class != C_PACKAGE)
             sem_error(t, "prefix does not have attribute %s", istr(attr));
 
          tree_set_type(t, sem_std_type("STRING"));

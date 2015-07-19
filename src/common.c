@@ -419,6 +419,8 @@ class_t class_of(tree_t t)
    case T_ARRAY_SLICE:
    case T_RECORD_REF:
       return class_of(tree_value(t));
+   case T_PACKAGE:
+      return C_PACKAGE;
    default:
       fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
