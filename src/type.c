@@ -676,6 +676,11 @@ bool type_is_discrete(type_t t)
    return base == T_INTEGER || base == T_ENUM;
 }
 
+bool type_is_subprogram(type_t t)
+{
+   return t->object.kind == T_FUNC || t->object.kind == T_PROC;
+}
+
 bool type_is_physical(type_t t)
 {
    return type_base_kind(t) == T_PHYSICAL;

@@ -262,7 +262,8 @@ static bool scope_can_overload(tree_t t)
       || kind == T_FUNC_DECL
       || kind == T_FUNC_BODY
       || kind == T_PROC_DECL
-      || kind == T_PROC_BODY;
+      || kind == T_PROC_BODY
+      || (kind == T_ALIAS && type_is_subprogram(tree_type(t)));
 }
 
 static void scope_insert_fields(type_t type, ident_t prefix)
@@ -1969,7 +1970,7 @@ static bool sem_check_alias(tree_t t)
    if (tree_has_type(t))
        type = tree_type(t);
 
-   if (type && (type_kind(type) == T_FUNC || type_kind(type) == T_PROC)) {
+   if (type && type_is_subprogram(type)) {
       // Alias of subprogram
       // Rules for matching signatures are in LRM 93 section 2.3.2
 

@@ -1315,6 +1315,25 @@ START_TEST(test_context)
 }
 END_TEST
 
+START_TEST(test_issue89)
+{
+   input_from_file(TESTDIR "/sem/issue89.vhd");
+
+   tree_t e = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   tree_t p = tree_stmt(e, 0);
+
+   tree_t c1 = tree_stmt(p, 0);
+   fail_unless(tree_kind(c1) == T_PCALL);
+   fail_unless(tree_loc(tree_ref(c1))->first_line == 6);
+
+   tree_t c2 = tree_stmt(p, 1);
+   fail_unless(tree_kind(c2) == T_PCALL);
+   fail_unless(tree_loc(tree_ref(c2))->first_line == 10);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1380,6 +1399,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue201);
    tcase_add_test(tc_core, test_issue176);
    tcase_add_test(tc_core, test_context);
+   tcase_add_test(tc_core, test_issue89);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
