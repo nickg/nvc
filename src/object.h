@@ -135,6 +135,9 @@ typedef enum {
    A_STRING, A_INT, A_PTR, A_TREE
 } attr_kind_t;
 
+typedef uint16_t generation_t;
+typedef uint32_t index_t;
+
 typedef struct {
    attr_kind_t kind;
    ident_t     name;
@@ -171,17 +174,17 @@ typedef union {
 } item_t;
 
 typedef struct {
-   uint8_t  kind;
-   uint8_t  tag;
-   uint16_t generation;
-   uint32_t index;
-   loc_t    loc;
-   item_t   items[0];
+   uint8_t      kind;
+   uint8_t      tag;
+   generation_t generation;
+   index_t      index;
+   loc_t        loc;
+   item_t       items[0];
 } object_t;
 
 typedef struct {
-   uint32_t        generation;
-   uint32_t        index;
+   generation_t    generation;
+   index_t         index;
    tree_copy_fn_t  callback;
    void           *context;
    object_t      **copied;
@@ -189,8 +192,8 @@ typedef struct {
 
 typedef struct {
    object_t        **cache;
-   uint32_t          index;
-   uint32_t          generation;
+   index_t           index;
+   generation_t      generation;
    tree_rewrite_fn_t fn;
    void             *context;
    size_t            cache_size;
@@ -268,7 +271,7 @@ object_rd_ctx_t *object_read_begin(fbuf_t *f, const char *fname);
 object_rd_ctx_t *object_read_recover(object_t *object, const char *fname);
 void object_read_end(object_rd_ctx_t *ctx);
 fbuf_t *object_read_file(object_rd_ctx_t *ctx);
-object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index);
+object_t *object_read_recall(object_rd_ctx_t *ctx, index_t index);
 object_t *object_read(object_rd_ctx_t *ctx, int tag);
 
 #endif   // _OBJECT_H

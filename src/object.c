@@ -42,7 +42,7 @@ static const char *item_text_map[] = {
 
 static object_class_t *classes[4];
 static uint32_t        format_digest;
-static unsigned        next_generation = 1;
+static generation_t    next_generation = 1;
 static object_t      **all_objects = NULL;
 static size_t          max_objects = 256;   // Grows at runtime
 static size_t          n_objects_alloc = 0;
@@ -248,7 +248,7 @@ static void object_sweep(object_t *object)
 void object_gc(void)
 {
    // Generation will be updated by tree_visit
-   const unsigned base_gen = next_generation;
+   const generation_t base_gen = next_generation;
 
    // Mark
    for (unsigned i = 0; i < n_objects_alloc; i++) {
@@ -398,11 +398,6 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
    if (object == NULL)
       return NULL;
 
-   if (unlikely(ctx->cache == NULL)) {
-      ctx->cache_size = n_objects_alloc * 2;
-      ctx->cache = xcalloc(sizeof(object_t *) * ctx->cache_size);
-   }
-
    if (object->generation == ctx->generation) {
       // Already rewritten this tree so return the cached version
       return ctx->cache[object->index];
@@ -479,7 +474,21 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          n++;
    }
 
-   assert(ctx->index < ctx->cache_size);
+   if (unlikely(ctx->cache == NULL)) {
+      ctx->cache_size = MIN(4096, n_objects_alloc);
+      ctx->cache = xcalloc(sizeof(object_t *) * ctx->cache_size);
+   }
+   else if (unlikely(ctx->index >= ctx->cache_size)) {
+      assert(ctx->index < n_objects_alloc);
+      while (ctx->index >= ctx->cache_size) {
+         const size_t newsz = (ctx->cache_size * 3) / 2;
+         ctx->cache = xrealloc(ctx->cache, newsz * sizeof(object_t *));
+         memset(ctx->cache + ctx->cache_size, '\0',
+                (newsz - ctx->cache_size) * sizeof(object_t *));
+         ctx->cache_size = newsz;
+      }
+   }
+
    object->generation = ctx->generation;
    object->index      = ctx->index++;
 
@@ -720,7 +729,7 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
       return NULL;    // Null marker
    else if (marker == UINT16_C(0xfffe)) {
       // Back reference marker
-      unsigned index = read_u32(ctx->file);
+      index_t index = read_u32(ctx->file);
       assert(index < ctx->n_objects);
       return ctx->store[index];
    }
@@ -929,7 +938,7 @@ fbuf_t *object_read_file(object_rd_ctx_t *ctx)
    return ctx->file;
 }
 
-object_t *object_read_recall(object_rd_ctx_t *ctx, uint32_t index)
+object_t *object_read_recall(object_rd_ctx_t *ctx, index_t index)
 {
    assert(index < ctx->n_objects);
    return ctx->store[index];
