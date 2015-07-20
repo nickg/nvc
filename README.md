@@ -94,7 +94,7 @@ compliance constraints.
 Windows support is via [Cygwin](http://www.cygwin.com/). Use `setup.exe` to install
 either `gcc` or `clang` and the following dependencies: `automake`, `autoconf`,
 `pkg-config`, `llvm`, `libllvm-devel`, `flex`, `tcl`, `libreadline-devel`,
-`libffi-devel`, `libcurses-devel`, and `make`. Then follow the standard installation
+`libffi-devel`, `libcurses-devel`, `curl`, and `make`. Then follow the standard installation
 instructions above.
 
 #### OpenBSD
