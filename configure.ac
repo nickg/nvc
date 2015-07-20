@@ -65,6 +65,11 @@ AC_CHECK_HEADERS([limits.h stddef.h fcntl.h libintl.h malloc.h \
 AC_CHECK_MEMBERS([struct stat.st_mtimespec.tv_nsec])
 AC_CHECK_MEMBERS([struct stat.st_mtim.tv_nsec])
 
+AX_CHECK_LINK_FLAG([-rdynamic],
+  [RDYNAMIC_FLAG="-rdynamic"],
+  [RDYNAMIC_FLAG=""])
+AC_SUBST(RDYNAMIC_FLAG)
+
 AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in
