@@ -285,12 +285,13 @@ START_TEST(test_ffold)
 
    simplify(a);
 
-   fail_unless(folded_i(tree_value(tree_decl(a, 4)), 6));
-   fail_unless(folded_i(tree_value(tree_decl(a, 6)), 4));
-   fail_unless(folded_i(tree_value(tree_decl(a, 7)), 3));
-   fail_unless(folded_i(tree_value(tree_decl(a, 8)), 2));
-   fail_unless(folded_i(tree_value(tree_decl(a, 9)), 5));
-   fail_unless(folded_i(tree_value(tree_decl(a, 10)), 10));
+   fail_unless(folded_i(tree_value(tree_decl(a, 6)), 6));
+   fail_unless(folded_i(tree_value(tree_decl(a, 8)), 4));
+   fail_unless(folded_i(tree_value(tree_decl(a, 9)), 3));
+   fail_unless(folded_i(tree_value(tree_decl(a, 10)), 2));
+   fail_unless(folded_i(tree_value(tree_decl(a, 11)), 5));
+   fail_unless(folded_i(tree_value(tree_decl(a, 12)), 10));
+   fail_unless(folded_b(tree_value(tree_decl(a, 13)), true));
 }
 END_TEST
 

@@ -71,7 +71,8 @@ static void vtable_push(vtable_t *v)
 static void vtable_pop(vtable_t *v)
 {
    vtframe_t *f = v->top;
-   v->top = f->down;
+   v->top    = f->down;
+   v->result = NULL;
    free(f);
 }
 
