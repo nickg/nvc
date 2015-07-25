@@ -38,6 +38,7 @@ struct imp_signal {
 typedef struct {
    imp_signal_t *imp_signals;
    tree_t        top;
+   ident_t       prefix;
 } simp_ctx_t;
 
 static tree_t simp_tree(tree_t t, void *context);
@@ -99,8 +100,28 @@ static tree_t simp_call_args(tree_t t)
    return t;
 }
 
-static tree_t simp_fcall(tree_t t)
+static tree_t simp_fcall(tree_t t, simp_ctx_t *ctx)
 {
+   tree_t decl = tree_ref(t);
+   ident_t name = tree_ident(decl);
+   const bool builtin = tree_attr_str(decl, builtin_i) != NULL;
+   const bool local =
+      ident_until(name, '.') == name
+      || ident_runtil(name, '.') == ctx->prefix;
+
+   if (tree_kind(decl) == T_FUNC_DECL && !builtin && local) {
+      // Try searching the current unit for the function body
+      type_t type = tree_type(decl);
+      const int ndecls = tree_decls(ctx->top);
+      for (int i = 0; i < ndecls; i++) {
+         tree_t d = tree_decl(ctx->top, i);
+         if (tree_kind(d) == T_FUNC_BODY && type_eq(tree_type(d), type)) {
+            tree_set_ref(t, d);
+            break;
+         }
+      }
+   }
+
    return eval(simp_call_args(t));
 }
 
@@ -823,7 +844,7 @@ static tree_t simp_tree(tree_t t, void *_ctx)
    case T_ATTR_REF:
       return simp_attr_ref(t, ctx);
    case T_FCALL:
-      return simp_fcall(t);
+      return simp_fcall(t, ctx);
    case T_PCALL:
       return simp_pcall(t);
    case T_REF:
@@ -863,7 +884,8 @@ void simplify(tree_t top)
 {
    simp_ctx_t ctx = {
       .imp_signals = NULL,
-      .top         = top
+      .top         = top,
+      .prefix      = ident_runtil(tree_ident(top), '-')
    };
 
    tree_rewrite(top, simp_tree, &ctx);
