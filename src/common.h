@@ -70,6 +70,11 @@ typedef enum {
    WAITS_YES   = 0x3,
 } wait_level_t;
 
+typedef enum {
+   IMPURE_FILE   = 0x1,
+   IMPURE_SHARED = 0x2,
+} impure_io_t;
+
 //
 // VHDL standard revisions
 //
@@ -185,6 +190,7 @@ GLOBAL ident_t postponed_i;
 GLOBAL ident_t work_i;
 GLOBAL ident_t llvm_i;
 GLOBAL ident_t wait_level_i;
+GLOBAL ident_t impure_io_i;
 
 void intern_strings();
 

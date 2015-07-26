@@ -749,4 +749,5 @@ void intern_strings(void)
    work_i           = ident_new("WORK");
    llvm_i           = ident_new("llvm");
    wait_level_i     = ident_new("wait_level");
+   impure_io_i      = ident_new("impure_io");
 }

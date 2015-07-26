@@ -63,6 +63,7 @@ struct scope {
    hash_t        *decls;
    tree_t         subprog;
    wait_level_t   wait_level;
+   impure_io_t    impure_io;
 
    // For design unit scopes
    ident_t        prefix;
@@ -136,6 +137,7 @@ static void scope_push(ident_t prefix)
    s->flags      = (top_scope ? top_scope->flags : 0);
    s->deferred   = NULL;
    s->wait_level = WAITS_NO;
+   s->impure_io  = 0;
 
    top_scope = s;
 }
@@ -154,8 +156,10 @@ static void scope_pop(void)
    hash_free(top_scope->decls);
 
    scope_t *s = top_scope;
-   if (s->down != NULL && s->down->subprog == s->subprog)
+   if (s->down != NULL && s->down->subprog == s->subprog) {
       s->down->wait_level |= s->wait_level;
+      s->down->impure_io  |= s->down->impure_io;
+   }
 
    top_scope = s->down;
    free(s);
@@ -2293,10 +2297,15 @@ static bool sem_check_proc_body(tree_t t)
    ok = ok && sem_check_stmts(t, tree_stmt, tree_stmts(t));
 
    tree_add_attr_int(t, wait_level_i, top_scope->wait_level);
+   if (top_scope->impure_io)
+      tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
 
    tree_t proto = sem_check_duplicate(t, T_PROC_DECL);
-   if (proto != NULL)
+   if (proto != NULL) {
       tree_add_attr_int(proto, wait_level_i, top_scope->wait_level);
+      if (top_scope->impure_io)
+         tree_add_attr_int(t, impure_io_i, top_scope->impure_io);
+   }
 
    scope_pop();
    return ok;
@@ -3793,12 +3802,23 @@ static bool sem_check_pcall(tree_t t)
    else if (waits == WAITS_MAYBE && top_scope->wait_level == WAITS_NO)
       top_scope->wait_level = WAITS_MAYBE;
 
+   const impure_io_t impure_io = tree_attr_int(decl, impure_io_i, 0);
+   top_scope->impure_io |= impure_io;
+
    const bool in_func = top_scope->subprog != NULL
       && tree_kind(top_scope->subprog) == T_FUNC_BODY;
 
    if (waits == WAITS_YES && in_func)
       sem_error(t, "function %s cannot call procedure %s which contains "
                 "a wait statement", istr(tree_ident(top_scope->subprog)),
+                istr(tree_ident(decl)));
+   else if ((impure_io & IMPURE_FILE) && in_func)
+      sem_error(t, "function %s cannot call procedure %s which references "
+                "a file object", istr(tree_ident(top_scope->subprog)),
+                istr(tree_ident(decl)));
+   else if ((impure_io & IMPURE_SHARED) && in_func)
+      sem_error(t, "function %s cannot call procedure %s which references "
+                "a shared variable", istr(tree_ident(top_scope->subprog)),
                 istr(tree_ident(decl)));
 
 #if 0
@@ -4755,11 +4775,13 @@ static bool sem_check_ref(tree_t t)
       }
    }
 
-   switch (tree_kind(decl)) {
+   const tree_kind_t kind = tree_kind(decl);
+   switch (kind) {
    case T_PORT_DECL:
       if (tree_class(decl) != C_CONSTANT) {
       case T_VAR_DECL:
       case T_SIGNAL_DECL:
+      case T_FILE_DECL:
          if (!sem_check_pure_ref(t, decl))
             return false;
       }
@@ -4767,7 +4789,6 @@ static bool sem_check_ref(tree_t t)
    case T_CONST_DECL:
    case T_ENUM_LIT:
    case T_ALIAS:
-   case T_FILE_DECL:
    case T_UNIT_DECL:
    case T_GENVAR:
       tree_set_type(t, tree_type(decl));
@@ -4786,6 +4807,13 @@ static bool sem_check_ref(tree_t t)
 
    default:
       sem_error(t, "invalid use of %s", istr(tree_ident(t)));
+   }
+
+   if (top_scope->subprog != NULL) {
+      if (kind == T_FILE_DECL)
+         top_scope->impure_io |= IMPURE_FILE;
+      else if (kind == T_VAR_DECL && tree_attr_int(decl, shared_i, 0))
+         top_scope->impure_io |= IMPURE_SHARED;
    }
 
    tree_set_ref(t, decl);
@@ -6460,6 +6488,14 @@ static bool sem_check_file_decl(tree_t t)
       if (!type_eq(tree_type(mode), open_kind))
          sem_error(mode, "open mode must have type FILE_OPEN_KIND");
    }
+
+   const bool is_pure_func_body =
+      top_scope->subprog != NULL
+      && tree_kind(top_scope->subprog) == T_FUNC_BODY
+      && !tree_attr_int(top_scope->subprog, impure_i, 0);
+
+   if (is_pure_func_body)
+      sem_error(t, "cannot declare a file object in a pure function");
 
    scope_apply_prefix(t);
    return scope_insert(t);

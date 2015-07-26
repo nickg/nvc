@@ -1334,6 +1334,25 @@ START_TEST(test_issue89)
 }
 END_TEST
 
+START_TEST(test_issue188)
+{
+   input_from_file(TESTDIR "/sem/issue188.vhd");
+
+   const error_t expect[] = {
+      {  9, "cannot declare a file object in a pure function" },
+      { 29, "invalid reference to F inside pure function FILE_FUNC2" },
+      { 46, "call procedure CALL_READ_B which references a file object" },
+      { 59, "call procedure UPDATE_X which references a shared variable" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1400,6 +1419,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue176);
    tcase_add_test(tc_core, test_context);
    tcase_add_test(tc_core, test_issue89);
+   tcase_add_test(tc_core, test_issue188);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
