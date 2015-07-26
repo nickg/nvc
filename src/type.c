@@ -139,19 +139,19 @@ bool type_eq(type_t a, type_t b)
    assert(a != NULL);
    assert(b != NULL);
 
-   type_kind_t kind_a = type_kind(a);
-   type_kind_t kind_b = type_kind(b);
+   if (a == b)
+      return true;
+
+   type_kind_t kind_a = a->object.kind;
+   type_kind_t kind_b = b->object.kind;
 
    if ((kind_a == T_UNRESOLVED) || (kind_b == T_UNRESOLVED))
       return false;
 
-   if (a == b)
-      return true;
-
    // Subtypes are convertible to the base type
-   while ((kind_a = type_kind(a)) == T_SUBTYPE)
+   while ((kind_a = a->object.kind) == T_SUBTYPE)
       a = type_base(a);
-   while ((kind_b = type_kind(b)) == T_SUBTYPE)
+   while ((kind_b = b->object.kind) == T_SUBTYPE)
       b = type_base(b);
 
    const bool compare_c_u_arrays =

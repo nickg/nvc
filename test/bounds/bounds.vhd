@@ -137,4 +137,14 @@ begin
         assert i'a(14) = '0';           -- Error
     end process;
 
+    process is
+        constant FPO_LOG_MAX_ITERATIONS : integer := 9;
+        type T_FPO_LOG_ALPHA is array (0 to FPO_LOG_MAX_ITERATIONS-1) of integer;
+        variable alpha : T_FPO_LOG_ALPHA;
+    begin
+        if alpha(0 to 5) = (5, 4, 6, 6, 6, 6) then  -- OK
+            null;
+        end if;
+    end process;
+
 end architecture;

@@ -792,6 +792,19 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    type_t t = tree_type(decl);
 
+   if (type_kind(t) == T_CARRAY) {
+      // Construct an unconstrained array type for parameters
+      type_t u = type_new(T_UARRAY);
+      type_set_ident(u, type_ident(t));
+      type_set_elem(u, type_elem(t));
+
+      const int ndims = type_dims(t);
+      for (int i = 0; i < ndims; i++)
+         type_add_index_constr(u, tree_type(type_dim(t, i).left));
+
+      t = u;
+   }
+
    ident_t mult  = ident_new("\"*\"");
    ident_t div   = ident_new("\"/\"");
    ident_t plus  = ident_new("\"+\"");
@@ -4270,9 +4283,7 @@ static bool sem_check_aggregate(tree_t t)
       sem_error(t, "type of aggregate is ambiguous%s", tb_get(ts));
    }
 
-   type_t base_type = composite_type;
-   while (type_kind(base_type) == T_SUBTYPE)
-      base_type = type_base(base_type);
+   type_t base_type = type_base_recur(composite_type);
 
    const bool unconstrained = type_is_unconstrained(composite_type);
    const bool array = type_is_array(composite_type);

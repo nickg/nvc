@@ -108,10 +108,11 @@ static tree_t bounds_check_call_args(tree_t t)
 
             if (f_len != a_len) {
                if (ndims > 1)
-                  bounds_error(t, "actual length %d for dimension %d does not "
-                            "match formal length %d", a_len, j + 1, f_len);
+                  bounds_error(param, "actual length %d for dimension %d does "
+                               "not match formal length %d",
+                               a_len, j + 1, f_len);
                else
-                  bounds_error(t, "actual length %d does not match formal "
+                  bounds_error(param, "actual length %d does not match formal "
                                "length %d", a_len, f_len);
             }
          }
