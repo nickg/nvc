@@ -674,10 +674,8 @@ bool is_debugger_running(void)
 
 #ifdef PR_SET_PTRACER
    // For Linux 3.4 and later allow tracing from any proccess
-
-   if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0) < 0)
-      perror("prctl");
-
+   // Failure is harmless as this may not be implemented even in a >3.4 kernel
+   (void)prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY, 0, 0, 0);
 #endif  // PR_SET_PTRACER
 
    pid_t pid = fork();
