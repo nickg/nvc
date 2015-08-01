@@ -489,8 +489,10 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
       }
    }
 
-   object->generation = ctx->generation;
-   object->index      = ctx->index++;
+   if (object->generation != ctx->generation) {
+      object->generation = ctx->generation;
+      object->index      = ctx->index++;
+   }
 
    if (object->tag == OBJECT_TAG_TREE) {
       // Rewrite this tree before we rewrite the type as there may
