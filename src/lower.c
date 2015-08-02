@@ -4117,6 +4117,9 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
       if (kind == T_FUNC_BODY || kind == T_PROC_BODY || kind == T_PROT_BODY) {
          vcode_block_t bb = vcode_active_block();
 
+         if (kind != T_PROT_BODY && tree_has_code(d))
+            continue;
+
          if (nested)
             tree_add_attr_int(d, nested_i, nest_depth + 1);
 
@@ -4239,9 +4242,7 @@ static void lower_proc_body(tree_t body, vcode_unit_t context)
 
    lower_finished();
 
-   assert(!tree_has_code(body));
    tree_set_code(body, vu);
-
    lower_cleanup(body);
 }
 
