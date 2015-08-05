@@ -113,6 +113,7 @@ static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 static void scope_insert_alias(tree_t t, ident_t name);
 static bool scope_import_unit(ident_t unit_name, lib_t lib,
                               bool all, const loc_t *loc);
+static int sem_ambiguous_rate(tree_t t);
 
 static scope_t      *top_scope = NULL;
 static int           errors = 0;
@@ -1278,6 +1279,15 @@ static bool sem_declare(tree_t decl, bool add_predefined)
    return ok;
 }
 
+static void sem_index_check_order(tree_t *first, tree_t *second)
+{
+   if (sem_ambiguous_rate(*first) > sem_ambiguous_rate(*second)) {
+      tree_t tmp = *first;
+      *first = *second;
+      *second = tmp;
+   }
+}
+
 static bool sem_check_range(range_t *r, type_t context)
 {
    if (r->kind == RANGE_EXPR) {
@@ -1330,10 +1340,13 @@ static bool sem_check_range(range_t *r, type_t context)
       }
    }
 
-   if (!sem_check_constrained(r->left, context))
+   tree_t first = r->left, second = r->right;
+   sem_index_check_order(&first, &second);
+
+   if (!sem_check_constrained(first, context))
       return false;
 
-   if (!sem_check_constrained(r->right, context))
+   if (!sem_check_constrained(second, tree_type(first)))
       return false;
 
    type_t left_type  = tree_type(r->left);
@@ -3076,8 +3089,14 @@ static int sem_ambiguous_rate(tree_t t)
    switch (tree_kind(t)) {
    case T_REF:
       {
-         tree_t decl = scope_find(tree_ident(t));
-         return (decl != NULL && tree_kind(decl) == T_ENUM_LIT) ? 50 : 0;
+         int n = 0;
+         tree_t decl;
+         bool have_enum = false;
+         while ((decl = scope_find_nth(tree_ident(t), n++))
+                 && tree_kind(decl) == T_ENUM_LIT)
+            have_enum = true;
+
+         return have_enum ? 50 + n : 0;
       }
    case T_AGGREGATE:
       return 100;
@@ -3989,16 +4008,14 @@ static bool sem_check_concat(tree_t t)
       sem_error(t, "no composite type in context%s", tb_get(ts));
    }
 
-   if (sem_ambiguous_rate(left) < sem_ambiguous_rate(right)) {
-      if (!sem_check_concat_param(left, NULL)
-          || !sem_check_concat_param(right, tree_type(left)))
-         return false;
-   }
-   else {
-      if (!sem_check_concat_param(right, NULL)
-          || !sem_check_concat_param(left, tree_type(right)))
-         return false;
-   }
+   tree_t first = left, second = right;
+   sem_index_check_order(&first, &second);
+
+   if (!sem_check_concat_param(first, NULL))
+      return false;
+
+   if (!sem_check_concat_param(second, tree_type(first)))
+      return false;
 
    type_t ltype = tree_type(left);
    type_t rtype = tree_type(right);
