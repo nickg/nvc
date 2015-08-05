@@ -3086,7 +3086,7 @@ static int sem_ambiguous_rate(tree_t t)
    case T_LITERAL:
       {
          switch (tree_subkind(t)) {
-         case L_NULL:   return 0;
+         case L_NULL:   return 10;
          case L_STRING: return 90;
          default:       return -10;
          }
