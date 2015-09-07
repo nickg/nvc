@@ -1375,6 +1375,26 @@ START_TEST(test_issue220)
 }
 END_TEST
 
+START_TEST(test_issue222)
+{
+   input_from_file(TESTDIR "/sem/issue222.vhd");
+
+   const error_t expect[] = {
+      { 13, "this statement must have a label" },
+      { 22, "this statement must have a label" },
+      { 32, "this statement must have a label" },
+      { 37, "this statement must have a label" },
+      { 58, "this statement must have a label" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1444,6 +1464,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue188);
    tcase_add_test(tc_core, test_issue219);
    tcase_add_test(tc_core, test_issue220);
+   tcase_add_test(tc_core, test_issue222);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

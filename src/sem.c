@@ -2173,6 +2173,20 @@ static bool sem_check_stmts(tree_t t, tree_t (*get_stmt)(tree_t, unsigned),
    bool ok = true;
    for (int i = 0; i < nstmts; i++) {
       tree_t s = get_stmt(t, i);
+      
+      switch (tree_kind(s)) {
+         case T_INSTANCE:
+         case T_BLOCK:
+         case T_IF_GENERATE:
+         case T_FOR_GENERATE:
+            if (!tree_has_ident(s))
+               sem_error(s, "this statement must have a label");
+            break;
+
+         default:
+            break;
+      }
+
       ok = scope_insert(s) && sem_check(s) && ok;
    }
 
