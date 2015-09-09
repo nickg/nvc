@@ -1395,6 +1395,25 @@ START_TEST(test_issue222)
 }
 END_TEST
 
+START_TEST(test_issue224)
+{
+   input_from_file(TESTDIR "/sem/issue224.vhd");
+
+   const error_t expect[] = {
+      {  6, "parameter of class SIGNAL can not have a default value" },
+      { 18, "actual for formal A must not be OPEN" },
+      { 24, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
+      { 34, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1465,6 +1484,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue219);
    tcase_add_test(tc_core, test_issue220);
    tcase_add_test(tc_core, test_issue222);
+   tcase_add_test(tc_core, test_issue224);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

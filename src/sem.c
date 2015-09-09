@@ -2085,6 +2085,17 @@ static bool sem_check_interface_class(tree_t port)
    const type_kind_t kind = type_base_kind(tree_type(port));
    const class_t class = tree_class(port);
 
+   if (tree_has_value(port)) {
+       if (class == C_SIGNAL)
+          sem_error(port, "parameter of class SIGNAL can not have a default value");
+
+       if (class == C_VARIABLE) {
+          port_mode_t mode = tree_subkind(port);
+          if (mode == PORT_OUT || mode == PORT_INOUT)
+             sem_error(port, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value");
+       }
+   }
+
    if (kind == T_FILE && class != C_FILE)
       sem_error(port, "object %s with file type must have class FILE",
                 istr(tree_ident(port)));
@@ -3795,6 +3806,10 @@ static bool sem_check_pcall(tree_t t)
          value = tree_value(value);
          kind  = tree_kind(value);
       }
+
+      if (class == C_SIGNAL && (tree_kind(value) == T_OPEN))
+         sem_error(value, "actual for formal %s must not be OPEN",
+                   istr(tree_ident(port)));
 
       if (class == C_VARIABLE) {
          if (kind != T_REF)
