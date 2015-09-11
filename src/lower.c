@@ -3210,9 +3210,12 @@ static void lower_pcall(tree_t pcall)
 {
    tree_t decl = tree_ref(pcall);
 
+   const int saved_heap = emit_heap_save();
+
    ident_t builtin = tree_attr_str(decl, builtin_i);
    if (builtin != NULL) {
       lower_builtin(pcall, builtin);
+      lower_cleanup_temp_objects(saved_heap);
       return;
    }
 
@@ -3239,6 +3242,7 @@ static void lower_pcall(tree_t pcall)
       }
       else
          emit_fcall(name, VCODE_INVALID_TYPE, args, nargs);
+      lower_cleanup_temp_objects(saved_heap);
    }
    else {
       const int hops = nest_depth > 0 ? vcode_unit_depth() - nest_depth : 0;
