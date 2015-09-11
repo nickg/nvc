@@ -2286,6 +2286,28 @@ START_TEST(test_context)
 }
 END_TEST
 
+START_TEST(test_issue222)
+{
+   input_from_file(TESTDIR "/parse/issue222.vhd");
+
+   const error_t expect[] = {
+      { 13, "component instantiation statement must have a label" },
+      { 22, "block statement must have a label" },
+      { 32, "component instantiation statement must have a label" },
+      { 37, "generate statement must have a label" },
+      { 58, "generate statement must have a label" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   for (int i = 0; i < 8; i++)
+      (void)parse();
+
+   fail_unless(parse() == NULL);
+   fail_unless(parse_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("parse");
@@ -2325,6 +2347,7 @@ int main(void)
    tcase_add_test(tc_core, test_empty);
    tcase_add_test(tc_core, test_issue205);
    tcase_add_test(tc_core, test_context);
+   tcase_add_test(tc_core, test_issue222);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

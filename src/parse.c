@@ -4873,6 +4873,10 @@ static tree_t p_component_instantiation_statement(ident_t label)
 
    consume(tSEMI);
 
+   if (label == NULL)
+      parse_error(CURRENT_LOC, "component instantiation statement must "
+                  "have a label");
+
    tree_set_loc(t, CURRENT_LOC);
    return t;
 }
@@ -5088,6 +5092,9 @@ static tree_t p_block_statement(ident_t label)
    p_trailing_label(label);
    consume(tSEMI);
 
+   if (label == NULL)
+      parse_error(CURRENT_LOC, "block statement must have a label");
+
    tree_set_loc(b, CURRENT_LOC);
    return b;
 }
@@ -5144,6 +5151,9 @@ static tree_t p_generate_statement(ident_t label)
    consume(tGENERATE);
    p_trailing_label(label);
    consume(tSEMI);
+
+   if (label == NULL)
+      parse_error(CURRENT_LOC, "generate statement must have a label");
 
    tree_set_loc(g, CURRENT_LOC);
    return g;
@@ -5212,7 +5222,6 @@ static tree_t p_concurrent_statement(void)
          return p_concurrent_signal_assignment_statement(label);
 
       default:
-         // XXX: this is a bit broken as we allow instances without labels
          expect(tPROCESS, tPOSTPONED, tCOMPONENT, tENTITY, tCONFIGURATION,
                 tWITH, tASSERT, tBLOCK, tIF, tFOR);
          drop_tokens_until(tSEMI);
@@ -5526,14 +5535,14 @@ void input_from_file(const char *file)
 
 tree_t parse(void)
 {
-   n_errors  = 0;
+   int old_errors = n_errors;
    n_correct = RECOVER_THRESH;
 
    if (peek() == tEOF)
       return NULL;
 
    tree_t unit = p_design_unit();
-   if (n_errors > 0)
+   if (n_errors > old_errors)
       return NULL;
    else
       return unit;

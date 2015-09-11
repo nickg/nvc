@@ -23,7 +23,7 @@ begin
     begin
     end process bar;                    -- No initial label
 
-    block is
+    b: block is
         function "+" return boolean is
         begin
             my_if: if x > 5 then
