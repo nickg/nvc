@@ -5138,7 +5138,8 @@ static tree_t p_generate_statement(ident_t label)
    consume(tGENERATE);
 
    if (scan(tSIGNAL, tTYPE, tSUBTYPE, tFILE, tCONSTANT, tFUNCTION, tIMPURE,
-            tPURE, tALIAS, tATTRIBUTE, tBEGIN)) {
+            tPURE, tALIAS, tATTRIBUTE, tBEGIN, tPROCEDURE, tFOR, tCOMPONENT,
+            tUSE, tSHARED)) {
       while (not_at_token(tBEGIN))
          p_block_declarative_item(g);
       consume(tBEGIN);

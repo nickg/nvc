@@ -1842,7 +1842,7 @@ START_TEST(test_generate)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 5);
+   fail_unless(tree_stmts(a) == 7);
 
    g = tree_stmt(a, 0);
    fail_unless(tree_kind(g) == T_IF_GENERATE);

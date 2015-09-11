@@ -26,4 +26,19 @@ begin
     begin
     end generate;
 
+    g6: for i in 1 to 3 generate
+        component sub_ent is
+            port (val: out natural);
+        end component sub_ent;          -- OK
+    begin
+    end generate;
+
+    g7: if true generate
+        procedure doit is               -- OK
+        begin
+            write(OUTPUT, "OK." & LF);
+        end procedure doit;
+    begin
+    end generate g7;
+
 end architecture;
