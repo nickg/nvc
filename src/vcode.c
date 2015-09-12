@@ -3414,8 +3414,12 @@ static vcode_reg_t emit_logical(vcode_op_t op, vcode_reg_t lhs, vcode_reg_t rhs)
    const bool r_is_const = vcode_reg_const(rhs, &rconst);
    if (l_is_const && r_is_const) {
       switch (op) {
-      case VCODE_OP_AND: return emit_const(vtbool, l_is_const && r_is_const);
-      case VCODE_OP_OR:  return emit_const(vtbool, l_is_const || r_is_const);
+      case VCODE_OP_AND:  return emit_const(vtbool, lconst && rconst);
+      case VCODE_OP_OR:   return emit_const(vtbool, lconst || rconst);
+      case VCODE_OP_XOR:  return emit_const(vtbool, lconst ^ rconst);
+      case VCODE_OP_XNOR: return emit_const(vtbool, !(lconst ^ rconst));
+      case VCODE_OP_NAND: return emit_const(vtbool, !(lconst && rconst));
+      case VCODE_OP_NOR:  return emit_const(vtbool, !(lconst || rconst));
       default:
          fatal_trace("cannot constant fold logical %s", vcode_op_string(op));
       }
