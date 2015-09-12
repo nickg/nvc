@@ -4127,7 +4127,7 @@ static void lower_decls(tree_t scope, vcode_unit_t context)
             lower_mangle_func(d, context);
          }
       }
-      else
+      else if (scope_kind != T_PROT_BODY)
          lower_decl(d);
    }
 
