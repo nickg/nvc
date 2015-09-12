@@ -4760,13 +4760,14 @@ static bool sem_check_ref(tree_t t)
          if (type_set_member(type) || zero_arg_fn) {
             if (decl != NULL) {
                assert(zero_arg_fn || (tree_kind(next) == T_ENUM_LIT));
-               sem_error(t, "ambiguous %s %s",
-                         (tree_kind(next) != tree_kind(decl))
-                         ? "use of name"
-                         : ((zero_arg_fn
-                             ? "call to function"
-                             : "use of enumeration literal")),
-                         istr(name));
+               if (!zero_arg_fn || !type_eq(type, tree_type(decl)))
+                  sem_error(t, "ambiguous %s %s",
+                            (tree_kind(next) != tree_kind(decl))
+                            ? "use of name"
+                            : ((zero_arg_fn
+                                ? "call to function"
+                                : "use of enumeration literal")),
+                            istr(name));
             }
             decl = next;
          }
