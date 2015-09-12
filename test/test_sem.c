@@ -335,9 +335,9 @@ START_TEST(test_func)
       { 180, "no suitable overload for function TEST20" },
       { 181, "missing actual for formal Y without default value" },
       { 182, "no suitable overload for function TEST20" },
-      { 239, "class variable of subprogram body WORK.FUNC2.TEST25 paramteter" },
-      { 245, "class default of subprogram body WORK.FUNC2.TEST26 paramteter" },
-      { 260, "invalid reference to X inside pure function NESTED" },
+      { 239, "class variable of subprogram body WORK.FUNC2.TEST25 parameter" },
+      { 245, "class default of subprogram body WORK.FUNC2.TEST26 parameter" },
+      { 271, "invalid reference to X inside pure function NESTED" },
       { -1, NULL }
    };
    expect_errors(expect);

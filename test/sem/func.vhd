@@ -254,7 +254,18 @@ end package;
 
 package body func3 is
 
-    function issue123(x : integer) return integer is
+   -- default class should be treated identically to constant class
+   -- (ie, this should not produce an error)
+    function issue182(bitv : bit_vector) return integer is
+        function nested_fun return integer is
+        begin
+            return bitv'length;
+        end function;
+    begin
+        return nested_fun;
+    end function;
+
+    function issue123(signal x : integer) return integer is
         function nested return integer is
         begin
             return x + 1;               -- Error

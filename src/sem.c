@@ -2497,7 +2497,7 @@ static bool sem_check_parameter_class_match(tree_t decl, tree_t body)
       tree_t pd = tree_port(decl, k);
       tree_t pb = tree_port(body, k);
       if (tree_class(pd) != tree_class(pb))
-         sem_error(pb, "class %s of subprogram body %s paramteter %s does not "
+         sem_error(pb, "class %s of subprogram body %s parameter %s does not "
                    "match class %s in declaration", class_str(tree_class(pb)),
                    istr(tree_ident(body)), istr(tree_ident(pb)),
                    class_str(tree_class(pd)));
@@ -4810,7 +4810,7 @@ static bool sem_check_ref(tree_t t)
    const tree_kind_t kind = tree_kind(decl);
    switch (kind) {
    case T_PORT_DECL:
-      if (tree_class(decl) != C_CONSTANT) {
+      if (tree_class(decl) != C_CONSTANT && tree_class(decl) != C_DEFAULT) {
       case T_VAR_DECL:
       case T_SIGNAL_DECL:
       case T_FILE_DECL:
