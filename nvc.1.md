@@ -177,6 +177,9 @@ elaborate command.
    Trace simulation events. This is usually only useful for debugging the
    simulator.
 
+ * `--vhpi-trace`:
+   Trace VHPI calls and events. This can be useful for debugging VHPI plugins.
+
  * `-w, --wave=`_file_:
    Write waveform data to _file_. The file name is optional and if not specified
    will default to the name of the top-level unit with the appropriate extension

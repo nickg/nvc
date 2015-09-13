@@ -275,7 +275,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
 
    if ((mode == PORT_OUT) || (mode == PORT_INOUT)) {
       if (tree_has_value(port))
-         tree_add_attr_tree(s, ident_new("driver_init"), tree_value(port));
+         tree_add_attr_tree(s, driver_init_i, tree_value(port));
    }
 
    tree_add_decl(arch, s);
@@ -1414,7 +1414,7 @@ static void elab_entity(tree_t t, const elab_ctx_t *ctx)
    elab_pseudo_context(ctx->out, t);
    elab_copy_context(t, ctx);
 
-   tree_add_attr_str(ctx->out, ident_new("simple_name"), npath);
+   tree_add_attr_str(ctx->out, simple_name_i, npath);
 
    elab_funcs(arch, t, ctx);
    simplify(arch);

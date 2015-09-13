@@ -191,6 +191,7 @@ GLOBAL ident_t work_i;
 GLOBAL ident_t llvm_i;
 GLOBAL ident_t wait_level_i;
 GLOBAL ident_t impure_io_i;
+GLOBAL ident_t simple_name_i;
 
 void intern_strings();
 

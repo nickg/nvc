@@ -218,6 +218,13 @@ static void startup()
    fail_if(handle_y == NULL);
    vhpi_printf("y handle %p", handle_y);
 
+   vhpiHandleT handle_y2 = vhpi_handle_by_name("vhpi1.y", NULL);
+   check_error();
+   fail_unless(handle_y == handle_y2);
+   vhpi_release_handle(handle_y2);
+
+   fail_unless(vhpi_get(vhpiKindP, handle_x) == vhpiPortDeclK);
+
    vhpi_release_handle(root);
 }
 
