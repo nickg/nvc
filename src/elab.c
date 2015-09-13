@@ -1402,9 +1402,8 @@ static void elab_top_level_generics(tree_t arch, const elab_ctx_t *ctx)
    (void)elab_map(ent, arch, tree_generics, tree_generic, NULL, NULL);
 }
 
-static void elab_entity(tree_t t, const elab_ctx_t *ctx)
+static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 {
-   tree_t arch = pick_arch(NULL, tree_ident(t), NULL, ctx);
    const char *name = simple_name(istr(tree_ident(t)));
    ident_t ninst = hpathf(ctx->inst, ':', ":%s(%s)", name,
                           simple_name(istr(tree_ident(arch))));
@@ -1613,7 +1612,13 @@ tree_t elab(tree_t top)
 
    switch (tree_kind(top)) {
    case T_ENTITY:
-      elab_entity(top, &ctx);
+      {
+         tree_t arch = pick_arch(NULL, tree_ident(top), NULL, &ctx);
+         elab_entity_arch(top, arch, &ctx);
+      }
+      break;
+   case T_ARCH:
+      elab_entity_arch(tree_ref(top), top, &ctx);
       break;
    default:
       fatal("%s is not a suitable top-level unit", istr(tree_ident(top)));
