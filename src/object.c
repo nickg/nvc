@@ -964,8 +964,13 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
 
    const object_class_t *class = classes[object->tag];
 
-   int type_item = -1;
    bool marked = false;
+   if (object->tag == OBJECT_TAG_TREE) {
+      if ((marked = (*ctx->callback)((tree_t)object, ctx->context)))
+         object->index = (ctx->index)++;
+   }
+
+   int type_item = -1;
    const imask_t has = class->has_map[object->kind];
    const int nitems = class->object_nitems[object->kind];
    imask_t mask = 1;
@@ -1023,12 +1028,6 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
          n++;
       }
    }
-
-   if (!marked && (object->tag == OBJECT_TAG_TREE))
-      marked = (*ctx->callback)((tree_t)object, ctx->context);
-
-   if (marked)
-      object->index = (ctx->index)++;
 
    // Check type last as it may contain a circular reference
    if (type_item != -1)

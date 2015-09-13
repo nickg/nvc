@@ -302,3 +302,4 @@ logical2        normal
 attr12          normal,gold
 issue229        normal
 issue217        normal
+issue234        normal,gold

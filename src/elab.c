@@ -741,6 +741,8 @@ static bool elab_should_copy(tree_t t)
    switch (tree_kind(t)) {
    case T_SIGNAL_DECL:
    case T_GENVAR:
+   case T_PROCESS:
+   case T_ARCH:
       return true;
    case T_LITERAL:
    case T_ASSOC:
@@ -1191,7 +1193,7 @@ static void elab_if_generate(tree_t t, elab_ctx_t *ctx)
    }
 }
 
-void elab_rename_subprograms(tree_t t, ident_t prefix)
+static void elab_rename_subprograms(tree_t t, ident_t prefix)
 {
    const int ndecls = tree_decls(t);
    for (int i = 0; i < ndecls; i++) {
