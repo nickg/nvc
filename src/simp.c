@@ -71,8 +71,16 @@ static tree_t simp_call_args(tree_t t)
       else if (kind == T_CPCALL)
          tree_set_ident2(new, tree_ident2(t));
 
-      for (int i = 0; i <= last_pos; i++)
-         tree_add_param(new, tree_param(t, i));
+      for (int i = 0; i <= last_pos; i++) {
+         tree_t port  = tree_port(decl, i);
+         tree_t param = tree_param(t, i);
+         tree_t value = tree_value(param);
+
+         if (tree_kind(value) == T_OPEN)
+            value = tree_value(port);
+
+         add_param(new, value, P_POS, NULL);
+      }
 
       for (int i = last_pos + 1; i < nports; i++) {
          tree_t port  = tree_port(decl, i);
@@ -87,7 +95,12 @@ static tree_t simp_call_args(tree_t t)
             assert(tree_kind(ref) == T_REF);
 
             if (name == tree_ident(ref)) {
-               add_param(new, tree_value(p), P_POS, NULL);
+               tree_t value = tree_value(p);
+
+               if (tree_kind(value) == T_OPEN)
+                  value = tree_value(port);
+
+               add_param(new, value, P_POS, NULL);
                found = true;
             }
          }
