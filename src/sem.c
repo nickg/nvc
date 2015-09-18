@@ -5498,7 +5498,7 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
             kind = tree_kind(ref);
          }
 
-         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)) {
+         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE) || (kind == T_RECORD_REF)) {
             ref  = tree_value(ref);
             kind = tree_kind(ref);
          }
