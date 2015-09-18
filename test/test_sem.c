@@ -81,7 +81,7 @@ START_TEST(test_ports)
    const error_t expect[] = {
       { 31,  "cannot read output port O" },
       { 42,  "cannot assign to input port I" },
-      { 81,  "missing actual for formal I" },
+      { 81,  "missing actual for formal I of mode IN without a default expression" },
       { 85,  "formal I already has an actual" },
       { 89,  "too many positional actuals" },
       { 89,  "too many positional actuals" },
@@ -1406,6 +1406,23 @@ START_TEST(test_issue221)
 }
 END_TEST
 
+START_TEST(test_issue236)
+{
+   input_from_file(TESTDIR "/sem/issue236.vhd");
+
+   const error_t expect[] = {
+      { 24,  "missing actual for formal B of mode IN without a default expression" },
+      { 36,  "missing actual for formal C with unconstrained array type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ENTITY, T_ARCH, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1477,6 +1494,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue220);
    tcase_add_test(tc_core, test_issue224);
    tcase_add_test(tc_core, test_issue221);
+   tcase_add_test(tc_core, test_issue236);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

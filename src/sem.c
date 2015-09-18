@@ -5498,7 +5498,8 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
             kind = tree_kind(ref);
          }
 
-         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE) || (kind == T_RECORD_REF)) {
+         while ((kind == T_ARRAY_REF) || (kind == T_ARRAY_SLICE)
+             || (kind == T_RECORD_REF)) {
             ref  = tree_value(ref);
             kind = tree_kind(ref);
          }
@@ -5665,11 +5666,23 @@ static bool sem_check_map(tree_t t, tree_t unit,
       // elaboration time
 
       for (int i = 0; i < nformals; i++) {
-         if (!formals[i].have && !tree_has_value(formals[i].decl)
-             && (tree_subkind(formals[i].decl) == PORT_IN)) {
-            error_at(tree_loc(t), "missing actual for formal %s",
-                     istr(tree_ident(formals[i].decl)));
-            ++errors;
+         if (!formals[i].have) {
+            port_mode_t mode = tree_subkind(formals[i].decl);
+
+            if ((mode == PORT_IN) && !tree_has_value(formals[i].decl)) {
+               error_at(tree_loc(t), "missing actual for formal %s of "
+                        "mode IN without a default expression",
+                        istr(tree_ident(formals[i].decl)));
+               ++errors;
+            }
+
+            if ((mode != PORT_IN)
+                && type_is_unconstrained(tree_type(formals[i].decl))) {
+               error_at(tree_loc(t), "missing actual for formal %s with "
+                        "unconstrained array type",
+                        istr(tree_ident(formals[i].decl)));
+               ++errors;
+            }
          }
       }
    }
