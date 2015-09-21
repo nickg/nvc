@@ -1384,11 +1384,12 @@ START_TEST(test_issue224)
       { 18, "actual for formal A must not be OPEN" },
       { 24, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
       { 34, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value" },
+      { 43, "port with mode LINKAGE can not have a default value" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH);
+   parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_ARCH, T_ARCH, T_ENTITY);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }

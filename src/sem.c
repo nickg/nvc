@@ -1960,6 +1960,10 @@ static bool sem_check_port_decl(tree_t t)
       if (!sem_check_constrained(value, type))
          return false;
 
+      port_mode_t mode = tree_subkind(t);
+      if (mode == PORT_LINKAGE)
+         sem_error(t, "port with mode LINKAGE can not have a default value");
+
       if (!type_eq(type, tree_type(value)))
          sem_error(value, "type of default value %s does not match type "
                    "of declaration %s", sem_type_str(tree_type(value)),

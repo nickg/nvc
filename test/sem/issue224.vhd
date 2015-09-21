@@ -37,3 +37,9 @@ architecture test4 of test is
     end procedure proc;
 begin
 end architecture test4;
+
+entity test2 is
+    port (
+    a   : linkage   boolean := false    -- error
+    );
+end entity test2;
