@@ -2098,6 +2098,10 @@ static bool sem_check_interface_class(tree_t port)
           if (mode == PORT_OUT || mode == PORT_INOUT)
              sem_error(port, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value");
        }
+
+       tree_t value = tree_value(port);
+       if (!sem_globally_static(value))
+          sem_error(value, "default value must be a static expression");
    }
 
    if (kind == T_FILE && class != C_FILE)
