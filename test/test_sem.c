@@ -906,10 +906,11 @@ START_TEST(test_protected)
       {  50, "subtypes may not have protected base types" },
       {  52, "shared variable X must have protected type" },
       {  56, "variable Y with protected type may not have an initial value" },
-      { 108, "no visible declaration for X.COUNTER" },
-      { 109, "no suitable overload for procedure X.DECREMENT" },
-      { 114, "object X with protected type must have class VARIABLE" },
-      { 132, "missing body for protected type WORK.PKG.PROTECTED_T" },
+      {  64, "parameter with protected type can not have a default value" },
+      { 118, "no visible declaration for X.COUNTER" },
+      { 119, "no suitable overload for procedure X.DECREMENT" },
+      { 124, "object X with protected type must have class VARIABLE" },
+      { 142, "missing body for protected type WORK.PKG.PROTECTED_T" },
       { -1, NULL }
    };
    expect_errors(expect);

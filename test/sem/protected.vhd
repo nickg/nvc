@@ -55,6 +55,16 @@ architecture a of e is
 
     shared variable y : SharedCounter := 1;  -- Error
 
+    function make return SharedCounter is
+        variable result : SharedCounter;
+    begin
+        return result;
+    end function;
+
+    procedure proc(variable sh : in SharedCounter := make) is   -- error
+    begin
+    end procedure;
+
 begin
 
 end architecture;

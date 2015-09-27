@@ -2102,6 +2102,9 @@ static bool sem_check_interface_class(tree_t port)
        tree_t value = tree_value(port);
        if (!sem_globally_static(value))
           sem_error(value, "default value must be a static expression");
+
+       if (kind == T_PROTECTED)
+          sem_error(port, "parameter with protected type can not have a default value");
    }
 
    if (kind == T_FILE && class != C_FILE)
