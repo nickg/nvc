@@ -1435,7 +1435,7 @@ START_TEST(test_issue239)
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   parse_and_check(T_ENTITY, T_ARCH, T_PACKAGE);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
