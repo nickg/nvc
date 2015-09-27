@@ -5822,8 +5822,10 @@ static bool sem_locally_static(tree_t t)
       tree_t decl = tree_ref(t);
       const tree_kind_t dkind = tree_kind(decl);
 
-      // A constant reference with a locally static value
+      // A constant reference (other than a deferred constant) with a locally static value
       if (dkind == T_CONST_DECL) {
+         if (!tree_has_value(decl))
+            return false;
          tree_t value = tree_value(decl);
          return sem_subtype_locally_static(tree_type(decl))
             && sem_locally_static(value)

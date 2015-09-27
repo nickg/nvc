@@ -33,3 +33,11 @@ begin
     wait;
 end process;
 end architecture;
+
+package package_issue239 is
+    constant deferred : integer;
+
+    procedure proc(a : integer := deferred);    -- OK
+
+end package;
+
