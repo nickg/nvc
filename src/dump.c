@@ -407,6 +407,7 @@ static void dump_decl(tree_t t, int indent)
          }
          else if (type_is_enum(type)) {
             if (is_subtype) {
+               printf("range ");
                dump_range(type_dim(type, 0));
             }
             else
