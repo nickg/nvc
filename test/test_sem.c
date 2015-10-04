@@ -384,6 +384,8 @@ START_TEST(test_array)
       { 285, "object K does not have a range" },
       { 295, "type of index universal integer does not match" },
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
+      { 365, "may not change constraints of a constrained array" },
+      { 366, "may not change constraints of a constrained array" },
       { -1, NULL }
    };
    expect_errors(expect);
