@@ -340,14 +340,21 @@ static void dump_decl(tree_t t, int indent)
       break;
 
    case T_TYPE_DECL:
-      printf("type %s is ", istr(tree_ident(t)));
       {
          type_t type = tree_type(t);
-         if (type_is_integer(type)) {
+         type_kind_t kind = type_kind(type);
+         bool is_subtype = (kind == T_SUBTYPE);
+
+         printf("%stype %s is ", is_subtype ? "sub" : "", istr(tree_ident(t)));
+
+         if (is_subtype) {
+            printf("%s ", istr(type_ident(type_base(type))));
+         }
+         if (type_is_integer(type) || type_is_real(type)) {
             printf("range ");
             dump_range(type_dim(type, 0));
          }
-         else if (type_kind(type) == T_PHYSICAL) {
+         else if (kind == T_PHYSICAL) {
             printf("range ");
             dump_range(type_dim(type, 0));
             printf("\n");
@@ -367,8 +374,10 @@ static void dump_decl(tree_t t, int indent)
             printf("end units\n");
          }
          else if (type_is_array(type)) {
-            printf("array (");
-            if (type_kind(type) == T_UARRAY) {
+            if (!is_subtype)
+               printf("array ");
+            printf("(");
+            if (kind == T_UARRAY) {
                const int nindex = type_index_constrs(type);
                for (int i = 0; i < nindex; i++) {
                   if (i > 0) printf(", ");
@@ -383,8 +392,11 @@ static void dump_decl(tree_t t, int indent)
                   dump_range(type_dim(type, i));
                }
             }
-            printf(") of ");
-            dump_type(type_elem(type));
+            printf(")");
+            if (!is_subtype) {
+               printf(" of ");
+               dump_type(type_elem(type));
+            }
          }
          else if (type_is_protected(type)) {
             printf("protected\n");
@@ -392,6 +404,21 @@ static void dump_decl(tree_t t, int indent)
                dump_decl(type_decl(type, i), indent + 2);
             tab(indent);
             printf("end protected");
+         }
+         else if (type_is_enum(type)) {
+            if (is_subtype) {
+               printf("range ");
+               dump_range(type_dim(type, 0));
+            }
+            else
+            {
+               printf("(");
+               for (unsigned i = 0; i < type_enum_literals(type); i++) {
+                  if (i > 0) printf(", ");
+                  printf("%s", istr(tree_ident(type_enum_literal(type, i))));
+               }
+               printf(")");
+            }
          }
          else
             dump_type(type);
