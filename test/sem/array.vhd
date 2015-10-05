@@ -122,8 +122,8 @@ begin
     end process;
 
     process is
-        subtype five_ints is ten_ints(1 to 4);
-        variable x : five_ints;
+        subtype four_ints is int_array(1 to 4);
+        variable x : four_ints;
     begin
         x(1 to 3) := (1, 2, 3);         -- OK
         x(2) := 1;                      -- OK
@@ -360,5 +360,11 @@ begin
         end function inside0;
     begin
     end block;
+
+    process is
+        subtype bad is ten_ints (1 to 4);               -- Error
+        constant c : ten_ints(2 to 4) := (others => 0); -- Error
+    begin
+    end process;
 
 end architecture;

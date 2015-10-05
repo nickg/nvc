@@ -1158,6 +1158,9 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       else {
          // Check constraints
 
+         if (type_kind(base) == T_CARRAY)
+            sem_error(t, "may not change constraints of a constrained array");
+
          if (type_is_record(base))
             sem_error(t, "record subtype may not have constraints");
 
