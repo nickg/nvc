@@ -1673,6 +1673,21 @@ static bool sem_check_type_decl(tree_t t)
          return true;
       }
 
+   case T_ENUM:
+      {
+         sem_declare_predefined_ops(t);
+
+         type_t std_int = sem_std_type("INTEGER");
+         range_t r = {
+            .kind  = RANGE_TO,
+            .left  = sem_int_lit(std_int, 0),
+            .right = sem_int_lit(std_int, type_enum_literals(base) - 1)
+         };
+         type_add_dim(type, r);
+
+         return true;
+      }
+
    case T_PHYSICAL:
       {
          sem_declare_predefined_ops(t);
