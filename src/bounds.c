@@ -384,27 +384,28 @@ static void bounds_check_decl(tree_t t)
 
          // Only check here if range can be determined to be non-null
 
-         int64_t dim_left, bounds_left;
-         int64_t dim_right, bounds_right;
+         int64_t dim_low, bounds_low;
+         int64_t dim_high, bounds_high;
 
          const bool is_static =
-            folded_int(dim.left, &dim_left)
-            && folded_int(bounds.left, &bounds_left)
-            && folded_int(dim.right, &dim_right)
-            && folded_int(bounds.right, &bounds_right);
+            folded_bounds(dim, &dim_low, &dim_high)
+            && folded_bounds(bounds, &bounds_low, &bounds_high);
 
          const bool is_null =
-            (dim.kind == RANGE_TO && dim_left > dim_right)
-            || (dim.kind == RANGE_DOWNTO && dim_left < dim_right);
+            dim_low > dim_high || bounds_low > bounds_high;
 
          if (is_static && !is_null) {
-            if (dim_left < bounds_left)
-               bounds_error(dim.left, "left index %"PRIi64" violates "
-                            "constraint %s", dim_left, type_pp(cons));
+            if (dim_low < bounds_low)
+               bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
+                            "%s index %"PRIi64" violates constraint %s",
+                            (dim.kind == RANGE_TO) ? "left" : "right",
+                            dim_low, type_pp(cons));
 
-            if (dim_right > bounds_right)
-               bounds_error(dim.right, "right index %"PRIi64" violates "
-                            "constraint %s", dim_right, type_pp(cons));
+            if (dim_high > bounds_high)
+               bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
+                            "%s index %"PRIi64" violates constraint %s",
+                            (dim.kind == RANGE_TO) ? "right" : "left",
+                            dim_high, type_pp(cons));
          }
       }
    }
