@@ -177,6 +177,27 @@ bool folded_bounds(range_t r, int64_t *low, int64_t *high)
    }
 }
 
+bool folded_bounds_real(range_t r, double *low, double *high)
+{
+   double left, right;
+   if (folded_real(r.left, &left) && folded_real(r.right, &right)) {
+      switch (r.kind) {
+      case RANGE_TO:
+         *low  = left;
+         *high = right;
+         return true;
+      case RANGE_DOWNTO:
+         *low  = right;
+         *high = left;
+         return true;
+      default:
+         return false;
+      }
+   }
+   else
+      return false;
+}
+
 bool folded_enum(tree_t t, unsigned *pos)
 {
    if (tree_kind(t) == T_REF) {

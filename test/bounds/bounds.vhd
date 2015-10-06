@@ -147,4 +147,12 @@ begin
         end if;
     end process;
 
+    process is
+        procedure real_proc(x : in real range 0.0 to 1.0);
+    begin
+        real_proc(0.0);                 -- OK
+        real_proc(1.0);                 -- OK
+        real_proc(2.0);                 -- Error
+    end process;
+
 end architecture;
