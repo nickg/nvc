@@ -137,11 +137,30 @@ static tree_t bounds_check_call_args(tree_t t)
                          istr(tree_ident(port)));
       }
       else if (type_is_real(ftype)) {
-         // TODO
+         double ival;
+         if (!folded_real(value, &ival))
+            continue;
+
+         range_t r = type_dim(ftype, 0);
+
+         double low, high;
+         if (!folded_bounds_real(r, &low, &high))
+            continue;
+
+         if ((ival < low) || (ival > high))
+            bounds_error(value, "value %lf out of bounds %lf %s "
+                         "%lf for parameter %s", ival,
+                         (r.kind == RANGE_TO) ? low : high,
+                         (r.kind == RANGE_TO) ? "to" : "downto",
+                         (r.kind == RANGE_TO) ? high : low,
+                         istr(tree_ident(port)));
       }
       else if (type_is_enum(ftype)) {
          // TODO
-     }
+      }
+      else if (type_is_physical(ftype)) {
+         // TODO
+      }
    }
 
    return t;
