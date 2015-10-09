@@ -807,6 +807,14 @@ static void dump_stmt(tree_t t, int indent)
       printf(";\n\n");
       return;
 
+   case T_NEXT:
+      printf("next");
+      if (tree_has_value(t)) {
+         printf(" when ");
+         dump_expr(tree_value(t));
+      }
+      break;
+
    default:
       cannot_dump(t, "stmt");
    }
