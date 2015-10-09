@@ -156,7 +156,28 @@ static tree_t bounds_check_call_args(tree_t t)
                          istr(tree_ident(port)));
       }
       else if (type_is_enum(ftype)) {
-         // TODO
+         unsigned uval;
+         int64_t ival;
+         if (!folded_enum(value, &uval))
+            continue;
+
+         ival = uval;
+
+         range_t r = type_dim(ftype, 0);
+
+         int64_t low, high;
+         if (!folded_bounds(r, &low, &high))
+            continue;
+
+         type_t base = type_base_recur(ftype);
+         if ((ival < low) || (ival > high))
+            bounds_error(value, "value %s out of bounds %s %s %s for "
+                         "parameter %s",
+                         istr(tree_ident(type_enum_literal(base, ival))),
+                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? low : high))),
+                         (r.kind == RANGE_TO) ? "to" : "downto",
+                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? high : low))),
+                         istr(tree_ident(port)));
       }
       else if (type_is_physical(ftype)) {
          // TODO

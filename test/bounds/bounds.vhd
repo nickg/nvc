@@ -155,4 +155,26 @@ begin
         real_proc(2.0);                 -- Error
     end process;
 
+    process is
+        type e is (one, two, three, four, five);
+
+        subtype se is e range two to four;
+        type t_arr is array (se range <>) of boolean;
+
+        constant c : t_arr(one to five) := (others => true);    -- Error
+
+        procedure enum_proc(
+            arg1 : e range two to four;
+            arg2 : e range three downto two
+        ) is
+        begin
+        end procedure;
+    begin
+        enum_proc(arg1 =>   two, arg2 =>   two);    -- ok
+        enum_proc(arg1 => three, arg2 =>   one);    -- Error
+        enum_proc(arg1 =>  four, arg2 =>  four);    -- Error
+        enum_proc(arg1 =>   one, arg2 => three);    -- Error
+        enum_proc(arg1 =>  five, arg2 => three);    -- Error
+    end process;
+
 end architecture;
