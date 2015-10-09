@@ -395,8 +395,11 @@ static void bounds_check_decl(tree_t t)
          range_t dim = type_dim(type, i);
 
          type_t cons = tree_type(dim.left);
+         type_t cons_base  = type_base_recur(cons);
 
-         if (type_kind(cons) == T_ENUM)
+         const bool is_enum = (type_kind(cons_base) == T_ENUM);
+
+         if (is_enum)
             continue;    // TODO: checking for enum constraints
 
          range_t bounds = type_dim(cons, 0);
