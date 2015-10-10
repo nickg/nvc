@@ -367,4 +367,11 @@ begin
     begin
     end process;
 
+    process is
+        type e is (one, two, three);
+        type arr is array (e range <>) of integer;
+        constant c : arr := (1, 2, 3, 4);
+    begin
+    end process;
+
 end architecture;

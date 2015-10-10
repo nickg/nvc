@@ -386,6 +386,7 @@ START_TEST(test_array)
       { 343, "invalid character 'f' in string literal of type BIT_VECTOR" },
       { 365, "may not change constraints of a constrained array" },
       { 366, "may not change constraints of a constrained array" },
+      { 373, "too many elements in array" },
       { -1, NULL }
    };
    expect_errors(expect);

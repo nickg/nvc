@@ -4599,16 +4599,24 @@ static bool sem_check_aggregate(tree_t t)
 
          assert(unconstrained);
 
-         type_t std_int = sem_std_type("INTEGER");
+         if (type_kind(index_type) == T_ENUM) {
+            const unsigned nlits = type_enum_literals(index_type);
 
-         if (type_kind(index_type) == T_ENUM)
+            if (nassocs > nlits) {
+               sem_error(t, "too many elements in array");
+            }
             left = make_ref(type_enum_literal(index_type, 0));
-         else
+            right = make_ref(type_enum_literal(index_type, nassocs - 1));
+         }
+         else {
+            type_t std_int = sem_std_type("INTEGER");
+
             left = type_dim(index_type, 0).left;
 
-         right = call_builtin("add", index_type,
-                              sem_int_lit(std_int, nassocs - 1),
-                              left, NULL);
+            right = call_builtin("add", index_type,
+                                 sem_int_lit(std_int, nassocs - 1),
+                                 left, NULL);
+         }
       }
       else {
          // The left and right bounds are determined by the smallest and
