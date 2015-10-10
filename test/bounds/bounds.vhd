@@ -198,4 +198,13 @@ begin
         p(((0, 1, 2, 3), (one to three => 5)));  -- Error
     end process;
 
+    process is
+        type e is (one, two, three, four, five);
+        subtype se is e range two to three;
+        type arr is array (se range <>) of integer;
+        variable v1 : arr(two to three);        -- OK
+        variable v2 : arr(one to four);         -- Error
+    begin
+    end process;
+
 end architecture;

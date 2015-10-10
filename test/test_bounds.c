@@ -46,6 +46,8 @@ START_TEST(test_bounds)
       { 190, "aggregate index ONE out of bounds TWO to FOUR"},
       { 190, "aggregate index FIVE out of bounds TWO to FOUR"},
       { 198, "length of sub-aggregate 3 does not match expected length 4" },
+      { 206, "left index ONE violates constraint SE" },
+      { 206, "right index FOUR violates constraint SE" },
       { -1, NULL }
    };
    expect_errors(expect);
