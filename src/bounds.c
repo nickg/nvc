@@ -318,8 +318,8 @@ static void bounds_check_aggregate(tree_t t)
 
    // Find the tightest bounds for the index
 
-   int64_t low  = -INT64_MAX;
-   int64_t high = INT64_MAX;
+   int64_t low, high;
+   bool have_bounds = false;
 
    range_t type_r = type_dim(type, 0);
 
@@ -331,20 +331,15 @@ static void bounds_check_aggregate(tree_t t)
       assert(type_kind(base) == T_UARRAY);
 
       type_t index = type_index_constr(base, 0);
-      if (type_kind(index) == T_ENUM)
-         return;   // TODO
 
       range_t base_r = type_dim(index, 0);
 
-      if ((tree_kind(base_r.left) == T_LITERAL)
-          && (tree_kind(base_r.right) == T_LITERAL))
-         range_bounds(base_r, &low, &high);
+      have_bounds = folded_bounds(base_r, &low, &high);
    }
-   else if ((tree_kind(type_r.left) == T_LITERAL)
-            && (tree_kind(type_r.right) == T_LITERAL))
-      range_bounds(type_r, &low, &high);
+   else
+      have_bounds = folded_bounds(type_r, &low, &high);
 
-   if ((low == -INT64_MAX) && (high == INT64_MAX))
+   if (!have_bounds)
       return;
 
    // Check for out of bounds indexes
