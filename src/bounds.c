@@ -283,6 +283,7 @@ static void bounds_within(tree_t i, range_kind_t kind, const char *what,
                           int64_t low, int64_t high)
 {
    int64_t folded;
+   unsigned folded_u;
    if (folded_int(i, &folded)) {
       if (folded < low || folded > high)
          bounds_error(i, "%s index %"PRIi64" out of bounds %"PRIi64
@@ -290,6 +291,20 @@ static void bounds_within(tree_t i, range_kind_t kind, const char *what,
                       (kind == RANGE_TO) ? low : high,
                       (kind == RANGE_TO) ? "to" : "downto",
                       (kind == RANGE_TO) ? high : low);
+   }
+   else if (folded_enum(i, &folded_u)) {
+      if (folded_u < low || folded_u > high) {
+         type_t base = type_base_recur(tree_type(i));
+         tree_t value_lit = type_enum_literal(base, folded_u);
+         tree_t left_lit  = type_enum_literal(base, (kind == RANGE_TO) ? low : high);
+         tree_t right_lit = type_enum_literal(base, (kind == RANGE_TO) ? high : low);
+
+         bounds_error(i, "%s index %s out of bounds %s %s %s", what,
+                      istr(tree_ident(value_lit)),
+                      istr(tree_ident(left_lit)),
+                      (kind == RANGE_TO) ? "to" : "downto",
+                      istr(tree_ident(right_lit)));
+      }
    }
 }
 
