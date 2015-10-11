@@ -1120,17 +1120,6 @@ static bool sem_check_subtype(tree_t t, type_t type, type_t *pbase)
       if (ndims == 0) {
          switch (base_kind) {
          case T_ENUM:
-            {
-               type_t std_int = sem_std_type("INTEGER");
-               range_t r = {
-                  .kind  = RANGE_TO,
-                  .left  = sem_int_lit(std_int, 0),
-                  .right = sem_int_lit(std_int, type_enum_literals(base) - 1)
-               };
-               type_add_dim(type, r);
-            }
-            break;
-
          case T_CARRAY:
          case T_SUBTYPE:
          case T_INTEGER:
@@ -1670,6 +1659,21 @@ static bool sem_check_type_decl(tree_t t)
          }
 
          sem_declare_predefined_ops(t);
+         return true;
+      }
+
+   case T_ENUM:
+      {
+         sem_declare_predefined_ops(t);
+
+         type_t std_int = sem_std_type("INTEGER");
+         range_t r = {
+            .kind  = RANGE_TO,
+            .left  = sem_int_lit(std_int, 0),
+            .right = sem_int_lit(std_int, type_enum_literals(base) - 1)
+         };
+         type_add_dim(type, r);
+
          return true;
       }
 
@@ -4595,16 +4599,24 @@ static bool sem_check_aggregate(tree_t t)
 
          assert(unconstrained);
 
-         type_t std_int = sem_std_type("INTEGER");
+         if (type_kind(index_type) == T_ENUM) {
+            const unsigned nlits = type_enum_literals(index_type);
 
-         if (type_kind(index_type) == T_ENUM)
+            if (nassocs > nlits) {
+               sem_error(t, "too many elements in array");
+            }
             left = make_ref(type_enum_literal(index_type, 0));
-         else
+            right = make_ref(type_enum_literal(index_type, nassocs - 1));
+         }
+         else {
+            type_t std_int = sem_std_type("INTEGER");
+
             left = type_dim(index_type, 0).left;
 
-         right = call_builtin("add", index_type,
-                              sem_int_lit(std_int, nassocs - 1),
-                              left, NULL);
+            right = call_builtin("add", index_type,
+                                 sem_int_lit(std_int, nassocs - 1),
+                                 left, NULL);
+         }
       }
       else {
          // The left and right bounds are determined by the smallest and

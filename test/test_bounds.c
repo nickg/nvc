@@ -36,6 +36,18 @@ START_TEST(test_bounds)
       { 116, "length of sub-aggregate 2 does not match expected length 4" },
       { 137, "array index 14 out of bounds 0 to 2" },
       { 155, "value 2.000000 out of bounds 0.000000 to 1.000000 for parameter"},
+      { 164, "expected 3 elements in aggregate but have 2"},
+      { 165, "expected 3 elements in aggregate but have 4"},
+      { 175, "value ONE out of bounds THREE downto TWO for parameter ARG2"},
+      { 176, "value FOUR out of bounds THREE downto TWO for parameter ARG2"},
+      { 177, "value ONE out of bounds TWO to FOUR for parameter ARG1"},
+      { 178, "value FIVE out of bounds TWO to FOUR for parameter ARG1"},
+      { 188, "aggregate index ONE out of bounds TWO to FOUR"},
+      { 190, "aggregate index ONE out of bounds TWO to FOUR"},
+      { 190, "aggregate index FIVE out of bounds TWO to FOUR"},
+      { 198, "length of sub-aggregate 3 does not match expected length 4" },
+      { 206, "left index ONE violates constraint SE" },
+      { 206, "right index FOUR violates constraint SE" },
       { -1, NULL }
    };
    expect_errors(expect);

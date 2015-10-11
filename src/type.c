@@ -43,7 +43,7 @@ static const imask_t has_map[T_LAST_TYPE_KIND] = {
    (I_IDENT | I_DIMS),
 
    // T_ENUM
-   (I_IDENT | I_LITERALS),
+   (I_IDENT | I_LITERALS | I_DIMS),
 
    // T_PHYSICAL
    (I_IDENT | I_UNITS | I_DIMS),

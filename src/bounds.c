@@ -156,7 +156,28 @@ static tree_t bounds_check_call_args(tree_t t)
                          istr(tree_ident(port)));
       }
       else if (type_is_enum(ftype)) {
-         // TODO
+         unsigned uval;
+         int64_t ival;
+         if (!folded_enum(value, &uval))
+            continue;
+
+         ival = uval;
+
+         range_t r = type_dim(ftype, 0);
+
+         int64_t low, high;
+         if (!folded_bounds(r, &low, &high))
+            continue;
+
+         type_t base = type_base_recur(ftype);
+         if ((ival < low) || (ival > high))
+            bounds_error(value, "value %s out of bounds %s %s %s for "
+                         "parameter %s",
+                         istr(tree_ident(type_enum_literal(base, ival))),
+                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? low : high))),
+                         (r.kind == RANGE_TO) ? "to" : "downto",
+                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? high : low))),
+                         istr(tree_ident(port)));
       }
       else if (type_is_physical(ftype)) {
          // TODO
@@ -262,6 +283,7 @@ static void bounds_within(tree_t i, range_kind_t kind, const char *what,
                           int64_t low, int64_t high)
 {
    int64_t folded;
+   unsigned folded_u;
    if (folded_int(i, &folded)) {
       if (folded < low || folded > high)
          bounds_error(i, "%s index %"PRIi64" out of bounds %"PRIi64
@@ -269,6 +291,20 @@ static void bounds_within(tree_t i, range_kind_t kind, const char *what,
                       (kind == RANGE_TO) ? low : high,
                       (kind == RANGE_TO) ? "to" : "downto",
                       (kind == RANGE_TO) ? high : low);
+   }
+   else if (folded_enum(i, &folded_u)) {
+      if (folded_u < low || folded_u > high) {
+         type_t base = type_base_recur(tree_type(i));
+         tree_t value_lit = type_enum_literal(base, folded_u);
+         tree_t left_lit  = type_enum_literal(base, (kind == RANGE_TO) ? low : high);
+         tree_t right_lit = type_enum_literal(base, (kind == RANGE_TO) ? high : low);
+
+         bounds_error(i, "%s index %s out of bounds %s %s %s", what,
+                      istr(tree_ident(value_lit)),
+                      istr(tree_ident(left_lit)),
+                      (kind == RANGE_TO) ? "to" : "downto",
+                      istr(tree_ident(right_lit)));
+      }
    }
 }
 
@@ -282,8 +318,8 @@ static void bounds_check_aggregate(tree_t t)
 
    // Find the tightest bounds for the index
 
-   int64_t low  = -INT64_MAX;
-   int64_t high = INT64_MAX;
+   int64_t low, high;
+   bool have_bounds = false;
 
    range_t type_r = type_dim(type, 0);
 
@@ -295,20 +331,15 @@ static void bounds_check_aggregate(tree_t t)
       assert(type_kind(base) == T_UARRAY);
 
       type_t index = type_index_constr(base, 0);
-      if (type_kind(index) == T_ENUM)
-         return;   // TODO
 
       range_t base_r = type_dim(index, 0);
 
-      if ((tree_kind(base_r.left) == T_LITERAL)
-          && (tree_kind(base_r.right) == T_LITERAL))
-         range_bounds(base_r, &low, &high);
+      have_bounds = folded_bounds(base_r, &low, &high);
    }
-   else if ((tree_kind(type_r.left) == T_LITERAL)
-            && (tree_kind(type_r.right) == T_LITERAL))
-      range_bounds(type_r, &low, &high);
+   else
+      have_bounds = folded_bounds(type_r, &low, &high);
 
-   if ((low == -INT64_MAX) && (high == INT64_MAX))
+   if (!have_bounds)
       return;
 
    // Check for out of bounds indexes
@@ -395,9 +426,9 @@ static void bounds_check_decl(tree_t t)
          range_t dim = type_dim(type, i);
 
          type_t cons = tree_type(dim.left);
+         type_t cons_base  = type_base_recur(cons);
 
-         if (type_kind(cons) == T_ENUM)
-            continue;    // TODO: checking for enum constraints
+         const bool is_enum = (type_kind(cons_base) == T_ENUM);
 
          range_t bounds = type_dim(cons, 0);
 
@@ -414,17 +445,36 @@ static void bounds_check_decl(tree_t t)
             dim_low > dim_high || bounds_low > bounds_high;
 
          if (is_static && !is_null) {
-            if (dim_low < bounds_low)
-               bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
-                            "%s index %"PRIi64" violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "left" : "right",
-                            dim_low, type_pp(cons));
+            if (dim_low < bounds_low) {
+               if (is_enum) {
+                  tree_t lit = type_enum_literal(cons_base, (unsigned) dim_low);
+                  bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
+                               "%s index %s violates constraint %s",
+                               (dim.kind == RANGE_TO) ? "left" : "right",
+                               istr(tree_ident(lit)), type_pp(cons));
+               }
+               else
+                  bounds_error((dim.kind == RANGE_TO) ? dim.left : dim.right,
+                               "%s index %"PRIi64" violates constraint %s",
+                               (dim.kind == RANGE_TO) ? "left" : "right",
+                               dim_low, type_pp(cons));
 
-            if (dim_high > bounds_high)
-               bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
-                            "%s index %"PRIi64" violates constraint %s",
-                            (dim.kind == RANGE_TO) ? "right" : "left",
-                            dim_high, type_pp(cons));
+            }
+
+            if (dim_high > bounds_high) {
+               if (is_enum) {
+                  tree_t lit = type_enum_literal(cons_base, (unsigned) dim_high);
+                  bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
+                               "%s index %s violates constraint %s",
+                               (dim.kind == RANGE_TO) ? "right" : "left",
+                               istr(tree_ident(lit)), type_pp(cons));
+               }
+               else
+                  bounds_error((dim.kind == RANGE_TO) ? dim.right : dim.left,
+                               "%s index %"PRIi64" violates constraint %s",
+                               (dim.kind == RANGE_TO) ? "right" : "left",
+                               dim_high, type_pp(cons));
+            }
          }
       }
    }
