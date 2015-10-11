@@ -532,8 +532,30 @@ static void bounds_check_signal_assign(tree_t t)
    tree_t target = tree_target(t);
 
    const int nwaves = tree_waveforms(t);
-   for (int i = 0; i < nwaves; i++)
-      bounds_check_assignment(target, tree_value(tree_waveform(t, i)));
+   for (int i = 0; i < nwaves; i++) {
+      tree_t w = tree_waveform(t, i);
+
+      bounds_check_assignment(target, tree_value(w));
+
+      int64_t delay = 0;
+      if (tree_has_delay(w) && folded_int(tree_delay(w), &delay))
+         if (delay < 0)
+            bounds_error(tree_delay(w), "assignment delay may not be "
+                         "negative");
+
+      if (i == 0) {
+         int64_t rlimit;
+         if (tree_has_reject(t) && folded_int(tree_reject(t), &rlimit)) {
+            if ((rlimit < 0) && (delay >= 0))
+               bounds_error(tree_reject(t), "rejection limit may not be "
+                            "negative");
+
+            if (rlimit > delay)
+               bounds_error(tree_reject(t), "rejection limit may not be "
+                            "greater than first assignment delay");
+         }
+      }
+   }
 }
 
 static void bounds_check_var_assign(tree_t t)
