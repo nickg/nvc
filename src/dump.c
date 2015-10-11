@@ -350,7 +350,9 @@ static void dump_decl(tree_t t, int indent)
          if (is_subtype) {
             printf("%s ", istr(type_ident(type_base(type))));
          }
-         if (type_is_integer(type) || type_is_real(type)) {
+
+         if (type_is_integer(type) || type_is_real(type)
+             || (is_subtype && (type_is_physical(type) || type_is_enum(type)))) {
             printf("range ");
             dump_range(type_dim(type, 0));
          }
@@ -406,19 +408,12 @@ static void dump_decl(tree_t t, int indent)
             printf("end protected");
          }
          else if (type_is_enum(type)) {
-            if (is_subtype) {
-               printf("range ");
-               dump_range(type_dim(type, 0));
+            printf("(");
+            for (unsigned i = 0; i < type_enum_literals(type); i++) {
+               if (i > 0) printf(", ");
+               printf("%s", istr(tree_ident(type_enum_literal(type, i))));
             }
-            else
-            {
-               printf("(");
-               for (unsigned i = 0; i < type_enum_literals(type); i++) {
-                  if (i > 0) printf(", ");
-                  printf("%s", istr(tree_ident(type_enum_literal(type, i))));
-               }
-               printf(")");
-            }
+            printf(")");
          }
          else
             dump_type(type);
