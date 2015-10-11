@@ -34,4 +34,10 @@ begin
         b3 <= reject  10 ns inertial true after 5 ns;   -- Error
     end block;
 
+    process
+    begin
+        wait for -10 ns;            -- Error
+        wait;
+    end process;
+
 end architecture;

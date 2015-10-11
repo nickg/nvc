@@ -876,6 +876,14 @@ static void bounds_check_attr_ref(tree_t t)
    }
 }
 
+static void bounds_check_wait(tree_t t)
+{
+   int64_t delay = 0;
+   if (tree_has_delay(t) && folded_int(tree_delay(t), &delay))
+      if (delay < 0)
+         bounds_error(tree_delay(t), "wait timeout may not be negative");
+}
+
 static void bounds_visit_fn(tree_t t, void *context)
 {
    switch (tree_kind(t)) {
@@ -914,6 +922,9 @@ static void bounds_visit_fn(tree_t t, void *context)
       break;
    case T_ATTR_REF:
       bounds_check_attr_ref(t);
+      break;
+   case T_WAIT:
+      bounds_check_wait(t);
       break;
    default:
       break;

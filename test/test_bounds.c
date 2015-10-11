@@ -61,6 +61,7 @@ START_TEST(test_bounds2)
       {  25, "assignment delay may not be negative"},
       {  33, "rejection limit may not be negative"},
       {  34, "rejection limit may not be greater than first assignment delay"},
+      {  39, "wait timeout may not be negative"},
       { -1, NULL }
    };
    expect_errors(expect);
