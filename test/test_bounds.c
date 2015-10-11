@@ -64,6 +64,32 @@ START_TEST(test_bounds)
 }
 END_TEST
 
+START_TEST(test_bounds2)
+{
+   const error_t expect[] = {
+      {  13, "assignment delay may not be negative"},
+      {  20, "assignment delay may not be negative"},
+      {  24, "assignment delay may not be negative"},
+      {  25, "assignment delay may not be negative"},
+      {  33, "rejection limit may not be negative"},
+      {  34, "rejection limit may not be greater than first assignment delay"},
+      {  39, "wait timeout may not be negative"},
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   input_from_file(TESTDIR "/bounds/bounds2.vhd");
+
+   tree_t a = parse_and_check(T_ENTITY, T_ARCH);
+   fail_unless(sem_errors() == 0);
+
+   simplify(a);
+   bounds_check(a);
+
+   fail_unless(bounds_errors() == (sizeof(expect) / sizeof(error_t)) - 1);
+}
+END_TEST
+
 START_TEST(test_case)
 {
    const error_t expect[] = {
@@ -234,6 +260,7 @@ int main(void)
 
    TCase *tc_core = nvc_unit_test();
    tcase_add_test(tc_core, test_bounds);
+   tcase_add_test(tc_core, test_bounds2);
    tcase_add_test(tc_core, test_case);
    tcase_add_test(tc_core, test_issue36);
    tcase_add_test(tc_core, test_issue54);
