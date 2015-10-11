@@ -90,30 +90,23 @@ static tree_t bounds_check_call_args(tree_t t)
             range_t formal_r = type_dim(ftype, j);
             range_t actual_r = type_dim(atype, j);
 
-            int64_t f_left, f_right, a_left, a_right;
+            int64_t f_len, a_len;
 
             const bool folded =
-               folded_int(formal_r.left, &f_left)
-               && folded_int(formal_r.right, &f_right)
-               && folded_int(actual_r.left, &a_left)
-               && folded_int(actual_r.right, &a_right);
+               folded_length(formal_r, &f_len)
+               && folded_length(actual_r, &a_len);
 
             if (!folded)
                continue;
 
-            const int f_len = (actual_r.kind == RANGE_TO)
-               ? a_right - a_left + 1: a_left - a_right + 1;
-            const int a_len = (formal_r.kind == RANGE_TO)
-               ? f_right - f_left + 1 : f_left - f_right + 1;
-
             if (f_len != a_len) {
                if (ndims > 1)
-                  bounds_error(param, "actual length %d for dimension %d does "
-                               "not match formal length %d",
+                  bounds_error(param, "actual length %"PRIi64" for dimension %d does "
+                               "not match formal length %"PRIi64,
                                a_len, j + 1, f_len);
                else
-                  bounds_error(param, "actual length %d does not match formal "
-                               "length %d", a_len, f_len);
+                  bounds_error(param, "actual length %"PRIi64" does not match formal "
+                               "length %"PRIi64, a_len, f_len);
             }
          }
       }
