@@ -1456,6 +1456,8 @@ START_TEST(test_interfaces)
       { 28,  "invalid object class for generic" },
       { 32,  "invalid object class for generic" },
       { 36,  "invalid object class for generic" },
+      { 39,  "procedure arguments may not have mode BUFFER" },
+      { 40,  "procedure arguments may not have mode LINKAGE" },
       { -1, NULL }
    };
    expect_errors(expect);

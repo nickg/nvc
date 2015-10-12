@@ -36,4 +36,7 @@ package interfaces is
         generic (file     p : text);    -- Error
     end component;
 
+    procedure proc1(c : buffer integer);    -- Error
+    procedure proc2(c : linkage integer);   -- Error
+
 end package interfaces;

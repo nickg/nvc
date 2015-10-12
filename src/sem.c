@@ -2280,6 +2280,17 @@ static bool sem_check_proc_ports(tree_t t)
          }
       }
 
+      switch (tree_subkind(p)) {
+      case PORT_BUFFER:
+         sem_error(p, "procedure arguments may not have mode BUFFER");
+         break;
+      case PORT_LINKAGE:
+         sem_error(p, "procedure arguments may not have mode LINKAGE");
+         break;
+      default:
+         break;
+      }
+
       if (!sem_check(p))
          return false;
 
