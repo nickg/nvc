@@ -541,6 +541,29 @@ static void bounds_check_assignment(tree_t target, tree_t value)
          }
       }
 
+      double rvalue;
+      if (folded_real(value, &rvalue)) {
+         double left, right;
+         if (folded_real(r.left, &left) && folded_real(r.right, &right)) {
+            switch (r.kind) {
+            case RANGE_TO:
+               if ((rvalue < left) || (rvalue > right))
+                  bounds_error(value, "value %lf out of target bounds %lf "
+                               "to %lf", rvalue, left, right);
+               break;
+
+            case RANGE_DOWNTO:
+               if ((rvalue > left) || (rvalue < right))
+                  bounds_error(value, "value %lf out of target bounds %lf "
+                               "downto %lf", rvalue, left, right);
+               break;
+
+            default:
+               break;
+            }
+         }
+      }
+
       unsigned pos;
       if (folded_enum(value, &pos)) {
          unsigned left, right;
