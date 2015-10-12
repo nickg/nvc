@@ -262,7 +262,8 @@ static tree_t simp_attr_delayed_transaction(tree_t t, predef_attr_t predef,
 
    case ATTR_TRANSACTION:
       {
-      tree_set_value(s, make_default_value(tree_type(s), tree_loc(s)));
+         tree_set_value(s, make_default_value(tree_type(s), tree_loc(s)));
+
          tree_t not = call_builtin("not", tree_type(r), r, NULL);
 
          tree_t wave = tree_new(T_WAVEFORM);
