@@ -1450,16 +1450,18 @@ START_TEST(test_interfaces)
    input_from_file(TESTDIR "/sem/interfaces.vhd");
 
    const error_t expect[] = {
-      { 11,  "invalid object class for port" },
-      { 15,  "invalid object class for port" },
-      { 19,  "invalid object class for port" },
-      { 28,  "invalid object class for generic" },
-      { 32,  "invalid object class for generic" },
-      { 36,  "invalid object class for generic" },
-      { 39,  "procedure arguments may not have mode BUFFER" },
-      { 40,  "procedure arguments may not have mode LINKAGE" },
-      { 42,  "parameter of class CONSTANT must have mode IN" },
-      { 43,  "parameter of class CONSTANT must have mode IN" },
+      { 13,  "invalid object class for port" },
+      { 17,  "invalid object class for port" },
+      { 21,  "invalid object class for port" },
+      { 30,  "invalid object class for generic" },
+      { 34,  "invalid object class for generic" },
+      { 38,  "invalid object class for generic" },
+      { 41,  "procedure arguments may not have mode BUFFER" },
+      { 42,  "procedure arguments may not have mode LINKAGE" },
+      { 44,  "parameter of class CONSTANT must have mode IN" },
+      { 45,  "parameter of class CONSTANT must have mode IN" },
+      { 47,  "object C with class FILE must have file type" },
+      { 48,  "object C with file type must have class FILE" },
       { -1, NULL }
    };
    expect_errors(expect);

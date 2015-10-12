@@ -1,3 +1,5 @@
+use std.textio.all;
+
 package interfaces is
 
     component comp1 is
@@ -41,5 +43,8 @@ package interfaces is
 
     procedure proc3(constant c : inout integer);    -- Error
     procedure proc3(constant c : out   integer);    -- Error
+
+    procedure proc4(file c : integer);              -- Error
+    procedure proc5(constant c : text);             -- Error
 
 end package interfaces;

@@ -2118,6 +2118,10 @@ static bool sem_check_interface_class(tree_t port)
       sem_error(port, "object %s with file type must have class FILE",
                 istr(tree_ident(port)));
 
+   if (kind != T_FILE && class == C_FILE)
+      sem_error(port, "object %s with class FILE must have file type",
+                istr(tree_ident(port)));
+
    if ((kind == T_ACCESS || kind == T_PROTECTED) && class != C_VARIABLE)
       sem_error(port, "object %s with %s type must have class VARIABLE",
                 istr(tree_ident(port)),
