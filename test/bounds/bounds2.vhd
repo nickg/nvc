@@ -40,4 +40,26 @@ begin
         wait;
     end process;
 
+    default_values: block
+        type r is range 0 to 1;
+
+        constant        ok1 : integer   range 0     to 1     := 1;      -- OK
+        constant        ok2 : character range 'a'   to 'z'   := 'b';    -- OK
+        constant        ok3 : real      range 0.0   to 1.0   := 0.0;    -- OK
+        constant        ok4 : time      range 10 ns to 20 ns := 10 ns;  -- OK
+        constant        ok5 : r                              := 0;      -- OK
+
+        signal          s   : integer   range 0     to 9     := 20;     -- Error
+        constant        c1  : character range 'a'   to 'z'   := 'Z';    -- Error
+        shared variable v   : real      range 0.0   to 5.0   := 10.0;   -- Error
+        constant        t   : time      range 10 ns to 10 us := 0 fs;   -- Error
+        constant        c2  : r                              := 10;     -- Error
+
+    begin
+        process is
+            variable v2  : real range 0.0 to 5.0 := 5.1;   -- Error
+        begin
+        end process;
+    end block;
+
 end architecture;

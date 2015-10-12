@@ -74,6 +74,12 @@ START_TEST(test_bounds2)
       {  33, "rejection limit may not be negative"},
       {  34, "rejection limit may not be greater than first assignment delay"},
       {  39, "wait timeout may not be negative"},
+      {  52, "value 20 out of target bounds 0 to 9"},
+      {  53, "value 'Z' out of target bounds 'a' to 'z'"},
+      {  54, "value 10.000000 out of target bounds 0.000000 to 5.000000"},
+      {  55, "value 0 out of target bounds 10000000 to 10000000000"},
+      {  56, "value 10 out of target bounds 0 to 1"},
+      {  60, "value 5.100000 out of target bounds 0.000000 to 5.000000"},
       { -1, NULL }
    };
    expect_errors(expect);
