@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+static void bounds_check_assignment(tree_t target, tree_t value);
+
 typedef struct interval interval_t;
 
 struct interval {
@@ -411,6 +413,9 @@ static void bounds_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
 
+   if (tree_has_value(t))
+      bounds_check_assignment(t, tree_value(t));
+
    if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
       // Check folded range does not violate index constraints
 
@@ -503,12 +508,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
       }
    }
 
-   const bool check_scalar_subtype_range =
-      !type_is_array(target_type)
-      && !type_is_record(target_type)
-      && (type_kind(target_type) == T_SUBTYPE);
-
-   if (check_scalar_subtype_range) {
+   if (type_is_scalar(target_type)) {
       range_t r = type_dim(target_type, 0);
 
       int64_t ivalue;
@@ -526,6 +526,29 @@ static void bounds_check_assignment(tree_t target, tree_t value)
                if ((ivalue > left) || (ivalue < right))
                   bounds_error(value, "value %"PRIi64" out of target bounds %"
                                PRIi64" downto %"PRIi64, ivalue, left, right);
+               break;
+
+            default:
+               break;
+            }
+         }
+      }
+
+      double rvalue;
+      if (folded_real(value, &rvalue)) {
+         double left, right;
+         if (folded_real(r.left, &left) && folded_real(r.right, &right)) {
+            switch (r.kind) {
+            case RANGE_TO:
+               if ((rvalue < left) || (rvalue > right))
+                  bounds_error(value, "value %lf out of target bounds %lf "
+                               "to %lf", rvalue, left, right);
+               break;
+
+            case RANGE_DOWNTO:
+               if ((rvalue > left) || (rvalue < right))
+                  bounds_error(value, "value %lf out of target bounds %lf "
+                               "downto %lf", rvalue, left, right);
                break;
 
             default:
@@ -946,6 +969,7 @@ static void bounds_visit_fn(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_CONST_DECL:
    case T_VAR_DECL:
+   case T_PORT_DECL:
       bounds_check_decl(t);
       break;
    case T_SIGNAL_ASSIGN:

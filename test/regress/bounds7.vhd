@@ -12,7 +12,7 @@ begin
         x := 6;
         y := integer(x);
         x := 10;
-        x := 11;
+        x := x + 1;
         wait;
     end process;
 
