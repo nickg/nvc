@@ -976,6 +976,7 @@ static void bounds_visit_fn(tree_t t, void *context)
    case T_SIGNAL_DECL:
    case T_CONST_DECL:
    case T_VAR_DECL:
+   case T_PORT_DECL:
       bounds_check_decl(t);
       break;
    case T_SIGNAL_ASSIGN:

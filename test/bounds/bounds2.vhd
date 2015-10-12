@@ -55,6 +55,25 @@ begin
         constant        t   : time      range 10 ns to 10 us := 0 fs;   -- Error
         constant        c2  : r                              := 10;     -- Error
 
+        subtype subint is integer range 1 to 10;
+        procedure test(a : subint := 30) is
+        begin
+        end procedure;
+
+        function test(a : character range 'a' to 'b' := 'c') return integer is
+        begin
+            return 1;
+        end function;
+
+        component comp is
+            generic (
+            g2 : integer range 10 downto 0 := 20
+            );
+            port (
+            p2 : in integer range 0 to 1 := 2
+            );
+        end component;
+
     begin
         process is
             variable v2  : real range 0.0 to 5.0 := 5.1;   -- Error

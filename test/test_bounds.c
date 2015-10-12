@@ -79,7 +79,11 @@ START_TEST(test_bounds2)
       {  54, "value 10.000000 out of target bounds 0.000000 to 5.000000"},
       {  55, "value 0 out of target bounds 10000000 to 10000000000"},
       {  56, "value 10 out of target bounds 0 to 1"},
-      {  60, "value 5.100000 out of target bounds 0.000000 to 5.000000"},
+      {  59, "value 30 out of target bounds 1 to 10"},
+      {  63, "value 'c' out of target bounds 'a' to 'b'"},
+      {  73, "value 2 out of target bounds 0 to 1"},
+      {  70, "value 20 out of target bounds 10 downto 0"},
+      {  79, "value 5.100000 out of target bounds 0.000000 to 5.000000"},
       { -1, NULL }
    };
    expect_errors(expect);
