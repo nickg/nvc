@@ -25,6 +25,8 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+static void bounds_check_assignment(tree_t target, tree_t value);
+
 typedef struct interval interval_t;
 
 struct interval {
@@ -417,6 +419,9 @@ static void bounds_check_aggregate(tree_t t)
 static void bounds_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
+
+   if (tree_has_value(t))
+      bounds_check_assignment(t, tree_value(t));
 
    if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
       // Check folded range does not violate index constraints
