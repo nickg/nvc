@@ -552,7 +552,14 @@ tree_t make_default_value(type_t type, const loc_t *loc)
       return type_dim(type, 0).left;
 
    case T_ENUM:
-      return make_ref(type_enum_literal(base, 0));
+      {
+         int64_t val = 0;
+         const bool folded = folded_int(type_dim(type, 0).left, &val);
+         if (folded)
+            return make_ref(type_enum_literal(base, (unsigned) val));
+         else
+            return type_dim(type, 0).left;
+      }
 
    case T_RECORD:
       {
