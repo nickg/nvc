@@ -2681,8 +2681,15 @@ static bool sem_check_ports(tree_t t)
    for (int n = 0; n < nports; n++) {
       tree_t p = tree_port(t, n);
 
-      if (tree_class(p) == C_DEFAULT)
+      switch (tree_class(p)) {
+      case C_DEFAULT:
          tree_set_class(p, C_SIGNAL);
+         break;
+      case C_SIGNAL:
+         break;
+      default:
+         sem_error(p, "invalid object class for port");
+      }
 
       tree_add_attr_int(p, elab_copy_i, 1);
 

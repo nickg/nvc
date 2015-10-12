@@ -1445,6 +1445,27 @@ START_TEST(test_issue239)
 }
 END_TEST
 
+START_TEST(test_interfaces)
+{
+   input_from_file(TESTDIR "/sem/interfaces.vhd");
+
+   const error_t expect[] = {
+      { 11,  "invalid object class for port" },
+      { 15,  "invalid object class for port" },
+      { 19,  "invalid object class for port" },
+      { 28,  "invalid object class for generic" },
+      { 32,  "invalid object class for generic" },
+      { 36,  "invalid object class for generic" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1518,6 +1539,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue221);
    tcase_add_test(tc_core, test_issue236);
    tcase_add_test(tc_core, test_issue239);
+   tcase_add_test(tc_core, test_interfaces);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
