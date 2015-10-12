@@ -1458,6 +1458,8 @@ START_TEST(test_interfaces)
       { 36,  "invalid object class for generic" },
       { 39,  "procedure arguments may not have mode BUFFER" },
       { 40,  "procedure arguments may not have mode LINKAGE" },
+      { 42,  "parameter of class CONSTANT must have mode IN" },
+      { 43,  "parameter of class CONSTANT must have mode IN" },
       { -1, NULL }
    };
    expect_errors(expect);

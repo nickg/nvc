@@ -2095,13 +2095,13 @@ static bool sem_check_interface_class(tree_t port)
 
    const type_kind_t kind = type_base_kind(tree_type(port));
    const class_t class = tree_class(port);
+   const port_mode_t mode = tree_subkind(port);
 
    if (tree_has_value(port)) {
        if (class == C_SIGNAL)
           sem_error(port, "parameter of class SIGNAL can not have a default value");
 
        if (class == C_VARIABLE) {
-          port_mode_t mode = tree_subkind(port);
           if (mode == PORT_OUT || mode == PORT_INOUT)
              sem_error(port, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value");
        }
@@ -2122,6 +2122,9 @@ static bool sem_check_interface_class(tree_t port)
       sem_error(port, "object %s with %s type must have class VARIABLE",
                 istr(tree_ident(port)),
                 kind == T_ACCESS ? "access" : "protected");
+
+   if (class == C_CONSTANT && mode != PORT_IN)
+      sem_error(port, "parameter of class CONSTANT must have mode IN");
 
    return true;
 }

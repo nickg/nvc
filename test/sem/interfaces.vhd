@@ -39,4 +39,7 @@ package interfaces is
     procedure proc1(c : buffer integer);    -- Error
     procedure proc2(c : linkage integer);   -- Error
 
+    procedure proc3(constant c : inout integer);    -- Error
+    procedure proc3(constant c : out   integer);    -- Error
+
 end package interfaces;
