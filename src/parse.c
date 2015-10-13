@@ -1907,7 +1907,7 @@ static void p_interface_signal_declaration(tree_t parent, add_func_t addf)
    }
 }
 
-static void p_interface_variable_declaration(tree_t parent, class_t def_class)
+static void p_interface_variable_declaration(tree_t parent, class_t def_class, add_func_t addf)
 {
    // [variable] identifier_list : [ mode ] subtype_indication [ := expression ]
 
@@ -1942,11 +1942,11 @@ static void p_interface_variable_declaration(tree_t parent, class_t def_class)
       if (init != NULL)
          tree_set_value(d, init);
 
-      tree_add_port(parent, d);
+      (*addf)(parent, d);
    }
 }
 
-static void p_interface_file_declaration(tree_t parent)
+static void p_interface_file_declaration(tree_t parent, add_func_t addf)
 {
    // file identifier_list : subtype_indication
 
@@ -1969,7 +1969,7 @@ static void p_interface_file_declaration(tree_t parent)
       tree_set_type(d, type);
       tree_set_class(d, C_FILE);
 
-      tree_add_port(parent, d);
+      (*addf)(parent, d);
    }
 }
 
@@ -1992,11 +1992,11 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
       break;
 
    case tVARIABLE:
-      p_interface_variable_declaration(parent, C_VARIABLE);
+      p_interface_variable_declaration(parent, C_VARIABLE, addf);
       break;
 
    case tFILE:
-      p_interface_file_declaration(parent);
+      p_interface_file_declaration(parent, addf);
       break;
 
    case tID:
@@ -2012,7 +2012,7 @@ static void p_interface_declaration(class_t def_class, tree_t parent,
 
          case C_VARIABLE:
          case C_DEFAULT:
-            p_interface_variable_declaration(parent, def_class);
+            p_interface_variable_declaration(parent, def_class, addf);
             break;
 
          default:

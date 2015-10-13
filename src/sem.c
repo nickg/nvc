@@ -2095,13 +2095,13 @@ static bool sem_check_interface_class(tree_t port)
 
    const type_kind_t kind = type_base_kind(tree_type(port));
    const class_t class = tree_class(port);
+   const port_mode_t mode = tree_subkind(port);
 
    if (tree_has_value(port)) {
        if (class == C_SIGNAL)
           sem_error(port, "parameter of class SIGNAL can not have a default value");
 
        if (class == C_VARIABLE) {
-          port_mode_t mode = tree_subkind(port);
           if (mode == PORT_OUT || mode == PORT_INOUT)
              sem_error(port, "parameter of class VARIABLE with mode OUT or INOUT can not have a default value");
        }
@@ -2118,10 +2118,17 @@ static bool sem_check_interface_class(tree_t port)
       sem_error(port, "object %s with file type must have class FILE",
                 istr(tree_ident(port)));
 
+   if (kind != T_FILE && class == C_FILE)
+      sem_error(port, "object %s with class FILE must have file type",
+                istr(tree_ident(port)));
+
    if ((kind == T_ACCESS || kind == T_PROTECTED) && class != C_VARIABLE)
       sem_error(port, "object %s with %s type must have class VARIABLE",
                 istr(tree_ident(port)),
                 kind == T_ACCESS ? "access" : "protected");
+
+   if (class == C_CONSTANT && mode != PORT_IN)
+      sem_error(port, "parameter of class CONSTANT must have mode IN");
 
    return true;
 }
@@ -2278,6 +2285,17 @@ static bool sem_check_proc_ports(tree_t t)
          default:
             break;
          }
+      }
+
+      switch (tree_subkind(p)) {
+      case PORT_BUFFER:
+         sem_error(p, "procedure arguments may not have mode BUFFER");
+         break;
+      case PORT_LINKAGE:
+         sem_error(p, "procedure arguments may not have mode LINKAGE");
+         break;
+      default:
+         break;
       }
 
       if (!sem_check(p))
@@ -2681,8 +2699,15 @@ static bool sem_check_ports(tree_t t)
    for (int n = 0; n < nports; n++) {
       tree_t p = tree_port(t, n);
 
-      if (tree_class(p) == C_DEFAULT)
+      switch (tree_class(p)) {
+      case C_DEFAULT:
          tree_set_class(p, C_SIGNAL);
+         break;
+      case C_SIGNAL:
+         break;
+      default:
+         sem_error(p, "invalid object class for port");
+      }
 
       tree_add_attr_int(p, elab_copy_i, 1);
 
