@@ -93,12 +93,7 @@ static void opt_elide_array_ref_bounds(tree_t t)
 
 static void opt_tag_last_value_attr_ref(tree_t t)
 {
-   static ident_t last_value_attr_i = NULL;
-
-   if (last_value_attr_i == NULL)
-      last_value_attr_i = ident_new("LAST_VALUE");
-
-   if (tree_ident(t) == last_value_attr_i) {
+   if (tree_ident(t) == last_value_i) {
       tree_t signal = tree_ref(tree_name(t));
       if (tree_kind(signal) != T_SIGNAL_DECL)
          return;
