@@ -249,6 +249,36 @@ START_TEST(test_const)
 }
 END_TEST
 
+START_TEST(test_const2)
+{
+   input_from_file(TESTDIR "/sem/const2.vhd");
+
+   tree_t p = parse();
+   fail_if(p == NULL);
+   fail_unless(tree_kind(p) == T_PACKAGE);
+   sem_check(p);
+
+   fail_unless(sem_errors() == 0);
+
+   fail_unless(tree_kind(p) == T_PACKAGE);
+
+   // The deferred constant array's type is originally unconstrained
+   tree_t d = tree_decl(p, 1);
+   fail_unless(tree_kind(d) == T_CONST_DECL);
+   fail_unless(type_is_unconstrained(tree_type(d)));
+
+   tree_t pb = parse();
+   fail_if(pb == NULL);
+   fail_unless(tree_kind(pb) == T_PACK_BODY);
+   sem_check(pb);
+
+   fail_unless(sem_errors() == 0);
+
+   // and then gets constrained after analysing the package body
+   fail_unless(!type_is_unconstrained(tree_type(d)));
+}
+END_TEST
+
 START_TEST(test_std)
 {
    input_from_file(TESTDIR "/sem/std.vhd");
@@ -1482,6 +1512,7 @@ int main(void)
    tcase_add_test(tc_core, test_scope);
    tcase_add_test(tc_core, test_ambiguous);
    tcase_add_test(tc_core, test_const);
+   tcase_add_test(tc_core, test_const2);
    tcase_add_test(tc_core, test_std);
    tcase_add_test(tc_core, test_wait);
    tcase_add_test(tc_core, test_func);
