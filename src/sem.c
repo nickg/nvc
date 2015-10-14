@@ -1947,6 +1947,9 @@ static bool sem_check_decl(tree_t t)
                    sem_type_str(tree_type(deferred)), istr(tree_ident(t)),
                    sem_type_str(type));
 
+      if (type_is_unconstrained(tree_type(deferred)))
+         tree_set_type(deferred, tree_type(tree_value(t)));
+
       tree_set_value(deferred, tree_value(t));
       return true;
    }
