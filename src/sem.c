@@ -2893,6 +2893,9 @@ static bool sem_check_var_assign(tree_t t)
    type_t target_type = tree_type(target);
    type_t value_type  = tree_type(value);
 
+   if (type_is_protected(target_type))
+      sem_error(t, "may not assign to variable of a protected type");
+
    if (!type_eq(target_type, value_type))
       sem_error(t, "type of value %s does not match type of target %s",
                 sem_type_str(value_type),

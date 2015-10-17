@@ -943,7 +943,8 @@ START_TEST(test_protected)
       { 118, "no visible declaration for X.COUNTER" },
       { 119, "no suitable overload for procedure X.DECREMENT" },
       { 124, "object X with protected type must have class VARIABLE" },
-      { 142, "missing body for protected type WORK.PKG.PROTECTED_T" },
+      { 135, "may not assign to variable of a protected type" },
+      { 150, "missing body for protected type WORK.PKG.PROTECTED_T" },
       { -1, NULL }
    };
    expect_errors(expect);
