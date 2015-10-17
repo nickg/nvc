@@ -15,6 +15,7 @@
 //  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
+#include "common.h"
 #include "phase.h"
 #include "util.h"
 
@@ -290,7 +291,7 @@ static void make_rule(tree_t t, rule_t **rules)
 
    lib_t std = lib_find("STD", false, true);
    if (std != NULL) {
-      tree_t standard = lib_get(std, ident_new("STD.STANDARD"));
+      tree_t standard = lib_get(std, std_standard_i);
       if (standard)
          make_rule_add_input(r, make_product(standard, MAKE_TREE));
    }

@@ -934,10 +934,7 @@ static void sem_declare_predefined_ops(tree_t decl)
 
    // Logical operators
 
-   ident_t boolean_i = ident_new("STD.STANDARD.BOOLEAN");
-   ident_t bit_i = ident_new("STD.STANDARD.BIT");
-
-   bool logical = (type_ident(t) == boolean_i || type_ident(t) == bit_i);
+   bool logical = (type_ident(t) == std_bool_i || type_ident(t) == std_bit_i);
 
    if (logical) {
       sem_declare_binary(decl, ident_new("\"and\""), t, t, t, "and");
@@ -952,8 +949,8 @@ static void sem_declare_predefined_ops(tree_t decl)
    bool vec_logical = false;
    if (kind == T_CARRAY || kind == T_UARRAY) {
       type_t base = type_elem(t);
-      vec_logical = (type_ident(base) == boolean_i
-                     || type_ident(base) == bit_i);
+      vec_logical = (type_ident(base) == std_bool_i
+                     || type_ident(base) == std_bit_i);
    }
 
    if (vec_logical) {

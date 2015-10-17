@@ -84,7 +84,7 @@ tree_t call_builtin(const char *builtin, type_t type, ...)
    if (decl == NULL) {
       decl = tree_new(T_FUNC_DECL);
       tree_set_ident(decl, name_i);
-      tree_add_attr_str(decl, ident_new("builtin"), ident_new(builtin));
+      tree_add_attr_str(decl, builtin_i, ident_new(builtin));
    }
 
    struct decl_cache *c = xmalloc(sizeof(struct decl_cache));
@@ -210,7 +210,6 @@ bool folded_enum(tree_t t, unsigned *pos)
 
 bool folded_bool(tree_t t, bool *b)
 {
-   ident_t std_bool_i = ident_new("STD.STANDARD.BOOLEAN");
    if (tree_kind(t) == T_REF) {
       tree_t decl = tree_ref(t);
       if (tree_kind(decl) == T_ENUM_LIT
@@ -757,7 +756,7 @@ void intern_strings(void)
    driver_init_i    = ident_new("driver_init");
    static_i         = ident_new("static");
    mangled_i        = ident_new("mangled");
-   last_value_i     = ident_new("last_value");
+   last_value_i     = ident_new("LAST_VALUE");
    elide_bounds_i   = ident_new("elide_bounds");
    null_range_i     = ident_new("null_range");
    deferred_i       = ident_new("deferred");
@@ -766,10 +765,7 @@ void intern_strings(void)
    cond_tag_i       = ident_new("cond_tag");
    sub_cond_i       = ident_new("sub_cond");
    impure_i         = ident_new("impure");
-   elide_bounds_i   = ident_new("elide_bounds");
    range_var_i      = ident_new("range_var");
-   builtin_i        = ident_new("builtin");
-   last_value_i     = ident_new("last_value");
    postponed_i      = ident_new("postponed");
    work_i           = ident_new("WORK");
    llvm_i           = ident_new("llvm");
