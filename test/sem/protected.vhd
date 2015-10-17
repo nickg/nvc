@@ -128,6 +128,14 @@ begin
     begin
     end process;
 
+    bad_assignment: process
+        variable y : SharedCounter;
+        variable z : SharedCounter;
+    begin
+        y := z;                             -- Error
+        wait;
+    end process;
+
 end architecture;
 
 package issue85 is
