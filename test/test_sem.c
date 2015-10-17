@@ -672,24 +672,21 @@ END_TEST
 
 START_TEST(test_file)
 {
-   set_standard(STD_00);
-
    input_from_file(TESTDIR "/sem/file.vhd");
 
    const error_t expect[] = {
-      {  9, "files may not be of access type" },
-      { 11, "files may not be of file type" },
-      { 13, "files may not be of protected type" },
-      { 17, "file declarations must have file type" },
-      { 21, "open mode must have type FILE_OPEN_KIND" },
-      { 25, "file name must have type STRING" },
-      { 33, "array type for file type must be one-dimensional" },
-      { 35, "array type for file type must be one-dimensional" },
-      { 51, "type WORK.P.T_PTR_ARR has a subelement with an access type" },
-      { 52, "type WORK.P.SUB_PTR_ARR has a subelement with an access type" },
-      { 53, "type WORK.P.T_REC has a subelement with an access type" },
-      { 54, "type WORK.P.T_REC2 has a subelement with an access type" },
-      { 79, "no suitable overload for procedure READ" },
+      {  6, "files may not be of access type" },
+      {  8, "files may not be of file type" },
+      { 12, "file declarations must have file type" },
+      { 16, "open mode must have type FILE_OPEN_KIND" },
+      { 20, "file name must have type STRING" },
+      { 28, "array type for file type must be one-dimensional" },
+      { 30, "array type for file type must be one-dimensional" },
+      { 46, "type WORK.P.T_PTR_ARR has a subelement with an access type" },
+      { 47, "type WORK.P.SUB_PTR_ARR has a subelement with an access type" },
+      { 48, "type WORK.P.T_REC has a subelement with an access type" },
+      { 49, "type WORK.P.T_REC2 has a subelement with an access type" },
+      { 74, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -958,6 +955,24 @@ START_TEST(test_protected)
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
+START_TEST(test_protected2)
+{
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/sem/protected2.vhd");
+
+   const error_t expect[] = {
+      { 11, "files may not be of protected type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
@@ -1552,6 +1567,7 @@ int main(void)
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
+   tcase_add_test(tc_core, test_protected2);
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_issue102);
    tcase_add_test(tc_core, test_issue105);

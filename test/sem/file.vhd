@@ -2,15 +2,10 @@ package p is
 
     type ft is file of natural;         -- OK
 
-    type t_prot is protected
-    end protected;
-
     type int_ptr is access integer;
     type bad1 is file of int_ptr;       -- Error
 
     type bad2 is file of ft;            -- Error
-
-    type bad3 is file of t_prot;        -- Error
 
     file f1 : ft is "foo.txt" ;         -- OK
 
@@ -79,8 +74,5 @@ package body p is
         read(f1, status);          -- Error
         assert endfile(f1);             -- OK
     end procedure;
-
-    type t_prot is protected body
-    end protected body;
 
 end package body;
