@@ -24,6 +24,16 @@ package p is
 
     file f6 : ft is 6;                  -- Error
 
+    type arr_1d is array (natural range <>) of integer;
+    type arr_2d is array (natural range <>, natural range <>) of integer;
+    subtype subarr_1d is arr_1d (1 to 2);
+    subtype subarr_2d is arr_2d (1 to 2, 3 to 4);
+
+    type ft2  is file of arr_1d;         -- OK
+    type bad4 is file of arr_2d;         -- Error
+    type ft3  is file of subarr_1d;      -- OK
+    type bad5 is file of subarr_2d;      -- Error
+
 end package;
 
 package body p is

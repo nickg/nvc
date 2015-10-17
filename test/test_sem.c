@@ -683,7 +683,9 @@ START_TEST(test_file)
       { 17, "file declarations must have file type" },
       { 21, "open mode must have type FILE_OPEN_KIND" },
       { 25, "file name must have type STRING" },
-      { 41, "no suitable overload for procedure READ" },
+      { 33, "array type for file type must be one-dimensional" },
+      { 35, "array type for file type must be one-dimensional" },
+      { 51, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);
