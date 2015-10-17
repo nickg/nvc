@@ -685,7 +685,11 @@ START_TEST(test_file)
       { 25, "file name must have type STRING" },
       { 33, "array type for file type must be one-dimensional" },
       { 35, "array type for file type must be one-dimensional" },
-      { 51, "no suitable overload for procedure READ" },
+      { 51, "type WORK.P.T_PTR_ARR has a subelement with an access type" },
+      { 52, "type WORK.P.SUB_PTR_ARR has a subelement with an access type" },
+      { 53, "type WORK.P.T_REC has a subelement with an access type" },
+      { 54, "type WORK.P.T_REC2 has a subelement with an access type" },
+      { 79, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);

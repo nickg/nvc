@@ -1589,6 +1589,29 @@ static bool sem_check_type(tree_t t, type_t *ptype)
    }
 }
 
+static bool sem_has_access(type_t t)
+{
+   // returns true if the type is an access type or is a composite
+   // type that contains a subelement of an access type
+   type_t base = type_base_recur(t);
+
+   if (type_is_access(base))
+      return true;
+
+   if (type_is_array(base))
+      return sem_has_access(type_elem(base));
+
+   if (type_is_record(base)) {
+      const int nfields = type_fields(base);
+      for (int i = 0; i < nfields; i++) {
+         if (sem_has_access(tree_type(type_field(base, i))))
+            return true;
+      }
+   }
+
+   return false;
+}
+
 static bool sem_check_type_decl(tree_t t)
 {
    // We need to insert the type into the scope before performing
@@ -1819,6 +1842,9 @@ static bool sem_check_type_decl(tree_t t)
          default:
             break;
          }
+
+         if (sem_has_access(f))
+            sem_error(t, "type %s has a subelement with an access type", sem_type_str(f));
 
          type_t base_f = type_base_recur(f);
          if (type_is_array(base_f) && type_index_constrs(base_f) > 1)
