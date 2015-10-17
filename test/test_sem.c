@@ -672,15 +672,18 @@ END_TEST
 
 START_TEST(test_file)
 {
+   set_standard(STD_00);
+
    input_from_file(TESTDIR "/sem/file.vhd");
 
    const error_t expect[] = {
-      {  6, "files may not be of access type" },
-      {  8, "files may not be of file type" },
-      { 12, "file declarations must have file type" },
-      { 16, "open mode must have type FILE_OPEN_KIND" },
-      { 20, "file name must have type STRING" },
-      { 36, "no suitable overload for procedure READ" },
+      {  9, "files may not be of access type" },
+      { 11, "files may not be of file type" },
+      { 13, "files may not be of protected type" },
+      { 17, "file declarations must have file type" },
+      { 21, "open mode must have type FILE_OPEN_KIND" },
+      { 25, "file name must have type STRING" },
+      { 41, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);

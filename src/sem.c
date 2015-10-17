@@ -1806,11 +1806,19 @@ static bool sem_check_type_decl(tree_t t)
             return false;
          type_set_file(base, f);
 
-         if (type_kind(f) == T_ACCESS)
+         switch (type_kind(f)) {
+         case T_ACCESS:
             sem_error(t, "files may not be of access type");
-
-         if (type_kind(f) == T_FILE)
+            break;
+         case T_FILE:
             sem_error(t, "files may not be of file type");
+            break;
+         case T_PROTECTED:
+            sem_error(t, "files may not be of protected type");
+            break;
+         default:
+            break;
+         }
 
          sem_declare_predefined_ops(t);
          return true;
