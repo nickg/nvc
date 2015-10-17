@@ -1652,6 +1652,14 @@ static bool sem_check_type_decl(tree_t t)
             sem_error(t, "array %s cannot have unconstrained element type",
                       istr(tree_ident(t)));
 
+         if (type_is_file(elem_type))
+            sem_error(t, "array %s cannot have element of file type",
+                      istr(tree_ident(t)));
+
+         if (type_is_protected(elem_type))
+            sem_error(t, "array %s cannot have element of protected type",
+                      istr(tree_ident(t)));
+
          type_set_elem(base, elem_type);
       }
       break;
@@ -1806,14 +1814,24 @@ static bool sem_check_type_decl(tree_t t)
                   sem_error(f, "duplicate field name %s", istr(f_name));
             }
 
+            type_t f_type = tree_type(f);
+
             // Recursive record types are not allowed
-            if (type_eq(type, tree_type(f)))
+            if (type_eq(type, f_type))
                sem_error(f, "recursive record types are not allowed");
 
             // Element types may not be unconstrained
-            if (type_is_unconstrained(tree_type(f)))
+            if (type_is_unconstrained(f_type))
                sem_error(f, "field %s with unconstrained array type "
                          "is not allowed", istr(f_name));
+
+             if (type_is_file(f_type))
+                sem_error(f, "record field %s cannot be of file type",
+                          istr(f_name));
+
+             if (type_is_protected(f_type))
+                sem_error(f, "record field %s cannot be of protected type",
+                          istr(f_name));
          }
 
          sem_declare_predefined_ops(t);

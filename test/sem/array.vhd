@@ -374,4 +374,10 @@ begin
     begin
     end process;
 
+    no_file_types: block is
+        type t_int_file   is file of integer;
+        type t_file_array is array (0 to 1) of t_int_file;  -- Error
+    begin
+    end block;
+
 end architecture;
