@@ -30,6 +30,18 @@ architecture a1 of e1 is
     signal    s : t_protected;          -- Error
     attribute s : t_protected;          -- Error
 
+    component bad_gen is
+    generic (
+    g1 : t_protected                    -- Error
+    );
+    end component;
+
+    component bad_port is
+    port (
+    p1 : t_protected                    -- Error
+    );
+    end component;
+
 begin
 
 end architecture;

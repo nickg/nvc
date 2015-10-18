@@ -980,6 +980,8 @@ START_TEST(test_protected2)
       { 26, "record field B cannot be of protected type" },
       { 30, "signals may not have protected type" },
       { 31, "attributes may not have protected type" },
+      { 35, "generics may not have protected type" },
+      { 41, "ports may not have protected type" },
       { -1, NULL }
    };
    expect_errors(expect);
