@@ -1925,6 +1925,27 @@ static bool sem_make_visible(tree_t container, get_nth_fn_t get, int count)
    return ok;
 }
 
+static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *what)
+{
+   // constants, signals, attributes, generics, ports
+   // may not be of an access, file, or protected type, or
+   // of a composite type with a subelement of an access type
+
+   if (type_is_access(type))
+      sem_error(t, "%s may not have access type", what);
+
+   if (sem_has_access(type))
+      sem_error(t, "%s may not have a type with a subelement of access type", what);
+
+   if (type_is_protected(type))
+      sem_error(t, "%s may not have protected type", what);
+
+   if (type_is_file(type))
+      sem_error(t, "%s may not have file type", what);
+
+   return true;
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1945,6 +1966,19 @@ static bool sem_check_decl(tree_t t)
 
    if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
+
+   switch (kind) {
+   case T_CONST_DECL:
+      if (!sem_no_access_file_or_protected(t, type, "constants"))
+         return false;
+      break;
+   case T_SIGNAL_DECL:
+      if (!sem_no_access_file_or_protected(t, type, "signals"))
+         return false;
+      break;
+   default:
+      break;
+   }
 
    const bool needs_default_value =
       !tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL)
@@ -1976,9 +2010,6 @@ static bool sem_check_decl(tree_t t)
 
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
-
-   if (kind == T_SIGNAL_DECL && type_is_access(type))
-      sem_error(t, "signals may not have access type");
 
    scope_apply_prefix(t);
 
@@ -6496,6 +6527,9 @@ static bool sem_check_attr_decl(tree_t t)
 {
    type_t type = tree_type(t);
    if (!sem_check_type(t, &type))
+      return false;
+
+   if (!sem_no_access_file_or_protected(t, type, "attributes"))
       return false;
 
    tree_set_type(t, type);

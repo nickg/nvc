@@ -1,12 +1,21 @@
+package p is
+    type t_protected is protected
+    end protected;
+
+    constant  c : t_protected;          -- Error
+end package;
+
+package body p is
+    type t_protected is protected body
+    end protected body;
+end package body;
+
+use work.p.all;
+
 entity e1 is
 end entity;
 
 architecture a1 of e1 is
-
-    type t_protected is protected
-    end protected;
-    type t_protected is protected body
-    end protected body;
 
     type bad_file_type is file of t_protected;   -- Error
 
@@ -17,6 +26,9 @@ architecture a1 of e1 is
         b   : t_protected;              -- Error
         c   : real;
     end record;
+
+    signal    s : t_protected;          -- Error
+    attribute s : t_protected;          -- Error
 
 begin
 

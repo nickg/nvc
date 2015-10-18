@@ -973,14 +973,18 @@ START_TEST(test_protected2)
    input_from_file(TESTDIR "/sem/protected2.vhd");
 
    const error_t expect[] = {
-      { 11, "files may not be of protected type" },
-      { 13, "array T_PROTECTED_ARRAY cannot have element of protected type" },
-      { 17, "record field B cannot be of protected type" },
+      {  5, "constants may not have protected type" },
+      {  5, "deferred constant C was not given a value in the package body" },
+      { 20, "files may not be of protected type" },
+      { 22, "array T_PROTECTED_ARRAY cannot have element of protected type" },
+      { 26, "record field B cannot be of protected type" },
+      { 30, "signals may not have protected type" },
+      { 31, "attributes may not have protected type" },
       { -1, NULL }
    };
    expect_errors(expect);
 
-   parse_and_check(T_ENTITY, T_ARCH);
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
@@ -1534,6 +1538,33 @@ START_TEST(test_interfaces)
 }
 END_TEST
 
+START_TEST(test_file_and_access)
+{
+   input_from_file(TESTDIR "/sem/file_and_access.vhd");
+
+   const error_t expect[] = {
+      { 10, "constants may not have access type" },
+      { 11, "constants may not have a type with a subelement of access type" },
+      { 12, "constants may not have a type with a subelement of access type" },
+      { 13, "constants may not have file type" },
+      { 15, "signals may not have access type" },
+      { 16, "signals may not have a type with a subelement of access type" },
+      { 17, "signals may not have a type with a subelement of access type" },
+      { 18, "signals may not have file type" },
+      { 20, "attributes may not have access type" },
+      { 21, "attributes may not have a type with a subelement of access type" },
+      { 22, "attributes may not have a type with a subelement of access type" },
+      { 23, "attributes may not have file type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1610,6 +1641,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue236);
    tcase_add_test(tc_core, test_issue239);
    tcase_add_test(tc_core, test_interfaces);
+   tcase_add_test(tc_core, test_file_and_access);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
