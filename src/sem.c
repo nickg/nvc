@@ -2778,6 +2778,8 @@ static bool sem_check_generics(tree_t t)
       tree_add_attr_int(g, elab_copy_i, 1);
 
       ok = sem_check(g) && ok;
+
+      ok = sem_no_access_file_or_protected(g, tree_type(g), "generics") && ok;
    }
 
    // Make generics visible in this region
@@ -2807,6 +2809,8 @@ static bool sem_check_ports(tree_t t)
       tree_add_attr_int(p, elab_copy_i, 1);
 
       ok = sem_check(p) && ok;
+
+      ok = sem_no_access_file_or_protected(p, tree_type(p), "ports") && ok;
    }
 
    return ok;

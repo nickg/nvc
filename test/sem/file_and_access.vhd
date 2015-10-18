@@ -22,4 +22,22 @@ package p is
     attribute a3 : t_access_record; -- Error
     attribute a4 : t_int_file;      -- Error
 
+    component bad_gen is
+    generic (
+    g1 : t_int_access;              -- Error
+    g2 : t_access_array;            -- Error
+    g3 : t_access_record;           -- Error
+    g4 : t_int_file                 -- Error
+    );
+    end component;
+
+    component bad_ports is
+    port (
+    p1 : t_int_access;              -- Error
+    p2 : t_access_array;            -- Error
+    p3 : t_access_record;           -- Error
+    p4 : t_int_file                 -- Error
+    );
+    end component;
+
 end package p;

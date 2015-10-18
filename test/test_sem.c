@@ -1555,6 +1555,14 @@ START_TEST(test_file_and_access)
       { 21, "attributes may not have a type with a subelement of access type" },
       { 22, "attributes may not have a type with a subelement of access type" },
       { 23, "attributes may not have file type" },
+      { 27, "generics may not have access type" },
+      { 28, "generics may not have a type with a subelement of access type" },
+      { 29, "generics may not have a type with a subelement of access type" },
+      { 30, "generics may not have file type" },
+      { 36, "ports may not have access type" },
+      { 37, "ports may not have a type with a subelement of access type" },
+      { 38, "ports may not have a type with a subelement of access type" },
+      { 39, "ports may not have file type" },
       { -1, NULL }
    };
    expect_errors(expect);
