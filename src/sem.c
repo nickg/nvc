@@ -2152,7 +2152,8 @@ static bool sem_check_interface_class(tree_t port)
 {
    // See LRM 93 section 3.3 for restrictions
 
-   const type_kind_t kind = type_base_kind(tree_type(port));
+   const type_t type = tree_type(port);
+   const type_kind_t kind = type_base_kind(type);
    const class_t class = tree_class(port);
    const port_mode_t mode = tree_subkind(port);
 
@@ -2185,6 +2186,10 @@ static bool sem_check_interface_class(tree_t port)
       sem_error(port, "object %s with %s type must have class VARIABLE",
                 istr(tree_ident(port)),
                 kind == T_ACCESS ? "access" : "protected");
+
+   if (sem_has_access(type) && class != C_VARIABLE)
+      sem_error(port, "object %s with type containing an access type must have class VARIABLE",
+                istr(tree_ident(port)));
 
    if (class == C_CONSTANT && mode != PORT_IN)
       sem_error(port, "parameter of class CONSTANT must have mode IN");

@@ -549,6 +549,10 @@ START_TEST(test_procedure)
       { 137, "sorry, this form of parameter name is not yet supported" },
       { 142, "cannot read output port X" },
       { 148, "target of signal assignment is not a signal" },
+      { 157, "object ARG with type containing an access type must have class VARIABLE" },
+      { 162, "object ARG with type containing an access type must have class VARIABLE" },
+      { 167, "object ARG with type containing an access type must have class VARIABLE" },
+      { 172, "object ARG with type containing an access type must have class VARIABLE" },
       { -1, NULL }
    };
    expect_errors(expect);
