@@ -1586,6 +1586,29 @@ static bool sem_check_type(tree_t t, type_t *ptype)
    }
 }
 
+static bool sem_has_access(type_t t)
+{
+   // returns true if the type is an access type or is a composite
+   // type that contains a subelement of an access type
+   type_t base = type_base_recur(t);
+
+   if (type_is_access(base))
+      return true;
+
+   if (type_is_array(base))
+      return sem_has_access(type_elem(base));
+
+   if (type_is_record(base)) {
+      const int nfields = type_fields(base);
+      for (int i = 0; i < nfields; i++) {
+         if (sem_has_access(tree_type(type_field(base, i))))
+            return true;
+      }
+   }
+
+   return false;
+}
+
 static bool sem_check_type_decl(tree_t t)
 {
    // We need to insert the type into the scope before performing
@@ -1624,6 +1647,14 @@ static bool sem_check_type_decl(tree_t t)
 
          if (type_is_unconstrained(elem_type))
             sem_error(t, "array %s cannot have unconstrained element type",
+                      istr(tree_ident(t)));
+
+         if (type_is_file(elem_type))
+            sem_error(t, "array %s cannot have element of file type",
+                      istr(tree_ident(t)));
+
+         if (type_is_protected(elem_type))
+            sem_error(t, "array %s cannot have element of protected type",
                       istr(tree_ident(t)));
 
          type_set_elem(base, elem_type);
@@ -1780,14 +1811,24 @@ static bool sem_check_type_decl(tree_t t)
                   sem_error(f, "duplicate field name %s", istr(f_name));
             }
 
+            type_t f_type = tree_type(f);
+
             // Recursive record types are not allowed
-            if (type_eq(type, tree_type(f)))
+            if (type_eq(type, f_type))
                sem_error(f, "recursive record types are not allowed");
 
             // Element types may not be unconstrained
-            if (type_is_unconstrained(tree_type(f)))
+            if (type_is_unconstrained(f_type))
                sem_error(f, "field %s with unconstrained array type "
                          "is not allowed", istr(f_name));
+
+             if (type_is_file(f_type))
+                sem_error(f, "record field %s cannot be of file type",
+                          istr(f_name));
+
+             if (type_is_protected(f_type))
+                sem_error(f, "record field %s cannot be of protected type",
+                          istr(f_name));
          }
 
          sem_declare_predefined_ops(t);
@@ -1803,11 +1844,26 @@ static bool sem_check_type_decl(tree_t t)
             return false;
          type_set_file(base, f);
 
-         if (type_kind(f) == T_ACCESS)
+         switch (type_kind(f)) {
+         case T_ACCESS:
             sem_error(t, "files may not be of access type");
-
-         if (type_kind(f) == T_FILE)
+            break;
+         case T_FILE:
             sem_error(t, "files may not be of file type");
+            break;
+         case T_PROTECTED:
+            sem_error(t, "files may not be of protected type");
+            break;
+         default:
+            break;
+         }
+
+         if (sem_has_access(f))
+            sem_error(t, "type %s has a subelement with an access type", sem_type_str(f));
+
+         type_t base_f = type_base_recur(f);
+         if (type_is_array(base_f) && type_index_constrs(base_f) > 1)
+            sem_error(t, "array type for file type must be one-dimensional");
 
          sem_declare_predefined_ops(t);
          return true;
@@ -1866,6 +1922,27 @@ static bool sem_make_visible(tree_t container, get_nth_fn_t get, int count)
    return ok;
 }
 
+static bool sem_no_access_file_or_protected(tree_t t, type_t type, const char *what)
+{
+   // constants, signals, attributes, generics, ports
+   // may not be of an access, file, or protected type, or
+   // of a composite type with a subelement of an access type
+
+   if (type_is_access(type))
+      sem_error(t, "%s may not have access type", what);
+
+   if (sem_has_access(type))
+      sem_error(t, "%s may not have a type with a subelement of access type", what);
+
+   if (type_is_protected(type))
+      sem_error(t, "%s may not have protected type", what);
+
+   if (type_is_file(type))
+      sem_error(t, "%s may not have file type", what);
+
+   return true;
+}
+
 static bool sem_check_decl(tree_t t)
 {
    type_t type = tree_type(t);
@@ -1886,6 +1963,19 @@ static bool sem_check_decl(tree_t t)
 
    if (type_is_unconstrained(type) && (kind != T_CONST_DECL))
       sem_error(t, "type %s is unconstrained", sem_type_str(type));
+
+   switch (kind) {
+   case T_CONST_DECL:
+      if (!sem_no_access_file_or_protected(t, type, "constants"))
+         return false;
+      break;
+   case T_SIGNAL_DECL:
+      if (!sem_no_access_file_or_protected(t, type, "signals"))
+         return false;
+      break;
+   default:
+      break;
+   }
 
    const bool needs_default_value =
       !tree_has_value(t) && (kind != T_PORT_DECL) && (kind != T_CONST_DECL)
@@ -1917,9 +2007,6 @@ static bool sem_check_decl(tree_t t)
 
    if (kind == T_PORT_DECL && tree_class(t) == C_DEFAULT)
       tree_set_class(t, C_SIGNAL);
-
-   if (kind == T_SIGNAL_DECL && type_is_access(type))
-      sem_error(t, "signals may not have access type");
 
    scope_apply_prefix(t);
 
@@ -2093,7 +2180,8 @@ static bool sem_check_interface_class(tree_t port)
 {
    // See LRM 93 section 3.3 for restrictions
 
-   const type_kind_t kind = type_base_kind(tree_type(port));
+   const type_t type = tree_type(port);
+   const type_kind_t kind = type_base_kind(type);
    const class_t class = tree_class(port);
    const port_mode_t mode = tree_subkind(port);
 
@@ -2126,6 +2214,10 @@ static bool sem_check_interface_class(tree_t port)
       sem_error(port, "object %s with %s type must have class VARIABLE",
                 istr(tree_ident(port)),
                 kind == T_ACCESS ? "access" : "protected");
+
+   if (sem_has_access(type) && class != C_VARIABLE)
+      sem_error(port, "object %s with type containing an access type must have class VARIABLE",
+                istr(tree_ident(port)));
 
    if (class == C_CONSTANT && mode != PORT_IN)
       sem_error(port, "parameter of class CONSTANT must have mode IN");
@@ -2683,6 +2775,8 @@ static bool sem_check_generics(tree_t t)
       tree_add_attr_int(g, elab_copy_i, 1);
 
       ok = sem_check(g) && ok;
+
+      ok = sem_no_access_file_or_protected(g, tree_type(g), "generics") && ok;
    }
 
    // Make generics visible in this region
@@ -2712,6 +2806,8 @@ static bool sem_check_ports(tree_t t)
       tree_add_attr_int(p, elab_copy_i, 1);
 
       ok = sem_check(p) && ok;
+
+      ok = sem_no_access_file_or_protected(p, tree_type(p), "ports") && ok;
    }
 
    return ok;
@@ -6435,6 +6531,9 @@ static bool sem_check_attr_decl(tree_t t)
 {
    type_t type = tree_type(t);
    if (!sem_check_type(t, &type))
+      return false;
+
+   if (!sem_no_access_file_or_protected(t, type, "attributes"))
       return false;
 
    tree_set_type(t, type);

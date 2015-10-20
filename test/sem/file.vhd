@@ -19,6 +19,44 @@ package p is
 
     file f6 : ft is 6;                  -- Error
 
+    type arr_1d is array (natural range <>) of integer;
+    type arr_2d is array (natural range <>, natural range <>) of integer;
+    subtype subarr_1d is arr_1d (1 to 2);
+    subtype subarr_2d is arr_2d (1 to 2, 3 to 4);
+
+    type ft2  is file of arr_1d;         -- OK
+    type bad4 is file of arr_2d;         -- Error
+    type ft3  is file of subarr_1d;      -- OK
+    type bad5 is file of subarr_2d;      -- Error
+
+    type t_ptr_arr is array (natural range <>) of int_ptr;
+    subtype sub_ptr_arr is t_ptr_arr (1 to 2);
+
+    type    t_rec is record
+                a   : integer;
+                b   : int_ptr;
+            end record;
+
+    type    t_rec2 is record
+                a   : integer;
+                b   : sub_ptr_arr;
+                c   : real;
+            end record;
+
+    type bad6 is file of t_ptr_arr;         -- Error
+    type bad7 is file of sub_ptr_arr;       -- Error
+    type bad8 is file of t_rec;             -- Error
+    type bad9 is file of t_rec2;            -- Error
+
+    type    t_ok_rec is record
+                a   : integer;
+                b   : time;
+                c   : arr_1d(1 to 1);
+                d   : arr_2d(10 to 20, 1 to 3);
+            end record;
+
+    type ft4 is file of t_ok_rec;           -- OK
+
 end package;
 
 package body p is

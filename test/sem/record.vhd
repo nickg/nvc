@@ -106,4 +106,9 @@ package body p is
         assert make_r1.z = 2;           -- Error
     end procedure;
 
+    type int_file is file of integer;
+    type r7 is record
+        a : int_file;
+    end record;
+
 end package body;

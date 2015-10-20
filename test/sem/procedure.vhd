@@ -148,4 +148,30 @@ package body p is
         x <= 5;                         -- Error
     end procedure;
 
+    type t_access_array is array (0 to 1) of int_ptr;
+    type t_access_record is record
+        a   : integer;
+        b   : int_ptr;
+    end record;
+
+    procedure test10(constant arg : t_access_array) is   -- Error
+    begin
+        null;
+    end procedure;
+
+    procedure test11(constant arg : t_access_record) is  -- Error
+    begin
+        null;
+    end procedure;
+
+    procedure test12(signal   arg : t_access_array) is   -- Error
+    begin
+        null;
+    end procedure;
+
+    procedure test13(signal   arg : t_access_record) is  -- Error
+    begin
+        null;
+    end procedure;
+
 end package body;

@@ -417,6 +417,7 @@ START_TEST(test_array)
       { 365, "may not change constraints of a constrained array" },
       { 366, "may not change constraints of a constrained array" },
       { 373, "too many elements in array" },
+      { 379, "array T_FILE_ARRAY cannot have element of file type" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -548,6 +549,10 @@ START_TEST(test_procedure)
       { 137, "sorry, this form of parameter name is not yet supported" },
       { 142, "cannot read output port X" },
       { 148, "target of signal assignment is not a signal" },
+      { 157, "object ARG with type containing an access type must have class VARIABLE" },
+      { 162, "object ARG with type containing an access type must have class VARIABLE" },
+      { 167, "object ARG with type containing an access type must have class VARIABLE" },
+      { 172, "object ARG with type containing an access type must have class VARIABLE" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -660,6 +665,7 @@ START_TEST(test_record)
       {  82, "record type R1_SUB has no field Z" },
       {  86, "record subtype may not have constraints" },
       { 106, "record type R1 has no field Z" },
+      { 111, "record field A cannot be of file type" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -680,7 +686,13 @@ START_TEST(test_file)
       { 12, "file declarations must have file type" },
       { 16, "open mode must have type FILE_OPEN_KIND" },
       { 20, "file name must have type STRING" },
-      { 36, "no suitable overload for procedure READ" },
+      { 28, "array type for file type must be one-dimensional" },
+      { 30, "array type for file type must be one-dimensional" },
+      { 46, "type WORK.P.T_PTR_ARR has a subelement with an access type" },
+      { 47, "type WORK.P.SUB_PTR_ARR has a subelement with an access type" },
+      { 48, "type WORK.P.T_REC has a subelement with an access type" },
+      { 49, "type WORK.P.T_REC2 has a subelement with an access type" },
+      { 74, "no suitable overload for procedure READ" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -950,6 +962,32 @@ START_TEST(test_protected)
    expect_errors(expect);
 
    parse_and_check(T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
+START_TEST(test_protected2)
+{
+   set_standard(STD_00);
+
+   input_from_file(TESTDIR "/sem/protected2.vhd");
+
+   const error_t expect[] = {
+      {  5, "constants may not have protected type" },
+      {  5, "deferred constant C was not given a value in the package body" },
+      { 20, "files may not be of protected type" },
+      { 22, "array T_PROTECTED_ARRAY cannot have element of protected type" },
+      { 26, "record field B cannot be of protected type" },
+      { 30, "signals may not have protected type" },
+      { 31, "attributes may not have protected type" },
+      { 35, "generics may not have protected type" },
+      { 41, "ports may not have protected type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_ENTITY, T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }
@@ -1503,6 +1541,41 @@ START_TEST(test_interfaces)
 }
 END_TEST
 
+START_TEST(test_file_and_access)
+{
+   input_from_file(TESTDIR "/sem/file_and_access.vhd");
+
+   const error_t expect[] = {
+      { 10, "constants may not have access type" },
+      { 11, "constants may not have a type with a subelement of access type" },
+      { 12, "constants may not have a type with a subelement of access type" },
+      { 13, "constants may not have file type" },
+      { 15, "signals may not have access type" },
+      { 16, "signals may not have a type with a subelement of access type" },
+      { 17, "signals may not have a type with a subelement of access type" },
+      { 18, "signals may not have file type" },
+      { 20, "attributes may not have access type" },
+      { 21, "attributes may not have a type with a subelement of access type" },
+      { 22, "attributes may not have a type with a subelement of access type" },
+      { 23, "attributes may not have file type" },
+      { 27, "generics may not have access type" },
+      { 28, "generics may not have a type with a subelement of access type" },
+      { 29, "generics may not have a type with a subelement of access type" },
+      { 30, "generics may not have file type" },
+      { 36, "ports may not have access type" },
+      { 37, "ports may not have a type with a subelement of access type" },
+      { 38, "ports may not have a type with a subelement of access type" },
+      { 39, "ports may not have file type" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_PACKAGE);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1544,6 +1617,7 @@ int main(void)
    tcase_add_test(tc_core, test_implicit);
    tcase_add_test(tc_core, test_config);
    tcase_add_test(tc_core, test_protected);
+   tcase_add_test(tc_core, test_protected2);
    tcase_add_test(tc_core, test_alias);
    tcase_add_test(tc_core, test_issue102);
    tcase_add_test(tc_core, test_issue105);
@@ -1578,6 +1652,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue236);
    tcase_add_test(tc_core, test_issue239);
    tcase_add_test(tc_core, test_interfaces);
+   tcase_add_test(tc_core, test_file_and_access);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
