@@ -3482,7 +3482,7 @@ static LLVMValueRef cgen_support_fn(const char *name)
                                             args, ARRAY_LEN(args), false));
    }
    else if (strcmp(name, "_private_stack") == 0) {
-      LLVMTypeRef args[] = {};
+      LLVMTypeRef args[0] = {};
       fn = LLVMAddFunction(module, "_private_stack",
                            LLVMFunctionType(LLVMVoidType(),
                                             args, ARRAY_LEN(args), false));
