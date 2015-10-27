@@ -1366,7 +1366,8 @@ static void cgen_op_nets(int op, cgen_ctx_t *ctx)
 
 static LLVMValueRef cgen_pointer_to_arg_data(int op, int arg, cgen_ctx_t *ctx)
 {
-   if (vcode_reg_kind(vcode_get_arg(op, arg)) == VCODE_TYPE_INT) {
+   const vtype_kind_t kind = vcode_reg_kind(vcode_get_arg(op, arg));
+   if (kind == VCODE_TYPE_INT || kind == VCODE_TYPE_REAL) {
       // Need to get a pointer to the data
       LLVMValueRef value = cgen_get_arg(op, arg, ctx);
       LLVMTypeRef lltype = LLVMTypeOf(value);
@@ -1405,6 +1406,7 @@ static void cgen_size_list(size_list_array_t *list, vcode_type_t type)
 {
    switch (vtype_kind(type)) {
    case VCODE_TYPE_INT:
+   case VCODE_TYPE_REAL:
       cgen_append_size_list(list, type, 1);
       break;
    case VCODE_TYPE_CARRAY:
