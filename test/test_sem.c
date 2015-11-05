@@ -137,6 +137,7 @@ START_TEST(test_scope)
       { 167, "declaration NOT_HERE not found in unit WORK.PACK5" },
       { 189, "type MY_INT1 is not declared" },
       { 236, "missing library clause for FOO" },
+      { 306, "no visible declaration for L1.X" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -145,7 +146,8 @@ START_TEST(test_scope)
                    T_ARCH, T_ARCH, T_ARCH, T_ENTITY, T_ARCH, T_ENTITY,
                    T_PACKAGE, T_PACKAGE, T_ARCH, T_PACKAGE, T_ARCH,
                    T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH,
-                   T_ARCH, T_PACKAGE, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH);
+                   T_ARCH, T_PACKAGE, T_ARCH, T_ARCH, T_PACKAGE, T_ARCH,
+                   T_ARCH);
 
    fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
 }

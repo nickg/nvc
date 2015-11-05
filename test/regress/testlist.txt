@@ -305,3 +305,4 @@ issue217        normal
 issue234        normal,gold
 issue227        normal,gold
 real3           normal,gold
+for3            normal,gold

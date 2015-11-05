@@ -4933,7 +4933,8 @@ static bool sem_check_ref(tree_t t)
       if (n == 0) {
          // Try to provide better error messages for invalid record fields
          ident_t rname = ident_runtil(name, '.');
-         if (rname != NULL && (decl = scope_find(rname))) {
+         if (rname != NULL && (decl = scope_find(rname))
+             && class_has_type(class_of(decl))) {
             type_t dtype = tree_type(decl);
             const bool is_rec_ref =
                type_is_record(dtype)
@@ -6434,7 +6435,9 @@ static bool sem_check_for(tree_t t)
 
    tree_add_decl(t, idecl);
 
-   scope_push(NULL);
+   scope_push(tree_ident(t));
+   scope_apply_prefix(idecl);
+   scope_insert_alias(idecl, tree_ident2(t));
    scope_insert(idecl);
    loop_push(tree_ident(t));
 
