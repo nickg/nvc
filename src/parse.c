@@ -903,8 +903,25 @@ static tree_t p_actual_part(void)
       tree_set_loc(t, CURRENT_LOC);
       return t;
    }
-   else
-      return p_expression();
+
+   // If the actual part takes either the second or third form above then the
+   // argument to the function call is the actual designator but only if the
+   // call is to a named function rather than an operator
+   // This is import for identifying conversion functions later
+   const token_t next = peek();
+   const bool had_name = (next == tID || next == tSTRING);
+
+   tree_t designator = p_expression();
+
+   const bool could_be_conversion =
+      had_name
+      && tree_kind(designator) == T_FCALL
+      && tree_params(designator) == 1;
+
+   if (could_be_conversion)
+      tree_add_attr_int(designator, conversion_i, 1);
+
+   return designator;
 }
 
 static void p_association_element(tree_t map, add_func_t addf)

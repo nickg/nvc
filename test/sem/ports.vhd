@@ -334,3 +334,24 @@ architecture other2 of top is
 
 begin
 end architecture;
+
+-------------------------------------------------------------------------------
+
+architecture actual_func of top is
+    component comp is
+        port (
+            i : in integer );
+    end component;
+    signal s : integer;
+    function "not"(x : integer) return integer;
+begin
+
+    c1: component comp
+        port map (
+            i => "not"(s) );            -- OK
+
+    c2: component comp
+        port map (
+            i => not s );               -- Error, not treated as conversion func
+
+end architecture;

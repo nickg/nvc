@@ -105,12 +105,13 @@ START_TEST(test_ports)
       { 311, "cannot assign to input port X" },
       { 312, "cannot read output port Y" },
       { 332, "cannot read parameter X with mode IN" },
+      { 355, "actual must be globally static expression or locally static" },
       { -1, NULL }
    };
    expect_errors(expect);
 
    parse_and_check(T_PACKAGE, T_ENTITY, T_ARCH, T_ENTITY, T_ARCH, T_ARCH,
-                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH);
+                   T_ARCH, T_ENTITY, T_ARCH, T_ARCH, T_ARCH);
 
    fail_unless(parse() == NULL);
    fail_unless(parse_errors() == 0);

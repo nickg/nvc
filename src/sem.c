@@ -5734,7 +5734,8 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
          // Conversion functions are in LRM 93 section 4.3.2.2
 
          tree_t func = tree_ref(value);
-         if ((tree_ports(func) == 1) && (tree_params(value) == 1))
+         if (tree_ports(func) == 1 && tree_params(value) == 1
+             && tree_attr_int(value, conversion_i, 0))
             actual = tree_value(tree_param(value, 0));
       }
    }
