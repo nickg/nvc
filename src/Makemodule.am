@@ -50,10 +50,10 @@ endif
 
 if IMPLIB_REQUIRED
 
-AM_LDFLAGS += -Wl,--export-all-symbols -Wl,--out-implib=lib/libnvcimp.a
+bin_nvc_LDFLAGS = -Wl,--export-all-symbols -Wl,--out-implib=lib/libnvcimp.a
 
 pkgdata_DATA += lib/libnvcimp.a
 
-libnvcimp.a: nvc$(EXEEXT)
+lib/libnvcimp.a: bin/nvc$(EXEEXT)
 
 endif

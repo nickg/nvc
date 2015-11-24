@@ -80,7 +80,7 @@ def analyse_elab_run(t)
   cmd += ' -r'
   t[:flags].each do |f|
     cmd += " --stop-time=#{Regexp.last_match(1)}" if f =~ /stop=(.*)/
-    cmd += " --load=#{BuildDir}/lib/#{t[:name]}.so" if f == 'vhpi'
+    cmd += " --load=#{BuildDir}/lib/#{t[:name]}.so#{ENV['EXEEXT']}" if f == 'vhpi'
   end
   cmd += " #{t[:name]}"
   run_cmd cmd, t[:flags].member?('fail')

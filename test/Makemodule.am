@@ -59,7 +59,8 @@ bin_test_lower_LDADD = $(test_libs)
 
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
-	LIB_DIR=$(abs_top_builddir)/lib
+	LIB_DIR=$(abs_top_builddir)/lib \
+	EXEEXT=$(EXEEXT)
 TESTS = $(UNIT_TESTS) test/run_regr.rb
 
 if ENABLE_VHPI

@@ -10,4 +10,9 @@ lib_vhpi2_so_SOURCES = test/vhpi/vhpi2.c
 lib_vhpi2_so_CFLAGS  = $(PIC_FLAG) -I$(top_srcdir)/src/vhpi $(AM_CFLAGS)
 lib_vhpi2_so_LDFLAGS = -shared $(VHPI_LDFLAGS) $(AM_LDFLAGS)
 
+if IMPLIB_REQUIRED
+lib_vhpi1_so_LDADD = lib/libnvcimp.a
+lib_vhpi2_so_LDADD = lib/libnvcimp.a
+endif
+
 endif
