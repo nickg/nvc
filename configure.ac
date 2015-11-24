@@ -70,6 +70,12 @@ AX_CHECK_LINK_FLAG([-rdynamic],
   [RDYNAMIC_FLAG=""])
 AC_SUBST(RDYNAMIC_FLAG)
 
+AX_CHECK_COMPILE_FLAG([-fPIC],
+  [PIC_FLAG="-fPIC"],
+  [PIC_FLAG=""],
+  [-Werror])
+AC_SUBST(PIC_FLAG)
+
 AX_PROG_FLEX([], [AC_MSG_ERROR(GNU Flex not found)])
 
 case $host_os in
