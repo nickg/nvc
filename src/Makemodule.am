@@ -25,8 +25,10 @@ lib_libnvc_a_SOURCES = \
 	src/lower.c \
 	src/vcode.c
 
+if HAVE_LLVM
 lib_libcgen_a_SOURCES = src/cgen.c src/link.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+endif
 
 bin_nvc_SOURCES = src/nvc.c
 
