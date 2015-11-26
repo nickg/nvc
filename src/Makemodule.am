@@ -25,9 +25,11 @@ lib_libnvc_a_SOURCES = \
 	src/lower.c \
 	src/vcode.c
 
-if HAVE_LLVM
 lib_libcgen_a_SOURCES = src/cgen.c src/link.c
-lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+lib_libcgen_a_CFLAGS = $(AM_CFLAGS)
+
+if HAVE_LLVM
+lib_libcgen_a_CFLAGS += $(LLVM_CFLAGS)
 endif
 
 bin_nvc_SOURCES = src/nvc.c
@@ -43,8 +45,11 @@ bin_nvc_LDADD = \
 	lib/libjit.a \
 	lib/liblxt.a \
 	lib/libfst.a \
-	lib/libfastlz.a \
-	$(LLVM_LIBS)
+	lib/libfastlz.a
+
+if HAVE_LLVM
+bin_nvc_LDADD += $(LLVM_LIBS)
+endif
 
 if ENABLE_VHPI
 bin_nvc_LDADD += lib/libvhpi.a

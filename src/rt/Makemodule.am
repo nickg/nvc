@@ -13,7 +13,9 @@ lib_librt_a_SOURCES = \
 	src/rt/fst.c \
 	src/rt/wave.c
 
-if HAVE_LLVM
 lib_libjit_a_SOURCES = src/rt/jit.c
-lib_libjit_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+lib_libjit_a_CFLAGS = $(AM_CFLAGS)
+
+if HAVE_LLVM
+lib_libjit_a_CFLAGS += $(LLVM_CFLAGS)
 endif
