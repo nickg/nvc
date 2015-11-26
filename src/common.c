@@ -769,7 +769,9 @@ void intern_strings(void)
    range_var_i      = ident_new("range_var");
    postponed_i      = ident_new("postponed");
    work_i           = ident_new("WORK");
+#ifdef HAVE_LLVM
    llvm_i           = ident_new("llvm");
+#endif
    wait_level_i     = ident_new("wait_level");
    impure_io_i      = ident_new("impure_io");
    simple_name_i    = ident_new("simple_name");

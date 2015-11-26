@@ -38,7 +38,12 @@ const char *copy_string =
    "and\nyou are welcome to redistribute it under certain conditions. See "
    "the GNU\nGeneral Public Licence for details.";
 const char *version_string =
-   PACKAGE_STRING " (llvm " LLVM_VERSION "; tcl " TCL_VERSION ")";
+   PACKAGE_STRING " " "("
+#ifdef HAVE_LLVM
+      "llvm" " " LLVM_VERSION ";" " "
+#endif
+      "tcl"  " " TCL_VERSION
+   ")" ;
 
 static ident_t top_level = NULL;
 
@@ -101,7 +106,9 @@ static int analyse(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "bootstrap",       no_argument,       0, 'b' },
-      { "dump-llvm",       no_argument,       0, 'D' },
+#ifdef HAVE_LLVM
+      { "dump-llvm",       no_argument,       0, 'D' },   // FIXME: undocumented?
+#endif
       { "dump-vcode",      optional_argument, 0, 'v' },
       { "prefer-explicit", no_argument,       0, 'p' },   // DEPRECATED
       { "relax",           required_argument, 0, 'R' },
@@ -121,9 +128,11 @@ static int analyse(int argc, char **argv)
       case 'b':
          opt_set_int("bootstrap", 1);
          break;
+#ifdef HAVE_LLVM
       case 'D':
          opt_set_int("dump-llvm", 1);
          break;
+#endif
       case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
          break;
@@ -234,7 +243,9 @@ static int elaborate(int argc, char **argv)
 {
    static struct option long_options[] = {
       { "disable-opt", no_argument,       0, 'o' },
+#ifdef HAVE_LLVM
       { "dump-llvm",   no_argument,       0, 'd' },
+#endif
       { "dump-vcode",  optional_argument, 0, 'v' },
       { "native",      no_argument,       0, 'n' },
       { "cover",       no_argument,       0, 'c' },
@@ -248,12 +259,14 @@ static int elaborate(int argc, char **argv)
    const char *spec = "Vg:";
    while ((c = getopt_long(next_cmd, argv, spec, long_options, &index)) != -1) {
       switch (c) {
+#ifdef HAVE_LLVM
       case 'o':
          opt_set_int("optimise", 0);
          break;
       case 'd':
          opt_set_int("dump-llvm", 1);
          break;
+#endif
       case 'v':
          opt_set_str("dump-vcode", optarg ?: "");
          break;
@@ -311,7 +324,9 @@ static int elaborate(int argc, char **argv)
    elab_verbose(verbose, "generating intermediate code");
 
    cgen(e);
+#ifdef HAVE_LLVM
    elab_verbose(verbose, "generating LLVM");
+#endif
 
    link_bc(e);
    elab_verbose(verbose, "linking");
@@ -684,7 +699,9 @@ static void set_default_opts(void)
    opt_set_int("rt-stats", 0);
    opt_set_int("rt_trace_en", 0);
    opt_set_int("vhpi_trace_en", 0);
+#ifdef HAVE_LLVM
    opt_set_int("dump-llvm", 0);
+#endif
    opt_set_int("optimise", 1);
    opt_set_int("native", 0);
    opt_set_int("bootstrap", 0);
@@ -729,8 +746,10 @@ static void usage(void)
           "\n"
           "Elaborate options:\n"
           "     --cover\t\tEnable code coverage reporting\n"
-          "     --disable-opt\tDisable LLVM optimisations\n"
+          "     --disable-opt\tDisable link optimisations\n"
+#ifdef HAVE_LLVM
           "     --dump-llvm\tPrint generated LLVM IR\n"
+#endif
           "     --dump-vcode\tPrint generated intermediate code\n"
           " -g NAME=VALUE\t\tSet top level generic NAME to VALUE\n"
           "     --native\t\tGenerate native code shared library\n"

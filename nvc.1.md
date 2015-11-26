@@ -104,7 +104,7 @@ elaborate command.
   Enable code coverage reporting (see the [CODE COVERAGE][] section below).
 
 * `--disable-opt`:
-  Disable LLVM optimisations. Not generally useful unless debugging the
+  Disable link optimisations. Not generally useful unless debugging the
   generated LLVM IR.
 
 * `--dump-llvm`:

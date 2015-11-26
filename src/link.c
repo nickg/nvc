@@ -545,7 +545,7 @@ void link_package(tree_t pack)
 
    LLVMDisposeMemoryBuffer(buf);
 
-   link_opt(pack);
+   link_opt(pack); // FIXME: No need to check "--disable-opt"?
    link_native(pack);
 }
 

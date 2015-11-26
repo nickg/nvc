@@ -1218,7 +1218,7 @@ static void elab_rename_subprograms(tree_t t, ident_t prefix)
 static void elab_process(tree_t t, const elab_ctx_t *ctx)
 {
    // Rename local functions in this process to avoid collisions in the
-   // global LLVM namespace
+   // global namespace
 
    elab_rename_subprograms(t, ctx->path);
 

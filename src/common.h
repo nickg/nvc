@@ -186,7 +186,9 @@ GLOBAL ident_t impure_i;
 GLOBAL ident_t range_var_i;
 GLOBAL ident_t postponed_i;
 GLOBAL ident_t work_i;
+#ifdef HAVE_LLVM
 GLOBAL ident_t llvm_i;
+#endif
 GLOBAL ident_t wait_level_i;
 GLOBAL ident_t impure_io_i;
 GLOBAL ident_t simple_name_i;

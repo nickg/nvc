@@ -45,7 +45,7 @@ tree_t elab(tree_t top);
 // Set the value of a top-level generic
 void elab_set_generic(const char *name, const char *value);
 
-// Generate LLVM bitcode for an elaborated design
+// Generate code for an elaborated design
 void cgen(tree_t top);
 
 // Dump out a VHDL representation of the given unit
