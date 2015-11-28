@@ -48,6 +48,10 @@ START_TEST(test_bounds)
       { 198, "length of sub-aggregate 3 does not match expected length 4" },
       { 206, "left index ONE violates constraint SE" },
       { 206, "right index FOUR violates constraint SE" },
+      { 219, "value -5 NS out of bounds 0 HR to 10 NS for parameter A"},
+      { 221, "value 5 NS out of bounds 10 SEC downto 20 US for parameter A"},
+      { 227, "value 200 NS out of target bounds -10 NS to 10 NS"},
+      { 228, "value -200 NS out of target bounds -10 NS to 10 NS"},
       { -1, NULL }
    };
    expect_errors(expect);
@@ -77,7 +81,7 @@ START_TEST(test_bounds2)
       {  52, "value 20 out of target bounds 0 to 9"},
       {  53, "value 'Z' out of target bounds 'a' to 'z'"},
       {  54, "value 10.000000 out of target bounds 0.000000 to 5.000000"},
-      {  55, "value 0 out of target bounds 10000000 to 10000000000"},
+      {  55, "value 0 HR out of target bounds 10 NS to 10 US"},
       {  56, "value 10 out of target bounds 0 to 1"},
       {  59, "value 30 out of target bounds 1 to 10"},
       {  63, "value 'c' out of target bounds 'a' to 'b'"},
