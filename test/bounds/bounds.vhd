@@ -207,4 +207,26 @@ begin
     begin
     end process;
 
+    process is
+        procedure phys_proc_to(a : in time range 0 ns to 10 ns) is
+        begin
+        end procedure;
+        procedure phys_proc_dt(a : in time range 10 sec downto 20 us) is
+        begin
+        end procedure;
+    begin
+        phys_proc_to(5 ns);      -- OK
+        phys_proc_to(-5 ns);     -- Error
+        phys_proc_dt(1 ms);      -- OK
+        phys_proc_dt(5 ns);      -- Error
+    end process;
+
+    process
+        variable t : time range -10 ns to 10 ns;
+    begin
+        t := 200 ns;            -- Error
+        t := -200 ns;           -- Error
+        t := 0 ns;              -- OK
+    end process;
+
 end architecture;

@@ -63,6 +63,116 @@ static void bounds_check_literal(tree_t t)
    }
 }
 
+static bool is_out_of_range(tree_t value, range_t range, bool *checked)
+{
+   type_kind_t base_kind = type_base_kind(tree_type(value));
+
+   switch (base_kind) {
+   case T_INTEGER:
+   case T_PHYSICAL:
+      {
+         int64_t ival, low, high;
+         *checked = folded_int(value, &ival) && folded_bounds(range, &low, &high);
+         if (*checked && (ival < low || ival > high))
+            return true;
+
+         return false;
+      }
+      break;
+   case T_REAL:
+      {
+         double rval, low, high;
+         *checked = folded_real(value, &rval) && folded_bounds_real(range, &low, &high);
+         if (*checked && (rval < low || rval > high))
+            return true;
+
+         return false;
+      }
+      break;
+   case T_ENUM:
+      {
+         unsigned uval;
+         int64_t low, high;
+         *checked = folded_enum(value, &uval) && folded_bounds(range, &low, &high);
+         if (*checked && (((int64_t) uval < low) || ((int64_t) uval > high)))
+            return true;
+
+         return false;
+      }
+      break;
+   default:
+      return false;
+   }
+}
+
+static const char *value_str(tree_t value)
+{
+   static const int BUF_SZ = 64;
+   const type_t vtype = tree_type(value);
+   const type_kind_t base_kind = type_base_kind(vtype);
+   char *buf = get_fmt_buf(BUF_SZ);
+
+   buf[0] = '\0';
+
+   switch (base_kind) {
+   case T_INTEGER:
+      {
+         int64_t ival;
+         const bool is_folded = folded_int(value, &ival);
+         assert(is_folded);
+         snprintf(buf, BUF_SZ, "%"PRIi64, ival);
+      }
+      break;
+   case T_PHYSICAL:
+      {
+         int64_t ival, max_unit_value = 0;
+         const bool is_folded = folded_int(value, &ival);
+         assert(is_folded);
+         const unsigned  nunits = type_units(vtype);
+         tree_t max_unit = NULL;
+
+         // Find the largest unit that evenly divides the given value
+         for (unsigned u = 0; u < nunits; u++)
+         {
+            tree_t unit = type_unit(vtype, u);
+            int64_t unit_value;
+            const bool is_folded = folded_int(tree_value(unit), &unit_value);
+            assert(is_folded);
+            if ((ival % unit_value == 0) && (unit_value > max_unit_value))
+            {
+               max_unit = unit;
+               max_unit_value = unit_value;
+            }
+         }
+         assert(max_unit);
+         ival = ival / max_unit_value;
+         snprintf(buf, BUF_SZ, "%"PRIi64" %s", ival, istr(tree_ident(max_unit)));
+      }
+      break;
+   case T_REAL:
+      {
+         double rval;
+         const bool is_folded = folded_real(value, &rval);
+         assert(is_folded);
+         snprintf(buf, BUF_SZ, "%lf", rval);
+      }
+      break;
+   case T_ENUM:
+      {
+         unsigned uval;
+         const bool is_folded = folded_enum(value, &uval);
+         assert(is_folded);
+         type_t base = type_base_recur(vtype);
+         return istr(tree_ident(type_enum_literal(base, uval)));
+      }
+      break;
+   default:
+      break;
+   }
+
+   return (const char *) buf;
+}
+
 static tree_t bounds_check_call_args(tree_t t)
 {
    tree_t decl = tree_ref(t);
@@ -112,70 +222,16 @@ static tree_t bounds_check_call_args(tree_t t)
             }
          }
       }
-      else if (type_is_integer(ftype)) {
-         int64_t ival;
-         if (!folded_int(value, &ival))
-            continue;
-
+      else if (type_is_scalar(ftype)) {
          range_t r = type_dim(ftype, 0);
+         bool checked;
 
-         int64_t low, high;
-         if (!folded_bounds(r, &low, &high))
-            continue;
-
-         if ((ival < low) || (ival > high))
-            bounds_error(value, "value %"PRIi64" out of bounds %"PRIi64" %s "
-                         "%"PRIi64" for parameter %s", ival,
-                         (r.kind == RANGE_TO) ? low : high,
-                         (r.kind == RANGE_TO) ? "to" : "downto",
-                         (r.kind == RANGE_TO) ? high : low,
-                         istr(tree_ident(port)));
-      }
-      else if (type_is_real(ftype)) {
-         double ival;
-         if (!folded_real(value, &ival))
-            continue;
-
-         range_t r = type_dim(ftype, 0);
-
-         double low, high;
-         if (!folded_bounds_real(r, &low, &high))
-            continue;
-
-         if ((ival < low) || (ival > high))
-            bounds_error(value, "value %lf out of bounds %lf %s "
-                         "%lf for parameter %s", ival,
-                         (r.kind == RANGE_TO) ? low : high,
-                         (r.kind == RANGE_TO) ? "to" : "downto",
-                         (r.kind == RANGE_TO) ? high : low,
-                         istr(tree_ident(port)));
-      }
-      else if (type_is_enum(ftype)) {
-         unsigned uval;
-         int64_t ival;
-         if (!folded_enum(value, &uval))
-            continue;
-
-         ival = uval;
-
-         range_t r = type_dim(ftype, 0);
-
-         int64_t low, high;
-         if (!folded_bounds(r, &low, &high))
-            continue;
-
-         type_t base = type_base_recur(ftype);
-         if ((ival < low) || (ival > high))
+         if (is_out_of_range(value, r, &checked))
             bounds_error(value, "value %s out of bounds %s %s %s for "
-                         "parameter %s",
-                         istr(tree_ident(type_enum_literal(base, ival))),
-                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? low : high))),
+                         "parameter %s", value_str(value),
+                         value_str(r.left),
                          (r.kind == RANGE_TO) ? "to" : "downto",
-                         istr(tree_ident(type_enum_literal(base, (r.kind == RANGE_TO) ? high : low))),
-                         istr(tree_ident(port)));
-      }
-      else if (type_is_physical(ftype)) {
-         // TODO
+                         value_str(r.right), istr(tree_ident(port)));
       }
    }
 
@@ -198,32 +254,21 @@ static void bounds_check_array_ref(tree_t t)
    const int nparams = tree_params(t);
    for (int i = 0; i < nparams; i++) {
       tree_t p = tree_param(t, i);
-
-      int64_t index;
-      if (!folded_int(tree_value(p), &index))
-         continue;
-
-      range_t b = type_dim(value_type, i);
-
-      if ((b.kind != RANGE_TO) && (b.kind != RANGE_DOWNTO))
-         continue;
-
-      int64_t left, right;
-      if (folded_int(b.left, &left) && folded_int(b.right, &right)) {
-         const int64_t low  = (b.kind == RANGE_TO) ? left : right;
-         const int64_t high = (b.kind == RANGE_TO) ? right : left;
-         if ((index < low) || (index > high)) {
-            const char *name = (tree_kind(value) == T_REF)
-               ? istr(tree_ident(value)) : NULL;
-            bounds_error(t, "array %s%sindex %"PRIi64" out of bounds "
-                         "%"PRIi64" %s %"PRIi64,
-                         name ? name : "", name ? " " : "",
-                         index, left,
-                         (b.kind == RANGE_TO) ? "to" : "downto", right);
-         }
-         else
-            nstatic++;
+      tree_t pvalue = tree_value(p);
+      range_t r = type_dim(value_type, i);
+      bool checked;
+      if (is_out_of_range(pvalue, r, &checked)) {
+         const char *name = (tree_kind(value) == T_REF)
+            ? istr(tree_ident(value)) : NULL;
+         bounds_error(t, "array %s%sindex %s out of bounds %s %s %s",
+                      name ? name : "", name ? " " : "",
+                      value_str(pvalue), value_str(r.left),
+                      (r.kind == RANGE_TO) ? "to" : "downto",
+                      value_str(r.right));
       }
+
+      if (checked)
+         nstatic++;
    }
 
    if (nstatic == nparams)
@@ -510,85 +555,13 @@ static void bounds_check_assignment(tree_t target, tree_t value)
 
    if (type_is_scalar(target_type)) {
       range_t r = type_dim(target_type, 0);
+      bool checked;
 
-      int64_t ivalue;
-      if (folded_int(value, &ivalue)) {
-         int64_t left, right;
-         if (folded_int(r.left, &left) && folded_int(r.right, &right)) {
-            switch (r.kind) {
-            case RANGE_TO:
-               if ((ivalue < left) || (ivalue > right))
-                  bounds_error(value, "value %"PRIi64" out of target bounds %"
-                               PRIi64" to %"PRIi64, ivalue, left, right);
-               break;
-
-            case RANGE_DOWNTO:
-               if ((ivalue > left) || (ivalue < right))
-                  bounds_error(value, "value %"PRIi64" out of target bounds %"
-                               PRIi64" downto %"PRIi64, ivalue, left, right);
-               break;
-
-            default:
-               break;
-            }
-         }
-      }
-
-      double rvalue;
-      if (folded_real(value, &rvalue)) {
-         double left, right;
-         if (folded_real(r.left, &left) && folded_real(r.right, &right)) {
-            switch (r.kind) {
-            case RANGE_TO:
-               if ((rvalue < left) || (rvalue > right))
-                  bounds_error(value, "value %lf out of target bounds %lf "
-                               "to %lf", rvalue, left, right);
-               break;
-
-            case RANGE_DOWNTO:
-               if ((rvalue > left) || (rvalue < right))
-                  bounds_error(value, "value %lf out of target bounds %lf "
-                               "downto %lf", rvalue, left, right);
-               break;
-
-            default:
-               break;
-            }
-         }
-      }
-
-      unsigned pos;
-      if (folded_enum(value, &pos)) {
-         unsigned left, right;
-         if (folded_enum(r.left, &left) && folded_enum(r.right, &right)) {
-            type_t value_base  = type_base_recur(value_type);
-            type_t target_base = type_base_recur(target_type);
-
-            tree_t value_lit = type_enum_literal(value_base, pos);
-            tree_t left_lit  = type_enum_literal(target_base, left);
-            tree_t right_lit = type_enum_literal(target_base, right);
-
-            switch (r.kind) {
-            case RANGE_TO:
-               if ((pos < left) || (pos > right))
-                  bounds_error(value, "value %s out of target bounds %s to %s",
-                               istr(tree_ident(value_lit)),
-                               istr(tree_ident(left_lit)),
-                               istr(tree_ident(right_lit)));
-               break;
-
-            case RANGE_DOWNTO:
-               if ((pos > left) || (pos < right))
-                  bounds_error(value, "value %s out of target bounds %s "
-                               "downto %s", istr(tree_ident(value_lit)),
-                               istr(tree_ident(left_lit)),
-                               istr(tree_ident(right_lit)));
-               break;
-
-            default:
-               break;
-            }
-         }
+      if (is_out_of_range(value, r, &checked)) {
+         bounds_error(value, "value %s out of target bounds %s %s %s",
+                      value_str(value), value_str(r.left),
+                      (r.kind == RANGE_TO) ? "to" : "downto",
+                      value_str(r.right));
       }
    }
 }
