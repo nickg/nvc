@@ -1,5 +1,5 @@
 bin_PROGRAMS += bin/nvc
-noinst_LIBRARIES += lib/libcgen.a lib/libnvc.a
+noinst_LIBRARIES += lib/libnvc.a
 
 lib_libnvc_a_SOURCES = \
 	src/lib.c \
@@ -24,13 +24,6 @@ lib_libnvc_a_SOURCES = \
 	src/object.c \
 	src/lower.c \
 	src/vcode.c
-
-lib_libcgen_a_SOURCES = src/cgen.c src/link.c
-lib_libcgen_a_CFLAGS = $(AM_CFLAGS)
-
-if HAVE_LLVM
-lib_libcgen_a_CFLAGS += $(LLVM_CFLAGS)
-endif
 
 bin_nvc_SOURCES = src/nvc.c
 

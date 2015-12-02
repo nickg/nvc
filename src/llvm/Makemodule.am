@@ -1,0 +1,8 @@
+noinst_LIBRARIES += lib/libcgen.a lib/libjit.a
+
+lib_libcgen_a_SOURCES = src/llvm/cgen.c src/llvm/link.c
+lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)
+
+lib_libjit_a_SOURCES = src/llvm/jit.c
+lib_libjit_a_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/src/rt
+lib_libjit_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

@@ -30,6 +30,9 @@ LIBDIRS =
 
 include thirdparty/Makemodule.am
 include src/Makemodule.am
+if HAVE_LLVM
+include src/llvm/Makemodule.am
+endif
 include src/rt/Makemodule.am
 include src/vhpi/Makemodule.am
 include test/Makemodule.am
