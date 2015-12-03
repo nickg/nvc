@@ -461,14 +461,21 @@ static void bounds_check_decl(tree_t t)
    if (tree_has_value(t))
       bounds_check_assignment(t, tree_value(t));
 
-   if (type_is_array(type) && (type_kind(type) != T_UARRAY)) {
-      // Check folded range does not violate index constraints
+   const bool is_constrained_array_subtype =
+      type_is_array(type)
+      && !type_is_unconstrained(type)
+      && type_kind(type) == T_SUBTYPE;
 
-      const int ndims = type_dims(type);
+   if (is_constrained_array_subtype) {
+      // Check folded range does not violate index constraints of base type
+
+      type_t base = type_base(type);
+
+      const int ndims = array_dimension(base);
       for (int i = 0; i < ndims; i++) {
          range_t dim = type_dim(type, i);
 
-         type_t cons = tree_type(dim.left);
+         type_t cons = index_type_of(base, i);
          type_t cons_base  = type_base_recur(cons);
 
          const bool is_enum = (type_kind(cons_base) == T_ENUM);
