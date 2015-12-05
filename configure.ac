@@ -122,36 +122,6 @@ fi
 
 AC_CHECK_LIB([z], [deflate], [], [AC_MSG_ERROR(zlib not found)])
 
-AC_ARG_ENABLE([fst_dynamic_alias],
-  [AC_HELP_STRING([--disable-fst-dynamic-alias],
-    [FST does not process dynamic aliases])],
-  [enable_fst_dynamic_alias=$enableval],
-  [enable_fst_dynamic_alias=yes])
-if test x$enable_fst_dynamic_alias = xno ; then
-  AC_DEFINE_UNQUOTED([FST_DYNAMIC_ALIAS_DISABLE], [1],
-    [FST does not processes dynamic aliases])
-fi
-
-AC_ARG_ENABLE([fst_dynamic_alias2],
-  [AC_HELP_STRING([--disable-fst-dynamic-alias2],
-    [FST does not generate new encoding for dynamic aliases])],
-  [enable_fst_dynamic_alias2=$enableval],
-  [enable_fst_dynamic_alias2=yes])
-if test x$enable_fst_dynamic_alias2 = xno ; then
-  AC_DEFINE_UNQUOTED([FST_DYNAMIC_ALIAS2_DISABLE], [1],
-    [FST does not generate new encoding for dynamic aliases])
-fi
-
-AC_ARG_ENABLE([fst_writex],
-  [AC_HELP_STRING([--disable-fst-writex],
-    [FST does not use fast write I/O routines])],
-  [enable_fst_writex=$enableval],
-  [enable_fst_writex=yes])
-if test x$enable_fst_writex = xno ; then
-  AC_DEFINE_UNQUOTED([FST_WRITEX_DISABLE], [1],
-    [FST does not use fast write I/O routines])
-fi
-
 AC_ARG_ENABLE([fst_debug],
   [AC_HELP_STRING([--enable-fst-debug],
     [Enable FST debugging (for development only)])],
@@ -170,16 +140,6 @@ AC_ARG_ENABLE([fst_glitch_removal],
 if test x$enable_fst_glitch_removal = xyes ; then
   AC_DEFINE_UNQUOTED([FST_REMOVE_DUPLICATE_VC], [1],
     [Enable FST glitch removal (has performance impact)])
-fi
-
-AC_ARG_ENABLE([fst_force_misaligned],
-  [AC_HELP_STRING([--enable-fst-force-misaligned],
-    [Force FST handles misaligned loads/stores])],
-  [enable_fst_force_misaligned=$enableval],
-  [enable_fst_force_misaligned=no])
-if test x$enable_fst_force_misaligned = xyes ; then
-  AC_DEFINE_UNQUOTED([FST_DO_MISALIGNED_OPS], [1],
-    [Force FST handles misaligned loads/stores])
 fi
 
 # thirdparty/fstapi.c can use pthread to write FST in parallel if HAVE_LIBPTHREAD
