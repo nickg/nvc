@@ -6357,6 +6357,19 @@ static bool sem_check_case(tree_t t)
 
    type_t type = tree_type(test);
 
+   // LRM 93 8.8 if the type of the expression is an array then it must be
+   // a one dimensional character array type
+
+   const bool valid =
+      (type_is_array(type)
+       && sem_is_character_array(type)
+       && array_dimension(type) == 1)
+      || type_is_discrete(type);
+
+   if (!valid)
+      sem_error(test, "case expression must have a discrete type or one "
+                "dimensional character array type");
+
    bool ok = true;
    const int nassocs = tree_assocs(t);
    for (int i = 0; i < nassocs; i++) {

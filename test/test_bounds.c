@@ -121,8 +121,8 @@ START_TEST(test_case)
       {  86, "expected 3 elements in aggregate but have 4" },
       {  88, "expected 3 elements in string literal but have 2" },
       {  90, "expected 3 elements in string literal but have 4" },
-      {  95, "choices do not cover all possible values" },
-      { 101, "choices cover only 2 of 100 possible values" },
+      {  95, "choices cover only 2 of 33856 possible values" },
+      { 101, "choices cover only 2 of 121 possible values" },
       { -1, NULL }
    };
    expect_errors(expect);

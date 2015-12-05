@@ -64,10 +64,10 @@ begin
     process is
         variable x : bit_vector(1 to 3);
         variable y : bit_vector(0 to 0);
-        subtype small is integer range 0 to 9;
-        type int_vector is array (integer range <>) of integer;
+        subtype small is character range 'a' to 'k';
+        type char_vector is array (integer range <>) of character;
         type small_vector is array (integer range <>) of small;
-        variable p : int_vector(1 to 2);
+        variable p : char_vector(1 to 2);
         variable q : small_vector(1 to 2);
     begin
         case y is
@@ -93,15 +93,15 @@ begin
                 null;
         end case;
         case p is
-            when (0, 1) =>
+            when ('0', '1') =>
                 null;
-            when (1, 1) =>
+            when ('1', '1') =>
                 null;
         end case;                       -- Missing lots of values
         case q is
-            when (0, 1) =>
+            when ('0', '1') =>
                 null;
-            when (1, 1) =>
+            when ('1', '1') =>
                 null;
         end case;                       -- Missing 98 values
     end process;

@@ -1585,7 +1585,8 @@ START_TEST(test_issue264)
 
    const error_t expect[] = {
       { 23, "no visible one dimensional array type with element INTEGER" },
-      { 26, "result of concatenation is ambiguous (FOO_VEC2, FOO_VEC1)" },
+      { 26, "result of concatenation is ambiguous" },
+      { 35, "case expression must have a discrete type or one dimensional" },
       { -1, NULL }
    };
    expect_errors(expect);

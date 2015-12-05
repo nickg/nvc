@@ -806,31 +806,17 @@ static void bounds_check_case(tree_t t)
    else if (type_is_array(type)) {
       // Calculate how many values each element has
       type_t elem = type_elem(type);
-      int64_t elemsz = 0;
-      switch (type_kind(elem)) {
-      case T_SUBTYPE:
-      case T_CARRAY:
-      case T_INTEGER:
-         {
-            int64_t low, high;
-            if (!folded_bounds(type_dim(elem, 0), &low, &high))
-               return;
-            elemsz = high - low + 1;
-         }
-         break;
-      case T_ENUM:
-         elemsz = type_enum_literals(elem);
-         break;
-      default:
+      assert(type_is_enum(elem));
+
+      int64_t elemsz;
+      if (!folded_length(type_dim(elem, 0), &elemsz))
          return;
-      }
 
       int64_t length;
       if (!folded_length(type_dim(type, 0), &length))
           return;
 
-      const int64_t expect =
-         elemsz > INT32_MAX ? INT64_MAX : ipow(elemsz, length);
+      const int64_t expect = ipow(elemsz, length);
 
       int64_t have = 0;
       const int nassocs = tree_assocs(t);
@@ -851,13 +837,9 @@ static void bounds_check_case(tree_t t)
          }
       }
 
-      if (have != expect) {
-         if (expect == INT64_MAX)
-            bounds_error(t, "choices do not cover all possible values");
-         else
-            bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
-                         " possible values", have, expect);
-      }
+      if (have != expect)
+         bounds_error(t, "choices cover only %"PRIi64" of %"PRIi64
+                      " possible values", have, expect);
    }
 }
 
