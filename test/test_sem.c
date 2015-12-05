@@ -1579,6 +1579,23 @@ START_TEST(test_file_and_access)
 }
 END_TEST
 
+START_TEST(test_issue264)
+{
+   input_from_file(TESTDIR "/sem/issue264.vhd");
+
+   const error_t expect[] = {
+      { 23, "no visible one dimensional array type with element INTEGER" },
+      { 26, "result of concatenation is ambiguous (FOO_VEC2, FOO_VEC1)" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1656,6 +1673,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue239);
    tcase_add_test(tc_core, test_interfaces);
    tcase_add_test(tc_core, test_file_and_access);
+   tcase_add_test(tc_core, test_issue264);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

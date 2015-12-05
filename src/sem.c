@@ -245,11 +245,12 @@ static tree_t scope_find_nth(ident_t i, int n)
    return scope_find_in(i, top_scope, true, n);
 }
 
-static bool scope_walk(hash_iter_t *now, tree_t *decl)
+static bool scope_walk(scope_t **where, hash_iter_t *now, tree_t *decl)
 {
    const void *key;
    void *value;
-   while (hash_iter(top_scope->decls, now, &key, &value)) {
+   scope_t *w = where == NULL ? top_scope : *where;
+   while (hash_iter(w->decls, now, &key, &value)) {
       *decl = value;
       if (tree_ident(*decl) != key)
          continue;   // Skip aliases
@@ -257,7 +258,13 @@ static bool scope_walk(hash_iter_t *now, tree_t *decl)
          return true;
    }
 
-   return false;
+   if (where == NULL || w->down == NULL)
+      return false;
+   else {
+      *where = w->down;
+      *now = HASH_BEGIN;
+      return scope_walk(where, now, decl);
+   }
 }
 
 static bool scope_can_overload(tree_t t)
@@ -4110,7 +4117,7 @@ static bool sem_check_concat_param(tree_t t, type_t hint)
 
    type_set_push();
 
-   for (unsigned i = 0; i < old->n_members; i++) {
+   for (unsigned i = 0; old != NULL && i < old->n_members; i++) {
       if (!type_is_array(old->members[i]))
          continue;
 
@@ -4160,7 +4167,10 @@ static bool sem_check_concat(tree_t t)
    tree_t left  = tree_value(tree_param(t, 0));
    tree_t right = tree_value(tree_param(t, 1));
 
-   if (top_type_set->n_members > 0 && !type_set_restrict(sem_is_composite)) {
+   const bool have_context =
+      top_type_set != NULL && top_type_set->n_members > 0;
+
+   if (have_context && !type_set_restrict(sem_is_composite)) {
       LOCAL_TEXT_BUF ts = type_set_fmt();
       sem_error(t, "no composite type in context%s", tb_get(ts));
    }
@@ -4275,14 +4285,50 @@ static bool sem_check_concat(tree_t t)
       if (!type_eq(ltype, rtype))
          sem_error(t, "cannot concatenate values of different types");
 
-      // Match the element type to a composite in the type set
       type_t composite = NULL;
-      for (unsigned i = 0; i < top_type_set->n_members; i++) {
-         type_t this = top_type_set->members[i];
-         if (type_is_array(this) && type_eq(type_elem(this), ltype))
-            composite = this;
+      if (have_context) {
+         // Match the element type to a composite in the type set
+         for (unsigned i = 0; i < top_type_set->n_members; i++) {
+            type_t this = top_type_set->members[i];
+            if (type_is_array(this) && type_eq(type_elem(this), ltype))
+               composite = this;
+         }
+         assert(composite != NULL);
       }
-      assert(composite != NULL);
+      else {
+         // Find all one dimensional array types with this element type
+         hash_iter_t it = HASH_BEGIN;
+         tree_t obj;
+         scope_t *where = top_scope;
+         type_t found[16];
+         int nfound = 0;
+         while (nfound < ARRAY_LEN(found) && scope_walk(&where, &it, &obj)) {
+            if (tree_kind(obj) != T_TYPE_DECL)
+               continue;
+
+            type_t type = tree_type(obj);
+            const bool compatible =
+               type_is_array(type)
+               && type_eq(type_elem(type), ltype)
+               && array_dimension(type) == 1;
+
+            if (compatible)
+               found[nfound++] = type;
+         }
+
+         if (nfound == 1)
+            composite = found[0];
+         else if (nfound == 0)
+            sem_error(t, "no visible one dimensional array type with element"
+                      " %s", sem_type_str(ltype));
+         else {
+            LOCAL_TEXT_BUF tb = tb_new();
+            for (int i = 0; i < nfound; i++)
+               tb_printf(tb, "%s%s", i > 0 ? ", " : "", sem_type_str(found[i]));
+            sem_error(t, "result of concatenation is ambiguous (%s)",
+                      tb_get(tb));
+         }
+      }
 
       type_t index_type = index_type_of(composite, 0);
       range_t index_r = type_dim(index_type, 0);
@@ -6865,7 +6911,7 @@ static bool sem_check_spec(tree_t t)
       ident_t cname = tree_ident2(t);
       hash_iter_t it = HASH_BEGIN;
       tree_t obj;
-      while (scope_walk(&it, &obj)) {
+      while (scope_walk(NULL, &it, &obj)) {
          if (tree_kind(obj) != T_INSTANCE)
             continue;
 
