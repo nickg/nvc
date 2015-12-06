@@ -575,6 +575,7 @@ static void bounds_check_assignment(tree_t target, tree_t value)
 
 static void bounds_check_signal_assign(tree_t t)
 {
+   int64_t last_delay = 0;
    tree_t target = tree_target(t);
 
    const int nwaves = tree_waveforms(t);
@@ -584,10 +585,15 @@ static void bounds_check_signal_assign(tree_t t)
       bounds_check_assignment(target, tree_value(w));
 
       int64_t delay = 0;
-      if (tree_has_delay(w) && folded_int(tree_delay(w), &delay))
-         if (delay < 0)
+      bool delay_is_known = true;
+      const bool has_delay = tree_has_delay(w);
+
+      if (has_delay) {
+         delay_is_known = folded_int(tree_delay(w), &delay);
+         if (delay_is_known && delay < 0)
             bounds_error(tree_delay(w), "assignment delay may not be "
                          "negative");
+      }
 
       if (i == 0) {
          int64_t rlimit;
@@ -600,7 +606,12 @@ static void bounds_check_signal_assign(tree_t t)
                bounds_error(tree_reject(t), "rejection limit may not be "
                             "greater than first assignment delay");
          }
-      }
+      } else if (delay_is_known && delay <= last_delay)
+         bounds_error(has_delay ? tree_delay(w) : w, "assignment delays "
+                      "must be in ascending time order");
+
+      // even if the delay isn't known, it has to be at least zero
+      last_delay = delay;
    }
 }
 
