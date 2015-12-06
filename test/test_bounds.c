@@ -88,6 +88,11 @@ START_TEST(test_bounds2)
       {  73, "value 2 out of target bounds 0 to 1"},
       {  70, "value 20 out of target bounds 10 downto 0"},
       {  79, "value 5.100000 out of target bounds 0.000000 to 5.000000"},
+      {  95, "assignment delays must be in ascending time order"},
+      {  96, "assignment delays must be in ascending time order"},
+      {  97, "assignment delays must be in ascending time order"},
+      {  98, "assignment delays must be in ascending time order"},
+      {  99, "assignment delays must be in ascending time order"},
       { -1, NULL }
    };
    expect_errors(expect);

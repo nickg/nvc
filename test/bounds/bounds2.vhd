@@ -81,4 +81,25 @@ begin
         end process;
     end block;
 
+    ascending_time: block
+        signal s   : integer;
+        signal del : time;
+    begin
+        process
+        begin
+            s <= 0 after 10 ns, 1 after 11 ns;      -- OK
+            s <= 0, 1 after 1 ns;                   -- OK
+            s <= 10 after del;                      -- OK
+            s <= 10 after del, 20 after del + 1 ns; -- OK
+
+            s <= 0, 1;                           -- Error
+            s <= 0 after 1 ns, 1;                -- Error
+            s <= 0 after 2 ns, 1 after 1 ns;     -- Error
+            s <= 0 after 1 ns, 1 after del, 2;   -- Error
+            s <= 1 after del, 2;                 -- Error
+
+            wait;
+        end process;
+    end block;
+
 end architecture;
