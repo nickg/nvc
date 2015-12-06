@@ -220,6 +220,9 @@ disable certain semantic rule checks.
   allows ranges such as `-1 to 1` in VHDL-1993 which otherwise must be written
   `integer'(-1) to 1`.
 
+* `pure-files`:
+  Pure functions are allowed to declare file objects.
+
 ## SELECTING SIGNALS
 
 Every signal object in the design has a unique hierarchical path name. This is

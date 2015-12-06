@@ -6874,7 +6874,7 @@ static bool sem_check_file_decl(tree_t t)
       && tree_kind(top_scope->subprog) == T_FUNC_BODY
       && !tree_attr_int(top_scope->subprog, impure_i, 0);
 
-   if (is_pure_func_body)
+   if (is_pure_func_body & !(relax & RELAX_PURE_FILES))
       sem_error(t, "cannot declare a file object in a pure function");
 
    scope_apply_prefix(t);

@@ -71,6 +71,8 @@ static unsigned parse_relax(const char *str)
          mask |= RELAX_GENERIC_STATIC;
       else if (strcmp(token, "universal-bound") == 0)
          mask |= RELAX_UNIVERSAL_BOUND;
+      else if (strcmp(token, "pure-files") == 0)
+         mask |= RELAX_PURE_FILES;
       else
          fatal("invalid relax option '%s'", token);
 

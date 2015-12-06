@@ -37,7 +37,7 @@ FileUtils.mkdir_p $libdir
 
 def run_nvc(lib, file)
   file = "#{$src}/#{file}" unless file =~ /^\//
-  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit #{file}"
+  cmd = "nvc --work=#{$libdir}/#{lib} -a --relax=prefer-explicit,pure-files #{file}"
   puts cmd
   exit 1 unless system cmd
 end
@@ -79,12 +79,6 @@ put_title "XilinxCoreLib"
 xcl_skip = [
   # No configurations
   'prims_sim_arch_v4_0.vhd',
-
-  # Missing use clause for ieee.std_logic_unsigned
-  'mult_gen_v11_2.vhd',
-  'mult_gen_v11_0.vhd',
-  'mult_gen_v9_0.vhd',
-  'pkg_mult_gen_v10_0.vhd',
 
   # Invalid boolean conversion
   'cmpy_v4_0.vhd',

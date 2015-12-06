@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "September 2015" "" "NVC Manual"
+.TH "NVC" "1" "December 2015" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -221,6 +221,10 @@ References to generics are allowed in locally static expressions using the VHDL\
 .TP
 \fBuniversal\-bound\fR
 Prior to VHDL\-2000 when range bounds have universal integer type the expressions must be either numeric literals or attributes\. This option allows ranges such as \fB\-1 to 1\fR in VHDL\-1993 which otherwise must be written \fBinteger\'(\-1) to 1\fR\.
+.
+.TP
+\fBpure\-files\fR
+Pure functions are allowed to declare file objects\.
 .
 .SH "SELECTING SIGNALS"
 Every signal object in the design has a unique hierarchical path name\. This is identical to the value of the \fBPATH_NAME\fR attribute\. You can get a list of the path names in your design using the command \fBshow [signals]\fR from the TCL shell\.

@@ -99,6 +99,7 @@ const char *standard_text(vhdl_standard_t s);
 #define RELAX_PREFER_EXPLICT  (1 << 0)
 #define RELAX_GENERIC_STATIC  (1 << 1)
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
+#define RELAX_PURE_FILES      (1 << 3)
 
 //
 // Pre-defined attributes
