@@ -131,11 +131,11 @@ START_TEST(test_scope)
       {  44, "WORK.PACK1.MY_INT1 does not match type of target MY_INT1" },
       {  63, "G already declared in this region" },
       {  71, "P already declared in this region" },
-      { 114, "type MY_INT1 is not declared" },
+      { 114, "no visible declaration for MY_INT1" },
       { 137, "no visible declaration for E1" },
       { 160, "no visible declaration for FUNC2" },
       { 167, "declaration NOT_HERE not found in unit WORK.PACK5" },
-      { 189, "type MY_INT1 is not declared" },
+      { 189, "no visible declaration for MY_INT1" },
       { 236, "missing library clause for FOO" },
       { 306, "no visible declaration for L1.X" },
       { -1, NULL }
@@ -711,7 +711,7 @@ START_TEST(test_access)
    input_from_file(TESTDIR "/sem/access.vhd");
 
    const error_t expect[] = {
-      {  5, "type FOO is not declared" },
+      {  5, "no visible declaration for FOO" },
       { 34, "null expression must have access type" },
       { 38, "invalid allocator expression" },
       { 39, "name I does not refer to a type" },
@@ -946,7 +946,7 @@ START_TEST(test_protected)
    input_from_file(TESTDIR "/sem/protected.vhd");
 
    const error_t expect[] = {
-      {  13, "type NOT_HERE is not declared" },
+      {  13, "no visible declaration for NOT_HERE" },
       {  19, "no protected type declaration for BAD2 found" },
       {  22, "object INTEGER is not a protected type declaration" },
       {  25, "object NOW is not a protected type declaration" },
@@ -1007,7 +1007,7 @@ START_TEST(test_alias)
         "return INTEGER]" },
       { 23, "no visible subprogram FOO matches signature [BIT]" },
       { 24, "invalid name in subprogram alias" },
-      { 25, "type BLAH is not declared" },
+      { 25, "no visible declaration for BLAH" },
       { 32, "no visible subprogram BAR matches signature [INTEGER]" },
       { 40, "ambiguous use of enumeration literal '1'" },
       { 41, "no visible declaration for FOO_INT" },
@@ -1166,7 +1166,7 @@ START_TEST(test_issue165)
    input_from_file(TESTDIR "/sem/issue165.vhd");
 
    const error_t expect[] = {
-      {  5, "type TYPE_T is not declared" },
+      {  5, "no visible declaration for TYPE_T" },
       { 11, "no suitable overload for procedure PROC [universal integer]" },
       { -1, NULL }
    };
@@ -1258,7 +1258,7 @@ START_TEST(test_use)
    input_from_file(TESTDIR "/sem/use.vhd");
 
    const error_t expect[] = {
-      { 25, "type MY_INT3 is not declared" },
+      { 25, "no visible declaration for MY_INT3" },
       { -1, NULL }
    };
    expect_errors(expect);
@@ -1597,6 +1597,32 @@ START_TEST(test_issue264)
 }
 END_TEST
 
+START_TEST(test_issue226)
+{
+   input_from_file(TESTDIR "/sem/issue226.vhd");
+
+   const error_t expect[] = {
+      { 14, "no visible declaration for IEEE in name IEEE.STD_LOGIC_" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
+START_TEST(test_issue197)
+{
+   input_from_file(TESTDIR "/sem/issue197.vhd");
+
+   parse_and_check(T_ENTITY, T_ARCH, T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1675,6 +1701,8 @@ int main(void)
    tcase_add_test(tc_core, test_interfaces);
    tcase_add_test(tc_core, test_file_and_access);
    tcase_add_test(tc_core, test_issue264);
+   tcase_add_test(tc_core, test_issue226);
+   tcase_add_test(tc_core, test_issue197);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

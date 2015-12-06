@@ -439,6 +439,8 @@ class_t class_of(tree_t t)
       return class_of(tree_value(t));
    case T_PACKAGE:
       return C_PACKAGE;
+   case T_LIBRARY:
+      return C_LIBRARY;
    default:
       fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -453,6 +455,7 @@ bool class_has_type(class_t c)
    case C_COMPONENT:
    case C_CONFIGURATION:
    case C_PACKAGE:
+   case C_LIBRARY:
       return false;
    default:
       return true;
@@ -774,4 +777,5 @@ void intern_strings(void)
    impure_io_i      = ident_new("impure_io");
    simple_name_i    = ident_new("simple_name");
    conversion_i     = ident_new("conversion");
+   std_i            = ident_new("STD");
 }

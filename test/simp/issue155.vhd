@@ -1,4 +1,4 @@
-package issue145 is
+package issue155 is
     type W_TYPE is record
         A : integer;
         B : integer;

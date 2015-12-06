@@ -926,16 +926,16 @@ START_TEST(test_package)
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 2);
-   fail_unless(tree_contexts(p) == 0);
+   fail_unless(tree_contexts(p) == 2);
    fail_unless(tree_ident(p) == ident_new("ONE"));
 
    p = parse();
    fail_if(p == NULL);
    fail_unless(tree_kind(p) == T_PACKAGE);
    fail_unless(tree_decls(p) == 1);
-   fail_unless(tree_contexts(p) == 1);
-   fail_unless(tree_ident(tree_context(p, 0)) == ident_new("WORK.ONE"));
-   fail_unless(icmp(tree_ident2(tree_context(p, 0)), "all"));
+   fail_unless(tree_contexts(p) == 3);
+   fail_unless(tree_ident(tree_context(p, 2)) == ident_new("WORK.ONE"));
+   fail_unless(icmp(tree_ident2(tree_context(p, 2)), "all"));
    fail_unless(tree_ident(p) == ident_new("TWO"));
 
    p = parse();
@@ -958,8 +958,8 @@ START_TEST(test_package)
    d = tree_decl(p, 1);
    fail_unless(tree_kind(d) == T_ALIAS);
 
-   fail_unless(tree_contexts(p) == 1);
-   c = tree_context(p, 0);
+   fail_unless(tree_contexts(p) == 3);
+   c = tree_context(p, 2);
    fail_unless(tree_kind(c) == T_LIBRARY);
    fail_unless(tree_ident(c) == ident_new("FOO"));
 
@@ -2268,16 +2268,16 @@ START_TEST(test_context)
    fail_if(c1 == NULL);
    fail_unless(tree_kind(c1) == T_CONTEXT);
    fail_unless(tree_ident(c1) == ident_new("WIDGET_CONTEXT"));
-   fail_unless(tree_contexts(c1) == 5);
-   fail_unless(tree_kind(tree_context(c1, 0)) == T_LIBRARY);
+   fail_unless(tree_contexts(c1) == 7);
+   fail_unless(tree_kind(tree_context(c1, 2)) == T_LIBRARY);
 
    tree_t c2 = parse();
    fail_if(c2 == NULL);
    fail_unless(tree_kind(c2) == T_CONTEXT);
    fail_unless(tree_ident(c2) == ident_new("DONGLE_CONTEXT"));
-   fail_unless(tree_contexts(c2) == 2);
+   fail_unless(tree_contexts(c2) == 4);
 
-   tree_t r = tree_context(c2, 1);
+   tree_t r = tree_context(c2, 3);
    fail_unless(tree_kind(r) == T_CTXREF);
    fail_unless(tree_ident(r) == ident_new("WIDGET_LIB.WIDGET_CONTEXT"));
 

@@ -4147,8 +4147,8 @@ static void p_context_declaration(tree_t unit)
    consume(tIS);
 
    // LRM 08 section 13.1 forbids preceeding context clause
-   if (tree_contexts(unit) != 0)
-      parse_error(tree_loc(tree_context(unit, 0)), "context clause preceeding "
+   if (tree_contexts(unit) != 2)     // Implicit WORK and STD
+      parse_error(tree_loc(tree_context(unit, 2)), "context clause preceeding "
                   "context declaration must be empty");
 
    p_context_clause(unit);
@@ -5459,6 +5459,14 @@ static tree_t p_design_unit(void)
    BEGIN("design unit");
 
    tree_t unit = tree_new(T_DESIGN_UNIT);
+
+   tree_t std = tree_new(T_LIBRARY);
+   tree_set_ident(std, std_i);
+   tree_add_context(unit, std);
+
+   tree_t work = tree_new(T_LIBRARY);
+   tree_set_ident(work, work_i);
+   tree_add_context(unit, work);
 
    p_context_clause(unit);
    p_library_unit(unit);

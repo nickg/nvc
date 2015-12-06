@@ -112,7 +112,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range);
 static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set);
 static void scope_insert_alias(tree_t t, ident_t name);
 static bool scope_import_unit(ident_t unit_name, lib_t lib,
-                              bool all, const loc_t *loc);
+                              bool all, bool pqual, const loc_t *loc);
 static int sem_ambiguous_rate(tree_t t);
 
 static scope_t      *top_scope = NULL;
@@ -275,6 +275,7 @@ static bool scope_can_overload(tree_t t)
       || kind == T_FUNC_BODY
       || kind == T_PROC_DECL
       || kind == T_PROC_BODY
+      || kind == T_LIBRARY   // Allow multiple redundant library declarations
       || (kind == T_ALIAS && type_is_subprogram(tree_type(t)));
 }
 
@@ -341,10 +342,13 @@ static bool scope_insert_hiding(tree_t t, ident_t name, bool overload)
    int n = 0;
    do {
       if ((existing = scope_find_in(name, top_scope, false, n++))) {
-         if (!overload)
+         if (existing == t)
+            return true;
+         else if (!overload)
             sem_error(t, "%s already declared in this region", istr(name));
 
-         if (tree_kind(existing) == T_UNIT_DECL)
+         const tree_kind_t ekind = tree_kind(existing);
+         if (ekind == T_UNIT_DECL || ekind == T_LIBRARY)
             continue;
 
          const bool builtin = (tree_attr_str(existing, builtin_i) != NULL);
@@ -461,7 +465,7 @@ static void scope_walk_lib(ident_t name, int kind, void *context)
    lib_walk_params_t *params = context;
 
    if (kind == T_PACKAGE) {
-      if (scope_import_unit(name, params->lib, false, params->loc))
+      if (scope_import_unit(name, params->lib, false, true, params->loc))
          params->error = true;
    }
 }
@@ -488,7 +492,7 @@ static bool scope_import_use_clause(tree_t c, bool search)
 
          return params.error;
       }
-      else if (scope_import_unit(cname, lib, all, tree_loc(c))) {
+      else if (scope_import_unit(cname, lib, all, true, tree_loc(c))) {
          if (tree_has_ident2(c) && !all) {
             ident_t full = ident_prefix(tree_ident(c), tree_ident2(c), '.');
 
@@ -511,16 +515,20 @@ static bool scope_import_use_clause(tree_t c, bool search)
       sem_error(c, "missing library clause for %s", istr(lname));
 }
 
-static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
+static bool sem_has_work_alias(ident_t name)
 {
    lib_t work = lib_work();
    ident_t work_name = lib_name(work);
 
-   ident_t unit_lib = ident_until(tree_ident(unit), '.');
-   const bool work_alias =
-      unit_lib != NULL
+   ident_t unit_lib = ident_until(name, '.');
+   return unit_lib != NULL
       && unit_lib == work_name
       && work_name != work_i;
+}
+
+static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
+{
+   const bool work_alias = sem_has_work_alias(tree_ident(unit));
 
    const int ndecls = tree_decls(unit);
    for (int n = 0; n < ndecls; n++) {
@@ -564,7 +572,7 @@ static bool scope_import_decls(tree_t unit, bool unqual_only, bool all)
 }
 
 static bool scope_import_unit(ident_t unit_name, lib_t lib,
-                              bool all, const loc_t *loc)
+                              bool all, bool pqual, const loc_t *loc)
 {
    // Check we haven't already imported this
    bool unqual_only = false;
@@ -595,6 +603,15 @@ static bool scope_import_unit(ident_t unit_name, lib_t lib,
 
    if (unit_name != tree_ident(unit))
       scope_append_import_list(unit_name, all);
+
+   scope_insert(unit);
+   if (pqual)
+      scope_insert_alias(unit, ident_from(unit_name, '.'));
+
+   if (sem_has_work_alias(tree_ident(unit))) {
+      ident_t alias = ident_prefix(work_i, ident_from(unit_name, '.'), '.');
+      scope_insert_alias(unit, alias);
+   }
 
    return true;
 }
@@ -1397,12 +1414,14 @@ static bool sem_check_library_clause(tree_t t)
       sem_error(t, "library clause in a context declaration may not have "
                 "logical library name WORK");
    }
-   else if (lib_find(istr(name), true, true) == NULL) {
+
+   if (lib_find(istr(name), true, true) == NULL) {
       errors++;
       return false;
    }
-   else
-      return true;
+
+   scope_insert(t);
+   return true;
 }
 
 static void sem_declare_universal(void)
@@ -1431,15 +1450,18 @@ static bool sem_check_context_clause(tree_t t)
       if (std == NULL)
          fatal("failed to find std library");
 
-      if (!scope_import_unit(std_standard_i, std, true, NULL))
+      if (!scope_import_unit(std_standard_i, std, true, true, NULL))
          return false;
 
       sem_declare_universal();
    }
 
+   // Ignore the implicit WORK and STD with context declarations
+   const int ignore = tree_kind(t) == T_CONTEXT ? 2 : 0;
+
    bool ok = true;
    const int ncontexts = tree_contexts(t);
-   for (int n = 0; n < ncontexts; n++)
+   for (int n = ignore; n < ncontexts; n++)
       ok = sem_check(tree_context(t, n)) && ok;
 
    return ok;
@@ -1528,6 +1550,98 @@ static bool sem_check_array_dims(type_t type, type_t constraint)
    return true;
 }
 
+static bool sem_check_field_name(ident_t name, ident_t prefix, tree_t where,
+                                 type_t record, tree_t *pdecl)
+{
+   ident_t next = ident_suffix_until(name, '.', prefix);
+
+   printf("name=%s prefix=%s next=%s\n", istr(name), istr(prefix), istr(next));
+
+   bool valid = false;
+   if (type_kind(record) == T_FUNC) {
+      record = type_result(record);
+      valid  = type_is_record(record);
+   }
+   else
+      valid = type_is_record(record);
+
+   if (!valid)
+      sem_error(where, "object %s cannot be selected in name %s",
+                istr(prefix), istr(name));
+
+   const int nfields = type_fields(record);
+   tree_t found = false;
+   for (int i = 0; !found && i < nfields; i++) {
+      tree_t f = type_field(record, i);
+      if (ident_char(ident_strip(next, tree_ident(f)), 0) == '.')
+         found = f;
+   }
+
+   if (found == NULL)
+      sem_error(where, "record type %s has no field %s", sem_type_str(record),
+                istr(ident_rfrom(next, '.')));
+
+   if (pdecl != NULL)
+      *pdecl = found;
+
+   if (next == name)
+      return true;
+   else
+      return sem_check_field_name(name, next, where, tree_type(found), pdecl);
+}
+
+static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
+{
+   lib_t lib = NULL;
+   ident_t prefix = NULL;
+   do {
+      prefix = ident_suffix_until(name, '.', prefix);
+
+      tree_t decl = scope_find(prefix);
+      if (decl == NULL && lib != NULL) {
+         if (!scope_import_unit(prefix, lib, false, false, tree_loc(where)))
+            return false;
+         lib = NULL;
+         decl = scope_find(prefix);
+      }
+
+      if (decl == NULL) {
+         if (prefix == name)
+            sem_error(where, "no visible declaration for %s", istr(name));
+         else
+            sem_error(where, "no visible declaration for %s in name %s",
+                      istr(prefix), istr(name));
+      }
+
+      if (tree_kind(decl) == T_LIBRARY) {
+         lib = lib_find(istr(tree_ident(decl)), true, true);
+         assert(lib != NULL);
+      }
+      else
+         lib = NULL;
+
+      if (pdecl != NULL)
+         *pdecl = decl;
+
+      if (!class_has_type(class_of(decl)))
+         continue;
+
+      type_t type = tree_type(decl);
+
+      const bool is_record_field =
+         prefix != name
+          && (type_is_record(type)
+              || (type_kind(type) == T_FUNC
+                  && type_is_record(type_result(type))));
+
+      if (is_record_field)
+         return sem_check_field_name(name, prefix, where, type, pdecl);
+
+   } while (prefix != name);
+
+   return true;
+}
+
 static bool sem_check_type(tree_t t, type_t *ptype)
 {
    // Check a type at the point where it is used not declared
@@ -1547,9 +1661,10 @@ static bool sem_check_type(tree_t t, type_t *ptype)
 
    case T_UNRESOLVED:
       {
-         tree_t type_decl = scope_find(type_ident(*ptype));
-         if (type_decl == NULL)
-            sem_error(t, "type %s is not declared", sem_type_str(*ptype));
+         ident_t name = type_ident(*ptype);
+         tree_t type_decl;
+         if (!sem_check_selected_name(name, t, &type_decl))
+            return false;
 
          while (tree_kind(type_decl) == T_ALIAS) {
             tree_t value = tree_value(type_decl);
@@ -2584,6 +2699,7 @@ static bool sem_check_package(tree_t t)
    scope_push(NULL);
 
    scope_insert(t);
+   scope_insert_alias(t, qual);
 
    const int ndecls = tree_decls(t);
 
@@ -3633,8 +3749,11 @@ static bool sem_check_fcall(tree_t t)
 
    const bool prefer_explicit = relax & RELAX_PREFER_EXPLICT;
 
-   tree_t decl;
    ident_t name = tree_ident(t);
+   if (!sem_check_selected_name(name, t, NULL))
+      return false;
+
+   tree_t decl;
    int n = 0, found_func = 0;
    do {
       if ((decl = scope_find_nth(name, n++))) {
@@ -3829,6 +3948,10 @@ static bool sem_check_pcall(tree_t t)
    if (!sem_check_params(t))
       return false;
 
+   ident_t name = tree_ident2(t);
+   if (!sem_check_selected_name(name, t, NULL))
+      return false;
+
    int n_overloads = 0;
    int max_overloads = 128;
    tree_t *overloads LOCAL = xmalloc(max_overloads * sizeof(tree_t));
@@ -3836,7 +3959,7 @@ static bool sem_check_pcall(tree_t t)
    tree_t decl;
    int n = 0, found_proc = 0;
    do {
-      if ((decl = scope_find_nth(tree_ident2(t), n++))) {
+      if ((decl = scope_find_nth(name, n++))) {
          switch (tree_kind(decl)) {
          case T_PROC_DECL:
          case T_PROC_BODY:
@@ -3865,8 +3988,7 @@ static bool sem_check_pcall(tree_t t)
    if (n_overloads == 0)
       sem_error(t, (found_proc > 0
                     ? "no matching procedure %s"
-                    : "undefined procedure %s"),
-                istr(tree_ident2(t)));
+                    : "undefined procedure %s"), istr(name));
 
    int matches;
    if (!sem_resolve_overload(t, &decl, &matches, overloads, n_overloads))
@@ -3885,15 +4007,13 @@ static bool sem_check_pcall(tree_t t)
       }
 
       sem_error(t, "ambiguous call to procedure %s%s",
-                istr(tree_ident2(t)), tb_get(tb));
+                istr(name), tb_get(tb));
    }
 
    if (decl == NULL) {
       LOCAL_TEXT_BUF tb = tb_new();
 
-      const char *fname = istr(tree_ident2(t));
-
-      tb_printf(tb, "%s [", fname);
+      tb_printf(tb, "%s [", istr(name));
       const int nparams = tree_params(t);
       for (int i = 0; i < nparams; i++)
          tb_printf(tb, "%s%s",
@@ -4936,8 +5056,11 @@ static bool sem_check_pure_ref(tree_t ref, tree_t decl)
 
 static bool sem_check_ref(tree_t t)
 {
-   tree_t decl = NULL, next;
    ident_t name = tree_ident(t);
+   if (!sem_check_selected_name(name, t, NULL))
+      return false;
+
+   tree_t decl = NULL, next;
    int n = 0;
    do {
       if ((next = scope_find_nth(name, n))) {
@@ -5332,30 +5455,23 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
 {
    // Attribute names are in LRM 93 section 6.6
 
-   bool special = false;
    tree_t name = tree_name(t), decl = NULL;
-   if ((tree_kind(name) == T_REF) && (decl = scope_find(tree_ident(name)))) {
-      tree_kind_t kind = tree_kind(decl);
-      if (kind == T_TYPE_DECL) {
-         // Special case for attributes of types
-         tree_set_ref(name, decl);
-         tree_set_type(name, tree_type(decl));
+   if (tree_kind(name) == T_REF) {
+      if (!sem_check_selected_name(tree_ident(name), name, &decl))
+         return false;
 
-         special = true;
-      }
+      if (tree_kind(decl) == T_FIELD_DECL)
+         sem_convert_to_record_ref(name, decl);
       else {
-         class_t class = class_of(decl);
-         if (!class_has_type(class) || (class == C_PROCEDURE)
-             || (class == C_FUNCTION)) {
-            // Special case for attributes of entities, architectures, etc.
-            tree_set_ref(name, decl);
+         tree_set_ref(name, decl);
 
-            special = true;
-         }
+         class_t class = class_of(decl);
+         if (class_has_type(class) && class != C_PROCEDURE
+             && class != C_FUNCTION)
+            tree_set_type(name, tree_type(decl));
       }
    }
-
-   if (!special && !sem_check_constrained(name, NULL))
+   else if (!sem_check_constrained(name, NULL))
       return false;
 
    if (tree_has_type(name) && (type_kind(tree_type(name)) == T_ACCESS)) {

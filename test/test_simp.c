@@ -349,13 +349,13 @@ START_TEST(test_context)
    tree_t e = parse_and_check(T_ENTITY);
    fail_unless(sem_errors() == 0);
 
-   fail_unless(tree_contexts(e) == 1);
+   fail_unless(tree_contexts(e) == 3);
 
    simplify(e);
 
-   fail_unless(tree_contexts(e) == 2);
-   fail_unless(tree_kind(tree_context(e, 0)) == T_LIBRARY);
-   fail_unless(tree_kind(tree_context(e, 1)) == T_USE);
+   fail_unless(tree_contexts(e) == 4);
+   fail_unless(tree_kind(tree_context(e, 2)) == T_LIBRARY);
+   fail_unless(tree_kind(tree_context(e, 3)) == T_USE);
 }
 END_TEST
 

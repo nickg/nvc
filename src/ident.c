@@ -355,26 +355,31 @@ ident_t ident_strip(ident_t a, ident_t b)
 
 char ident_char(ident_t i, unsigned n)
 {
-   assert(i != NULL);
-
-   if (n == 0)
+   if (i == NULL)
+      return '\0';
+   else if (n == 0)
       return i->value;
    else
       return ident_char(i->up, n - 1);
 }
 
-ident_t ident_until(ident_t i, char c)
+ident_t ident_suffix_until(ident_t i, char c, ident_t shared)
 {
    assert(i != NULL);
 
    ident_t r = i;
-   while (i->value != '\0') {
+   while (i->value != '\0' && i->up != shared) {
       if (i->value == c)
          r = i->up;
       i = i->up;
    }
 
    return r;
+}
+
+ident_t ident_until(ident_t i, char c)
+{
+   return ident_suffix_until(i, c, NULL);
 }
 
 ident_t ident_runtil(ident_t i, char c)

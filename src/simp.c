@@ -842,7 +842,7 @@ static tree_t simp_context_ref(tree_t t, simp_ctx_t *ctx)
    tree_t decl = tree_ref(t);
 
    const int nctx = tree_contexts(decl);
-   for (int i = 0; i < nctx; i++)
+   for (int i = 2; i < nctx; i++)
       tree_add_context(ctx->top, tree_context(decl, i));
 
    return NULL;

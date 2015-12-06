@@ -48,6 +48,9 @@ char ident_char(ident_t i, unsigned n);
 // Return the prefix of i that does not include c
 ident_t ident_until(ident_t i, char c);
 
+// Return the prefix of i and shared that does not include c
+ident_t ident_suffix_until(ident_t i, char c, ident_t shared);
+
 // Return the prefix of i up to the final c
 ident_t ident_runtil(ident_t i, char c);
 
