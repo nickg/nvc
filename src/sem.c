@@ -1555,8 +1555,6 @@ static bool sem_check_field_name(ident_t name, ident_t prefix, tree_t where,
 {
    ident_t next = ident_suffix_until(name, '.', prefix);
 
-   printf("name=%s prefix=%s next=%s\n", istr(name), istr(prefix), istr(next));
-
    bool valid = false;
    if (type_kind(record) == T_FUNC) {
       record = type_result(record);
@@ -1596,6 +1594,8 @@ static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
    ident_t prefix = NULL;
    do {
       prefix = ident_suffix_until(name, '.', prefix);
+      if (ident_char(prefix, 0) == '\'')
+         continue;
 
       tree_t decl = scope_find(prefix);
       if (decl == NULL && lib != NULL) {

@@ -23,6 +23,7 @@ MONITOR:
     begin
         assert fumble = 42;
         assert work.entity_attr'DELAY = 42;
+        report '.' & 'A';
         wait;
     end process;
 end architecture;
