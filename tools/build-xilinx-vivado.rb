@@ -80,5 +80,13 @@ File.open(unisim_order).each_line do |line|
   end
 end
 
+put_title "UNIFAST library"
+
+unifast_order = "#{$src}/unifast/primitive/vhdl_analyze_order"
+File.open(unifast_order).each_line do |line|
+  line.chomp!
+  run_nvc "unifast", "unifast/primitive/#{line}"
+end
+
 put_title "Finished"
 puts "Xilinx Vivado libraries installed in #{$libdir}"
