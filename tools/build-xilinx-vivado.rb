@@ -17,7 +17,7 @@ unless xilinx
   end.flatten.reverse
 
   unless search.any? { |root| File.directory?(xilinx = root) }
-    raise "No ISE installation found: set XILINX_VIVADO environment variable"
+    raise "No Vivado installation found: set XILINX_VIVADO environment variable"
   end
 end
 
@@ -81,4 +81,4 @@ File.open(unisim_order).each_line do |line|
 end
 
 put_title "Finished"
-puts "Xilinx libraries installed in #{$libdir}"
+puts "Xilinx Vivado libraries installed in #{$libdir}"
