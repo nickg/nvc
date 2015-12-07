@@ -136,7 +136,8 @@ backwards-compatible implementations for VHDL-1993. Run
 ### Vendor Libraries
 
 NVC provides scripts to compile the simulation libraries of common FPGA vendors.
- * For Xilinx ISE use `./tools/build-xilinx.rb`
+ * For Xilinx ISE use `./tools/build-xilinx-ise.rb`
+ * For Xilinx Vivado use `./tools/build-xilinx-vivado.rb`
  * For Altera Quartus use `./tools/build-altera.rb`
  * For Lattice iCEcube2 use `./tools/build-lattice.rb`
 
