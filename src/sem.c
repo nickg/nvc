@@ -478,7 +478,7 @@ static bool scope_import_use_clause(tree_t c, bool search)
 
    ident_t lname = ident_until(cname, '.');
 
-   lib_t lib = lib_find(istr(lname), search, search);
+   lib_t lib = search ? lib_find(lname, false) : lib_loaded(lname);
    if (lib != NULL) {
       if (lname == cname) {
          assert(all);
@@ -1415,7 +1415,7 @@ static bool sem_check_library_clause(tree_t t)
                 "logical library name WORK");
    }
 
-   if (lib_find(istr(name), true, true) == NULL) {
+   if (lib_find(name, false) == NULL) {
       errors++;
       return false;
    }
@@ -1446,7 +1446,7 @@ static bool sem_check_context_clause(tree_t t)
    // The std.standard package is also implicit unless we are
    // bootstrapping
    if (!opt_get_int("bootstrap")) {
-      lib_t std = lib_find("std", true, true);
+      lib_t std = lib_find(std_i, false);
       if (std == NULL)
          fatal("failed to find std library");
 
@@ -1613,10 +1613,8 @@ static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
                       istr(prefix), istr(name));
       }
 
-      if (tree_kind(decl) == T_LIBRARY) {
-         lib = lib_find(istr(tree_ident(decl)), true, true);
-         assert(lib != NULL);
-      }
+      if (tree_kind(decl) == T_LIBRARY)
+         lib = lib_find(tree_ident(decl), true);
       else
          lib = NULL;
 
@@ -6007,7 +6005,7 @@ static bool sem_check_map(tree_t t, tree_t unit,
 static bool sem_find_unit(tree_t t, ident_t name, tree_t *unit)
 {
    ident_t lname = ident_until(name, '.');
-   lib_t lib = lib_find(istr(lname), false, false);
+   lib_t lib = lib_loaded(lname);
    if (lib != NULL) {
       if ((*unit = lib_get_check_stale(lib, name)) == NULL)
          sem_error(t, "cannot find unit %s", istr(name));

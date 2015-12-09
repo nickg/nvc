@@ -951,10 +951,7 @@ int main(int argc, char **argv)
       }
    }
 
-   work = lib_find(work_path, false, false);
-   if (work == NULL)
-      work = lib_new(work_name, work_path);
-
+   work = lib_new(work_name, work_path);
    lib_set_work(work);
 
    argc -= next_cmd - 1;

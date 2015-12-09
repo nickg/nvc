@@ -2002,15 +2002,11 @@ static void rt_cycle(int stop_delta)
 
 static void rt_load_unit(const char *name)
 {
-   char *tmp = strdup(name);
-   const char *lib_name  = strtok(tmp, ".");
-
-   lib_t lib = lib_find(lib_name, true, true);
-   if (lib == NULL)
-      fatal("cannot continue");
+   ident_t name_i = ident_new(name);
+   lib_t lib = lib_find(ident_until(name_i, '.'), true);
 
    tree_rd_ctx_t ctx = NULL;
-   if (lib_get_ctx(lib, ident_new(name), &ctx) == NULL)
+   if (lib_get_ctx(lib, name_i, &ctx) == NULL)
       fatal("cannot find unit %s", name);
 
    struct loaded *l = xmalloc(sizeof(struct loaded));
@@ -2026,8 +2022,6 @@ static void rt_load_unit(const char *name)
          ;
       it->next = l;
    }
-
-   free(tmp);
 }
 
 static tree_t rt_recall_tree(const char *unit, int32_t where)

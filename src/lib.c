@@ -285,8 +285,50 @@ static const char *lib_file_path(lib_t lib, const char *name)
    return buf;
 }
 
+lib_t lib_loaded(ident_t name_i)
+{
+   if (name_i == work_i && work != NULL)
+      return work;
+
+   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
+      if (lib_name(it->item) == name_i)
+         return it->item;
+   }
+
+   return NULL;
+}
+
 lib_t lib_new(const char *name, const char *path)
 {
+   ident_t name_i = upcase_name(name);
+
+   lib_t lib = lib_loaded(name_i);
+   if (lib != NULL)
+      return lib;
+
+   char *name_copy LOCAL = strdup(name);
+   char *sep = strrchr(name_copy, '/');
+
+   // Ignore trailing slashes
+   while ((sep != NULL) && (*(sep + 1) == '\0')) {
+      *sep = '\0';
+      sep = strrchr(name_copy, '/');
+   }
+
+   if (sep != NULL) {
+      // Work library contains explicit path
+      *sep = '\0';
+      name = sep + 1;
+      lib = lib_find_at(name, name_copy, false);
+   }
+   else {
+      // Look only in working directory
+      lib = lib_find_at(name, ".", false);
+   }
+
+   if (lib != NULL)
+      return lib;
+
    const char *last_slash = strrchr(name, '/');
    const char *last_dot = strrchr(name, '.');
 
@@ -410,58 +452,31 @@ void lib_add_map(const char *name, const char *path)
       warnf("library %s not found at %s", name, path);
 }
 
-lib_t lib_find(const char *name, bool verbose, bool search)
+lib_t lib_find(ident_t name_i, bool required)
 {
-   ident_t name_i = upcase_name(name);
+   lib_t lib = lib_loaded(name_i);
+   if (lib != NULL)
+      return lib;
 
-   if (name_i == work_i && work != NULL)
-      return work;
+   lib_default_search_paths();
 
-   // Search in already loaded libraries
-   for (lib_list_t *it = loaded; it != NULL; it = it->next) {
-      if (lib_name(it->item) == name_i)
-         return it->item;
+   const char *name_str = istr(name_i);
+   for (search_path_t *it = search_paths; it != NULL; it = it->next) {
+      if ((lib = lib_find_at(name_str, it->path, false)))
+         break;
    }
 
-   lib_t lib = NULL;
-
-   char *name_copy = strdup(name);
-   char *sep = strrchr(name_copy, '/');
-
-   // Ignore trailing slashes
-   while ((sep != NULL) && (*(sep + 1) == '\0')) {
-      *sep = '\0';
-      sep = strrchr(name_copy, '/');
-   }
-
-   if (sep != NULL) {
-      // Work library contains explicit path
-      *sep = '\0';
-      name = sep + 1;
-      lib = lib_find_at(name, name_copy, false);
-   }
-   else if (search) {
-      lib_default_search_paths();
-
-      for (search_path_t *it = search_paths; it != NULL; it = it->next) {
-         if ((lib = lib_find_at(name, it->path, false)))
-            break;
-      }
-
-      if ((lib == NULL) && verbose) {
-         text_buf_t *tb = tb_new();
-         tb_printf(tb, "library %s not found in:\n", name);
-         for (search_path_t *it = search_paths; it != NULL; it = it->next)
-            tb_printf(tb, "  %s\n", it->path);
+   if (lib == NULL) {
+      text_buf_t *tb = tb_new();
+      tb_printf(tb, "library %s not found in:\n", name_str);
+      for (search_path_t *it = search_paths; it != NULL; it = it->next)
+         tb_printf(tb, "  %s\n", it->path);
+      if (required)
+         fatal("%s", tb_get(tb));
+      else
          errorf("%s", tb_get(tb));
-      }
-   }
-   else {
-      // Look only in working directory
-      lib = lib_find_at(name, ".", false);
    }
 
-   free(name_copy);
    return lib;
 }
 

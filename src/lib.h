@@ -29,7 +29,8 @@ typedef struct lib *lib_t;
 
 typedef uint64_t lib_mtime_t;
 
-lib_t lib_find(const char *name, bool verbose, bool search);
+lib_t lib_find(ident_t name, bool required);
+lib_t lib_loaded(ident_t name);
 lib_t lib_new(const char *name, const char *path);
 lib_t lib_tmp(const char *name);
 void lib_free(lib_t lib);

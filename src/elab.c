@@ -119,9 +119,7 @@ static lib_t elab_find_lib(ident_t name, const elab_ctx_t *ctx)
 {
    lib_t tmp = lib_work();
    lib_set_work(ctx->library);
-   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot continue");
+   lib_t lib = lib_find(ident_until(name, '.'), true);
    lib_set_work(tmp);
    return lib;
 }

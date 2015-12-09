@@ -204,9 +204,7 @@ static void link_context(tree_t ctx, FILE *deps, context_fn_t fn)
    ident_t cname = tree_ident(ctx);
    ident_t lname = ident_until(cname, '.');
 
-   lib_t lib = lib_find(istr(lname), true, true);
-   if (lib == NULL)
-      fatal("cannot link library %s", istr(lname));
+   lib_t lib = lib_find(lname, true);
 
    lib_t tmp = lib_work();
    lib_set_work(lib);

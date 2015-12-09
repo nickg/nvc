@@ -58,11 +58,7 @@ static ident_t make_tag_i;
 
 static lib_t make_get_lib(ident_t name)
 {
-   lib_t lib = lib_find(istr(ident_until(name, '.')), true, true);
-   if (lib == NULL)
-      fatal("cannot find library for %s", istr(name));
-   else
-      return lib;
+   return lib_find(ident_until(name, '.'), true);
 }
 
 static const char *make_product(tree_t t, make_product_t product)
@@ -289,7 +285,7 @@ static void make_rule(tree_t t, rule_t **rules)
          deps[i] = NULL;
    }
 
-   lib_t std = lib_find("STD", false, true);
+   lib_t std = lib_find(std_i, false);
    if (std != NULL) {
       tree_t standard = lib_get(std, std_standard_i);
       if (standard)
