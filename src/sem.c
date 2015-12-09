@@ -5097,23 +5097,8 @@ static bool sem_check_ref(tree_t t)
       decl = next;
 
    if (decl == NULL) {
-      if (n == 0) {
-         // Try to provide better error messages for invalid record fields
-         ident_t rname = ident_runtil(name, '.');
-         if (rname != NULL && (decl = scope_find(rname))
-             && class_has_type(class_of(decl))) {
-            type_t dtype = tree_type(decl);
-            const bool is_rec_ref =
-               type_is_record(dtype)
-               || (type_kind(dtype) == T_FUNC
-                   && type_is_record((dtype = type_result(dtype))));
-            if (is_rec_ref)
-               sem_error(t, "record type %s has no field %s",
-                         sem_type_str(dtype), istr(ident_rfrom(name, '.')));
-         }
-
+      if (n == 0)
          sem_error(t, "no visible declaration for %s", istr(name));
-      }
       else if (n == 1) {
          LOCAL_TEXT_BUF ts = type_set_fmt();
          sem_error(t, "name %s cannot be used in this context%s",
