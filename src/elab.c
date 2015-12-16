@@ -337,26 +337,29 @@ static void elab_context_walk_fn(ident_t name, int kind, void *context)
    }
 }
 
+static void elab_use_clause(tree_t use, const elab_ctx_t *ctx)
+{
+   tree_set_ident2(use, all_i);
+
+   ident_t name = tree_ident(use);
+   ident_t lname = ident_until(name, '.');
+
+   elab_ctx_t new_ctx = *ctx;
+   new_ctx.library = elab_find_lib(lname, ctx);
+
+   if (name == lname)
+      lib_walk_index(new_ctx.library, elab_context_walk_fn, &new_ctx);
+   else if (!elab_have_context(ctx->out, name))
+      elab_add_context(use, &new_ctx);
+}
+
 static void elab_copy_context(tree_t src, const elab_ctx_t *ctx)
 {
    const int nsrc = tree_contexts(src);
    for (int i = 0; i < nsrc; i++) {
       tree_t c = tree_context(src, i);
-      if (tree_kind(c) != T_USE)
-         continue;
-
-      tree_set_ident2(c, all_i);
-
-      ident_t name = tree_ident(c);
-      ident_t lname = ident_until(name, '.');
-
-      elab_ctx_t new_ctx = *ctx;
-      new_ctx.library = elab_find_lib(lname, ctx);
-
-      if (name == lname)
-         lib_walk_index(new_ctx.library, elab_context_walk_fn, &new_ctx);
-      else if (!elab_have_context(ctx->out, name))
-         elab_add_context(c, &new_ctx);
+      if (tree_kind(c) == T_USE)
+         elab_use_clause(c, ctx);
    }
 }
 
@@ -1085,6 +1088,9 @@ static void elab_decls(tree_t t, const elab_ctx_t *ctx)
          tree_set_ident(d, npath);
          tree_add_attr_str(d, inst_name_i, ninst);
          tree_add_decl(ctx->out, d);
+         break;
+      case T_USE:
+         elab_use_clause(d, ctx);
          break;
       default:
          break;

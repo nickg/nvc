@@ -549,6 +549,13 @@ static void dump_decl(tree_t t, int indent)
       printf(";\n");
       return;
 
+   case T_USE:
+      printf("use %s", istr(tree_ident(t)));
+      if (tree_has_ident2(t))
+         printf(".%s", istr(tree_ident2(t)));
+      printf(";\n");
+      return;
+
    default:
       cannot_dump(t, "decl");
    }
