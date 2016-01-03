@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014  Nick Gasson
+//  Copyright (C) 2014-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -54,7 +54,8 @@ struct vhpi_cb {
 
 typedef enum {
    VHPI_CALLBACK,
-   VHPI_TREE
+   VHPI_TREE,
+   VHPI_TYPE
 } vhpi_obj_kind_t;
 
 #define VHPI_ANY (vhpi_obj_kind_t)-1
@@ -64,8 +65,12 @@ struct vhpi_obj {
    vhpiClassKindT  class;
    vhpi_obj_kind_t kind;
    unsigned        refcnt;
-   tree_t          tree;
    vhpi_cb_t       cb;
+   union {
+      tree_t  tree;
+      type_t  type;
+      void   *pointer;
+   };
 };
 
 typedef struct {
@@ -86,6 +91,9 @@ const char *vhpi_one_to_one_str(vhpiOneToOneT kind);
 
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
+
+#define vhpi_validate_handle(handle, kind) \
+   _vhpi_validate_handle(handle, kind, __func__)
 
 #define VHPI_TRACE(...) do {                            \
       if (unlikely(trace_on))                           \
@@ -142,20 +150,32 @@ static uint64_t vhpi_time_to_native(const vhpiTimeT *time)
    return ((uint64_t)time->high << 32) | (uint64_t)time->low;
 }
 
-static vhpi_obj_t *vhpi_get_obj(vhpiHandleT handle, vhpi_obj_kind_t kind)
+static const char *vhpi_obj_kind_str(vhpi_obj_kind_t kind)
+{
+   const char *names[] = { "callback", "tree", "type" };
+   if ((unsigned int)kind > ARRAY_LEN(names))
+      return "???";
+   else
+      return names[kind];
+}
+
+static bool _vhpi_validate_handle(vhpiHandleT handle, vhpi_obj_kind_t kind,
+                                  const char *func)
 {
    vhpi_obj_t *obj = (vhpi_obj_t *)handle;
    if (unlikely(obj == NULL)) {
-      vhpi_error(vhpiSystem, NULL, "unexpected NULL handle");
+      vhpi_error(vhpiSystem, NULL, "unexpected null handle in %s", func);
       return NULL;
    }
    else if (unlikely(obj->magic != VHPI_MAGIC)) {
-      vhpi_error(vhpiSystem, NULL, "bad magic on VHPI handle %p", obj);
+      vhpi_error(vhpiSystem, NULL, "bad magic 0x%x on VHPI handle %p in %s",
+                 obj->magic, obj, func);
       return NULL;
    }
    else if ((kind != VHPI_ANY) && (obj->kind != kind)) {
-      vhpi_error(vhpiSystem, NULL, "expected VHPI object kind %d but have %d",
-                 kind, obj->kind);
+      vhpi_error(vhpiSystem, NULL, "expected VHPI object kind '%s' "
+                 "but have '%s' in %s", vhpi_obj_kind_str(kind),
+                 vhpi_obj_kind_str(obj->kind), func);
       return NULL;
    }
    else
@@ -218,7 +238,7 @@ static int vhpi_count_live_cbs(cb_list_t *list)
 
 static void vhpi_check_for_leaks(void)
 {
-   int leak_tree = 0, leak_cb = 0;
+   int leak_tree = 0, leak_cb = 0, leak_type = 0;
 
    if (handle_hash != NULL) {
       hash_iter_t now = HASH_BEGIN;
@@ -226,31 +246,69 @@ static void vhpi_check_for_leaks(void)
       void *value;
       while (hash_iter(handle_hash, &now, &key, &value)) {
          if (value != NULL) {
-            vhpi_obj_t *obj = vhpi_get_obj(value, VHPI_TREE);
-            if (obj != NULL)
+            vhpi_obj_t *obj = value;
+            switch (obj->kind) {
+            case VHPI_TREE:
                leak_tree += obj->refcnt;
+               break;
+            case VHPI_TYPE:
+               leak_type += obj->refcnt;
+               break;
+            default:
+               break;
+            }
          }
       }
    }
 
    leak_cb += vhpi_count_live_cbs(&cb_list);
 
-   if ((leak_tree > 0) || (leak_cb > 0))
-      warnf("VHPI plugin leaked %d tree handles and %d callback handles",
-            leak_tree, leak_cb);
+   if (leak_tree > 0 || leak_cb > 0 || leak_type > 0) {
+      LOCAL_TEXT_BUF tb = tb_new();
+      tb_printf(tb, "VHPI plugin leaked");
+      if (leak_tree > 0)
+         tb_printf(tb, " %d tree handles", leak_tree);
+      if (leak_type > 0)
+         tb_printf(tb, "%s%s %d type handles", leak_tree ? "," : "",
+                   leak_tree && !leak_cb ? " and" : "", leak_type);
+      if (leak_cb > 0)
+         tb_printf(tb, "%s%s %d callback handles",
+                   leak_tree || leak_type ? "," : "",
+                   leak_tree ? " and" : "", leak_cb);
+
+      warnf("%s", tb_get(tb));
+   }
 }
 
 static vhpi_obj_t *vhpi_tree_to_obj(tree_t t, vhpiClassKindT class)
 {
    vhpi_obj_t *obj = hash_get(handle_hash, t);
    if (obj == NULL) {
-      obj = xmalloc(sizeof(vhpi_obj_t));
-      memset(obj, '\0', sizeof(vhpi_obj_t));
-
+      obj = xcalloc(sizeof(vhpi_obj_t));
       obj->magic  = VHPI_MAGIC;
       obj->kind   = VHPI_TREE;
       obj->class  = class;
       obj->tree   = t;
+      obj->refcnt = 1;
+
+      hash_put(handle_hash, t, obj);
+   }
+   else {
+      assert(obj->refcnt > 0);
+      (obj->refcnt)++;
+   }
+
+   return obj;
+}
+
+static vhpi_obj_t *vhpi_type_to_obj(type_t t)
+{
+   vhpi_obj_t *obj = hash_get(handle_hash, t);
+   if (obj == NULL) {
+      obj = xcalloc(sizeof(vhpi_obj_t));
+      obj->magic  = VHPI_MAGIC;
+      obj->kind   = VHPI_TYPE;
+      obj->type   = t;
       obj->refcnt = 1;
 
       hash_put(handle_hash, t, obj);
@@ -283,24 +341,21 @@ static void vhpi_fire_event(vhpi_obj_t *obj)
 
 static void vhpi_timeout_cb(uint64_t now, void *user)
 {
-   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   if (obj != NULL)
-      vhpi_fire_event(obj);
+   if (vhpi_validate_handle(user, VHPI_CALLBACK))
+      vhpi_fire_event((vhpiHandleT)user);
 }
 
 static void vhpi_signal_event_cb(uint64_t now, tree_t sig,
                                  watch_t *watch, void *user)
 {
-   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   if (obj != NULL)
-      vhpi_fire_event(obj);
+   if (vhpi_validate_handle(user, VHPI_CALLBACK))
+      vhpi_fire_event((vhpiHandleT)user);
 }
 
 static void vhpi_global_cb(void *user)
 {
-   vhpi_obj_t *obj = vhpi_get_obj(user, VHPI_CALLBACK);
-   if (obj != NULL)
-      vhpi_fire_event(obj);
+   if (vhpi_validate_handle(user, VHPI_CALLBACK))
+      vhpi_fire_event((vhpiHandleT)user);
 }
 
 static const char *vhpi_map_str_for_type(type_t type)
@@ -351,13 +406,12 @@ static const char *vhpi_cb_data_str(const vhpiCbDataT *data)
 
 static const char *vhpi_cb_str(vhpiHandleT handle)
 {
-   vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_CALLBACK);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(handle, VHPI_CALLBACK))
       return "{invalid}";
 
    static char buf[256];
-   checked_sprintf(buf, sizeof(buf), "{enabled=%d data=%s}", obj->cb.enabled,
-                   vhpi_cb_data_str(&(obj->cb.data)));
+   checked_sprintf(buf, sizeof(buf), "{enabled=%d data=%s}", handle->cb.enabled,
+                   vhpi_cb_data_str(&(handle->cb.data)));
    return buf;
 }
 
@@ -445,21 +499,21 @@ vhpiHandleT vhpi_register_cb(vhpiCbDataT *cb_data_p, int32_t flags)
 
    case vhpiCbValueChange:
       {
-         vhpi_obj_t *sig = vhpi_get_obj(cb_data_p->obj, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(cb_data_p->obj, VHPI_TREE))
             goto failed;
 
-         if (tree_kind(sig->tree) != T_SIGNAL_DECL) {
-            vhpi_error(vhpiError, tree_loc(sig->tree),
+         if (tree_kind(cb_data_p->obj->tree) != T_SIGNAL_DECL) {
+            vhpi_error(vhpiError, tree_loc(cb_data_p->obj->tree),
                        "object %s is not a signal",
-                       istr(tree_ident(sig->tree)));
+                       istr(tree_ident(cb_data_p->obj->tree)));
             goto failed;
          }
 
-         obj->tree = sig->tree;
+         obj->tree = cb_data_p->obj->tree;
          obj->cb.repetitive = true;
 
-         rt_set_event_cb(sig->tree, vhpi_signal_event_cb, obj, false);
+         rt_set_event_cb(cb_data_p->obj->tree, vhpi_signal_event_cb,
+                         obj, false);
 
          vhpi_remember_cb(&cb_list, obj);
       }
@@ -494,11 +548,10 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
 
    VHPI_TRACE("cb_obj=%s", vhpi_cb_str(cb_obj));
 
-   vhpi_obj_t *obj = vhpi_get_obj(cb_obj, VHPI_CALLBACK);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(cb_obj, VHPI_CALLBACK))
       return 1;
 
-   obj->cb.enabled = false;
+   cb_obj->cb.enabled = false;
    return 0;
 }
 
@@ -508,11 +561,10 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
 
    VHPI_TRACE("cb_obj=%s", vhpi_cb_str(cb_obj));
 
-   vhpi_obj_t *obj = vhpi_get_obj(cb_obj, VHPI_CALLBACK);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(cb_obj, VHPI_CALLBACK))
       return 1;
 
-   obj->cb.enabled = true;
+   cb_obj->cb.enabled = true;
    return 0;
 }
 
@@ -545,11 +597,10 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
       name = dot + 1;
    }
    else {
-      vhpi_obj_t *obj = vhpi_get_obj(scope, VHPI_TREE);
-      if (obj == NULL)
+      if (!vhpi_validate_handle(scope, VHPI_TREE))
          return NULL;
 
-      root = obj->tree;
+      root = scope->tree;
    }
 
    ident_t search = NULL;
@@ -587,7 +638,24 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    switch (type) {
    case vhpiRootInst:
    case vhpiDesignUnit:
-      return (vhpiHandleT)vhpi_tree_to_obj(top_level, vhpiRootInstK);
+      return vhpi_tree_to_obj(top_level, vhpiRootInstK);
+
+   case vhpiBaseType:
+   case vhpiType:
+      if (!vhpi_validate_handle(referenceHandle, VHPI_TREE))
+         return NULL;
+      else if (!class_has_type(class_of(referenceHandle->tree))) {
+         vhpi_error(vhpiError, tree_loc(referenceHandle->tree),
+                    "object does not have a type");
+         return NULL;
+      }
+      else {
+         type_t ty = tree_type(referenceHandle->tree);
+         if (type == vhpiBaseType)
+            return vhpi_type_to_obj(type_base_recur(ty));
+         else
+            return vhpi_type_to_obj(ty);
+      }
 
    default:
       fatal_trace("type %s not supported in vhpi_handle",
@@ -614,13 +682,12 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
    switch (property) {
    case vhpiStateP:
       {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_CALLBACK);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_CALLBACK))
             return vhpiUndefined;
 
-         if (obj->cb.fired && !obj->cb.repetitive)
+         if (handle->cb.fired && !handle->cb.repetitive)
             return vhpiMature;
-         else if (obj->cb.enabled)
+         else if (handle->cb.enabled)
             return vhpiEnable;
          else
             return vhpiDisable;
@@ -628,35 +695,48 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 
    case vhpiSizeP:
       {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
             return vhpiUndefined;
 
-         return type_width(tree_type(obj->tree));
+         return type_width(tree_type(handle->tree));
       }
 
    case vhpiKindP:
       {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
             return vhpiUndefined;
 
-         switch (tree_kind(obj->tree)) {
+         switch (tree_kind(handle->tree)) {
          case T_PORT_DECL:
             return vhpiPortDeclK;
 
          case T_SIGNAL_DECL:
-            if (tree_attr_int(obj->tree, fst_dir_i, -1) == -1)
+            if (tree_attr_int(handle->tree, fst_dir_i, -1) == -1)
                return vhpiSigDeclK;
             else
                return vhpiPortDeclK;
 
+         case T_ELAB:
+            return vhpiRootInstK;
+
          default:
-            vhpi_error(vhpiFailure, tree_loc(obj->tree), "cannot convert "
+            vhpi_error(vhpiFailure, tree_loc(handle->tree), "cannot convert "
                        "tree kind %s to vhpiClassKindT",
-                       tree_kind_str(tree_kind(obj->tree)));
+                       tree_kind_str(tree_kind(handle->tree)));
          }
       }
+
+   case vhpiIsCompositeP:
+      if (!vhpi_validate_handle(handle, VHPI_TYPE))
+         return vhpiUndefined;
+      else
+         return type_is_array(handle->type) || type_is_record(handle->type);
+
+   case vhpiIsScalarP:
+      if (!vhpi_validate_handle(handle, VHPI_TYPE))
+         return vhpiUndefined;
+      else
+         return type_is_scalar(handle->type);
 
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
@@ -674,18 +754,18 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
 
    switch (property) {
    case vhpiNameP:
+   case vhpiCaseNameP:
       if (handle == NULL)
          return (vhpiCharT *)PACKAGE_NAME;
       else {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
 
          const char *full = NULL;
-         if (tree_kind(obj->tree) == T_ELAB)
-            full = istr(tree_attr_str(obj->tree, simple_name_i));
+         if (tree_kind(handle->tree) == T_ELAB)
+            full = istr(tree_attr_str(handle->tree, simple_name_i));
          else
-            full = istr(tree_ident(obj->tree));
+            full = istr(tree_ident(handle->tree));
 
          const char *last_sep = strrchr(full, ':');
          if (last_sep == NULL)
@@ -696,28 +776,27 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
 
    case vhpiFullNameP:
       {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
 
-         if (tree_kind(obj->tree) == T_ELAB)
-            return (vhpiCharT *)istr(tree_attr_str(obj->tree, simple_name_i));
+         if (tree_kind(handle->tree) == T_ELAB)
+            return (vhpiCharT *)istr(tree_attr_str(handle->tree,
+                                                   simple_name_i));
          else
-            return (vhpiCharT *)istr(tree_ident(obj->tree));
+            return (vhpiCharT *)istr(tree_ident(handle->tree));
       }
 
    case vhpiKindStrP:
       {
-         vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-         if (obj == NULL)
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
 
-         if (tree_kind(obj->tree) == T_ELAB)
+         if (tree_kind(handle->tree) == T_ELAB)
             return (vhpiCharT *)"elaborated design";
-         else if (class_has_type(class_of(obj->tree)))
-            return (vhpiCharT *)type_pp(tree_type(obj->tree));
+         else if (class_has_type(class_of(handle->tree)))
+            return (vhpiCharT *)type_pp(tree_type(handle->tree));
          else
-            return (vhpiCharT *)tree_kind_str(tree_kind(obj->tree));
+            return (vhpiCharT *)tree_kind_str(tree_kind(handle->tree));
       }
 
    case vhpiToolVersionP:
@@ -754,17 +833,16 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
    VHPI_TRACE("expr=%p value_p=%p", expr, value_p);
 
-   vhpi_obj_t *obj = vhpi_get_obj(expr, VHPI_TREE);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(expr, VHPI_TREE))
       return -1;
 
-   if (tree_kind(obj->tree) != T_SIGNAL_DECL) {
-      vhpi_error(vhpiInternal, tree_loc(obj->tree), "vhpi_get_value is only "
+   if (tree_kind(expr->tree) != T_SIGNAL_DECL) {
+      vhpi_error(vhpiInternal, tree_loc(expr->tree), "vhpi_get_value is only "
                  "supported for signal declaration objects");
       return -1;
    }
 
-   type_t type = tree_type(obj->tree);
+   type_t type = tree_type(expr->tree);
    type_t base = type_base_recur(type);
 
    ident_t type_name = type_ident(type);
@@ -812,7 +890,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
             }
 
          default:
-            vhpi_error(vhpiInternal, tree_loc(obj->tree), "arrays of type %s "
+            vhpi_error(vhpiInternal, tree_loc(expr->tree), "arrays of type %s "
                        "not supported in vhpi_get_value", type_pp(elem));
             return -1;
          }
@@ -820,7 +898,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
       break;
 
    default:
-      vhpi_error(vhpiInternal, tree_loc(obj->tree), "type %s not supported in "
+      vhpi_error(vhpiInternal, tree_loc(expr->tree), "type %s not supported in "
                  "vhpi_get_value", type_pp(type));
       return -1;
    }
@@ -828,14 +906,14 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    if (value_p->format == vhpiObjTypeVal)
       value_p->format = format;
    else if (value_p->format != format) {
-      vhpi_error(vhpiError, tree_loc(obj->tree), "invalid format %d for object "
-                 "%s: expecting %d", value_p->format,
-                 istr(tree_ident(obj->tree)), format);
+      vhpi_error(vhpiError, tree_loc(expr->tree), "invalid format %d for "
+                 "object %s: expecting %d", value_p->format,
+                 istr(tree_ident(expr->tree)), format);
       return -1;
    }
 
    if (format == vhpiBinStrVal) {
-      const size_t need = rt_signal_string(obj->tree,
+      const size_t need = rt_signal_string(expr->tree,
                                            vhpi_map_str_for_type(type),
                                            (char *)value_p->value.str,
                                            value_p->bufSize);
@@ -846,7 +924,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
    }
    else if (type_is_scalar(type)) {
       uint64_t value;
-      rt_signal_value(obj->tree, &value, 1);
+      rt_signal_value(expr->tree, &value, 1);
 
       switch (format) {
       case vhpiLogicVal:
@@ -882,7 +960,7 @@ int vhpi_get_value(vhpiHandleT expr, vhpiValueT *value_p)
 
       const int max = value_p->bufSize / elemsz;
       uint64_t *values LOCAL = xmalloc(sizeof(uint64_t) * max);
-      value_p->numElems = rt_signal_value(obj->tree, values, max);
+      value_p->numElems = rt_signal_value(expr->tree, values, max);
 
       const int copy = MIN(value_p->numElems, max);
 
@@ -914,8 +992,7 @@ int vhpi_put_value(vhpiHandleT handle,
 
    VHPI_TRACE("handle=%p value_p=%p mode=%d", handle, value_p, mode);
 
-   vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_TREE);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(handle, VHPI_TREE))
       return 1;
 
    bool propagate = false;
@@ -924,7 +1001,7 @@ int vhpi_put_value(vhpiHandleT handle,
       propagate = true;
    case vhpiForce:
       {
-         type_t type = tree_type(obj->tree);
+         type_t type = tree_type(handle->tree);
          if (type_is_scalar(type)) {
             uint64_t expanded;
             switch (value_p->format) {
@@ -942,15 +1019,16 @@ int vhpi_put_value(vhpiHandleT handle,
                break;
 
             default:
-               vhpi_error(vhpiFailure, tree_loc(obj->tree), "value format %d "
-                          "not supported in vhpi_put_value", value_p->format);
+               vhpi_error(vhpiFailure, tree_loc(handle->tree), "value format "
+                          "%d not supported in vhpi_put_value",
+                          value_p->format);
                return 1;
             }
 
             if (!propagate || rt_can_create_delta())
-               rt_force_signal(obj->tree, &expanded, 1, propagate);
+               rt_force_signal(handle->tree, &expanded, 1, propagate);
             else {
-               vhpi_error(vhpiError, tree_loc(obj->tree), "cannot force "
+               vhpi_error(vhpiError, tree_loc(handle->tree), "cannot force "
                           "propagate signal during current simulation phase");
                return 1;
             }
@@ -976,12 +1054,13 @@ int vhpi_put_value(vhpiHandleT handle,
                break;
 
             default:
-               vhpi_error(vhpiFailure, tree_loc(obj->tree), " value format %d "
-                          "not supported in vhpi_put_value", value_p->format);
+               vhpi_error(vhpiFailure, tree_loc(handle->tree), " value format "
+                          "%d not supported in vhpi_put_value",
+                          value_p->format);
                return 1;
             }
 
-            rt_force_signal(obj->tree, expanded, num_elems, propagate);
+            rt_force_signal(handle->tree, expanded, num_elems, propagate);
             free(expanded);
          }
          return 0;
@@ -1103,13 +1182,12 @@ int vhpi_release_handle(vhpiHandleT handle)
 
    VHPI_TRACE("handle=%p", handle);
 
-   vhpi_obj_t *obj = vhpi_get_obj(handle, VHPI_ANY);
-   if (obj == NULL)
+   if (!vhpi_validate_handle(handle, VHPI_ANY))
       return 1;
 
-   switch (obj->kind) {
+   switch (handle->kind) {
    case VHPI_CALLBACK:
-      switch (obj->cb.reason) {
+      switch (handle->cb.reason) {
       case vhpiCbStartOfSimulation:
       case vhpiCbEndOfSimulation:
       case vhpiCbEndOfProcesses:
@@ -1118,24 +1196,24 @@ int vhpi_release_handle(vhpiHandleT handle)
       case vhpiCbRepLastKnownDeltaCycle:
       case vhpiCbRepNextTimeStep:
       case vhpiCbLastKnownDeltaCycle:
-         vhpi_forget_cb(&cb_list, obj);
-         vhpi_free_obj(obj);
+         vhpi_forget_cb(&cb_list, handle);
+         vhpi_free_obj(handle);
          return 0;
 
       case vhpiCbAfterDelay:
-         if (obj->cb.list_pos != -1)
-            vhpi_forget_cb(&cb_list, obj);
+         if (handle->cb.list_pos != -1)
+            vhpi_forget_cb(&cb_list, handle);
 
-         if (obj->cb.fired)
-            vhpi_free_obj(obj);
+         if (handle->cb.fired)
+            vhpi_free_obj(handle);
          else
-            obj->cb.released = true;
+            handle->cb.released = true;
          return 0;
 
       case vhpiCbValueChange:
-         if (obj->cb.list_pos != -1)
-            vhpi_forget_cb(&cb_list, obj);
-         rt_set_event_cb(obj->tree, NULL, obj, false);
+         if (handle->cb.list_pos != -1)
+            vhpi_forget_cb(&cb_list, handle);
+         rt_set_event_cb(handle->tree, NULL, handle, false);
          return 0;
 
       default:
@@ -1143,10 +1221,11 @@ int vhpi_release_handle(vhpiHandleT handle)
       }
 
    case VHPI_TREE:
-      assert(obj->refcnt > 0);
-      if (--(obj->refcnt) == 0) {
-         hash_put(handle_hash, obj->tree, NULL);
-         vhpi_free_obj(obj);
+   case VHPI_TYPE:
+      assert(handle->refcnt > 0);
+      if (--(handle->refcnt) == 0) {
+         hash_put(handle_hash, handle->pointer, NULL);
+         vhpi_free_obj(handle);
       }
       return 0;
 

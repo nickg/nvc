@@ -1,3 +1,5 @@
 -I./build/
 -I./src/
+-I./src/vhpi/
 -std=c99
+-DHAVE_CONFIG_H

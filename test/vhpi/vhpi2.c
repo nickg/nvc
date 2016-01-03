@@ -99,6 +99,8 @@ static void startup()
    fail_if(root == NULL);
    vhpi_printf("root handle %p", root);
 
+   fail_unless(vhpi_get(vhpiKindP, root) == vhpiRootInstK);
+
    handle_x = vhpi_handle_by_name("x", root);
    check_error();
    fail_if(handle_x == NULL);
@@ -108,6 +110,14 @@ static void startup()
    check_error();
    fail_if(handle_y == NULL);
    vhpi_printf("y handle %p", handle_y);
+
+   vhpiHandleT y_type = vhpi_handle(vhpiBaseType, handle_y);
+   check_error();
+   fail_if(vhpi_get(vhpiIsCompositeP, y_type));
+   check_error();
+   fail_unless(vhpi_get(vhpiIsScalarP, y_type));
+   check_error();
+   vhpi_release_handle(y_type);
 
    vhpi_release_handle(root);
 }
