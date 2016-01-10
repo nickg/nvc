@@ -193,6 +193,7 @@ static void check_bb(int bb, const check_bb_t *expect, int len)
       case VCODE_OP_NEW:
       case VCODE_OP_ALL:
       case VCODE_OP_DEALLOCATE:
+      case VCODE_OP_CASE:
          break;
 
       case VCODE_OP_CONST_ARRAY:
@@ -2364,6 +2365,56 @@ START_TEST(test_issue215)
 }
 END_TEST
 
+START_TEST(test_choice1)
+{
+   input_from_file(TESTDIR "/lower/choice1.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+
+   vcode_unit_t v0 = tree_code(tree_stmt(e, 0));
+   vcode_select_unit(v0);
+
+   EXPECT_BB(1) = {
+      { VCODE_OP_CONST, .value = 1 },
+      { VCODE_OP_CONST, .value = 2 },
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_LOAD, .name = "resolved_:choice1:s" },
+      { VCODE_OP_LOAD_INDIRECT },
+      { VCODE_OP_CASE },
+   };
+
+   CHECK_BB(1);
+
+   EXPECT_BB(3) = {
+      { VCODE_OP_CONST, .value = 3 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(3);
+
+   EXPECT_BB(4) = {
+      { VCODE_OP_CONST, .value = 4 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(4);
+
+   EXPECT_BB(5) = {
+      { VCODE_OP_CONST, .value = 5 },
+      { VCODE_OP_STORE, .name = "X" },
+      { VCODE_OP_JUMP, .target = 2 }
+   };
+
+   CHECK_BB(5);
+}
+END_TEST
+
 int main(void)
 {
    term_init();
@@ -2419,6 +2470,7 @@ int main(void)
    tcase_add_test(tc, test_issue181);
    tcase_add_test(tc, test_issue203);
    tcase_add_test(tc, test_issue215);
+   tcase_add_test(tc, test_choice1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);

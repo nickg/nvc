@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2015  Nick Gasson
+//  Copyright (C) 2014-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -3443,10 +3443,13 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
 
    vcode_block_t exit_bb = emit_block();
 
+   tree_t last = NULL;
    int cptr = 0;
    for (int i = 0; i < nassocs; i++) {
       tree_t a = tree_assoc(stmt, i);
-      vcode_block_t bb = emit_block();
+
+      tree_t stmt = tree_value(a);
+      vcode_block_t bb = stmt != last ? emit_block() : blocks[cptr - 1];
 
       switch (tree_subkind(a)) {
       case A_OTHERS:
@@ -3478,11 +3481,14 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
          break;
       }
 
-      vcode_select_block(bb);
-      lower_stmt(tree_value(a), loops);
+      if (stmt != last) {
+         vcode_select_block(bb);
+         lower_stmt(stmt, loops);
+         if (!vcode_block_finished())
+            emit_jump(exit_bb);
 
-      if (!vcode_block_finished())
-         emit_jump(exit_bb);
+         last = stmt;
+      }
    }
 
    if (def_bb == VCODE_INVALID_BLOCK)
