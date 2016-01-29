@@ -51,6 +51,9 @@ elaborate command.
  * `--make` _units_:
    Generate a makefile for already analysed units.
 
+ * `--syntax` _files_:
+   Check input files for syntax errors only.
+
 ### Global options
 
 * `--force-init`:

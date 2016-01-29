@@ -86,7 +86,7 @@ static unsigned parse_relax(const char *str)
 static int scan_cmd(int start, int argc, char **argv)
 {
    const char *commands[] = {
-      "-a", "-e", "-r", "--codegen", "--dump", "--make"
+      "-a", "-e", "-r", "--codegen", "--dump", "--make", "--syntax"
    };
 
    for (int i = start; i < argc; i++) {
@@ -625,6 +625,41 @@ static int make_cmd(int argc, char **argv)
    return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
 }
 
+static int syntax_cmd(int argc, char **argv)
+{
+   static struct option long_options[] = {
+      { 0, 0, 0, 0 }
+   };
+
+   const int next_cmd = scan_cmd(2, argc, argv);
+   int c, index = 0;
+   const char *spec = "";
+   while ((c = getopt_long(argc, argv, spec, long_options, &index)) != -1) {
+      switch (c) {
+      case 0:
+         // Set a flag
+         break;
+      case '?':
+         fatal("unrecognised syntax option %s", argv[optind - 1]);
+      default:
+         abort();
+      }
+   }
+
+   for (int i = optind; i < next_cmd; i++) {
+      input_from_file(argv[i]);
+      (void)parse();
+   }
+
+   if (parse_errors() > 0)
+      return EXIT_FAILURE;
+
+   argc -= next_cmd - 1;
+   argv += next_cmd - 1;
+
+   return argc > 1 ? process_command(argc, argv) : EXIT_SUCCESS;
+}
+
 static int dump_cmd(int argc, char **argv)
 {
    static struct option long_options[] = {
@@ -713,6 +748,7 @@ static void usage(void)
           " --codegen UNIT\t\t\tGenerate native shared library for UNIT\n"
           " --dump [OPTION]... UNIT\tPrint out previously analysed UNIT\n"
           " --make [OPTION]... [UNIT]...\tGenerate makefile to rebuild UNITs\n"
+          " --syntax FILE...\t\tCheck FILEs for syntax errors only\n"
           "\n"
           "Global options may be placed before COMMAND:\n"
           "     --force-init\tCreate a library in an existing directory\n"
@@ -848,6 +884,7 @@ static int process_command(int argc, char **argv)
       { "dump",    no_argument, 0, 'd' },
       { "codegen", no_argument, 0, 'c' },
       { "make",    no_argument, 0, 'm' },
+      { "syntax",  no_argument, 0, 's' },
       { 0, 0, 0, 0 }
    };
 
@@ -869,6 +906,8 @@ static int process_command(int argc, char **argv)
       return codegen(argc, argv);
    case 'm':
       return make_cmd(argc, argv);
+   case 's':
+      return syntax_cmd(argc, argv);
    default:
       fatal("missing command, try %s --help for usage", PACKAGE);
       return EXIT_FAILURE;
