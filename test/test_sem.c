@@ -1623,6 +1623,21 @@ START_TEST(test_issue197)
 }
 END_TEST
 
+START_TEST(test_issue276)
+{
+   set_standard(STD_02);
+
+   input_from_file(TESTDIR "/sem/issue276.vhd");
+
+   lib_t foo = lib_tmp("foo");
+   lib_set_work(foo);
+
+   parse_and_check(T_PACKAGE, T_PACK_BODY, T_PACKAGE, T_PACK_BODY);
+
+   fail_unless(sem_errors() == 0);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1703,6 +1718,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue264);
    tcase_add_test(tc_core, test_issue226);
    tcase_add_test(tc_core, test_issue197);
+   tcase_add_test(tc_core, test_issue276);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

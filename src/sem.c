@@ -1597,6 +1597,11 @@ static bool sem_check_selected_name(ident_t name, tree_t where, tree_t *pdecl)
       if (ident_char(prefix, 0) == '\'')
          continue;
 
+      if (prefix == work_i) {
+         lib = lib_work();   // Work library is always visible
+         continue;
+      }
+
       tree_t decl = scope_find(prefix);
       if (decl == NULL && lib != NULL) {
          if (!scope_import_unit(prefix, lib, false, false, tree_loc(where)))

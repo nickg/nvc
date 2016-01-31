@@ -5465,7 +5465,7 @@ static tree_t p_design_unit(void)
    tree_add_context(unit, std);
 
    tree_t work = tree_new(T_LIBRARY);
-   tree_set_ident(work, work_i);
+   tree_set_ident(work, lib_name(lib_work()));
    tree_add_context(unit, work);
 
    p_context_clause(unit);
