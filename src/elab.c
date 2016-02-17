@@ -603,7 +603,15 @@ static netid_t elab_get_net(tree_t expr, int n)
 {
    switch (tree_kind(expr)) {
    case T_REF:
-      return tree_net(tree_ref(expr), n);
+      {
+         tree_t decl = tree_ref(expr);
+         if (n < 0 || n >= tree_nets(decl)) {
+            assert(bounds_errors() > 0);   // Should have already caught this
+            return NETID_INVALID;
+         }
+         else
+            return tree_net(tree_ref(expr), n);
+      }
 
    case T_ARRAY_REF:
       {
@@ -1423,6 +1431,7 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 
    elab_funcs(arch, t, ctx);
    simplify(arch);
+   bounds_check(arch);
 
    elab_ctx_t new_ctx = {
       .out      = ctx->out,
