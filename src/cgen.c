@@ -55,7 +55,7 @@ typedef struct {
    LLVMValueRef size;
 } size_list_t;
 
-DECLARE_AND_DEFINE_ARRAY(size_list);
+DECLARE_AND_DEFINE_ARRAY(size_list)
 
 static LLVMModuleRef  module = NULL;
 static LLVMBuilderRef builder = NULL;
