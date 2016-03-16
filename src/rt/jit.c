@@ -134,7 +134,7 @@ void *jit_var_ptr(const char *name, bool required)
 {
    if (using_jit) {
 #ifdef LLVM_HAS_MCJIT
-      void *ptr = (void *)LLVMGetGlobalValueAddress(exec_engine, name);
+      void *ptr = (void *)(uintptr_t)LLVMGetGlobalValueAddress(exec_engine, name);
 #else
       void *ptr = NULL;
       LLVMValueRef var = LLVMGetNamedGlobal(module, name);
