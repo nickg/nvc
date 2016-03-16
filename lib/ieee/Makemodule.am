@@ -188,7 +188,7 @@ missing-ieee:
 	@echo "Missing IEEE library source ${LIB}"
 	@echo
 	@echo "Due to copyright restrictions IEEE sources cannot be freely"
-	@echo "redistributed. See lib/lib/ieee/README for details."
+	@echo "redistributed. See lib/ieee/README for details."
 	@echo
 	@echo "The script tools/fetch-ieee.sh can download these for you."
 	@echo
