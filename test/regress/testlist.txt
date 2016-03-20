@@ -309,3 +309,4 @@ for3            normal,gold
 issue197        normal
 issue225        normal,gold
 issue262        normal
+issue284        normal
