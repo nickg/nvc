@@ -5328,6 +5328,10 @@ static void p_package_body_declarative_item(tree_t parent)
       p_variable_declaration(parent);
       break;
 
+   case tFILE:
+      p_file_declaration(parent);
+      break;
+
    case tATTRIBUTE:
       if (standard() < STD_08)
          parse_error(CURRENT_LOC, "package body may not contain attribute "
@@ -5363,7 +5367,7 @@ static void p_package_body_declarative_item(tree_t parent)
 
    default:
       expect(tFUNCTION, tPROCEDURE, tSHARED, tIMPURE, tPURE, tATTRIBUTE, tTYPE,
-             tCONSTANT, tSUBTYPE, tALIAS, tUSE);
+             tCONSTANT, tSUBTYPE, tFILE, tALIAS, tUSE);
    }
 }
 
