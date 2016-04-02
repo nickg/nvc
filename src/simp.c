@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -683,7 +683,8 @@ static tree_t simp_cassign(tree_t t)
       tree_set_loc(s, tree_loc(t));
       tree_set_target(s, target);
       tree_set_ident(s, tree_ident(t));
-      tree_set_reject(s, tree_reject(c));
+      if (tree_has_reject(c))
+         tree_set_reject(s, tree_reject(c));
 
       const int nwaves = tree_waveforms(c);
       for (int i = 0; i < nwaves; i++) {

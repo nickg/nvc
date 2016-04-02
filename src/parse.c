@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2014-2015  Nick Gasson
+//  Copyright (C) 2014-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -566,8 +566,6 @@ static void set_delay_mechanism(tree_t t, tree_t reject)
                   : tree_waveform(t, 0));
       if (tree_has_delay(w))
          tree_set_reject(t, tree_delay(w));
-      else
-         tree_set_reject(t, get_time(0));
    }
    else
       tree_set_reject(t, reject);
