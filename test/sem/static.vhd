@@ -79,4 +79,9 @@ begin
 
     end block;
 
+    sub2_i: entity work.sub
+        generic map ( N => N )
+        port map (
+            x(N downto 0) => x );  -- Error
+
 end architecture;
