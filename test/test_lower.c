@@ -2135,6 +2135,16 @@ START_TEST(test_issue125)
 }
 END_TEST
 
+START_TEST(test_access_bug)
+{
+   input_from_file(TESTDIR "/lower/access_bug.vhd");
+
+   tree_t e = run_elab();
+   opt(e);
+   lower_unit(e);
+}
+END_TEST
+
 START_TEST(test_rectype)
 {
    input_from_file(TESTDIR "/lower/rectype.vhd");
@@ -2457,6 +2467,7 @@ int main(void)
    tcase_add_test(tc, test_issue134);
    tcase_add_test(tc, test_issue136);
    tcase_add_test(tc, test_issue125);
+   tcase_add_test(tc, test_access_bug);
    tcase_add_test(tc, test_rectype);
    tcase_add_test(tc, test_issue149);
    tcase_add_test(tc, test_issue158);
