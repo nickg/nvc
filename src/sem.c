@@ -5184,6 +5184,12 @@ static bool sem_check_record_ref(tree_t t)
       return false;
 
    type_t value_type = tree_type(value);
+
+   if (type_is_access(value_type)) {
+       // Convert implicit dereference such as PTR'X to PTR.ALL'X
+       value_type = sem_implicit_dereference(t, tree_value, tree_set_value);
+    }
+
    if (!type_is_record(value_type))
       sem_error(value, "expected record type but found %s",
                 sem_type_str(value_type));
@@ -5205,7 +5211,7 @@ static type_t sem_implicit_dereference(tree_t t, get_fn_t get, set_fn_t set)
    tree_t value = get(t);
 
    type_t type = tree_type(value);
-   assert(type_kind(type) == T_ACCESS);
+   assert(type_is_access(type));
 
    type_t access = type_access(type);
 
@@ -5227,7 +5233,7 @@ static bool sem_check_array_ref(tree_t t)
 
    type_t type = tree_type(tree_value(t));
 
-   if (type_kind(type) == T_ACCESS)
+   if (type_is_access(type))
       type = sem_implicit_dereference(t, tree_value, tree_set_value);
 
    if (!type_is_array(type))
@@ -5281,7 +5287,7 @@ static bool sem_check_array_slice(tree_t t)
 
    type_t array_type = tree_type(tree_value(t));
 
-   if (type_kind(array_type) == T_ACCESS)
+   if (type_is_access(array_type))
       array_type = sem_implicit_dereference(t, tree_value, tree_set_value);
 
    if (!type_is_array(array_type))
@@ -5463,7 +5469,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
    else if (!sem_check_constrained(name, NULL))
       return false;
 
-   if (tree_has_type(name) && (type_kind(tree_type(name)) == T_ACCESS)) {
+   if (tree_has_type(name) && (type_is_access(tree_type(name)))) {
       // Convert implicit dereference such as PTR'X to PTR.ALL'X
       sem_implicit_dereference(t, tree_name, tree_set_name);
       name = tree_name(t);
@@ -6877,7 +6883,7 @@ static bool sem_check_file_decl(tree_t t)
 
 static bool sem_is_access(type_t t)
 {
-   return type_kind(t) == T_ACCESS;
+   return type_is_access(t);
 }
 
 static bool sem_check_new(tree_t t)
@@ -6962,7 +6968,7 @@ static bool sem_check_all(tree_t t)
 
    type_t value_type = tree_type(value);
 
-   if (type_kind(value_type) != T_ACCESS)
+   if (!type_is_access(value_type))
       sem_error(value, "expression type %s is not access",
                 sem_type_str(value_type));
 
