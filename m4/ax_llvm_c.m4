@@ -125,10 +125,41 @@ AC_DEFUN([AX_LLVM_C],
                 LIBS="$LIBS $LLVM_LIBS"
                 export LIBS
 
+                AC_CACHE_CHECK(for LLVM ([$1]),
+                    ax_cv_llvm,
+                    [AC_LANG_PUSH([C++])
+                        AC_LINK_IFELSE(
+                            [AC_LANG_PROGRAM(
+                                    [[@%:@include <llvm-c/Core.h>]],
+                                    [[LLVMModuleCreateWithName("test"); return 0;]])],
+                            ax_cv_llvm=yes,
+                            ax_cv_llvm=no)
+                        AC_LANG_POP([C++])])
+
+                if test "x$ax_cv_llvm" = "xyes"; then
+                    succeeded=yes
+                fi
+
                 shlib="-Wl,-rpath $LLVM_LIBDIR -lLLVM-$LLVM_VERSION"
 
                 LIBS="$LIBS_SAVED $shlib"
                 export LIBS
+
+                AC_CACHE_CHECK(for LLVM shared library,
+                    ax_cv_llvm_shared,
+                    [AC_LANG_PUSH([C++])
+                        AC_RUN_IFELSE(
+                            [AC_LANG_PROGRAM(
+                                    [[@%:@include <llvm-c/Core.h>]],
+                                    [[LLVMModuleCreateWithName("test"); return 0;]])],
+                            ax_cv_llvm_shared=yes,
+                            ax_cv_llvm_shared=no)
+                        AC_LANG_POP([C++])])
+
+                if test "x$ax_cv_llvm_shared" = "xyes"; then
+                    LLVM_LIBS="$shlib"
+                    succeeded=yes
+                fi
 
                 CFLAGS="$CFLAGS_SAVED"
                 CXXFLAGS="$CXXFLAGS_SAVED"
@@ -139,10 +170,14 @@ AC_DEFUN([AX_LLVM_C],
             fi
         fi
 
-        AC_SUBST(LLVM_CFLAGS)
-        AC_SUBST(LLVM_LDFLAGS)
-        AC_SUBST(LLVM_LIBS)
-        AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
-        AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
-        AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
+        if test "$succeeded" != "yes" ; then
+            AC_MSG_ERROR([[We could not detect the llvm libraries make sure that llvm-config is on your path or specified by --with-llvm.]])
+        else
+            AC_SUBST(LLVM_CFLAGS)
+            AC_SUBST(LLVM_LDFLAGS)
+            AC_SUBST(LLVM_LIBS)
+            AC_DEFINE(HAVE_LLVM,,[Defined if LLVM is available])
+            AC_DEFINE_UNQUOTED(LLVM_VERSION,["$LLVM_VERSION"],[Version of LLVM installed])
+            AC_DEFINE_UNQUOTED(LLVM_CONFIG_BINDIR,["$LLVM_CONFIG_BINDIR"],[Location of LLVM binaries])
+        fi
         ])
