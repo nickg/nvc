@@ -241,6 +241,9 @@ static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
          return true;
       }
 
+   case T_RECORD_REF:
+      return false;   // XXX: see issue #250
+
    case T_AGGREGATE:
    case T_LITERAL:
       // This can appear due to assignments to open ports with a
