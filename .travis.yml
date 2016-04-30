@@ -1,0 +1,34 @@
+sudo: false
+language: c
+compiler:
+    - clang
+addons:
+    apt:
+        sources:
+            - llvm-toolchain-precise-3.5
+            - ubuntu-toolchain-r-test
+        packages:
+            - automake
+            - flex
+            - libreadline-dev
+            - tcl-dev
+            - clang-3.5
+            - llvm-3.5
+            - llvm-3.5-dev
+            - check
+            - lcov
+            - libedit-dev
+before_install:
+    - export PATH=/usr/lib/llvm-3.5/bin:$PATH
+install:
+    - llvm-config --version
+    - llvm-config --components
+    - ./autogen.sh
+    - yes | ./tools/fetch-ieee.sh
+    - gem install colorize getopt
+script:
+    - mkdir build && cd build
+    - ../configure
+    - make check
+notifications:
+    email: false

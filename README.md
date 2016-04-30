@@ -1,4 +1,5 @@
 ### Synopsis
+[![Build Status](https://travis-ci.org/peteut/nvc.svg?branch=master)](https://travis-ci.org/peteut/nvc)
 
 NVC is a GPLv3 VHDL compiler and simulator aiming for IEEE 1076-1993 compliance. See
 these [blog posts](http://www.doof.me.uk/category/vhdl/) for background
