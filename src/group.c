@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2014  Nick Gasson
+//  Copyright (C) 2013-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -154,25 +154,54 @@ static bool group_contains_record(type_t type)
       return false;
 }
 
+static tree_t group_net_to_field(type_t type, netid_t nid)
+{
+   if (type_is_record(type)) {
+      const int nfields = type_fields(type);
+      netid_t first = 0;
+      for (int i = 0; i < nfields; i++) {
+         tree_t field = type_field(type, i);
+         const netid_t next = first + type_width(tree_type(field));
+         if (nid >= first && nid < next)
+            return field;
+         first = next;
+      }
+      fatal_trace("group_net_to_field failed to find field for nid=%d type=%s",
+                  nid, type_pp(type));
+   }
+   else if (type_is_array(type)) {
+      type_t elem = type_elem(type);
+      return group_net_to_field(elem, nid % type_width(elem));
+   }
+   else
+      fatal_trace("unexpected type %s %s in group_net_to_field",
+                  type_pp(type), type_kind_str(type_kind(type)));
+}
+
 static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
 {
    netid_t first = NETID_INVALID;
    unsigned len = 0;
+   type_t type = tree_type(decl);
    const int nnets = tree_nets(decl);
-   const bool record = group_contains_record(tree_type(decl));
+   const bool record = group_contains_record(type);
+   tree_t ffield = NULL;
    assert((n == -1) | (start + n <= nnets));
    for (int i = start; i < (n == -1 ? nnets : start + n); i++) {
       netid_t nid = tree_net(decl, i);
       if (first == NETID_INVALID) {
-         first = nid;
-         len   = 1;
+         first  = nid;
+         len    = 1;
+         ffield = record ? group_net_to_field(type, i) : NULL;
       }
-      else if ((nid == first + len) && !record)
+      else if (nid == first + len
+               && (!record || group_net_to_field(type, i) == ffield))
          ++len;
       else {
          group_add(ctx, first, len);
-         first = nid;
-         len   = 1;
+         first  = nid;
+         len    = 1;
+         ffield = record ? group_net_to_field(type, i) : NULL;
       }
    }
 
@@ -180,7 +209,7 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
       group_add(ctx, first, len);
    else {
       // Array signal with null range
-      tree_add_attr_int(decl, ident_new("null_range"), 1);
+      tree_add_attr_int(decl, null_range_i, 1);
    }
 }
 
@@ -226,23 +255,45 @@ static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
          if (!group_calc_offset(value, &offset0, ref))
             return false;
 
-         if (tree_params(t) != 1)
-            return false;   // XXX
-
-         tree_t index = tree_value(tree_param(t, 0));
-
-         if (tree_kind(index) != T_LITERAL)
+         type_t type = tree_type(value);
+         if (type_is_unconstrained(type))
             return false;
 
-         type_t type = tree_type(value);
-         const int stride = type_width(type_elem(type));
+         *offset = 0;
+         const int nparams = tree_params(t);
+         for (int i = 0; i < nparams; i++) {
+            tree_t index = tree_value(tree_param(t, i));
 
-         *offset = stride * rebase_index(type, 0, assume_int(index));
+            if (tree_kind(index) != T_LITERAL)
+               return false;
+
+            const int stride = type_width(type_elem(type));
+
+            if (i > 0) {
+               range_t type_r = type_dim(type, i);
+               int64_t low, high;
+               range_bounds(type_r, &low, &high);
+
+               *offset *= high - low + 1;
+            }
+
+            *offset += stride * rebase_index(type, i, assume_int(index));
+         }
+
          return true;
       }
 
    case T_RECORD_REF:
-      return false;   // XXX: see issue #250
+      {
+         tree_t value = tree_value(t);
+         int offset0;
+         if (!group_calc_offset(value, &offset0, ref))
+            return false;
+
+         type_t rec = tree_type(value);
+         *offset = offset0 + record_field_to_net(rec, tree_ident(t));
+         return true;
+      }
 
    case T_AGGREGATE:
    case T_LITERAL:
@@ -271,26 +322,11 @@ static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
 
    tree_t ref = NULL;
    int offset;
-   if (group_calc_offset(value, &offset, &ref)) {
-      if (tree_params(target) == 1) {
-         tree_t index = tree_value(tree_param(target, 0));
-
-         if (tree_kind(index) == T_LITERAL) {
-            const int64_t indexi =
-               stride * rebase_index(type, 0, assume_int(index));
-            group_ref(ref, ctx, offset + indexi, stride);
-         }
-         else {
-            for (int i = 0; i < width; i += stride)
-               group_ref(ref, ctx, offset + i, stride);
-         }
-      }
-      else {
-         // Ungroup multi-dimensional arrays
-         // TODO: this is inefficient
-         for (int i = 0; i < width; i += stride)
-            group_ref(ref, ctx, offset + i, stride);
-      }
+   if (group_calc_offset(target, &offset, &ref))
+      group_ref(ref, ctx, offset, stride);
+   else if (group_calc_offset(value, &offset, &ref)) {
+      for (int i = 0; i < width; i += stride)
+         group_ref(ref, ctx, offset + i, stride);
    }
    else if (ref != NULL)
       ungroup_ref(ref, ctx);
@@ -326,10 +362,16 @@ static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
       ungroup_ref(ref, ctx);
 }
 
-static void group_record_ref(tree_t t, group_nets_ctx_t *ctx)
+static void group_record_ref(tree_t target, group_nets_ctx_t *ctx)
 {
-   // Nothing to do here at the moment as we ungroup all the nets
-   // within a record
+   tree_t ref = NULL;
+   int offset;
+   if (group_calc_offset(target, &offset, &ref)) {
+      tree_t field = find_record_field(target);
+      group_ref(ref, ctx, offset, type_width(tree_type(field)));
+   }
+   else if (ref != NULL)
+      ungroup_ref(ref, ctx);
 }
 
 static void group_name(tree_t t, group_nets_ctx_t *ctx)

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2015  Nick Gasson
+//  Copyright (C) 2013-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -391,6 +391,21 @@ int record_field_to_net(type_t type, ident_t name)
    }
 
    assert(false);
+}
+
+tree_t find_record_field(tree_t rref)
+{
+   ident_t fname = tree_ident(rref);
+   type_t value_type = tree_type(tree_value(rref));
+
+   const int nfields = type_fields(value_type);
+   for (int i = 0; i < nfields; i++) {
+      tree_t field = type_field(value_type, i);
+      if (tree_ident(field) == fname)
+         return field;
+   }
+
+   return NULL;
 }
 
 class_t class_of(tree_t t)

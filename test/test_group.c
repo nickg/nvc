@@ -15,6 +15,7 @@ typedef struct {
 
 static void group_dump(group_nets_ctx_t *ctx)
 {
+   printf("-------------\n");
    for (group_t *it = ctx->groups; it != NULL; it = it->next)
       printf("%3d : %d..%d\n", it->gid, it->first, it->first + it->length - 1);
 }
@@ -271,6 +272,7 @@ START_TEST(test_issue95)
    input_from_file(TESTDIR "/group/issue95.vhd");
 
    tree_t top = run_elab();
+   fail_if(top == NULL);
 
    group_nets_ctx_t ctx = {
       .groups   = NULL,
@@ -283,6 +285,105 @@ START_TEST(test_issue95)
 
    const group_expect_t expect[] = {
       { 5, 5 }, { 4, 4 }, { 3, 3 }, { 2, 2 }, { 1, 1 }, { 0, 0 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
+START_TEST(test_arrayref2)
+{
+   input_from_file(TESTDIR "/group/arrayref2.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 0, 3 }, { 4, 4 }, { 5, 6 }, { 8, 8 }, { 7, 7 }, { 9, 16 },
+      { 17, 18 }, { 19, 22 }, { 25, 26 }, { 23, 24 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
+START_TEST(test_recref1)
+{
+   input_from_file(TESTDIR "/group/recref1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 0, 2 }, { 3, 3 }, { 4, 6 }, { 7, 7 }, { 8, 10 }, { 11, 11 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
+START_TEST(test_array3)
+{
+   input_from_file(TESTDIR "/group/array3.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 6, 6 }, { 7, 7 }, { 5, 5 }, { 0, 4 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
+START_TEST(test_issue250)
+{
+   input_from_file(TESTDIR "/group/issue250.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx = {
+      .groups   = NULL,
+      .next_gid = 0
+   };
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 9, 9 }, { 10, 10 }, { 6, 6 }, { 7, 7 }, { 3, 3 }, { 4, 4 },
+      { 0, 0 }, { 1, 1 }, { 13, 13 }, { 12, 12 }, { 11, 11 }, { 8, 8 },
+      { 5, 5 }, { 2, 2 }
    };
 
    group_expect(&ctx, expect, ARRAY_LEN(expect));
@@ -305,6 +406,10 @@ int main(void)
    tcase_add_test(tc_core, test_slice1);
    tcase_add_test(tc_core, test_arrayref1);
    tcase_add_test(tc_core, test_issue95);
+   tcase_add_test(tc_core, test_arrayref2);
+   tcase_add_test(tc_core, test_recref1);
+   tcase_add_test(tc_core, test_array3);
+   tcase_add_test(tc_core, test_issue250);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

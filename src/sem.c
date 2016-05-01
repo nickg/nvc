@@ -5162,21 +5162,6 @@ static bool sem_check_ref(tree_t t)
    return true;
 }
 
-static tree_t sem_find_record_field(tree_t rref)
-{
-   ident_t fname = tree_ident(rref);
-   type_t value_type = tree_type(tree_value(rref));
-
-   const int nfields = type_fields(value_type);
-   for (int i = 0; i < nfields; i++) {
-      tree_t field = type_field(value_type, i);
-      if (tree_ident(field) == fname)
-         return field;
-   }
-
-   return NULL;
-}
-
 static bool sem_check_record_ref(tree_t t)
 {
    tree_t value = tree_value(t);
@@ -5194,7 +5179,7 @@ static bool sem_check_record_ref(tree_t t)
       sem_error(value, "expected record type but found %s",
                 sem_type_str(value_type));
 
-   tree_t field = sem_find_record_field(t);
+   tree_t field = find_record_field(t);
    if (field == NULL)
       sem_error(t, "record type %s has no field %s",
                 sem_type_str(value_type), istr(tree_ident(t)));
@@ -5716,7 +5701,7 @@ static bool sem_check_attr_ref(tree_t t, bool allow_range)
          break;
 
       case T_RECORD_REF:
-         decl = sem_find_record_field(search);
+         decl = find_record_field(search);
          assert(decl != NULL);
          break;
 
