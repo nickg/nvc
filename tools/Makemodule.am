@@ -1,0 +1,2 @@
+EXTRA_DIST += tools/build-2008-support.rb tools/build-altera.rb tools/build-lattice.rb \
+	tools/build-xilinx-ise.rb tools/build-xilinx-vivado.rb tools/fetch-ieee.sh
