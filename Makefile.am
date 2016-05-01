@@ -1,4 +1,4 @@
-EXTRA_DIST = autogen.sh data/coverage.css nvc.1
+EXTRA_DIST = autogen.sh data/coverage.css nvc.1 nvc.1.md README.md
 
 ACLOCAL_AMFLAGS = -I m4
 
@@ -35,6 +35,7 @@ include lib/std/Makemodule.am
 include lib/ieee/Makemodule.am
 include lib/nvc/Makemodule.am
 include lib/synopsys/Makemodule.am
+include tools/Makemodule.am
 
 if HAVE_RONN
 nvc.1: nvc.1.md

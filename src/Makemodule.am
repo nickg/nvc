@@ -23,7 +23,21 @@ lib_libnvc_a_SOURCES = \
 	src/make.c \
 	src/object.c \
 	src/lower.c \
-	src/vcode.c
+	src/vcode.c \
+	src/array.h \
+	src/common.h \
+	src/fbuf.h \
+	src/hash.h \
+	src/ident.h \
+	src/lib.h \
+	src/object.h \
+	src/phase.h \
+	src/prim.h \
+	src/token.h \
+	src/tree.h \
+	src/type.h \
+	src/util.h \
+	src/vcode.h
 
 lib_libcgen_a_SOURCES = src/cgen.c src/link.c
 lib_libcgen_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

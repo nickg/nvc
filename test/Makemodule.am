@@ -19,7 +19,7 @@ check_LIBRARIES += test/libtest_util.a
 test_libs = test/libtest_util.a lib/libnvc.a lib/librt.a lib/libfastlz.a \
 	$(CHECK_LIBS) $(POW_LIB)
 
-test_libtest_util_a_SOURCES = test/test_util.c
+test_libtest_util_a_SOURCES = test/test_util.c test/test_util.h
 
 bin_test_lib_SOURCES = test/test_lib.c
 bin_test_lib_LDADD = $(test_libs)

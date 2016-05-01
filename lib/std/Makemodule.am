@@ -57,6 +57,8 @@ endif
 
 endif
 
+EXTRA_DIST += lib/std/standard.vhd lib/std/textio.vhd lib/std/env.vhd
+
 libs-std: $(std_DATA) $(std_08_DATA)
 
 lib/std/_NVC_LIB:

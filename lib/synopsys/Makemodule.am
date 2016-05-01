@@ -50,6 +50,11 @@ endif
 
 endif
 
+EXTRA_DIST += lib/synopsys/std_logic_arith.vhd lib/synopsys/std_logic_misc.vhd \
+	lib/synopsys/std_logic_misc.vhd lib/synopsys/std_logic_signed.vhd \
+	lib/synopsys/std_logic_unsigned.vhd lib/synopsys/std_logic_textio.vhd \
+	lib/synopsys/attributes.vhd
+
 libs-synopsys: $(synopsys_ieee_DATA) $(synopsys_DATA)
 
 lib/synopsys/_NVC_LIB:

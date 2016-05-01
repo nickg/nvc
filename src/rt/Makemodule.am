@@ -11,7 +11,12 @@ lib_librt_a_SOURCES = \
 	src/rt/cover.c \
 	src/rt/lxt.c \
 	src/rt/fst.c \
-	src/rt/wave.c
+	src/rt/wave.c \
+	src/rt/rt.h \
+	src/rt/cover.h \
+	src/rt/netdb.h \
+	src/rt/alloc.h \
+	src/rt/heap.h
 
 lib_libjit_a_SOURCES = src/rt/jit.c
 lib_libjit_a_CFLAGS = $(AM_CFLAGS) $(LLVM_CFLAGS)

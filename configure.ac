@@ -1,6 +1,7 @@
-AC_INIT([nvc], [0.1],
+AC_INIT([nvc], [1.0-devel],
         [Nick Gasson <nick@nick.me.uk>],
         [nvc])
+AC_PREREQ([2.63])
 
 dnl Automake 1.11 does not support the serial-tests option
 dnl Remove this when 1.11 no longer in common use

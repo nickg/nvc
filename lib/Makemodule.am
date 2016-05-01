@@ -36,3 +36,6 @@ bootstrap: clean-libs
 	$(MAKE) libs-std libs-ieee libs-nvc libs-synopsys
 
 clean-libs: clean-std clean-ieee clean-nvc clean-synopsys
+
+distcheck-hook:
+	yes | $(top_srcdir)/tools/fetch-ieee.sh
