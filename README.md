@@ -32,7 +32,7 @@ but the release branch is more suitable for third party packaging. The latest
 released version is
 [1.0.0](https://github.com/nickg/nvc/releases/download/r1.0.0/nvc-1.0.0.tar.gz).
 
-#### To build from a Git clone:
+To build from a Git clone:
 
     ./autogen.sh
     ./tools/fetch-ieee.sh
@@ -43,8 +43,9 @@ released version is
 
 Generating the configure script requires autoconf 2.63 and automake 1.11 or later.
 
-#### To build from a released tarball
+To build from a released tarball:
 
+    ./tools/fetch-ieee.sh
     ./configure
     make
     sudo make install
