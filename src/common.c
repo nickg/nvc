@@ -607,8 +607,12 @@ tree_t make_default_value(type_t type, const loc_t *loc)
          return null;
       }
 
+   case T_UNRESOLVED:
+      return NULL;
+
    default:
-      assert(false);
+      fatal_trace("cannot handle type %s in %s",
+                  type_kind_str(type_kind(base)), __func__);
    }
 }
 

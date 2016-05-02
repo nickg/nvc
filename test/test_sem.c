@@ -1655,6 +1655,24 @@ START_TEST(test_dwlau)
 }
 END_TEST
 
+START_TEST(test_jcore1)
+{
+   input_from_file(TESTDIR "/sem/jcore1.vhd");
+
+   const error_t expect[] = {
+      { 15, "no visible declaration for STD_LOGIC" },
+      { 25, "no visible declaration for STD_LOGIC" },
+      { 45, "no visible declaration for PIPELINE_EX_T" },
+      { -1, NULL }
+   };
+   expect_errors(expect);
+
+   parse_and_check(T_ENTITY, T_ARCH);
+
+   fail_unless(sem_errors() == ARRAY_LEN(expect) - 1);
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("sem");
@@ -1737,6 +1755,7 @@ int main(void)
    tcase_add_test(tc_core, test_issue197);
    tcase_add_test(tc_core, test_issue276);
    tcase_add_test(tc_core, test_dwlau);
+   tcase_add_test(tc_core, test_jcore1);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
