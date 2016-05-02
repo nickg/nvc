@@ -44,6 +44,7 @@ static void setup(void)
    opt_set_str("dump-vcode", NULL);
    opt_set_int("relax", 0);
    opt_set_int("ignore-time", 0);
+   opt_set_int("verbose", 0);
    intern_strings();
 }
 

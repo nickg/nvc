@@ -1642,7 +1642,7 @@ tree_t elab(tree_t top)
    if (errors > 0)
       return NULL;
 
-   tree_add_attr_int(e, ident_new("nnets"), next_net);
+   tree_add_attr_int(e, nnets_i, next_net);
 
    if (opt_get_int("cover"))
       cover_tag(e);

@@ -26,7 +26,10 @@
 
 typedef struct {
    group_t   *groups;
+   group_t   *free_list;
    groupid_t  next_gid;
+   group_t  **lookup;
+   int        nnets;
 } group_nets_ctx_t;
 
 static void group_name(tree_t t, group_nets_ctx_t *ctx);
@@ -34,7 +37,14 @@ static void group_name(tree_t t, group_nets_ctx_t *ctx);
 static groupid_t group_alloc(group_nets_ctx_t *ctx,
                              netid_t first, unsigned length)
 {
-   group_t *g = xmalloc(sizeof(group_t));
+   group_t *g;
+   if (ctx->free_list != NULL) {
+      g = ctx->free_list;
+      ctx->free_list = g->next;
+   }
+   else
+      g = xmalloc(sizeof(group_t));
+
    g->next   = ctx->groups;
    g->gid    = ctx->next_gid++;
    g->first  = first;
@@ -42,23 +52,45 @@ static groupid_t group_alloc(group_nets_ctx_t *ctx,
 
    ctx->groups = g;
 
+   for (netid_t i = first; i < first + length; i++)
+      ctx->lookup[i] = g;
+
    return g->gid;
 }
 
-static void group_unlink(group_nets_ctx_t *ctx, group_t *where, group_t *prev)
+static void group_unlink(group_nets_ctx_t *ctx, group_t *where)
 {
-   if (prev == NULL)
+   where->gid = GROUPID_INVALID;
+
+   if (where == ctx->groups)
       ctx->groups = where->next;
-   else
-      prev->next = where->next;
+   else {
+      for (group_t *it = ctx->groups; it != NULL; it = it->next) {
+         if (it->next == where) {
+            it->next = where->next;
+            return;
+         }
+      }
+      fatal_trace("unlink group not in list");
+   }
+}
+
+static void group_reuse(group_nets_ctx_t *ctx, group_t *group)
+{
+   group->next = ctx->free_list;
+   ctx->free_list = group;
 }
 
 static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
 {
    assert(length > 0);
+   assert(first < ctx->nnets);
+   assert(first + length <= ctx->nnets);
 
-   group_t *it, *last;
-   for (it = ctx->groups, last = NULL; it != NULL; last = it, it = it->next) {
+   for (netid_t i = first; i < first + length; i++) {
+      group_t *it = ctx->lookup[i];
+      if (it == NULL || it->gid == GROUPID_INVALID)
+         continue;
 
       if ((it->first == first) && (it->length == length)) {
          // Exactly matches
@@ -78,20 +110,20 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
       else if ((first > it->first)
                && (first + length == it->first + it->length)) {
          // Overlaps on right
-         group_unlink(ctx, it, last);
+         group_unlink(ctx, it);
          group_add(ctx, it->first, first - it->first);
-         free(it);
-         break;
+         group_reuse(ctx, it);
+         return group_alloc(ctx, first, length);
       }
       else if ((first > it->first)
                && (first + length < it->first + it->length)) {
          // Overlaps completely
-         group_unlink(ctx, it, last);
+         group_unlink(ctx, it);
          group_add(ctx, it->first, first - it->first);
          group_add(ctx, first + length,
                    it->first + it->length - first - length);
-         free(it);
-         break;
+         group_reuse(ctx, it);
+         return group_alloc(ctx, first, length);
       }
       else if ((first < it->first)
                && (first + length > it->first + it->length)) {
@@ -104,10 +136,10 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
       else if ((first == it->first)
                && (first + length < it->first + it->length)) {
          // Contains on left
-         group_unlink(ctx, it, last);
+         group_unlink(ctx, it);
          group_add(ctx, first + length, it->length - length);
-         free(it);
-         break;
+         group_reuse(ctx, it);
+         return group_alloc(ctx, first, length);
       }
       else if ((first < it->first)
                && (first + length == it->first + it->length)) {
@@ -117,22 +149,22 @@ static groupid_t group_add(group_nets_ctx_t *ctx, netid_t first, int length)
       }
       else if ((first < it->first) && (first + length > it->first)) {
          // Split left
-         group_unlink(ctx, it, last);
+         group_unlink(ctx, it);
          group_add(ctx, first, it->first - first);
          group_add(ctx, it->first, first + length - it->first);
          group_add(ctx, first + length,
                    it->first + it->length - first - length);
-         free(it);
+         group_reuse(ctx, it);
          return GROUPID_INVALID;
       }
       else if ((first > it->first) && (it->first + it->length > first)) {
          // Split right
-         group_unlink(ctx, it, last);
+         group_unlink(ctx, it);
          group_add(ctx, it->first, first - it->first);
          group_add(ctx, first, it->first + it->length - first);
          group_add(ctx, it->first + it->length,
                    first + length - it->first - it->length);
-         free(it);
+         group_reuse(ctx, it);
          return GROUPID_INVALID;
       }
       else
@@ -500,28 +532,40 @@ static void group_write_netdb(tree_t top, group_nets_ctx_t *ctx)
    fbuf_close(f);
 }
 
+static void group_free_list(group_t *list)
+{
+   while (list != NULL) {
+      group_t *tmp = list->next;
+      free(list);
+      list = tmp;
+   }
+}
+
 void group_nets(tree_t top)
 {
+   const int nnets = tree_attr_int(top, nnets_i, 0);
+
    group_nets_ctx_t ctx = {
-      .groups   = NULL,
-      .next_gid = 0
+      .groups    = NULL,
+      .next_gid  = 0,
+      .lookup    = xcalloc(nnets * sizeof(group_t *)),
+      .nnets     = nnets,
+      .free_list = NULL
    };
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    group_write_netdb(top, &ctx);
 
-   if (getenv("NVC_GROUP_STATS") != NULL) {
-      const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   if (opt_get_int("verbose")) {
       int ngroups = 0;
       for (group_t *it = ctx.groups; it != NULL; it = it->next)
          ngroups++;
 
+      notef("%d nets, %d groups", nnets, ngroups);
       notef("nets:groups ratio %.3f", (float)nnets / (float)ngroups);
    }
 
-   while (ctx.groups != NULL) {
-      group_t *tmp = ctx.groups->next;
-      free(ctx.groups);
-      ctx.groups = tmp;
-   }
+   group_free_list(ctx.groups);
+   group_free_list(ctx.free_list);
+   free(ctx.lookup);
 }

@@ -797,4 +797,5 @@ void intern_strings(void)
    simple_name_i    = ident_new("simple_name");
    conversion_i     = ident_new("conversion");
    std_i            = ident_new("STD");
+   nnets_i          = ident_new("nnets");
 }

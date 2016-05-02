@@ -267,6 +267,7 @@ static int elaborate(int argc, char **argv)
          break;
       case 'V':
          verbose = true;
+         opt_set_int("verbose", 1);
          break;
       case 'g':
          parse_generic(optarg);
@@ -735,6 +736,7 @@ static void set_default_opts(void)
    opt_set_int("relax", 0);
    opt_set_int("ignore-time", 0);
    opt_set_int("force-init", 0);
+   opt_set_int("verbose", 0);
 }
 
 static void usage(void)
