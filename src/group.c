@@ -541,17 +541,21 @@ static void group_free_list(group_t *list)
    }
 }
 
+static void group_init_context(group_nets_ctx_t *ctx, int nnets)
+{
+   ctx->groups    = NULL;
+   ctx->next_gid  = 0;
+   ctx->lookup    = xcalloc(nnets * sizeof(group_t *));
+   ctx->nnets     = nnets;
+   ctx->free_list = NULL;
+}
+
 void group_nets(tree_t top)
 {
    const int nnets = tree_attr_int(top, nnets_i, 0);
 
-   group_nets_ctx_t ctx = {
-      .groups    = NULL,
-      .next_gid  = 0,
-      .lookup    = xcalloc(nnets * sizeof(group_t *)),
-      .nnets     = nnets,
-      .free_list = NULL
-   };
+   group_nets_ctx_t ctx;
+   group_init_context(&ctx, nnets);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    group_write_netdb(top, &ctx);

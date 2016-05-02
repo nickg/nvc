@@ -80,19 +80,16 @@ static void group_expect(group_nets_ctx_t *ctx, const group_expect_t *expect,
    }
 }
 
-static void group_init(group_nets_ctx_t *ctx, tree_t top)
+static void group_test_init(group_nets_ctx_t *ctx, tree_t top)
 {
-   ctx->groups = NULL;
-   ctx->next_gid = 0;
-   ctx->nnets = top ? tree_attr_int(top, nnets_i, 0) : DEFAULT_NNETS;
-   ctx->lookup = xcalloc(sizeof(group_t *) * ctx->nnets);
-   ctx->free_list = NULL;
+   const int nnets = top ? tree_attr_int(top, nnets_i, 0) : DEFAULT_NNETS;
+   group_init_context(ctx, nnets);
 }
 
 START_TEST(test_group_one)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    fail_unless(group_add(&ctx, 0, 1) == 0);
    fail_unless(group_add(&ctx, 2, 1) == 1);
@@ -111,7 +108,7 @@ END_TEST
 START_TEST(test_group_two)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    fail_unless(group_add(&ctx, 0, 4) == 0);
    fail_if(group_add(&ctx, 1, 2) == GROUPID_INVALID);
@@ -123,7 +120,7 @@ END_TEST
 START_TEST(test_group_three)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    group_add(&ctx, 0, 5);
    group_add(&ctx, 1, 4);
@@ -135,7 +132,7 @@ END_TEST
 START_TEST(test_group_four)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    group_add(&ctx, 0, 5);
    group_add(&ctx, 0, 4);
@@ -147,7 +144,7 @@ END_TEST
 START_TEST(test_group_five)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    group_add(&ctx, 2, 4);
    group_add(&ctx, 0, 4);
@@ -159,7 +156,7 @@ END_TEST
 START_TEST(test_group_six)
 {
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
 
    group_add(&ctx, 0, 8);
    group_add(&ctx, 1, 8);
@@ -175,7 +172,7 @@ START_TEST(test_issue72)
    tree_t top = run_elab();
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -195,7 +192,7 @@ START_TEST(test_issue73)
    tree_t top = run_elab();
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -217,7 +214,7 @@ START_TEST(test_slice1)
    tree_t top = run_elab();
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -239,7 +236,7 @@ START_TEST(test_arrayref1)
    tree_t top = run_elab();
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -266,7 +263,7 @@ START_TEST(test_issue95)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -288,7 +285,7 @@ START_TEST(test_arrayref2)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -311,7 +308,7 @@ START_TEST(test_recref1)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -333,7 +330,7 @@ START_TEST(test_array3)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -355,7 +352,7 @@ START_TEST(test_issue250)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
@@ -379,7 +376,7 @@ START_TEST(test_recref2)
    fail_if(top == NULL);
 
    group_nets_ctx_t ctx;
-   group_init(&ctx, NULL);
+   group_test_init(&ctx, NULL);
    tree_visit(top, group_nets_visit_fn, &ctx);
 
    const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
