@@ -154,17 +154,24 @@ static bool group_contains_record(type_t type)
       return false;
 }
 
-static tree_t group_net_to_field(type_t type, netid_t nid)
+static int group_net_to_field(type_t type, netid_t nid)
 {
+   int count = 0;
    if (type_is_record(type)) {
       const int nfields = type_fields(type);
       netid_t first = 0;
       for (int i = 0; i < nfields; i++) {
          tree_t field = type_field(type, i);
+         type_t ftype = tree_type(field);
          const netid_t next = first + type_width(tree_type(field));
-         if (nid >= first && nid < next)
-            return field;
+         if (nid >= first && nid < next) {
+            if (type_is_record(ftype))
+               return count + group_net_to_field(ftype, nid - first);
+            else
+               return count;
+         }
          first = next;
+         count += type_width(ftype);
       }
       fatal_trace("group_net_to_field failed to find field for nid=%d type=%s",
                   nid, type_pp(type));
@@ -185,14 +192,14 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
    type_t type = tree_type(decl);
    const int nnets = tree_nets(decl);
    const bool record = group_contains_record(type);
-   tree_t ffield = NULL;
+   int ffield = -1;
    assert((n == -1) | (start + n <= nnets));
    for (int i = start; i < (n == -1 ? nnets : start + n); i++) {
       netid_t nid = tree_net(decl, i);
       if (first == NETID_INVALID) {
          first  = nid;
          len    = 1;
-         ffield = record ? group_net_to_field(type, i) : NULL;
+         ffield = record ? group_net_to_field(type, i) : -1;
       }
       else if (nid == first + len
                && (!record || group_net_to_field(type, i) == ffield))
@@ -201,7 +208,7 @@ static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)
          group_add(ctx, first, len);
          first  = nid;
          len    = 1;
-         ffield = record ? group_net_to_field(type, i) : NULL;
+         ffield = record ? group_net_to_field(type, i) : -1;
       }
    }
 
