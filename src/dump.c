@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -19,6 +19,7 @@
 #include "util.h"
 #include "hash.h"
 #include "common.h"
+#include "rt/netdb.h"
 
 #include <assert.h>
 #include <string.h>
@@ -31,6 +32,8 @@ static void dump_port(tree_t t, int indent);
 static void dump_decl(tree_t t, int indent);
 
 typedef tree_t (*get_fn_t)(tree_t, unsigned);
+
+static hash_t *net_hash = NULL;
 
 static void tab(int indent)
 {
@@ -989,9 +992,38 @@ void dump(tree_t t)
    }
 }
 
+static void dump_group_fn(groupid_t gid, netid_t first, unsigned length)
+{
+   int tmp, k = 0;
+   tree_t d;
+   while ((tmp = k++),
+          (d = hash_get_nth(net_hash,
+                            (const void *)(uintptr_t)(first + 1), &tmp))) {
+      if (k == 1) {
+         char buf[64];
+         checked_sprintf(buf, sizeof(buf), "%d..%d", first, first + length - 1);
+         printf("%10s   ", buf);
+      }
+      else
+         printf(" ");
+      printf("%s", istr(tree_ident(d)));
+
+      if (type_is_array(tree_type(d))) {
+         const int nnets = tree_nets(d);
+         for (int j = 0; j < nnets; j++) {
+            if (first == tree_net(d, j)) {
+               printf("[%d]", j);
+               break;
+            }
+         }
+      }
+   }
+   printf("\n");
+}
+
 void dump_nets(tree_t top)
 {
-   hash_t *h = hash_new(2048, false);
+   net_hash = hash_new(2048, false);
 
    const int ndecls = tree_decls(top);
    for (int i = 0; i < ndecls; i++) {
@@ -1002,36 +1034,12 @@ void dump_nets(tree_t top)
 
       const int nnets = tree_nets(d);
       for (int j = 0; j < nnets; j++)
-         hash_put(h, (const void *)(uintptr_t)(tree_net(d, j) + 1), d);
+         hash_put(net_hash, (const void *)(uintptr_t)(tree_net(d, j) + 1), d);
    }
 
-   const int nnets = tree_attr_int(top, ident_new("nnets"), -1);
-   assert(nnets != -1);
+   netdb_t *db = netdb_open(top);
+   netdb_walk(db, dump_group_fn);
+   netdb_close(db);
 
-   for (netid_t n = 0; n < (netid_t)nnets; n++) {
-      int tmp, k = 0;
-      tree_t d;
-      while ((tmp = k++),
-             (d = hash_get_nth(h, (const void *)(uintptr_t)(n + 1), &tmp))) {
-         if (k == 1)
-            printf("%4d\t", n);
-         else
-            printf(" ");
-         printf("%s", istr(tree_ident(d)));
-
-         if (type_is_array(tree_type(d))) {
-            const int nnets = tree_nets(d);
-            for (int j = 0; j < nnets; j++) {
-               if (n == tree_net(d, j)) {
-                  printf("[%d]", j);
-                  break;
-               }
-            }
-         }
-      }
-
-      printf("\n");
-   }
-
-   hash_free(h);
+   hash_free(net_hash);
 }
