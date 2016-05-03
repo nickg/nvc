@@ -197,7 +197,7 @@ static int group_net_to_field(type_t type, netid_t nid)
          type_t ftype = tree_type(field);
          const netid_t next = first + type_width(tree_type(field));
          if (nid >= first && nid < next) {
-            if (type_is_record(ftype))
+            if (type_is_array(ftype) || type_is_record(ftype))
                return count + group_net_to_field(ftype, nid - first);
             else
                return count;
@@ -213,8 +213,7 @@ static int group_net_to_field(type_t type, netid_t nid)
       return group_net_to_field(elem, nid % type_width(elem));
    }
    else
-      fatal_trace("unexpected type %s %s in group_net_to_field",
-                  type_pp(type), type_kind_str(type_kind(type)));
+      return 0;
 }
 
 static void group_decl(tree_t decl, group_nets_ctx_t *ctx, int start, int n)

@@ -250,7 +250,7 @@ static tree_t rt_recall_tree(const char *unit, int32_t where);
 static res_memo_t *rt_memo_resolution_fn(type_t type, resolution_fn_t fn);
 static void _tracef(const char *fmt, ...);
 
-#define GLOBAL_TMP_STACK_SZ (256 * 1024)
+#define GLOBAL_TMP_STACK_SZ (1024 * 1024)
 #define PROC_TMP_STACK_SZ   (64 * 1024)
 
 #define TRACE(...) do {                                 \
