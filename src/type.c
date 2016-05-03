@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -714,6 +714,27 @@ type_t type_base_recur(type_t t)
 const char *type_kind_str(type_kind_t t)
 {
    return kind_text_map[t];
+}
+
+bool type_known_width(type_t type)
+{
+   if (!type_is_array(type))
+      return true;
+
+   if (type_is_unconstrained(type))
+      return false;
+
+   if (!type_known_width(type_elem(type)))
+      return false;
+
+   const int ndims = type_dims(type);
+   for (int i = 0; i < ndims; i++) {
+      int64_t low, high;
+      if (!folded_bounds(type_dim(type, i), &low, &high))
+         return false;
+   }
+
+   return true;
 }
 
 unsigned type_width(type_t type)

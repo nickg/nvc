@@ -32,7 +32,7 @@ typedef struct {
    int        nnets;
 } group_nets_ctx_t;
 
-static void group_name(tree_t t, group_nets_ctx_t *ctx);
+static void group_target(tree_t t, group_nets_ctx_t *ctx);
 
 static groupid_t group_alloc(group_nets_ctx_t *ctx,
                              netid_t first, unsigned length)
@@ -262,7 +262,7 @@ static void group_ref(tree_t target, group_nets_ctx_t *ctx, int start, int n)
       group_decl(decl, ctx, start, n);
       break;
    case T_ALIAS:
-      group_name(tree_value(decl), ctx);
+      group_target(tree_value(decl), ctx);
       break;
    default:
       break;
@@ -279,141 +279,113 @@ static void ungroup_ref(tree_t target, group_nets_ctx_t *ctx)
    }
 }
 
-static bool group_calc_offset(tree_t t, int *offset, tree_t *ref)
+static void ungroup_name(tree_t name, group_nets_ctx_t *ctx)
 {
-   switch (tree_kind(t)) {
+   switch (tree_kind(name)) {
+   case T_ARRAY_REF:
+   case T_ARRAY_SLICE:
+   case T_RECORD_REF:
+      ungroup_name(tree_value(name), ctx);
+      break;
    case T_REF:
-      *offset = 0;
-      *ref    = t;
+      ungroup_ref(name, ctx);
+      break;
+   default:
+      fatal_trace("cannot handle tree type %s in ungroup_name",
+                  tree_kind_str(tree_kind(name)));
+   }
+}
+
+static bool group_name(tree_t target, group_nets_ctx_t *ctx, int start, int n)
+{
+   switch (tree_kind(target)) {
+   case T_REF:
+      group_ref(target, ctx, start, n);
       return true;
 
    case T_ARRAY_REF:
       {
-         tree_t value = tree_value(t);
-         int offset0;
-         if (!group_calc_offset(value, &offset0, ref))
-            return false;
+         tree_t value = tree_value(target);
 
          type_t type = tree_type(value);
          if (type_is_unconstrained(type))
             return false;
 
-         *offset = 0;
-         const int nparams = tree_params(t);
+         int offset = 0;
+         const int nparams = tree_params(target);
          for (int i = 0; i < nparams; i++) {
-            tree_t index = tree_value(tree_param(t, i));
-
-            if (tree_kind(index) != T_LITERAL)
-               return false;
-
+            tree_t index = tree_value(tree_param(target, i));
             const int stride = type_width(type_elem(type));
 
-            if (i > 0) {
-               range_t type_r = type_dim(type, i);
-               int64_t low, high;
-               range_bounds(type_r, &low, &high);
+            if (tree_kind(index) != T_LITERAL) {
+               if (i > 0)
+                  return false;
 
-               *offset *= high - low + 1;
+               const int twidth = type_width(type);
+               for (int j = 0; j < twidth; j += stride)
+                  group_name(value, ctx, start + j, n);
+               return true;
             }
+            else {
+               if (i > 0) {
+                  range_t type_r = type_dim(type, i);
+                  int64_t low, high;
+                  range_bounds(type_r, &low, &high);
+                  offset *= high - low + 1;
+               }
 
-            *offset += stride * rebase_index(type, i, assume_int(index));
+               offset += stride * rebase_index(type, i, assume_int(index));
+            }
          }
 
-         return true;
+         return group_name(value, ctx, start + offset, n);
+      }
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t value = tree_value(target);
+         type_t type  = tree_type(value);
+
+         if (type_is_unconstrained(type))
+            return false;    // Only in procedure
+
+         range_t slice = tree_range(target);
+
+         if (tree_kind(slice.left) != T_LITERAL
+             || tree_kind(slice.right) != T_LITERAL)
+            return false;
+
+         int64_t low, high;
+         range_bounds(slice, &low, &high);
+
+         const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
+         const int stride   = type_width(type_elem(type));
+
+         return group_name(value, ctx, start + low0 * stride, n);
       }
 
    case T_RECORD_REF:
       {
-         tree_t value = tree_value(t);
-         int offset0;
-         if (!group_calc_offset(value, &offset0, ref))
-            return false;
-
+         tree_t value = tree_value(target);
          type_t rec = tree_type(value);
-         *offset = offset0 + record_field_to_net(rec, tree_ident(t));
-         return true;
+         const int offset = record_field_to_net(rec, tree_ident(target));
+
+         return group_name(value, ctx, start + offset, n);
       }
 
    case T_AGGREGATE:
    case T_LITERAL:
       // This can appear due to assignments to open ports with a
       // default value
-      *offset = 0;
-      *ref    = NULL;
-      return false;
+      return true;
 
    default:
-      fatal_at(tree_loc(t), "tree kind %s not yet supported for offset "
-               "calculation", tree_kind_str(tree_kind(t)));
+      fatal_at(tree_loc(target), "tree kind %s not yet supported for offset "
+               "calculation", tree_kind_str(tree_kind(target)));
    }
 }
 
-static void group_array_ref(tree_t target, group_nets_ctx_t *ctx)
-{
-   tree_t value = tree_value(target);
-
-   type_t type = tree_type(value);
-   if (type_is_unconstrained(type))
-      return;    // Only in procedure
-
-   const int width  = type_width(type);
-   const int stride = type_width(type_elem(type));
-
-   tree_t ref = NULL;
-   int offset;
-   if (group_calc_offset(target, &offset, &ref))
-      group_ref(ref, ctx, offset, stride);
-   else if (group_calc_offset(value, &offset, &ref)) {
-      for (int i = 0; i < width; i += stride)
-         group_ref(ref, ctx, offset + i, stride);
-   }
-   else if (ref != NULL)
-      ungroup_ref(ref, ctx);
-}
-
-static void group_array_slice(tree_t target, group_nets_ctx_t *ctx)
-{
-   tree_t value = tree_value(target);
-   type_t type  = tree_type(value);
-
-   if (type_is_unconstrained(type))
-      return;    // Only in procedure
-
-   range_t slice = tree_range(target);
-
-   const bool folded =
-      (tree_kind(slice.left) == T_LITERAL)
-      && (tree_kind(slice.right) == T_LITERAL);
-
-   tree_t ref = NULL;
-   int offset;
-   if (group_calc_offset(value, &offset, &ref) && folded) {
-      int64_t low, high;
-      range_bounds(slice, &low, &high);
-
-      const int64_t low0 = rebase_index(type, 0, assume_int(slice.left));
-      const int stride   = type_width(type_elem(type));
-      const int length   = MAX(high - low + 1, 0);
-
-      group_ref(ref, ctx, offset + (low0 * stride), length * stride);
-   }
-   else if (ref != NULL)
-      ungroup_ref(ref, ctx);
-}
-
-static void group_record_ref(tree_t target, group_nets_ctx_t *ctx)
-{
-   tree_t ref = NULL;
-   int offset;
-   if (group_calc_offset(target, &offset, &ref)) {
-      tree_t field = find_record_field(target);
-      group_ref(ref, ctx, offset, type_width(tree_type(field)));
-   }
-   else if (ref != NULL)
-      ungroup_ref(ref, ctx);
-}
-
-static void group_name(tree_t t, group_nets_ctx_t *ctx)
+static void group_target(tree_t t, group_nets_ctx_t *ctx)
 {
    switch (tree_kind(t)) {
    case T_REF:
@@ -421,15 +393,15 @@ static void group_name(tree_t t, group_nets_ctx_t *ctx)
       break;
 
    case T_ARRAY_REF:
-      group_array_ref(t, ctx);
-      break;
-
    case T_ARRAY_SLICE:
-      group_array_slice(t, ctx);
-      break;
-
    case T_RECORD_REF:
-      group_record_ref(t, ctx);
+      {
+         type_t type = tree_type(t);
+         if (!type_known_width(type))
+            ungroup_name(t, ctx);
+         else if (!group_name(t, ctx, 0, type_width(type)))
+            ungroup_name(t, ctx);
+      }
       break;
 
    case T_LITERAL:
@@ -440,7 +412,7 @@ static void group_name(tree_t t, group_nets_ctx_t *ctx)
       {
          const int nassocs = tree_assocs(t);
          for (int i = 0; i < nassocs; i++)
-            group_name(tree_value(tree_assoc(t, i)), ctx);
+            group_target(tree_value(tree_assoc(t, i)), ctx);
       }
       break;
 
@@ -487,14 +459,14 @@ static void group_nets_visit_fn(tree_t t, void *_ctx)
 
    switch (tree_kind(t)) {
    case T_SIGNAL_ASSIGN:
-      group_name(tree_target(t), ctx);
+      group_target(tree_target(t), ctx);
       break;
 
    case T_WAIT:
       {
          const int ntriggers = tree_triggers(t);
          for (int i = 0; i < ntriggers; i++)
-            group_name(tree_trigger(t, i), ctx);
+            group_target(tree_trigger(t, i), ctx);
       }
       break;
 

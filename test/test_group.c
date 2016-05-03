@@ -199,9 +199,8 @@ START_TEST(test_issue73)
    fail_unless(group_sanity_check(&ctx, nnets - 1));
 
    const group_expect_t expect[] = {
-      { 0, 2 }, { 3, 3 }, { 4, 5 }, { 6, 7 },  // X
-      { 8, 8 }, { 9, 9 }, { 10, 10 }, { 11, 11 }, { 12, 12 }, { 13, 13 },
-      { 14, 14 }, { 15, 15}   // Y (sub-optimal!)
+      { 0, 2 }, { 3, 3 }, { 4, 5 }, { 6, 7 },       // X
+      { 8, 9 }, { 10, 11 }, { 12, 13 }, { 14, 15 }  // Y
    };
    group_expect(&ctx, expect, ARRAY_LEN(expect));
 }
@@ -359,9 +358,8 @@ START_TEST(test_issue250)
    fail_unless(group_sanity_check(&ctx, nnets - 1));
 
    const group_expect_t expect[] = {
-      { 9, 9 }, { 10, 10 }, { 6, 6 }, { 7, 7 }, { 3, 3 }, { 4, 4 },
-      { 0, 0 }, { 1, 1 }, { 13, 13 }, { 12, 12 }, { 11, 11 }, { 8, 8 },
-      { 5, 5 }, { 2, 2 }
+      { 0, 1 }, { 2, 2 }, { 3, 4 }, { 5, 5 }, { 6, 7 }, { 13, 13 },
+      { 12, 12 }, { 11, 11 }, { 8, 8 }, { 9, 10 }
    };
 
    group_expect(&ctx, expect, ARRAY_LEN(expect));
@@ -390,6 +388,29 @@ START_TEST(test_recref2)
 }
 END_TEST
 
+START_TEST(test_arrayref3)
+{
+   input_from_file(TESTDIR "/group/arrayref3.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx;
+   group_test_init(&ctx, NULL);
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 14, 15 }, { 12, 13 }, { 10, 11 }, { 8, 9 }, { 6, 7 },
+      { 4, 5 }, { 2, 3 }, { 0, 1 }, { 16, 16 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("group");
@@ -411,6 +432,7 @@ int main(void)
    tcase_add_test(tc_core, test_array3);
    tcase_add_test(tc_core, test_issue250);
    tcase_add_test(tc_core, test_recref2);
+   tcase_add_test(tc_core, test_arrayref3);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);

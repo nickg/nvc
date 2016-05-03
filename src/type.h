@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -147,5 +147,6 @@ type_kind_t type_base_kind(type_t t);
 
 // Helper function to find number of sub-elemets
 unsigned type_width(type_t type);
+bool type_known_width(type_t type);
 
 #endif  // _TYPE_H
