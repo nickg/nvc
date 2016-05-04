@@ -4566,7 +4566,7 @@ void lower_unit(tree_t unit)
 {
    const char *venv = getenv("NVC_LOWER_VERBOSE");
    if (venv != NULL)
-      verbose = isalpha((int)venv[0]) ? venv : "";
+      verbose = isalpha((int)venv[0]) || venv[0] == ':' ? venv : "";
    else
       verbose = opt_get_str("dump-vcode");
 
