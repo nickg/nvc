@@ -1426,6 +1426,7 @@ static void elab_entity_arch(tree_t t, tree_t arch, const elab_ctx_t *ctx)
 
    elab_pseudo_context(ctx->out, t);
    elab_copy_context(t, ctx);
+   elab_decls(t, ctx);
 
    tree_add_attr_str(ctx->out, simple_name_i, npath);
 
