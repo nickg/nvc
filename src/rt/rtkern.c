@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -371,6 +371,7 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
       fatal("postponed process %s cannot cause a delta cycle",
             istr(tree_ident(active_proc->source)));
 
+   const uint8_t *vp = values;
    int offset = 0;
    while (offset < n) {
       const netid_t nid = nids[offset];
@@ -378,12 +379,12 @@ void _sched_waveform(void *_nids, void *values, int32_t n,
          netgroup_t *g = &(groups[netdb_lookup(netdb, nid)]);
 
          value_t *values_copy = rt_alloc_value(g);
-         memcpy(values_copy->data, (uint8_t *)values + (offset * g->size),
-                g->size * g->length);
+         memcpy(values_copy->data, vp, g->size * g->length);
 
          if (!rt_sched_driver(g, after, reject, values_copy))
             deltaq_insert_driver(after, g, active_proc);
 
+         vp += g->size * g->length;
          offset += g->length;
       }
       else
