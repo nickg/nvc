@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -197,7 +197,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_VALUE | I_TYPE),
 
    // T_CASSERT
-   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE),
+   (I_IDENT | I_VALUE | I_SEVERITY | I_MESSAGE | I_ATTRS),
 
    // T_CPCALL
    (I_IDENT | I_IDENT2 | I_PARAMS | I_REF),

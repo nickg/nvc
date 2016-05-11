@@ -21,4 +21,6 @@ begin
     begin
     end process;
 
+    postponed assert x = 1;
+
 end architecture;

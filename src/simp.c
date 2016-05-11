@@ -789,6 +789,9 @@ static tree_t simp_cassert(tree_t t)
    tree_set_ident(process, tree_ident(t));
    tree_set_loc(process, tree_loc(t));
 
+   if (tree_attr_int(t, postponed_i, 0))
+      tree_add_attr_int(process, postponed_i, 1);
+
    tree_t wait = tree_new(T_WAIT);
    tree_set_ident(wait, ident_new("assert_wait"));
    tree_add_attr_int(wait, ident_new("static"), 1);

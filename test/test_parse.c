@@ -235,7 +235,7 @@ START_TEST(test_process)
    a = parse();
    fail_if(a == NULL);
    fail_unless(tree_kind(a) == T_ARCH);
-   fail_unless(tree_stmts(a) == 4);
+   fail_unless(tree_stmts(a) == 5);
 
    p = tree_stmt(a, 0);
    fail_unless(tree_kind(p) == T_PROCESS);
@@ -261,6 +261,10 @@ START_TEST(test_process)
 
    p = tree_stmt(a, 3);
    fail_unless(tree_kind(p) == T_PROCESS);
+   fail_unless(tree_attr_int(p, ident_new("postponed"), 0));
+
+   p = tree_stmt(a, 4);
+   fail_unless(tree_kind(p) == T_CASSERT);
    fail_unless(tree_attr_int(p, ident_new("postponed"), 0));
 
    a = parse();

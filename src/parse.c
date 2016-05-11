@@ -3636,6 +3636,12 @@ static tree_t p_entity_statement(void)
    case tPROCESS:
       return p_process_statement(label);
 
+   case tPOSTPONED:
+      if (peek_nth(2) == tASSERT)
+         return p_concurrent_assertion_statement(label);
+      else
+         return p_process_statement(label);
+
    default:
       expect(tASSERT, tPOSTPONED);
       return tree_new(T_NULL);
@@ -5213,7 +5219,6 @@ static tree_t p_concurrent_statement(void)
    else {
       switch (peek()) {
       case tPROCESS:
-      case tPOSTPONED:
          return p_process_statement(label);
 
       case tCOMPONENT:
@@ -5226,6 +5231,12 @@ static tree_t p_concurrent_statement(void)
 
       case tASSERT:
          return p_concurrent_assertion_statement(label);
+
+      case tPOSTPONED:
+         if (peek_nth(2) == tASSERT)
+            return p_concurrent_assertion_statement(label);
+         else
+            return p_process_statement(label);
 
       case tBLOCK:
          return p_block_statement(label);
