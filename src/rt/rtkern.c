@@ -68,6 +68,7 @@ struct rt_proc {
    void     *tmp_stack;
    uint32_t  tmp_alloc;
    bool      postponed;
+   bool      pending;
 };
 
 typedef enum {
@@ -1402,6 +1403,7 @@ static void rt_setup(tree_t top)
       procs[i].postponed  = tree_attr_int(p, postponed_i, 0);
       procs[i].tmp_stack  = NULL;
       procs[i].tmp_alloc  = 0;
+      procs[i].pending    = false;
    }
 }
 
@@ -1613,7 +1615,7 @@ static void rt_wakeup(sens_list_t *sl)
    // generation: these correspond to stale "wait on" statements that
    // have already resumed.
 
-   if ((sl->wakeup_gen == sl->proc->wakeup_gen) || (sl->reenq != NULL)) {
+   if (sl->wakeup_gen == sl->proc->wakeup_gen || sl->reenq != NULL) {
       TRACE("wakeup process %s%s", istr(tree_ident(sl->proc->source)),
             sl->proc->postponed ? " [postponed]" : "");
       ++(sl->proc->wakeup_gen);
@@ -1626,6 +1628,8 @@ static void rt_wakeup(sens_list_t *sl)
          sl->next = resume;
          resume = sl;
       }
+
+      sl->proc->pending = true;
    }
    else
       rt_free(sens_list_stack, sl);
@@ -1851,7 +1855,10 @@ static void rt_resume_processes(sens_list_t **list)
 {
    sens_list_t *it = *list;
    while (it != NULL) {
-      rt_run(it->proc, false /* reset */);
+      if (it->proc->pending) {
+         rt_run(it->proc, false /* reset */);
+         it->proc->pending = false;
+      }
 
       sens_list_t *next = it->next;
 
