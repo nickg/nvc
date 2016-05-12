@@ -315,3 +315,4 @@ jcore2          normal
 assert5         normal
 jcore3          normal
 jcore4          normal
+jcore5          normal
