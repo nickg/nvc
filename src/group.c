@@ -210,7 +210,11 @@ static int group_net_to_field(type_t type, netid_t nid)
    }
    else if (type_is_array(type)) {
       type_t elem = type_elem(type);
-      return group_net_to_field(elem, nid % type_width(elem));
+      const int width = type_width(elem);
+      if (type_is_record(elem))
+         return (nid / width) * width + group_net_to_field(elem, nid % width);
+      else
+         return group_net_to_field(elem, nid % width);
    }
    else
       return 0;

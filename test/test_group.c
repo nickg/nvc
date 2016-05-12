@@ -434,6 +434,28 @@ START_TEST(test_jcore2)
 }
 END_TEST
 
+START_TEST(test_jcore4)
+{
+   input_from_file(TESTDIR "/group/jcore4.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   group_nets_ctx_t ctx;
+   group_test_init(&ctx, NULL);
+   tree_visit(top, group_nets_visit_fn, &ctx);
+
+   const int nnets = tree_attr_int(top, ident_new("nnets"), 0);
+   fail_unless(group_sanity_check(&ctx, nnets - 1));
+
+   const group_expect_t expect[] = {
+      { 6, 8 }, { 3, 5 }, { 0, 2 }
+   };
+
+   group_expect(&ctx, expect, ARRAY_LEN(expect));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("group");
@@ -457,6 +479,7 @@ int main(void)
    tcase_add_test(tc_core, test_recref2);
    tcase_add_test(tc_core, test_arrayref3);
    tcase_add_test(tc_core, test_jcore2);
+   tcase_add_test(tc_core, test_jcore4);
    suite_add_tcase(s, tc_core);
 
    return nvc_run_test(s);
