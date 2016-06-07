@@ -55,7 +55,8 @@ struct vhpi_cb {
 typedef enum {
    VHPI_CALLBACK,
    VHPI_TREE,
-   VHPI_TYPE
+   VHPI_TYPE,
+   VHPI_RANGE
 } vhpi_obj_kind_t;
 
 #define VHPI_ANY (vhpi_obj_kind_t)-1
@@ -70,6 +71,7 @@ struct vhpi_obj {
       tree_t  tree;
       type_t  type;
       void   *pointer;
+      range_t range;
    };
 };
 
@@ -85,9 +87,19 @@ static hash_t         *handle_hash;
 static vhpiErrorInfoT  last_error;
 static bool            trace_on = false;
 
+const vhpiPhysT vhpiFS = { 0, 1 };
+const vhpiPhysT vhpiPS = { 0, 0x3e8 };
+const vhpiPhysT vhpiNS = { 0, 0xf4240 };
+const vhpiPhysT vhpiUS = { 0, 0x3b9aca00 };
+const vhpiPhysT vhpiMS = { 0xe8, 0xd4a51000 };
+const vhpiPhysT vhpiS = { 0x38d7e, 0xa4c68000 };
+const vhpiPhysT vhpiMN = { 0xd529ae, 0x9e860000 };
+const vhpiPhysT vhpiHR = { 0x31f5c4ed, 0x27680000 };
+
 const char *vhpi_property_str(int property);
 const char *vhpi_cb_reason_str(int reason);
 const char *vhpi_one_to_one_str(vhpiOneToOneT kind);
+const char *vhpi_one_to_many_str(vhpiOneToManyT kind);
 
 #define VHPI_MISSING fatal_trace("VHPI function %s not implemented", __func__)
 #define VHPI_MAGIC   0xbadf00d
@@ -152,7 +164,7 @@ static uint64_t vhpi_time_to_native(const vhpiTimeT *time)
 
 static const char *vhpi_obj_kind_str(vhpi_obj_kind_t kind)
 {
-   const char *names[] = { "callback", "tree", "type" };
+   const char *names[] = { "callback", "tree", "type", "range" };
    if ((unsigned int)kind > ARRAY_LEN(names))
       return "???";
    else
@@ -238,7 +250,7 @@ static int vhpi_count_live_cbs(cb_list_t *list)
 
 static void vhpi_check_for_leaks(void)
 {
-   int leak_tree = 0, leak_cb = 0, leak_type = 0;
+   int leak_tree = 0, leak_cb = 0, leak_type = 0, leak_cons = 0;
 
    if (handle_hash != NULL) {
       hash_iter_t now = HASH_BEGIN;
@@ -253,6 +265,9 @@ static void vhpi_check_for_leaks(void)
                break;
             case VHPI_TYPE:
                leak_type += obj->refcnt;
+               break;
+            case VHPI_RANGE:
+               leak_cons += obj->refcnt;
                break;
             default:
                break;
@@ -270,7 +285,10 @@ static void vhpi_check_for_leaks(void)
          tb_printf(tb, " %d tree handles", leak_tree);
       if (leak_type > 0)
          tb_printf(tb, "%s%s %d type handles", leak_tree ? "," : "",
-                   leak_tree && !leak_cb ? " and" : "", leak_type);
+                   leak_tree && !leak_cons ? " and" : "", leak_type);
+      if (leak_cons > 0)
+         tb_printf(tb, "%s%s %d constraint handles", leak_type ? "," : "",
+                   leak_type && !leak_cb ? " and" : "", leak_cons);
       if (leak_cb > 0)
          tb_printf(tb, "%s%s %d callback handles",
                    leak_tree || leak_type ? "," : "",
@@ -312,6 +330,26 @@ static vhpi_obj_t *vhpi_type_to_obj(type_t t)
       obj->refcnt = 1;
 
       hash_put(handle_hash, t, obj);
+   }
+   else {
+      assert(obj->refcnt > 0);
+      (obj->refcnt)++;
+   }
+
+   return obj;
+}
+
+static vhpi_obj_t *vhpi_range_to_obj(range_t r)
+{
+   vhpi_obj_t *obj = hash_get(handle_hash, r.left /* XXX */);
+   if (obj == NULL) {
+      obj = xcalloc(sizeof(vhpi_obj_t));
+      obj->magic  = VHPI_MAGIC;
+      obj->kind   = VHPI_RANGE;
+      obj->range  = r;
+      obj->refcnt = 1;
+
+      hash_put(handle_hash, r.left, obj);
    }
    else {
       assert(obj->refcnt > 0);
@@ -623,9 +661,32 @@ vhpiHandleT vhpi_handle_by_name(const char *name, vhpiHandleT scope)
 
 vhpiHandleT vhpi_handle_by_index(vhpiOneToManyT itRel,
                                  vhpiHandleT parent,
-                                 int32_t indx)
+                                 int32_t index)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   VHPI_TRACE("itRel=%s parent=%p index=%d", vhpi_one_to_many_str(itRel),
+              parent, index);
+
+   switch (itRel) {
+   case vhpiConstraints:
+      {
+         if (!vhpi_validate_handle(parent, VHPI_TYPE))
+            return NULL;
+
+         if (index < 0 || index >= type_dims(parent->type)) {
+            vhpi_error(vhpiError, NULL, "invalid constaint index %d for "
+                       "type %s", index, type_pp(parent->type));
+            return NULL;
+         }
+
+         return vhpi_range_to_obj(type_dim(parent->type, index));
+      }
+
+   default:
+      fatal_trace("relation %s not supported in vhpi_handle_by_index",
+                  vhpi_one_to_many_str(itRel));
+   }
 }
 
 vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
@@ -815,9 +876,90 @@ vhpiRealT vhpi_get_real(vhpiRealPropertyT property,
 }
 
 vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
-                        vhpiHandleT object)
+                        vhpiHandleT handle)
 {
-   VHPI_MISSING;
+   vhpi_clear_error();
+
+   VHPI_TRACE("property=%s handle=%p", vhpi_property_str(property), handle);
+
+   const vhpiPhysT invalid = { 0, 0 };
+
+   if (property == vhpiResolutionLimitP)
+      return vhpiFS;
+
+   switch (property) {
+   case vhpiPhysValP:
+      {
+         if (!vhpi_validate_handle(handle, VHPI_TREE))
+            return invalid;
+
+         if (!class_has_type(class_of(handle->tree))) {
+            vhpi_error(vhpiError, tree_loc(handle->tree),
+                       "object reference by handle does not have a type");
+            return invalid;
+         }
+
+         type_t type = tree_type(handle->tree);
+         if (!type_is_physical(type)) {
+            vhpi_error(vhpiError, tree_loc(handle->tree),
+                       "object does not have physical type");
+            return invalid;
+         }
+
+         if (tree_kind(handle->tree) != T_SIGNAL_DECL) {
+            vhpi_error(vhpiError, tree_loc(handle->tree), "vhpiPhysValP is "
+                       "only supported for signal declaration objects");
+            return invalid;
+         }
+
+         uint64_t value;
+         rt_signal_value(handle->tree, &value, 1);
+
+         const vhpiPhysT result = {
+            .low  = value & 0xffffffff,
+            .high = value >> 32
+         };
+         return result;
+      }
+
+   case vhpiPhysLeftBoundP:
+   case vhpiPhysRightBoundP:
+      {
+         if (!vhpi_validate_handle(handle, VHPI_RANGE))
+            return invalid;
+
+         tree_t bound = property == vhpiPhysLeftBoundP
+            ? handle->range.left : handle->range.right;
+
+         if (!type_is_physical(tree_type(bound))) {
+            vhpi_error(vhpiError, NULL, "type %s is not a physical type",
+                       type_pp(tree_type(bound)));
+            return invalid;
+         }
+
+         int64_t value;
+         if (!folded_int(bound, &value))
+            fatal_trace("physical type bound is not folded");
+
+         const vhpiPhysT result = {
+            .low  = value & 0xffffffff,
+            .high = value >> 32
+         };
+         return result;
+      }
+
+   case vhpiPhysPositionP:
+   case vhpiTimeP:
+      fatal_trace("unsupported property %s in vhpi_get_phys",
+                  vhpi_property_str(property));
+
+   default:
+      vhpi_error(vhpiError, tree_loc(handle->tree),
+                 "invalid property %s in vhpi_get_phys",
+                 vhpi_property_str(property));
+   }
+
+   return invalid;
 }
 
 int vhpi_protected_call(vhpiHandleT varHdl,
@@ -1222,6 +1364,7 @@ int vhpi_release_handle(vhpiHandleT handle)
 
    case VHPI_TREE:
    case VHPI_TYPE:
+   case VHPI_RANGE:
       assert(handle->refcnt > 0);
       if (--(handle->refcnt) == 0) {
          hash_put(handle_hash, handle->pointer, NULL);
