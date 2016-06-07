@@ -707,7 +707,8 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
          return NULL;
       else if (!class_has_type(class_of(referenceHandle->tree))) {
          vhpi_error(vhpiError, tree_loc(referenceHandle->tree),
-                    "object does not have a type");
+                    "object does not have relationship %s in vhpi_handle",
+                    vhpi_one_to_one_str(type));
          return NULL;
       }
       else {
@@ -718,8 +719,17 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
             return vhpi_type_to_obj(ty);
       }
 
+   case DEPRECATED_vhpiSubtype:
+   case DEPRECATED_vhpiReturnTypeMark:
+   case DEPRECATED_vhpiName:
+   case DEPRECATED_vhpiTypeMark:
+   case DEPRECATED_vhpiDecl:
+      vhpi_error(vhpiError, NULL, "relationship %s is deprecated and "
+                 "not implemented in vhpi_handle", vhpi_one_to_one_str(type));
+      return NULL;
+
    default:
-      fatal_trace("type %s not supported in vhpi_handle",
+      fatal_trace("relationship %s not supported in vhpi_handle",
                   vhpi_one_to_one_str(type));
    }
 }

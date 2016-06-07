@@ -456,6 +456,8 @@ class_t class_of(tree_t t)
       return C_PACKAGE;
    case T_LIBRARY:
       return C_LIBRARY;
+   case T_ELAB:
+      return C_ELAB;
    default:
       fatal("missing class_of for %s", tree_kind_str(tree_kind(t)));
    }
@@ -471,6 +473,7 @@ bool class_has_type(class_t c)
    case C_CONFIGURATION:
    case C_PACKAGE:
    case C_LIBRARY:
+   case C_ELAB:
       return false;
    default:
       return true;
