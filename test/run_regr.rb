@@ -136,7 +136,7 @@ mkdir_p 'logs'
 Dir.chdir 'logs'
 
 ENV['NVC_LIBPATH'] = LibPath
-ENV['NVC_CYG_LIB'] = "#{BuildDir}/src"
+ENV['NVC_CYG_LIB'] = "#{BuildDir}/lib"
 
 HaveVHPI = !!ENV['HAVE_VHPI']
 
