@@ -271,6 +271,7 @@ static tree_t elab_port_to_signal(tree_t arch, tree_t port, tree_t actual)
    tree_set_ident(s, tree_ident(port));
    tree_set_type(s, type);
    tree_add_attr_int(s, fst_dir_i, mode);
+   tree_set_loc(s, tree_loc(port));
 
    if ((mode == PORT_OUT) || (mode == PORT_INOUT) || (mode == PORT_BUFFER)) {
       if (tree_has_value(port))
@@ -401,7 +402,7 @@ static tree_t elab_signal_port(tree_t arch, tree_t formal, tree_t param,
          name = n;
    }
 
-   const bool partial_map = (tree_kind(actual) != T_REF) || (name != NULL);
+   const bool partial_map = name != NULL;
 
    switch (tree_kind(actual)) {
    case T_REF:

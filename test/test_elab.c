@@ -2,6 +2,7 @@
 #include "type.h"
 #include "util.h"
 #include "phase.h"
+#include "common.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -415,6 +416,20 @@ START_TEST(test_issue251)
 }
 END_TEST
 
+START_TEST(test_jcore1)
+{
+   input_from_file(TESTDIR "/elab/jcore1.vhd");
+
+   tree_t top = run_elab();
+   fail_if(top == NULL);
+
+   tree_t s = tree_decl(top, 3);
+   fail_unless(tree_kind(s) == T_SIGNAL_DECL);
+   fail_unless(tree_ident(s) == ident_new(":jcore1:sub_i:x"));
+   fail_if(tree_attr_int(s, partial_map_i, 0));
+}
+END_TEST
+
 int main(void)
 {
    Suite *s = suite_create("elab");
@@ -446,6 +461,7 @@ int main(void)
    tcase_add_test(tc, test_toplevel2);
    tcase_add_test(tc, test_libbind3);
    tcase_add_test(tc, test_issue251);
+   tcase_add_test(tc, test_jcore1);
    suite_add_tcase(s, tc);
 
    return nvc_run_test(s);
