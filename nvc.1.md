@@ -48,6 +48,9 @@ elaborate command.
    Print out a pseudo-VHDL representation of an analysed unit. This is
    usually only useful for debugging the compiler.
 
+ * `--list`:
+   Print all analysed and elaborated units in the library.
+
  * `--make` _units_:
    Generate a makefile for already analysed units.
 
