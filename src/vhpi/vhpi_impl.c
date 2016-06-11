@@ -194,6 +194,45 @@ static bool _vhpi_validate_handle(vhpiHandleT handle, vhpi_obj_kind_t kind,
       return obj;
 }
 
+static const char *vhpi_cb_data_str(const vhpiCbDataT *data)
+{
+   static char buf[256];
+   checked_sprintf(buf, sizeof(buf), "{reason=%s cb_rtn=%p user_data=%p}",
+                   vhpi_cb_reason_str(data->reason), data->cb_rtn,
+                   data->user_data);
+   return buf;
+}
+
+static const char *vhpi_pretty_handle(vhpiHandleT handle)
+{
+   static char *buf = NULL;
+   free(buf);
+   buf = NULL;
+
+   if (handle == NULL)
+      return "<null>";
+   else if (handle->magic != VHPI_MAGIC)
+      return "<BAD>";
+
+   switch (handle->kind) {
+   case VHPI_TREE:
+      return (buf = xasprintf("<tree %s>",
+                              tree_kind_str(tree_kind(handle->tree))));
+   case VHPI_TYPE:
+      return (buf = xasprintf("<type %s>", type_pp(handle->type)));
+
+   case VHPI_CALLBACK:
+      return (buf = xasprintf("<callback enabled=%d data=%s>",
+                              handle->cb.enabled,
+                              vhpi_cb_data_str(&(handle->cb.data))));
+
+   case VHPI_RANGE:
+      return "<range>";
+   }
+
+   return "<\?\?\?>";
+}
+
 static void vhpi_free_obj(vhpi_obj_t *obj)
 {
    obj->magic = 0xbadc0de;
@@ -433,26 +472,6 @@ static rt_event_t vhpi_get_rt_event(int reason)
    }
 }
 
-static const char *vhpi_cb_data_str(const vhpiCbDataT *data)
-{
-   static char buf[256];
-   checked_sprintf(buf, sizeof(buf), "{reason=%s cb_rtn=%p user_data=%p}",
-                   vhpi_cb_reason_str(data->reason), data->cb_rtn,
-                   data->user_data);
-   return buf;
-}
-
-static const char *vhpi_cb_str(vhpiHandleT handle)
-{
-   if (!vhpi_validate_handle(handle, VHPI_CALLBACK))
-      return "{invalid}";
-
-   static char buf[256];
-   checked_sprintf(buf, sizeof(buf), "{enabled=%d data=%s}", handle->cb.enabled,
-                   vhpi_cb_data_str(&(handle->cb.data)));
-   return buf;
-}
-
 int vhpi_assert(vhpiSeverityT severity, char *formatmsg,  ...)
 {
    vhpi_clear_error();
@@ -575,7 +594,7 @@ int vhpi_remove_cb(vhpiHandleT handle)
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("handle=%p", handle);
+   VHPI_TRACE("handle=%s", vhpi_pretty_handle(handle));
 
    return vhpi_release_handle(handle);
 }
@@ -584,7 +603,7 @@ int vhpi_disable_cb(vhpiHandleT cb_obj)
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("cb_obj=%s", vhpi_cb_str(cb_obj));
+   VHPI_TRACE("cb_obj=%s", vhpi_pretty_handle(cb_obj));
 
    if (!vhpi_validate_handle(cb_obj, VHPI_CALLBACK))
       return 1;
@@ -597,7 +616,7 @@ int vhpi_enable_cb(vhpiHandleT cb_obj)
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("cb_obj=%s", vhpi_cb_str(cb_obj));
+   VHPI_TRACE("cb_obj=%s", vhpi_pretty_handle(cb_obj));
 
    if (!vhpi_validate_handle(cb_obj, VHPI_CALLBACK))
       return 1;
@@ -734,8 +753,11 @@ vhpiHandleT vhpi_handle(vhpiOneToOneT type, vhpiHandleT referenceHandle)
    }
 }
 
-vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT referenceHandle)
+vhpiHandleT vhpi_iterator(vhpiOneToManyT type, vhpiHandleT handle)
 {
+   VHPI_TRACE("type=%s handle=%s", vhpi_one_to_many_str(type),
+              vhpi_pretty_handle(handle));
+
    VHPI_MISSING;
 }
 
@@ -748,7 +770,8 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("property=%s handle=%p", vhpi_property_str(property), handle);
+   VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
+              vhpi_pretty_handle(handle));
 
    switch (property) {
    case vhpiStateP:
@@ -809,6 +832,15 @@ vhpiIntT vhpi_get(vhpiIntPropertyT property, vhpiHandleT handle)
       else
          return type_is_scalar(handle->type);
 
+   case vhpiStaticnessP:
+      if (!vhpi_validate_handle(handle, VHPI_TREE))
+         return vhpiUndefined;
+      else {
+         vhpi_error(vhpiError, tree_loc(handle->tree), "property "
+                    "vhpiStaticnessP not yet implemented in vhpi_get");
+         return vhpiUndefined;
+      }
+
    default:
       vhpi_error(vhpiFailure, NULL, "unsupported property %s in vhpi_get",
                  vhpi_property_str(property));
@@ -821,7 +853,8 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("property=%s handle=%p", vhpi_property_str(property), handle);
+   VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
+              vhpi_pretty_handle(handle));
 
    switch (property) {
    case vhpiNameP:
@@ -846,6 +879,7 @@ const vhpiCharT *vhpi_get_str(vhpiStrPropertyT property,
       }
 
    case vhpiFullNameP:
+   case vhpiFullCaseNameP:
       {
          if (!vhpi_validate_handle(handle, VHPI_TREE))
             return NULL;
@@ -890,7 +924,8 @@ vhpiPhysT vhpi_get_phys(vhpiPhysPropertyT property,
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("property=%s handle=%p", vhpi_property_str(property), handle);
+   VHPI_TRACE("property=%s handle=%s", vhpi_property_str(property),
+              vhpi_pretty_handle(handle));
 
    const vhpiPhysT invalid = { 0, 0 };
 
@@ -1142,7 +1177,8 @@ int vhpi_put_value(vhpiHandleT handle,
 
    vhpi_clear_error();
 
-   VHPI_TRACE("handle=%p value_p=%p mode=%d", handle, value_p, mode);
+   VHPI_TRACE("handle=%s value_p=%p mode=%d", vhpi_pretty_handle(handle),
+              value_p, mode);
 
    if (!vhpi_validate_handle(handle, VHPI_TREE))
       return 1;
@@ -1332,7 +1368,7 @@ int vhpi_release_handle(vhpiHandleT handle)
 {
    vhpi_clear_error();
 
-   VHPI_TRACE("handle=%p", handle);
+   VHPI_TRACE("handle=%s", vhpi_pretty_handle(handle));
 
    if (!vhpi_validate_handle(handle, VHPI_ANY))
       return 1;
