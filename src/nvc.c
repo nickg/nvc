@@ -67,8 +67,13 @@ static unsigned parse_relax(const char *str)
    while (token != NULL) {
       if (strcmp(token, "prefer-explicit") == 0)
          mask |= RELAX_PREFER_EXPLICT;
-      else if (strcmp(token, "generic-static") == 0)
-         mask |= RELAX_GENERIC_STATIC;
+      else if (strcmp(token, "locally-static") == 0)
+         mask |= RELAX_LOCALLY_STATIC;
+      else if (strcmp(token, "generic-static") == 0) {
+         warnf("relax option 'generic-static' is deprecated: use "
+               "'locally-static' instead");
+         mask |= RELAX_LOCALLY_STATIC;
+      }
       else if (strcmp(token, "universal-bound") == 0)
          mask |= RELAX_UNIVERSAL_BOUND;
       else if (strcmp(token, "pure-files") == 0)

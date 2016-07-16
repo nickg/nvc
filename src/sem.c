@@ -6118,7 +6118,7 @@ static bool sem_locally_static(tree_t t)
             && sem_locally_static(value)
             && !tree_attr_int(value, unconstrained_i, 0);
       }
-      else if ((standard() >= STD_08 || relax & RELAX_GENERIC_STATIC)
+      else if ((standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)
                && dkind == T_PORT_DECL) {
          // [2008] A generic reference with a locally static subtype
          return tree_class(decl) == C_CONSTANT

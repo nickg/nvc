@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2015  Nick Gasson
+//  Copyright (C) 2013-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -98,7 +98,7 @@ const char *standard_text(vhdl_standard_t s);
 //
 
 #define RELAX_PREFER_EXPLICT  (1 << 0)
-#define RELAX_GENERIC_STATIC  (1 << 1)
+#define RELAX_LOCALLY_STATIC  (1 << 1)
 #define RELAX_UNIVERSAL_BOUND (1 << 2)
 #define RELAX_PURE_FILES      (1 << 3)
 

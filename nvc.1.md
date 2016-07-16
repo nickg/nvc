@@ -216,9 +216,9 @@ disable certain semantic rule checks.
   operator regardless of the region in which it is declared. This is required to
   analyse code that uses the Synopsys `std_logic_arith` package.
 
-* `generic-static`:
-  References to generics are allowed in locally static expressions using the
-  VHDL-2008 rules.
+* `locally-static`:
+  References to generics and array slices are allowed in locally static expressions
+  using the VHDL-2008 rules.
 
 * `universal-bound`:
   Prior to VHDL-2000 when range bounds have universal integer type the expressions
