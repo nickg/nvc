@@ -122,7 +122,7 @@ static bool parse_test_list(int argc, char **argv)
       if (argc > 0) {
          bool found = false;
          for (int i = 0; i < argc && !found; i++)
-            found = strcmp(name, argv[i]) == 0;
+            found = strstr(name, argv[i]) != NULL;
          if (!found)
             continue;
       }

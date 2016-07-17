@@ -3504,13 +3504,74 @@ static void lower_case_scalar(tree_t stmt, loop_stack_t *loops)
    vcode_select_block(exit_bb);
 }
 
+static int64_t lower_case_find_choice_element(tree_t value, int depth)
+{
+   switch (tree_kind(value)) {
+   case T_LITERAL:
+      {
+         assert(tree_subkind(value) == L_STRING);
+         tree_t ch = tree_char(value, depth);
+         return tree_pos(tree_ref(ch));
+      }
+      break;
+
+   case T_AGGREGATE:
+      {
+         const int nassocs = tree_assocs(value);
+         type_t type = tree_type(value);
+
+         for (int i = 0; i < nassocs; i++) {
+            tree_t a = tree_assoc(value, i);
+            switch (tree_subkind(a)) {
+            case A_NAMED:
+               if (rebase_index(type, 0, assume_int(tree_name(a))) == depth)
+                  return assume_int(tree_value(a));
+               break;
+
+            case A_POS:
+               if (tree_pos(a) == (unsigned)depth)
+                  return assume_int(tree_value(a));
+               break;
+
+            case A_OTHERS:
+               return assume_int(tree_value(a));
+            }
+         }
+      }
+      break;
+
+   case T_REF:
+      {
+         tree_t decl = tree_ref(value);
+         assert(tree_kind(decl) == T_CONST_DECL);
+         return lower_case_find_choice_element(tree_value(decl), depth);
+      }
+      break;
+
+   case T_ARRAY_SLICE:
+      {
+         tree_t base = tree_value(value);
+         range_t r = tree_range(value);
+         const int64_t rleft = assume_int(r.left);
+         const int64_t offset = rebase_index(tree_type(base), 0, rleft);
+         return lower_case_find_choice_element(base, depth + offset);
+      }
+
+   default:
+      fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
+               tree_kind_str(tree_kind(value)));
+   }
+
+   fatal_at(tree_loc(value), "cannot find element %d in choice", depth);
+}
+
 static void lower_case_add_branch(case_state_t *where, int left, int right,
                                   int depth, int dirmul,
                                   tree_t value, tree_t stmts)
 {
    const int n = left + (depth * dirmul);
 
-   if (((dirmul == -1) && (n < right)) || ((dirmul == 1) && (n > right))) {
+   if ((dirmul == -1 && n < right) || (dirmul == 1 && n > right)) {
       if (where->stmts != NULL)
          fatal_at(tree_loc(value), "duplicate choice in case statement");
 
@@ -3518,41 +3579,7 @@ static void lower_case_add_branch(case_state_t *where, int left, int right,
       where->stmts = stmts;
    }
    else {
-      bool found = false;
-      int64_t this = 0;
-      if (tree_kind(value) == T_LITERAL) {
-         assert(tree_subkind(value) == L_STRING);
-         tree_t ch = tree_char(value, depth);
-         this  = tree_pos(tree_ref(ch));
-         found = true;
-      }
-      else {
-         const int nassocs = tree_assocs(value);
-         for (int i = 0; (i < nassocs) && !found; i++) {
-            tree_t a = tree_assoc(value, i);
-            switch (tree_subkind(a)) {
-            case A_NAMED:
-               if (assume_int(tree_name(a)) == n) {
-                  this = assume_int(tree_value(a));
-                  found = true;
-               }
-               break;
-
-            case A_POS:
-               if (tree_pos(a) == (unsigned)depth) {
-                  this = assume_int(tree_value(a));
-                  found = true;
-               }
-               break;
-
-            case A_OTHERS:
-               this = assume_int(tree_value(a));
-               found = true;
-               break;
-            }
-         }
-      }
-      assert(found);
+      const int64_t this = lower_case_find_choice_element(value, depth);
 
       for (int i = 0; i < where->narcs; i++) {
          if (where->arcs[i].value == this) {
@@ -3656,23 +3683,8 @@ static void lower_case_array(tree_t stmt, loop_stack_t *loops)
       tree_t a = tree_assoc(stmt, i);
       switch (tree_subkind(a)) {
       case A_NAMED:
-         {
-            tree_t name = tree_name(a);
-            tree_kind_t kind = tree_kind(name);
-
-            if (kind != T_AGGREGATE && kind != T_LITERAL) {
-               assert(kind == T_REF);
-               tree_t decl = tree_ref(name);
-               assert(tree_kind(decl) == T_CONST_DECL);
-               name = tree_value(decl);
-               kind = tree_kind(name);
-            }
-
-            assert(kind == T_AGGREGATE || kind == T_LITERAL);
-
-            lower_case_add_branch(&root, left, right, 0, dirmul,
-                                  name, tree_value(a));
-         }
+         lower_case_add_branch(&root, left, right, 0, dirmul,
+                               tree_name(a), tree_value(a));
          break;
 
       case A_OTHERS:
