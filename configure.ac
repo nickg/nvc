@@ -101,8 +101,12 @@ case $host_os in
 
     AC_SEARCH_LIBS([ffi_call], [ffi], [],
       [AC_MSG_ERROR(LLVM on Cygwin requires libffi)], [])
+
+    EXEEXT=.exe
     ;;
 esac
+
+AC_DEFINE_UNQUOTED([EXEEXT], ["$EXEEXT"], [Executable file extension])
 
 AC_SEARCH_LIBS([dlopen], [dl dld], [], [
   AC_MSG_ERROR([unable to find the dlopen() function])

@@ -10,7 +10,8 @@ UNIT_TESTS = \
 	bin/test_group \
 	bin/test_bounds \
 	bin/test_value \
-	bin/test_lower
+	bin/test_lower \
+	bin/run_regr    # Must always be last
 
 check_PROGRAMS += $(UNIT_TESTS)
 
@@ -57,14 +58,16 @@ bin_test_value_LDADD = $(test_libs)
 bin_test_lower_SOURCES = test/test_lower.c
 bin_test_lower_LDADD = $(test_libs)
 
+bin_run_regr_SOURCES = test/run_regr.c
+
 TESTS_ENVIRONMENT = \
 	BUILD_DIR=$(top_builddir) \
 	LIB_DIR=$(abs_top_builddir)/lib \
 	EXEEXT=$(EXEEXT)
-TESTS = $(UNIT_TESTS) test/run_regr.rb
+TESTS = $(UNIT_TESTS)
 
 if ENABLE_VHPI
-test/run_regr.rb: $(VHPI_PLUGINS)
+test/run_regr: $(VHPI_PLUGINS)
 
 TESTS_ENVIRONMENT += HAVE_VHPI=1
 endif

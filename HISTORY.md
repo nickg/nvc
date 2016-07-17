@@ -6,6 +6,7 @@
 - Improvements to simulation performance
 - Implemented `vhpi_get_phys`
 - Added command `--list` to print all units in a library
+- Rewrote the `run_regr` program in C so `make check` no longer requires Ruby
 
 ## 1.0 - 2015-05-01
 - First stable release

@@ -1,7 +1,7 @@
 .\" generated with Ronn/v0.7.3
 .\" http://github.com/rtomayko/ronn/tree/0.7.3
 .
-.TH "NVC" "1" "2016-06-11" "" "NVC Manual"
+.TH "NVC" "1" "2016-07-16" "" "NVC Manual"
 .
 .SH "NAME"
 \fBnvc\fR \- VHDL Compiler and Simulator
@@ -223,8 +223,8 @@ The following can be specified as a comma\-separated list to the \fB\-\-relax\fR
 Any visible explicitly declared operator always hides an implicit operator regardless of the region in which it is declared\. This is required to analyse code that uses the Synopsys \fBstd_logic_arith\fR package\.
 .
 .TP
-\fBgeneric\-static\fR
-References to generics are allowed in locally static expressions using the VHDL\-2008 rules\.
+\fBlocally\-static\fR
+References to generics and array slices are allowed in locally static expressions using the VHDL\-2008 rules\.
 .
 .TP
 \fBuniversal\-bound\fR

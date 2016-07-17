@@ -134,10 +134,6 @@ To run the regression tests:
 
 The unit tests require the [check](http://check.sourceforge.net) library.
 
-You may need to install additional Ruby libraries:
-
-    gem install colorize getopt
-
 ### VHDL-2008
 
 NVC supports a small subset of VHDL-2008 which can be enabled with the `--std=2008`
