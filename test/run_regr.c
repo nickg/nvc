@@ -39,6 +39,7 @@
 #define F_OPT     (1 << 6)
 #define F_COVER   (1 << 7)
 #define F_GENERIC (1 << 8)
+#define F_RELAX   (1 << 9)
 
 typedef struct test test_t;
 typedef struct generic generic_t;
@@ -56,6 +57,7 @@ struct test {
    int        flags;
    char      *stop;
    generic_t *generics;
+   char      *relax;
 };
 
 struct arglist {
@@ -177,6 +179,17 @@ static bool parse_test_list(int argc, char **argv)
 
             test->generics = g;
             test->flags |= F_GENERIC;
+         }
+         else if (strncmp(opt, "relax", 5) == 0) {
+            char *value = strchr(opt, '=');
+            if (value == NULL) {
+               fprintf(stderr, "Error on testlist line %d: missing argument to "
+                       "relax option in test %s\n", lineno, name);
+               goto out_close;
+            }
+
+            test->flags |= F_RELAX;
+            test->relax = strdup(value + 1);
          }
          else {
             fprintf(stderr, "Error on testlist line %d: invalid option %s in "
@@ -347,6 +360,10 @@ static bool run_test(test_t *test)
 
    push_arg(&args, "-a");
    push_arg(&args, "%s/regress/%s.vhd", test_dir, test->name);
+
+   if (test->flags & F_RELAX)
+      push_arg(&args, "--relax=%s", test->relax);
+
    push_arg(&args, "-e");
    push_arg(&args, "%s", test->name);
 

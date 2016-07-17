@@ -6214,6 +6214,16 @@ static bool sem_locally_static(tree_t t)
    if ((kind == T_REF) && (tree_kind(tree_ref(t)) == T_FIELD_DECL))
       return true;
 
+   // [2008] A slice name whose prefix and range is locally static
+   if (kind == T_ARRAY_SLICE &&
+       (standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)) {
+      range_t r = tree_range(t);
+      if (!sem_locally_static(r.left) || !sem_locally_static(r.right))
+         return false;
+
+      return sem_locally_static(tree_value(t));
+   }
+
    return false;
 }
 
