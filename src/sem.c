@@ -6131,12 +6131,10 @@ static bool sem_locally_static(tree_t t)
       return sem_locally_static(tree_value(t));
 
    // A function call of an implicit operator with locally static actuals
-   if (kind == T_FCALL) {
-      tree_t decl = tree_ref(t);
+   if (kind == T_FCALL || kind == T_CONCAT) {
 
-      ident_t builtin = tree_attr_str(decl, builtin_i);
-      if (builtin == NULL)
-         return false;
+      if (kind == T_FCALL && tree_attr_str(tree_ref(t), builtin_i) == NULL)
+            return false;
 
       bool all_static = true;
       const int nparams = tree_params(t);

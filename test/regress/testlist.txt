@@ -318,4 +318,5 @@ jcore4          normal
 jcore5          normal
 vhpi3           normal,vhpi
 jcore6          normal
-issue106        normal,relax=locally-static
+issue106        normal,2008
+case7           normal,2008

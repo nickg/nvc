@@ -3557,6 +3557,23 @@ static int64_t lower_case_find_choice_element(tree_t value, int depth)
          return lower_case_find_choice_element(base, depth + offset);
       }
 
+   case T_CONCAT:
+      {
+         tree_t left = tree_value(tree_param(value, 0));
+         tree_t right = tree_value(tree_param(value, 1));
+
+         range_t lr = type_dim(tree_type(left), 0);
+         int64_t left_len;
+         if (!folded_length(lr, &left_len))
+            fatal_at(tree_loc(left), "cannot determine length of left hand "
+                     "side of concatenation");
+
+         if (depth < left_len)
+            return lower_case_find_choice_element(left, depth);
+         else
+            return lower_case_find_choice_element(right, depth - left_len);
+      }
+
    default:
       fatal_at(tree_loc(value), "unsupported tree type %s in case choice",
                tree_kind_str(tree_kind(value)));
