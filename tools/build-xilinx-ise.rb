@@ -80,11 +80,7 @@ xcl_skip = [
   # No configurations
   'prims_sim_arch_v4_0.vhd',
 
-  # Invalid boolean conversion
-  'cmpy_v4_0.vhd',
-  'cmpy_v5_0.vhd',
-
-  # [NVC BUG] slice out of bounds
+  # Slice out of bounds
   'fir_compiler_v5_1_sim_pkg.vhd',
   'fir_compiler_v5_0_sim_pkg.vhd',
   'cic_compiler_v3_0_fir_pkg.vhd',
