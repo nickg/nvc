@@ -1678,6 +1678,9 @@ START_TEST(test_based)
    d = tree_decl(p, 7);
    fail_unless(tree_ival(tree_value(d)) == 0xabababab);
 
+   d = tree_decl(p, 8);
+   fail_unless(tree_ival(tree_value(d)) == 0x1a);
+
    p = parse();
    fail_unless(p == NULL);
 

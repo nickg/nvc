@@ -8,5 +8,7 @@ package p is
     constant f : integer := 2#1_0#;
     constant g : integer := 2:1_0:;
     constant h : integer := 16#abababab#;
+    constant i : integer := 16#1A#;
+    constant j : integer := 36#Z#;
 
 end package;

@@ -81,7 +81,7 @@ DIGITS     [0-9][0-9_]*
 INT        {DIGITS}{EXPONENT}?
 REAL       {INT}\.{INT}
 EXPONENT   [Ee][+-]?{DIGITS}
-BASED_INT  {INT}[#:][?i:0-9a-f][?i:0-9a-f_]*[#:]
+BASED_INT  {INT}[#:][0-9a-zA-Z][0-9a-zA-Z_]*[#:]
 SPACE      [ \t\r\n]+
 TICK       \'
 
