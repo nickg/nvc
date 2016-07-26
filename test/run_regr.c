@@ -339,7 +339,7 @@ static bool run_test(test_t *test)
    printf("%15s : ", test->name);
 
 #ifndef ENABLE_VHPI
-   if (f->flags & F_VHPI) {
+   if (test->flags & F_VHPI) {
       set_attr(ANSI_FG_CYAN);
       printf("skipped\n");
       set_attr(ANSI_RESET);
