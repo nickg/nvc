@@ -363,7 +363,7 @@ static void bounds_check_aggregate(tree_t t)
 
    range_t type_r = type_dim(type, 0);
 
-   const bool unconstrained = tree_attr_int(t, unconstrained_i, 0);
+   const bool unconstrained = tree_flags(t) & TREE_F_UNCONSTRAINED;
 
    if (unconstrained) {
       // Aggregate of unconstrained array type

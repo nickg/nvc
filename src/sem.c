@@ -4584,7 +4584,7 @@ static bool sem_check_string_literal(tree_t t)
       type_add_dim(tmp, r);
 
       tree_set_type(t, tmp);
-      tree_add_attr_int(t, unconstrained_i, 1);
+      tree_set_flag(t, TREE_F_UNCONSTRAINED);
    }
    else
       tree_set_type(t, type);
@@ -4981,7 +4981,7 @@ static bool sem_check_aggregate(tree_t t)
       tree_set_type(t, composite_type);
 
    if (unconstrained)
-      tree_add_attr_int(t, unconstrained_i, 1);
+      tree_set_flag(t, TREE_F_UNCONSTRAINED);
 
    return true;
 }
@@ -6116,7 +6116,7 @@ static bool sem_locally_static(tree_t t)
          tree_t value = tree_value(decl);
          return sem_subtype_locally_static(tree_type(decl))
             && sem_locally_static(value)
-            && !tree_attr_int(value, unconstrained_i, 0);
+            && !(tree_flags(value) & TREE_F_UNCONSTRAINED);
       }
       else if ((standard() >= STD_08 || relax & RELAX_LOCALLY_STATIC)
                && dkind == T_PORT_DECL) {
@@ -6183,7 +6183,7 @@ static bool sem_locally_static(tree_t t)
    // Aggregates must have locally static range and all elements
    // must have locally static values
    if (kind == T_AGGREGATE) {
-      if (tree_attr_int(t, unconstrained_i, 0))
+      if (tree_flags(t) & TREE_F_UNCONSTRAINED)
          return false;
 
       if (type_is_array(type)) {

@@ -152,7 +152,6 @@ GLOBAL ident_t formal_i;
 GLOBAL ident_t elab_copy_i;
 GLOBAL ident_t all_i;
 GLOBAL ident_t shared_i;
-GLOBAL ident_t unconstrained_i;
 GLOBAL ident_t protected_i;
 GLOBAL ident_t inst_name_i;
 GLOBAL ident_t fst_dir_i;

@@ -760,7 +760,6 @@ void intern_strings(void)
    elab_copy_i      = ident_new("elab_copy");
    all_i            = ident_new("all");
    shared_i         = ident_new("shared");
-   unconstrained_i  = ident_new("unconstrained");
    protected_i      = ident_new("protected");
    inst_name_i      = ident_new("INSTANCE_NAME");
    fst_dir_i        = ident_new("fst_dir");
