@@ -272,7 +272,7 @@ static void bounds_check_array_ref(tree_t t)
    }
 
    if (nstatic == nparams)
-      tree_add_attr_int(t, elide_bounds_i, 1);
+      tree_set_flag(t, TREE_F_ELIDE_BOUNDS);
 }
 
 static void bounds_check_array_slice(tree_t t)

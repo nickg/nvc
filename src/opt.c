@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2015  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -84,7 +84,7 @@ static void opt_elide_array_ref_bounds(tree_t t)
          return;
    }
 
-   tree_add_attr_int(t, elide_bounds_i, 1);
+   tree_set_flag(t, TREE_F_ELIDE_BOUNDS);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

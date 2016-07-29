@@ -772,6 +772,7 @@ static bool elab_should_copy(tree_t t)
    case T_NEW:
    case T_BINDING:
    case T_SPEC:
+   case T_AGGREGATE:
        return false;
    case T_VAR_DECL:
       if (tree_attr_int(t, shared_i, 0))

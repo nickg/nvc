@@ -783,7 +783,6 @@ void intern_strings(void)
    static_i         = ident_new("static");
    mangled_i        = ident_new("mangled");
    last_value_i     = ident_new("LAST_VALUE");
-   elide_bounds_i   = ident_new("elide_bounds");
    null_range_i     = ident_new("null_range");
    deferred_i       = ident_new("deferred");
    prot_field_i     = ident_new("prot_field");

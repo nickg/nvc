@@ -1656,7 +1656,7 @@ static vcode_reg_t lower_array_ref_offset(tree_t ref, vcode_reg_t array)
          alias = decl;
    }
 
-   const bool elide_bounds = tree_attr_int(ref, elide_bounds_i, 0);
+   const bool elide_bounds = tree_flags(ref) & TREE_F_ELIDE_BOUNDS;
 
    vcode_reg_t idx = emit_const(vtype_offset(), 0);
    const int nparams = tree_params(ref);
