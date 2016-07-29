@@ -37,7 +37,7 @@ static const char *item_text_map[] = {
    "I_DVAL",     "I_SPEC",      "I_OPS",      "I_CONSTR",     "I_BASE",
    "I_ELEM",     "I_FILE",      "I_ACCESS",   "I_RESOLUTION", "I_RESULT",
    "I_UNITS",    "I_LITERALS",  "I_DIMS",     "I_FIELDS",     "I_TEXT_BUF",
-   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CODE"
+   "I_ATTRS",    "I_PTYPES",    "I_CHARS",    "I_CODE",       "I_FLAGS"
 };
 
 static object_class_t *classes[4];
@@ -344,6 +344,8 @@ void object_visit(object_t *object, object_visit_ctx_t *ctx)
             object_visit((object_t *)object->items[i].type, ctx);
          else if (ITEM_INT64 & mask)
             ;
+         else if (ITEM_INT32 & mask)
+            ;
          else if (ITEM_DOUBLE & mask)
             ;
          else if (ITEM_RANGE & mask) {
@@ -436,6 +438,8 @@ object_t *object_rewrite(object_t *object, object_rewrite_ctx_t *ctx)
          else if (ITEM_TYPE & mask)
             type_item = n;
          else if (ITEM_INT64 & mask)
+            ;
+         else if (ITEM_INT32 & mask)
             ;
          else if (ITEM_DOUBLE & mask)
             ;
@@ -599,6 +603,8 @@ void object_write(object_t *object, object_wr_ctx_t *ctx)
          }
          else if (ITEM_INT64 & mask)
             write_u64(object->items[n].ival, ctx->file);
+         else if (ITEM_INT32 & mask)
+            write_u32(object->items[n].ival, ctx->file);
          else if (ITEM_RANGE & mask) {
             if (object->items[n].range != NULL) {
                write_u8(object->items[n].range->kind, ctx->file);
@@ -780,6 +786,8 @@ object_t *object_read(object_rd_ctx_t *ctx, int tag)
          }
          else if (ITEM_INT64 & mask)
             object->items[n].ival = read_u64(ctx->file);
+         else if (ITEM_INT32 & mask)
+            object->items[n].ival = read_u32(ctx->file);
          else if (ITEM_RANGE & mask) {
             const uint8_t rmarker = read_u8(ctx->file);
             if (rmarker != UINT8_C(0xff)) {
@@ -999,6 +1007,8 @@ bool object_copy_mark(object_t *object, object_copy_ctx_t *ctx)
             type_item = n;
          else if (ITEM_INT64 & mask)
             ;
+         else if (ITEM_INT32 & mask)
+            ;
          else if (ITEM_RANGE & mask) {
             range_t *r = object->items[n].range;
             if (r != NULL) {
@@ -1089,7 +1099,7 @@ object_t *object_copy_sweep(object_t *object, object_copy_ctx_t *ctx)
          else if (ITEM_TYPE & mask)
             copy->items[n].type = (type_t)
                object_copy_sweep((object_t *)object->items[n].type, ctx);
-         else if (ITEM_INT64 & mask)
+         else if ((ITEM_INT64 & mask) || (ITEM_INT32 & mask))
             copy->items[n].ival = object->items[n].ival;
          else if (ITEM_RANGE & mask) {
             const range_t *from = object->items[n].range;

@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2013-2014  Nick Gasson
+//  Copyright (C) 2013-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -82,6 +82,7 @@ typedef uint64_t imask_t;
 #define I_PTYPES     ONE_HOT(46)
 #define I_CHARS      ONE_HOT(47)
 #define I_CODE       ONE_HOT(48)
+#define I_FLAGS      ONE_HOT(49)
 
 #define ITEM_IDENT       (I_IDENT | I_IDENT2)
 #define ITEM_TREE        (I_VALUE | I_SEVERITY | I_MESSAGE | I_TARGET \
@@ -93,7 +94,8 @@ typedef uint64_t imask_t;
                           | I_LITERALS | I_FIELDS | I_UNITS | I_CHARS)
 #define ITEM_TYPE        (I_TYPE | I_BASE | I_ELEM | I_ACCESS | I_RESULT \
                           | I_FILE)
-#define ITEM_INT64       (I_POS | I_SUBKIND | I_CLASS | I_IVAL)
+#define ITEM_INT64       (I_POS | I_IVAL)
+#define ITEM_INT32       (I_SUBKIND | I_CLASS | I_FLAGS)
 #define ITEM_RANGE       (I_RANGE)
 #define ITEM_NETID_ARRAY (I_NETS)
 #define ITEM_DOUBLE      (I_DVAL)

@@ -799,7 +799,6 @@ void intern_strings(void)
    wait_level_i     = ident_new("wait_level");
    impure_io_i      = ident_new("impure_io");
    simple_name_i    = ident_new("simple_name");
-   conversion_i     = ident_new("conversion");
    std_i            = ident_new("STD");
    nnets_i          = ident_new("nnets");
 }

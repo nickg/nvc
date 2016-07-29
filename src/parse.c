@@ -917,7 +917,7 @@ static tree_t p_actual_part(void)
       && tree_params(designator) == 1;
 
    if (could_be_conversion)
-      tree_add_attr_int(designator, conversion_i, 1);
+      tree_set_flag(designator, TREE_F_CONVERSION);
 
    return designator;
 }
@@ -4909,7 +4909,7 @@ static tree_t p_options(tree_t stmt)
    BEGIN("options");
 
    if (optional(tGUARDED))
-      tree_add_attr_int(stmt, ident_new("guarded"), 1);
+      tree_set_flag(stmt, TREE_F_GUARDED);
 
    return p_delay_mechanism();
 }

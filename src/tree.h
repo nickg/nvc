@@ -1,5 +1,5 @@
 //
-//  Copyright (C) 2011-2014  Nick Gasson
+//  Copyright (C) 2011-2016  Nick Gasson
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -153,6 +153,18 @@ typedef enum tree_kind {
    T_LAST_TREE_KIND
 } tree_kind_t;
 
+typedef enum {
+   TREE_F_LOCALLY_STATIC  = (1 << 0),
+   TREE_F_GLOBALLY_STATIC = (1 << 1),
+   TREE_F_UNCONSTRAINED   = (1 << 2),
+   TREE_F_IMPURE          = (1 << 3),
+   TREE_F_CONVERSION      = (1 << 4),
+   TREE_F_POSTPONED       = (1 << 5),
+   TREE_F_SHARED          = (1 << 6),
+   TREE_F_REPORT          = (1 << 7),
+   TREE_F_GUARDED         = (1 << 8),
+} tree_flags_t;
+
 tree_t tree_new(tree_kind_t kind);
 tree_kind_t tree_kind(tree_t t);
 void tree_change_kind(tree_t t, tree_kind_t kind);
@@ -294,6 +306,9 @@ unsigned tree_nets(tree_t t);
 netid_t tree_net(tree_t t, unsigned n);
 void tree_add_net(tree_t t, netid_t n);
 void tree_change_net(tree_t t, unsigned n, netid_t i);
+
+tree_flags_t tree_flags(tree_t t);
+void tree_set_flag(tree_t t, tree_flags_t mask);
 
 uint32_t tree_index(tree_t t);
 

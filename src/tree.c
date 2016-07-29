@@ -37,7 +37,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_IDENT | I_VALUE | I_TYPE | I_SUBKIND | I_CLASS | I_ATTRS),
 
    // T_FCALL
-   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS),
+   (I_IDENT | I_PARAMS | I_TYPE | I_REF | I_ATTRS | I_FLAGS),
 
    // T_LITERAL
    (I_SUBKIND | I_TYPE | I_IVAL | I_DVAL | I_CHARS | I_ATTRS),
@@ -164,7 +164,7 @@ static const imask_t has_map[T_LAST_TREE_KIND] = {
    (I_PARAMS | I_TYPE),
 
    // T_TYPE_CONV
-   (I_PARAMS | I_TYPE | I_REF),
+   (I_PARAMS | I_TYPE | I_REF | I_FLAGS),
 
    // T_SELECT
    (I_IDENT | I_VALUE | I_ASSOCS),
@@ -570,6 +570,16 @@ void tree_set_dval(tree_t t, double d)
 {
    assert((t->object.kind == T_LITERAL) && (tree_subkind(t) == L_REAL));
    lookup_item(&tree_object, t, I_DVAL)->dval = d;
+}
+
+tree_flags_t tree_flags(tree_t t)
+{
+   return lookup_item(&tree_object, t, I_FLAGS)->ival;
+}
+
+void tree_set_flag(tree_t t, tree_flags_t mask)
+{
+   lookup_item(&tree_object, t, I_FLAGS)->ival |= mask;
 }
 
 unsigned tree_chars(tree_t t)

@@ -5878,7 +5878,7 @@ static bool sem_check_actual(formal_map_t *formals, int nformals,
 
          tree_t func = tree_ref(value);
          if (tree_ports(func) == 1 && tree_params(value) == 1
-             && tree_attr_int(value, conversion_i, 0))
+             && (tree_flags(value) & TREE_F_CONVERSION))
             actual = tree_value(tree_param(value, 0));
       }
    }
